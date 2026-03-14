@@ -7,6 +7,7 @@ const api: DesktopApi = {
     getModel: () => ipcRenderer.invoke("workspace:get-model"),
     listTree: (rootPath, options) => ipcRenderer.invoke("workspace:list-tree", rootPath, options),
     searchNotes: (query) => ipcRenderer.invoke("workspace:search-notes", query),
+    searchWorkspace: (query) => ipcRenderer.invoke("workspace:search-workspace", query),
     searchTag: (tag) => ipcRenderer.invoke("workspace:search-tag", tag),
   },
   notes: {
@@ -14,6 +15,8 @@ const api: DesktopApi = {
     save: (filePath, frontmatter, body) => ipcRenderer.invoke("notes:save", filePath, frontmatter, body),
     getKnowledge: (filePath) => ipcRenderer.invoke("notes:get-knowledge", filePath),
     resolveTarget: (sourceFilePath, target) => ipcRenderer.invoke("notes:resolve-target", sourceFilePath, target),
+    getBranchFamily: (filePath) => ipcRenderer.invoke("notes:get-branch-family", filePath),
+    createBranch: (filePath, frontmatter, body) => ipcRenderer.invoke("notes:create-branch", filePath, frontmatter, body),
   },
   terminals: {
     ensureDefault: () => ipcRenderer.invoke("terminals:ensure-default"),

@@ -17,6 +17,11 @@ Phase 1 is UI-first:
 - workspace-aware roots and file navigation
 - visual regression and interaction harnesses from the start
 
+Current shell status:
+- markdown notes and project files both open cleanly
+- branch-aware note flows are back
+- search spans notes, tags, and project files
+
 Higher-level systems follow after the shell is stable:
 - memory and quirk runtime
 - autoresearch workcells
@@ -68,4 +73,3 @@ pnpm test:visual
 - `docs/tasks.md`: active execution tracker
 - `docs/roadmap.md`: feature roadmap by phase
 - `docs/resources.md`: retained references and external substrates
-

@@ -2,8 +2,8 @@ import { access, readdir, readFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import path from "node:path";
 
-import type { AttachedRoot, SearchResult, TreeNode, WorkspaceModel } from "./types";
-import { readNoteDocument } from "./notes";
+import type { AttachedRoot, SearchResult, TreeNode, WorkspaceModel, WorkspaceSearchResults } from "./types";
+import { readWorkspaceDocument } from "./notes";
 
 const DEFAULT_WORKSPACE_ROOT = "/Users/kenneth/Desktop/lab";
 const DEFAULT_NOTE_ROOT = "/Users/kenneth/Desktop/lab/notes/shoshin-codex";
@@ -110,9 +110,9 @@ export async function searchNotes(model: WorkspaceModel, query: string): Promise
   }
 
   const noteFiles = await listMarkdownFiles(model.noteRoots.map((root) => root.path));
-  const results = await Promise.all(
+  const results: Array<SearchResult | null> = await Promise.all(
     noteFiles.map(async (filePath) => {
-      const document = await readNoteDocument(filePath);
+      const document = await readWorkspaceDocument(filePath);
       const haystack = `${document.title}\n${document.body}`.toLowerCase();
       if (!haystack.includes(trimmedQuery)) {
         return null;
@@ -129,11 +129,106 @@ export async function searchNotes(model: WorkspaceModel, query: string): Promise
         filePath,
         title: document.title,
         snippet,
+        kind: "note" as const,
       };
     }),
   );
 
-  return results.filter((result): result is SearchResult => result !== null).slice(0, 30);
+  return results.filter(isSearchResult).slice(0, 30);
+}
+
+export async function searchProjectFiles(model: WorkspaceModel, query: string): Promise<SearchResult[]> {
+  const trimmedQuery = query.trim().toLowerCase();
+  if (!trimmedQuery) {
+    return [];
+  }
+
+  const files = await listFiles(model.projectRoots.map((root) => root.path));
+  const results: Array<SearchResult | null> = await Promise.all(
+    files.map(async (filePath) => {
+      const normalizedPath = filePath.toLowerCase();
+      let snippet = path.relative(model.workspaceRoot, filePath);
+      let matches = normalizedPath.includes(trimmedQuery);
+
+      if (!matches && isTextLikeFile(filePath)) {
+        const preview = await loadFilePreview(filePath).catch(() => "");
+        if (preview.toLowerCase().includes(trimmedQuery)) {
+          matches = true;
+          const compactPreview = preview.replace(/\s+/g, " ");
+          const matchIndex = compactPreview.toLowerCase().indexOf(trimmedQuery);
+          snippet =
+            matchIndex >= 0
+              ? compactPreview.slice(Math.max(0, matchIndex - 30), Math.min(compactPreview.length, matchIndex + 90))
+              : compactPreview.slice(0, 120);
+        }
+      }
+
+      if (!matches) {
+        return null;
+      }
+
+      return {
+        filePath,
+        title: path.basename(filePath),
+        snippet,
+        kind: "project-file" as const,
+      };
+    }),
+  );
+
+  return results.filter(isSearchResult).slice(0, 40);
+}
+
+export async function searchTags(model: WorkspaceModel, query: string): Promise<SearchResult[]> {
+  const trimmedQuery = query.trim().replace(/^#/, "").toLowerCase();
+  if (!trimmedQuery) {
+    return [];
+  }
+
+  const noteFiles = await listMarkdownFiles(model.noteRoots.map((root) => root.path));
+  const results: Array<SearchResult | null> = await Promise.all(
+    noteFiles.map(async (filePath) => {
+      const document = await readWorkspaceDocument(filePath);
+      const rawTags = Array.isArray(document.frontmatter.tags)
+        ? document.frontmatter.tags.filter((entry): entry is string => typeof entry === "string")
+        : typeof document.frontmatter.tags === "string"
+          ? document.frontmatter.tags.split(/[,\s]+/)
+          : [];
+      const matchingTag = rawTags
+        .map((entry) => entry.replace(/^#/, ""))
+        .find((entry) => entry.toLowerCase().includes(trimmedQuery))
+        ?? Array.from(document.body.matchAll(/(^|\s)#([a-zA-Z0-9/_-]+)/g))
+          .map((match) => match[2])
+          .find((entry) => entry.toLowerCase().includes(trimmedQuery));
+
+      if (!matchingTag) {
+        return null;
+      }
+
+      return {
+        filePath,
+        title: document.title,
+        snippet: `#${matchingTag}`,
+        kind: "tag" as const,
+      };
+    }),
+  );
+
+  return results.filter(isSearchResult).slice(0, 30);
+}
+
+export async function searchWorkspace(model: WorkspaceModel, query: string): Promise<WorkspaceSearchResults> {
+  const [notes, projectFiles, tags] = await Promise.all([
+    searchNotes(model, query),
+    searchProjectFiles(model, query),
+    searchTags(model, query),
+  ]);
+
+  return {
+    notes,
+    projectFiles,
+    tags,
+  };
 }
 
 export async function listMarkdownFiles(rootPaths: string[]): Promise<string[]> {
@@ -142,6 +237,11 @@ export async function listMarkdownFiles(rootPaths: string[]): Promise<string[]> 
 }
 
 async function collectMarkdownFiles(rootPath: string): Promise<string[]> {
+  const files = await collectFiles(rootPath, true);
+  return files.filter((filePath) => filePath.endsWith(".md"));
+}
+
+async function collectFiles(rootPath: string, markdownOnly = false): Promise<string[]> {
   if (!(await pathExists(rootPath))) {
     return [];
   }
@@ -154,17 +254,34 @@ async function collectMarkdownFiles(rootPath: string): Promise<string[]> {
       .map(async (entry) => {
         const entryPath = path.join(rootPath, entry.name);
         if (entry.isDirectory()) {
-          return collectMarkdownFiles(entryPath);
+          return collectFiles(entryPath, markdownOnly);
         }
 
-        return entry.name.endsWith(".md") ? [entryPath] : [];
+        if (markdownOnly) {
+          return entry.name.endsWith(".md") ? [entryPath] : [];
+        }
+
+        return [entryPath];
       }),
   );
 
   return files.flat();
 }
 
+export async function listFiles(rootPaths: string[]): Promise<string[]> {
+  const files = await Promise.all(rootPaths.map((rootPath) => collectFiles(rootPath)));
+  return files.flat();
+}
+
 export async function loadFilePreview(filePath: string): Promise<string> {
   const content = await readFile(filePath, "utf8");
   return content.slice(0, 400);
+}
+
+function isTextLikeFile(filePath: string): boolean {
+  return /\.(?:md|markdown|txt|ts|tsx|js|jsx|json|py|swift|toml|ya?ml|css|html|sh|mjs|cjs)$/i.test(filePath);
+}
+
+function isSearchResult(value: SearchResult | null): value is SearchResult {
+  return value !== null;
 }

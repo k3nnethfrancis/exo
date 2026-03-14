@@ -108,12 +108,18 @@ Build:
 - docked terminal pane on the right or bottom
 - terminal tabs with `Terminal`, `Claude`, and `Codex`
 - split-pane resizing and stable chrome/layout
+- open project files without forcing notebook semantics
 
 ### Phase 2 — Knowledge/editor parity
 Build:
 - backlinks, tags, search, branches
 - workspace-aware file navigation
 - notebook execution surfaces
+
+Current phase-2 slice already in:
+- note branch families using Garden's file-family pattern
+- unified search sections for notes, tags, and project files
+- markdown-note vs project-file editor behavior split
 
 ### Phase 3 — Runtime and memory
 Build:
@@ -163,4 +169,3 @@ Visual coverage should include:
 - bottom-docked terminal
 - Claude and Codex terminal tabs
 - backlinks, tags, and search results surfaces
-

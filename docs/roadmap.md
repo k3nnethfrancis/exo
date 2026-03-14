@@ -5,6 +5,7 @@
 - markdown notebook editor
 - plain terminals
 - deterministic visual validation
+- project-file editing path beside notebook notes
 
 ## Phase 2
 - knowledge-system parity:
@@ -13,6 +14,8 @@
   - search
   - branches
   - workspace-aware navigation
+  - notebook execution
+  - deeper search ranking and keyboard navigation
 
 ## Phase 3
 - runtime and memory:
@@ -45,4 +48,3 @@
   - eval suites
   - operator labels
   - local helper-model training
-

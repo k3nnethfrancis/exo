@@ -16,16 +16,22 @@ It replaces Garden's native macOS shell with an Electron shell while preserving 
 
 ## Current Focus
 
-Phase 1 is UI-first.
+Phase 1 is functionally in place and Phase 2 has started.
 
-Build and validate:
+Current working shell:
 - Electron workspace shell
-- markdown-notebook editor
+- markdown-notebook editor for notes
+- plain text/code editor path for project files
 - plain terminal panes with `Claude` and `Codex` launchers
-- workspace-aware roots and navigation
+- workspace-aware roots and per-tab cwd launch support
 - Playwright interaction and screenshot harnesses
 
-Do not rebuild the full memory/research system until the shell is stable.
+Active Phase 2 work:
+- branch-aware note families
+- unified note/project/tag search
+- richer workspace-aware navigation
+
+Do not rebuild the full memory/research system until the shell and knowledge/editor parity surfaces are stable.
 
 ## Core Model
 
@@ -53,19 +59,26 @@ Training data is always explicitly scoped. Never assume "all Exo data".
 
 ## Immediate Deliverables
 
+Completed:
 1. New repo and copied operating docs
 2. Electron + React + TypeScript + Vite workspace
 3. CodeMirror-based markdown notebook shell
 4. xterm.js + node-pty terminal shell
 5. fixture workspace for deterministic testing
 6. Playwright e2e and screenshot baselines
+7. project-file editing path alongside markdown notes
+8. branch-aware note family flows
+9. unified workspace search across notes, tags, and project files
+
+Next:
+1. notebook execution surfaces
+2. deeper search/navigation parity
+3. runtime + memory reintroduction
 
 ## Short-Term Roadmap
 
-1. UI/editor/terminal shell
-2. knowledge/editor parity
-3. runtime + memory
-4. research harness
-5. multi-agent system
-6. datasets, evals, and training
-
+1. Finish Phase 2 knowledge/editor parity
+2. Runtime + memory
+3. Research harness
+4. Multi-agent system
+5. Datasets, evals, and training

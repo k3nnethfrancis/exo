@@ -1,8 +1,8 @@
 import CodeMirror from "@uiw/react-codemirror";
 import { markdown } from "@codemirror/lang-markdown";
 import { oneDark } from "@codemirror/theme-one-dark";
-import { ChevronDown, ChevronRight, ExternalLink, Save, TerminalSquare } from "lucide-react";
-import type { NoteDocument, NoteKnowledge, SearchResult } from "@exo/core";
+import { ChevronDown, ChevronRight, ExternalLink, GitBranch, Save, TerminalSquare } from "lucide-react";
+import type { BranchFamily, NoteDocument, NoteKnowledge, SearchResult } from "@exo/core";
 
 interface EditorDocument extends NoteDocument {
   dirty: boolean;
@@ -11,6 +11,7 @@ interface EditorDocument extends NoteDocument {
 interface NoteEditorProps {
   document: EditorDocument | null;
   knowledge: NoteKnowledge | null;
+  branchFamily: BranchFamily | null;
   propertiesCollapsed: boolean;
   tagResults: SearchResult[];
   activeTag: string | null;
@@ -21,12 +22,14 @@ interface NoteEditorProps {
   onOpenExternal: (target: string) => void;
   onOpenTag: (tag: string) => void;
   onOpenShellHere: () => void;
+  onCreateBranch: () => void;
 }
 
 export function NoteEditor(props: NoteEditorProps) {
   const {
     document,
     knowledge,
+    branchFamily,
     propertiesCollapsed,
     tagResults,
     activeTag,
@@ -37,6 +40,7 @@ export function NoteEditor(props: NoteEditorProps) {
     onOpenExternal,
     onOpenTag,
     onOpenShellHere,
+    onCreateBranch,
   } = props;
 
   if (!document) {
@@ -48,7 +52,10 @@ export function NoteEditor(props: NoteEditorProps) {
     );
   }
 
-  const frontmatterEntries = Object.entries(document.frontmatter).filter(([key]) => key !== "tags");
+  const isMarkdown = document.kind === "markdown";
+  const frontmatterEntries = Object.entries(document.frontmatter).filter(
+    ([key]) => key !== "tags" && !key.startsWith("branch_"),
+  );
 
   return (
     <section className="editor-panel" data-testid="editor-panel">
@@ -58,9 +65,23 @@ export function NoteEditor(props: NoteEditorProps) {
           <div className="editor-panel__title" data-testid="editor-title">
             {document.title}
           </div>
+          {branchFamily && isMarkdown ? (
+            <div className="editor-panel__meta" data-testid="branch-meta">
+              <GitBranch size={13} />
+              {document.filePath === branchFamily.rootFilePath
+                ? "Base note"
+                : `Branch ${branchFamily.currentPath.join(".")}`}
+            </div>
+          ) : null}
         </div>
 
         <div className="editor-panel__actions">
+          {isMarkdown ? (
+            <button className="toolbar-button" data-testid="create-branch" onClick={onCreateBranch} type="button">
+              <GitBranch size={14} />
+              Branch
+            </button>
+          ) : null}
           <button className="toolbar-button" onClick={onOpenShellHere} type="button">
             <TerminalSquare size={14} />
             Shell Here
@@ -72,40 +93,46 @@ export function NoteEditor(props: NoteEditorProps) {
         </div>
       </div>
 
-      <div className="properties-card" data-testid="properties-panel">
-        <button className="properties-card__toggle" onClick={onToggleProperties} type="button">
-          {propertiesCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-          Properties
-        </button>
+      {isMarkdown ? (
+        <div className="properties-card" data-testid="properties-panel">
+          <button className="properties-card__toggle" onClick={onToggleProperties} type="button">
+            {propertiesCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+            Properties
+          </button>
 
-        {propertiesCollapsed ? null : (
-          <div className="properties-card__content">
-            {frontmatterEntries.map(([key, value]) => (
-              <div key={key} className="properties-card__row">
-                <span className="properties-card__key">{key}</span>
-                <span className="properties-card__value">{String(value)}</span>
-              </div>
-            ))}
-            {(document.frontmatter.tags as string[] | string | undefined) ? (
-              <div className="properties-card__row">
-                <span className="properties-card__key">tags</span>
-                <div className="tag-list">
-                  {knowledge?.tags.map((tag) => (
-                    <button key={tag.tag} className="tag-pill" onClick={() => onOpenTag(tag.tag)} type="button">
-                      #{tag.tag}
-                    </button>
-                  ))}
+          {propertiesCollapsed ? null : (
+            <div className="properties-card__content">
+              {frontmatterEntries.map(([key, value]) => (
+                <div key={key} className="properties-card__row">
+                  <span className="properties-card__key">{key}</span>
+                  <span className="properties-card__value">{String(value)}</span>
                 </div>
-              </div>
-            ) : null}
-          </div>
-        )}
-      </div>
+              ))}
+              {(document.frontmatter.tags as string[] | string | undefined) ? (
+                <div className="properties-card__row">
+                  <span className="properties-card__key">tags</span>
+                  <div className="tag-list">
+                    {knowledge?.tags.map((tag) => (
+                      <button key={tag.tag} className="tag-pill" onClick={() => onOpenTag(tag.tag)} type="button">
+                        #{tag.tag}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="properties-card properties-card--file" data-testid="properties-panel">
+          <div className="properties-card__file-label">Project file</div>
+        </div>
+      )}
 
       <div className="editor-surface">
         <CodeMirror
           value={document.body}
-          extensions={[markdown()]}
+          extensions={document.kind === "markdown" ? [markdown()] : []}
           theme={oneDark}
           basicSetup={{
             lineNumbers: false,
@@ -116,29 +143,37 @@ export function NoteEditor(props: NoteEditorProps) {
         />
       </div>
 
-      <KnowledgePanel
-        knowledge={knowledge}
-        activeTag={activeTag}
-        tagResults={tagResults}
-        onOpenTarget={onOpenTarget}
-        onOpenExternal={onOpenExternal}
-        onOpenTag={onOpenTag}
-      />
+      {isMarkdown ? (
+        <KnowledgePanel
+          knowledge={knowledge}
+          branchFamily={branchFamily}
+          activeTag={activeTag}
+          tagResults={tagResults}
+          currentFilePath={document.filePath}
+          onOpenTarget={onOpenTarget}
+          onOpenExternal={onOpenExternal}
+          onOpenTag={onOpenTag}
+        />
+      ) : null}
     </section>
   );
 }
 
 function KnowledgePanel({
   knowledge,
+  branchFamily,
   activeTag,
   tagResults,
+  currentFilePath,
   onOpenTarget,
   onOpenExternal,
   onOpenTag,
 }: {
   knowledge: NoteKnowledge | null;
+  branchFamily: BranchFamily | null;
   activeTag: string | null;
   tagResults: SearchResult[];
+  currentFilePath: string;
   onOpenTarget: (target: string) => void;
   onOpenExternal: (target: string) => void;
   onOpenTag: (tag: string) => void;
@@ -211,6 +246,31 @@ function KnowledgePanel({
             {tagResults.length === 0 ? <div className="knowledge-empty">No notes for #{activeTag}</div> : null}
           </div>
         ) : null}
+      </div>
+
+      <div className="knowledge-panel__section" data-testid="branches-panel">
+        <div className="knowledge-panel__title">Branches</div>
+        {branchFamily?.members.length ? (
+          <>
+            {branchFamily.members.map((member) => (
+              <button
+                key={member.filePath}
+                className={`knowledge-item ${member.filePath === currentFilePath ? "knowledge-item--active" : ""}`}
+                onClick={() => onOpenTarget(member.filePath)}
+                type="button"
+              >
+                <span>{member.isRoot ? member.title : `${member.path.join(".")} · ${member.title}`}</span>
+              </button>
+            ))}
+            {branchFamily.members.length > 1 ? (
+              <pre className="branch-tree" data-testid="branch-tree">
+                {branchFamily.tree}
+              </pre>
+            ) : null}
+          </>
+        ) : (
+          <div className="knowledge-empty">No branch family yet</div>
+        )}
       </div>
     </div>
   );

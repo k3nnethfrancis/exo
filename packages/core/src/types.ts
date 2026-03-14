@@ -1,4 +1,5 @@
 export type RootKind = "notes" | "projects";
+export type DocumentKind = "markdown" | "text";
 
 export interface AttachedRoot {
   id: string;
@@ -28,6 +29,7 @@ export interface NoteDocument {
   title: string;
   frontmatter: Record<string, unknown>;
   body: string;
+  kind: DocumentKind;
 }
 
 export interface WikilinkReference {
@@ -60,5 +62,33 @@ export interface SearchResult {
   filePath: string;
   title: string;
   snippet: string;
+  kind: "note" | "project-file" | "tag";
 }
 
+export interface WorkspaceSearchResults {
+  notes: SearchResult[];
+  projectFiles: SearchResult[];
+  tags: SearchResult[];
+}
+
+export interface BranchEntry {
+  filePath: string;
+  relativePath: string;
+  title: string;
+  path: number[];
+  isRoot: boolean;
+}
+
+export interface BranchFamily {
+  baseName: string;
+  rootFilePath: string;
+  currentFilePath: string;
+  currentPath: number[];
+  members: BranchEntry[];
+  tree: string;
+}
+
+export interface BranchCreateResult {
+  branchFilePath: string;
+  family: BranchFamily;
+}

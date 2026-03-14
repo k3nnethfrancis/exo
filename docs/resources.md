@@ -26,3 +26,12 @@ Garden's learned memory architecture should carry forward conceptually:
 
 QMD remains a retrieval/index reference, not a hard dependency.
 
+## Carry-over references already used
+
+- Garden branch-family semantics
+  - file-family pattern: `note.md`, `note-looms/1.md`, `note-looms/1.1.md`
+- Garden knowledge/editor parity targets
+  - backlinks
+  - tags
+  - branches
+  - workspace-aware navigation

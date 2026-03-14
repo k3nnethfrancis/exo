@@ -14,6 +14,7 @@ describe("notes", () => {
 
     expect(document.title).toBe("Focus Note");
     expect(document.frontmatter.status).toBe("active");
+    expect(document.kind).toBe("markdown");
   });
 
   it("extracts knowledge references", async () => {

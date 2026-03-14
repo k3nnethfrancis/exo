@@ -1,28 +1,31 @@
 # Exo Tasks
 
 ## P0 — Repo and shell bootstrap
-- [ ] Create Electron workspace shell
-- [ ] Add shared core package
-- [ ] Add CLI package
-- [ ] Add fixture workspace
-- [ ] Add Playwright interaction and screenshot harnesses
+- [x] Create Electron workspace shell
+- [x] Add shared core package
+- [x] Add CLI package
+- [x] Add fixture workspace
+- [x] Add Playwright interaction and screenshot harnesses
 
 ## P1 — UI/editor/terminal shell
-- [ ] Sidebar with workspace, note, and project roots
-- [ ] Search input and deterministic note search results
-- [ ] Tabbed markdown notebook editor
-- [ ] Frontmatter/properties projection
-- [ ] Backlinks, tags, and link surfaces
-- [ ] Right/bottom terminal dock
-- [ ] Default shell tab rooted at `workspace_root`
-- [ ] `Claude` button launches `claude` in a new terminal tab
-- [ ] `Codex` button launches `codex` in a new terminal tab
-- [ ] Per-tab cwd override support
+- [x] Sidebar with workspace, note, and project roots
+- [x] Search input and deterministic note search results
+- [x] Tabbed markdown notebook editor
+- [x] Frontmatter/properties projection
+- [x] Backlinks, tags, and link surfaces
+- [x] Right/bottom terminal dock
+- [x] Default shell tab rooted at `workspace_root`
+- [x] `Claude` button launches `claude` in a new terminal tab
+- [x] `Codex` button launches `codex` in a new terminal tab
+- [x] Per-tab cwd override support
+- [x] Project files open in a non-notebook editor path
 
 ## P2 — Knowledge/editor parity
-- [ ] Branch-aware note flows
+- [x] Branch-aware note flows
 - [ ] Notebook execution surfaces
-- [ ] Search parity and richer navigation
+- [x] Search parity and richer navigation
+- [ ] Search ranking / keyboard navigation / preview parity
+- [ ] Branch family affordances in the sidebar/file tree
 
 ## P3 — Runtime and memory
 - [ ] Durable memory layer
@@ -49,4 +52,3 @@
 - [ ] Eval suites
 - [ ] Operator decisions as labels
 - [ ] Retrieval/ranking/quirk helper-model training
-

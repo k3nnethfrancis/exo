@@ -1,9 +1,12 @@
 import type {
+  BranchCreateResult,
+  BranchFamily,
   NoteDocument,
   NoteKnowledge,
   SearchResult,
   TreeNode,
   WorkspaceModel,
+  WorkspaceSearchResults,
 } from "@exo/core";
 
 export type TerminalKind = "shell" | "claude" | "codex";
@@ -28,6 +31,7 @@ export interface DesktopApi {
     getModel: () => Promise<WorkspaceModel>;
     listTree: (rootPath: string, options?: { markdownOnly?: boolean; maxDepth?: number }) => Promise<TreeNode[]>;
     searchNotes: (query: string) => Promise<SearchResult[]>;
+    searchWorkspace: (query: string) => Promise<WorkspaceSearchResults>;
     searchTag: (tag: string) => Promise<SearchResult[]>;
   };
   notes: {
@@ -35,6 +39,8 @@ export interface DesktopApi {
     save: (filePath: string, frontmatter: Record<string, unknown>, body: string) => Promise<void>;
     getKnowledge: (filePath: string) => Promise<NoteKnowledge>;
     resolveTarget: (sourceFilePath: string, target: string) => Promise<string | null>;
+    getBranchFamily: (filePath: string) => Promise<BranchFamily>;
+    createBranch: (filePath: string, frontmatter: Record<string, unknown>, body: string) => Promise<BranchCreateResult>;
   };
   terminals: {
     ensureDefault: () => Promise<TerminalSessionInfo>;

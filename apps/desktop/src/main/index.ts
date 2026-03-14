@@ -5,13 +5,16 @@ import { constants, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import {
+  createBranchFile,
+  getBranchFamily,
   getNoteKnowledge,
   listMarkdownFiles,
   listRootTree,
-  readNoteDocument,
+  readWorkspaceDocument,
   resolveWorkspaceModel,
-  saveNoteDocument,
+  saveWorkspaceDocument,
   searchNotes,
+  searchWorkspace,
   type SearchResult,
 } from "@exo/core";
 import type { TerminalCreateOptions } from "../shared/api";
@@ -75,12 +78,13 @@ function registerIpcHandlers() {
     listRootTree(rootPath, options),
   );
   ipcMain.handle("workspace:search-notes", async (_event, query: string) => searchNotes(workspaceModel, query));
+  ipcMain.handle("workspace:search-workspace", async (_event, query: string) => searchWorkspace(workspaceModel, query));
   ipcMain.handle("workspace:search-tag", async (_event, tag: string): Promise<SearchResult[]> => {
     const normalized = tag.replace(/^#/, "");
     const files = await listMarkdownFiles(workspaceModel.noteRoots.map((root) => root.path));
-    const results = await Promise.all(
+    const results: Array<SearchResult | null> = await Promise.all(
       files.map(async (filePath) => {
-        const document = await readNoteDocument(filePath);
+        const document = await readWorkspaceDocument(filePath);
         const rawTags = Array.isArray(document.frontmatter.tags)
           ? document.frontmatter.tags.filter((entry): entry is string => typeof entry === "string")
           : typeof document.frontmatter.tags === "string"
@@ -96,6 +100,7 @@ function registerIpcHandlers() {
           filePath,
           title: document.title,
           snippet: `#${normalized}`,
+          kind: "tag" as const,
         };
       }),
     );
@@ -103,15 +108,31 @@ function registerIpcHandlers() {
     return results.filter((entry): entry is SearchResult => entry !== null);
   });
 
-  ipcMain.handle("notes:read", async (_event, filePath: string) => readNoteDocument(filePath));
+  ipcMain.handle("notes:read", async (_event, filePath: string) => readWorkspaceDocument(filePath));
   ipcMain.handle("notes:save", async (_event, filePath: string, frontmatter: Record<string, unknown>, body: string) =>
-    saveNoteDocument(filePath, frontmatter, body),
+    saveWorkspaceDocument(filePath, frontmatter, body),
   );
   ipcMain.handle("notes:get-knowledge", async (_event, filePath: string) =>
     getNoteKnowledge(filePath, workspaceModel.noteRoots.map((root) => root.path)),
   );
   ipcMain.handle("notes:resolve-target", async (_event, sourceFilePath: string, target: string) =>
     resolveNoteTarget(sourceFilePath, target),
+  );
+  ipcMain.handle("notes:get-branch-family", async (_event, filePath: string) =>
+    getBranchFamily(filePath, workspaceModel.noteRoots.map((root) => root.path)),
+  );
+  ipcMain.handle("notes:create-branch", async (_event, filePath: string, frontmatter: Record<string, unknown>, body: string) =>
+    createBranchFile(
+      filePath,
+      {
+        filePath,
+        title: typeof frontmatter.title === "string" ? frontmatter.title : path.basename(filePath, path.extname(filePath)),
+        frontmatter,
+        body,
+        kind: "markdown",
+      },
+      workspaceModel.noteRoots.map((root) => root.path),
+    ),
   );
 
   ipcMain.handle("terminals:ensure-default", async () => terminalManager.ensureDefault());

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { NoteDocument, NoteKnowledge, SearchResult, TreeNode, WorkspaceModel } from "@exo/core";
+import type { BranchFamily, NoteDocument, NoteKnowledge, SearchResult, TreeNode, WorkspaceModel, WorkspaceSearchResults } from "@exo/core";
 
 import type { TerminalSessionInfo } from "../../shared/api";
 
@@ -16,9 +16,14 @@ export function App() {
   const [noteTrees, setNoteTrees] = useState<Record<string, TreeNode[]>>({});
   const [projectTrees, setProjectTrees] = useState<Record<string, TreeNode[]>>({});
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [workspaceSearchResults, setWorkspaceSearchResults] = useState<WorkspaceSearchResults>({
+    notes: [],
+    projectFiles: [],
+    tags: [],
+  });
   const [openDocuments, setOpenDocuments] = useState<Record<string, OpenEditorDocument>>({});
   const [knowledgeByPath, setKnowledgeByPath] = useState<Record<string, NoteKnowledge>>({});
+  const [branchFamiliesByPath, setBranchFamiliesByPath] = useState<Record<string, BranchFamily>>({});
   const [activeDocumentPath, setActiveDocumentPath] = useState<string | null>(null);
   const [propertiesCollapsed, setPropertiesCollapsed] = useState(true);
   const [tagResults, setTagResults] = useState<SearchResult[]>([]);
@@ -95,13 +100,17 @@ export function App() {
 
   useEffect(() => {
     if (!searchQuery.trim()) {
-      setSearchResults([]);
+      setWorkspaceSearchResults({
+        notes: [],
+        projectFiles: [],
+        tags: [],
+      });
       return;
     }
 
     const timeout = window.setTimeout(async () => {
-      const results = await window.exo.workspace.searchNotes(searchQuery);
-      setSearchResults(results);
+      const results = await window.exo.workspace.searchWorkspace(searchQuery);
+      setWorkspaceSearchResults(results);
     }, 120);
 
     return () => window.clearTimeout(timeout);
@@ -138,8 +147,25 @@ export function App() {
     [projectTrees, workspaceModel],
   );
 
+  async function reloadNoteTrees() {
+    if (!workspaceModel) {
+      return;
+    }
+
+    const nextNoteTrees = await Promise.all(
+      workspaceModel.noteRoots.map(
+        async (root) => [root.path, await window.exo.workspace.listTree(root.path, { markdownOnly: true, maxDepth: 3 })] as const,
+      ),
+    );
+    setNoteTrees(Object.fromEntries(nextNoteTrees));
+  }
+
   async function openFile(filePath: string) {
-    const [document, knowledge] = await Promise.all([window.exo.notes.read(filePath), window.exo.notes.getKnowledge(filePath)]);
+    const document = await window.exo.notes.read(filePath);
+    const [knowledge, branchFamily] =
+      document.kind === "markdown"
+        ? await Promise.all([window.exo.notes.getKnowledge(filePath), window.exo.notes.getBranchFamily(filePath)])
+        : [null, null];
     setOpenDocuments((current) => ({
       ...current,
       [filePath]: {
@@ -150,7 +176,11 @@ export function App() {
     }));
     setKnowledgeByPath((current) => ({
       ...current,
-      [filePath]: knowledge,
+      ...(knowledge ? { [filePath]: knowledge } : {}),
+    }));
+    setBranchFamiliesByPath((current) => ({
+      ...current,
+      ...(branchFamily ? { [filePath]: branchFamily } : {}),
     }));
     setActiveDocumentPath(filePath);
     setActiveTag(null);
@@ -179,11 +209,20 @@ export function App() {
     }
 
     await window.exo.notes.save(filePath, document.frontmatter, document.body);
-    const knowledge = await window.exo.notes.getKnowledge(filePath);
-    setKnowledgeByPath((current) => ({
-      ...current,
-      [filePath]: knowledge,
-    }));
+    if (document.kind === "markdown") {
+      const [knowledge, branchFamily] = await Promise.all([
+        window.exo.notes.getKnowledge(filePath),
+        window.exo.notes.getBranchFamily(filePath),
+      ]);
+      setKnowledgeByPath((current) => ({
+        ...current,
+        [filePath]: knowledge,
+      }));
+      setBranchFamiliesByPath((current) => ({
+        ...current,
+        [filePath]: branchFamily,
+      }));
+    }
     setOpenDocuments((current) => ({
       ...current,
       [filePath]: {
@@ -238,6 +277,26 @@ export function App() {
     }
   }
 
+  async function createBranchFromActiveDocument() {
+    if (!activeDocumentPath) {
+      return;
+    }
+
+    const document = openDocuments[activeDocumentPath];
+    if (!document || document.kind !== "markdown") {
+      return;
+    }
+
+    const result = await window.exo.notes.createBranch(activeDocumentPath, document.frontmatter, document.body);
+    setBranchFamiliesByPath((current) => ({
+      ...current,
+      [activeDocumentPath]: result.family,
+      [result.branchFilePath]: result.family,
+    }));
+    await reloadNoteTrees();
+    await openFile(result.branchFilePath);
+  }
+
   if (!workspaceModel) {
     return <div className="shell shell--loading">Loading Exo…</div>;
   }
@@ -249,9 +308,10 @@ export function App() {
         noteRoots={noteSections}
         projectRoots={projectSections}
         searchQuery={searchQuery}
-        searchResults={searchResults}
+        searchResults={workspaceSearchResults}
         onSearchQueryChange={setSearchQuery}
         onOpenFile={(filePath) => void openFile(filePath)}
+        onOpenTag={(tag) => void openTag(tag)}
       />
 
       <div className={`workspace ${terminalPlacement === "right" ? "workspace--terminal-right" : "workspace--terminal-bottom"}`}>
@@ -273,6 +333,7 @@ export function App() {
           <NoteEditor
             document={activeDocument}
             knowledge={activeDocumentPath ? knowledgeByPath[activeDocumentPath] ?? null : null}
+            branchFamily={activeDocumentPath ? branchFamiliesByPath[activeDocumentPath] ?? null : null}
             propertiesCollapsed={propertiesCollapsed}
             tagResults={tagResults}
             activeTag={activeTag}
@@ -283,6 +344,7 @@ export function App() {
             onOpenExternal={(target) => void window.exo.shell.openExternal(target)}
             onOpenTag={(tag) => void openTag(tag)}
             onOpenShellHere={() => void createTerminal("shell", activeDocumentPath ? directoryOf(activeDocumentPath) : workspaceModel.defaultTerminalCwd)}
+            onCreateBranch={() => void createBranchFromActiveDocument()}
           />
         </div>
 

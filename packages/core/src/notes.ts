@@ -18,19 +18,47 @@ const MARKDOWN_LINK_PATTERN = /\[([^\]]+)\]\(([^)]+)\)/g;
 const TAG_PATTERN = /(^|\s)#([a-zA-Z0-9/_-]+)/g;
 
 export async function readNoteDocument(filePath: string): Promise<NoteDocument> {
+  return readWorkspaceDocument(filePath);
+}
+
+export async function readWorkspaceDocument(filePath: string): Promise<NoteDocument> {
   const raw = await readFile(filePath, "utf8");
+  if (!isMarkdownPath(filePath)) {
+    return {
+      filePath,
+      title: path.basename(filePath),
+      frontmatter: {},
+      body: raw,
+      kind: "text",
+    };
+  }
+
   const parsed = matter(raw);
-  const title = typeof parsed.data.title === "string" ? parsed.data.title : path.basename(filePath, ".md");
+  const title = typeof parsed.data.title === "string" ? parsed.data.title : path.basename(filePath, path.extname(filePath));
 
   return {
     filePath,
     title,
     frontmatter: parsed.data,
     body: parsed.content,
+    kind: "markdown",
   };
 }
 
 export async function saveNoteDocument(filePath: string, frontmatter: Record<string, unknown>, body: string): Promise<void> {
+  return saveWorkspaceDocument(filePath, frontmatter, body);
+}
+
+export async function saveWorkspaceDocument(
+  filePath: string,
+  frontmatter: Record<string, unknown>,
+  body: string,
+): Promise<void> {
+  if (!isMarkdownPath(filePath)) {
+    await writeFile(filePath, body, "utf8");
+    return;
+  }
+
   const serialized = matter.stringify(body, frontmatter);
   await writeFile(filePath, serialized, "utf8");
 }
@@ -65,7 +93,7 @@ export function extractTags(body: string, frontmatter: Record<string, unknown>):
 }
 
 export async function getNoteKnowledge(filePath: string, noteRootPaths: string[]): Promise<NoteKnowledge> {
-  const document = await readNoteDocument(filePath);
+  const document = await readWorkspaceDocument(filePath);
   const wikilinks = extractWikilinks(document.body);
   const markdownLinks = extractMarkdownLinks(document.body);
   const tags = extractTags(document.body, document.frontmatter);
@@ -118,3 +146,6 @@ function normalizeMarkdownTarget(target: string): string {
   return path.basename(target, ".md").trim().toLowerCase();
 }
 
+function isMarkdownPath(filePath: string): boolean {
+  return /\.md(?:own)?$/i.test(filePath);
+}

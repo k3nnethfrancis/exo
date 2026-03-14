@@ -1,3 +1,5 @@
+import { cp, mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -6,16 +8,26 @@ import { _electron as electron, expect, type ElectronApplication, type Page } fr
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const fixtureRoot = path.join(repoRoot, "fixtures/workspace/lab");
 
-export async function launchExoFixture(): Promise<{ electronApp: ElectronApplication; page: Page }> {
+export async function launchExoFixture(options?: {
+  mutable?: boolean;
+}): Promise<{ electronApp: ElectronApplication; page: Page; workspaceRoot: string; cleanup: () => Promise<void> }> {
+  let workspaceRoot = fixtureRoot;
+  let tempRoot: string | null = null;
+  if (options?.mutable) {
+    tempRoot = await mkdtemp(path.join(os.tmpdir(), "exo-fixture-"));
+    workspaceRoot = path.join(tempRoot, "lab");
+    await cp(fixtureRoot, workspaceRoot, { recursive: true });
+  }
+
   const electronApp = await electron.launch({
     args: [path.join(repoRoot, "apps/desktop/dist/main/index.js")],
     cwd: repoRoot,
     env: {
       ...process.env,
-      EXO_WORKSPACE_ROOT: fixtureRoot,
-      EXO_NOTE_ROOTS: path.join(fixtureRoot, "notes/shoshin-codex"),
-      EXO_PROJECT_ROOTS: path.join(fixtureRoot, "projects"),
-      EXO_DEFAULT_TERMINAL_CWD: fixtureRoot,
+      EXO_WORKSPACE_ROOT: workspaceRoot,
+      EXO_NOTE_ROOTS: path.join(workspaceRoot, "notes/shoshin-codex"),
+      EXO_PROJECT_ROOTS: path.join(workspaceRoot, "projects"),
+      EXO_DEFAULT_TERMINAL_CWD: workspaceRoot,
       EXO_SHELL: "/bin/echo",
       EXO_SHELL_ARGS: "shell ready",
       EXO_CLAUDE_COMMAND: "/bin/echo",
@@ -31,5 +43,15 @@ export async function launchExoFixture(): Promise<{ electronApp: ElectronApplica
   await page.getByRole("button", { name: "focus-note.md" }).click();
   await expect(page.getByTestId("editor-title")).toHaveText("Focus Note");
 
-  return { electronApp, page };
+  return {
+    electronApp,
+    page,
+    workspaceRoot,
+    cleanup: async () => {
+      await electronApp.close();
+      if (tempRoot) {
+        await rm(tempRoot, { recursive: true, force: true });
+      }
+    },
+  };
 }

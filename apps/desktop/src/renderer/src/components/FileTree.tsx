@@ -1,5 +1,5 @@
-import { ChevronDown, ChevronRight, FolderTree, Search } from "lucide-react";
-import type { SearchResult, TreeNode } from "@exo/core";
+import { ChevronDown, ChevronRight, FolderTree, Hash, Search } from "lucide-react";
+import type { SearchResult, TreeNode, WorkspaceSearchResults } from "@exo/core";
 
 interface RootSection {
   label: string;
@@ -12,13 +12,14 @@ interface FileTreeProps {
   noteRoots: RootSection[];
   projectRoots: RootSection[];
   searchQuery: string;
-  searchResults: SearchResult[];
+  searchResults: WorkspaceSearchResults;
   onSearchQueryChange: (value: string) => void;
   onOpenFile: (filePath: string) => void;
+  onOpenTag: (tag: string) => void;
 }
 
 export function FileTree(props: FileTreeProps) {
-  const { workspaceRoot, noteRoots, projectRoots, searchQuery, searchResults, onSearchQueryChange, onOpenFile } = props;
+  const { workspaceRoot, noteRoots, projectRoots, searchQuery, searchResults, onSearchQueryChange, onOpenFile, onOpenTag } = props;
 
   return (
     <aside className="sidebar" data-testid="sidebar">
@@ -42,18 +43,13 @@ export function FileTree(props: FileTreeProps) {
         <div className="tree-section">
           <div className="tree-section__title">Search Results</div>
           <div className="search-results" data-testid="search-results">
-            {searchResults.length === 0 ? <div className="search-result__empty">No matches</div> : null}
-            {searchResults.map((result) => (
-              <button
-                key={result.filePath}
-                className="search-result"
-                onClick={() => onOpenFile(result.filePath)}
-                type="button"
-              >
-                <strong>{result.title}</strong>
-                <span>{result.snippet}</span>
-              </button>
-            ))}
+            {searchResults.notes.length === 0 && searchResults.projectFiles.length === 0 && searchResults.tags.length === 0 ? (
+              <div className="search-result__empty">No matches</div>
+            ) : null}
+
+            <SearchSection label="Notes" results={searchResults.notes} onOpenFile={onOpenFile} />
+            <SearchSection label="Project Files" results={searchResults.projectFiles} onOpenFile={onOpenFile} />
+            <TagSearchSection results={searchResults.tags} onOpenFile={onOpenFile} onOpenTag={onOpenTag} />
           </div>
         </div>
       ) : (
@@ -63,6 +59,64 @@ export function FileTree(props: FileTreeProps) {
         </>
       )}
     </aside>
+  );
+}
+
+function SearchSection({
+  label,
+  results,
+  onOpenFile,
+}: {
+  label: string;
+  results: SearchResult[];
+  onOpenFile: (filePath: string) => void;
+}) {
+  if (results.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="search-section">
+      <div className="search-section__title">{label}</div>
+      {results.map((result) => (
+        <button key={result.filePath} className="search-result" onClick={() => onOpenFile(result.filePath)} type="button">
+          <strong>{result.title}</strong>
+          <span>{result.snippet}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function TagSearchSection({
+  results,
+  onOpenFile,
+  onOpenTag,
+}: {
+  results: SearchResult[];
+  onOpenFile: (filePath: string) => void;
+  onOpenTag: (tag: string) => void;
+}) {
+  if (results.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="search-section">
+      <div className="search-section__title">Tags</div>
+      {results.map((result) => (
+        <div key={`${result.filePath}-${result.snippet}`} className="search-result search-result--split">
+          <button className="search-result__tag" onClick={() => onOpenTag(result.snippet)} type="button">
+            <Hash size={12} />
+            {result.snippet}
+          </button>
+          <button className="search-result__file" onClick={() => onOpenFile(result.filePath)} type="button">
+            <strong>{result.title}</strong>
+            <span>{result.filePath}</span>
+          </button>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -127,4 +181,3 @@ function TreeNodes({
     </div>
   );
 }
-
