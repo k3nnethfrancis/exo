@@ -1,0 +1,52 @@
+import type {
+  NoteDocument,
+  NoteKnowledge,
+  SearchResult,
+  TreeNode,
+  WorkspaceModel,
+} from "@exo/core";
+
+export type TerminalKind = "shell" | "claude" | "codex";
+
+export interface TerminalSessionInfo {
+  id: string;
+  title: string;
+  cwd: string;
+  kind: TerminalKind;
+  command: string;
+  status: "running" | "exited";
+  exitCode?: number;
+}
+
+export interface TerminalCreateOptions {
+  kind: TerminalKind;
+  cwd?: string;
+}
+
+export interface DesktopApi {
+  workspace: {
+    getModel: () => Promise<WorkspaceModel>;
+    listTree: (rootPath: string, options?: { markdownOnly?: boolean; maxDepth?: number }) => Promise<TreeNode[]>;
+    searchNotes: (query: string) => Promise<SearchResult[]>;
+    searchTag: (tag: string) => Promise<SearchResult[]>;
+  };
+  notes: {
+    read: (filePath: string) => Promise<NoteDocument>;
+    save: (filePath: string, frontmatter: Record<string, unknown>, body: string) => Promise<void>;
+    getKnowledge: (filePath: string) => Promise<NoteKnowledge>;
+    resolveTarget: (sourceFilePath: string, target: string) => Promise<string | null>;
+  };
+  terminals: {
+    ensureDefault: () => Promise<TerminalSessionInfo>;
+    list: () => Promise<TerminalSessionInfo[]>;
+    create: (options: TerminalCreateOptions) => Promise<TerminalSessionInfo>;
+    write: (id: string, data: string) => Promise<void>;
+    resize: (id: string, cols: number, rows: number) => Promise<void>;
+    kill: (id: string) => Promise<void>;
+    onData: (callback: (event: { id: string; data: string }) => void) => () => void;
+    onExit: (callback: (event: { id: string; exitCode?: number }) => void) => () => void;
+  };
+  shell: {
+    openExternal: (target: string) => Promise<void>;
+  };
+}

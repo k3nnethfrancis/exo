@@ -1,0 +1,41 @@
+import { contextBridge, ipcRenderer } from "electron";
+
+import type { DesktopApi } from "../shared/api";
+
+const api: DesktopApi = {
+  workspace: {
+    getModel: () => ipcRenderer.invoke("workspace:get-model"),
+    listTree: (rootPath, options) => ipcRenderer.invoke("workspace:list-tree", rootPath, options),
+    searchNotes: (query) => ipcRenderer.invoke("workspace:search-notes", query),
+    searchTag: (tag) => ipcRenderer.invoke("workspace:search-tag", tag),
+  },
+  notes: {
+    read: (filePath) => ipcRenderer.invoke("notes:read", filePath),
+    save: (filePath, frontmatter, body) => ipcRenderer.invoke("notes:save", filePath, frontmatter, body),
+    getKnowledge: (filePath) => ipcRenderer.invoke("notes:get-knowledge", filePath),
+    resolveTarget: (sourceFilePath, target) => ipcRenderer.invoke("notes:resolve-target", sourceFilePath, target),
+  },
+  terminals: {
+    ensureDefault: () => ipcRenderer.invoke("terminals:ensure-default"),
+    list: () => ipcRenderer.invoke("terminals:list"),
+    create: (options) => ipcRenderer.invoke("terminals:create", options),
+    write: (id, data) => ipcRenderer.invoke("terminals:write", id, data),
+    resize: (id, cols, rows) => ipcRenderer.invoke("terminals:resize", id, cols, rows),
+    kill: (id) => ipcRenderer.invoke("terminals:kill", id),
+    onData: (callback) => {
+      const listener = (_event: unknown, payload: { id: string; data: string }) => callback(payload);
+      ipcRenderer.on("terminal:data", listener);
+      return () => ipcRenderer.removeListener("terminal:data", listener);
+    },
+    onExit: (callback) => {
+      const listener = (_event: unknown, payload: { id: string; exitCode?: number }) => callback(payload);
+      ipcRenderer.on("terminal:exit", listener);
+      return () => ipcRenderer.removeListener("terminal:exit", listener);
+    },
+  },
+  shell: {
+    openExternal: (target) => ipcRenderer.invoke("shell:open-external", target),
+  },
+};
+
+contextBridge.exposeInMainWorld("exo", api);

@@ -1,0 +1,23 @@
+{
+  "name": "exo",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.15.0",
+  "scripts": {
+    "dev": "pnpm --filter @exo/desktop dev",
+    "build": "pnpm --filter @exo/desktop build && pnpm --filter @exo/cli build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "test:e2e": "pnpm --filter @exo/desktop build && playwright test -c apps/desktop/playwright.config.ts",
+    "test:visual": "pnpm --filter @exo/desktop build && playwright test -c apps/desktop/playwright.visual.config.ts",
+    "rebuild:native": "pnpm --filter @exo/desktop rebuild:native"
+  },
+  "postinstall": "pnpm --filter @exo/desktop setup:runtime && pnpm rebuild:native",
+  "devDependencies": {
+    "@playwright/test": "1.58.2",
+    "@types/node": "25.5.0",
+    "tsx": "4.21.0",
+    "typescript": "5.9.3",
+    "vitest": "4.1.0"
+  }
+}
