@@ -5,12 +5,16 @@ import { constants, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import {
+  createWorkspaceDirectory,
+  createWorkspaceFile,
   createBranchFile,
+  deleteWorkspacePath,
   getBranchFamily,
   getNoteKnowledge,
   listMarkdownFiles,
   listRootTree,
   readWorkspaceDocument,
+  renameWorkspacePath,
   resolveWorkspaceModel,
   saveWorkspaceDocument,
   searchNotes,
@@ -79,6 +83,10 @@ function registerIpcHandlers() {
   );
   ipcMain.handle("workspace:search-notes", async (_event, query: string) => searchNotes(workspaceModel, query));
   ipcMain.handle("workspace:search-workspace", async (_event, query: string) => searchWorkspace(workspaceModel, query));
+  ipcMain.handle("workspace:create-file", async (_event, targetPath: string, content?: string) => createWorkspaceFile(targetPath, content));
+  ipcMain.handle("workspace:create-directory", async (_event, targetPath: string) => createWorkspaceDirectory(targetPath));
+  ipcMain.handle("workspace:rename-path", async (_event, sourcePath: string, nextPath: string) => renameWorkspacePath(sourcePath, nextPath));
+  ipcMain.handle("workspace:delete-path", async (_event, targetPath: string) => deleteWorkspacePath(targetPath));
   ipcMain.handle("workspace:search-tag", async (_event, tag: string): Promise<SearchResult[]> => {
     const normalized = tag.replace(/^#/, "");
     const files = await listMarkdownFiles(workspaceModel.noteRoots.map((root) => root.path));

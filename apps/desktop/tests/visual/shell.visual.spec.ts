@@ -10,7 +10,7 @@ test("captures the default workspace shell", async () => {
 
 test("captures bottom dock and agent tabs", async () => {
   const { page, cleanup } = await launchExoFixture();
-  await page.getByTestId("toggle-terminal-placement").click();
+  await page.getByTestId("terminal-tab-shell").dblclick();
   await page.getByTestId("launch-claude").click();
   await page.getByTestId("launch-codex").click();
   await expect(page).toHaveScreenshot("workspace-bottom-terminal.png");

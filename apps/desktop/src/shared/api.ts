@@ -33,6 +33,10 @@ export interface DesktopApi {
     searchNotes: (query: string) => Promise<SearchResult[]>;
     searchWorkspace: (query: string) => Promise<WorkspaceSearchResults>;
     searchTag: (tag: string) => Promise<SearchResult[]>;
+    createFile: (targetPath: string, content?: string) => Promise<string>;
+    createDirectory: (targetPath: string) => Promise<string>;
+    renamePath: (sourcePath: string, nextPath: string) => Promise<string>;
+    deletePath: (targetPath: string) => Promise<void>;
   };
   notes: {
     read: (filePath: string) => Promise<NoteDocument>;

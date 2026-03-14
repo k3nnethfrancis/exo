@@ -1,4 +1,4 @@
-import { Bot, LayoutPanelTop, Plus, SquareTerminal, X } from "lucide-react";
+import { Bot, GripVertical, Plus, SquareTerminal, X } from "lucide-react";
 
 import type { TerminalSessionInfo } from "../../../shared/api";
 import { TerminalView } from "./TerminalView";
@@ -8,12 +8,14 @@ interface TerminalDockProps {
   sessions: TerminalSessionInfo[];
   activeTerminalId: string | null;
   buffers: Record<string, string>;
-  onSetPlacement: (placement: "right" | "bottom") => void;
   onCreateTerminal: (kind: "shell" | "claude" | "codex", cwd?: string) => void;
   onSetActiveTerminal: (id: string) => void;
   onWrite: (id: string, data: string) => void;
   onResize: (id: string, cols: number, rows: number) => void;
   onKill: (id: string) => void;
+  onStartDockDrag: () => void;
+  onEndDockDrag: () => void;
+  onTogglePlacement: () => void;
 }
 
 export function TerminalDock(props: TerminalDockProps) {
@@ -22,12 +24,14 @@ export function TerminalDock(props: TerminalDockProps) {
     sessions,
     activeTerminalId,
     buffers,
-    onSetPlacement,
     onCreateTerminal,
     onSetActiveTerminal,
     onWrite,
     onResize,
     onKill,
+    onStartDockDrag,
+    onEndDockDrag,
+    onTogglePlacement,
   } = props;
 
   const activeSession = sessions.find((session) => session.id === activeTerminalId) ?? null;
@@ -42,9 +46,18 @@ export function TerminalDock(props: TerminalDockProps) {
                 key={session.id}
                 className={`terminal-tab ${session.id === activeTerminalId ? "terminal-tab--active" : ""}`}
                 data-testid={`terminal-tab-${session.kind}`}
+                draggable
                 onClick={() => onSetActiveTerminal(session.id)}
+                onDoubleClick={() => onTogglePlacement()}
+                onDragStart={(event) => {
+                  event.dataTransfer.setData("application/x-exo-dock", session.id);
+                  onStartDockDrag();
+                }}
+                onDragEnd={() => onEndDockDrag()}
+                title={placement === "right" ? "Drag to bottom or double-click to dock bottom" : "Drag to right or double-click to dock right"}
                 type="button"
               >
+                <GripVertical size={12} />
                 <span className={`status-dot status-dot--${session.status}`} />
                 {session.title}
                 {session.kind === "shell" ? <SquareTerminal size={12} /> : <Bot size={12} />}
@@ -76,15 +89,6 @@ export function TerminalDock(props: TerminalDockProps) {
           </button>
           <button className="toolbar-button" data-testid="launch-codex" onClick={() => onCreateTerminal("codex")} type="button">
             Codex
-          </button>
-          <button
-            className="toolbar-button toolbar-button--icon"
-            data-testid="toggle-terminal-placement"
-            onClick={() => onSetPlacement(placement === "right" ? "bottom" : "right")}
-            type="button"
-          >
-            <LayoutPanelTop size={14} />
-            {placement === "right" ? "Bottom" : "Right"}
           </button>
         </div>
       </div>

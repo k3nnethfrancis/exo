@@ -1,4 +1,4 @@
-import { access, readdir, readFile } from "node:fs/promises";
+import { access, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import path from "node:path";
 
@@ -110,29 +110,21 @@ export async function searchNotes(model: WorkspaceModel, query: string): Promise
   }
 
   const noteFiles = await listMarkdownFiles(model.noteRoots.map((root) => root.path));
-  const results: Array<SearchResult | null> = await Promise.all(
-    noteFiles.map(async (filePath) => {
-      const document = await readWorkspaceDocument(filePath);
-      const haystack = `${document.title}\n${document.body}`.toLowerCase();
-      if (!haystack.includes(trimmedQuery)) {
-        return null;
-      }
+  const results = noteFiles.map<SearchResult | null>((filePath) => {
+    const relativePath = path.relative(model.workspaceRoot, filePath);
+    const title = path.basename(filePath, path.extname(filePath));
+    const haystack = `${title}\n${relativePath}`.toLowerCase();
+    if (!haystack.includes(trimmedQuery)) {
+      return null;
+    }
 
-      const snippetSource = document.body.replace(/\s+/g, " ");
-      const matchIndex = snippetSource.toLowerCase().indexOf(trimmedQuery);
-      const snippet =
-        matchIndex >= 0
-          ? snippetSource.slice(Math.max(0, matchIndex - 30), Math.min(snippetSource.length, matchIndex + 90))
-          : snippetSource.slice(0, 120);
-
-      return {
-        filePath,
-        title: document.title,
-        snippet,
-        kind: "note" as const,
-      };
-    }),
-  );
+    return {
+      filePath,
+      title,
+      snippet: relativePath,
+      kind: "note" as const,
+    };
+  });
 
   return results.filter(isSearchResult).slice(0, 30);
 }
@@ -150,19 +142,6 @@ export async function searchProjectFiles(model: WorkspaceModel, query: string): 
       let snippet = path.relative(model.workspaceRoot, filePath);
       let matches = normalizedPath.includes(trimmedQuery);
 
-      if (!matches && isTextLikeFile(filePath)) {
-        const preview = await loadFilePreview(filePath).catch(() => "");
-        if (preview.toLowerCase().includes(trimmedQuery)) {
-          matches = true;
-          const compactPreview = preview.replace(/\s+/g, " ");
-          const matchIndex = compactPreview.toLowerCase().indexOf(trimmedQuery);
-          snippet =
-            matchIndex >= 0
-              ? compactPreview.slice(Math.max(0, matchIndex - 30), Math.min(compactPreview.length, matchIndex + 90))
-              : compactPreview.slice(0, 120);
-        }
-      }
-
       if (!matches) {
         return null;
       }
@@ -176,7 +155,7 @@ export async function searchProjectFiles(model: WorkspaceModel, query: string): 
     }),
   );
 
-  return results.filter(isSearchResult).slice(0, 40);
+  return results.filter(isSearchResult).slice(0, 20);
 }
 
 export async function searchTags(model: WorkspaceModel, query: string): Promise<SearchResult[]> {
@@ -188,18 +167,19 @@ export async function searchTags(model: WorkspaceModel, query: string): Promise<
   const noteFiles = await listMarkdownFiles(model.noteRoots.map((root) => root.path));
   const results: Array<SearchResult | null> = await Promise.all(
     noteFiles.map(async (filePath) => {
-      const document = await readWorkspaceDocument(filePath);
-      const rawTags = Array.isArray(document.frontmatter.tags)
-        ? document.frontmatter.tags.filter((entry): entry is string => typeof entry === "string")
-        : typeof document.frontmatter.tags === "string"
-          ? document.frontmatter.tags.split(/[,\s]+/)
-          : [];
-      const matchingTag = rawTags
-        .map((entry) => entry.replace(/^#/, ""))
-        .find((entry) => entry.toLowerCase().includes(trimmedQuery))
-        ?? Array.from(document.body.matchAll(/(^|\s)#([a-zA-Z0-9/_-]+)/g))
-          .map((match) => match[2])
-          .find((entry) => entry.toLowerCase().includes(trimmedQuery));
+        const document = await readWorkspaceDocument(filePath);
+        const rawTags =
+          Array.isArray(document.frontmatter.tags)
+            ? document.frontmatter.tags.filter((entry: unknown): entry is string => typeof entry === "string")
+            : typeof document.frontmatter.tags === "string"
+              ? document.frontmatter.tags.split(/[,\s]+/)
+              : [];
+        const matchingTag = rawTags
+          .map((entry) => entry.replace(/^#/, ""))
+          .find((entry) => entry.toLowerCase().includes(trimmedQuery))
+          ?? Array.from(document.body.matchAll(/(^|\s)#([a-zA-Z0-9/_-]+)/g))
+            .map((match) => match[2] ?? "")
+            .find((entry) => entry.toLowerCase().includes(trimmedQuery));
 
       if (!matchingTag) {
         return null;
@@ -218,10 +198,13 @@ export async function searchTags(model: WorkspaceModel, query: string): Promise<
 }
 
 export async function searchWorkspace(model: WorkspaceModel, query: string): Promise<WorkspaceSearchResults> {
+  const trimmedQuery = query.trim();
+  const shouldSearchTags = trimmedQuery.startsWith("#");
+
   const [notes, projectFiles, tags] = await Promise.all([
     searchNotes(model, query),
     searchProjectFiles(model, query),
-    searchTags(model, query),
+    shouldSearchTags ? searchTags(model, query) : Promise.resolve([]),
   ]);
 
   return {
@@ -271,6 +254,27 @@ async function collectFiles(rootPath: string, markdownOnly = false): Promise<str
 export async function listFiles(rootPaths: string[]): Promise<string[]> {
   const files = await Promise.all(rootPaths.map((rootPath) => collectFiles(rootPath)));
   return files.flat();
+}
+
+export async function createWorkspaceFile(targetPath: string, content = ""): Promise<string> {
+  await mkdir(path.dirname(targetPath), { recursive: true });
+  await writeFile(targetPath, content, "utf8");
+  return targetPath;
+}
+
+export async function createWorkspaceDirectory(targetPath: string): Promise<string> {
+  await mkdir(targetPath, { recursive: true });
+  return targetPath;
+}
+
+export async function renameWorkspacePath(sourcePath: string, nextPath: string): Promise<string> {
+  await mkdir(path.dirname(nextPath), { recursive: true });
+  await rename(sourcePath, nextPath);
+  return nextPath;
+}
+
+export async function deleteWorkspacePath(targetPath: string): Promise<void> {
+  await rm(targetPath, { recursive: true, force: true });
 }
 
 export async function loadFilePreview(filePath: string): Promise<string> {

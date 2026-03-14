@@ -25,15 +25,15 @@ describe("workspace", () => {
     expect(nodes.some((node) => node.name === "focus-note.md")).toBe(true);
   });
 
-  it("searches notes by content and title", async () => {
+  it("searches notes by title and path", async () => {
     const model = resolveWorkspaceModel({
       EXO_WORKSPACE_ROOT: fixtureLabRoot,
       EXO_NOTE_ROOTS: path.join(fixtureLabRoot, "notes/shoshin-codex"),
       EXO_PROJECT_ROOTS: path.join(fixtureLabRoot, "projects"),
     });
 
-    const results = await searchNotes(model, "agent memory");
-    expect(results.some((result) => result.title === "Focus Note")).toBe(true);
+    const results = await searchNotes(model, "focus-note");
+    expect(results.some((result) => result.title === "focus-note")).toBe(true);
     expect(results.every((result) => result.kind === "note")).toBe(true);
   });
 
@@ -56,8 +56,8 @@ describe("workspace", () => {
       EXO_PROJECT_ROOTS: path.join(fixtureLabRoot, "projects"),
     });
 
-    const results = await searchWorkspace(model, "research");
-    expect(results.notes.length).toBeGreaterThan(0);
+    const results = await searchWorkspace(model, "#research");
+    expect(results.notes.length).toBe(0);
     expect(results.tags.length).toBeGreaterThan(0);
   });
 });

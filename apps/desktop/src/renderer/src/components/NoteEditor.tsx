@@ -1,6 +1,7 @@
 import CodeMirror from "@uiw/react-codemirror";
 import { markdown } from "@codemirror/lang-markdown";
 import { oneDark } from "@codemirror/theme-one-dark";
+import { EditorView } from "@codemirror/view";
 import { ChevronDown, ChevronRight, ExternalLink, GitBranch, Save, TerminalSquare } from "lucide-react";
 import type { BranchFamily, NoteDocument, NoteKnowledge, SearchResult } from "@exo/core";
 
@@ -13,9 +14,11 @@ interface NoteEditorProps {
   knowledge: NoteKnowledge | null;
   branchFamily: BranchFamily | null;
   propertiesCollapsed: boolean;
+  knowledgeCollapsed: boolean;
   tagResults: SearchResult[];
   activeTag: string | null;
   onToggleProperties: () => void;
+  onToggleKnowledge: () => void;
   onBodyChange: (body: string) => void;
   onSave: () => void;
   onOpenTarget: (target: string) => void;
@@ -31,9 +34,11 @@ export function NoteEditor(props: NoteEditorProps) {
     knowledge,
     branchFamily,
     propertiesCollapsed,
+    knowledgeCollapsed,
     tagResults,
     activeTag,
     onToggleProperties,
+    onToggleKnowledge,
     onBodyChange,
     onSave,
     onOpenTarget,
@@ -132,7 +137,7 @@ export function NoteEditor(props: NoteEditorProps) {
       <div className="editor-surface">
         <CodeMirror
           value={document.body}
-          extensions={document.kind === "markdown" ? [markdown()] : []}
+          extensions={document.kind === "markdown" ? [markdown(), EditorView.lineWrapping] : [EditorView.lineWrapping]}
           theme={oneDark}
           basicSetup={{
             lineNumbers: false,
@@ -147,9 +152,11 @@ export function NoteEditor(props: NoteEditorProps) {
         <KnowledgePanel
           knowledge={knowledge}
           branchFamily={branchFamily}
+          collapsed={knowledgeCollapsed}
           activeTag={activeTag}
           tagResults={tagResults}
           currentFilePath={document.filePath}
+          onToggleCollapsed={onToggleKnowledge}
           onOpenTarget={onOpenTarget}
           onOpenExternal={onOpenExternal}
           onOpenTag={onOpenTag}
@@ -162,116 +169,138 @@ export function NoteEditor(props: NoteEditorProps) {
 function KnowledgePanel({
   knowledge,
   branchFamily,
+  collapsed,
   activeTag,
   tagResults,
   currentFilePath,
+  onToggleCollapsed,
   onOpenTarget,
   onOpenExternal,
   onOpenTag,
 }: {
   knowledge: NoteKnowledge | null;
   branchFamily: BranchFamily | null;
+  collapsed: boolean;
   activeTag: string | null;
   tagResults: SearchResult[];
   currentFilePath: string;
+  onToggleCollapsed: () => void;
   onOpenTarget: (target: string) => void;
   onOpenExternal: (target: string) => void;
   onOpenTag: (tag: string) => void;
 }) {
+  const backlinkCount = knowledge?.backlinks.length ?? 0;
+  const linkCount = (knowledge?.wikilinks.length ?? 0) + (knowledge?.markdownLinks.length ?? 0);
+  const tagCount = knowledge?.tags.length ?? 0;
+  const branchCount = branchFamily?.members.length ?? 0;
+
   return (
-    <div className="knowledge-panel">
-      <div className="knowledge-panel__section" data-testid="backlinks-panel">
-        <div className="knowledge-panel__title">Backlinks</div>
-        {knowledge?.backlinks.length ? (
-          knowledge.backlinks.map((backlink) => (
-            <button
-              key={backlink.filePath}
-              className="knowledge-item"
-              onClick={() => onOpenTarget(backlink.filePath)}
-              type="button"
-            >
-              {backlink.title}
-            </button>
-          ))
-        ) : (
-          <div className="knowledge-empty">No backlinks</div>
-        )}
-      </div>
+    <div className={`knowledge-drawer ${collapsed ? "knowledge-drawer--collapsed" : ""}`} data-testid="knowledge-drawer">
+      <button className="knowledge-drawer__bar" data-testid="knowledge-toggle" onClick={onToggleCollapsed} type="button">
+        {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+        <span className="knowledge-drawer__label">Knowledge</span>
+        <span className="knowledge-drawer__summary">Backlinks {backlinkCount}</span>
+        <span className="knowledge-drawer__summary">Links {linkCount}</span>
+        <span className="knowledge-drawer__summary">Tags {tagCount}</span>
+        <span className="knowledge-drawer__summary">Branches {branchCount}</span>
+      </button>
 
-      <div className="knowledge-panel__section">
-        <div className="knowledge-panel__title">Links</div>
-        {knowledge?.wikilinks.map((item) => (
-          <button key={`wiki-${item.target}`} className="knowledge-item" onClick={() => onOpenTarget(item.target)} type="button">
-            [[{item.label}]]
-          </button>
-        ))}
-        {knowledge?.markdownLinks.map((item) => (
-          <button
-            key={`markdown-${item.target}`}
-            className="knowledge-item"
-            onClick={() => (item.target.startsWith("http") ? onOpenExternal(item.target) : onOpenTarget(item.target))}
-            type="button"
-          >
-            {item.label}
-            {item.target.startsWith("http") ? <ExternalLink size={12} /> : null}
-          </button>
-        ))}
-        {!knowledge?.wikilinks.length && !knowledge?.markdownLinks.length ? (
-          <div className="knowledge-empty">No links</div>
-        ) : null}
-      </div>
+      {collapsed ? null : (
+        <div className="knowledge-panel">
+          <div className="knowledge-panel__section" data-testid="backlinks-panel">
+            <div className="knowledge-panel__title">Backlinks</div>
+            {knowledge?.backlinks.length ? (
+              knowledge.backlinks.map((backlink) => (
+                <button
+                  key={backlink.filePath}
+                  className="knowledge-item"
+                  onClick={() => onOpenTarget(backlink.filePath)}
+                  type="button"
+                >
+                  {backlink.title}
+                </button>
+              ))
+            ) : (
+              <div className="knowledge-empty">No backlinks</div>
+            )}
+          </div>
 
-      <div className="knowledge-panel__section" data-testid="tags-panel">
-        <div className="knowledge-panel__title">Tags</div>
-        {knowledge?.tags.length ? (
-          <div className="tag-list">
-            {knowledge.tags.map((tag) => (
-              <button key={tag.tag} className="tag-pill" onClick={() => onOpenTag(tag.tag)} type="button">
-                #{tag.tag}
+          <div className="knowledge-panel__section">
+            <div className="knowledge-panel__title">Links</div>
+            {knowledge?.wikilinks.map((item) => (
+              <button key={`wiki-${item.target}`} className="knowledge-item" onClick={() => onOpenTarget(item.target)} type="button">
+                [[{item.label}]]
               </button>
             ))}
-          </div>
-        ) : (
-          <div className="knowledge-empty">No tags</div>
-        )}
-
-        {activeTag ? (
-          <div className="tag-results" data-testid="tag-results">
-            <div className="knowledge-panel__subtitle">Results for #{activeTag}</div>
-            {tagResults.map((result) => (
-              <button key={result.filePath} className="knowledge-item" onClick={() => onOpenTarget(result.filePath)} type="button">
-                {result.title}
-              </button>
-            ))}
-            {tagResults.length === 0 ? <div className="knowledge-empty">No notes for #{activeTag}</div> : null}
-          </div>
-        ) : null}
-      </div>
-
-      <div className="knowledge-panel__section" data-testid="branches-panel">
-        <div className="knowledge-panel__title">Branches</div>
-        {branchFamily?.members.length ? (
-          <>
-            {branchFamily.members.map((member) => (
+            {knowledge?.markdownLinks.map((item) => (
               <button
-                key={member.filePath}
-                className={`knowledge-item ${member.filePath === currentFilePath ? "knowledge-item--active" : ""}`}
-                onClick={() => onOpenTarget(member.filePath)}
+                key={`markdown-${item.target}`}
+                className="knowledge-item"
+                onClick={() => (item.target.startsWith("http") ? onOpenExternal(item.target) : onOpenTarget(item.target))}
                 type="button"
               >
-                <span>{member.isRoot ? member.title : `${member.path.join(".")} · ${member.title}`}</span>
+                {item.label}
+                {item.target.startsWith("http") ? <ExternalLink size={12} /> : null}
               </button>
             ))}
-            {branchFamily.members.length > 1 ? (
-              <pre className="branch-tree" data-testid="branch-tree">
-                {branchFamily.tree}
-              </pre>
+            {!knowledge?.wikilinks.length && !knowledge?.markdownLinks.length ? (
+              <div className="knowledge-empty">No links</div>
             ) : null}
-          </>
-        ) : (
-          <div className="knowledge-empty">No branch family yet</div>
-        )}
-      </div>
+          </div>
+
+          <div className="knowledge-panel__section" data-testid="tags-panel">
+            <div className="knowledge-panel__title">Tags</div>
+            {knowledge?.tags.length ? (
+              <div className="tag-list">
+                {knowledge.tags.map((tag) => (
+                  <button key={tag.tag} className="tag-pill" onClick={() => onOpenTag(tag.tag)} type="button">
+                    #{tag.tag}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="knowledge-empty">No tags</div>
+            )}
+
+            {activeTag ? (
+              <div className="tag-results" data-testid="tag-results">
+                <div className="knowledge-panel__subtitle">Results for #{activeTag}</div>
+                {tagResults.map((result) => (
+                  <button key={result.filePath} className="knowledge-item" onClick={() => onOpenTarget(result.filePath)} type="button">
+                    {result.title}
+                  </button>
+                ))}
+                {tagResults.length === 0 ? <div className="knowledge-empty">No notes for #{activeTag}</div> : null}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="knowledge-panel__section" data-testid="branches-panel">
+            <div className="knowledge-panel__title">Branches</div>
+            {branchFamily?.members.length ? (
+              <>
+                {branchFamily.members.map((member) => (
+                  <button
+                    key={member.filePath}
+                    className={`knowledge-item ${member.filePath === currentFilePath ? "knowledge-item--active" : ""}`}
+                    onClick={() => onOpenTarget(member.filePath)}
+                    type="button"
+                  >
+                    <span>{member.isRoot ? member.title : `${member.path.join(".")} · ${member.title}`}</span>
+                  </button>
+                ))}
+                {branchFamily.members.length > 1 ? (
+                  <pre className="branch-tree" data-testid="branch-tree">
+                    {branchFamily.tree}
+                  </pre>
+                ) : null}
+              </>
+            ) : (
+              <div className="knowledge-empty">No branch family yet</div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

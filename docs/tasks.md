@@ -9,7 +9,7 @@
 
 ## P1 — UI/editor/terminal shell
 - [x] Sidebar with workspace, note, and project roots
-- [x] Search input and deterministic note search results
+- [x] Search input and fast sidebar-oriented note/project/tag search
 - [x] Tabbed markdown notebook editor
 - [x] Frontmatter/properties projection
 - [x] Backlinks, tags, and link surfaces
@@ -19,6 +19,11 @@
 - [x] `Codex` button launches `codex` in a new terminal tab
 - [x] Per-tab cwd override support
 - [x] Project files open in a non-notebook editor path
+- [x] Scrollable explorer with file/folder context actions
+- [x] In-app create/rename/delete modal instead of blocking browser prompts
+- [x] Collapsed bottom knowledge drawer by default
+- [x] Note wrapping with vertical-scroll editor behavior
+- [x] Incremental xterm rendering instead of full-buffer resets
 
 ## P2 — Knowledge/editor parity
 - [x] Branch-aware note flows
@@ -26,6 +31,7 @@
 - [x] Search parity and richer navigation
 - [ ] Search ranking / keyboard navigation / preview parity
 - [ ] Branch family affordances in the sidebar/file tree
+- [ ] True IDE pane splitting and dockable note/terminal surfaces beyond right-vs-bottom terminal drag
 
 ## P3 — Runtime and memory
 - [ ] Durable memory layer

@@ -24,6 +24,9 @@ Current working shell:
 - plain text/code editor path for project files
 - plain terminal panes with `Claude` and `Codex` launchers
 - workspace-aware roots and per-tab cwd launch support
+- scrollable IDE-style explorer with file/folder context actions
+- note-wrapping notebook editor with collapsed knowledge drawer by default
+- first-step drag docking between right and bottom terminal placement
 - Playwright interaction and screenshot harnesses
 
 Active Phase 2 work:
@@ -69,16 +72,20 @@ Completed:
 7. project-file editing path alongside markdown notes
 8. branch-aware note family flows
 9. unified workspace search across notes, tags, and project files
+10. explorer context menus with in-app create/rename/delete modal
+11. terminal rendering fix for incremental xterm updates instead of full-buffer resets
 
 Next:
 1. notebook execution surfaces
 2. deeper search/navigation parity
-3. runtime + memory reintroduction
+3. true IDE pane splitting and dockable editor/terminal surfaces
+4. runtime + memory reintroduction
 
 ## Short-Term Roadmap
 
 1. Finish Phase 2 knowledge/editor parity
-2. Runtime + memory
-3. Research harness
-4. Multi-agent system
-5. Datasets, evals, and training
+2. Build real pane-splitting / dock management beyond right-vs-bottom terminal drag
+3. Runtime + memory
+4. Research harness
+5. Multi-agent system
+6. Datasets, evals, and training

@@ -67,8 +67,12 @@ export function TerminalView(props: TerminalViewProps) {
       return;
     }
 
-    terminal.reset();
-    terminal.write(buffer);
+    if (buffer.startsWith(bufferRef.current)) {
+      terminal.write(buffer.slice(bufferRef.current.length));
+    } else {
+      terminal.reset();
+      terminal.write(buffer);
+    }
     bufferRef.current = buffer;
     fitAddonRef.current?.fit();
     onResize(session.id, terminal.cols, terminal.rows);

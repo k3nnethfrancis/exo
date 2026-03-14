@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import type { BranchFamily, NoteDocument, NoteKnowledge, SearchResult, TreeNode, WorkspaceModel, WorkspaceSearchResults } from "@exo/core";
 
 import type { TerminalSessionInfo } from "../../shared/api";
@@ -10,6 +10,36 @@ import { TerminalDock } from "./components/TerminalDock";
 interface OpenEditorDocument extends NoteDocument {
   dirty: boolean;
 }
+
+type WorkspaceDialogState =
+  | {
+      kind: "create-file";
+      targetPath: string;
+      value: string;
+      title: string;
+      confirmLabel: string;
+    }
+  | {
+      kind: "create-directory";
+      targetPath: string;
+      value: string;
+      title: string;
+      confirmLabel: string;
+    }
+  | {
+      kind: "rename";
+      targetPath: string;
+      value: string;
+      title: string;
+      confirmLabel: string;
+    }
+  | {
+      kind: "delete";
+      targetPath: string;
+      title: string;
+      message: string;
+      confirmLabel: string;
+    };
 
 export function App() {
   const [workspaceModel, setWorkspaceModel] = useState<WorkspaceModel | null>(null);
@@ -26,12 +56,18 @@ export function App() {
   const [branchFamiliesByPath, setBranchFamiliesByPath] = useState<Record<string, BranchFamily>>({});
   const [activeDocumentPath, setActiveDocumentPath] = useState<string | null>(null);
   const [propertiesCollapsed, setPropertiesCollapsed] = useState(true);
+  const [knowledgeCollapsed, setKnowledgeCollapsed] = useState(true);
   const [tagResults, setTagResults] = useState<SearchResult[]>([]);
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [terminalPlacement, setTerminalPlacement] = useState<"right" | "bottom">("right");
+  const [isDockDragging, setIsDockDragging] = useState(false);
   const [terminalSessions, setTerminalSessions] = useState<TerminalSessionInfo[]>([]);
   const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null);
   const [terminalBuffers, setTerminalBuffers] = useState<Record<string, string>>({});
+  const [workspaceDialog, setWorkspaceDialog] = useState<WorkspaceDialogState | null>(null);
+  const pendingTerminalChunksRef = useRef<Record<string, string>>({});
+  const terminalFlushFrameRef = useRef<number | null>(null);
+  const deferredSearchQuery = useDeferredValue(searchQuery);
 
   const activeDocument = activeDocumentPath ? openDocuments[activeDocumentPath] ?? null : null;
 
@@ -78,11 +114,31 @@ export function App() {
 
     void bootstrap();
 
+    function flushTerminalChunks() {
+      terminalFlushFrameRef.current = null;
+      const pending = pendingTerminalChunksRef.current;
+      pendingTerminalChunksRef.current = {};
+      const entries = Object.entries(pending);
+      if (entries.length === 0) {
+        return;
+      }
+
+      setTerminalBuffers((current) => {
+        const next = { ...current };
+        for (const [id, chunk] of entries) {
+          next[id] = `${next[id] ?? ""}${chunk}`;
+        }
+        return next;
+      });
+    }
+
     const removeDataListener = window.exo.terminals.onData(({ id, data }) => {
-      setTerminalBuffers((current) => ({
-        ...current,
-        [id]: `${current[id] ?? ""}${data}`,
-      }));
+      pendingTerminalChunksRef.current[id] = `${pendingTerminalChunksRef.current[id] ?? ""}${data}`;
+      if (terminalFlushFrameRef.current !== null) {
+        return;
+      }
+
+      terminalFlushFrameRef.current = window.requestAnimationFrame(flushTerminalChunks);
     });
 
     const removeExitListener = window.exo.terminals.onExit(({ id, exitCode }) => {
@@ -93,13 +149,16 @@ export function App() {
 
     return () => {
       cancelled = true;
+      if (terminalFlushFrameRef.current !== null) {
+        window.cancelAnimationFrame(terminalFlushFrameRef.current);
+      }
       removeDataListener();
       removeExitListener();
     };
   }, []);
 
   useEffect(() => {
-    if (!searchQuery.trim()) {
+    if (!deferredSearchQuery.trim()) {
       setWorkspaceSearchResults({
         notes: [],
         projectFiles: [],
@@ -109,12 +168,14 @@ export function App() {
     }
 
     const timeout = window.setTimeout(async () => {
-      const results = await window.exo.workspace.searchWorkspace(searchQuery);
-      setWorkspaceSearchResults(results);
+      const results = await window.exo.workspace.searchWorkspace(deferredSearchQuery);
+      startTransition(() => {
+        setWorkspaceSearchResults(results);
+      });
     }, 120);
 
     return () => window.clearTimeout(timeout);
-  }, [searchQuery]);
+  }, [deferredSearchQuery]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -147,17 +208,26 @@ export function App() {
     [projectTrees, workspaceModel],
   );
 
-  async function reloadNoteTrees() {
+  async function reloadTrees() {
     if (!workspaceModel) {
       return;
     }
 
-    const nextNoteTrees = await Promise.all(
-      workspaceModel.noteRoots.map(
-        async (root) => [root.path, await window.exo.workspace.listTree(root.path, { markdownOnly: true, maxDepth: 3 })] as const,
+    const [nextNoteTrees, nextProjectTrees] = await Promise.all([
+      Promise.all(
+        workspaceModel.noteRoots.map(
+          async (root) => [root.path, await window.exo.workspace.listTree(root.path, { markdownOnly: true, maxDepth: 5 })] as const,
+        ),
       ),
-    );
+      Promise.all(
+        workspaceModel.projectRoots.map(
+          async (root) => [root.path, await window.exo.workspace.listTree(root.path, { maxDepth: 4 })] as const,
+        ),
+      ),
+    ]);
+
     setNoteTrees(Object.fromEntries(nextNoteTrees));
+    setProjectTrees(Object.fromEntries(nextProjectTrees));
   }
 
   async function openFile(filePath: string) {
@@ -293,8 +363,162 @@ export function App() {
       [activeDocumentPath]: result.family,
       [result.branchFilePath]: result.family,
     }));
-    await reloadNoteTrees();
+    await reloadTrees();
     await openFile(result.branchFilePath);
+  }
+
+  function createFileInDirectory(directoryPath: string) {
+    if (!workspaceModel) {
+      return;
+    }
+
+    const noteRootPaths = workspaceModel.noteRoots.map((root) => root.path);
+    const suggested = isInsideAttachedRoot(directoryPath, noteRootPaths) ? "new-note.md" : "new-file.txt";
+    setWorkspaceDialog({
+      kind: "create-file",
+      targetPath: directoryPath,
+      value: suggested,
+      title: "Create file",
+      confirmLabel: "Create",
+    });
+  }
+
+  async function commitCreateFile(directoryPath: string, name: string) {
+    if (!workspaceModel) {
+      return;
+    }
+
+    const noteRootPaths = workspaceModel.noteRoots.map((root) => root.path);
+    const nextPath = await window.exo.workspace.createFile(
+      joinPath(directoryPath, ensureDefaultExtension(name, directoryPath, noteRootPaths)),
+    );
+    await reloadTrees();
+    await openFile(nextPath);
+  }
+
+  function createDirectoryInDirectory(directoryPath: string) {
+    setWorkspaceDialog({
+      kind: "create-directory",
+      targetPath: directoryPath,
+      value: "new-folder",
+      title: "Create folder",
+      confirmLabel: "Create",
+    });
+  }
+
+  async function commitCreateDirectory(directoryPath: string, name: string) {
+    await window.exo.workspace.createDirectory(joinPath(directoryPath, name));
+    await reloadTrees();
+  }
+
+  function renameWorkspacePath(sourcePath: string) {
+    const currentName = sourcePath.split("/").at(-1) ?? sourcePath;
+    setWorkspaceDialog({
+      kind: "rename",
+      targetPath: sourcePath,
+      value: currentName,
+      title: "Rename",
+      confirmLabel: "Rename",
+    });
+  }
+
+  async function commitRenameWorkspacePath(sourcePath: string, nextName: string) {
+    const currentName = sourcePath.split("/").at(-1) ?? sourcePath;
+    if (!nextName || nextName === currentName) {
+      return;
+    }
+    const nextPath = joinPath(directoryOf(sourcePath), nextName);
+    const previousPath = sourcePath;
+    await window.exo.workspace.renamePath(sourcePath, nextPath);
+    remapOpenPaths(previousPath, nextPath);
+    await reloadTrees();
+    if (previousPath === activeDocumentPath) {
+      await openFile(nextPath);
+    }
+  }
+
+  function deleteWorkspacePath(targetPath: string) {
+    setWorkspaceDialog({
+      kind: "delete",
+      targetPath,
+      title: "Delete path",
+      message: `Delete ${targetPath.split("/").at(-1) ?? targetPath}?`,
+      confirmLabel: "Delete",
+    });
+  }
+
+  async function commitDeleteWorkspacePath(targetPath: string) {
+    await window.exo.workspace.deletePath(targetPath);
+    setOpenDocuments((current) =>
+      Object.fromEntries(Object.entries(current).filter(([filePath]) => !isPathWithin(targetPath, filePath))),
+    );
+    setKnowledgeByPath((current) =>
+      Object.fromEntries(Object.entries(current).filter(([filePath]) => !isPathWithin(targetPath, filePath))),
+    );
+    setBranchFamiliesByPath((current) =>
+      Object.fromEntries(Object.entries(current).filter(([filePath]) => !isPathWithin(targetPath, filePath))),
+    );
+    if (activeDocumentPath && isPathWithin(targetPath, activeDocumentPath)) {
+      setActiveDocumentPath(null);
+    }
+    await reloadTrees();
+  }
+
+  async function submitWorkspaceDialog() {
+    if (!workspaceDialog) {
+      return;
+    }
+
+    if (workspaceDialog.kind === "delete") {
+      await commitDeleteWorkspacePath(workspaceDialog.targetPath);
+      setWorkspaceDialog(null);
+      return;
+    }
+
+    const value = workspaceDialog.value.trim();
+    if (!value) {
+      return;
+    }
+
+    if (workspaceDialog.kind === "create-file") {
+      await commitCreateFile(workspaceDialog.targetPath, value);
+    } else if (workspaceDialog.kind === "create-directory") {
+      await commitCreateDirectory(workspaceDialog.targetPath, value);
+    } else {
+      await commitRenameWorkspacePath(workspaceDialog.targetPath, value);
+    }
+
+    setWorkspaceDialog(null);
+  }
+
+  function remapOpenPaths(sourcePath: string, nextPath: string) {
+    const remapRecord = <T,>(record: Record<string, T>): Record<string, T> =>
+      Object.fromEntries(
+        Object.entries(record).map(([filePath, value]) => [
+          isPathWithin(sourcePath, filePath) ? filePath.replace(sourcePath, nextPath) : filePath,
+          value,
+        ]),
+      );
+
+    setOpenDocuments((current) =>
+      Object.fromEntries(
+        Object.entries(current).map(([filePath, value]) => {
+          const remappedPath = isPathWithin(sourcePath, filePath) ? filePath.replace(sourcePath, nextPath) : filePath;
+          return [
+            remappedPath,
+            {
+              ...value,
+              filePath: remappedPath,
+            },
+          ];
+        }),
+      ),
+    );
+    setKnowledgeByPath((current) => remapRecord(current));
+    setBranchFamiliesByPath((current) => remapRecord(current));
+    if (activeDocumentPath && isPathWithin(sourcePath, activeDocumentPath)) {
+      setActiveDocumentPath(activeDocumentPath.replace(sourcePath, nextPath));
+    }
   }
 
   if (!workspaceModel) {
@@ -312,9 +536,15 @@ export function App() {
         onSearchQueryChange={setSearchQuery}
         onOpenFile={(filePath) => void openFile(filePath)}
         onOpenTag={(tag) => void openTag(tag)}
+        onCreateFile={(directoryPath) => void createFileInDirectory(directoryPath)}
+        onCreateDirectory={(directoryPath) => void createDirectoryInDirectory(directoryPath)}
+        onRenamePath={(targetPath) => void renameWorkspacePath(targetPath)}
+        onDeletePath={(targetPath) => void deleteWorkspacePath(targetPath)}
       />
 
-      <div className={`workspace ${terminalPlacement === "right" ? "workspace--terminal-right" : "workspace--terminal-bottom"}`}>
+      <div
+        className={`workspace ${terminalPlacement === "right" ? "workspace--terminal-right" : "workspace--terminal-bottom"} ${isDockDragging ? "workspace--dock-dragging" : ""}`}
+      >
         <div className="editor-shell">
           <div className="tab-strip" data-testid="editor-tabs">
             {Object.values(openDocuments).map((document) => (
@@ -335,9 +565,11 @@ export function App() {
             knowledge={activeDocumentPath ? knowledgeByPath[activeDocumentPath] ?? null : null}
             branchFamily={activeDocumentPath ? branchFamiliesByPath[activeDocumentPath] ?? null : null}
             propertiesCollapsed={propertiesCollapsed}
+            knowledgeCollapsed={knowledgeCollapsed}
             tagResults={tagResults}
             activeTag={activeTag}
             onToggleProperties={() => setPropertiesCollapsed((current) => !current)}
+            onToggleKnowledge={() => setKnowledgeCollapsed((current) => !current)}
             onBodyChange={updateBody}
             onSave={() => void (activeDocumentPath ? saveDocument(activeDocumentPath) : Promise.resolve())}
             onOpenTarget={(target) => void openKnowledgeTarget(target)}
@@ -353,14 +585,88 @@ export function App() {
           sessions={terminalSessions}
           activeTerminalId={activeTerminalId}
           buffers={terminalBuffers}
-          onSetPlacement={setTerminalPlacement}
           onCreateTerminal={(kind, cwd) => void createTerminal(kind, cwd)}
           onSetActiveTerminal={setActiveTerminalId}
           onWrite={(id, data) => void window.exo.terminals.write(id, data)}
           onResize={(id, cols, rows) => void window.exo.terminals.resize(id, cols, rows)}
           onKill={(id) => void closeTerminal(id)}
+          onStartDockDrag={() => setIsDockDragging(true)}
+          onEndDockDrag={() => setIsDockDragging(false)}
+          onTogglePlacement={() => setTerminalPlacement((current) => (current === "right" ? "bottom" : "right"))}
         />
+
+        {isDockDragging ? (
+          <div className="dock-drop-zones">
+            <button
+              className={`dock-drop-zone ${terminalPlacement === "right" ? "dock-drop-zone--active" : ""}`}
+              data-testid="dock-drop-right"
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={() => {
+                setTerminalPlacement("right");
+                setIsDockDragging(false);
+              }}
+              type="button"
+            >
+              Dock Right
+            </button>
+            <button
+              className={`dock-drop-zone ${terminalPlacement === "bottom" ? "dock-drop-zone--active" : ""}`}
+              data-testid="dock-drop-bottom"
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={() => {
+                setTerminalPlacement("bottom");
+                setIsDockDragging(false);
+              }}
+              type="button"
+            >
+              Dock Bottom
+            </button>
+          </div>
+        ) : null}
       </div>
+
+      {workspaceDialog ? (
+        <div className="dialog-overlay" data-testid="workspace-dialog-overlay">
+          <div className="dialog-card" data-testid="workspace-dialog">
+            <div className="dialog-card__title">{workspaceDialog.title}</div>
+            {"message" in workspaceDialog ? <div className="dialog-card__message">{workspaceDialog.message}</div> : null}
+            {"value" in workspaceDialog ? (
+              <input
+                autoFocus
+                className="dialog-card__input"
+                data-testid="workspace-dialog-input"
+                value={workspaceDialog.value}
+                onChange={(event) =>
+                  setWorkspaceDialog((current) => (current && "value" in current ? { ...current, value: event.target.value } : current))
+                }
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    void submitWorkspaceDialog();
+                  }
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    setWorkspaceDialog(null);
+                  }
+                }}
+              />
+            ) : null}
+            <div className="dialog-card__actions">
+              <button className="toolbar-button" onClick={() => setWorkspaceDialog(null)} type="button">
+                Cancel
+              </button>
+              <button
+                className={`toolbar-button ${workspaceDialog.kind === "delete" ? "toolbar-button--danger" : ""}`}
+                data-testid="workspace-dialog-confirm"
+                onClick={() => void submitWorkspaceDialog()}
+                type="button"
+              >
+                {workspaceDialog.confirmLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -378,4 +684,24 @@ function flattenFiles(nodes: TreeNode[]): TreeNode[] {
 function directoryOf(filePath: string): string {
   const parts = filePath.split("/");
   return parts.slice(0, -1).join("/") || "/";
+}
+
+function joinPath(parentPath: string, name: string): string {
+  return `${parentPath.replace(/\/$/, "")}/${name.replace(/^\//, "")}`;
+}
+
+function isInsideAttachedRoot(targetPath: string, rootPaths: string[]): boolean {
+  return rootPaths.some((rootPath) => isPathWithin(rootPath, targetPath));
+}
+
+function ensureDefaultExtension(name: string, directoryPath: string, noteRootPaths: string[]): string {
+  if (name.includes(".")) {
+    return name;
+  }
+
+  return isInsideAttachedRoot(directoryPath, noteRootPaths) ? `${name}.md` : name;
+}
+
+function isPathWithin(parentPath: string, targetPath: string): boolean {
+  return targetPath === parentPath || targetPath.startsWith(`${parentPath}/`);
 }
