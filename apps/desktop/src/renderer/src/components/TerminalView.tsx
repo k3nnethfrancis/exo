@@ -18,6 +18,16 @@ export function TerminalView(props: TerminalViewProps) {
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const bufferRef = useRef("");
+  const inputHandlerRef = useRef(onInput);
+  const resizeHandlerRef = useRef(onResize);
+
+  useEffect(() => {
+    inputHandlerRef.current = onInput;
+  }, [onInput]);
+
+  useEffect(() => {
+    resizeHandlerRef.current = onResize;
+  }, [onResize]);
 
   useEffect(() => {
     const terminal = new Terminal({
@@ -34,17 +44,24 @@ export function TerminalView(props: TerminalViewProps) {
     terminal.loadAddon(fitAddon);
     terminal.open(hostRef.current!);
     fitAddon.fit();
-    onResize(session.id, terminal.cols, terminal.rows);
+    terminal.focus();
+    resizeHandlerRef.current(session.id, terminal.cols, terminal.rows);
 
     const disposeData = terminal.onData((data) => {
-      onInput(session.id, data);
+      inputHandlerRef.current(session.id, data);
     });
 
     const observer = new ResizeObserver(() => {
       fitAddon.fit();
-      onResize(session.id, terminal.cols, terminal.rows);
+      resizeHandlerRef.current(session.id, terminal.cols, terminal.rows);
     });
     observer.observe(hostRef.current!);
+
+    function focusTerminal() {
+      terminal.focus();
+    }
+
+    hostRef.current!.addEventListener("mousedown", focusTerminal);
 
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
@@ -53,9 +70,10 @@ export function TerminalView(props: TerminalViewProps) {
     return () => {
       disposeData.dispose();
       observer.disconnect();
+      hostRef.current?.removeEventListener("mousedown", focusTerminal);
       terminal.dispose();
     };
-  }, [session.id, onInput, onResize]);
+  }, [session.id]);
 
   useEffect(() => {
     const terminal = terminalRef.current;
@@ -75,8 +93,8 @@ export function TerminalView(props: TerminalViewProps) {
     }
     bufferRef.current = buffer;
     fitAddonRef.current?.fit();
-    onResize(session.id, terminal.cols, terminal.rows);
-  }, [buffer, onResize, session.id]);
+    resizeHandlerRef.current(session.id, terminal.cols, terminal.rows);
+  }, [buffer, session.id]);
 
-  return <div ref={hostRef} className="terminal-surface" data-testid="terminal-surface" />;
+  return <div ref={hostRef} className="terminal-surface" data-testid="terminal-surface" tabIndex={0} />;
 }

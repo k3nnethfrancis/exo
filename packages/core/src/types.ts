@@ -1,5 +1,6 @@
 export type RootKind = "notes" | "projects";
 export type DocumentKind = "markdown" | "text";
+export type ManagedAgentKind = "shell" | "claude" | "codex";
 
 export interface AttachedRoot {
   id: string;
@@ -91,4 +92,48 @@ export interface BranchFamily {
 export interface BranchCreateResult {
   branchFilePath: string;
   family: BranchFamily;
+}
+
+export interface RuntimeInstructionPaths {
+  primary: string;
+  claude: string;
+}
+
+export interface RetrievalBackendConfig {
+  kind: "qmd";
+  enabled: boolean;
+  command: string;
+}
+
+export interface AgentCommunicationConfig {
+  kind: "file-sqlite";
+  messagesDirectory: string;
+  sqlitePath: string;
+}
+
+export interface AgentLauncherConfig {
+  kind: ManagedAgentKind;
+  title: string;
+  command: string;
+  args: string[];
+}
+
+export interface RuntimeConfig {
+  workspace: WorkspaceModel;
+  runtimeRoot: string;
+  instructions: RuntimeInstructionPaths;
+  retrieval: RetrievalBackendConfig;
+  communication: AgentCommunicationConfig;
+  launchers: Record<ManagedAgentKind, AgentLauncherConfig>;
+}
+
+export interface AgentLaunchPlan {
+  kind: ManagedAgentKind;
+  title: string;
+  cwd: string;
+  command: string;
+  args: string[];
+  env: Record<string, string>;
+  primaryInstructionsPath: string;
+  secondaryInstructionsPath?: string;
 }

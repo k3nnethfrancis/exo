@@ -85,8 +85,8 @@ export function App() {
   const [terminalSessions, setTerminalSessions] = useState<TerminalSessionInfo[]>([]);
   const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null);
   const [terminalBuffers, setTerminalBuffers] = useState<Record<string, string>>({});
-  const [terminalRightWidth, setTerminalRightWidth] = useState(412);
-  const [terminalBottomHeight, setTerminalBottomHeight] = useState(284);
+  const [terminalRightWidth, setTerminalRightWidth] = useState(372);
+  const [terminalBottomHeight, setTerminalBottomHeight] = useState(236);
   const [resizeState, setResizeState] = useState<ResizeState | null>(null);
   const [workspaceDialog, setWorkspaceDialog] = useState<WorkspaceDialogState | null>(null);
   const pendingTerminalChunksRef = useRef<Record<string, string>>({});
@@ -97,6 +97,10 @@ export function App() {
   const activeDocument = activeDocumentPath ? openDocuments[activeDocumentPath] ?? null : null;
   const activeKnowledge = activeDocumentPath ? knowledgeByPath[activeDocumentPath] ?? null : null;
   const activeBranchFamily = activeDocumentPath ? branchFamiliesByPath[activeDocumentPath] ?? null : null;
+  const compactEditorChrome = editorPanes.length > 1;
+  const terminalCollapsed = terminalSessions.length === 0;
+  const effectiveTerminalPlacement = terminalCollapsed ? "bottom" : terminalPlacement;
+  const compactTerminalChrome = terminalCollapsed || effectiveTerminalPlacement === "right";
 
   useEffect(() => {
     let cancelled = false;
@@ -722,11 +726,13 @@ export function App() {
       <div className="workspace">
         <div
           ref={workspaceBodyRef}
-          className={`workspace__body workspace__body--terminal-${terminalPlacement}`}
+          className={`workspace__body workspace__body--terminal-${effectiveTerminalPlacement}`}
           style={
-            terminalPlacement === "right"
+            effectiveTerminalPlacement === "right"
               ? { gridTemplateColumns: `minmax(0, 1fr) 8px ${terminalRightWidth}px` }
-              : { gridTemplateRows: `minmax(0, 1fr) 8px ${terminalBottomHeight}px` }
+              : {
+                  gridTemplateRows: `minmax(0, 1fr) ${terminalCollapsed ? "0px" : "8px"} ${terminalCollapsed ? "36px" : `${terminalBottomHeight}px`}`,
+                }
           }
         >
           <div
@@ -752,6 +758,7 @@ export function App() {
                   void createTerminal("shell", activeDocumentPath ? directoryOf(activeDocumentPath) : workspaceModel.defaultTerminalCwd)
                 }
                 onCreateBranch={() => void createBranchFromActiveDocument()}
+                compact={compactEditorChrome}
               />
             ))}
 
@@ -779,19 +786,23 @@ export function App() {
             ) : null}
           </div>
 
-          <div
-            className={`pane-resizer ${terminalPlacement === "right" ? "pane-resizer--vertical" : "pane-resizer--horizontal"}`}
-            onMouseDown={(event) =>
-              setResizeState({
-                axis: terminalPlacement === "right" ? "vertical" : "horizontal",
-                startSize: terminalPlacement === "right" ? terminalRightWidth : terminalBottomHeight,
-                origin: terminalPlacement === "right" ? event.clientX : event.clientY,
-              })
-            }
-          />
+          {terminalCollapsed ? null : (
+            <div
+              className={`pane-resizer ${effectiveTerminalPlacement === "right" ? "pane-resizer--vertical" : "pane-resizer--horizontal"}`}
+              onMouseDown={(event) =>
+                setResizeState({
+                  axis: effectiveTerminalPlacement === "right" ? "vertical" : "horizontal",
+                  startSize: effectiveTerminalPlacement === "right" ? terminalRightWidth : terminalBottomHeight,
+                  origin: effectiveTerminalPlacement === "right" ? event.clientX : event.clientY,
+                })
+              }
+            />
+          )}
 
           <TerminalDock
-            placement={terminalPlacement}
+            placement={effectiveTerminalPlacement}
+            compact={compactTerminalChrome}
+            collapsed={terminalCollapsed}
             sessions={terminalSessions}
             activeTerminalId={activeTerminalId}
             buffers={terminalBuffers}

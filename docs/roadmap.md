@@ -8,24 +8,40 @@
 - project-file editing path beside notebook notes
 
 ## Phase 2
-- knowledge-system parity:
-  - backlinks
-  - tags
-  - search
-  - branches
-  - workspace-aware navigation
+- shell completion and knowledge/editor parity:
   - notebook execution
   - deeper search ranking and keyboard navigation
+  - branch affordances in the explorer
+  - consistent collapsed bottom bars
+  - true pane graph for notes and terminals
 
 ## Phase 3
-- runtime and memory:
+- agent runtime control layer:
+  - `exo` CLI
+  - workspace-aware launchers for shell, Claude, and Codex
+  - Exo-managed `AGENTS.md` / `CLAUDE.md` overlays
+  - runtime context snapshots
+  - richer CLI-first agent operations after launch/context
+  - MCP later wrapping the CLI instead of replacing it
+
+## Phase 4
+- retrieval and layered memory:
+  - QMD adapter
   - durable memory
   - trace archive
   - retrieval/index
   - working-memory assembly
   - CLI-first memory operations
 
-## Phase 4
+## Phase 5
+- multi-agent system:
+  - multiple terminals
+  - terminal grids
+  - file+SQLite agent communication protocol
+  - later direct/local transports
+  - agent operator views
+
+## Phase 6
 - research harness:
   - workcells
   - supervised runs
@@ -33,15 +49,9 @@
   - artifacts
   - logs
   - `autoresearch-macos`
+  - Exo-memory research workcell
 
-## Phase 5
-- multi-agent system:
-  - multiple terminals
-  - terminal grids
-  - subagent coordination
-  - agent operator views
-
-## Phase 6
+## Phase 7
 - datasets, evals, and training:
   - objective contracts
   - dataset assignment

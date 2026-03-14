@@ -28,6 +28,7 @@ interface EditorPaneProps {
   onOpenTag: (tag: string) => void;
   onOpenShellHere: () => void;
   onCreateBranch: () => void;
+  compact: boolean;
 }
 
 export function EditorPane(props: EditorPaneProps) {
@@ -47,13 +48,14 @@ export function EditorPane(props: EditorPaneProps) {
     onOpenTag,
     onOpenShellHere,
     onCreateBranch,
+    compact,
   } = props;
 
   const activeDocument = pane.activePath ? documents[pane.activePath] ?? null : null;
 
   return (
     <div
-      className={`editor-pane ${isFocused ? "editor-pane--focused" : ""}`}
+      className={`editor-pane ${isFocused ? "editor-pane--focused" : ""} ${compact ? "editor-pane--compact" : ""}`}
       data-testid={`editor-pane-${pane.id}`}
       onMouseDown={onFocusPane}
     >
@@ -98,6 +100,7 @@ export function EditorPane(props: EditorPaneProps) {
         onOpenShellHere={onOpenShellHere}
         onCreateBranch={onCreateBranch}
         onFocus={onFocusPane}
+        compact={compact}
       />
     </div>
   );

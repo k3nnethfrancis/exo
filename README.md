@@ -57,6 +57,14 @@ pnpm install
 pnpm dev
 ```
 
+Runtime CLI:
+
+```bash
+./bin/exo runtime status
+./bin/exo runtime sync
+./bin/exo launch claude
+```
+
 Validation loop:
 
 ```bash

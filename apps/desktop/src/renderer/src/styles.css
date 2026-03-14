@@ -83,13 +83,24 @@ button {
   box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.015);
 }
 
-.sidebar__content {
+.sidebar__panes {
   min-height: 0;
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sidebar__content {
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: contain;
   padding-right: 4px;
+}
+
+.sidebar__content--notes {
+  flex: 1;
 }
 
 .sidebar__header {
@@ -151,6 +162,74 @@ button {
   display: grid;
   gap: 12px;
   min-width: 0;
+}
+
+.sidebar__drawer {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 36px;
+  border-top: 1px solid var(--divider);
+  background: rgba(255, 255, 255, 0.02);
+  overflow: hidden;
+}
+
+.sidebar__drawer--collapsed {
+  grid-template-rows: auto 0fr;
+}
+
+.sidebar__drawer--expanded {
+  min-height: 140px;
+}
+
+.sidebar__drawer-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  padding: 0 12px;
+  background: transparent;
+  color: var(--muted);
+  text-align: left;
+  border: 0;
+  border-bottom: 1px solid var(--divider);
+}
+
+.sidebar__drawer-label {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.sidebar__drawer-summary {
+  margin-left: auto;
+  font-size: 11px;
+  font-family: var(--mono);
+}
+
+.sidebar__drawer-panel {
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 10px 4px 10px 0;
+}
+
+.sidebar__drawer-resizer {
+  height: 8px;
+  cursor: row-resize;
+  position: relative;
+  z-index: 2;
+  flex: 0 0 8px;
+}
+
+.sidebar__drawer-resizer::before {
+  content: "";
+  position: absolute;
+  inset: 2px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sidebar__drawer-resizer:hover::before {
+  border-top-color: rgba(159, 184, 255, 0.4);
 }
 
 .tree-nodes {
@@ -348,7 +427,7 @@ button {
 
 .tab-strip {
   overflow-x: auto;
-  min-height: 46px;
+  min-height: 40px;
 }
 
 .tab-strip__tab,
@@ -359,7 +438,8 @@ button {
   border-radius: 999px;
   background: transparent;
   color: #cfd5e5;
-  padding: 9px 13px;
+  padding: 8px 11px;
+  font-size: 13px;
 }
 
 .tab-strip__tab--active,
@@ -383,6 +463,8 @@ button {
 .terminal-tab__close {
   display: inline-flex;
   align-items: center;
+  border-radius: 999px;
+  padding: 2px;
 }
 
 .editor-panel {
@@ -401,17 +483,25 @@ button {
 
 .editor-panel__header {
   justify-content: space-between;
-  min-height: 86px;
+  min-height: 72px;
 }
 
 .editor-panel__title {
-  font-size: 28px;
+  font-size: 22px;
   font-weight: 700;
   letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.editor-panel__eyebrow {
+  max-width: min(100%, 48ch);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .editor-panel__meta {
-  margin-top: 10px;
+  margin-top: 8px;
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -425,6 +515,8 @@ button {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .toolbar-button {
@@ -436,6 +528,14 @@ button {
   border-radius: 12px;
   padding: 9px 12px;
   border: 1px solid rgba(255, 255, 255, 0.04);
+  white-space: nowrap;
+}
+
+.toolbar-button--compact {
+  padding: 7px 8px;
+  min-width: 32px;
+  justify-content: center;
+  gap: 0;
 }
 
 .toolbar-button--icon {
@@ -499,7 +599,6 @@ button {
 
 .editor-surface {
   min-height: 0;
-  border-bottom: 1px solid var(--divider);
   background: transparent;
 }
 
@@ -701,9 +800,16 @@ button {
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-rows: 48px minmax(0, 1fr);
+  grid-template-rows: 40px minmax(0, 1fr);
   background: transparent;
   border-left: 1px solid var(--divider);
+}
+
+.terminal-dock--collapsed {
+  grid-template-rows: 36px 0fr;
+  border-left: 0;
+  border-top: 1px solid var(--divider);
+  background: rgba(255, 255, 255, 0.02);
 }
 
 .workspace__body--terminal-bottom .terminal-dock {
@@ -713,12 +819,12 @@ button {
 
 .terminal-dock__header {
   justify-content: space-between;
+  min-height: 40px;
+  padding-inline: 12px;
 }
 
-.terminal-dock__left {
-  display: grid;
-  gap: 6px;
-  min-width: 0;
+.terminal-dock--collapsed .terminal-dock__header {
+  min-height: 36px;
 }
 
 .terminal-dock__tabs {
@@ -726,22 +832,101 @@ button {
   align-items: center;
   gap: 8px;
   overflow-x: auto;
+  min-width: 0;
+  flex: 1;
 }
 
-.terminal-dock__meta {
-  font-family: var(--mono);
-  font-size: 11px;
+.terminal-dock__collapsed-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
   color: var(--muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+}
+
+.terminal-dock__collapsed-title {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.terminal-dock__collapsed-summary {
+  font-size: 11px;
+  font-family: var(--mono);
+}
+
+.terminal-dock--right .terminal-dock__header {
+  gap: 8px;
+}
+
+.terminal-dock--right .terminal-dock__tabs {
+  gap: 6px;
+}
+
+.terminal-dock--right .terminal-tab {
+  padding: 7px 10px;
+  gap: 6px;
+}
+
+.terminal-dock--right .terminal-dock__actions {
+  gap: 6px;
 }
 
 .terminal-surface {
   min-width: 0;
   min-height: 0;
-  padding: 10px 12px 12px;
+  padding: 6px 8px 8px;
   background: transparent;
+}
+
+.terminal-surface:focus {
+  outline: none;
+}
+
+.editor-pane--compact .editor-panel__header {
+  min-height: 54px;
+  padding-inline: 12px;
+}
+
+.editor-pane--compact .editor-panel__title {
+  font-size: 17px;
+}
+
+.editor-pane--compact .editor-panel__eyebrow {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  max-width: 28ch;
+}
+
+.editor-pane--compact .editor-panel__meta {
+  margin-top: 4px;
+  font-size: 10px;
+}
+
+.editor-pane--compact .toolbar-button {
+  padding: 6px 8px;
+  font-size: 11px;
+  min-width: 30px;
+}
+
+.editor-pane--compact .properties-card {
+  padding: 8px 12px 10px;
+}
+
+.editor-pane--compact .editor-surface .cm-scroller {
+  padding: 14px 14px 20px;
+}
+
+.editor-pane--compact .properties-card__row {
+  grid-template-columns: 92px minmax(0, 1fr);
+}
+
+.knowledge-drawer__bar {
+  flex-wrap: wrap;
+  row-gap: 6px;
 }
 
 .terminal-dock__empty {

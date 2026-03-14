@@ -110,47 +110,107 @@ Build:
 - split-pane resizing and stable chrome/layout
 - open project files without forcing notebook semantics
 
-### Phase 2 — Knowledge/editor parity
-Build:
-- backlinks, tags, search, branches
-- workspace-aware file navigation
-- notebook execution surfaces
+### Phase 2 — Shell completion and knowledge/editor parity
+Goal: finish the IDE shell so later runtime systems sit on stable operator surfaces.
 
-Current phase-2 slice already in:
+Build:
+- notebook execution surfaces
+- richer search ranking, keyboard navigation, and preview flows
+- branch affordances in the explorer
+- consistent collapsed-bar patterns for project roots, inspector/knowledge, and terminal dock
+- true pane graph beyond the current two-editor split:
+  - dockable note panes
+  - dockable terminal panes
+  - multiple terminal regions and grid layouts
+
+Current completed slice:
 - note branch families using Garden's file-family pattern
 - unified search sections for notes, tags, and project files
 - markdown-note vs project-file editor behavior split
+- first-step dragged document splitting
 
-### Phase 3 — Runtime and memory
+### Phase 3 — Agent runtime control layer
+Goal: Exo must control how terminal agents are launched and what context they receive.
+
 Build:
-- durable memory
-- trace archive
-- retrieval/index layer
-- working-memory assembly
-- CLI-first memory operator commands
+- Exo workspace configuration model for:
+  - `workspace_root`
+  - `note_roots`
+  - `project_roots`
+  - per-agent launch defaults
+  - QMD/retrieval backend config
+  - agent-to-agent transport config
+- `exo` CLI as the canonical runtime surface
+- workspace-aware launchers:
+  - `exo launch shell`
+  - `exo launch claude`
+  - `exo launch codex`
+- Exo-generated agent context overlays:
+  - `AGENTS.md` as the primary generic runtime contract
+  - `CLAUDE.md` as a secondary Claude-specific overlay
+- task-scoped working context snapshots provided by Exo instead of ad hoc terminal bootstrap pastes
+- CLI-first agent operations later exposable through MCP
 
-### Phase 4 — Research harness
+Current shipped slice:
+- shared runtime config and launch-plan generation in `packages/core`
+- generated Exo-owned overlays under `.exo/instructions/AGENTS.md` and `.exo/instructions/CLAUDE.md`
+- `exo-cli runtime status|context|launch-plan|sync`
+- `exo-cli launch shell|claude|codex`
+- Electron terminal launch wired through the same launch-plan path
+
+### Phase 4 — Retrieval and layered memory
+Goal: Exo should own memory architecture while allowing retrieval backends like QMD.
+
+Build:
+- QMD adapter as a retrieval/index backend, not the memory system itself
+- explicit memory layers:
+  - durable memory
+  - trace archive
+  - retrieval/index
+  - working-memory assembly
+- CLI-first memory operator commands:
+  - `exo context`
+  - `exo qmd search`
+  - `exo qmd query`
+  - `exo memory snapshot`
+  - `exo memory review`
+- approved quirks and working-memory shaping driven by Exo runtime state
+
+### Phase 5 — Agent communication and multi-agent system
+Goal: terminals should be able to collaborate through Exo-native protocols.
+
+Build:
+- multiple terminal panes and grid layouts
+- agent-to-agent communication protocol with inspectable transports
+- initial transport strategy:
+  - file-backed append-only messages
+  - SQLite index for reads, search, and replay
+- later transport options:
+  - direct local sockets
+  - brokered relay
+- operator surfaces for agent state, conversations, and message audit trails
+- later: chat-style wrappers over terminal agents
+
+### Phase 6 — Research harness
+Goal: make bounded research loops first-class operator objects.
+
 Build:
 - workcell model
 - bounded run supervision
 - `autoresearch-macos` baseline integration
 - CLI-first workcell, agent, dataset, and eval commands
+- one of the first workcells should target Exo's own memory/runtime system quality
 
-### Phase 5 — Multi-agent system
-Build:
-- multiple terminal panes
-- terminal grids
-- subagent surfaces
-- later: chat-style wrappers over terminal agents
+### Phase 7 — Datasets, evals, and training
+Goal: turn real operator behavior and research traces into improvement loops.
 
-### Phase 6 — Datasets, evals, and training
 Build:
 - explicit objective contracts
 - dataset selectors
 - eval suites
 - operator decisions as labels
 - helper-model training
-- memory-system research as a first-class internal workcell
+- memory-system and retrieval-system improvement as first-class research targets
 
 ## Validation Loop
 

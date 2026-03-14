@@ -5,6 +5,8 @@ import { TerminalView } from "./TerminalView";
 
 interface TerminalDockProps {
   placement: "right" | "bottom";
+  compact: boolean;
+  collapsed: boolean;
   sessions: TerminalSessionInfo[];
   activeTerminalId: string | null;
   buffers: Record<string, string>;
@@ -21,6 +23,8 @@ interface TerminalDockProps {
 export function TerminalDock(props: TerminalDockProps) {
   const {
     placement,
+    compact,
+    collapsed,
     sessions,
     activeTerminalId,
     buffers,
@@ -33,13 +37,21 @@ export function TerminalDock(props: TerminalDockProps) {
     onEndDockDrag,
     onTogglePlacement,
   } = props;
-
   const activeSession = sessions.find((session) => session.id === activeTerminalId) ?? null;
 
   return (
-    <section className="terminal-dock" data-testid="terminal-dock">
+    <section
+      className={`terminal-dock terminal-dock--${placement} ${collapsed ? "terminal-dock--collapsed" : ""}`}
+      data-testid="terminal-dock"
+    >
       <div className="terminal-dock__header">
-        <div className="terminal-dock__left">
+        {collapsed ? (
+          <div className="terminal-dock__collapsed-label">
+            <SquareTerminal size={13} />
+            <span className="terminal-dock__collapsed-title">Terminal</span>
+            <span className="terminal-dock__collapsed-summary">0 sessions</span>
+          </div>
+        ) : (
           <div className="terminal-dock__tabs">
             {sessions.map((session) => (
               <button
@@ -62,47 +74,64 @@ export function TerminalDock(props: TerminalDockProps) {
                 {session.title}
                 {session.kind === "shell" ? <SquareTerminal size={12} /> : <Bot size={12} />}
                 <span
+                  aria-label={`Close ${session.title}`}
                   className="terminal-tab__close"
+                  data-testid={`close-terminal-${session.kind}`}
                   onClick={(event) => {
                     event.stopPropagation();
                     onKill(session.id);
                   }}
+                  role="button"
                 >
                   <X size={12} />
                 </span>
               </button>
             ))}
           </div>
-          {activeSession ? (
-            <div className="terminal-dock__meta" data-testid="terminal-meta">
-              {activeSession.cwd} · {activeSession.command}
-            </div>
-          ) : null}
-        </div>
+        )}
 
         <div className="terminal-dock__actions">
-          <button className="toolbar-button toolbar-button--icon" onClick={() => onCreateTerminal("shell")} type="button">
+          <button
+            className={`toolbar-button toolbar-button--icon ${compact ? "toolbar-button--compact" : ""}`}
+            onClick={() => onCreateTerminal("shell")}
+            title="New terminal"
+            type="button"
+          >
             <Plus size={14} />
           </button>
-          <button className="toolbar-button" data-testid="launch-claude" onClick={() => onCreateTerminal("claude")} type="button">
-            Claude
+          <button
+            className={`toolbar-button ${compact ? "toolbar-button--compact" : ""}`}
+            data-testid="launch-claude"
+            onClick={() => onCreateTerminal("claude")}
+            title="Launch Claude"
+            type="button"
+          >
+            <Bot size={14} />
+            {compact ? null : "Claude"}
           </button>
-          <button className="toolbar-button" data-testid="launch-codex" onClick={() => onCreateTerminal("codex")} type="button">
-            Codex
+          <button
+            className={`toolbar-button ${compact ? "toolbar-button--compact" : ""}`}
+            data-testid="launch-codex"
+            onClick={() => onCreateTerminal("codex")}
+            title="Launch Codex"
+            type="button"
+          >
+            <Bot size={14} />
+            {compact ? null : "Codex"}
           </button>
         </div>
       </div>
 
-      {activeSession ? (
+      {!collapsed && activeSession ? (
         <TerminalView
           session={activeSession}
           buffer={buffers[activeSession.id] ?? ""}
           onInput={onWrite}
           onResize={onResize}
         />
-      ) : (
+      ) : !collapsed ? (
         <div className="terminal-dock__empty">No terminals yet.</div>
-      )}
+      ) : null}
     </section>
   );
 }

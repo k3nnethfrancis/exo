@@ -76,6 +76,8 @@ function broadcastTerminalData() {
 
 function registerIpcHandlers() {
   ipcMain.handle("workspace:get-model", async () => workspaceModel);
+  ipcMain.handle("runtime:get-status", async () => terminalManager.getRuntimeConfig());
+  ipcMain.handle("runtime:sync", async () => terminalManager.syncRuntimeContext());
   ipcMain.handle(
     "workspace:list-tree",
     async (_event, rootPath: string, options?: { markdownOnly?: boolean; maxDepth?: number }) =>
@@ -179,9 +181,10 @@ async function fileExists(targetPath: string): Promise<boolean> {
   );
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   registerIpcHandlers();
   broadcastTerminalData();
+  await terminalManager.syncRuntimeContext();
   createWindow();
 
   app.on("activate", () => {

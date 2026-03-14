@@ -6,7 +6,7 @@ test("boots the shell, opens notes, and manages terminal tabs", async () => {
   const { page, cleanup } = await launchExoFixture();
 
   await expect(page.getByTestId("editor-title")).toHaveText("Focus Note");
-  await expect(page.getByTestId("terminal-meta")).toContainText("fixtures/workspace/lab");
+  await expect(page.getByTestId("terminal-tab-shell")).toBeVisible();
 
   await page.getByTestId("launch-claude").click();
   await expect(page.getByTestId("terminal-tab-claude")).toBeVisible();
@@ -31,6 +31,7 @@ test("boots the shell, opens notes, and manages terminal tabs", async () => {
 test("opens project files and creates note branches", async () => {
   const { page, cleanup } = await launchExoFixture({ mutable: true });
 
+  await page.getByTestId("project-roots-toggle").click();
   await page.getByRole("button", { name: "exo-demo" }).click();
   await page.getByRole("button", { name: "src" }).click({ button: "right" });
   await expect(page.getByText("New File")).toBeVisible();
@@ -50,6 +51,48 @@ test("opens project files and creates note branches", async () => {
   await page.getByTestId("knowledge-toggle").click();
   await expect(page.getByTestId("branches-panel")).toContainText("1 · Focus Note");
   await expect(page.getByTestId("branch-tree")).toContainText("1.md");
+
+  await cleanup();
+});
+
+test("expands and collapses the project roots drawer", async () => {
+  const { page, cleanup } = await launchExoFixture();
+
+  await expect(page.getByTestId("project-roots-drawer")).toHaveClass(/sidebar__drawer--collapsed/);
+  await expect(page.getByTestId("project-roots-panel")).toHaveCount(0);
+  await page.getByTestId("project-roots-toggle").click();
+  await expect(page.getByTestId("project-roots-drawer")).toHaveClass(/sidebar__drawer--expanded/);
+  await expect(page.getByTestId("project-roots-panel")).toBeVisible();
+  await expect(page.getByRole("button", { name: "exo-demo" })).toBeVisible();
+  await page.getByTestId("project-roots-toggle").click();
+  await expect(page.getByTestId("project-roots-drawer")).toHaveClass(/sidebar__drawer--collapsed/);
+  await expect(page.getByTestId("project-roots-panel")).toHaveCount(0);
+
+  await cleanup();
+});
+
+test("accepts terminal keyboard input", async () => {
+  const { page, cleanup } = await launchExoFixture({
+    env: {
+      EXO_SHELL: "/bin/cat",
+      EXO_SHELL_ARGS: "",
+    },
+  });
+
+  await page.getByTestId("terminal-surface").click();
+  await page.keyboard.type("hello exo");
+  await expect(page.getByTestId("terminal-surface")).toContainText("hello exo");
+
+  await cleanup();
+});
+
+test("collapses the dock when the last terminal closes", async () => {
+  const { page, cleanup } = await launchExoFixture();
+
+  await page.getByTestId("close-terminal-shell").click();
+  await expect(page.getByTestId("terminal-dock")).toHaveClass(/terminal-dock--collapsed/);
+  await expect(page.getByText("No terminals yet.")).toHaveCount(0);
+  await expect(page.getByTestId("launch-claude")).toBeVisible();
 
   await cleanup();
 });

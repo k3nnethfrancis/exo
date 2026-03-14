@@ -34,6 +34,14 @@ Active Phase 2 work:
 - branch-aware note families
 - unified note/project/tag search
 - richer workspace-aware navigation
+- finishing the pane model so terminals, project roots, and inspector use a coherent IDE structure
+
+Initial Phase 3 slice is also in place:
+- shared runtime config in `packages/core`
+- generated Exo-owned `AGENTS.md` / `CLAUDE.md` overlays under `.exo/instructions/`
+- `exo-cli runtime ...` inspection/sync commands
+- `exo-cli launch shell|claude|codex`
+- Electron terminal launch using the same runtime launch-plan path as the CLI
 
 Do not rebuild the full memory/research system until the shell and knowledge/editor parity surfaces are stable.
 
@@ -78,18 +86,49 @@ Completed:
 12. shared knowledge footer spanning editor + terminal region
 13. initial dragged-document pane splitting from explorer items and editor tabs
 14. resizable terminal dock
+15. shared runtime config for workspace-aware launch defaults, retrieval config, and communication transport
+16. generated Exo runtime overlays under `.exo/instructions/AGENTS.md` and `.exo/instructions/CLAUDE.md`
+17. CLI runtime inspection/sync commands plus `exo-cli launch shell|claude|codex`
+18. app startup/runtime sync and terminal launch through the shared launch-plan path
 
 Next:
 1. notebook execution surfaces
 2. deeper search/navigation parity
 3. true arbitrary IDE pane graph beyond the current two-pane split model
-4. runtime + memory reintroduction
+4. broaden the agent runtime control layer beyond launch/context into richer CLI-first agent operations
+5. retrieval + layered memory
+6. research harness
+7. datasets, evals, and training
 
 ## Short-Term Roadmap
 
 1. Finish Phase 2 knowledge/editor parity
 2. Build real pane-splitting / dock management beyond right-vs-bottom terminal drag
-3. Runtime + memory
-4. Research harness
-5. Multi-agent system
-6. Datasets, evals, and training
+3. Extend the runtime control layer with real agent operations after the shell stabilizes further
+4. Integrate QMD as a retrieval backend through the Exo CLI
+5. Add the first Exo-native agent communication transport
+6. Research harness
+7. Datasets, evals, and training
+
+## Runtime Direction
+
+The next major system seam is not "memory first" in isolation.
+
+Exo needs a runtime control layer that owns:
+- agent launch
+- workspace-aware context
+- Exo-managed overlays for agent instructions
+- retrieval backend configuration
+- communication transport selection
+
+Current intended structure:
+- `AGENTS.md` generated/adapted by Exo as the primary generic contract
+- `CLAUDE.md` generated as a secondary Claude-specific overlay
+- `exo` CLI as the canonical interface for runtime operations
+- MCP later wrapping the CLI instead of becoming the primary surface
+
+For agent communication, start with the inspectable path:
+- file-backed append-only messages
+- SQLite index for reads, search, and replay
+
+For retrieval, QMD should be integrated as a backend, not treated as the memory system itself.

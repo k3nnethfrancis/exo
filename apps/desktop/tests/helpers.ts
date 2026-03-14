@@ -10,6 +10,7 @@ const fixtureRoot = path.join(repoRoot, "fixtures/workspace/lab");
 
 export async function launchExoFixture(options?: {
   mutable?: boolean;
+  env?: Record<string, string>;
 }): Promise<{ electronApp: ElectronApplication; page: Page; workspaceRoot: string; cleanup: () => Promise<void> }> {
   let workspaceRoot = fixtureRoot;
   let tempRoot: string | null = null;
@@ -34,6 +35,7 @@ export async function launchExoFixture(options?: {
       EXO_CLAUDE_ARGS: "claude ready",
       EXO_CODEX_COMMAND: "/bin/echo",
       EXO_CODEX_ARGS: "codex ready",
+      ...options?.env,
     },
   });
   const page = await electronApp.firstWindow();

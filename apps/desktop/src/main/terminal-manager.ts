@@ -1,7 +1,7 @@
-import path from "node:path";
 import { EventEmitter } from "node:events";
 
 import pty, { type IPty } from "node-pty";
+import { resolveAgentLaunchPlan, resolveRuntimeConfig, syncRuntimeContextFiles } from "@exo/core";
 
 import type { TerminalCreateOptions, TerminalSessionInfo, TerminalKind } from "../shared/api";
 
@@ -10,44 +10,10 @@ interface TerminalRecord {
   process: IPty;
 }
 
-function splitEnvArgs(rawValue?: string): string[] {
-  if (!rawValue) {
-    return [];
-  }
-
-  return rawValue
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean);
-}
-
-function defaultShellCommand(): { command: string; args: string[] } {
-  const command = process.env.EXO_SHELL ?? process.env.SHELL ?? "/bin/zsh";
-  const args = splitEnvArgs(process.env.EXO_SHELL_ARGS);
-  if (args.length > 0) {
-    return { command, args };
-  }
-
-  return { command, args: path.basename(command).includes("zsh") ? ["-l"] : [] };
-}
-
-function toolCommand(kind: Exclude<TerminalKind, "shell">): { command: string; args: string[] } {
-  if (kind === "claude") {
-    return {
-      command: process.env.EXO_CLAUDE_COMMAND ?? "claude",
-      args: splitEnvArgs(process.env.EXO_CLAUDE_ARGS),
-    };
-  }
-
-  return {
-    command: process.env.EXO_CODEX_COMMAND ?? "codex",
-    args: splitEnvArgs(process.env.EXO_CODEX_ARGS),
-  };
-}
-
 export class TerminalManager extends EventEmitter {
   private readonly sessions = new Map<string, TerminalRecord>();
   private nextId = 1;
+  private readonly runtimeConfig = resolveRuntimeConfig();
 
   constructor(private readonly defaultCwd: string) {
     super();
@@ -68,22 +34,30 @@ export class TerminalManager extends EventEmitter {
     return this.create({ kind: "shell" });
   }
 
+  getRuntimeConfig() {
+    return this.runtimeConfig;
+  }
+
+  async syncRuntimeContext() {
+    return syncRuntimeContextFiles(this.runtimeConfig);
+  }
+
   async create(options: TerminalCreateOptions): Promise<TerminalSessionInfo> {
     const cwd = options.cwd ?? this.defaultCwd;
-    const title = options.kind === "shell" ? "Terminal" : capitalize(options.kind);
-    const launch = options.kind === "shell" ? defaultShellCommand() : toolCommand(options.kind);
+    await this.syncRuntimeContext();
+    const launch = resolveAgentLaunchPlan(this.runtimeConfig, options.kind, cwd);
     const env = {
       ...process.env,
       TERM: "xterm-256color",
       COLORTERM: "truecolor",
       SHELL_SESSIONS_DISABLE: "1",
-      EXO_WORKSPACE_ROOT: this.defaultCwd,
+      ...launch.env,
     };
 
     const processHandle = pty.spawn(launch.command, launch.args, {
       cols: 120,
       rows: 32,
-      cwd,
+      cwd: launch.cwd,
       env,
       name: "xterm-256color",
     });
@@ -91,8 +65,8 @@ export class TerminalManager extends EventEmitter {
     const id = `term-${this.nextId++}`;
     const info: TerminalSessionInfo = {
       id,
-      title,
-      cwd,
+      title: launch.title,
+      cwd: launch.cwd,
       kind: options.kind,
       command: launch.command,
       status: "running",
@@ -144,8 +118,4 @@ export class TerminalManager extends EventEmitter {
     record.process.kill();
     this.sessions.delete(id);
   }
-}
-
-function capitalize(value: string): string {
-  return `${value.slice(0, 1).toUpperCase()}${value.slice(1)}`;
 }

@@ -20,6 +20,7 @@ interface NoteEditorProps {
   onOpenShellHere: () => void;
   onCreateBranch: () => void;
   onFocus: () => void;
+  compact: boolean;
 }
 
 export function NoteEditor(props: NoteEditorProps) {
@@ -34,6 +35,7 @@ export function NoteEditor(props: NoteEditorProps) {
     onOpenShellHere,
     onCreateBranch,
     onFocus,
+    compact,
   } = props;
 
   if (!document) {
@@ -51,10 +53,12 @@ export function NoteEditor(props: NoteEditorProps) {
   );
 
   return (
-    <section className="editor-panel" data-testid="editor-panel" onMouseDown={onFocus}>
+    <section className={`editor-panel ${compact ? "editor-panel--compact" : ""}`} data-testid="editor-panel" onMouseDown={onFocus}>
       <div className="editor-panel__header">
         <div>
-          <div className="editor-panel__eyebrow">{document.filePath}</div>
+          <div className="editor-panel__eyebrow" title={document.filePath}>
+            {document.filePath}
+          </div>
           <div className="editor-panel__title" data-testid="editor-title">
             {document.title}
           </div>
@@ -70,18 +74,35 @@ export function NoteEditor(props: NoteEditorProps) {
 
         <div className="editor-panel__actions">
           {isMarkdown ? (
-            <button className="toolbar-button" data-testid="create-branch" onClick={onCreateBranch} type="button">
+            <button
+              className={`toolbar-button ${compact ? "toolbar-button--compact" : ""}`}
+              data-testid="create-branch"
+              onClick={onCreateBranch}
+              title="Create branch"
+              type="button"
+            >
               <GitBranch size={14} />
-              Branch
+              {compact ? null : "Branch"}
             </button>
           ) : null}
-          <button className="toolbar-button" onClick={onOpenShellHere} type="button">
+          <button
+            className={`toolbar-button ${compact ? "toolbar-button--compact" : ""}`}
+            onClick={onOpenShellHere}
+            title="Open terminal here"
+            type="button"
+          >
             <TerminalSquare size={14} />
-            Shell Here
+            {compact ? null : "Shell Here"}
           </button>
-          <button className="toolbar-button" data-testid="save-note" onClick={onSave} type="button">
+          <button
+            className={`toolbar-button ${compact ? "toolbar-button--compact" : ""}`}
+            data-testid="save-note"
+            onClick={onSave}
+            title={document.dirty ? "Save changes" : "Save"}
+            type="button"
+          >
             <Save size={14} />
-            {document.dirty ? "Save*" : "Save"}
+            {compact ? null : document.dirty ? "Save*" : "Save"}
           </button>
         </div>
       </div>

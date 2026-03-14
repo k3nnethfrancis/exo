@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ChevronDown, ChevronRight, FilePlus2, FolderPlus, FolderTree, Hash, Pencil, Search, Trash2 } from "lucide-react";
 import type { SearchResult, TreeNode, WorkspaceSearchResults } from "@exo/core";
@@ -53,6 +53,10 @@ export function FileTree(props: FileTreeProps) {
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
   const [contextTarget, setContextTarget] = useState<ContextTarget | null>(null);
   const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null);
+  const [projectRootsExpanded, setProjectRootsExpanded] = useState(false);
+  const [projectDrawerHeight, setProjectDrawerHeight] = useState<number | null>(null);
+  const [drawerResizeOrigin, setDrawerResizeOrigin] = useState<{ startY: number; startHeight: number } | null>(null);
+  const panesRef = useRef<HTMLDivElement | null>(null);
 
   const defaultExpandedPaths = useMemo(() => {
     const next = new Set<string>();
@@ -89,6 +93,34 @@ export function FileTree(props: FileTreeProps) {
     };
   }, [contextTarget]);
 
+  useEffect(() => {
+    if (!drawerResizeOrigin) {
+      return;
+    }
+    const currentResize = drawerResizeOrigin;
+
+    function onMouseMove(event: MouseEvent) {
+      const containerHeight = panesRef.current?.getBoundingClientRect().height ?? 0;
+      if (!containerHeight) {
+        return;
+      }
+
+      const delta = currentResize.startY - event.clientY;
+      setProjectDrawerHeight(clampDrawerHeight(currentResize.startHeight + delta, containerHeight));
+    }
+
+    function onMouseUp() {
+      setDrawerResizeOrigin(null);
+    }
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, [drawerResizeOrigin]);
+
   function togglePath(path: string) {
     setExpandedPaths((current) => {
       const next = new Set(current);
@@ -116,6 +148,27 @@ export function FileTree(props: FileTreeProps) {
     setContextMenuPosition(null);
   }
 
+  function openProjectRootsDrawer() {
+    setProjectRootsExpanded(true);
+    setProjectDrawerHeight((current) => {
+      if (current !== null) {
+        return current;
+      }
+
+      const containerHeight = panesRef.current?.getBoundingClientRect().height ?? 0;
+      return containerHeight ? clampDrawerHeight(Math.round(containerHeight / 2), containerHeight) : 260;
+    });
+  }
+
+  function toggleProjectRootsDrawer() {
+    if (projectRootsExpanded) {
+      setProjectRootsExpanded(false);
+      return;
+    }
+
+    openProjectRootsDrawer();
+  }
+
   return (
     <aside className="sidebar" data-testid="sidebar">
       <div className="sidebar__header">
@@ -134,40 +187,40 @@ export function FileTree(props: FileTreeProps) {
         />
       </label>
 
-      <div className="sidebar__content">
-        {searchQuery ? (
-          <div className="tree-section">
-            <div className="tree-section__title">Search Results</div>
-            <div className="search-results" data-testid="search-results">
-              {searchResults.notes.length === 0 && searchResults.projectFiles.length === 0 && searchResults.tags.length === 0 ? (
-                <div className="search-result__empty">No matches</div>
-              ) : null}
+      <div ref={panesRef} className="sidebar__panes">
+        <div className="sidebar__content sidebar__content--notes">
+          {searchQuery ? (
+            <div className="tree-section">
+              <div className="tree-section__title">Search Results</div>
+              <div className="search-results" data-testid="search-results">
+                {searchResults.notes.length === 0 && searchResults.projectFiles.length === 0 && searchResults.tags.length === 0 ? (
+                  <div className="search-result__empty">No matches</div>
+                ) : null}
 
-              <SearchSection
-                label="Notes"
-                results={searchResults.notes}
-                onOpenFile={onOpenFile}
-                onStartDocumentDrag={onStartDocumentDrag}
-                onEndDocumentDrag={onEndDocumentDrag}
-              />
-              <SearchSection
-                label="Project Files"
-                results={searchResults.projectFiles}
-                onOpenFile={onOpenFile}
-                onStartDocumentDrag={onStartDocumentDrag}
-                onEndDocumentDrag={onEndDocumentDrag}
-              />
-              <TagSearchSection
-                results={searchResults.tags}
-                onOpenFile={onOpenFile}
-                onOpenTag={onOpenTag}
-                onStartDocumentDrag={onStartDocumentDrag}
-                onEndDocumentDrag={onEndDocumentDrag}
-              />
+                <SearchSection
+                  label="Notes"
+                  results={searchResults.notes}
+                  onOpenFile={onOpenFile}
+                  onStartDocumentDrag={onStartDocumentDrag}
+                  onEndDocumentDrag={onEndDocumentDrag}
+                />
+                <SearchSection
+                  label="Project Files"
+                  results={searchResults.projectFiles}
+                  onOpenFile={onOpenFile}
+                  onStartDocumentDrag={onStartDocumentDrag}
+                  onEndDocumentDrag={onEndDocumentDrag}
+                />
+                <TagSearchSection
+                  results={searchResults.tags}
+                  onOpenFile={onOpenFile}
+                  onOpenTag={onOpenTag}
+                  onStartDocumentDrag={onStartDocumentDrag}
+                  onEndDocumentDrag={onEndDocumentDrag}
+                />
+              </div>
             </div>
-          </div>
-        ) : (
-          <>
+          ) : (
             <Section
               label="Note Roots"
               sections={noteRoots}
@@ -178,18 +231,55 @@ export function FileTree(props: FileTreeProps) {
               onEndDocumentDrag={onEndDocumentDrag}
               onContextMenu={openContextMenu}
             />
-            <Section
-              label="Project Roots"
-              sections={projectRoots}
-              expandedPaths={expandedPaths}
-              onTogglePath={togglePath}
-              onOpenFile={onOpenFile}
-              onStartDocumentDrag={onStartDocumentDrag}
-              onEndDocumentDrag={onEndDocumentDrag}
-              onContextMenu={openContextMenu}
-            />
-          </>
-        )}
+          )}
+        </div>
+
+        {projectRootsExpanded ? (
+          <div
+            className="sidebar__drawer-resizer"
+            data-testid="project-roots-resizer"
+            onDoubleClick={openProjectRootsDrawer}
+            onMouseDown={(event) =>
+              setDrawerResizeOrigin({
+                startY: event.clientY,
+                startHeight: projectDrawerHeight ?? 260,
+              })
+            }
+          />
+        ) : null}
+
+        <div
+          className={`sidebar__drawer ${projectRootsExpanded ? "sidebar__drawer--expanded" : "sidebar__drawer--collapsed"}`}
+          style={projectRootsExpanded ? { height: `${projectDrawerHeight ?? 260}px` } : undefined}
+          data-testid="project-roots-drawer"
+        >
+          <button
+            className="sidebar__drawer-bar"
+            data-testid="project-roots-toggle"
+            onClick={toggleProjectRootsDrawer}
+            type="button"
+          >
+            {projectRootsExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            <span className="sidebar__drawer-label">Project Roots</span>
+            <span className="sidebar__drawer-summary">{projectRoots.length} root{projectRoots.length === 1 ? "" : "s"}</span>
+          </button>
+
+          {projectRootsExpanded ? (
+            <div className="sidebar__drawer-panel" data-testid="project-roots-panel">
+              <Section
+                label="Project Roots"
+                sections={projectRoots}
+                expandedPaths={expandedPaths}
+                onTogglePath={togglePath}
+                onOpenFile={onOpenFile}
+                onStartDocumentDrag={onStartDocumentDrag}
+                onEndDocumentDrag={onEndDocumentDrag}
+                onContextMenu={openContextMenu}
+                showHeader={false}
+              />
+            </div>
+          ) : null}
+        </div>
       </div>
 
       {contextTarget && contextMenuPosition ? (
@@ -356,6 +446,7 @@ function Section({
   onStartDocumentDrag,
   onEndDocumentDrag,
   onContextMenu,
+  showHeader = true,
 }: {
   label: string;
   sections: RootSection[];
@@ -365,13 +456,16 @@ function Section({
   onStartDocumentDrag: (filePath: string) => void;
   onEndDocumentDrag: () => void;
   onContextMenu: (event: React.MouseEvent, target: ContextTarget) => void;
+  showHeader?: boolean;
 }) {
   return (
     <div className="tree-section">
-      <div className="tree-section__title">
-        <FolderTree size={14} />
-        {label}
-      </div>
+      {showHeader ? (
+        <div className="tree-section__title">
+          <FolderTree size={14} />
+          {label}
+        </div>
+      ) : null}
       {sections.map((section) => {
         const rootKey = `${ROOT_GROUP_PREFIX}${section.path}`;
         const expanded = expandedPaths.has(rootKey);
@@ -398,6 +492,12 @@ function Section({
       })}
     </div>
   );
+}
+
+function clampDrawerHeight(value: number, containerHeight: number): number {
+  const min = 140;
+  const max = Math.max(220, containerHeight - 140);
+  return Math.min(max, Math.max(min, value));
 }
 
 function TreeNodes({
