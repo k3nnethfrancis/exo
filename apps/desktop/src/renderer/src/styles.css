@@ -694,6 +694,10 @@ button {
   overflow: hidden;
 }
 
+.knowledge-panel--agents {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
 .knowledge-panel__section {
   min-height: 148px;
   background: rgba(255, 255, 255, 0.02);
@@ -707,6 +711,10 @@ button {
 
 .knowledge-panel__section:last-child {
   border-right: 0;
+}
+
+.knowledge-panel__section--agents {
+  gap: 12px;
 }
 
 .knowledge-item {
@@ -732,6 +740,124 @@ button {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.agent-list {
+  display: grid;
+  gap: 10px;
+}
+
+.agent-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid transparent;
+}
+
+.agent-card--active {
+  border-color: rgba(159, 184, 255, 0.28);
+  box-shadow: inset 0 0 0 1px rgba(159, 184, 255, 0.12);
+}
+
+.agent-card__header {
+  display: grid;
+  gap: 6px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  padding: 0;
+}
+
+.agent-card__title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.agent-card__title {
+  font-weight: 650;
+}
+
+.agent-card__meta,
+.agent-card__preview,
+.agent-message-log__meta {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.agent-card__preview {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.agent-card__fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.agent-card__field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.agent-card__field--wide {
+  grid-column: 1 / -1;
+}
+
+.agent-card__field span {
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.agent-card__field input,
+.agent-card__field select,
+.agent-steering__composer textarea {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--text);
+  padding: 9px 10px;
+  outline: none;
+}
+
+.agent-steering {
+  display: grid;
+  gap: 10px;
+}
+
+.agent-steering__composer {
+  display: grid;
+  gap: 8px;
+}
+
+.agent-steering__composer textarea {
+  min-height: 74px;
+  resize: vertical;
+  font-family: var(--sans);
+}
+
+.agent-message-log {
+  display: grid;
+  gap: 8px;
+}
+
+.agent-message-log__item {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.035);
 }
 
 .tag-pill {
@@ -1090,7 +1216,12 @@ button {
     grid-template-columns: 280px 1fr;
   }
 
-  .knowledge-panel {
+  .knowledge-panel,
+  .knowledge-panel--agents {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .agent-card__fields {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

@@ -55,6 +55,7 @@
 - [ ] Reviewed quirks and working-memory shaping
 
 ## P5 — Multi-agent and communication
+- [x] Initial manual agent observability/steering view over terminal sessions
 - [ ] Multiple terminal panes
 - [ ] Grid layout
 - [ ] File-backed append-only message transport

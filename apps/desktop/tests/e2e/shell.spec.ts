@@ -96,3 +96,22 @@ test("collapses the dock when the last terminal closes", async () => {
 
   await cleanup();
 });
+
+test("surfaces terminal sessions as agents and can steer them", async () => {
+  const { page, cleanup } = await launchExoFixture({
+    env: {
+      EXO_SHELL: "/bin/cat",
+      EXO_SHELL_ARGS: "",
+    },
+  });
+
+  await page.getByTestId("knowledge-toggle").click();
+  await expect(page.getByTestId("agents-panel")).toBeVisible();
+  await expect(page.getByTestId("agents-panel")).toContainText("Terminal");
+  await page.getByTestId("agent-message-input").fill("Check in with the parent before editing.");
+  await page.getByTestId("agent-message-send").click();
+  await expect(page.getByTestId("agent-message-log")).toContainText("Check in with the parent before editing.");
+  await expect(page.getByTestId("terminal-surface")).toContainText("Check in with the parent before editing.");
+
+  await cleanup();
+});

@@ -35,6 +35,7 @@
 
 ## Phase 5
 - multi-agent system:
+  - initial manual agent observability/steering view over terminal sessions
   - multiple terminals
   - terminal grids
   - file+SQLite agent communication protocol

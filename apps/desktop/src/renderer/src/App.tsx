@@ -5,7 +5,7 @@ import type { TerminalSessionInfo } from "../../shared/api";
 
 import { EditorPane, type EditorPaneState } from "./components/EditorPane";
 import { FileTree } from "./components/FileTree";
-import { KnowledgeDock } from "./components/KnowledgeDock";
+import { KnowledgeDock, type AgentAnnotation, type AgentSteeringMessage } from "./components/KnowledgeDock";
 import { TerminalDock } from "./components/TerminalDock";
 
 interface OpenEditorDocument extends NoteDocument {
@@ -85,6 +85,8 @@ export function App() {
   const [terminalSessions, setTerminalSessions] = useState<TerminalSessionInfo[]>([]);
   const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null);
   const [terminalBuffers, setTerminalBuffers] = useState<Record<string, string>>({});
+  const [agentAnnotations, setAgentAnnotations] = useState<Record<string, AgentAnnotation>>({});
+  const [agentMessages, setAgentMessages] = useState<AgentSteeringMessage[]>([]);
   const [terminalRightWidth, setTerminalRightWidth] = useState(372);
   const [terminalBottomHeight, setTerminalBottomHeight] = useState(236);
   const [resizeState, setResizeState] = useState<ResizeState | null>(null);
@@ -101,6 +103,13 @@ export function App() {
   const terminalCollapsed = terminalSessions.length === 0;
   const effectiveTerminalPlacement = terminalCollapsed ? "bottom" : terminalPlacement;
   const compactTerminalChrome = terminalCollapsed || effectiveTerminalPlacement === "right";
+  const terminalOutputPreviewById = useMemo(
+    () =>
+      Object.fromEntries(
+        terminalSessions.map((session) => [session.id, summarizeTerminalBuffer(terminalBuffers[session.id] ?? "")] as const),
+      ),
+    [terminalBuffers, terminalSessions],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -187,6 +196,34 @@ export function App() {
       removeExitListener();
     };
   }, []);
+
+  useEffect(() => {
+    setAgentAnnotations((current) => {
+      const next = { ...current };
+      const activeIds = new Set(terminalSessions.map((session) => session.id));
+
+      for (const session of terminalSessions) {
+        if (!next[session.id]) {
+          next[session.id] = {
+            runLabel: "",
+            role: "",
+            task: "",
+            parentId: null,
+          };
+        }
+      }
+
+      for (const agentId of Object.keys(next)) {
+        if (!activeIds.has(agentId)) {
+          delete next[agentId];
+        } else if (next[agentId]?.parentId && !activeIds.has(next[agentId].parentId!)) {
+          next[agentId] = { ...next[agentId], parentId: null };
+        }
+      }
+
+      return next;
+    });
+  }, [terminalSessions]);
 
   useEffect(() => {
     if (!deferredSearchQuery.trim()) {
@@ -450,6 +487,38 @@ export function App() {
       const fallback = terminalSessions.find((session) => session.id !== id);
       setActiveTerminalId(fallback?.id ?? null);
     }
+  }
+
+  function updateAgentAnnotation(id: string, patch: Partial<AgentAnnotation>) {
+    const defaults: AgentAnnotation = {
+      runLabel: "",
+      role: "",
+      task: "",
+      parentId: null,
+    };
+    setAgentAnnotations((current) => ({
+      ...current,
+      [id]: {
+        ...defaults,
+        ...current[id],
+        ...patch,
+      },
+    }));
+  }
+
+  async function sendAgentMessage(targetId: string, body: string) {
+    const timestamp = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    const message = `[Exo ${timestamp}] ${body}`;
+    await window.exo.terminals.write(targetId, `${message}\n`);
+    setAgentMessages((current) => [
+      ...current,
+      {
+        id: `agent-message-${current.length + 1}`,
+        toAgentId: targetId,
+        body,
+        createdAt: timestamp,
+      },
+    ]);
   }
 
   async function createBranchFromActiveDocument() {
@@ -853,10 +922,18 @@ export function App() {
           collapsed={knowledgeCollapsed}
           activeTag={activeTag}
           tagResults={tagResults}
+          terminalSessions={terminalSessions}
+          activeTerminalId={activeTerminalId}
+          terminalOutputPreviewById={terminalOutputPreviewById}
+          agentAnnotations={agentAnnotations}
+          agentMessages={agentMessages}
           onToggleCollapsed={() => setKnowledgeCollapsed((current) => !current)}
           onOpenTarget={(target) => void openKnowledgeTarget(target)}
           onOpenExternal={(target) => void window.exo.shell.openExternal(target)}
           onOpenTag={(tag) => void openTag(tag)}
+          onFocusAgent={setActiveTerminalId}
+          onUpdateAgentAnnotation={updateAgentAnnotation}
+          onSendAgentMessage={(targetId, body) => void sendAgentMessage(targetId, body)}
         />
       </div>
 
@@ -939,6 +1016,16 @@ function ensureDefaultExtension(name: string, directoryPath: string, noteRootPat
 
 function isPathWithin(parentPath: string, targetPath: string): boolean {
   return targetPath === parentPath || targetPath.startsWith(`${parentPath}/`);
+}
+
+function summarizeTerminalBuffer(buffer: string): string {
+  const lines = buffer
+    .replace(/\u001B\[[0-9;?]*[ -/]*[@-~]/g, "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  return lines.at(-1)?.slice(0, 160) ?? "No activity yet";
 }
 
 function clamp(value: number, min: number, max: number): number {
