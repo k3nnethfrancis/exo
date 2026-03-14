@@ -50,8 +50,12 @@ type ResizeState =
   | { axis: "vertical"; startSize: number; origin: number }
   | { axis: "horizontal"; startSize: number; origin: number };
 
+export type AppearanceMode = "system" | "light" | "dark";
+export type ResolvedAppearance = "light" | "dark";
+
 const PRIMARY_EDITOR_PANE_ID = "editor-pane-1";
 const SECONDARY_EDITOR_PANE_ID = "editor-pane-2";
+const APPEARANCE_STORAGE_KEY = "exo-appearance-mode";
 
 export function App() {
   const [workspaceModel, setWorkspaceModel] = useState<WorkspaceModel | null>(null);
@@ -90,6 +94,10 @@ export function App() {
   const [terminalBottomHeight, setTerminalBottomHeight] = useState(236);
   const [resizeState, setResizeState] = useState<ResizeState | null>(null);
   const [workspaceDialog, setWorkspaceDialog] = useState<WorkspaceDialogState | null>(null);
+  const [appearanceMode, setAppearanceMode] = useState<AppearanceMode>(() => readStoredAppearanceMode());
+  const [systemPrefersDark, setSystemPrefersDark] = useState(() =>
+    window.matchMedia("(prefers-color-scheme: dark)").matches,
+  );
   const pendingTerminalChunksRef = useRef<Record<string, string>>({});
   const terminalFlushFrameRef = useRef<number | null>(null);
   const workspaceBodyRef = useRef<HTMLDivElement | null>(null);
@@ -101,6 +109,7 @@ export function App() {
   const terminalCollapsed = terminalSessions.length === 0;
   const effectiveTerminalPlacement = terminalCollapsed ? "bottom" : terminalPlacement;
   const compactTerminalChrome = terminalCollapsed || effectiveTerminalPlacement === "right";
+  const resolvedAppearance: ResolvedAppearance = appearanceMode === "system" ? (systemPrefersDark ? "dark" : "light") : appearanceMode;
   const terminalOutputPreviewById = useMemo(
     () =>
       Object.fromEntries(
@@ -108,6 +117,28 @@ export function App() {
       ),
     [terminalBuffers, terminalSessions],
   );
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+
+    function handleChange(event: MediaQueryListEvent) {
+      setSystemPrefersDark(event.matches);
+    }
+
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", handleChange);
+      return () => mediaQuery.removeEventListener("change", handleChange);
+    }
+
+    mediaQuery.addListener(handleChange);
+    return () => mediaQuery.removeListener(handleChange);
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = resolvedAppearance;
+    document.documentElement.style.colorScheme = resolvedAppearance;
+    window.localStorage.setItem(APPEARANCE_STORAGE_KEY, appearanceMode);
+  }, [appearanceMode, resolvedAppearance]);
 
   useEffect(() => {
     let cancelled = false;
@@ -836,8 +867,11 @@ export function App() {
         workspaceRoot={workspaceModel.workspaceRoot}
         noteRoots={noteSections}
         projectRoots={projectSections}
+        appearanceMode={appearanceMode}
+        resolvedAppearance={resolvedAppearance}
         searchQuery={searchQuery}
         searchResults={workspaceSearchResults}
+        onAppearanceModeChange={setAppearanceMode}
         onSearchQueryChange={setSearchQuery}
         onOpenFile={(filePath) => void openFile(filePath, focusedEditorPaneId)}
         onOpenTag={(tag) => void openTag(tag)}
@@ -883,6 +917,7 @@ export function App() {
                 onOpenTag={(tag) => void openTag(tag)}
                 onOpenBranch={(filePath) => void openFile(filePath, pane.id)}
                 onCreateBranch={() => void createBranchFromActiveDocument()}
+                appearance={resolvedAppearance}
                 compact={compactEditorChrome}
               />
             ))}
@@ -931,6 +966,7 @@ export function App() {
             sessions={terminalSessions}
             activeTerminalId={activeTerminalId}
             buffers={terminalBuffers}
+            appearance={resolvedAppearance}
             onCreateTerminal={(kind, cwd) => void createTerminal(kind, cwd)}
             onSetActiveTerminal={setActiveTerminalId}
             onWrite={(id, data) => void window.exo.terminals.write(id, data)}
@@ -1035,6 +1071,14 @@ export function App() {
       ) : null}
     </div>
   );
+}
+
+function readStoredAppearanceMode(): AppearanceMode {
+  const value = window.localStorage.getItem(APPEARANCE_STORAGE_KEY);
+  if (value === "light" || value === "dark" || value === "system") {
+    return value;
+  }
+  return "system";
 }
 
 function flattenFiles(nodes: TreeNode[]): TreeNode[] {

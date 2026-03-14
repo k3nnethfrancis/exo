@@ -1,4 +1,5 @@
 import type { BranchFamily, NoteDocument } from "@exo/core";
+import type { ResolvedAppearance } from "../App";
 
 import { NoteEditor } from "./NoteEditor";
 
@@ -29,6 +30,7 @@ interface EditorPaneProps {
   onOpenTag: (tag: string) => void;
   onOpenBranch: (filePath: string) => void;
   onCreateBranch: () => void;
+  appearance: ResolvedAppearance;
   compact: boolean;
 }
 
@@ -50,6 +52,7 @@ export function EditorPane(props: EditorPaneProps) {
     onOpenTag,
     onOpenBranch,
     onCreateBranch,
+    appearance,
     compact,
   } = props;
 
@@ -113,6 +116,7 @@ export function EditorPane(props: EditorPaneProps) {
         onOpenBranch={onOpenBranch}
         onCreateBranch={onCreateBranch}
         onFocus={onFocusPane}
+        appearance={appearance}
         compact={compact}
       />
     </div>

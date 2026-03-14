@@ -16,6 +16,7 @@ const screenshotOptions = {
 
 test("captures the default workspace shell", async () => {
   const { page, cleanup } = await launchExoFixture();
+  await page.getByTestId("appearance-dark").click();
   await settleForScreenshot(page);
   await expect(page).toHaveScreenshot("workspace-default.png", screenshotOptions);
   await cleanup();
@@ -23,6 +24,7 @@ test("captures the default workspace shell", async () => {
 
 test("captures bottom dock and agent tabs", async () => {
   const { page, cleanup } = await launchExoFixture();
+  await page.getByTestId("appearance-dark").click();
   await page.getByTestId("terminal-tab-shell").dblclick();
   await page.getByTestId("launch-claude").click();
   await page.getByTestId("launch-codex").click();
@@ -33,8 +35,17 @@ test("captures bottom dock and agent tabs", async () => {
 
 test("captures the expanded project roots drawer", async () => {
   const { page, cleanup } = await launchExoFixture();
+  await page.getByTestId("appearance-dark").click();
   await page.getByTestId("project-roots-toggle").click();
   await settleForScreenshot(page);
   await expect(page).toHaveScreenshot("workspace-project-roots-expanded.png", screenshotOptions);
+  await cleanup();
+});
+
+test("captures the warm light mode shell", async () => {
+  const { page, cleanup } = await launchExoFixture();
+  await page.getByTestId("appearance-light").click();
+  await settleForScreenshot(page);
+  await expect(page).toHaveScreenshot("workspace-light-mode.png", screenshotOptions);
   await cleanup();
 });

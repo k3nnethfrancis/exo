@@ -69,6 +69,21 @@ test("expands and collapses the project roots drawer", async () => {
   await cleanup();
 });
 
+test("matches system appearance by default and supports light mode override", async () => {
+  const { page, cleanup } = await launchExoFixture();
+  const systemTheme = await page.evaluate(() =>
+    window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light",
+  );
+
+  await expect(page.locator("html")).toHaveAttribute("data-theme", systemTheme);
+  await page.getByTestId("appearance-light").click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await page.getByTestId("appearance-system").click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", systemTheme);
+
+  await cleanup();
+});
+
 test("accepts terminal keyboard input", async () => {
   const { page, cleanup } = await launchExoFixture({
     env: {

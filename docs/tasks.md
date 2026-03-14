@@ -26,6 +26,7 @@
 - [x] Incremental xterm rendering instead of full-buffer resets
 - [x] Shared workspace knowledge footer spanning editor + terminal region
 - [x] Resizable terminal dock
+- [x] System-aware appearance with a warm light mode and normalized shell control sizing
 
 ## P2 — Knowledge/editor parity
 - [x] Branch-aware note flows

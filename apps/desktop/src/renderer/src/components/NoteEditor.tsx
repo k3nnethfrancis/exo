@@ -1,9 +1,11 @@
+import { useMemo } from "react";
+
 import CodeMirror from "@uiw/react-codemirror";
 import { markdown } from "@codemirror/lang-markdown";
-import { oneDark } from "@codemirror/theme-one-dark";
 import { EditorView } from "@codemirror/view";
 import { ChevronDown, ChevronRight, GitBranch, Save } from "lucide-react";
 import type { BranchFamily, NoteDocument } from "@exo/core";
+import type { ResolvedAppearance } from "../App";
 
 interface EditorDocument extends NoteDocument {
   dirty: boolean;
@@ -20,6 +22,7 @@ interface NoteEditorProps {
   onOpenBranch: (filePath: string) => void;
   onCreateBranch: () => void;
   onFocus: () => void;
+  appearance: ResolvedAppearance;
   compact: boolean;
 }
 
@@ -35,6 +38,7 @@ export function NoteEditor(props: NoteEditorProps) {
     onOpenBranch,
     onCreateBranch,
     onFocus,
+    appearance,
     compact,
   } = props;
 
@@ -51,6 +55,7 @@ export function NoteEditor(props: NoteEditorProps) {
   const frontmatterEntries = Object.entries(document.frontmatter).filter(
     ([key]) => key !== "tags" && !key.startsWith("branch_"),
   );
+  const cmTheme = useMemo(() => editorTheme(appearance), [appearance]);
 
   return (
     <section className={`editor-panel ${compact ? "editor-panel--compact" : ""}`} data-testid="editor-panel" onMouseDown={onFocus}>
@@ -150,8 +155,11 @@ export function NoteEditor(props: NoteEditorProps) {
       <div className="editor-surface">
         <CodeMirror
           value={document.body}
-          extensions={document.kind === "markdown" ? [markdown(), EditorView.lineWrapping] : [EditorView.lineWrapping]}
-          theme={oneDark}
+          extensions={
+            document.kind === "markdown"
+              ? [markdown(), EditorView.lineWrapping, cmTheme]
+              : [EditorView.lineWrapping, cmTheme]
+          }
           basicSetup={{
             lineNumbers: false,
             foldGutter: false,
@@ -162,5 +170,40 @@ export function NoteEditor(props: NoteEditorProps) {
       </div>
 
     </section>
+  );
+}
+
+function editorTheme(appearance: ResolvedAppearance) {
+  return EditorView.theme(
+    {
+      "&": {
+        color: "var(--text)",
+        backgroundColor: "transparent",
+      },
+      ".cm-content": {
+        caretColor: "var(--accent)",
+      },
+      "&.cm-focused .cm-cursor": {
+        borderLeftColor: "var(--accent)",
+      },
+      "&.cm-focused .cm-selectionBackground, ::selection": {
+        backgroundColor: "var(--accent-soft)",
+      },
+      ".cm-selectionBackground": {
+        backgroundColor: "var(--accent-soft)",
+      },
+      ".cm-gutters": {
+        backgroundColor: "transparent",
+        color: "var(--muted)",
+        border: "none",
+      },
+      ".cm-activeLine": {
+        backgroundColor: "var(--surface-2)",
+      },
+      ".cm-activeLineGutter": {
+        backgroundColor: "transparent",
+      },
+    },
+    { dark: appearance === "dark" },
   );
 }

@@ -4,8 +4,10 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "xterm";
 
 import type { TerminalSessionInfo } from "../../../shared/api";
+import type { ResolvedAppearance } from "../App";
 
 interface TerminalViewProps {
+  appearance: ResolvedAppearance;
   session: TerminalSessionInfo;
   buffer: string;
   onInput: (id: string, data: string) => void;
@@ -13,7 +15,7 @@ interface TerminalViewProps {
 }
 
 export function TerminalView(props: TerminalViewProps) {
-  const { session, buffer, onInput, onResize } = props;
+  const { appearance, session, buffer, onInput, onResize } = props;
   const hostRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -34,11 +36,7 @@ export function TerminalView(props: TerminalViewProps) {
       fontFamily: '"IBM Plex Mono", "SF Mono", monospace',
       fontSize: 13,
       cursorBlink: false,
-      theme: {
-        background: "#15161b",
-        foreground: "#e4e7ee",
-        selectionBackground: "#3f4f73",
-      },
+      theme: xtermTheme(appearance),
     });
     const fitAddon = new FitAddon();
     terminal.loadAddon(fitAddon);
@@ -73,7 +71,7 @@ export function TerminalView(props: TerminalViewProps) {
       hostRef.current?.removeEventListener("mousedown", focusTerminal);
       terminal.dispose();
     };
-  }, [session.id]);
+  }, [appearance, session.id]);
 
   useEffect(() => {
     const terminal = terminalRef.current;
@@ -97,4 +95,22 @@ export function TerminalView(props: TerminalViewProps) {
   }, [buffer, session.id]);
 
   return <div ref={hostRef} className="terminal-surface" data-testid="terminal-surface" tabIndex={0} />;
+}
+
+function xtermTheme(appearance: ResolvedAppearance) {
+  if (appearance === "light") {
+    return {
+      background: "#fff8ec",
+      foreground: "#3f3224",
+      cursor: "#b47637",
+      selectionBackground: "rgba(180, 118, 55, 0.2)",
+    };
+  }
+
+  return {
+    background: "#15161b",
+    foreground: "#e4e7ee",
+    cursor: "#9fb8ff",
+    selectionBackground: "#3f4f73",
+  };
 }

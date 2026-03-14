@@ -1,10 +1,12 @@
 import { Bot, GripVertical, Plus, SquareTerminal, X } from "lucide-react";
 
 import type { TerminalSessionInfo } from "../../../shared/api";
+import type { ResolvedAppearance } from "../App";
 import { TerminalView } from "./TerminalView";
 
 interface TerminalDockProps {
   placement: "right" | "bottom";
+  appearance: ResolvedAppearance;
   compact: boolean;
   collapsed: boolean;
   sessions: TerminalSessionInfo[];
@@ -23,6 +25,7 @@ interface TerminalDockProps {
 export function TerminalDock(props: TerminalDockProps) {
   const {
     placement,
+    appearance,
     compact,
     collapsed,
     sessions,
@@ -47,7 +50,7 @@ export function TerminalDock(props: TerminalDockProps) {
       <div className="terminal-dock__header">
         {collapsed ? (
           <div className="terminal-dock__collapsed-label">
-            <SquareTerminal size={13} />
+            <SquareTerminal size={12} />
             <span className="terminal-dock__collapsed-title">Terminal</span>
             <span className="terminal-dock__collapsed-summary">0 sessions</span>
           </div>
@@ -69,7 +72,7 @@ export function TerminalDock(props: TerminalDockProps) {
                 title={placement === "right" ? "Drag to bottom or double-click to dock bottom" : "Drag to right or double-click to dock right"}
                 type="button"
               >
-                <GripVertical size={12} />
+                <GripVertical size={11} />
                 <span className={`status-dot status-dot--${session.status}`} />
                 {session.title}
                 {session.kind === "shell" ? <SquareTerminal size={12} /> : <Bot size={12} />}
@@ -97,7 +100,7 @@ export function TerminalDock(props: TerminalDockProps) {
             title="New terminal"
             type="button"
           >
-            <Plus size={14} />
+            <Plus size={13} />
           </button>
           <button
             className={`toolbar-button ${compact ? "toolbar-button--compact" : ""}`}
@@ -106,7 +109,7 @@ export function TerminalDock(props: TerminalDockProps) {
             title="Launch Claude"
             type="button"
           >
-            <Bot size={14} />
+            <Bot size={13} />
             {compact ? null : "Claude"}
           </button>
           <button
@@ -116,7 +119,7 @@ export function TerminalDock(props: TerminalDockProps) {
             title="Launch Codex"
             type="button"
           >
-            <Bot size={14} />
+            <Bot size={13} />
             {compact ? null : "Codex"}
           </button>
         </div>
@@ -124,6 +127,7 @@ export function TerminalDock(props: TerminalDockProps) {
 
       {!collapsed && activeSession ? (
         <TerminalView
+          appearance={appearance}
           session={activeSession}
           buffer={buffers[activeSession.id] ?? ""}
           onInput={onWrite}

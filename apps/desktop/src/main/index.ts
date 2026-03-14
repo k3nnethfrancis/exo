@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell } from "electron";
+import { app, BrowserWindow, ipcMain, nativeTheme, shell } from "electron";
 import path from "node:path";
 import { access } from "node:fs/promises";
 import { constants, existsSync } from "node:fs";
@@ -39,7 +39,7 @@ function createWindow() {
     minWidth: 1200,
     minHeight: 760,
     title: "Exo",
-    backgroundColor: "#111318",
+    backgroundColor: nativeTheme.shouldUseDarkColors ? "#111318" : "#f6ecda",
     titleBarStyle: "hiddenInset",
     trafficLightPosition: {
       x: 16,
@@ -182,10 +182,19 @@ async function fileExists(targetPath: string): Promise<boolean> {
 }
 
 app.whenReady().then(async () => {
+  const forcedTheme = process.env.EXO_FORCE_THEME;
+  if (forcedTheme === "light" || forcedTheme === "dark" || forcedTheme === "system") {
+    nativeTheme.themeSource = forcedTheme;
+  }
+
   registerIpcHandlers();
   broadcastTerminalData();
   await terminalManager.syncRuntimeContext();
   createWindow();
+
+  nativeTheme.on("updated", () => {
+    mainWindow?.setBackgroundColor(nativeTheme.shouldUseDarkColors ? "#111318" : "#f6ecda");
+  });
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {

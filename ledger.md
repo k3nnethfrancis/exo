@@ -30,6 +30,7 @@ Current working shell:
 - resizable terminal dock with drag docking between right and bottom placement
 - Playwright interaction and screenshot harnesses
 - consistent `Inspector` drawer with backlinks, links, tags, and simplified subagent observability
+- system-aware appearance model with a warm light mode and refreshed shell hierarchy across buttons, tabs, and controls
 
 Active Phase 2 work:
 - branch-aware note families

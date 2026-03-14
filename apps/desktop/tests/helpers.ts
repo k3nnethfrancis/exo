@@ -29,6 +29,7 @@ export async function launchExoFixture(options?: {
       EXO_NOTE_ROOTS: path.join(workspaceRoot, "notes/shoshin-codex"),
       EXO_PROJECT_ROOTS: path.join(workspaceRoot, "projects"),
       EXO_DEFAULT_TERMINAL_CWD: workspaceRoot,
+      EXO_FORCE_THEME: "dark",
       EXO_SHELL: "/bin/echo",
       EXO_SHELL_ARGS: "shell ready",
       EXO_CLAUDE_COMMAND: "/bin/echo",

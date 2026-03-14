@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { ChevronDown, ChevronRight, FilePlus2, FolderPlus, FolderTree, Hash, Pencil, Search, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, FilePlus2, FolderPlus, FolderTree, Hash, Monitor, MoonStar, Pencil, Search, SunMedium, Trash2 } from "lucide-react";
 import type { SearchResult, TreeNode, WorkspaceSearchResults } from "@exo/core";
+import type { AppearanceMode, ResolvedAppearance } from "../App";
 
 interface RootSection {
   label: string;
@@ -13,8 +14,11 @@ interface FileTreeProps {
   workspaceRoot: string;
   noteRoots: RootSection[];
   projectRoots: RootSection[];
+  appearanceMode: AppearanceMode;
+  resolvedAppearance: ResolvedAppearance;
   searchQuery: string;
   searchResults: WorkspaceSearchResults;
+  onAppearanceModeChange: (mode: AppearanceMode) => void;
   onSearchQueryChange: (value: string) => void;
   onOpenFile: (filePath: string) => void;
   onOpenTag: (tag: string) => void;
@@ -38,8 +42,11 @@ export function FileTree(props: FileTreeProps) {
     workspaceRoot,
     noteRoots,
     projectRoots,
+    appearanceMode,
+    resolvedAppearance,
     searchQuery,
     searchResults,
+    onAppearanceModeChange,
     onSearchQueryChange,
     onOpenFile,
     onOpenTag,
@@ -172,7 +179,38 @@ export function FileTree(props: FileTreeProps) {
   return (
     <aside className="sidebar" data-testid="sidebar">
       <div className="sidebar__header">
-        <div className="sidebar__label">Workspace</div>
+        <div className="sidebar__header-row">
+          <div className="sidebar__label">Workspace</div>
+          <div className="appearance-toggle" data-testid="appearance-toggle" role="group" aria-label="Appearance">
+            <button
+              className={`appearance-toggle__button ${appearanceMode === "system" ? "appearance-toggle__button--active" : ""}`}
+              data-testid="appearance-system"
+              onClick={() => onAppearanceModeChange("system")}
+              title={`System appearance (${resolvedAppearance})`}
+              type="button"
+            >
+              <Monitor size={13} />
+            </button>
+            <button
+              className={`appearance-toggle__button ${appearanceMode === "light" ? "appearance-toggle__button--active" : ""}`}
+              data-testid="appearance-light"
+              onClick={() => onAppearanceModeChange("light")}
+              title="Light mode"
+              type="button"
+            >
+              <SunMedium size={13} />
+            </button>
+            <button
+              className={`appearance-toggle__button ${appearanceMode === "dark" ? "appearance-toggle__button--active" : ""}`}
+              data-testid="appearance-dark"
+              onClick={() => onAppearanceModeChange("dark")}
+              title="Dark mode"
+              type="button"
+            >
+              <MoonStar size={13} />
+            </button>
+          </div>
+        </div>
         <div className="sidebar__workspace">{workspaceRoot}</div>
       </div>
 
