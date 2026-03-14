@@ -328,6 +328,7 @@ button {
   position: relative;
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
+  overflow: hidden;
 }
 
 .workspace__body {
@@ -335,6 +336,7 @@ button {
   min-height: 0;
   display: grid;
   position: relative;
+  overflow: hidden;
 }
 
 .workspace__body--terminal-right {
@@ -351,6 +353,7 @@ button {
   display: grid;
   position: relative;
   border-right: 1px solid var(--divider);
+  overflow: hidden;
 }
 
 .workspace__body--terminal-bottom .editor-area {
@@ -372,6 +375,7 @@ button {
   grid-template-rows: 44px minmax(0, 1fr);
   background: transparent;
   border-right: 1px solid var(--divider);
+  overflow: hidden;
 }
 
 .editor-area--split-bottom .editor-pane {
@@ -473,6 +477,7 @@ button {
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
   background: transparent;
+  overflow: hidden;
 }
 
 .editor-panel--empty {
@@ -600,18 +605,28 @@ button {
 .editor-surface {
   min-height: 0;
   background: transparent;
+  overflow: hidden;
+}
+
+.editor-surface > * {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .editor-surface .cm-editor {
   height: 100%;
+  min-height: 0;
   font-size: 16px;
   background: transparent;
   overflow: hidden;
 }
 
 .editor-surface .cm-scroller {
+  height: 100%;
   font-family: var(--sans);
   padding: 18px 20px 28px;
+  overflow-y: auto;
   overflow-x: hidden;
 }
 
@@ -639,6 +654,7 @@ button {
   border-top: 1px solid var(--divider);
   background: rgba(255, 255, 255, 0.02);
   overflow: hidden;
+  min-height: 0;
 }
 
 .knowledge-drawer--collapsed {
@@ -674,6 +690,8 @@ button {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0;
   background: rgba(255, 255, 255, 0.02);
+  min-height: 0;
+  overflow: hidden;
 }
 
 .knowledge-panel__section {
@@ -684,6 +702,7 @@ button {
   align-content: start;
   gap: 10px;
   border-right: 1px solid var(--divider);
+  overflow: auto;
 }
 
 .knowledge-panel__section:last-child {
@@ -803,6 +822,7 @@ button {
   grid-template-rows: 40px minmax(0, 1fr);
   background: transparent;
   border-left: 1px solid var(--divider);
+  overflow: hidden;
 }
 
 .terminal-dock--collapsed {
@@ -877,6 +897,7 @@ button {
   min-height: 0;
   padding: 6px 8px 8px;
   background: transparent;
+  overflow: hidden;
 }
 
 .terminal-surface:focus {
