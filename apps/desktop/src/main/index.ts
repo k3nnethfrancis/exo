@@ -32,7 +32,12 @@ function createWindow() {
     minWidth: 1200,
     minHeight: 760,
     title: "Exo",
-    backgroundColor: "#17181d",
+    backgroundColor: "#111318",
+    titleBarStyle: "hiddenInset",
+    trafficLightPosition: {
+      x: 16,
+      y: 14,
+    },
     webPreferences: {
       preload: preloadPath,
     },
