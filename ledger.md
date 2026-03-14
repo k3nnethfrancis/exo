@@ -91,7 +91,7 @@ Completed:
 16. generated Exo runtime overlays under `.exo/instructions/AGENTS.md` and `.exo/instructions/CLAUDE.md`
 17. CLI runtime inspection/sync commands plus `exo-cli launch shell|claude|codex`
 18. app startup/runtime sync and terminal launch through the shared launch-plan path
-19. initial Agents view that treats terminal sessions as agents, supports manual role/task/parent annotation, and lets the operator send steering messages into a selected session
+19. initial Agents view that treats terminal sessions as agents, supports manual role/task/parent annotation, lets the operator send steering messages into a selected session, and can manually kick off a run plus spawn Claude/Codex child agents into it
 
 Next:
 1. notebook execution surfaces

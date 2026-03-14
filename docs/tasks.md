@@ -56,6 +56,7 @@
 
 ## P5 — Multi-agent and communication
 - [x] Initial manual agent observability/steering view over terminal sessions
+- [x] Manual run kickoff and child-agent spawning from the Agents view
 - [ ] Multiple terminal panes
 - [ ] Grid layout
 - [ ] File-backed append-only message transport

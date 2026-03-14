@@ -36,6 +36,8 @@ interface KnowledgeDockProps {
   onFocusAgent: (id: string) => void;
   onUpdateAgentAnnotation: (id: string, patch: Partial<AgentAnnotation>) => void;
   onSendAgentMessage: (targetId: string, body: string) => void;
+  onKickOffRun: () => void;
+  onSpawnAgent: (kind: "claude" | "codex") => void;
 }
 
 export function KnowledgeDock(props: KnowledgeDockProps) {
@@ -58,6 +60,8 @@ export function KnowledgeDock(props: KnowledgeDockProps) {
     onFocusAgent,
     onUpdateAgentAnnotation,
     onSendAgentMessage,
+    onKickOffRun,
+    onSpawnAgent,
   } = props;
 
   const isMarkdown = document?.kind === "markdown";
@@ -193,7 +197,20 @@ export function KnowledgeDock(props: KnowledgeDockProps) {
           </div>
 
           <div className="knowledge-panel__section knowledge-panel__section--agents" data-testid="agents-panel">
-            <div className="knowledge-panel__title">Agents</div>
+            <div className="knowledge-panel__section-header">
+              <div className="knowledge-panel__title">Agents</div>
+              <div className="knowledge-panel__actions">
+                <button className="toolbar-button toolbar-button--compact" data-testid="kickoff-run" onClick={onKickOffRun} type="button">
+                  Kick Off Run
+                </button>
+                <button className="toolbar-button toolbar-button--compact" data-testid="spawn-claude-agent" onClick={() => onSpawnAgent("claude")} type="button">
+                  Claude
+                </button>
+                <button className="toolbar-button toolbar-button--compact" data-testid="spawn-codex-agent" onClick={() => onSpawnAgent("codex")} type="button">
+                  Codex
+                </button>
+              </div>
+            </div>
             {terminalSessions.length === 0 ? (
               <div className="knowledge-empty">No active agent sessions</div>
             ) : (
@@ -232,6 +249,7 @@ export function KnowledgeDock(props: KnowledgeDockProps) {
                           <label className="agent-card__field">
                             <span>Run</span>
                             <input
+                              data-testid={`agent-run-${session.id}`}
                               value={annotation.runLabel}
                               onChange={(event) => onUpdateAgentAnnotation(session.id, { runLabel: event.target.value })}
                             />

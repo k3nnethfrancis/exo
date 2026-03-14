@@ -115,3 +115,16 @@ test("surfaces terminal sessions as agents and can steer them", async () => {
 
   await cleanup();
 });
+
+test("can manually kick off a run and spawn a child agent", async () => {
+  const { page, cleanup } = await launchExoFixture();
+
+  await page.getByTestId("knowledge-toggle").click();
+  await page.getByTestId("kickoff-run").click();
+  await expect(page.getByTestId("agent-run-term-1")).toHaveValue("run-1");
+  await page.getByTestId("spawn-claude-agent").click();
+  await expect(page.getByTestId("agents-panel")).toContainText("Claude");
+  await expect(page.getByTestId("agent-run-term-2")).toHaveValue("run-1");
+
+  await cleanup();
+});

@@ -473,6 +473,7 @@ export function App() {
     const session = await window.exo.terminals.create({ kind, cwd });
     setTerminalSessions((current) => [...current, session]);
     setActiveTerminalId(session.id);
+    return session;
   }
 
   async function closeTerminal(id: string) {
@@ -519,6 +520,58 @@ export function App() {
         createdAt: timestamp,
       },
     ]);
+  }
+
+  function getSelectedAgent() {
+    return terminalSessions.find((session) => session.id === activeTerminalId) ?? terminalSessions[0] ?? null;
+  }
+
+  function nextRunLabel() {
+    const runNumbers = Object.values(agentAnnotations)
+      .map((annotation) => annotation.runLabel.trim())
+      .filter((label) => /^run-\d+$/.test(label))
+      .map((label) => Number(label.split("-")[1]))
+      .filter((value) => Number.isFinite(value));
+    const next = (runNumbers.length ? Math.max(...runNumbers) : 0) + 1;
+    return `run-${next}`;
+  }
+
+  function kickOffRun() {
+    const selected = getSelectedAgent();
+    if (!selected) {
+      return;
+    }
+
+    const current = agentAnnotations[selected.id];
+    updateAgentAnnotation(selected.id, {
+      runLabel: current?.runLabel.trim() ? current.runLabel : nextRunLabel(),
+      role: current?.role.trim() ? current.role : "lead",
+    });
+    setActiveTerminalId(selected.id);
+  }
+
+  async function spawnAgent(kind: "claude" | "codex") {
+    const selected = getSelectedAgent();
+    if (!selected || !workspaceModel) {
+      return;
+    }
+
+    const parentAnnotation = agentAnnotations[selected.id];
+    const runLabel = parentAnnotation?.runLabel.trim() ? parentAnnotation.runLabel : nextRunLabel();
+    if (!parentAnnotation?.runLabel.trim()) {
+      updateAgentAnnotation(selected.id, {
+        runLabel,
+        role: parentAnnotation?.role.trim() ? parentAnnotation.role : "lead",
+      });
+    }
+
+    const session = await createTerminal(kind, selected.cwd || workspaceModel.defaultTerminalCwd);
+    updateAgentAnnotation(session.id, {
+      runLabel,
+      parentId: selected.id,
+      role: kind === "claude" ? "delegate" : "reviewer",
+      task: "",
+    });
   }
 
   async function createBranchFromActiveDocument() {
@@ -934,6 +987,8 @@ export function App() {
           onFocusAgent={setActiveTerminalId}
           onUpdateAgentAnnotation={updateAgentAnnotation}
           onSendAgentMessage={(targetId, body) => void sendAgentMessage(targetId, body)}
+          onKickOffRun={kickOffRun}
+          onSpawnAgent={(kind) => void spawnAgent(kind)}
         />
       </div>
 
