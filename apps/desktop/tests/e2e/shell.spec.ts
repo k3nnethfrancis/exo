@@ -40,17 +40,15 @@ test("opens project files and creates note branches", async () => {
   await page.getByTestId("workspace-dialog-confirm").click();
 
   await page.getByTestId("workspace-search").fill("scratch.ts");
-  await page.getByRole("button", { name: /scratch\.ts/i }).click();
+  await page.getByTestId("search-results").getByRole("button", { name: /scratch\.ts/i }).first().click();
   await expect(page.getByTestId("editor-title")).toHaveText("scratch.ts");
   await expect(page.getByTestId("properties-panel")).toContainText("Project file");
 
   await page.getByTestId("workspace-search").fill("");
   await page.getByRole("button", { name: "focus-note.md" }).click();
   await page.getByTestId("create-branch").click();
-  await expect(page.getByTestId("branch-meta")).toContainText("Branch 1");
-  await page.getByTestId("knowledge-toggle").click();
-  await expect(page.getByTestId("branches-panel")).toContainText("1 · Focus Note");
-  await expect(page.getByTestId("branch-tree")).toContainText("1.md");
+  await expect(page.getByTestId("branch-selector")).toHaveValue(/-looms\/1\.md$/);
+  await expect(page.getByTestId("branch-selector").locator("option")).toHaveCount(2);
 
   await cleanup();
 });
@@ -97,34 +95,27 @@ test("collapses the dock when the last terminal closes", async () => {
   await cleanup();
 });
 
-test("surfaces terminal sessions as agents and can steer them", async () => {
-  const { page, cleanup } = await launchExoFixture({
-    env: {
-      EXO_SHELL: "/bin/cat",
-      EXO_SHELL_ARGS: "",
-    },
-  });
+test("lets you close editor tabs", async () => {
+  const { page, cleanup } = await launchExoFixture();
 
   await page.getByTestId("knowledge-toggle").click();
-  await expect(page.getByTestId("agents-panel")).toBeVisible();
-  await expect(page.getByTestId("agents-panel")).toContainText("Terminal");
-  await page.getByTestId("agent-message-input").fill("Check in with the parent before editing.");
-  await page.getByTestId("agent-message-send").click();
-  await expect(page.getByTestId("agent-message-log")).toContainText("Check in with the parent before editing.");
-  await expect(page.getByTestId("terminal-surface")).toContainText("Check in with the parent before editing.");
+  await page.getByTestId("backlinks-panel").getByText("Related Note").click();
+  await expect(page.getByTestId("editor-title")).toHaveText("Related Note");
+  await page.getByLabel("Close Related Note").click();
+  await expect(page.getByTestId("editor-title")).toHaveText("Focus Note");
 
   await cleanup();
 });
 
-test("can manually kick off a run and spawn a child agent", async () => {
+test("surfaces subagent terminals for the selected main terminal", async () => {
   const { page, cleanup } = await launchExoFixture();
 
   await page.getByTestId("knowledge-toggle").click();
+  await expect(page.getByTestId("subagents-panel")).toContainText("No observed subagent terminals yet");
   await page.getByTestId("kickoff-run").click();
-  await expect(page.getByTestId("agent-run-term-1")).toHaveValue("run-1");
   await page.getByTestId("spawn-claude-agent").click();
-  await expect(page.getByTestId("agents-panel")).toContainText("Claude");
-  await expect(page.getByTestId("agent-run-term-2")).toHaveValue("run-1");
+  await expect(page.getByTestId("subagents-panel")).toContainText("Claude");
+  await expect(page.getByTestId("subagent-card-term-2")).toBeVisible();
 
   await cleanup();
 });

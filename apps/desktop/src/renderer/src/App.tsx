@@ -5,7 +5,7 @@ import type { TerminalSessionInfo } from "../../shared/api";
 
 import { EditorPane, type EditorPaneState } from "./components/EditorPane";
 import { FileTree } from "./components/FileTree";
-import { KnowledgeDock, type AgentAnnotation, type AgentSteeringMessage } from "./components/KnowledgeDock";
+import { KnowledgeDock, type AgentAnnotation } from "./components/KnowledgeDock";
 import { TerminalDock } from "./components/TerminalDock";
 
 interface OpenEditorDocument extends NoteDocument {
@@ -86,7 +86,6 @@ export function App() {
   const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null);
   const [terminalBuffers, setTerminalBuffers] = useState<Record<string, string>>({});
   const [agentAnnotations, setAgentAnnotations] = useState<Record<string, AgentAnnotation>>({});
-  const [agentMessages, setAgentMessages] = useState<AgentSteeringMessage[]>([]);
   const [terminalRightWidth, setTerminalRightWidth] = useState(372);
   const [terminalBottomHeight, setTerminalBottomHeight] = useState(236);
   const [resizeState, setResizeState] = useState<ResizeState | null>(null);
@@ -98,7 +97,6 @@ export function App() {
 
   const activeDocument = activeDocumentPath ? openDocuments[activeDocumentPath] ?? null : null;
   const activeKnowledge = activeDocumentPath ? knowledgeByPath[activeDocumentPath] ?? null : null;
-  const activeBranchFamily = activeDocumentPath ? branchFamiliesByPath[activeDocumentPath] ?? null : null;
   const compactEditorChrome = editorPanes.length > 1;
   const terminalCollapsed = terminalSessions.length === 0;
   const effectiveTerminalPlacement = terminalCollapsed ? "bottom" : terminalPlacement;
@@ -137,7 +135,7 @@ export function App() {
       setNoteTrees(Object.fromEntries(nextNoteTrees));
       setProjectTrees(Object.fromEntries(nextProjectTrees));
 
-      const firstNote = nextNoteTrees.flatMap((entry) => flattenFiles(entry[1])).at(0);
+      const firstNote = pickInitialNote(nextNoteTrees);
       if (firstNote) {
         await openFile(firstNote.path, PRIMARY_EDITOR_PANE_ID);
       }
@@ -206,8 +204,6 @@ export function App() {
         if (!next[session.id]) {
           next[session.id] = {
             runLabel: "",
-            role: "",
-            task: "",
             parentId: null,
           };
         }
@@ -358,6 +354,23 @@ export function App() {
     setTagResults([]);
   }
 
+  function closeDocumentInPane(paneId: string, filePath: string) {
+    const nextPanes = sortEditorPanes(
+      editorPanes.map((pane) => (pane.id === paneId ? closeDocumentInPaneState(pane, filePath) : pane)),
+    );
+    const nextFocusedPaneId = paneId === focusedEditorPaneId ? paneId : focusedEditorPaneId;
+    const nextFocusedPane = nextPanes.find((pane) => pane.id === nextFocusedPaneId) ?? nextPanes[0] ?? null;
+    const nextActivePath = nextFocusedPane?.activePath ?? nextPanes.find((pane) => pane.activePath)?.activePath ?? null;
+
+    setEditorPanes(nextPanes);
+    setFocusedEditorPaneId(nextFocusedPane?.id ?? PRIMARY_EDITOR_PANE_ID);
+    setActiveDocumentPath(nextActivePath);
+    if (!nextActivePath) {
+      setActiveTag(null);
+      setTagResults([]);
+    }
+  }
+
   async function openFile(filePath: string, paneId = focusedEditorPaneId) {
     const document = await window.exo.notes.read(filePath);
     const [knowledge, branchFamily] =
@@ -469,10 +482,12 @@ export function App() {
     setTagResults(results);
   }
 
-  async function createTerminal(kind: "shell" | "claude" | "codex", cwd?: string) {
+  async function createTerminal(kind: "shell" | "claude" | "codex", cwd?: string, activate = true) {
     const session = await window.exo.terminals.create({ kind, cwd });
     setTerminalSessions((current) => [...current, session]);
-    setActiveTerminalId(session.id);
+    if (activate) {
+      setActiveTerminalId(session.id);
+    }
     return session;
   }
 
@@ -484,6 +499,16 @@ export function App() {
       delete next[id];
       return next;
     });
+    setAgentAnnotations((current) => {
+      const next = { ...current };
+      delete next[id];
+      for (const key of Object.keys(next)) {
+        if (next[key]?.parentId === id) {
+          next[key] = { ...next[key], parentId: null };
+        }
+      }
+      return next;
+    });
     if (activeTerminalId === id) {
       const fallback = terminalSessions.find((session) => session.id !== id);
       setActiveTerminalId(fallback?.id ?? null);
@@ -493,8 +518,6 @@ export function App() {
   function updateAgentAnnotation(id: string, patch: Partial<AgentAnnotation>) {
     const defaults: AgentAnnotation = {
       runLabel: "",
-      role: "",
-      task: "",
       parentId: null,
     };
     setAgentAnnotations((current) => ({
@@ -505,21 +528,6 @@ export function App() {
         ...patch,
       },
     }));
-  }
-
-  async function sendAgentMessage(targetId: string, body: string) {
-    const timestamp = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-    const message = `[Exo ${timestamp}] ${body}`;
-    await window.exo.terminals.write(targetId, `${message}\n`);
-    setAgentMessages((current) => [
-      ...current,
-      {
-        id: `agent-message-${current.length + 1}`,
-        toAgentId: targetId,
-        body,
-        createdAt: timestamp,
-      },
-    ]);
   }
 
   function getSelectedAgent() {
@@ -545,7 +553,6 @@ export function App() {
     const current = agentAnnotations[selected.id];
     updateAgentAnnotation(selected.id, {
       runLabel: current?.runLabel.trim() ? current.runLabel : nextRunLabel(),
-      role: current?.role.trim() ? current.role : "lead",
     });
     setActiveTerminalId(selected.id);
   }
@@ -561,16 +568,13 @@ export function App() {
     if (!parentAnnotation?.runLabel.trim()) {
       updateAgentAnnotation(selected.id, {
         runLabel,
-        role: parentAnnotation?.role.trim() ? parentAnnotation.role : "lead",
       });
     }
 
-    const session = await createTerminal(kind, selected.cwd || workspaceModel.defaultTerminalCwd);
+    const session = await createTerminal(kind, selected.cwd || workspaceModel.defaultTerminalCwd, false);
     updateAgentAnnotation(session.id, {
       runLabel,
       parentId: selected.id,
-      role: kind === "claude" ? "delegate" : "reviewer",
-      task: "",
     });
   }
 
@@ -870,15 +874,14 @@ export function App() {
                 isFocused={pane.id === focusedEditorPaneId}
                 onFocusPane={() => focusEditorPane(pane.id)}
                 onActivateTab={(filePath) => setPaneActivePath(pane.id, filePath)}
+                onCloseTab={(filePath) => closeDocumentInPane(pane.id, filePath)}
                 onStartDocumentDrag={(filePath, paneId) => startDocumentDrag(filePath, paneId)}
                 onEndDocumentDrag={() => setDragState(null)}
                 onToggleProperties={() => setPropertiesCollapsed((current) => !current)}
                 onBodyChange={updateBody}
-                onSave={() => void (activeDocumentPath ? saveDocument(activeDocumentPath) : Promise.resolve())}
+                onSave={() => void (pane.activePath ? saveDocument(pane.activePath) : Promise.resolve())}
                 onOpenTag={(tag) => void openTag(tag)}
-                onOpenShellHere={() =>
-                  void createTerminal("shell", activeDocumentPath ? directoryOf(activeDocumentPath) : workspaceModel.defaultTerminalCwd)
-                }
+                onOpenBranch={(filePath) => void openFile(filePath, pane.id)}
                 onCreateBranch={() => void createBranchFromActiveDocument()}
                 compact={compactEditorChrome}
               />
@@ -971,7 +974,6 @@ export function App() {
         <KnowledgeDock
           document={activeDocument}
           knowledge={activeKnowledge}
-          branchFamily={activeBranchFamily}
           collapsed={knowledgeCollapsed}
           activeTag={activeTag}
           tagResults={tagResults}
@@ -979,14 +981,11 @@ export function App() {
           activeTerminalId={activeTerminalId}
           terminalOutputPreviewById={terminalOutputPreviewById}
           agentAnnotations={agentAnnotations}
-          agentMessages={agentMessages}
           onToggleCollapsed={() => setKnowledgeCollapsed((current) => !current)}
           onOpenTarget={(target) => void openKnowledgeTarget(target)}
           onOpenExternal={(target) => void window.exo.shell.openExternal(target)}
           onOpenTag={(tag) => void openTag(tag)}
           onFocusAgent={setActiveTerminalId}
-          onUpdateAgentAnnotation={updateAgentAnnotation}
-          onSendAgentMessage={(targetId, body) => void sendAgentMessage(targetId, body)}
           onKickOffRun={kickOffRun}
           onSpawnAgent={(kind) => void spawnAgent(kind)}
         />
@@ -1048,6 +1047,19 @@ function flattenFiles(nodes: TreeNode[]): TreeNode[] {
   });
 }
 
+function pickInitialNote(entries: Array<readonly [string, TreeNode[]]>): TreeNode | undefined {
+  const files = entries.flatMap((entry) => flattenFiles(entry[1]));
+  const preferred = ["tasks.md", "schedule.md", "goals.md", "CLAUDE.md"];
+  for (const name of preferred) {
+    const match = files.find((file) => file.path.endsWith(`/${name}`));
+    if (match) {
+      return match;
+    }
+  }
+
+  return files.find((file) => !file.path.includes("-looms/")) ?? files[0];
+}
+
 function directoryOf(filePath: string): string {
   const parts = filePath.split("/");
   return parts.slice(0, -1).join("/") || "/";
@@ -1055,6 +1067,24 @@ function directoryOf(filePath: string): string {
 
 function joinPath(parentPath: string, name: string): string {
   return `${parentPath.replace(/\/$/, "")}/${name.replace(/^\//, "")}`;
+}
+
+function closeDocumentInPaneState(pane: EditorPaneState, filePath: string): EditorPaneState {
+  const nextOpenPaths = pane.openPaths.filter((openPath) => openPath !== filePath);
+  if (pane.activePath !== filePath) {
+    return {
+      ...pane,
+      openPaths: nextOpenPaths,
+    };
+  }
+
+  const closedIndex = pane.openPaths.indexOf(filePath);
+  const nextActivePath = nextOpenPaths[Math.max(0, closedIndex - 1)] ?? nextOpenPaths[0] ?? null;
+  return {
+    ...pane,
+    openPaths: nextOpenPaths,
+    activePath: nextActivePath,
+  };
 }
 
 function isInsideAttachedRoot(targetPath: string, rootPaths: string[]): boolean {

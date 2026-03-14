@@ -1,26 +1,15 @@
-import { useState } from "react";
-import { ChevronDown, ChevronRight, ExternalLink, Send, SquareTerminal } from "lucide-react";
-import type { BranchFamily, NoteDocument, NoteKnowledge, SearchResult } from "@exo/core";
+import { ChevronDown, ChevronRight, ExternalLink, Bot } from "lucide-react";
+import type { NoteDocument, NoteKnowledge, SearchResult } from "@exo/core";
 import type { TerminalSessionInfo } from "../../../shared/api";
 
 export interface AgentAnnotation {
   runLabel: string;
-  role: string;
-  task: string;
   parentId: string | null;
-}
-
-export interface AgentSteeringMessage {
-  id: string;
-  toAgentId: string;
-  body: string;
-  createdAt: string;
 }
 
 interface KnowledgeDockProps {
   document: NoteDocument | null;
   knowledge: NoteKnowledge | null;
-  branchFamily: BranchFamily | null;
   collapsed: boolean;
   activeTag: string | null;
   tagResults: SearchResult[];
@@ -32,10 +21,7 @@ interface KnowledgeDockProps {
   activeTerminalId: string | null;
   terminalOutputPreviewById: Record<string, string>;
   agentAnnotations: Record<string, AgentAnnotation>;
-  agentMessages: AgentSteeringMessage[];
   onFocusAgent: (id: string) => void;
-  onUpdateAgentAnnotation: (id: string, patch: Partial<AgentAnnotation>) => void;
-  onSendAgentMessage: (targetId: string, body: string) => void;
   onKickOffRun: () => void;
   onSpawnAgent: (kind: "claude" | "codex") => void;
 }
@@ -44,7 +30,6 @@ export function KnowledgeDock(props: KnowledgeDockProps) {
   const {
     document,
     knowledge,
-    branchFamily,
     collapsed,
     activeTag,
     tagResults,
@@ -56,10 +41,7 @@ export function KnowledgeDock(props: KnowledgeDockProps) {
     activeTerminalId,
     terminalOutputPreviewById,
     agentAnnotations,
-    agentMessages,
     onFocusAgent,
-    onUpdateAgentAnnotation,
-    onSendAgentMessage,
     onKickOffRun,
     onSpawnAgent,
   } = props;
@@ -68,29 +50,29 @@ export function KnowledgeDock(props: KnowledgeDockProps) {
   const backlinkCount = isMarkdown ? knowledge?.backlinks.length ?? 0 : 0;
   const linkCount = isMarkdown ? (knowledge?.wikilinks.length ?? 0) + (knowledge?.markdownLinks.length ?? 0) : 0;
   const tagCount = isMarkdown ? knowledge?.tags.length ?? 0 : 0;
-  const branchCount = isMarkdown ? branchFamily?.members.length ?? 0 : 0;
-  const agentCount = terminalSessions.length;
-  const [draftMessage, setDraftMessage] = useState("");
-
-  const steeringTargetId = activeTerminalId ?? terminalSessions[0]?.id ?? null;
-  const steeringMessages = steeringTargetId
-    ? agentMessages.filter((message) => message.toAgentId === steeringTargetId).slice(-6).reverse()
+  const activeSession = terminalSessions.find((session) => session.id === activeTerminalId) ?? terminalSessions[0] ?? null;
+  const activeMainAgent =
+    activeSession && agentAnnotations[activeSession.id]?.parentId
+      ? terminalSessions.find((session) => session.id === agentAnnotations[activeSession.id]?.parentId) ?? activeSession
+      : activeSession;
+  const subagentSessions = activeMainAgent
+    ? terminalSessions.filter((session) => agentAnnotations[session.id]?.parentId === activeMainAgent.id)
     : [];
+  const subagentCount = subagentSessions.length;
 
   return (
     <div className={`knowledge-drawer ${collapsed ? "knowledge-drawer--collapsed" : ""}`} data-testid="knowledge-drawer">
       <button className="knowledge-drawer__bar" data-testid="knowledge-toggle" onClick={onToggleCollapsed} type="button">
         {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-        <span className="knowledge-drawer__label">{isMarkdown ? "Knowledge" : "Inspector"}</span>
+        <span className="knowledge-drawer__label">Inspector</span>
         <span className="knowledge-drawer__summary">Backlinks {backlinkCount}</span>
         <span className="knowledge-drawer__summary">Links {linkCount}</span>
         <span className="knowledge-drawer__summary">Tags {tagCount}</span>
-        <span className="knowledge-drawer__summary">Branches {branchCount}</span>
-        <span className="knowledge-drawer__summary">Agents {agentCount}</span>
+        <span className="knowledge-drawer__summary">Subagents {subagentCount}</span>
       </button>
 
       {collapsed ? null : (
-        <div className="knowledge-panel knowledge-panel--agents">
+        <div className="knowledge-panel knowledge-panel--subagents">
           <div className="knowledge-panel__section" data-testid="backlinks-panel">
             <div className="knowledge-panel__title">Backlinks</div>
             {!isMarkdown ? (
@@ -169,36 +151,14 @@ export function KnowledgeDock(props: KnowledgeDockProps) {
             ) : null}
           </div>
 
-          <div className="knowledge-panel__section" data-testid="branches-panel">
-            <div className="knowledge-panel__title">Branches</div>
-            {!isMarkdown ? (
-              <div className="knowledge-empty">No note selected</div>
-            ) : branchFamily?.members.length ? (
-              <>
-                {branchFamily.members.map((member) => (
-                  <button
-                    key={member.filePath}
-                    className={`knowledge-item ${member.filePath === document?.filePath ? "knowledge-item--active" : ""}`}
-                    onClick={() => onOpenTarget(member.filePath)}
-                    type="button"
-                  >
-                    <span>{member.isRoot ? member.title : `${member.path.join(".")} · ${member.title}`}</span>
-                  </button>
-                ))}
-                {branchFamily.members.length > 1 ? (
-                  <pre className="branch-tree" data-testid="branch-tree">
-                    {branchFamily.tree}
-                  </pre>
-                ) : null}
-              </>
-            ) : (
-              <div className="knowledge-empty">No branch family yet</div>
-            )}
-          </div>
-
-          <div className="knowledge-panel__section knowledge-panel__section--agents" data-testid="agents-panel">
+          <div className="knowledge-panel__section knowledge-panel__section--subagents" data-testid="subagents-panel">
             <div className="knowledge-panel__section-header">
-              <div className="knowledge-panel__title">Agents</div>
+              <div>
+                <div className="knowledge-panel__title">Subagents</div>
+                <div className="knowledge-panel__subtitle">
+                  {activeMainAgent ? activeMainAgent.title : "Select a main terminal above"}
+                </div>
+              </div>
               <div className="knowledge-panel__actions">
                 <button className="toolbar-button toolbar-button--compact" data-testid="kickoff-run" onClick={onKickOffRun} type="button">
                   Kick Off Run
@@ -211,133 +171,38 @@ export function KnowledgeDock(props: KnowledgeDockProps) {
                 </button>
               </div>
             </div>
-            {terminalSessions.length === 0 ? (
-              <div className="knowledge-empty">No active agent sessions</div>
-            ) : (
-              <>
-                <div className="agent-list">
-                  {terminalSessions.map((session) => {
-                    const annotation = agentAnnotations[session.id] ?? {
-                      runLabel: "",
-                      role: "",
-                      task: "",
-                      parentId: null,
-                    };
-                    const preview = terminalOutputPreviewById[session.id] ?? "No activity yet";
-                    const selected = session.id === activeTerminalId;
 
-                    return (
-                      <div key={session.id} className={`agent-card ${selected ? "agent-card--active" : ""}`}>
-                        <button
-                          className="agent-card__header"
-                          onClick={() => onFocusAgent(session.id)}
-                          type="button"
-                        >
-                          <div className="agent-card__title-row">
-                            <SquareTerminal size={13} />
-                            <span className="agent-card__title">{session.title}</span>
-                            <span className={`status-dot status-dot--${session.status}`} />
-                          </div>
-                          <div className="agent-card__meta">{session.kind} · {session.cwd}</div>
-                        </button>
-
-                        <div className="agent-card__preview" title={preview}>
-                          {preview}
-                        </div>
-
-                        <div className="agent-card__fields">
-                          <label className="agent-card__field">
-                            <span>Run</span>
-                            <input
-                              data-testid={`agent-run-${session.id}`}
-                              value={annotation.runLabel}
-                              onChange={(event) => onUpdateAgentAnnotation(session.id, { runLabel: event.target.value })}
-                            />
-                          </label>
-                          <label className="agent-card__field">
-                            <span>Role</span>
-                            <input
-                              value={annotation.role}
-                              onChange={(event) => onUpdateAgentAnnotation(session.id, { role: event.target.value })}
-                            />
-                          </label>
-                          <label className="agent-card__field">
-                            <span>Parent</span>
-                            <select
-                              value={annotation.parentId ?? ""}
-                              onChange={(event) =>
-                                onUpdateAgentAnnotation(session.id, { parentId: event.target.value || null })
-                              }
-                            >
-                              <option value="">None</option>
-                              {terminalSessions
-                                .filter((candidate) => candidate.id !== session.id)
-                                .map((candidate) => (
-                                  <option key={candidate.id} value={candidate.id}>
-                                    {candidate.title}
-                                  </option>
-                                ))}
-                            </select>
-                          </label>
-                          <label className="agent-card__field agent-card__field--wide">
-                            <span>Task</span>
-                            <input
-                              value={annotation.task}
-                              onChange={(event) => onUpdateAgentAnnotation(session.id, { task: event.target.value })}
-                            />
-                          </label>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className="agent-steering" data-testid="agent-steering">
-                  <div className="knowledge-panel__subtitle">
-                    {steeringTargetId
-                      ? `Steer ${terminalSessions.find((session) => session.id === steeringTargetId)?.title ?? "agent"}`
-                      : "Steering"}
-                  </div>
-                  <div className="agent-steering__composer">
-                    <textarea
-                      data-testid="agent-message-input"
-                      placeholder="Send a steering message into the selected agent session..."
-                      value={draftMessage}
-                      onChange={(event) => setDraftMessage(event.target.value)}
-                    />
+            {subagentSessions.length ? (
+              <div className="subagent-list">
+                {subagentSessions.map((session) => {
+                  const preview = terminalOutputPreviewById[session.id] ?? "No activity yet";
+                  return (
                     <button
-                      className="toolbar-button"
-                      data-testid="agent-message-send"
-                      disabled={!steeringTargetId || !draftMessage.trim()}
-                      onClick={() => {
-                        if (!steeringTargetId || !draftMessage.trim()) {
-                          return;
-                        }
-
-                        onSendAgentMessage(steeringTargetId, draftMessage.trim());
-                        setDraftMessage("");
-                      }}
+                      key={session.id}
+                      className={`subagent-card ${session.id === activeTerminalId ? "subagent-card--active" : ""}`}
+                      data-testid={`subagent-card-${session.id}`}
+                      onClick={() => onFocusAgent(session.id)}
                       type="button"
                     >
-                      <Send size={13} />
-                      Send
-                    </button>
-                  </div>
-
-                  <div className="agent-message-log" data-testid="agent-message-log">
-                    {steeringMessages.length ? (
-                      steeringMessages.map((message) => (
-                        <div key={message.id} className="agent-message-log__item">
-                          <div className="agent-message-log__meta">{message.createdAt}</div>
-                          <div>{message.body}</div>
+                      <div className="subagent-card__title-row">
+                        <div className="subagent-card__title">
+                          <Bot size={13} />
+                          {session.title}
                         </div>
-                      ))
-                    ) : (
-                      <div className="knowledge-empty">No steering messages yet</div>
-                    )}
-                  </div>
-                </div>
-              </>
+                        <span className={`status-dot status-dot--${session.status}`} />
+                      </div>
+                      <div className="subagent-card__meta">{session.cwd}</div>
+                      <div className="subagent-card__preview" title={preview}>
+                        {preview}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="knowledge-empty">
+                {activeMainAgent ? "No observed subagent terminals yet" : "No main terminal selected"}
+              </div>
             )}
           </div>
         </div>

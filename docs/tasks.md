@@ -34,7 +34,9 @@
 - [ ] Search ranking / keyboard navigation / preview parity
 - [ ] Branch family affordances in the sidebar/file tree
 - [x] Initial file/tab drag splitting into a second editor pane
-- [ ] Consistent collapsed-bar model for terminal, inspector, and project roots
+- [x] Consistent collapsed-bar model for terminal, inspector, and project roots
+- [x] Move branch selection into the editor header and remove bottom-drawer branch clutter
+- [x] Make editor tabs closeable
 - [ ] True arbitrary IDE pane graph and dockable note/terminal surfaces beyond the current two-pane model
 
 ## P3 — Agent runtime control layer
@@ -55,8 +57,9 @@
 - [ ] Reviewed quirks and working-memory shaping
 
 ## P5 — Multi-agent and communication
-- [x] Initial manual agent observability/steering view over terminal sessions
-- [x] Manual run kickoff and child-agent spawning from the Agents view
+- [x] Initial subagent observability view over terminal sessions
+- [x] Manual run kickoff and child-agent spawning from the Inspector drawer
+- [ ] Separate top-level main-agent terminals from bottom-level subagent terminals
 - [ ] Multiple terminal panes
 - [ ] Grid layout
 - [ ] File-backed append-only message transport

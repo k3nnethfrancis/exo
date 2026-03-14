@@ -29,7 +29,7 @@ Current working shell:
 - first-step editor pane splitting for dragged files/tabs
 - resizable terminal dock with drag docking between right and bottom placement
 - Playwright interaction and screenshot harnesses
-- manual agent observability/steering surface over live terminal sessions
+- consistent `Inspector` drawer with backlinks, links, tags, and simplified subagent observability
 
 Active Phase 2 work:
 - branch-aware note families
@@ -91,7 +91,7 @@ Completed:
 16. generated Exo runtime overlays under `.exo/instructions/AGENTS.md` and `.exo/instructions/CLAUDE.md`
 17. CLI runtime inspection/sync commands plus `exo-cli launch shell|claude|codex`
 18. app startup/runtime sync and terminal launch through the shared launch-plan path
-19. initial Agents view that treats terminal sessions as agents, supports manual role/task/parent annotation, lets the operator send steering messages into a selected session, and can manually kick off a run plus spawn Claude/Codex child agents into it
+19. simplified subagent observability view that treats terminal sessions as agents, keeps branch selection in the editor header, supports closeable editor tabs, and lets the operator kick off a run plus spawn Claude/Codex child agents without the old manual role/parent/task form
 
 Next:
 1. notebook execution surfaces

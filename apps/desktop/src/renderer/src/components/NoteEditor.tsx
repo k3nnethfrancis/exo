@@ -2,7 +2,7 @@ import CodeMirror from "@uiw/react-codemirror";
 import { markdown } from "@codemirror/lang-markdown";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { EditorView } from "@codemirror/view";
-import { ChevronDown, ChevronRight, GitBranch, Save, TerminalSquare } from "lucide-react";
+import { ChevronDown, ChevronRight, GitBranch, Save } from "lucide-react";
 import type { BranchFamily, NoteDocument } from "@exo/core";
 
 interface EditorDocument extends NoteDocument {
@@ -17,7 +17,7 @@ interface NoteEditorProps {
   onBodyChange: (body: string) => void;
   onSave: () => void;
   onOpenTag: (tag: string) => void;
-  onOpenShellHere: () => void;
+  onOpenBranch: (filePath: string) => void;
   onCreateBranch: () => void;
   onFocus: () => void;
   compact: boolean;
@@ -32,7 +32,7 @@ export function NoteEditor(props: NoteEditorProps) {
     onBodyChange,
     onSave,
     onOpenTag,
-    onOpenShellHere,
+    onOpenBranch,
     onCreateBranch,
     onFocus,
     compact,
@@ -62,38 +62,37 @@ export function NoteEditor(props: NoteEditorProps) {
           <div className="editor-panel__title" data-testid="editor-title">
             {document.title}
           </div>
-          {branchFamily && isMarkdown ? (
-            <div className="editor-panel__meta" data-testid="branch-meta">
-              <GitBranch size={13} />
-              {document.filePath === branchFamily.rootFilePath
-                ? "Base note"
-                : `Branch ${branchFamily.currentPath.join(".")}`}
-            </div>
-          ) : null}
         </div>
 
         <div className="editor-panel__actions">
-          {isMarkdown ? (
-            <button
-              className={`toolbar-button ${compact ? "toolbar-button--compact" : ""}`}
-              data-testid="create-branch"
-              onClick={onCreateBranch}
-              title="Create branch"
-              type="button"
-            >
+          {isMarkdown && branchFamily ? (
+            <div className="branch-selector" data-testid="branch-selector-wrap">
               <GitBranch size={14} />
-              {compact ? null : "Branch"}
-            </button>
+              <select
+                aria-label="Branch selector"
+                className="branch-selector__select"
+                data-testid="branch-selector"
+                value={document.filePath}
+                onChange={(event) => onOpenBranch(event.target.value)}
+              >
+                {branchFamily.members.map((member) => (
+                  <option key={member.filePath} value={member.filePath}>
+                    {member.isRoot ? "Base note" : member.path.join(".")} · {member.title}
+                  </option>
+                ))}
+              </select>
+              <button
+                className={`toolbar-button ${compact ? "toolbar-button--compact" : ""}`}
+                data-testid="create-branch"
+                onClick={onCreateBranch}
+                title="Create branch"
+                type="button"
+              >
+                <GitBranch size={14} />
+                {compact ? null : "New"}
+              </button>
+            </div>
           ) : null}
-          <button
-            className={`toolbar-button ${compact ? "toolbar-button--compact" : ""}`}
-            onClick={onOpenShellHere}
-            title="Open terminal here"
-            type="button"
-          >
-            <TerminalSquare size={14} />
-            {compact ? null : "Shell Here"}
-          </button>
           <button
             className={`toolbar-button ${compact ? "toolbar-button--compact" : ""}`}
             data-testid="save-note"

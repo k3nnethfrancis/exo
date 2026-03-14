@@ -94,13 +94,14 @@ export async function getBranchFamily(filePath: string, noteRootPaths: string[])
 
   const sortedMembers = members.sort(compareBranchEntries);
   const rootMember = sortedMembers.find((member) => member.isRoot);
-  if (!rootMember) {
-    throw new Error(`Missing root note for branch family: ${parsed.baseName}`);
+  const resolvedRootMember = rootMember ?? sortedMembers[0];
+  if (!resolvedRootMember) {
+    throw new Error(`Missing branch members for family: ${parsed.baseName}`);
   }
 
   return {
     baseName: parsed.baseName,
-    rootFilePath: rootMember.filePath,
+    rootFilePath: resolvedRootMember.filePath,
     currentFilePath: filePath,
     currentPath: parsed.path,
     members: sortedMembers,

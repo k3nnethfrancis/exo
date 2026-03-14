@@ -20,13 +20,14 @@ interface EditorPaneProps {
   isFocused: boolean;
   onFocusPane: () => void;
   onActivateTab: (filePath: string) => void;
+  onCloseTab: (filePath: string) => void;
   onStartDocumentDrag: (filePath: string, paneId: string) => void;
   onEndDocumentDrag: () => void;
   onToggleProperties: () => void;
   onBodyChange: (body: string) => void;
   onSave: () => void;
   onOpenTag: (tag: string) => void;
-  onOpenShellHere: () => void;
+  onOpenBranch: (filePath: string) => void;
   onCreateBranch: () => void;
   compact: boolean;
 }
@@ -40,13 +41,14 @@ export function EditorPane(props: EditorPaneProps) {
     isFocused,
     onFocusPane,
     onActivateTab,
+    onCloseTab,
     onStartDocumentDrag,
     onEndDocumentDrag,
     onToggleProperties,
     onBodyChange,
     onSave,
     onOpenTag,
-    onOpenShellHere,
+    onOpenBranch,
     onCreateBranch,
     compact,
   } = props;
@@ -84,6 +86,17 @@ export function EditorPane(props: EditorPaneProps) {
             >
               <span className={document.dirty ? "status-dot status-dot--dirty" : "status-dot"} />
               {document.title}
+              <span
+                aria-label={`Close ${document.title}`}
+                className="tab-strip__close"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onCloseTab(document.filePath);
+                }}
+                role="button"
+              >
+                ×
+              </span>
             </button>
           );
         })}
@@ -97,7 +110,7 @@ export function EditorPane(props: EditorPaneProps) {
         onBodyChange={onBodyChange}
         onSave={onSave}
         onOpenTag={onOpenTag}
-        onOpenShellHere={onOpenShellHere}
+        onOpenBranch={onOpenBranch}
         onCreateBranch={onCreateBranch}
         onFocus={onFocusPane}
         compact={compact}
