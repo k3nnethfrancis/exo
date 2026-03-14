@@ -24,6 +24,8 @@
 - [x] Collapsed bottom knowledge drawer by default
 - [x] Note wrapping with vertical-scroll editor behavior
 - [x] Incremental xterm rendering instead of full-buffer resets
+- [x] Shared workspace knowledge footer spanning editor + terminal region
+- [x] Resizable terminal dock
 
 ## P2 — Knowledge/editor parity
 - [x] Branch-aware note flows
@@ -31,7 +33,8 @@
 - [x] Search parity and richer navigation
 - [ ] Search ranking / keyboard navigation / preview parity
 - [ ] Branch family affordances in the sidebar/file tree
-- [ ] True IDE pane splitting and dockable note/terminal surfaces beyond right-vs-bottom terminal drag
+- [x] Initial file/tab drag splitting into a second editor pane
+- [ ] True arbitrary IDE pane graph and dockable note/terminal surfaces beyond the current two-pane model
 
 ## P3 — Runtime and memory
 - [ ] Durable memory layer

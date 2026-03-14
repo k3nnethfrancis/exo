@@ -247,24 +247,92 @@ button {
   min-height: 0;
   background: transparent;
   position: relative;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
 }
 
-.workspace--terminal-right {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 412px;
-}
-
-.workspace--terminal-bottom {
-  display: grid;
-  grid-template-rows: minmax(0, 1fr) 284px;
-}
-
-.editor-shell {
-  display: grid;
-  grid-template-rows: 44px minmax(0, 1fr);
+.workspace__body {
   min-width: 0;
   min-height: 0;
+  display: grid;
+  position: relative;
+}
+
+.workspace__body--terminal-right {
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.workspace__body--terminal-bottom {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.editor-area {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  position: relative;
   border-right: 1px solid var(--divider);
+}
+
+.workspace__body--terminal-bottom .editor-area {
+  border-right: 0;
+}
+
+.editor-area--split-right {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.editor-area--split-bottom {
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.editor-pane {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: 44px minmax(0, 1fr);
+  background: transparent;
+  border-right: 1px solid var(--divider);
+}
+
+.editor-area--split-bottom .editor-pane {
+  border-right: 0;
+  border-bottom: 1px solid var(--divider);
+}
+
+.editor-area--split-right .editor-pane:last-child,
+.editor-area--split-bottom .editor-pane:last-child {
+  border-right: 0;
+  border-bottom: 0;
+}
+
+.editor-pane--focused {
+  box-shadow: inset 0 0 0 1px rgba(159, 184, 255, 0.1);
+}
+
+.pane-resizer {
+  background: transparent;
+  position: relative;
+  z-index: 4;
+}
+
+.pane-resizer::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.pane-resizer:hover::before {
+  background: rgba(159, 184, 255, 0.2);
+}
+
+.pane-resizer--vertical {
+  cursor: col-resize;
+}
+
+.pane-resizer--horizontal {
+  cursor: row-resize;
 }
 
 .tab-strip,
@@ -321,7 +389,7 @@ button {
   min-height: 0;
   min-width: 0;
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr);
   background: transparent;
 }
 
@@ -638,7 +706,7 @@ button {
   border-left: 1px solid var(--divider);
 }
 
-.workspace--terminal-bottom .terminal-dock {
+.workspace__body--terminal-bottom .terminal-dock {
   border-left: 0;
   border-top: 1px solid var(--divider);
 }
@@ -685,21 +753,16 @@ button {
 .dock-drop-zones {
   position: absolute;
   inset: 12px;
-  display: grid;
   pointer-events: none;
+  z-index: 8;
 }
 
-.workspace--terminal-right .dock-drop-zones {
-  grid-template-columns: minmax(0, 1fr) 180px;
-  gap: 12px;
-}
-
-.workspace--terminal-bottom .dock-drop-zones {
-  grid-template-rows: minmax(0, 1fr) 150px;
-  gap: 12px;
+.dock-drop-zones--document {
+  inset: 16px;
 }
 
 .dock-drop-zone {
+  position: absolute;
   pointer-events: auto;
   border: 1px dashed rgba(159, 184, 255, 0.35);
   border-radius: 18px;
@@ -707,6 +770,20 @@ button {
   color: #dce5ff;
   font-family: var(--mono);
   font-size: 12px;
+}
+
+.dock-drop-zone--right {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 180px;
+}
+
+.dock-drop-zone--bottom {
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 150px;
 }
 
 .dock-drop-zone--active {
@@ -805,10 +882,6 @@ button {
 @media (max-width: 1200px) {
   .shell {
     grid-template-columns: 280px 1fr;
-  }
-
-  .workspace--terminal-right {
-    grid-template-columns: minmax(0, 1fr) 360px;
   }
 
   .knowledge-panel {

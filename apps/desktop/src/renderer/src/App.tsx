@@ -3,8 +3,9 @@ import type { BranchFamily, NoteDocument, NoteKnowledge, SearchResult, TreeNode,
 
 import type { TerminalSessionInfo } from "../../shared/api";
 
+import { EditorPane, type EditorPaneState } from "./components/EditorPane";
 import { FileTree } from "./components/FileTree";
-import { NoteEditor } from "./components/NoteEditor";
+import { KnowledgeDock } from "./components/KnowledgeDock";
 import { TerminalDock } from "./components/TerminalDock";
 
 interface OpenEditorDocument extends NoteDocument {
@@ -41,6 +42,17 @@ type WorkspaceDialogState =
       confirmLabel: string;
     };
 
+type DragState =
+  | { kind: "terminal" }
+  | { kind: "document"; filePath: string; sourcePaneId?: string };
+
+type ResizeState =
+  | { axis: "vertical"; startSize: number; origin: number }
+  | { axis: "horizontal"; startSize: number; origin: number };
+
+const PRIMARY_EDITOR_PANE_ID = "editor-pane-1";
+const SECONDARY_EDITOR_PANE_ID = "editor-pane-2";
+
 export function App() {
   const [workspaceModel, setWorkspaceModel] = useState<WorkspaceModel | null>(null);
   const [noteTrees, setNoteTrees] = useState<Record<string, TreeNode[]>>({});
@@ -54,22 +66,37 @@ export function App() {
   const [openDocuments, setOpenDocuments] = useState<Record<string, OpenEditorDocument>>({});
   const [knowledgeByPath, setKnowledgeByPath] = useState<Record<string, NoteKnowledge>>({});
   const [branchFamiliesByPath, setBranchFamiliesByPath] = useState<Record<string, BranchFamily>>({});
+  const [editorPanes, setEditorPanes] = useState<EditorPaneState[]>([
+    {
+      id: PRIMARY_EDITOR_PANE_ID,
+      openPaths: [],
+      activePath: null,
+    },
+  ]);
+  const [focusedEditorPaneId, setFocusedEditorPaneId] = useState(PRIMARY_EDITOR_PANE_ID);
   const [activeDocumentPath, setActiveDocumentPath] = useState<string | null>(null);
+  const [editorSplitOrientation, setEditorSplitOrientation] = useState<"right" | "bottom" | null>(null);
   const [propertiesCollapsed, setPropertiesCollapsed] = useState(true);
   const [knowledgeCollapsed, setKnowledgeCollapsed] = useState(true);
   const [tagResults, setTagResults] = useState<SearchResult[]>([]);
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [terminalPlacement, setTerminalPlacement] = useState<"right" | "bottom">("right");
-  const [isDockDragging, setIsDockDragging] = useState(false);
+  const [dragState, setDragState] = useState<DragState | null>(null);
   const [terminalSessions, setTerminalSessions] = useState<TerminalSessionInfo[]>([]);
   const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null);
   const [terminalBuffers, setTerminalBuffers] = useState<Record<string, string>>({});
+  const [terminalRightWidth, setTerminalRightWidth] = useState(412);
+  const [terminalBottomHeight, setTerminalBottomHeight] = useState(284);
+  const [resizeState, setResizeState] = useState<ResizeState | null>(null);
   const [workspaceDialog, setWorkspaceDialog] = useState<WorkspaceDialogState | null>(null);
   const pendingTerminalChunksRef = useRef<Record<string, string>>({});
   const terminalFlushFrameRef = useRef<number | null>(null);
+  const workspaceBodyRef = useRef<HTMLDivElement | null>(null);
   const deferredSearchQuery = useDeferredValue(searchQuery);
 
   const activeDocument = activeDocumentPath ? openDocuments[activeDocumentPath] ?? null : null;
+  const activeKnowledge = activeDocumentPath ? knowledgeByPath[activeDocumentPath] ?? null : null;
+  const activeBranchFamily = activeDocumentPath ? branchFamiliesByPath[activeDocumentPath] ?? null : null;
 
   useEffect(() => {
     let cancelled = false;
@@ -99,7 +126,7 @@ export function App() {
 
       const firstNote = nextNoteTrees.flatMap((entry) => flattenFiles(entry[1])).at(0);
       if (firstNote) {
-        await openFile(firstNote.path);
+        await openFile(firstNote.path, PRIMARY_EDITOR_PANE_ID);
       }
 
       const defaultTerminal = await window.exo.terminals.ensureDefault();
@@ -189,6 +216,39 @@ export function App() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [activeDocument]);
 
+  useEffect(() => {
+    if (!resizeState) {
+      return;
+    }
+    const currentResize = resizeState;
+
+    function onMouseMove(event: MouseEvent) {
+      const rect = workspaceBodyRef.current?.getBoundingClientRect();
+      if (!rect) {
+        return;
+      }
+
+      if (currentResize.axis === "vertical") {
+        const delta = currentResize.origin - event.clientX;
+        setTerminalRightWidth(clamp(currentResize.startSize + delta, 280, Math.max(320, rect.width - 320)));
+      } else {
+        const delta = currentResize.origin - event.clientY;
+        setTerminalBottomHeight(clamp(currentResize.startSize + delta, 180, Math.max(220, rect.height - 240)));
+      }
+    }
+
+    function onMouseUp() {
+      setResizeState(null);
+    }
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, [resizeState]);
+
   const noteSections = useMemo(
     () =>
       workspaceModel?.noteRoots.map((root) => ({
@@ -207,7 +267,6 @@ export function App() {
       })) ?? [],
     [projectTrees, workspaceModel],
   );
-
   async function reloadTrees() {
     if (!workspaceModel) {
       return;
@@ -230,12 +289,41 @@ export function App() {
     setProjectTrees(Object.fromEntries(nextProjectTrees));
   }
 
-  async function openFile(filePath: string) {
+  function focusEditorPane(paneId: string) {
+    setFocusedEditorPaneId(paneId);
+    const nextActivePath = editorPanes.find((pane) => pane.id === paneId)?.activePath ?? null;
+    setActiveDocumentPath(nextActivePath);
+    setActiveTag(null);
+    if (!nextActivePath) {
+      setTagResults([]);
+    }
+  }
+
+  function setPaneActivePath(paneId: string, filePath: string) {
+    setEditorPanes((current) =>
+      current.map((pane) =>
+        pane.id === paneId
+          ? {
+              ...pane,
+              activePath: filePath,
+              openPaths: pane.openPaths.includes(filePath) ? pane.openPaths : [...pane.openPaths, filePath],
+            }
+          : pane,
+      ),
+    );
+    setFocusedEditorPaneId(paneId);
+    setActiveDocumentPath(filePath);
+    setActiveTag(null);
+    setTagResults([]);
+  }
+
+  async function openFile(filePath: string, paneId = focusedEditorPaneId) {
     const document = await window.exo.notes.read(filePath);
     const [knowledge, branchFamily] =
       document.kind === "markdown"
         ? await Promise.all([window.exo.notes.getKnowledge(filePath), window.exo.notes.getBranchFamily(filePath)])
         : [null, null];
+
     setOpenDocuments((current) => ({
       ...current,
       [filePath]: {
@@ -252,6 +340,19 @@ export function App() {
       ...current,
       ...(branchFamily ? { [filePath]: branchFamily } : {}),
     }));
+    setEditorPanes((current) => {
+      const next = ensureEditorPane(current, paneId);
+      return next.map((pane) =>
+        pane.id === paneId
+          ? {
+              ...pane,
+              activePath: filePath,
+              openPaths: pane.openPaths.includes(filePath) ? pane.openPaths : [...pane.openPaths, filePath],
+            }
+          : pane,
+      );
+    });
+    setFocusedEditorPaneId(paneId);
     setActiveDocumentPath(filePath);
     setActiveTag(null);
     setTagResults([]);
@@ -317,7 +418,7 @@ export function App() {
       : await window.exo.notes.resolveTarget(activeDocumentPath, `${target}.md`);
 
     if (resolved) {
-      await openFile(resolved);
+      await openFile(resolved, focusedEditorPaneId);
     }
   }
 
@@ -364,7 +465,7 @@ export function App() {
       [result.branchFilePath]: result.family,
     }));
     await reloadTrees();
-    await openFile(result.branchFilePath);
+    await openFile(result.branchFilePath, focusedEditorPaneId);
   }
 
   function createFileInDirectory(directoryPath: string) {
@@ -393,7 +494,7 @@ export function App() {
       joinPath(directoryPath, ensureDefaultExtension(name, directoryPath, noteRootPaths)),
     );
     await reloadTrees();
-    await openFile(nextPath);
+    await openFile(nextPath, focusedEditorPaneId);
   }
 
   function createDirectoryInDirectory(directoryPath: string) {
@@ -433,7 +534,7 @@ export function App() {
     remapOpenPaths(previousPath, nextPath);
     await reloadTrees();
     if (previousPath === activeDocumentPath) {
-      await openFile(nextPath);
+      await openFile(nextPath, focusedEditorPaneId);
     }
   }
 
@@ -458,8 +559,21 @@ export function App() {
     setBranchFamiliesByPath((current) =>
       Object.fromEntries(Object.entries(current).filter(([filePath]) => !isPathWithin(targetPath, filePath))),
     );
+    setEditorPanes((current) =>
+      current.map((pane) => {
+        const nextOpenPaths = pane.openPaths.filter((filePath) => !isPathWithin(targetPath, filePath));
+        return {
+          ...pane,
+          openPaths: nextOpenPaths,
+          activePath: pane.activePath && !isPathWithin(targetPath, pane.activePath)
+            ? pane.activePath
+            : nextOpenPaths.at(-1) ?? null,
+        };
+      }),
+    );
     if (activeDocumentPath && isPathWithin(targetPath, activeDocumentPath)) {
-      setActiveDocumentPath(null);
+      const nextActivePath = editorPanes.find((pane) => pane.id === focusedEditorPaneId)?.openPaths.at(-1) ?? null;
+      setActiveDocumentPath(nextActivePath);
     }
     await reloadTrees();
   }
@@ -516,9 +630,70 @@ export function App() {
     );
     setKnowledgeByPath((current) => remapRecord(current));
     setBranchFamiliesByPath((current) => remapRecord(current));
+    setEditorPanes((current) =>
+      current.map((pane) => ({
+        ...pane,
+        openPaths: pane.openPaths.map((filePath) =>
+          isPathWithin(sourcePath, filePath) ? filePath.replace(sourcePath, nextPath) : filePath,
+        ),
+        activePath:
+          pane.activePath && isPathWithin(sourcePath, pane.activePath)
+            ? pane.activePath.replace(sourcePath, nextPath)
+            : pane.activePath,
+      })),
+    );
     if (activeDocumentPath && isPathWithin(sourcePath, activeDocumentPath)) {
       setActiveDocumentPath(activeDocumentPath.replace(sourcePath, nextPath));
     }
+  }
+
+  function startDocumentDrag(filePath: string, sourcePaneId?: string) {
+    setDragState({ kind: "document", filePath, sourcePaneId });
+  }
+
+  function moveDocumentToSplit(orientation: "right" | "bottom") {
+    if (!dragState || dragState.kind !== "document") {
+      return;
+    }
+
+    const targetPaneId =
+      dragState.sourcePaneId === SECONDARY_EDITOR_PANE_ID ? PRIMARY_EDITOR_PANE_ID : SECONDARY_EDITOR_PANE_ID;
+
+    setEditorSplitOrientation(orientation);
+    if (!openDocuments[dragState.filePath]) {
+      void openFile(dragState.filePath, targetPaneId);
+      setDragState(null);
+      return;
+    }
+
+    setEditorPanes((current) => {
+      const next = ensureEditorPane(current, targetPaneId).map((pane) => ({
+        ...pane,
+        openPaths: [...pane.openPaths],
+      }));
+
+      if (dragState.sourcePaneId) {
+        const sourcePane = next.find((pane) => pane.id === dragState.sourcePaneId);
+        if (sourcePane && sourcePane.id !== targetPaneId) {
+          sourcePane.openPaths = sourcePane.openPaths.filter((filePath) => filePath !== dragState.filePath);
+          if (sourcePane.activePath === dragState.filePath) {
+            sourcePane.activePath = sourcePane.openPaths.at(-1) ?? null;
+          }
+        }
+      }
+
+      const targetPane = next.find((pane) => pane.id === targetPaneId)!;
+      if (!targetPane.openPaths.includes(dragState.filePath)) {
+        targetPane.openPaths.push(dragState.filePath);
+      }
+      targetPane.activePath = dragState.filePath;
+
+      return sortEditorPanes(next);
+    });
+
+    setFocusedEditorPaneId(targetPaneId);
+    setActiveDocumentPath(dragState.filePath);
+    setDragState(null);
   }
 
   if (!workspaceModel) {
@@ -534,95 +709,144 @@ export function App() {
         searchQuery={searchQuery}
         searchResults={workspaceSearchResults}
         onSearchQueryChange={setSearchQuery}
-        onOpenFile={(filePath) => void openFile(filePath)}
+        onOpenFile={(filePath) => void openFile(filePath, focusedEditorPaneId)}
         onOpenTag={(tag) => void openTag(tag)}
-        onCreateFile={(directoryPath) => void createFileInDirectory(directoryPath)}
-        onCreateDirectory={(directoryPath) => void createDirectoryInDirectory(directoryPath)}
-        onRenamePath={(targetPath) => void renameWorkspacePath(targetPath)}
-        onDeletePath={(targetPath) => void deleteWorkspacePath(targetPath)}
+        onStartDocumentDrag={(filePath) => startDocumentDrag(filePath)}
+        onEndDocumentDrag={() => setDragState(null)}
+        onCreateFile={(directoryPath) => createFileInDirectory(directoryPath)}
+        onCreateDirectory={(directoryPath) => createDirectoryInDirectory(directoryPath)}
+        onRenamePath={(targetPath) => renameWorkspacePath(targetPath)}
+        onDeletePath={(targetPath) => deleteWorkspacePath(targetPath)}
       />
 
-      <div
-        className={`workspace ${terminalPlacement === "right" ? "workspace--terminal-right" : "workspace--terminal-bottom"} ${isDockDragging ? "workspace--dock-dragging" : ""}`}
-      >
-        <div className="editor-shell">
-          <div className="tab-strip" data-testid="editor-tabs">
-            {Object.values(openDocuments).map((document) => (
+      <div className="workspace">
+        <div
+          ref={workspaceBodyRef}
+          className={`workspace__body workspace__body--terminal-${terminalPlacement}`}
+          style={
+            terminalPlacement === "right"
+              ? { gridTemplateColumns: `minmax(0, 1fr) 8px ${terminalRightWidth}px` }
+              : { gridTemplateRows: `minmax(0, 1fr) 8px ${terminalBottomHeight}px` }
+          }
+        >
+          <div
+            className={`editor-area ${editorSplitOrientation === "right" ? "editor-area--split-right" : ""} ${editorSplitOrientation === "bottom" ? "editor-area--split-bottom" : ""}`}
+          >
+            {sortEditorPanes(editorPanes).map((pane) => (
+              <EditorPane
+                key={pane.id}
+                pane={pane}
+                documents={openDocuments}
+                branchFamiliesByPath={branchFamiliesByPath}
+                propertiesCollapsed={propertiesCollapsed}
+                isFocused={pane.id === focusedEditorPaneId}
+                onFocusPane={() => focusEditorPane(pane.id)}
+                onActivateTab={(filePath) => setPaneActivePath(pane.id, filePath)}
+                onStartDocumentDrag={(filePath, paneId) => startDocumentDrag(filePath, paneId)}
+                onEndDocumentDrag={() => setDragState(null)}
+                onToggleProperties={() => setPropertiesCollapsed((current) => !current)}
+                onBodyChange={updateBody}
+                onSave={() => void (activeDocumentPath ? saveDocument(activeDocumentPath) : Promise.resolve())}
+                onOpenTag={(tag) => void openTag(tag)}
+                onOpenShellHere={() =>
+                  void createTerminal("shell", activeDocumentPath ? directoryOf(activeDocumentPath) : workspaceModel.defaultTerminalCwd)
+                }
+                onCreateBranch={() => void createBranchFromActiveDocument()}
+              />
+            ))}
+
+            {dragState?.kind === "document" ? (
+              <div className="dock-drop-zones dock-drop-zones--document">
+                <button
+                  className={`dock-drop-zone dock-drop-zone--right ${editorSplitOrientation === "right" ? "dock-drop-zone--active" : ""}`}
+                  data-testid="editor-drop-right"
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={() => moveDocumentToSplit("right")}
+                  type="button"
+                >
+                  Split Right
+                </button>
+                <button
+                  className={`dock-drop-zone dock-drop-zone--bottom ${editorSplitOrientation === "bottom" ? "dock-drop-zone--active" : ""}`}
+                  data-testid="editor-drop-bottom"
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={() => moveDocumentToSplit("bottom")}
+                  type="button"
+                >
+                  Split Bottom
+                </button>
+              </div>
+            ) : null}
+          </div>
+
+          <div
+            className={`pane-resizer ${terminalPlacement === "right" ? "pane-resizer--vertical" : "pane-resizer--horizontal"}`}
+            onMouseDown={(event) =>
+              setResizeState({
+                axis: terminalPlacement === "right" ? "vertical" : "horizontal",
+                startSize: terminalPlacement === "right" ? terminalRightWidth : terminalBottomHeight,
+                origin: terminalPlacement === "right" ? event.clientX : event.clientY,
+              })
+            }
+          />
+
+          <TerminalDock
+            placement={terminalPlacement}
+            sessions={terminalSessions}
+            activeTerminalId={activeTerminalId}
+            buffers={terminalBuffers}
+            onCreateTerminal={(kind, cwd) => void createTerminal(kind, cwd)}
+            onSetActiveTerminal={setActiveTerminalId}
+            onWrite={(id, data) => void window.exo.terminals.write(id, data)}
+            onResize={(id, cols, rows) => void window.exo.terminals.resize(id, cols, rows)}
+            onKill={(id) => void closeTerminal(id)}
+            onStartDockDrag={() => setDragState({ kind: "terminal" })}
+            onEndDockDrag={() => setDragState(null)}
+            onTogglePlacement={() => setTerminalPlacement((current) => (current === "right" ? "bottom" : "right"))}
+          />
+
+          {dragState?.kind === "terminal" ? (
+            <div className="dock-drop-zones dock-drop-zones--terminal">
               <button
-                key={document.filePath}
-                className={`tab-strip__tab ${document.filePath === activeDocumentPath ? "tab-strip__tab--active" : ""}`}
-                onClick={() => setActiveDocumentPath(document.filePath)}
+                className={`dock-drop-zone dock-drop-zone--right ${terminalPlacement === "right" ? "dock-drop-zone--active" : ""}`}
+                data-testid="dock-drop-right"
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={() => {
+                  setTerminalPlacement("right");
+                  setDragState(null);
+                }}
                 type="button"
               >
-                <span className={document.dirty ? "status-dot status-dot--dirty" : "status-dot"} />
-                {document.title}
+                Dock Right
               </button>
-            ))}
-          </div>
-
-          <NoteEditor
-            document={activeDocument}
-            knowledge={activeDocumentPath ? knowledgeByPath[activeDocumentPath] ?? null : null}
-            branchFamily={activeDocumentPath ? branchFamiliesByPath[activeDocumentPath] ?? null : null}
-            propertiesCollapsed={propertiesCollapsed}
-            knowledgeCollapsed={knowledgeCollapsed}
-            tagResults={tagResults}
-            activeTag={activeTag}
-            onToggleProperties={() => setPropertiesCollapsed((current) => !current)}
-            onToggleKnowledge={() => setKnowledgeCollapsed((current) => !current)}
-            onBodyChange={updateBody}
-            onSave={() => void (activeDocumentPath ? saveDocument(activeDocumentPath) : Promise.resolve())}
-            onOpenTarget={(target) => void openKnowledgeTarget(target)}
-            onOpenExternal={(target) => void window.exo.shell.openExternal(target)}
-            onOpenTag={(tag) => void openTag(tag)}
-            onOpenShellHere={() => void createTerminal("shell", activeDocumentPath ? directoryOf(activeDocumentPath) : workspaceModel.defaultTerminalCwd)}
-            onCreateBranch={() => void createBranchFromActiveDocument()}
-          />
+              <button
+                className={`dock-drop-zone dock-drop-zone--bottom ${terminalPlacement === "bottom" ? "dock-drop-zone--active" : ""}`}
+                data-testid="dock-drop-bottom"
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={() => {
+                  setTerminalPlacement("bottom");
+                  setDragState(null);
+                }}
+                type="button"
+              >
+                Dock Bottom
+              </button>
+            </div>
+          ) : null}
         </div>
 
-        <TerminalDock
-          placement={terminalPlacement}
-          sessions={terminalSessions}
-          activeTerminalId={activeTerminalId}
-          buffers={terminalBuffers}
-          onCreateTerminal={(kind, cwd) => void createTerminal(kind, cwd)}
-          onSetActiveTerminal={setActiveTerminalId}
-          onWrite={(id, data) => void window.exo.terminals.write(id, data)}
-          onResize={(id, cols, rows) => void window.exo.terminals.resize(id, cols, rows)}
-          onKill={(id) => void closeTerminal(id)}
-          onStartDockDrag={() => setIsDockDragging(true)}
-          onEndDockDrag={() => setIsDockDragging(false)}
-          onTogglePlacement={() => setTerminalPlacement((current) => (current === "right" ? "bottom" : "right"))}
+        <KnowledgeDock
+          document={activeDocument}
+          knowledge={activeKnowledge}
+          branchFamily={activeBranchFamily}
+          collapsed={knowledgeCollapsed}
+          activeTag={activeTag}
+          tagResults={tagResults}
+          onToggleCollapsed={() => setKnowledgeCollapsed((current) => !current)}
+          onOpenTarget={(target) => void openKnowledgeTarget(target)}
+          onOpenExternal={(target) => void window.exo.shell.openExternal(target)}
+          onOpenTag={(tag) => void openTag(tag)}
         />
-
-        {isDockDragging ? (
-          <div className="dock-drop-zones">
-            <button
-              className={`dock-drop-zone ${terminalPlacement === "right" ? "dock-drop-zone--active" : ""}`}
-              data-testid="dock-drop-right"
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={() => {
-                setTerminalPlacement("right");
-                setIsDockDragging(false);
-              }}
-              type="button"
-            >
-              Dock Right
-            </button>
-            <button
-              className={`dock-drop-zone ${terminalPlacement === "bottom" ? "dock-drop-zone--active" : ""}`}
-              data-testid="dock-drop-bottom"
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={() => {
-                setTerminalPlacement("bottom");
-                setIsDockDragging(false);
-              }}
-              type="button"
-            >
-              Dock Bottom
-            </button>
-          </div>
-        ) : null}
       </div>
 
       {workspaceDialog ? (
@@ -704,4 +928,30 @@ function ensureDefaultExtension(name: string, directoryPath: string, noteRootPat
 
 function isPathWithin(parentPath: string, targetPath: string): boolean {
   return targetPath === parentPath || targetPath.startsWith(`${parentPath}/`);
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function ensureEditorPane(panes: EditorPaneState[], paneId: string): EditorPaneState[] {
+  if (panes.some((pane) => pane.id === paneId)) {
+    return panes;
+  }
+
+  return sortEditorPanes([
+    ...panes,
+    {
+      id: paneId,
+      openPaths: [],
+      activePath: null,
+    },
+  ]);
+}
+
+function sortEditorPanes(panes: EditorPaneState[]): EditorPaneState[] {
+  return [...panes].sort((left, right) => {
+    const rank = (paneId: string) => (paneId === PRIMARY_EDITOR_PANE_ID ? 0 : 1);
+    return rank(left.id) - rank(right.id);
+  });
 }

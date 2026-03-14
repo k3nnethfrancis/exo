@@ -18,6 +18,8 @@ interface FileTreeProps {
   onSearchQueryChange: (value: string) => void;
   onOpenFile: (filePath: string) => void;
   onOpenTag: (tag: string) => void;
+  onStartDocumentDrag: (filePath: string) => void;
+  onEndDocumentDrag: () => void;
   onCreateFile: (directoryPath: string) => void;
   onCreateDirectory: (directoryPath: string) => void;
   onRenamePath: (targetPath: string) => void;
@@ -41,6 +43,8 @@ export function FileTree(props: FileTreeProps) {
     onSearchQueryChange,
     onOpenFile,
     onOpenTag,
+    onStartDocumentDrag,
+    onEndDocumentDrag,
     onCreateFile,
     onCreateDirectory,
     onRenamePath,
@@ -139,9 +143,27 @@ export function FileTree(props: FileTreeProps) {
                 <div className="search-result__empty">No matches</div>
               ) : null}
 
-              <SearchSection label="Notes" results={searchResults.notes} onOpenFile={onOpenFile} />
-              <SearchSection label="Project Files" results={searchResults.projectFiles} onOpenFile={onOpenFile} />
-              <TagSearchSection results={searchResults.tags} onOpenFile={onOpenFile} onOpenTag={onOpenTag} />
+              <SearchSection
+                label="Notes"
+                results={searchResults.notes}
+                onOpenFile={onOpenFile}
+                onStartDocumentDrag={onStartDocumentDrag}
+                onEndDocumentDrag={onEndDocumentDrag}
+              />
+              <SearchSection
+                label="Project Files"
+                results={searchResults.projectFiles}
+                onOpenFile={onOpenFile}
+                onStartDocumentDrag={onStartDocumentDrag}
+                onEndDocumentDrag={onEndDocumentDrag}
+              />
+              <TagSearchSection
+                results={searchResults.tags}
+                onOpenFile={onOpenFile}
+                onOpenTag={onOpenTag}
+                onStartDocumentDrag={onStartDocumentDrag}
+                onEndDocumentDrag={onEndDocumentDrag}
+              />
             </div>
           </div>
         ) : (
@@ -152,6 +174,8 @@ export function FileTree(props: FileTreeProps) {
               expandedPaths={expandedPaths}
               onTogglePath={togglePath}
               onOpenFile={onOpenFile}
+              onStartDocumentDrag={onStartDocumentDrag}
+              onEndDocumentDrag={onEndDocumentDrag}
               onContextMenu={openContextMenu}
             />
             <Section
@@ -160,6 +184,8 @@ export function FileTree(props: FileTreeProps) {
               expandedPaths={expandedPaths}
               onTogglePath={togglePath}
               onOpenFile={onOpenFile}
+              onStartDocumentDrag={onStartDocumentDrag}
+              onEndDocumentDrag={onEndDocumentDrag}
               onContextMenu={openContextMenu}
             />
           </>
@@ -238,10 +264,14 @@ function SearchSection({
   label,
   results,
   onOpenFile,
+  onStartDocumentDrag,
+  onEndDocumentDrag,
 }: {
   label: string;
   results: SearchResult[];
   onOpenFile: (filePath: string) => void;
+  onStartDocumentDrag: (filePath: string) => void;
+  onEndDocumentDrag: () => void;
 }) {
   if (results.length === 0) {
     return null;
@@ -251,7 +281,18 @@ function SearchSection({
     <div className="search-section">
       <div className="search-section__title">{label}</div>
       {results.map((result) => (
-        <button key={result.filePath} className="search-result" onClick={() => onOpenFile(result.filePath)} type="button">
+        <button
+          key={result.filePath}
+          className="search-result"
+          draggable
+          onClick={() => onOpenFile(result.filePath)}
+          onDragStart={(event) => {
+            event.dataTransfer.setData("application/x-exo-document", JSON.stringify({ filePath: result.filePath }));
+            onStartDocumentDrag(result.filePath);
+          }}
+          onDragEnd={onEndDocumentDrag}
+          type="button"
+        >
           <strong>{result.title}</strong>
           <span>{result.snippet}</span>
         </button>
@@ -264,10 +305,14 @@ function TagSearchSection({
   results,
   onOpenFile,
   onOpenTag,
+  onStartDocumentDrag,
+  onEndDocumentDrag,
 }: {
   results: SearchResult[];
   onOpenFile: (filePath: string) => void;
   onOpenTag: (tag: string) => void;
+  onStartDocumentDrag: (filePath: string) => void;
+  onEndDocumentDrag: () => void;
 }) {
   if (results.length === 0) {
     return null;
@@ -282,7 +327,17 @@ function TagSearchSection({
             <Hash size={12} />
             {result.snippet}
           </button>
-          <button className="search-result__file" onClick={() => onOpenFile(result.filePath)} type="button">
+          <button
+            className="search-result__file"
+            draggable
+            onClick={() => onOpenFile(result.filePath)}
+            onDragStart={(event) => {
+              event.dataTransfer.setData("application/x-exo-document", JSON.stringify({ filePath: result.filePath }));
+              onStartDocumentDrag(result.filePath);
+            }}
+            onDragEnd={onEndDocumentDrag}
+            type="button"
+          >
             <strong>{result.title}</strong>
             <span>{result.filePath}</span>
           </button>
@@ -298,6 +353,8 @@ function Section({
   expandedPaths,
   onTogglePath,
   onOpenFile,
+  onStartDocumentDrag,
+  onEndDocumentDrag,
   onContextMenu,
 }: {
   label: string;
@@ -305,6 +362,8 @@ function Section({
   expandedPaths: Set<string>;
   onTogglePath: (path: string) => void;
   onOpenFile: (filePath: string) => void;
+  onStartDocumentDrag: (filePath: string) => void;
+  onEndDocumentDrag: () => void;
   onContextMenu: (event: React.MouseEvent, target: ContextTarget) => void;
 }) {
   return (
@@ -329,6 +388,8 @@ function Section({
                 expandedPaths={expandedPaths}
                 onTogglePath={onTogglePath}
                 onOpenFile={onOpenFile}
+                onStartDocumentDrag={onStartDocumentDrag}
+                onEndDocumentDrag={onEndDocumentDrag}
                 onContextMenu={onContextMenu}
               />
             ) : null}
@@ -345,6 +406,8 @@ function TreeNodes({
   expandedPaths,
   onTogglePath,
   onOpenFile,
+  onStartDocumentDrag,
+  onEndDocumentDrag,
   onContextMenu,
 }: {
   nodes: TreeNode[];
@@ -352,6 +415,8 @@ function TreeNodes({
   expandedPaths: Set<string>;
   onTogglePath: (path: string) => void;
   onOpenFile: (filePath: string) => void;
+  onStartDocumentDrag: (filePath: string) => void;
+  onEndDocumentDrag: () => void;
   onContextMenu: (event: React.MouseEvent, target: ContextTarget) => void;
 }) {
   return (
@@ -378,6 +443,8 @@ function TreeNodes({
                   expandedPaths={expandedPaths}
                   onTogglePath={onTogglePath}
                   onOpenFile={onOpenFile}
+                  onStartDocumentDrag={onStartDocumentDrag}
+                  onEndDocumentDrag={onEndDocumentDrag}
                   onContextMenu={onContextMenu}
                 />
               ) : null}
@@ -390,7 +457,13 @@ function TreeNodes({
             key={node.path}
             className="tree-node tree-node--file"
             style={{ paddingLeft: `${depth * 14 + 28}px` }}
+            draggable
             onClick={() => onOpenFile(node.path)}
+            onDragStart={(event) => {
+              event.dataTransfer.setData("application/x-exo-document", JSON.stringify({ filePath: node.path }));
+              onStartDocumentDrag(node.path);
+            }}
+            onDragEnd={onEndDocumentDrag}
             onContextMenu={(event) => onContextMenu(event, { path: node.path, kind: "file" })}
             type="button"
           >
