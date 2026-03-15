@@ -466,13 +466,17 @@ button svg,
   min-height: 0;
   background: transparent;
   position: relative;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) 36px;
   overflow: hidden;
 }
 
 .workspace-footer {
-  position: absolute;
-  inset: 0;
+  position: relative;
+  min-width: 0;
+  min-height: 36px;
   z-index: 6;
+  overflow: visible;
   pointer-events: none;
 }
 
@@ -480,7 +484,7 @@ button svg,
   position: absolute;
   bottom: 0;
   min-width: 0;
-  max-height: 100%;
+  max-height: calc(100vh - 120px);
   pointer-events: auto;
 }
 
@@ -501,8 +505,6 @@ button svg,
   min-height: 0;
   display: grid;
   position: relative;
-  box-sizing: border-box;
-  padding-bottom: 36px;
   overflow: hidden;
 }
 
