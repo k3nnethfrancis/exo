@@ -18,7 +18,6 @@ interface SubagentDockProps {
   agentAnnotations: Record<string, AgentAnnotation>;
   onCollapsedChange: (collapsed: boolean) => void;
   onFocusAgent: (id: string) => void;
-  onKickOffRun: () => void;
   onSpawnAgent: (kind: "claude" | "codex") => void;
 }
 
@@ -32,7 +31,6 @@ export function SubagentDock(props: SubagentDockProps) {
     agentAnnotations,
     onCollapsedChange,
     onFocusAgent,
-    onKickOffRun,
     onSpawnAgent,
   } = props;
 
@@ -68,9 +66,6 @@ export function SubagentDock(props: SubagentDockProps) {
               </div>
             </div>
             <div className="footer-panel__actions">
-              <button className="toolbar-button toolbar-button--compact" data-testid="kickoff-run" onClick={onKickOffRun} type="button">
-                Kick Off Run
-              </button>
               <button className="toolbar-button toolbar-button--compact" data-testid="spawn-claude-agent" onClick={() => onSpawnAgent("claude")} type="button">
                 Claude
               </button>

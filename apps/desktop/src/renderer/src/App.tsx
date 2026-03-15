@@ -579,19 +579,6 @@ export function App() {
     return `run-${next}`;
   }
 
-  function kickOffRun() {
-    const selected = getSelectedAgent();
-    if (!selected) {
-      return;
-    }
-
-    const current = agentAnnotations[selected.id];
-    updateAgentAnnotation(selected.id, {
-      runLabel: current?.runLabel.trim() ? current.runLabel : nextRunLabel(),
-    });
-    setActiveTerminalId(selected.id);
-  }
-
   async function spawnAgent(kind: "claude" | "codex") {
     const selected = getSelectedAgent();
     if (!selected || !workspaceModel) {
@@ -1037,7 +1024,6 @@ export function App() {
               agentAnnotations={agentAnnotations}
               onCollapsedChange={(collapsed) => setSubagentsCollapsed(collapsed)}
               onFocusAgent={setActiveTerminalId}
-              onKickOffRun={kickOffRun}
               onSpawnAgent={(kind) => void spawnAgent(kind)}
             />
           </div>
