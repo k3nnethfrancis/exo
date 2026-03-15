@@ -501,6 +501,8 @@ button svg,
   min-height: 0;
   display: grid;
   position: relative;
+  box-sizing: border-box;
+  padding-bottom: 36px;
   overflow: hidden;
 }
 
