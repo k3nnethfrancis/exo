@@ -43,6 +43,35 @@ describe("runtime", () => {
     expect(plan.secondaryInstructionsPath).toBe(config.instructions.claude);
   });
 
+  it("adds a supported Codex reasoning-effort override by default", () => {
+    const config = resolveRuntimeConfig({
+      EXO_WORKSPACE_ROOT: "/tmp/lab",
+      EXO_NOTE_ROOTS: "/tmp/lab/notes",
+      EXO_PROJECT_ROOTS: "/tmp/lab/projects",
+      EXO_CODEX_COMMAND: "codex",
+    });
+
+    const plan = resolveAgentLaunchPlan(config, "codex", "/tmp/lab");
+
+    expect(plan.command).toBe("codex");
+    expect(plan.args).toContain("-c");
+    expect(plan.args).toContain('model_reasoning_effort="high"');
+  });
+
+  it("keeps an explicit Codex reasoning-effort override when provided", () => {
+    const config = resolveRuntimeConfig({
+      EXO_WORKSPACE_ROOT: "/tmp/lab",
+      EXO_NOTE_ROOTS: "/tmp/lab/notes",
+      EXO_PROJECT_ROOTS: "/tmp/lab/projects",
+      EXO_CODEX_COMMAND: "codex",
+      EXO_CODEX_ARGS: '-c,model_reasoning_effort="medium"',
+    });
+
+    const plan = resolveAgentLaunchPlan(config, "codex", "/tmp/lab");
+
+    expect(plan.args).toEqual(["-c", 'model_reasoning_effort="medium"']);
+  });
+
   it("writes generated instruction files", async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), "exo-runtime-"));
     tempPaths.push(tempRoot);

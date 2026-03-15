@@ -35,13 +35,52 @@ function defaultShellLauncher(env: NodeJS.ProcessEnv): AgentLauncherConfig {
 function toolLauncher(kind: "claude" | "codex", env: NodeJS.ProcessEnv): AgentLauncherConfig {
   const prefix = kind === "claude" ? "EXO_CLAUDE" : "EXO_CODEX";
   const fallbackCommand = kind === "claude" ? "claude" : "codex";
+  const args = splitEnvArgs(env[`${prefix}_ARGS`]);
 
-  return {
-    kind,
-    title: kind === "claude" ? "Claude" : "Codex",
-    command: env[`${prefix}_COMMAND`] ?? fallbackCommand,
-    args: splitEnvArgs(env[`${prefix}_ARGS`]),
-  };
+  return kind === "codex"
+    ? {
+        kind,
+        title: "Codex",
+        command: env[`${prefix}_COMMAND`] ?? fallbackCommand,
+        args: withCodexReasoningEffortOverride(args, env),
+      }
+    : {
+        kind,
+        title: "Claude",
+        command: env[`${prefix}_COMMAND`] ?? fallbackCommand,
+        args,
+      };
+}
+
+function withCodexReasoningEffortOverride(args: string[], env: NodeJS.ProcessEnv): string[] {
+  const configuredArgs = [...args];
+  const alreadyOverridesReasoningEffort = configuredArgs.some((arg, index) => {
+    if (arg.includes("model_reasoning_effort")) {
+      return true;
+    }
+
+    return arg === "-c" && typeof configuredArgs[index + 1] === "string" && configuredArgs[index + 1].includes("model_reasoning_effort");
+  });
+
+  if (alreadyOverridesReasoningEffort) {
+    return configuredArgs;
+  }
+
+  const effort = normalizeCodexReasoningEffort(env.EXO_CODEX_REASONING_EFFORT);
+  configuredArgs.push("-c", `model_reasoning_effort="${effort}"`);
+  return configuredArgs;
+}
+
+function normalizeCodexReasoningEffort(rawValue?: string): "minimal" | "low" | "medium" | "high" {
+  switch (rawValue) {
+    case "minimal":
+    case "low":
+    case "medium":
+    case "high":
+      return rawValue;
+    default:
+      return "high";
+  }
 }
 
 export function resolveRuntimeConfig(env: NodeJS.ProcessEnv = process.env): RuntimeConfig {
