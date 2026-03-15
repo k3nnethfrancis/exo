@@ -112,6 +112,7 @@ export function App() {
   const terminalCollapsed = terminalSessions.length === 0;
   const effectiveTerminalPlacement = terminalCollapsed ? "bottom" : terminalPlacement;
   const compactTerminalChrome = terminalCollapsed || effectiveTerminalPlacement === "right";
+  const rightDockWidth = Math.max(312, terminalRightWidth);
   const resolvedAppearance: ResolvedAppearance = appearanceMode === "system" ? (systemPrefersDark ? "dark" : "light") : appearanceMode;
   const terminalOutputPreviewById = useMemo(
     () =>
@@ -1010,35 +1011,36 @@ export function App() {
           ) : null}
         </div>
 
-        <div
-          className="workspace-footer"
-          style={{ gridTemplateColumns: `minmax(0, 1fr) ${Math.max(312, terminalRightWidth)}px` }}
-        >
-          <InspectorDock
-            document={activeDocument}
-            knowledge={activeKnowledge}
-            collapsed={inspectorCollapsed}
-            containerRef={workspaceRef}
-            activeTag={activeTag}
-            tagResults={tagResults}
-            onCollapsedChange={(collapsed) => setInspectorCollapsed(collapsed)}
-            onOpenTarget={(target) => void openKnowledgeTarget(target)}
-            onOpenExternal={(target) => void window.exo.shell.openExternal(target)}
-            onOpenTag={(tag) => void openTag(tag)}
-          />
+        <div className="workspace-footer">
+          <div className="workspace-footer__lane workspace-footer__lane--left" style={{ right: `${rightDockWidth}px` }}>
+            <InspectorDock
+              document={activeDocument}
+              knowledge={activeKnowledge}
+              collapsed={inspectorCollapsed}
+              containerRef={workspaceRef}
+              activeTag={activeTag}
+              tagResults={tagResults}
+              onCollapsedChange={(collapsed) => setInspectorCollapsed(collapsed)}
+              onOpenTarget={(target) => void openKnowledgeTarget(target)}
+              onOpenExternal={(target) => void window.exo.shell.openExternal(target)}
+              onOpenTag={(tag) => void openTag(tag)}
+            />
+          </div>
 
-          <SubagentDock
-            collapsed={subagentsCollapsed}
-            containerRef={workspaceRef}
-            terminalSessions={terminalSessions}
-            activeTerminalId={activeTerminalId}
-            terminalOutputPreviewById={terminalOutputPreviewById}
-            agentAnnotations={agentAnnotations}
-            onCollapsedChange={(collapsed) => setSubagentsCollapsed(collapsed)}
-            onFocusAgent={setActiveTerminalId}
-            onKickOffRun={kickOffRun}
-            onSpawnAgent={(kind) => void spawnAgent(kind)}
-          />
+          <div className="workspace-footer__lane workspace-footer__lane--right" style={{ width: `${rightDockWidth}px` }}>
+            <SubagentDock
+              collapsed={subagentsCollapsed}
+              containerRef={workspaceRef}
+              terminalSessions={terminalSessions}
+              activeTerminalId={activeTerminalId}
+              terminalOutputPreviewById={terminalOutputPreviewById}
+              agentAnnotations={agentAnnotations}
+              onCollapsedChange={(collapsed) => setSubagentsCollapsed(collapsed)}
+              onFocusAgent={setActiveTerminalId}
+              onKickOffRun={kickOffRun}
+              onSpawnAgent={(kind) => void spawnAgent(kind)}
+            />
+          </div>
         </div>
       </div>
 

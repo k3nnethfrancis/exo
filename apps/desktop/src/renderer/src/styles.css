@@ -466,19 +466,35 @@ button svg,
   min-height: 0;
   background: transparent;
   position: relative;
-  display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
   overflow: hidden;
 }
 
 .workspace-footer {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 0;
+  z-index: 6;
+  pointer-events: none;
+}
+
+.workspace-footer__lane {
+  position: absolute;
+  bottom: 0;
   min-width: 0;
-  min-height: 36px;
-  display: grid;
-  align-items: end;
-  border-top: 1px solid var(--divider);
-  background: var(--surface-1);
-  overflow: hidden;
+  max-height: 100%;
+  pointer-events: auto;
+}
+
+.workspace-footer__lane--left {
+  left: 0;
+}
+
+.workspace-footer__lane--right {
+  right: 0;
+}
+
+.workspace-footer__lane > * {
+  width: 100%;
 }
 
 .workspace__body {
@@ -859,7 +875,7 @@ button svg,
   background: transparent;
 }
 
-.footer-dock + .footer-dock {
+.workspace-footer__lane--right .footer-dock {
   border-left: 1px solid var(--divider);
 }
 
