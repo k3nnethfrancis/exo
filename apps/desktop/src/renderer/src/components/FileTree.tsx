@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, FilePlus2, FolderPlus, FolderTree, Hash, Monitor, MoonStar, Pencil, Search, SunMedium, Trash2 } from "lucide-react";
 import type { SearchResult, TreeNode, WorkspaceSearchResults } from "@exo/core";
 import type { AppearanceMode, ResolvedAppearance } from "../App";
+import { SnapDrawer } from "./SnapDrawer";
 
 interface RootSection {
   label: string;
@@ -61,8 +62,6 @@ export function FileTree(props: FileTreeProps) {
   const [contextTarget, setContextTarget] = useState<ContextTarget | null>(null);
   const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null);
   const [projectRootsExpanded, setProjectRootsExpanded] = useState(false);
-  const [projectDrawerHeight, setProjectDrawerHeight] = useState<number | null>(null);
-  const [drawerResizeOrigin, setDrawerResizeOrigin] = useState<{ startY: number; startHeight: number } | null>(null);
   const panesRef = useRef<HTMLDivElement | null>(null);
 
   const defaultExpandedPaths = useMemo(() => {
@@ -100,34 +99,6 @@ export function FileTree(props: FileTreeProps) {
     };
   }, [contextTarget]);
 
-  useEffect(() => {
-    if (!drawerResizeOrigin) {
-      return;
-    }
-    const currentResize = drawerResizeOrigin;
-
-    function onMouseMove(event: MouseEvent) {
-      const containerHeight = panesRef.current?.getBoundingClientRect().height ?? 0;
-      if (!containerHeight) {
-        return;
-      }
-
-      const delta = currentResize.startY - event.clientY;
-      setProjectDrawerHeight(clampDrawerHeight(currentResize.startHeight + delta, containerHeight));
-    }
-
-    function onMouseUp() {
-      setDrawerResizeOrigin(null);
-    }
-
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup", onMouseUp);
-    return () => {
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseup", onMouseUp);
-    };
-  }, [drawerResizeOrigin]);
-
   function togglePath(path: string) {
     setExpandedPaths((current) => {
       const next = new Set(current);
@@ -153,27 +124,6 @@ export function FileTree(props: FileTreeProps) {
   function dismissContextMenu() {
     setContextTarget(null);
     setContextMenuPosition(null);
-  }
-
-  function openProjectRootsDrawer() {
-    setProjectRootsExpanded(true);
-    setProjectDrawerHeight((current) => {
-      if (current !== null) {
-        return current;
-      }
-
-      const containerHeight = panesRef.current?.getBoundingClientRect().height ?? 0;
-      return containerHeight ? clampDrawerHeight(Math.round(containerHeight / 2), containerHeight) : 260;
-    });
-  }
-
-  function toggleProjectRootsDrawer() {
-    if (projectRootsExpanded) {
-      setProjectRootsExpanded(false);
-      return;
-    }
-
-    openProjectRootsDrawer();
   }
 
   return (
@@ -272,52 +222,31 @@ export function FileTree(props: FileTreeProps) {
           )}
         </div>
 
-        {projectRootsExpanded ? (
-          <div
-            className="sidebar__drawer-resizer"
-            data-testid="project-roots-resizer"
-            onDoubleClick={openProjectRootsDrawer}
-            onMouseDown={(event) =>
-              setDrawerResizeOrigin({
-                startY: event.clientY,
-                startHeight: projectDrawerHeight ?? 260,
-              })
-            }
-          />
-        ) : null}
-
-        <div
-          className={`sidebar__drawer ${projectRootsExpanded ? "sidebar__drawer--expanded" : "sidebar__drawer--collapsed"}`}
-          style={projectRootsExpanded ? { height: `${projectDrawerHeight ?? 260}px` } : undefined}
-          data-testid="project-roots-drawer"
+        <SnapDrawer
+          className="sidebar__drawer"
+          collapsed={!projectRootsExpanded}
+          label="Project Roots"
+          summary={`${projectRoots.length} root${projectRoots.length === 1 ? "" : "s"}`}
+          containerRef={panesRef}
+          defaultOpenFraction={0.5}
+          toggleTestId="project-roots-toggle"
+          drawerTestId="project-roots-drawer"
+          panelTestId="project-roots-panel"
+          resizerTestId="project-roots-resizer"
+          onCollapsedChange={(collapsed) => setProjectRootsExpanded(!collapsed)}
         >
-          <button
-            className="sidebar__drawer-bar"
-            data-testid="project-roots-toggle"
-            onClick={toggleProjectRootsDrawer}
-            type="button"
-          >
-            {projectRootsExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-            <span className="sidebar__drawer-label">Project Roots</span>
-            <span className="sidebar__drawer-summary">{projectRoots.length} root{projectRoots.length === 1 ? "" : "s"}</span>
-          </button>
-
-          {projectRootsExpanded ? (
-            <div className="sidebar__drawer-panel" data-testid="project-roots-panel">
-              <Section
-                label="Project Roots"
-                sections={projectRoots}
-                expandedPaths={expandedPaths}
-                onTogglePath={togglePath}
-                onOpenFile={onOpenFile}
-                onStartDocumentDrag={onStartDocumentDrag}
-                onEndDocumentDrag={onEndDocumentDrag}
-                onContextMenu={openContextMenu}
-                showHeader={false}
-              />
-            </div>
-          ) : null}
-        </div>
+          <Section
+            label="Project Roots"
+            sections={projectRoots}
+            expandedPaths={expandedPaths}
+            onTogglePath={togglePath}
+            onOpenFile={onOpenFile}
+            onStartDocumentDrag={onStartDocumentDrag}
+            onEndDocumentDrag={onEndDocumentDrag}
+            onContextMenu={openContextMenu}
+            showHeader={false}
+          />
+        </SnapDrawer>
       </div>
 
       {contextTarget && contextMenuPosition ? (
@@ -530,12 +459,6 @@ function Section({
       })}
     </div>
   );
-}
-
-function clampDrawerHeight(value: number, containerHeight: number): number {
-  const min = 140;
-  const max = Math.max(220, containerHeight - 140);
-  return Math.min(max, Math.max(min, value));
 }
 
 function TreeNodes({

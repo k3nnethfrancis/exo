@@ -102,6 +102,7 @@ export function App() {
   );
   const pendingTerminalChunksRef = useRef<Record<string, string>>({});
   const terminalFlushFrameRef = useRef<number | null>(null);
+  const workspaceRef = useRef<HTMLDivElement | null>(null);
   const workspaceBodyRef = useRef<HTMLDivElement | null>(null);
   const deferredSearchQuery = useDeferredValue(searchQuery);
 
@@ -885,7 +886,7 @@ export function App() {
         onDeletePath={(targetPath) => deleteWorkspacePath(targetPath)}
       />
 
-      <div className="workspace">
+      <div ref={workspaceRef} className="workspace">
         <div
           ref={workspaceBodyRef}
           className={`workspace__body workspace__body--terminal-${effectiveTerminalPlacement}`}
@@ -1017,9 +1018,10 @@ export function App() {
             document={activeDocument}
             knowledge={activeKnowledge}
             collapsed={inspectorCollapsed}
+            containerRef={workspaceRef}
             activeTag={activeTag}
             tagResults={tagResults}
-            onToggleCollapsed={() => setInspectorCollapsed((current) => !current)}
+            onCollapsedChange={(collapsed) => setInspectorCollapsed(collapsed)}
             onOpenTarget={(target) => void openKnowledgeTarget(target)}
             onOpenExternal={(target) => void window.exo.shell.openExternal(target)}
             onOpenTag={(tag) => void openTag(tag)}
@@ -1027,11 +1029,12 @@ export function App() {
 
           <SubagentDock
             collapsed={subagentsCollapsed}
+            containerRef={workspaceRef}
             terminalSessions={terminalSessions}
             activeTerminalId={activeTerminalId}
             terminalOutputPreviewById={terminalOutputPreviewById}
             agentAnnotations={agentAnnotations}
-            onToggleCollapsed={() => setSubagentsCollapsed((current) => !current)}
+            onCollapsedChange={(collapsed) => setSubagentsCollapsed(collapsed)}
             onFocusAgent={setActiveTerminalId}
             onKickOffRun={kickOffRun}
             onSpawnAgent={(kind) => void spawnAgent(kind)}

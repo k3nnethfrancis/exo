@@ -56,14 +56,14 @@ test("opens project files and creates note branches", async () => {
 test("expands and collapses the project roots drawer", async () => {
   const { page, cleanup } = await launchExoFixture();
 
-  await expect(page.getByTestId("project-roots-drawer")).toHaveClass(/sidebar__drawer--collapsed/);
+  await expect(page.getByTestId("project-roots-drawer")).toHaveClass(/snap-drawer--collapsed/);
   await expect(page.getByTestId("project-roots-panel")).toHaveCount(0);
   await page.getByTestId("project-roots-toggle").click();
-  await expect(page.getByTestId("project-roots-drawer")).toHaveClass(/sidebar__drawer--expanded/);
+  await expect(page.getByTestId("project-roots-drawer")).toHaveClass(/snap-drawer--expanded/);
   await expect(page.getByTestId("project-roots-panel")).toBeVisible();
   await expect(page.getByRole("button", { name: "exo-demo" })).toBeVisible();
   await page.getByTestId("project-roots-toggle").click();
-  await expect(page.getByTestId("project-roots-drawer")).toHaveClass(/sidebar__drawer--collapsed/);
+  await expect(page.getByTestId("project-roots-drawer")).toHaveClass(/snap-drawer--collapsed/);
   await expect(page.getByTestId("project-roots-panel")).toHaveCount(0);
 
   await cleanup();
