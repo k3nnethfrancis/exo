@@ -5,7 +5,8 @@ import type { TerminalSessionInfo } from "../../shared/api";
 
 import { EditorPane, type EditorPaneState } from "./components/EditorPane";
 import { FileTree } from "./components/FileTree";
-import { KnowledgeDock, type AgentAnnotation } from "./components/KnowledgeDock";
+import { InspectorDock } from "./components/InspectorDock";
+import { SubagentDock, type AgentAnnotation } from "./components/SubagentDock";
 import { TerminalDock } from "./components/TerminalDock";
 
 interface OpenEditorDocument extends NoteDocument {
@@ -81,7 +82,8 @@ export function App() {
   const [activeDocumentPath, setActiveDocumentPath] = useState<string | null>(null);
   const [editorSplitOrientation, setEditorSplitOrientation] = useState<"right" | "bottom" | null>(null);
   const [propertiesCollapsed, setPropertiesCollapsed] = useState(true);
-  const [knowledgeCollapsed, setKnowledgeCollapsed] = useState(true);
+  const [inspectorCollapsed, setInspectorCollapsed] = useState(true);
+  const [subagentsCollapsed, setSubagentsCollapsed] = useState(true);
   const [tagResults, setTagResults] = useState<SearchResult[]>([]);
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [terminalPlacement, setTerminalPlacement] = useState<"right" | "bottom">("right");
@@ -1007,24 +1009,34 @@ export function App() {
           ) : null}
         </div>
 
-        <KnowledgeDock
-          document={activeDocument}
-          knowledge={activeKnowledge}
-          collapsed={knowledgeCollapsed}
-          activeTag={activeTag}
-          tagResults={tagResults}
-          terminalSessions={terminalSessions}
-          activeTerminalId={activeTerminalId}
-          terminalOutputPreviewById={terminalOutputPreviewById}
-          agentAnnotations={agentAnnotations}
-          onToggleCollapsed={() => setKnowledgeCollapsed((current) => !current)}
-          onOpenTarget={(target) => void openKnowledgeTarget(target)}
-          onOpenExternal={(target) => void window.exo.shell.openExternal(target)}
-          onOpenTag={(tag) => void openTag(tag)}
-          onFocusAgent={setActiveTerminalId}
-          onKickOffRun={kickOffRun}
-          onSpawnAgent={(kind) => void spawnAgent(kind)}
-        />
+        <div
+          className="workspace-footer"
+          style={{ gridTemplateColumns: `minmax(0, 1fr) ${Math.max(312, terminalRightWidth)}px` }}
+        >
+          <InspectorDock
+            document={activeDocument}
+            knowledge={activeKnowledge}
+            collapsed={inspectorCollapsed}
+            activeTag={activeTag}
+            tagResults={tagResults}
+            onToggleCollapsed={() => setInspectorCollapsed((current) => !current)}
+            onOpenTarget={(target) => void openKnowledgeTarget(target)}
+            onOpenExternal={(target) => void window.exo.shell.openExternal(target)}
+            onOpenTag={(tag) => void openTag(tag)}
+          />
+
+          <SubagentDock
+            collapsed={subagentsCollapsed}
+            terminalSessions={terminalSessions}
+            activeTerminalId={activeTerminalId}
+            terminalOutputPreviewById={terminalOutputPreviewById}
+            agentAnnotations={agentAnnotations}
+            onToggleCollapsed={() => setSubagentsCollapsed((current) => !current)}
+            onFocusAgent={setActiveTerminalId}
+            onKickOffRun={kickOffRun}
+            onSpawnAgent={(kind) => void spawnAgent(kind)}
+          />
+        </div>
       </div>
 
       {workspaceDialog ? (

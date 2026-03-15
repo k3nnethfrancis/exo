@@ -17,7 +17,7 @@ test("boots the shell, opens notes, and manages terminal tabs", async () => {
   await page.getByTestId("terminal-tab-shell").dblclick();
   await expect(page.getByTestId("terminal-dock")).toBeVisible();
 
-  await page.getByTestId("knowledge-toggle").click();
+  await page.getByTestId("inspector-toggle").click();
   await expect(page.locator('[data-testid="tags-panel"] .tag-pill').first()).toBeVisible();
   await page.locator('[data-testid="tags-panel"] .tag-pill').first().click();
   await expect(page.getByTestId("tag-results")).toBeVisible();
@@ -113,7 +113,7 @@ test("collapses the dock when the last terminal closes", async () => {
 test("lets you close editor tabs", async () => {
   const { page, cleanup } = await launchExoFixture();
 
-  await page.getByTestId("knowledge-toggle").click();
+  await page.getByTestId("inspector-toggle").click();
   await page.getByTestId("backlinks-panel").getByText("Related Note").click();
   await expect(page.getByTestId("editor-title")).toHaveText("Related Note");
   await page.getByLabel("Close Related Note").click();
@@ -125,7 +125,7 @@ test("lets you close editor tabs", async () => {
 test("surfaces subagent terminals for the selected main terminal", async () => {
   const { page, cleanup } = await launchExoFixture();
 
-  await page.getByTestId("knowledge-toggle").click();
+  await page.getByTestId("subagents-toggle").click();
   await expect(page.getByTestId("subagents-panel")).toContainText("No observed subagent terminals yet");
   await page.getByTestId("kickoff-run").click();
   await page.getByTestId("spawn-claude-agent").click();

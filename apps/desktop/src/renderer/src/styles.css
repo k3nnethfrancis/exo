@@ -116,7 +116,7 @@ button svg,
 .branch-selector svg,
 .sidebar__search svg,
 .sidebar__drawer-bar svg,
-.knowledge-drawer__bar svg {
+.footer-dock__bar svg {
   flex: 0 0 auto;
 }
 
@@ -205,8 +205,8 @@ button svg,
 
 .sidebar__label,
 .tree-section__title,
-.knowledge-panel__title,
-.knowledge-panel__subtitle,
+.footer-panel__title,
+.footer-panel__subtitle,
 .editor-panel__eyebrow {
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -398,7 +398,7 @@ button svg,
 
 .tree-node,
 .search-result,
-.knowledge-item,
+.footer-item,
 .tab-strip__tab,
 .terminal-tab,
 .toolbar-button,
@@ -409,7 +409,7 @@ button svg,
 
 .tree-node,
 .search-result,
-.knowledge-item {
+.footer-item {
   width: 100%;
   text-align: left;
 }
@@ -434,7 +434,7 @@ button svg,
 
 .tree-node:hover,
 .search-result:hover,
-.knowledge-item:hover,
+.footer-item:hover,
 .tab-strip__tab:hover,
 .terminal-tab:hover,
 .toolbar-button:hover {
@@ -457,6 +457,16 @@ button svg,
   position: relative;
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
+  overflow: hidden;
+}
+
+.workspace-footer {
+  min-width: 0;
+  min-height: 36px;
+  display: grid;
+  align-items: end;
+  border-top: 1px solid var(--divider);
+  background: var(--surface-1);
   overflow: hidden;
 }
 
@@ -832,20 +842,24 @@ button svg,
   overflow-wrap: anywhere;
 }
 
-.knowledge-drawer {
+.footer-dock {
   display: grid;
   grid-template-rows: auto minmax(0, auto);
-  border-top: 1px solid var(--divider);
-  background: var(--surface-1);
-  overflow: hidden;
+  min-width: 0;
   min-height: 0;
+  background: transparent;
+  overflow: hidden;
 }
 
-.knowledge-drawer--collapsed {
+.footer-dock + .footer-dock {
+  border-left: 1px solid var(--divider);
+}
+
+.footer-dock--collapsed {
   grid-template-rows: auto 0;
 }
 
-.knowledge-drawer__bar {
+.footer-dock__bar {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -858,33 +872,33 @@ button svg,
   text-align: left;
 }
 
-.knowledge-drawer__label {
+.footer-dock__label {
   color: var(--text);
   font-size: 13px;
   font-weight: 600;
 }
 
-.knowledge-drawer__summary {
+.footer-dock__summary {
   font-size: 12px;
   font-family: var(--mono);
 }
 
-.knowledge-panel {
+.footer-panel {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0;
-  background: var(--surface-1);
   min-height: 0;
   overflow: hidden;
+  background: transparent;
 }
 
-.knowledge-panel--subagents {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+.footer-panel--subagents {
+  grid-template-columns: minmax(0, 1fr);
 }
 
-.knowledge-panel__section {
+.footer-panel__section {
   min-height: 148px;
-  background: var(--surface-1);
+  background: transparent;
   padding: 14px 14px 16px;
   display: grid;
   align-content: start;
@@ -893,30 +907,29 @@ button svg,
   overflow: auto;
 }
 
-.knowledge-panel__section-header {
+.footer-panel__section-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
 }
 
-.knowledge-panel__actions {
+.footer-panel__actions {
   display: flex;
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
 }
 
-.knowledge-panel__section:last-child {
+.footer-panel__section:last-child {
   border-right: 0;
 }
 
-.knowledge-panel__section--subagents {
-  grid-column: span 2;
+.footer-panel__section--subagents {
   gap: 12px;
 }
 
-.knowledge-item {
+.footer-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -925,12 +938,7 @@ button svg,
   padding: 10px 12px;
 }
 
-.knowledge-item--active {
-  background: rgba(159, 184, 255, 0.14);
-  box-shadow: inset 0 0 0 1px rgba(159, 184, 255, 0.16);
-}
-
-.knowledge-empty,
+.footer-empty,
 .search-result__empty {
   color: var(--muted);
 }
@@ -1201,7 +1209,7 @@ button svg,
   grid-template-columns: 92px minmax(0, 1fr);
 }
 
-.knowledge-drawer__bar {
+.footer-dock__bar {
   flex-wrap: wrap;
   row-gap: 6px;
 }
@@ -1346,12 +1354,11 @@ button svg,
     grid-template-columns: 280px 1fr;
   }
 
-  .knowledge-panel,
-  .knowledge-panel--subagents {
+  .footer-panel {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .knowledge-panel__section--subagents {
-    grid-column: auto;
+  .footer-panel--subagents {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
