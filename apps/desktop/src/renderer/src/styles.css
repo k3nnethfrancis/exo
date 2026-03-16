@@ -341,9 +341,8 @@ button svg,
 }
 
 .sidebar__drawer {
-  border-top: 1px solid var(--divider);
   background: transparent;
-  margin: 0 -12px -14px -14px;
+  margin: 0 -12px 0 -14px;
 }
 
 .sidebar__drawer .snap-drawer__bar {
@@ -877,10 +876,6 @@ button svg,
   min-width: 0;
   min-height: 36px;
   background: transparent;
-}
-
-.workspace-footer__lane--right .footer-dock {
-  border-left: 1px solid var(--divider);
 }
 
 .footer-dock .snap-drawer__panel {
