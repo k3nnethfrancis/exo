@@ -305,6 +305,7 @@ button svg,
   min-height: 36px;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
+  background: var(--surface-1);
   overflow: hidden;
 }
 
@@ -314,7 +315,7 @@ button svg,
   gap: 10px;
   min-height: 36px;
   padding: 0 12px;
-  background: transparent;
+  background: var(--surface-1);
   color: var(--muted);
   text-align: left;
   border: 0;
@@ -341,7 +342,7 @@ button svg,
 
 .sidebar__drawer {
   border-top: 1px solid var(--divider);
-  background: var(--surface-1);
+  background: transparent;
   margin: 0 -12px -14px -14px;
 }
 
