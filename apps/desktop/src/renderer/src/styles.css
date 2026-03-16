@@ -166,8 +166,6 @@ button svg,
   overflow: hidden;
   padding: 16px 12px 14px 14px;
   gap: 16px;
-  border-right: 1px solid var(--divider);
-  box-shadow: inset -1px 0 0 var(--surface-shadow-line);
 }
 
 .sidebar__panes {
@@ -319,7 +317,6 @@ button svg,
   color: var(--muted);
   text-align: left;
   border: 0;
-  border-bottom: 1px solid var(--divider);
 }
 
 .snap-drawer__label {
@@ -521,7 +518,6 @@ button svg,
   min-height: 0;
   display: grid;
   position: relative;
-  border-right: 1px solid var(--divider);
   overflow: hidden;
 }
 
@@ -1084,7 +1080,6 @@ button svg,
   display: grid;
   grid-template-rows: 40px minmax(0, 1fr);
   background: transparent;
-  border-left: 1px solid var(--divider);
   overflow: hidden;
 }
 
