@@ -164,8 +164,13 @@ button svg,
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
-  padding: 16px 12px 14px 14px;
   gap: 16px;
+}
+
+.sidebar__top {
+  display: grid;
+  gap: 16px;
+  padding: 16px 12px 0 14px;
 }
 
 .sidebar__panes {
@@ -181,7 +186,7 @@ button svg,
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: contain;
-  padding-right: 4px;
+  padding: 0 8px 0 14px;
 }
 
 .sidebar__content--notes {
@@ -339,7 +344,6 @@ button svg,
 
 .sidebar__drawer {
   background: transparent;
-  margin: 0 -12px 0 -14px;
 }
 
 .sidebar__drawer .snap-drawer__bar {
