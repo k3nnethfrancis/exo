@@ -17,6 +17,7 @@ interface TerminalDockProps {
   onWrite: (id: string, data: string) => void;
   onResize: (id: string, cols: number, rows: number) => void;
   onKill: (id: string) => void;
+  contentBottomInset?: number;
   onStartDockDrag: () => void;
   onEndDockDrag: () => void;
   onTogglePlacement: () => void;
@@ -36,6 +37,7 @@ export function TerminalDock(props: TerminalDockProps) {
     onWrite,
     onResize,
     onKill,
+    contentBottomInset = 0,
     onStartDockDrag,
     onEndDockDrag,
     onTogglePlacement,
@@ -46,6 +48,7 @@ export function TerminalDock(props: TerminalDockProps) {
     <section
       className={`terminal-dock terminal-dock--${placement} ${collapsed ? "terminal-dock--collapsed" : ""}`}
       data-testid="terminal-dock"
+      style={contentBottomInset > 0 ? { paddingBottom: `${contentBottomInset}px` } : undefined}
     >
       <div className="terminal-dock__header">
         {collapsed ? (

@@ -10,6 +10,7 @@ interface InspectorDockProps {
   containerRef: RefObject<HTMLElement | null>;
   activeTag: string | null;
   tagResults: SearchResult[];
+  onHeightChange?: (height: number) => void;
   onCollapsedChange: (collapsed: boolean) => void;
   onOpenTarget: (target: string) => void;
   onOpenExternal: (target: string) => void;
@@ -24,6 +25,7 @@ export function InspectorDock(props: InspectorDockProps) {
     containerRef,
     activeTag,
     tagResults,
+    onHeightChange,
     onCollapsedChange,
     onOpenTarget,
     onOpenExternal,
@@ -48,6 +50,7 @@ export function InspectorDock(props: InspectorDockProps) {
       toggleTestId="inspector-toggle"
       panelTestId="inspector-panel"
       resizerTestId="inspector-resizer"
+      onHeightChange={onHeightChange}
       onCollapsedChange={onCollapsedChange}
     >
       <div className="footer-panel footer-panel--inspector">

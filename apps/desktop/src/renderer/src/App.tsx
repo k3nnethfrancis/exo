@@ -94,6 +94,8 @@ export function App() {
   const [agentAnnotations, setAgentAnnotations] = useState<Record<string, AgentAnnotation>>({});
   const [terminalRightWidth, setTerminalRightWidth] = useState(372);
   const [terminalBottomHeight, setTerminalBottomHeight] = useState(236);
+  const [inspectorDrawerHeight, setInspectorDrawerHeight] = useState(36);
+  const [subagentDrawerHeight, setSubagentDrawerHeight] = useState(36);
   const [resizeState, setResizeState] = useState<ResizeState | null>(null);
   const [workspaceDialog, setWorkspaceDialog] = useState<WorkspaceDialogState | null>(null);
   const [appearanceMode, setAppearanceMode] = useState<AppearanceMode>(() => readStoredAppearanceMode());
@@ -113,6 +115,8 @@ export function App() {
   const effectiveTerminalPlacement = terminalCollapsed ? "bottom" : terminalPlacement;
   const compactTerminalChrome = terminalCollapsed || effectiveTerminalPlacement === "right";
   const rightDockWidth = Math.max(312, terminalRightWidth);
+  const inspectorInset = Math.max(0, inspectorDrawerHeight - 36);
+  const subagentInset = Math.max(0, subagentDrawerHeight - 36);
   const resolvedAppearance: ResolvedAppearance = appearanceMode === "system" ? (systemPrefersDark ? "dark" : "light") : appearanceMode;
   const terminalOutputPreviewById = useMemo(
     () =>
@@ -888,6 +892,7 @@ export function App() {
         >
           <div
             className={`editor-area ${editorSplitOrientation === "right" ? "editor-area--split-right" : ""} ${editorSplitOrientation === "bottom" ? "editor-area--split-bottom" : ""}`}
+            style={inspectorInset > 0 ? { paddingBottom: `${inspectorInset}px` } : undefined}
           >
             {sortEditorPanes(editorPanes).map((pane) => (
               <EditorPane
@@ -958,6 +963,7 @@ export function App() {
             activeTerminalId={activeTerminalId}
             buffers={terminalBuffers}
             appearance={resolvedAppearance}
+            contentBottomInset={effectiveTerminalPlacement === "right" ? subagentInset : 0}
             onCreateTerminal={(kind, cwd) => void createTerminal(kind, cwd)}
             onSetActiveTerminal={setActiveTerminalId}
             onWrite={(id, data) => void window.exo.terminals.write(id, data)}
@@ -1007,6 +1013,7 @@ export function App() {
               containerRef={workspaceRef}
               activeTag={activeTag}
               tagResults={tagResults}
+              onHeightChange={setInspectorDrawerHeight}
               onCollapsedChange={(collapsed) => setInspectorCollapsed(collapsed)}
               onOpenTarget={(target) => void openKnowledgeTarget(target)}
               onOpenExternal={(target) => void window.exo.shell.openExternal(target)}
@@ -1022,6 +1029,7 @@ export function App() {
               activeTerminalId={activeTerminalId}
               terminalOutputPreviewById={terminalOutputPreviewById}
               agentAnnotations={agentAnnotations}
+              onHeightChange={setSubagentDrawerHeight}
               onCollapsedChange={(collapsed) => setSubagentsCollapsed(collapsed)}
               onFocusAgent={setActiveTerminalId}
               onSpawnAgent={(kind) => void spawnAgent(kind)}

@@ -14,6 +14,7 @@ interface SnapDrawerProps {
   drawerTestId?: string;
   panelTestId?: string;
   resizerTestId?: string;
+  onHeightChange?: (height: number) => void;
   onCollapsedChange: (collapsed: boolean) => void;
   children: ReactNode;
 }
@@ -37,6 +38,7 @@ export function SnapDrawer(props: SnapDrawerProps) {
     drawerTestId,
     panelTestId,
     resizerTestId,
+    onHeightChange,
     onCollapsedChange,
     children,
   } = props;
@@ -48,6 +50,10 @@ export function SnapDrawer(props: SnapDrawerProps) {
       setHeight(resolveDefaultHeight(containerRef.current, defaultOpenFraction, minHeight, minRemaining));
     }
   }, [collapsed, containerRef, defaultOpenFraction, height, minHeight, minRemaining]);
+
+  useEffect(() => {
+    onHeightChange?.(collapsed ? 36 : height ?? resolveDefaultHeight(containerRef.current, defaultOpenFraction, minHeight, minRemaining));
+  }, [collapsed, containerRef, defaultOpenFraction, height, minHeight, minRemaining, onHeightChange]);
 
   useEffect(() => {
     if (!resizeOrigin) {

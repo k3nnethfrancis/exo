@@ -16,6 +16,7 @@ interface SubagentDockProps {
   activeTerminalId: string | null;
   terminalOutputPreviewById: Record<string, string>;
   agentAnnotations: Record<string, AgentAnnotation>;
+  onHeightChange?: (height: number) => void;
   onCollapsedChange: (collapsed: boolean) => void;
   onFocusAgent: (id: string) => void;
   onSpawnAgent: (kind: "claude" | "codex") => void;
@@ -29,6 +30,7 @@ export function SubagentDock(props: SubagentDockProps) {
     activeTerminalId,
     terminalOutputPreviewById,
     agentAnnotations,
+    onHeightChange,
     onCollapsedChange,
     onFocusAgent,
     onSpawnAgent,
@@ -42,6 +44,7 @@ export function SubagentDock(props: SubagentDockProps) {
   const subagentSessions = activeMainAgent
     ? terminalSessions.filter((session) => agentAnnotations[session.id]?.parentId === activeMainAgent.id)
     : [];
+  const showSpawnActions = subagentSessions.length > 0 && Boolean(activeMainAgent);
 
   return (
     <SnapDrawer
@@ -54,6 +57,7 @@ export function SubagentDock(props: SubagentDockProps) {
       toggleTestId="subagents-toggle"
       panelTestId="subagents-panel"
       resizerTestId="subagents-resizer"
+      onHeightChange={onHeightChange}
       onCollapsedChange={onCollapsedChange}
     >
       <div className="footer-panel footer-panel--subagents">
@@ -61,18 +65,18 @@ export function SubagentDock(props: SubagentDockProps) {
           <div className="footer-panel__section-header">
             <div>
               <div className="footer-panel__title">Observed Sessions</div>
-              <div className="footer-panel__subtitle">
-                {activeMainAgent ? activeMainAgent.title : "Select a main terminal above"}
+              {showSpawnActions ? <div className="footer-panel__subtitle">{activeMainAgent?.title}</div> : null}
+            </div>
+            {showSpawnActions ? (
+              <div className="footer-panel__actions">
+                <button className="toolbar-button toolbar-button--compact" data-testid="spawn-claude-agent" onClick={() => onSpawnAgent("claude")} type="button">
+                  Claude
+                </button>
+                <button className="toolbar-button toolbar-button--compact" data-testid="spawn-codex-agent" onClick={() => onSpawnAgent("codex")} type="button">
+                  Codex
+                </button>
               </div>
-            </div>
-            <div className="footer-panel__actions">
-              <button className="toolbar-button toolbar-button--compact" data-testid="spawn-claude-agent" onClick={() => onSpawnAgent("claude")} type="button">
-                Claude
-              </button>
-              <button className="toolbar-button toolbar-button--compact" data-testid="spawn-codex-agent" onClick={() => onSpawnAgent("codex")} type="button">
-                Codex
-              </button>
-            </div>
+            ) : null}
           </div>
 
           {subagentSessions.length ? (
@@ -103,9 +107,7 @@ export function SubagentDock(props: SubagentDockProps) {
               })}
             </div>
           ) : (
-            <div className="footer-empty">
-              {activeMainAgent ? "No observed subagent terminals yet" : "No main terminal selected"}
-            </div>
+            <div className="footer-empty">No observed subagent terminals yet</div>
           )}
         </div>
       </div>
