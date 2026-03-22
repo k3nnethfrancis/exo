@@ -1,10 +1,27 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type MutableRefObject } from "react";
 
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "xterm";
 
 import type { TerminalSessionInfo } from "../../../shared/api";
 import type { ResolvedAppearance } from "../App";
+
+// Registry of xterm Terminal instances for reading rendered content
+const terminalRegistry = new Map<string, Terminal>();
+
+export function getRenderedTerminalContent(sessionId: string): string {
+  const terminal = terminalRegistry.get(sessionId);
+  if (!terminal) return "";
+  const buffer = terminal.buffer.active;
+  const lines: string[] = [];
+  for (let i = 0; i < buffer.length; i++) {
+    const line = buffer.getLine(i);
+    if (line) {
+      lines.push(line.translateToString(true));
+    }
+  }
+  return lines.join("\n");
+}
 
 interface TerminalViewProps {
   appearance: ResolvedAppearance;
@@ -22,6 +39,7 @@ export function TerminalView(props: TerminalViewProps) {
   const bufferRef = useRef("");
   const inputHandlerRef = useRef(onInput);
   const resizeHandlerRef = useRef(onResize);
+  const sizeRef = useRef({ width: 0, height: 0, cols: 0, rows: 0 });
 
   useEffect(() => {
     inputHandlerRef.current = onInput;
@@ -41,17 +59,17 @@ export function TerminalView(props: TerminalViewProps) {
     const fitAddon = new FitAddon();
     terminal.loadAddon(fitAddon);
     terminal.open(hostRef.current!);
-    fitAddon.fit();
-    terminal.focus();
-    resizeHandlerRef.current(session.id, terminal.cols, terminal.rows);
+    requestAnimationFrame(() => {
+      safeFit(hostRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef);
+      terminal.focus();
+    });
 
     const disposeData = terminal.onData((data) => {
       inputHandlerRef.current(session.id, data);
     });
 
     const observer = new ResizeObserver(() => {
-      fitAddon.fit();
-      resizeHandlerRef.current(session.id, terminal.cols, terminal.rows);
+      safeFit(hostRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef);
     });
     observer.observe(hostRef.current!);
 
@@ -64,14 +82,26 @@ export function TerminalView(props: TerminalViewProps) {
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
     bufferRef.current = "";
+    sizeRef.current = { width: 0, height: 0, cols: 0, rows: 0 };
+    terminalRegistry.set(session.id, terminal);
 
     return () => {
+      terminalRegistry.delete(session.id);
       disposeData.dispose();
       observer.disconnect();
       hostRef.current?.removeEventListener("mousedown", focusTerminal);
       terminal.dispose();
     };
   }, [appearance, session.id]);
+
+  useEffect(() => {
+    const terminal = terminalRef.current;
+    if (!terminal) {
+      return;
+    }
+
+    terminal.options.theme = xtermTheme(appearance);
+  }, [appearance]);
 
   useEffect(() => {
     const terminal = terminalRef.current;
@@ -90,11 +120,42 @@ export function TerminalView(props: TerminalViewProps) {
       terminal.write(buffer);
     }
     bufferRef.current = buffer;
-    fitAddonRef.current?.fit();
-    resizeHandlerRef.current(session.id, terminal.cols, terminal.rows);
   }, [buffer, session.id]);
 
   return <div ref={hostRef} className="terminal-surface" data-testid="terminal-surface" tabIndex={0} />;
+}
+
+function safeFit(
+  host: HTMLDivElement | null,
+  terminal: Terminal,
+  fitAddon: FitAddon,
+  sessionId: string,
+  onResize: (id: string, cols: number, rows: number) => void,
+  sizeRef: MutableRefObject<{ width: number; height: number; cols: number; rows: number }>,
+) {
+  const rect = host?.getBoundingClientRect();
+  if (!rect || rect.width < 80 || rect.height < 60) {
+    return;
+  }
+
+  fitAddon.fit();
+
+  if (
+    sizeRef.current.width === rect.width &&
+    sizeRef.current.height === rect.height &&
+    sizeRef.current.cols === terminal.cols &&
+    sizeRef.current.rows === terminal.rows
+  ) {
+    return;
+  }
+
+  sizeRef.current = {
+    width: rect.width,
+    height: rect.height,
+    cols: terminal.cols,
+    rows: terminal.rows,
+  };
+  onResize(sessionId, terminal.cols, terminal.rows);
 }
 
 function xtermTheme(appearance: ResolvedAppearance) {

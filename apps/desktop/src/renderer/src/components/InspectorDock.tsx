@@ -1,17 +1,14 @@
-import type { RefObject } from "react";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, ScanText } from "lucide-react";
 import type { NoteDocument, NoteKnowledge, SearchResult } from "@exo/core";
-import { SnapDrawer } from "./SnapDrawer";
+import { FloatingPanel } from "./FloatingPanel";
 
 interface InspectorDockProps {
   document: NoteDocument | null;
   knowledge: NoteKnowledge | null;
-  collapsed: boolean;
-  containerRef: RefObject<HTMLElement | null>;
+  open: boolean;
   activeTag: string | null;
   tagResults: SearchResult[];
-  onHeightChange?: (height: number) => void;
-  onCollapsedChange: (collapsed: boolean) => void;
+  onToggle: () => void;
   onOpenTarget: (target: string) => void;
   onOpenExternal: (target: string) => void;
   onOpenTag: (tag: string) => void;
@@ -21,12 +18,10 @@ export function InspectorDock(props: InspectorDockProps) {
   const {
     document,
     knowledge,
-    collapsed,
-    containerRef,
+    open,
     activeTag,
     tagResults,
-    onHeightChange,
-    onCollapsedChange,
+    onToggle,
     onOpenTarget,
     onOpenExternal,
     onOpenTag,
@@ -34,24 +29,37 @@ export function InspectorDock(props: InspectorDockProps) {
 
   const isMarkdown = document?.kind === "markdown";
   const backlinkCount = isMarkdown ? knowledge?.backlinks.length ?? 0 : 0;
-  const linkCount = isMarkdown ? (knowledge?.wikilinks.length ?? 0) + (knowledge?.markdownLinks.length ?? 0) : 0;
+  const referenceLinks = isMarkdown
+    ? [
+        ...(knowledge?.wikilinks.map((item) => ({
+          label: item.label,
+          target: item.target,
+          kind: "wikilink" as const,
+        })) ?? []),
+        ...(knowledge?.markdownLinks
+          .filter((item) => !item.target.startsWith("http"))
+          .map((item) => ({
+            label: item.label,
+            target: item.target,
+            kind: "markdown" as const,
+          })) ?? []),
+      ]
+    : [];
+  const externalLinks = isMarkdown ? knowledge?.markdownLinks.filter((item) => item.target.startsWith("http")) ?? [] : [];
+  const linkCount = referenceLinks.length + externalLinks.length;
   const tagCount = isMarkdown ? knowledge?.tags.length ?? 0 : 0;
 
   return (
-    <SnapDrawer
-      className="footer-dock footer-dock--inspector"
-      collapsed={collapsed}
+    <FloatingPanel
+      open={open}
+      icon={<ScanText size={13} />}
       label="Inspector"
       summary={`Backlinks ${backlinkCount}  Links ${linkCount}  Tags ${tagCount}`}
-      containerRef={containerRef}
-      defaultOpenFraction={0.25}
-      minHeight={120}
-      minRemaining={180}
-      toggleTestId="inspector-toggle"
+      anchorClassName="floating-panel--editor"
+      panelClassName="floating-panel__surface--inspector"
+      buttonTestId="inspector-toggle"
       panelTestId="inspector-panel"
-      resizerTestId="inspector-resizer"
-      onHeightChange={onHeightChange}
-      onCollapsedChange={onCollapsedChange}
+      onToggle={onToggle}
     >
       <div className="footer-panel footer-panel--inspector">
         <div className="footer-panel__section" data-testid="backlinks-panel">
@@ -74,29 +82,42 @@ export function InspectorDock(props: InspectorDockProps) {
           )}
         </div>
 
-        <div className="footer-panel__section">
+        <div className="footer-panel__section" data-testid="references-panel">
+          <div className="footer-panel__title">References</div>
+          {!isMarkdown ? (
+            <div className="footer-empty">No note selected</div>
+          ) : (
+            <>
+              {referenceLinks.map((item) => (
+                <button key={`${item.kind}-${item.target}`} className="footer-item" onClick={() => onOpenTarget(item.target)} type="button">
+                  {item.label}
+                </button>
+              ))}
+              {!referenceLinks.length ? (
+                <div className="footer-empty">No note references</div>
+              ) : null}
+            </>
+          )}
+        </div>
+
+        <div className="footer-panel__section" data-testid="links-panel">
           <div className="footer-panel__title">Links</div>
           {!isMarkdown ? (
             <div className="footer-empty">No note selected</div>
           ) : (
             <>
-              {knowledge?.wikilinks.map((item) => (
-                <button key={`wiki-${item.target}`} className="footer-item" onClick={() => onOpenTarget(item.target)} type="button">
-                  [[{item.label}]]
-                </button>
-              ))}
-              {knowledge?.markdownLinks.map((item) => (
+              {externalLinks.map((item) => (
                 <button
                   key={`markdown-${item.target}`}
                   className="footer-item"
-                  onClick={() => (item.target.startsWith("http") ? onOpenExternal(item.target) : onOpenTarget(item.target))}
+                  onClick={() => onOpenExternal(item.target)}
                   type="button"
                 >
                   {item.label}
-                  {item.target.startsWith("http") ? <ExternalLink size={12} /> : null}
+                  <ExternalLink size={12} />
                 </button>
               ))}
-              {!knowledge?.wikilinks.length && !knowledge?.markdownLinks.length ? (
+              {!externalLinks.length ? (
                 <div className="footer-empty">No links</div>
               ) : null}
             </>
@@ -132,6 +153,6 @@ export function InspectorDock(props: InspectorDockProps) {
           ) : null}
         </div>
       </div>
-    </SnapDrawer>
+    </FloatingPanel>
   );
 }

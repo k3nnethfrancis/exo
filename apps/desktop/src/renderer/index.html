@@ -6,6 +6,19 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0"
     />
+    <script>
+      (() => {
+        const key = "exo-appearance-mode";
+        const stored = window.localStorage.getItem(key);
+        const mode = stored === "light" || stored === "dark" || stored === "system" ? stored : "system";
+        const resolved = mode === "system"
+          ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+          : mode;
+        document.documentElement.dataset.appearanceMode = mode;
+        document.documentElement.dataset.theme = resolved;
+        document.documentElement.style.colorScheme = resolved;
+      })();
+    </script>
     <title>Exo</title>
   </head>
   <body>
@@ -13,4 +26,3 @@
     <script type="module" src="./src/main.tsx"></script>
   </body>
  </html>
-

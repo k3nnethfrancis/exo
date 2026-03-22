@@ -1,13 +1,22 @@
 import { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import type { BranchFamily, NoteDocument, NoteKnowledge, SearchResult, TreeNode, WorkspaceModel, WorkspaceSearchResults } from "@exo/core";
+import type {
+  BranchFamily,
+  NoteDocument,
+  NoteKnowledge,
+  SearchResult,
+  TreeNode,
+  WorkspaceModel,
+  WorkspaceSearchResults,
+  WorkspaceSettings,
+} from "@exo/core";
 
 import type { TerminalSessionInfo } from "../../shared/api";
 
 import { EditorPane, type EditorPaneState } from "./components/EditorPane";
-import { FileTree } from "./components/FileTree";
-import { InspectorDock } from "./components/InspectorDock";
-import { SubagentDock, type AgentAnnotation } from "./components/SubagentDock";
-import { TerminalDock } from "./components/TerminalDock";
+import { ShellLayout } from "./components/ShellLayout";
+import { type AgentAnnotation } from "./components/SubagentDock";
+import { getRenderedTerminalContent } from "./components/TerminalView";
+import { useShellLayout } from "./hooks/useShellLayout";
 
 interface OpenEditorDocument extends NoteDocument {
   dirty: boolean;
@@ -43,13 +52,18 @@ type WorkspaceDialogState =
       confirmLabel: string;
     };
 
+interface WorkspaceSettingsDialogState {
+  workspaceRoot: string;
+  defaultTerminalCwd: string;
+  noteRoots: string;
+  projectRoots: string;
+  saveStatus: "idle" | "saved" | "error";
+  errorMessage: string | null;
+}
+
 type DragState =
   | { kind: "terminal" }
   | { kind: "document"; filePath: string; sourcePaneId?: string };
-
-type ResizeState =
-  | { axis: "vertical"; startSize: number; origin: number }
-  | { axis: "horizontal"; startSize: number; origin: number };
 
 export type AppearanceMode = "system" | "light" | "dark";
 export type ResolvedAppearance = "light" | "dark";
@@ -80,43 +94,29 @@ export function App() {
   ]);
   const [focusedEditorPaneId, setFocusedEditorPaneId] = useState(PRIMARY_EDITOR_PANE_ID);
   const [activeDocumentPath, setActiveDocumentPath] = useState<string | null>(null);
-  const [editorSplitOrientation, setEditorSplitOrientation] = useState<"right" | "bottom" | null>(null);
   const [propertiesCollapsed, setPropertiesCollapsed] = useState(true);
-  const [inspectorCollapsed, setInspectorCollapsed] = useState(true);
-  const [subagentsCollapsed, setSubagentsCollapsed] = useState(true);
   const [tagResults, setTagResults] = useState<SearchResult[]>([]);
   const [activeTag, setActiveTag] = useState<string | null>(null);
-  const [terminalPlacement, setTerminalPlacement] = useState<"right" | "bottom">("right");
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [terminalSessions, setTerminalSessions] = useState<TerminalSessionInfo[]>([]);
   const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null);
   const [terminalBuffers, setTerminalBuffers] = useState<Record<string, string>>({});
   const [agentAnnotations, setAgentAnnotations] = useState<Record<string, AgentAnnotation>>({});
-  const [terminalRightWidth, setTerminalRightWidth] = useState(372);
-  const [terminalBottomHeight, setTerminalBottomHeight] = useState(236);
-  const [inspectorDrawerHeight, setInspectorDrawerHeight] = useState(36);
-  const [subagentDrawerHeight, setSubagentDrawerHeight] = useState(36);
-  const [resizeState, setResizeState] = useState<ResizeState | null>(null);
   const [workspaceDialog, setWorkspaceDialog] = useState<WorkspaceDialogState | null>(null);
+  const [workspaceSettingsDialog, setWorkspaceSettingsDialog] = useState<WorkspaceSettingsDialogState | null>(null);
   const [appearanceMode, setAppearanceMode] = useState<AppearanceMode>(() => readStoredAppearanceMode());
   const [systemPrefersDark, setSystemPrefersDark] = useState(() =>
     window.matchMedia("(prefers-color-scheme: dark)").matches,
   );
   const pendingTerminalChunksRef = useRef<Record<string, string>>({});
   const terminalFlushFrameRef = useRef<number | null>(null);
-  const workspaceRef = useRef<HTMLDivElement | null>(null);
-  const workspaceBodyRef = useRef<HTMLDivElement | null>(null);
+  const bootstrapRunRef = useRef(0);
+  const shellLayout = useShellLayout();
   const deferredSearchQuery = useDeferredValue(searchQuery);
 
   const activeDocument = activeDocumentPath ? openDocuments[activeDocumentPath] ?? null : null;
   const activeKnowledge = activeDocumentPath ? knowledgeByPath[activeDocumentPath] ?? null : null;
   const compactEditorChrome = editorPanes.length > 1;
-  const terminalCollapsed = terminalSessions.length === 0;
-  const effectiveTerminalPlacement = terminalCollapsed ? "bottom" : terminalPlacement;
-  const compactTerminalChrome = terminalCollapsed || effectiveTerminalPlacement === "right";
-  const rightDockWidth = Math.max(312, terminalRightWidth);
-  const inspectorInset = Math.max(0, inspectorDrawerHeight - 36);
-  const subagentInset = Math.max(0, subagentDrawerHeight - 36);
   const resolvedAppearance: ResolvedAppearance = appearanceMode === "system" ? (systemPrefersDark ? "dark" : "light") : appearanceMode;
   const terminalOutputPreviewById = useMemo(
     () =>
@@ -125,6 +125,24 @@ export function App() {
       ),
     [terminalBuffers, terminalSessions],
   );
+
+  // Poll rendered terminal content for agent detection (xterm renders the raw PTY stream)
+  const [observedAgents, setObservedAgents] = useState<ObservedAgent[]>([]);
+  useEffect(() => {
+    if (!activeTerminalId) {
+      setObservedAgents([]);
+      return;
+    }
+    function poll() {
+      const content = getRenderedTerminalContent(activeTerminalId!);
+      if (content) {
+        setObservedAgents(extractObservedAgents(content));
+      }
+    }
+    poll();
+    const timer = setInterval(poll, 3000);
+    return () => clearInterval(timer);
+  }, [activeTerminalId, terminalBuffers]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
@@ -143,6 +161,7 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    document.documentElement.dataset.appearanceMode = appearanceMode;
     document.documentElement.dataset.theme = resolvedAppearance;
     document.documentElement.style.colorScheme = resolvedAppearance;
     window.localStorage.setItem(APPEARANCE_STORAGE_KEY, appearanceMode);
@@ -152,6 +171,7 @@ export function App() {
     let cancelled = false;
 
     async function bootstrap() {
+      const bootstrapRun = ++bootstrapRunRef.current;
       const model = await window.exo.workspace.getModel();
       const [nextNoteTrees, nextProjectTrees] = await Promise.all([
         Promise.all(
@@ -170,21 +190,38 @@ export function App() {
         return;
       }
 
-      setWorkspaceModel(model);
-      setNoteTrees(Object.fromEntries(nextNoteTrees));
-      setProjectTrees(Object.fromEntries(nextProjectTrees));
-
       const firstNote = pickInitialNote(nextNoteTrees);
+      const defaultTerminal = await window.exo.terminals.ensureDefault();
+      const sessions = await window.exo.terminals.list();
+
+      if (cancelled || bootstrapRun !== bootstrapRunRef.current) {
+        return;
+      }
+
+      if (import.meta.env.DEV) {
+        console.info("[exo] renderer bootstrap", {
+          workspaceRoot: model.workspaceRoot,
+          defaultTerminalCwd: model.defaultTerminalCwd,
+          noteRoots: model.noteRoots.map((root) => root.path),
+          projectRoots: model.projectRoots.map((root) => root.path),
+          initialNotePath: firstNote?.path ?? null,
+          defaultTerminalId: defaultTerminal.id,
+          defaultTerminalSessionCwd: defaultTerminal.cwd,
+          sessionCount: sessions.length,
+        });
+      }
+
       if (firstNote) {
         await openFile(firstNote.path, PRIMARY_EDITOR_PANE_ID);
       }
 
-      const defaultTerminal = await window.exo.terminals.ensureDefault();
-      const sessions = await window.exo.terminals.list();
-      if (cancelled) {
+      if (cancelled || bootstrapRun !== bootstrapRunRef.current) {
         return;
       }
 
+      setWorkspaceModel(model);
+      setNoteTrees(Object.fromEntries(nextNoteTrees));
+      setProjectTrees(Object.fromEntries(nextProjectTrees));
       setTerminalSessions(sessions);
       setActiveTerminalId(defaultTerminal.id);
     }
@@ -281,6 +318,16 @@ export function App() {
   }, [deferredSearchQuery]);
 
   useEffect(() => {
+    const removeWorkspaceChangeListener = window.exo.workspace.onDidChange(() => {
+      void reloadTrees();
+    });
+
+    return () => {
+      removeWorkspaceChangeListener();
+    };
+  }, [workspaceModel]);
+
+  useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s" && activeDocument) {
         event.preventDefault();
@@ -292,38 +339,18 @@ export function App() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [activeDocument]);
 
+  // Auto-save dirty documents every 5 seconds
   useEffect(() => {
-    if (!resizeState) {
-      return;
-    }
-    const currentResize = resizeState;
-
-    function onMouseMove(event: MouseEvent) {
-      const rect = workspaceBodyRef.current?.getBoundingClientRect();
-      if (!rect) {
-        return;
+    const timer = setInterval(() => {
+      const dirtyPaths = Object.entries(openDocuments)
+        .filter(([, doc]) => doc.dirty)
+        .map(([path]) => path);
+      for (const filePath of dirtyPaths) {
+        void saveDocument(filePath);
       }
-
-      if (currentResize.axis === "vertical") {
-        const delta = currentResize.origin - event.clientX;
-        setTerminalRightWidth(clamp(currentResize.startSize + delta, 280, Math.max(320, rect.width - 320)));
-      } else {
-        const delta = currentResize.origin - event.clientY;
-        setTerminalBottomHeight(clamp(currentResize.startSize + delta, 180, Math.max(220, rect.height - 240)));
-      }
-    }
-
-    function onMouseUp() {
-      setResizeState(null);
-    }
-
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup", onMouseUp);
-    return () => {
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseup", onMouseUp);
-    };
-  }, [resizeState]);
+    }, 5000);
+    return () => clearInterval(timer);
+  });
 
   const noteSections = useMemo(
     () =>
@@ -343,6 +370,7 @@ export function App() {
       })) ?? [],
     [projectTrees, workspaceModel],
   );
+
   async function reloadTrees() {
     if (!workspaceModel) {
       return;
@@ -363,6 +391,60 @@ export function App() {
 
     setNoteTrees(Object.fromEntries(nextNoteTrees));
     setProjectTrees(Object.fromEntries(nextProjectTrees));
+  }
+
+  async function openWorkspaceSettingsDialog() {
+    const settings = await window.exo.workspace.getSettings();
+    setWorkspaceSettingsDialog({
+      workspaceRoot: settings.workspaceRoot,
+      defaultTerminalCwd: settings.defaultTerminalCwd,
+      noteRoots: settings.noteRoots.join("\n"),
+      projectRoots: settings.projectRoots.join("\n"),
+      saveStatus: "idle",
+      errorMessage: null,
+    });
+  }
+
+  async function saveWorkspaceSettingsDialog() {
+    if (!workspaceSettingsDialog) {
+      return;
+    }
+
+    const nextSettings: WorkspaceSettings = {
+      workspaceRoot: workspaceSettingsDialog.workspaceRoot.trim(),
+      defaultTerminalCwd: workspaceSettingsDialog.defaultTerminalCwd.trim(),
+      noteRoots: workspaceSettingsDialog.noteRoots
+        .split("\n")
+        .map((entry) => entry.trim())
+        .filter(Boolean),
+      projectRoots: workspaceSettingsDialog.projectRoots
+        .split("\n")
+        .map((entry) => entry.trim())
+        .filter(Boolean),
+    };
+
+    try {
+      await window.exo.workspace.saveSettings(nextSettings);
+      setWorkspaceSettingsDialog((current) =>
+        current
+          ? {
+              ...current,
+              saveStatus: "saved",
+              errorMessage: null,
+            }
+          : current,
+      );
+    } catch (error) {
+      setWorkspaceSettingsDialog((current) =>
+        current
+          ? {
+              ...current,
+              saveStatus: "error",
+              errorMessage: error instanceof Error ? error.message : "Unable to save workspace settings.",
+            }
+          : current,
+      );
+    }
   }
 
   function focusEditorPane(paneId: string) {
@@ -394,9 +476,19 @@ export function App() {
   }
 
   function closeDocumentInPane(paneId: string, filePath: string) {
-    const nextPanes = sortEditorPanes(
+    let nextPanes = sortEditorPanes(
       editorPanes.map((pane) => (pane.id === paneId ? closeDocumentInPaneState(pane, filePath) : pane)),
     );
+
+    // If a secondary pane is now empty, remove it and clear the split
+    const emptySecondary = nextPanes.find(
+      (pane) => pane.id !== PRIMARY_EDITOR_PANE_ID && pane.openPaths.length === 0,
+    );
+    if (emptySecondary) {
+      nextPanes = nextPanes.filter((pane) => pane.id === PRIMARY_EDITOR_PANE_ID);
+      shellLayout.setEditorSplitOrientation(null);
+    }
+
     const nextFocusedPaneId = paneId === focusedEditorPaneId ? paneId : focusedEditorPaneId;
     const nextFocusedPane = nextPanes.find((pane) => pane.id === nextFocusedPaneId) ?? nextPanes[0] ?? null;
     const nextActivePath = nextFocusedPane?.activePath ?? nextPanes.find((pane) => pane.activePath)?.activePath ?? null;
@@ -422,6 +514,7 @@ export function App() {
       [filePath]: {
         ...document,
         dirty: current[filePath]?.dirty ?? false,
+        frontmatter: current[filePath]?.dirty ? current[filePath].frontmatter : document.frontmatter,
         body: current[filePath]?.dirty ? current[filePath].body : document.body,
       },
     }));
@@ -461,6 +554,24 @@ export function App() {
       [activeDocumentPath]: {
         ...current[activeDocumentPath],
         body,
+        dirty: true,
+      },
+    }));
+  }
+
+  function updateFrontmatter(key: string, value: unknown) {
+    if (!activeDocumentPath) {
+      return;
+    }
+
+    setOpenDocuments((current) => ({
+      ...current,
+      [activeDocumentPath]: {
+        ...current[activeDocumentPath],
+        frontmatter: {
+          ...current[activeDocumentPath].frontmatter,
+          [key]: value,
+        },
         dirty: true,
       },
     }));
@@ -510,19 +621,41 @@ export function App() {
       ? await window.exo.notes.resolveTarget(activeDocumentPath, target)
       : await window.exo.notes.resolveTarget(activeDocumentPath, `${target}.md`);
 
-    if (resolved) {
-      await openFile(resolved, focusedEditorPaneId);
-    }
+    const ensured = resolved ?? await window.exo.notes.ensureTarget(activeDocumentPath, target);
+    await reloadTrees();
+    await openFile(ensured, focusedEditorPaneId);
   }
 
   async function openTag(tag: string) {
+    if (activeDocumentPath) {
+      const resolved = await window.exo.notes.resolveTarget(activeDocumentPath, tag);
+      if (resolved) {
+        await openFile(resolved, focusedEditorPaneId);
+        return;
+      }
+    }
+
     setActiveTag(tag);
     const results = await window.exo.workspace.searchTag(tag);
     setTagResults(results);
   }
 
+  async function suggestNoteTargets(query: string) {
+    if (!activeDocumentPath) {
+      return [];
+    }
+
+    const suggestions = await window.exo.notes.suggestTargets(activeDocumentPath, query);
+    return suggestions.map((suggestion) => ({
+      label: suggestion.title,
+      target: suggestion.target,
+      detail: suggestion.snippet,
+    }));
+  }
+
   async function createTerminal(kind: "shell" | "claude" | "codex", cwd?: string, activate = true) {
     const session = await window.exo.terminals.create({ kind, cwd });
+    shellLayout.terminalDock.setCollapsed(false);
     setTerminalSessions((current) => [...current, session]);
     if (activate) {
       setActiveTerminalId(session.id);
@@ -552,56 +685,6 @@ export function App() {
       const fallback = terminalSessions.find((session) => session.id !== id);
       setActiveTerminalId(fallback?.id ?? null);
     }
-  }
-
-  function updateAgentAnnotation(id: string, patch: Partial<AgentAnnotation>) {
-    const defaults: AgentAnnotation = {
-      runLabel: "",
-      parentId: null,
-    };
-    setAgentAnnotations((current) => ({
-      ...current,
-      [id]: {
-        ...defaults,
-        ...current[id],
-        ...patch,
-      },
-    }));
-  }
-
-  function getSelectedAgent() {
-    return terminalSessions.find((session) => session.id === activeTerminalId) ?? terminalSessions[0] ?? null;
-  }
-
-  function nextRunLabel() {
-    const runNumbers = Object.values(agentAnnotations)
-      .map((annotation) => annotation.runLabel.trim())
-      .filter((label) => /^run-\d+$/.test(label))
-      .map((label) => Number(label.split("-")[1]))
-      .filter((value) => Number.isFinite(value));
-    const next = (runNumbers.length ? Math.max(...runNumbers) : 0) + 1;
-    return `run-${next}`;
-  }
-
-  async function spawnAgent(kind: "claude" | "codex") {
-    const selected = getSelectedAgent();
-    if (!selected || !workspaceModel) {
-      return;
-    }
-
-    const parentAnnotation = agentAnnotations[selected.id];
-    const runLabel = parentAnnotation?.runLabel.trim() ? parentAnnotation.runLabel : nextRunLabel();
-    if (!parentAnnotation?.runLabel.trim()) {
-      updateAgentAnnotation(selected.id, {
-        runLabel,
-      });
-    }
-
-    const session = await createTerminal(kind, selected.cwd || workspaceModel.defaultTerminalCwd, false);
-    updateAgentAnnotation(session.id, {
-      runLabel,
-      parentId: selected.id,
-    });
   }
 
   async function createBranchFromActiveDocument() {
@@ -815,7 +898,7 @@ export function App() {
     const targetPaneId =
       dragState.sourcePaneId === SECONDARY_EDITOR_PANE_ID ? PRIMARY_EDITOR_PANE_ID : SECONDARY_EDITOR_PANE_ID;
 
-    setEditorSplitOrientation(orientation);
+    shellLayout.setEditorSplitOrientation(orientation);
     if (!openDocuments[dragState.filePath]) {
       void openFile(dragState.filePath, targetPaneId);
       setDragState(null);
@@ -857,186 +940,76 @@ export function App() {
   }
 
   return (
-    <div className="shell">
-      <FileTree
-        workspaceRoot={workspaceModel.workspaceRoot}
-        noteRoots={noteSections}
-        projectRoots={projectSections}
-        appearanceMode={appearanceMode}
-        resolvedAppearance={resolvedAppearance}
-        searchQuery={searchQuery}
-        searchResults={workspaceSearchResults}
-        onAppearanceModeChange={setAppearanceMode}
-        onSearchQueryChange={setSearchQuery}
-        onOpenFile={(filePath) => void openFile(filePath, focusedEditorPaneId)}
-        onOpenTag={(tag) => void openTag(tag)}
-        onStartDocumentDrag={(filePath) => startDocumentDrag(filePath)}
-        onEndDocumentDrag={() => setDragState(null)}
-        onCreateFile={(directoryPath) => createFileInDirectory(directoryPath)}
-        onCreateDirectory={(directoryPath) => createDirectoryInDirectory(directoryPath)}
-        onRenamePath={(targetPath) => renameWorkspacePath(targetPath)}
-        onDeletePath={(targetPath) => deleteWorkspacePath(targetPath)}
+    <>
+      <ShellLayout
+      noteSections={noteSections}
+      projectSections={projectSections}
+      appearanceMode={appearanceMode}
+      resolvedAppearance={resolvedAppearance}
+      searchQuery={searchQuery}
+      searchResults={workspaceSearchResults}
+      shellLayout={shellLayout}
+      noteContent={sortEditorPanes(editorPanes).map((pane) => (
+        <EditorPane
+          key={pane.id}
+          pane={pane}
+          documents={openDocuments}
+          branchFamiliesByPath={branchFamiliesByPath}
+          propertiesCollapsed={propertiesCollapsed}
+          isFocused={pane.id === focusedEditorPaneId}
+          onFocusPane={() => focusEditorPane(pane.id)}
+          onActivateTab={(filePath) => setPaneActivePath(pane.id, filePath)}
+          onCloseTab={(filePath) => closeDocumentInPane(pane.id, filePath)}
+          onStartDocumentDrag={(filePath, paneId) => startDocumentDrag(filePath, paneId)}
+          onEndDocumentDrag={() => setDragState(null)}
+          onToggleProperties={() => setPropertiesCollapsed((current) => !current)}
+          onUpdateFrontmatter={updateFrontmatter}
+          onBodyChange={updateBody}
+          onSave={() => void (pane.activePath ? saveDocument(pane.activePath) : Promise.resolve())}
+          onOpenTag={(tag) => void openTag(tag)}
+          onOpenTarget={(target) => void openKnowledgeTarget(target)}
+          onOpenBranch={(filePath) => void openFile(filePath, pane.id)}
+          onSuggestTargets={(query) => suggestNoteTargets(query)}
+          onCreateBranch={() => void createBranchFromActiveDocument()}
+          appearance={resolvedAppearance}
+          compact={compactEditorChrome}
+        />
+      ))}
+      activeDocument={activeDocument}
+      activeKnowledge={activeKnowledge}
+      activeTag={activeTag}
+      tagResults={tagResults}
+      terminalSessions={terminalSessions}
+      activeTerminalId={activeTerminalId}
+      terminalBuffers={terminalBuffers}
+      terminalOutputPreviewById={terminalOutputPreviewById}
+      agentAnnotations={agentAnnotations}
+      observedAgents={observedAgents}
+      compactEditorChrome={compactEditorChrome}
+      onAppearanceModeChange={setAppearanceMode}
+      onOpenWorkspaceSettings={() => void openWorkspaceSettingsDialog()}
+      onSearchQueryChange={setSearchQuery}
+      onOpenFile={(filePath) => void openFile(filePath, focusedEditorPaneId)}
+      onOpenTag={(tag) => void openTag(tag)}
+      onStartDocumentDrag={(filePath) => startDocumentDrag(filePath)}
+      onEndDocumentDrag={() => setDragState(null)}
+      onCreateFile={(directoryPath) => createFileInDirectory(directoryPath)}
+      onCreateDirectory={(directoryPath) => createDirectoryInDirectory(directoryPath)}
+      onCreateTerminalInDirectory={(directoryPath) => void createTerminal("shell", directoryPath)}
+      onRenamePath={(targetPath) => renameWorkspacePath(targetPath)}
+      onDeletePath={(targetPath) => deleteWorkspacePath(targetPath)}
+      onWriteTerminal={(id, data) => void window.exo.terminals.write(id, data)}
+      onResizeTerminal={(id, cols, rows) => void window.exo.terminals.resize(id, cols, rows)}
+      onKillTerminal={(id) => void closeTerminal(id)}
+      onCreateTerminal={(kind) => void createTerminal(kind)}
+      onSetActiveTerminal={setActiveTerminalId}
+      onOpenTarget={(target) => void openKnowledgeTarget(target)}
+      onOpenExternal={(target) => void window.exo.shell.openExternal(target)}
+      onFocusAgent={setActiveTerminalId}
+      onMoveDocumentToSplit={moveDocumentToSplit}
+      terminalDragActive={dragState?.kind === "terminal"}
+      documentDragActive={dragState?.kind === "document"}
       />
-
-      <div ref={workspaceRef} className="workspace">
-        <div
-          ref={workspaceBodyRef}
-          className={`workspace__body workspace__body--terminal-${effectiveTerminalPlacement}`}
-          style={
-            effectiveTerminalPlacement === "right"
-              ? { gridTemplateColumns: `minmax(0, 1fr) 8px ${terminalRightWidth}px` }
-              : {
-                  gridTemplateRows: `minmax(0, 1fr) ${terminalCollapsed ? "0px" : "8px"} ${terminalCollapsed ? "36px" : `${terminalBottomHeight}px`}`,
-                }
-          }
-        >
-          <div
-            className={`editor-area ${editorSplitOrientation === "right" ? "editor-area--split-right" : ""} ${editorSplitOrientation === "bottom" ? "editor-area--split-bottom" : ""}`}
-            style={inspectorInset > 0 ? { paddingBottom: `${inspectorInset}px` } : undefined}
-          >
-            {sortEditorPanes(editorPanes).map((pane) => (
-              <EditorPane
-                key={pane.id}
-                pane={pane}
-                documents={openDocuments}
-                branchFamiliesByPath={branchFamiliesByPath}
-                propertiesCollapsed={propertiesCollapsed}
-                isFocused={pane.id === focusedEditorPaneId}
-                onFocusPane={() => focusEditorPane(pane.id)}
-                onActivateTab={(filePath) => setPaneActivePath(pane.id, filePath)}
-                onCloseTab={(filePath) => closeDocumentInPane(pane.id, filePath)}
-                onStartDocumentDrag={(filePath, paneId) => startDocumentDrag(filePath, paneId)}
-                onEndDocumentDrag={() => setDragState(null)}
-                onToggleProperties={() => setPropertiesCollapsed((current) => !current)}
-                onBodyChange={updateBody}
-                onSave={() => void (pane.activePath ? saveDocument(pane.activePath) : Promise.resolve())}
-                onOpenTag={(tag) => void openTag(tag)}
-                onOpenBranch={(filePath) => void openFile(filePath, pane.id)}
-                onCreateBranch={() => void createBranchFromActiveDocument()}
-                appearance={resolvedAppearance}
-                compact={compactEditorChrome}
-              />
-            ))}
-
-            {dragState?.kind === "document" ? (
-              <div className="dock-drop-zones dock-drop-zones--document">
-                <button
-                  className={`dock-drop-zone dock-drop-zone--right ${editorSplitOrientation === "right" ? "dock-drop-zone--active" : ""}`}
-                  data-testid="editor-drop-right"
-                  onDragOver={(event) => event.preventDefault()}
-                  onDrop={() => moveDocumentToSplit("right")}
-                  type="button"
-                >
-                  Split Right
-                </button>
-                <button
-                  className={`dock-drop-zone dock-drop-zone--bottom ${editorSplitOrientation === "bottom" ? "dock-drop-zone--active" : ""}`}
-                  data-testid="editor-drop-bottom"
-                  onDragOver={(event) => event.preventDefault()}
-                  onDrop={() => moveDocumentToSplit("bottom")}
-                  type="button"
-                >
-                  Split Bottom
-                </button>
-              </div>
-            ) : null}
-          </div>
-
-          {terminalCollapsed ? null : (
-            <div
-              className={`pane-resizer ${effectiveTerminalPlacement === "right" ? "pane-resizer--vertical" : "pane-resizer--horizontal"}`}
-              onMouseDown={(event) =>
-                setResizeState({
-                  axis: effectiveTerminalPlacement === "right" ? "vertical" : "horizontal",
-                  startSize: effectiveTerminalPlacement === "right" ? terminalRightWidth : terminalBottomHeight,
-                  origin: effectiveTerminalPlacement === "right" ? event.clientX : event.clientY,
-                })
-              }
-            />
-          )}
-
-          <TerminalDock
-            placement={effectiveTerminalPlacement}
-            compact={compactTerminalChrome}
-            collapsed={terminalCollapsed}
-            sessions={terminalSessions}
-            activeTerminalId={activeTerminalId}
-            buffers={terminalBuffers}
-            appearance={resolvedAppearance}
-            contentBottomInset={effectiveTerminalPlacement === "right" ? subagentInset : 0}
-            onCreateTerminal={(kind, cwd) => void createTerminal(kind, cwd)}
-            onSetActiveTerminal={setActiveTerminalId}
-            onWrite={(id, data) => void window.exo.terminals.write(id, data)}
-            onResize={(id, cols, rows) => void window.exo.terminals.resize(id, cols, rows)}
-            onKill={(id) => void closeTerminal(id)}
-            onStartDockDrag={() => setDragState({ kind: "terminal" })}
-            onEndDockDrag={() => setDragState(null)}
-            onTogglePlacement={() => setTerminalPlacement((current) => (current === "right" ? "bottom" : "right"))}
-          />
-
-          {dragState?.kind === "terminal" ? (
-            <div className="dock-drop-zones dock-drop-zones--terminal">
-              <button
-                className={`dock-drop-zone dock-drop-zone--right ${terminalPlacement === "right" ? "dock-drop-zone--active" : ""}`}
-                data-testid="dock-drop-right"
-                onDragOver={(event) => event.preventDefault()}
-                onDrop={() => {
-                  setTerminalPlacement("right");
-                  setDragState(null);
-                }}
-                type="button"
-              >
-                Dock Right
-              </button>
-              <button
-                className={`dock-drop-zone dock-drop-zone--bottom ${terminalPlacement === "bottom" ? "dock-drop-zone--active" : ""}`}
-                data-testid="dock-drop-bottom"
-                onDragOver={(event) => event.preventDefault()}
-                onDrop={() => {
-                  setTerminalPlacement("bottom");
-                  setDragState(null);
-                }}
-                type="button"
-              >
-                Dock Bottom
-              </button>
-            </div>
-          ) : null}
-        </div>
-
-        <div className="workspace-footer">
-          <div className="workspace-footer__lane workspace-footer__lane--left" style={{ right: `${rightDockWidth}px` }}>
-            <InspectorDock
-              document={activeDocument}
-              knowledge={activeKnowledge}
-              collapsed={inspectorCollapsed}
-              containerRef={workspaceRef}
-              activeTag={activeTag}
-              tagResults={tagResults}
-              onHeightChange={setInspectorDrawerHeight}
-              onCollapsedChange={(collapsed) => setInspectorCollapsed(collapsed)}
-              onOpenTarget={(target) => void openKnowledgeTarget(target)}
-              onOpenExternal={(target) => void window.exo.shell.openExternal(target)}
-              onOpenTag={(tag) => void openTag(tag)}
-            />
-          </div>
-
-          <div className="workspace-footer__lane workspace-footer__lane--right" style={{ width: `${rightDockWidth}px` }}>
-            <SubagentDock
-              collapsed={subagentsCollapsed}
-              containerRef={workspaceRef}
-              terminalSessions={terminalSessions}
-              activeTerminalId={activeTerminalId}
-              terminalOutputPreviewById={terminalOutputPreviewById}
-              agentAnnotations={agentAnnotations}
-              onHeightChange={setSubagentDrawerHeight}
-              onCollapsedChange={(collapsed) => setSubagentsCollapsed(collapsed)}
-              onFocusAgent={setActiveTerminalId}
-              onSpawnAgent={(kind) => void spawnAgent(kind)}
-            />
-          </div>
-        </div>
-      </div>
 
       {workspaceDialog ? (
         <div className="dialog-overlay" data-testid="workspace-dialog-overlay">
@@ -1080,7 +1053,123 @@ export function App() {
           </div>
         </div>
       ) : null}
-    </div>
+
+      {workspaceSettingsDialog ? (
+        <div className="dialog-overlay" data-testid="workspace-settings-overlay">
+          <div className="dialog-card dialog-card--settings" data-testid="workspace-settings-dialog">
+            <div className="dialog-card__title">Workspace Settings</div>
+            <div className="dialog-card__message">
+              Configure the workspace and attached roots. Changes are saved for the next Exo launch.
+            </div>
+            <div className="dialog-form">
+              <label className="dialog-field">
+                <span className="dialog-field__label">Workspace</span>
+                <input
+                  className="dialog-card__input"
+                  data-testid="workspace-settings-workspace-root"
+                  value={workspaceSettingsDialog.workspaceRoot}
+                  onChange={(event) =>
+                    setWorkspaceSettingsDialog((current) =>
+                      current
+                        ? {
+                            ...current,
+                            workspaceRoot: event.target.value,
+                            saveStatus: "idle",
+                            errorMessage: null,
+                          }
+                        : current,
+                    )
+                  }
+                />
+              </label>
+              <label className="dialog-field">
+                <span className="dialog-field__label">Default terminal</span>
+                <input
+                  className="dialog-card__input"
+                  data-testid="workspace-settings-terminal-cwd"
+                  value={workspaceSettingsDialog.defaultTerminalCwd}
+                  onChange={(event) =>
+                    setWorkspaceSettingsDialog((current) =>
+                      current
+                        ? {
+                            ...current,
+                            defaultTerminalCwd: event.target.value,
+                            saveStatus: "idle",
+                            errorMessage: null,
+                          }
+                        : current,
+                    )
+                  }
+                />
+              </label>
+              <label className="dialog-field">
+                <span className="dialog-field__label">Notes</span>
+                <textarea
+                  className="dialog-card__input dialog-card__input--multiline"
+                  data-testid="workspace-settings-note-roots"
+                  rows={3}
+                  value={workspaceSettingsDialog.noteRoots}
+                  onChange={(event) =>
+                    setWorkspaceSettingsDialog((current) =>
+                      current
+                        ? {
+                            ...current,
+                            noteRoots: event.target.value,
+                            saveStatus: "idle",
+                            errorMessage: null,
+                          }
+                        : current,
+                    )
+                  }
+                />
+              </label>
+              <label className="dialog-field">
+                <span className="dialog-field__label">Projects</span>
+                <textarea
+                  className="dialog-card__input dialog-card__input--multiline"
+                  data-testid="workspace-settings-project-roots"
+                  rows={3}
+                  value={workspaceSettingsDialog.projectRoots}
+                  onChange={(event) =>
+                    setWorkspaceSettingsDialog((current) =>
+                      current
+                        ? {
+                            ...current,
+                            projectRoots: event.target.value,
+                            saveStatus: "idle",
+                            errorMessage: null,
+                          }
+                        : current,
+                    )
+                  }
+                />
+              </label>
+            </div>
+            {workspaceSettingsDialog.saveStatus === "saved" ? (
+              <div className="dialog-card__status" data-testid="workspace-settings-status">
+                Saved. Restart Exo to apply the new paths.
+              </div>
+            ) : null}
+            {workspaceSettingsDialog.saveStatus === "error" && workspaceSettingsDialog.errorMessage ? (
+              <div className="dialog-card__status dialog-card__status--error">{workspaceSettingsDialog.errorMessage}</div>
+            ) : null}
+            <div className="dialog-card__actions">
+              <button className="toolbar-button" onClick={() => setWorkspaceSettingsDialog(null)} type="button">
+                Close
+              </button>
+              <button
+                className="toolbar-button"
+                data-testid="workspace-settings-save"
+                onClick={() => void saveWorkspaceSettingsDialog()}
+                type="button"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }
 
@@ -1166,6 +1255,72 @@ function summarizeTerminalBuffer(buffer: string): string {
     .filter(Boolean);
 
   return lines.at(-1)?.slice(0, 160) ?? "No activity yet";
+}
+
+export interface ObservedAgent {
+  name: string;
+  description: string;
+  status: "running" | "done";
+}
+
+const ANSI_STRIP = /\u001B\[[0-9;?]*[ -/]*[@-~]/g;
+
+function extractObservedAgents(buffer: string): ObservedAgent[] {
+  // Strip ANSI codes and normalize whitespace from line wrapping
+  const clean = buffer.replace(ANSI_STRIP, "").replace(/\r/g, "");
+  const agents: ObservedAgent[] = [];
+  const seen = new Set<string>();
+
+  // Match patterns like:
+  //   ● Agent(Research Bun alternatives — performance)
+  //   ● Explore(Research Bun alternatives: D
+  //   Agent(description)  (without bullet)
+  // The description may wrap across lines, so join all text between ( and )
+  // Use a multi-pass approach: find "Agent(" or "Explore(" then grab until closing ")"
+  const lines = clean.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const toolMatch = line.match(/(?:^|[●•]\s*)(Agent|Explore|Plan)\((.*)$/);
+    if (!toolMatch) continue;
+
+    const name = toolMatch[1];
+    let desc = toolMatch[2];
+
+    // If no closing paren on this line, gather continuation lines
+    if (!desc.includes(")")) {
+      for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
+        desc += " " + lines[j].trim();
+        if (desc.includes(")")) break;
+      }
+    }
+
+    // Extract content before closing paren
+    const parenEnd = desc.indexOf(")");
+    if (parenEnd >= 0) {
+      desc = desc.slice(0, parenEnd);
+    }
+    desc = desc.replace(/\s+/g, " ").trim();
+
+    // Skip if it looks like a code reference rather than a spawn
+    if (desc.length < 2) continue;
+
+    const key = `${name}:${desc.slice(0, 50)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    // Check if "Backgrounded agent" or "completed" appears after this line
+    const remaining = lines.slice(i + 1).join("\n");
+    const isDone = /completed|returned a result|agent.*finished/i.test(remaining);
+    const isBackground = /[Bb]ackgrounded agent/i.test(lines[i + 1] ?? "") || /[Bb]ackgrounded agent/i.test(lines[i + 2] ?? "");
+
+    agents.push({
+      name,
+      description: desc,
+      status: isDone ? "done" : "running",
+    });
+  }
+
+  return agents;
 }
 
 function clamp(value: number, min: number, max: number): number {

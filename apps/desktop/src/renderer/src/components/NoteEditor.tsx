@@ -1,11 +1,14 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import CodeMirror from "@uiw/react-codemirror";
+import { autocompletion, type CompletionContext } from "@codemirror/autocomplete";
 import { markdown } from "@codemirror/lang-markdown";
 import { EditorView } from "@codemirror/view";
-import { ChevronDown, ChevronRight, GitBranch, Save } from "lucide-react";
+import { Code2, GitBranch, SlidersHorizontal } from "lucide-react";
 import type { BranchFamily, NoteDocument } from "@exo/core";
 import type { ResolvedAppearance } from "../App";
+import { coerceFrontmatterValue, getDocumentDisplayTitle, stringifyFrontmatterValue } from "./documentDisplay";
+import { markdownLivePreview } from "./markdownLivePreview";
 
 interface EditorDocument extends NoteDocument {
   dirty: boolean;
@@ -16,10 +19,13 @@ interface NoteEditorProps {
   branchFamily: BranchFamily | null;
   propertiesCollapsed: boolean;
   onToggleProperties: () => void;
+  onUpdateFrontmatter: (key: string, value: unknown) => void;
   onBodyChange: (body: string) => void;
   onSave: () => void;
   onOpenTag: (tag: string) => void;
+  onOpenTarget: (target: string) => void;
   onOpenBranch: (filePath: string) => void;
+  onSuggestTargets: (query: string) => Promise<Array<{ label: string; target: string; detail?: string }>>;
   onCreateBranch: () => void;
   onFocus: () => void;
   appearance: ResolvedAppearance;
@@ -32,15 +38,23 @@ export function NoteEditor(props: NoteEditorProps) {
     branchFamily,
     propertiesCollapsed,
     onToggleProperties,
+    onUpdateFrontmatter,
     onBodyChange,
     onSave,
     onOpenTag,
+    onOpenTarget,
     onOpenBranch,
+    onSuggestTargets,
     onCreateBranch,
     onFocus,
     appearance,
     compact,
   } = props;
+  const [rawMarkdownMode, setRawMarkdownMode] = useState(false);
+
+  useEffect(() => {
+    setRawMarkdownMode(false);
+  }, [document?.filePath]);
 
   if (!document) {
     return (
@@ -52,112 +66,163 @@ export function NoteEditor(props: NoteEditorProps) {
   }
 
   const isMarkdown = document.kind === "markdown";
-  const frontmatterEntries = Object.entries(document.frontmatter).filter(
-    ([key]) => key !== "tags" && !key.startsWith("branch_"),
-  );
+  const displayTitle = getDocumentDisplayTitle(document.filePath, document.kind);
+  const frontmatterEntries = Object.entries(document.frontmatter).filter(([key]) => !key.startsWith("branch_"));
   const cmTheme = useMemo(() => editorTheme(appearance), [appearance]);
 
   return (
     <section className={`editor-panel ${compact ? "editor-panel--compact" : ""}`} data-testid="editor-panel" onMouseDown={onFocus}>
       <div className="editor-panel__header">
-        <div>
-          <div className="editor-panel__eyebrow" title={document.filePath}>
-            {document.filePath}
-          </div>
-          <div className="editor-panel__title" data-testid="editor-title">
-            {document.title}
+        <div className="editor-panel__summary">
+          <div className="editor-panel__title-row">
+            {isMarkdown ? (
+              <button
+                aria-label={propertiesCollapsed ? "Show properties" : "Hide properties"}
+                className={`toolbar-button toolbar-button--icon ${compact ? "toolbar-button--compact" : ""}`}
+                data-testid="toggle-properties"
+                onClick={onToggleProperties}
+                title={propertiesCollapsed ? "Show properties" : "Hide properties"}
+                type="button"
+              >
+                <SlidersHorizontal size={14} />
+              </button>
+            ) : null}
+            <div className="editor-panel__title" data-testid="editor-title" title={document.filePath}>
+              {displayTitle}
+            </div>
           </div>
         </div>
 
         <div className="editor-panel__actions">
           {isMarkdown && branchFamily ? (
-            <div className="branch-selector" data-testid="branch-selector-wrap">
+            <div className="branch-selector branch-selector--icon-only" data-testid="branch-selector-wrap" title="Branches">
               <GitBranch size={14} />
               <select
                 aria-label="Branch selector"
                 className="branch-selector__select"
                 data-testid="branch-selector"
                 value={document.filePath}
-                onChange={(event) => onOpenBranch(event.target.value)}
+                onChange={(event) => {
+                  if (event.target.value === "__create__") {
+                    onCreateBranch();
+                    return;
+                  }
+                  onOpenBranch(event.target.value);
+                }}
+                title="Branches"
               >
                 {branchFamily.members.map((member) => (
                   <option key={member.filePath} value={member.filePath}>
-                    {member.isRoot ? "Base note" : member.path.join(".")} · {member.title}
+                    {member.isRoot
+                      ? displayTitle
+                      : `${member.path.join(".") || "Branch"} · ${getDocumentDisplayTitle(member.filePath, "markdown")}`}
                   </option>
                 ))}
+                <option value="__create__">Create branch…</option>
               </select>
-              <button
-                className={`toolbar-button ${compact ? "toolbar-button--compact" : ""}`}
-                data-testid="create-branch"
-                onClick={onCreateBranch}
-                title="Create branch"
-                type="button"
-              >
-                <GitBranch size={14} />
-                {compact ? null : "New"}
-              </button>
             </div>
           ) : null}
-          <button
-            className={`toolbar-button ${compact ? "toolbar-button--compact" : ""}`}
-            data-testid="save-note"
-            onClick={onSave}
-            title={document.dirty ? "Save changes" : "Save"}
-            type="button"
-          >
-            <Save size={14} />
-            {compact ? null : document.dirty ? "Save*" : "Save"}
-          </button>
+          {isMarkdown ? (
+            <button
+              aria-label={rawMarkdownMode ? "Switch to live preview" : "Switch to raw markdown"}
+              className={`toolbar-button toolbar-button--icon ${compact ? "toolbar-button--compact" : ""}`}
+              data-testid="toggle-markdown-mode"
+              onClick={() => setRawMarkdownMode((current) => !current)}
+              title={rawMarkdownMode ? "Live preview" : "Raw markdown"}
+              type="button"
+            >
+              <Code2 size={14} />
+            </button>
+          ) : null}
         </div>
       </div>
 
-      {isMarkdown ? (
+      {isMarkdown && !propertiesCollapsed ? (
         <div className="properties-card" data-testid="properties-panel">
-          <button className="properties-card__toggle" onClick={onToggleProperties} type="button">
-            {propertiesCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-            Properties
-          </button>
-
-          {propertiesCollapsed ? null : (
-            <div className="properties-card__content">
-              {frontmatterEntries.map(([key, value]) => (
-                <div key={key} className="properties-card__row">
-                  <span className="properties-card__key">{key}</span>
-                  <span className="properties-card__value">{String(value)}</span>
+          <div className="properties-card__content">
+            {frontmatterEntries.map(([key, value]) => (
+              <div key={key} className="properties-card__row">
+                <label className="properties-card__key" htmlFor={`property-${key}`}>
+                  {key}
+                </label>
+                <div className="properties-card__field">
+                  <input
+                    id={`property-${key}`}
+                    className="properties-card__input"
+                    type="text"
+                    value={stringifyFrontmatterValue(value)}
+                    onChange={(event) => onUpdateFrontmatter(key, coerceFrontmatterValue(event.target.value, value))}
+                  />
+                  {key === "tags" ? (
+                    <div className="tag-list">
+                      {(Array.isArray(document.frontmatter.tags)
+                        ? document.frontmatter.tags.filter((entry): entry is string => typeof entry === "string")
+                        : typeof document.frontmatter.tags === "string"
+                          ? document.frontmatter.tags.split(/[,\s]+/)
+                          : []
+                      ).map((tag) => (
+                        <button key={tag} className="tag-pill" onClick={() => onOpenTag(tag.replace(/^#/, ""))} type="button">
+                          #{tag.replace(/^#/, "")}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
-              ))}
-              {(document.frontmatter.tags as string[] | string | undefined) ? (
-                <div className="properties-card__row">
-                  <span className="properties-card__key">tags</span>
-                  <div className="tag-list">
-                    {(Array.isArray(document.frontmatter.tags)
-                      ? document.frontmatter.tags.filter((entry): entry is string => typeof entry === "string")
-                      : typeof document.frontmatter.tags === "string"
-                        ? document.frontmatter.tags.split(/[,\s]+/)
-                        : []
-                    ).map((tag) => (
-                      <button key={tag} className="tag-pill" onClick={() => onOpenTag(tag.replace(/^#/, ""))} type="button">
-                        #{tag.replace(/^#/, "")}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          )}
+              </div>
+            ))}
+          </div>
         </div>
-      ) : (
+      ) : !isMarkdown ? (
         <div className="properties-card properties-card--file" data-testid="properties-panel">
           <div className="properties-card__file-label">Project file</div>
         </div>
-      )}
+      ) : null}
 
-      <div className="editor-surface">
+      <div className={`editor-surface ${isMarkdown && !rawMarkdownMode ? "editor-surface--live-preview" : ""}`}>
         <CodeMirror
+          key={`${document.filePath}:${rawMarkdownMode ? "raw" : "live"}:${appearance}`}
           value={document.body}
           extensions={
             document.kind === "markdown"
-              ? [markdown(), EditorView.lineWrapping, cmTheme]
+              ? [
+                  markdown(),
+                  EditorView.lineWrapping,
+                  ...(!rawMarkdownMode
+                    ? [
+                        markdownLivePreview({
+                          onOpenTarget,
+                          onOpenTag,
+                        }),
+                        autocompletion({
+                          override: [
+                            async (context: CompletionContext) => {
+                              const before = context.matchBefore(/\[\[[^\]]*/);
+                              if (!before) {
+                                return null;
+                              }
+
+                              if (!context.explicit && before.from === before.to) {
+                                return null;
+                              }
+
+                              const query = before.text.replace(/^\[\[/, "");
+                              const suggestions = await onSuggestTargets(query);
+                              return {
+                                from: before.from,
+                                options: suggestions.map((suggestion) => ({
+                                  label: suggestion.label,
+                                  detail: suggestion.detail,
+                                  type: "text",
+                                  apply: `[[${suggestion.target}]]`,
+                                })),
+                              };
+                            },
+                          ],
+                        }),
+                      ]
+                    : []),
+                  cmTheme,
+                ]
               : [EditorView.lineWrapping, cmTheme]
           }
           basicSetup={{

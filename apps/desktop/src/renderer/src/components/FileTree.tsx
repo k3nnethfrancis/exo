@@ -1,25 +1,43 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { ChevronDown, ChevronRight, FilePlus2, FolderPlus, FolderTree, Hash, Monitor, MoonStar, Pencil, Search, SunMedium, Trash2 } from "lucide-react";
-import type { SearchResult, TreeNode, WorkspaceSearchResults } from "@exo/core";
+import {
+  FilePlus2,
+  FolderPlus,
+  Monitor,
+  MoonStar,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Pencil,
+  Search,
+  Settings2,
+  SquareTerminal,
+  SunMedium,
+  Trash2,
+} from "lucide-react";
+import type { WorkspaceSearchResults } from "@exo/core";
 import type { AppearanceMode, ResolvedAppearance } from "../App";
-import { SnapDrawer } from "./SnapDrawer";
-
-interface RootSection {
-  label: string;
-  path: string;
-  nodes: TreeNode[];
-}
+import { RailButton } from "./Chrome";
+import {
+  ROOT_GROUP_PREFIX,
+  type ContextTarget,
+  type RootSection,
+  SearchSection,
+  Section,
+  TagSearchSection,
+} from "./ExplorerSections";
+import { SidebarDrawer } from "./SidebarDrawer";
 
 interface FileTreeProps {
-  workspaceRoot: string;
   noteRoots: RootSection[];
   projectRoots: RootSection[];
+  collapsed: boolean;
   appearanceMode: AppearanceMode;
   resolvedAppearance: ResolvedAppearance;
   searchQuery: string;
   searchResults: WorkspaceSearchResults;
   onAppearanceModeChange: (mode: AppearanceMode) => void;
+  onToggleCollapsed: () => void;
+  onOpenWorkspaceSettings: () => void;
   onSearchQueryChange: (value: string) => void;
   onOpenFile: (filePath: string) => void;
   onOpenTag: (tag: string) => void;
@@ -27,27 +45,24 @@ interface FileTreeProps {
   onEndDocumentDrag: () => void;
   onCreateFile: (directoryPath: string) => void;
   onCreateDirectory: (directoryPath: string) => void;
+  onCreateTerminal: (directoryPath: string) => void;
   onRenamePath: (targetPath: string) => void;
   onDeletePath: (targetPath: string) => void;
 }
 
-interface ContextTarget {
-  path: string;
-  kind: "file" | "directory";
-}
-
-const ROOT_GROUP_PREFIX = "__root__:";
 
 export function FileTree(props: FileTreeProps) {
   const {
-    workspaceRoot,
     noteRoots,
     projectRoots,
+    collapsed,
     appearanceMode,
     resolvedAppearance,
     searchQuery,
     searchResults,
     onAppearanceModeChange,
+    onToggleCollapsed,
+    onOpenWorkspaceSettings,
     onSearchQueryChange,
     onOpenFile,
     onOpenTag,
@@ -55,6 +70,7 @@ export function FileTree(props: FileTreeProps) {
     onEndDocumentDrag,
     onCreateFile,
     onCreateDirectory,
+    onCreateTerminal,
     onRenamePath,
     onDeletePath,
   } = props;
@@ -126,129 +142,147 @@ export function FileTree(props: FileTreeProps) {
     setContextMenuPosition(null);
   }
 
+  function cycleAppearanceMode() {
+    const nextMode = appearanceMode === "system" ? "light" : appearanceMode === "light" ? "dark" : "system";
+    onAppearanceModeChange(nextMode);
+  }
+
+  const appearanceIcon = appearanceMode === "system" ? Monitor : appearanceMode === "light" ? SunMedium : MoonStar;
+  const AppearanceIcon = appearanceIcon;
+
+  function renderRail() {
+    return (
+      <div className="sidebar__rail">
+        <RailButton
+          testId={collapsed ? "sidebar-expand" : "sidebar-collapse"}
+          onClick={onToggleCollapsed}
+          title={collapsed ? "Expand workspace" : "Collapse workspace"}
+        >
+          {collapsed ? <PanelLeftOpen size={13} /> : <PanelLeftClose size={13} />}
+        </RailButton>
+        <RailButton
+          testId="appearance-cycle"
+          onClick={cycleAppearanceMode}
+          title={`Appearance: ${appearanceMode} (${resolvedAppearance}). Click to cycle.`}
+        >
+          <AppearanceIcon size={13} />
+        </RailButton>
+        <RailButton
+          testId="workspace-settings"
+          onClick={onOpenWorkspaceSettings}
+          title="Workspace settings"
+        >
+          <Settings2 size={13} />
+        </RailButton>
+      </div>
+    );
+  }
+
+  if (collapsed) {
+    return (
+      <aside className="sidebar sidebar--collapsed" data-testid="sidebar">
+        {renderRail()}
+      </aside>
+    );
+  }
+
   return (
     <aside className="sidebar" data-testid="sidebar">
-      <div className="sidebar__top">
-        <div className="sidebar__header">
-          <div className="sidebar__header-row">
-            <div className="sidebar__label">Workspace</div>
-            <div className="appearance-toggle" data-testid="appearance-toggle" role="group" aria-label="Appearance">
-              <button
-                className={`appearance-toggle__button ${appearanceMode === "system" ? "appearance-toggle__button--active" : ""}`}
-                data-testid="appearance-system"
-                onClick={() => onAppearanceModeChange("system")}
-                title={`System appearance (${resolvedAppearance})`}
-                type="button"
-              >
-                <Monitor size={13} />
-              </button>
-              <button
-                className={`appearance-toggle__button ${appearanceMode === "light" ? "appearance-toggle__button--active" : ""}`}
-                data-testid="appearance-light"
-                onClick={() => onAppearanceModeChange("light")}
-                title="Light mode"
-                type="button"
-              >
-                <SunMedium size={13} />
-              </button>
-              <button
-                className={`appearance-toggle__button ${appearanceMode === "dark" ? "appearance-toggle__button--active" : ""}`}
-                data-testid="appearance-dark"
-                onClick={() => onAppearanceModeChange("dark")}
-                title="Dark mode"
-                type="button"
-              >
-                <MoonStar size={13} />
-              </button>
+      {renderRail()}
+
+      <div className="sidebar__main">
+        <div className="sidebar__top">
+          <div className="sidebar__header">
+            <div className="sidebar__header-row">
+              <div className="sidebar__label">Workspace</div>
             </div>
           </div>
-          <div className="sidebar__workspace">{workspaceRoot}</div>
+
+          <label className="sidebar__search" htmlFor="workspace-search">
+            <Search size={14} />
+            <input
+              id="workspace-search"
+              data-testid="workspace-search"
+              value={searchQuery}
+              onChange={(event) => onSearchQueryChange(event.target.value)}
+              placeholder="Search"
+            />
+          </label>
         </div>
 
-        <label className="sidebar__search" htmlFor="workspace-search">
-          <Search size={14} />
-          <input
-            id="workspace-search"
-            data-testid="workspace-search"
-            value={searchQuery}
-            onChange={(event) => onSearchQueryChange(event.target.value)}
-            placeholder="Search workspace"
-          />
-        </label>
-      </div>
+        <div ref={panesRef} className="sidebar__panes">
+          <div className="sidebar__content sidebar__content--notes">
+            {searchQuery ? (
+              <div className="tree-section">
+                <div className="tree-section__title">Search Results</div>
+                <div className="search-results" data-testid="search-results">
+                  {searchResults.notes.length === 0 && searchResults.projectFiles.length === 0 && searchResults.tags.length === 0 ? (
+                    <div className="search-result__empty">No matches</div>
+                  ) : null}
 
-      <div ref={panesRef} className="sidebar__panes">
-        <div className="sidebar__content sidebar__content--notes">
-          {searchQuery ? (
-            <div className="tree-section">
-              <div className="tree-section__title">Search Results</div>
-              <div className="search-results" data-testid="search-results">
-                {searchResults.notes.length === 0 && searchResults.projectFiles.length === 0 && searchResults.tags.length === 0 ? (
-                  <div className="search-result__empty">No matches</div>
-                ) : null}
-
-                <SearchSection
-                  label="Notes"
-                  results={searchResults.notes}
-                  onOpenFile={onOpenFile}
-                  onStartDocumentDrag={onStartDocumentDrag}
-                  onEndDocumentDrag={onEndDocumentDrag}
-                />
-                <SearchSection
-                  label="Project Files"
-                  results={searchResults.projectFiles}
-                  onOpenFile={onOpenFile}
-                  onStartDocumentDrag={onStartDocumentDrag}
-                  onEndDocumentDrag={onEndDocumentDrag}
-                />
-                <TagSearchSection
-                  results={searchResults.tags}
-                  onOpenFile={onOpenFile}
-                  onOpenTag={onOpenTag}
-                  onStartDocumentDrag={onStartDocumentDrag}
-                  onEndDocumentDrag={onEndDocumentDrag}
-                />
+                  <SearchSection
+                    label="Notes"
+                    results={searchResults.notes}
+                    onOpenFile={onOpenFile}
+                    onStartDocumentDrag={onStartDocumentDrag}
+                    onEndDocumentDrag={onEndDocumentDrag}
+                  />
+                  <SearchSection
+                    label="Project Files"
+                    results={searchResults.projectFiles}
+                    onOpenFile={onOpenFile}
+                    onStartDocumentDrag={onStartDocumentDrag}
+                    onEndDocumentDrag={onEndDocumentDrag}
+                  />
+                  <TagSearchSection
+                    results={searchResults.tags}
+                    onOpenFile={onOpenFile}
+                    onOpenTag={onOpenTag}
+                    onStartDocumentDrag={onStartDocumentDrag}
+                    onEndDocumentDrag={onEndDocumentDrag}
+                  />
+                </div>
               </div>
-            </div>
-          ) : (
+            ) : (
+              <Section
+                label="Notes"
+                sections={noteRoots}
+                expandedPaths={expandedPaths}
+                onTogglePath={togglePath}
+                onOpenFile={onOpenFile}
+                onStartDocumentDrag={onStartDocumentDrag}
+                onEndDocumentDrag={onEndDocumentDrag}
+                onContextMenu={openContextMenu}
+              />
+            )}
+          </div>
+
+          <SidebarDrawer
+            className="sidebar__drawer"
+            collapsed={!projectRootsExpanded}
+            label="Projects"
+            summary={`${projectRoots.length} root${projectRoots.length === 1 ? "" : "s"}`}
+            containerRef={panesRef}
+            defaultOpenFraction={0.5}
+            toggleTestId="project-roots-toggle"
+            drawerTestId="project-roots-drawer"
+            panelTestId="project-roots-panel"
+            resizerTestId="project-roots-resizer"
+            onCollapsedChange={(collapsed) => setProjectRootsExpanded(!collapsed)}
+          >
             <Section
-              label="Note Roots"
-              sections={noteRoots}
+              label="Projects"
+              sections={projectRoots}
               expandedPaths={expandedPaths}
               onTogglePath={togglePath}
               onOpenFile={onOpenFile}
               onStartDocumentDrag={onStartDocumentDrag}
               onEndDocumentDrag={onEndDocumentDrag}
               onContextMenu={openContextMenu}
+              showHeader={false}
             />
-          )}
+          </SidebarDrawer>
         </div>
-
-        <SnapDrawer
-          className="sidebar__drawer"
-          collapsed={!projectRootsExpanded}
-          label="Project Roots"
-          summary={`${projectRoots.length} root${projectRoots.length === 1 ? "" : "s"}`}
-          containerRef={panesRef}
-          defaultOpenFraction={0.5}
-          toggleTestId="project-roots-toggle"
-          drawerTestId="project-roots-drawer"
-          panelTestId="project-roots-panel"
-          resizerTestId="project-roots-resizer"
-          onCollapsedChange={(collapsed) => setProjectRootsExpanded(!collapsed)}
-        >
-          <Section
-            label="Project Roots"
-            sections={projectRoots}
-            expandedPaths={expandedPaths}
-            onTogglePath={togglePath}
-            onOpenFile={onOpenFile}
-            onStartDocumentDrag={onStartDocumentDrag}
-            onEndDocumentDrag={onEndDocumentDrag}
-            onContextMenu={openContextMenu}
-            showHeader={false}
-          />
-        </SnapDrawer>
       </div>
 
       {contextTarget && contextMenuPosition ? (
@@ -288,6 +322,17 @@ export function FileTree(props: FileTreeProps) {
                   <FolderPlus size={13} />
                   New Folder
                 </button>
+                <button
+                  className="tree-context-menu__item"
+                  onClick={() => {
+                    dismissContextMenu();
+                    onCreateTerminal(contextTarget.path);
+                  }}
+                  type="button"
+                >
+                  <SquareTerminal size={13} />
+                  New Terminal
+                </button>
               </>
             ) : null}
             <button
@@ -316,225 +361,5 @@ export function FileTree(props: FileTreeProps) {
         </>
       ) : null}
     </aside>
-  );
-}
-
-function SearchSection({
-  label,
-  results,
-  onOpenFile,
-  onStartDocumentDrag,
-  onEndDocumentDrag,
-}: {
-  label: string;
-  results: SearchResult[];
-  onOpenFile: (filePath: string) => void;
-  onStartDocumentDrag: (filePath: string) => void;
-  onEndDocumentDrag: () => void;
-}) {
-  if (results.length === 0) {
-    return null;
-  }
-
-  return (
-    <div className="search-section">
-      <div className="search-section__title">{label}</div>
-      {results.map((result) => (
-        <button
-          key={result.filePath}
-          className="search-result"
-          draggable
-          onClick={() => onOpenFile(result.filePath)}
-          onDragStart={(event) => {
-            event.dataTransfer.setData("application/x-exo-document", JSON.stringify({ filePath: result.filePath }));
-            onStartDocumentDrag(result.filePath);
-          }}
-          onDragEnd={onEndDocumentDrag}
-          type="button"
-        >
-          <strong>{result.title}</strong>
-          <span>{result.snippet}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function TagSearchSection({
-  results,
-  onOpenFile,
-  onOpenTag,
-  onStartDocumentDrag,
-  onEndDocumentDrag,
-}: {
-  results: SearchResult[];
-  onOpenFile: (filePath: string) => void;
-  onOpenTag: (tag: string) => void;
-  onStartDocumentDrag: (filePath: string) => void;
-  onEndDocumentDrag: () => void;
-}) {
-  if (results.length === 0) {
-    return null;
-  }
-
-  return (
-    <div className="search-section">
-      <div className="search-section__title">Tags</div>
-      {results.map((result) => (
-        <div key={`${result.filePath}-${result.snippet}`} className="search-result search-result--split">
-          <button className="search-result__tag" onClick={() => onOpenTag(result.snippet)} type="button">
-            <Hash size={12} />
-            {result.snippet}
-          </button>
-          <button
-            className="search-result__file"
-            draggable
-            onClick={() => onOpenFile(result.filePath)}
-            onDragStart={(event) => {
-              event.dataTransfer.setData("application/x-exo-document", JSON.stringify({ filePath: result.filePath }));
-              onStartDocumentDrag(result.filePath);
-            }}
-            onDragEnd={onEndDocumentDrag}
-            type="button"
-          >
-            <strong>{result.title}</strong>
-            <span>{result.filePath}</span>
-          </button>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function Section({
-  label,
-  sections,
-  expandedPaths,
-  onTogglePath,
-  onOpenFile,
-  onStartDocumentDrag,
-  onEndDocumentDrag,
-  onContextMenu,
-  showHeader = true,
-}: {
-  label: string;
-  sections: RootSection[];
-  expandedPaths: Set<string>;
-  onTogglePath: (path: string) => void;
-  onOpenFile: (filePath: string) => void;
-  onStartDocumentDrag: (filePath: string) => void;
-  onEndDocumentDrag: () => void;
-  onContextMenu: (event: React.MouseEvent, target: ContextTarget) => void;
-  showHeader?: boolean;
-}) {
-  return (
-    <div className="tree-section">
-      {showHeader ? (
-        <div className="tree-section__title">
-          <FolderTree size={14} />
-          {label}
-        </div>
-      ) : null}
-      {sections.map((section) => {
-        const rootKey = `${ROOT_GROUP_PREFIX}${section.path}`;
-        const expanded = expandedPaths.has(rootKey);
-        return (
-          <div key={section.path} className="root-group">
-            <button className="root-group__toggle" onClick={() => onTogglePath(rootKey)} type="button">
-              {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-              <span className="root-group__title">{section.path}</span>
-            </button>
-            {expanded ? (
-              <TreeNodes
-                nodes={section.nodes}
-                depth={0}
-                expandedPaths={expandedPaths}
-                onTogglePath={onTogglePath}
-                onOpenFile={onOpenFile}
-                onStartDocumentDrag={onStartDocumentDrag}
-                onEndDocumentDrag={onEndDocumentDrag}
-                onContextMenu={onContextMenu}
-              />
-            ) : null}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function TreeNodes({
-  nodes,
-  depth,
-  expandedPaths,
-  onTogglePath,
-  onOpenFile,
-  onStartDocumentDrag,
-  onEndDocumentDrag,
-  onContextMenu,
-}: {
-  nodes: TreeNode[];
-  depth: number;
-  expandedPaths: Set<string>;
-  onTogglePath: (path: string) => void;
-  onOpenFile: (filePath: string) => void;
-  onStartDocumentDrag: (filePath: string) => void;
-  onEndDocumentDrag: () => void;
-  onContextMenu: (event: React.MouseEvent, target: ContextTarget) => void;
-}) {
-  return (
-    <div className="tree-nodes">
-      {nodes.map((node) => {
-        if (node.kind === "directory") {
-          const expanded = expandedPaths.has(node.path);
-          return (
-            <div key={node.path}>
-              <button
-                className="tree-node tree-node--directory"
-                style={{ paddingLeft: `${depth * 14 + 12}px` }}
-                onClick={() => onTogglePath(node.path)}
-                onContextMenu={(event) => onContextMenu(event, { path: node.path, kind: "directory" })}
-                type="button"
-              >
-                {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                <span>{node.name}</span>
-              </button>
-              {expanded && node.children?.length ? (
-                <TreeNodes
-                  nodes={node.children}
-                  depth={depth + 1}
-                  expandedPaths={expandedPaths}
-                  onTogglePath={onTogglePath}
-                  onOpenFile={onOpenFile}
-                  onStartDocumentDrag={onStartDocumentDrag}
-                  onEndDocumentDrag={onEndDocumentDrag}
-                  onContextMenu={onContextMenu}
-                />
-              ) : null}
-            </div>
-          );
-        }
-
-        return (
-          <button
-            key={node.path}
-            className="tree-node tree-node--file"
-            style={{ paddingLeft: `${depth * 14 + 28}px` }}
-            draggable
-            onClick={() => onOpenFile(node.path)}
-            onDragStart={(event) => {
-              event.dataTransfer.setData("application/x-exo-document", JSON.stringify({ filePath: node.path }));
-              onStartDocumentDrag(node.path);
-            }}
-            onDragEnd={onEndDocumentDrag}
-            onContextMenu={(event) => onContextMenu(event, { path: node.path, kind: "file" })}
-            type="button"
-          >
-            <span className="tree-node__file-spacer" />
-            <span>{node.name}</span>
-          </button>
-        );
-      })}
-    </div>
   );
 }

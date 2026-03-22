@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode, type RefObject } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 
-interface SnapDrawerProps {
+interface FooterDrawerProps {
   className?: string;
   collapsed: boolean;
   label: string;
@@ -13,7 +13,6 @@ interface SnapDrawerProps {
   minHeight?: number;
   minRemaining?: number;
   toggleTestId?: string;
-  drawerTestId?: string;
   panelTestId?: string;
   resizerTestId?: string;
   onHeightChange?: (height: number) => void;
@@ -26,7 +25,7 @@ interface ResizeOrigin {
   startHeight: number;
 }
 
-export function SnapDrawer(props: SnapDrawerProps) {
+export function FooterDrawer(props: FooterDrawerProps) {
   const {
     className,
     collapsed,
@@ -39,7 +38,6 @@ export function SnapDrawer(props: SnapDrawerProps) {
     minHeight = 140,
     minRemaining = 140,
     toggleTestId,
-    drawerTestId,
     panelTestId,
     resizerTestId,
     onHeightChange,
@@ -112,20 +110,16 @@ export function SnapDrawer(props: SnapDrawerProps) {
     };
   }, [containerRef, minHeight, minRemaining, resizeOrigin]);
 
-  function openDrawer() {
-    if (height === null) {
-      setHeight(
-        preferredHeight !== undefined
-          ? clampDrawerHeight(preferredHeight, containerRef.current?.getBoundingClientRect().height ?? 0, minHeight, minRemaining)
-          : resolveDefaultHeight(containerRef.current, defaultOpenFraction, minHeight, minRemaining),
-      );
-    }
-    onCollapsedChange(false);
-  }
-
   function toggleDrawer() {
     if (collapsed) {
-      openDrawer();
+      if (height === null) {
+        setHeight(
+          preferredHeight !== undefined
+            ? clampDrawerHeight(preferredHeight, containerRef.current?.getBoundingClientRect().height ?? 0, minHeight, minRemaining)
+            : resolveDefaultHeight(containerRef.current, defaultOpenFraction, minHeight, minRemaining),
+        );
+      }
+      onCollapsedChange(false);
       return;
     }
 
@@ -136,38 +130,41 @@ export function SnapDrawer(props: SnapDrawerProps) {
     setHeight(resolveDefaultHeight(containerRef.current, defaultOpenFraction, minHeight, minRemaining));
   }
 
+  const resolvedHeight =
+    height ??
+    (preferredHeight !== undefined
+      ? clampDrawerHeight(preferredHeight, containerRef.current?.getBoundingClientRect().height ?? 0, minHeight, minRemaining)
+      : resolveDefaultHeight(containerRef.current, defaultOpenFraction, minHeight, minRemaining));
+
   return (
-    <div
-      className={`${className ?? ""} snap-drawer ${collapsed ? "snap-drawer--collapsed" : "snap-drawer--expanded"}`.trim()}
-      data-testid={drawerTestId}
-    >
-      {collapsed ? null : (
+    <div className={`${className ?? ""} footer-drawer ${collapsed ? "footer-drawer--collapsed" : "footer-drawer--expanded"}`.trim()}>
+      {!collapsed ? (
         <div
-          className="snap-drawer__resizer"
+          className="footer-drawer__resizer"
           data-testid={resizerTestId}
           onDoubleClick={resetHeight}
           onMouseDown={(event) =>
             setResizeOrigin({
               startPointer: event.clientY,
-              startHeight: height ?? resolveDefaultHeight(containerRef.current, defaultOpenFraction, minHeight, minRemaining),
+              startHeight: resolvedHeight,
             })
           }
         />
-      )}
+      ) : null}
 
-      <div className="snap-drawer__surface" style={!collapsed ? { height: `${height ?? resolveDefaultHeight(containerRef.current, defaultOpenFraction, minHeight, minRemaining)}px` } : undefined}>
-        <button className="snap-drawer__bar" data-testid={toggleTestId} onClick={toggleDrawer} type="button">
+      <div className="footer-drawer__surface" style={!collapsed ? { height: `${resolvedHeight}px` } : undefined}>
+        <button className="footer-drawer__bar" data-testid={toggleTestId} onClick={toggleDrawer} type="button">
           {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-          {icon ? <span className="snap-drawer__icon">{icon}</span> : null}
-          <span className="snap-drawer__label">{label}</span>
-          {summary ? <span className="snap-drawer__summary">{summary}</span> : null}
+          {icon ? <span className="footer-drawer__icon">{icon}</span> : null}
+          <span className="footer-drawer__label">{label}</span>
+          {summary ? <span className="footer-drawer__summary">{summary}</span> : null}
         </button>
 
-        {collapsed ? null : (
-          <div className="snap-drawer__panel" data-testid={panelTestId}>
+        {!collapsed ? (
+          <div className="footer-drawer__panel" data-testid={panelTestId}>
             {children}
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

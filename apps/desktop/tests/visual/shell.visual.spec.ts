@@ -1,3 +1,5 @@
+import { writeFile } from "node:fs/promises";
+import path from "node:path";
 import { test, expect, type Page } from "@playwright/test";
 
 import { launchExoFixture } from "../helpers";
@@ -14,9 +16,22 @@ const screenshotOptions = {
   maxDiffPixels: 1200,
 } as const;
 
+async function cycleAppearanceTo(page: Page, targetMode: "system" | "light" | "dark") {
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const currentMode = await page.locator("html").getAttribute("data-appearance-mode");
+    if (currentMode === targetMode) {
+      return;
+    }
+
+    await page.getByTestId("appearance-cycle").click();
+  }
+
+  throw new Error(`Unable to reach appearance mode ${targetMode}.`);
+}
+
 test("captures the default workspace shell", async () => {
   const { page, cleanup } = await launchExoFixture();
-  await page.getByTestId("appearance-dark").click();
+  await cycleAppearanceTo(page, "dark");
   await settleForScreenshot(page);
   await expect(page).toHaveScreenshot("workspace-default.png", screenshotOptions);
   await cleanup();
@@ -24,7 +39,8 @@ test("captures the default workspace shell", async () => {
 
 test("captures bottom dock and agent tabs", async () => {
   const { page, cleanup } = await launchExoFixture();
-  await page.getByTestId("appearance-dark").click();
+  await cycleAppearanceTo(page, "dark");
+  await page.getByTestId("terminal-expand").click();
   await page.getByTestId("terminal-tab-shell").dblclick();
   await page.getByTestId("launch-claude").click();
   await page.getByTestId("launch-codex").click();
@@ -35,7 +51,7 @@ test("captures bottom dock and agent tabs", async () => {
 
 test("captures the expanded project roots drawer", async () => {
   const { page, cleanup } = await launchExoFixture();
-  await page.getByTestId("appearance-dark").click();
+  await cycleAppearanceTo(page, "dark");
   await page.getByTestId("project-roots-toggle").click();
   await settleForScreenshot(page);
   await expect(page).toHaveScreenshot("workspace-project-roots-expanded.png", screenshotOptions);
@@ -44,8 +60,25 @@ test("captures the expanded project roots drawer", async () => {
 
 test("captures the warm light mode shell", async () => {
   const { page, cleanup } = await launchExoFixture();
-  await page.getByTestId("appearance-light").click();
+  await cycleAppearanceTo(page, "light");
   await settleForScreenshot(page);
   await expect(page).toHaveScreenshot("workspace-light-mode.png", screenshotOptions);
+  await cleanup();
+});
+
+test("captures nested list geometry", async () => {
+  const { page, cleanup } = await launchExoFixture({
+    prepareWorkspace: async (workspaceRoot) => {
+      const notePath = path.join(workspaceRoot, "notes/shoshin-codex/focus-note.md");
+      await writeFile(
+        notePath,
+        `---\ntitle: Focus Note\n---\n\n# Probe\n\n- top item\n  - child item\n    - grandchild item\n  - sibling child\n    continuation line\n`,
+      );
+    },
+  });
+
+  await cycleAppearanceTo(page, "light");
+  await settleForScreenshot(page);
+  await expect(page.getByTestId("editor-panel")).toHaveScreenshot("workspace-list-geometry.png", screenshotOptions);
   await cleanup();
 });

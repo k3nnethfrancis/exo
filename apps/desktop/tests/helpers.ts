@@ -11,13 +11,22 @@ const fixtureRoot = path.join(repoRoot, "fixtures/workspace/lab");
 export async function launchExoFixture(options?: {
   mutable?: boolean;
   env?: Record<string, string>;
+  prepareWorkspace?: (workspaceRoot: string) => Promise<void>;
+  initialNoteLabel?: string | null;
 }): Promise<{ electronApp: ElectronApplication; page: Page; workspaceRoot: string; cleanup: () => Promise<void> }> {
   let workspaceRoot = fixtureRoot;
   let tempRoot: string | null = null;
-  if (options?.mutable) {
+  const settingsRoot = await mkdtemp(path.join(os.tmpdir(), "exo-settings-"));
+  const settingsPath = path.join(settingsRoot, "workspace-settings.json");
+  const userDataRoot = await mkdtemp(path.join(os.tmpdir(), "exo-userdata-"));
+  if (options?.mutable || options?.prepareWorkspace) {
     tempRoot = await mkdtemp(path.join(os.tmpdir(), "exo-fixture-"));
     workspaceRoot = path.join(tempRoot, "lab");
     await cp(fixtureRoot, workspaceRoot, { recursive: true });
+  }
+
+  if (options?.prepareWorkspace) {
+    await options.prepareWorkspace(workspaceRoot);
   }
 
   const electronApp = await electron.launch({
@@ -25,10 +34,13 @@ export async function launchExoFixture(options?: {
     cwd: repoRoot,
     env: {
       ...process.env,
+      EXO_TEST: "1",
       EXO_WORKSPACE_ROOT: workspaceRoot,
       EXO_NOTE_ROOTS: path.join(workspaceRoot, "notes/shoshin-codex"),
       EXO_PROJECT_ROOTS: path.join(workspaceRoot, "projects"),
       EXO_DEFAULT_TERMINAL_CWD: workspaceRoot,
+      EXO_SETTINGS_PATH: settingsPath,
+      EXO_USER_DATA_PATH: userDataRoot,
       EXO_FORCE_THEME: "dark",
       EXO_SHELL: "/bin/echo",
       EXO_SHELL_ARGS: "shell ready",
@@ -42,9 +54,13 @@ export async function launchExoFixture(options?: {
   const page = await electronApp.firstWindow();
   await expect(page.getByTestId("sidebar")).toBeVisible();
   await expect(page.getByTestId("editor-panel")).toBeVisible();
-  await expect(page.getByTestId("terminal-dock")).toBeVisible();
-  await page.getByRole("button", { name: "focus-note.md" }).click();
-  await expect(page.getByTestId("editor-title")).toHaveText("Focus Note");
+  await expect(page.getByTestId("terminal-rail")).toBeVisible();
+  await expect(page.getByTestId("terminal-expand")).toBeVisible();
+  if (options?.initialNoteLabel !== null) {
+    const initialNoteLabel = options?.initialNoteLabel ?? "focus-note";
+    await page.getByRole("button", { name: initialNoteLabel }).click();
+    await expect(page.getByTestId("editor-title")).toHaveText(initialNoteLabel);
+  }
 
   return {
     electronApp,
@@ -52,6 +68,8 @@ export async function launchExoFixture(options?: {
     workspaceRoot,
     cleanup: async () => {
       await electronApp.close();
+      await rm(settingsRoot, { recursive: true, force: true });
+      await rm(userDataRoot, { recursive: true, force: true });
       if (tempRoot) {
         await rm(tempRoot, { recursive: true, force: true });
       }

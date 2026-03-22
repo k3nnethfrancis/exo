@@ -17,6 +17,13 @@ export interface WorkspaceModel {
   attachedWorkcells: string[];
 }
 
+export interface WorkspaceSettings {
+  workspaceRoot: string;
+  defaultTerminalCwd: string;
+  noteRoots: string[];
+  projectRoots: string[];
+}
+
 export interface TreeNode {
   id: string;
   name: string;

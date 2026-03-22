@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "pnpm --filter @exo/desktop dev",
     "exo": "tsx packages/cli/src/index.ts",
+    "app": "pnpm build && node scripts/run-built-app.mjs",
     "build": "pnpm --filter @exo/desktop build && pnpm --filter @exo/cli build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",

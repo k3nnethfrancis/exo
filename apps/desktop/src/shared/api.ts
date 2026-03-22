@@ -6,6 +6,7 @@ import type {
   SearchResult,
   TreeNode,
   WorkspaceModel,
+  WorkspaceSettings,
   WorkspaceSearchResults,
 } from "@exo/core";
 
@@ -29,6 +30,8 @@ export interface TerminalCreateOptions {
 export interface DesktopApi {
   workspace: {
     getModel: () => Promise<WorkspaceModel>;
+    getSettings: () => Promise<WorkspaceSettings>;
+    saveSettings: (settings: WorkspaceSettings) => Promise<WorkspaceSettings>;
     listTree: (rootPath: string, options?: { markdownOnly?: boolean; maxDepth?: number }) => Promise<TreeNode[]>;
     searchNotes: (query: string) => Promise<SearchResult[]>;
     searchWorkspace: (query: string) => Promise<WorkspaceSearchResults>;
@@ -37,12 +40,18 @@ export interface DesktopApi {
     createDirectory: (targetPath: string) => Promise<string>;
     renamePath: (sourcePath: string, nextPath: string) => Promise<string>;
     deletePath: (targetPath: string) => Promise<void>;
+    onDidChange: (callback: (event: { rootPath: string; eventType: string; filePath: string | null }) => void) => () => void;
   };
   notes: {
     read: (filePath: string) => Promise<NoteDocument>;
     save: (filePath: string, frontmatter: Record<string, unknown>, body: string) => Promise<void>;
     getKnowledge: (filePath: string) => Promise<NoteKnowledge>;
     resolveTarget: (sourceFilePath: string, target: string) => Promise<string | null>;
+    ensureTarget: (sourceFilePath: string, target: string) => Promise<string>;
+    suggestTargets: (
+      sourceFilePath: string,
+      query: string,
+    ) => Promise<Array<{ filePath: string; title: string; target: string; snippet: string }>>;
     getBranchFamily: (filePath: string) => Promise<BranchFamily>;
     createBranch: (filePath: string, frontmatter: Record<string, unknown>, body: string) => Promise<BranchCreateResult>;
   };

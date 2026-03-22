@@ -5,6 +5,8 @@ import type { DesktopApi } from "../shared/api";
 const api: DesktopApi = {
   workspace: {
     getModel: () => ipcRenderer.invoke("workspace:get-model"),
+    getSettings: () => ipcRenderer.invoke("workspace:get-settings"),
+    saveSettings: (settings) => ipcRenderer.invoke("workspace:save-settings", settings),
     listTree: (rootPath, options) => ipcRenderer.invoke("workspace:list-tree", rootPath, options),
     searchNotes: (query) => ipcRenderer.invoke("workspace:search-notes", query),
     searchWorkspace: (query) => ipcRenderer.invoke("workspace:search-workspace", query),
@@ -13,12 +15,20 @@ const api: DesktopApi = {
     createDirectory: (targetPath) => ipcRenderer.invoke("workspace:create-directory", targetPath),
     renamePath: (sourcePath, nextPath) => ipcRenderer.invoke("workspace:rename-path", sourcePath, nextPath),
     deletePath: (targetPath) => ipcRenderer.invoke("workspace:delete-path", targetPath),
+    onDidChange: (callback) => {
+      const listener = (_event: unknown, payload: { rootPath: string; eventType: string; filePath: string | null }) =>
+        callback(payload);
+      ipcRenderer.on("workspace:changed", listener);
+      return () => ipcRenderer.removeListener("workspace:changed", listener);
+    },
   },
   notes: {
     read: (filePath) => ipcRenderer.invoke("notes:read", filePath),
     save: (filePath, frontmatter, body) => ipcRenderer.invoke("notes:save", filePath, frontmatter, body),
     getKnowledge: (filePath) => ipcRenderer.invoke("notes:get-knowledge", filePath),
     resolveTarget: (sourceFilePath, target) => ipcRenderer.invoke("notes:resolve-target", sourceFilePath, target),
+    ensureTarget: (sourceFilePath, target) => ipcRenderer.invoke("notes:ensure-target", sourceFilePath, target),
+    suggestTargets: (sourceFilePath, query) => ipcRenderer.invoke("notes:suggest-targets", sourceFilePath, query),
     getBranchFamily: (filePath) => ipcRenderer.invoke("notes:get-branch-family", filePath),
     createBranch: (filePath, frontmatter, body) => ipcRenderer.invoke("notes:create-branch", filePath, frontmatter, body),
   },

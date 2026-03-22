@@ -1,6 +1,8 @@
 import type { BranchFamily, NoteDocument } from "@exo/core";
 import type { ResolvedAppearance } from "../App";
 
+import { ChromeTab } from "./Chrome";
+import { getDocumentDisplayTitle } from "./documentDisplay";
 import { NoteEditor } from "./NoteEditor";
 
 interface EditorDocument extends NoteDocument {
@@ -25,10 +27,13 @@ interface EditorPaneProps {
   onStartDocumentDrag: (filePath: string, paneId: string) => void;
   onEndDocumentDrag: () => void;
   onToggleProperties: () => void;
+  onUpdateFrontmatter: (key: string, value: unknown) => void;
   onBodyChange: (body: string) => void;
   onSave: () => void;
   onOpenTag: (tag: string) => void;
+  onOpenTarget: (target: string) => void;
   onOpenBranch: (filePath: string) => void;
+  onSuggestTargets: (query: string) => Promise<Array<{ label: string; target: string; detail?: string }>>;
   onCreateBranch: () => void;
   appearance: ResolvedAppearance;
   compact: boolean;
@@ -47,10 +52,13 @@ export function EditorPane(props: EditorPaneProps) {
     onStartDocumentDrag,
     onEndDocumentDrag,
     onToggleProperties,
+    onUpdateFrontmatter,
     onBodyChange,
     onSave,
     onOpenTag,
+    onOpenTarget,
     onOpenBranch,
+    onSuggestTargets,
     onCreateBranch,
     appearance,
     compact,
@@ -70,11 +78,13 @@ export function EditorPane(props: EditorPaneProps) {
           if (!document) {
             return null;
           }
+          const displayTitle = getDocumentDisplayTitle(document.filePath, document.kind);
 
           return (
-            <button
+            <ChromeTab
               key={document.filePath}
-              className={`tab-strip__tab ${document.filePath === pane.activePath ? "tab-strip__tab--active" : ""}`}
+              active={document.filePath === pane.activePath}
+              className="tab-strip__tab"
               draggable
               onClick={() => onActivateTab(document.filePath)}
               onDragStart={(event) => {
@@ -85,22 +95,16 @@ export function EditorPane(props: EditorPaneProps) {
                 onStartDocumentDrag(document.filePath, pane.id);
               }}
               onDragEnd={onEndDocumentDrag}
-              type="button"
+              leading={<span className={document.dirty ? "status-dot status-dot--dirty" : "status-dot"} />}
+              closeLabel={`Close ${displayTitle}`}
+              onClose={(event) => {
+                event.stopPropagation();
+                onCloseTab(document.filePath);
+              }}
+              closeIcon="×"
             >
-              <span className={document.dirty ? "status-dot status-dot--dirty" : "status-dot"} />
-              {document.title}
-              <span
-                aria-label={`Close ${document.title}`}
-                className="tab-strip__close"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onCloseTab(document.filePath);
-                }}
-                role="button"
-              >
-                ×
-              </span>
-            </button>
+              {displayTitle}
+            </ChromeTab>
           );
         })}
       </div>
@@ -110,10 +114,13 @@ export function EditorPane(props: EditorPaneProps) {
         branchFamily={pane.activePath ? branchFamiliesByPath[pane.activePath] ?? null : null}
         propertiesCollapsed={propertiesCollapsed}
         onToggleProperties={onToggleProperties}
+        onUpdateFrontmatter={onUpdateFrontmatter}
         onBodyChange={onBodyChange}
         onSave={onSave}
         onOpenTag={onOpenTag}
+        onOpenTarget={onOpenTarget}
         onOpenBranch={onOpenBranch}
+        onSuggestTargets={onSuggestTargets}
         onCreateBranch={onCreateBranch}
         onFocus={onFocusPane}
         appearance={appearance}
