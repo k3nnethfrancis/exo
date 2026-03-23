@@ -9,7 +9,7 @@
 .shell {
   position: relative;
   display: grid;
-  grid-template-columns: 240px 1fr;
+  grid-template-columns: 240px 1fr 42px;
   height: 100%;
   padding-top: var(--window-top-pad);
   background: transparent;
@@ -268,49 +268,13 @@
   min-width: 0;
   min-height: 0;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   grid-row: 1;
   position: relative;
   z-index: 0;
   overflow: hidden;
   box-sizing: border-box;
-}
-
-.workspace__body--terminal-right {
-  grid-template-rows: minmax(0, 1fr);
-}
-
-.workspace__body--terminal-bottom {
-  grid-template-columns: minmax(0, 1fr);
-}
-
-.editor-area {
-  min-width: 0;
-  min-height: 0;
-  display: grid;
-  grid-template-rows: minmax(0, 1fr);
-  overflow: hidden;
-}
-
-.editor-area__main {
-  min-width: 0;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr);
-  position: relative;
-  overflow: hidden;
-}
-
-.workspace__body--terminal-bottom .editor-area {
-  border-right: 0;
-}
-
-.editor-area--split-right .editor-area__main {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-}
-
-.editor-area--split-bottom .editor-area__main {
-  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
 }
 
 .editor-pane {
@@ -319,19 +283,7 @@
   display: grid;
   grid-template-rows: 44px minmax(0, 1fr);
   background: color-mix(in srgb, var(--surface-1) 48%, var(--bg-elevated) 52%);
-  border-right: 1px solid var(--divider);
   overflow: hidden;
-}
-
-.editor-area--split-bottom .editor-pane {
-  border-right: 0;
-  border-bottom: 1px solid var(--divider);
-}
-
-.editor-area--split-right .editor-pane:last-child,
-.editor-area--split-bottom .editor-pane:last-child {
-  border-right: 0;
-  border-bottom: 0;
 }
 
 .editor-pane--focused {
@@ -363,6 +315,132 @@
   cursor: row-resize;
 }
 
+/* Pane tree ---------------------------------------------------------------- */
+
+.pane-split {
+  overflow: hidden;
+  min-width: 0;
+  min-height: 0;
+}
+
+.pane-leaf {
+  position: relative;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  overflow: hidden;
+  min-width: 0;
+  min-height: 0;
+}
+
+.pane-leaf--focused {
+  box-shadow: inset 0 0 0 1px var(--accent-soft);
+}
+
+.pane-split-resizer {
+  background: transparent;
+  position: relative;
+  z-index: 4;
+  flex-shrink: 0;
+}
+
+.pane-split-resizer::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--surface-1);
+}
+
+.pane-split-resizer:hover::before {
+  background: rgba(159, 184, 255, 0.2);
+}
+
+.pane-split-resizer--vertical {
+  cursor: col-resize;
+}
+
+.pane-split-resizer--horizontal {
+  cursor: row-resize;
+}
+
+/* Leaf drop zones --------------------------------------------------------- */
+
+.leaf-drop-zones {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.leaf-drop-zone {
+  position: absolute;
+  pointer-events: none;
+  border: 2px dashed transparent;
+  border-radius: 4px;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.leaf-drop-zone--active {
+  border-color: rgba(159, 184, 255, 0.65);
+  background: rgba(159, 184, 255, 0.14);
+}
+
+.leaf-drop-zone--top {
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 25%;
+}
+
+.leaf-drop-zone--bottom {
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 25%;
+}
+
+.leaf-drop-zone--left {
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 25%;
+}
+
+.leaf-drop-zone--right {
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 25%;
+}
+
+.leaf-drop-zone--center {
+  top: 25%;
+  bottom: 25%;
+  left: 25%;
+  right: 25%;
+}
+
+.leaf-drop-zone--center.leaf-drop-zone--active {
+  background: rgba(159, 184, 255, 0.22);
+}
+
+/* Drag ghost — floating label that follows the cursor during manual drag */
+.drag-ghost {
+  position: fixed;
+  pointer-events: none;
+  z-index: 99999;
+  background: var(--surface-3, #2a2a2e);
+  color: var(--text, #e0e0e0);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  white-space: nowrap;
+  opacity: 0.9;
+  transform: translate(12px, -50%);
+}
+
 .tab-strip,
 .editor-panel__header {
   display: flex;
@@ -378,6 +456,28 @@
   min-height: 34px;
 }
 
+.tab-strip__close-pane {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-left: auto;
+  flex-shrink: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  border: none;
+}
+
+.tab-strip__close-pane:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
 .chrome-tab {
   display: inline-flex;
   align-items: center;
@@ -387,6 +487,13 @@
   color: var(--text-muted);
   padding: 5px 8px;
   font-size: 12px;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+}
+
+.chrome-tab:active {
+  cursor: grabbing;
 }
 
 .tab-strip__tab {

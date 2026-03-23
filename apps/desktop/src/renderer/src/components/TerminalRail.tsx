@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { Bot, Code2, PanelBottomClose, PanelBottomOpen, PanelRightClose, PanelRightOpen, SquareTerminal } from "lucide-react";
+import { Bot, Code2, PanelRightClose, PanelRightOpen, SquareTerminal } from "lucide-react";
 
 import { RailButton } from "./Chrome";
 
@@ -13,14 +13,7 @@ interface TerminalRailProps {
 
 export function TerminalRail(props: TerminalRailProps) {
   const { placement, collapsed, onToggleCollapsed, onCreateTerminal, style } = props;
-  const CollapseIcon =
-    placement === "right"
-      ? collapsed
-        ? PanelRightOpen
-        : PanelRightClose
-      : collapsed
-        ? PanelBottomOpen
-        : PanelBottomClose;
+  const CollapseIcon = collapsed ? PanelRightOpen : PanelRightClose;
 
   return (
     <div className="terminal-rail" data-testid="terminal-rail" style={style}>
@@ -31,19 +24,27 @@ export function TerminalRail(props: TerminalRailProps) {
       >
         <CollapseIcon size={13} />
       </RailButton>
-      {!collapsed ? (
-        <>
-          <RailButton testId="launch-shell" onClick={() => onCreateTerminal("shell")} title="New terminal">
-            <SquareTerminal size={13} />
-          </RailButton>
-          <RailButton testId="launch-claude" onClick={() => onCreateTerminal("claude")} title="Launch Claude">
-            <Bot size={13} />
-          </RailButton>
-          <RailButton testId="launch-codex" onClick={() => onCreateTerminal("codex")} title="Launch Codex">
-            <Code2 size={13} />
-          </RailButton>
-        </>
-      ) : null}
+      <RailButton
+        testId="launch-shell"
+        onClick={() => onCreateTerminal("shell")}
+        title="New terminal"
+      >
+        <SquareTerminal size={13} />
+      </RailButton>
+      <RailButton
+        testId="launch-claude"
+        onClick={() => onCreateTerminal("claude")}
+        title="Launch Claude"
+      >
+        <Bot size={13} />
+      </RailButton>
+      <RailButton
+        testId="launch-codex"
+        onClick={() => onCreateTerminal("codex")}
+        title="Launch Codex"
+      >
+        <Code2 size={13} />
+      </RailButton>
     </div>
   );
 }

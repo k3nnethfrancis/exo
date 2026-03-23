@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import type { WorkspaceSearchResults } from "@exo/core";
 import type { AppearanceMode, ResolvedAppearance } from "../App";
+import type { DragManager } from "../hooks/useDragManager";
 import { RailButton } from "./Chrome";
 import {
   ROOT_GROUP_PREFIX,
@@ -41,8 +42,7 @@ interface FileTreeProps {
   onSearchQueryChange: (value: string) => void;
   onOpenFile: (filePath: string) => void;
   onOpenTag: (tag: string) => void;
-  onStartDocumentDrag: (filePath: string) => void;
-  onEndDocumentDrag: () => void;
+  dragManager: DragManager;
   onCreateFile: (directoryPath: string) => void;
   onCreateDirectory: (directoryPath: string) => void;
   onCreateTerminal: (directoryPath: string) => void;
@@ -66,8 +66,7 @@ export function FileTree(props: FileTreeProps) {
     onSearchQueryChange,
     onOpenFile,
     onOpenTag,
-    onStartDocumentDrag,
-    onEndDocumentDrag,
+    dragManager,
     onCreateFile,
     onCreateDirectory,
     onCreateTerminal,
@@ -224,22 +223,19 @@ export function FileTree(props: FileTreeProps) {
                     label="Notes"
                     results={searchResults.notes}
                     onOpenFile={onOpenFile}
-                    onStartDocumentDrag={onStartDocumentDrag}
-                    onEndDocumentDrag={onEndDocumentDrag}
+                    dragManager={dragManager}
                   />
                   <SearchSection
                     label="Project Files"
                     results={searchResults.projectFiles}
                     onOpenFile={onOpenFile}
-                    onStartDocumentDrag={onStartDocumentDrag}
-                    onEndDocumentDrag={onEndDocumentDrag}
+                    dragManager={dragManager}
                   />
                   <TagSearchSection
                     results={searchResults.tags}
                     onOpenFile={onOpenFile}
                     onOpenTag={onOpenTag}
-                    onStartDocumentDrag={onStartDocumentDrag}
-                    onEndDocumentDrag={onEndDocumentDrag}
+                    dragManager={dragManager}
                   />
                 </div>
               </div>
@@ -250,8 +246,7 @@ export function FileTree(props: FileTreeProps) {
                 expandedPaths={expandedPaths}
                 onTogglePath={togglePath}
                 onOpenFile={onOpenFile}
-                onStartDocumentDrag={onStartDocumentDrag}
-                onEndDocumentDrag={onEndDocumentDrag}
+                dragManager={dragManager}
                 onContextMenu={openContextMenu}
               />
             )}
@@ -276,8 +271,7 @@ export function FileTree(props: FileTreeProps) {
               expandedPaths={expandedPaths}
               onTogglePath={togglePath}
               onOpenFile={onOpenFile}
-              onStartDocumentDrag={onStartDocumentDrag}
-              onEndDocumentDrag={onEndDocumentDrag}
+              dragManager={dragManager}
               onContextMenu={openContextMenu}
               showHeader={false}
             />

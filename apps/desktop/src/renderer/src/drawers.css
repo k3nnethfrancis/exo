@@ -49,6 +49,42 @@
   color: var(--muted);
 }
 
+.snap-drawer__header {
+  display: flex;
+  align-items: center;
+  background: color-mix(in srgb, var(--surface-4) 84%, var(--bg-elevated) 16%);
+}
+
+.snap-drawer__header .snap-drawer__bar {
+  flex: 1;
+  min-width: 0;
+}
+
+.snap-drawer__actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-right: 8px;
+}
+
+.snap-drawer__action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.snap-drawer__action-btn:hover {
+  background: var(--surface-5);
+  color: var(--text);
+}
+
 .snap-drawer__panel {
   min-height: 0;
   overflow-y: auto;

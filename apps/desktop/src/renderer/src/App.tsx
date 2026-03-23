@@ -1,4 +1,4 @@
-import { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import type {
   BranchFamily,
   NoteDocument,
@@ -13,10 +13,12 @@ import type {
 import type { TerminalSessionInfo } from "../../shared/api";
 
 import { EditorPane, type EditorPaneState } from "./components/EditorPane";
+import { InspectorDock } from "./components/InspectorDock";
 import { ShellLayout } from "./components/ShellLayout";
-import { type AgentAnnotation } from "./components/SubagentDock";
-import { getRenderedTerminalContent } from "./components/TerminalView";
+import { TerminalDock } from "./components/TerminalDock";
 import { useShellLayout } from "./hooks/useShellLayout";
+import { collectLeaves, findEditorLeaf, findEditorLeafByPath, findNode, findTerminalLeaf, findTerminalLeafBySessionId, countLeaves, mapLeaves, updateNode, removeNode, type PaneLeaf, type PaneNode, type PaneSplit, type PaneNodeId, type EditorPaneContent, type TerminalPaneContent } from "./hooks/usePaneTree";
+import { useDragManager, type DragPayload, type DropEdge } from "./hooks/useDragManager";
 
 interface OpenEditorDocument extends NoteDocument {
   dirty: boolean;
@@ -61,15 +63,11 @@ interface WorkspaceSettingsDialogState {
   errorMessage: string | null;
 }
 
-type DragState =
-  | { kind: "terminal" }
-  | { kind: "document"; filePath: string; sourcePaneId?: string };
+// DragState replaced by useDragManager — see DragPayload in hooks/useDragManager.ts
 
 export type AppearanceMode = "system" | "light" | "dark";
 export type ResolvedAppearance = "light" | "dark";
 
-const PRIMARY_EDITOR_PANE_ID = "editor-pane-1";
-const SECONDARY_EDITOR_PANE_ID = "editor-pane-2";
 const APPEARANCE_STORAGE_KEY = "exo-appearance-mode";
 
 export function App() {
@@ -85,23 +83,16 @@ export function App() {
   const [openDocuments, setOpenDocuments] = useState<Record<string, OpenEditorDocument>>({});
   const [knowledgeByPath, setKnowledgeByPath] = useState<Record<string, NoteKnowledge>>({});
   const [branchFamiliesByPath, setBranchFamiliesByPath] = useState<Record<string, BranchFamily>>({});
-  const [editorPanes, setEditorPanes] = useState<EditorPaneState[]>([
-    {
-      id: PRIMARY_EDITOR_PANE_ID,
-      openPaths: [],
-      activePath: null,
-    },
-  ]);
-  const [focusedEditorPaneId, setFocusedEditorPaneId] = useState(PRIMARY_EDITOR_PANE_ID);
   const [activeDocumentPath, setActiveDocumentPath] = useState<string | null>(null);
   const [propertiesCollapsed, setPropertiesCollapsed] = useState(true);
   const [tagResults, setTagResults] = useState<SearchResult[]>([]);
   const [activeTag, setActiveTag] = useState<string | null>(null);
-  const [dragState, setDragState] = useState<DragState | null>(null);
+  const handleDropRef = useRef<(leafId: string, edge: DropEdge, payload: DragPayload) => void>(() => {});
+  const dragManager = useDragManager((leafId, edge, payload) => handleDropRef.current(leafId, edge, payload));
   const [terminalSessions, setTerminalSessions] = useState<TerminalSessionInfo[]>([]);
   const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null);
   const [terminalBuffers, setTerminalBuffers] = useState<Record<string, string>>({});
-  const [agentAnnotations, setAgentAnnotations] = useState<Record<string, AgentAnnotation>>({});
+  const [agentAnnotations, setAgentAnnotations] = useState<Record<string, { runLabel: string; parentId: string | null }>>({});
   const [workspaceDialog, setWorkspaceDialog] = useState<WorkspaceDialogState | null>(null);
   const [workspaceSettingsDialog, setWorkspaceSettingsDialog] = useState<WorkspaceSettingsDialogState | null>(null);
   const [appearanceMode, setAppearanceMode] = useState<AppearanceMode>(() => readStoredAppearanceMode());
@@ -116,34 +107,10 @@ export function App() {
 
   const activeDocument = activeDocumentPath ? openDocuments[activeDocumentPath] ?? null : null;
   const activeKnowledge = activeDocumentPath ? knowledgeByPath[activeDocumentPath] ?? null : null;
-  const compactEditorChrome = editorPanes.length > 1;
+  const { tree: editorTree, focusedLeafId: editorFocusedLeafId, actions: editorActions } = shellLayout.editorPaneTree;
+  const { tree: terminalTree, focusedLeafId: terminalFocusedLeafId, actions: terminalActions } = shellLayout.terminalPaneTree;
+  const compactEditorChrome = collectLeaves(editorTree).length > 1;
   const resolvedAppearance: ResolvedAppearance = appearanceMode === "system" ? (systemPrefersDark ? "dark" : "light") : appearanceMode;
-  const terminalOutputPreviewById = useMemo(
-    () =>
-      Object.fromEntries(
-        terminalSessions.map((session) => [session.id, summarizeTerminalBuffer(terminalBuffers[session.id] ?? "")] as const),
-      ),
-    [terminalBuffers, terminalSessions],
-  );
-
-  // Poll rendered terminal content for agent detection (xterm renders the raw PTY stream)
-  const [observedAgents, setObservedAgents] = useState<ObservedAgent[]>([]);
-  useEffect(() => {
-    if (!activeTerminalId) {
-      setObservedAgents([]);
-      return;
-    }
-    function poll() {
-      const content = getRenderedTerminalContent(activeTerminalId!);
-      if (content) {
-        setObservedAgents(extractObservedAgents(content));
-      }
-    }
-    poll();
-    const timer = setInterval(poll, 3000);
-    return () => clearInterval(timer);
-  }, [activeTerminalId, terminalBuffers]);
-
   useEffect(() => {
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
 
@@ -212,7 +179,7 @@ export function App() {
       }
 
       if (firstNote) {
-        await openFile(firstNote.path, PRIMARY_EDITOR_PANE_ID);
+        await openFile(firstNote.path, editorFocusedLeafId);
       }
 
       if (cancelled || bootstrapRun !== bootstrapRunRef.current) {
@@ -224,6 +191,19 @@ export function App() {
       setProjectTrees(Object.fromEntries(nextProjectTrees));
       setTerminalSessions(sessions);
       setActiveTerminalId(defaultTerminal.id);
+
+      // Seed the default terminal into the terminal tree
+      const termLeaf = findTerminalLeaf(terminalTree);
+      if (termLeaf) {
+        terminalActions.updateLeafContent(termLeaf.id, (content) => {
+          if (content.kind !== "terminal") return content;
+          return {
+            ...content,
+            terminalIds: sessions.map((s) => s.id),
+            activeTerminalId: defaultTerminal.id,
+          };
+        });
+      }
     }
 
     void bootstrap();
@@ -447,9 +427,10 @@ export function App() {
     }
   }
 
-  function focusEditorPane(paneId: string) {
-    setFocusedEditorPaneId(paneId);
-    const nextActivePath = editorPanes.find((pane) => pane.id === paneId)?.activePath ?? null;
+  function focusEditorPane(leafId: PaneNodeId) {
+    editorActions.focusLeaf(leafId);
+    const leaf = findNode(editorTree, (n) => n.id === leafId) as PaneLeaf | undefined;
+    const nextActivePath = leaf?.content.kind === "editor" ? leaf.content.activePath : null;
     setActiveDocumentPath(nextActivePath);
     setActiveTag(null);
     if (!nextActivePath) {
@@ -457,52 +438,49 @@ export function App() {
     }
   }
 
-  function setPaneActivePath(paneId: string, filePath: string) {
-    setEditorPanes((current) =>
-      current.map((pane) =>
-        pane.id === paneId
-          ? {
-              ...pane,
-              activePath: filePath,
-              openPaths: pane.openPaths.includes(filePath) ? pane.openPaths : [...pane.openPaths, filePath],
-            }
-          : pane,
-      ),
-    );
-    setFocusedEditorPaneId(paneId);
+  function setPaneActivePath(leafId: PaneNodeId, filePath: string) {
+    editorActions.updateLeafContent(leafId, (content) => {
+      if (content.kind !== "editor") return content;
+      return {
+        ...content,
+        activePath: filePath,
+        openPaths: content.openPaths.includes(filePath) ? content.openPaths : [...content.openPaths, filePath],
+      };
+    });
+    editorActions.focusLeaf(leafId);
     setActiveDocumentPath(filePath);
     setActiveTag(null);
     setTagResults([]);
   }
 
-  function closeDocumentInPane(paneId: string, filePath: string) {
-    let nextPanes = sortEditorPanes(
-      editorPanes.map((pane) => (pane.id === paneId ? closeDocumentInPaneState(pane, filePath) : pane)),
-    );
+  function closeDocumentInPane(leafId: PaneNodeId, filePath: string) {
+    editorActions.updateLeafContent(leafId, (content) => {
+      if (content.kind !== "editor") return content;
+      const nextOpenPaths = content.openPaths.filter((p) => p !== filePath);
+      const closedIndex = content.openPaths.indexOf(filePath);
+      const nextActivePath = content.activePath === filePath
+        ? (nextOpenPaths[Math.max(0, closedIndex - 1)] ?? nextOpenPaths[0] ?? null)
+        : content.activePath;
+      return { ...content, openPaths: nextOpenPaths, activePath: nextActivePath };
+    });
 
-    // If a secondary pane is now empty, remove it and clear the split
-    const emptySecondary = nextPanes.find(
-      (pane) => pane.id !== PRIMARY_EDITOR_PANE_ID && pane.openPaths.length === 0,
-    );
-    if (emptySecondary) {
-      nextPanes = nextPanes.filter((pane) => pane.id === PRIMARY_EDITOR_PANE_ID);
-      shellLayout.setEditorSplitOrientation(null);
-    }
-
-    const nextFocusedPaneId = paneId === focusedEditorPaneId ? paneId : focusedEditorPaneId;
-    const nextFocusedPane = nextPanes.find((pane) => pane.id === nextFocusedPaneId) ?? nextPanes[0] ?? null;
-    const nextActivePath = nextFocusedPane?.activePath ?? nextPanes.find((pane) => pane.activePath)?.activePath ?? null;
-
-    setEditorPanes(nextPanes);
-    setFocusedEditorPaneId(nextFocusedPane?.id ?? PRIMARY_EDITOR_PANE_ID);
-    setActiveDocumentPath(nextActivePath);
-    if (!nextActivePath) {
-      setActiveTag(null);
-      setTagResults([]);
-    }
+    setTimeout(() => {
+      const updatedLeaf = findNode(editorTree, (n) => n.id === leafId) as PaneLeaf | undefined;
+      if (updatedLeaf?.content.kind === "editor" && updatedLeaf.content.openPaths.length === 0 && collectLeaves(editorTree).length > 1) {
+        editorActions.removeLeaf(leafId);
+      }
+      const focused = findNode(editorTree, (n) => n.id === editorFocusedLeafId) as PaneLeaf | undefined;
+      const nextPath = focused?.content.kind === "editor" ? focused.content.activePath : null;
+      setActiveDocumentPath(nextPath);
+      if (!nextPath) {
+        setActiveTag(null);
+        setTagResults([]);
+      }
+    }, 0);
   }
 
-  async function openFile(filePath: string, paneId = focusedEditorPaneId) {
+  /** Load a document's content into state without touching the pane tree. */
+  async function ensureDocumentLoaded(filePath: string) {
     const document = await window.exo.notes.read(filePath);
     const [knowledge, branchFamily] =
       document.kind === "markdown"
@@ -526,19 +504,26 @@ export function App() {
       ...current,
       ...(branchFamily ? { [filePath]: branchFamily } : {}),
     }));
-    setEditorPanes((current) => {
-      const next = ensureEditorPane(current, paneId);
-      return next.map((pane) =>
-        pane.id === paneId
-          ? {
-              ...pane,
-              activePath: filePath,
-              openPaths: pane.openPaths.includes(filePath) ? pane.openPaths : [...pane.openPaths, filePath],
-            }
-          : pane,
-      );
-    });
-    setFocusedEditorPaneId(paneId);
+  }
+
+  async function openFile(filePath: string, leafId?: PaneNodeId) {
+    const targetLeafId = leafId ?? editorFocusedLeafId;
+    await ensureDocumentLoaded(filePath);
+
+    // Find the target editor leaf — use targetLeafId if it's an editor, otherwise find any editor leaf
+    const targetLeaf = findNode(editorTree, (n) => n.id === targetLeafId && n.kind === "leaf" && n.content.kind === "editor");
+    const editorLeafId = targetLeaf?.id ?? findEditorLeaf(editorTree)?.id;
+    if (editorLeafId) {
+      editorActions.updateLeafContent(editorLeafId, (content) => {
+        if (content.kind !== "editor") return content;
+        return {
+          ...content,
+          activePath: filePath,
+          openPaths: content.openPaths.includes(filePath) ? content.openPaths : [...content.openPaths, filePath],
+        };
+      });
+      editorActions.focusLeaf(editorLeafId);
+    }
     setActiveDocumentPath(filePath);
     setActiveTag(null);
     setTagResults([]);
@@ -623,14 +608,14 @@ export function App() {
 
     const ensured = resolved ?? await window.exo.notes.ensureTarget(activeDocumentPath, target);
     await reloadTrees();
-    await openFile(ensured, focusedEditorPaneId);
+    await openFile(ensured, editorFocusedLeafId);
   }
 
   async function openTag(tag: string) {
     if (activeDocumentPath) {
       const resolved = await window.exo.notes.resolveTarget(activeDocumentPath, tag);
       if (resolved) {
-        await openFile(resolved, focusedEditorPaneId);
+        await openFile(resolved, editorFocusedLeafId);
         return;
       }
     }
@@ -655,8 +640,21 @@ export function App() {
 
   async function createTerminal(kind: "shell" | "claude" | "codex", cwd?: string, activate = true) {
     const session = await window.exo.terminals.create({ kind, cwd });
-    shellLayout.terminalDock.setCollapsed(false);
     setTerminalSessions((current) => [...current, session]);
+
+    // Add to the focused terminal leaf, or find any terminal leaf
+    const focusedLeaf = findNode(terminalTree, (n) => n.id === terminalFocusedLeafId) as PaneLeaf | undefined;
+    const termLeaf = (focusedLeaf?.content.kind === "terminal" ? focusedLeaf : null) ?? findTerminalLeaf(terminalTree);
+    if (termLeaf) {
+      terminalActions.updateLeafContent(termLeaf.id, (content) => {
+        if (content.kind !== "terminal") return content;
+        return {
+          ...content,
+          terminalIds: [...content.terminalIds, session.id],
+          activeTerminalId: activate ? session.id : content.activeTerminalId,
+        };
+      });
+    }
     if (activate) {
       setActiveTerminalId(session.id);
     }
@@ -681,6 +679,28 @@ export function App() {
       }
       return next;
     });
+
+    // Remove from the terminal leaf
+    const termLeaf = findTerminalLeafBySessionId(terminalTree, id);
+    if (termLeaf) {
+      terminalActions.updateLeafContent(termLeaf.id, (content) => {
+        if (content.kind !== "terminal") return content;
+        const nextIds = content.terminalIds.filter((tid) => tid !== id);
+        return {
+          ...content,
+          terminalIds: nextIds,
+          activeTerminalId: content.activeTerminalId === id ? (nextIds.at(-1) ?? null) : content.activeTerminalId,
+        };
+      });
+      // Remove empty terminal leaf if other terminal leaves exist (but never the last one)
+      setTimeout(() => {
+        const leaf = findNode(terminalTree, (n) => n.id === termLeaf.id) as PaneLeaf | undefined;
+        if (leaf?.content.kind === "terminal" && leaf.content.terminalIds.length === 0 && collectLeaves(terminalTree).length > 1) {
+          terminalActions.removeLeaf(termLeaf.id);
+        }
+      }, 0);
+    }
+
     if (activeTerminalId === id) {
       const fallback = terminalSessions.find((session) => session.id !== id);
       setActiveTerminalId(fallback?.id ?? null);
@@ -704,7 +724,7 @@ export function App() {
       [result.branchFilePath]: result.family,
     }));
     await reloadTrees();
-    await openFile(result.branchFilePath, focusedEditorPaneId);
+    await openFile(result.branchFilePath, editorFocusedLeafId);
   }
 
   function createFileInDirectory(directoryPath: string) {
@@ -733,7 +753,7 @@ export function App() {
       joinPath(directoryPath, ensureDefaultExtension(name, directoryPath, noteRootPaths)),
     );
     await reloadTrees();
-    await openFile(nextPath, focusedEditorPaneId);
+    await openFile(nextPath, editorFocusedLeafId);
   }
 
   function createDirectoryInDirectory(directoryPath: string) {
@@ -773,7 +793,7 @@ export function App() {
     remapOpenPaths(previousPath, nextPath);
     await reloadTrees();
     if (previousPath === activeDocumentPath) {
-      await openFile(nextPath, focusedEditorPaneId);
+      await openFile(nextPath, editorFocusedLeafId);
     }
   }
 
@@ -798,20 +818,24 @@ export function App() {
     setBranchFamiliesByPath((current) =>
       Object.fromEntries(Object.entries(current).filter(([filePath]) => !isPathWithin(targetPath, filePath))),
     );
-    setEditorPanes((current) =>
-      current.map((pane) => {
-        const nextOpenPaths = pane.openPaths.filter((filePath) => !isPathWithin(targetPath, filePath));
-        return {
-          ...pane,
+    // Remove deleted paths from all editor leaves
+    editorActions.setTree(mapLeaves(editorTree, (leaf) => {
+      if (leaf.content.kind !== "editor") return leaf;
+      const nextOpenPaths = leaf.content.openPaths.filter((fp) => !isPathWithin(targetPath, fp));
+      return {
+        ...leaf,
+        content: {
+          ...leaf.content,
           openPaths: nextOpenPaths,
-          activePath: pane.activePath && !isPathWithin(targetPath, pane.activePath)
-            ? pane.activePath
+          activePath: leaf.content.activePath && !isPathWithin(targetPath, leaf.content.activePath)
+            ? leaf.content.activePath
             : nextOpenPaths.at(-1) ?? null,
-        };
-      }),
-    );
+        },
+      };
+    }));
     if (activeDocumentPath && isPathWithin(targetPath, activeDocumentPath)) {
-      const nextActivePath = editorPanes.find((pane) => pane.id === focusedEditorPaneId)?.openPaths.at(-1) ?? null;
+      const focused = findNode(editorTree, (n) => n.id === editorFocusedLeafId) as PaneLeaf | undefined;
+      const nextActivePath = focused?.content.kind === "editor" ? focused.content.activePath : null;
       setActiveDocumentPath(nextActivePath);
     }
     await reloadTrees();
@@ -869,70 +893,143 @@ export function App() {
     );
     setKnowledgeByPath((current) => remapRecord(current));
     setBranchFamiliesByPath((current) => remapRecord(current));
-    setEditorPanes((current) =>
-      current.map((pane) => ({
-        ...pane,
-        openPaths: pane.openPaths.map((filePath) =>
-          isPathWithin(sourcePath, filePath) ? filePath.replace(sourcePath, nextPath) : filePath,
-        ),
-        activePath:
-          pane.activePath && isPathWithin(sourcePath, pane.activePath)
-            ? pane.activePath.replace(sourcePath, nextPath)
-            : pane.activePath,
-      })),
-    );
+    editorActions.setTree(mapLeaves(editorTree, (leaf) => {
+      if (leaf.content.kind !== "editor") return leaf;
+      return {
+        ...leaf,
+        content: {
+          ...leaf.content,
+          openPaths: leaf.content.openPaths.map((fp) =>
+            isPathWithin(sourcePath, fp) ? fp.replace(sourcePath, nextPath) : fp,
+          ),
+          activePath: leaf.content.activePath && isPathWithin(sourcePath, leaf.content.activePath)
+            ? leaf.content.activePath.replace(sourcePath, nextPath)
+            : leaf.content.activePath,
+        },
+      };
+    }));
     if (activeDocumentPath && isPathWithin(sourcePath, activeDocumentPath)) {
       setActiveDocumentPath(activeDocumentPath.replace(sourcePath, nextPath));
     }
   }
 
-  function startDocumentDrag(filePath: string, sourcePaneId?: string) {
-    setDragState({ kind: "document", filePath, sourcePaneId });
-  }
-
-  function moveDocumentToSplit(orientation: "right" | "bottom") {
-    if (!dragState || dragState.kind !== "document") {
-      return;
+  // Assign the drop handler ref — called by useDragManager on mouseup over a drop zone
+  handleDropRef.current = (leafId: string, edge: DropEdge, payload: DragPayload) => {
+    if (payload.kind === "document") {
+      handleDocumentDrop(leafId, edge, payload.filePath, payload.sourcePaneId);
+    } else {
+      handleTerminalDrop(leafId, edge, payload.sessionId);
     }
+  };
 
-    const targetPaneId =
-      dragState.sourcePaneId === SECONDARY_EDITOR_PANE_ID ? PRIMARY_EDITOR_PANE_ID : SECONDARY_EDITOR_PANE_ID;
+  function handleDocumentDrop(leafId: PaneNodeId, edge: DropEdge, filePath: string, sourceLeafId?: string) {
+    // Ensure the document content is loaded (may be a new file dragged from explorer)
+    void ensureDocumentLoaded(filePath);
 
-    shellLayout.setEditorSplitOrientation(orientation);
-    if (!openDocuments[dragState.filePath]) {
-      void openFile(dragState.filePath, targetPaneId);
-      setDragState(null);
-      return;
-    }
-
-    setEditorPanes((current) => {
-      const next = ensureEditorPane(current, targetPaneId).map((pane) => ({
-        ...pane,
-        openPaths: [...pane.openPaths],
-      }));
-
-      if (dragState.sourcePaneId) {
-        const sourcePane = next.find((pane) => pane.id === dragState.sourcePaneId);
-        if (sourcePane && sourcePane.id !== targetPaneId) {
-          sourcePane.openPaths = sourcePane.openPaths.filter((filePath) => filePath !== dragState.filePath);
-          if (sourcePane.activePath === dragState.filePath) {
-            sourcePane.activePath = sourcePane.openPaths.at(-1) ?? null;
+    // All operations are within the editor tree only
+    if (edge === "center") {
+      editorActions.setTree((prev) => {
+        let tree = prev;
+        if (sourceLeafId && sourceLeafId !== leafId) {
+          const src = findNode(tree, (n) => n.id === sourceLeafId) as PaneLeaf | undefined;
+          if (src?.content.kind === "editor") {
+            const remaining = src.content.openPaths.filter((p) => p !== filePath);
+            if (remaining.length === 0 && collectLeaves(tree).length > 1) {
+              tree = removeNode(tree, sourceLeafId) ?? tree;
+            } else {
+              tree = updateNode(tree, sourceLeafId, (node) => {
+                if (node.kind !== "leaf" || node.content.kind !== "editor") return node;
+                return { ...node, content: { ...node.content, openPaths: remaining, activePath: node.content.activePath === filePath ? (remaining.at(-1) ?? null) : node.content.activePath } };
+              });
+            }
           }
         }
+        tree = updateNode(tree, leafId, (node) => {
+          if (node.kind !== "leaf" || node.content.kind !== "editor") return node;
+          return {
+            ...node,
+            content: {
+              ...node.content,
+              activePath: filePath,
+              openPaths: node.content.openPaths.includes(filePath) ? node.content.openPaths : [...node.content.openPaths, filePath],
+            },
+          };
+        });
+        return tree;
+      });
+      editorActions.focusLeaf(leafId);
+      setActiveDocumentPath(filePath);
+    } else {
+      const direction: "horizontal" | "vertical" = (edge === "left" || edge === "right") ? "horizontal" : "vertical";
+      const position: "before" | "after" = (edge === "left" || edge === "top") ? "before" : "after";
+      const newLeafId = `pane-${Date.now().toString(36)}`;
+      const newContent: EditorPaneContent = { kind: "editor", openPaths: [filePath], activePath: filePath };
+
+      editorActions.setTree((prev) => {
+        let tree = prev;
+        const newLeaf: PaneLeaf = { kind: "leaf", id: newLeafId, content: newContent };
+        tree = updateNode(tree, leafId, (node) => ({
+          kind: "split" as const,
+          id: `split-${Date.now().toString(36)}`,
+          direction,
+          ratio: 0.5,
+          children: (position === "before" ? [newLeaf, node as PaneLeaf] : [node as PaneLeaf, newLeaf]) as [PaneNode, PaneNode],
+        }));
+        if (sourceLeafId) {
+          const src = findNode(tree, (n) => n.id === sourceLeafId) as PaneLeaf | undefined;
+          if (src?.content.kind === "editor") {
+            const remaining = src.content.openPaths.filter((p) => p !== filePath);
+            if (remaining.length === 0 && collectLeaves(tree).length > 1) {
+              tree = removeNode(tree, sourceLeafId) ?? tree;
+            } else {
+              tree = updateNode(tree, sourceLeafId, (node) => {
+                if (node.kind !== "leaf" || node.content.kind !== "editor") return node;
+                return { ...node, content: { ...node.content, openPaths: remaining, activePath: node.content.activePath === filePath ? (remaining.at(-1) ?? null) : node.content.activePath } };
+              });
+            }
+          }
+        }
+        return tree;
+      });
+      editorActions.focusLeaf(newLeafId);
+      setActiveDocumentPath(filePath);
+    }
+  }
+
+  function handleTerminalDrop(leafId: PaneNodeId, edge: DropEdge, sessionId: string) {
+    // All operations are within the terminal tree only
+    if (edge === "center") {
+      const sourceLeaf = findTerminalLeafBySessionId(terminalTree, sessionId);
+      if (sourceLeaf && sourceLeaf.id !== leafId) {
+        terminalActions.updateLeafContent(sourceLeaf.id, (content) => {
+          if (content.kind !== "terminal") return content;
+          return { ...content, terminalIds: content.terminalIds.filter((id) => id !== sessionId) };
+        });
+      }
+      terminalActions.updateLeafContent(leafId, (content) => {
+        if (content.kind !== "terminal") return content;
+        return {
+          ...content,
+          terminalIds: content.terminalIds.includes(sessionId) ? content.terminalIds : [...content.terminalIds, sessionId],
+          activeTerminalId: sessionId,
+        };
+      });
+    } else {
+      const direction: "horizontal" | "vertical" = (edge === "left" || edge === "right") ? "horizontal" : "vertical";
+      const position: "before" | "after" = (edge === "left" || edge === "top") ? "before" : "after";
+
+      const sourceLeaf = findTerminalLeafBySessionId(terminalTree, sessionId);
+      if (sourceLeaf) {
+        terminalActions.updateLeafContent(sourceLeaf.id, (content) => {
+          if (content.kind !== "terminal") return content;
+          return { ...content, terminalIds: content.terminalIds.filter((id) => id !== sessionId) };
+        });
       }
 
-      const targetPane = next.find((pane) => pane.id === targetPaneId)!;
-      if (!targetPane.openPaths.includes(dragState.filePath)) {
-        targetPane.openPaths.push(dragState.filePath);
-      }
-      targetPane.activePath = dragState.filePath;
-
-      return sortEditorPanes(next);
-    });
-
-    setFocusedEditorPaneId(targetPaneId);
-    setActiveDocumentPath(dragState.filePath);
-    setDragState(null);
+      const newContent: TerminalPaneContent = { kind: "terminal", terminalIds: [sessionId], activeTerminalId: sessionId };
+      terminalActions.splitLeaf(leafId, direction, newContent, position);
+    }
+    setActiveTerminalId(sessionId);
   }
 
   if (!workspaceModel) {
@@ -949,66 +1046,92 @@ export function App() {
       searchQuery={searchQuery}
       searchResults={workspaceSearchResults}
       shellLayout={shellLayout}
-      noteContent={sortEditorPanes(editorPanes).map((pane) => (
-        <EditorPane
-          key={pane.id}
-          pane={pane}
-          documents={openDocuments}
-          branchFamiliesByPath={branchFamiliesByPath}
-          propertiesCollapsed={propertiesCollapsed}
-          isFocused={pane.id === focusedEditorPaneId}
-          onFocusPane={() => focusEditorPane(pane.id)}
-          onActivateTab={(filePath) => setPaneActivePath(pane.id, filePath)}
-          onCloseTab={(filePath) => closeDocumentInPane(pane.id, filePath)}
-          onStartDocumentDrag={(filePath, paneId) => startDocumentDrag(filePath, paneId)}
-          onEndDocumentDrag={() => setDragState(null)}
-          onToggleProperties={() => setPropertiesCollapsed((current) => !current)}
-          onUpdateFrontmatter={updateFrontmatter}
-          onBodyChange={updateBody}
-          onSave={() => void (pane.activePath ? saveDocument(pane.activePath) : Promise.resolve())}
-          onOpenTag={(tag) => void openTag(tag)}
-          onOpenTarget={(target) => void openKnowledgeTarget(target)}
-          onOpenBranch={(filePath) => void openFile(filePath, pane.id)}
-          onSuggestTargets={(query) => suggestNoteTargets(query)}
-          onCreateBranch={() => void createBranchFromActiveDocument()}
-          appearance={resolvedAppearance}
-          compact={compactEditorChrome}
-        />
-      ))}
-      activeDocument={activeDocument}
-      activeKnowledge={activeKnowledge}
-      activeTag={activeTag}
-      tagResults={tagResults}
-      terminalSessions={terminalSessions}
-      activeTerminalId={activeTerminalId}
-      terminalBuffers={terminalBuffers}
-      terminalOutputPreviewById={terminalOutputPreviewById}
-      agentAnnotations={agentAnnotations}
-      observedAgents={observedAgents}
-      compactEditorChrome={compactEditorChrome}
+      renderEditorLeaf={(leaf, isFocused) => {
+        const pane: EditorPaneState = {
+          id: leaf.id,
+          openPaths: leaf.content.kind === "editor" ? leaf.content.openPaths : [],
+          activePath: leaf.content.kind === "editor" ? leaf.content.activePath : null,
+        };
+        return (
+          <>
+            <EditorPane
+              key={leaf.id}
+              pane={pane}
+              documents={openDocuments}
+              branchFamiliesByPath={branchFamiliesByPath}
+              propertiesCollapsed={propertiesCollapsed}
+              isFocused={isFocused}
+              onFocusPane={() => focusEditorPane(leaf.id)}
+              onActivateTab={(filePath) => setPaneActivePath(leaf.id, filePath)}
+              onCloseTab={(filePath) => closeDocumentInPane(leaf.id, filePath)}
+              onClosePane={collectLeaves(editorTree).length > 1 ? () => editorActions.removeLeaf(leaf.id) : null}
+              dragManager={dragManager}
+              onToggleProperties={() => setPropertiesCollapsed((current) => !current)}
+              onUpdateFrontmatter={updateFrontmatter}
+              onBodyChange={updateBody}
+              onSave={() => void (leaf.content.kind === "editor" && leaf.content.activePath ? saveDocument(leaf.content.activePath) : Promise.resolve())}
+              onOpenTag={(tag) => void openTag(tag)}
+              onOpenTarget={(target) => void openKnowledgeTarget(target)}
+              onOpenBranch={(filePath) => void openFile(filePath, leaf.id)}
+              onSuggestTargets={(query) => suggestNoteTargets(query)}
+              onCreateBranch={() => void createBranchFromActiveDocument()}
+              appearance={resolvedAppearance}
+              compact={compactEditorChrome}
+            />
+            <InspectorDock
+              document={activeDocument}
+              knowledge={activeKnowledge}
+              open={!shellLayout.inspectorCollapsed}
+              activeTag={activeTag}
+              tagResults={tagResults}
+              onToggle={() => shellLayout.setInspectorCollapsed((c) => !c)}
+              onOpenTarget={(target) => void openKnowledgeTarget(target)}
+              onOpenExternal={(target) => void window.exo.shell.openExternal(target)}
+              onOpenTag={(tag) => void openTag(tag)}
+            />
+          </>
+        );
+      }}
+      renderTerminalLeaf={(leaf, isFocused) => {
+        const terminalLeafSessions = terminalSessions.filter((s) => leaf.content.kind === "terminal" && leaf.content.terminalIds.includes(s.id));
+        const leafActiveTerminalId = leaf.content.kind === "terminal" ? leaf.content.activeTerminalId : null;
+        return (
+          <TerminalDock
+            placement="right"
+            compact={false}
+            empty={terminalLeafSessions.length === 0}
+            sessions={terminalLeafSessions}
+            activeTerminalId={leafActiveTerminalId}
+            buffers={terminalBuffers}
+            appearance={resolvedAppearance}
+            onSetActiveTerminal={(id) => {
+              terminalActions.updateLeafContent(leaf.id, (content) => {
+                if (content.kind !== "terminal") return content;
+                return { ...content, activeTerminalId: id };
+              });
+              setActiveTerminalId(id);
+            }}
+            onWrite={(id, data) => void window.exo.terminals.write(id, data)}
+            onResize={(id, cols, rows) => void window.exo.terminals.resize(id, cols, rows)}
+            onKill={(id) => void closeTerminal(id)}
+            dragManager={dragManager}
+            onTogglePlacement={() => {}}
+            headerActions={null}
+          />
+        );
+      }}
       onAppearanceModeChange={setAppearanceMode}
       onOpenWorkspaceSettings={() => void openWorkspaceSettingsDialog()}
       onSearchQueryChange={setSearchQuery}
-      onOpenFile={(filePath) => void openFile(filePath, focusedEditorPaneId)}
+      onOpenFile={(filePath) => void openFile(filePath)}
       onOpenTag={(tag) => void openTag(tag)}
-      onStartDocumentDrag={(filePath) => startDocumentDrag(filePath)}
-      onEndDocumentDrag={() => setDragState(null)}
+      dragManager={dragManager}
       onCreateFile={(directoryPath) => createFileInDirectory(directoryPath)}
       onCreateDirectory={(directoryPath) => createDirectoryInDirectory(directoryPath)}
       onCreateTerminalInDirectory={(directoryPath) => void createTerminal("shell", directoryPath)}
       onRenamePath={(targetPath) => renameWorkspacePath(targetPath)}
       onDeletePath={(targetPath) => deleteWorkspacePath(targetPath)}
-      onWriteTerminal={(id, data) => void window.exo.terminals.write(id, data)}
-      onResizeTerminal={(id, cols, rows) => void window.exo.terminals.resize(id, cols, rows)}
-      onKillTerminal={(id) => void closeTerminal(id)}
       onCreateTerminal={(kind) => void createTerminal(kind)}
-      onSetActiveTerminal={setActiveTerminalId}
-      onOpenTarget={(target) => void openKnowledgeTarget(target)}
-      onOpenExternal={(target) => void window.exo.shell.openExternal(target)}
-      onFocusAgent={setActiveTerminalId}
-      onMoveDocumentToSplit={moveDocumentToSplit}
-      terminalDragActive={dragState?.kind === "terminal"}
-      documentDragActive={dragState?.kind === "document"}
       />
 
       {workspaceDialog ? (
@@ -1247,104 +1370,7 @@ function isPathWithin(parentPath: string, targetPath: string): boolean {
   return targetPath === parentPath || targetPath.startsWith(`${parentPath}/`);
 }
 
-function summarizeTerminalBuffer(buffer: string): string {
-  const lines = buffer
-    .replace(/\u001B\[[0-9;?]*[ -/]*[@-~]/g, "")
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  return lines.at(-1)?.slice(0, 160) ?? "No activity yet";
-}
-
-export interface ObservedAgent {
-  name: string;
-  description: string;
-  status: "running" | "done";
-}
-
-const ANSI_STRIP = /\u001B\[[0-9;?]*[ -/]*[@-~]/g;
-
-function extractObservedAgents(buffer: string): ObservedAgent[] {
-  // Strip ANSI codes and normalize whitespace from line wrapping
-  const clean = buffer.replace(ANSI_STRIP, "").replace(/\r/g, "");
-  const agents: ObservedAgent[] = [];
-  const seen = new Set<string>();
-
-  // Match patterns like:
-  //   ● Agent(Research Bun alternatives — performance)
-  //   ● Explore(Research Bun alternatives: D
-  //   Agent(description)  (without bullet)
-  // The description may wrap across lines, so join all text between ( and )
-  // Use a multi-pass approach: find "Agent(" or "Explore(" then grab until closing ")"
-  const lines = clean.split("\n");
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const toolMatch = line.match(/(?:^|[●•]\s*)(Agent|Explore|Plan)\((.*)$/);
-    if (!toolMatch) continue;
-
-    const name = toolMatch[1];
-    let desc = toolMatch[2];
-
-    // If no closing paren on this line, gather continuation lines
-    if (!desc.includes(")")) {
-      for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
-        desc += " " + lines[j].trim();
-        if (desc.includes(")")) break;
-      }
-    }
-
-    // Extract content before closing paren
-    const parenEnd = desc.indexOf(")");
-    if (parenEnd >= 0) {
-      desc = desc.slice(0, parenEnd);
-    }
-    desc = desc.replace(/\s+/g, " ").trim();
-
-    // Skip if it looks like a code reference rather than a spawn
-    if (desc.length < 2) continue;
-
-    const key = `${name}:${desc.slice(0, 50)}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-
-    // Check if "Backgrounded agent" or "completed" appears after this line
-    const remaining = lines.slice(i + 1).join("\n");
-    const isDone = /completed|returned a result|agent.*finished/i.test(remaining);
-    const isBackground = /[Bb]ackgrounded agent/i.test(lines[i + 1] ?? "") || /[Bb]ackgrounded agent/i.test(lines[i + 2] ?? "");
-
-    agents.push({
-      name,
-      description: desc,
-      status: isDone ? "done" : "running",
-    });
-  }
-
-  return agents;
-}
-
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-function ensureEditorPane(panes: EditorPaneState[], paneId: string): EditorPaneState[] {
-  if (panes.some((pane) => pane.id === paneId)) {
-    return panes;
-  }
-
-  return sortEditorPanes([
-    ...panes,
-    {
-      id: paneId,
-      openPaths: [],
-      activePath: null,
-    },
-  ]);
-}
-
-function sortEditorPanes(panes: EditorPaneState[]): EditorPaneState[] {
-  return [...panes].sort((left, right) => {
-    const rank = (paneId: string) => (paneId === PRIMARY_EDITOR_PANE_ID ? 0 : 1);
-    return rank(left.id) - rank(right.id);
-  });
-}

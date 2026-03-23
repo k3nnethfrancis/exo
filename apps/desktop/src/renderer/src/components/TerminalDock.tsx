@@ -3,6 +3,7 @@ import { Bot, GripVertical, SquareTerminal, X } from "lucide-react";
 
 import type { TerminalSessionInfo } from "../../../shared/api";
 import type { ResolvedAppearance } from "../App";
+import type { DragManager } from "../hooks/useDragManager";
 import { ChromeTab } from "./Chrome";
 import { TerminalView } from "./TerminalView";
 
@@ -18,8 +19,7 @@ interface TerminalDockProps {
   onWrite: (id: string, data: string) => void;
   onResize: (id: string, cols: number, rows: number) => void;
   onKill: (id: string) => void;
-  onStartDockDrag: () => void;
-  onEndDockDrag: () => void;
+  dragManager: DragManager;
   onTogglePlacement: () => void;
   ref?: Ref<HTMLDivElement>;
   headerActions?: ReactNode;
@@ -40,8 +40,7 @@ export function TerminalDock(props: TerminalDockProps) {
     onWrite,
     onResize,
     onKill,
-    onStartDockDrag,
-    onEndDockDrag,
+    dragManager,
     onTogglePlacement,
     ref,
     headerActions,
@@ -66,14 +65,14 @@ export function TerminalDock(props: TerminalDockProps) {
                   active={session.id === activeTerminalId}
                   className="terminal-tab"
                   testId={`terminal-tab-${session.kind}`}
-                  draggable
                   onClick={() => onSetActiveTerminal(session.id)}
                   onDoubleClick={() => onTogglePlacement()}
-                  onDragStart={(event) => {
-                    event.dataTransfer.setData("application/x-exo-dock", session.id);
-                    onStartDockDrag();
+                  onMouseDown={(event) => {
+                    dragManager.startDrag(event, {
+                      kind: "terminal",
+                      sessionId: session.id,
+                    });
                   }}
-                  onDragEnd={() => onEndDockDrag()}
                   title={placement === "right" ? "Drag to bottom or double-click to dock bottom" : "Drag to right or double-click to dock right"}
                   leading={<GripVertical size={11} />}
                   trailing={session.kind === "shell" ? <SquareTerminal size={12} /> : <Bot size={12} />}

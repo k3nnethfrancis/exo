@@ -1,5 +1,6 @@
 import { ChevronDown, ChevronRight, FolderTree, Hash } from "lucide-react";
 import type { SearchResult, TreeNode } from "@exo/core";
+import type { DragManager } from "../hooks/useDragManager";
 
 export interface RootSection {
   label: string;
@@ -16,16 +17,14 @@ interface SearchSectionProps {
   label: string;
   results: SearchResult[];
   onOpenFile: (filePath: string) => void;
-  onStartDocumentDrag: (filePath: string) => void;
-  onEndDocumentDrag: () => void;
+  dragManager: DragManager;
 }
 
 interface TagSearchSectionProps {
   results: SearchResult[];
   onOpenFile: (filePath: string) => void;
   onOpenTag: (tag: string) => void;
-  onStartDocumentDrag: (filePath: string) => void;
-  onEndDocumentDrag: () => void;
+  dragManager: DragManager;
 }
 
 interface SectionProps {
@@ -34,8 +33,7 @@ interface SectionProps {
   expandedPaths: Set<string>;
   onTogglePath: (path: string) => void;
   onOpenFile: (filePath: string) => void;
-  onStartDocumentDrag: (filePath: string) => void;
-  onEndDocumentDrag: () => void;
+  dragManager: DragManager;
   onContextMenu: (event: React.MouseEvent, target: ContextTarget) => void;
   showHeader?: boolean;
 }
@@ -43,7 +41,7 @@ interface SectionProps {
 export const ROOT_GROUP_PREFIX = "__root__:";
 
 export function SearchSection(props: SearchSectionProps) {
-  const { label, results, onOpenFile, onStartDocumentDrag, onEndDocumentDrag } = props;
+  const { label, results, onOpenFile, dragManager } = props;
   if (results.length === 0) {
     return null;
   }
@@ -55,13 +53,10 @@ export function SearchSection(props: SearchSectionProps) {
         <button
           key={result.filePath}
           className="search-result"
-          draggable
           onClick={() => onOpenFile(result.filePath)}
-          onDragStart={(event) => {
-            event.dataTransfer.setData("application/x-exo-document", JSON.stringify({ filePath: result.filePath }));
-            onStartDocumentDrag(result.filePath);
-          }}
-          onDragEnd={onEndDocumentDrag}
+          onMouseDown={(event) =>
+            dragManager.startDrag(event, { kind: "document", filePath: result.filePath })
+          }
           type="button"
         >
           <strong>{result.title}</strong>
@@ -73,7 +68,7 @@ export function SearchSection(props: SearchSectionProps) {
 }
 
 export function TagSearchSection(props: TagSearchSectionProps) {
-  const { results, onOpenFile, onOpenTag, onStartDocumentDrag, onEndDocumentDrag } = props;
+  const { results, onOpenFile, onOpenTag, dragManager } = props;
   if (results.length === 0) {
     return null;
   }
@@ -89,13 +84,10 @@ export function TagSearchSection(props: TagSearchSectionProps) {
           </button>
           <button
             className="search-result__file"
-            draggable
             onClick={() => onOpenFile(result.filePath)}
-            onDragStart={(event) => {
-              event.dataTransfer.setData("application/x-exo-document", JSON.stringify({ filePath: result.filePath }));
-              onStartDocumentDrag(result.filePath);
-            }}
-            onDragEnd={onEndDocumentDrag}
+            onMouseDown={(event) =>
+              dragManager.startDrag(event, { kind: "document", filePath: result.filePath })
+            }
             type="button"
           >
             <strong>{result.title}</strong>
@@ -114,8 +106,7 @@ export function Section(props: SectionProps) {
     expandedPaths,
     onTogglePath,
     onOpenFile,
-    onStartDocumentDrag,
-    onEndDocumentDrag,
+    dragManager,
     onContextMenu,
     showHeader = true,
   } = props;
@@ -135,8 +126,7 @@ export function Section(props: SectionProps) {
           expandedPaths={expandedPaths}
           onTogglePath={onTogglePath}
           onOpenFile={onOpenFile}
-          onStartDocumentDrag={onStartDocumentDrag}
-          onEndDocumentDrag={onEndDocumentDrag}
+          dragManager={dragManager}
           onContextMenu={onContextMenu}
         />
       </div>
@@ -167,8 +157,7 @@ export function Section(props: SectionProps) {
                 expandedPaths={expandedPaths}
                 onTogglePath={onTogglePath}
                 onOpenFile={onOpenFile}
-                onStartDocumentDrag={onStartDocumentDrag}
-                onEndDocumentDrag={onEndDocumentDrag}
+                dragManager={dragManager}
                 onContextMenu={onContextMenu}
               />
             ) : null}
@@ -185,8 +174,7 @@ function TreeNodes({
   expandedPaths,
   onTogglePath,
   onOpenFile,
-  onStartDocumentDrag,
-  onEndDocumentDrag,
+  dragManager,
   onContextMenu,
 }: {
   nodes: TreeNode[];
@@ -194,8 +182,7 @@ function TreeNodes({
   expandedPaths: Set<string>;
   onTogglePath: (path: string) => void;
   onOpenFile: (filePath: string) => void;
-  onStartDocumentDrag: (filePath: string) => void;
-  onEndDocumentDrag: () => void;
+  dragManager: DragManager;
   onContextMenu: (event: React.MouseEvent, target: ContextTarget) => void;
 }) {
   return (
@@ -222,8 +209,7 @@ function TreeNodes({
                   expandedPaths={expandedPaths}
                   onTogglePath={onTogglePath}
                   onOpenFile={onOpenFile}
-                  onStartDocumentDrag={onStartDocumentDrag}
-                  onEndDocumentDrag={onEndDocumentDrag}
+                  dragManager={dragManager}
                   onContextMenu={onContextMenu}
                 />
               ) : null}
@@ -236,13 +222,10 @@ function TreeNodes({
             key={node.path}
             className="tree-node tree-node--file"
             style={{ paddingLeft: `${depth * 14 + 28}px` }}
-            draggable
             onClick={() => onOpenFile(node.path)}
-            onDragStart={(event) => {
-              event.dataTransfer.setData("application/x-exo-document", JSON.stringify({ filePath: node.path }));
-              onStartDocumentDrag(node.path);
-            }}
-            onDragEnd={onEndDocumentDrag}
+            onMouseDown={(event) =>
+              dragManager.startDrag(event, { kind: "document", filePath: node.path })
+            }
             onContextMenu={(event) => onContextMenu(event, { path: node.path, kind: "file" })}
             type="button"
           >

@@ -1,4 +1,4 @@
-import type { DragEventHandler, MouseEventHandler, ReactNode } from "react";
+import type { MouseEventHandler, ReactNode } from "react";
 
 interface RailButtonProps {
   title: string;
@@ -13,11 +13,9 @@ interface ChromeTabProps {
   title?: string;
   testId?: string;
   className?: string;
-  draggable?: boolean;
-  onClick: MouseEventHandler<HTMLButtonElement>;
-  onDoubleClick?: MouseEventHandler<HTMLButtonElement>;
-  onDragStart?: DragEventHandler<HTMLButtonElement>;
-  onDragEnd?: DragEventHandler<HTMLButtonElement>;
+  onClick: MouseEventHandler<HTMLElement>;
+  onDoubleClick?: MouseEventHandler<HTMLElement>;
+  onMouseDown?: MouseEventHandler<HTMLElement>;
   leading?: ReactNode;
   trailing?: ReactNode;
   closeLabel?: string;
@@ -48,11 +46,9 @@ export function ChromeTab(props: ChromeTabProps) {
     title,
     testId,
     className,
-    draggable,
     onClick,
     onDoubleClick,
-    onDragStart,
-    onDragEnd,
+    onMouseDown,
     leading,
     trailing,
     closeLabel,
@@ -63,16 +59,15 @@ export function ChromeTab(props: ChromeTabProps) {
   } = props;
 
   return (
-    <button
+    <div
       className={`chrome-tab ${active ? "chrome-tab--active" : ""} ${className ?? ""}`.trim()}
       data-testid={testId}
-      draggable={draggable}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
+      onMouseDown={onMouseDown}
       title={title}
-      type="button"
+      role="button"
+      tabIndex={0}
     >
       {leading}
       <span className="chrome-tab__label">{children}</span>
@@ -88,6 +83,6 @@ export function ChromeTab(props: ChromeTabProps) {
           {closeIcon}
         </span>
       ) : null}
-    </button>
+    </div>
   );
 }

@@ -1,5 +1,6 @@
 import type { BranchFamily, NoteDocument } from "@exo/core";
 import type { ResolvedAppearance } from "../App";
+import type { DragManager } from "../hooks/useDragManager";
 
 import { ChromeTab } from "./Chrome";
 import { getDocumentDisplayTitle } from "./documentDisplay";
@@ -24,8 +25,9 @@ interface EditorPaneProps {
   onFocusPane: () => void;
   onActivateTab: (filePath: string) => void;
   onCloseTab: (filePath: string) => void;
-  onStartDocumentDrag: (filePath: string, paneId: string) => void;
-  onEndDocumentDrag: () => void;
+  /** Close this entire pane (merge back into parent split). Null when this is the only pane. */
+  onClosePane: (() => void) | null;
+  dragManager: DragManager;
   onToggleProperties: () => void;
   onUpdateFrontmatter: (key: string, value: unknown) => void;
   onBodyChange: (body: string) => void;
@@ -49,8 +51,8 @@ export function EditorPane(props: EditorPaneProps) {
     onFocusPane,
     onActivateTab,
     onCloseTab,
-    onStartDocumentDrag,
-    onEndDocumentDrag,
+    onClosePane,
+    dragManager,
     onToggleProperties,
     onUpdateFrontmatter,
     onBodyChange,
@@ -85,16 +87,14 @@ export function EditorPane(props: EditorPaneProps) {
               key={document.filePath}
               active={document.filePath === pane.activePath}
               className="tab-strip__tab"
-              draggable
               onClick={() => onActivateTab(document.filePath)}
-              onDragStart={(event) => {
-                event.dataTransfer.setData(
-                  "application/x-exo-document",
-                  JSON.stringify({ filePath: document.filePath, sourcePaneId: pane.id }),
-                );
-                onStartDocumentDrag(document.filePath, pane.id);
+              onMouseDown={(event) => {
+                dragManager.startDrag(event, {
+                  kind: "document",
+                  filePath: document.filePath,
+                  sourcePaneId: pane.id,
+                });
               }}
-              onDragEnd={onEndDocumentDrag}
               leading={<span className={document.dirty ? "status-dot status-dot--dirty" : "status-dot"} />}
               closeLabel={`Close ${displayTitle}`}
               onClose={(event) => {
@@ -107,6 +107,17 @@ export function EditorPane(props: EditorPaneProps) {
             </ChromeTab>
           );
         })}
+        {onClosePane ? (
+          <button
+            className="tab-strip__close-pane"
+            onClick={onClosePane}
+            title="Close pane"
+            aria-label="Close pane"
+            type="button"
+          >
+            ×
+          </button>
+        ) : null}
       </div>
 
       <NoteEditor

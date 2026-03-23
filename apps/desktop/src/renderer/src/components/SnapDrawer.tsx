@@ -12,6 +12,7 @@ interface SnapDrawerProps {
   preferredHeight?: number;
   minHeight?: number;
   minRemaining?: number;
+  actions?: ReactNode;
   toggleTestId?: string;
   drawerTestId?: string;
   panelTestId?: string;
@@ -38,6 +39,7 @@ export function SnapDrawer(props: SnapDrawerProps) {
     preferredHeight,
     minHeight = 140,
     minRemaining = 140,
+    actions,
     toggleTestId,
     drawerTestId,
     panelTestId,
@@ -156,12 +158,15 @@ export function SnapDrawer(props: SnapDrawerProps) {
       )}
 
       <div className="snap-drawer__surface" style={!collapsed ? { height: `${height ?? resolveDefaultHeight(containerRef.current, defaultOpenFraction, minHeight, minRemaining)}px` } : undefined}>
-        <button className="snap-drawer__bar" data-testid={toggleTestId} onClick={toggleDrawer} type="button">
-          {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-          {icon ? <span className="snap-drawer__icon">{icon}</span> : null}
-          <span className="snap-drawer__label">{label}</span>
-          {summary ? <span className="snap-drawer__summary">{summary}</span> : null}
-        </button>
+        <div className="snap-drawer__header">
+          <button className="snap-drawer__bar" data-testid={toggleTestId} onClick={toggleDrawer} type="button">
+            {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+            {icon ? <span className="snap-drawer__icon">{icon}</span> : null}
+            <span className="snap-drawer__label">{label}</span>
+            {summary ? <span className="snap-drawer__summary">{summary}</span> : null}
+          </button>
+          {actions ? <div className="snap-drawer__actions">{actions}</div> : null}
+        </div>
 
         {collapsed ? null : (
           <div className="snap-drawer__panel" data-testid={panelTestId}>
