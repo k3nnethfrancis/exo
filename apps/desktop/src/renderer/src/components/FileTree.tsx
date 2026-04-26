@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  ClipboardCopy,
   FilePlus2,
   FolderPlus,
   Monitor,
@@ -14,7 +15,7 @@ import {
   SunMedium,
   Trash2,
 } from "lucide-react";
-import type { WorkspaceSearchResults } from "@exo/core";
+import type { SemanticSearchResult, WorkspaceSearchResults } from "@exo/core";
 import type { AppearanceMode, ResolvedAppearance } from "../App";
 import type { DragManager } from "../hooks/useDragManager";
 import { RailButton } from "./Chrome";
@@ -36,6 +37,7 @@ interface FileTreeProps {
   resolvedAppearance: ResolvedAppearance;
   searchQuery: string;
   searchResults: WorkspaceSearchResults;
+  semanticResults: SemanticSearchResult[];
   onAppearanceModeChange: (mode: AppearanceMode) => void;
   onToggleCollapsed: () => void;
   onOpenWorkspaceSettings: () => void;
@@ -60,6 +62,7 @@ export function FileTree(props: FileTreeProps) {
     resolvedAppearance,
     searchQuery,
     searchResults,
+    semanticResults,
     onAppearanceModeChange,
     onToggleCollapsed,
     onOpenWorkspaceSettings,
@@ -215,7 +218,7 @@ export function FileTree(props: FileTreeProps) {
               <div className="tree-section">
                 <div className="tree-section__title">Search Results</div>
                 <div className="search-results" data-testid="search-results">
-                  {searchResults.notes.length === 0 && searchResults.projectFiles.length === 0 && searchResults.tags.length === 0 ? (
+                  {searchResults.notes.length === 0 && searchResults.projectFiles.length === 0 && searchResults.tags.length === 0 && semanticResults.length === 0 ? (
                     <div className="search-result__empty">No matches</div>
                   ) : null}
 
@@ -235,6 +238,17 @@ export function FileTree(props: FileTreeProps) {
                     results={searchResults.tags}
                     onOpenFile={onOpenFile}
                     onOpenTag={onOpenTag}
+                    dragManager={dragManager}
+                  />
+                  <SearchSection
+                    label="Semantic"
+                    results={semanticResults.map((r) => ({
+                      filePath: r.filePath,
+                      title: r.title,
+                      snippet: r.snippet,
+                      kind: "note" as const,
+                    }))}
+                    onOpenFile={onOpenFile}
                     dragManager={dragManager}
                   />
                 </div>
@@ -329,6 +343,18 @@ export function FileTree(props: FileTreeProps) {
                 </button>
               </>
             ) : null}
+            <button
+              className="tree-context-menu__item"
+              onClick={() => {
+                const target = contextTarget.path;
+                dismissContextMenu();
+                void navigator.clipboard.writeText(target);
+              }}
+              type="button"
+            >
+              <ClipboardCopy size={13} />
+              Copy Path
+            </button>
             <button
               className="tree-context-menu__item"
               onClick={() => {

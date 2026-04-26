@@ -55,17 +55,20 @@
 
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg-top: #fbf4e5;
-  --bg-bottom: #f3e8d2;
-  --bg-glow-a: rgba(255, 214, 136, 0.34);
-  --bg-glow-b: rgba(255, 193, 104, 0.16);
-  --bg: #f3e8d2;
-  --bg-elevated: #fbf6ea;
-  --panel: rgba(255, 249, 239, 0.84);
-  --panel-strong: rgba(255, 247, 232, 0.94);
-  --panel-muted: rgba(247, 238, 220, 0.88);
-  --divider: rgba(101, 79, 43, 0.12);
-  --divider-strong: rgba(101, 79, 43, 0.18);
+  /* Sidebar/base — warmest, slightly recessed */
+  --bg-top: #f3ead6;
+  --bg-bottom: #ede1c8;
+  --bg-glow-a: rgba(255, 214, 136, 0.30);
+  --bg-glow-b: rgba(255, 193, 104, 0.14);
+  --bg: #ede1c8;
+  /* Editor — brightest layer, the "paper" */
+  --bg-elevated: #fcf8f0;
+  /* Panels — sit between sidebar and editor */
+  --panel: rgba(248, 241, 228, 0.88);
+  --panel-strong: rgba(245, 237, 220, 0.94);
+  --panel-muted: rgba(240, 230, 208, 0.88);
+  --divider: rgba(101, 79, 43, 0.14);
+  --divider-strong: rgba(101, 79, 43, 0.22);
   --muted: #8c785e;
   --text: #372c20;
   --text-soft: #4d3c2b;
@@ -75,17 +78,17 @@
   --accent-soft: rgba(180, 118, 55, 0.16);
   --tag: rgba(204, 156, 92, 0.18);
   --tag-text: #684321;
-  --surface-1: rgba(255, 248, 235, 0.42);
-  --surface-2: rgba(255, 248, 236, 0.62);
-  --surface-3: rgba(252, 243, 226, 0.78);
-  --surface-4: rgba(247, 233, 204, 0.88);
+  --surface-1: rgba(255, 248, 235, 0.50);
+  --surface-2: rgba(255, 248, 236, 0.68);
+  --surface-3: rgba(252, 243, 226, 0.82);
+  --surface-4: rgba(247, 233, 204, 0.90);
   --surface-5: rgba(237, 219, 184, 0.92);
   --surface-hover: rgba(243, 231, 207, 0.84);
   --surface-active: rgba(229, 205, 165, 0.62);
-  --surface-border: rgba(101, 79, 43, 0.08);
-  --surface-border-strong: rgba(101, 79, 43, 0.15);
-  --surface-emboss: rgba(255, 255, 255, 0.42);
-  --surface-shadow-line: rgba(101, 79, 43, 0.05);
+  --surface-border: rgba(101, 79, 43, 0.10);
+  --surface-border-strong: rgba(101, 79, 43, 0.18);
+  --surface-emboss: rgba(255, 255, 255, 0.48);
+  --surface-shadow-line: rgba(101, 79, 43, 0.06);
   --status-idle: rgba(101, 79, 43, 0.24);
   --danger-text: #9f4f4c;
   --danger-strong: #b36055;
@@ -134,10 +137,14 @@ button svg,
 }
 
 .toolbar-button svg,
-.branch-selector svg,
-.appearance-toggle__button svg {
+.branch-selector svg {
   width: 13px;
   height: 13px;
+}
+
+.appearance-toggle__button svg {
+  width: 16px;
+  height: 16px;
 }
 
 .tree-nodes {

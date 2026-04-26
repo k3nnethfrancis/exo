@@ -73,10 +73,19 @@ export interface SearchResult {
   kind: "note" | "project-file" | "tag";
 }
 
+export interface SemanticSearchResult {
+  filePath: string;
+  title: string;
+  snippet: string;
+  score: number;
+  docid: string;
+}
+
 export interface WorkspaceSearchResults {
   notes: SearchResult[];
   projectFiles: SearchResult[];
   tags: SearchResult[];
+  semantic?: SemanticSearchResult[];
 }
 
 export interface BranchEntry {

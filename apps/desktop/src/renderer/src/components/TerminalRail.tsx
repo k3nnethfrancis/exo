@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { Bot, Code2, PanelRightClose, PanelRightOpen, SquareTerminal } from "lucide-react";
+import { Bot, PanelRightClose, PanelRightOpen, Sparkles, SquareTerminal } from "lucide-react";
 
 import { RailButton } from "./Chrome";
 
@@ -22,28 +22,28 @@ export function TerminalRail(props: TerminalRailProps) {
         onClick={onToggleCollapsed}
         title={collapsed ? "Expand terminal" : "Collapse terminal"}
       >
-        <CollapseIcon size={13} />
+        <CollapseIcon size={16} />
       </RailButton>
       <RailButton
         testId="launch-shell"
         onClick={() => onCreateTerminal("shell")}
         title="New terminal"
       >
-        <SquareTerminal size={13} />
+        <SquareTerminal size={16} />
       </RailButton>
       <RailButton
         testId="launch-claude"
         onClick={() => onCreateTerminal("claude")}
         title="Launch Claude"
       >
-        <Bot size={13} />
+        <Bot size={16} />
       </RailButton>
       <RailButton
         testId="launch-codex"
         onClick={() => onCreateTerminal("codex")}
         title="Launch Codex"
       >
-        <Code2 size={13} />
+        <Sparkles size={16} />
       </RailButton>
     </div>
   );

@@ -120,9 +120,37 @@ export function TerminalView(props: TerminalViewProps) {
       terminal.write(buffer);
     }
     bufferRef.current = buffer;
+    terminal.scrollToBottom();
   }, [buffer, session.id]);
 
-  return <div ref={hostRef} className="terminal-surface" data-testid="terminal-surface" tabIndex={0} />;
+  return (
+    <div
+      ref={hostRef}
+      className="terminal-surface"
+      data-testid="terminal-surface"
+      tabIndex={0}
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes("Files")) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "copy";
+        }
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        const files = e.dataTransfer.files;
+        if (files.length === 0) return;
+
+        const paths = Array.from(files)
+          .map((f) => (f as File & { path?: string }).path)
+          .filter(Boolean)
+          .map((p) => shellEscape(p!));
+
+        if (paths.length > 0) {
+          onInput(session.id, paths.join(" "));
+        }
+      }}
+    />
+  );
 }
 
 function safeFit(
@@ -158,10 +186,15 @@ function safeFit(
   onResize(sessionId, terminal.cols, terminal.rows);
 }
 
+function shellEscape(path: string): string {
+  // Single-quote the path, escaping any embedded single quotes
+  return "'" + path.replace(/'/g, "'\\''") + "'";
+}
+
 function xtermTheme(appearance: ResolvedAppearance) {
   if (appearance === "light") {
     return {
-      background: "#fff8ec",
+      background: "#f5eed8",
       foreground: "#3f3224",
       cursor: "#b47637",
       selectionBackground: "rgba(180, 118, 55, 0.2)",

@@ -4,7 +4,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
-  background: transparent;
+  background: var(--panel);
   overflow: hidden;
   position: relative;
   z-index: 3;

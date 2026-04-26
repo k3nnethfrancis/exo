@@ -1,10 +1,11 @@
-import { app, BrowserWindow, ipcMain, nativeTheme, shell } from "electron";
+import { app, BrowserWindow, ipcMain, Menu, nativeImage, nativeTheme, shell, Tray } from "electron";
 import path from "node:path";
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { constants, existsSync, watch, type FSWatcher } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import {
+  buildQmdConfig,
   createWorkspaceDirectory,
   createWorkspaceFile,
   createBranchFile,
@@ -15,16 +16,20 @@ import {
   listRootTree,
   readWorkspaceDocument,
   renameWorkspacePath,
+  resolveRuntimeConfig,
   resolveWorkspaceModel,
   saveWorkspaceDocument,
   searchNotes,
+  searchQmd,
   searchWorkspace,
   type SearchResult,
+  type SemanticSearchResult,
   type WorkspaceModel,
   type WorkspaceSettings,
 } from "@exo/core";
 import type { TerminalCreateOptions } from "../shared/api";
 
+import { CommandServer } from "./command-server";
 import { TerminalManager } from "./terminal-manager";
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -36,6 +41,8 @@ if (process.env.EXO_USER_DATA_PATH) {
 const singleInstanceLock = app.requestSingleInstanceLock();
 
 let mainWindow: BrowserWindow | null = null;
+let tray: Tray | null = null;
+let commandServer: CommandServer | null = null;
 let workspaceModel: WorkspaceModel;
 let terminalManager: TerminalManager;
 let workspaceWatchers: FSWatcher[] = [];
@@ -44,6 +51,77 @@ let workspaceBroadcastTimer: NodeJS.Timeout | null = null;
 
 if (!singleInstanceLock) {
   app.quit();
+}
+
+function setupTray() {
+  // 16x16 template image for macOS menu bar (white circle, rendered as dark in light mode)
+  const icon = nativeImage.createFromDataURL(
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAaklEQVQ4T2NkoBAwUqifgWoGzP7/n+E/AwMDIyMjw+z//xkYGBgZGGb9/8/AABJjZGRkmMXIwMAAEmNiYmKYxcDAwACyAcQGsUFiIHVMTEyzGEBOALsBpA/mBJAbQOEACweKkgHVkgEA+XIjEZSfLzQAAAAASUVORK5CYII=",
+  );
+  icon.setTemplateImage(true);
+
+  tray = new Tray(icon);
+  tray.setToolTip("Exo");
+
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: "Show Exo",
+      click: () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          if (mainWindow.isMinimized()) mainWindow.restore();
+          if (!mainWindow.isVisible()) mainWindow.show();
+          mainWindow.focus();
+        } else {
+          createWindow();
+        }
+      },
+    },
+    { type: "separator" },
+    { label: "Quit", click: () => app.quit() },
+  ]);
+
+  tray.setContextMenu(contextMenu);
+
+  // Click tray icon to show/focus
+  tray.on("click", () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      if (!mainWindow.isVisible()) mainWindow.show();
+      mainWindow.focus();
+    } else {
+      createWindow();
+    }
+  });
+}
+
+function startCommandServer() {
+  const runtimeConfig = resolveRuntimeConfig();
+  const qmdConfig = buildQmdConfig(runtimeConfig.retrieval, workspaceModel.noteRoots.map((r) => r.path));
+
+  commandServer = new CommandServer({
+    runtimeRoot: runtimeConfig.runtimeRoot,
+    onOpenFile: (filePath: string) => {
+      mainWindow?.webContents.send("command:open-file", filePath);
+    },
+    onSearch: (query: string) => searchWorkspace(workspaceModel, query),
+    onSearchSemantic: (query: string) => qmdConfig ? searchQmd(query, qmdConfig) : Promise.resolve([]),
+    onListTerminals: () => terminalManager.list(),
+    onCreateTerminal: (kind: string, cwd?: string) => terminalManager.create({ kind: kind as "shell" | "claude" | "codex", cwd }),
+    onGetSettings: () => ({
+      workspaceRoot: workspaceModel.workspaceRoot,
+      defaultTerminalCwd: workspaceModel.defaultTerminalCwd,
+      noteRoots: workspaceModel.noteRoots.map((r) => r.path),
+      projectRoots: workspaceModel.projectRoots.map((r) => r.path),
+    }),
+    onGetStatus: () => ({
+      workspace: workspaceModel,
+      terminals: terminalManager.list(),
+    }),
+  });
+
+  commandServer.start().catch((error) => {
+    console.error("Failed to start command server:", error);
+  });
 }
 
 function createWindow() {
@@ -73,7 +151,17 @@ function createWindow() {
     window.loadFile(path.join(currentDirectory, "../renderer/index.html"));
   }
 
+  // Safety timeout: force-show if renderer takes too long (e.g., slow Vite HMR)
+  const showTimeout = isTestWindow
+    ? null
+    : setTimeout(() => {
+        if (!window.isDestroyed() && !window.isVisible()) {
+          window.show();
+        }
+      }, 5000);
+
   window.once("ready-to-show", () => {
+    if (showTimeout) clearTimeout(showTimeout);
     if (isTestWindow) {
       return;
     }
@@ -81,6 +169,7 @@ function createWindow() {
   });
 
   window.webContents.once("did-finish-load", () => {
+    if (showTimeout) clearTimeout(showTimeout);
     if (isTestWindow || window.isDestroyed()) {
       return;
     }
@@ -146,6 +235,12 @@ function registerIpcHandlers() {
   );
   ipcMain.handle("workspace:search-notes", async (_event, query: string) => searchNotes(workspaceModel, query));
   ipcMain.handle("workspace:search-workspace", async (_event, query: string) => searchWorkspace(workspaceModel, query));
+  ipcMain.handle("workspace:search-semantic", async (_event, query: string): Promise<SemanticSearchResult[]> => {
+    const runtimeConfig = resolveRuntimeConfig();
+    const qmdConfig = buildQmdConfig(runtimeConfig.retrieval, workspaceModel.noteRoots.map((r) => r.path));
+    if (!qmdConfig) return [];
+    return searchQmd(query, qmdConfig);
+  });
   ipcMain.handle("workspace:create-file", async (_event, targetPath: string, content?: string) => createWorkspaceFile(targetPath, content));
   ipcMain.handle("workspace:create-directory", async (_event, targetPath: string) => createWorkspaceDirectory(targetPath));
   ipcMain.handle("workspace:rename-path", async (_event, sourcePath: string, nextPath: string) => renameWorkspacePath(sourcePath, nextPath));
@@ -450,6 +545,8 @@ app.whenReady().then(async () => {
   startWorkspaceWatchers();
   await terminalManager.syncRuntimeContext();
   createWindow();
+  setupTray();
+  startCommandServer();
 
   nativeTheme.on("updated", () => {
     if (!mainWindow || mainWindow.isDestroyed()) {
@@ -481,6 +578,10 @@ app.whenReady().then(async () => {
 
     mainWindow.focus();
   });
+});
+
+app.on("before-quit", () => {
+  commandServer?.stop();
 });
 
 app.on("window-all-closed", () => {

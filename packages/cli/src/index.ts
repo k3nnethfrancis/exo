@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
+  buildQmdConfig,
   createBranchFile,
   getBranchFamily,
   readWorkspaceDocument,
@@ -14,10 +15,13 @@ import {
   resolveRuntimeConfig,
   resolveWorkspaceModel,
   searchNotes,
+  searchQmd,
   searchWorkspace,
   syncRuntimeContextFiles,
   type ManagedAgentKind,
 } from "@exo/core";
+
+import { AppClient } from "./app-client";
 
 export async function runCli(
   argv: string[],
@@ -37,6 +41,99 @@ export async function runCli(
 
   const [, , command, subcommand, ...args] = argv;
 
+  // ─── Search ──────────────────────────────────────────────────────────
+  // Standalone: uses core + QMD directly (no running app needed)
+
+  if (command === "search") {
+    const isDeep = subcommand === "--deep";
+    const query = isDeep ? args.join(" ") : [subcommand, ...args].filter(Boolean).join(" ");
+    if (!query) {
+      throw new Error("Expected a search query.");
+    }
+
+    const config = resolveRuntimeConfig(env);
+    const model = config.workspace;
+    const qmdConfig = buildQmdConfig(config.retrieval, model.noteRoots.map((r) => r.path));
+
+    const fast = await searchWorkspace(model, query);
+    let semantic: unknown[] = [];
+    if (qmdConfig) {
+      const { searchQmd: search, queryQmd: query_ } = await import("@exo/core");
+      semantic = isDeep ? await query_(query, qmdConfig) : await search(query, qmdConfig);
+    }
+
+    stdout.write(`${JSON.stringify({ ...fast, semantic }, null, 2)}\n`);
+    return 0;
+  }
+
+  // ─── App commands (require running desktop app) ──────────────────────
+
+  if (command === "open") {
+    const filePath = subcommand ? path.resolve(cwd, [subcommand, ...args].join(" ")) : null;
+    if (!filePath) {
+      throw new Error("Expected a file path.");
+    }
+
+    const client = await connectOrFail(env, stderr);
+    if (!client) return 1;
+    await client.openFile(filePath);
+    stdout.write(`Opened: ${filePath}\n`);
+    return 0;
+  }
+
+  if (command === "status") {
+    const client = await connectOrFail(env, stderr);
+    if (!client) return 1;
+    const status = await client.getStatus();
+    stdout.write(`${JSON.stringify(status, null, 2)}\n`);
+    return 0;
+  }
+
+  if (command === "config") {
+    const client = await connectOrFail(env, stderr);
+    if (!client) return 1;
+
+    if (subcommand === "get") {
+      const config = await client.getConfig();
+      const key = args[0];
+      if (key && key in config) {
+        stdout.write(`${JSON.stringify((config as Record<string, unknown>)[key], null, 2)}\n`);
+      } else {
+        stdout.write(`${JSON.stringify(config, null, 2)}\n`);
+      }
+      return 0;
+    }
+
+    stderr.write("Usage: exo config get [key]\n");
+    return 1;
+  }
+
+  if (command === "terminals") {
+    const client = await connectOrFail(env, stderr);
+    if (!client) return 1;
+
+    if (subcommand === "list" || !subcommand) {
+      const terminals = await client.listTerminals();
+      stdout.write(`${JSON.stringify(terminals, null, 2)}\n`);
+      return 0;
+    }
+
+    if (subcommand === "create") {
+      const kind = args[0];
+      if (!kind || !["shell", "claude", "codex"].includes(kind)) {
+        throw new Error("Expected one of: shell, claude, codex.");
+      }
+      const terminal = await client.createTerminal(kind, args[1]);
+      stdout.write(`${JSON.stringify(terminal, null, 2)}\n`);
+      return 0;
+    }
+
+    stderr.write("Usage: exo terminals [list | create <shell|claude|codex> [cwd]]\n");
+    return 1;
+  }
+
+  // ─── Workspace commands ──────────────────────────────────────────────
+
   if (command === "workspace" && subcommand === "status") {
     const model = resolveWorkspaceModel(env);
     stdout.write(`${JSON.stringify(model, null, 2)}\n`);
@@ -49,18 +146,20 @@ export async function runCli(
     return 0;
   }
 
-  if (command === "notes" && subcommand === "search") {
-    const query = args.join(" ");
-    const model = resolveWorkspaceModel(env);
-    const results = await searchNotes(model, query);
-    stdout.write(`${JSON.stringify(results, null, 2)}\n`);
-    return 0;
-  }
-
   if (command === "workspace" && subcommand === "search") {
     const query = args.join(" ");
     const model = resolveWorkspaceModel(env);
     const results = await searchWorkspace(model, query);
+    stdout.write(`${JSON.stringify(results, null, 2)}\n`);
+    return 0;
+  }
+
+  // ─── Notes commands ──────────────────────────────────────────────────
+
+  if (command === "notes" && subcommand === "search") {
+    const query = args.join(" ");
+    const model = resolveWorkspaceModel(env);
+    const results = await searchNotes(model, query);
     stdout.write(`${JSON.stringify(results, null, 2)}\n`);
     return 0;
   }
@@ -101,6 +200,8 @@ export async function runCli(
     return 0;
   }
 
+  // ─── Runtime commands ────────────────────────────────────────────────
+
   if (command === "runtime" && subcommand === "status") {
     const config = resolveRuntimeConfig(env);
     stdout.write(`${JSON.stringify(config, null, 2)}\n`);
@@ -138,6 +239,28 @@ export async function runCli(
     return 0;
   }
 
+  // ─── Launch commands ─────────────────────────────────────────────────
+
+  if (command === "dev") {
+    const projectRoot = env.EXO_PROJECT_ROOT ?? path.resolve(fileURLToPath(import.meta.url), "../../../..");
+    const child = spawn("pnpm", ["dev"], {
+      cwd: projectRoot,
+      env: { ...process.env, ...env },
+      stdio: "inherit",
+    });
+
+    return new Promise<number>((resolve, reject) => {
+      child.on("error", reject);
+      child.on("exit", (code, signal) => {
+        if (signal) {
+          resolve(1);
+          return;
+        }
+        resolve(code ?? 0);
+      });
+    });
+  }
+
   if (command === "launch") {
     const kind = normalizeAgentKind(subcommand);
     if (!kind) {
@@ -150,24 +273,46 @@ export async function runCli(
     return launchAgent(launchPlan, { env, stdin, stdout, stderr });
   }
 
+  // ─── Usage ───────────────────────────────────────────────────────────
+
   stderr.write(
     [
       "Usage:",
-      "  exo-cli launch <shell|claude|codex> [cwd]",
-      "  exo-cli workspace status",
-      "  exo-cli workspace fixture",
-      "  exo-cli workspace search <query>",
-      "  exo-cli notes search <query>",
-      "  exo-cli notes read <path>",
-      "  exo-cli notes branch-create <path>",
-      "  exo-cli notes branch-view <path>",
-      "  exo-cli runtime status",
-      "  exo-cli runtime context <shell|claude|codex>",
-      "  exo-cli runtime launch-plan <shell|claude|codex> [cwd]",
-      "  exo-cli runtime sync",
+      "  exo dev                                    Launch the desktop app",
+      "  exo search <query>                         Search workspace + semantic",
+      "  exo search --deep <query>                  Deep hybrid search (slower)",
+      "  exo open <path>                            Open file in editor (app)",
+      "  exo status                                 Workspace status (app)",
+      "  exo config get [key]                       Read settings (app)",
+      "  exo terminals [list]                       List terminals (app)",
+      "  exo terminals create <shell|claude|codex>  Create terminal (app)",
+      "  exo launch <shell|claude|codex> [cwd]",
+      "  exo workspace status",
+      "  exo workspace search <query>",
+      "  exo notes search <query>",
+      "  exo notes read <path>",
+      "  exo notes branch-create <path>",
+      "  exo notes branch-view <path>",
+      "  exo runtime status",
+      "  exo runtime context <shell|claude|codex>",
+      "  exo runtime launch-plan <shell|claude|codex> [cwd]",
+      "  exo runtime sync",
     ].join("\n"),
   );
   return 1;
+}
+
+async function connectOrFail(
+  env: NodeJS.ProcessEnv,
+  stderr: { write: (text: string) => void },
+): Promise<AppClient | null> {
+  const config = resolveRuntimeConfig(env);
+  const client = await AppClient.connect(config.runtimeRoot);
+  if (!client) {
+    stderr.write("Exo app is not running. Start it with: exo dev\n");
+    return null;
+  }
+  return client;
 }
 
 async function launchAgent(

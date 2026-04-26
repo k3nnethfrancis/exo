@@ -25,6 +25,10 @@ const TERMINAL_DEFAULT: PaneNode = {
 const MIN_ZONE_RATIO = 0.15;
 const MAX_ZONE_RATIO = 0.85;
 
+const SIDEBAR_DEFAULT_WIDTH = 260;
+const SIDEBAR_MIN_WIDTH = 260;
+const SIDEBAR_MAX_WIDTH = 800;
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
@@ -39,6 +43,7 @@ export function useShellLayout() {
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [inspectorCollapsed, setInspectorCollapsed] = useState(true);
+  const [terminalCollapsed, setTerminalCollapsed] = useState(false);
 
   const editorPaneTree = usePaneTree(EDITOR_DEFAULT);
   const terminalPaneTree = usePaneTree(TERMINAL_DEFAULT);
@@ -55,17 +60,36 @@ export function useShellLayout() {
     };
   }, [zoneSplitRatio]);
 
+  // Sidebar width (pixels)
+  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
+  const sidebarResizeRef = useRef<{ startX: number; startWidth: number } | null>(null);
+
+  const startSidebarResize = useCallback((event: React.MouseEvent) => {
+    sidebarResizeRef.current = {
+      startX: event.clientX,
+      startWidth: sidebarWidth,
+    };
+  }, [sidebarWidth]);
+
   useEffect(() => {
     function onMouseMove(event: MouseEvent) {
-      const state = zoneResizeRef.current;
-      if (!state) return;
-      const delta = event.clientX - state.startX;
-      const ratioDelta = delta / state.containerWidth;
-      setZoneSplitRatio(clamp(state.startRatio + ratioDelta, MIN_ZONE_RATIO, MAX_ZONE_RATIO));
+      const zoneState = zoneResizeRef.current;
+      if (zoneState) {
+        const delta = event.clientX - zoneState.startX;
+        const ratioDelta = delta / zoneState.containerWidth;
+        setZoneSplitRatio(clamp(zoneState.startRatio + ratioDelta, MIN_ZONE_RATIO, MAX_ZONE_RATIO));
+      }
+
+      const sidebarState = sidebarResizeRef.current;
+      if (sidebarState) {
+        const delta = event.clientX - sidebarState.startX;
+        setSidebarWidth(clamp(sidebarState.startWidth + delta, SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH));
+      }
     }
 
     function onMouseUp() {
       zoneResizeRef.current = null;
+      sidebarResizeRef.current = null;
     }
 
     window.addEventListener("mousemove", onMouseMove);
@@ -85,7 +109,11 @@ export function useShellLayout() {
     setInspectorCollapsed,
     editorPaneTree,
     terminalPaneTree,
+    terminalCollapsed,
+    setTerminalCollapsed,
     zoneSplitRatio,
     startZoneResize,
+    sidebarWidth,
+    startSidebarResize,
   };
 }

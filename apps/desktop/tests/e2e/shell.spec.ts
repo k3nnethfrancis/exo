@@ -249,7 +249,7 @@ test("shows editor and terminal panes side by side", async () => {
 
   await expect(page.locator(".pane-leaf--editor")).toBeVisible();
   await expect(page.locator(".pane-leaf--terminal")).toBeVisible();
-  await expect(page.locator(".pane-split-resizer")).toBeVisible();
+  await expect(page.locator(".workspace__body > .pane-split-resizer")).toBeVisible();
   await expect(page.getByTestId("terminal-tab-shell")).toBeVisible();
   await expect(page.getByTestId("terminal-rail")).toBeVisible();
 

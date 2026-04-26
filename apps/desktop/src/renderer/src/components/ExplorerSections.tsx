@@ -2,6 +2,12 @@ import { ChevronDown, ChevronRight, FolderTree, Hash } from "lucide-react";
 import type { SearchResult, TreeNode } from "@exo/core";
 import type { DragManager } from "../hooks/useDragManager";
 
+const MAX_LABEL_CHARS = 25;
+
+function truncateLabel(label: string): string {
+  return label.length > MAX_LABEL_CHARS ? `${label.slice(0, MAX_LABEL_CHARS - 1)}…` : label;
+}
+
 export interface RootSection {
   label: string;
   path: string;
@@ -200,7 +206,7 @@ function TreeNodes({
                 type="button"
               >
                 {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                <span>{node.name}</span>
+                <span title={node.name}>{truncateLabel(node.name)}</span>
               </button>
               {expanded && node.children?.length ? (
                 <TreeNodes
@@ -230,7 +236,7 @@ function TreeNodes({
             type="button"
           >
             <span className="tree-node__file-spacer" />
-            <span>{node.name.endsWith(".md") ? node.name.slice(0, -3) : node.name}</span>
+            <span title={node.name}>{truncateLabel(node.name.endsWith(".md") ? node.name.slice(0, -3) : node.name)}</span>
           </button>
         );
       })}

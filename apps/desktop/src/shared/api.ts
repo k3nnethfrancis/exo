@@ -4,6 +4,7 @@ import type {
   NoteDocument,
   NoteKnowledge,
   SearchResult,
+  SemanticSearchResult,
   TreeNode,
   WorkspaceModel,
   WorkspaceSettings,
@@ -36,11 +37,13 @@ export interface DesktopApi {
     searchNotes: (query: string) => Promise<SearchResult[]>;
     searchWorkspace: (query: string) => Promise<WorkspaceSearchResults>;
     searchTag: (tag: string) => Promise<SearchResult[]>;
+    searchSemantic: (query: string) => Promise<SemanticSearchResult[]>;
     createFile: (targetPath: string, content?: string) => Promise<string>;
     createDirectory: (targetPath: string) => Promise<string>;
     renamePath: (sourcePath: string, nextPath: string) => Promise<string>;
     deletePath: (targetPath: string) => Promise<void>;
     onDidChange: (callback: (event: { rootPath: string; eventType: string; filePath: string | null }) => void) => () => void;
+    onCommandOpenFile: (callback: (filePath: string) => void) => () => void;
   };
   notes: {
     read: (filePath: string) => Promise<NoteDocument>;

@@ -37,15 +37,13 @@ test("captures the default workspace shell", async () => {
   await cleanup();
 });
 
-test("captures bottom dock and agent tabs", async () => {
+test("captures terminal pane with agent tabs", async () => {
   const { page, cleanup } = await launchExoFixture();
   await cycleAppearanceTo(page, "dark");
-  await page.getByTestId("terminal-expand").click();
-  await page.getByTestId("terminal-tab-shell").dblclick();
   await page.getByTestId("launch-claude").click();
   await page.getByTestId("launch-codex").click();
   await settleForScreenshot(page);
-  await expect(page).toHaveScreenshot("workspace-bottom-terminal.png", screenshotOptions);
+  await expect(page).toHaveScreenshot("workspace-terminal-agents.png", screenshotOptions);
   await cleanup();
 });
 

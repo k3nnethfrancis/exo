@@ -147,6 +147,22 @@ export function mapLeaves(tree: PaneNode, fn: (leaf: PaneLeaf) => PaneLeaf): Pan
   return { ...tree, children: [left, right] };
 }
 
+/**
+ * Remove every leaf for which `isEmpty` returns true, collapsing parent splits as siblings promote.
+ * Never returns null — if all leaves would be pruned, the original tree is preserved so the dock keeps a surface.
+ */
+export function pruneEmptyLeaves(tree: PaneNode, isEmpty: (leaf: PaneLeaf) => boolean): PaneNode {
+  const ids = collectLeaves(tree).filter(isEmpty).map((l) => l.id);
+  let next: PaneNode | null = tree;
+  for (const id of ids) {
+    if (!next) break;
+    const result = removeNode(next, id);
+    if (result === null) break;
+    next = result;
+  }
+  return next ?? tree;
+}
+
 // ---------------------------------------------------------------------------
 // Resize state
 // ---------------------------------------------------------------------------

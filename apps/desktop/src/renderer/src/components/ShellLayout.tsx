@@ -7,7 +7,7 @@ import type { PaneLeaf, PaneNodeId, PaneTreeActions, PaneNode } from "../hooks/u
 import { collectLeaves } from "../hooks/usePaneTree";
 import type { DragManager } from "../hooks/useDragManager";
 import type { AppearanceMode, ResolvedAppearance } from "../App";
-import type { NoteDocument, NoteKnowledge, SearchResult, TreeNode, WorkspaceSearchResults } from "@exo/core";
+import type { NoteDocument, NoteKnowledge, SearchResult, SemanticSearchResult, TreeNode, WorkspaceSearchResults } from "@exo/core";
 
 interface RootSection {
   label: string;
@@ -22,6 +22,7 @@ interface ShellLayoutProps {
   resolvedAppearance: ResolvedAppearance;
   searchQuery: string;
   searchResults: WorkspaceSearchResults;
+  semanticResults: SemanticSearchResult[];
   shellLayout: {
     workspaceRef: React.RefObject<HTMLDivElement | null>;
     workspaceBodyRef: React.RefObject<HTMLDivElement | null>;
@@ -39,8 +40,12 @@ interface ShellLayoutProps {
       focusedLeafId: PaneNodeId;
       actions: PaneTreeActions;
     };
+    terminalCollapsed: boolean;
+    setTerminalCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
     zoneSplitRatio: number;
     startZoneResize: (event: React.MouseEvent, containerWidth: number) => void;
+    sidebarWidth: number;
+    startSidebarResize: (event: React.MouseEvent) => void;
   };
   renderEditorLeaf: (leaf: PaneLeaf, isFocused: boolean) => ReactNode;
   renderTerminalLeaf: (leaf: PaneLeaf, isFocused: boolean) => ReactNode;
@@ -66,6 +71,7 @@ export function ShellLayout(props: ShellLayoutProps) {
     resolvedAppearance,
     searchQuery,
     searchResults,
+    semanticResults,
     shellLayout,
     renderEditorLeaf,
     renderTerminalLeaf,
@@ -90,18 +96,27 @@ export function ShellLayout(props: ShellLayoutProps) {
     setSidebarCollapsed,
     editorPaneTree,
     terminalPaneTree,
+    terminalCollapsed,
+    setTerminalCollapsed,
     zoneSplitRatio,
     startZoneResize,
+    sidebarWidth,
+    startSidebarResize,
   } = shellLayout;
 
   const zoneContainerRef = useRef<HTMLDivElement | null>(null);
 
-  const zoneGridTemplate = `minmax(0, ${zoneSplitRatio}fr) 8px minmax(0, ${1 - zoneSplitRatio}fr)`;
+  const zoneGridTemplate = terminalCollapsed
+    ? "minmax(0, 1fr)"
+    : `minmax(0, ${zoneSplitRatio}fr) 8px minmax(0, ${1 - zoneSplitRatio}fr)`;
+
+  const sidebarTrack = sidebarCollapsed ? "48px" : `${sidebarWidth}px`;
+  const sidebarResizerTrack = sidebarCollapsed ? "0px" : "10px";
 
   return (
     <div
       className={`shell ${sidebarCollapsed ? "shell--sidebar-collapsed" : ""}`}
-      style={{ gridTemplateColumns: `${sidebarCollapsed ? 48 : 240}px 1fr 42px` }}
+      style={{ gridTemplateColumns: `${sidebarTrack} ${sidebarResizerTrack} 1fr 42px` }}
     >
       <FileTree
         collapsed={sidebarCollapsed}
@@ -111,6 +126,7 @@ export function ShellLayout(props: ShellLayoutProps) {
         resolvedAppearance={resolvedAppearance}
         searchQuery={searchQuery}
         searchResults={searchResults}
+        semanticResults={semanticResults}
         onAppearanceModeChange={onAppearanceModeChange}
         onToggleCollapsed={() => setSidebarCollapsed((current) => !current)}
         onOpenWorkspaceSettings={onOpenWorkspaceSettings}
@@ -125,6 +141,15 @@ export function ShellLayout(props: ShellLayoutProps) {
         onDeletePath={onDeletePath}
       />
 
+      {sidebarCollapsed ? (
+        <div aria-hidden />
+      ) : (
+        <div
+          className="pane-split-resizer pane-split-resizer--vertical"
+          onMouseDown={startSidebarResize}
+        />
+      )}
+
       <div ref={workspaceRef} className="workspace">
         <div
           ref={(el) => { workspaceBodyRef.current = el; zoneContainerRef.current = el; }}
@@ -138,31 +163,33 @@ export function ShellLayout(props: ShellLayoutProps) {
             renderLeaf={renderEditorLeaf}
             hoverEdge={dragManager.hoverEdge}
           />
-          <div
-            className="pane-split-resizer pane-split-resizer--vertical"
-            onMouseDown={(event) => {
-              const container = zoneContainerRef.current;
-              if (!container) return;
-              startZoneResize(event, container.getBoundingClientRect().width);
-            }}
-          />
-          <PaneTree
-            node={terminalPaneTree.tree}
-            actions={terminalPaneTree.actions}
-            focusedLeafId={terminalPaneTree.focusedLeafId}
-            renderLeaf={renderTerminalLeaf}
-            hoverEdge={dragManager.hoverEdge}
-          />
+          {terminalCollapsed ? null : (
+            <>
+              <div
+                className="pane-split-resizer pane-split-resizer--vertical"
+                onMouseDown={(event) => {
+                  const container = zoneContainerRef.current;
+                  if (!container) return;
+                  startZoneResize(event, container.getBoundingClientRect().width);
+                }}
+              />
+              <PaneTree
+                node={terminalPaneTree.tree}
+                actions={terminalPaneTree.actions}
+                focusedLeafId={terminalPaneTree.focusedLeafId}
+                renderLeaf={renderTerminalLeaf}
+                hoverEdge={dragManager.hoverEdge}
+              />
+            </>
+          )}
         </div>
       </div>
 
       <TerminalRail
         placement="right"
-        collapsed={false}
+        collapsed={terminalCollapsed}
         style={{}}
-        onToggleCollapsed={() => {
-          onCreateTerminal("shell");
-        }}
+        onToggleCollapsed={() => setTerminalCollapsed((c) => !c)}
         onCreateTerminal={onCreateTerminal}
       />
 
