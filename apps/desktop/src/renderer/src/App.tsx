@@ -76,6 +76,7 @@ export function App() {
   const [noteTrees, setNoteTrees] = useState<Record<string, TreeNode[]>>({});
   const [projectTrees, setProjectTrees] = useState<Record<string, TreeNode[]>>({});
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchSubmittedQuery, setSearchSubmittedQuery] = useState("");
   const [workspaceSearchResults, setWorkspaceSearchResults] = useState<WorkspaceSearchResults>({
     notes: [],
     projectFiles: [],
@@ -105,7 +106,7 @@ export function App() {
   const terminalFlushFrameRef = useRef<number | null>(null);
   const bootstrapRunRef = useRef(0);
   const shellLayout = useShellLayout();
-  const deferredSearchQuery = useDeferredValue(searchQuery);
+  const deferredSearchQuery = useDeferredValue(searchSubmittedQuery);
 
   const activeDocument = activeDocumentPath ? openDocuments[activeDocumentPath] ?? null : null;
   const activeKnowledge = activeDocumentPath ? knowledgeByPath[activeDocumentPath] ?? null : null;
@@ -1091,8 +1092,14 @@ export function App() {
       appearanceMode={appearanceMode}
       resolvedAppearance={resolvedAppearance}
       searchQuery={searchQuery}
+      searchSubmittedQuery={searchSubmittedQuery}
       searchResults={workspaceSearchResults}
       semanticResults={semanticResults}
+      onSearchSubmit={() => setSearchSubmittedQuery(searchQuery.trim())}
+      onSearchClear={() => {
+        setSearchQuery("");
+        setSearchSubmittedQuery("");
+      }}
       shellLayout={shellLayout}
       renderEditorLeaf={(leaf, isFocused) => {
         const pane: EditorPaneState = {

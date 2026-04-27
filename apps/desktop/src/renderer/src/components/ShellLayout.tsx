@@ -1,6 +1,8 @@
 import { useRef, type ReactNode } from "react";
+import { Search } from "lucide-react";
 
 import { FileTree } from "./FileTree";
+import { SearchResultsPanel } from "./SearchResultsPanel";
 import { TerminalRail } from "./TerminalRail";
 import { PaneTree } from "./PaneTree";
 import type { PaneLeaf, PaneNodeId, PaneTreeActions, PaneNode } from "../hooks/usePaneTree";
@@ -21,8 +23,11 @@ interface ShellLayoutProps {
   appearanceMode: AppearanceMode;
   resolvedAppearance: ResolvedAppearance;
   searchQuery: string;
+  searchSubmittedQuery: string;
   searchResults: WorkspaceSearchResults;
   semanticResults: SemanticSearchResult[];
+  onSearchSubmit: () => void;
+  onSearchClear: () => void;
   shellLayout: {
     workspaceRef: React.RefObject<HTMLDivElement | null>;
     workspaceBodyRef: React.RefObject<HTMLDivElement | null>;
@@ -70,8 +75,11 @@ export function ShellLayout(props: ShellLayoutProps) {
     appearanceMode,
     resolvedAppearance,
     searchQuery,
+    searchSubmittedQuery,
     searchResults,
     semanticResults,
+    onSearchSubmit,
+    onSearchClear,
     shellLayout,
     renderEditorLeaf,
     renderTerminalLeaf,
@@ -108,12 +116,51 @@ export function ShellLayout(props: ShellLayoutProps) {
 
   const zoneGridTemplate = terminalCollapsed
     ? "minmax(0, 1fr)"
-    : `minmax(0, ${zoneSplitRatio}fr) 8px minmax(0, ${1 - zoneSplitRatio}fr)`;
+    : `minmax(0, ${zoneSplitRatio}fr) 1px minmax(0, ${1 - zoneSplitRatio}fr)`;
 
   const sidebarTrack = sidebarCollapsed ? "48px" : `${sidebarWidth}px`;
-  const sidebarResizerTrack = sidebarCollapsed ? "0px" : "10px";
+  const sidebarResizerTrack = sidebarCollapsed ? "0px" : "1px";
 
   return (
+    <div className="shell-frame">
+      <header className="topbar">
+        <div className="topbar__spacer topbar__spacer--left" aria-hidden />
+        <label className="topbar__search" htmlFor="workspace-search">
+          <Search size={13} />
+          <input
+            id="workspace-search"
+            data-testid="workspace-search"
+            value={searchQuery}
+            onChange={(event) => onSearchQueryChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                onSearchSubmit();
+              } else if (event.key === "Escape") {
+                onSearchClear();
+              }
+            }}
+            placeholder="Search workspace (press Enter)"
+          />
+        </label>
+        <div className="topbar__spacer topbar__spacer--right" aria-hidden />
+      </header>
+      {searchSubmittedQuery ? (
+        <SearchResultsPanel
+          query={searchSubmittedQuery}
+          results={searchResults}
+          semanticResults={semanticResults}
+          onOpenFile={(filePath) => {
+            onOpenFile(filePath);
+            onSearchClear();
+          }}
+          onOpenTag={(tag) => {
+            onOpenTag(tag);
+            onSearchClear();
+          }}
+          onDismiss={onSearchClear}
+        />
+      ) : null}
     <div
       className={`shell ${sidebarCollapsed ? "shell--sidebar-collapsed" : ""}`}
       style={{ gridTemplateColumns: `${sidebarTrack} ${sidebarResizerTrack} 1fr 42px` }}
@@ -206,6 +253,7 @@ export function ShellLayout(props: ShellLayoutProps) {
             : "Terminal"}
         </div>
       ) : null}
+    </div>
     </div>
   );
 }

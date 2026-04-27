@@ -141,6 +141,7 @@ function buildDecorations(view: EditorView): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
   const currentLine = view.state.doc.lineAt(view.state.selection.main.head).number;
   const listContexts = collectListMetadata(view.state.doc);
+  const tableContexts = collectTableMetadata(view.state.doc);
   const foldedLines = view.state.field(foldedLinesField);
 
   // Determine which list lines have children (next line has greater depth)
@@ -171,6 +172,8 @@ function buildDecorations(view: EditorView): DecorationSet {
 
   const cursorPos = view.state.selection.main.head;
 
+  const handledTableStarts = new Set<number>();
+
   for (let lineNumber = 1; lineNumber <= view.state.doc.lines; lineNumber += 1) {
     const line = view.state.doc.line(lineNumber);
     const text = line.text;
@@ -182,6 +185,42 @@ function buildDecorations(view: EditorView): DecorationSet {
         decoration: Decoration.line({ class: "exo-md-line--folded-hidden" }),
       });
       continue;
+    }
+
+    const tableCtx = tableContexts.get(lineNumber);
+    if (tableCtx) {
+      const cursorInTable = currentLine >= tableCtx.startLine && currentLine <= tableCtx.endLine;
+      if (cursorInTable) {
+        // Edit mode — show raw markdown, fall through to normal per-line decoration
+      } else {
+        if (lineNumber === tableCtx.startLine && !handledTableStarts.has(tableCtx.startLine)) {
+          handledTableStarts.add(tableCtx.startLine);
+          // Replace the start line's content with the table widget (single-line range — no block:true).
+          // ViewPlugins cannot emit block decorations; this stays inline.
+          if (line.from < line.to) {
+            lineDecorations.push({
+              from: line.from,
+              to: line.to,
+              decoration: Decoration.replace({ widget: new TableWidget(tableCtx) }),
+            });
+          } else {
+            // Empty start line edge case — emit as a line decoration with the widget via mark
+            lineDecorations.push({
+              from: line.from,
+              to: line.from,
+              decoration: Decoration.widget({ widget: new TableWidget(tableCtx), side: 1 }),
+            });
+          }
+        } else if (lineNumber !== tableCtx.startLine) {
+          // Hide other table lines via line-level CSS class (display:none)
+          lineDecorations.push({
+            from: line.from,
+            to: line.from,
+            decoration: Decoration.line({ class: "exo-md-line--folded-hidden" }),
+          });
+        }
+        continue;
+      }
     }
 
     const hasChildren = linesWithChildren.has(lineNumber);
@@ -563,4 +602,146 @@ function listGuideXs(depth: number) {
   }
 
   return guideXs;
+}
+
+// ---------------------------------------------------------------------------
+// Tables
+// ---------------------------------------------------------------------------
+
+type ColumnAlign = "left" | "center" | "right";
+
+interface TableContext {
+  /** First line of the table block (the header row), 1-indexed */
+  startLine: number;
+  /** Last line of the table block (inclusive) */
+  endLine: number;
+  /** Document offset of the start of the first table line */
+  startOffset: number;
+  /** Document offset of the end of the last table line */
+  endOffset: number;
+  /** Header cells, parsed */
+  headers: string[];
+  /** Body rows (separator excluded), each is an array of cells */
+  rows: string[][];
+  /** Per-column alignment derived from the separator row */
+  alignments: ColumnAlign[];
+}
+
+const tableLinePattern = /^\s*\|.*\|\s*$/;
+const tableSeparatorPattern = /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/;
+
+function parseTableRow(text: string): string[] {
+  const trimmed = text.trim().replace(/^\|/, "").replace(/\|$/, "");
+  return trimmed.split("|").map((cell) => cell.trim());
+}
+
+function parseAlignments(separatorText: string): ColumnAlign[] {
+  return parseTableRow(separatorText).map((cell) => {
+    const left = cell.startsWith(":");
+    const right = cell.endsWith(":");
+    if (left && right) return "center";
+    if (right) return "right";
+    return "left";
+  });
+}
+
+function collectTableMetadata(doc: import("@codemirror/state").Text): Map<number, TableContext> {
+  const result = new Map<number, TableContext>();
+  let i = 1;
+  while (i <= doc.lines) {
+    const line = doc.line(i);
+    const text = line.text;
+    if (tableLinePattern.test(text)) {
+      // Need at least 2 lines: header + separator
+      const next = i + 1 <= doc.lines ? doc.line(i + 1) : null;
+      if (next && tableSeparatorPattern.test(next.text)) {
+        const startLine = i;
+        const startOffset = line.from;
+        const headers = parseTableRow(text);
+        const alignments = parseAlignments(next.text);
+        const rows: string[][] = [];
+        let endLine = i + 1;
+        let endOffset = next.to;
+        // Consume body rows
+        let j = i + 2;
+        while (j <= doc.lines) {
+          const bodyLine = doc.line(j);
+          if (!tableLinePattern.test(bodyLine.text)) break;
+          rows.push(parseTableRow(bodyLine.text));
+          endLine = j;
+          endOffset = bodyLine.to;
+          j += 1;
+        }
+        const ctx: TableContext = { startLine, endLine, startOffset, endOffset, headers, rows, alignments };
+        for (let ln = startLine; ln <= endLine; ln += 1) {
+          result.set(ln, ctx);
+        }
+        i = endLine + 1;
+        continue;
+      }
+    }
+    i += 1;
+  }
+  return result;
+}
+
+class TableWidget extends WidgetType {
+  constructor(private readonly ctx: TableContext) {
+    super();
+  }
+
+  toDOM() {
+    const wrap = document.createElement("div");
+    wrap.className = "exo-md-table-wrap";
+
+    const table = document.createElement("table");
+    table.className = "exo-md-table";
+
+    const thead = document.createElement("thead");
+    const headerRow = document.createElement("tr");
+    this.ctx.headers.forEach((cell, idx) => {
+      const th = document.createElement("th");
+      th.textContent = cell;
+      const align = this.ctx.alignments[idx] ?? "left";
+      th.style.textAlign = align;
+      headerRow.appendChild(th);
+    });
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+
+    const tbody = document.createElement("tbody");
+    for (const row of this.ctx.rows) {
+      const tr = document.createElement("tr");
+      row.forEach((cell, idx) => {
+        const td = document.createElement("td");
+        td.textContent = cell;
+        const align = this.ctx.alignments[idx] ?? "left";
+        td.style.textAlign = align;
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+
+    wrap.appendChild(table);
+    return wrap;
+  }
+
+  eq(other: TableWidget) {
+    if (other.ctx.headers.length !== this.ctx.headers.length) return false;
+    if (other.ctx.rows.length !== this.ctx.rows.length) return false;
+    if (other.ctx.headers.some((h, i) => h !== this.ctx.headers[i])) return false;
+    if (other.ctx.alignments.some((a, i) => a !== this.ctx.alignments[i])) return false;
+    for (let r = 0; r < this.ctx.rows.length; r += 1) {
+      const a = this.ctx.rows[r];
+      const b = other.ctx.rows[r];
+      if (a.length !== b.length) return false;
+      if (a.some((c, i) => c !== b[i])) return false;
+    }
+    return true;
+  }
+
+  ignoreEvent() {
+    return false;
+  }
 }

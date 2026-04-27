@@ -279,9 +279,18 @@
     0 0 0 1px var(--surface-border-strong),
     0 10px 24px rgba(0, 0, 0, 0.12);
   color: var(--muted);
+  cursor: pointer;
 }
 
-.floating-panel__toggle:hover,
+.floating-panel__toggle:hover {
+  background: var(--bg-elevated);
+  color: var(--text);
+}
+
+.floating-panel__close {
+  cursor: pointer;
+}
+
 .floating-panel__close:hover {
   background: var(--surface-hover);
 }

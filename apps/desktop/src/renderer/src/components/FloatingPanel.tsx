@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
 
 interface FloatingPanelProps {
@@ -28,10 +28,34 @@ export function FloatingPanel(props: FloatingPanelProps) {
     children,
   } = props;
 
+  const surfaceRef = useRef<HTMLDivElement | null>(null);
+  const toggleRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onMouseDown(event: MouseEvent) {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (surfaceRef.current?.contains(target)) return;
+      if (toggleRef.current?.contains(target)) return;
+      onToggle();
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") onToggle();
+    }
+    window.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open, onToggle]);
+
   return (
     <div className={`floating-panel ${anchorClassName} ${open ? "floating-panel--open" : ""}`.trim()}>
       {!open ? (
         <button
+          ref={toggleRef}
           className="floating-panel__toggle"
           data-testid={buttonTestId}
           onClick={onToggle}
@@ -43,7 +67,7 @@ export function FloatingPanel(props: FloatingPanelProps) {
       ) : null}
 
       {open ? (
-        <div className={`floating-panel__surface ${panelClassName ?? ""}`.trim()} data-testid={panelTestId}>
+        <div ref={surfaceRef} className={`floating-panel__surface ${panelClassName ?? ""}`.trim()} data-testid={panelTestId}>
           <div className="floating-panel__header">
             <div className="floating-panel__header-main">
               <span className="floating-panel__header-icon">{icon}</span>

@@ -65,7 +65,7 @@ function PaneSplitContainer({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const isHorizontal = node.direction === "horizontal";
 
-  const gridTemplate = `minmax(0, ${node.ratio}fr) 8px minmax(0, ${1 - node.ratio}fr)`;
+  const gridTemplate = `minmax(0, ${node.ratio}fr) 1px minmax(0, ${1 - node.ratio}fr)`;
 
   return (
     <div

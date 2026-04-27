@@ -75,13 +75,13 @@
 .terminal-dock__header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 14px;
+  gap: 0;
+  padding: 0;
+  padding-right: 8px;
   border-bottom: 1px solid var(--divider);
   background: transparent;
   justify-content: space-between;
   min-height: 40px;
-  padding-inline: 12px;
   grid-column: 1;
   grid-row: 1;
   min-width: 0;
@@ -120,22 +120,22 @@
 .terminal-dock__tabs {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0;
   overflow-x: auto;
   min-width: 0;
   flex: 1;
 }
 
 .terminal-dock--right .terminal-dock__header {
-  gap: 8px;
+  gap: 0;
 }
 
 .terminal-dock--right .terminal-dock__tabs {
-  gap: 6px;
+  gap: 0;
 }
 
 .terminal-dock--right .terminal-tab {
-  padding: 7px 10px;
+  padding: 8px 12px;
   gap: 6px;
 }
 

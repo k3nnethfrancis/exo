@@ -1,6 +1,6 @@
 :root {
   color-scheme: dark;
-  --window-top-pad: 34px;
+  --window-top-pad: 44px;
   --exo-list-indent-step: 24px;
   --exo-list-base-indent: 36px;
   --exo-list-marker-lane-width: 26px;
@@ -757,12 +757,44 @@ button svg,
 }
 
 .editor-surface--live-preview .exo-md-list-bullet--ordered {
-  width: var(--exo-list-ordered-marker-width);
+  width: auto;
   min-width: var(--exo-list-ordered-marker-width);
-  justify-content: flex-start;
+  justify-content: flex-end;
+  padding-right: 4px;
+  white-space: nowrap;
   font-family: var(--mono);
   font-size: 0.82em;
   opacity: 0.95;
+}
+
+.editor-surface--live-preview .exo-md-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  margin: 0.6em 0;
+}
+
+.editor-surface--live-preview .exo-md-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.94em;
+}
+
+.editor-surface--live-preview .exo-md-table th,
+.editor-surface--live-preview .exo-md-table td {
+  border: 1px solid var(--divider-strong);
+  padding: 6px 10px;
+  vertical-align: top;
+  line-height: 1.45;
+}
+
+.editor-surface--live-preview .exo-md-table th {
+  background: var(--surface-2);
+  font-weight: 650;
+  color: var(--text);
+}
+
+.editor-surface--live-preview .exo-md-table tr:nth-child(even) td {
+  background: var(--surface-1);
 }
 
 .footer-dock {

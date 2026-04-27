@@ -9,7 +9,6 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Pencil,
-  Search,
   Settings2,
   SquareTerminal,
   SunMedium,
@@ -193,77 +192,18 @@ export function FileTree(props: FileTreeProps) {
       {renderRail()}
 
       <div className="sidebar__main">
-        <div className="sidebar__top">
-          <div className="sidebar__header">
-            <div className="sidebar__header-row">
-              <div className="sidebar__label">Workspace</div>
-            </div>
-          </div>
-
-          <label className="sidebar__search" htmlFor="workspace-search">
-            <Search size={14} />
-            <input
-              id="workspace-search"
-              data-testid="workspace-search"
-              value={searchQuery}
-              onChange={(event) => onSearchQueryChange(event.target.value)}
-              placeholder="Search"
-            />
-          </label>
-        </div>
-
         <div ref={panesRef} className="sidebar__panes">
           <div className="sidebar__content sidebar__content--notes">
-            {searchQuery ? (
-              <div className="tree-section">
-                <div className="tree-section__title">Search Results</div>
-                <div className="search-results" data-testid="search-results">
-                  {searchResults.notes.length === 0 && searchResults.projectFiles.length === 0 && searchResults.tags.length === 0 && semanticResults.length === 0 ? (
-                    <div className="search-result__empty">No matches</div>
-                  ) : null}
-
-                  <SearchSection
-                    label="Notes"
-                    results={searchResults.notes}
-                    onOpenFile={onOpenFile}
-                    dragManager={dragManager}
-                  />
-                  <SearchSection
-                    label="Project Files"
-                    results={searchResults.projectFiles}
-                    onOpenFile={onOpenFile}
-                    dragManager={dragManager}
-                  />
-                  <TagSearchSection
-                    results={searchResults.tags}
-                    onOpenFile={onOpenFile}
-                    onOpenTag={onOpenTag}
-                    dragManager={dragManager}
-                  />
-                  <SearchSection
-                    label="Semantic"
-                    results={semanticResults.map((r) => ({
-                      filePath: r.filePath,
-                      title: r.title,
-                      snippet: r.snippet,
-                      kind: "note" as const,
-                    }))}
-                    onOpenFile={onOpenFile}
-                    dragManager={dragManager}
-                  />
-                </div>
-              </div>
-            ) : (
-              <Section
-                label="Notes"
-                sections={noteRoots}
-                expandedPaths={expandedPaths}
-                onTogglePath={togglePath}
-                onOpenFile={onOpenFile}
-                dragManager={dragManager}
-                onContextMenu={openContextMenu}
-              />
-            )}
+            <Section
+              label="Notes"
+              showHeader={false}
+              sections={noteRoots}
+              expandedPaths={expandedPaths}
+              onTogglePath={togglePath}
+              onOpenFile={onOpenFile}
+              dragManager={dragManager}
+              onContextMenu={openContextMenu}
+            />
           </div>
 
           <SidebarDrawer
