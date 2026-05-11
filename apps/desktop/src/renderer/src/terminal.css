@@ -4,7 +4,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
-  background: var(--panel);
+  background: var(--editor-bg);
   overflow: hidden;
   position: relative;
   z-index: 3;
@@ -32,7 +32,7 @@
   padding: 16px 0 8px;
   width: 42px;
   border-left: 1px solid var(--divider);
-  background: var(--surface-1);
+  background: var(--chrome-bg);
   z-index: 4;
 }
 
@@ -52,7 +52,7 @@
 
 .workspace__body--terminal-bottom .terminal-dock {
   border-left: 0;
-  border-top: 1px solid var(--divider);
+  border-top: 1px solid color-mix(in srgb, var(--divider) 72%, transparent);
 }
 
 .terminal-dock__main {
@@ -78,8 +78,8 @@
   gap: 0;
   padding: 0;
   padding-right: 8px;
-  border-bottom: 1px solid var(--divider);
-  background: transparent;
+  border-bottom: 1px solid color-mix(in srgb, var(--divider) 72%, transparent);
+  background: var(--chrome-bg);
   justify-content: space-between;
   min-height: 40px;
   grid-column: 1;
@@ -139,6 +139,10 @@
   gap: 6px;
 }
 
+.terminal-tab.chrome-tab--active {
+  background: var(--terminal-bg);
+}
+
 .terminal-dock--right .terminal-dock__actions {
   gap: 6px;
 }
@@ -149,7 +153,7 @@
   min-width: 0;
   min-height: 0;
   padding: 6px 8px 8px;
-  background: transparent;
+  background: var(--terminal-bg);
   overflow: hidden;
 }
 

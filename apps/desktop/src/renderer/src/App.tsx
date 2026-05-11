@@ -4,7 +4,6 @@ import type {
   NoteDocument,
   NoteKnowledge,
   SearchResult,
-  SemanticSearchResult,
   TreeNode,
   WorkspaceModel,
   WorkspaceSearchResults,
@@ -12,6 +11,7 @@ import type {
 } from "@exo/core";
 
 import type { TerminalSessionInfo } from "../../shared/api";
+import type { FileStatInfo } from "../../shared/api";
 
 import { EditorPane, type EditorPaneState } from "./components/EditorPane";
 import { InspectorDock } from "./components/InspectorDock";
@@ -23,6 +23,7 @@ import { useDragManager, type DragPayload, type DropEdge } from "./hooks/useDrag
 
 interface OpenEditorDocument extends NoteDocument {
   dirty: boolean;
+  diskVersion: FileStatInfo | null;
 }
 
 type WorkspaceDialogState =
@@ -60,6 +61,10 @@ interface WorkspaceSettingsDialogState {
   defaultTerminalCwd: string;
   noteRoots: string;
   projectRoots: string;
+  appearanceMode: AppearanceMode;
+  editorFontSize: string;
+  terminalFontSize: string;
+  explorerScale: string;
   saveStatus: "idle" | "saved" | "error";
   errorMessage: string | null;
 }
@@ -68,8 +73,15 @@ interface WorkspaceSettingsDialogState {
 
 export type AppearanceMode = "system" | "light" | "dark";
 export type ResolvedAppearance = "light" | "dark";
+type ZoomSurface = "editor" | "terminal" | "explorer";
 
-const APPEARANCE_STORAGE_KEY = "exo-appearance-mode";
+const MAX_TERMINAL_BUFFER_LENGTH = 12_000;
+const MAX_PENDING_TERMINAL_CHUNK_LENGTH = 8_000;
+const NOTE_TREE_MAX_DEPTH = 3;
+const PROJECT_TREE_MAX_DEPTH = 3;
+const DEFAULT_EDITOR_FONT_SIZE = 15;
+const DEFAULT_TERMINAL_FONT_SIZE = 13;
+const DEFAULT_EXPLORER_SCALE = 1;
 
 export function App() {
   const [workspaceModel, setWorkspaceModel] = useState<WorkspaceModel | null>(null);
@@ -82,7 +94,6 @@ export function App() {
     projectFiles: [],
     tags: [],
   });
-  const [semanticResults, setSemanticResults] = useState<SemanticSearchResult[]>([]);
   const [openDocuments, setOpenDocuments] = useState<Record<string, OpenEditorDocument>>({});
   const [knowledgeByPath, setKnowledgeByPath] = useState<Record<string, NoteKnowledge>>({});
   const [branchFamiliesByPath, setBranchFamiliesByPath] = useState<Record<string, BranchFamily>>({});
@@ -98,13 +109,24 @@ export function App() {
   const [agentAnnotations, setAgentAnnotations] = useState<Record<string, { runLabel: string; parentId: string | null }>>({});
   const [workspaceDialog, setWorkspaceDialog] = useState<WorkspaceDialogState | null>(null);
   const [workspaceSettingsDialog, setWorkspaceSettingsDialog] = useState<WorkspaceSettingsDialogState | null>(null);
-  const [appearanceMode, setAppearanceMode] = useState<AppearanceMode>(() => readStoredAppearanceMode());
+  const [appearanceMode, setAppearanceMode] = useState<AppearanceMode>("system");
+  const [zoomSurface, setZoomSurface] = useState<ZoomSurface>("editor");
+  const [editorFontSize, setEditorFontSize] = useState(DEFAULT_EDITOR_FONT_SIZE);
+  const [terminalFontSize, setTerminalFontSize] = useState(DEFAULT_TERMINAL_FONT_SIZE);
+  const [explorerScale, setExplorerScale] = useState(DEFAULT_EXPLORER_SCALE);
   const [systemPrefersDark, setSystemPrefersDark] = useState(() =>
     window.matchMedia("(prefers-color-scheme: dark)").matches,
   );
   const pendingTerminalChunksRef = useRef<Record<string, string>>({});
   const terminalFlushFrameRef = useRef<number | null>(null);
   const bootstrapRunRef = useRef(0);
+  const activeTerminalIdsRef = useRef<Set<string>>(new Set());
+  const terminalKindByIdRef = useRef<Record<string, TerminalSessionInfo["kind"]>>({});
+  const openDocumentsRef = useRef(openDocuments);
+  const activeDocumentPathRef = useRef(activeDocumentPath);
+  const pendingDocumentRefreshesRef = useRef<Map<string, { timeoutId: number; diskVersion: FileStatInfo | null }>>(new Map());
+  const loadedTreeDirectoriesRef = useRef<Set<string>>(new Set());
+  const workspaceSettingsRef = useRef<WorkspaceSettings | null>(null);
   const shellLayout = useShellLayout();
   const deferredSearchQuery = useDeferredValue(searchSubmittedQuery);
 
@@ -114,6 +136,90 @@ export function App() {
   const { tree: terminalTree, focusedLeafId: terminalFocusedLeafId, actions: terminalActions } = shellLayout.terminalPaneTree;
   const compactEditorChrome = collectLeaves(editorTree).length > 1;
   const resolvedAppearance: ResolvedAppearance = appearanceMode === "system" ? (systemPrefersDark ? "dark" : "light") : appearanceMode;
+
+  useEffect(() => {
+    terminalKindByIdRef.current = Object.fromEntries(terminalSessions.map((session) => [session.id, session.kind]));
+  }, [terminalSessions]);
+
+  useEffect(() => {
+    openDocumentsRef.current = openDocuments;
+  }, [openDocuments]);
+
+  useEffect(() => {
+    activeDocumentPathRef.current = activeDocumentPath;
+  }, [activeDocumentPath]);
+
+  useEffect(() => {
+    let disposed = false;
+    let polling = false;
+
+    const interval = window.setInterval(() => {
+      if (polling) {
+        return;
+      }
+      polling = true;
+      void pollOpenDocumentVersions().finally(() => {
+        polling = false;
+      });
+    }, 1000);
+
+    async function pollOpenDocumentVersions() {
+      const entries = Object.entries(openDocumentsRef.current).filter(([, document]) => !document.dirty);
+      await Promise.all(
+        entries.map(async ([filePath, document]) => {
+          const nextVersion = await window.exo.notes.stat(filePath);
+          if (disposed || !nextVersion || fileVersionsEqual(document.diskVersion, nextVersion)) {
+            return;
+          }
+
+          scheduleOpenDocumentRefresh(filePath, nextVersion);
+        }),
+      );
+    }
+
+    return () => {
+      disposed = true;
+      window.clearInterval(interval);
+      for (const pending of pendingDocumentRefreshesRef.current.values()) {
+        window.clearTimeout(pending.timeoutId);
+      }
+      pendingDocumentRefreshesRef.current.clear();
+    };
+  }, []);
+
+  useEffect(() => {
+    const activeIds = new Set<string>();
+    for (const leaf of collectLeaves(terminalTree)) {
+      if (leaf.content.kind === "terminal" && leaf.content.activeTerminalId) {
+        activeIds.add(leaf.content.activeTerminalId);
+      }
+    }
+    if (activeTerminalId) {
+      activeIds.add(activeTerminalId);
+    }
+    activeTerminalIdsRef.current = activeIds;
+    void window.exo.terminals.setStreaming(Array.from(activeIds));
+  }, [activeTerminalId, terminalTree]);
+
+  useEffect(() => {
+    const openPaths = collectOpenEditorPaths(editorTree);
+    setOpenDocuments((current) => {
+      const next = Object.fromEntries(
+        Object.entries(current).filter(([filePath, document]) => openPaths.has(filePath) || document.dirty),
+      );
+      return Object.keys(next).length === Object.keys(current).length ? current : next;
+    });
+    setKnowledgeByPath((current) => pruneRecordToKeys(current, openPaths));
+    setBranchFamiliesByPath((current) => pruneRecordToKeys(current, openPaths));
+  }, [editorTree]);
+
+  useEffect(() => {
+    const activeTerminalIds = collectActiveTerminalIds(terminalTree);
+    if (activeTerminalId) {
+      activeTerminalIds.add(activeTerminalId);
+    }
+    setTerminalBuffers((current) => pruneRecordToKeys(current, activeTerminalIds));
+  }, [activeTerminalId, terminalTree]);
   useEffect(() => {
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
 
@@ -134,7 +240,6 @@ export function App() {
     document.documentElement.dataset.appearanceMode = appearanceMode;
     document.documentElement.dataset.theme = resolvedAppearance;
     document.documentElement.style.colorScheme = resolvedAppearance;
-    window.localStorage.setItem(APPEARANCE_STORAGE_KEY, appearanceMode);
   }, [appearanceMode, resolvedAppearance]);
 
   useEffect(() => {
@@ -142,16 +247,24 @@ export function App() {
 
     async function bootstrap() {
       const bootstrapRun = ++bootstrapRunRef.current;
-      const model = await window.exo.workspace.getModel();
+      const [model, settings] = await Promise.all([
+        window.exo.workspace.getModel(),
+        window.exo.workspace.getSettings(),
+      ]);
+      workspaceSettingsRef.current = settings;
+      setAppearanceMode(settings.appearanceMode);
+      setEditorFontSize(settings.editorFontSize);
+      setTerminalFontSize(settings.terminalFontSize);
+      setExplorerScale(settings.explorerScale);
       const [nextNoteTrees, nextProjectTrees] = await Promise.all([
         Promise.all(
           model.noteRoots.map(
-            async (root) => [root.path, await window.exo.workspace.listTree(root.path, { markdownOnly: true, maxDepth: 3 })] as const,
+            async (root) => [root.path, await window.exo.workspace.listTree(root.path, { markdownOnly: true, maxDepth: NOTE_TREE_MAX_DEPTH })] as const,
           ),
         ),
         Promise.all(
           model.projectRoots.map(
-            async (root) => [root.path, await window.exo.workspace.listTree(root.path, { maxDepth: 2 })] as const,
+            async (root) => [root.path, await window.exo.workspace.listTree(root.path, { maxDepth: PROJECT_TREE_MAX_DEPTH })] as const,
           ),
         ),
       ]);
@@ -163,6 +276,7 @@ export function App() {
       const firstNote = pickInitialNote(nextNoteTrees);
       const defaultTerminal = await window.exo.terminals.ensureDefault();
       const sessions = await window.exo.terminals.list();
+      const defaultTerminalBuffer = await window.exo.terminals.read(defaultTerminal.id);
 
       if (cancelled || bootstrapRun !== bootstrapRunRef.current) {
         return;
@@ -192,8 +306,13 @@ export function App() {
       setWorkspaceModel(model);
       setNoteTrees(Object.fromEntries(nextNoteTrees));
       setProjectTrees(Object.fromEntries(nextProjectTrees));
+      loadedTreeDirectoriesRef.current = new Set([
+        ...model.noteRoots.map((root) => treeLoadKey("notes", root.path)),
+        ...model.projectRoots.map((root) => treeLoadKey("projects", root.path)),
+      ]);
       setTerminalSessions(sessions);
       setActiveTerminalId(defaultTerminal.id);
+      setTerminalBuffers({ [defaultTerminal.id]: defaultTerminalBuffer.slice(-MAX_TERMINAL_BUFFER_LENGTH) });
 
       // Seed the default terminal into the terminal tree
       const termLeaf = findTerminalLeaf(terminalTree);
@@ -223,14 +342,20 @@ export function App() {
       setTerminalBuffers((current) => {
         const next = { ...current };
         for (const [id, chunk] of entries) {
-          next[id] = `${next[id] ?? ""}${chunk}`;
+          next[id] = `${next[id] ?? ""}${chunk}`.slice(-MAX_TERMINAL_BUFFER_LENGTH);
         }
         return next;
       });
     }
 
     const removeDataListener = window.exo.terminals.onData(({ id, data }) => {
-      pendingTerminalChunksRef.current[id] = `${pendingTerminalChunksRef.current[id] ?? ""}${data}`;
+      if (!activeTerminalIdsRef.current.has(id)) {
+        return;
+      }
+
+      pendingTerminalChunksRef.current[id] = `${pendingTerminalChunksRef.current[id] ?? ""}${data}`.slice(
+        -MAX_PENDING_TERMINAL_CHUNK_LENGTH,
+      );
       if (terminalFlushFrameRef.current !== null) {
         return;
       }
@@ -253,6 +378,33 @@ export function App() {
       removeExitListener();
     };
   }, []);
+
+  useEffect(() => {
+    if (!activeTerminalId || terminalKindByIdRef.current[activeTerminalId] === "shell") {
+      return;
+    }
+
+    let cancelled = false;
+    async function refreshActiveAgentBuffer() {
+      if (!activeTerminalId) {
+        return;
+      }
+      const buffer = await window.exo.terminals.read(activeTerminalId);
+      if (cancelled) {
+        return;
+      }
+      const nextBuffer = buffer.slice(-MAX_TERMINAL_BUFFER_LENGTH);
+      setTerminalBuffers((current) =>
+        current[activeTerminalId] === nextBuffer ? current : { ...current, [activeTerminalId]: nextBuffer },
+      );
+    }
+
+    void refreshActiveAgentBuffer();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTerminalId, terminalSessions]);
 
   useEffect(() => {
     setAgentAnnotations((current) => {
@@ -300,23 +452,6 @@ export function App() {
     return () => window.clearTimeout(timeout);
   }, [deferredSearchQuery]);
 
-  // Semantic search — longer debounce, runs QMD BM25
-  useEffect(() => {
-    if (!deferredSearchQuery.trim()) {
-      setSemanticResults([]);
-      return;
-    }
-
-    const timeout = window.setTimeout(async () => {
-      const results = await window.exo.workspace.searchSemantic(deferredSearchQuery);
-      startTransition(() => {
-        setSemanticResults(results);
-      });
-    }, 500);
-
-    return () => window.clearTimeout(timeout);
-  }, [deferredSearchQuery]);
-
   // Command listener — agents can tell the app to open files via the command server
   useEffect(() => {
     return window.exo.workspace.onCommandOpenFile((filePath: string) => {
@@ -325,8 +460,13 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    const removeWorkspaceChangeListener = window.exo.workspace.onDidChange(() => {
-      void reloadTrees();
+    const removeWorkspaceChangeListener = window.exo.workspace.onDidChange((event) => {
+      if (event.eventType === "rename" || !event.filePath) {
+        void reloadTrees();
+      }
+      if (event.filePath) {
+        scheduleOpenDocumentRefresh(event.filePath);
+      }
     });
 
     return () => {
@@ -336,15 +476,67 @@ export function App() {
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s" && activeDocument) {
+      const mod = event.metaKey || event.ctrlKey;
+      if (mod && !event.altKey && isZoomKey(event.key)) {
+        event.preventDefault();
+        event.stopPropagation();
+        updateFocusedSurfaceZoom(zoomDirection(event.key), resolveZoomSurface(event));
+        return;
+      }
+      if (mod && event.key.toLowerCase() === "s" && activeDocument) {
         event.preventDefault();
         void saveDocument(activeDocument.filePath);
+        return;
+      }
+      if (mod && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "n") {
+        event.preventDefault();
+        void openOrCreateDailyNote();
       }
     }
 
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activeDocument]);
+    window.addEventListener("keydown", onKeyDown, { capture: true });
+    return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
+  }, [activeDocument, workspaceModel, editorFocusedLeafId, zoomSurface]);
+
+  async function saveSettingsPatch(patch: Partial<WorkspaceSettings>) {
+    const base = workspaceSettingsRef.current ?? await window.exo.workspace.getSettings();
+    const nextSettings: WorkspaceSettings = {
+      ...base,
+      ...patch,
+    };
+    workspaceSettingsRef.current = nextSettings;
+    const saved = await window.exo.workspace.saveSettings(nextSettings);
+    workspaceSettingsRef.current = saved;
+  }
+
+  function updateAppearanceMode(nextMode: AppearanceMode) {
+    setAppearanceMode(nextMode);
+    void saveSettingsPatch({ appearanceMode: nextMode });
+  }
+
+  function updateFocusedSurfaceZoom(direction: -1 | 0 | 1, surface = zoomSurface) {
+    if (surface === "terminal") {
+      setTerminalFontSize((current) => {
+        const next = direction === 0 ? DEFAULT_TERMINAL_FONT_SIZE : clampNumber(current + direction, 10, 22);
+        void saveSettingsPatch({ terminalFontSize: next });
+        return next;
+      });
+      return;
+    }
+    if (surface === "explorer") {
+      setExplorerScale((current) => {
+        const next = direction === 0 ? DEFAULT_EXPLORER_SCALE : clampNumber(Number((current + direction * 0.06).toFixed(2)), 0.82, 1.35);
+        void saveSettingsPatch({ explorerScale: next });
+        return next;
+      });
+      return;
+    }
+    setEditorFontSize((current) => {
+      const next = direction === 0 ? DEFAULT_EDITOR_FONT_SIZE : clampNumber(current + direction, 11, 24);
+      void saveSettingsPatch({ editorFontSize: next });
+      return next;
+    });
+  }
 
   // Auto-save dirty documents every 5 seconds
   useEffect(() => {
@@ -386,18 +578,46 @@ export function App() {
     const [nextNoteTrees, nextProjectTrees] = await Promise.all([
       Promise.all(
         workspaceModel.noteRoots.map(
-          async (root) => [root.path, await window.exo.workspace.listTree(root.path, { markdownOnly: true, maxDepth: 5 })] as const,
+          async (root) => [root.path, await window.exo.workspace.listTree(root.path, { markdownOnly: true, maxDepth: NOTE_TREE_MAX_DEPTH })] as const,
         ),
       ),
       Promise.all(
         workspaceModel.projectRoots.map(
-          async (root) => [root.path, await window.exo.workspace.listTree(root.path, { maxDepth: 4 })] as const,
+          async (root) => [root.path, await window.exo.workspace.listTree(root.path, { maxDepth: PROJECT_TREE_MAX_DEPTH })] as const,
         ),
       ),
     ]);
 
     setNoteTrees(Object.fromEntries(nextNoteTrees));
     setProjectTrees(Object.fromEntries(nextProjectTrees));
+    loadedTreeDirectoriesRef.current = new Set([
+      ...workspaceModel.noteRoots.map((root) => treeLoadKey("notes", root.path)),
+      ...workspaceModel.projectRoots.map((root) => treeLoadKey("projects", root.path)),
+    ]);
+  }
+
+  async function expandTreeDirectory(directoryPath: string, rootKind: "notes" | "projects") {
+    const loadKey = treeLoadKey(rootKind, directoryPath);
+    if (loadedTreeDirectoriesRef.current.has(loadKey)) {
+      return;
+    }
+    const currentTrees = rootKind === "notes" ? noteTrees : projectTrees;
+    if (treeDirectoryHasChildrenInRoots(currentTrees, directoryPath)) {
+      loadedTreeDirectoriesRef.current.add(loadKey);
+      return;
+    }
+    loadedTreeDirectoriesRef.current.add(loadKey);
+
+    const children = await window.exo.workspace.listTree(directoryPath, {
+      markdownOnly: rootKind === "notes",
+      maxDepth: 1,
+    });
+
+    if (rootKind === "notes") {
+      setNoteTrees((current) => replaceTreeChildrenInRoots(current, directoryPath, children));
+    } else {
+      setProjectTrees((current) => replaceTreeChildrenInRoots(current, directoryPath, children));
+    }
   }
 
   async function openWorkspaceSettingsDialog() {
@@ -407,6 +627,10 @@ export function App() {
       defaultTerminalCwd: settings.defaultTerminalCwd,
       noteRoots: settings.noteRoots.join("\n"),
       projectRoots: settings.projectRoots.join("\n"),
+      appearanceMode: settings.appearanceMode,
+      editorFontSize: String(settings.editorFontSize),
+      terminalFontSize: String(settings.terminalFontSize),
+      explorerScale: String(settings.explorerScale),
       saveStatus: "idle",
       errorMessage: null,
     });
@@ -428,14 +652,27 @@ export function App() {
         .split("\n")
         .map((entry) => entry.trim())
         .filter(Boolean),
+      appearanceMode: workspaceSettingsDialog.appearanceMode,
+      editorFontSize: clampNumber(Number(workspaceSettingsDialog.editorFontSize), 11, 24),
+      terminalFontSize: clampNumber(Number(workspaceSettingsDialog.terminalFontSize), 10, 22),
+      explorerScale: clampNumber(Number(workspaceSettingsDialog.explorerScale), 0.82, 1.35),
     };
 
     try {
-      await window.exo.workspace.saveSettings(nextSettings);
+      const saved = await window.exo.workspace.saveSettings(nextSettings);
+      workspaceSettingsRef.current = saved;
+      setAppearanceMode(saved.appearanceMode);
+      setEditorFontSize(saved.editorFontSize);
+      setTerminalFontSize(saved.terminalFontSize);
+      setExplorerScale(saved.explorerScale);
       setWorkspaceSettingsDialog((current) =>
         current
           ? {
               ...current,
+              appearanceMode: saved.appearanceMode,
+              editorFontSize: String(saved.editorFontSize),
+              terminalFontSize: String(saved.terminalFontSize),
+              explorerScale: String(saved.explorerScale),
               saveStatus: "saved",
               errorMessage: null,
             }
@@ -501,15 +738,25 @@ export function App() {
       if (!nextPath) {
         setActiveTag(null);
         setTagResults([]);
+        const editorLeavesNow = collectLeaves(editorTree).filter((l) => l.content.kind === "editor");
+        const allEmpty = editorLeavesNow.every(
+          (l) => l.content.kind === "editor" && l.content.openPaths.length === 0,
+        );
+        if (allEmpty) {
+          void openOrCreateDailyNote();
+        }
       }
     }, 0);
   }
 
   /** Load a document's content into state without touching the pane tree. */
   async function ensureDocumentLoaded(filePath: string) {
-    const document = await window.exo.notes.read(filePath);
+    const [document, diskVersion] = await Promise.all([window.exo.notes.read(filePath), window.exo.notes.stat(filePath)]);
+    const isAttachedNote = workspaceModel
+      ? isInsideAttachedRoot(filePath, workspaceModel.noteRoots.map((root) => root.path))
+      : true;
     const [knowledge, branchFamily] =
-      document.kind === "markdown"
+      document.kind === "markdown" && isAttachedNote
         ? await Promise.all([window.exo.notes.getKnowledge(filePath), window.exo.notes.getBranchFamily(filePath)])
         : [null, null];
 
@@ -518,6 +765,7 @@ export function App() {
       [filePath]: {
         ...document,
         dirty: current[filePath]?.dirty ?? false,
+        diskVersion: current[filePath]?.dirty ? current[filePath].diskVersion : diskVersion,
         frontmatter: current[filePath]?.dirty ? current[filePath].frontmatter : document.frontmatter,
         body: current[filePath]?.dirty ? current[filePath].body : document.body,
       },
@@ -530,6 +778,85 @@ export function App() {
       ...current,
       ...(branchFamily ? { [filePath]: branchFamily } : {}),
     }));
+  }
+
+  function scheduleOpenDocumentRefresh(filePath: string, diskVersion?: FileStatInfo | null) {
+    const currentDocument = openDocumentsRef.current[filePath];
+    if (!currentDocument || currentDocument.dirty) {
+      return;
+    }
+
+    const pending = pendingDocumentRefreshesRef.current.get(filePath);
+    if (pending) {
+      window.clearTimeout(pending.timeoutId);
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      pendingDocumentRefreshesRef.current.delete(filePath);
+      void refreshOpenDocumentFromDisk(filePath, diskVersion);
+    }, 250);
+    pendingDocumentRefreshesRef.current.set(filePath, { timeoutId, diskVersion: diskVersion ?? null });
+  }
+
+  async function refreshOpenDocumentFromDisk(filePath: string, knownVersion?: FileStatInfo | null) {
+    const currentDocument = openDocumentsRef.current[filePath];
+    if (!currentDocument || currentDocument.dirty) {
+      return;
+    }
+
+    const scrollTop = filePath === activeDocumentPathRef.current ? getActiveEditorScrollTop() : null;
+    const [document, diskVersion] = await Promise.all([
+      window.exo.notes.read(filePath),
+      knownVersion === undefined ? window.exo.notes.stat(filePath) : Promise.resolve(knownVersion),
+    ]);
+    const isAttachedNote = workspaceModel
+      ? isInsideAttachedRoot(filePath, workspaceModel.noteRoots.map((root) => root.path))
+      : true;
+    const [knowledge, branchFamily] =
+      document.kind === "markdown" && isAttachedNote
+        ? await Promise.all([window.exo.notes.getKnowledge(filePath), window.exo.notes.getBranchFamily(filePath)])
+        : [null, null];
+
+    setOpenDocuments((current) => {
+      const currentDocument = current[filePath];
+      if (!currentDocument || currentDocument.dirty) {
+        return current;
+      }
+
+      if (
+        currentDocument.body === document.body &&
+        JSON.stringify(currentDocument.frontmatter) === JSON.stringify(document.frontmatter)
+      ) {
+        return {
+          ...current,
+          [filePath]: {
+            ...currentDocument,
+            diskVersion,
+          },
+        };
+      }
+
+      return {
+        ...current,
+        [filePath]: {
+          ...document,
+          dirty: false,
+          diskVersion,
+        },
+      };
+    });
+    setKnowledgeByPath((current) => ({
+      ...current,
+      ...(knowledge ? { [filePath]: knowledge } : {}),
+    }));
+    setBranchFamiliesByPath((current) => ({
+      ...current,
+      ...(branchFamily ? { [filePath]: branchFamily } : {}),
+    }));
+
+    if (scrollTop !== null) {
+      restoreActiveEditorScrollTop(scrollTop);
+    }
   }
 
   async function openFile(filePath: string, leafId?: PaneNodeId) {
@@ -595,7 +922,9 @@ export function App() {
     }
 
     await window.exo.notes.save(filePath, document.frontmatter, document.body);
-    if (document.kind === "markdown") {
+    const diskVersion = await window.exo.notes.stat(filePath);
+    const remainsOpen = collectOpenEditorPaths(editorTree).has(filePath);
+    if (document.kind === "markdown" && remainsOpen) {
       const [knowledge, branchFamily] = await Promise.all([
         window.exo.notes.getKnowledge(filePath),
         window.exo.notes.getBranchFamily(filePath),
@@ -609,13 +938,24 @@ export function App() {
         [filePath]: branchFamily,
       }));
     }
-    setOpenDocuments((current) => ({
-      ...current,
-      [filePath]: {
-        ...current[filePath],
-        dirty: false,
-      },
-    }));
+    setOpenDocuments((current) => {
+      if (!current[filePath]) {
+        return current;
+      }
+      if (!remainsOpen) {
+        const next = { ...current };
+        delete next[filePath];
+        return next;
+      }
+      return {
+        ...current,
+        [filePath]: {
+          ...current[filePath],
+          dirty: false,
+          diskVersion,
+        },
+      };
+    });
   }
 
   async function openKnowledgeTarget(target: string) {
@@ -685,6 +1025,19 @@ export function App() {
       setActiveTerminalId(session.id);
     }
     return session;
+  }
+
+  async function activateTerminal(leafId: PaneNodeId, id: string) {
+    terminalActions.updateLeafContent(leafId, (content) => {
+      if (content.kind !== "terminal") return content;
+      return { ...content, activeTerminalId: id };
+    });
+    setActiveTerminalId(id);
+    const buffer = await window.exo.terminals.read(id);
+    setTerminalBuffers((current) => ({
+      ...current,
+      [id]: buffer.slice(-MAX_TERMINAL_BUFFER_LENGTH),
+    }));
   }
 
   async function closeTerminal(id: string) {
@@ -776,6 +1129,28 @@ export function App() {
     );
     await reloadTrees();
     await openFile(nextPath, editorFocusedLeafId);
+  }
+
+  async function openOrCreateDailyNote() {
+    if (!workspaceModel || workspaceModel.noteRoots.length === 0) {
+      return;
+    }
+    const noteRoot = workspaceModel.noteRoots[0].path;
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    const dd = String(now.getDate()).padStart(2, "0");
+    const dailyPath = joinPath(noteRoot, `${yyyy}-${mm}-${dd}.md`);
+
+    try {
+      await window.exo.notes.read(dailyPath);
+    } catch {
+      const seed = `# ${yyyy}-${mm}-${dd}\n\n`;
+      await window.exo.workspace.createFile(dailyPath, seed);
+      await reloadTrees();
+    }
+
+    await openFile(dailyPath, editorFocusedLeafId);
   }
 
   function createDirectoryInDirectory(directoryPath: string) {
@@ -1094,7 +1469,6 @@ export function App() {
       searchQuery={searchQuery}
       searchSubmittedQuery={searchSubmittedQuery}
       searchResults={workspaceSearchResults}
-      semanticResults={semanticResults}
       onSearchSubmit={() => setSearchSubmittedQuery(searchQuery.trim())}
       onSearchClear={() => {
         setSearchQuery("");
@@ -1116,7 +1490,10 @@ export function App() {
               branchFamiliesByPath={branchFamiliesByPath}
               propertiesCollapsed={propertiesCollapsed}
               isFocused={isFocused}
-              onFocusPane={() => focusEditorPane(leaf.id)}
+              onFocusPane={() => {
+                setZoomSurface("editor");
+                focusEditorPane(leaf.id);
+              }}
               onActivateTab={(filePath) => setPaneActivePath(leaf.id, filePath)}
               onCloseTab={(filePath) => closeDocumentInPane(leaf.id, filePath)}
               onClosePane={collectLeaves(editorTree).length > 1 ? () => editorActions.removeLeaf(leaf.id) : null}
@@ -1131,6 +1508,8 @@ export function App() {
               onSuggestTargets={(query) => suggestNoteTargets(query)}
               onCreateBranch={() => void createBranchFromActiveDocument()}
               appearance={resolvedAppearance}
+              fontSize={editorFontSize}
+              onZoomEditor={(direction) => updateFocusedSurfaceZoom(direction, "editor")}
               compact={compactEditorChrome}
             />
             <InspectorDock
@@ -1159,12 +1538,11 @@ export function App() {
             activeTerminalId={leafActiveTerminalId}
             buffers={terminalBuffers}
             appearance={resolvedAppearance}
+            fontSize={terminalFontSize}
+            onFocus={() => setZoomSurface("terminal")}
             onSetActiveTerminal={(id) => {
-              terminalActions.updateLeafContent(leaf.id, (content) => {
-                if (content.kind !== "terminal") return content;
-                return { ...content, activeTerminalId: id };
-              });
-              setActiveTerminalId(id);
+              setZoomSurface("terminal");
+              void activateTerminal(leaf.id, id);
             }}
             onWrite={(id, data) => void window.exo.terminals.write(id, data)}
             onResize={(id, cols, rows) => void window.exo.terminals.resize(id, cols, rows)}
@@ -1175,11 +1553,17 @@ export function App() {
           />
         );
       }}
-      onAppearanceModeChange={setAppearanceMode}
+      onAppearanceModeChange={updateAppearanceMode}
       onOpenWorkspaceSettings={() => void openWorkspaceSettingsDialog()}
-      onSearchQueryChange={setSearchQuery}
+      onSearchQueryChange={(value) => {
+        setSearchQuery(value);
+        setSearchSubmittedQuery(value.trim());
+      }}
       onOpenFile={(filePath) => void openFile(filePath)}
       onOpenTag={(tag) => void openTag(tag)}
+      onExpandDirectory={(directoryPath, rootKind) => void expandTreeDirectory(directoryPath, rootKind)}
+      explorerScale={explorerScale}
+      onFocusExplorer={() => setZoomSurface("explorer")}
       dragManager={dragManager}
       onCreateFile={(directoryPath) => createFileInDirectory(directoryPath)}
       onCreateDirectory={(directoryPath) => createDirectoryInDirectory(directoryPath)}
@@ -1237,7 +1621,7 @@ export function App() {
           <div className="dialog-card dialog-card--settings" data-testid="workspace-settings-dialog">
             <div className="dialog-card__title">Workspace Settings</div>
             <div className="dialog-card__message">
-              Configure the workspace and attached roots. Changes are saved for the next Exo launch.
+              Configure Exo from one settings file. Appearance and sizing apply immediately; workspace paths apply on the next launch.
             </div>
             <div className="dialog-form">
               <label className="dialog-field">
@@ -1302,7 +1686,7 @@ export function App() {
                 />
               </label>
               <label className="dialog-field">
-                <span className="dialog-field__label">Projects</span>
+                <span className="dialog-field__label">Imported projects</span>
                 <textarea
                   className="dialog-card__input dialog-card__input--multiline"
                   data-testid="workspace-settings-project-roots"
@@ -1322,10 +1706,106 @@ export function App() {
                   }
                 />
               </label>
+              <label className="dialog-field">
+                <span className="dialog-field__label">Appearance</span>
+                <select
+                  className="dialog-card__input"
+                  data-testid="workspace-settings-appearance"
+                  value={workspaceSettingsDialog.appearanceMode}
+                  onChange={(event) =>
+                    setWorkspaceSettingsDialog((current) =>
+                      current
+                        ? {
+                            ...current,
+                            appearanceMode: event.target.value as AppearanceMode,
+                            saveStatus: "idle",
+                            errorMessage: null,
+                          }
+                        : current,
+                    )
+                  }
+                >
+                  <option value="system">System</option>
+                  <option value="light">Light</option>
+                  <option value="dark">Dark</option>
+                </select>
+              </label>
+              <div className="dialog-form__grid">
+                <label className="dialog-field">
+                  <span className="dialog-field__label">Editor font</span>
+                  <input
+                    className="dialog-card__input"
+                    data-testid="workspace-settings-editor-font-size"
+                    type="number"
+                    min={11}
+                    max={24}
+                    value={workspaceSettingsDialog.editorFontSize}
+                    onChange={(event) =>
+                      setWorkspaceSettingsDialog((current) =>
+                        current
+                          ? {
+                              ...current,
+                              editorFontSize: event.target.value,
+                              saveStatus: "idle",
+                              errorMessage: null,
+                            }
+                          : current,
+                      )
+                    }
+                  />
+                </label>
+                <label className="dialog-field">
+                  <span className="dialog-field__label">Terminal font</span>
+                  <input
+                    className="dialog-card__input"
+                    data-testid="workspace-settings-terminal-font-size"
+                    type="number"
+                    min={10}
+                    max={22}
+                    value={workspaceSettingsDialog.terminalFontSize}
+                    onChange={(event) =>
+                      setWorkspaceSettingsDialog((current) =>
+                        current
+                          ? {
+                              ...current,
+                              terminalFontSize: event.target.value,
+                              saveStatus: "idle",
+                              errorMessage: null,
+                            }
+                          : current,
+                      )
+                    }
+                  />
+                </label>
+                <label className="dialog-field">
+                  <span className="dialog-field__label">Explorer scale</span>
+                  <input
+                    className="dialog-card__input"
+                    data-testid="workspace-settings-explorer-scale"
+                    type="number"
+                    min={0.82}
+                    max={1.35}
+                    step={0.01}
+                    value={workspaceSettingsDialog.explorerScale}
+                    onChange={(event) =>
+                      setWorkspaceSettingsDialog((current) =>
+                        current
+                          ? {
+                              ...current,
+                              explorerScale: event.target.value,
+                              saveStatus: "idle",
+                              errorMessage: null,
+                            }
+                          : current,
+                      )
+                    }
+                  />
+                </label>
+              </div>
             </div>
             {workspaceSettingsDialog.saveStatus === "saved" ? (
               <div className="dialog-card__status" data-testid="workspace-settings-status">
-                Saved. Restart Exo to apply the new paths.
+                Saved. Restart Exo to apply changed workspace paths.
               </div>
             ) : null}
             {workspaceSettingsDialog.saveStatus === "error" && workspaceSettingsDialog.errorMessage ? (
@@ -1351,12 +1831,47 @@ export function App() {
   );
 }
 
-function readStoredAppearanceMode(): AppearanceMode {
-  const value = window.localStorage.getItem(APPEARANCE_STORAGE_KEY);
-  if (value === "light" || value === "dark" || value === "system") {
-    return value;
+function isZoomKey(key: string): boolean {
+  return key === "+" || key === "=" || key === "-" || key === "_" || key === "0";
+}
+
+function zoomDirection(key: string): -1 | 0 | 1 {
+  if (key === "-" || key === "_") {
+    return -1;
   }
-  return "system";
+  if (key === "0") {
+    return 0;
+  }
+  return 1;
+}
+
+function resolveZoomSurface(event: KeyboardEvent): ZoomSurface {
+  for (const entry of event.composedPath()) {
+    if (!(entry instanceof Element)) {
+      continue;
+    }
+    if (entry.closest(".terminal-dock, .terminal-surface")) {
+      return "terminal";
+    }
+    if (entry.closest(".editor-pane, .editor-panel, .cm-editor")) {
+      return "editor";
+    }
+    if (entry.closest(".sidebar")) {
+      return "explorer";
+    }
+  }
+
+  const activeElement = document.activeElement;
+  if (activeElement?.closest(".terminal-dock, .terminal-surface")) {
+    return "terminal";
+  }
+  if (activeElement?.closest(".editor-pane, .editor-panel, .cm-editor")) {
+    return "editor";
+  }
+  if (activeElement?.closest(".sidebar")) {
+    return "explorer";
+  }
+  return "editor";
 }
 
 function flattenFiles(nodes: TreeNode[]): TreeNode[] {
@@ -1369,8 +1884,129 @@ function flattenFiles(nodes: TreeNode[]): TreeNode[] {
   });
 }
 
+function collectOpenEditorPaths(tree: PaneNode): Set<string> {
+  const paths = new Set<string>();
+  for (const leaf of collectLeaves(tree)) {
+    if (leaf.content.kind !== "editor") {
+      continue;
+    }
+    for (const filePath of leaf.content.openPaths) {
+      paths.add(filePath);
+    }
+  }
+  return paths;
+}
+
+function collectActiveTerminalIds(tree: PaneNode): Set<string> {
+  const ids = new Set<string>();
+  for (const leaf of collectLeaves(tree)) {
+    if (leaf.content.kind === "terminal" && leaf.content.activeTerminalId) {
+      ids.add(leaf.content.activeTerminalId);
+    }
+  }
+  return ids;
+}
+
+function pruneRecordToKeys<T>(record: Record<string, T>, keys: Set<string>): Record<string, T> {
+  const entries = Object.entries(record).filter(([key]) => keys.has(key));
+  return entries.length === Object.keys(record).length ? record : Object.fromEntries(entries);
+}
+
+function treeLoadKey(rootKind: "notes" | "projects", directoryPath: string): string {
+  return `${rootKind}:${directoryPath}`;
+}
+
+function replaceTreeChildrenInRoots(
+  roots: Record<string, TreeNode[]>,
+  directoryPath: string,
+  children: TreeNode[],
+): Record<string, TreeNode[]> {
+  let changed = false;
+  const next = Object.fromEntries(
+    Object.entries(roots).map(([rootPath, nodes]) => {
+      const nextNodes = replaceTreeChildren(nodes, directoryPath, children);
+      if (nextNodes !== nodes) {
+        changed = true;
+      }
+      return [rootPath, nextNodes];
+    }),
+  );
+  return changed ? next : roots;
+}
+
+function replaceTreeChildren(nodes: TreeNode[], directoryPath: string, children: TreeNode[]): TreeNode[] {
+  let changed = false;
+  const nextNodes = nodes.map((node) => {
+    if (node.kind !== "directory") {
+      return node;
+    }
+    if (node.path === directoryPath) {
+      changed = true;
+      return { ...node, children: mergeTreeChildren(node.children ?? [], children) };
+    }
+    const nextChildren = node.children ? replaceTreeChildren(node.children, directoryPath, children) : node.children;
+    if (nextChildren !== node.children) {
+      changed = true;
+      return { ...node, children: nextChildren };
+    }
+    return node;
+  });
+  return changed ? nextNodes : nodes;
+}
+
+function mergeTreeChildren(existing: TreeNode[], incoming: TreeNode[]): TreeNode[] {
+  if (existing.length === 0) {
+    return incoming;
+  }
+  const existingByPath = new Map(existing.map((node) => [node.path, node]));
+  return incoming.map((node) => {
+    const previous = existingByPath.get(node.path);
+    if (!previous || previous.kind !== "directory" || node.kind !== "directory") {
+      return node;
+    }
+    if ((previous.children?.length ?? 0) > 0 && (node.children?.length ?? 0) === 0) {
+      return previous;
+    }
+    return {
+      ...node,
+      children: mergeTreeChildren(previous.children ?? [], node.children ?? []),
+    };
+  });
+}
+
+function treeDirectoryHasChildrenInRoots(roots: Record<string, TreeNode[]>, directoryPath: string): boolean {
+  return Object.values(roots).some((nodes) => treeDirectoryHasChildren(nodes, directoryPath));
+}
+
+function treeDirectoryHasChildren(nodes: TreeNode[], directoryPath: string): boolean {
+  for (const node of nodes) {
+    if (node.kind !== "directory") {
+      continue;
+    }
+    if (node.path === directoryPath) {
+      return (node.children?.length ?? 0) > 0;
+    }
+    if (node.children && treeDirectoryHasChildren(node.children, directoryPath)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function pickInitialNote(entries: Array<readonly [string, TreeNode[]]>): TreeNode | undefined {
   const files = entries.flatMap((entry) => flattenFiles(entry[1]));
+  for (const [rootPath] of entries) {
+    const rootTasks = files.find((file) => file.path === joinPath(rootPath, "tasks.md"));
+    if (rootTasks) {
+      return rootTasks;
+    }
+  }
+
+  const exoTasks = files.find((file) => file.path.endsWith("/projects/exo/tasks.md"));
+  if (exoTasks) {
+    return exoTasks;
+  }
+
   const preferred = ["tasks.md", "schedule.md", "goals.md", "CLAUDE.md"];
   for (const name of preferred) {
     const match = files.find((file) => file.path.endsWith(`/${name}`));
@@ -1425,7 +2061,38 @@ function isPathWithin(parentPath: string, targetPath: string): boolean {
   return targetPath === parentPath || targetPath.startsWith(`${parentPath}/`);
 }
 
+function fileVersionsEqual(left: FileStatInfo | null, right: FileStatInfo | null): boolean {
+  return Boolean(left && right && left.size === right.size && left.mtimeMs === right.mtimeMs);
+}
+
+function getActiveEditorScrollTop(): number | null {
+  const scroller = document.querySelector<HTMLElement>(".editor-surface .cm-scroller");
+  return scroller ? scroller.scrollTop : null;
+}
+
+function restoreActiveEditorScrollTop(scrollTop: number) {
+  const restore = () => {
+    const scroller = document.querySelector<HTMLElement>(".editor-surface .cm-scroller");
+    if (scroller) {
+      scroller.scrollTop = scrollTop;
+    }
+  };
+
+  window.requestAnimationFrame(restore);
+  const interval = window.setInterval(restore, 50);
+  window.setTimeout(() => {
+    restore();
+    window.clearInterval(interval);
+  }, 650);
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+function clampNumber(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) {
+    return min;
+  }
+  return Math.min(max, Math.max(min, value));
+}

@@ -7,7 +7,24 @@ import { readWorkspaceDocument } from "./notes";
 
 const DEFAULT_WORKSPACE_ROOT = "/Users/kenneth/Desktop/lab";
 const DEFAULT_NOTE_ROOT = "/Users/kenneth/Desktop/lab/notes/shoshin-codex";
-const DEFAULT_PROJECT_ROOT = "/Users/kenneth/Desktop/lab/projects";
+const SEARCH_RESULT_LIMIT = 30;
+const PROJECT_SEARCH_RESULT_LIMIT = 25;
+const MAX_SEARCH_VISITED_ENTRIES = 20_000;
+const IGNORED_DIRECTORY_NAMES = new Set([
+  ".git",
+  ".next",
+  ".nuxt",
+  ".turbo",
+  ".venv",
+  "__pycache__",
+  "build",
+  "coverage",
+  "dist",
+  "node_modules",
+  "site-packages",
+  "target",
+  "venv",
+]);
 
 function pathExists(targetPath: string): Promise<boolean> {
   return access(targetPath, constants.F_OK).then(
@@ -24,7 +41,7 @@ export function resolveWorkspaceModel(env: NodeJS.ProcessEnv = process.env): Wor
   const workspaceRoot = env.EXO_WORKSPACE_ROOT ?? DEFAULT_WORKSPACE_ROOT;
   const defaultTerminalCwd = env.EXO_DEFAULT_TERMINAL_CWD ?? workspaceRoot;
   const noteRootCandidates = (env.EXO_NOTE_ROOTS ?? DEFAULT_NOTE_ROOT).split(path.delimiter).filter(Boolean);
-  const projectRootCandidates = (env.EXO_PROJECT_ROOTS ?? DEFAULT_PROJECT_ROOT).split(path.delimiter).filter(Boolean);
+  const projectRootCandidates = (env.EXO_PROJECT_ROOTS ?? "").split(path.delimiter).filter(Boolean);
 
   return {
     workspaceRoot,
@@ -51,7 +68,13 @@ async function listTreeRecursive(rootPath: string, markdownOnly: boolean, maxDep
 
   const entries = await readdir(rootPath, { withFileTypes: true });
   const visibleEntries = entries
-    .filter((entry) => !entry.name.startsWith("."))
+    .filter((entry) => {
+      if (!entry.name.startsWith(".")) {
+        return true;
+      }
+
+      return !markdownOnly && entry.isFile() && entry.name !== ".DS_Store";
+    })
     .filter((entry) => entry.name !== "node_modules" && entry.name !== ".git")
     .sort((left, right) => {
       if (left.isDirectory() === right.isDirectory()) {
@@ -109,15 +132,21 @@ export async function searchNotes(model: WorkspaceModel, query: string): Promise
     return [];
   }
 
-  const noteFiles = await listMarkdownFiles(model.noteRoots.map((root) => root.path));
-  const results = noteFiles.map<SearchResult | null>((filePath) => {
+  const noteFiles = await findMatchingFiles(
+    model.noteRoots.map((root) => root.path),
+    (filePath) => {
+      if (!/\.md(?:own)?$/i.test(filePath)) {
+        return false;
+      }
+      const relativePath = path.relative(model.workspaceRoot, filePath);
+      const title = path.basename(filePath, path.extname(filePath));
+      return `${title}\n${relativePath}`.toLowerCase().includes(trimmedQuery);
+    },
+    SEARCH_RESULT_LIMIT,
+  );
+  const results = noteFiles.map<SearchResult>((filePath) => {
     const relativePath = path.relative(model.workspaceRoot, filePath);
     const title = path.basename(filePath, path.extname(filePath));
-    const haystack = `${title}\n${relativePath}`.toLowerCase();
-    if (!haystack.includes(trimmedQuery)) {
-      return null;
-    }
-
     return {
       filePath,
       title,
@@ -126,7 +155,7 @@ export async function searchNotes(model: WorkspaceModel, query: string): Promise
     };
   });
 
-  return results.filter(isSearchResult).slice(0, 30);
+  return results.slice(0, SEARCH_RESULT_LIMIT);
 }
 
 export async function searchProjectFiles(model: WorkspaceModel, query: string): Promise<SearchResult[]> {
@@ -135,27 +164,23 @@ export async function searchProjectFiles(model: WorkspaceModel, query: string): 
     return [];
   }
 
-  const files = await listFiles(model.projectRoots.map((root) => root.path));
-  const results: Array<SearchResult | null> = await Promise.all(
-    files.map(async (filePath) => {
-      const normalizedPath = filePath.toLowerCase();
-      let snippet = path.relative(model.workspaceRoot, filePath);
-      let matches = normalizedPath.includes(trimmedQuery);
-
-      if (!matches) {
-        return null;
+  const files = await findMatchingFiles(
+    model.projectRoots.map((root) => root.path),
+    (filePath) => {
+      if (!isTextLikeFile(filePath)) {
+        return false;
       }
-
-      return {
-        filePath,
-        title: path.basename(filePath),
-        snippet,
-        kind: "project-file" as const,
-      };
-    }),
+      return path.relative(model.workspaceRoot, filePath).toLowerCase().includes(trimmedQuery);
+    },
+    PROJECT_SEARCH_RESULT_LIMIT,
   );
 
-  return results.filter(isSearchResult).slice(0, 20);
+  return files.map((filePath) => ({
+    filePath,
+    title: path.basename(filePath),
+    snippet: path.relative(model.workspaceRoot, filePath),
+    kind: "project-file" as const,
+  }));
 }
 
 export async function searchTags(model: WorkspaceModel, query: string): Promise<SearchResult[]> {
@@ -198,19 +223,12 @@ export async function searchTags(model: WorkspaceModel, query: string): Promise<
 }
 
 export async function searchWorkspace(model: WorkspaceModel, query: string): Promise<WorkspaceSearchResults> {
-  const trimmedQuery = query.trim();
-  const shouldSearchTags = trimmedQuery.startsWith("#");
-
-  const [notes, projectFiles, tags] = await Promise.all([
-    searchNotes(model, query),
-    searchProjectFiles(model, query),
-    shouldSearchTags ? searchTags(model, query) : Promise.resolve([]),
-  ]);
+  const notes = await searchNotes(model, query);
 
   return {
     notes,
-    projectFiles,
-    tags,
+    projectFiles: [],
+    tags: [],
   };
 }
 
@@ -254,6 +272,64 @@ async function collectFiles(rootPath: string, markdownOnly = false): Promise<str
 export async function listFiles(rootPaths: string[]): Promise<string[]> {
   const files = await Promise.all(rootPaths.map((rootPath) => collectFiles(rootPath)));
   return files.flat();
+}
+
+async function findMatchingFiles(
+  rootPaths: string[],
+  matches: (filePath: string) => boolean,
+  limit: number,
+): Promise<string[]> {
+  const results: string[] = [];
+  let visited = 0;
+
+  async function visit(directoryPath: string): Promise<void> {
+    if (results.length >= limit || visited >= MAX_SEARCH_VISITED_ENTRIES || !(await pathExists(directoryPath))) {
+      return;
+    }
+
+    let entries;
+    try {
+      entries = await readdir(directoryPath, { withFileTypes: true });
+    } catch {
+      return;
+    }
+
+    entries.sort((left, right) => {
+      if (left.isDirectory() === right.isDirectory()) {
+        return left.name.localeCompare(right.name);
+      }
+      return left.isDirectory() ? -1 : 1;
+    });
+
+    for (const entry of entries) {
+      if (results.length >= limit || visited >= MAX_SEARCH_VISITED_ENTRIES) {
+        return;
+      }
+      if (entry.name.startsWith(".")) {
+        continue;
+      }
+      if (entry.isDirectory() && IGNORED_DIRECTORY_NAMES.has(entry.name)) {
+        continue;
+      }
+
+      visited += 1;
+      const entryPath = path.join(directoryPath, entry.name);
+      if (entry.isDirectory()) {
+        await visit(entryPath);
+      } else if (matches(entryPath)) {
+        results.push(entryPath);
+      }
+    }
+  }
+
+  for (const rootPath of rootPaths) {
+    await visit(rootPath);
+    if (results.length >= limit || visited >= MAX_SEARCH_VISITED_ENTRIES) {
+      break;
+    }
+  }
+
+  return results;
 }
 
 export async function createWorkspaceFile(targetPath: string, content = ""): Promise<string> {

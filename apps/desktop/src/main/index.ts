@@ -1,11 +1,10 @@
 import { app, BrowserWindow, ipcMain, Menu, nativeImage, nativeTheme, shell, Tray } from "electron";
 import path from "node:path";
-import { access, mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, appendFile, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { constants, existsSync, watch, type FSWatcher } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import {
-  buildQmdConfig,
   createWorkspaceDirectory,
   createWorkspaceFile,
   createBranchFile,
@@ -20,10 +19,8 @@ import {
   resolveWorkspaceModel,
   saveWorkspaceDocument,
   searchNotes,
-  searchQmd,
   searchWorkspace,
   type SearchResult,
-  type SemanticSearchResult,
   type WorkspaceModel,
   type WorkspaceSettings,
 } from "@exo/core";
@@ -34,20 +31,43 @@ import { TerminalManager } from "./terminal-manager";
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 
+if (process.env.EXO_ENABLE_GPU !== "1") {
+  app.disableHardwareAcceleration();
+  app.commandLine.appendSwitch("disable-gpu");
+  app.commandLine.appendSwitch("disable-gpu-compositing");
+  app.commandLine.appendSwitch("disable-zero-copy");
+}
+
 if (process.env.EXO_USER_DATA_PATH) {
   app.setPath("userData", process.env.EXO_USER_DATA_PATH);
 }
 
+process.on("uncaughtException", (error) => {
+  logMain("uncaught exception", serializeError(error));
+});
+
+process.on("unhandledRejection", (reason) => {
+  logMain("unhandled rejection", serializeError(reason));
+});
+
 const singleInstanceLock = app.requestSingleInstanceLock();
 
 let mainWindow: BrowserWindow | null = null;
+let rendererReady = false;
 let tray: Tray | null = null;
 let commandServer: CommandServer | null = null;
 let workspaceModel: WorkspaceModel;
+let workspaceSettings: WorkspaceSettings | null = null;
 let terminalManager: TerminalManager;
 let workspaceWatchers: FSWatcher[] = [];
 let pendingWorkspaceEvents = new Map<string, { rootPath: string; eventType: string; filePath: string | null }>();
 let workspaceBroadcastTimer: NodeJS.Timeout | null = null;
+const rendererRecoveryTimestamps: number[] = [];
+const streamingTerminalIds = new Set<string>();
+const DEFAULT_APPEARANCE_MODE: WorkspaceSettings["appearanceMode"] = "system";
+const DEFAULT_EDITOR_FONT_SIZE = 15;
+const DEFAULT_TERMINAL_FONT_SIZE = 13;
+const DEFAULT_EXPLORER_SCALE = 1;
 
 if (!singleInstanceLock) {
   app.quit();
@@ -96,23 +116,21 @@ function setupTray() {
 
 function startCommandServer() {
   const runtimeConfig = resolveRuntimeConfig();
-  const qmdConfig = buildQmdConfig(runtimeConfig.retrieval, workspaceModel.noteRoots.map((r) => r.path));
 
   commandServer = new CommandServer({
     runtimeRoot: runtimeConfig.runtimeRoot,
+    onShowWindow: () => showMainWindow(),
     onOpenFile: (filePath: string) => {
-      mainWindow?.webContents.send("command:open-file", filePath);
+      sendToRenderer("command:open-file", filePath);
     },
     onSearch: (query: string) => searchWorkspace(workspaceModel, query),
-    onSearchSemantic: (query: string) => qmdConfig ? searchQmd(query, qmdConfig) : Promise.resolve([]),
     onListTerminals: () => terminalManager.list(),
     onCreateTerminal: (kind: string, cwd?: string) => terminalManager.create({ kind: kind as "shell" | "claude" | "codex", cwd }),
-    onGetSettings: () => ({
-      workspaceRoot: workspaceModel.workspaceRoot,
-      defaultTerminalCwd: workspaceModel.defaultTerminalCwd,
-      noteRoots: workspaceModel.noteRoots.map((r) => r.path),
-      projectRoots: workspaceModel.projectRoots.map((r) => r.path),
-    }),
+    onReadTerminal: (id: string) => terminalManager.readBuffer(id),
+    onReadTerminalTranscript: (id: string, tailChars: number) => terminalManager.readTranscript(id, tailChars),
+    onWriteTerminal: (id: string, data: string) => terminalManager.write(id, data),
+    onKillTerminal: (id: string) => terminalManager.kill(id, { terminate: true }),
+    onGetSettings: () => currentWorkspaceSettings(),
     onGetStatus: () => ({
       workspace: workspaceModel,
       terminals: terminalManager.list(),
@@ -145,11 +163,13 @@ function createWindow() {
     },
   });
 
-  if (process.env.VITE_DEV_SERVER_URL) {
-    window.loadURL(process.env.VITE_DEV_SERVER_URL);
-  } else {
-    window.loadFile(path.join(currentDirectory, "../renderer/index.html"));
-  }
+  loadRenderer(window);
+
+  window.webContents.on("did-start-loading", () => {
+    if (mainWindow === window) {
+      rendererReady = false;
+    }
+  });
 
   // Safety timeout: force-show if renderer takes too long (e.g., slow Vite HMR)
   const showTimeout = isTestWindow
@@ -168,14 +188,37 @@ function createWindow() {
     window.show();
   });
 
-  window.webContents.once("did-finish-load", () => {
+  window.webContents.on("did-finish-load", () => {
     if (showTimeout) clearTimeout(showTimeout);
     if (isTestWindow || window.isDestroyed()) {
       return;
     }
+    if (mainWindow === window) {
+      rendererReady = true;
+    }
     if (!window.isVisible()) {
       window.show();
     }
+  });
+
+  window.webContents.on("render-process-gone", (_event, details) => {
+    if (mainWindow === window) {
+      rendererReady = false;
+    }
+    const diagnostics = {
+      ...details,
+      gpuDisabled: process.env.EXO_ENABLE_GPU !== "1",
+      terminals: terminalManager?.diagnostics() ?? [],
+    };
+    console.error("[main] renderer process gone", diagnostics);
+    logMain("renderer process gone", diagnostics);
+    scheduleRendererRecovery(window, details.reason);
+  });
+
+  window.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL) => {
+    const details = { errorCode, errorDescription, validatedURL };
+    console.error("[main] renderer failed to load", details);
+    logMain("renderer failed to load", details);
   });
 
   mainWindow = window;
@@ -183,8 +226,68 @@ function createWindow() {
   window.on("closed", () => {
     if (mainWindow === window) {
       mainWindow = null;
+      rendererReady = false;
     }
   });
+}
+
+function showMainWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    createWindow();
+    return;
+  }
+
+  if (mainWindow.isMinimized()) {
+    mainWindow.restore();
+  }
+
+  if (!mainWindow.isVisible()) {
+    mainWindow.show();
+  }
+
+  mainWindow.focus();
+}
+
+function loadRenderer(window: BrowserWindow) {
+  const devServerUrl = process.env.ELECTRON_RENDERER_URL ?? process.env.VITE_DEV_SERVER_URL;
+  if (devServerUrl) {
+    void window.loadURL(devServerUrl);
+  } else {
+    void window.loadFile(path.join(currentDirectory, "../renderer/index.html"));
+  }
+}
+
+function scheduleRendererRecovery(window: BrowserWindow, reason: string) {
+  if (process.env.EXO_AUTO_RECOVER_RENDERER === "0") {
+    return;
+  }
+  if (reason !== "crashed" && reason !== "oom") {
+    return;
+  }
+
+  const now = Date.now();
+  while (rendererRecoveryTimestamps.length > 0 && now - rendererRecoveryTimestamps[0] > 60_000) {
+    rendererRecoveryTimestamps.shift();
+  }
+  if (rendererRecoveryTimestamps.length >= 3) {
+    logMain("renderer auto recovery suppressed", {
+      reason,
+      recentRecoveries: rendererRecoveryTimestamps.length,
+    });
+    return;
+  }
+  rendererRecoveryTimestamps.push(now);
+
+  setTimeout(() => {
+    if (window.isDestroyed() || mainWindow !== window) {
+      return;
+    }
+    logMain("renderer auto recovery reload", { reason });
+    loadRenderer(window);
+    if (!window.isVisible()) {
+      window.show();
+    }
+  }, 750);
 }
 
 function resolvePreloadPath(): string {
@@ -198,34 +301,70 @@ function logWorkspaceStartup(model: WorkspaceModel) {
     return;
   }
 
-  console.info("[exo] workspace startup", {
+  const details = {
     workspaceRoot: model.workspaceRoot,
     defaultTerminalCwd: model.defaultTerminalCwd,
     noteRoots: model.noteRoots.map((root) => root.path),
     projectRoots: model.projectRoots.map((root) => root.path),
     userDataPath: app.getPath("userData"),
     settingsPath: resolveWorkspaceSettingsPath(),
-  });
+    gpuDisabled: process.env.EXO_ENABLE_GPU !== "1",
+  };
+  console.info("[exo] workspace startup", details);
+  logMain("workspace startup", details);
 }
 
 function broadcastTerminalData() {
   terminalManager.on("data", (event) => {
-    mainWindow?.webContents.send("terminal:data", event);
+    const info = terminalManager.getInfo(event.id);
+    if (info?.kind !== "shell" && !streamingTerminalIds.has(event.id)) {
+      return;
+    }
+    sendToRenderer("terminal:data", event);
   });
   terminalManager.on("exit", (event) => {
-    mainWindow?.webContents.send("terminal:exit", event);
+    sendToRenderer("terminal:exit", event);
   });
+}
+
+function sendToRenderer(channel: string, payload: unknown) {
+  if (!rendererReady || !mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) {
+    return;
+  }
+
+  try {
+    mainWindow.webContents.send(channel, payload);
+  } catch (err) {
+    console.warn(`[main] failed to send ${channel}:`, err);
+  }
+}
+
+function logMain(message: string, details?: unknown) {
+  const line = `${new Date().toISOString()} ${message}${details === undefined ? "" : ` ${JSON.stringify(details)}`}\n`;
+  const logPath = path.join(app.getPath("userData"), "exo-main.log");
+  appendFile(logPath, line, "utf8").catch(() => {});
+}
+
+function serializeError(error: unknown): unknown {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+    };
+  }
+
+  return error;
 }
 
 function registerIpcHandlers() {
   ipcMain.handle("workspace:get-model", async () => workspaceModel);
-  ipcMain.handle("workspace:get-settings", async () => ({
-    workspaceRoot: workspaceModel.workspaceRoot,
-    defaultTerminalCwd: workspaceModel.defaultTerminalCwd,
-    noteRoots: workspaceModel.noteRoots.map((root) => root.path),
-    projectRoots: workspaceModel.projectRoots.map((root) => root.path),
-  }));
-  ipcMain.handle("workspace:save-settings", async (_event, settings: WorkspaceSettings) => saveWorkspaceSettings(settings));
+  ipcMain.handle("workspace:get-settings", async () => currentWorkspaceSettings());
+  ipcMain.handle("workspace:save-settings", async (_event, settings: WorkspaceSettings) => {
+    workspaceSettings = await saveWorkspaceSettings(settings);
+    applyWorkspaceSettings(workspaceSettings);
+    return workspaceSettings;
+  });
   ipcMain.handle("runtime:get-status", async () => terminalManager.getRuntimeConfig());
   ipcMain.handle("runtime:sync", async () => terminalManager.syncRuntimeContext());
   ipcMain.handle(
@@ -235,12 +374,6 @@ function registerIpcHandlers() {
   );
   ipcMain.handle("workspace:search-notes", async (_event, query: string) => searchNotes(workspaceModel, query));
   ipcMain.handle("workspace:search-workspace", async (_event, query: string) => searchWorkspace(workspaceModel, query));
-  ipcMain.handle("workspace:search-semantic", async (_event, query: string): Promise<SemanticSearchResult[]> => {
-    const runtimeConfig = resolveRuntimeConfig();
-    const qmdConfig = buildQmdConfig(runtimeConfig.retrieval, workspaceModel.noteRoots.map((r) => r.path));
-    if (!qmdConfig) return [];
-    return searchQmd(query, qmdConfig);
-  });
   ipcMain.handle("workspace:create-file", async (_event, targetPath: string, content?: string) => createWorkspaceFile(targetPath, content));
   ipcMain.handle("workspace:create-directory", async (_event, targetPath: string) => createWorkspaceDirectory(targetPath));
   ipcMain.handle("workspace:rename-path", async (_event, sourcePath: string, nextPath: string) => renameWorkspacePath(sourcePath, nextPath));
@@ -278,6 +411,14 @@ function registerIpcHandlers() {
   ipcMain.handle("notes:save", async (_event, filePath: string, frontmatter: Record<string, unknown>, body: string) =>
     saveWorkspaceDocument(filePath, frontmatter, body),
   );
+  ipcMain.handle("notes:stat", async (_event, filePath: string) => {
+    try {
+      const info = await stat(filePath);
+      return { size: info.size, mtimeMs: info.mtimeMs };
+    } catch {
+      return null;
+    }
+  });
   ipcMain.handle("notes:get-knowledge", async (_event, filePath: string) =>
     getNoteKnowledge(filePath, workspaceModel.noteRoots.map((root) => root.path)),
   );
@@ -310,11 +451,21 @@ function registerIpcHandlers() {
   ipcMain.handle("terminals:ensure-default", async () => terminalManager.ensureDefault());
   ipcMain.handle("terminals:list", async () => terminalManager.list());
   ipcMain.handle("terminals:create", async (_event, options: TerminalCreateOptions) => terminalManager.create(options));
+  ipcMain.handle("terminals:read", async (_event, id: string) => terminalManager.readBuffer(id) ?? "");
+  ipcMain.handle("terminals:read-transcript", async (_event, id: string, tailChars?: number) =>
+    terminalManager.readTranscript(id, typeof tailChars === "number" ? tailChars : 200_000) ?? "",
+  );
   ipcMain.handle("terminals:write", async (_event, id: string, data: string) => terminalManager.write(id, data));
   ipcMain.handle("terminals:resize", async (_event, id: string, cols: number, rows: number) =>
     terminalManager.resize(id, cols, rows),
   );
-  ipcMain.handle("terminals:kill", async (_event, id: string) => terminalManager.kill(id));
+  ipcMain.handle("terminals:set-streaming", async (_event, ids: string[]) => {
+    streamingTerminalIds.clear();
+    for (const id of ids) {
+      streamingTerminalIds.add(id);
+    }
+  });
+  ipcMain.handle("terminals:kill", async (_event, id: string) => terminalManager.kill(id, { terminate: true }));
   ipcMain.handle("shell:open-external", async (_event, target: string) => shell.openExternal(target));
 }
 
@@ -376,7 +527,7 @@ function queueWorkspaceChange(event: { rootPath: string; eventType: string; file
     pendingWorkspaceEvents.clear();
 
     for (const nextEvent of events) {
-      mainWindow?.webContents.send("workspace:changed", nextEvent);
+      sendToRenderer("workspace:changed", nextEvent);
     }
   }, 120);
 }
@@ -483,10 +634,20 @@ function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | null | u
     ? input.noteRoots.map((entry) => (typeof entry === "string" ? entry.trim() : "")).filter(Boolean)
     : [];
   const projectRoots = Array.isArray(input.projectRoots)
-    ? input.projectRoots.map((entry) => (typeof entry === "string" ? entry.trim() : "")).filter(Boolean)
+    ? input.projectRoots
+        .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
+        .filter(Boolean)
+        .filter((entry) => !isBroadDefaultProjectRoot(workspaceRoot, entry))
     : [];
+  const appearanceMode =
+    input.appearanceMode === "light" || input.appearanceMode === "dark" || input.appearanceMode === "system"
+      ? input.appearanceMode
+      : DEFAULT_APPEARANCE_MODE;
+  const editorFontSize = clampSettingsNumber(input.editorFontSize, DEFAULT_EDITOR_FONT_SIZE, 11, 24);
+  const terminalFontSize = clampSettingsNumber(input.terminalFontSize, DEFAULT_TERMINAL_FONT_SIZE, 10, 22);
+  const explorerScale = clampSettingsNumber(input.explorerScale, DEFAULT_EXPLORER_SCALE, 0.82, 1.35);
 
-  if (!workspaceRoot || !defaultTerminalCwd || noteRoots.length === 0 || projectRoots.length === 0) {
+  if (!workspaceRoot || !defaultTerminalCwd || noteRoots.length === 0) {
     return null;
   }
 
@@ -495,7 +656,38 @@ function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | null | u
     defaultTerminalCwd,
     noteRoots,
     projectRoots,
+    appearanceMode,
+    editorFontSize,
+    terminalFontSize,
+    explorerScale,
   };
+}
+
+function currentWorkspaceSettings(): WorkspaceSettings {
+  return (
+    workspaceSettings ?? {
+      workspaceRoot: workspaceModel.workspaceRoot,
+      defaultTerminalCwd: workspaceModel.defaultTerminalCwd,
+      noteRoots: workspaceModel.noteRoots.map((root) => root.path),
+      projectRoots: workspaceModel.projectRoots.map((root) => root.path),
+      appearanceMode: DEFAULT_APPEARANCE_MODE,
+      editorFontSize: DEFAULT_EDITOR_FONT_SIZE,
+      terminalFontSize: DEFAULT_TERMINAL_FONT_SIZE,
+      explorerScale: DEFAULT_EXPLORER_SCALE,
+    }
+  );
+}
+
+function clampSettingsNumber(value: unknown, fallback: number, min: number, max: number): number {
+  const parsed = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  return Math.max(min, Math.min(max, parsed));
+}
+
+function isBroadDefaultProjectRoot(workspaceRoot: string, targetPath: string): boolean {
+  return path.resolve(targetPath) === path.resolve(workspaceRoot, "projects");
 }
 
 async function loadWorkspaceSettings(): Promise<WorkspaceSettings | null> {
@@ -528,22 +720,42 @@ function applyWorkspaceSettings(settings: WorkspaceSettings | null) {
   process.env.EXO_DEFAULT_TERMINAL_CWD = settings.defaultTerminalCwd;
   process.env.EXO_NOTE_ROOTS = settings.noteRoots.join(path.delimiter);
   process.env.EXO_PROJECT_ROOTS = settings.projectRoots.join(path.delimiter);
+  if (!isForcedTheme(process.env.EXO_FORCE_THEME)) {
+    nativeTheme.themeSource = settings.appearanceMode;
+  }
+}
+
+function isForcedTheme(value: string | undefined): value is WorkspaceSettings["appearanceMode"] {
+  return value === "light" || value === "dark" || value === "system";
 }
 
 app.whenReady().then(async () => {
   const forcedTheme = process.env.EXO_FORCE_THEME;
-  if (forcedTheme === "light" || forcedTheme === "dark" || forcedTheme === "system") {
+  if (isForcedTheme(forcedTheme)) {
     nativeTheme.themeSource = forcedTheme;
   }
 
-  applyWorkspaceSettings(await loadWorkspaceSettings());
+  workspaceSettings = await loadWorkspaceSettings();
+  applyWorkspaceSettings(workspaceSettings);
+  if (workspaceSettings && !isForcedTheme(forcedTheme)) {
+    nativeTheme.themeSource = workspaceSettings.appearanceMode;
+  }
   workspaceModel = resolveWorkspaceModel();
+  workspaceSettings = await saveWorkspaceSettings(currentWorkspaceSettings());
   logWorkspaceStartup(workspaceModel);
   terminalManager = new TerminalManager(workspaceModel.defaultTerminalCwd);
   registerIpcHandlers();
   broadcastTerminalData();
   startWorkspaceWatchers();
   await terminalManager.syncRuntimeContext();
+  try {
+    const restored = await terminalManager.restoreAgentSessions();
+    if (restored.length > 0) {
+      console.log(`[main] reattached ${restored.length} agent terminal(s) from previous session`);
+    }
+  } catch (err) {
+    console.warn("[main] failed to restore agent terminals:", err);
+  }
   createWindow();
   setupTray();
   startCommandServer();
@@ -559,24 +771,13 @@ app.whenReady().then(async () => {
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
+      return;
     }
+    showMainWindow();
   });
 
   app.on("second-instance", () => {
-    if (!mainWindow || mainWindow.isDestroyed()) {
-      createWindow();
-      return;
-    }
-
-    if (mainWindow.isMinimized()) {
-      mainWindow.restore();
-    }
-
-    if (!mainWindow.isVisible()) {
-      mainWindow.show();
-    }
-
-    mainWindow.focus();
+    showMainWindow();
   });
 });
 

@@ -1,12 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import CodeMirror from "@uiw/react-codemirror";
+import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { autocompletion, type CompletionContext } from "@codemirror/autocomplete";
+import { indentWithTab } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
-import { EditorView } from "@codemirror/view";
+import { bracketMatching, foldGutter } from "@codemirror/language";
+import { lintGutter, lintKeymap } from "@codemirror/lint";
+import { keymap, lineNumbers, EditorView } from "@codemirror/view";
 import { Code2, GitBranch, SlidersHorizontal } from "lucide-react";
 import type { BranchFamily, NoteDocument } from "@exo/core";
 import type { ResolvedAppearance } from "../App";
+import { codeLanguageForPath } from "./codeLanguages";
 import { coerceFrontmatterValue, getDocumentDisplayTitle, stringifyFrontmatterValue } from "./documentDisplay";
 import { markdownLivePreview } from "./markdownLivePreview";
 
@@ -29,6 +33,8 @@ interface NoteEditorProps {
   onCreateBranch: () => void;
   onFocus: () => void;
   appearance: ResolvedAppearance;
+  fontSize: number;
+  onZoomEditor: (direction: -1 | 0 | 1) => void;
   compact: boolean;
 }
 
@@ -48,9 +54,16 @@ export function NoteEditor(props: NoteEditorProps) {
     onCreateBranch,
     onFocus,
     appearance,
+    fontSize,
+    onZoomEditor,
     compact,
   } = props;
   const [rawMarkdownMode, setRawMarkdownMode] = useState(false);
+  const codeMirrorRef = useRef<ReactCodeMirrorRef>(null);
+  const scrollTopByPathRef = useRef<Map<string, number>>(new Map());
+  const previousBodyRef = useRef(document?.body ?? "");
+  const previousPathRef = useRef(document?.filePath ?? "");
+  const restoringScrollRef = useRef(false);
 
   useEffect(() => {
     setRawMarkdownMode(false);
@@ -67,8 +80,110 @@ export function NoteEditor(props: NoteEditorProps) {
 
   const isMarkdown = document.kind === "markdown";
   const displayTitle = getDocumentDisplayTitle(document.filePath, document.kind);
+  const codeLanguage = useMemo(() => (isMarkdown ? null : codeLanguageForPath(document.filePath)), [document.filePath, isMarkdown]);
   const frontmatterEntries = Object.entries(document.frontmatter).filter(([key]) => !key.startsWith("branch_"));
-  const cmTheme = useMemo(() => editorTheme(appearance), [appearance]);
+  const cmTheme = useMemo(() => editorTheme(appearance, fontSize), [appearance, fontSize]);
+  const saveKeymap = useMemo(
+    () =>
+      keymap.of([
+        {
+          key: "Mod-s",
+          run: () => {
+            onSave();
+            return true;
+          },
+        },
+        {
+          key: "Mod-=",
+          run: () => {
+            onZoomEditor(1);
+            return true;
+          },
+        },
+        {
+          key: "Mod-Shift-=",
+          run: () => {
+            onZoomEditor(1);
+            return true;
+          },
+        },
+        {
+          key: "Mod--",
+          run: () => {
+            onZoomEditor(-1);
+            return true;
+          },
+        },
+        {
+          key: "Mod-0",
+          run: () => {
+            onZoomEditor(0);
+            return true;
+          },
+        },
+        indentWithTab,
+        ...lintKeymap,
+      ]),
+    [onSave, onZoomEditor],
+  );
+  const bodyChanged = previousPathRef.current === document.filePath && previousBodyRef.current !== document.body;
+  if (bodyChanged) {
+    restoringScrollRef.current = true;
+  }
+
+  useEffect(() => {
+    const scroller = codeMirrorRef.current?.view?.scrollDOM;
+    if (!scroller) {
+      return;
+    }
+
+    const recordScroll = () => {
+      if (!restoringScrollRef.current) {
+        scrollTopByPathRef.current.set(document.filePath, scroller.scrollTop);
+      }
+    };
+    const handleScroll = () => {
+      recordScroll();
+    };
+    const interval = window.setInterval(recordScroll, 250);
+
+    scroller.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      window.clearInterval(interval);
+      scroller.removeEventListener("scroll", handleScroll);
+    };
+  }, [document.filePath, rawMarkdownMode, appearance, fontSize]);
+
+  useLayoutEffect(() => {
+    const scroller = codeMirrorRef.current?.view?.scrollDOM;
+    const scrollTop = scrollTopByPathRef.current.get(document.filePath);
+    if (!scroller || scrollTop === undefined) {
+      previousPathRef.current = document.filePath;
+      previousBodyRef.current = document.body;
+      restoringScrollRef.current = false;
+      return;
+    }
+
+    previousPathRef.current = document.filePath;
+    previousBodyRef.current = document.body;
+
+    const restore = () => {
+      scroller.scrollTop = scrollTop;
+    };
+    const frame = window.requestAnimationFrame(restore);
+    const interval = window.setInterval(restore, 50);
+    const timeout = window.setTimeout(() => {
+      restore();
+      window.clearInterval(interval);
+      restoringScrollRef.current = false;
+    }, 650);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearInterval(interval);
+      window.clearTimeout(timeout);
+    };
+  }, [document.filePath, document.body, rawMarkdownMode, appearance, fontSize]);
 
   return (
     <section className={`editor-panel ${compact ? "editor-panel--compact" : ""}`} data-testid="editor-panel" onMouseDown={onFocus}>
@@ -175,18 +290,24 @@ export function NoteEditor(props: NoteEditorProps) {
       ) : !isMarkdown ? (
         <div className="properties-card properties-card--file" data-testid="properties-panel">
           <div className="properties-card__file-label">Project file</div>
+          <div className="properties-card__file-meta">
+            <span>{codeLanguage?.label ?? "Plain text"}</span>
+            <span>{document.filePath}</span>
+          </div>
         </div>
       ) : null}
 
-      <div className={`editor-surface ${isMarkdown && !rawMarkdownMode ? "editor-surface--live-preview" : ""}`}>
+      <div className={`editor-surface ${isMarkdown && !rawMarkdownMode ? "editor-surface--live-preview" : ""} ${!isMarkdown ? "editor-surface--code" : ""}`}>
         <CodeMirror
-          key={`${document.filePath}:${rawMarkdownMode ? "raw" : "live"}:${appearance}`}
+          ref={codeMirrorRef}
+          key={`${document.filePath}:${isMarkdown && !rawMarkdownMode ? "live" : "code"}:${appearance}:${fontSize}`}
           value={document.body}
           extensions={
             document.kind === "markdown"
               ? [
                   markdown(),
                   EditorView.lineWrapping,
+                  saveKeymap,
                   ...(!rawMarkdownMode
                     ? [
                         markdownLivePreview({
@@ -223,7 +344,15 @@ export function NoteEditor(props: NoteEditorProps) {
                     : []),
                   cmTheme,
                 ]
-              : [EditorView.lineWrapping, cmTheme]
+              : [
+                  lineNumbers(),
+                  foldGutter(),
+                  bracketMatching(),
+                  lintGutter(),
+                  saveKeymap,
+                  ...(codeLanguage?.extensions ?? []),
+                  cmTheme,
+                ]
           }
           basicSetup={{
             lineNumbers: false,
@@ -238,12 +367,13 @@ export function NoteEditor(props: NoteEditorProps) {
   );
 }
 
-function editorTheme(appearance: ResolvedAppearance) {
+function editorTheme(appearance: ResolvedAppearance, fontSize: number) {
   return EditorView.theme(
     {
       "&": {
         color: "var(--text)",
         backgroundColor: "transparent",
+        fontSize: `${fontSize}px`,
       },
       ".cm-content": {
         caretColor: "var(--accent)",

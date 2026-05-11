@@ -22,6 +22,10 @@ export interface WorkspaceSettings {
   defaultTerminalCwd: string;
   noteRoots: string[];
   projectRoots: string[];
+  appearanceMode: "system" | "light" | "dark";
+  editorFontSize: number;
+  terminalFontSize: number;
+  explorerScale: number;
 }
 
 export interface TreeNode {

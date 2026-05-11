@@ -4,7 +4,6 @@ import type {
   NoteDocument,
   NoteKnowledge,
   SearchResult,
-  SemanticSearchResult,
   TreeNode,
   WorkspaceModel,
   WorkspaceSettings,
@@ -28,6 +27,11 @@ export interface TerminalCreateOptions {
   cwd?: string;
 }
 
+export interface FileStatInfo {
+  size: number;
+  mtimeMs: number;
+}
+
 export interface DesktopApi {
   workspace: {
     getModel: () => Promise<WorkspaceModel>;
@@ -37,7 +41,6 @@ export interface DesktopApi {
     searchNotes: (query: string) => Promise<SearchResult[]>;
     searchWorkspace: (query: string) => Promise<WorkspaceSearchResults>;
     searchTag: (tag: string) => Promise<SearchResult[]>;
-    searchSemantic: (query: string) => Promise<SemanticSearchResult[]>;
     createFile: (targetPath: string, content?: string) => Promise<string>;
     createDirectory: (targetPath: string) => Promise<string>;
     renamePath: (sourcePath: string, nextPath: string) => Promise<string>;
@@ -48,6 +51,7 @@ export interface DesktopApi {
   notes: {
     read: (filePath: string) => Promise<NoteDocument>;
     save: (filePath: string, frontmatter: Record<string, unknown>, body: string) => Promise<void>;
+    stat: (filePath: string) => Promise<FileStatInfo | null>;
     getKnowledge: (filePath: string) => Promise<NoteKnowledge>;
     resolveTarget: (sourceFilePath: string, target: string) => Promise<string | null>;
     ensureTarget: (sourceFilePath: string, target: string) => Promise<string>;
@@ -62,9 +66,13 @@ export interface DesktopApi {
     ensureDefault: () => Promise<TerminalSessionInfo>;
     list: () => Promise<TerminalSessionInfo[]>;
     create: (options: TerminalCreateOptions) => Promise<TerminalSessionInfo>;
+    read: (id: string) => Promise<string>;
+    readTranscript: (id: string, tailChars?: number) => Promise<string>;
     write: (id: string, data: string) => Promise<void>;
     resize: (id: string, cols: number, rows: number) => Promise<void>;
+    setStreaming: (ids: string[]) => Promise<void>;
     kill: (id: string) => Promise<void>;
+    resolveDroppedFilePaths: (files: File[]) => string[];
     onData: (callback: (event: { id: string; data: string }) => void) => () => void;
     onExit: (callback: (event: { id: string; exitCode?: number }) => void) => () => void;
   };

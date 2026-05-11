@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 
 import {
   ClipboardCopy,
@@ -9,12 +9,12 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Pencil,
-  Settings2,
+  Settings,
   SquareTerminal,
   SunMedium,
   Trash2,
 } from "lucide-react";
-import type { SemanticSearchResult, WorkspaceSearchResults } from "@exo/core";
+import type { WorkspaceSearchResults } from "@exo/core";
 import type { AppearanceMode, ResolvedAppearance } from "../App";
 import type { DragManager } from "../hooks/useDragManager";
 import { RailButton } from "./Chrome";
@@ -36,13 +36,15 @@ interface FileTreeProps {
   resolvedAppearance: ResolvedAppearance;
   searchQuery: string;
   searchResults: WorkspaceSearchResults;
-  semanticResults: SemanticSearchResult[];
   onAppearanceModeChange: (mode: AppearanceMode) => void;
   onToggleCollapsed: () => void;
   onOpenWorkspaceSettings: () => void;
   onSearchQueryChange: (value: string) => void;
   onOpenFile: (filePath: string) => void;
   onOpenTag: (tag: string) => void;
+  onExpandDirectory: (directoryPath: string, rootKind: "notes" | "projects") => void;
+  explorerScale: number;
+  onFocusExplorer: () => void;
   dragManager: DragManager;
   onCreateFile: (directoryPath: string) => void;
   onCreateDirectory: (directoryPath: string) => void;
@@ -61,13 +63,15 @@ export function FileTree(props: FileTreeProps) {
     resolvedAppearance,
     searchQuery,
     searchResults,
-    semanticResults,
     onAppearanceModeChange,
     onToggleCollapsed,
     onOpenWorkspaceSettings,
     onSearchQueryChange,
     onOpenFile,
     onOpenTag,
+    onExpandDirectory,
+    explorerScale,
+    onFocusExplorer,
     dragManager,
     onCreateFile,
     onCreateDirectory,
@@ -116,7 +120,11 @@ export function FileTree(props: FileTreeProps) {
     };
   }, [contextTarget]);
 
-  function togglePath(path: string) {
+  function togglePath(path: string, rootKind?: "notes" | "projects") {
+    const shouldExpand = !expandedPaths.has(path);
+    if (shouldExpand && rootKind) {
+      onExpandDirectory(path, rootKind);
+    }
     setExpandedPaths((current) => {
       const next = new Set(current);
       if (next.has(path)) {
@@ -150,45 +158,50 @@ export function FileTree(props: FileTreeProps) {
 
   const appearanceIcon = appearanceMode === "system" ? Monitor : appearanceMode === "light" ? SunMedium : MoonStar;
   const AppearanceIcon = appearanceIcon;
+  const sidebarStyle = { "--exo-explorer-scale": explorerScale } as CSSProperties;
 
   function renderRail() {
     return (
       <div className="sidebar__rail">
-        <RailButton
-          testId={collapsed ? "sidebar-expand" : "sidebar-collapse"}
-          onClick={onToggleCollapsed}
-          title={collapsed ? "Expand workspace" : "Collapse workspace"}
-        >
-          {collapsed ? <PanelLeftOpen size={13} /> : <PanelLeftClose size={13} />}
-        </RailButton>
-        <RailButton
-          testId="appearance-cycle"
-          onClick={cycleAppearanceMode}
-          title={`Appearance: ${appearanceMode} (${resolvedAppearance}). Click to cycle.`}
-        >
-          <AppearanceIcon size={13} />
-        </RailButton>
-        <RailButton
-          testId="workspace-settings"
-          onClick={onOpenWorkspaceSettings}
-          title="Workspace settings"
-        >
-          <Settings2 size={13} />
-        </RailButton>
+        <div className="sidebar__rail-top">
+          <RailButton
+            testId={collapsed ? "sidebar-expand" : "sidebar-collapse"}
+            onClick={onToggleCollapsed}
+            title={collapsed ? "Expand workspace" : "Collapse workspace"}
+          >
+            {collapsed ? <PanelLeftOpen size={13} /> : <PanelLeftClose size={13} />}
+          </RailButton>
+        </div>
+        <div className="sidebar__rail-bottom">
+          <RailButton
+            testId="appearance-cycle"
+            onClick={cycleAppearanceMode}
+            title={`Appearance: ${appearanceMode} (${resolvedAppearance}). Click to cycle.`}
+          >
+            <AppearanceIcon size={13} />
+          </RailButton>
+          <RailButton
+            testId="workspace-settings"
+            onClick={onOpenWorkspaceSettings}
+            title="Workspace settings"
+          >
+            <Settings size={13} />
+          </RailButton>
+        </div>
       </div>
     );
   }
 
   if (collapsed) {
     return (
-      <aside className="sidebar sidebar--collapsed" data-testid="sidebar">
+      <aside className="sidebar sidebar--collapsed" data-testid="sidebar" onMouseDown={onFocusExplorer} style={sidebarStyle}>
         {renderRail()}
       </aside>
     );
   }
 
   return (
-    <aside className="sidebar" data-testid="sidebar">
+    <aside className="sidebar" data-testid="sidebar" onMouseDown={onFocusExplorer} style={sidebarStyle}>
       {renderRail()}
 
       <div className="sidebar__main">
@@ -196,6 +209,7 @@ export function FileTree(props: FileTreeProps) {
           <div className="sidebar__content sidebar__content--notes">
             <Section
               label="Notes"
+              rootKind="notes"
               showHeader={false}
               sections={noteRoots}
               expandedPaths={expandedPaths}
@@ -221,6 +235,7 @@ export function FileTree(props: FileTreeProps) {
           >
             <Section
               label="Projects"
+              rootKind="projects"
               sections={projectRoots}
               expandedPaths={expandedPaths}
               onTogglePath={togglePath}

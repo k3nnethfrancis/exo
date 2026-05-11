@@ -9,7 +9,7 @@ import type { PaneLeaf, PaneNodeId, PaneTreeActions, PaneNode } from "../hooks/u
 import { collectLeaves } from "../hooks/usePaneTree";
 import type { DragManager } from "../hooks/useDragManager";
 import type { AppearanceMode, ResolvedAppearance } from "../App";
-import type { NoteDocument, NoteKnowledge, SearchResult, SemanticSearchResult, TreeNode, WorkspaceSearchResults } from "@exo/core";
+import type { NoteDocument, NoteKnowledge, SearchResult, TreeNode, WorkspaceSearchResults } from "@exo/core";
 
 interface RootSection {
   label: string;
@@ -25,7 +25,6 @@ interface ShellLayoutProps {
   searchQuery: string;
   searchSubmittedQuery: string;
   searchResults: WorkspaceSearchResults;
-  semanticResults: SemanticSearchResult[];
   onSearchSubmit: () => void;
   onSearchClear: () => void;
   shellLayout: {
@@ -60,6 +59,9 @@ interface ShellLayoutProps {
   onSearchQueryChange: (value: string) => void;
   onOpenFile: (filePath: string) => void;
   onOpenTag: (tag: string) => void;
+  onExpandDirectory: (directoryPath: string, rootKind: "notes" | "projects") => void;
+  explorerScale: number;
+  onFocusExplorer: () => void;
   onCreateFile: (directoryPath: string) => void;
   onCreateDirectory: (directoryPath: string) => void;
   onCreateTerminalInDirectory: (directoryPath: string) => void;
@@ -77,7 +79,6 @@ export function ShellLayout(props: ShellLayoutProps) {
     searchQuery,
     searchSubmittedQuery,
     searchResults,
-    semanticResults,
     onSearchSubmit,
     onSearchClear,
     shellLayout,
@@ -89,6 +90,9 @@ export function ShellLayout(props: ShellLayoutProps) {
     onSearchQueryChange,
     onOpenFile,
     onOpenTag,
+    onExpandDirectory,
+    explorerScale,
+    onFocusExplorer,
     onCreateFile,
     onCreateDirectory,
     onCreateTerminalInDirectory,
@@ -140,7 +144,7 @@ export function ShellLayout(props: ShellLayoutProps) {
                 onSearchClear();
               }
             }}
-            placeholder="Search workspace (press Enter)"
+            placeholder="Search notes"
           />
         </label>
         <div className="topbar__spacer topbar__spacer--right" aria-hidden />
@@ -149,7 +153,6 @@ export function ShellLayout(props: ShellLayoutProps) {
         <SearchResultsPanel
           query={searchSubmittedQuery}
           results={searchResults}
-          semanticResults={semanticResults}
           onOpenFile={(filePath) => {
             onOpenFile(filePath);
             onSearchClear();
@@ -173,13 +176,15 @@ export function ShellLayout(props: ShellLayoutProps) {
         resolvedAppearance={resolvedAppearance}
         searchQuery={searchQuery}
         searchResults={searchResults}
-        semanticResults={semanticResults}
         onAppearanceModeChange={onAppearanceModeChange}
         onToggleCollapsed={() => setSidebarCollapsed((current) => !current)}
         onOpenWorkspaceSettings={onOpenWorkspaceSettings}
         onSearchQueryChange={onSearchQueryChange}
         onOpenFile={onOpenFile}
         onOpenTag={onOpenTag}
+        onExpandDirectory={onExpandDirectory}
+        explorerScale={explorerScale}
+        onFocusExplorer={onFocusExplorer}
         dragManager={dragManager}
         onCreateFile={onCreateFile}
         onCreateDirectory={onCreateDirectory}

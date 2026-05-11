@@ -1,9 +1,10 @@
 import type { CSSProperties, ReactNode, Ref } from "react";
-import { Bot, GripVertical, SquareTerminal, X } from "lucide-react";
+import { GripVertical, SquareTerminal, X } from "lucide-react";
 
 import type { TerminalSessionInfo } from "../../../shared/api";
 import type { ResolvedAppearance } from "../App";
 import type { DragManager } from "../hooks/useDragManager";
+import { AgentIcon } from "./AgentIcon";
 import { ChromeTab } from "./Chrome";
 import { TerminalView } from "./TerminalView";
 
@@ -15,6 +16,8 @@ interface TerminalDockProps {
   sessions: TerminalSessionInfo[];
   activeTerminalId: string | null;
   buffers: Record<string, string>;
+  fontSize: number;
+  onFocus: () => void;
   onSetActiveTerminal: (id: string) => void;
   onWrite: (id: string, data: string) => void;
   onResize: (id: string, cols: number, rows: number) => void;
@@ -36,6 +39,8 @@ export function TerminalDock(props: TerminalDockProps) {
     sessions,
     activeTerminalId,
     buffers,
+    fontSize,
+    onFocus,
     onSetActiveTerminal,
     onWrite,
     onResize,
@@ -53,6 +58,7 @@ export function TerminalDock(props: TerminalDockProps) {
     <section
       className={`terminal-dock terminal-dock--${placement} ${empty ? "terminal-dock--empty" : ""}`}
       data-testid="terminal-dock"
+      onMouseDown={onFocus}
       style={style}
     >
       <div ref={ref} className="terminal-dock__main">
@@ -75,7 +81,7 @@ export function TerminalDock(props: TerminalDockProps) {
                   }}
                   title={placement === "right" ? "Drag to bottom or double-click to dock bottom" : "Drag to right or double-click to dock right"}
                   leading={<GripVertical size={11} />}
-                  trailing={session.kind === "shell" ? <SquareTerminal size={12} /> : <Bot size={12} />}
+                  trailing={session.kind === "shell" ? <SquareTerminal size={12} /> : <AgentIcon kind={session.kind} size={12} />}
                   closeLabel={`Close ${session.title}`}
                   closeTestId={`close-terminal-${session.kind}`}
                   closeIcon={<X size={12} />}
@@ -97,6 +103,8 @@ export function TerminalDock(props: TerminalDockProps) {
               appearance={appearance}
               session={activeSession}
               buffer={buffers[activeSession.id] ?? ""}
+              fontSize={fontSize}
+              onFocus={onFocus}
               onInput={onWrite}
               onResize={onResize}
             />

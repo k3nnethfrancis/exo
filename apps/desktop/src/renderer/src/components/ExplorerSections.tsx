@@ -36,8 +36,9 @@ interface TagSearchSectionProps {
 interface SectionProps {
   label: string;
   sections: RootSection[];
+  rootKind: "notes" | "projects";
   expandedPaths: Set<string>;
-  onTogglePath: (path: string) => void;
+  onTogglePath: (path: string, rootKind?: "notes" | "projects") => void;
   onOpenFile: (filePath: string) => void;
   dragManager: DragManager;
   onContextMenu: (event: React.MouseEvent, target: ContextTarget) => void;
@@ -109,6 +110,7 @@ export function Section(props: SectionProps) {
   const {
     label,
     sections,
+    rootKind,
     expandedPaths,
     onTogglePath,
     onOpenFile,
@@ -129,6 +131,7 @@ export function Section(props: SectionProps) {
         <TreeNodes
           nodes={sections[0].nodes}
           depth={0}
+          rootKind={rootKind}
           expandedPaths={expandedPaths}
           onTogglePath={onTogglePath}
           onOpenFile={onOpenFile}
@@ -160,6 +163,7 @@ export function Section(props: SectionProps) {
               <TreeNodes
                 nodes={section.nodes}
                 depth={0}
+                rootKind={rootKind}
                 expandedPaths={expandedPaths}
                 onTogglePath={onTogglePath}
                 onOpenFile={onOpenFile}
@@ -177,6 +181,7 @@ export function Section(props: SectionProps) {
 function TreeNodes({
   nodes,
   depth,
+  rootKind,
   expandedPaths,
   onTogglePath,
   onOpenFile,
@@ -185,8 +190,9 @@ function TreeNodes({
 }: {
   nodes: TreeNode[];
   depth: number;
+  rootKind: "notes" | "projects";
   expandedPaths: Set<string>;
-  onTogglePath: (path: string) => void;
+  onTogglePath: (path: string, rootKind?: "notes" | "projects") => void;
   onOpenFile: (filePath: string) => void;
   dragManager: DragManager;
   onContextMenu: (event: React.MouseEvent, target: ContextTarget) => void;
@@ -201,7 +207,7 @@ function TreeNodes({
               <button
                 className="tree-node tree-node--directory"
                 style={{ paddingLeft: `${depth * 14 + 12}px` }}
-                onClick={() => onTogglePath(node.path)}
+                onClick={() => onTogglePath(node.path, rootKind)}
                 onContextMenu={(event) => onContextMenu(event, { path: node.path, kind: "directory" })}
                 type="button"
               >
@@ -212,6 +218,7 @@ function TreeNodes({
                 <TreeNodes
                   nodes={node.children}
                   depth={depth + 1}
+                  rootKind={rootKind}
                   expandedPaths={expandedPaths}
                   onTogglePath={onTogglePath}
                   onOpenFile={onOpenFile}

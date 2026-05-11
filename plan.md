@@ -85,14 +85,14 @@ Training data must always be assigned explicitly by project, workcell, agent, ar
 - `packages/cli`
   - CLI-first operator and harness commands
 - `packages/mcp`
-  - reserved for later Exo-native MCP exposure
+  - Exo-native MCP exposure for live app and terminal-agent operations
 
 ### Non-negotiable rules
 - markdown-on-disk is canonical
 - notebook mode is a projection
 - terminals are plain by default in v1
 - `Claude` and `Codex` are just launchers that run those commands in new terminal tabs
-- CLI-first interfaces come before MCP and before deep operator UI
+- CLI-first interfaces remain the canonical runtime surface; MCP wraps them for agent access
 - higher-order runtime systems should be reintroduced only after the shell is stable
 
 ## Delivery Phases
@@ -128,6 +128,12 @@ Current completed slice:
 - unified search sections for notes, tags, and project files
 - markdown-note vs project-file editor behavior split
 - first-step dragged document splitting
+- **pane-tree invariant**: empty leaves auto-prune (close last terminal in a split → sibling expands; center-drop = merge)
+- **top-bar global search**: search lifted out of the sidebar into a centered top-bar input; results render in a floating panel below the bar; sidebar always shows the file tree
+- **search execution model**: results commit on Enter (not on every keystroke) — local QMD + filesystem search is too slow for live debounce on broad queries
+- **shell chrome polish**: hairline 1px pane dividers with invisible ±5px hit overlays; flat tabs (square corners, hairline separators, no gaps); editor and terminal tab strips aligned at 40px
+- **markdown live-preview parity**: tables render as styled `<table>` elements with header bg, alternating row stripes, and alignment from separator row; cursor-in-table reverts to raw markdown for editing
+- **inspector polish**: click-outside / Esc dismiss; finger cursor on toggle; more solid hover
 
 ### Phase 3 — Agent runtime control layer
 Goal: Exo must control how terminal agents are launched and what context they receive.
@@ -149,14 +155,22 @@ Build:
   - `AGENTS.md` as the primary generic runtime contract
   - `CLAUDE.md` as a secondary Claude-specific overlay
 - task-scoped working context snapshots provided by Exo instead of ad hoc terminal bootstrap pastes
-- CLI-first agent operations later exposable through MCP
+- CLI-first agent operations with MCP exposure for external agents
+  - terminal list/create/read/write/send/kill operations
+  - MCP tools to inspect, create, steer, interrupt, and terminate Exo sessions
 
 Current shipped slice:
 - shared runtime config and launch-plan generation in `packages/core`
 - generated Exo-owned overlays under `.exo/instructions/AGENTS.md` and `.exo/instructions/CLAUDE.md`
-- `exo-cli runtime status|context|launch-plan|sync`
-- `exo-cli launch shell|claude|codex`
+- `bin/exo runtime status|context|launch-plan|sync`
+- `bin/exo launch shell|claude|codex`
 - Electron terminal launch wired through the same launch-plan path
+- **runtime command server**: HTTP server in the Electron main process (`apps/desktop/src/main/command-server.ts`) exposes workspace ops (open file, search, list/create terminals, get settings) so the `bin/exo` CLI can drive a running app; `packages/cli/src/app-client.ts` is the matching client
+- **CLI terminal control**: `bin/exo terminals list|create|read|write|send|kill`
+- **MCP bridge**: `packages/mcp` exposes live Exo terminal agents through `list_agents`, `create_agent`, `read_agent`, `send_agent_message`, `interrupt_agent`, and `terminate_agent`; optional autostart uses `EXO_MCP_AUTOSTART=1`
+- **terminal agent lifecycle**: Claude/Codex sessions are tmux-backed; Exo close/kill terminates the backing session; renderer reload hydrates from the main-process buffer
+- **code-file editor modes**: project files now use CodeMirror language support for Python, JSON/JSONC, TOML, `.env`, YAML, JS/TS/TSX, HTML/CSS, and shell, with JSON linting
+- **QMD integration**: `packages/core/src/qmd.ts` exposes the QMD vault index as a retrieval backend; powers semantic search results in the top-bar search panel
 
 ### Phase 4 — Retrieval and layered memory
 Goal: Exo should own memory architecture while allowing retrieval backends like QMD.
@@ -180,6 +194,7 @@ Build:
 Goal: terminals should be able to collaborate through Exo-native protocols.
 
 Build:
+- richer terminal/session metadata and naming
 - multiple terminal panes and grid layouts
 - agent-to-agent communication protocol with inspectable transports
 - initial transport strategy:
@@ -229,3 +244,38 @@ Visual coverage should include:
 - bottom-docked terminal
 - Claude and Codex terminal tabs
 - backlinks, tags, and search results surfaces
+
+## Decisions Log
+
+### 2026-04-27 — Markdown table widget uses single-line replace, not block decorations
+**Why**: CodeMirror raises `Block decorations may not be specified via plugins` when a `ViewPlugin` emits a `Decoration.replace` with `block: true`. Block decorations must come from a `StateField`. The `markdownLivePreview` extension is structured as a `ViewPlugin` for live cursor-aware decoration, so block-level can't work.
+**How**: The widget is emitted as a single-line `Decoration.replace` on the table's first line; subsequent table lines get `Decoration.line({class: "exo-md-line--folded-hidden"})` (`display: none`). The widget visually grows below the first line and hidden lines collapse out of layout.
+**Tradeoff**: The cursor can technically still move into hidden lines, but our cursor-in-table check is by line number, so edit-mode swap still works correctly.
+
+### 2026-04-27 — Search results live in a floating panel above the editor, not in the sidebar
+**Why**: Embedding search results in the sidebar swapped out the file tree on every keystroke — disorienting, and clicks on results crashed the renderer due to a `dragManager.startDrag` race. Cursor's pattern (centered floating panel anchored to the search input) is cleaner.
+**How**: `SearchResultsPanel` component renders as `position: fixed` below the top-bar search input; sidebar always shows the file tree. Click-outside / Esc dismiss. Click-result opens file and dismisses + clears query.
+**Tradeoff**: Search no longer drags-and-drops into a pane (we removed `onMouseDown` + `dragManager.startDrag` from result rows). Acceptable — drag-from-search-results was low-value.
+
+### 2026-04-27 — Search runs on Enter, not on every keystroke
+**Why**: Live search across the workspace + QMD semantic search returned hundreds of results for short queries and could crash the renderer when rendering them. Debouncing at 120ms / 500ms helped but didn't fully cap the cost.
+**How**: Two state vars — `searchQuery` (live, drives the input) and `searchSubmittedQuery` (only updates on Enter, drives the actual search and the panel render). Esc clears both.
+**Tradeoff**: Loses live-search affordance. Matches Cursor / VS Code command palette behavior, which is what users have muscle memory for.
+
+### 2026-04-27 — Pane tree invariant: no empty leaves
+**Why**: Closing the last terminal in a split pane left an empty pane that didn't reclaim space. Center-drop merge was also missing — once you split a pane you couldn't merge it back without manually closing.
+**How**: New `pruneEmptyLeaves(tree, isEmpty)` helper in `usePaneTree.ts`. Called atomically inside `setTree` updaters after every close/drop. Refuses to empty the entire tree (last-leaf protection). Made the invariant load-bearing: closing the last tab in a pane = pane disappears + sibling expands; center-drop = move tab + prune empty source = visual merge for free.
+**Tradeoff**: Edge-drop within source pane (only one tab) is now a no-op — would orphan an empty half. Acceptable, matches user intent.
+
+### 2026-04-26 — Pane resizers are 1px hairlines with invisible ±5px hit overlays
+**Why**: Visible 6-10px grab strips between panes broke visual flow ("everything floats on a bar"). Cursor and Obsidian both use hairline dividers.
+**How**: Grid track for the resizer is 1px painted with `var(--divider)`; `::after` extends ±5px on each side as a transparent hit zone. The bounding host stays 1px so layout math is clean.
+**Constraint discovered**: Grid cells with `overflow: hidden` clip pseudo-element overflow. `.workspace__body` has `overflow: hidden` inline, but the `::after` extension only goes 5px and the surrounding columns absorb it without scrollbars.
+
+## Open Questions
+
+- **Search ranking**: current results are unsorted by score within each section (notes/projects/tags/semantic). Should we add a unified ranking, or keep the section-grouped UX?
+- **Keyboard nav in search panel**: arrow keys + Enter to open the highlighted result — not yet built. Would complete the command-palette feel.
+- **Search history**: should recent searches surface as suggestions when the input is empty and focused?
+- **Table widget edit affordance**: today, clicking into a table cell shows raw markdown. A future improvement would be in-cell editing without the markdown-source flash.
+- **Terminal state persistence**: pty processes die on Exo quit, scrollback evaporates, pane layout resets. Real fix is large (detach pty backend, serialize scrollback, persist pane tree). Tagged for later.

@@ -38,6 +38,8 @@ interface EditorPaneProps {
   onSuggestTargets: (query: string) => Promise<Array<{ label: string; target: string; detail?: string }>>;
   onCreateBranch: () => void;
   appearance: ResolvedAppearance;
+  fontSize: number;
+  onZoomEditor: (direction: -1 | 0 | 1) => void;
   compact: boolean;
 }
 
@@ -63,6 +65,8 @@ export function EditorPane(props: EditorPaneProps) {
     onSuggestTargets,
     onCreateBranch,
     appearance,
+    fontSize,
+    onZoomEditor,
     compact,
   } = props;
 
@@ -135,6 +139,8 @@ export function EditorPane(props: EditorPaneProps) {
         onCreateBranch={onCreateBranch}
         onFocus={onFocusPane}
         appearance={appearance}
+        fontSize={fontSize}
+        onZoomEditor={onZoomEditor}
         compact={compact}
       />
     </div>

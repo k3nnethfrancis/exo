@@ -21,8 +21,9 @@
   - workspace-aware launchers for shell, Claude, and Codex
   - Exo-managed `AGENTS.md` / `CLAUDE.md` overlays
   - runtime context snapshots
-  - richer CLI-first agent operations after launch/context
-  - MCP later wrapping the CLI instead of replacing it
+  - runtime command server in the desktop app
+  - CLI terminal operations for list/create/read/write/send/kill
+  - MCP bridge for agent access, wrapping the Exo runtime instead of replacing it
 
 ## Phase 4
 - retrieval and layered memory:
@@ -36,7 +37,9 @@
 ## Phase 5
 - multi-agent system:
   - initial manual agent observability/steering view over terminal sessions
-  - multiple terminals
+  - tmux-backed Claude/Codex sessions managed by Exo
+  - terminal reload hydration and cleanup semantics
+  - multiple terminal panes
   - terminal grids
   - file+SQLite agent communication protocol
   - later direct/local transports

@@ -1,0 +1,212 @@
+import { spawn } from "node:child_process";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { resolveRuntimeConfig } from "@exo/core";
+
+export interface ExoAgent {
+  id: string;
+  title: string;
+  cwd: string;
+  kind: string;
+  command: string;
+  status: string;
+  exitCode?: number;
+}
+
+export type ExoAgentKind = "shell" | "claude" | "codex";
+
+interface ServerInfo {
+  port: number;
+  pid: number;
+}
+
+const defaultConnectTimeoutMs = 20_000;
+const pollIntervalMs = 250;
+
+export class ExoCommandClient {
+  constructor(readonly baseUrl: string) {}
+
+  static async connect(env: NodeJS.ProcessEnv = process.env): Promise<ExoCommandClient> {
+    const runtimeRoot = resolveRuntimeConfig(env).runtimeRoot;
+    const serverJsonPath = path.join(runtimeRoot, "server.json");
+    const autostart = env.EXO_MCP_AUTOSTART === "1";
+    const timeoutMs = parsePositiveInt(env.EXO_MCP_CONNECT_TIMEOUT_MS) ?? defaultConnectTimeoutMs;
+    let info = await readServerInfo(serverJsonPath);
+
+    if (!info && autostart) {
+      startExo(env);
+      info = await waitForServerInfo(serverJsonPath, timeoutMs);
+    }
+
+    if (!info) {
+      throw new Error(
+        `Exo app is not reachable. Start Exo first, set EXO_MCP_AUTOSTART=1, or set EXO_RUNTIME_ROOT to the runtime containing server.json. Looked at: ${serverJsonPath}`,
+      );
+    }
+
+    let client = new ExoCommandClient(`http://127.0.0.1:${info.port}`);
+    if (await client.isReachable()) {
+      return client;
+    }
+
+    if (!autostart) {
+      throw new Error(`Exo command server is stale or unreachable at ${client.baseUrl}. Set EXO_MCP_AUTOSTART=1 to let MCP start Exo.`);
+    }
+
+    startExo(env);
+    client = await waitForReachableClient(serverJsonPath, timeoutMs);
+    return client;
+  }
+
+  async getStatus(): Promise<Record<string, unknown>> {
+    return this.get("/status");
+  }
+
+  async listAgents(): Promise<ExoAgent[]> {
+    return this.get("/terminals");
+  }
+
+  async createAgent(kind: ExoAgentKind, cwd?: string): Promise<ExoAgent> {
+    return this.post("/terminals", { kind, cwd });
+  }
+
+  async readAgent(id: string, tailChars = 20_000): Promise<string> {
+    const result = await this.get(
+      `/terminals/${encodeURIComponent(id)}/transcript?tailChars=${encodeURIComponent(String(tailChars))}`,
+    );
+    return String(result.transcript ?? "");
+  }
+
+  async sendAgentInput(id: string, input: string): Promise<void> {
+    await this.post(`/terminals/${encodeURIComponent(id)}/write`, { data: input });
+  }
+
+  async killAgent(id: string): Promise<void> {
+    await this.delete(`/terminals/${encodeURIComponent(id)}`);
+  }
+
+  private async get(targetPath: string): Promise<any> {
+    const response = await fetch(`${this.baseUrl}${targetPath}`);
+    if (!response.ok) {
+      throw new Error(`Exo command server returned HTTP ${response.status}: ${await response.text()}`);
+    }
+    return response.json();
+  }
+
+  private async post(targetPath: string, body: Record<string, unknown>): Promise<any> {
+    const response = await fetch(`${this.baseUrl}${targetPath}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      throw new Error(`Exo command server returned HTTP ${response.status}: ${await response.text()}`);
+    }
+    return response.json();
+  }
+
+  private async delete(targetPath: string): Promise<any> {
+    const response = await fetch(`${this.baseUrl}${targetPath}`, { method: "DELETE" });
+    if (!response.ok) {
+      throw new Error(`Exo command server returned HTTP ${response.status}: ${await response.text()}`);
+    }
+    return response.json();
+  }
+
+  async isReachable(): Promise<boolean> {
+    try {
+      await this.getStatus();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
+async function readServerInfo(serverJsonPath: string): Promise<ServerInfo | null> {
+  try {
+    return JSON.parse(await readFile(serverJsonPath, "utf8")) as ServerInfo;
+  } catch {
+    return null;
+  }
+}
+
+async function waitForServerInfo(serverJsonPath: string, timeoutMs: number): Promise<ServerInfo | null> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const info = await readServerInfo(serverJsonPath);
+    if (info) {
+      return info;
+    }
+    await sleep(pollIntervalMs);
+  }
+  return null;
+}
+
+async function waitForReachableClient(serverJsonPath: string, timeoutMs: number): Promise<ExoCommandClient> {
+  const deadline = Date.now() + timeoutMs;
+  let lastBaseUrl = "";
+  while (Date.now() < deadline) {
+    const info = await readServerInfo(serverJsonPath);
+    if (info) {
+      const client = new ExoCommandClient(`http://127.0.0.1:${info.port}`);
+      lastBaseUrl = client.baseUrl;
+      if (await client.isReachable()) {
+        return client;
+      }
+    }
+    await sleep(pollIntervalMs);
+  }
+  throw new Error(`Timed out waiting for Exo command server${lastBaseUrl ? ` at ${lastBaseUrl}` : ""}.`);
+}
+
+function startExo(env: NodeJS.ProcessEnv): void {
+  const command = env.EXO_MCP_START_COMMAND ?? `${defaultExoCommand()} dev`;
+  const child = spawn(command, {
+    shell: true,
+    detached: true,
+    stdio: "ignore",
+    env: { ...process.env, ...env },
+  });
+  child.unref();
+}
+
+function defaultExoCommand(): string {
+  return shellQuote(path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../bin/exo"));
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
+function parsePositiveInt(value?: string): number | null {
+  if (!value) {
+    return null;
+  }
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export function formatAgents(agents: ExoAgent[]): string {
+  if (agents.length === 0) {
+    return "No Exo agents are registered.";
+  }
+
+  return agents
+    .map((agent) => `${agent.id}\t${agent.kind}\t${agent.status}\t${agent.cwd}\t${agent.title}`)
+    .join("\n");
+}
+
+export function stripAnsi(input: string): string {
+  return input
+    .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, "")
+    .replace(/\x1b[\[\]()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><~]/g, "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n");
+}

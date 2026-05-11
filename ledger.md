@@ -1,6 +1,6 @@
 # Exo Ledger
 
-Last updated: 2026-03-13
+Last updated: 2026-05-02
 
 This is the fastest handoff file for Exo.
 
@@ -16,36 +16,46 @@ It replaces Garden's native macOS shell with an Electron shell while preserving 
 
 ## Current Focus
 
-Phase 1 is functionally in place and Phase 2 has started.
+Phase 1 done. Phase 2 has shipped most of the IDE-shell parity work. Phase 3 now has a real runtime control surface through the desktop command server, CLI, and MCP bridge.
 
 Current working shell:
-- Electron workspace shell
-- markdown-notebook editor for notes
-- plain text/code editor path for project files
-- plain terminal panes with `Claude` and `Codex` launchers
+- Electron workspace shell with a top bar (search) and three primary surfaces (sidebar, editor, terminal dock)
+- centered global search in the top bar; results render in a floating panel below the bar (sidebar always shows the file tree)
+- search runs on Enter (not on every keystroke) — local QMD + filesystem search is too slow for live debounce
+- markdown live-preview editor with full table rendering (headers, alternating rows, alignment from separator), live ordered/unordered lists, headings, tasks, links/wikilinks, tags, code, quotes, rules, fold toggles
+- code editor path for project files with language modes for Python, JSON/JSONC, TOML, `.env`, YAML, JS/TS/TSX, HTML/CSS, and shell
+- JSON linting in project-file editor mode
+- terminal panes with `Claude` and `Codex` launchers; flat tabs aligned with editor tabs
+- tmux-backed Claude/Codex sessions supervised by Exo
+- terminal reload hydration from main-process buffers
+- terminal scroll hardening so wheel scroll remains local scrolling instead of arrow/history input
+- pane tree with no-empty-leaves invariant: closing the last tab in a pane collapses the pane (sibling expands); center-drop on another pane = merge for free
+- hairline 1px pane dividers between sidebar/editor and editor/terminal, with invisible ±5px hit overlays for grabbing
 - workspace-aware roots and per-tab cwd launch support
-- scrollable IDE-style explorer with file/folder context actions
-- note-wrapping notebook editor with a shared workspace knowledge footer
-- first-step editor pane splitting for dragged files/tabs
-- resizable terminal dock with drag docking between right and bottom placement
-- Playwright interaction and screenshot harnesses
-- consistent `Inspector` drawer with backlinks, links, tags, and simplified subagent observability
-- system-aware appearance model with a warm light mode and refreshed shell hierarchy across buttons, tabs, and controls
+- scrollable IDE-style explorer with file/folder context actions including Copy Path
+- 25-character label truncation in the file tree with full-name hover tooltip
+- floating Inspector panel with click-outside / Esc dismiss
+- system-aware appearance model with a warm light mode and refreshed shell hierarchy
 
-Active Phase 2 work:
-- branch-aware note families
-- unified note/project/tag search
-- richer workspace-aware navigation
-- finishing the pane model so terminals, project roots, and inspector use a coherent IDE structure
-
-Initial Phase 3 slice is also in place:
+Phase 3 slice currently shipped:
 - shared runtime config in `packages/core`
 - generated Exo-owned `AGENTS.md` / `CLAUDE.md` overlays under `.exo/instructions/`
-- `exo-cli runtime ...` inspection/sync commands
-- `exo-cli launch shell|claude|codex`
+- `bin/exo runtime ...` inspection/sync commands
+- `bin/exo launch shell|claude|codex`
+- `bin/exo terminals list|create|read|write|send|kill`
 - Electron terminal launch using the same runtime launch-plan path as the CLI
+- runtime command server: HTTP server in the Electron main process (`apps/desktop/src/main/command-server.ts`) that exposes workspace ops to the CLI
+- MCP bridge in `packages/mcp` exposing live terminal agents through `list_agents`, `create_agent`, `read_agent`, `send_agent_message`, `interrupt_agent`, and `terminate_agent`
+- MCP autostart path via `EXO_MCP_AUTOSTART=1`
+- QMD vault index integration in `packages/core/src/qmd.ts`, surfaced through the top-bar search panel
 
-Do not rebuild the full memory/research system until the shell and knowledge/editor parity surfaces are stable.
+Outstanding for Phase 2 close-out:
+- notebook execution surfaces
+- search ranking + keyboard navigation in the floating panel
+- branch family affordances in the file tree
+- multi-pane / dockable note panes beyond the current binary split
+
+Do not rebuild the full memory/research system until Phase 2 is closed.
 
 ## Core Model
 
@@ -83,31 +93,47 @@ Completed:
 7. project-file editing path alongside markdown notes
 8. branch-aware note family flows
 9. unified workspace search across notes, tags, and project files
-10. explorer context menus with in-app create/rename/delete modal
+10. explorer context menus with in-app create/rename/delete modal + Copy Path
 11. terminal rendering fix for incremental xterm updates instead of full-buffer resets
 12. shared knowledge footer spanning editor + terminal region
 13. initial dragged-document pane splitting from explorer items and editor tabs
 14. resizable terminal dock
 15. shared runtime config for workspace-aware launch defaults, retrieval config, and communication transport
 16. generated Exo runtime overlays under `.exo/instructions/AGENTS.md` and `.exo/instructions/CLAUDE.md`
-17. CLI runtime inspection/sync commands plus `exo-cli launch shell|claude|codex`
+17. CLI runtime inspection/sync commands plus `bin/exo launch shell|claude|codex`
 18. app startup/runtime sync and terminal launch through the shared launch-plan path
 19. simplified subagent observability view that treats terminal sessions as agents, keeps branch selection in the editor header, supports closeable editor tabs, and lets the operator kick off a run plus spawn Claude/Codex child agents without the old manual role/parent/task form
+20. runtime command server (HTTP in main process) + CLI app-client for driving a running app from `bin/exo`
+21. QMD vault retrieval backend wired into the top-bar search
+22. top-bar global search with floating results panel (replaces the old sidebar-search-result swap)
+23. pane-tree no-empty-leaves invariant: auto-collapse on close, center-drop = merge
+24. hairline 1px pane dividers with invisible hit overlays
+25. flat tabs (square corners, hairline separators) aligned across editor + terminal dock
+26. markdown live-preview tables: styled `<table>` with headers, alternating rows, alignment from separator; cursor-in-table reverts to raw markdown
+27. ordered list `1.` rendering fixed (no longer wraps onto a new line)
+28. inspector / floating panel: click-outside + Esc dismiss, finger cursor, more solid hover
+29. CLI terminal operations: list/create/read/write/send/kill
+30. Exo MCP bridge for live terminal agents with optional autostart
+31. tmux-backed agent terminal cleanup on close/kill
+32. terminal buffer hydration after app reload
+33. code-file editor support for Python, JSON/JSONC, TOML, `.env`, YAML, JS/TS/TSX, HTML/CSS, shell, plus JSON linting
 
 Next:
 1. notebook execution surfaces
-2. deeper search/navigation parity
-3. true arbitrary IDE pane graph beyond the current two-pane split model
-4. broaden the agent runtime control layer beyond launch/context into richer CLI-first agent operations
-5. retrieval + layered memory
-6. research harness
-7. datasets, evals, and training
+2. search ranking + keyboard navigation inside the floating results panel
+3. branch family affordances in the file tree
+4. true arbitrary IDE pane graph beyond the current two-pane split model
+5. richer terminal/session metadata and operator naming
+6. external linter/formatter adapters for code-file editor mode
+7. retrieval + layered memory
+8. research harness
+9. datasets, evals, and training
 
 ## Short-Term Roadmap
 
 1. Finish Phase 2 knowledge/editor parity
 2. Build real pane-splitting / dock management beyond right-vs-bottom terminal drag
-3. Extend the runtime control layer with real agent operations after the shell stabilizes further
+3. Add richer terminal/session metadata and stronger crash regression coverage
 4. Integrate QMD as a retrieval backend through the Exo CLI
 5. Add the first Exo-native agent communication transport
 6. Research harness
@@ -124,11 +150,12 @@ Exo needs a runtime control layer that owns:
 - retrieval backend configuration
 - communication transport selection
 
-Current intended structure:
+Current structure:
 - `AGENTS.md` generated/adapted by Exo as the primary generic contract
 - `CLAUDE.md` generated as a secondary Claude-specific overlay
 - `exo` CLI as the canonical interface for runtime operations
-- MCP later wrapping the CLI instead of becoming the primary surface
+- desktop command server as the local runtime API
+- MCP wrapping Exo runtime capabilities for other agents
 
 For agent communication, start with the inspectable path:
 - file-backed append-only messages

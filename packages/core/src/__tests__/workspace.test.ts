@@ -12,12 +12,21 @@ describe("workspace", () => {
     const model = resolveWorkspaceModel({
       EXO_WORKSPACE_ROOT: fixtureLabRoot,
       EXO_NOTE_ROOTS: path.join(fixtureLabRoot, "notes/shoshin-codex"),
-      EXO_PROJECT_ROOTS: path.join(fixtureLabRoot, "projects"),
+      EXO_PROJECT_ROOTS: path.join(fixtureLabRoot, "projects/exo-demo"),
     });
 
     expect(model.workspaceRoot).toBe(fixtureLabRoot);
     expect(model.defaultTerminalCwd).toBe(fixtureLabRoot);
     expect(model.noteRoots).toHaveLength(1);
+  });
+
+  it("does not attach project roots by default", () => {
+    const model = resolveWorkspaceModel({
+      EXO_WORKSPACE_ROOT: fixtureLabRoot,
+      EXO_NOTE_ROOTS: path.join(fixtureLabRoot, "notes/shoshin-codex"),
+    });
+
+    expect(model.projectRoots).toEqual([]);
   });
 
   it("lists markdown tree nodes", async () => {
@@ -29,7 +38,7 @@ describe("workspace", () => {
     const model = resolveWorkspaceModel({
       EXO_WORKSPACE_ROOT: fixtureLabRoot,
       EXO_NOTE_ROOTS: path.join(fixtureLabRoot, "notes/shoshin-codex"),
-      EXO_PROJECT_ROOTS: path.join(fixtureLabRoot, "projects"),
+      EXO_PROJECT_ROOTS: path.join(fixtureLabRoot, "projects/exo-demo"),
     });
 
     const results = await searchNotes(model, "focus-note");
@@ -41,7 +50,7 @@ describe("workspace", () => {
     const model = resolveWorkspaceModel({
       EXO_WORKSPACE_ROOT: fixtureLabRoot,
       EXO_NOTE_ROOTS: path.join(fixtureLabRoot, "notes/shoshin-codex"),
-      EXO_PROJECT_ROOTS: path.join(fixtureLabRoot, "projects"),
+      EXO_PROJECT_ROOTS: path.join(fixtureLabRoot, "projects/exo-demo"),
     });
 
     const results = await searchProjectFiles(model, "demo");
@@ -49,15 +58,16 @@ describe("workspace", () => {
     expect(results.every((result) => result.kind === "project-file")).toBe(true);
   });
 
-  it("returns sectioned workspace search results", async () => {
+  it("returns note-only workspace search results", async () => {
     const model = resolveWorkspaceModel({
       EXO_WORKSPACE_ROOT: fixtureLabRoot,
       EXO_NOTE_ROOTS: path.join(fixtureLabRoot, "notes/shoshin-codex"),
-      EXO_PROJECT_ROOTS: path.join(fixtureLabRoot, "projects"),
+      EXO_PROJECT_ROOTS: path.join(fixtureLabRoot, "projects/exo-demo"),
     });
 
-    const results = await searchWorkspace(model, "#research");
-    expect(results.notes.length).toBe(0);
-    expect(results.tags.length).toBeGreaterThan(0);
+    const results = await searchWorkspace(model, "focus-note");
+    expect(results.notes.length).toBeGreaterThan(0);
+    expect(results.projectFiles).toEqual([]);
+    expect(results.tags).toEqual([]);
   });
 });

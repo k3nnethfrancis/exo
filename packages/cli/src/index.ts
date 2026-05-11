@@ -5,7 +5,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
-  buildQmdConfig,
   createBranchFile,
   getBranchFamily,
   readWorkspaceDocument,
@@ -15,7 +14,6 @@ import {
   resolveRuntimeConfig,
   resolveWorkspaceModel,
   searchNotes,
-  searchQmd,
   searchWorkspace,
   syncRuntimeContextFiles,
   type ManagedAgentKind,
@@ -42,27 +40,23 @@ export async function runCli(
   const [, , command, subcommand, ...args] = argv;
 
   // ─── Search ──────────────────────────────────────────────────────────
-  // Standalone: uses core + QMD directly (no running app needed)
+  // Standalone fast workspace search. QMD is intentionally not in this path.
 
   if (command === "search") {
-    const isDeep = subcommand === "--deep";
-    const query = isDeep ? args.join(" ") : [subcommand, ...args].filter(Boolean).join(" ");
+    const query = subcommand === "--deep" ? args.join(" ") : [subcommand, ...args].filter(Boolean).join(" ");
     if (!query) {
       throw new Error("Expected a search query.");
     }
 
     const config = resolveRuntimeConfig(env);
     const model = config.workspace;
-    const qmdConfig = buildQmdConfig(config.retrieval, model.noteRoots.map((r) => r.path));
 
-    const fast = await searchWorkspace(model, query);
-    let semantic: unknown[] = [];
-    if (qmdConfig) {
-      const { searchQmd: search, queryQmd: query_ } = await import("@exo/core");
-      semantic = isDeep ? await query_(query, qmdConfig) : await search(query, qmdConfig);
+    if (subcommand === "--deep") {
+      stderr.write("QMD/deep search is disabled; running fast workspace search only.\n");
     }
 
-    stdout.write(`${JSON.stringify({ ...fast, semantic }, null, 2)}\n`);
+    const fast = await searchWorkspace(model, query);
+    stdout.write(`${JSON.stringify(fast, null, 2)}\n`);
     return 0;
   }
 
@@ -86,6 +80,14 @@ export async function runCli(
     if (!client) return 1;
     const status = await client.getStatus();
     stdout.write(`${JSON.stringify(status, null, 2)}\n`);
+    return 0;
+  }
+
+  if (command === "show") {
+    const client = await connectOrFail(env, stderr);
+    if (!client) return 1;
+    await client.showWindow();
+    stdout.write("Showed Exo window.\n");
     return 0;
   }
 
@@ -128,7 +130,127 @@ export async function runCli(
       return 0;
     }
 
-    stderr.write("Usage: exo terminals [list | create <shell|claude|codex> [cwd]]\n");
+    if (subcommand === "read") {
+      const id = args[0];
+      if (!id) {
+        throw new Error("Expected a terminal id.");
+      }
+      const buffer = await client.readTerminal(id);
+      stdout.write(buffer);
+      if (buffer && !buffer.endsWith("\n")) {
+        stdout.write("\n");
+      }
+      return 0;
+    }
+
+    if (subcommand === "transcript") {
+      const id = args[0];
+      if (!id) {
+        throw new Error("Usage: exo terminals transcript <terminal-id> [--tail chars] [--full]");
+      }
+      const transcript = await client.readTerminalTranscript(id, parseTailChars(args));
+      stdout.write(transcript);
+      if (transcript && !transcript.endsWith("\n")) {
+        stdout.write("\n");
+      }
+      return 0;
+    }
+
+    if (subcommand === "write" || subcommand === "send") {
+      const id = args[0];
+      const data = args.slice(1).join(" ");
+      if (!id || !data) {
+        throw new Error(`Usage: exo terminals ${subcommand} <terminal-id> <text>`);
+      }
+      await client.writeTerminal(id, subcommand === "send" ? `${data}\n` : data);
+      return 0;
+    }
+
+    if (subcommand === "kill") {
+      const id = args[0];
+      if (!id) {
+        throw new Error("Usage: exo terminals kill <terminal-id>");
+      }
+      await client.killTerminal(id);
+      return 0;
+    }
+
+    stderr.write("Usage: exo terminals [list | create <shell|claude|codex> [cwd] | read <id> | transcript <id> [--tail chars] [--full] | write <id> <text> | send <id> <text> | kill <id>]\n");
+    return 1;
+  }
+
+  if (command === "agents") {
+    const client = await connectOrFail(env, stderr);
+    if (!client) return 1;
+
+    if (subcommand === "list" || !subcommand) {
+      const agents = await client.listTerminals();
+      stdout.write(`${formatAgents(agents)}\n`);
+      return 0;
+    }
+
+    if (subcommand === "create") {
+      const kind = args[0];
+      if (!kind || !["shell", "claude", "codex"].includes(kind)) {
+        throw new Error("Usage: exo agents create <shell|claude|codex> [cwd]");
+      }
+      const agent = await client.createTerminal(kind, args[1]);
+      stdout.write(`${JSON.stringify(agent, null, 2)}\n`);
+      return 0;
+    }
+
+    if (subcommand === "read") {
+      const id = args[0];
+      if (!id) {
+        throw new Error("Usage: exo agents read <agent-id> [--tail chars] [--raw]");
+      }
+
+      const tailChars = parseTailChars(args);
+      const raw = args.includes("--raw");
+      const transcript = await client.readTerminalTranscript(id, tailChars);
+      const output = raw ? transcript : stripAnsi(transcript);
+      const tailed = tailChars > 0 ? output.slice(-tailChars) : output;
+      stdout.write(tailed || "(no buffered output)");
+      if (!tailed.endsWith("\n")) {
+        stdout.write("\n");
+      }
+      return 0;
+    }
+
+    if (subcommand === "send" || subcommand === "message" || subcommand === "tell") {
+      const id = args[0];
+      const raw = args.includes("--raw") || args.includes("--no-submit");
+      const message = args.slice(1).filter((arg) => !["--submit", "--raw", "--no-submit"].includes(arg)).join(" ");
+      if (!id || !message) {
+        throw new Error(`Usage: exo agents ${subcommand} <agent-id> <message> [--raw|--no-submit]`);
+      }
+      await client.writeTerminal(id, raw ? message : `${message}\r`);
+      stdout.write(`Sent ${raw ? "raw input" : "message plus Enter"} to ${id}.\n`);
+      return 0;
+    }
+
+    if (subcommand === "interrupt") {
+      const id = args[0];
+      const signal = args[1] ?? "escape";
+      if (!id || !["escape", "ctrl-c"].includes(signal)) {
+        throw new Error("Usage: exo agents interrupt <agent-id> [escape|ctrl-c]");
+      }
+      await client.writeTerminal(id, signal === "ctrl-c" ? "\u0003" : "\u001b");
+      stdout.write(`Sent ${signal} to ${id}.\n`);
+      return 0;
+    }
+
+    if (subcommand === "terminate" || subcommand === "kill") {
+      const id = args[0];
+      if (!id) {
+        throw new Error(`Usage: exo agents ${subcommand} <agent-id>`);
+      }
+      await client.killTerminal(id);
+      stdout.write(`Terminated ${id}.\n`);
+      return 0;
+    }
+
+    stderr.write("Usage: exo agents [list | create <shell|claude|codex> [cwd] | read <id> [--tail chars] [--raw] | send <id> <text> [--raw|--no-submit] | message <id> <text> | tell <id> <text> | interrupt <id> [escape|ctrl-c] | terminate <id>]\n");
     return 1;
   }
 
@@ -279,13 +401,24 @@ export async function runCli(
     [
       "Usage:",
       "  exo dev                                    Launch the desktop app",
-      "  exo search <query>                         Search workspace + semantic",
-      "  exo search --deep <query>                  Deep hybrid search (slower)",
+      "  exo search <query>                         Search attached notes by filename/path",
       "  exo open <path>                            Open file in editor (app)",
       "  exo status                                 Workspace status (app)",
       "  exo config get [key]                       Read settings (app)",
       "  exo terminals [list]                       List terminals (app)",
       "  exo terminals create <shell|claude|codex>  Create terminal (app)",
+      "  exo terminals read <id>                    Read buffered terminal output (app)",
+      "  exo terminals transcript <id> [--tail n]   Read disk-backed terminal transcript (app)",
+      "  exo terminals write <id> <text>            Write raw input to terminal (app)",
+      "  exo terminals send <id> <text>             Send input plus Enter to terminal (app)",
+      "  exo agents [list]                          List live Exo agents (app)",
+      "  exo agents create <shell|claude|codex>     Create Exo agent (app)",
+      "  exo agents read <id> [--tail n] [--raw]    Read agent transcript (app)",
+      "  exo agents send <id> <text> [--raw]        Send message plus Enter to agent (app)",
+      "  exo agents message <id> <text>             Alias for agents send (app)",
+      "  exo agents tell <id> <text>                Alias for agents send (app)",
+      "  exo agents interrupt <id> [escape|ctrl-c]  Interrupt agent (app)",
+      "  exo agents terminate <id>                  Terminate agent (app)",
       "  exo launch <shell|claude|codex> [cwd]",
       "  exo workspace status",
       "  exo workspace search <query>",
@@ -365,6 +498,48 @@ function normalizeAgentKind(value?: string): ManagedAgentKind | null {
   }
 
   return null;
+}
+
+function formatAgents(agents: unknown[]): string {
+  if (agents.length === 0) {
+    return "No Exo agents are registered.";
+  }
+
+  return agents.map((agent) => {
+    const entry = agent as Record<string, unknown>;
+    return [
+      String(entry.id ?? ""),
+      String(entry.kind ?? ""),
+      String(entry.status ?? ""),
+      String(entry.cwd ?? ""),
+      String(entry.title ?? ""),
+    ].join("\t");
+  }).join("\n");
+}
+
+function parseTailChars(args: string[]): number {
+  if (args.includes("--full")) {
+    return 0;
+  }
+  const tailIndex = args.indexOf("--tail");
+  if (tailIndex === -1) {
+    return 20_000;
+  }
+
+  const raw = args[tailIndex + 1];
+  const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN;
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 200_000) {
+    throw new Error("Expected --tail to be a number from 0 to 200000.");
+  }
+  return parsed;
+}
+
+function stripAnsi(input: string): string {
+  return input
+    .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, "")
+    .replace(/\x1b[\[\]()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><~]/g, "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n");
 }
 
 async function main() {

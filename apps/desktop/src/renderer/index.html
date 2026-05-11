@@ -8,9 +8,7 @@
     />
     <script>
       (() => {
-        const key = "exo-appearance-mode";
-        const stored = window.localStorage.getItem(key);
-        const mode = stored === "light" || stored === "dark" || stored === "system" ? stored : "system";
+        const mode = "system";
         const resolved = mode === "system"
           ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
           : mode;

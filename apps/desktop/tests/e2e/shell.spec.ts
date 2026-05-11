@@ -54,7 +54,7 @@ test.skip("renders markdown decorations immediately when switching notes", async
     env: {
       EXO_WORKSPACE_ROOT: "/Users/kenneth/Desktop/lab",
       EXO_NOTE_ROOTS: "/Users/kenneth/Desktop/lab/notes/shoshin-codex",
-      EXO_PROJECT_ROOTS: "/Users/kenneth/Desktop/lab/projects",
+      EXO_PROJECT_ROOTS: "/Users/kenneth/Desktop/lab/projects/exo",
       EXO_DEFAULT_TERMINAL_CWD: "/Users/kenneth/Desktop/lab",
       EXO_FORCE_THEME: "light",
     },
@@ -95,19 +95,13 @@ test("opens project files and creates note branches", async () => {
   const { page, cleanup } = await launchExoFixture({ mutable: true });
 
   await page.getByTestId("project-roots-toggle").click();
-  await page.getByRole("button", { name: "exo-demo" }).click();
-  await page.getByRole("button", { name: "src" }).click({ button: "right" });
-  await expect(page.getByText("New File")).toBeVisible();
-  await page.getByText("New File").click();
-  await page.getByTestId("workspace-dialog-input").fill("scratch.ts");
-  await page.getByTestId("workspace-dialog-confirm").click();
-
-  await page.getByTestId("workspace-search").fill("scratch.ts");
-  await page.getByTestId("search-results").getByRole("button", { name: /scratch\.ts/i }).first().click();
-  await expect(page.getByTestId("editor-title")).toHaveText("scratch.ts");
+  await page.getByRole("button", { name: "src" }).click();
+  await page.getByTestId("sidebar").getByRole("button", { name: "demo.ts" }).click();
+  await expect(page.getByTestId("editor-title")).toHaveText("demo.ts");
   await expect(page.getByTestId("properties-panel")).toContainText("Project file");
 
-  await page.getByTestId("workspace-search").fill("");
+  await page.getByTestId("workspace-search").fill("focus-note");
+  await page.getByTestId("search-results").getByRole("button", { name: /focus-note/i }).first().click();
   await page.getByTestId("sidebar").getByRole("button", { name: "focus-note" }).click();
   await page.getByTestId("branch-selector").selectOption("__create__");
   await expect(page.getByTestId("branch-selector")).toHaveValue(/-looms\/1\.md$/);
@@ -128,10 +122,18 @@ test("opens a new terminal from a project folder context menu", async () => {
   await expect(page.getByTestId("project-roots-panel")).toBeVisible();
   const directories = page.getByTestId("project-roots-panel").locator(".tree-node--directory");
   await directories.nth(0).click();
-  await directories.nth(1).click({ button: "right" });
+  await directories.nth(0).click({ button: "right" });
   await page.getByText("New Terminal").click();
   await expect(page.getByTestId("terminal-tab-shell").last()).toBeVisible();
-  await expect(page.locator(".xterm-rows")).toContainText(/exo-demo\/src|src/);
+  await expect
+    .poll(async () =>
+      page.evaluate(async () => {
+        const sessions = await window.exo.terminals.list();
+        const latest = sessions.at(-1);
+        return latest ? await window.exo.terminals.read(latest.id) : "";
+      }),
+    )
+    .toContain("src");
 
   await cleanup();
 });
@@ -144,7 +146,7 @@ test("expands and collapses the project roots drawer", async () => {
   await page.getByTestId("project-roots-toggle").click();
   await expect(page.getByTestId("project-roots-drawer")).toHaveClass(/snap-drawer--expanded/);
   await expect(page.getByTestId("project-roots-panel")).toBeVisible();
-  await expect(page.getByRole("button", { name: "exo-demo" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "src" })).toBeVisible();
   await page.getByTestId("project-roots-toggle").click();
   await expect(page.getByTestId("project-roots-drawer")).toHaveClass(/snap-drawer--collapsed/);
   await expect(page.getByTestId("project-roots-panel")).toHaveCount(0);

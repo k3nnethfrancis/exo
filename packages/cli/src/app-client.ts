@@ -48,6 +48,10 @@ export class AppClient {
     await this.post("/open", { path: filePath });
   }
 
+  async showWindow(): Promise<void> {
+    await this.post("/show", {});
+  }
+
   async getConfig(): Promise<Record<string, unknown>> {
     return this.get("/config");
   }
@@ -56,16 +60,32 @@ export class AppClient {
     return this.get(`/search?q=${encodeURIComponent(query)}`);
   }
 
-  async searchSemantic(query: string): Promise<unknown[]> {
-    return this.get(`/search/semantic?q=${encodeURIComponent(query)}`);
-  }
-
   async listTerminals(): Promise<unknown[]> {
     return this.get("/terminals");
   }
 
   async createTerminal(kind: string, cwd?: string): Promise<Record<string, unknown>> {
     return this.post("/terminals", { kind, cwd });
+  }
+
+  async readTerminal(id: string): Promise<string> {
+    const result = await this.get(`/terminals/${encodeURIComponent(id)}/buffer`);
+    return String(result.buffer ?? "");
+  }
+
+  async readTerminalTranscript(id: string, tailChars = 200_000): Promise<string> {
+    const result = await this.get(
+      `/terminals/${encodeURIComponent(id)}/transcript?tailChars=${encodeURIComponent(String(tailChars))}`,
+    );
+    return String(result.transcript ?? "");
+  }
+
+  async writeTerminal(id: string, data: string): Promise<void> {
+    await this.post(`/terminals/${encodeURIComponent(id)}/write`, { data });
+  }
+
+  async killTerminal(id: string): Promise<void> {
+    await this.delete(`/terminals/${encodeURIComponent(id)}`);
   }
 
   private async get(path: string): Promise<any> {
@@ -80,6 +100,12 @@ export class AppClient {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+    return res.json();
+  }
+
+  private async delete(path: string): Promise<any> {
+    const res = await fetch(`${this.baseUrl}${path}`, { method: "DELETE" });
     if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
     return res.json();
   }

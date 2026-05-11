@@ -1,12 +1,11 @@
 import { useEffect, useRef } from "react";
-import { FileText, Hash, Sparkles } from "lucide-react";
+import { FileText, Hash } from "lucide-react";
 
-import type { SearchResult, SemanticSearchResult, WorkspaceSearchResults } from "@exo/core";
+import type { SearchResult, WorkspaceSearchResults } from "@exo/core";
 
 interface SearchResultsPanelProps {
   query: string;
   results: WorkspaceSearchResults;
-  semanticResults: SemanticSearchResult[];
   onOpenFile: (filePath: string) => void;
   onOpenTag: (tag: string) => void;
   onDismiss: () => void;
@@ -15,7 +14,6 @@ interface SearchResultsPanelProps {
 export function SearchResultsPanel({
   query,
   results,
-  semanticResults,
   onOpenFile,
   onOpenTag,
   onDismiss,
@@ -47,10 +45,8 @@ export function SearchResultsPanel({
   const noteSlice = results.notes.slice(0, MAX_PER_GROUP);
   const projectSlice = results.projectFiles.slice(0, MAX_PER_GROUP);
   const tagSlice = results.tags.slice(0, MAX_PER_GROUP);
-  const semanticSlice = semanticResults.slice(0, MAX_PER_GROUP);
 
-  const totalCount =
-    results.notes.length + results.projectFiles.length + results.tags.length + semanticResults.length;
+  const totalCount = results.notes.length + results.projectFiles.length + results.tags.length;
 
   if (!query) return null;
 
@@ -96,26 +92,6 @@ export function SearchResultsPanel({
                 >
                   <Hash size={13} />
                   <span className="search-panel__title">{result.snippet}</span>
-                  <span className="search-panel__path">{result.filePath}</span>
-                </button>
-              ))}
-            </div>
-          ) : null}
-
-          {semanticSlice.length > 0 ? (
-            <div className="search-panel__group">
-              <div className="search-panel__group-title">
-                Semantic {semanticResults.length > MAX_PER_GROUP ? `(${MAX_PER_GROUP} of ${semanticResults.length})` : ""}
-              </div>
-              {semanticSlice.map((result) => (
-                <button
-                  key={`sem-${result.filePath}`}
-                  className="search-panel__row"
-                  onClick={() => onOpenFile(result.filePath)}
-                  type="button"
-                >
-                  <Sparkles size={13} />
-                  <span className="search-panel__title">{result.title}</span>
                   <span className="search-panel__path">{result.filePath}</span>
                 </button>
               ))}

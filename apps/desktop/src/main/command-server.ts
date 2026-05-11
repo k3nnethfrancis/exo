@@ -2,15 +2,19 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import type { SemanticSearchResult, WorkspaceSearchResults, WorkspaceSettings } from "@exo/core";
+import type { WorkspaceSearchResults, WorkspaceSettings } from "@exo/core";
 
 export interface CommandServerOptions {
   runtimeRoot: string;
+  onShowWindow: () => void;
   onOpenFile: (filePath: string) => void;
   onSearch: (query: string) => Promise<WorkspaceSearchResults>;
-  onSearchSemantic: (query: string) => Promise<SemanticSearchResult[]>;
   onListTerminals: () => Array<{ id: string; title: string; cwd: string; kind: string; status: string }>;
   onCreateTerminal: (kind: string, cwd?: string) => Promise<{ id: string; title: string; cwd: string; kind: string }>;
+  onReadTerminal: (id: string) => string | null;
+  onReadTerminalTranscript: (id: string, tailChars: number) => string | null;
+  onWriteTerminal: (id: string, data: string) => Promise<void>;
+  onKillTerminal: (id: string) => Promise<void>;
   onGetSettings: () => WorkspaceSettings;
   onGetStatus: () => object;
 }
@@ -69,6 +73,12 @@ export class CommandServer {
         return;
       }
 
+      if (method === "POST" && pathname === "/show") {
+        this.options.onShowWindow();
+        json(res, { ok: true });
+        return;
+      }
+
       if (method === "GET" && pathname === "/search") {
         const query = url.searchParams.get("q") ?? "";
         if (!query) {
@@ -76,17 +86,6 @@ export class CommandServer {
           return;
         }
         const results = await this.options.onSearch(query);
-        json(res, results);
-        return;
-      }
-
-      if (method === "GET" && pathname === "/search/semantic") {
-        const query = url.searchParams.get("q") ?? "";
-        if (!query) {
-          json(res, { error: "Missing query parameter ?q=" }, 400);
-          return;
-        }
-        const results = await this.options.onSearchSemantic(query);
         json(res, results);
         return;
       }
@@ -125,11 +124,65 @@ export class CommandServer {
         return;
       }
 
+      const terminalReadMatch = pathname.match(/^\/terminals\/([^/]+)\/buffer$/);
+      if (method === "GET" && terminalReadMatch) {
+        const buffer = this.options.onReadTerminal(decodeURIComponent(terminalReadMatch[1]));
+        if (buffer === null) {
+          json(res, { error: "Terminal not found" }, 404);
+          return;
+        }
+        json(res, { buffer });
+        return;
+      }
+
+      const terminalTranscriptMatch = pathname.match(/^\/terminals\/([^/]+)\/transcript$/);
+      if (method === "GET" && terminalTranscriptMatch) {
+        const tailChars = parseTailChars(url.searchParams.get("tailChars"));
+        const transcript = this.options.onReadTerminalTranscript(
+          decodeURIComponent(terminalTranscriptMatch[1]),
+          tailChars,
+        );
+        if (transcript === null) {
+          json(res, { error: "Terminal not found" }, 404);
+          return;
+        }
+        json(res, { transcript });
+        return;
+      }
+
+      const terminalWriteMatch = pathname.match(/^\/terminals\/([^/]+)\/write$/);
+      if (method === "POST" && terminalWriteMatch) {
+        const body = await readBody(req);
+        const { data } = body as { data?: string };
+        if (typeof data !== "string") {
+          json(res, { error: "Missing string data in body" }, 400);
+          return;
+        }
+        await this.options.onWriteTerminal(decodeURIComponent(terminalWriteMatch[1]), data);
+        json(res, { ok: true });
+        return;
+      }
+
+      const terminalKillMatch = pathname.match(/^\/terminals\/([^/]+)$/);
+      if (method === "DELETE" && terminalKillMatch) {
+        await this.options.onKillTerminal(decodeURIComponent(terminalKillMatch[1]));
+        json(res, { ok: true });
+        return;
+      }
+
       json(res, { error: "Not found" }, 404);
     } catch (error) {
       json(res, { error: error instanceof Error ? error.message : String(error) }, 500);
     }
   }
+}
+
+function parseTailChars(value: string | null): number {
+  if (!value) {
+    return 200_000;
+  }
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.min(parsed, 2_000_000) : 200_000;
 }
 
 function json(res: ServerResponse, data: unknown, status = 200): void {

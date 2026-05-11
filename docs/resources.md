@@ -1,5 +1,7 @@
 # Exo Resources
 
+Last updated: 2026-05-02
+
 ## Local references
 
 - Garden reference repo:
@@ -25,6 +27,31 @@ Garden's learned memory architecture should carry forward conceptually:
 - working-memory assembly
 
 QMD remains a retrieval/index reference, not a hard dependency.
+
+## Runtime references
+
+- Exo command server discovery:
+  - `${workspace_root}/.exo/server.json`
+- Exo main-process log:
+  - `$HOME/Library/Application Support/@exo/desktop/exo-main.log`
+- macOS Electron crash reports:
+  - `$HOME/Library/Logs/DiagnosticReports/Electron-*.ips`
+
+## Runtime commands
+
+- Start desktop dev app:
+  - `bin/exo dev`
+- CLI terminal control:
+  - `bin/exo terminals list`
+  - `bin/exo terminals create shell|claude|codex [cwd]`
+  - `bin/exo terminals read <id>`
+  - `bin/exo terminals send <id> <text>`
+  - `bin/exo agents send <id> <text>`
+  - `bin/exo agents send <id> <text> --raw`
+  - `bin/exo terminals kill <id>`
+- MCP server:
+  - `pnpm --filter @exo/mcp start`
+  - set `EXO_MCP_AUTOSTART=1` when the MCP server should start Exo if the command server is missing
 
 ## Carry-over references already used
 

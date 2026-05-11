@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
-import { Bot, PanelRightClose, PanelRightOpen, Sparkles, SquareTerminal } from "lucide-react";
+import { PanelRightClose, PanelRightOpen, SquareTerminal } from "lucide-react";
 
+import { AgentIcon } from "./AgentIcon";
 import { RailButton } from "./Chrome";
 
 interface TerminalRailProps {
@@ -36,14 +37,14 @@ export function TerminalRail(props: TerminalRailProps) {
         onClick={() => onCreateTerminal("claude")}
         title="Launch Claude"
       >
-        <Bot size={16} />
+        <AgentIcon kind="claude" size={16} />
       </RailButton>
       <RailButton
         testId="launch-codex"
         onClick={() => onCreateTerminal("codex")}
         title="Launch Codex"
       >
-        <Sparkles size={16} />
+        <AgentIcon kind="codex" size={16} />
       </RailButton>
     </div>
   );

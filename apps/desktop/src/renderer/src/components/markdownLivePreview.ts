@@ -53,6 +53,12 @@ interface ListContext {
   prefixLength: number;
 }
 
+interface CodeFenceContext {
+  startLine: number;
+  endLine: number;
+  language: string;
+}
+
 const listPrefixPattern = /^(\s*)((?:[-*+]|\d+[.)]))\s+/;
 const leadingWhitespacePattern = /^(\s*)/;
 
@@ -78,6 +84,19 @@ export function markdownLivePreview(options: MarkdownLivePreviewOptions): Extens
       },
     ),
     EditorView.domEventHandlers({
+      mousedown(event) {
+        if (!(event.target instanceof HTMLElement)) return false;
+
+        const interactivePreviewControl = event.target.closest<HTMLElement>(
+          "[data-exo-fold-line], [data-exo-checkbox-pos], [data-exo-link-target], [data-exo-tag]",
+        );
+        if (!interactivePreviewControl) {
+          return false;
+        }
+
+        event.preventDefault();
+        return true;
+      },
       click(event, view) {
         if (!(event.target instanceof HTMLElement)) return false;
 
@@ -142,6 +161,7 @@ function buildDecorations(view: EditorView): DecorationSet {
   const currentLine = view.state.doc.lineAt(view.state.selection.main.head).number;
   const listContexts = collectListMetadata(view.state.doc);
   const tableContexts = collectTableMetadata(view.state.doc);
+  const codeFenceContexts = collectCodeFenceMetadata(view.state.doc);
   const foldedLines = view.state.field(foldedLinesField);
 
   // Determine which list lines have children (next line has greater depth)
@@ -177,6 +197,7 @@ function buildDecorations(view: EditorView): DecorationSet {
   for (let lineNumber = 1; lineNumber <= view.state.doc.lines; lineNumber += 1) {
     const line = view.state.doc.line(lineNumber);
     const text = line.text;
+    const codeFenceCtx = codeFenceContexts.get(lineNumber);
 
     if (hiddenLines.has(lineNumber)) {
       lineDecorations.push({
@@ -184,6 +205,55 @@ function buildDecorations(view: EditorView): DecorationSet {
         to: line.from,
         decoration: Decoration.line({ class: "exo-md-line--folded-hidden" }),
       });
+      continue;
+    }
+
+    if (codeFenceCtx) {
+      const isFenceLine = lineNumber === codeFenceCtx.startLine || lineNumber === codeFenceCtx.endLine;
+      const isSingleUnclosedFence = codeFenceCtx.startLine === codeFenceCtx.endLine;
+      const cursorOnLine = currentLine === lineNumber;
+
+      if (isFenceLine) {
+        lineDecorations.push({
+          from: line.from,
+          to: line.from,
+          decoration: Decoration.line({
+            attributes: {
+              class: "exo-md-line exo-md-line--codefence",
+              ...(codeFenceCtx.language ? { "data-exo-code-language": codeFenceCtx.language } : {}),
+            },
+          }),
+        });
+
+        if (!cursorOnLine && line.from < line.to) {
+          lineDecorations.push({ from: line.from, to: line.to, decoration: concealDecoration });
+        }
+
+        if (isSingleUnclosedFence || cursorOnLine) {
+          continue;
+        }
+      }
+
+      if (!isFenceLine) {
+        const classes = [
+          "exo-md-line",
+          "exo-md-line--codeblock",
+          lineNumber === codeFenceCtx.startLine + 1 ? "exo-md-line--codeblock-start" : "",
+          lineNumber === codeFenceCtx.endLine - 1 ? "exo-md-line--codeblock-end" : "",
+        ].filter(Boolean);
+        lineDecorations.push({
+          from: line.from,
+          to: line.from,
+          decoration: Decoration.line({
+            attributes: {
+              class: classes.join(" "),
+              ...(codeFenceCtx.language ? { "data-exo-code-language": codeFenceCtx.language } : {}),
+            },
+          }),
+        });
+        continue;
+      }
+
       continue;
     }
 
@@ -321,12 +391,26 @@ function decorateLine(
     return;
   }
 
-  if (/^---+$/.test(text) || /^\*\*\*+$/.test(text)) {
+  if (isThematicBreak(text)) {
     out.push({ from: lineFrom, to: lineFrom, decoration: Decoration.line({ class: "exo-md-line exo-md-line--rule" }) });
     if (!cursorWithin(cursorPos, lineFrom, lineFrom + text.length)) {
       out.push({ from: lineFrom, to: lineFrom + text.length, decoration: concealDecoration });
     }
   }
+}
+
+function isThematicBreak(text: string) {
+  const trimmed = text.trim();
+  if (!/^[-*_][\s-*_]*$/.test(trimmed)) {
+    return false;
+  }
+
+  const marker = trimmed[0];
+  if (![...trimmed].every((char) => char === marker || /\s/.test(char))) {
+    return false;
+  }
+
+  return [...trimmed].filter((char) => char === marker).length >= 3;
 }
 
 function decorateInline(lineFrom: number, text: string, cursorPos: number, out: DecorationEntry[]) {
@@ -336,7 +420,7 @@ function decorateInline(lineFrom: number, text: string, cursorPos: number, out: 
   applyWikilinks(text, lineFrom, out, cursorPos);
   applyMarkdownLinks(text, lineFrom, out, cursorPos);
 
-  applyInteractiveMarks(text, lineFrom, /`[^`]+`/g, out, (match, start) => [start, start + match[0].length], "exo-md-inline-code");
+  applyDelimited(text, lineFrom, /`([^`\n]+)`/g, 1, codeDecoration, out, cursorPos);
   applyInteractiveMarks(text, lineFrom, /(^|[\s(])#([A-Za-z][\w/-]*)\b/g, out, (match, start) => {
     const offset = match[1] ? match[1].length : 0;
     return [start + offset, start + offset + match[2].length + 1, { "data-exo-tag": match[2] }];
@@ -450,8 +534,8 @@ class TaskPrefixWidget extends WidgetType {
     return other.checked === this.checked && other.depth === this.depth && other.checkboxPos === this.checkboxPos;
   }
 
-  ignoreEvent() {
-    return false;
+  ignoreEvent(event: Event) {
+    return event.type === "mousedown";
   }
 }
 
@@ -493,8 +577,8 @@ class ListPrefixWidget extends WidgetType {
     return other.markerText === this.markerText && other.ordered === this.ordered && other.depth === this.depth && other.hasChildren === this.hasChildren && other.isFolded === this.isFolded && other.lineNumber === this.lineNumber;
   }
 
-  ignoreEvent() {
-    return false;
+  ignoreEvent(event: Event) {
+    return event.type === "mousedown";
   }
 }
 
@@ -602,6 +686,78 @@ function listGuideXs(depth: number) {
   }
 
   return guideXs;
+}
+
+// ---------------------------------------------------------------------------
+// Code fences
+// ---------------------------------------------------------------------------
+
+function collectCodeFenceMetadata(doc: EditorView["state"]["doc"]) {
+  const contexts = new Map<number, CodeFenceContext>();
+  let openFence:
+    | {
+        startLine: number;
+        markerChar: "`" | "~";
+        markerLength: number;
+        language: string;
+      }
+    | null = null;
+
+  for (let lineNumber = 1; lineNumber <= doc.lines; lineNumber += 1) {
+    const text = doc.line(lineNumber).text;
+
+    if (openFence) {
+      if (isClosingCodeFence(text, openFence.markerChar, openFence.markerLength)) {
+        addCodeFenceContext(contexts, openFence.startLine, lineNumber, openFence.language);
+        openFence = null;
+      }
+      continue;
+    }
+
+    const opening = parseOpeningCodeFence(text);
+    if (opening) {
+      openFence = { startLine: lineNumber, ...opening };
+    }
+  }
+
+  if (openFence) {
+    addCodeFenceContext(contexts, openFence.startLine, doc.lines, openFence.language);
+  }
+
+  return contexts;
+}
+
+function addCodeFenceContext(contexts: Map<number, CodeFenceContext>, startLine: number, endLine: number, language: string) {
+  const context = { startLine, endLine, language };
+  for (let lineNumber = startLine; lineNumber <= endLine; lineNumber += 1) {
+    contexts.set(lineNumber, context);
+  }
+}
+
+function parseOpeningCodeFence(text: string) {
+  const match = text.match(/^( {0,3})(`{3,}|~{3,})(.*)$/);
+  if (!match) {
+    return null;
+  }
+
+  const marker = match[2];
+  const markerChar = marker[0] as "`" | "~";
+  const info = match[3].trim();
+
+  if (markerChar === "`" && info.includes("`")) {
+    return null;
+  }
+
+  return {
+    markerChar,
+    markerLength: marker.length,
+    language: info.split(/\s+/, 1)[0] ?? "",
+  };
+}
+
+function isClosingCodeFence(text: string, markerChar: "`" | "~", markerLength: number) {
+  const match = text.match(/^( {0,3})(`{3,}|~{3,})\s*$/);
+  return Boolean(match && match[2][0] === markerChar && match[2].length >= markerLength);
 }
 
 // ---------------------------------------------------------------------------

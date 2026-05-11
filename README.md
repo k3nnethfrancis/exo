@@ -2,31 +2,32 @@
 
 Exo is a workspace-centric research IDE for autonomous intellectual work.
 
-It is the Electron rebuild of Garden. The product direction stays intact, but the shell changes:
-- `workspace_root` is primary
-- `note_roots` and `project_roots` are attached separately
-- terminals default to the workspace root
-- notes, terminals, workcells, memory, datasets, and evals share one operator surface
+It is the Electron rebuild of Garden. The product direction stays intact, but the shell is now built around:
+- `workspace_root` as the primary operating context
+- attached `note_roots` and `project_roots`
+- terminal agents as first-class operator surfaces
+- CLI and MCP control paths into the running app
+- notes, project files, terminals, workcells, memory, datasets, and evals sharing one eventual operator environment
 
-## Current Phase
+## Current Status
 
-Phase 1 is UI-first:
-- Electron shell
-- markdown-notebook editor
-- plain terminal panes with `Claude` and `Codex` launchers
-- workspace-aware roots and file navigation
-- visual regression and interaction harnesses from the start
+The shell is usable and now covers more than notes:
+- markdown notes with live-preview editing, properties/frontmatter, backlinks/tags/links, branch families, foldable lists, and table widgets
+- project/code files with CodeMirror language support for Python, JSON/JSONC, TOML, `.env`, YAML, JS/TS/TSX, HTML/CSS, and shell files
+- project folders are imported explicitly; Exo no longer attaches the whole workspace `projects/` directory by default
+- JSON parse linting through the CodeMirror lint gutter
+- live note search by filename/path
+- recursive editor/terminal pane model with flat tabs and no-empty-leaves pruning
+- xterm/node-pty terminals rooted in the workspace by default
+- Claude and Codex launchers backed by Exo runtime launch plans
 
-Current shell status:
-- markdown notes and project files both open cleanly
-- branch-aware note flows are back
-- search spans notes, tags, and project files
-
-Higher-level systems follow after the shell is stable:
-- memory and quirk runtime
-- autoresearch workcells
-- multi-agent coordination
-- datasets, evals, and training loops
+The runtime control layer is now active:
+- Electron main-process command server writes `.exo/server.json`
+- `bin/exo` can drive a running app through HTTP
+- terminal sessions can be listed, created, read, written to, sent Enter-terminated messages, and killed from the CLI
+- Claude/Codex agent terminals use tmux for restart persistence
+- Exo MCP exposes agent tools for other local agents: list, create, read, send, interrupt, and terminate
+- MCP can autostart Exo when configured with `EXO_MCP_AUTOSTART=1`
 
 ## Stack
 
@@ -37,18 +38,24 @@ Higher-level systems follow after the shell is stable:
 - CodeMirror 6
 - xterm.js
 - node-pty
+- tmux for durable Claude/Codex agent terminals
 - Playwright
+- MCP SDK
 
 ## Workspace Model
 
-The default Exo model is:
+Default local model:
 - `workspace_root = /Users/kenneth/Desktop/lab`
-- attached note root:
-  - `/Users/kenneth/Desktop/lab/notes/shoshin-codex`
-- attached project root:
-  - `/Users/kenneth/Desktop/lab/projects`
+- `note_roots = [/Users/kenneth/Desktop/lab/notes/shoshin-codex]`
+- `project_roots = [/Users/kenneth/Desktop/lab/projects]`
+- `default_terminal_cwd = /Users/kenneth/Desktop/lab`
 
-In tests, Exo can boot against a deterministic fixture workspace via environment variables.
+Runtime files live under `.exo/` inside the workspace root:
+- `.exo/server.json` — command server discovery
+- `.exo/instructions/AGENTS.md` — Exo-generated generic runtime contract
+- `.exo/instructions/CLAUDE.md` — Exo-generated Claude overlay
+- `.exo/terminal-state.json` — persisted tmux-backed agent terminal state
+- `.exo/messages/` and `.exo/agent-communication.sqlite` — reserved communication transport paths
 
 ## Quick Start
 
@@ -57,15 +64,91 @@ pnpm install
 pnpm dev
 ```
 
-Runtime CLI:
+Run with remote debugging when inspecting the real Electron renderer:
 
 ```bash
+pnpm --filter @exo/desktop dev -- --remote-debugging-port=9222
+```
+
+## CLI
+
+Standalone workspace/search/runtime commands:
+
+```bash
+./bin/exo workspace status
+./bin/exo search "query"
 ./bin/exo runtime status
 ./bin/exo runtime sync
 ./bin/exo launch claude
 ```
 
-Validation loop:
+Commands that drive a running Exo app:
+
+```bash
+./bin/exo open /path/to/file
+./bin/exo status
+./bin/exo config get
+./bin/exo terminals list
+./bin/exo terminals create shell
+./bin/exo terminals create claude /Users/kenneth/Desktop/lab
+./bin/exo terminals create codex /Users/kenneth/Desktop/lab
+./bin/exo terminals read term-4
+./bin/exo terminals transcript term-4 --tail 200000
+./bin/exo terminals write term-4 "raw input"
+./bin/exo terminals send term-4 "message plus Enter"
+./bin/exo terminals kill term-4
+```
+
+Agent-oriented aliases mirror the MCP tools and are easier for another running Codex/Claude session to use without restarting to load MCP:
+
+```bash
+./bin/exo agents list
+./bin/exo agents create claude /Users/kenneth/Desktop/lab
+./bin/exo agents read term-4 --tail 20000
+./bin/exo agents read term-4 --raw
+./bin/exo agents send term-4 "message plus Enter"
+./bin/exo agents message term-4 "message plus Enter"
+./bin/exo agents tell term-4 "message plus Enter"
+./bin/exo agents send term-4 "raw input without Enter" --raw
+./bin/exo agents interrupt term-4 ctrl-c
+./bin/exo agents terminate term-4
+```
+
+Terminal transcripts are persisted under `.exo/terminal-transcripts/`. The live UI only renders a bounded tail for stability, while CLI/MCP reads can access the disk-backed transcript. Default retention:
+- `14` days max age
+- `500MB` max transcript directory size
+- `50MB` max per transcript file, trimmed to its recent tail
+
+Override with `EXO_TERMINAL_TRANSCRIPT_RETENTION_DAYS`, `EXO_TERMINAL_TRANSCRIPT_MAX_TOTAL_MB`, and `EXO_TERMINAL_TRANSCRIPT_MAX_FILE_MB`.
+
+## MCP
+
+`packages/mcp` exposes the running Exo app as an MCP server. Current tools:
+- `list_agents`
+- `create_agent`
+- `read_agent`
+- `send_agent_message`
+- `interrupt_agent`
+- `terminate_agent`
+
+Configure with autostart when agents should be able to launch Exo themselves:
+
+```json
+{
+  "mcpServers": {
+    "exo": {
+      "command": "pnpm",
+      "args": ["--dir", "/Users/kenneth/Desktop/lab/projects/exo", "--filter", "@exo/mcp", "start"],
+      "env": {
+        "EXO_WORKSPACE_ROOT": "/Users/kenneth/Desktop/lab",
+        "EXO_MCP_AUTOSTART": "1"
+      }
+    }
+  }
+}
+```
+
+## Validation
 
 ```bash
 pnpm typecheck
@@ -74,10 +157,35 @@ pnpm test:e2e
 pnpm test:visual
 ```
 
+For focused work:
+
+```bash
+pnpm --filter @exo/desktop typecheck
+pnpm --filter @exo/desktop test
+pnpm --filter @exo/cli typecheck
+pnpm --filter @exo/mcp typecheck
+pnpm --filter @exo/mcp test
+```
+
+## Logs
+
+Main-process runtime log:
+
+```bash
+tail -f "$HOME/Library/Application Support/@exo/desktop/exo-main.log"
+```
+
+macOS crash reports:
+
+```bash
+ls "$HOME/Library/Logs/DiagnosticReports"/Electron-*.ips
+```
+
 ## Docs Order
 
 - `ledger.md`: fastest current-state handoff
 - `plan.md`: canonical strategy and phased implementation plan
 - `docs/tasks.md`: active execution tracker
+- `docs/architecture.md`: system architecture
 - `docs/roadmap.md`: feature roadmap by phase
 - `docs/resources.md`: retained references and external substrates
