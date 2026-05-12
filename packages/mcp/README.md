@@ -11,13 +11,13 @@ Exposes the running Exo app as an MCP server.
       "command": "pnpm",
       "args": [
         "--dir",
-        "/Users/kenneth/Desktop/lab/projects/exo",
+        "/path/to/exo",
         "--filter",
         "@exo/mcp",
         "start"
       ],
       "env": {
-        "EXO_WORKSPACE_ROOT": "/Users/kenneth/Desktop/lab",
+        "EXO_WORKSPACE_ROOT": "/path/to/workspace",
         "EXO_MCP_AUTOSTART": "1"
       }
     }
@@ -49,7 +49,7 @@ Already-running Codex/Claude sessions will not see newly configured MCP servers 
 
 ```bash
 bin/exo agents list
-bin/exo agents create claude /Users/kenneth/Desktop/lab
+bin/exo agents create claude /path/to/workspace
 bin/exo agents read term-4 --tail 20000
 bin/exo agents send term-4 "message"
 bin/exo agents send term-4 "raw input without Enter" --raw

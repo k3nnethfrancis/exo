@@ -5,18 +5,18 @@ Last updated: 2026-05-02
 ## Local references
 
 - Garden reference repo:
-  - `/Users/kenneth/Desktop/lab/projects/garden`
+  - local Garden checkout, when available
 - Master workspace task list:
-  - `/Users/kenneth/Desktop/lab/notes/shoshin-codex/tasks.md`
+  - the configured notes vault task list
 - prior Garden project planning:
-  - `/Users/kenneth/Desktop/lab/notes/shoshin-codex/projects/garden`
+  - the configured notes vault project planning folder
 
 ## Research harness references
 
 - `autoresearch-macos`
-  - `/Users/kenneth/Desktop/lab/projects/research/autoresearch-macos`
+  - local reference checkout, when available
 - `autoresearch-mlx`
-  - `/Users/kenneth/Desktop/lab/projects/research/autoresearch-mlx`
+  - local reference checkout, when available
 
 ## Memory references
 

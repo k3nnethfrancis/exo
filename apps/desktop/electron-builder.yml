@@ -1,0 +1,32 @@
+appId: computer.exo.desktop
+productName: Exo
+artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+
+directories:
+  buildResources: build
+  output: ../../release
+
+files:
+  - dist/**/*
+  - package.json
+
+asarUnpack:
+  - node_modules/node-pty/**/*
+
+mac:
+  category: public.app-category.productivity
+  icon: build/icon.icns
+  identity: null
+  target:
+    - dmg
+    - zip
+
+dmg:
+  sign: false
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications

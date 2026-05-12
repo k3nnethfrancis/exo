@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Exo app icon">
+  <defs>
+    <linearGradient id="bg" x1="160" y1="120" x2="864" y2="904" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fdf6e3"/>
+      <stop offset="1" stop-color="#d8cdb5"/>
+    </linearGradient>
+    <linearGradient id="ink" x1="282" y1="254" x2="744" y2="768" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1f2d32"/>
+      <stop offset="1" stop-color="#46646a"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="228" fill="url(#bg)"/>
+  <path d="M238 284c0-37.6 30.4-68 68-68h412c37.6 0 68 30.4 68 68v456c0 37.6-30.4 68-68 68H306c-37.6 0-68-30.4-68-68V284Z" fill="#fff8e8" opacity=".86"/>
+  <path d="M238 366h548" stroke="#b9aa8d" stroke-width="34" stroke-linecap="round"/>
+  <path d="M380 504h268M380 618h212" stroke="url(#ink)" stroke-width="62" stroke-linecap="round"/>
+  <path d="M300 504h4M300 618h4" stroke="#d08c55" stroke-width="62" stroke-linecap="round"/>
+  <path d="M786 284v456c0 37.6-30.4 68-68 68H306" fill="none" stroke="#816f50" stroke-opacity=".22" stroke-width="28"/>
+</svg>

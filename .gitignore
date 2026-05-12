@@ -2,9 +2,12 @@ node_modules/
 dist/
 .vite/
 out/
+release/
 coverage/
 test-results/
 playwright-report/
 .exo/
+.env
+.claude/settings.local.json
 *.log
 .DS_Store

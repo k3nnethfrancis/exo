@@ -158,6 +158,7 @@ function createWindow() {
     show: false,
     title: "Exo",
     backgroundColor: nativeTheme.shouldUseDarkColors ? "#111318" : "#f6ecda",
+    icon: resolveWindowIconPath(),
     titleBarStyle: "hiddenInset",
     trafficLightPosition: {
       x: 16,
@@ -237,6 +238,11 @@ function createWindow() {
       rendererReady = false;
     }
   });
+}
+
+function resolveWindowIconPath(): string | undefined {
+  const iconPath = path.join(currentDirectory, "../../build/icon.png");
+  return existsSync(iconPath) ? iconPath : undefined;
 }
 
 function showMainWindow() {

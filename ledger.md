@@ -50,6 +50,17 @@ Phase 3 slice currently shipped:
 - QMD integration in `packages/core/src/qmd.ts` retained as optional notes index / retrieval infrastructure for future memory work; it is not the current top-bar search backend
 - main-process responsibilities are being split into settings, watcher, terminal IPC, command protocol, and transcript-retention services
 
+Open-source prep now includes:
+- macOS-first unsigned packaging through `pnpm pack:mac` and `pnpm dist:mac`
+- Exo app icon assets under `apps/desktop/build/`
+- GitHub Actions CI for typecheck, tests, and build
+- manual macOS package workflow that uploads unsigned artifacts
+- `CONTRIBUTING.md`, `SECURITY.md`, `.env.example`, and `docs/open-source.md`
+
+Release blocker before public binary distribution:
+- choose and add a real open-source license
+- sign and notarize macOS artifacts when releases move beyond early testers
+
 Outstanding for Phase 2 close-out:
 - notebook execution surfaces
 - search ranking + keyboard navigation in the floating panel

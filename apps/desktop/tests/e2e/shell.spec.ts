@@ -52,10 +52,6 @@ test("boots the shell, opens notes, and manages terminal tabs", async () => {
 test.skip("renders markdown decorations immediately when switching notes", async () => {
   const { page, cleanup } = await launchExoFixture({
     env: {
-      EXO_WORKSPACE_ROOT: "/Users/kenneth/Desktop/lab",
-      EXO_NOTE_ROOTS: "/Users/kenneth/Desktop/lab/notes/shoshin-codex",
-      EXO_PROJECT_ROOTS: "/Users/kenneth/Desktop/lab/projects/exo",
-      EXO_DEFAULT_TERMINAL_CWD: "/Users/kenneth/Desktop/lab",
       EXO_FORCE_THEME: "light",
     },
     initialNoteLabel: null,

@@ -1,7 +1,8 @@
 import { execFileSync, spawn } from "node:child_process";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const repoRoot = "/Users/kenneth/Desktop/lab/projects/exo";
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const appEntry = path.join(repoRoot, "apps/desktop");
 const electronBinary = path.join(appEntry, "node_modules/.bin/electron");
 

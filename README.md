@@ -11,6 +11,8 @@ It is the Electron rebuild of Garden. The product direction stays intact, but th
 
 ## Current Status
 
+Exo is currently developed and tested as a macOS-first desktop app. Windows and Linux source builds may work in pieces, but they are not release targets yet because the terminal, tmux-backed agent recovery, and local agent CLI paths need explicit platform validation.
+
 The shell is usable and now covers more than notes:
 - markdown notes with live-preview editing, properties/frontmatter, backlinks/tags/links, branch families, foldable lists, and table widgets
 - project/code files with CodeMirror language support for Python, JSON/JSONC, TOML, `.env`, YAML, JS/TS/TSX, HTML/CSS, and shell files
@@ -52,10 +54,10 @@ Exo settings are stored in one JSON file:
 Portable source defaults use the current working directory as `workspace_root`, `workspace_root/notes` as the initial note root, and the Exo repo as the first project root. Kenneth's local lab paths should live in the settings file or environment, not in core source defaults.
 
 Example local model:
-- `workspace_root = /Users/kenneth/Desktop/lab`
-- `note_roots = [/Users/kenneth/Desktop/lab/notes/shoshin-codex]`
-- `project_roots = [/Users/kenneth/Desktop/lab/projects/exo]`, then any additional imported project folders
-- `default_terminal_cwd = /Users/kenneth/Desktop/lab`
+- `workspace_root = /path/to/workspace`
+- `note_roots = [/path/to/workspace/notes]`
+- `project_roots = [/path/to/workspace/projects/exo]`, then any additional imported project folders
+- `default_terminal_cwd = /path/to/workspace`
 
 Runtime files live under `.exo/` inside the workspace root:
 - `.exo/server.json` — command server discovery
@@ -79,6 +81,22 @@ Run with remote debugging when inspecting the real Electron renderer:
 pnpm --filter @exo/desktop dev -- --remote-debugging-port=9222
 ```
 
+## macOS Packaging
+
+Build an unsigned macOS app bundle:
+
+```bash
+pnpm pack:mac
+```
+
+Build unsigned macOS DMG and ZIP artifacts for the current build machine architecture:
+
+```bash
+pnpm dist:mac
+```
+
+Artifacts are written to `release/`. Unsigned builds are suitable for early local testing, but macOS will warn users. Public binary releases should eventually be signed and notarized. Intel or universal macOS builds should be added as a separate tested release slice.
+
 ## CLI
 
 Standalone workspace/search/runtime commands:
@@ -99,8 +117,8 @@ Commands that drive a running Exo app:
 ./bin/exo config get
 ./bin/exo terminals list
 ./bin/exo terminals create shell
-./bin/exo terminals create claude /Users/kenneth/Desktop/lab
-./bin/exo terminals create codex /Users/kenneth/Desktop/lab
+./bin/exo terminals create claude /path/to/workspace
+./bin/exo terminals create codex /path/to/workspace
 ./bin/exo terminals read term-4
 ./bin/exo terminals transcript term-4 --tail 200000
 ./bin/exo terminals write term-4 "raw input"
@@ -112,7 +130,7 @@ Agent-oriented aliases mirror the MCP tools and are easier for another running C
 
 ```bash
 ./bin/exo agents list
-./bin/exo agents create claude /Users/kenneth/Desktop/lab
+./bin/exo agents create claude /path/to/workspace
 ./bin/exo agents read term-4 --tail 20000
 ./bin/exo agents read term-4 --raw
 ./bin/exo agents send term-4 "message plus Enter"
@@ -147,9 +165,9 @@ Configure with autostart when agents should be able to launch Exo themselves:
   "mcpServers": {
     "exo": {
       "command": "pnpm",
-      "args": ["--dir", "/Users/kenneth/Desktop/lab/projects/exo", "--filter", "@exo/mcp", "start"],
+      "args": ["--dir", "/path/to/exo", "--filter", "@exo/mcp", "start"],
       "env": {
-        "EXO_WORKSPACE_ROOT": "/Users/kenneth/Desktop/lab",
+        "EXO_WORKSPACE_ROOT": "/path/to/workspace",
         "EXO_MCP_AUTOSTART": "1"
       }
     }
@@ -196,5 +214,6 @@ ls "$HOME/Library/Logs/DiagnosticReports"/Electron-*.ips
 - `plan.md`: canonical strategy and phased implementation plan
 - `docs/tasks.md`: active execution tracker
 - `docs/architecture.md`: system architecture
+- `docs/open-source.md`: public release checklist and platform support notes
 - `docs/roadmap.md`: feature roadmap by phase
 - `docs/resources.md`: retained references and external substrates

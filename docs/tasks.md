@@ -6,6 +6,10 @@
 - [x] Add CLI package
 - [x] Add fixture workspace
 - [x] Add Playwright interaction and screenshot harnesses
+- [x] Add macOS-first unsigned packaging scripts and app icon assets
+- [x] Add baseline GitHub Actions CI for typecheck, tests, and build
+- [ ] Choose and add a real open-source license before public release
+- [ ] Add signed/notarized macOS release path
 
 ## P1 — UI/editor/terminal shell
 - [x] Sidebar with workspace, note, and project roots
