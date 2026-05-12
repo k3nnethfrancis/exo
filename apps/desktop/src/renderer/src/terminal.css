@@ -31,7 +31,7 @@
   gap: 8px;
   padding: 16px 0 8px;
   width: 42px;
-  border-left: 1px solid color-mix(in srgb, var(--divider) 48%, transparent);
+  border-left: 1px solid color-mix(in srgb, var(--divider) 28%, transparent);
   background: var(--chrome-bg);
   z-index: 4;
 }
@@ -46,13 +46,13 @@
   gap: 8px;
   padding: 16px 0 8px;
   width: 42px;
-  border-left: 1px solid color-mix(in srgb, var(--divider) 48%, transparent);
+  border-left: 1px solid color-mix(in srgb, var(--divider) 28%, transparent);
   border-bottom: 0;
 }
 
 .workspace__body--terminal-bottom .terminal-dock {
   border-left: 0;
-  border-top: 1px solid color-mix(in srgb, var(--divider) 48%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--divider) 28%, transparent);
 }
 
 .terminal-dock__main {
@@ -68,7 +68,7 @@
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-rows: 40px minmax(0, 1fr);
+  grid-template-rows: 44px minmax(0, 1fr);
   position: relative;
 }
 
@@ -78,10 +78,10 @@
   gap: 0;
   padding: 0;
   padding-right: 8px;
-  border-bottom: 1px solid color-mix(in srgb, var(--divider) 74%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--divider) 52%, transparent);
   background: var(--chrome-bg);
   justify-content: space-between;
-  min-height: 40px;
+  min-height: 44px;
   grid-column: 1;
   grid-row: 1;
   min-width: 0;
