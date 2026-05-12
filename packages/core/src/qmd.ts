@@ -20,7 +20,8 @@ interface QmdRawResult {
 
 /**
  * Build a QmdConfig from the runtime retrieval config and the first note root.
- * Returns null if retrieval is disabled or no note roots are configured.
+ * QMD is treated as optional notes index / retrieval infrastructure; app search
+ * intentionally stays on the fast local note path until unified search is designed.
  */
 export function buildQmdConfig(
   retrieval: RetrievalBackendConfig,
@@ -38,7 +39,8 @@ export function buildQmdConfig(
 }
 
 /**
- * BM25 keyword search via `qmd search`. Fast (~100-500ms), suitable for sidebar debounce.
+ * BM25 keyword query against the QMD index. Keep this on explicit retrieval
+ * paths; do not wire it into live UI search without strict caps/cancellation.
  */
 export async function searchQmd(
   query: string,
@@ -51,7 +53,8 @@ export async function searchQmd(
 }
 
 /**
- * Hybrid search with reranking via `qmd query`. Slower (~10-25s), for CLI --deep.
+ * Hybrid QMD query with reranking. This is a future memory/retrieval primitive,
+ * not the current top-bar search path.
  */
 export async function queryQmd(
   query: string,

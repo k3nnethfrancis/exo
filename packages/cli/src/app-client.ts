@@ -1,10 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-interface ServerInfo {
-  port: number;
-  pid: number;
-}
+import { EXO_COMMAND_ROUTES, type ExoCommandServerInfo } from "@exo/core";
 
 /**
  * HTTP client for communicating with the Exo desktop app's command server.
@@ -19,7 +16,7 @@ export class AppClient {
    */
   static async connect(runtimeRoot: string): Promise<AppClient | null> {
     const serverJsonPath = path.join(runtimeRoot, "server.json");
-    let info: ServerInfo;
+    let info: ExoCommandServerInfo;
 
     try {
       const raw = await readFile(serverJsonPath, "utf-8");
@@ -41,51 +38,49 @@ export class AppClient {
   }
 
   async getStatus(): Promise<Record<string, unknown>> {
-    return this.get("/status");
+    return this.get(EXO_COMMAND_ROUTES.status);
   }
 
   async openFile(filePath: string): Promise<void> {
-    await this.post("/open", { path: filePath });
+    await this.post(EXO_COMMAND_ROUTES.open, { path: filePath });
   }
 
   async showWindow(): Promise<void> {
-    await this.post("/show", {});
+    await this.post(EXO_COMMAND_ROUTES.show, {});
   }
 
   async getConfig(): Promise<Record<string, unknown>> {
-    return this.get("/config");
+    return this.get(EXO_COMMAND_ROUTES.config);
   }
 
   async search(query: string): Promise<Record<string, unknown>> {
-    return this.get(`/search?q=${encodeURIComponent(query)}`);
+    return this.get(`${EXO_COMMAND_ROUTES.search}?q=${encodeURIComponent(query)}`);
   }
 
   async listTerminals(): Promise<unknown[]> {
-    return this.get("/terminals");
+    return this.get(EXO_COMMAND_ROUTES.terminals);
   }
 
   async createTerminal(kind: string, cwd?: string): Promise<Record<string, unknown>> {
-    return this.post("/terminals", { kind, cwd });
+    return this.post(EXO_COMMAND_ROUTES.terminals, { kind, cwd });
   }
 
   async readTerminal(id: string): Promise<string> {
-    const result = await this.get(`/terminals/${encodeURIComponent(id)}/buffer`);
+    const result = await this.get(EXO_COMMAND_ROUTES.terminalBuffer(id));
     return String(result.buffer ?? "");
   }
 
   async readTerminalTranscript(id: string, tailChars = 200_000): Promise<string> {
-    const result = await this.get(
-      `/terminals/${encodeURIComponent(id)}/transcript?tailChars=${encodeURIComponent(String(tailChars))}`,
-    );
+    const result = await this.get(EXO_COMMAND_ROUTES.terminalTranscript(id, tailChars));
     return String(result.transcript ?? "");
   }
 
   async writeTerminal(id: string, data: string): Promise<void> {
-    await this.post(`/terminals/${encodeURIComponent(id)}/write`, { data });
+    await this.post(EXO_COMMAND_ROUTES.terminalWrite(id), { data });
   }
 
   async killTerminal(id: string): Promise<void> {
-    await this.delete(`/terminals/${encodeURIComponent(id)}`);
+    await this.delete(EXO_COMMAND_ROUTES.terminal(id));
   }
 
   private async get(path: string): Promise<any> {

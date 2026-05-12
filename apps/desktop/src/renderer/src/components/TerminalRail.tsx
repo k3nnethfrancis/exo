@@ -13,7 +13,7 @@ interface TerminalRailProps {
 }
 
 export function TerminalRail(props: TerminalRailProps) {
-  const { placement, collapsed, onToggleCollapsed, onCreateTerminal, style } = props;
+  const { collapsed, onToggleCollapsed, onCreateTerminal, style } = props;
   const CollapseIcon = collapsed ? PanelRightOpen : PanelRightClose;
 
   return (

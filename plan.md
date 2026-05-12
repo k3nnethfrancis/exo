@@ -31,10 +31,12 @@ Exo is organized around:
 - `attached_workcells[]`
   - explicit research-loop bindings
 
-Initial defaults:
-- `workspace_root = /Users/kenneth/Desktop/lab`
-- `note_roots = [/Users/kenneth/Desktop/lab/notes/shoshin-codex]`
-- `project_roots = [/Users/kenneth/Desktop/lab/projects]`
+Portable source defaults:
+- `workspace_root = process.cwd()`
+- `note_roots = [workspace_root/notes]`
+- `project_roots = [exo repo root]`
+
+Kenneth's lab paths belong in the settings file or environment examples, not in core defaults.
 
 ## Objective Stack
 
@@ -125,12 +127,12 @@ Build:
 
 Current completed slice:
 - note branch families using Garden's file-family pattern
-- unified search sections for notes, tags, and project files
+- fast note filename/path search, with project/tag/broad retrieval intentionally outside the current app search path
 - markdown-note vs project-file editor behavior split
 - first-step dragged document splitting
 - **pane-tree invariant**: empty leaves auto-prune (close last terminal in a split → sibling expands; center-drop = merge)
 - **top-bar global search**: search lifted out of the sidebar into a centered top-bar input; results render in a floating panel below the bar; sidebar always shows the file tree
-- **search execution model**: results commit on Enter (not on every keystroke) — local QMD + filesystem search is too slow for live debounce on broad queries
+- **search execution model**: results are capped to fast note filename/path matches; broad/QMD retrieval is deferred until the memory/index design is stable
 - **shell chrome polish**: hairline 1px pane dividers with invisible ±5px hit overlays; flat tabs (square corners, hairline separators, no gaps); editor and terminal tab strips aligned at 40px
 - **markdown live-preview parity**: tables render as styled `<table>` elements with header bg, alternating row stripes, and alignment from separator row; cursor-in-table reverts to raw markdown for editing
 - **inspector polish**: click-outside / Esc dismiss; finger cursor on toggle; more solid hover
@@ -170,7 +172,7 @@ Current shipped slice:
 - **MCP bridge**: `packages/mcp` exposes live Exo terminal agents through `list_agents`, `create_agent`, `read_agent`, `send_agent_message`, `interrupt_agent`, and `terminate_agent`; optional autostart uses `EXO_MCP_AUTOSTART=1`
 - **terminal agent lifecycle**: Claude/Codex sessions are tmux-backed; Exo close/kill terminates the backing session; renderer reload hydrates from the main-process buffer
 - **code-file editor modes**: project files now use CodeMirror language support for Python, JSON/JSONC, TOML, `.env`, YAML, JS/TS/TSX, HTML/CSS, and shell, with JSON linting
-- **QMD integration**: `packages/core/src/qmd.ts` exposes the QMD vault index as a retrieval backend; powers semantic search results in the top-bar search panel
+- **QMD integration**: `packages/core/src/qmd.ts` remains as optional notes index / retrieval infrastructure for future memory work; it is not the current top-bar search backend
 
 ### Phase 4 — Retrieval and layered memory
 Goal: Exo should own memory architecture while allowing retrieval backends like QMD.
@@ -257,10 +259,10 @@ Visual coverage should include:
 **How**: `SearchResultsPanel` component renders as `position: fixed` below the top-bar search input; sidebar always shows the file tree. Click-outside / Esc dismiss. Click-result opens file and dismisses + clears query.
 **Tradeoff**: Search no longer drags-and-drops into a pane (we removed `onMouseDown` + `dragManager.startDrag` from result rows). Acceptable — drag-from-search-results was low-value.
 
-### 2026-04-27 — Search runs on Enter, not on every keystroke
-**Why**: Live search across the workspace + QMD semantic search returned hundreds of results for short queries and could crash the renderer when rendering them. Debouncing at 120ms / 500ms helped but didn't fully cap the cost.
-**How**: Two state vars — `searchQuery` (live, drives the input) and `searchSubmittedQuery` (only updates on Enter, drives the actual search and the panel render). Esc clears both.
-**Tradeoff**: Loses live-search affordance. Matches Cursor / VS Code command palette behavior, which is what users have muscle memory for.
+### 2026-05-11 — Search is stable note filename/path search
+**Why**: Broad filesystem search and QMD semantic retrieval were too expensive for the live app path and could destabilize the renderer.
+**How**: App and CLI search now use fast note filename/path matching. QMD stays in core as future index / memory infrastructure, but generated runtime instructions no longer present it as active app search.
+**Tradeoff**: Human search is intentionally narrower for now. Unified human+agent search should come later with explicit tiers, cancellation, result caps, and renderer crash coverage.
 
 ### 2026-04-27 — Pane tree invariant: no empty leaves
 **Why**: Closing the last terminal in a split pane left an empty pane that didn't reclaim space. Center-drop merge was also missing — once you split a pane you couldn't merge it back without manually closing.
@@ -274,7 +276,7 @@ Visual coverage should include:
 
 ## Open Questions
 
-- **Search ranking**: current results are unsorted by score within each section (notes/projects/tags/semantic). Should we add a unified ranking, or keep the section-grouped UX?
+- **Search ranking**: current search is note filename/path only. Future unified search should define exact tiers before reintroducing project, tag, or QMD results.
 - **Keyboard nav in search panel**: arrow keys + Enter to open the highlighted result — not yet built. Would complete the command-palette feel.
 - **Search history**: should recent searches surface as suggestions when the input is empty and focused?
 - **Table widget edit affordance**: today, clicking into a table cell shows raw markdown. A future improvement would be in-cell editing without the markdown-source flash.

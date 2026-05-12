@@ -34,7 +34,6 @@ export function TerminalDock(props: TerminalDockProps) {
   const {
     placement,
     appearance,
-    compact,
     empty,
     sessions,
     activeTerminalId,

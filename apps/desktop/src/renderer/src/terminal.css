@@ -31,7 +31,7 @@
   gap: 8px;
   padding: 16px 0 8px;
   width: 42px;
-  border-left: 1px solid var(--divider);
+  border-left: 1px solid color-mix(in srgb, var(--divider) 48%, transparent);
   background: var(--chrome-bg);
   z-index: 4;
 }
@@ -46,13 +46,13 @@
   gap: 8px;
   padding: 16px 0 8px;
   width: 42px;
-  border-left: 1px solid var(--divider);
+  border-left: 1px solid color-mix(in srgb, var(--divider) 48%, transparent);
   border-bottom: 0;
 }
 
 .workspace__body--terminal-bottom .terminal-dock {
   border-left: 0;
-  border-top: 1px solid color-mix(in srgb, var(--divider) 72%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--divider) 48%, transparent);
 }
 
 .terminal-dock__main {
@@ -78,7 +78,7 @@
   gap: 0;
   padding: 0;
   padding-right: 8px;
-  border-bottom: 1px solid color-mix(in srgb, var(--divider) 72%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--divider) 74%, transparent);
   background: var(--chrome-bg);
   justify-content: space-between;
   min-height: 40px;
@@ -152,7 +152,7 @@
   grid-row: 2;
   min-width: 0;
   min-height: 0;
-  padding: 6px 8px 8px;
+  padding: 6px 8px 18px;
   background: var(--terminal-bg);
   overflow: hidden;
 }

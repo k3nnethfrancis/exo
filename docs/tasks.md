@@ -9,7 +9,7 @@
 
 ## P1 — UI/editor/terminal shell
 - [x] Sidebar with workspace, note, and project roots
-- [x] Search input and fast sidebar-oriented note/project/tag search
+- [x] Search input and fast note filename/path search
 - [x] Tabbed markdown notebook editor
 - [x] Frontmatter/properties projection
 - [x] Backlinks, tags, and link surfaces
@@ -61,6 +61,11 @@
 - [x] CLI commands for runtime context inspection and active workspace state
 - [x] Runtime command server (HTTP in main process) + CLI app-client so `bin/exo` can drive a running app
 - [x] Removed QMD from app/CLI search pipeline after renderer stability issues
+- [x] Shared command protocol route/types for desktop CLI/MCP command-server clients
+- [x] Main-process settings store, workspace watcher, terminal IPC, and transcript-retention service splits
+- [x] Search request stale-result guard and IPC error handling
+- [x] Open-document polling failure handling
+- [x] Portable core workspace defaults with the Exo repo attached as the first default project; local lab paths live in settings/env examples
 - [x] CLI terminal operations beyond launch/context: list/create/read/write/send/kill
 - [x] Agent-oriented CLI mirror for MCP tools: list/create/read/send/interrupt/terminate
 - [x] Exo MCP bridge for live terminal agents: list/create/read/send/interrupt/terminate
@@ -68,7 +73,7 @@
 - [ ] Add richer terminal metadata: user-facing names, role labels, provenance, and parent/child relationship display
 
 ## P4 — Retrieval and memory
-- [ ] QMD adapter for search/query/rerank from the Exo CLI
+- [ ] QMD-backed notes index / retrieval commands for future memory work
 - [ ] Durable memory layer
 - [ ] Trace archive layer
 - [ ] Retrieval/index layer

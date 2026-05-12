@@ -237,7 +237,8 @@ test("collapses and reopens the workspace rail", async () => {
 
   await page.getByTestId("sidebar-collapse").click();
   await expect(page.getByTestId("sidebar-expand")).toBeVisible();
-  await expect(page.getByTestId("workspace-search")).toHaveCount(0);
+  await expect(page.getByTestId("sidebar").getByRole("button", { name: "focus-note" })).toHaveCount(0);
+  await expect(page.getByTestId("workspace-search")).toBeVisible();
 
   await page.getByTestId("sidebar-expand").click();
   await expect(page.getByTestId("sidebar-collapse")).toBeVisible();

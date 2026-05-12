@@ -1,6 +1,6 @@
 # Exo Ledger
 
-Last updated: 2026-05-02
+Last updated: 2026-05-11
 
 This is the fastest handoff file for Exo.
 
@@ -21,7 +21,7 @@ Phase 1 done. Phase 2 has shipped most of the IDE-shell parity work. Phase 3 now
 Current working shell:
 - Electron workspace shell with a top bar (search) and three primary surfaces (sidebar, editor, terminal dock)
 - centered global search in the top bar; results render in a floating panel below the bar (sidebar always shows the file tree)
-- search runs on Enter (not on every keystroke) — local QMD + filesystem search is too slow for live debounce
+- search runs on Enter (not on every keystroke) and currently returns fast note filename/path matches only
 - markdown live-preview editor with full table rendering (headers, alternating rows, alignment from separator), live ordered/unordered lists, headings, tasks, links/wikilinks, tags, code, quotes, rules, fold toggles
 - code editor path for project files with language modes for Python, JSON/JSONC, TOML, `.env`, YAML, JS/TS/TSX, HTML/CSS, and shell
 - JSON linting in project-file editor mode
@@ -47,7 +47,8 @@ Phase 3 slice currently shipped:
 - runtime command server: HTTP server in the Electron main process (`apps/desktop/src/main/command-server.ts`) that exposes workspace ops to the CLI
 - MCP bridge in `packages/mcp` exposing live terminal agents through `list_agents`, `create_agent`, `read_agent`, `send_agent_message`, `interrupt_agent`, and `terminate_agent`
 - MCP autostart path via `EXO_MCP_AUTOSTART=1`
-- QMD vault index integration in `packages/core/src/qmd.ts`, surfaced through the top-bar search panel
+- QMD integration in `packages/core/src/qmd.ts` retained as optional notes index / retrieval infrastructure for future memory work; it is not the current top-bar search backend
+- main-process responsibilities are being split into settings, watcher, terminal IPC, command protocol, and transcript-retention services
 
 Outstanding for Phase 2 close-out:
 - notebook execution surfaces
@@ -66,10 +67,12 @@ Do not rebuild the full memory/research system until Phase 2 is closed.
 - `per_tab_cwd`
 - `attached_workcells[]`
 
-Initial defaults:
-- `workspace_root = /Users/kenneth/Desktop/lab`
-- `note_roots = [/Users/kenneth/Desktop/lab/notes/shoshin-codex]`
-- `project_roots = [/Users/kenneth/Desktop/lab/projects]`
+Portable source defaults:
+- `workspace_root = process.cwd()`
+- `note_roots = [workspace_root/notes]`
+- `project_roots = [exo repo root]`
+
+Kenneth's lab roots live in the Exo settings file or environment, not core source defaults.
 
 ## Objective Stack
 
@@ -92,7 +95,7 @@ Completed:
 6. Playwright e2e and screenshot baselines
 7. project-file editing path alongside markdown notes
 8. branch-aware note family flows
-9. unified workspace search across notes, tags, and project files
+9. unified workspace search narrowed to fast note filename/path matches after renderer stability issues
 10. explorer context menus with in-app create/rename/delete modal + Copy Path
 11. terminal rendering fix for incremental xterm updates instead of full-buffer resets
 12. shared knowledge footer spanning editor + terminal region
@@ -104,7 +107,7 @@ Completed:
 18. app startup/runtime sync and terminal launch through the shared launch-plan path
 19. simplified subagent observability view that treats terminal sessions as agents, keeps branch selection in the editor header, supports closeable editor tabs, and lets the operator kick off a run plus spawn Claude/Codex child agents without the old manual role/parent/task form
 20. runtime command server (HTTP in main process) + CLI app-client for driving a running app from `bin/exo`
-21. QMD vault retrieval backend wired into the top-bar search
+21. QMD adapter retained in core as optional retrieval/index infrastructure, with top-bar search narrowed away from QMD
 22. top-bar global search with floating results panel (replaces the old sidebar-search-result swap)
 23. pane-tree no-empty-leaves invariant: auto-collapse on close, center-drop = merge
 24. hairline 1px pane dividers with invisible hit overlays
@@ -117,6 +120,7 @@ Completed:
 31. tmux-backed agent terminal cleanup on close/kill
 32. terminal buffer hydration after app reload
 33. code-file editor support for Python, JSON/JSONC, TOML, `.env`, YAML, JS/TS/TSX, HTML/CSS, shell, plus JSON linting
+34. refactor/stability slice: portable workspace defaults, QMD runtime wording clarified, shared command protocol, extracted settings store, workspace watcher service, terminal IPC registration, terminal transcript store, stale search guard, and open-document polling error handling
 
 Next:
 1. notebook execution surfaces
@@ -134,7 +138,7 @@ Next:
 1. Finish Phase 2 knowledge/editor parity
 2. Build real pane-splitting / dock management beyond right-vs-bottom terminal drag
 3. Add richer terminal/session metadata and stronger crash regression coverage
-4. Integrate QMD as a retrieval backend through the Exo CLI
+4. Design explicit QMD-backed retrieval/index commands for memory work without reintroducing unstable app search behavior
 5. Add the first Exo-native agent communication transport
 6. Research harness
 7. Datasets, evals, and training
@@ -162,3 +166,4 @@ For agent communication, start with the inspectable path:
 - SQLite index for reads, search, and replay
 
 For retrieval, QMD should be integrated as a backend, not treated as the memory system itself.
+It should feed future memory/index capabilities first. A unified human+agent search experience should come later with explicit search tiers, cancellation, result caps, and renderer crash regression coverage.

@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { resolveRuntimeConfig } from "@exo/core";
+import { EXO_COMMAND_ROUTES, resolveRuntimeConfig, type ExoCommandServerInfo } from "@exo/core";
 
 export interface ExoAgent {
   id: string;
@@ -16,11 +16,6 @@ export interface ExoAgent {
 }
 
 export type ExoAgentKind = "shell" | "claude" | "codex";
-
-interface ServerInfo {
-  port: number;
-  pid: number;
-}
 
 const defaultConnectTimeoutMs = 20_000;
 const pollIntervalMs = 250;
@@ -61,30 +56,28 @@ export class ExoCommandClient {
   }
 
   async getStatus(): Promise<Record<string, unknown>> {
-    return this.get("/status");
+    return this.get(EXO_COMMAND_ROUTES.status);
   }
 
   async listAgents(): Promise<ExoAgent[]> {
-    return this.get("/terminals");
+    return this.get(EXO_COMMAND_ROUTES.terminals);
   }
 
   async createAgent(kind: ExoAgentKind, cwd?: string): Promise<ExoAgent> {
-    return this.post("/terminals", { kind, cwd });
+    return this.post(EXO_COMMAND_ROUTES.terminals, { kind, cwd });
   }
 
   async readAgent(id: string, tailChars = 20_000): Promise<string> {
-    const result = await this.get(
-      `/terminals/${encodeURIComponent(id)}/transcript?tailChars=${encodeURIComponent(String(tailChars))}`,
-    );
+    const result = await this.get(EXO_COMMAND_ROUTES.terminalTranscript(id, tailChars));
     return String(result.transcript ?? "");
   }
 
   async sendAgentInput(id: string, input: string): Promise<void> {
-    await this.post(`/terminals/${encodeURIComponent(id)}/write`, { data: input });
+    await this.post(EXO_COMMAND_ROUTES.terminalWrite(id), { data: input });
   }
 
   async killAgent(id: string): Promise<void> {
-    await this.delete(`/terminals/${encodeURIComponent(id)}`);
+    await this.delete(EXO_COMMAND_ROUTES.terminal(id));
   }
 
   private async get(targetPath: string): Promise<any> {
@@ -125,15 +118,15 @@ export class ExoCommandClient {
   }
 }
 
-async function readServerInfo(serverJsonPath: string): Promise<ServerInfo | null> {
+async function readServerInfo(serverJsonPath: string): Promise<ExoCommandServerInfo | null> {
   try {
-    return JSON.parse(await readFile(serverJsonPath, "utf8")) as ServerInfo;
+    return JSON.parse(await readFile(serverJsonPath, "utf8")) as ExoCommandServerInfo;
   } catch {
     return null;
   }
 }
 
-async function waitForServerInfo(serverJsonPath: string, timeoutMs: number): Promise<ServerInfo | null> {
+async function waitForServerInfo(serverJsonPath: string, timeoutMs: number): Promise<ExoCommandServerInfo | null> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const info = await readServerInfo(serverJsonPath);

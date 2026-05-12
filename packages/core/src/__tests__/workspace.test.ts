@@ -20,13 +20,46 @@ describe("workspace", () => {
     expect(model.noteRoots).toHaveLength(1);
   });
 
-  it("does not attach project roots by default", () => {
+  it("attaches Exo as the default project root when project roots are not configured", () => {
     const model = resolveWorkspaceModel({
       EXO_WORKSPACE_ROOT: fixtureLabRoot,
       EXO_NOTE_ROOTS: path.join(fixtureLabRoot, "notes/shoshin-codex"),
     });
 
+    expect(model.projectRoots).toEqual([
+      {
+        id: "project-root-1",
+        label: "exo",
+        path: path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../.."),
+        kind: "projects",
+      },
+    ]);
+  });
+
+  it("allows project roots to be explicitly empty", () => {
+    const model = resolveWorkspaceModel({
+      EXO_WORKSPACE_ROOT: fixtureLabRoot,
+      EXO_NOTE_ROOTS: path.join(fixtureLabRoot, "notes/shoshin-codex"),
+      EXO_PROJECT_ROOTS: "",
+    });
+
     expect(model.projectRoots).toEqual([]);
+  });
+
+  it("uses portable workspace defaults when env is absent", () => {
+    const model = resolveWorkspaceModel({});
+
+    expect(model.workspaceRoot).toBe(process.cwd());
+    expect(model.defaultTerminalCwd).toBe(process.cwd());
+    expect(model.noteRoots).toEqual([
+      {
+        id: "note-root-1",
+        label: "notes",
+        path: path.join(process.cwd(), "notes"),
+        kind: "notes",
+      },
+    ]);
+    expect(model.projectRoots[0]?.path).toBe(path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../.."));
   });
 
   it("lists markdown tree nodes", async () => {

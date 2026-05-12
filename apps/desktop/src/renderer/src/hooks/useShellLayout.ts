@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { paneId, usePaneTree, type PaneNode, type PaneLeaf } from "./usePaneTree";
+import { paneId, usePaneTree, type PaneNode } from "./usePaneTree";
 
 // ---------------------------------------------------------------------------
 // Default trees — one for each zone

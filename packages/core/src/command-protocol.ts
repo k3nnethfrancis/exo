@@ -1,0 +1,41 @@
+export const EXO_COMMAND_ROUTES = {
+  status: "/status",
+  show: "/show",
+  search: "/search",
+  open: "/open",
+  config: "/config",
+  terminals: "/terminals",
+  terminalBuffer: (id: string) => `/terminals/${encodeURIComponent(id)}/buffer`,
+  terminalTranscript: (id: string, tailChars: number) =>
+    `/terminals/${encodeURIComponent(id)}/transcript?tailChars=${encodeURIComponent(String(tailChars))}`,
+  terminalWrite: (id: string) => `/terminals/${encodeURIComponent(id)}/write`,
+  terminal: (id: string) => `/terminals/${encodeURIComponent(id)}`,
+} as const;
+
+export interface ExoCommandServerInfo {
+  port: number;
+  pid: number;
+}
+
+export interface ExoCommandTerminalInfo {
+  id: string;
+  title: string;
+  cwd: string;
+  kind: string;
+  command?: string;
+  status: string;
+  exitCode?: number;
+}
+
+export interface ExoOpenFileRequest {
+  path?: string;
+}
+
+export interface ExoCreateTerminalRequest {
+  kind?: string;
+  cwd?: string;
+}
+
+export interface ExoWriteTerminalRequest {
+  data?: string;
+}

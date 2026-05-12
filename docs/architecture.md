@@ -1,6 +1,6 @@
 # Exo Architecture
 
-Last updated: 2026-05-02
+Last updated: 2026-05-11
 
 Exo is a workspace-centric research IDE. The current system is still a shell-first product, but the shell now has three live control surfaces over the same workspace runtime:
 
@@ -15,7 +15,7 @@ Memory, workcells, datasets, evals, and training are still future layers. The cu
 - `apps/desktop`
   - Electron main process, preload bridge, React renderer, terminal supervision, and the local command server.
 - `packages/core`
-  - Workspace config, note/project file discovery, markdown metadata, runtime launch plans, and retrieval adapters.
+  - Workspace config, note/project file discovery, markdown metadata, runtime launch plans, shared command protocol types, and retrieval/index adapters.
 - `packages/cli`
   - CLI commands for runtime status, launch plans, app search/open/config, and terminal operations against a running Exo app.
 - `packages/mcp`
@@ -34,14 +34,16 @@ Current endpoints in `apps/desktop/src/main/command-server.ts`:
 - `GET /status`
 - `GET /config`
 - `GET /search`
+- `POST /show`
 - `POST /open`
 - `GET /terminals`
 - `POST /terminals`
 - `GET /terminals/:id/buffer`
+- `GET /terminals/:id/transcript`
 - `POST /terminals/:id/write`
 - `DELETE /terminals/:id`
 
-`packages/cli/src/app-client.ts` and `packages/mcp/src/exo-client.ts` are clients for this API. Keep them aligned with the command server contract.
+`packages/core/src/command-protocol.ts` owns the shared route constants and command payload shapes. The desktop command server, CLI app client, and MCP client should consume that shared contract rather than duplicating routes.
 
 ## Terminal And Agent Model
 
@@ -131,15 +133,28 @@ Project-file editing currently supports CodeMirror language modes for:
 
 Future linter work should plug external tools into this path instead of replacing CodeMirror.
 
-Project roots are explicit imported folders. Exo does not attach the workspace-level `projects/` directory by default.
+Project roots are explicit imported folders. First-run source builds attach the Exo repo as the first project root so the app can inspect and edit itself; Exo does not attach the workspace-level `projects/` directory by default.
 
 ## Search And Retrieval
 
-Search currently combines:
+Search currently returns:
 
-- local note/project/tag search
+- local note filename/path matches only
 
 Search runs on explicit submit from the top bar. QMD is not part of desktop or CLI search; broad retrieval should return only as an explicit, isolated future tool after the fast search path is stable.
+
+QMD remains in core as optional notes index / retrieval infrastructure for future agent memory. The eventual unified search design should use the same index agents use, but only with explicit tiers, cancellation, result caps, and renderer safety checks.
+
+## Refactor Boundaries
+
+Current stabilization work has started splitting broad files into services:
+
+- settings persistence lives in `settings-store`
+- workspace file watching lives in `workspace-watchers`
+- terminal transcript retention lives in `terminal-transcripts`
+- terminal IPC registration lives in `terminal-ipc`
+
+Keep new main-process behavior behind small services instead of adding more responsibility to `index.ts`.
 
 ## Logs
 

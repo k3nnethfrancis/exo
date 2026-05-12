@@ -1,16 +1,24 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import type { WorkspaceSearchResults, WorkspaceSettings } from "@exo/core";
+import {
+  EXO_COMMAND_ROUTES,
+  type ExoCommandTerminalInfo,
+  type ExoCreateTerminalRequest,
+  type ExoOpenFileRequest,
+  type ExoWriteTerminalRequest,
+  type WorkspaceSearchResults,
+  type WorkspaceSettings,
+} from "@exo/core";
 
 export interface CommandServerOptions {
   runtimeRoot: string;
   onShowWindow: () => void;
   onOpenFile: (filePath: string) => void;
   onSearch: (query: string) => Promise<WorkspaceSearchResults>;
-  onListTerminals: () => Array<{ id: string; title: string; cwd: string; kind: string; status: string }>;
-  onCreateTerminal: (kind: string, cwd?: string) => Promise<{ id: string; title: string; cwd: string; kind: string }>;
+  onListTerminals: () => ExoCommandTerminalInfo[];
+  onCreateTerminal: (kind: string, cwd?: string) => Promise<ExoCommandTerminalInfo>;
   onReadTerminal: (id: string) => string | null;
   onReadTerminalTranscript: (id: string, tailChars: number) => string | null;
   onWriteTerminal: (id: string, data: string) => Promise<void>;
@@ -68,18 +76,18 @@ export class CommandServer {
     const method = req.method ?? "GET";
 
     try {
-      if (method === "GET" && pathname === "/status") {
+      if (method === "GET" && pathname === EXO_COMMAND_ROUTES.status) {
         json(res, this.options.onGetStatus());
         return;
       }
 
-      if (method === "POST" && pathname === "/show") {
+      if (method === "POST" && pathname === EXO_COMMAND_ROUTES.show) {
         this.options.onShowWindow();
         json(res, { ok: true });
         return;
       }
 
-      if (method === "GET" && pathname === "/search") {
+      if (method === "GET" && pathname === EXO_COMMAND_ROUTES.search) {
         const query = url.searchParams.get("q") ?? "";
         if (!query) {
           json(res, { error: "Missing query parameter ?q=" }, 400);
@@ -90,9 +98,9 @@ export class CommandServer {
         return;
       }
 
-      if (method === "POST" && pathname === "/open") {
+      if (method === "POST" && pathname === EXO_COMMAND_ROUTES.open) {
         const body = await readBody(req);
-        const { path: filePath } = body as { path?: string };
+        const { path: filePath } = body as ExoOpenFileRequest;
         if (!filePath) {
           json(res, { error: "Missing path in body" }, 400);
           return;
@@ -102,19 +110,19 @@ export class CommandServer {
         return;
       }
 
-      if (method === "GET" && pathname === "/config") {
+      if (method === "GET" && pathname === EXO_COMMAND_ROUTES.config) {
         json(res, this.options.onGetSettings());
         return;
       }
 
-      if (method === "GET" && pathname === "/terminals") {
+      if (method === "GET" && pathname === EXO_COMMAND_ROUTES.terminals) {
         json(res, this.options.onListTerminals());
         return;
       }
 
-      if (method === "POST" && pathname === "/terminals") {
+      if (method === "POST" && pathname === EXO_COMMAND_ROUTES.terminals) {
         const body = await readBody(req);
-        const { kind, cwd } = body as { kind?: string; cwd?: string };
+        const { kind, cwd } = body as ExoCreateTerminalRequest;
         if (!kind || !["shell", "claude", "codex"].includes(kind)) {
           json(res, { error: "kind must be shell, claude, or codex" }, 400);
           return;
@@ -153,7 +161,7 @@ export class CommandServer {
       const terminalWriteMatch = pathname.match(/^\/terminals\/([^/]+)\/write$/);
       if (method === "POST" && terminalWriteMatch) {
         const body = await readBody(req);
-        const { data } = body as { data?: string };
+        const { data } = body as ExoWriteTerminalRequest;
         if (typeof data !== "string") {
           json(res, { error: "Missing string data in body" }, 400);
           return;

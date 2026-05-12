@@ -1,12 +1,10 @@
 import { access, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { constants } from "node:fs";
+import { constants, existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import type { AttachedRoot, SearchResult, TreeNode, WorkspaceModel, WorkspaceSearchResults } from "./types";
 import { readWorkspaceDocument } from "./notes";
 
-const DEFAULT_WORKSPACE_ROOT = "/Users/kenneth/Desktop/lab";
-const DEFAULT_NOTE_ROOT = "/Users/kenneth/Desktop/lab/notes/shoshin-codex";
 const SEARCH_RESULT_LIMIT = 30;
 const PROJECT_SEARCH_RESULT_LIMIT = 25;
 const MAX_SEARCH_VISITED_ENTRIES = 20_000;
@@ -38,10 +36,13 @@ function attachedRoot(id: string, label: string, targetPath: string, kind: Attac
 }
 
 export function resolveWorkspaceModel(env: NodeJS.ProcessEnv = process.env): WorkspaceModel {
-  const workspaceRoot = env.EXO_WORKSPACE_ROOT ?? DEFAULT_WORKSPACE_ROOT;
+  const workspaceRoot = env.EXO_WORKSPACE_ROOT ?? process.cwd();
   const defaultTerminalCwd = env.EXO_DEFAULT_TERMINAL_CWD ?? workspaceRoot;
-  const noteRootCandidates = (env.EXO_NOTE_ROOTS ?? DEFAULT_NOTE_ROOT).split(path.delimiter).filter(Boolean);
-  const projectRootCandidates = (env.EXO_PROJECT_ROOTS ?? "").split(path.delimiter).filter(Boolean);
+  const noteRootCandidates = (env.EXO_NOTE_ROOTS ?? path.join(workspaceRoot, "notes")).split(path.delimiter).filter(Boolean);
+  const projectRootCandidates =
+    env.EXO_PROJECT_ROOTS !== undefined
+      ? env.EXO_PROJECT_ROOTS.split(path.delimiter).filter(Boolean)
+      : defaultProjectRoots(workspaceRoot);
 
   return {
     workspaceRoot,
@@ -54,6 +55,35 @@ export function resolveWorkspaceModel(env: NodeJS.ProcessEnv = process.env): Wor
     ),
     attachedWorkcells: [],
   };
+}
+
+function defaultProjectRoots(workspaceRoot: string): string[] {
+  const exoRoot = findExoRepoRoot(process.cwd()) ?? path.join(workspaceRoot, "projects", "exo");
+  return [exoRoot];
+}
+
+function findExoRepoRoot(startPath: string): string | null {
+  let currentPath = path.resolve(startPath);
+
+  while (true) {
+    const packagePath = path.join(currentPath, "package.json");
+    if (existsSync(packagePath)) {
+      try {
+        const packageJson = JSON.parse(readFileSync(packagePath, "utf8")) as { name?: unknown };
+        if (packageJson.name === "exo") {
+          return currentPath;
+        }
+      } catch {
+        // Keep walking upward; malformed package metadata should not block startup.
+      }
+    }
+
+    const parentPath = path.dirname(currentPath);
+    if (parentPath === currentPath) {
+      return null;
+    }
+    currentPath = parentPath;
+  }
 }
 
 export async function listRootTree(rootPath: string, options?: { markdownOnly?: boolean; maxDepth?: number }): Promise<TreeNode[]> {

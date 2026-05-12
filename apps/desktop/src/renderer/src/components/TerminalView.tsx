@@ -72,7 +72,8 @@ export function TerminalView(props: TerminalViewProps) {
     });
     observer.observe(hostRef.current!);
 
-    function focusTerminal() {
+    function focusTerminal(event?: MouseEvent) {
+      event?.preventDefault();
       onFocus();
       terminal.focus();
     }

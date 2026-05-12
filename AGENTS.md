@@ -38,6 +38,7 @@ Exo is a workspace-centric research IDE, not a single-vault editor.
 - Renderer never touches filesystem or processes directly. It uses `window.exo` from preload.
 - Electron main owns workspace filesystem operations, note parsing/saving, terminal lifecycle, tmux persistence, and the command server.
 - `packages/core` owns workspace/runtime models, search, notes, branch families, QMD adapters, and launch plans.
+- `packages/core/src/command-protocol.ts` owns the command-server route constants/types shared by desktop, CLI, and MCP.
 - `packages/cli` owns the `bin/exo` command surface.
 - `packages/mcp` wraps the running Exo command server as MCP tools for local agents.
 - The main-process command server writes `.exo/server.json`; CLI/MCP discover the running app from that file.
@@ -47,7 +48,7 @@ Exo is a workspace-centric research IDE, not a single-vault editor.
 - Shell, Claude, and Codex terminals are Exo-managed `node-pty` sessions.
 - Claude/Codex agent terminals are launched inside tmux sessions named `exo-agent-*` so they can survive Exo restarts.
 - Closing/killing a terminal through Exo now terminates the backing tmux session for agent terminals; do not reintroduce detached zombie agent sessions.
-- The terminal manager stores a bounded output buffer (`80_000` chars) for renderer reload hydration.
+- The terminal manager stores a bounded output buffer (`12_000` chars) for renderer reload hydration.
 - Full terminal history is persisted under `.exo/terminal-transcripts/`; the live buffer is only the renderer/reload tail.
 - Transcript retention defaults: 14 days, 500MB total, 50MB per file. Override with `EXO_TERMINAL_TRANSCRIPT_RETENTION_DAYS`, `EXO_TERMINAL_TRANSCRIPT_MAX_TOTAL_MB`, and `EXO_TERMINAL_TRANSCRIPT_MAX_FILE_MB`.
 - The renderer only keeps active terminal buffers hot; hidden sessions should not force React updates on every chunk.
@@ -100,7 +101,8 @@ MCP autostart is supported with `EXO_MCP_AUTOSTART=1`. It starts Exo with `EXO_M
 
 ## Stability Notes
 
-- Search is live note filename/path search only. QMD, project files, tags, and broad retrieval are intentionally not part of app or CLI search.
+- Search is note filename/path search only. QMD stays in core as optional notes index / retrieval infrastructure for future agent memory, but it is intentionally not the current app or CLI search path.
+- Settings are backed by one JSON file at `$HOME/Library/Application Support/@exo/desktop/workspace-settings.json` unless `EXO_SETTINGS_PATH` overrides it.
 - Renderer crash logs are written by main to `$HOME/Library/Application Support/@exo/desktop/exo-main.log`.
 - Native Electron crash reports are under `$HOME/Library/Logs/DiagnosticReports/Electron-*.ips`.
 - Do not auto-reload on `render-process-gone`; a prior reload attempt hit an Electron native assertion. Log the crash and restart deliberately.

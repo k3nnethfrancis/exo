@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { useRef } from "react";
 
-import type { PaneContent, PaneLeaf, PaneNode, PaneNodeId, PaneTreeActions } from "../hooks/usePaneTree";
+import type { PaneLeaf, PaneNode, PaneNodeId, PaneTreeActions } from "../hooks/usePaneTree";
 import type { DropEdge } from "../hooks/useDragManager";
 
 // ---------------------------------------------------------------------------

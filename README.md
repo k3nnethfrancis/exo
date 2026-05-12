@@ -44,10 +44,17 @@ The runtime control layer is now active:
 
 ## Workspace Model
 
-Default local model:
+Exo settings are stored in one JSON file:
+
+- macOS default: `$HOME/Library/Application Support/@exo/desktop/workspace-settings.json`
+- override: `EXO_SETTINGS_PATH`
+
+Portable source defaults use the current working directory as `workspace_root`, `workspace_root/notes` as the initial note root, and the Exo repo as the first project root. Kenneth's local lab paths should live in the settings file or environment, not in core source defaults.
+
+Example local model:
 - `workspace_root = /Users/kenneth/Desktop/lab`
 - `note_roots = [/Users/kenneth/Desktop/lab/notes/shoshin-codex]`
-- `project_roots = [/Users/kenneth/Desktop/lab/projects]`
+- `project_roots = [/Users/kenneth/Desktop/lab/projects/exo]`, then any additional imported project folders
 - `default_terminal_cwd = /Users/kenneth/Desktop/lab`
 
 Runtime files live under `.exo/` inside the workspace root:
@@ -56,6 +63,8 @@ Runtime files live under `.exo/` inside the workspace root:
 - `.exo/instructions/CLAUDE.md` — Exo-generated Claude overlay
 - `.exo/terminal-state.json` — persisted tmux-backed agent terminal state
 - `.exo/messages/` and `.exo/agent-communication.sqlite` — reserved communication transport paths
+
+QMD remains an optional notes index / retrieval backend for future memory work. It is not the current top-bar search backend; app and CLI search currently return fast note filename/path matches only.
 
 ## Quick Start
 

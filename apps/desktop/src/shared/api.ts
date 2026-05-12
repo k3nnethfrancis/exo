@@ -32,6 +32,12 @@ export interface FileStatInfo {
   mtimeMs: number;
 }
 
+export interface WorkspaceGitStatus {
+  rootPath: string;
+  branch: string | null;
+  dirty: boolean;
+}
+
 export interface DesktopApi {
   workspace: {
     getModel: () => Promise<WorkspaceModel>;
@@ -41,6 +47,7 @@ export interface DesktopApi {
     searchNotes: (query: string) => Promise<SearchResult[]>;
     searchWorkspace: (query: string) => Promise<WorkspaceSearchResults>;
     searchTag: (tag: string) => Promise<SearchResult[]>;
+    getGitStatus: (rootPath: string) => Promise<WorkspaceGitStatus | null>;
     createFile: (targetPath: string, content?: string) => Promise<string>;
     createDirectory: (targetPath: string) => Promise<string>;
     renamePath: (sourcePath: string, nextPath: string) => Promise<string>;

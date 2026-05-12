@@ -33,6 +33,7 @@ const api: DesktopApi = {
     searchNotes: (query) => ipcRenderer.invoke("workspace:search-notes", query),
     searchWorkspace: (query) => ipcRenderer.invoke("workspace:search-workspace", query),
     searchTag: (tag) => ipcRenderer.invoke("workspace:search-tag", tag),
+    getGitStatus: (rootPath) => ipcRenderer.invoke("workspace:get-git-status", rootPath),
     createFile: (targetPath, content) => ipcRenderer.invoke("workspace:create-file", targetPath, content),
     createDirectory: (targetPath) => ipcRenderer.invoke("workspace:create-directory", targetPath),
     renamePath: (sourcePath, nextPath) => ipcRenderer.invoke("workspace:rename-path", sourcePath, nextPath),

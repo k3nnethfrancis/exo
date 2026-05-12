@@ -6,10 +6,9 @@ import { SearchResultsPanel } from "./SearchResultsPanel";
 import { TerminalRail } from "./TerminalRail";
 import { PaneTree } from "./PaneTree";
 import type { PaneLeaf, PaneNodeId, PaneTreeActions, PaneNode } from "../hooks/usePaneTree";
-import { collectLeaves } from "../hooks/usePaneTree";
 import type { DragManager } from "../hooks/useDragManager";
 import type { AppearanceMode, ResolvedAppearance } from "../App";
-import type { NoteDocument, NoteKnowledge, SearchResult, TreeNode, WorkspaceSearchResults } from "@exo/core";
+import type { TreeNode, WorkspaceSearchResults } from "@exo/core";
 
 interface RootSection {
   label: string;
@@ -25,6 +24,12 @@ interface ShellLayoutProps {
   searchQuery: string;
   searchSubmittedQuery: string;
   searchResults: WorkspaceSearchResults;
+  statusLine: {
+    workspaceLabel: string;
+    projectLabel: string | null;
+    gitBranch: string | null;
+    gitDirty: boolean;
+  };
   onSearchSubmit: () => void;
   onSearchClear: () => void;
   shellLayout: {
@@ -79,6 +84,7 @@ export function ShellLayout(props: ShellLayoutProps) {
     searchQuery,
     searchSubmittedQuery,
     searchResults,
+    statusLine,
     onSearchSubmit,
     onSearchClear,
     shellLayout,
@@ -164,10 +170,10 @@ export function ShellLayout(props: ShellLayoutProps) {
           onDismiss={onSearchClear}
         />
       ) : null}
-    <div
-      className={`shell ${sidebarCollapsed ? "shell--sidebar-collapsed" : ""}`}
-      style={{ gridTemplateColumns: `${sidebarTrack} ${sidebarResizerTrack} 1fr 42px` }}
-    >
+      <div
+        className={`shell ${sidebarCollapsed ? "shell--sidebar-collapsed" : ""}`}
+        style={{ gridTemplateColumns: `${sidebarTrack} ${sidebarResizerTrack} 1fr 42px` }}
+      >
       <FileTree
         collapsed={sidebarCollapsed}
         noteRoots={noteSections}
@@ -258,7 +264,21 @@ export function ShellLayout(props: ShellLayoutProps) {
             : "Terminal"}
         </div>
       ) : null}
-    </div>
+      </div>
+      <footer className="statusbar" data-testid="statusbar">
+        <div className="statusbar__group">
+          <span>{statusLine.workspaceLabel}</span>
+          {statusLine.projectLabel ? <span>{statusLine.projectLabel}</span> : null}
+        </div>
+        <div className="statusbar__group statusbar__group--right">
+          {statusLine.gitBranch ? (
+            <span>
+              {statusLine.gitBranch}
+              {statusLine.gitDirty ? "*" : ""}
+            </span>
+          ) : null}
+        </div>
+      </footer>
     </div>
   );
 }

@@ -1,14 +1,9 @@
 import { EventEmitter } from "node:events";
 import { execFileSync, spawnSync } from "node:child_process";
 import {
-  appendFileSync,
-  closeSync,
   existsSync,
   mkdirSync,
-  openSync,
   readFileSync,
-  readSync,
-  statSync,
   writeFileSync,
 } from "node:fs";
 import path from "node:path";
@@ -18,6 +13,7 @@ import pty, { type IPty } from "node-pty";
 import { resolveAgentLaunchPlan, resolveRuntimeConfig, syncRuntimeContextFiles } from "@exo/core";
 
 import type { TerminalCreateOptions, TerminalSessionInfo, TerminalKind } from "../shared/api";
+import { sanitizeTranscriptName, TerminalTranscriptStore } from "./terminal-transcripts";
 
 interface TerminalRecord {
   info: TerminalSessionInfo;
@@ -41,9 +37,6 @@ interface PersistedState {
 }
 
 const TMUX_PREFIX = "exo-agent";
-const defaultTranscriptRetentionDays = 14;
-const defaultTranscriptMaxTotalBytes = 500 * 1024 * 1024;
-const defaultTranscriptMaxFileBytes = 50 * 1024 * 1024;
 
 export class TerminalManager extends EventEmitter {
   private static readonly maxBufferLength = 12_000;
@@ -51,25 +44,13 @@ export class TerminalManager extends EventEmitter {
   private nextId = 1;
   private readonly runtimeConfig = resolveRuntimeConfig();
   private readonly stateFilePath: string;
-  private readonly transcriptDirectory: string;
-  private readonly transcriptRetentionDays = parsePositiveInt(process.env.EXO_TERMINAL_TRANSCRIPT_RETENTION_DAYS) ?? defaultTranscriptRetentionDays;
-  private readonly transcriptMaxTotalBytes =
-    (parsePositiveInt(process.env.EXO_TERMINAL_TRANSCRIPT_MAX_TOTAL_MB) ?? 0) * 1024 * 1024 ||
-    defaultTranscriptMaxTotalBytes;
-  private readonly transcriptMaxFileBytes =
-    (parsePositiveInt(process.env.EXO_TERMINAL_TRANSCRIPT_MAX_FILE_MB) ?? 0) * 1024 * 1024 ||
-    defaultTranscriptMaxFileBytes;
+  private readonly transcripts: TerminalTranscriptStore;
   private readonly tmuxAvailable: boolean;
-  private readonly pendingTranscriptWrites = new Map<string, string>();
-  private readonly transcriptBytesSinceTrim = new Map<string, number>();
-  private transcriptFlushTimer: NodeJS.Timeout | null = null;
 
   constructor(private readonly defaultCwd: string) {
     super();
     this.stateFilePath = path.join(this.runtimeConfig.runtimeRoot, "terminal-state.json");
-    this.transcriptDirectory = path.join(this.runtimeConfig.runtimeRoot, "terminal-transcripts");
-    mkdirSync(this.transcriptDirectory, { recursive: true });
-    this.enforceTranscriptRetention();
+    this.transcripts = new TerminalTranscriptStore(path.join(this.runtimeConfig.runtimeRoot, "terminal-transcripts"));
     this.tmuxAvailable = detectTmux();
     if (!this.tmuxAvailable) {
       console.warn(
@@ -241,7 +222,7 @@ export class TerminalManager extends EventEmitter {
       return null;
     }
     this.flushTranscript(id);
-    return readFileTail(record.transcriptPath, tailChars);
+    return this.transcripts.read(record.transcriptPath, tailChars);
   }
 
   async resize(id: string, cols: number, rows: number): Promise<void> {
@@ -395,7 +376,7 @@ export class TerminalManager extends EventEmitter {
 
   private makeTranscriptPath(id: string, kind: TerminalKind, tmuxSession?: string): string {
     const name = sanitizeTranscriptName(tmuxSession ?? `${id}-${kind}`);
-    return path.join(this.transcriptDirectory, `${name}.ansi.log`);
+    return path.join(this.transcripts.directory, `${name}.ansi.log`);
   }
 
   private transcriptHeader(info: TerminalSessionInfo, tmuxSession: string | undefined): string {
@@ -417,97 +398,15 @@ export class TerminalManager extends EventEmitter {
     if (!record || data.length === 0) {
       return;
     }
-    this.pendingTranscriptWrites.set(id, `${this.pendingTranscriptWrites.get(id) ?? ""}${data}`);
-    this.scheduleTranscriptFlush();
-  }
-
-  private scheduleTranscriptFlush(): void {
-    if (this.transcriptFlushTimer) {
-      return;
-    }
-    this.transcriptFlushTimer = setTimeout(() => {
-      this.transcriptFlushTimer = null;
-      this.flushAllTranscripts();
-    }, 100);
-  }
-
-  private flushAllTranscripts(): void {
-    for (const id of Array.from(this.pendingTranscriptWrites.keys())) {
-      this.flushTranscript(id);
-    }
+    this.transcripts.append(id, record.transcriptPath, data);
   }
 
   private flushTranscript(id: string): void {
-    const data = this.pendingTranscriptWrites.get(id);
-    if (!data) {
-      return;
-    }
-    this.pendingTranscriptWrites.delete(id);
-
     const record = this.sessions.get(id);
     if (!record) {
       return;
     }
-
-    try {
-      mkdirSync(path.dirname(record.transcriptPath), { recursive: true });
-      appendFileSync(record.transcriptPath, data, "utf8");
-      const bytesSinceTrim = (this.transcriptBytesSinceTrim.get(id) ?? 0) + Buffer.byteLength(data, "utf8");
-      if (bytesSinceTrim >= 1024 * 1024) {
-        this.trimTranscriptFile(record.transcriptPath);
-        this.transcriptBytesSinceTrim.set(id, 0);
-      } else {
-        this.transcriptBytesSinceTrim.set(id, bytesSinceTrim);
-      }
-    } catch (err) {
-      console.warn(`[terminal-manager] failed to append transcript for ${id}:`, err);
-    }
-  }
-
-  private trimTranscriptFile(filePath: string): void {
-    try {
-      const stats = statSync(filePath);
-      if (stats.size <= this.transcriptMaxFileBytes) {
-        return;
-      }
-      const tail = readFileTailBytes(filePath, Math.floor(this.transcriptMaxFileBytes * 0.8));
-      writeFileSync(
-        filePath,
-        `===== Exo transcript trimmed ${new Date().toISOString()} to enforce per-file retention =====\n${tail}`,
-        "utf8",
-      );
-    } catch (err) {
-      console.warn(`[terminal-manager] failed to trim transcript ${filePath}:`, err);
-    }
-  }
-
-  private enforceTranscriptRetention(): void {
-    try {
-      const files = listTranscriptFiles(this.transcriptDirectory);
-      const now = Date.now();
-      const maxAgeMs = this.transcriptRetentionDays * 24 * 60 * 60 * 1000;
-      let survivors = files;
-
-      if (this.transcriptRetentionDays > 0) {
-        for (const file of files) {
-          if (now - file.mtimeMs > maxAgeMs) {
-            tryUnlink(file.path);
-          }
-        }
-        survivors = listTranscriptFiles(this.transcriptDirectory);
-      }
-
-      let total = survivors.reduce((sum, file) => sum + file.size, 0);
-      for (const file of survivors.sort((left, right) => left.mtimeMs - right.mtimeMs)) {
-        if (total <= this.transcriptMaxTotalBytes) {
-          break;
-        }
-        tryUnlink(file.path);
-        total -= file.size;
-      }
-    } catch (err) {
-      console.warn("[terminal-manager] failed to enforce transcript retention:", err);
-    }
+    this.transcripts.flush(id, record.transcriptPath);
   }
 }
 
@@ -556,75 +455,4 @@ function captureTmuxPane(name: string): string {
   } catch {
     return "";
   }
-}
-
-function sanitizeTranscriptName(value: string): string {
-  return value.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "terminal";
-}
-
-function readFileTail(filePath: string, tailChars: number): string {
-  if (!existsSync(filePath)) {
-    return "";
-  }
-  if (tailChars <= 0) {
-    return readFileSync(filePath, "utf8");
-  }
-
-  const stats = statSync(filePath);
-  const bytesToRead = Math.min(stats.size, Math.max(tailChars * 4, 4096));
-  const fd = openSync(filePath, "r");
-  try {
-    const buffer = Buffer.alloc(bytesToRead);
-    readSync(fd, buffer, 0, bytesToRead, stats.size - bytesToRead);
-    return buffer.toString("utf8").slice(-tailChars);
-  } finally {
-    closeSync(fd);
-  }
-}
-
-function readFileTailBytes(filePath: string, bytesToRead: number): string {
-  const stats = statSync(filePath);
-  const size = Math.min(stats.size, bytesToRead);
-  const fd = openSync(filePath, "r");
-  try {
-    const buffer = Buffer.alloc(size);
-    readSync(fd, buffer, 0, size, stats.size - size);
-    return buffer.toString("utf8");
-  } finally {
-    closeSync(fd);
-  }
-}
-
-function listTranscriptFiles(directory: string): Array<{ path: string; size: number; mtimeMs: number }> {
-  if (!existsSync(directory)) {
-    return [];
-  }
-
-  return execFileSync("find", [directory, "-type", "f", "-name", "*.ansi.log", "-print0"], {
-    encoding: "buffer",
-    stdio: ["ignore", "pipe", "ignore"],
-  })
-    .toString("utf8")
-    .split("\0")
-    .filter(Boolean)
-    .map((filePath) => {
-      const stats = statSync(filePath);
-      return { path: filePath, size: stats.size, mtimeMs: stats.mtimeMs };
-    });
-}
-
-function tryUnlink(filePath: string): void {
-  try {
-    execFileSync("rm", ["-f", filePath], { stdio: "ignore" });
-  } catch {
-    // best effort
-  }
-}
-
-function parsePositiveInt(value: string | undefined): number | null {
-  if (!value) {
-    return null;
-  }
-  const parsed = Number.parseInt(value, 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }

@@ -22,9 +22,7 @@ import {
   ROOT_GROUP_PREFIX,
   type ContextTarget,
   type RootSection,
-  SearchSection,
   Section,
-  TagSearchSection,
 } from "./ExplorerSections";
 import { SidebarDrawer } from "./SidebarDrawer";
 
@@ -61,14 +59,10 @@ export function FileTree(props: FileTreeProps) {
     collapsed,
     appearanceMode,
     resolvedAppearance,
-    searchQuery,
-    searchResults,
     onAppearanceModeChange,
     onToggleCollapsed,
     onOpenWorkspaceSettings,
-    onSearchQueryChange,
     onOpenFile,
-    onOpenTag,
     onExpandDirectory,
     explorerScale,
     onFocusExplorer,

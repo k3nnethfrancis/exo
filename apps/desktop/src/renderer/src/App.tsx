@@ -1,4 +1,4 @@
-import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   BranchFamily,
   NoteDocument,
@@ -6,19 +6,20 @@ import type {
   SearchResult,
   TreeNode,
   WorkspaceModel,
-  WorkspaceSearchResults,
   WorkspaceSettings,
 } from "@exo/core";
 
-import type { TerminalSessionInfo } from "../../shared/api";
+import type { TerminalSessionInfo, WorkspaceGitStatus } from "../../shared/api";
 import type { FileStatInfo } from "../../shared/api";
 
 import { EditorPane, type EditorPaneState } from "./components/EditorPane";
 import { InspectorDock } from "./components/InspectorDock";
 import { ShellLayout } from "./components/ShellLayout";
 import { TerminalDock } from "./components/TerminalDock";
+import { useOpenDocumentVersionPolling } from "./hooks/useOpenDocumentVersionPolling";
 import { useShellLayout } from "./hooks/useShellLayout";
-import { collectLeaves, findEditorLeaf, findEditorLeafByPath, findNode, findTerminalLeaf, findTerminalLeafBySessionId, countLeaves, mapLeaves, pruneEmptyLeaves, updateNode, removeNode, type PaneLeaf, type PaneNode, type PaneSplit, type PaneNodeId, type EditorPaneContent, type TerminalPaneContent } from "./hooks/usePaneTree";
+import { useWorkspaceSearch } from "./hooks/useWorkspaceSearch";
+import { collectLeaves, findEditorLeaf, findNode, findTerminalLeaf, findTerminalLeafBySessionId, mapLeaves, pruneEmptyLeaves, updateNode, type PaneLeaf, type PaneNode, type PaneNodeId, type EditorPaneContent, type TerminalPaneContent } from "./hooks/usePaneTree";
 import { useDragManager, type DragPayload, type DropEdge } from "./hooks/useDragManager";
 
 interface OpenEditorDocument extends NoteDocument {
@@ -87,17 +88,12 @@ export function App() {
   const [workspaceModel, setWorkspaceModel] = useState<WorkspaceModel | null>(null);
   const [noteTrees, setNoteTrees] = useState<Record<string, TreeNode[]>>({});
   const [projectTrees, setProjectTrees] = useState<Record<string, TreeNode[]>>({});
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchSubmittedQuery, setSearchSubmittedQuery] = useState("");
-  const [workspaceSearchResults, setWorkspaceSearchResults] = useState<WorkspaceSearchResults>({
-    notes: [],
-    projectFiles: [],
-    tags: [],
-  });
+  const workspaceSearch = useWorkspaceSearch();
   const [openDocuments, setOpenDocuments] = useState<Record<string, OpenEditorDocument>>({});
   const [knowledgeByPath, setKnowledgeByPath] = useState<Record<string, NoteKnowledge>>({});
   const [branchFamiliesByPath, setBranchFamiliesByPath] = useState<Record<string, BranchFamily>>({});
   const [activeDocumentPath, setActiveDocumentPath] = useState<string | null>(null);
+  const [workspaceGitStatus, setWorkspaceGitStatus] = useState<WorkspaceGitStatus | null>(null);
   const [propertiesCollapsed, setPropertiesCollapsed] = useState(true);
   const [tagResults, setTagResults] = useState<SearchResult[]>([]);
   const [activeTag, setActiveTag] = useState<string | null>(null);
@@ -106,7 +102,7 @@ export function App() {
   const [terminalSessions, setTerminalSessions] = useState<TerminalSessionInfo[]>([]);
   const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null);
   const [terminalBuffers, setTerminalBuffers] = useState<Record<string, string>>({});
-  const [agentAnnotations, setAgentAnnotations] = useState<Record<string, { runLabel: string; parentId: string | null }>>({});
+  const [, setAgentAnnotations] = useState<Record<string, { runLabel: string; parentId: string | null }>>({});
   const [workspaceDialog, setWorkspaceDialog] = useState<WorkspaceDialogState | null>(null);
   const [workspaceSettingsDialog, setWorkspaceSettingsDialog] = useState<WorkspaceSettingsDialogState | null>(null);
   const [appearanceMode, setAppearanceMode] = useState<AppearanceMode>("system");
@@ -128,7 +124,6 @@ export function App() {
   const loadedTreeDirectoriesRef = useRef<Set<string>>(new Set());
   const workspaceSettingsRef = useRef<WorkspaceSettings | null>(null);
   const shellLayout = useShellLayout();
-  const deferredSearchQuery = useDeferredValue(searchSubmittedQuery);
 
   const activeDocument = activeDocumentPath ? openDocuments[activeDocumentPath] ?? null : null;
   const activeKnowledge = activeDocumentPath ? knowledgeByPath[activeDocumentPath] ?? null : null;
@@ -150,42 +145,33 @@ export function App() {
   }, [activeDocumentPath]);
 
   useEffect(() => {
-    let disposed = false;
-    let polling = false;
-
-    const interval = window.setInterval(() => {
-      if (polling) {
-        return;
-      }
-      polling = true;
-      void pollOpenDocumentVersions().finally(() => {
-        polling = false;
-      });
-    }, 1000);
-
-    async function pollOpenDocumentVersions() {
-      const entries = Object.entries(openDocumentsRef.current).filter(([, document]) => !document.dirty);
-      await Promise.all(
-        entries.map(async ([filePath, document]) => {
-          const nextVersion = await window.exo.notes.stat(filePath);
-          if (disposed || !nextVersion || fileVersionsEqual(document.diskVersion, nextVersion)) {
-            return;
-          }
-
-          scheduleOpenDocumentRefresh(filePath, nextVersion);
-        }),
-      );
+    const projectRoot = workspaceModel?.projectRoots[0] ?? null;
+    if (!projectRoot) {
+      setWorkspaceGitStatus(null);
+      return;
     }
 
-    return () => {
-      disposed = true;
-      window.clearInterval(interval);
-      for (const pending of pendingDocumentRefreshesRef.current.values()) {
-        window.clearTimeout(pending.timeoutId);
+    let cancelled = false;
+    void window.exo.workspace.getGitStatus(projectRoot.path).then((status) => {
+      if (!cancelled) {
+        setWorkspaceGitStatus(status);
       }
-      pendingDocumentRefreshesRef.current.clear();
+    }).catch(() => {
+      if (!cancelled) {
+        setWorkspaceGitStatus(null);
+      }
+    });
+
+    return () => {
+      cancelled = true;
     };
-  }, []);
+  }, [workspaceModel]);
+
+  const scheduleOpenDocumentRefreshCallback = useCallback(
+    (filePath: string, diskVersion: FileStatInfo) => scheduleOpenDocumentRefresh(filePath, diskVersion),
+    [],
+  );
+  useOpenDocumentVersionPolling(openDocumentsRef, pendingDocumentRefreshesRef, scheduleOpenDocumentRefreshCallback);
 
   useEffect(() => {
     const activeIds = new Set<string>();
@@ -431,26 +417,6 @@ export function App() {
       return next;
     });
   }, [terminalSessions]);
-
-  useEffect(() => {
-    if (!deferredSearchQuery.trim()) {
-      setWorkspaceSearchResults({
-        notes: [],
-        projectFiles: [],
-        tags: [],
-      });
-      return;
-    }
-
-    const timeout = window.setTimeout(async () => {
-      const results = await window.exo.workspace.searchWorkspace(deferredSearchQuery);
-      startTransition(() => {
-        setWorkspaceSearchResults(results);
-      });
-    }, 120);
-
-    return () => window.clearTimeout(timeout);
-  }, [deferredSearchQuery]);
 
   // Command listener — agents can tell the app to open files via the command server
   useEffect(() => {
@@ -1466,13 +1432,19 @@ export function App() {
       projectSections={projectSections}
       appearanceMode={appearanceMode}
       resolvedAppearance={resolvedAppearance}
-      searchQuery={searchQuery}
-      searchSubmittedQuery={searchSubmittedQuery}
-      searchResults={workspaceSearchResults}
-      onSearchSubmit={() => setSearchSubmittedQuery(searchQuery.trim())}
+      searchQuery={workspaceSearch.query}
+      searchSubmittedQuery={workspaceSearch.submittedQuery}
+      searchResults={workspaceSearch.results}
+      statusLine={{
+        workspaceLabel: workspaceModel ? pathLabel(workspaceModel.workspaceRoot) : "workspace",
+        projectLabel: workspaceModel?.projectRoots[0] ? pathLabel(workspaceModel.projectRoots[0].path) : null,
+        gitBranch: workspaceGitStatus?.branch ?? null,
+        gitDirty: workspaceGitStatus?.dirty ?? false,
+      }}
+      onSearchSubmit={() => workspaceSearch.setSubmittedQuery(workspaceSearch.query.trim())}
       onSearchClear={() => {
-        setSearchQuery("");
-        setSearchSubmittedQuery("");
+        workspaceSearch.setQuery("");
+        workspaceSearch.setSubmittedQuery("");
       }}
       shellLayout={shellLayout}
       renderEditorLeaf={(leaf, isFocused) => {
@@ -1526,7 +1498,7 @@ export function App() {
           </>
         );
       }}
-      renderTerminalLeaf={(leaf, isFocused) => {
+      renderTerminalLeaf={(leaf) => {
         const terminalLeafSessions = terminalSessions.filter((s) => leaf.content.kind === "terminal" && leaf.content.terminalIds.includes(s.id));
         const leafActiveTerminalId = leaf.content.kind === "terminal" ? leaf.content.activeTerminalId : null;
         return (
@@ -1556,8 +1528,8 @@ export function App() {
       onAppearanceModeChange={updateAppearanceMode}
       onOpenWorkspaceSettings={() => void openWorkspaceSettingsDialog()}
       onSearchQueryChange={(value) => {
-        setSearchQuery(value);
-        setSearchSubmittedQuery(value.trim());
+        workspaceSearch.setQuery(value);
+        workspaceSearch.setSubmittedQuery(value.trim());
       }}
       onOpenFile={(filePath) => void openFile(filePath)}
       onOpenTag={(tag) => void openTag(tag)}
@@ -2023,26 +1995,12 @@ function directoryOf(filePath: string): string {
   return parts.slice(0, -1).join("/") || "/";
 }
 
-function joinPath(parentPath: string, name: string): string {
-  return `${parentPath.replace(/\/$/, "")}/${name.replace(/^\//, "")}`;
+function pathLabel(filePath: string): string {
+  return filePath.split("/").filter(Boolean).at(-1) ?? filePath;
 }
 
-function closeDocumentInPaneState(pane: EditorPaneState, filePath: string): EditorPaneState {
-  const nextOpenPaths = pane.openPaths.filter((openPath) => openPath !== filePath);
-  if (pane.activePath !== filePath) {
-    return {
-      ...pane,
-      openPaths: nextOpenPaths,
-    };
-  }
-
-  const closedIndex = pane.openPaths.indexOf(filePath);
-  const nextActivePath = nextOpenPaths[Math.max(0, closedIndex - 1)] ?? nextOpenPaths[0] ?? null;
-  return {
-    ...pane,
-    openPaths: nextOpenPaths,
-    activePath: nextActivePath,
-  };
+function joinPath(parentPath: string, name: string): string {
+  return `${parentPath.replace(/\/$/, "")}/${name.replace(/^\//, "")}`;
 }
 
 function isInsideAttachedRoot(targetPath: string, rootPaths: string[]): boolean {
@@ -2059,10 +2017,6 @@ function ensureDefaultExtension(name: string, directoryPath: string, noteRootPat
 
 function isPathWithin(parentPath: string, targetPath: string): boolean {
   return targetPath === parentPath || targetPath.startsWith(`${parentPath}/`);
-}
-
-function fileVersionsEqual(left: FileStatInfo | null, right: FileStatInfo | null): boolean {
-  return Boolean(left && right && left.size === right.size && left.mtimeMs === right.mtimeMs);
 }
 
 function getActiveEditorScrollTop(): number | null {
@@ -2084,10 +2038,6 @@ function restoreActiveEditorScrollTop(scrollTop: number) {
     restore();
     window.clearInterval(interval);
   }, 650);
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
 }
 
 function clampNumber(value: number, min: number, max: number): number {

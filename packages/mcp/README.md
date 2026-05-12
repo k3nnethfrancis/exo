@@ -39,7 +39,7 @@ Without autostart, Exo must already be running so the MCP server can discover `.
 - `list_agents` — list live Exo agent terminals.
 - `create_agent` — create a new shell, Claude, or Codex terminal.
 - `read_agent` — read buffered terminal output. ANSI cleanup is enabled by default.
-- `send_agent_message` — send text to a live agent. `submit` defaults to `false`.
+- `send_agent_message` — send text to a live agent. `submit` defaults to `true`, so the message is submitted with Enter unless explicitly disabled.
 - `interrupt_agent` — send Escape or Ctrl-C to a live agent.
 - `terminate_agent` — terminate an Exo terminal. For agent terminals this also kills the backing tmux session.
 

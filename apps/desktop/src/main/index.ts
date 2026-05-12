@@ -1,8 +1,10 @@
 import { app, BrowserWindow, ipcMain, Menu, nativeImage, nativeTheme, shell, Tray } from "electron";
+import { execFile } from "node:child_process";
 import path from "node:path";
-import { access, appendFile, mkdir, readFile, stat, writeFile } from "node:fs/promises";
-import { constants, existsSync, watch, type FSWatcher } from "node:fs";
+import { access, appendFile, stat } from "node:fs/promises";
+import { constants, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 
 import {
   createWorkspaceDirectory,
@@ -24,12 +26,20 @@ import {
   type WorkspaceModel,
   type WorkspaceSettings,
 } from "@exo/core";
-import type { TerminalCreateOptions } from "../shared/api";
 
 import { CommandServer } from "./command-server";
+import {
+  applyWorkspaceSettingsToEnv,
+  DEFAULT_APPEARANCE_MODE,
+  isForcedTheme,
+  WorkspaceSettingsStore,
+} from "./settings-store";
+import { registerTerminalIpcHandlers } from "./terminal-ipc";
 import { TerminalManager } from "./terminal-manager";
+import { WorkspaceWatcherService } from "./workspace-watchers";
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
+const execFileAsync = promisify(execFile);
 
 if (process.env.EXO_ENABLE_GPU !== "1") {
   app.disableHardwareAcceleration();
@@ -58,16 +68,11 @@ let tray: Tray | null = null;
 let commandServer: CommandServer | null = null;
 let workspaceModel: WorkspaceModel;
 let workspaceSettings: WorkspaceSettings | null = null;
+let workspaceSettingsStore: WorkspaceSettingsStore;
 let terminalManager: TerminalManager;
-let workspaceWatchers: FSWatcher[] = [];
-let pendingWorkspaceEvents = new Map<string, { rootPath: string; eventType: string; filePath: string | null }>();
-let workspaceBroadcastTimer: NodeJS.Timeout | null = null;
+let workspaceWatcherService: WorkspaceWatcherService;
 const rendererRecoveryTimestamps: number[] = [];
 const streamingTerminalIds = new Set<string>();
-const DEFAULT_APPEARANCE_MODE: WorkspaceSettings["appearanceMode"] = "system";
-const DEFAULT_EDITOR_FONT_SIZE = 15;
-const DEFAULT_TERMINAL_FONT_SIZE = 13;
-const DEFAULT_EXPLORER_SCALE = 1;
 
 if (!singleInstanceLock) {
   app.quit();
@@ -190,11 +195,14 @@ function createWindow() {
 
   window.webContents.on("did-finish-load", () => {
     if (showTimeout) clearTimeout(showTimeout);
-    if (isTestWindow || window.isDestroyed()) {
+    if (window.isDestroyed()) {
       return;
     }
     if (mainWindow === window) {
       rendererReady = true;
+    }
+    if (isTestWindow) {
+      return;
     }
     if (!window.isVisible()) {
       window.show();
@@ -307,7 +315,7 @@ function logWorkspaceStartup(model: WorkspaceModel) {
     noteRoots: model.noteRoots.map((root) => root.path),
     projectRoots: model.projectRoots.map((root) => root.path),
     userDataPath: app.getPath("userData"),
-    settingsPath: resolveWorkspaceSettingsPath(),
+    settingsPath: workspaceSettingsStore.resolvePath(),
     gpuDisabled: process.env.EXO_ENABLE_GPU !== "1",
   };
   console.info("[exo] workspace startup", details);
@@ -361,7 +369,7 @@ function registerIpcHandlers() {
   ipcMain.handle("workspace:get-model", async () => workspaceModel);
   ipcMain.handle("workspace:get-settings", async () => currentWorkspaceSettings());
   ipcMain.handle("workspace:save-settings", async (_event, settings: WorkspaceSettings) => {
-    workspaceSettings = await saveWorkspaceSettings(settings);
+    workspaceSettings = await workspaceSettingsStore.save(settings);
     applyWorkspaceSettings(workspaceSettings);
     return workspaceSettings;
   });
@@ -374,6 +382,7 @@ function registerIpcHandlers() {
   );
   ipcMain.handle("workspace:search-notes", async (_event, query: string) => searchNotes(workspaceModel, query));
   ipcMain.handle("workspace:search-workspace", async (_event, query: string) => searchWorkspace(workspaceModel, query));
+  ipcMain.handle("workspace:get-git-status", async (_event, rootPath: string) => getGitStatus(rootPath));
   ipcMain.handle("workspace:create-file", async (_event, targetPath: string, content?: string) => createWorkspaceFile(targetPath, content));
   ipcMain.handle("workspace:create-directory", async (_event, targetPath: string) => createWorkspaceDirectory(targetPath));
   ipcMain.handle("workspace:rename-path", async (_event, sourcePath: string, nextPath: string) => renameWorkspacePath(sourcePath, nextPath));
@@ -448,88 +457,8 @@ function registerIpcHandlers() {
     ),
   );
 
-  ipcMain.handle("terminals:ensure-default", async () => terminalManager.ensureDefault());
-  ipcMain.handle("terminals:list", async () => terminalManager.list());
-  ipcMain.handle("terminals:create", async (_event, options: TerminalCreateOptions) => terminalManager.create(options));
-  ipcMain.handle("terminals:read", async (_event, id: string) => terminalManager.readBuffer(id) ?? "");
-  ipcMain.handle("terminals:read-transcript", async (_event, id: string, tailChars?: number) =>
-    terminalManager.readTranscript(id, typeof tailChars === "number" ? tailChars : 200_000) ?? "",
-  );
-  ipcMain.handle("terminals:write", async (_event, id: string, data: string) => terminalManager.write(id, data));
-  ipcMain.handle("terminals:resize", async (_event, id: string, cols: number, rows: number) =>
-    terminalManager.resize(id, cols, rows),
-  );
-  ipcMain.handle("terminals:set-streaming", async (_event, ids: string[]) => {
-    streamingTerminalIds.clear();
-    for (const id of ids) {
-      streamingTerminalIds.add(id);
-    }
-  });
-  ipcMain.handle("terminals:kill", async (_event, id: string) => terminalManager.kill(id, { terminate: true }));
+  registerTerminalIpcHandlers(terminalManager, streamingTerminalIds);
   ipcMain.handle("shell:open-external", async (_event, target: string) => shell.openExternal(target));
-}
-
-function startWorkspaceWatchers() {
-  stopWorkspaceWatchers();
-
-  const rootPaths = [...workspaceModel.noteRoots.map((root) => root.path), ...workspaceModel.projectRoots.map((root) => root.path)];
-  const uniqueRootPaths = [...new Set(rootPaths)];
-
-  for (const rootPath of uniqueRootPaths) {
-    try {
-      const watcher = watch(
-        rootPath,
-        { recursive: true },
-        (eventType, filename) => {
-          queueWorkspaceChange({
-            rootPath,
-            eventType,
-            filePath: typeof filename === "string" && filename.length > 0 ? path.join(rootPath, filename) : null,
-          });
-        },
-      );
-
-      watcher.on("error", (error) => {
-        console.warn("[exo] workspace watcher error", { rootPath, error: error instanceof Error ? error.message : String(error) });
-      });
-
-      workspaceWatchers.push(watcher);
-    } catch (error) {
-      console.warn("[exo] workspace watcher setup failed", { rootPath, error: error instanceof Error ? error.message : String(error) });
-    }
-  }
-}
-
-function stopWorkspaceWatchers() {
-  for (const watcher of workspaceWatchers) {
-    watcher.close();
-  }
-  workspaceWatchers = [];
-
-  if (workspaceBroadcastTimer) {
-    clearTimeout(workspaceBroadcastTimer);
-    workspaceBroadcastTimer = null;
-  }
-  pendingWorkspaceEvents.clear();
-}
-
-function queueWorkspaceChange(event: { rootPath: string; eventType: string; filePath: string | null }) {
-  const key = `${event.rootPath}:${event.filePath ?? ""}:${event.eventType}`;
-  pendingWorkspaceEvents.set(key, event);
-
-  if (workspaceBroadcastTimer) {
-    return;
-  }
-
-  workspaceBroadcastTimer = setTimeout(() => {
-    workspaceBroadcastTimer = null;
-    const events = [...pendingWorkspaceEvents.values()];
-    pendingWorkspaceEvents.clear();
-
-    for (const nextEvent of events) {
-      sendToRenderer("workspace:changed", nextEvent);
-    }
-  }, 120);
 }
 
 async function resolveNoteTarget(sourceFilePath: string, target: string): Promise<string | null> {
@@ -607,6 +536,23 @@ async function suggestNoteTargets(sourceFilePath: string, query: string) {
   return suggestions;
 }
 
+async function getGitStatus(rootPath: string) {
+  try {
+    const [{ stdout: branchStdout }, { stdout: statusStdout }] = await Promise.all([
+      execFileAsync("git", ["-C", rootPath, "branch", "--show-current"]),
+      execFileAsync("git", ["-C", rootPath, "status", "--porcelain"]),
+    ]);
+
+    return {
+      rootPath,
+      branch: branchStdout.trim() || null,
+      dirty: statusStdout.trim().length > 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
 async function fileExists(targetPath: string): Promise<boolean> {
   return access(targetPath, constants.F_OK).then(
     () => true,
@@ -619,134 +565,38 @@ function isPathWithin(parentPath: string, candidatePath: string): boolean {
   return relativePath === "" || (!relativePath.startsWith("..") && !path.isAbsolute(relativePath));
 }
 
-function resolveWorkspaceSettingsPath(): string {
-  return process.env.EXO_SETTINGS_PATH ?? path.join(app.getPath("userData"), "workspace-settings.json");
-}
-
-function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | null | undefined): WorkspaceSettings | null {
-  if (!input) {
-    return null;
-  }
-
-  const workspaceRoot = typeof input.workspaceRoot === "string" ? input.workspaceRoot.trim() : "";
-  const defaultTerminalCwd = typeof input.defaultTerminalCwd === "string" ? input.defaultTerminalCwd.trim() : "";
-  const noteRoots = Array.isArray(input.noteRoots)
-    ? input.noteRoots.map((entry) => (typeof entry === "string" ? entry.trim() : "")).filter(Boolean)
-    : [];
-  const projectRoots = Array.isArray(input.projectRoots)
-    ? input.projectRoots
-        .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
-        .filter(Boolean)
-        .filter((entry) => !isBroadDefaultProjectRoot(workspaceRoot, entry))
-    : [];
-  const appearanceMode =
-    input.appearanceMode === "light" || input.appearanceMode === "dark" || input.appearanceMode === "system"
-      ? input.appearanceMode
-      : DEFAULT_APPEARANCE_MODE;
-  const editorFontSize = clampSettingsNumber(input.editorFontSize, DEFAULT_EDITOR_FONT_SIZE, 11, 24);
-  const terminalFontSize = clampSettingsNumber(input.terminalFontSize, DEFAULT_TERMINAL_FONT_SIZE, 10, 22);
-  const explorerScale = clampSettingsNumber(input.explorerScale, DEFAULT_EXPLORER_SCALE, 0.82, 1.35);
-
-  if (!workspaceRoot || !defaultTerminalCwd || noteRoots.length === 0) {
-    return null;
-  }
-
-  return {
-    workspaceRoot,
-    defaultTerminalCwd,
-    noteRoots,
-    projectRoots,
-    appearanceMode,
-    editorFontSize,
-    terminalFontSize,
-    explorerScale,
-  };
-}
-
 function currentWorkspaceSettings(): WorkspaceSettings {
-  return (
-    workspaceSettings ?? {
-      workspaceRoot: workspaceModel.workspaceRoot,
-      defaultTerminalCwd: workspaceModel.defaultTerminalCwd,
-      noteRoots: workspaceModel.noteRoots.map((root) => root.path),
-      projectRoots: workspaceModel.projectRoots.map((root) => root.path),
-      appearanceMode: DEFAULT_APPEARANCE_MODE,
-      editorFontSize: DEFAULT_EDITOR_FONT_SIZE,
-      terminalFontSize: DEFAULT_TERMINAL_FONT_SIZE,
-      explorerScale: DEFAULT_EXPLORER_SCALE,
-    }
-  );
-}
-
-function clampSettingsNumber(value: unknown, fallback: number, min: number, max: number): number {
-  const parsed = typeof value === "number" ? value : Number(value);
-  if (!Number.isFinite(parsed)) {
-    return fallback;
-  }
-  return Math.max(min, Math.min(max, parsed));
-}
-
-function isBroadDefaultProjectRoot(workspaceRoot: string, targetPath: string): boolean {
-  return path.resolve(targetPath) === path.resolve(workspaceRoot, "projects");
-}
-
-async function loadWorkspaceSettings(): Promise<WorkspaceSettings | null> {
-  try {
-    const raw = await readFile(resolveWorkspaceSettingsPath(), "utf8");
-    return normalizeWorkspaceSettings(JSON.parse(raw) as Partial<WorkspaceSettings>);
-  } catch {
-    return null;
-  }
-}
-
-async function saveWorkspaceSettings(settings: WorkspaceSettings): Promise<WorkspaceSettings> {
-  const normalized = normalizeWorkspaceSettings(settings);
-  if (!normalized) {
-    throw new Error("Workspace settings are incomplete.");
-  }
-
-  const settingsPath = resolveWorkspaceSettingsPath();
-  await mkdir(path.dirname(settingsPath), { recursive: true });
-  await writeFile(settingsPath, JSON.stringify(normalized, null, 2));
-  return normalized;
+  return workspaceSettings ?? workspaceSettingsStore.fromModel(workspaceModel);
 }
 
 function applyWorkspaceSettings(settings: WorkspaceSettings | null) {
-  if (!settings) {
-    return;
-  }
-
-  process.env.EXO_WORKSPACE_ROOT = settings.workspaceRoot;
-  process.env.EXO_DEFAULT_TERMINAL_CWD = settings.defaultTerminalCwd;
-  process.env.EXO_NOTE_ROOTS = settings.noteRoots.join(path.delimiter);
-  process.env.EXO_PROJECT_ROOTS = settings.projectRoots.join(path.delimiter);
+  applyWorkspaceSettingsToEnv(settings);
   if (!isForcedTheme(process.env.EXO_FORCE_THEME)) {
-    nativeTheme.themeSource = settings.appearanceMode;
+    nativeTheme.themeSource = settings?.appearanceMode ?? DEFAULT_APPEARANCE_MODE;
   }
-}
-
-function isForcedTheme(value: string | undefined): value is WorkspaceSettings["appearanceMode"] {
-  return value === "light" || value === "dark" || value === "system";
 }
 
 app.whenReady().then(async () => {
+  workspaceSettingsStore = new WorkspaceSettingsStore({ userDataPath: app.getPath("userData") });
+  workspaceWatcherService = new WorkspaceWatcherService((event) => sendToRenderer("workspace:changed", event));
+
   const forcedTheme = process.env.EXO_FORCE_THEME;
   if (isForcedTheme(forcedTheme)) {
     nativeTheme.themeSource = forcedTheme;
   }
 
-  workspaceSettings = await loadWorkspaceSettings();
+  workspaceSettings = await workspaceSettingsStore.load();
   applyWorkspaceSettings(workspaceSettings);
   if (workspaceSettings && !isForcedTheme(forcedTheme)) {
     nativeTheme.themeSource = workspaceSettings.appearanceMode;
   }
   workspaceModel = resolveWorkspaceModel();
-  workspaceSettings = await saveWorkspaceSettings(currentWorkspaceSettings());
+  workspaceSettings = await workspaceSettingsStore.save(currentWorkspaceSettings());
   logWorkspaceStartup(workspaceModel);
   terminalManager = new TerminalManager(workspaceModel.defaultTerminalCwd);
   registerIpcHandlers();
   broadcastTerminalData();
-  startWorkspaceWatchers();
+  workspaceWatcherService.start(workspaceModel);
   await terminalManager.syncRuntimeContext();
   try {
     const restored = await terminalManager.restoreAgentSessions();
@@ -786,7 +636,7 @@ app.on("before-quit", () => {
 });
 
 app.on("window-all-closed", () => {
-  stopWorkspaceWatchers();
+  workspaceWatcherService?.stop();
   if (process.platform !== "darwin") {
     app.quit();
   }
