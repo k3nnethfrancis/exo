@@ -1,72 +1,70 @@
 # Exo
 
-Exo is a workspace-centric research IDE for autonomous intellectual work.
+**Shared Exocortex for Humans and Agents.**
 
-It is the Electron rebuild of Garden. The product direction stays intact, but the shell is now built around:
-- `workspace_root` as the primary operating context
-- attached `note_roots` and `project_roots`
-- terminal agents as first-class operator surfaces
-- CLI and MCP control paths into the running app
-- notes, project files, terminals, workcells, memory, datasets, and evals sharing one eventual operator environment
+Exo is a local-first agentic development environment built around a shared exocortex for you and your terminal agents.
+
+It gives agents a common knowledge graph they can read from, write to, and coordinate through, while giving you one surface for keeping their work aligned. That graph is grounded in your Markdown notes and project context, turning the material you already think with into shared ground truth for multi-agent development. You can take notes, run agents, and inspect the code they write without bouncing between editors.
+
+## Why Exo Exists
+
+AI agents are most useful when they can work from the same context you use: your notes, tasks, drafts, logs, code, and project history. Today that context is usually split across a notes app, terminals, editor windows, chat transcripts, and ad hoc files. Exo brings those pieces into one local-first workspace so humans and agents can share context instead of constantly reassembling it.
+
+Exo is for people who want terminal agents to participate in their actual working environment: reading and writing notes, searching project context, changing code, communicating with other agents, and leaving an inspectable trail of what happened.
+
+## What Exo Is
+
+- A Markdown knowledge environment for notes, tasks, drafts, logs, and project context.
+- A terminal-agent workspace for running Claude, Codex, shell sessions, and future local agents.
+- A project/code viewer for inspecting what agents are changing.
+- A shared command surface through the Exo CLI and MCP server.
+- A foundation for note indexing, memory, multi-agent communication, attribution, graph views, workcells, evals, and training loops.
+
+## What Works Today
+
+- Markdown notes with live-preview editing, properties/frontmatter, backlinks/tags/links, branch families, foldable lists, and table widgets.
+- Explicit note roots and project roots.
+- Project files with CodeMirror modes for Python, JSON/JSONC, TOML, `.env`, YAML, JS/TS/TSX, HTML/CSS, and shell.
+- Fast note filename/path search from the explorer search pane.
+- Editor and terminal panes with flat tabs, split behavior, and no-empty-leaves pruning.
+- xterm/node-pty terminals rooted in the workspace by default.
+- Claude and Codex terminal launchers backed by Exo runtime launch plans.
+- Tmux-backed Claude/Codex recovery across Exo restarts.
+- CLI and MCP control of live Exo terminal agents.
+- Integration helpers for installing Exo MCP into Codex and Claude Code.
+
+## Roadmap
+
+Exo is early, and the long-term system is larger than the current shell. Near-term priorities:
+
+- Drag terminal panes into the editor canvas so files and terminal agents can share one arbitrary split-pane graph.
+- Integrate QMD-style note indexing as an Exo-managed memory/search layer, with machine-size profiles and fallback modes.
+- Detect existing QMD setups, manage Exo-owned QMD setup, and configure indexed note roots plus reindex triggers.
+- Let humans and agents search the same knowledge graph with explicit tiers, cancellation, and result caps.
+- Manage global and project-local `AGENTS.md` / `CLAUDE.md` files from Exo.
+- Compare global and local agent context files, surface conflicts, and install Exo-recommended snippets.
+- Track authorship and provenance so human-written and agent-written changes are distinguishable by source, session, and task.
+- Link agent sessions and messages to the files they changed so code review stays inside the workspace.
+- Add graph and memory views that combine backlinks, notes, project context, and indexed relationships.
+- Let agents add, remove, and inspect attached project roots through Exo-controlled CLI/MCP commands.
+- Add multi-agent communication protocols over files, SQLite, MCP, and later richer local transports.
+- Add an agent roster with names, roles, objectives, message routing, and communication logs.
+- Add a plugin architecture for optional workflows and shareable extensions without bloating core.
+- Add workcells, evals, datasets, and training loops for improving agent behavior.
+
+See `docs/roadmap.md` and `docs/tasks.md` for the active plan.
 
 ## Current Status
 
-Exo is currently developed and tested as a macOS-first desktop app. Windows and Linux source builds may work in pieces, but they are not release targets yet because the terminal, tmux-backed agent recovery, and local agent CLI paths need explicit platform validation.
+Exo is under active development and not yet a polished public binary release.
 
-The shell is usable and now covers more than notes:
-- markdown notes with live-preview editing, properties/frontmatter, backlinks/tags/links, branch families, foldable lists, and table widgets
-- project/code files with CodeMirror language support for Python, JSON/JSONC, TOML, `.env`, YAML, JS/TS/TSX, HTML/CSS, and shell files
-- project folders are imported explicitly; Exo no longer attaches the whole workspace `projects/` directory by default
-- JSON parse linting through the CodeMirror lint gutter
-- live note search by filename/path
-- recursive editor/terminal pane model with flat tabs and no-empty-leaves pruning
-- xterm/node-pty terminals rooted in the workspace by default
-- Claude and Codex launchers backed by Exo runtime launch plans
+- Supported today: source development and unsigned macOS packaging.
+- Coming later: first-class Windows and Linux support.
+- License: Apache-2.0.
+- Current alpha: `0.1.0-alpha.0`.
+- Not ready yet: signed/notarized macOS releases, Windows/Linux installers, and cross-platform terminal persistence.
 
-The runtime control layer is now active:
-- Electron main-process command server writes `.exo/server.json`
-- `bin/exo` can drive a running app through HTTP
-- terminal sessions can be listed, created, read, written to, sent Enter-terminated messages, and killed from the CLI
-- Claude/Codex agent terminals use tmux for restart persistence
-- Exo MCP exposes agent tools for other local agents: list, create, read, send, interrupt, and terminate
-- MCP can autostart Exo when configured with `EXO_MCP_AUTOSTART=1`
-
-## Stack
-
-- Electron
-- React
-- TypeScript
-- Vite
-- CodeMirror 6
-- xterm.js
-- node-pty
-- tmux for durable Claude/Codex agent terminals
-- Playwright
-- MCP SDK
-
-## Workspace Model
-
-Exo settings are stored in one JSON file:
-
-- macOS default: `$HOME/Library/Application Support/@exo/desktop/workspace-settings.json`
-- override: `EXO_SETTINGS_PATH`
-
-Portable source defaults use the current working directory as `workspace_root`, `workspace_root/notes` as the initial note root, and the Exo repo as the first project root. Kenneth's local lab paths should live in the settings file or environment, not in core source defaults.
-
-Example local model:
-- `workspace_root = /path/to/workspace`
-- `note_roots = [/path/to/workspace/notes]`
-- `project_roots = [/path/to/workspace/projects/exo]`, then any additional imported project folders
-- `default_terminal_cwd = /path/to/workspace`
-
-Runtime files live under `.exo/` inside the workspace root:
-- `.exo/server.json` — command server discovery
-- `.exo/instructions/AGENTS.md` — Exo-generated generic runtime contract
-- `.exo/instructions/CLAUDE.md` — Exo-generated Claude overlay
-- `.exo/terminal-state.json` — persisted tmux-backed agent terminal state
-- `.exo/messages/` and `.exo/agent-communication.sqlite` — reserved communication transport paths
-
-QMD remains an optional notes index / retrieval backend for future memory work. It is not the current top-bar search backend; app and CLI search currently return fast note filename/path matches only.
+Before broad public binary release, Exo still needs signed/notarized macOS packaging and a clean release checklist from a fresh clone.
 
 ## Quick Start
 
@@ -81,25 +79,39 @@ Run with remote debugging when inspecting the real Electron renderer:
 pnpm --filter @exo/desktop dev -- --remote-debugging-port=9222
 ```
 
-## macOS Packaging
+The browser at `localhost:5173` is not equivalent to the Electron app; it does not have the preload `window.exo` bridge.
 
-Build an unsigned macOS app bundle:
+## Agent Integrations
+
+Exo can expose its live terminal agents through MCP and through a CLI mirror. The MCP server currently supports:
+
+- `list_agents`
+- `create_agent`
+- `read_agent`
+- `send_agent_message`
+- `interrupt_agent`
+- `terminate_agent`
+
+Install Exo MCP into supported local agent clients:
 
 ```bash
-pnpm pack:mac
+./bin/exo integrations doctor
+./bin/exo integrations install all
 ```
 
-Build unsigned macOS DMG and ZIP artifacts for the current build machine architecture:
+Preview without modifying local agent config:
 
 ```bash
-pnpm dist:mac
+./bin/exo integrations install --dry-run all
+./bin/exo integrations config codex
+./bin/exo integrations config claude
 ```
 
-Artifacts are written to `release/`. Unsigned builds are suitable for early local testing, but macOS will warn users. Public binary releases should eventually be signed and notarized. Intel or universal macOS builds should be added as a separate tested release slice.
+Already-running agent sessions may need restart or MCP refresh before they see newly installed tools. The CLI mirror remains available when MCP is unavailable.
 
 ## CLI
 
-Standalone workspace/search/runtime commands:
+Standalone workspace/runtime commands:
 
 ```bash
 ./bin/exo workspace status
@@ -117,92 +129,128 @@ Commands that drive a running Exo app:
 ./bin/exo config get
 ./bin/exo terminals list
 ./bin/exo terminals create shell
-./bin/exo terminals create claude /path/to/workspace
-./bin/exo terminals create codex /path/to/workspace
 ./bin/exo terminals read term-4
 ./bin/exo terminals transcript term-4 --tail 200000
-./bin/exo terminals write term-4 "raw input"
 ./bin/exo terminals send term-4 "message plus Enter"
 ./bin/exo terminals kill term-4
 ```
 
-Agent-oriented aliases mirror the MCP tools and are easier for another running Codex/Claude session to use without restarting to load MCP:
+Agent-oriented aliases mirror the MCP tools:
 
 ```bash
 ./bin/exo agents list
 ./bin/exo agents create claude /path/to/workspace
 ./bin/exo agents read term-4 --tail 20000
-./bin/exo agents read term-4 --raw
 ./bin/exo agents send term-4 "message plus Enter"
-./bin/exo agents message term-4 "message plus Enter"
-./bin/exo agents tell term-4 "message plus Enter"
 ./bin/exo agents send term-4 "raw input without Enter" --raw
 ./bin/exo agents interrupt term-4 ctrl-c
 ./bin/exo agents terminate term-4
 ```
 
-Terminal transcripts are persisted under `.exo/terminal-transcripts/`. The live UI only renders a bounded tail for stability, while CLI/MCP reads can access the disk-backed transcript. Default retention:
-- `14` days max age
-- `500MB` max transcript directory size
-- `50MB` max per transcript file, trimmed to its recent tail
+## Workspace Model
 
-Override with `EXO_TERMINAL_TRANSCRIPT_RETENTION_DAYS`, `EXO_TERMINAL_TRANSCRIPT_MAX_TOTAL_MB`, and `EXO_TERMINAL_TRANSCRIPT_MAX_FILE_MB`.
+Exo settings are stored in one JSON file:
 
-## MCP
+- macOS default: `$HOME/Library/Application Support/@exo/desktop/workspace-settings.json`
+- override: `EXO_SETTINGS_PATH`
 
-`packages/mcp` exposes the running Exo app as an MCP server. Current tools:
-- `list_agents`
-- `create_agent`
-- `read_agent`
-- `send_agent_message`
-- `interrupt_agent`
-- `terminate_agent`
+Portable source defaults:
 
-Configure with autostart when agents should be able to launch Exo themselves:
+- `workspace_root = process.cwd()`
+- `note_roots = [workspace_root/notes]`
+- `project_roots = [exo repo root]`
+- `default_terminal_cwd = workspace_root`
 
-```json
-{
-  "mcpServers": {
-    "exo": {
-      "command": "pnpm",
-      "args": ["--dir", "/path/to/exo", "--filter", "@exo/mcp", "start"],
-      "env": {
-        "EXO_WORKSPACE_ROOT": "/path/to/workspace",
-        "EXO_MCP_AUTOSTART": "1"
-      }
-    }
-  }
-}
+Runtime files live under `.exo/` inside the workspace root:
+
+- `.exo/server.json` - command server discovery
+- `.exo/instructions/AGENTS.md` - Exo-generated generic runtime contract
+- `.exo/instructions/CLAUDE.md` - Exo-generated Claude overlay
+- `.exo/terminal-state.json` - persisted tmux-backed agent terminal state
+- `.exo/terminal-transcripts/` - disk-backed terminal transcripts with retention
+
+QMD remains the indexing substrate Exo is integrating for future memory/search. Users should eventually be able to use an Exo-managed setup, detect an existing QMD setup, or fall back to simpler filesystem/CLI search on smaller machines.
+
+## Development Harness
+
+The canonical local gate is:
+
+```bash
+pnpm check
 ```
 
-## Validation
+It runs:
 
 ```bash
 pnpm typecheck
 pnpm test
-pnpm test:e2e
-pnpm test:visual
+pnpm build
 ```
 
-For focused work:
+Focused checks:
 
 ```bash
 pnpm --filter @exo/desktop typecheck
 pnpm --filter @exo/desktop test
 pnpm --filter @exo/cli typecheck
+pnpm --filter @exo/cli test
+pnpm --filter @exo/core test
 pnpm --filter @exo/mcp typecheck
 pnpm --filter @exo/mcp test
+pnpm test:e2e
+pnpm test:visual
 ```
+
+See `docs/harness.md` for work-chunk rules, validation evidence, and agent-friendly development workflow.
+
+## Stack
+
+- Electron, React, TypeScript, Vite
+- CodeMirror 6
+- xterm.js, node-pty, tmux
+- pnpm workspaces
+- Vitest and Playwright
+- Model Context Protocol SDK
+
+## Repository Map
+
+- `apps/desktop` - Electron main/preload/renderer, settings, terminal supervision, and the local command server.
+- `packages/core` - workspace model, note/project discovery, runtime config, launch plans, QMD adapter, shared command protocol, integration helpers.
+- `packages/cli` - `bin/exo` command surface.
+- `packages/mcp` - stdio MCP server that wraps the running Exo app for local agents.
+- `docs/architecture.md` - package and runtime architecture.
+- `docs/strategy.md` - product direction and system model.
+- `docs/harness.md` - developer harness, gates, and agent workflow.
+- `docs/plugins.md` - future extension model.
+- `docs/tasks.md` - active execution tracker.
+- `docs/roadmap.md` - future work and sequencing.
+- `ledger.md` - fastest current-state handoff.
+
+## Packaging
+
+Unsigned macOS app bundle:
+
+```bash
+pnpm pack:mac
+```
+
+Unsigned macOS DMG and ZIP:
+
+```bash
+pnpm dist:mac
+```
+
+Artifacts are written to `release/`. Public binary releases should be signed and notarized before being presented as stable.
 
 ## Logs
 
-Main-process runtime log:
+Main-process log:
 
 ```bash
 tail -f "$HOME/Library/Application Support/@exo/desktop/exo-main.log"
 ```
 
-macOS crash reports:
+macOS Electron crash reports:
 
 ```bash
 ls "$HOME/Library/Logs/DiagnosticReports"/Electron-*.ips
@@ -210,10 +258,14 @@ ls "$HOME/Library/Logs/DiagnosticReports"/Electron-*.ips
 
 ## Docs Order
 
-- `ledger.md`: fastest current-state handoff
-- `plan.md`: canonical strategy and phased implementation plan
-- `docs/tasks.md`: active execution tracker
-- `docs/architecture.md`: system architecture
-- `docs/open-source.md`: public release checklist and platform support notes
-- `docs/roadmap.md`: feature roadmap by phase
-- `docs/resources.md`: retained references and external substrates
+1. `AGENTS.md` - concise agent map
+2. `README.md` - product overview and onboarding
+3. `docs/README.md` - committed docs map
+4. `docs/strategy.md` - product direction and system model
+5. `ledger.md` - current state and recent completed slices
+6. `docs/architecture.md` - runtime and package architecture
+7. `docs/harness.md` - contribution harness and validation gates
+8. `docs/tasks.md` - active execution tracker
+9. `docs/roadmap.md` - future plans
+10. `docs/plugins.md` - future extension model
+11. `packages/mcp/README.md` - MCP setup and tools

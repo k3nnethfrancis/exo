@@ -30,11 +30,5 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Typecheck
-        run: pnpm -r typecheck
-
-      - name: Test
-        run: pnpm -r test
-
-      - name: Build desktop and CLI
-        run: pnpm build
+      - name: Check
+        run: pnpm check

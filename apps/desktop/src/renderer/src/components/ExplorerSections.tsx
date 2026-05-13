@@ -43,6 +43,7 @@ interface SectionProps {
   dragManager: DragManager;
   onContextMenu: (event: React.MouseEvent, target: ContextTarget) => void;
   showHeader?: boolean;
+  alwaysShowRoots?: boolean;
 }
 
 export const ROOT_GROUP_PREFIX = "__root__:";
@@ -117,9 +118,10 @@ export function Section(props: SectionProps) {
     dragManager,
     onContextMenu,
     showHeader = true,
+    alwaysShowRoots = false,
   } = props;
 
-  if (sections.length === 1) {
+  if (sections.length === 1 && !alwaysShowRoots) {
     return (
       <div className="tree-section">
         {showHeader ? (

@@ -119,7 +119,7 @@ export function renderPrimaryAgentInstructions(config: RuntimeConfig): string {
   return [
     "# Exo Runtime",
     "",
-    "You are operating inside Exo, a workspace-centric research IDE.",
+    "You are operating inside Exo, a local-first agentic development environment built around a shared exocortex for humans and terminal agents.",
     "",
     "## Workspace",
     `- workspace_root: ${workspace.workspaceRoot}`,

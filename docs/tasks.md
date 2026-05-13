@@ -1,121 +1,110 @@
 # Exo Tasks
 
-## P0 — Repo and shell bootstrap
-- [x] Create Electron workspace shell
-- [x] Add shared core package
-- [x] Add CLI package
-- [x] Add fixture workspace
-- [x] Add Playwright interaction and screenshot harnesses
-- [x] Add macOS-first unsigned packaging scripts and app icon assets
-- [x] Add baseline GitHub Actions CI for typecheck, tests, and build
-- [ ] Choose and add a real open-source license before public release
-- [ ] Add signed/notarized macOS release path
+Last updated: 2026-05-12
 
-## P1 — UI/editor/terminal shell
-- [x] Sidebar with workspace, note, and project roots
-- [x] Search input and fast note filename/path search
-- [x] Tabbed markdown notebook editor
-- [x] Frontmatter/properties projection
-- [x] Backlinks, tags, and link surfaces
-- [x] Right/bottom terminal dock
-- [x] Default shell tab rooted at `workspace_root`
-- [x] `Claude` button launches `claude` in a new terminal tab
-- [x] `Codex` button launches `codex` in a new terminal tab
-- [x] Per-tab cwd override support
-- [x] Project files open in a non-notebook editor path
-- [x] Scrollable explorer with file/folder context actions
-- [x] In-app create/rename/delete modal instead of blocking browser prompts
-- [x] Collapsed bottom knowledge drawer by default
-- [x] Note wrapping with vertical-scroll editor behavior
-- [x] Incremental xterm rendering instead of full-buffer resets
-- [x] Shared workspace knowledge footer spanning editor + terminal region
-- [x] Resizable terminal dock
-- [x] System-aware appearance with a warm light mode and normalized shell control sizing
+This is the active task tracker for Exo. It is intentionally not a history file; completed implementation history belongs in `ledger.md`. Tasks here should be concrete, current, and ordered by practical priority.
 
-## P2 — Knowledge/editor parity
-- [x] Branch-aware note flows
-- [ ] Notebook execution surfaces
-- [x] Search parity and richer navigation
-- [x] Top-bar global search (replaces sidebar search swap-in)
-- [x] Floating results panel with click-outside / Esc dismiss
-- [x] Search execution model — runs on Enter, not on keystroke (perf)
-- [ ] Search ranking and keyboard navigation inside the floating panel
-- [ ] Search history / suggestions when the input is empty
-- [ ] Preview parity in search results
-- [ ] Branch family affordances in the sidebar/file tree
-- [x] Initial file/tab drag splitting into a second editor pane
-- [x] Pane-tree no-empty-leaves invariant: auto-collapse on close, center-drop = merge
-- [x] Hairline 1px pane dividers with invisible ±5px hit overlays
-- [x] Consistent collapsed-bar model for terminal, inspector, and project roots
-- [x] Move branch selection into the editor header and remove bottom-drawer branch clutter
-- [x] Make editor tabs closeable
-- [x] Flat tabs (square corners, hairline separators, no gaps) aligned across editor + terminal dock
-- [x] File-tree label truncation (25 chars) with full-name tooltip
-- [x] Copy Path action in file/folder context menu
-- [x] Inspector / floating panel: click-outside + Esc dismiss, finger cursor
-- [x] Markdown live-preview tables: styled `<table>` rendering with cursor-aware edit mode
-- [x] Ordered list `1.` rendering fix (no longer wraps onto a new line)
-- [ ] True arbitrary IDE pane graph and dockable note/terminal surfaces beyond the current two-pane model
+## Now: Pre-Push Cleanup
 
-## P3 — Agent runtime control layer
-- [x] Exo workspace/runtime config model for launch defaults, roots, retrieval config, and communication transport
-- [x] `exo launch shell|claude|codex`
-- [x] Exo-generated `AGENTS.md` as the primary generic runtime contract
-- [x] Exo-generated `CLAUDE.md` as the Claude-specific overlay
-- [x] CLI commands for runtime context inspection and active workspace state
-- [x] Runtime command server (HTTP in main process) + CLI app-client so `bin/exo` can drive a running app
-- [x] Removed QMD from app/CLI search pipeline after renderer stability issues
-- [x] Shared command protocol route/types for desktop CLI/MCP command-server clients
-- [x] Main-process settings store, workspace watcher, terminal IPC, and transcript-retention service splits
-- [x] Search request stale-result guard and IPC error handling
-- [x] Open-document polling failure handling
-- [x] Portable core workspace defaults with the Exo repo attached as the first default project; local lab paths live in settings/env examples
-- [x] CLI terminal operations beyond launch/context: list/create/read/write/send/kill
-- [x] Agent-oriented CLI mirror for MCP tools: list/create/read/send/interrupt/terminate
-- [x] Exo MCP bridge for live terminal agents: list/create/read/send/interrupt/terminate
-- [x] MCP autostart path for launching Exo when the command server is missing
-- [ ] Add richer terminal metadata: user-facing names, role labels, provenance, and parent/child relationship display
+- [x] Choose and add an open-source license.
+- [ ] Remove or resolve any accidental local edits before commit, including the stray `SECURITY.md` line if it reappears.
+- [ ] Confirm README, AGENTS, CLAUDE, architecture, roadmap, tasks, ledger, and MCP docs agree on the current Exo identity.
+- [ ] Confirm no source defaults point to private or machine-specific paths.
+- [ ] Confirm `.exo/`, terminal transcripts, logs, local settings, release artifacts, and generated runtime state are ignored.
+- [ ] Run `pnpm check`.
+- [ ] Run focused desktop e2e for shell/search/terminal flows.
 
-## P4 — Retrieval and memory
-- [ ] QMD-backed notes index / retrieval commands for future memory work
-- [ ] Durable memory layer
-- [ ] Trace archive layer
-- [ ] Retrieval/index layer
-- [ ] Working-memory assembly
-- [ ] CLI-first memory commands
-- [ ] Reviewed quirks and working-memory shaping
+## Next: Workspace Surface
 
-## P5 — Multi-agent and communication
-- [x] Initial subagent observability view over terminal sessions
-- [x] Manual run kickoff and child-agent spawning from the Inspector drawer
-- [x] tmux-backed Claude/Codex persistence for Exo-managed terminal agents
-- [x] Terminal close/kill cleanup for backing tmux sessions
-- [x] Terminal reload hydration from the main-process buffer
-- [x] Disk-backed terminal transcripts with retention policy
-- [x] Terminal scroll hardening so wheel scroll is not forwarded as app arrow/history input
-- [x] Terminal file drop path handling through preload
-- [x] Code editor modes for common project files: Python, JSON/JSONC, TOML, `.env`, YAML, JS/TS/TSX, HTML/CSS, shell
-- [x] JSON linting in code-file editor mode
-- [ ] External linter/formatter adapters for code files (ruff, eslint/biome, taplo, shellcheck as applicable)
-- [ ] Regression harness for renderer blank-window/crash scenarios
-- [ ] Separate top-level main-agent terminals from bottom-level subagent terminals
-- [ ] Multiple terminal panes
-- [ ] Grid layout
-- [ ] File-backed append-only message transport
-- [ ] SQLite index for agent communication reads and replay
-- [ ] Operator surfaces for agent communication state
-- [ ] Chat wrapper experiments over terminal agents
+- [ ] Make terminal panes draggable into the editor canvas.
+- [ ] Let files and terminals share one arbitrary split-pane graph.
+- [ ] Support multiple terminal panes in the main workspace, not just the terminal dock.
+- [ ] Persist pane layout across restart.
+- [ ] Keep file and terminal tab chrome aligned across all pane positions.
+- [ ] Add regression coverage for pane splitting, pane closure, reload, and terminal streaming.
 
-## P6 — Research harness
-- [ ] Workcell model
-- [ ] Bounded run supervision
-- [ ] `autoresearch-macos` integration
-- [ ] CLI-first operator commands for workcells, agents, datasets, and evals
-- [ ] Exo-memory/QMD system research workcell
+## Next: Project Roots And Code Review
 
-## P7 — Training flywheel
-- [ ] Objective definitions
-- [ ] Dataset selectors
-- [ ] Eval suites
-- [ ] Operator decisions as labels
-- [ ] Retrieval/ranking/quirk helper-model training
+- [ ] Keep project imports explicit; do not auto-load every workspace project folder.
+- [ ] Add CLI/MCP commands to list attached project roots.
+- [ ] Add CLI/MCP commands to add and remove attached project roots.
+- [ ] Add a changed-files view for agent-authored project edits.
+- [ ] Link terminal-agent sessions/messages to files they changed when Exo can observe the relationship.
+- [ ] Add code-review affordances for jumping from an agent session to a changed file and line.
+- [ ] Track external file changes without resetting editor scroll or causing flicker.
+
+## Next: Agent Context And Config Management
+
+- [ ] Add a first-class agent config manager.
+- [ ] Let users inspect and edit global and selected local `AGENTS.md` / `CLAUDE.md` files from Exo.
+- [ ] Let users choose which attached roots receive local agent context files.
+- [ ] Compare global vs local agent context files.
+- [ ] Surface conflicting or duplicated instructions.
+- [ ] Offer Exo-recommended snippets that explain Exo CLI/MCP tools to terminal agents.
+- [ ] Keep Exo-generated runtime overlays under `.exo/instructions/` separate from user-authored context files.
+
+## Next: Authorship And Provenance
+
+- [ ] Track writes made through Exo-managed terminal agents.
+- [ ] Record source agent, session id, task/objective, timestamp, and target file for observable writes.
+- [ ] Distinguish human-authored and agent-authored note/code changes in the UI.
+- [ ] Explore block-level or line-level provenance only where Exo can track it reliably.
+- [ ] Avoid AI-detector-style inference; provenance should come from observed writes and controlled workflows.
+
+## Next: QMD, Notes Index, And Search
+
+- [ ] Keep current app search fast and stable until QMD-backed search is explicitly designed.
+- [ ] Package or vendor the QMD setup Exo needs so first-time users do not have to understand QMD separately.
+- [ ] Detect an existing QMD setup and connect it when it already indexes the selected notes.
+- [ ] Add Exo-managed QMD setup for selected note roots only.
+- [ ] Configure indexed note roots, reindex triggers, and reindex frequency from Exo settings.
+- [ ] Add machine-size/performance profiles:
+  - small: low-compute fallback using filename/path and lightweight lexical search
+  - medium: local semantic index with conservative caps
+  - large: richer semantic retrieval and reranking
+- [ ] Expose the same notes index to humans and agents through Exo search, CLI, and MCP.
+- [ ] Keep project files out of the notes memory index unless explicitly added later.
+
+## Next: Multi-Agent Coordination
+
+- [ ] Add an agent roster with names, types, current cwd, status, objective, and active task.
+- [ ] Let users assign or edit agent names, roles, and objectives.
+- [ ] Add direct message sending between Exo-managed terminal agents.
+- [ ] Build first Exo-native communication transport:
+  - append-only file messages
+  - SQLite index for reads, search, and replay
+  - CLI and MCP access
+- [ ] Add communication logs and audit trail UI.
+- [ ] Support routing messages through MCP and filesystem-backed channels.
+- [ ] Keep terminal agents as the first integration point; add richer direct transports later.
+
+## Later: Graph, Memory, Workcells, Training
+
+- [ ] Add graph/memory view combining backlinks, Markdown links, note structure, and QMD-derived relationships.
+- [ ] Add scoped graph views by note root, project root, task, or agent session.
+- [ ] Add durable memory, trace archive, retrieval/index, and working-memory assembly as separate layers.
+- [ ] Support adding non-Claude/non-Codex terminal agents, including local/open-source agents.
+- [ ] Add workcell model for bounded research/development loops.
+- [ ] Add supervised run surfaces with artifacts, metrics, logs, and replay.
+- [ ] Add eval hooks for retrieval quality, memory usefulness, agent recovery, and operator acceptance.
+- [ ] Keep training data explicitly scoped by project, workcell, agent, artifact type, review status, and time window.
+- [ ] Explore local-agent training workflows once Exo has stable workcells, memory, and evals.
+
+## Later: Plugin Architecture
+
+- [ ] Define plugin manifest shape and version policy.
+- [ ] Define plugin install/load locations.
+- [ ] Define safe renderer panel extension points.
+- [ ] Define command registration API.
+- [ ] Define settings API for plugin-owned state.
+- [ ] Decide whether plugins can add MCP tools or CLI commands.
+- [ ] Decide whether the current branch-family file convention remains core or moves behind a plugin boundary.
+- [ ] Keep optional personal/domain workflows out of core until the plugin boundary exists.
+
+## Developer Harness
+
+- [ ] Add deterministic formatting/lint.
+- [ ] Add structural rules for renderer/main/core boundaries.
+- [ ] Add docs link/path checks for README, AGENTS, and docs indexes.
+- [ ] Add renderer crash regression probes for blank-window failures.
+- [ ] Add golden/snapshot coverage for stable Markdown rendering, terminal hydration, and search output.

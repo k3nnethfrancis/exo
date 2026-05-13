@@ -9,6 +9,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Pencil,
+  Search,
   Settings,
   SquareTerminal,
   SunMedium,
@@ -77,6 +78,7 @@ export function FileTree(props: FileTreeProps) {
   const [contextTarget, setContextTarget] = useState<ContextTarget | null>(null);
   const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null);
   const [projectRootsExpanded, setProjectRootsExpanded] = useState(false);
+  const [explorerMode, setExplorerMode] = useState<"files" | "search">("files");
   const panesRef = useRef<HTMLDivElement | null>(null);
 
   const defaultExpandedPaths = useMemo(() => {
@@ -153,6 +155,7 @@ export function FileTree(props: FileTreeProps) {
   const appearanceIcon = appearanceMode === "system" ? Monitor : appearanceMode === "light" ? SunMedium : MoonStar;
   const AppearanceIcon = appearanceIcon;
   const sidebarStyle = { "--exo-explorer-scale": explorerScale } as CSSProperties;
+  const primaryNoteRoot = noteRoots[0]?.path ?? null;
 
   function renderRail() {
     return (
@@ -199,7 +202,47 @@ export function FileTree(props: FileTreeProps) {
       {renderRail()}
 
       <div className="sidebar__main">
+        <div className="sidebar__toolbar" aria-label="Explorer actions">
+          <button
+            className="sidebar__toolbar-button"
+            disabled={!primaryNoteRoot}
+            data-testid="sidebar-new-note"
+            onClick={() => primaryNoteRoot && onCreateFile(primaryNoteRoot)}
+            title="New note"
+            type="button"
+          >
+            <FilePlus2 size={14} />
+          </button>
+          <button
+            className="sidebar__toolbar-button"
+            disabled={!primaryNoteRoot}
+            data-testid="sidebar-new-folder"
+            onClick={() => primaryNoteRoot && onCreateDirectory(primaryNoteRoot)}
+            title="New folder"
+            type="button"
+          >
+            <FolderPlus size={14} />
+          </button>
+          <button
+            className={`sidebar__toolbar-button ${explorerMode === "search" ? "sidebar__toolbar-button--active" : ""}`}
+            data-testid="sidebar-search-toggle"
+            onClick={() => setExplorerMode((current) => (current === "search" ? "files" : "search"))}
+            title={explorerMode === "search" ? "Show files" : "Search notes"}
+            type="button"
+          >
+            <Search size={14} />
+          </button>
+        </div>
         <div ref={panesRef} className="sidebar__panes">
+          {explorerMode === "search" ? (
+            <SidebarSearchPane
+              query={props.searchQuery}
+              results={props.searchResults.notes}
+              onQueryChange={props.onSearchQueryChange}
+              onOpenFile={onOpenFile}
+            />
+          ) : (
+          <>
           <div className="sidebar__content sidebar__content--notes">
             <Section
               label="Notes"
@@ -237,8 +280,11 @@ export function FileTree(props: FileTreeProps) {
               dragManager={dragManager}
               onContextMenu={openContextMenu}
               showHeader={false}
+              alwaysShowRoots
             />
           </SidebarDrawer>
+          </>
+          )}
         </div>
       </div>
 
@@ -330,5 +376,53 @@ export function FileTree(props: FileTreeProps) {
         </>
       ) : null}
     </aside>
+  );
+}
+
+function SidebarSearchPane({
+  query,
+  results,
+  onQueryChange,
+  onOpenFile,
+}: {
+  query: string;
+  results: Array<{ filePath: string; title: string; snippet: string }>;
+  onQueryChange: (value: string) => void;
+  onOpenFile: (filePath: string) => void;
+}) {
+  return (
+    <div className="sidebar-search" data-testid="sidebar-search-pane">
+      <label className="sidebar-search__input-wrap">
+        <Search size={14} />
+        <input
+          autoFocus
+          data-testid="sidebar-search-input"
+          value={query}
+          onChange={(event) => onQueryChange(event.target.value)}
+          placeholder="Search notes"
+        />
+      </label>
+      <div className="sidebar-search__summary">
+        {query.trim() ? `${results.length.toLocaleString()} result${results.length === 1 ? "" : "s"}` : "Type to search note titles"}
+      </div>
+      <div className="sidebar-search__results">
+        {results.map((result) => (
+          <button
+            key={result.filePath}
+            className="sidebar-search-result"
+            onClick={() => onOpenFile(result.filePath)}
+            title={result.filePath}
+            type="button"
+          >
+            <span className="sidebar-search-result__title">{result.title}</span>
+            <span className="sidebar-search-result__snippet">{result.snippet || result.filePath}</span>
+            <span className="sidebar-search-result__preview" aria-hidden>
+              <strong>{result.title}</strong>
+              <span>{result.snippet || result.filePath}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }

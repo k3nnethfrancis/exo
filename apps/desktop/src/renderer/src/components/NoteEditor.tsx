@@ -4,9 +4,10 @@ import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { autocompletion, type CompletionContext } from "@codemirror/autocomplete";
 import { indentWithTab } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
-import { bracketMatching, foldGutter } from "@codemirror/language";
+import { bracketMatching, foldGutter, HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { lintGutter, lintKeymap } from "@codemirror/lint";
 import { keymap, lineNumbers, EditorView } from "@codemirror/view";
+import { tags } from "@lezer/highlight";
 import { Code2, GitBranch, SlidersHorizontal } from "lucide-react";
 import type { BranchFamily, NoteDocument } from "@exo/core";
 import type { ResolvedAppearance } from "../App";
@@ -83,6 +84,7 @@ export function NoteEditor(props: NoteEditorProps) {
   const codeLanguage = useMemo(() => (isMarkdown ? null : codeLanguageForPath(document.filePath)), [document.filePath, isMarkdown]);
   const frontmatterEntries = Object.entries(document.frontmatter).filter(([key]) => !key.startsWith("branch_"));
   const cmTheme = useMemo(() => editorTheme(appearance, fontSize), [appearance, fontSize]);
+  const syntaxTheme = useMemo(() => syntaxHighlighting(exoSyntaxHighlightStyle(appearance)), [appearance]);
   const saveKeymap = useMemo(
     () =>
       keymap.of([
@@ -343,6 +345,7 @@ export function NoteEditor(props: NoteEditorProps) {
                       ]
                     : []),
                   cmTheme,
+                  syntaxTheme,
                 ]
               : [
                   lineNumbers(),
@@ -352,6 +355,7 @@ export function NoteEditor(props: NoteEditorProps) {
                   saveKeymap,
                   ...(codeLanguage?.extensions ?? []),
                   cmTheme,
+                  syntaxTheme,
                 ]
           }
           basicSetup={{
@@ -365,6 +369,57 @@ export function NoteEditor(props: NoteEditorProps) {
 
     </section>
   );
+}
+
+function exoSyntaxHighlightStyle(appearance: ResolvedAppearance): HighlightStyle {
+  const color =
+    appearance === "dark"
+      ? {
+          keyword: "#b78dd6",
+          atom: "#d7a86f",
+          string: "#d99782",
+          number: "#d2b06a",
+          variable: "#ded7ca",
+          functionName: "#8fb8d8",
+          definition: "#a7c7e7",
+          property: "#91c7bc",
+          operator: "#b5aaa0",
+          comment: "#8d8580",
+          punctuation: "#aaa39a",
+          invalid: "#f2a19a",
+          meta: "#9f98cf",
+        }
+      : {
+          keyword: "#7c4d9f",
+          atom: "#a8662d",
+          string: "#a85d4d",
+          number: "#8b6f21",
+          variable: "#4e463e",
+          functionName: "#2b6f9f",
+          definition: "#356c9c",
+          property: "#34756b",
+          operator: "#6d6258",
+          comment: "#82766a",
+          punctuation: "#6e6258",
+          invalid: "#a3483e",
+          meta: "#6659a6",
+        };
+
+  return HighlightStyle.define([
+    { tag: tags.keyword, color: color.keyword },
+    { tag: [tags.atom, tags.bool, tags.null], color: color.atom },
+    { tag: [tags.string, tags.special(tags.string), tags.regexp], color: color.string },
+    { tag: [tags.number, tags.integer, tags.float], color: color.number },
+    { tag: [tags.variableName, tags.self, tags.standard(tags.variableName)], color: color.variable },
+    { tag: [tags.function(tags.variableName), tags.function(tags.propertyName), tags.labelName], color: color.functionName },
+    { tag: [tags.definition(tags.variableName), tags.definition(tags.propertyName), tags.className], color: color.definition },
+    { tag: [tags.propertyName, tags.attributeName, tags.tagName], color: color.property },
+    { tag: [tags.operator, tags.compareOperator, tags.logicOperator, tags.arithmeticOperator], color: color.operator },
+    { tag: [tags.comment, tags.lineComment, tags.blockComment], color: color.comment, fontStyle: "italic" },
+    { tag: [tags.punctuation, tags.separator, tags.bracket, tags.paren, tags.squareBracket, tags.brace], color: color.punctuation },
+    { tag: [tags.meta, tags.processingInstruction, tags.moduleKeyword], color: color.meta },
+    { tag: tags.invalid, color: color.invalid },
+  ]);
 }
 
 function editorTheme(appearance: ResolvedAppearance, fontSize: number) {

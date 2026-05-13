@@ -4,6 +4,22 @@ Exposes the running Exo app as an MCP server.
 
 ## Configure
 
+Recommended setup:
+
+```bash
+bin/exo integrations doctor
+bin/exo integrations install all
+```
+
+This installs Exo MCP into supported local agent clients through their native CLIs:
+
+- Codex: `codex mcp add ...`
+- Claude Code: `claude mcp add --transport stdio --scope user ...`
+
+Use `bin/exo integrations install --dry-run all` or `bin/exo integrations config codex|claude` to inspect the exact commands before changing local MCP config.
+
+Manual config shape:
+
 ```json
 {
   "mcpServers": {
@@ -36,12 +52,12 @@ Without autostart, Exo must already be running so the MCP server can discover `.
 
 ## Tools
 
-- `list_agents` — list live Exo agent terminals.
+- `list_agents` — list live Exo terminal agents.
 - `create_agent` — create a new shell, Claude, or Codex terminal.
 - `read_agent` — read buffered terminal output. ANSI cleanup is enabled by default.
 - `send_agent_message` — send text to a live agent. `submit` defaults to `true`, so the message is submitted with Enter unless explicitly disabled.
 - `interrupt_agent` — send Escape or Ctrl-C to a live agent.
-- `terminate_agent` — terminate an Exo terminal. For agent terminals this also kills the backing tmux session.
+- `terminate_agent` — terminate an Exo terminal. For terminal agents this also kills the backing tmux session.
 
 ## CLI Mirror
 

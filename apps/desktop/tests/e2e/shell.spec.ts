@@ -96,8 +96,9 @@ test("opens project files and creates note branches", async () => {
   await expect(page.getByTestId("editor-title")).toHaveText("demo.ts");
   await expect(page.getByTestId("properties-panel")).toContainText("Project file");
 
-  await page.getByTestId("workspace-search").fill("focus-note");
-  await page.getByTestId("search-results").getByRole("button", { name: /focus-note/i }).first().click();
+  await page.getByTestId("sidebar-search-toggle").click();
+  await page.getByTestId("sidebar-search-input").fill("focus-note");
+  await page.getByTestId("sidebar-search-pane").getByRole("button", { name: /focus-note/i }).first().click();
   await page.getByTestId("sidebar").getByRole("button", { name: "focus-note" }).click();
   await page.getByTestId("branch-selector").selectOption("__create__");
   await expect(page.getByTestId("branch-selector")).toHaveValue(/-looms\/1\.md$/);
@@ -223,7 +224,7 @@ test("opens workspace settings from the sidebar", async () => {
 
   await page.getByTestId("workspace-settings").click();
   await expect(page.getByTestId("workspace-settings-dialog")).toBeVisible();
-  await expect(page.getByTestId("workspace-settings-note-roots")).toContainText("shoshin-codex");
+  await expect(page.getByTestId("workspace-settings-note-roots")).toContainText("vault");
 
   await cleanup();
 });
@@ -234,11 +235,10 @@ test("collapses and reopens the workspace rail", async () => {
   await page.getByTestId("sidebar-collapse").click();
   await expect(page.getByTestId("sidebar-expand")).toBeVisible();
   await expect(page.getByTestId("sidebar").getByRole("button", { name: "focus-note" })).toHaveCount(0);
-  await expect(page.getByTestId("workspace-search")).toBeVisible();
 
   await page.getByTestId("sidebar-expand").click();
   await expect(page.getByTestId("sidebar-collapse")).toBeVisible();
-  await expect(page.getByTestId("workspace-search")).toBeVisible();
+  await expect(page.getByTestId("sidebar-search-toggle")).toBeVisible();
 
   await cleanup();
 });
@@ -277,7 +277,7 @@ test("accepts terminal keyboard input in pane tree", async () => {
 test("keeps list guides aligned with the visible bullet lanes", async () => {
   const { page, cleanup } = await launchExoFixture({
     prepareWorkspace: async (workspaceRoot) => {
-      const notePath = path.join(workspaceRoot, "notes/shoshin-codex/focus-note.md");
+      const notePath = path.join(workspaceRoot, "notes/vault/focus-note.md");
       await writeFile(
         notePath,
         `---\ntitle: Focus Note\n---\n\n# Probe\n\n- top item\n  - child item\n    - grandchild item\n  - sibling child\n    continuation line\n`,
@@ -361,7 +361,7 @@ test("keeps the inspector pinned while long notes scroll", async () => {
   const longDocument = Array.from({ length: 120 }, (_, index) => `- line ${index + 1}`).join("\n");
   const longFixture = await launchExoFixture({
     prepareWorkspace: async (workspaceRoot) => {
-      const notePath = path.join(workspaceRoot, "notes/shoshin-codex/focus-note.md");
+      const notePath = path.join(workspaceRoot, "notes/vault/focus-note.md");
       await writeFile(
         notePath,
         `---\ntitle: Focus Note\n---\n\n# Long note\n\n${longDocument}\n`,

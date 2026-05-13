@@ -5,6 +5,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
+  EXO_MCP_INTEGRATION_CLIENTS,
+  buildExoMcpIntegrationSpec,
+  formatMcpServerJson,
+  formatShellCommand,
+  parseMcpListOutput,
   createBranchFile,
   getBranchFamily,
   readWorkspaceDocument,
@@ -17,9 +22,22 @@ import {
   searchWorkspace,
   syncRuntimeContextFiles,
   type ManagedAgentKind,
+  type ExoMcpIntegrationClient,
 } from "@exo/core";
 
 import { AppClient } from "./app-client";
+
+interface CommandRunResult {
+  code: number;
+  stdout: string;
+  stderr: string;
+}
+
+type CommandRunner = (
+  command: string,
+  args: string[],
+  options?: { cwd?: string; env?: NodeJS.ProcessEnv },
+) => Promise<CommandRunResult>;
 
 export async function runCli(
   argv: string[],
@@ -29,6 +47,7 @@ export async function runCli(
     stdout?: { write: (text: string) => void };
     stderr?: { write: (text: string) => void };
     cwd?: string;
+    runCommand?: CommandRunner;
   } = {},
 ): Promise<number> {
   const env = options.env ?? process.env;
@@ -36,6 +55,7 @@ export async function runCli(
   const stdout = options.stdout ?? process.stdout;
   const stderr = options.stderr ?? process.stderr;
   const cwd = options.cwd ?? process.cwd();
+  const runCommand = options.runCommand ?? runProcess;
 
   const [, , command, subcommand, ...args] = argv;
 
@@ -58,6 +78,107 @@ export async function runCli(
     const fast = await searchWorkspace(model, query);
     stdout.write(`${JSON.stringify(fast, null, 2)}\n`);
     return 0;
+  }
+
+  // ─── Local agent integrations ───────────────────────────────────────
+
+  if (command === "integrations") {
+    const exoRoot = resolveExoRoot(env);
+    const workspaceRoot = resolveRuntimeConfig(env).workspace.workspaceRoot;
+    const targets = parseIntegrationTargets(args);
+
+    if (subcommand === "doctor" || !subcommand) {
+      const statuses = await Promise.all(
+        EXO_MCP_INTEGRATION_CLIENTS.map((client) => getIntegrationStatus(client, { exoRoot, workspaceRoot }, runCommand, env)),
+      );
+      const pnpm = await detectExecutable("pnpm", runCommand, env);
+      stdout.write(formatIntegrationDoctor({ exoRoot, workspaceRoot, pnpmFound: pnpm.found, statuses }));
+      return 0;
+    }
+
+    if (subcommand === "config") {
+      const clients = targets.clients;
+      if (clients.length === 0) {
+        throw new Error("Usage: exo integrations config <codex|claude|all>");
+      }
+
+      stdout.write(
+        clients
+          .map((client) => {
+            const spec = buildExoMcpIntegrationSpec(client, { exoRoot, workspaceRoot });
+            return [
+              `# ${client}`,
+              `Install command:`,
+              spec.installDisplay,
+              "",
+              `MCP JSON:`,
+              formatMcpServerJson(spec.server),
+            ].join("\n");
+          })
+          .join("\n\n"),
+      );
+      stdout.write("\n");
+      return 0;
+    }
+
+    if (subcommand === "test") {
+      const clients = targets.clients;
+      if (clients.length === 0) {
+        throw new Error("Usage: exo integrations test <codex|claude|all>");
+      }
+
+      const statuses = await Promise.all(
+        clients.map((client) => getIntegrationStatus(client, { exoRoot, workspaceRoot }, runCommand, env)),
+      );
+      stdout.write(formatIntegrationTest(statuses));
+      return statuses.every((status) => status.installed && status.configured) ? 0 : 1;
+    }
+
+    if (subcommand === "install") {
+      const clients = targets.clients;
+      if (clients.length === 0) {
+        throw new Error("Usage: exo integrations install <codex|claude|all> [--dry-run]");
+      }
+
+      const results: string[] = [];
+      let ok = true;
+      for (const client of clients) {
+        const spec = buildExoMcpIntegrationSpec(client, { exoRoot, workspaceRoot });
+
+        if (targets.dryRun) {
+          results.push(`[dry-run] ${spec.installDisplay}`);
+          continue;
+        }
+
+        const status = await getIntegrationStatus(client, { exoRoot, workspaceRoot }, runCommand, env);
+        if (!status.installed) {
+          ok = false;
+          results.push(`${client}: missing CLI. Install ${client} first, then run:\n${spec.installDisplay}`);
+          continue;
+        }
+
+        if (status.configured) {
+          results.push(`${client}: Exo MCP is already configured.`);
+          continue;
+        }
+
+        const install = await runCommand(spec.installCommand, spec.installArgs, { env });
+        if (install.code === 0) {
+          results.push(`${client}: installed Exo MCP. Restart existing ${client} sessions or refresh MCP tools where supported.`);
+        } else {
+          ok = false;
+          results.push(`${client}: install failed.\n${install.stderr || install.stdout || `exit code ${install.code}`}`);
+        }
+      }
+
+      stdout.write(`${results.join("\n\n")}\n`);
+      return ok ? 0 : 1;
+    }
+
+    stderr.write(
+      "Usage: exo integrations [doctor | config <codex|claude|all> | install <codex|claude|all> [--dry-run] | test <codex|claude|all>]\n",
+    );
+    return 1;
   }
 
   // ─── App commands (require running desktop app) ──────────────────────
@@ -426,6 +547,10 @@ export async function runCli(
       "  exo notes read <path>",
       "  exo notes branch-create <path>",
       "  exo notes branch-view <path>",
+      "  exo integrations doctor",
+      "  exo integrations config <codex|claude|all>",
+      "  exo integrations install <codex|claude|all> [--dry-run]",
+      "  exo integrations test <codex|claude|all>",
       "  exo runtime status",
       "  exo runtime context <shell|claude|codex>",
       "  exo runtime launch-plan <shell|claude|codex> [cwd]",
@@ -540,6 +665,158 @@ function stripAnsi(input: string): string {
     .replace(/\x1b[\[\]()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><~]/g, "")
     .replace(/\r\n/g, "\n")
     .replace(/\r/g, "\n");
+}
+
+interface IntegrationStatus {
+  client: ExoMcpIntegrationClient;
+  installed: boolean;
+  executable?: string;
+  configured: boolean;
+  matchedLine?: string;
+  error?: string;
+}
+
+function parseIntegrationTargets(args: string[]): { clients: ExoMcpIntegrationClient[]; dryRun: boolean } {
+  const dryRun = args.includes("--dry-run");
+  const target = args.find((arg) => arg !== "--dry-run");
+  if (!target) {
+    return { clients: [], dryRun };
+  }
+  if (target === "all") {
+    return { clients: EXO_MCP_INTEGRATION_CLIENTS, dryRun };
+  }
+  if (target === "codex" || target === "claude") {
+    return { clients: [target], dryRun };
+  }
+
+  throw new Error("Expected one of: codex, claude, all.");
+}
+
+async function getIntegrationStatus(
+  client: ExoMcpIntegrationClient,
+  config: { exoRoot: string; workspaceRoot: string },
+  runCommand: CommandRunner,
+  env: NodeJS.ProcessEnv,
+): Promise<IntegrationStatus> {
+  const executable = await detectExecutable(client, runCommand, env);
+  if (!executable.found) {
+    return {
+      client,
+      installed: false,
+      configured: false,
+      error: executable.error,
+    };
+  }
+
+  const list = await runCommand(client, ["mcp", "list"], { env });
+  if (list.code !== 0) {
+    return {
+      client,
+      installed: true,
+      executable: executable.path,
+      configured: false,
+      error: list.stderr || list.stdout || `mcp list exited with ${list.code}`,
+    };
+  }
+
+  const spec = buildExoMcpIntegrationSpec(client, config);
+  const parsed = parseMcpListOutput(list.stdout, spec.server.serverName);
+  return {
+    client,
+    installed: true,
+    executable: executable.path,
+    configured: parsed.configured,
+    matchedLine: parsed.matchedLine,
+  };
+}
+
+async function detectExecutable(
+  command: string,
+  runCommand: CommandRunner,
+  env: NodeJS.ProcessEnv,
+): Promise<{ found: boolean; path?: string; error?: string }> {
+  const result = await runCommand("/bin/sh", ["-lc", `command -v ${formatShellCommand([command])}`], { env });
+  if (result.code !== 0) {
+    return {
+      found: false,
+      error: result.stderr || result.stdout || `${command} not found on PATH`,
+    };
+  }
+
+  return {
+    found: true,
+    path: result.stdout.trim(),
+  };
+}
+
+function formatIntegrationDoctor(input: {
+  exoRoot: string;
+  workspaceRoot: string;
+  pnpmFound: boolean;
+  statuses: IntegrationStatus[];
+}): string {
+  return [
+    "Exo integrations doctor",
+    `- exo root: ${input.exoRoot}`,
+    `- workspace root: ${input.workspaceRoot}`,
+    `- pnpm: ${input.pnpmFound ? "found" : "missing"}`,
+    ...input.statuses.map((status) => {
+      const installState = status.installed ? `found${status.executable ? ` (${status.executable})` : ""}` : "missing";
+      const configState = status.configured ? "configured" : "not configured";
+      const detail = status.error && !status.configured ? `; ${status.error.trim()}` : "";
+      return `- ${status.client}: ${installState}; Exo MCP ${configState}${detail}`;
+    }),
+    "",
+  ].join("\n");
+}
+
+function formatIntegrationTest(statuses: IntegrationStatus[]): string {
+  return [
+    ...statuses.map((status) => {
+      if (!status.installed) {
+        return `${status.client}: missing CLI`;
+      }
+      if (!status.configured) {
+        return `${status.client}: Exo MCP not configured${status.error ? ` (${status.error.trim()})` : ""}`;
+      }
+      return `${status.client}: Exo MCP configured${status.matchedLine ? ` (${status.matchedLine})` : ""}`;
+    }),
+    "",
+  ].join("\n");
+}
+
+function resolveExoRoot(env: NodeJS.ProcessEnv): string {
+  return env.EXO_PROJECT_ROOT ?? path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
+}
+
+function runProcess(
+  command: string,
+  args: string[],
+  options: { cwd?: string; env?: NodeJS.ProcessEnv } = {},
+): Promise<CommandRunResult> {
+  const child = spawn(command, args, {
+    cwd: options.cwd,
+    env: { ...process.env, ...options.env },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  let stdout = "";
+  let stderr = "";
+  child.stdout?.on("data", (chunk) => {
+    stdout += String(chunk);
+  });
+  child.stderr?.on("data", (chunk) => {
+    stderr += String(chunk);
+  });
+
+  return new Promise((resolve) => {
+    child.on("error", (error) => {
+      resolve({ code: 127, stdout, stderr: stderr || error.message });
+    });
+    child.on("exit", (code, signal) => {
+      resolve({ code: signal ? 1 : (code ?? 0), stdout, stderr });
+    });
+  });
 }
 
 async function main() {

@@ -1433,18 +1433,12 @@ export function App() {
       appearanceMode={appearanceMode}
       resolvedAppearance={resolvedAppearance}
       searchQuery={workspaceSearch.query}
-      searchSubmittedQuery={workspaceSearch.submittedQuery}
       searchResults={workspaceSearch.results}
       statusLine={{
         workspaceLabel: workspaceModel ? pathLabel(workspaceModel.workspaceRoot) : "workspace",
         projectLabel: workspaceModel?.projectRoots[0] ? pathLabel(workspaceModel.projectRoots[0].path) : null,
         gitBranch: workspaceGitStatus?.branch ?? null,
         gitDirty: workspaceGitStatus?.dirty ?? false,
-      }}
-      onSearchSubmit={() => workspaceSearch.setSubmittedQuery(workspaceSearch.query.trim())}
-      onSearchClear={() => {
-        workspaceSearch.setQuery("");
-        workspaceSearch.setSubmittedQuery("");
       }}
       shellLayout={shellLayout}
       renderEditorLeaf={(leaf, isFocused) => {

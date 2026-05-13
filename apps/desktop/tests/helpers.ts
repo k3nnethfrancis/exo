@@ -36,7 +36,7 @@ export async function launchExoFixture(options?: {
       ...process.env,
       EXO_TEST: "1",
       EXO_WORKSPACE_ROOT: workspaceRoot,
-      EXO_NOTE_ROOTS: path.join(workspaceRoot, "notes/shoshin-codex"),
+      EXO_NOTE_ROOTS: path.join(workspaceRoot, "notes/vault"),
       EXO_PROJECT_ROOTS: path.join(workspaceRoot, "projects/exo-demo"),
       EXO_DEFAULT_TERMINAL_CWD: workspaceRoot,
       EXO_SETTINGS_PATH: settingsPath,

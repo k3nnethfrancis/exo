@@ -1,127 +1,86 @@
-# Exo
+# Exo Agent Map
 
-Exo is a workspace-centric research IDE, not a single-vault editor.
+Exo is a local-first agentic development environment built around a shared exocortex for humans and terminal agents. Treat this file as the concise map; use the linked docs for detail.
 
-## Read Order
+## Start Here
 
-1. `ledger.md`
-2. `plan.md`
-3. `docs/tasks.md`
-4. `docs/architecture.md`
-5. `docs/roadmap.md`
-6. `docs/resources.md`
-7. `packages/mcp/README.md` when touching agent/MCP control
+1. `README.md` - onboarding, current product surface, commands
+2. `docs/README.md` - committed docs map
+3. `docs/strategy.md` - product direction and system model
+4. `ledger.md` - fastest current-state handoff
+5. `docs/architecture.md` - runtime and package boundaries
+6. `docs/harness.md` - gates, work chunks, agent workflow
+7. `docs/tasks.md` - active execution tracker
+8. `docs/roadmap.md` - future plans
+9. `docs/plugins.md` - future extension model
+10. `packages/mcp/README.md` - MCP setup and tool contract
+
+## Repository Map
+
+- `apps/desktop` - Electron main/preload/renderer, settings, terminal supervision, command server.
+- `packages/core` - workspace model, notes/projects, runtime launch plans, shared command protocol, QMD adapter, integrations.
+- `packages/cli` - `bin/exo` CLI.
+- `packages/mcp` - stdio MCP server for local agents.
+- `scripts` - launch/build helpers.
+- `.github/workflows` - CI and macOS packaging workflows.
+
+## Canonical Harness
+
+Run the full local gate before handoff when the change is broad:
+
+```bash
+pnpm check
+```
+
+Focused gates:
+
+```bash
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm --filter @exo/desktop typecheck
+pnpm --filter @exo/desktop test
+pnpm --filter @exo/cli typecheck && pnpm --filter @exo/cli test
+pnpm --filter @exo/core test
+pnpm --filter @exo/mcp typecheck && pnpm --filter @exo/mcp test
+pnpm test:e2e
+```
+
+CI runs `pnpm check` on macOS.
 
 ## Dev Loop
 
-- Keep the Exo dev server running while working on the app.
-- Start it with `pnpm dev`; use `pnpm --filter @exo/desktop dev -- --remote-debugging-port=9222` when renderer inspection is needed.
-- Kenneth often reports bugs live while using the app. Treat those as immediate priority.
-- Restart Exo after changes that touch Electron main, preload, native terminal handling, runtime config, or package dependencies. HMR is only enough for pure renderer changes.
-- The real Electron renderer must be inspected through CDP on port `9222`; a normal browser at `localhost:5173` does not have `window.exo`.
+- Start Exo with `pnpm dev`.
+- Use `pnpm --filter @exo/desktop dev -- --remote-debugging-port=9222` for renderer inspection.
+- Restart Exo after touching Electron main, preload, native terminal handling, runtime config, package dependencies, or settings bootstrap.
+- HMR is usually enough only for pure renderer changes.
+- Inspect the real Electron renderer through CDP on port `9222`; `localhost:5173` lacks `window.exo`.
 
-## Commands
+## Runtime Rules
 
-- Start server: `pnpm dev`
-- Typecheck all: `pnpm typecheck`
-- Test all: `pnpm test`
-- Desktop typecheck: `pnpm --filter @exo/desktop typecheck`
-- Desktop unit test: `pnpm --filter @exo/desktop test`
-- CLI typecheck: `pnpm --filter @exo/cli typecheck`
-- MCP typecheck/test: `pnpm --filter @exo/mcp typecheck && pnpm --filter @exo/mcp test`
-- E2E: `npx playwright test -c apps/desktop/playwright.config.ts apps/desktop/tests/e2e/shell.spec.ts`
-- Build: `pnpm build`
-- Run built app: `node scripts/run-built-app.mjs`
-
-## Current Architecture
-
-- Renderer never touches filesystem or processes directly. It uses `window.exo` from preload.
-- Electron main owns workspace filesystem operations, note parsing/saving, terminal lifecycle, tmux persistence, and the command server.
-- `packages/core` owns workspace/runtime models, search, notes, branch families, QMD adapters, and launch plans.
-- `packages/core/src/command-protocol.ts` owns the command-server route constants/types shared by desktop, CLI, and MCP.
-- `packages/cli` owns the `bin/exo` command surface.
-- `packages/mcp` wraps the running Exo command server as MCP tools for local agents.
-- The main-process command server writes `.exo/server.json`; CLI/MCP discover the running app from that file.
-
-## Terminal And Agent Model
-
-- Shell, Claude, and Codex terminals are Exo-managed `node-pty` sessions.
-- Claude/Codex agent terminals are launched inside tmux sessions named `exo-agent-*` so they can survive Exo restarts.
-- Closing/killing a terminal through Exo now terminates the backing tmux session for agent terminals; do not reintroduce detached zombie agent sessions.
-- The terminal manager stores a bounded output buffer (`12_000` chars) for renderer reload hydration.
-- Full terminal history is persisted under `.exo/terminal-transcripts/`; the live buffer is only the renderer/reload tail.
-- Transcript retention defaults: 14 days, 500MB total, 50MB per file. Override with `EXO_TERMINAL_TRANSCRIPT_RETENTION_DAYS`, `EXO_TERMINAL_TRANSCRIPT_MAX_TOTAL_MB`, and `EXO_TERMINAL_TRANSCRIPT_MAX_FILE_MB`.
-- The renderer only keeps active terminal buffers hot; hidden sessions should not force React updates on every chunk.
-- Terminal wheel events must never reach Claude/Codex as mouse/history input. `TerminalView` captures wheel events, and the main terminal manager strips mouse-tracking escape modes before xterm sees them.
-- File/image drops into terminals are resolved in preload with Electron `webUtils.getPathForFile`.
-
-## CLI / MCP Contract
-
-The CLI and MCP are peer clients into Exo's local command server.
-
-CLI app commands:
-- `exo open <path>`
-- `exo status`
-- `exo config get [key]`
-- `exo terminals list`
-- `exo terminals create <shell|claude|codex> [cwd]`
-- `exo terminals read <id>`
-- `exo terminals transcript <id> [--tail n] [--full]`
-- `exo terminals write <id> <text>`
-- `exo terminals send <id> <text>`
-- `exo terminals kill <id>`
-- `exo agents list`
-- `exo agents create <shell|claude|codex> [cwd]`
-- `exo agents read <id> [--tail n] [--raw]`
-- `exo agents send <id> <text>` sends the message and presses Enter by default
-- `exo agents message <id> <text>` / `exo agents tell <id> <text>` alias `agents send`
-- `exo agents send <id> <text> --raw` writes without pressing Enter
-- `exo agents interrupt <id> [escape|ctrl-c]`
-- `exo agents terminate <id>`
-
-MCP tools:
-- `list_agents`
-- `create_agent`
-- `read_agent`
-- `send_agent_message`
-- `interrupt_agent`
-- `terminate_agent`
-
-MCP autostart is supported with `EXO_MCP_AUTOSTART=1`. It starts Exo with `EXO_MCP_START_COMMAND` or defaults to this repo's `bin/exo dev`.
-
-## Editor Model
-
-- Markdown files use CodeMirror plus `markdownLivePreview.ts`.
-- Project/code files use the non-markdown editor mode in `NoteEditor.tsx`.
-- Code language support lives in `components/codeLanguages.ts`.
-- Current language support includes Python, JSON/JSONC, TOML, `.env`, YAML, JS/TS/TSX, HTML/CSS, and shell.
-- JSON parse linting is wired through CodeMirror's lint gutter; broader project-local linters should be added through adapters later, not hardcoded into the editor.
-- Project roots are explicit imported folders. Do not assume the whole workspace `projects/` directory is attached.
-- Dotfiles like `.env` are visible under imported project roots; dot directories such as `.git` remain hidden.
-
-## Stability Notes
-
-- Search is note filename/path search only. QMD stays in core as optional notes index / retrieval infrastructure for future agent memory, but it is intentionally not the current app or CLI search path.
-- Settings are backed by one JSON file at `$HOME/Library/Application Support/@exo/desktop/workspace-settings.json` unless `EXO_SETTINGS_PATH` overrides it.
-- Renderer crash logs are written by main to `$HOME/Library/Application Support/@exo/desktop/exo-main.log`.
-- Native Electron crash reports are under `$HOME/Library/Logs/DiagnosticReports/Electron-*.ips`.
-- Do not auto-reload on `render-process-gone`; a prior reload attempt hit an Electron native assertion. Log the crash and restart deliberately.
+- Renderer code must not touch filesystem or processes directly; use preload APIs backed by main-process services.
+- CLI and MCP are peer clients of the local command server discovered through `${workspace_root}/.exo/server.json`.
+- `packages/core/src/command-protocol.ts` owns shared command routes and payload shapes.
+- Claude/Codex terminals are tmux-backed `exo-agent-*` sessions; close/kill through Exo must terminate the backing tmux session.
+- Terminal live buffers are bounded; full transcripts live under `.exo/terminal-transcripts/` with retention.
+- Terminal scroll must stay local to xterm and must not become Claude/Codex history input.
 
 ## Product Rules
 
-- `workspace_root` is primary.
-- `note_roots` and `project_roots` are separate attachments.
-- Markdown-on-disk stays canonical.
-- Notebook mode is a projection.
-- Terminals are plain by default, with Claude/Codex as launcher commands.
+- `workspace_root` is primary; `note_roots` and `project_roots` are explicit attachments.
+- Markdown-on-disk is canonical; notebook mode is a projection.
+- Project roots are imported folders, not every folder under workspace `projects/`.
+- App and CLI search are fast note filename/path search only.
+- QMD stays as notes index / retrieval infrastructure for future Exo-managed memory and unified human/agent search.
+- Future provenance work should track human vs agent-authored changes by source, session, and task.
+- Future project-root control should be exposed through CLI/MCP, not hidden renderer-only state.
+- Optional or personal workflows should go through the plugin architecture rather than becoming core by default.
 - CLI-first operator surfaces come before deep UI.
-- MCP is now the structured agent bridge into Exo, but should stay focused on Exo-native runtime/workcell capabilities.
-- Memory, workcells, datasets, and evals are separate system layers.
-- Every fragile UI behavior needs an automated harness.
+- Every fragile UI/runtime behavior needs an automated harness or a documented manual evidence path.
 
-## Validation Rule
+## Work Chunk Rules
 
-UI/runtime work is not complete until the relevant checks pass. For most recent Exo changes this means at least:
-- `pnpm --filter @exo/desktop typecheck`
-- `pnpm --filter @exo/desktop test`
-- plus CLI/MCP/core checks for touched packages
+- Keep changes small enough that a failed gate points to one cause.
+- Update docs in the same chunk when public commands, architecture, settings, runtime behavior, or agent workflow changes.
+- Record future work in `docs/tasks.md` or `docs/roadmap.md`; record shipped current state in `ledger.md`.
+- Do not include local secrets, private paths as source defaults, transcripts, logs, or `.exo/` runtime files.

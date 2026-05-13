@@ -1,12 +1,15 @@
 {
   "name": "exo",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.0-alpha.0",
+  "description": "Local-first agentic development environment built around a shared exocortex for humans and terminal agents.",
+  "license": "Apache-2.0",
   "packageManager": "pnpm@10.15.0",
   "scripts": {
     "dev": "pnpm --filter @exo/desktop dev",
     "exo": "tsx packages/cli/src/index.ts",
     "app": "pnpm build && node scripts/run-built-app.mjs",
+    "check": "pnpm typecheck && pnpm test && pnpm build",
     "build": "pnpm --filter @exo/desktop build && pnpm --filter @exo/cli build",
     "pack:mac": "pnpm build && electron-builder --projectDir apps/desktop --mac dir",
     "dist:mac": "pnpm build && electron-builder --projectDir apps/desktop --mac dmg zip",

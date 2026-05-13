@@ -1,14 +1,14 @@
 # Exo Architecture
 
-Last updated: 2026-05-11
+Last updated: 2026-05-12
 
-Exo is a workspace-centric research IDE. The current system is still a shell-first product, but the shell now has three live control surfaces over the same workspace runtime:
+Exo is a local-first agentic development environment built around a shared exocortex for humans and terminal agents. The current system is still shell-first, but it now has three live control surfaces over the same workspace runtime:
 
 - desktop app
 - `bin/exo` CLI
 - `@exo/mcp` bridge
 
-Memory, workcells, datasets, evals, and training are still future layers. The current runtime work is about making notes, code files, terminals, and terminal agents legible and controllable.
+Memory, workcells, datasets, evals, and training are still future layers. The current runtime work is about making Markdown notes, code files, terminals, and terminal agents legible and controllable inside one local workspace.
 
 ## Package Boundaries
 
@@ -17,7 +17,7 @@ Memory, workcells, datasets, evals, and training are still future layers. The cu
 - `packages/core`
   - Workspace config, note/project file discovery, markdown metadata, runtime launch plans, shared command protocol types, and retrieval/index adapters.
 - `packages/cli`
-  - CLI commands for runtime status, launch plans, app search/open/config, and terminal operations against a running Exo app.
+  - CLI commands for runtime status, launch plans, app search/open/config, terminal operations against a running Exo app, and local MCP client integration setup.
 - `packages/mcp`
   - MCP server that exposes the running Exo app to external agents. It speaks to the same command server as the CLI.
 
@@ -98,6 +98,13 @@ Agent-oriented aliases mirror the MCP tools for already-running local agent sess
 
 The CLI remains the canonical operator surface. MCP wraps Exo capabilities for agent access; it should not become a separate runtime model.
 
+Integration setup commands:
+
+- `exo integrations doctor`
+- `exo integrations config <codex|claude|all>`
+- `exo integrations install <codex|claude|all> [--dry-run]`
+- `exo integrations test <codex|claude|all>`
+
 ## MCP Contract
 
 `packages/mcp` exposes Exo terminal agents as MCP tools:
@@ -110,6 +117,8 @@ The CLI remains the canonical operator surface. MCP wraps Exo capabilities for a
 - `terminate_agent`
 
 By default, the MCP server needs Exo already running so it can read `.exo/server.json`. With `EXO_MCP_AUTOSTART=1`, it can start Exo through `EXO_MCP_START_COMMAND` and wait for the command server.
+
+`bin/exo integrations doctor|config|install|test` is the setup surface for external agent clients. It installs the same stdio MCP server into Codex and Claude Code through their native MCP CLIs, while the MCP server itself continues to speak to Exo through the shared command-server contract.
 
 ## Editor Model
 
@@ -141,7 +150,7 @@ Search currently returns:
 
 - local note filename/path matches only
 
-Search runs on explicit submit from the top bar. QMD is not part of desktop or CLI search; broad retrieval should return only as an explicit, isolated future tool after the fast search path is stable.
+Search lives in the explorer search pane and returns fast note filename/path matches with snippets. QMD is not part of desktop or CLI search; broad retrieval should return only as an explicit, isolated future tool after the fast search path is stable.
 
 QMD remains in core as optional notes index / retrieval infrastructure for future agent memory. The eventual unified search design should use the same index agents use, but only with explicit tiers, cancellation, result caps, and renderer safety checks.
 

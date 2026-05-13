@@ -31,7 +31,7 @@ After.
   const { page, cleanup } = await launchExoFixture({
     mutable: true,
     prepareWorkspace: async (workspaceRoot) => {
-      const target = path.join(workspaceRoot, "notes/shoshin-codex/code-block-test.md");
+      const target = path.join(workspaceRoot, "notes/vault/code-block-test.md");
       await writeFile(target, markdownContent, "utf8");
     },
   });

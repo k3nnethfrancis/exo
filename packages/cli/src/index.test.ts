@@ -140,6 +140,120 @@ describe("cli package", () => {
       await rm(runtimeRoot, { recursive: true, force: true });
     }
   });
+
+  it("prints Codex integration config", async () => {
+    let stdout = "";
+    const exitCode = await runCli(["node", "exo-cli", "integrations", "config", "codex"], {
+      env: {
+        EXO_PROJECT_ROOT: "/tmp/lab/projects/exo",
+        EXO_WORKSPACE_ROOT: "/tmp/lab",
+      },
+      stdout: {
+        write: (text) => {
+          stdout += text;
+        },
+      },
+      stderr: {
+        write: () => {},
+      },
+    });
+
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain("codex mcp add exo");
+    expect(stdout).toContain("EXO_MCP_AUTOSTART");
+    expect(stdout).toContain('"@exo/mcp"');
+  });
+
+  it("prints Claude integration config", async () => {
+    let stdout = "";
+    const exitCode = await runCli(["node", "exo-cli", "integrations", "config", "claude"], {
+      env: {
+        EXO_PROJECT_ROOT: "/tmp/lab/projects/exo",
+        EXO_WORKSPACE_ROOT: "/tmp/lab",
+      },
+      stdout: {
+        write: (text) => {
+          stdout += text;
+        },
+      },
+      stderr: {
+        write: () => {},
+      },
+    });
+
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain("claude mcp add --transport stdio --scope user");
+    expect(stdout).toContain("EXO_MCP_START_COMMAND");
+  });
+
+  it("runs integration doctor with mocked command checks", async () => {
+    let stdout = "";
+    const exitCode = await runCli(["node", "exo-cli", "integrations", "doctor"], {
+      env: {
+        EXO_PROJECT_ROOT: "/tmp/lab/projects/exo",
+        EXO_WORKSPACE_ROOT: "/tmp/lab",
+      },
+      stdout: {
+        write: (text) => {
+          stdout += text;
+        },
+      },
+      stderr: {
+        write: () => {},
+      },
+      runCommand: async (command, args) => {
+        if (command === "/bin/sh" && args.join(" ").includes("codex")) {
+          return { code: 0, stdout: "/opt/bin/codex\n", stderr: "" };
+        }
+        if (command === "/bin/sh" && args.join(" ").includes("claude")) {
+          return { code: 0, stdout: "/opt/bin/claude\n", stderr: "" };
+        }
+        if (command === "/bin/sh" && args.join(" ").includes("pnpm")) {
+          return { code: 0, stdout: "/opt/bin/pnpm\n", stderr: "" };
+        }
+        if (command === "codex") {
+          return { code: 0, stdout: "exo pnpm --dir /tmp/lab/projects/exo\n", stderr: "" };
+        }
+        if (command === "claude") {
+          return { code: 0, stdout: "qmd: qmd mcp\n", stderr: "" };
+        }
+        return { code: 1, stdout: "", stderr: "unexpected command" };
+      },
+    });
+
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain("- pnpm: found");
+    expect(stdout).toContain("- codex: found (/opt/bin/codex); Exo MCP configured");
+    expect(stdout).toContain("- claude: found (/opt/bin/claude); Exo MCP not configured");
+  });
+
+  it("dry-runs integration install without spawning native installers", async () => {
+    let stdout = "";
+    const calls: string[] = [];
+    const exitCode = await runCli(["node", "exo-cli", "integrations", "install", "--dry-run", "all"], {
+      env: {
+        EXO_PROJECT_ROOT: "/tmp/lab/projects/exo",
+        EXO_WORKSPACE_ROOT: "/tmp/lab",
+      },
+      stdout: {
+        write: (text) => {
+          stdout += text;
+        },
+      },
+      stderr: {
+        write: () => {},
+      },
+      runCommand: async (command, args) => {
+        calls.push([command, ...args].join(" "));
+        return { code: 1, stdout: "", stderr: "should not be called" };
+      },
+    });
+
+    expect(exitCode).toBe(0);
+    expect(calls).toEqual([]);
+    expect(stdout).toContain("[dry-run] codex mcp add exo");
+    expect(stdout).toContain("[dry-run] claude mcp add --transport stdio --scope user");
+  });
 });
 
 function listen(server: ReturnType<typeof createServer>): Promise<number> {

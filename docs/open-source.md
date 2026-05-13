@@ -1,6 +1,6 @@
 # Open Source Readiness
 
-Last updated: 2026-05-11
+Last updated: 2026-05-12
 
 ## Support Target
 
@@ -34,7 +34,7 @@ Unsigned builds are useful for early testers, but macOS will warn users. Public 
 
 Before public release:
 
-- choose and add a real open-source license
+- keep Apache-2.0 license metadata and `LICENSE` in sync
 - confirm `.exo/`, logs, settings files, and local transcripts are ignored
 - keep examples generic unless they are clearly marked as local examples
 - run CI checks from a clean clone
@@ -45,9 +45,7 @@ Before public release:
 The default CI workflow runs on macOS:
 
 ```bash
-pnpm -r typecheck
-pnpm -r test
-pnpm build
+pnpm check
 ```
 
 The package workflow is manual and builds unsigned macOS artifacts.

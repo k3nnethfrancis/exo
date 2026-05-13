@@ -11,7 +11,7 @@ describe("workspace", () => {
   it("resolves the default workspace model from env", () => {
     const model = resolveWorkspaceModel({
       EXO_WORKSPACE_ROOT: fixtureLabRoot,
-      EXO_NOTE_ROOTS: path.join(fixtureLabRoot, "notes/shoshin-codex"),
+      EXO_NOTE_ROOTS: path.join(fixtureLabRoot, "notes/vault"),
       EXO_PROJECT_ROOTS: path.join(fixtureLabRoot, "projects/exo-demo"),
     });
 
@@ -23,7 +23,7 @@ describe("workspace", () => {
   it("attaches Exo as the default project root when project roots are not configured", () => {
     const model = resolveWorkspaceModel({
       EXO_WORKSPACE_ROOT: fixtureLabRoot,
-      EXO_NOTE_ROOTS: path.join(fixtureLabRoot, "notes/shoshin-codex"),
+      EXO_NOTE_ROOTS: path.join(fixtureLabRoot, "notes/vault"),
     });
 
     expect(model.projectRoots).toEqual([
@@ -39,7 +39,7 @@ describe("workspace", () => {
   it("allows project roots to be explicitly empty", () => {
     const model = resolveWorkspaceModel({
       EXO_WORKSPACE_ROOT: fixtureLabRoot,
-      EXO_NOTE_ROOTS: path.join(fixtureLabRoot, "notes/shoshin-codex"),
+      EXO_NOTE_ROOTS: path.join(fixtureLabRoot, "notes/vault"),
       EXO_PROJECT_ROOTS: "",
     });
 
@@ -63,14 +63,14 @@ describe("workspace", () => {
   });
 
   it("lists markdown tree nodes", async () => {
-    const nodes = await listRootTree(path.join(fixtureLabRoot, "notes/shoshin-codex"), { markdownOnly: true });
+    const nodes = await listRootTree(path.join(fixtureLabRoot, "notes/vault"), { markdownOnly: true });
     expect(nodes.some((node) => node.name === "focus-note.md")).toBe(true);
   });
 
   it("searches notes by title and path", async () => {
     const model = resolveWorkspaceModel({
       EXO_WORKSPACE_ROOT: fixtureLabRoot,
-      EXO_NOTE_ROOTS: path.join(fixtureLabRoot, "notes/shoshin-codex"),
+      EXO_NOTE_ROOTS: path.join(fixtureLabRoot, "notes/vault"),
       EXO_PROJECT_ROOTS: path.join(fixtureLabRoot, "projects/exo-demo"),
     });
 
@@ -82,7 +82,7 @@ describe("workspace", () => {
   it("searches project files by path and content", async () => {
     const model = resolveWorkspaceModel({
       EXO_WORKSPACE_ROOT: fixtureLabRoot,
-      EXO_NOTE_ROOTS: path.join(fixtureLabRoot, "notes/shoshin-codex"),
+      EXO_NOTE_ROOTS: path.join(fixtureLabRoot, "notes/vault"),
       EXO_PROJECT_ROOTS: path.join(fixtureLabRoot, "projects/exo-demo"),
     });
 
@@ -94,7 +94,7 @@ describe("workspace", () => {
   it("returns note-only workspace search results", async () => {
     const model = resolveWorkspaceModel({
       EXO_WORKSPACE_ROOT: fixtureLabRoot,
-      EXO_NOTE_ROOTS: path.join(fixtureLabRoot, "notes/shoshin-codex"),
+      EXO_NOTE_ROOTS: path.join(fixtureLabRoot, "notes/vault"),
       EXO_PROJECT_ROOTS: path.join(fixtureLabRoot, "projects/exo-demo"),
     });
 

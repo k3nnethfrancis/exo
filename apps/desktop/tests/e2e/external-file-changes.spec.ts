@@ -8,12 +8,12 @@ test("refreshes an open clean document when it changes on disk", async () => {
   const { page, workspaceRoot, cleanup } = await launchExoFixture({
     mutable: true,
     prepareWorkspace: async (workspaceRoot) => {
-      const target = path.join(workspaceRoot, "notes/shoshin-codex/external-change-test.md");
+      const target = path.join(workspaceRoot, "notes/vault/external-change-test.md");
       await writeFile(target, "# External Change Test\n\nbefore external update\n", "utf8");
     },
   });
 
-  const target = path.join(workspaceRoot, "notes/shoshin-codex/external-change-test.md");
+  const target = path.join(workspaceRoot, "notes/vault/external-change-test.md");
 
   await page.getByRole("button", { name: /external-change-test/i }).first().click();
   await expect(page.getByTestId("editor-panel")).toContainText("before external update");
@@ -30,12 +30,12 @@ test("preserves editor scroll when an open document refreshes from disk", async 
   const { page, workspaceRoot, cleanup } = await launchExoFixture({
     mutable: true,
     prepareWorkspace: async (workspaceRoot) => {
-      const target = path.join(workspaceRoot, "notes/shoshin-codex/external-scroll-test.md");
+      const target = path.join(workspaceRoot, "notes/vault/external-scroll-test.md");
       await writeFile(target, `# External Scroll Test\n\n${longBody}\n`, "utf8");
     },
   });
 
-  const target = path.join(workspaceRoot, "notes/shoshin-codex/external-scroll-test.md");
+  const target = path.join(workspaceRoot, "notes/vault/external-scroll-test.md");
 
   await page.getByRole("button", { name: /external-scroll-test/i }).first().click();
   const scroller = page.locator(".editor-surface .cm-scroller").first();

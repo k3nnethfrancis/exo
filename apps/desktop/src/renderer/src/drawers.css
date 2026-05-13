@@ -27,6 +27,15 @@
   color: var(--muted);
   text-align: left;
   border: 0;
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+
+.snap-drawer__bar:hover {
+  background: var(--surface-hover);
+  color: var(--text);
 }
 
 .snap-drawer__icon {
