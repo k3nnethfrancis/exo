@@ -361,6 +361,7 @@ export function NoteEditor(props: NoteEditorProps) {
           basicSetup={{
             lineNumbers: false,
             foldGutter: false,
+            highlightSelectionMatches: false,
           }}
           onChange={onBodyChange}
           height="100%"

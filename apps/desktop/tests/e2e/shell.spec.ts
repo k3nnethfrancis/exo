@@ -296,7 +296,10 @@ test("keeps list guides aligned with the visible bullet lanes", async () => {
           .map((value) => value.trim())
           .filter(Boolean)
           .map(Number);
-        const bullet = line.querySelector<HTMLElement>(".exo-md-list-bullet") ?? line.querySelector<HTMLElement>(".exo-md-fold-toggle");
+        const bulletStyle = getComputedStyle(line, "::before");
+        const bulletLeft = Number.parseFloat(bulletStyle.left);
+        const bulletWidth = Number.parseFloat(bulletStyle.width);
+        const hasBullet = bulletStyle.content !== "none" && Number.isFinite(bulletLeft) && Number.isFinite(bulletWidth);
         const range = document.createRange();
         const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT, {
           acceptNode(node) {
@@ -307,7 +310,7 @@ test("keeps list guides aligned with the visible bullet lanes", async () => {
         while (walker.nextNode()) {
           const node = walker.currentNode as Text;
           const parent = node.parentElement;
-          if (parent && !parent.classList.contains("exo-md-list-prefix") && !parent.classList.contains("exo-md-list-bullet")) {
+          if (parent && !parent.classList.contains("exo-md-list-prefix")) {
             textNode = node;
             break;
           }
@@ -319,15 +322,14 @@ test("keeps list guides aligned with the visible bullet lanes", async () => {
         }
 
         const lineRect = line.getBoundingClientRect();
-        const bulletRect = bullet?.getBoundingClientRect();
         const textRect = textNode ? range.getBoundingClientRect() : null;
 
         return {
           text: line.textContent?.trim() ?? "",
           depth,
           guideXs,
-          bulletCenterX: bulletRect ? bulletRect.left - lineRect.left + bulletRect.width / 2 : null,
-          bulletRightX: bulletRect ? bulletRect.right - lineRect.left : null,
+          bulletCenterX: hasBullet ? bulletLeft + bulletWidth / 2 : null,
+          bulletRightX: hasBullet ? bulletLeft + bulletWidth : null,
           textLeftX: textRect ? textRect.left - lineRect.left : null,
         };
       })
@@ -353,6 +355,158 @@ test("keeps list guides aligned with the visible bullet lanes", async () => {
 
   expect(Math.round((topItem?.textLeftX ?? 0) - (topItem?.bulletRightX ?? 0))).toBeLessThanOrEqual(8);
   expect(Math.round((childItem?.textLeftX ?? 0) - (childItem?.bulletRightX ?? 0))).toBeLessThanOrEqual(8);
+
+  await cleanup();
+});
+
+test("keeps list text aligned when editing a bullet marker", async () => {
+  const { page, cleanup } = await launchExoFixture({
+    prepareWorkspace: async (workspaceRoot) => {
+      const notePath = path.join(workspaceRoot, "notes/vault/focus-note.md");
+      await writeFile(
+        notePath,
+        `---\ntitle: Focus Note\n---\n\n# Probe\n\n- journal\n  - today\n  - \n`,
+      );
+    },
+  });
+
+  async function setCursorOnLineContaining(text: string, offset: number) {
+    await page.evaluate(({ lineText, nextOffset }) => {
+      const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+      const view = content?.cmView?.view;
+      if (!view) {
+        throw new Error("Unable to resolve CodeMirror view");
+      }
+      let line = null;
+      for (let lineNumber = 1; lineNumber <= view.state.doc.lines; lineNumber += 1) {
+        const candidate = view.state.doc.line(lineNumber);
+        if (candidate.text === lineText) {
+          line = candidate;
+          break;
+        }
+      }
+      if (!line) {
+        for (let lineNumber = 1; lineNumber <= view.state.doc.lines; lineNumber += 1) {
+          const candidate = view.state.doc.line(lineNumber);
+          if (candidate.text.includes(lineText)) {
+            line = candidate;
+            break;
+          }
+        }
+      }
+      if (!line) {
+        throw new Error(`Unable to find ${lineText} line in CodeMirror state`);
+      }
+      view.dispatch({ selection: { anchor: line.from + nextOffset }, scrollIntoView: true });
+      view.focus();
+    }, { lineText: text, nextOffset: offset });
+  }
+
+  async function lineMetrics(text: string) {
+    return page.evaluate((lineText) => {
+      const line = Array.from(document.querySelectorAll<HTMLElement>(".cm-line"))
+        .find((element) => element.textContent?.includes(lineText));
+      if (!line) {
+        throw new Error(`Unable to find ${lineText} line`);
+      }
+
+      const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT, {
+        acceptNode(node) {
+          const parent = node.parentElement;
+          if (parent?.closest(".exo-md-syntax-hidden, .exo-md-list-prefix")) {
+            return NodeFilter.FILTER_SKIP;
+          }
+          return node.textContent?.includes(lineText) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+        },
+      });
+      const textNode = walker.nextNode() as Text | null;
+      if (!textNode) {
+        throw new Error(`Unable to find ${lineText} text node`);
+      }
+
+      const start = textNode.textContent?.indexOf(lineText) ?? 0;
+      const range = document.createRange();
+      range.setStart(textNode, start);
+      range.setEnd(textNode, start + 1);
+
+      const lineRect = line.getBoundingClientRect();
+      const textRect = range.getBoundingClientRect();
+      return {
+        raw: line.classList.contains("exo-md-line--list-raw"),
+        rawMarkerText: line.querySelector(".exo-md-list-marker-raw")?.textContent ?? null,
+        hasBullet: line.classList.contains("exo-md-line--list") && !line.classList.contains("exo-md-line--list-raw"),
+        textLeftX: textRect.left - lineRect.left,
+      };
+    }, text);
+  }
+
+  async function cursorLocation() {
+    return page.evaluate(() => {
+      const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+      const view = content?.cmView?.view;
+      if (!view) {
+        throw new Error("Unable to resolve CodeMirror view");
+      }
+      const pos = view.state.selection.main.head;
+      const line = view.state.doc.lineAt(pos);
+      return {
+        lineText: line.text,
+        offset: pos - line.from,
+      };
+    });
+  }
+
+  await setCursorOnLineContaining("today", 5);
+  const preview = await lineMetrics("today");
+  expect(preview.raw).toBe(false);
+  expect(preview.hasBullet).toBe(true);
+
+  await setCursorOnLineContaining("today", 3);
+  const raw = await lineMetrics("today");
+  expect(raw.raw).toBe(true);
+  expect(raw.rawMarkerText).toBe("-");
+  expect(raw.hasBullet).toBe(false);
+  expect(Math.abs(raw.textLeftX - preview.textLeftX)).toBeLessThanOrEqual(3);
+
+  await setCursorOnLineContaining("today", 4);
+  await page.keyboard.press("ArrowLeft");
+  await expect.poll(cursorLocation).toEqual({ lineText: "  - today", offset: 3 });
+  await expect.poll(async () => (await lineMetrics("today")).rawMarkerText).toBe("-");
+
+  await page.keyboard.press("ArrowLeft");
+  await expect.poll(cursorLocation).toEqual({ lineText: "  - today", offset: 2 });
+
+  await page.keyboard.press("ArrowLeft");
+  await expect.poll(cursorLocation).toEqual({ lineText: "- journal", offset: 9 });
+
+  await page.keyboard.press("ArrowRight");
+  await expect.poll(cursorLocation).toEqual({ lineText: "  - today", offset: 2 });
+  await page.keyboard.press("ArrowRight");
+  await expect.poll(cursorLocation).toEqual({ lineText: "  - today", offset: 3 });
+  await page.keyboard.press("ArrowRight");
+  await expect.poll(cursorLocation).toEqual({ lineText: "  - today", offset: 4 });
+
+  await setCursorOnLineContaining("  - ", 3);
+  await expect(page.locator(".cm-line .exo-md-list-marker-raw")).toHaveText("-");
+
+  await setCursorOnLineContaining("  - ", 4);
+  await page.keyboard.type("draft");
+  const insertedLine = await page.evaluate(() => {
+    const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+    const view = content?.cmView?.view;
+    if (!view) {
+      throw new Error("Unable to resolve CodeMirror view");
+    }
+    for (let lineNumber = 1; lineNumber <= view.state.doc.lines; lineNumber += 1) {
+      const line = view.state.doc.line(lineNumber);
+      if (line.text.includes("draft")) {
+        return line.text;
+      }
+    }
+    return "";
+  });
+  expect(insertedLine).toBe("  - draft");
+  await expect(page.locator(".cm-line").filter({ hasText: /draft/ })).toContainText("draft");
 
   await cleanup();
 });

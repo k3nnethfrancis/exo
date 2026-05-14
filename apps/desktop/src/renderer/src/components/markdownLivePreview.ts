@@ -1,5 +1,5 @@
-import { type Extension, RangeSetBuilder, StateEffect, StateField } from "@codemirror/state";
-import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from "@codemirror/view";
+import { EditorSelection, EditorState, Prec, Transaction, type Extension, RangeSetBuilder, StateEffect, StateField } from "@codemirror/state";
+import { Decoration, EditorView, ViewPlugin, WidgetType, keymap, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 import { LIST_GEOMETRY, listGeometryStyleVariables } from "./listGeometry";
 
 const toggleFoldEffect = StateEffect.define<number>();
@@ -63,26 +63,29 @@ const listPrefixPattern = /^(\s*)((?:[-*+]|\d+[.)]))\s+/;
 const leadingWhitespacePattern = /^(\s*)/;
 
 export function markdownLivePreview(options: MarkdownLivePreviewOptions): Extension[] {
+  const plugin = ViewPlugin.fromClass(
+    class {
+      decorations: DecorationSet;
+
+      constructor(view: EditorView) {
+        this.decorations = buildDecorations(view);
+      }
+
+      update(update: ViewUpdate) {
+        if (update.docChanged || update.viewportChanged || update.selectionSet || update.transactions.some(tr => tr.effects.some(e => e.is(toggleFoldEffect)))) {
+          this.decorations = buildDecorations(update.view);
+        }
+      }
+    },
+    { decorations: (instance) => instance.decorations },
+  );
+
   return [
     foldedLinesField,
-    ViewPlugin.fromClass(
-      class {
-        decorations: DecorationSet;
-
-        constructor(view: EditorView) {
-          this.decorations = buildDecorations(view);
-        }
-
-        update(update: ViewUpdate) {
-          if (update.docChanged || update.viewportChanged || update.selectionSet || update.transactions.some(tr => tr.effects.some(e => e.is(toggleFoldEffect)))) {
-            this.decorations = buildDecorations(update.view);
-          }
-        }
-      },
-      {
-        decorations: (instance) => instance.decorations,
-      },
-    ),
+    listPrefixAtomicRanges,
+    listPrefixSelectionFilter,
+    plugin,
+    listPrefixNavigationKeymap,
     EditorView.domEventHandlers({
       mousedown(event) {
         if (!(event.target instanceof HTMLElement)) return false;
@@ -148,6 +151,183 @@ export function markdownLivePreview(options: MarkdownLivePreviewOptions): Extens
       },
     }),
   ];
+}
+
+const listPrefixAtomicRanges = EditorView.atomicRanges.of((view) => {
+  const builder = new RangeSetBuilder<Decoration>();
+
+  for (let lineNumber = 1; lineNumber <= view.state.doc.lines; lineNumber += 1) {
+    const line = view.state.doc.line(lineNumber);
+    const match = line.text.match(listPrefixPattern);
+    if (!match) {
+      continue;
+    }
+
+    const marker = match[2] || "-";
+    const markerStart = line.from + match[1].length;
+    const markerEnd = markerStart + marker.length;
+    const prefixEnd = line.from + match[0].length;
+
+    if (line.from < markerStart) {
+      builder.add(line.from, markerStart, Decoration.replace({}));
+    }
+    if (markerEnd < prefixEnd) {
+      builder.add(markerEnd, prefixEnd, Decoration.replace({}));
+    }
+  }
+
+  return builder.finish();
+});
+
+const listPrefixNavigationKeymap = Prec.highest(keymap.of([
+  {
+    key: "ArrowLeft",
+    run: moveWithinListPrefix("left"),
+  },
+  {
+    key: "ArrowRight",
+    run: moveWithinListPrefix("right"),
+  },
+]));
+
+const listPrefixSelectionFilter = EditorState.transactionFilter.of((tr) => {
+  if (!tr.selection || !tr.changes.empty) {
+    return tr;
+  }
+
+  const range = tr.selection.main;
+  if (!range.empty) {
+    return tr;
+  }
+
+  const positions = listPrefixPositionsAt(tr.state, range.head);
+  if (!positions) {
+    return tr;
+  }
+
+  const markerInterior = range.head > positions.markerStart && range.head < positions.markerEnd;
+  const hiddenLineStart = range.head === positions.lineFrom && positions.lineFrom < positions.markerStart;
+  const hiddenBeforeMarker = range.head > positions.lineFrom && range.head < positions.markerStart;
+  const hiddenAfterMarker = range.head > positions.markerEnd && range.head < positions.prefixEnd;
+  if (!markerInterior && !hiddenLineStart && !hiddenBeforeMarker && !hiddenAfterMarker) {
+    return tr;
+  }
+
+  const nextPos = hiddenLineStart
+    ? positions.markerStart
+    : hiddenBeforeMarker
+    ? positions.lineNumber > 1
+      ? tr.state.doc.line(positions.lineNumber - 1).to
+      : positions.lineFrom
+    : hiddenAfterMarker
+      ? positions.prefixEnd
+      : range.head <= positions.markerStart + Math.floor((positions.markerEnd - positions.markerStart) / 2)
+        ? positions.markerStart
+        : positions.markerEnd;
+
+  return {
+    selection: EditorSelection.cursor(nextPos),
+    scrollIntoView: true,
+    annotations: Transaction.userEvent.of("select"),
+  };
+});
+
+function moveWithinListPrefix(direction: "left" | "right") {
+  return (view: EditorView): boolean => moveListPrefixSelection(view, direction);
+}
+
+function moveListPrefixSelection(view: EditorView, direction: "left" | "right"): boolean {
+  const range = view.state.selection.main;
+  if (!range.empty) {
+    return false;
+  }
+
+  const positions = listPrefixPositionsAt(view.state, range.head);
+  if (!positions) {
+    return false;
+  }
+
+  const nextPos = direction === "left" ? listPrefixArrowLeftTarget(view.state, positions, range.head) : listPrefixArrowRightTarget(positions, range.head);
+  if (nextPos === null) {
+    return false;
+  }
+
+  view.dispatch({
+    selection: EditorSelection.cursor(nextPos),
+    scrollIntoView: true,
+    userEvent: "select",
+  });
+  return true;
+}
+
+interface ListPrefixPositions {
+  lineFrom: number;
+  lineNumber: number;
+  markerStart: number;
+  markerEnd: number;
+  prefixEnd: number;
+}
+
+function listPrefixPositionsAt(state: EditorState, pos: number): ListPrefixPositions | null {
+  const line = state.doc.lineAt(pos);
+  const match = line.text.match(listPrefixPattern);
+  if (!match) {
+    return null;
+  }
+
+  const marker = match[2] || "-";
+  const markerStart = line.from + match[1].length;
+  const markerEnd = markerStart + marker.length;
+  const prefixEnd = line.from + match[0].length;
+  if (pos < line.from || pos > prefixEnd) {
+    return null;
+  }
+
+  return {
+    lineFrom: line.from,
+    lineNumber: line.number,
+    markerStart,
+    markerEnd,
+    prefixEnd,
+  };
+}
+
+function listPrefixArrowLeftTarget(state: EditorState, positions: ListPrefixPositions, pos: number): number | null {
+  if (pos === positions.prefixEnd) {
+    return positions.markerEnd;
+  }
+  if (pos > positions.markerEnd && pos < positions.prefixEnd) {
+    return positions.markerEnd;
+  }
+  if (pos === positions.markerEnd) {
+    return positions.markerStart;
+  }
+  if (pos > positions.markerStart && pos < positions.markerEnd) {
+    return positions.markerStart;
+  }
+  if (pos === positions.markerStart || (pos >= positions.lineFrom && pos < positions.markerStart)) {
+    if (positions.lineNumber <= 1) {
+      return positions.lineFrom;
+    }
+    return state.doc.line(positions.lineNumber - 1).to;
+  }
+  return null;
+}
+
+function listPrefixArrowRightTarget(positions: ListPrefixPositions, pos: number): number | null {
+  if (pos < positions.markerStart) {
+    return positions.markerStart;
+  }
+  if (pos === positions.markerStart) {
+    return positions.markerEnd;
+  }
+  if (pos > positions.markerStart && pos < positions.markerEnd) {
+    return positions.markerEnd;
+  }
+  if (pos === positions.markerEnd || (pos > positions.markerEnd && pos < positions.prefixEnd)) {
+    return positions.prefixEnd;
+  }
+  return null;
 }
 
 interface DecorationEntry {
@@ -344,7 +524,7 @@ function decorateLine(
       decoration: Decoration.line({
         attributes: {
           class: `exo-md-line ${listContext.isListStart ? "exo-md-line--list-start" : "exo-md-line--list-continuation"}`,
-          style: listLineStyle(listContext.depth, listContext.isListStart),
+          style: listLineStyle(listContext.depth),
           "data-exo-list-depth": String(listContext.depth),
           "data-exo-guide-xs": guideXs.join(","),
         },
@@ -369,13 +549,63 @@ function decorateLine(
   }
 
   if (listContext) {
-    const prefixEnd = lineFrom + listContext.prefixLength;
-    out.push({ from: lineFrom, to: lineFrom, decoration: Decoration.line({ class: "exo-md-line exo-md-line--list" }) });
-    if (!cursorWithin(cursorPos, lineFrom, prefixEnd)) {
+    if (listContext.isListStart) {
+      const prefixEnd = lineFrom + listContext.prefixLength;
+      const cursorInPrefix = cursorPos >= lineFrom && cursorPos < prefixEnd;
+      const lineClass = [
+        "exo-md-line",
+        "exo-md-line--list",
+        listContext.ordered ? "exo-md-line--list-ordered" : "",
+        hasChildren ? "exo-md-line--list-has-children" : "",
+        isFolded ? "exo-md-line--list-folded" : "",
+        cursorInPrefix ? "exo-md-line--list-raw" : "",
+      ].filter(Boolean).join(" ");
       out.push({
         from: lineFrom,
-        to: prefixEnd,
-        decoration: Decoration.replace({ widget: new ListPrefixWidget(listContext.marker, listContext.ordered, listContext.depth, hasChildren, isFolded, lineNumber) }),
+        to: lineFrom,
+        decoration: Decoration.line({
+          attributes: {
+            class: lineClass,
+            style: listLineStyle(listContext.depth),
+            "data-exo-list-depth": String(listContext.depth),
+            "data-exo-list-marker": listContext.marker,
+            ...(cursorInPrefix ? { "data-exo-list-raw": listContext.marker } : {}),
+          },
+        }),
+      });
+      if (hasChildren) {
+        out.push({
+          from: lineFrom,
+          to: lineFrom,
+          decoration: Decoration.widget({ widget: new ListFoldToggleWidget(listContext.depth, isFolded, lineNumber), side: -1 }),
+        });
+      }
+      if (!cursorInPrefix) {
+        // Normal mode: replace entire prefix invisibly, bullet shown via ::before.
+        out.push({ from: lineFrom, to: prefixEnd, decoration: Decoration.replace({}) });
+      } else {
+        const markerMatch = text.match(listPrefixPattern);
+        const markerStart = lineFrom + (markerMatch?.[1].length ?? 0);
+        const markerEnd = markerStart + listContext.marker.length;
+        if (lineFrom < markerStart) {
+          out.push({ from: lineFrom, to: markerStart, decoration: Decoration.replace({}) });
+        }
+        out.push({ from: markerStart, to: markerEnd, decoration: Decoration.mark({ class: "exo-md-list-marker-raw" }) });
+        if (markerEnd < prefixEnd) {
+          out.push({ from: markerEnd, to: prefixEnd, decoration: Decoration.replace({}) });
+        }
+      }
+    } else {
+      out.push({
+        from: lineFrom,
+        to: lineFrom,
+        decoration: Decoration.line({
+          attributes: {
+            class: "exo-md-line exo-md-line--list exo-md-line--list-continuation",
+            style: listLineStyle(listContext.depth),
+            "data-exo-list-depth": String(listContext.depth),
+          },
+        }),
       });
     }
     return;
@@ -539,12 +769,9 @@ class TaskPrefixWidget extends WidgetType {
   }
 }
 
-class ListPrefixWidget extends WidgetType {
+class ListFoldToggleWidget extends WidgetType {
   constructor(
-    private readonly markerText: string,
-    private readonly ordered: boolean,
     private readonly depth: number,
-    private readonly hasChildren: boolean,
     private readonly isFolded: boolean,
     private readonly lineNumber: number,
   ) {
@@ -553,28 +780,20 @@ class ListPrefixWidget extends WidgetType {
 
   toDOM() {
     const span = document.createElement("span");
-    span.className = "exo-md-list-prefix";
-    const foldWidth = this.hasChildren ? 14 : 0;
-    const laneWidth = LIST_GEOMETRY.markerLaneWidth + foldWidth;
-    const bulletLeft = LIST_GEOMETRY.baseIndent + this.depth * LIST_GEOMETRY.indentStep - laneWidth;
-    span.style.left = `${bulletLeft}px`;
-    span.style.width = `${laneWidth}px`;
+    span.className = "exo-md-list-prefix exo-md-list-prefix--fold";
+    const bulletLeft = LIST_GEOMETRY.baseIndent + this.depth * LIST_GEOMETRY.indentStep - LIST_GEOMETRY.markerLaneWidth;
+    span.style.left = `${bulletLeft - 14}px`;
+    span.style.width = "14px";
 
-    if (this.hasChildren) {
-      const fold = document.createElement("span");
-      fold.className = `exo-md-fold-toggle ${this.isFolded ? "exo-md-fold-toggle--folded" : ""}`;
-      fold.dataset.exoFoldLine = String(this.lineNumber);
-      span.appendChild(fold);
-    }
-    const marker = document.createElement("span");
-    marker.className = `exo-md-list-bullet ${this.ordered ? "exo-md-list-bullet--ordered" : ""}`;
-    marker.textContent = this.ordered ? this.markerText : "•";
-    span.appendChild(marker);
+    const fold = document.createElement("span");
+    fold.className = `exo-md-fold-toggle ${this.isFolded ? "exo-md-fold-toggle--folded" : ""}`;
+    fold.dataset.exoFoldLine = String(this.lineNumber);
+    span.appendChild(fold);
     return span;
   }
 
-  eq(other: ListPrefixWidget) {
-    return other.markerText === this.markerText && other.ordered === this.ordered && other.depth === this.depth && other.hasChildren === this.hasChildren && other.isFolded === this.isFolded && other.lineNumber === this.lineNumber;
+  eq(other: ListFoldToggleWidget) {
+    return other.depth === this.depth && other.isFolded === this.isFolded && other.lineNumber === this.lineNumber;
   }
 
   ignoreEvent(event: Event) {
@@ -660,12 +879,12 @@ function collectListMetadata(doc: EditorView["state"]["doc"]) {
   return listContexts;
 }
 
-function listLineStyle(depth: number, _isListStart: boolean) {
+function listLineStyle(depth: number) {
   const guideLayers = listGuideXs(depth).map(
     (x) => `linear-gradient(to bottom, var(--exo-list-guide), var(--exo-list-guide)) ${x}px 0 / 1px 100% no-repeat`,
   );
   const padLeft = LIST_GEOMETRY.baseIndent + depth * LIST_GEOMETRY.indentStep;
-  let style = `${listGeometryStyleVariables()};padding-left:${padLeft}px;`;
+  let style = `${listGeometryStyleVariables()};--exo-list-depth:${depth};padding-left:${padLeft}px;`;
   if (guideLayers.length > 0) {
     style += `background:${guideLayers.join(",")};`;
   }
