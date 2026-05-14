@@ -67,7 +67,7 @@ test("captures the warm light mode shell", async () => {
 test("captures nested list geometry", async () => {
   const { page, cleanup } = await launchExoFixture({
     prepareWorkspace: async (workspaceRoot) => {
-      const notePath = path.join(workspaceRoot, "notes/vault/focus-note.md");
+      const notePath = path.join(workspaceRoot, "notes/test-notes/focus-note.md");
       await writeFile(
         notePath,
         `---\ntitle: Focus Note\n---\n\n# Probe\n\n- top item\n  - child item\n    - grandchild item\n  - sibling child\n    continuation line\n`,

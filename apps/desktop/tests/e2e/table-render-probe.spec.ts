@@ -28,7 +28,7 @@ End text.
   const { page, cleanup } = await launchExoFixture({
     mutable: true,
     prepareWorkspace: async (workspaceRoot) => {
-      const target = path.join(workspaceRoot, "notes/vault/table-test.md");
+      const target = path.join(workspaceRoot, "notes/test-notes/table-test.md");
       await writeFile(target, tableContent, "utf8");
     },
   });

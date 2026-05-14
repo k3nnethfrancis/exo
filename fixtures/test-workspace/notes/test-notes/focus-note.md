@@ -9,7 +9,7 @@ status: active
 
 # Focus Note
 
-Exo should open terminals from `lab/`, not from a notes vault.
+Exo should open terminals from the sample workspace, not from the notes folder.
 Agent memory should stay layered and separate from retrieval.
 
 Linked references:

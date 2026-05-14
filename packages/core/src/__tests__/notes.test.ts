@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { extractMarkdownLinks, extractTags, extractWikilinks, getNoteKnowledge, readNoteDocument } from "../notes";
 
-const fixtureRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../fixtures/workspace/lab/notes/vault");
+const fixtureRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../fixtures/test-workspace/notes/test-notes");
 
 describe("notes", () => {
   it("parses frontmatter and title", async () => {

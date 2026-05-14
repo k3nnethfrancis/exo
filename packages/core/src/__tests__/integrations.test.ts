@@ -8,8 +8,8 @@ import {
 
 describe("integrations", () => {
   const config = {
-    exoRoot: "/tmp/lab/projects/exo",
-    workspaceRoot: "/tmp/lab",
+    exoRoot: "/tmp/exo-test-workspace/projects/exo",
+    workspaceRoot: "/tmp/exo-test-workspace",
   };
 
   it("builds the Codex MCP install command", () => {
@@ -21,14 +21,14 @@ describe("integrations", () => {
       "add",
       "exo",
       "--env",
-      "EXO_WORKSPACE_ROOT=/tmp/lab",
+      "EXO_WORKSPACE_ROOT=/tmp/exo-test-workspace",
       "--env",
       "EXO_MCP_AUTOSTART=1",
       "--env",
-      "EXO_MCP_START_COMMAND=/tmp/lab/projects/exo/bin/exo dev",
+      "EXO_MCP_START_COMMAND=/tmp/exo-test-workspace/projects/exo/bin/exo dev",
       "--",
       "node",
-      "/tmp/lab/projects/exo/packages/mcp/bin/exo-mcp.mjs",
+      "/tmp/exo-test-workspace/projects/exo/packages/mcp/bin/exo-mcp.mjs",
     ]);
   });
 
@@ -44,10 +44,10 @@ describe("integrations", () => {
       "--scope",
       "user",
       "--env",
-      "EXO_WORKSPACE_ROOT=/tmp/lab",
+      "EXO_WORKSPACE_ROOT=/tmp/exo-test-workspace",
     ]);
     expect(spec.installArgs).toContain("exo");
-    expect(spec.installArgs.slice(-2)).toEqual(["node", "/tmp/lab/projects/exo/packages/mcp/bin/exo-mcp.mjs"]);
+    expect(spec.installArgs.slice(-2)).toEqual(["node", "/tmp/exo-test-workspace/projects/exo/packages/mcp/bin/exo-mcp.mjs"]);
   });
 
   it("formats MCP JSON for documentation and config previews", () => {
@@ -55,7 +55,7 @@ describe("integrations", () => {
     const json = JSON.parse(formatMcpServerJson(spec.server));
 
     expect(json.mcpServers.exo.command).toBe("node");
-    expect(json.mcpServers.exo.args).toContain("/tmp/lab/projects/exo/packages/mcp/bin/exo-mcp.mjs");
+    expect(json.mcpServers.exo.args).toContain("/tmp/exo-test-workspace/projects/exo/packages/mcp/bin/exo-mcp.mjs");
     expect(json.mcpServers.exo.env.EXO_MCP_AUTOSTART).toBe("1");
   });
 

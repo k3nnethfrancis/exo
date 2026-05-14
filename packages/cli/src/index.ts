@@ -384,7 +384,7 @@ export async function runCli(
   }
 
   if (command === "workspace" && subcommand === "fixture") {
-    const fixtureRoot = path.resolve(cwd, "fixtures/workspace/lab");
+    const fixtureRoot = path.resolve(cwd, "fixtures/test-workspace");
     stdout.write(`${fixtureRoot}\n`);
     return 0;
   }

@@ -11,9 +11,9 @@ describe("cli package", () => {
     let stdout = "";
     const exitCode = await runCli(["node", "exo-cli", "runtime", "status"], {
       env: {
-        EXO_WORKSPACE_ROOT: "/tmp/lab",
-        EXO_NOTE_ROOTS: "/tmp/lab/notes",
-        EXO_PROJECT_ROOTS: "/tmp/lab/projects",
+        EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
+        EXO_NOTE_ROOTS: "/tmp/exo-test-workspace/notes",
+        EXO_PROJECT_ROOTS: "/tmp/exo-test-workspace/projects",
       },
       stdout: {
         write: (text) => {
@@ -26,17 +26,17 @@ describe("cli package", () => {
     });
 
     expect(exitCode).toBe(0);
-    expect(stdout).toContain('"workspaceRoot": "/tmp/lab"');
+    expect(stdout).toContain('"workspaceRoot": "/tmp/exo-test-workspace"');
     expect(stdout).toContain('"kind": "qmd"');
   });
 
   it("renders a launch plan for Claude", async () => {
     let stdout = "";
-    const exitCode = await runCli(["node", "exo-cli", "runtime", "launch-plan", "claude", "/tmp/lab/projects/helm"], {
+    const exitCode = await runCli(["node", "exo-cli", "runtime", "launch-plan", "claude", "/tmp/exo-test-workspace/projects/helm"], {
       env: {
-        EXO_WORKSPACE_ROOT: "/tmp/lab",
-        EXO_NOTE_ROOTS: "/tmp/lab/notes",
-        EXO_PROJECT_ROOTS: "/tmp/lab/projects",
+        EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
+        EXO_NOTE_ROOTS: "/tmp/exo-test-workspace/notes",
+        EXO_PROJECT_ROOTS: "/tmp/exo-test-workspace/projects",
       },
       stdout: {
         write: (text) => {
@@ -50,7 +50,7 @@ describe("cli package", () => {
 
     expect(exitCode).toBe(0);
     expect(stdout).toContain('"kind": "claude"');
-    expect(stdout).toContain('"/tmp/lab/projects/helm"');
+    expect(stdout).toContain('"/tmp/exo-test-workspace/projects/helm"');
     expect(stdout).toContain('"EXO_RUNTIME_PRIMARY_INSTRUCTIONS"');
   });
 
@@ -58,9 +58,9 @@ describe("cli package", () => {
     let stdout = "";
     const exitCode = await runCli(["node", "exo-cli", "runtime", "sync"], {
       env: {
-        EXO_WORKSPACE_ROOT: "/tmp/lab",
-        EXO_NOTE_ROOTS: "/tmp/lab/notes",
-        EXO_PROJECT_ROOTS: "/tmp/lab/projects",
+        EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
+        EXO_NOTE_ROOTS: "/tmp/exo-test-workspace/notes",
+        EXO_PROJECT_ROOTS: "/tmp/exo-test-workspace/projects",
       },
       stdout: {
         write: (text) => {
@@ -73,17 +73,17 @@ describe("cli package", () => {
     });
 
     expect(exitCode).toBe(0);
-    expect(stdout).toContain('"/tmp/lab/.exo/instructions/AGENTS.md"');
-    expect(stdout).toContain('"/tmp/lab/.exo/instructions/CLAUDE.md"');
+    expect(stdout).toContain('"/tmp/exo-test-workspace/.exo/instructions/AGENTS.md"');
+    expect(stdout).toContain('"/tmp/exo-test-workspace/.exo/instructions/CLAUDE.md"');
   });
 
   it("launches a shell with Exo runtime env", async () => {
     let stdout = "";
     const exitCode = await runCli(["node", "exo-cli", "launch", "shell", "/tmp"], {
       env: {
-        EXO_WORKSPACE_ROOT: "/tmp/lab",
-        EXO_NOTE_ROOTS: "/tmp/lab/notes",
-        EXO_PROJECT_ROOTS: "/tmp/lab/projects",
+        EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
+        EXO_NOTE_ROOTS: "/tmp/exo-test-workspace/notes",
+        EXO_PROJECT_ROOTS: "/tmp/exo-test-workspace/projects",
         EXO_SHELL: "/bin/sh",
         EXO_SHELL_ARGS: `-c,printf '%s' "$EXO_AGENT_KIND|$PWD|$EXO_RUNTIME_PRIMARY_INSTRUCTIONS"`,
       },
@@ -99,7 +99,7 @@ describe("cli package", () => {
 
     expect(exitCode).toBe(0);
     expect(stdout).toContain("shell|");
-    expect(stdout).toContain("|/tmp/lab/.exo/instructions/AGENTS.md");
+    expect(stdout).toContain("|/tmp/exo-test-workspace/.exo/instructions/AGENTS.md");
   });
 
   it("submits agent messages by default", async () => {
@@ -126,7 +126,7 @@ describe("cli package", () => {
 
       const exitCode = await runCli(["node", "exo-cli", "agents", "send", "term-1", "hello"], {
         env: {
-          EXO_WORKSPACE_ROOT: "/tmp/lab",
+          EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
           EXO_RUNTIME_ROOT: runtimeRoot,
         },
         stdout: { write: () => {} },
@@ -145,8 +145,8 @@ describe("cli package", () => {
     let stdout = "";
     const exitCode = await runCli(["node", "exo-cli", "integrations", "config", "codex"], {
       env: {
-        EXO_PROJECT_ROOT: "/tmp/lab/projects/exo",
-        EXO_WORKSPACE_ROOT: "/tmp/lab",
+        EXO_PROJECT_ROOT: "/tmp/exo-test-workspace/projects/exo",
+        EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
       },
       stdout: {
         write: (text) => {
@@ -168,8 +168,8 @@ describe("cli package", () => {
     let stdout = "";
     const exitCode = await runCli(["node", "exo-cli", "integrations", "config", "claude"], {
       env: {
-        EXO_PROJECT_ROOT: "/tmp/lab/projects/exo",
-        EXO_WORKSPACE_ROOT: "/tmp/lab",
+        EXO_PROJECT_ROOT: "/tmp/exo-test-workspace/projects/exo",
+        EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
       },
       stdout: {
         write: (text) => {
@@ -190,8 +190,8 @@ describe("cli package", () => {
     let stdout = "";
     const exitCode = await runCli(["node", "exo-cli", "integrations", "doctor"], {
       env: {
-        EXO_PROJECT_ROOT: "/tmp/lab/projects/exo",
-        EXO_WORKSPACE_ROOT: "/tmp/lab",
+        EXO_PROJECT_ROOT: "/tmp/exo-test-workspace/projects/exo",
+        EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
       },
       stdout: {
         write: (text) => {
@@ -212,7 +212,7 @@ describe("cli package", () => {
           return { code: 0, stdout: "/opt/bin/pnpm\n", stderr: "" };
         }
         if (command === "codex") {
-          return { code: 0, stdout: "exo pnpm --dir /tmp/lab/projects/exo\n", stderr: "" };
+          return { code: 0, stdout: "exo pnpm --dir /tmp/exo-test-workspace/projects/exo\n", stderr: "" };
         }
         if (command === "claude") {
           return { code: 0, stdout: "qmd: qmd mcp\n", stderr: "" };
@@ -232,8 +232,8 @@ describe("cli package", () => {
     const calls: string[] = [];
     const exitCode = await runCli(["node", "exo-cli", "integrations", "install", "--dry-run", "all"], {
       env: {
-        EXO_PROJECT_ROOT: "/tmp/lab/projects/exo",
-        EXO_WORKSPACE_ROOT: "/tmp/lab",
+        EXO_PROJECT_ROOT: "/tmp/exo-test-workspace/projects/exo",
+        EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
       },
       stdout: {
         write: (text) => {

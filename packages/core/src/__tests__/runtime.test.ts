@@ -15,28 +15,28 @@ afterEach(async () => {
 describe("runtime", () => {
   it("resolves runtime config from workspace env", () => {
     const config = resolveRuntimeConfig({
-      EXO_WORKSPACE_ROOT: "/tmp/lab",
-      EXO_NOTE_ROOTS: "/tmp/lab/notes",
-      EXO_PROJECT_ROOTS: "/tmp/lab/projects",
+      EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
+      EXO_NOTE_ROOTS: "/tmp/exo-test-workspace/notes",
+      EXO_PROJECT_ROOTS: "/tmp/exo-test-workspace/projects",
       EXO_QMD_COMMAND: "qmd-local",
     });
 
-    expect(config.workspace.workspaceRoot).toBe("/tmp/lab");
+    expect(config.workspace.workspaceRoot).toBe("/tmp/exo-test-workspace");
     expect(config.retrieval.command).toBe("qmd-local");
-    expect(config.instructions.primary).toContain("/tmp/lab/.exo/instructions/AGENTS.md");
+    expect(config.instructions.primary).toContain("/tmp/exo-test-workspace/.exo/instructions/AGENTS.md");
   });
 
   it("builds launch plans with runtime context env", () => {
     const config = resolveRuntimeConfig({
-      EXO_WORKSPACE_ROOT: "/tmp/lab",
-      EXO_NOTE_ROOTS: "/tmp/lab/notes",
-      EXO_PROJECT_ROOTS: "/tmp/lab/projects",
+      EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
+      EXO_NOTE_ROOTS: "/tmp/exo-test-workspace/notes",
+      EXO_PROJECT_ROOTS: "/tmp/exo-test-workspace/projects",
       EXO_CLAUDE_COMMAND: "claude",
     });
 
-    const plan = resolveAgentLaunchPlan(config, "claude", "/tmp/lab/projects/helm");
+    const plan = resolveAgentLaunchPlan(config, "claude", "/tmp/exo-test-workspace/projects/helm");
 
-    expect(plan.cwd).toBe("/tmp/lab/projects/helm");
+    expect(plan.cwd).toBe("/tmp/exo-test-workspace/projects/helm");
     expect(plan.command).toBe("claude");
     expect(plan.env.EXO_RUNTIME_PRIMARY_INSTRUCTIONS).toBe(config.instructions.primary);
     expect(plan.env.EXO_AGENT_TRANSPORT).toBe("file-sqlite");
@@ -45,13 +45,13 @@ describe("runtime", () => {
 
   it("adds a supported Codex reasoning-effort override by default", () => {
     const config = resolveRuntimeConfig({
-      EXO_WORKSPACE_ROOT: "/tmp/lab",
-      EXO_NOTE_ROOTS: "/tmp/lab/notes",
-      EXO_PROJECT_ROOTS: "/tmp/lab/projects",
+      EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
+      EXO_NOTE_ROOTS: "/tmp/exo-test-workspace/notes",
+      EXO_PROJECT_ROOTS: "/tmp/exo-test-workspace/projects",
       EXO_CODEX_COMMAND: "codex",
     });
 
-    const plan = resolveAgentLaunchPlan(config, "codex", "/tmp/lab");
+    const plan = resolveAgentLaunchPlan(config, "codex", "/tmp/exo-test-workspace");
 
     expect(plan.command).toBe("codex");
     expect(plan.args).toContain("-c");
@@ -60,14 +60,14 @@ describe("runtime", () => {
 
   it("keeps an explicit Codex reasoning-effort override when provided", () => {
     const config = resolveRuntimeConfig({
-      EXO_WORKSPACE_ROOT: "/tmp/lab",
-      EXO_NOTE_ROOTS: "/tmp/lab/notes",
-      EXO_PROJECT_ROOTS: "/tmp/lab/projects",
+      EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
+      EXO_NOTE_ROOTS: "/tmp/exo-test-workspace/notes",
+      EXO_PROJECT_ROOTS: "/tmp/exo-test-workspace/projects",
       EXO_CODEX_COMMAND: "codex",
       EXO_CODEX_ARGS: '-c,model_reasoning_effort="medium"',
     });
 
-    const plan = resolveAgentLaunchPlan(config, "codex", "/tmp/lab");
+    const plan = resolveAgentLaunchPlan(config, "codex", "/tmp/exo-test-workspace");
 
     expect(plan.args).toEqual(["-c", 'model_reasoning_effort="medium"']);
   });

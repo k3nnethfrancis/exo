@@ -51,7 +51,7 @@ describe("ExoCommandClient", () => {
     await writeFile(path.join(runtimeRoot, "server.json"), JSON.stringify({ port, pid: process.pid }), "utf8");
 
     const client = await ExoCommandClient.connect({
-      EXO_WORKSPACE_ROOT: "/tmp/lab",
+      EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
       EXO_RUNTIME_ROOT: runtimeRoot,
     });
 
@@ -88,7 +88,7 @@ describe("ExoCommandClient", () => {
     await writeFile(path.join(runtimeRoot, "server.json"), JSON.stringify({ port, pid: process.pid }), "utf8");
 
     const client = await ExoCommandClient.connect({
-      EXO_WORKSPACE_ROOT: "/tmp/lab",
+      EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
       EXO_RUNTIME_ROOT: runtimeRoot,
     });
 

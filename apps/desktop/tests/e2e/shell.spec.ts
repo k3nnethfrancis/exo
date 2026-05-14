@@ -224,7 +224,7 @@ test("opens workspace settings from the sidebar", async () => {
 
   await page.getByTestId("workspace-settings").click();
   await expect(page.getByTestId("workspace-settings-dialog")).toBeVisible();
-  await expect(page.getByTestId("workspace-settings-note-roots")).toContainText("vault");
+  await expect(page.getByTestId("workspace-settings-note-roots")).toContainText("test-notes");
 
   await cleanup();
 });
@@ -277,7 +277,7 @@ test("accepts terminal keyboard input in pane tree", async () => {
 test("keeps list guides aligned with the visible bullet lanes", async () => {
   const { page, cleanup } = await launchExoFixture({
     prepareWorkspace: async (workspaceRoot) => {
-      const notePath = path.join(workspaceRoot, "notes/vault/focus-note.md");
+      const notePath = path.join(workspaceRoot, "notes/test-notes/focus-note.md");
       await writeFile(
         notePath,
         `---\ntitle: Focus Note\n---\n\n# Probe\n\n- top item\n  - child item\n    - grandchild item\n  - sibling child\n    continuation line\n`,
@@ -362,7 +362,7 @@ test("keeps list guides aligned with the visible bullet lanes", async () => {
 test("keeps list text aligned when editing a bullet marker", async () => {
   const { page, cleanup } = await launchExoFixture({
     prepareWorkspace: async (workspaceRoot) => {
-      const notePath = path.join(workspaceRoot, "notes/vault/focus-note.md");
+      const notePath = path.join(workspaceRoot, "notes/test-notes/focus-note.md");
       await writeFile(
         notePath,
         `---\ntitle: Focus Note\n---\n\n# Probe\n\n- journal\n  - today\n  - \n`,
@@ -515,7 +515,7 @@ test("keeps the inspector pinned while long notes scroll", async () => {
   const longDocument = Array.from({ length: 120 }, (_, index) => `- line ${index + 1}`).join("\n");
   const longFixture = await launchExoFixture({
     prepareWorkspace: async (workspaceRoot) => {
-      const notePath = path.join(workspaceRoot, "notes/vault/focus-note.md");
+      const notePath = path.join(workspaceRoot, "notes/test-notes/focus-note.md");
       await writeFile(
         notePath,
         `---\ntitle: Focus Note\n---\n\n# Long note\n\n${longDocument}\n`,

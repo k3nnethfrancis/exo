@@ -11,3 +11,11 @@ playwright-report/
 .claude/settings.local.json
 *.log
 .DS_Store
+
+# Guardrails: real user workspaces/notes should not be committed here.
+/notes/
+/vault/
+/workspace/
+/workspaces/
+/personal/
+/garden/

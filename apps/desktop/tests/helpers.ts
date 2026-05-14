@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { _electron as electron, expect, type ElectronApplication, type Page } from "@playwright/test";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const fixtureRoot = path.join(repoRoot, "fixtures/workspace/lab");
+const fixtureRoot = path.join(repoRoot, "fixtures/test-workspace");
 
 export async function launchExoFixture(options?: {
   mutable?: boolean;
@@ -21,7 +21,7 @@ export async function launchExoFixture(options?: {
   const userDataRoot = await mkdtemp(path.join(os.tmpdir(), "exo-userdata-"));
   if (options?.mutable || options?.prepareWorkspace) {
     tempRoot = await mkdtemp(path.join(os.tmpdir(), "exo-fixture-"));
-    workspaceRoot = path.join(tempRoot, "lab");
+    workspaceRoot = path.join(tempRoot, "test-workspace");
     await cp(fixtureRoot, workspaceRoot, { recursive: true });
   }
 
@@ -36,8 +36,8 @@ export async function launchExoFixture(options?: {
       ...process.env,
       EXO_TEST: "1",
       EXO_WORKSPACE_ROOT: workspaceRoot,
-      EXO_NOTE_ROOTS: path.join(workspaceRoot, "notes/vault"),
-      EXO_PROJECT_ROOTS: path.join(workspaceRoot, "projects/exo-demo"),
+      EXO_NOTE_ROOTS: path.join(workspaceRoot, "notes/test-notes"),
+      EXO_PROJECT_ROOTS: path.join(workspaceRoot, "projects/sample-project"),
       EXO_DEFAULT_TERMINAL_CWD: workspaceRoot,
       EXO_SETTINGS_PATH: settingsPath,
       EXO_USER_DATA_PATH: userDataRoot,
