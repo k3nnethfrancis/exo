@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { EXO_COMMAND_ROUTES, resolveRuntimeConfig, type ExoCommandServerInfo } from "@exo/core";
+import { EXO_COMMAND_ROUTES, type ExoCommandServerInfo } from "@exo/core/command-protocol";
 
 export interface ExoAgent {
   id: string;
@@ -24,7 +24,7 @@ export class ExoCommandClient {
   constructor(readonly baseUrl: string) {}
 
   static async connect(env: NodeJS.ProcessEnv = process.env): Promise<ExoCommandClient> {
-    const runtimeRoot = resolveRuntimeConfig(env).runtimeRoot;
+    const runtimeRoot = resolveMcpRuntimeRoot(env);
     const serverJsonPath = path.join(runtimeRoot, "server.json");
     const autostart = env.EXO_MCP_AUTOSTART === "1";
     const timeoutMs = parsePositiveInt(env.EXO_MCP_CONNECT_TIMEOUT_MS) ?? defaultConnectTimeoutMs;
@@ -116,6 +116,10 @@ export class ExoCommandClient {
       return false;
     }
   }
+}
+
+function resolveMcpRuntimeRoot(env: NodeJS.ProcessEnv): string {
+  return env.EXO_RUNTIME_ROOT ?? path.join(env.EXO_WORKSPACE_ROOT ?? process.cwd(), ".exo");
 }
 
 async function readServerInfo(serverJsonPath: string): Promise<ExoCommandServerInfo | null> {

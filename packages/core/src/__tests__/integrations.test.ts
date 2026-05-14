@@ -27,12 +27,8 @@ describe("integrations", () => {
       "--env",
       "EXO_MCP_START_COMMAND=/tmp/lab/projects/exo/bin/exo dev",
       "--",
-      "pnpm",
-      "--dir",
-      "/tmp/lab/projects/exo",
-      "--filter",
-      "@exo/mcp",
-      "start",
+      "node",
+      "/tmp/lab/projects/exo/packages/mcp/bin/exo-mcp.mjs",
     ]);
   });
 
@@ -51,14 +47,15 @@ describe("integrations", () => {
       "EXO_WORKSPACE_ROOT=/tmp/lab",
     ]);
     expect(spec.installArgs).toContain("exo");
-    expect(spec.installArgs.slice(-6)).toEqual(["pnpm", "--dir", "/tmp/lab/projects/exo", "--filter", "@exo/mcp", "start"]);
+    expect(spec.installArgs.slice(-2)).toEqual(["node", "/tmp/lab/projects/exo/packages/mcp/bin/exo-mcp.mjs"]);
   });
 
   it("formats MCP JSON for documentation and config previews", () => {
     const spec = buildExoMcpIntegrationSpec("codex", config);
     const json = JSON.parse(formatMcpServerJson(spec.server));
 
-    expect(json.mcpServers.exo.command).toBe("pnpm");
+    expect(json.mcpServers.exo.command).toBe("node");
+    expect(json.mcpServers.exo.args).toContain("/tmp/lab/projects/exo/packages/mcp/bin/exo-mcp.mjs");
     expect(json.mcpServers.exo.env.EXO_MCP_AUTOSTART).toBe("1");
   });
 

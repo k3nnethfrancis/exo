@@ -33,8 +33,8 @@ export function buildExoMcpServerSpec(config: ExoMcpIntegrationConfig): ExoMcpSe
   const serverName = config.serverName ?? "exo";
   return {
     serverName,
-    command: "pnpm",
-    args: ["--dir", config.exoRoot, "--filter", "@exo/mcp", "start"],
+    command: "node",
+    args: [`${config.exoRoot}/packages/mcp/bin/exo-mcp.mjs`],
     env: {
       EXO_WORKSPACE_ROOT: config.workspaceRoot,
       EXO_MCP_AUTOSTART: "1",

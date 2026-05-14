@@ -24,13 +24,9 @@ Manual config shape:
 {
   "mcpServers": {
     "exo": {
-      "command": "pnpm",
+      "command": "node",
       "args": [
-        "--dir",
-        "/path/to/exo",
-        "--filter",
-        "@exo/mcp",
-        "start"
+        "/path/to/exo/packages/mcp/bin/exo-mcp.mjs"
       ],
       "env": {
         "EXO_WORKSPACE_ROOT": "/path/to/workspace",

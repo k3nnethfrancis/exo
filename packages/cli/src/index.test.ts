@@ -161,7 +161,7 @@ describe("cli package", () => {
     expect(exitCode).toBe(0);
     expect(stdout).toContain("codex mcp add exo");
     expect(stdout).toContain("EXO_MCP_AUTOSTART");
-    expect(stdout).toContain('"@exo/mcp"');
+    expect(stdout).toContain("packages/mcp/bin/exo-mcp.mjs");
   });
 
   it("prints Claude integration config", async () => {

@@ -5,10 +5,11 @@
   "private": true,
   "type": "module",
   "bin": {
-    "exo-mcp": "src/index.ts"
+    "exo-mcp": "bin/exo-mcp.mjs"
   },
   "scripts": {
-    "start": "tsx src/index.ts",
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/index.js --log-level=silent",
+    "start": "node bin/exo-mcp.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
