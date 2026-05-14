@@ -25,6 +25,8 @@ export interface WorkspaceSettings {
   appearanceMode: "system" | "light" | "dark";
   editorFontSize: number;
   terminalFontSize: number;
+  terminalScrollbackLines: number;
+  terminalBufferChars: number;
   explorerScale: number;
 }
 

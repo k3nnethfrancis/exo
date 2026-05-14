@@ -160,6 +160,8 @@ Portable source defaults:
 - `note_roots = [workspace_root/notes]`
 - `project_roots = [exo repo root]`
 - `default_terminal_cwd = workspace_root`
+- `terminalScrollbackLines = 5000`
+- `terminalBufferChars = 80000`
 
 Runtime files live under `.exo/` inside the workspace root:
 

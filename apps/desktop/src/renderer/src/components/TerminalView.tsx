@@ -15,13 +15,14 @@ interface TerminalViewProps {
   session: TerminalSessionInfo;
   buffer: string;
   fontSize: number;
+  scrollbackLines: number;
   onFocus: () => void;
   onInput: (id: string, data: string) => void;
   onResize: (id: string, cols: number, rows: number) => void;
 }
 
 export function TerminalView(props: TerminalViewProps) {
-  const { appearance, session, buffer, fontSize, onFocus, onInput, onResize } = props;
+  const { appearance, session, buffer, fontSize, scrollbackLines, onFocus, onInput, onResize } = props;
   const hostRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -47,7 +48,7 @@ export function TerminalView(props: TerminalViewProps) {
       fontFamily: '"IBM Plex Mono", "SF Mono", monospace',
       fontSize,
       cursorBlink: false,
-      scrollback: 1_000,
+      scrollback: scrollbackLines,
       theme: xtermTheme(appearance),
     });
     const fitAddon = new FitAddon();
@@ -157,6 +158,15 @@ export function TerminalView(props: TerminalViewProps) {
       safeFit(hostRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef);
     });
   }, [fontSize, session.id]);
+
+  useEffect(() => {
+    const terminal = terminalRef.current;
+    if (!terminal) {
+      return;
+    }
+
+    terminal.options.scrollback = scrollbackLines;
+  }, [scrollbackLines]);
 
   useEffect(() => {
     const terminal = terminalRef.current;

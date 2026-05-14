@@ -6,6 +6,8 @@ import type { WorkspaceModel, WorkspaceSettings } from "@exo/core";
 export const DEFAULT_APPEARANCE_MODE: WorkspaceSettings["appearanceMode"] = "system";
 export const DEFAULT_EDITOR_FONT_SIZE = 15;
 export const DEFAULT_TERMINAL_FONT_SIZE = 13;
+export const DEFAULT_TERMINAL_SCROLLBACK_LINES = 5_000;
+export const DEFAULT_TERMINAL_BUFFER_CHARS = 80_000;
 export const DEFAULT_EXPLORER_SCALE = 1;
 
 export interface WorkspaceSettingsStoreOptions {
@@ -46,6 +48,8 @@ export class WorkspaceSettingsStore {
         : DEFAULT_APPEARANCE_MODE;
     const editorFontSize = clampSettingsNumber(input.editorFontSize, DEFAULT_EDITOR_FONT_SIZE, 11, 24);
     const terminalFontSize = clampSettingsNumber(input.terminalFontSize, DEFAULT_TERMINAL_FONT_SIZE, 10, 22);
+    const terminalScrollbackLines = clampSettingsNumber(input.terminalScrollbackLines, DEFAULT_TERMINAL_SCROLLBACK_LINES, 500, 100_000);
+    const terminalBufferChars = clampSettingsNumber(input.terminalBufferChars, DEFAULT_TERMINAL_BUFFER_CHARS, 12_000, 2_000_000);
     const explorerScale = clampSettingsNumber(input.explorerScale, DEFAULT_EXPLORER_SCALE, 0.82, 1.35);
 
     if (!workspaceRoot || !defaultTerminalCwd || noteRoots.length === 0) {
@@ -60,6 +64,8 @@ export class WorkspaceSettingsStore {
       appearanceMode,
       editorFontSize,
       terminalFontSize,
+      terminalScrollbackLines,
+      terminalBufferChars,
       explorerScale,
     };
   }
@@ -73,6 +79,8 @@ export class WorkspaceSettingsStore {
       appearanceMode: DEFAULT_APPEARANCE_MODE,
       editorFontSize: DEFAULT_EDITOR_FONT_SIZE,
       terminalFontSize: DEFAULT_TERMINAL_FONT_SIZE,
+      terminalScrollbackLines: DEFAULT_TERMINAL_SCROLLBACK_LINES,
+      terminalBufferChars: DEFAULT_TERMINAL_BUFFER_CHARS,
       explorerScale: DEFAULT_EXPLORER_SCALE,
     };
   }

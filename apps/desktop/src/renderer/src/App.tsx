@@ -65,6 +65,8 @@ interface WorkspaceSettingsDialogState {
   appearanceMode: AppearanceMode;
   editorFontSize: string;
   terminalFontSize: string;
+  terminalScrollbackLines: string;
+  terminalBufferChars: string;
   explorerScale: string;
   saveStatus: "idle" | "saved" | "error";
   errorMessage: string | null;
@@ -76,7 +78,8 @@ export type AppearanceMode = "system" | "light" | "dark";
 export type ResolvedAppearance = "light" | "dark";
 type ZoomSurface = "editor" | "terminal" | "explorer";
 
-const MAX_TERMINAL_BUFFER_LENGTH = 12_000;
+const DEFAULT_TERMINAL_SCROLLBACK_LINES = 5_000;
+const DEFAULT_TERMINAL_BUFFER_CHARS = 80_000;
 const MAX_PENDING_TERMINAL_CHUNK_LENGTH = 8_000;
 const NOTE_TREE_MAX_DEPTH = 3;
 const PROJECT_TREE_MAX_DEPTH = 3;
@@ -109,6 +112,7 @@ export function App() {
   const [zoomSurface, setZoomSurface] = useState<ZoomSurface>("editor");
   const [editorFontSize, setEditorFontSize] = useState(DEFAULT_EDITOR_FONT_SIZE);
   const [terminalFontSize, setTerminalFontSize] = useState(DEFAULT_TERMINAL_FONT_SIZE);
+  const [terminalScrollbackLines, setTerminalScrollbackLines] = useState(DEFAULT_TERMINAL_SCROLLBACK_LINES);
   const [explorerScale, setExplorerScale] = useState(DEFAULT_EXPLORER_SCALE);
   const [systemPrefersDark, setSystemPrefersDark] = useState(() =>
     window.matchMedia("(prefers-color-scheme: dark)").matches,
@@ -241,6 +245,7 @@ export function App() {
       setAppearanceMode(settings.appearanceMode);
       setEditorFontSize(settings.editorFontSize);
       setTerminalFontSize(settings.terminalFontSize);
+      setTerminalScrollbackLines(settings.terminalScrollbackLines);
       setExplorerScale(settings.explorerScale);
       const [nextNoteTrees, nextProjectTrees] = await Promise.all([
         Promise.all(
@@ -298,7 +303,7 @@ export function App() {
       ]);
       setTerminalSessions(sessions);
       setActiveTerminalId(defaultTerminal.id);
-      setTerminalBuffers({ [defaultTerminal.id]: defaultTerminalBuffer.slice(-MAX_TERMINAL_BUFFER_LENGTH) });
+      setTerminalBuffers({ [defaultTerminal.id]: trimTerminalBuffer(defaultTerminalBuffer, settings.terminalBufferChars) });
 
       // Seed the default terminal into the terminal tree
       const termLeaf = findTerminalLeaf(terminalTree);
@@ -328,7 +333,7 @@ export function App() {
       setTerminalBuffers((current) => {
         const next = { ...current };
         for (const [id, chunk] of entries) {
-          next[id] = `${next[id] ?? ""}${chunk}`.slice(-MAX_TERMINAL_BUFFER_LENGTH);
+          next[id] = trimTerminalBuffer(`${next[id] ?? ""}${chunk}`, workspaceSettingsRef.current?.terminalBufferChars ?? DEFAULT_TERMINAL_BUFFER_CHARS);
         }
         return next;
       });
@@ -379,7 +384,7 @@ export function App() {
       if (cancelled) {
         return;
       }
-      const nextBuffer = buffer.slice(-MAX_TERMINAL_BUFFER_LENGTH);
+      const nextBuffer = trimTerminalBuffer(buffer, workspaceSettingsRef.current?.terminalBufferChars ?? DEFAULT_TERMINAL_BUFFER_CHARS);
       setTerminalBuffers((current) =>
         current[activeTerminalId] === nextBuffer ? current : { ...current, [activeTerminalId]: nextBuffer },
       );
@@ -596,6 +601,8 @@ export function App() {
       appearanceMode: settings.appearanceMode,
       editorFontSize: String(settings.editorFontSize),
       terminalFontSize: String(settings.terminalFontSize),
+      terminalScrollbackLines: String(settings.terminalScrollbackLines),
+      terminalBufferChars: String(settings.terminalBufferChars),
       explorerScale: String(settings.explorerScale),
       saveStatus: "idle",
       errorMessage: null,
@@ -621,6 +628,8 @@ export function App() {
       appearanceMode: workspaceSettingsDialog.appearanceMode,
       editorFontSize: clampNumber(Number(workspaceSettingsDialog.editorFontSize), 11, 24),
       terminalFontSize: clampNumber(Number(workspaceSettingsDialog.terminalFontSize), 10, 22),
+      terminalScrollbackLines: clampNumber(Number(workspaceSettingsDialog.terminalScrollbackLines), 500, 100_000),
+      terminalBufferChars: clampNumber(Number(workspaceSettingsDialog.terminalBufferChars), 12_000, 2_000_000),
       explorerScale: clampNumber(Number(workspaceSettingsDialog.explorerScale), 0.82, 1.35),
     };
 
@@ -630,6 +639,8 @@ export function App() {
       setAppearanceMode(saved.appearanceMode);
       setEditorFontSize(saved.editorFontSize);
       setTerminalFontSize(saved.terminalFontSize);
+      setTerminalScrollbackLines(saved.terminalScrollbackLines);
+      setTerminalBuffers((current) => mapRecordValues(current, (buffer) => trimTerminalBuffer(buffer, saved.terminalBufferChars)));
       setExplorerScale(saved.explorerScale);
       setWorkspaceSettingsDialog((current) =>
         current
@@ -638,6 +649,8 @@ export function App() {
               appearanceMode: saved.appearanceMode,
               editorFontSize: String(saved.editorFontSize),
               terminalFontSize: String(saved.terminalFontSize),
+              terminalScrollbackLines: String(saved.terminalScrollbackLines),
+              terminalBufferChars: String(saved.terminalBufferChars),
               explorerScale: String(saved.explorerScale),
               saveStatus: "saved",
               errorMessage: null,
@@ -1002,7 +1015,7 @@ export function App() {
     const buffer = await window.exo.terminals.read(id);
     setTerminalBuffers((current) => ({
       ...current,
-      [id]: buffer.slice(-MAX_TERMINAL_BUFFER_LENGTH),
+      [id]: trimTerminalBuffer(buffer, workspaceSettingsRef.current?.terminalBufferChars ?? DEFAULT_TERMINAL_BUFFER_CHARS),
     }));
   }
 
@@ -1505,6 +1518,7 @@ export function App() {
             buffers={terminalBuffers}
             appearance={resolvedAppearance}
             fontSize={terminalFontSize}
+            scrollbackLines={terminalScrollbackLines}
             onFocus={() => setZoomSurface("terminal")}
             onSetActiveTerminal={(id) => {
               setZoomSurface("terminal");
@@ -1735,6 +1749,54 @@ export function App() {
                           ? {
                               ...current,
                               terminalFontSize: event.target.value,
+                              saveStatus: "idle",
+                              errorMessage: null,
+                            }
+                          : current,
+                      )
+                    }
+                  />
+                </label>
+                <label className="dialog-field">
+                  <span className="dialog-field__label">Terminal lines</span>
+                  <input
+                    className="dialog-card__input"
+                    data-testid="workspace-settings-terminal-scrollback-lines"
+                    type="number"
+                    min={500}
+                    max={100000}
+                    step={500}
+                    value={workspaceSettingsDialog.terminalScrollbackLines}
+                    onChange={(event) =>
+                      setWorkspaceSettingsDialog((current) =>
+                        current
+                          ? {
+                              ...current,
+                              terminalScrollbackLines: event.target.value,
+                              saveStatus: "idle",
+                              errorMessage: null,
+                            }
+                          : current,
+                      )
+                    }
+                  />
+                </label>
+                <label className="dialog-field">
+                  <span className="dialog-field__label">Terminal buffer</span>
+                  <input
+                    className="dialog-card__input"
+                    data-testid="workspace-settings-terminal-buffer-chars"
+                    type="number"
+                    min={12000}
+                    max={2000000}
+                    step={12000}
+                    value={workspaceSettingsDialog.terminalBufferChars}
+                    onChange={(event) =>
+                      setWorkspaceSettingsDialog((current) =>
+                        current
+                          ? {
+                              ...current,
+                              terminalBufferChars: event.target.value,
                               saveStatus: "idle",
                               errorMessage: null,
                             }
@@ -2032,6 +2094,14 @@ function restoreActiveEditorScrollTop(scrollTop: number) {
     restore();
     window.clearInterval(interval);
   }, 650);
+}
+
+function trimTerminalBuffer(buffer: string, maxChars: number): string {
+  return buffer.length > maxChars ? buffer.slice(-maxChars) : buffer;
+}
+
+function mapRecordValues<T>(record: Record<string, T>, mapValue: (value: T) => T): Record<string, T> {
+  return Object.fromEntries(Object.entries(record).map(([key, value]) => [key, mapValue(value)]));
 }
 
 function clampNumber(value: number, min: number, max: number): number {
