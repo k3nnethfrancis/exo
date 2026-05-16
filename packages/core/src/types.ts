@@ -32,6 +32,7 @@ export interface WorkspaceSettings {
   terminalScrollbackLines: number;
   terminalBufferChars: number;
   explorerScale: number;
+  exploreIndexSearchOnEnter: boolean;
 }
 
 export interface TreeNode {

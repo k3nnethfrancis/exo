@@ -1,6 +1,7 @@
 import type {
   BranchCreateResult,
   BranchFamily,
+  IndexSearchResponse,
   IndexStatus,
   NoteDocument,
   NoteKnowledge,
@@ -53,6 +54,7 @@ export interface DesktopApi {
     ) => Promise<TreeNode[]>;
     searchNotes: (query: string) => Promise<SearchResult[]>;
     searchWorkspace: (query: string) => Promise<WorkspaceSearchResults>;
+    searchIndex: (query: string, options?: { limit?: number; forceMode?: "lexical" | "semantic" | "hybrid" }) => Promise<IndexSearchResponse>;
     searchTag: (tag: string) => Promise<SearchResult[]>;
     getGitStatus: (rootPath: string) => Promise<WorkspaceGitStatus | null>;
     createFile: (targetPath: string, content?: string) => Promise<string>;

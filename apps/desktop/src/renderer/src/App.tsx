@@ -74,6 +74,7 @@ interface WorkspaceSettingsDialogState {
   terminalScrollbackLines: string;
   terminalBufferChars: string;
   explorerScale: string;
+  exploreIndexSearchOnEnter: boolean;
   saveStatus: "idle" | "saving" | "saved" | "error";
   errorMessage: string | null;
   appliedWorkspaceKey: string;
@@ -102,7 +103,8 @@ export function App() {
   const [workspaceModel, setWorkspaceModel] = useState<WorkspaceModel | null>(null);
   const [noteTrees, setNoteTrees] = useState<Record<string, TreeNode[]>>({});
   const [projectTrees, setProjectTrees] = useState<Record<string, TreeNode[]>>({});
-  const workspaceSearch = useWorkspaceSearch();
+  const [exploreIndexSearchOnEnter, setExploreIndexSearchOnEnter] = useState(false);
+  const workspaceSearch = useWorkspaceSearch({ indexedOnEnter: exploreIndexSearchOnEnter });
   const [openDocuments, setOpenDocuments] = useState<Record<string, OpenEditorDocument>>({});
   const [knowledgeByPath, setKnowledgeByPath] = useState<Record<string, NoteKnowledge>>({});
   const [branchFamiliesByPath, setBranchFamiliesByPath] = useState<Record<string, BranchFamily>>({});
@@ -263,6 +265,7 @@ export function App() {
       setTerminalFontSize(settings.terminalFontSize);
       setTerminalScrollbackLines(settings.terminalScrollbackLines);
       setExplorerScale(settings.explorerScale);
+      setExploreIndexSearchOnEnter(settings.exploreIndexSearchOnEnter);
       setIndexStatus(status);
       const [nextNoteTrees, nextProjectTrees] = await Promise.all([
         Promise.all(
@@ -673,6 +676,7 @@ export function App() {
       terminalScrollbackLines: String(settings.terminalScrollbackLines),
       terminalBufferChars: String(settings.terminalBufferChars),
       explorerScale: String(settings.explorerScale),
+      exploreIndexSearchOnEnter: settings.exploreIndexSearchOnEnter,
       saveStatus: "idle",
       errorMessage: null,
       appliedWorkspaceKey,
@@ -772,6 +776,7 @@ export function App() {
       terminalScrollbackLines: clampNumber(Number(settingsDialog.terminalScrollbackLines), 500, 100_000),
       terminalBufferChars: clampNumber(Number(settingsDialog.terminalBufferChars), 12_000, 2_000_000),
       explorerScale: clampNumber(Number(settingsDialog.explorerScale), 0.82, 1.35),
+      exploreIndexSearchOnEnter: settingsDialog.exploreIndexSearchOnEnter,
     };
 
     return nextSettings;
@@ -805,6 +810,7 @@ export function App() {
       setTerminalScrollbackLines(saved.terminalScrollbackLines);
       setTerminalBuffers((current) => mapRecordValues(current, (buffer) => trimTerminalBuffer(buffer, saved.terminalBufferChars)));
       setExplorerScale(saved.explorerScale);
+      setExploreIndexSearchOnEnter(saved.exploreIndexSearchOnEnter);
       setWorkspaceSettingsDialog((current) =>
         current && (options.includeStructural ? workspaceSettingsStructuralDraftKey(current) : workspaceSettingsImmediateDraftKey(current)) === snapshotKey
           ? {
@@ -1691,6 +1697,9 @@ export function App() {
       resolvedAppearance={resolvedAppearance}
       searchQuery={workspaceSearch.query}
       searchResults={workspaceSearch.results}
+      searchResultMode={workspaceSearch.resultMode}
+      searchResultQuery={workspaceSearch.resultQuery}
+      searchMessage={workspaceSearch.message}
       statusLine={{
         workspaceLabel: workspaceModel ? pathLabel(workspaceModel.workspaceRoot) : "workspace",
         projectLabel: workspaceModel?.projectRoots[0] ? pathLabel(workspaceModel.projectRoots[0].path) : null,
@@ -1785,6 +1794,7 @@ export function App() {
         workspaceSearch.setQuery(value);
         workspaceSearch.setSubmittedQuery(value.trim());
       }}
+      onSearchSubmit={() => void workspaceSearch.runIndexedSearch()}
       onOpenFile={(filePath) => void openFile(filePath)}
       onOpenTag={(tag) => void openTag(tag)}
       onExpandDirectory={(directoryPath, rootKind) => void expandTreeDirectory(directoryPath, rootKind)}
@@ -1979,18 +1989,21 @@ export function App() {
                       className="dialog-card__input"
                       data-testid="workspace-settings-index-mode"
                       value={workspaceSettingsDialog.indexMode}
-                      onChange={(event) =>
+                      onChange={(event) => {
+                        const nextMode = event.target.value as WorkspaceSettings["indexing"]["mode"];
                         setWorkspaceSettingsDialog((current) =>
                           current
                             ? {
                                 ...current,
-                                indexMode: event.target.value as WorkspaceSettings["indexing"]["mode"],
+                                indexMode: nextMode,
+                                exploreIndexSearchOnEnter:
+                                  current.exploreIndexSearchOnEnter || (current.indexMode === "off" && nextMode !== "off"),
                                 applyStatus: "idle",
                                 applyErrorMessage: null,
                               }
                             : current,
-                        )
-                      }
+                        );
+                      }}
                     >
                       <option value="off">Off</option>
                       <option value="lexical">Lexical</option>
@@ -2020,9 +2033,30 @@ export function App() {
                     />
                   </label>
                   <div className="dialog-card__message">
-                    QMD by Tobi Lutke powers the local Exo knowledge index. Index data is stored under .exo/qmd.{" "}
+                    QMD by Tobi Lutke powers MCP/CLI index search. Explore live search uses filenames; Enter can use lexical index search. Index data is stored under .exo/qmd.{" "}
                     {workspaceSettingsDialog.indexStatusSummary}
                   </div>
+                  <label className="dialog-check">
+                    <input
+                      checked={workspaceSettingsDialog.exploreIndexSearchOnEnter}
+                      data-testid="workspace-settings-explore-index-enter"
+                      disabled={workspaceSettingsDialog.indexMode === "off"}
+                      onChange={(event) =>
+                        setWorkspaceSettingsDialog((current) =>
+                          current
+                            ? {
+                                ...current,
+                                exploreIndexSearchOnEnter: event.target.checked,
+                                saveStatus: "idle",
+                                errorMessage: null,
+                              }
+                            : current,
+                        )
+                      }
+                      type="checkbox"
+                    />
+                    <span>Use indexed lexical search on Enter in Explore.</span>
+                  </label>
                   <div className="dialog-card__actions dialog-card__actions--split">
                     <button
                       className="toolbar-button"
@@ -2034,6 +2068,7 @@ export function App() {
                                 ...current,
                                 indexedRoots: current.noteRoots,
                                 indexMode: current.indexMode === "off" ? "lexical" : current.indexMode,
+                                exploreIndexSearchOnEnter: true,
                                 applyStatus: "idle",
                                 applyErrorMessage: null,
                               }
@@ -2593,6 +2628,7 @@ function workspaceSettingsImmediateDraftKey(settings: WorkspaceSettingsDialogSta
     terminalScrollbackLines: settings.terminalScrollbackLines,
     terminalBufferChars: settings.terminalBufferChars,
     explorerScale: settings.explorerScale,
+    exploreIndexSearchOnEnter: settings.exploreIndexSearchOnEnter,
   });
 }
 

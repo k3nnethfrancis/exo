@@ -406,6 +406,11 @@ function registerIpcHandlers() {
   );
   ipcMain.handle("workspace:search-notes", async (_event, query: string) => searchNotes(workspaceModel, query));
   ipcMain.handle("workspace:search-workspace", async (_event, query: string) => searchWorkspace(workspaceModel, query));
+  ipcMain.handle(
+    "workspace:search-index",
+    async (_event, query: string, options?: { limit?: number; forceMode?: "lexical" | "semantic" | "hybrid" }) =>
+      searchIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot, query, options),
+  );
   ipcMain.handle("workspace:get-git-status", async (_event, rootPath: string) => getGitStatus(rootPath));
   ipcMain.handle("workspace:create-file", async (_event, targetPath: string, content?: string) => createWorkspaceFile(targetPath, content));
   ipcMain.handle("workspace:create-directory", async (_event, targetPath: string) => createWorkspaceDirectory(targetPath));

@@ -18,6 +18,7 @@ import {
 import type { WorkspaceSearchResults } from "@exo/core";
 import type { AppearanceMode, ResolvedAppearance } from "../App";
 import type { DragManager } from "../hooks/useDragManager";
+import type { WorkspaceSearchResultMode } from "../hooks/useWorkspaceSearch";
 import { RailButton } from "./Chrome";
 import {
   ROOT_GROUP_PREFIX,
@@ -35,10 +36,14 @@ interface FileTreeProps {
   resolvedAppearance: ResolvedAppearance;
   searchQuery: string;
   searchResults: WorkspaceSearchResults;
+  searchResultMode: WorkspaceSearchResultMode;
+  searchResultQuery: string;
+  searchMessage: string | null;
   onAppearanceModeChange: (mode: AppearanceMode) => void;
   onToggleCollapsed: () => void;
   onOpenWorkspaceSettings: () => void;
   onSearchQueryChange: (value: string) => void;
+  onSearchSubmit: () => void;
   onOpenFile: (filePath: string) => void;
   onOpenTag: (tag: string) => void;
   onExpandDirectory: (directoryPath: string, rootKind: "notes" | "projects") => void;
@@ -238,7 +243,11 @@ export function FileTree(props: FileTreeProps) {
             <SidebarSearchPane
               query={props.searchQuery}
               results={props.searchResults.notes}
+              resultMode={props.searchResultMode}
+              resultQuery={props.searchResultQuery}
+              message={props.searchMessage}
               onQueryChange={props.onSearchQueryChange}
+              onSearchSubmit={props.onSearchSubmit}
               onOpenFile={onOpenFile}
             />
           ) : (
@@ -382,14 +391,30 @@ export function FileTree(props: FileTreeProps) {
 function SidebarSearchPane({
   query,
   results,
+  resultMode,
+  resultQuery,
+  message,
   onQueryChange,
+  onSearchSubmit,
   onOpenFile,
 }: {
   query: string;
   results: Array<{ filePath: string; title: string; snippet: string }>;
+  resultMode: WorkspaceSearchResultMode;
+  resultQuery: string;
+  message: string | null;
   onQueryChange: (value: string) => void;
+  onSearchSubmit: () => void;
   onOpenFile: (filePath: string) => void;
 }) {
+  const summary = searchSummary({
+    query: query.trim(),
+    resultMode,
+    resultQuery,
+    message,
+    resultCount: results.length,
+  });
+
   return (
     <div className="sidebar-search" data-testid="sidebar-search-pane">
       <label className="sidebar-search__input-wrap">
@@ -399,11 +424,17 @@ function SidebarSearchPane({
           data-testid="sidebar-search-input"
           value={query}
           onChange={(event) => onQueryChange(event.target.value)}
-          placeholder="Search notes"
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              onSearchSubmit();
+            }
+          }}
+          placeholder="Search filenames; Enter searches index"
         />
       </label>
       <div className="sidebar-search__summary">
-        {query.trim() ? `${results.length.toLocaleString()} result${results.length === 1 ? "" : "s"}` : "Type to search note titles"}
+        {summary}
       </div>
       <div className="sidebar-search__results">
         {results.map((result) => (
@@ -425,4 +456,39 @@ function SidebarSearchPane({
       </div>
     </div>
   );
+}
+
+function searchSummary({
+  query,
+  resultMode,
+  resultQuery,
+  message,
+  resultCount,
+}: {
+  query: string;
+  resultMode: WorkspaceSearchResultMode;
+  resultQuery: string;
+  message: string | null;
+  resultCount: number;
+}): string {
+  if (!query) {
+    return "Type to search filenames. Press Enter for indexed search.";
+  }
+  if (resultMode === "index-loading") {
+    return `Searching index for “${resultQuery}”…`;
+  }
+  if (resultMode === "index") {
+    return `Indexed results for “${resultQuery}” · ${formatResultCount(resultCount)}`;
+  }
+  if (resultMode === "index-unavailable") {
+    return message ?? `Index search unavailable. Showing ${formatResultCount(resultCount)}.`;
+  }
+  if (resultMode === "error") {
+    return message ?? "Search failed.";
+  }
+  return `Filename results · ${formatResultCount(resultCount)}`;
+}
+
+function formatResultCount(resultCount: number): string {
+  return `${resultCount.toLocaleString()} result${resultCount === 1 ? "" : "s"}`;
 }

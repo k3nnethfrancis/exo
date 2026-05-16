@@ -5,6 +5,7 @@ import { TerminalRail } from "./TerminalRail";
 import { PaneTree } from "./PaneTree";
 import type { PaneLeaf, PaneNodeId, PaneTreeActions, PaneNode } from "../hooks/usePaneTree";
 import type { DragManager } from "../hooks/useDragManager";
+import type { WorkspaceSearchResultMode } from "../hooks/useWorkspaceSearch";
 import type { AppearanceMode, ResolvedAppearance } from "../App";
 import type { TreeNode, WorkspaceSearchResults } from "@exo/core";
 
@@ -28,6 +29,9 @@ interface ShellLayoutProps {
   resolvedAppearance: ResolvedAppearance;
   searchQuery: string;
   searchResults: WorkspaceSearchResults;
+  searchResultMode: WorkspaceSearchResultMode;
+  searchResultQuery: string;
+  searchMessage: string | null;
   statusLine: {
     workspaceLabel: string;
     projectLabel: string | null;
@@ -66,6 +70,7 @@ interface ShellLayoutProps {
   onOpenWorkspaceSettings: () => void;
   onOpenIndexSettings: () => void;
   onSearchQueryChange: (value: string) => void;
+  onSearchSubmit: () => void;
   onOpenFile: (filePath: string) => void;
   onOpenTag: (tag: string) => void;
   onExpandDirectory: (directoryPath: string, rootKind: "notes" | "projects") => void;
@@ -87,6 +92,9 @@ export function ShellLayout(props: ShellLayoutProps) {
     resolvedAppearance,
     searchQuery,
     searchResults,
+    searchResultMode,
+    searchResultQuery,
+    searchMessage,
     statusLine,
     shellLayout,
     renderEditorLeaf,
@@ -96,6 +104,7 @@ export function ShellLayout(props: ShellLayoutProps) {
     onOpenWorkspaceSettings,
     onOpenIndexSettings,
     onSearchQueryChange,
+    onSearchSubmit,
     onOpenFile,
     onOpenTag,
     onExpandDirectory,
@@ -152,10 +161,14 @@ export function ShellLayout(props: ShellLayoutProps) {
         resolvedAppearance={resolvedAppearance}
         searchQuery={searchQuery}
         searchResults={searchResults}
+        searchResultMode={searchResultMode}
+        searchResultQuery={searchResultQuery}
+        searchMessage={searchMessage}
         onAppearanceModeChange={onAppearanceModeChange}
         onToggleCollapsed={() => setSidebarCollapsed((current) => !current)}
         onOpenWorkspaceSettings={onOpenWorkspaceSettings}
         onSearchQueryChange={onSearchQueryChange}
+        onSearchSubmit={onSearchSubmit}
         onOpenFile={onOpenFile}
         onOpenTag={onOpenTag}
         onExpandDirectory={onExpandDirectory}

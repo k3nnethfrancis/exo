@@ -6,6 +6,7 @@ import { searchWorkspace } from "./workspace";
 import type {
   IndexedRoot,
   IndexReadResponse,
+  IndexMode,
   IndexSearchResponse,
   IndexSearchResult,
   IndexStatus,
@@ -21,6 +22,7 @@ export interface IndexSearchOptions {
   rootIds?: string[];
   includeContent?: boolean;
   maxLinesPerResult?: number;
+  forceMode?: Exclude<IndexMode, "off">;
 }
 
 export interface IndexReadOptions {
@@ -138,10 +140,12 @@ export async function searchIndex(
     let rawResults: unknown[];
     const warnings: string[] = [];
 
-    if (model.indexing.mode === "lexical") {
+    const effectiveMode = options.forceMode ?? model.indexing.mode;
+
+    if (effectiveMode === "lexical") {
       const lexical = await Promise.all(collections.map((collection) => store!.searchLex(trimmedQuery, { limit, collection })));
       rawResults = lexical.flat();
-    } else if (model.indexing.mode === "semantic") {
+    } else if (effectiveMode === "semantic") {
       try {
         const [lexical, vector] = await Promise.all([
           Promise.all(collections.map((collection) => store!.searchLex(trimmedQuery, { limit, collection }))),
@@ -186,7 +190,7 @@ export async function searchIndex(
 
     return {
       query: trimmedQuery,
-      mode: model.indexing.mode,
+      mode: effectiveMode,
       source: "qmd",
       warnings,
       results,

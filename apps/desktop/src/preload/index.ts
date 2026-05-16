@@ -35,6 +35,7 @@ const api: DesktopApi = {
     listTree: (rootPath, options) => ipcRenderer.invoke("workspace:list-tree", rootPath, options),
     searchNotes: (query) => ipcRenderer.invoke("workspace:search-notes", query),
     searchWorkspace: (query) => ipcRenderer.invoke("workspace:search-workspace", query),
+    searchIndex: (query, options) => ipcRenderer.invoke("workspace:search-index", query, options),
     searchTag: (tag) => ipcRenderer.invoke("workspace:search-tag", tag),
     getGitStatus: (rootPath) => ipcRenderer.invoke("workspace:get-git-status", rootPath),
     createFile: (targetPath, content) => ipcRenderer.invoke("workspace:create-file", targetPath, content),

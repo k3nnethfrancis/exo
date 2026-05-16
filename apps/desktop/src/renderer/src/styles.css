@@ -1421,6 +1421,23 @@ button svg,
   color: var(--muted);
 }
 
+.dialog-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.dialog-check input {
+  accent-color: var(--accent);
+}
+
+.dialog-check:has(input:disabled) {
+  color: var(--muted);
+}
+
 .dialog-card__status {
   color: var(--muted);
   font-size: 13px;
