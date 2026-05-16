@@ -579,15 +579,19 @@ export function App() {
       return;
     }
 
+    await reloadTreesForModel(workspaceModel);
+  }
+
+  async function reloadTreesForModel(model: WorkspaceModel) {
     const [nextNoteTrees, nextProjectTrees] = await Promise.all([
       Promise.all(
-        workspaceModel.noteRoots.map(
+        model.noteRoots.map(
           async (root) =>
             [root.path, await window.exo.workspace.listTree(root.path, { markdownOnly: true, maxDepth: NOTE_TREE_MAX_DEPTH, includeEmptyDirectories: true })] as const,
         ),
       ),
       Promise.all(
-        workspaceModel.projectRoots.map(
+        model.projectRoots.map(
           async (root) => [root.path, await window.exo.workspace.listTree(root.path, { maxDepth: PROJECT_TREE_MAX_DEPTH })] as const,
         ),
       ),
@@ -596,9 +600,18 @@ export function App() {
     setNoteTrees(Object.fromEntries(nextNoteTrees));
     setProjectTrees(Object.fromEntries(nextProjectTrees));
     loadedTreeDirectoriesRef.current = new Set([
-      ...workspaceModel.noteRoots.map((root) => treeLoadKey("notes", root.path)),
-      ...workspaceModel.projectRoots.map((root) => treeLoadKey("projects", root.path)),
+      ...model.noteRoots.map((root) => treeLoadKey("notes", root.path)),
+      ...model.projectRoots.map((root) => treeLoadKey("projects", root.path)),
     ]);
+  }
+
+  async function refreshWorkspaceModel() {
+    const [model] = await Promise.all([
+      window.exo.workspace.getModel(),
+      refreshIndexStatus(),
+    ]);
+    setWorkspaceModel(model);
+    await reloadTreesForModel(model);
   }
 
   async function expandTreeDirectory(directoryPath: string, rootKind: "notes" | "projects") {
@@ -810,7 +823,7 @@ export function App() {
           : current,
       );
       if (options.includeStructural) {
-        void refreshIndexStatus();
+        void refreshWorkspaceModel();
       }
     } catch (error) {
       setWorkspaceSettingsDialog((current) =>
@@ -1846,7 +1859,7 @@ export function App() {
               </button>
             </div>
             <div className="dialog-card__message">
-              Configure Exo from one settings file. Appearance and sizing apply immediately; workspace paths apply on the next launch.
+              Configure Exo from one settings file. Appearance autosaves; workspace paths apply when you press Apply.
             </div>
             <div className="dialog-tabs" role="tablist" aria-label="Workspace settings sections">
               {(["workspace", "index", "appearance", "terminal"] as WorkspaceSettingsSection[]).map((section) => (
@@ -2214,7 +2227,7 @@ export function App() {
             {workspaceSettingsStructuralDraftKey(workspaceSettingsDialog) !== workspaceSettingsDialog.appliedWorkspaceKey ? (
               <div className="dialog-card__apply-row">
                 <div className="dialog-card__status">
-                  Workspace paths apply after restart. Index settings apply immediately.
+                  Workspace paths and index settings apply immediately.
                 </div>
                 <button
                   className="toolbar-button"
@@ -2229,7 +2242,7 @@ export function App() {
             ) : null}
             {workspaceSettingsDialog.applyStatus === "applied" ? (
               <div className="dialog-card__status" data-testid="workspace-settings-apply-status">
-                Applied. Restart Exo to use changed workspace paths.
+                Applied. Workspace paths are active.
               </div>
             ) : null}
             {workspaceSettingsDialog.applyStatus === "error" && workspaceSettingsDialog.applyErrorMessage ? (

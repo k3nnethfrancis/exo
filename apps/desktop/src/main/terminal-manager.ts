@@ -47,7 +47,7 @@ export class TerminalManager extends EventEmitter {
   private readonly transcripts: TerminalTranscriptStore;
   private readonly tmuxAvailable: boolean;
 
-  constructor(private readonly defaultCwd: string) {
+  constructor(private defaultCwd: string) {
     super();
     this.stateFilePath = path.join(this.runtimeConfig.runtimeRoot, "terminal-state.json");
     this.transcripts = new TerminalTranscriptStore(path.join(this.runtimeConfig.runtimeRoot, "terminal-transcripts"));
@@ -95,6 +95,10 @@ export class TerminalManager extends EventEmitter {
 
   getRuntimeConfig() {
     return this.runtimeConfig;
+  }
+
+  setDefaultCwd(cwd: string) {
+    this.defaultCwd = cwd;
   }
 
   async syncRuntimeContext() {

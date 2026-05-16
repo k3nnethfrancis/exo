@@ -595,12 +595,12 @@ function currentWorkspaceSettings(): WorkspaceSettings {
 
 async function saveWorkspaceSettings(settings: WorkspaceSettings): Promise<WorkspaceSettings> {
   workspaceSettings = await workspaceSettingsStore.save(settings);
-  workspaceModel = {
-    ...workspaceModel,
-    indexedRoots: workspaceSettings.indexedRoots,
-    indexing: workspaceSettings.indexing,
-  };
   applyWorkspaceSettings(workspaceSettings);
+  workspaceModel = resolveWorkspaceModel();
+  await ensureNoteRoots(workspaceModel);
+  workspaceWatcherService.start(workspaceModel);
+  terminalManager.setDefaultCwd(workspaceModel.defaultTerminalCwd);
+  await terminalManager.syncRuntimeContext();
   return workspaceSettings;
 }
 
