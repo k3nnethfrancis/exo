@@ -1263,23 +1263,30 @@ button svg,
   z-index: 50;
   display: grid;
   place-items: center;
+  padding: 24px;
   background: color-mix(in srgb, var(--bg) 58%, transparent);
   backdrop-filter: blur(8px);
+  overflow: hidden;
 }
 
 .dialog-card {
   width: min(420px, calc(100vw - 48px));
   display: grid;
   gap: 14px;
+  max-height: calc(100dvh - 48px);
+  min-height: 0;
   padding: 18px;
   border-radius: 20px;
   background: var(--panel-strong);
   border: 1px solid var(--surface-border-strong);
   box-shadow: var(--shadow);
+  overflow: auto;
 }
 
 .dialog-card--settings {
   width: min(560px, calc(100vw - 48px));
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+  overflow: hidden;
 }
 
 .dialog-card__title {
@@ -1317,6 +1324,12 @@ button svg,
 .dialog-form {
   display: grid;
   gap: 12px;
+}
+
+.dialog-card--settings .dialog-form {
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .dialog-form__grid {
