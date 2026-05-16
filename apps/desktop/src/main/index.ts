@@ -83,6 +83,9 @@ let workspaceWatcherService: WorkspaceWatcherService;
 let indexSyncTimer: NodeJS.Timeout | null = null;
 let indexSyncPromise: Promise<IndexSyncResult> | null = null;
 let indexSyncQueued = false;
+let indexRefreshTimer: NodeJS.Timeout | null = null;
+let indexRefreshPromise: Promise<IndexSyncResult> | null = null;
+const pendingIndexRefreshRootIds = new Set<string>();
 const rendererRecoveryTimestamps: number[] = [];
 const streamingTerminalIds = new Set<string>();
 
@@ -670,10 +673,13 @@ function scheduleIndexSyncForFile(filePath: string, reason: string) {
   if (settings.indexUpdateStrategy !== "on-save" || !shouldUseIndex()) {
     return;
   }
-  if (!workspaceModel.indexedRoots.some((root) => isPathWithin(root.path, filePath))) {
+  const matchingRootIds = workspaceModel.indexedRoots
+    .filter((root) => isPathWithin(root.path, filePath))
+    .map((root) => root.id);
+  if (matchingRootIds.length === 0) {
     return;
   }
-  scheduleIndexSync(reason);
+  scheduleIndexRefresh(reason, matchingRootIds);
 }
 
 function shouldSyncAfterSettingsApply(previous: WorkspaceSettings, next: WorkspaceSettings): boolean {
@@ -733,6 +739,74 @@ async function runIndexSync(reason: string): Promise<IndexSyncResult> {
     });
 
   return indexSyncPromise;
+}
+
+function scheduleIndexRefresh(reason: string, rootIds: string[], delayMs = 15_000) {
+  for (const rootId of rootIds) {
+    pendingIndexRefreshRootIds.add(rootId);
+  }
+  if (indexRefreshTimer) {
+    clearTimeout(indexRefreshTimer);
+  }
+  indexRefreshTimer = setTimeout(() => {
+    indexRefreshTimer = null;
+    const refreshRootIds = Array.from(pendingIndexRefreshRootIds);
+    pendingIndexRefreshRootIds.clear();
+    runIndexRefresh(reason, refreshRootIds).catch((error) => {
+      console.warn("[exo] index refresh failed", error);
+    });
+  }, delayMs);
+}
+
+async function runIndexRefresh(reason: string, rootIds: string[]): Promise<IndexSyncResult> {
+  if (!shouldUseIndex()) {
+    throw new Error("Indexing is disabled or has no indexed roots.");
+  }
+  if (indexSyncPromise) {
+    return indexSyncPromise;
+  }
+  if (indexRefreshPromise) {
+    return indexRefreshPromise;
+  }
+
+  sendToRenderer("workspace:index-sync-state", { state: "running", reason });
+  indexRefreshPromise = updateIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot, { rootIds })
+    .then((status) => {
+      const result: IndexSyncResult = {
+        status,
+        phases: [
+          {
+            name: "update",
+            status: "completed",
+            message: "Indexed documents refreshed for changed root.",
+          },
+          {
+            name: "embed",
+            status: "skipped",
+            message: "Embeddings are deferred on save; use Sync index to rebuild them.",
+          },
+        ],
+        warnings:
+          workspaceModel.indexing.mode === "lexical"
+            ? []
+            : ["Save-triggered indexing refreshed documents only; embeddings remain available from the previous sync until rebuilt."],
+      };
+      sendToRenderer("workspace:index-sync-state", { state: "idle", reason, result });
+      return result;
+    })
+    .catch((error) => {
+      sendToRenderer("workspace:index-sync-state", {
+        state: "error",
+        reason,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    })
+    .finally(() => {
+      indexRefreshPromise = null;
+    });
+
+  return indexRefreshPromise;
 }
 
 function applyWorkspaceSettings(settings: WorkspaceSettings | null) {

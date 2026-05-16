@@ -93,6 +93,15 @@ describe("QMD index adapter", () => {
     expect(stores.some((store) => store.embedCalls === 1)).toBe(true);
   });
 
+  it("can scope updates to selected indexed roots", async () => {
+    const root = await fixtureRoot();
+    const model = indexedModel(root, "hybrid");
+
+    await updateIndex(model, path.join(root, ".exo"), { rootIds: ["index-notes"] });
+
+    expect(stores.some((store) => JSON.stringify(store.updateOptions[0]) === JSON.stringify({ collections: ["notes"] }))).toBe(true);
+  });
+
   it("syncs lexical indexes without embeddings", async () => {
     const root = await fixtureRoot();
     const model = indexedModel(root, "lexical");
@@ -165,6 +174,7 @@ function indexedModel(root: string, mode: "lexical" | "semantic" | "hybrid") {
 
 class MockStore {
   searchLexCalls: Array<{ query: string; collection?: string; limit?: number }> = [];
+  updateOptions: unknown[] = [];
   updateCalls = 0;
   embedCalls = 0;
 
@@ -207,8 +217,9 @@ class MockStore {
     return "# Focus\nalpha";
   }
 
-  async update() {
+  async update(options?: unknown) {
     this.updateCalls += 1;
+    this.updateOptions.push(options);
   }
 
   async embed() {

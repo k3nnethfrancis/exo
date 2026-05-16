@@ -40,6 +40,10 @@ export interface IndexRootInput {
   ignore?: string[];
 }
 
+export interface IndexUpdateOptions {
+  rootIds?: string[];
+}
+
 const DEFAULT_SEARCH_LIMIT = 10;
 const DEFAULT_CONTENT_LINES = 80;
 const QMD_DIRECTORY_NAME = "qmd";
@@ -84,12 +88,13 @@ export async function getIndexStatus(model: WorkspaceModel, runtimeRoot: string)
   }
 }
 
-export async function updateIndex(model: WorkspaceModel, runtimeRoot: string): Promise<IndexStatus> {
+export async function updateIndex(model: WorkspaceModel, runtimeRoot: string, options: IndexUpdateOptions = {}): Promise<IndexStatus> {
   ensureIndexEnabled(model);
   let store: QmdStore | null = null;
   try {
     store = await openQmdStore(model, runtimeRoot);
-    await store.update();
+    const collections = selectedCollectionNames(model.indexedRoots, options.rootIds);
+    await store.update(collections.length > 0 ? { collections } : undefined);
   } finally {
     await store?.close();
   }
