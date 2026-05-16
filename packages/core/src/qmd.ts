@@ -9,6 +9,7 @@ import type {
   IndexMode,
   IndexSearchResponse,
   IndexSearchResult,
+  IndexSyncResult,
   IndexStatus,
   WorkspaceModel,
 } from "./types";
@@ -111,6 +112,51 @@ export async function embedIndex(model: WorkspaceModel, runtimeRoot: string): Pr
   return getIndexStatus(model, runtimeRoot);
 }
 
+export async function syncIndex(model: WorkspaceModel, runtimeRoot: string): Promise<IndexSyncResult> {
+  const phases: IndexSyncResult["phases"] = [];
+  const warnings: string[] = [];
+
+  let status = await updateIndex(model, runtimeRoot);
+  phases.push({
+    name: "update",
+    status: "completed",
+    message: "Indexed documents refreshed.",
+  });
+
+  if (model.indexing.mode === "lexical") {
+    phases.push({
+      name: "embed",
+      status: "skipped",
+      message: "Embeddings are not needed in lexical mode.",
+    });
+    return { status, phases, warnings };
+  }
+
+  try {
+    status = await embedIndex(model, runtimeRoot);
+    phases.push({
+      name: "embed",
+      status: "completed",
+      message: "Embeddings built.",
+    });
+  } catch (error) {
+    const warning = `Embedding failed (${errorMessage(error)}); lexical search remains available.`;
+    warnings.push(warning);
+    status = await getIndexStatus(model, runtimeRoot);
+    status = {
+      ...status,
+      warnings: [...status.warnings, warning],
+    };
+    phases.push({
+      name: "embed",
+      status: "failed",
+      message: warning,
+    });
+  }
+
+  return { status, phases, warnings };
+}
+
 export async function searchIndex(
   model: WorkspaceModel,
   runtimeRoot: string,
@@ -141,6 +187,17 @@ export async function searchIndex(
     const warnings: string[] = [];
 
     const effectiveMode = options.forceMode ?? model.indexing.mode;
+    if (effectiveMode !== "lexical") {
+      try {
+        const qmdStatus = await store.getStatus();
+        const pendingEmbeddings = Number(qmdStatus.needsEmbedding ?? 0);
+        if (!Boolean(qmdStatus.hasVectorIndex) || pendingEmbeddings > 0) {
+          warnings.push("Embeddings are not ready; Exo will use lexical fallback if semantic/hybrid search is unavailable.");
+        }
+      } catch {
+        // Status warnings are best-effort; search fallback below remains authoritative.
+      }
+    }
 
     if (effectiveMode === "lexical") {
       const lexical = await Promise.all(collections.map((collection) => store!.searchLex(trimmedQuery, { limit, collection })));
@@ -379,10 +436,10 @@ function modeWarnings(model: WorkspaceModel, hasVectorIndex: boolean, pendingEmb
     return [];
   }
   if (!hasVectorIndex) {
-    return ["Semantic/hybrid search needs embeddings. Run `exo index embed` after `exo index update`."];
+    return ["Semantic/hybrid search needs embeddings. Run `exo index sync`."];
   }
   if (pendingEmbeddings > 0) {
-    return [`${pendingEmbeddings} document hashes need embeddings. Run \`exo index embed\`.`];
+    return [`${pendingEmbeddings} document hashes need embeddings. Run \`exo index sync\`.`];
   }
   return [];
 }

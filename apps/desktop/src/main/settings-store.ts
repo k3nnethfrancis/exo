@@ -57,6 +57,7 @@ export class WorkspaceSettingsStore {
       typeof input.exploreIndexSearchOnEnter === "boolean"
         ? input.exploreIndexSearchOnEnter
         : indexing.enabled && indexing.mode !== "off" && indexedRoots.length > 0;
+    const indexUpdateStrategy = input.indexUpdateStrategy === "manual" ? "manual" : "on-save";
 
     if (!workspaceRoot || !defaultTerminalCwd || noteRoots.length === 0) {
       return null;
@@ -76,6 +77,7 @@ export class WorkspaceSettingsStore {
       terminalBufferChars,
       explorerScale,
       exploreIndexSearchOnEnter,
+      indexUpdateStrategy,
     };
   }
 
@@ -94,6 +96,7 @@ export class WorkspaceSettingsStore {
       terminalBufferChars: DEFAULT_TERMINAL_BUFFER_CHARS,
       explorerScale: DEFAULT_EXPLORER_SCALE,
       exploreIndexSearchOnEnter: model.indexing.enabled && model.indexing.mode !== "off" && model.indexedRoots.length > 0,
+      indexUpdateStrategy: "on-save",
     };
   }
 

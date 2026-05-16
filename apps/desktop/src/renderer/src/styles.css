@@ -1438,6 +1438,21 @@ button svg,
   color: var(--muted);
 }
 
+.dialog-details {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.dialog-details summary {
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.dialog-details[open] {
+  display: grid;
+  gap: 8px;
+}
+
 .dialog-card__status {
   color: var(--muted);
   font-size: 13px;

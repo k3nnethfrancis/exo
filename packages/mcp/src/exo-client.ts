@@ -63,6 +63,10 @@ export class ExoCommandClient {
     return this.get(EXO_COMMAND_ROUTES.indexStatus);
   }
 
+  async syncIndex(): Promise<Record<string, unknown>> {
+    return this.post(EXO_COMMAND_ROUTES.indexSync, {});
+  }
+
   async search(query: string, options: { limit?: number; intent?: string; includeContent?: boolean; maxLinesPerResult?: number } = {}): Promise<Record<string, unknown>> {
     const params = new URLSearchParams({ q: query });
     if (options.limit) params.set("limit", String(options.limit));

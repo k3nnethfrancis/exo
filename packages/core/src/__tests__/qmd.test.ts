@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { embedIndex, getIndexStatus, readIndexDocument, searchIndex, updateIndex } from "../qmd";
+import { embedIndex, getIndexStatus, readIndexDocument, searchIndex, syncIndex, updateIndex } from "../qmd";
 import { createIndexedRoot, resolveWorkspaceModel } from "../workspace";
 
 const stores: MockStore[] = [];
@@ -73,7 +73,7 @@ describe("QMD index adapter", () => {
 
     const result = await searchIndex(model, path.join(root, ".exo"), "focus");
 
-    expect(result.warnings[0]).toContain("Semantic search is not ready");
+    expect(result.warnings.some((warning) => warning.includes("Semantic search is not ready"))).toBe(true);
     expect(stores[0].searchLexCalls.length).toBeGreaterThanOrEqual(1);
   });
 
@@ -89,6 +89,31 @@ describe("QMD index adapter", () => {
     await updateIndex(model, path.join(root, ".exo"));
     await embedIndex(model, path.join(root, ".exo"));
 
+    expect(stores.some((store) => store.updateCalls === 1)).toBe(true);
+    expect(stores.some((store) => store.embedCalls === 1)).toBe(true);
+  });
+
+  it("syncs lexical indexes without embeddings", async () => {
+    const root = await fixtureRoot();
+    const model = indexedModel(root, "lexical");
+
+    const result = await syncIndex(model, path.join(root, ".exo"));
+
+    expect(result.phases).toEqual([
+      { name: "update", status: "completed", message: "Indexed documents refreshed." },
+      { name: "embed", status: "skipped", message: "Embeddings are not needed in lexical mode." },
+    ]);
+    expect(stores.some((store) => store.updateCalls === 1)).toBe(true);
+    expect(stores.some((store) => store.embedCalls === 1)).toBe(false);
+  });
+
+  it("syncs hybrid indexes and embeddings", async () => {
+    const root = await fixtureRoot();
+    const model = indexedModel(root, "hybrid");
+
+    const result = await syncIndex(model, path.join(root, ".exo"));
+
+    expect(result.phases.map((phase) => `${phase.name}:${phase.status}`)).toEqual(["update:completed", "embed:completed"]);
     expect(stores.some((store) => store.updateCalls === 1)).toBe(true);
     expect(stores.some((store) => store.embedCalls === 1)).toBe(true);
   });

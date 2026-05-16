@@ -2,6 +2,7 @@ import type {
   BranchCreateResult,
   BranchFamily,
   IndexSearchResponse,
+  IndexSyncResult,
   IndexStatus,
   NoteDocument,
   NoteKnowledge,
@@ -40,12 +41,20 @@ export interface WorkspaceGitStatus {
   dirty: boolean;
 }
 
+export interface IndexSyncStateEvent {
+  state: "running" | "idle" | "error";
+  reason: string;
+  result?: IndexSyncResult;
+  error?: string;
+}
+
 export interface DesktopApi {
   workspace: {
     getModel: () => Promise<WorkspaceModel>;
     getSettings: () => Promise<WorkspaceSettings>;
     saveSettings: (settings: WorkspaceSettings) => Promise<WorkspaceSettings>;
     getIndexStatus: () => Promise<IndexStatus>;
+    syncIndex: () => Promise<IndexSyncResult>;
     updateIndex: () => Promise<IndexStatus>;
     embedIndex: () => Promise<IndexStatus>;
     listTree: (
@@ -62,6 +71,7 @@ export interface DesktopApi {
     renamePath: (sourcePath: string, nextPath: string) => Promise<string>;
     deletePath: (targetPath: string) => Promise<void>;
     onDidChange: (callback: (event: { rootPath: string; eventType: string; filePath: string | null }) => void) => () => void;
+    onIndexSyncState: (callback: (event: IndexSyncStateEvent) => void) => () => void;
     onCommandOpenFile: (callback: (filePath: string) => void) => () => void;
   };
   notes: {

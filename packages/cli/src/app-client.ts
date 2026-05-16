@@ -65,6 +65,10 @@ export class AppClient {
     return this.get(EXO_COMMAND_ROUTES.indexStatus);
   }
 
+  async syncIndex(): Promise<Record<string, unknown>> {
+    return this.post(EXO_COMMAND_ROUTES.indexSync, {});
+  }
+
   async addIndexRoot(input: { path: string; name?: string; kind?: string; pattern?: string; force?: boolean }): Promise<Record<string, unknown>> {
     return this.post(EXO_COMMAND_ROUTES.indexRoots, input);
   }

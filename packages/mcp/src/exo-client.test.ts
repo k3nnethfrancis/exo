@@ -110,6 +110,10 @@ describe("ExoCommandClient", () => {
         json(res, { mode: "hybrid", backend: "qmd" });
         return;
       }
+      if (req.url === "/index/sync" && req.method === "POST") {
+        json(res, { status: { mode: "hybrid", backend: "qmd" }, phases: [] });
+        return;
+      }
       if (req.url?.startsWith("/search?")) {
         json(res, { query: "focus", results: [{ title: "Focus" }] });
         return;
@@ -134,6 +138,7 @@ describe("ExoCommandClient", () => {
     });
 
     expect(await client.getIndexStatus()).toMatchObject({ mode: "hybrid" });
+    expect(await client.syncIndex()).toMatchObject({ status: { mode: "hybrid" } });
     expect(await client.search("focus", { limit: 3, includeContent: true })).toMatchObject({ query: "focus" });
     expect(await client.readDocument("#abc123", { fromLine: 2, maxLines: 4 })).toMatchObject({ title: "Focus" });
     expect(JSON.parse(readBody)).toEqual({ target: "#abc123", fromLine: 2, maxLines: 4 });

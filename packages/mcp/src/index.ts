@@ -36,7 +36,7 @@ server.registerTool(
   "index_status",
   {
     title: "Index Status",
-    description: "Show Exo's QMD-backed knowledge index status.",
+    description: "Show Exo's QMD-backed knowledge index status. pendingEmbeddings > 0 means semantic/hybrid search may use lexical fallback until sync_index completes.",
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,
@@ -54,10 +54,31 @@ server.registerTool(
 );
 
 server.registerTool(
+  "sync_index",
+  {
+    title: "Sync Index",
+    description: "Synchronize Exo's configured knowledge index. Refreshes documents and, for semantic/hybrid modes, builds embeddings. Search remains safe to call during sync and reports fallback warnings.",
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+    },
+  },
+  async () => {
+    const client = await ExoCommandClient.connect();
+    const result = await client.syncIndex();
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      structuredContent: result,
+    };
+  },
+);
+
+server.registerTool(
   "search",
   {
     title: "Search Exo",
-    description: "Search Exo's configured knowledge index, falling back to lightweight workspace search when the index is off.",
+    description: "Search Exo's configured knowledge index. Safe while indexing/embeddings are running; returns warnings when using lexical or filesystem fallback.",
     inputSchema: {
       query: z.string().min(1).describe("Search query."),
       limit: z.number().int().positive().max(50).default(10).describe("Maximum number of results."),

@@ -30,6 +30,7 @@ const api: DesktopApi = {
     getSettings: () => ipcRenderer.invoke("workspace:get-settings"),
     saveSettings: (settings) => ipcRenderer.invoke("workspace:save-settings", settings),
     getIndexStatus: () => ipcRenderer.invoke("workspace:get-index-status"),
+    syncIndex: () => ipcRenderer.invoke("workspace:index-sync"),
     updateIndex: () => ipcRenderer.invoke("workspace:index-update"),
     embedIndex: () => ipcRenderer.invoke("workspace:index-embed"),
     listTree: (rootPath, options) => ipcRenderer.invoke("workspace:list-tree", rootPath, options),
@@ -47,6 +48,11 @@ const api: DesktopApi = {
         callback(payload);
       ipcRenderer.on("workspace:changed", listener);
       return () => ipcRenderer.removeListener("workspace:changed", listener);
+    },
+    onIndexSyncState: (callback) => {
+      const listener = (_event: unknown, payload: Parameters<typeof callback>[0]) => callback(payload);
+      ipcRenderer.on("workspace:index-sync-state", listener);
+      return () => ipcRenderer.removeListener("workspace:index-sync-state", listener);
     },
     onCommandOpenFile: (callback) => {
       const listener = (_event: unknown, filePath: string) => callback(filePath);

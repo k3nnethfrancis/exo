@@ -75,6 +75,7 @@ interface WorkspaceSettingsDialogState {
   terminalBufferChars: string;
   explorerScale: string;
   exploreIndexSearchOnEnter: boolean;
+  indexUpdateStrategy: WorkspaceSettings["indexUpdateStrategy"];
   saveStatus: "idle" | "saving" | "saved" | "error";
   errorMessage: string | null;
   appliedWorkspaceKey: string;
@@ -88,7 +89,7 @@ export type AppearanceMode = "system" | "light" | "dark";
 export type ResolvedAppearance = "light" | "dark";
 type ZoomSurface = "editor" | "terminal" | "explorer";
 type WorkspaceSettingsSection = "workspace" | "index" | "appearance" | "terminal";
-type IndexBusyState = "updating" | "embedding" | null;
+type IndexBusyState = "syncing" | "updating" | "embedding" | null;
 
 const DEFAULT_TERMINAL_SCROLLBACK_LINES = 5_000;
 const DEFAULT_TERMINAL_BUFFER_CHARS = 80_000;
@@ -482,6 +483,38 @@ export function App() {
   }, [workspaceModel]);
 
   useEffect(() => {
+    return window.exo.workspace.onIndexSyncState((event) => {
+      if (event.state === "running") {
+        setIndexBusy("syncing");
+        return;
+      }
+      setIndexBusy(null);
+      if (event.result?.status) {
+        setIndexStatus(event.result.status);
+        setWorkspaceSettingsDialog((current) =>
+          current
+            ? {
+                ...current,
+                indexStatusSummary: formatIndexStatus(event.result!.status),
+              }
+            : current,
+        );
+      }
+      if (event.state === "error") {
+        setWorkspaceSettingsDialog((current) =>
+          current
+            ? {
+                ...current,
+                applyStatus: "error",
+                applyErrorMessage: event.error ?? "Index sync failed.",
+              }
+            : current,
+        );
+      }
+    });
+  }, []);
+
+  useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       const mod = event.metaKey || event.ctrlKey;
       if (mod && !event.altKey && isZoomKey(event.key)) {
@@ -677,6 +710,7 @@ export function App() {
       terminalBufferChars: String(settings.terminalBufferChars),
       explorerScale: String(settings.explorerScale),
       exploreIndexSearchOnEnter: settings.exploreIndexSearchOnEnter,
+      indexUpdateStrategy: settings.indexUpdateStrategy,
       saveStatus: "idle",
       errorMessage: null,
       appliedWorkspaceKey,
@@ -698,7 +732,11 @@ export function App() {
     );
 
     try {
-      const status = action === "embedding" ? await window.exo.workspace.embedIndex() : await window.exo.workspace.updateIndex();
+      const status = action === "syncing"
+        ? (await window.exo.workspace.syncIndex()).status
+        : action === "embedding"
+          ? await window.exo.workspace.embedIndex()
+          : await window.exo.workspace.updateIndex();
       setIndexStatus(status);
       setWorkspaceSettingsDialog((current) =>
         current
@@ -777,6 +815,7 @@ export function App() {
       terminalBufferChars: clampNumber(Number(settingsDialog.terminalBufferChars), 12_000, 2_000_000),
       explorerScale: clampNumber(Number(settingsDialog.explorerScale), 0.82, 1.35),
       exploreIndexSearchOnEnter: settingsDialog.exploreIndexSearchOnEnter,
+      indexUpdateStrategy: settingsDialog.indexUpdateStrategy,
     };
 
     return nextSettings;
@@ -2057,6 +2096,30 @@ export function App() {
                     />
                     <span>Use indexed lexical search on Enter in Explore.</span>
                   </label>
+                  <label className="dialog-field">
+                    <span className="dialog-field__label">Index updates</span>
+                    <select
+                      className="dialog-card__input"
+                      data-testid="workspace-settings-index-update-strategy"
+                      disabled={workspaceSettingsDialog.indexMode === "off"}
+                      value={workspaceSettingsDialog.indexUpdateStrategy}
+                      onChange={(event) =>
+                        setWorkspaceSettingsDialog((current) =>
+                          current
+                            ? {
+                                ...current,
+                                indexUpdateStrategy: event.target.value as WorkspaceSettings["indexUpdateStrategy"],
+                                saveStatus: "idle",
+                                errorMessage: null,
+                              }
+                            : current,
+                        )
+                      }
+                    >
+                      <option value="on-save">On note save</option>
+                      <option value="manual">Manual only</option>
+                    </select>
+                  </label>
                   <div className="dialog-card__actions dialog-card__actions--split">
                     <button
                       className="toolbar-button"
@@ -2081,23 +2144,37 @@ export function App() {
                     </button>
                     <button
                       className="toolbar-button"
-                      data-testid="workspace-settings-update-index"
+                      data-testid="workspace-settings-sync-index"
                       disabled={indexBusy !== null || !indexStatus?.enabled || indexStatus.indexedRoots.length === 0}
-                      onClick={() => void runIndexUpdate("updating")}
+                      onClick={() => void runIndexUpdate("syncing")}
                       type="button"
                     >
-                      {indexBusy === "updating" ? "Updating…" : "Update index"}
-                    </button>
-                    <button
-                      className="toolbar-button"
-                      data-testid="workspace-settings-embed-index"
-                      disabled={indexBusy !== null || !indexStatus?.enabled || indexStatus.mode === "lexical" || indexStatus.indexedRoots.length === 0}
-                      onClick={() => void runIndexUpdate("embedding")}
-                      type="button"
-                    >
-                      {indexBusy === "embedding" ? "Embedding…" : "Build embeddings"}
+                      {indexBusy === "syncing" ? "Syncing…" : "Sync index"}
                     </button>
                   </div>
+                  <details className="dialog-details">
+                    <summary>Advanced index phases</summary>
+                    <div className="dialog-card__actions dialog-card__actions--split">
+                      <button
+                        className="toolbar-button"
+                        data-testid="workspace-settings-update-index"
+                        disabled={indexBusy !== null || !indexStatus?.enabled || indexStatus.indexedRoots.length === 0}
+                        onClick={() => void runIndexUpdate("updating")}
+                        type="button"
+                      >
+                        {indexBusy === "updating" ? "Refreshing…" : "Refresh documents only"}
+                      </button>
+                      <button
+                        className="toolbar-button"
+                        data-testid="workspace-settings-embed-index"
+                        disabled={indexBusy !== null || !indexStatus?.enabled || indexStatus.mode === "lexical" || indexStatus.indexedRoots.length === 0}
+                        onClick={() => void runIndexUpdate("embedding")}
+                        type="button"
+                      >
+                        {indexBusy === "embedding" ? "Embedding…" : "Build embeddings only"}
+                      </button>
+                    </div>
+                  </details>
                 </>
               ) : null}
               {workspaceSettingsDialog.section === "appearance" ? (
@@ -2550,6 +2627,9 @@ function summarizeIndexStatus(status: IndexStatus | null, busy: IndexBusyState):
   if (busy === "updating") {
     return { label: "Re-indexing", tone: "info", title: "Updating the local knowledge index.", busy: true };
   }
+  if (busy === "syncing") {
+    return { label: "Syncing index", tone: "info", title: "Refreshing documents and embeddings for the local knowledge index.", busy: true };
+  }
   if (busy === "embedding") {
     return { label: "Embedding", tone: "info", title: "Building semantic embeddings for the local knowledge index.", busy: true };
   }
@@ -2629,6 +2709,7 @@ function workspaceSettingsImmediateDraftKey(settings: WorkspaceSettingsDialogSta
     terminalBufferChars: settings.terminalBufferChars,
     explorerScale: settings.explorerScale,
     exploreIndexSearchOnEnter: settings.exploreIndexSearchOnEnter,
+    indexUpdateStrategy: settings.indexUpdateStrategy,
   });
 }
 

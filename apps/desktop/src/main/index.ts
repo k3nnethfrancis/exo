@@ -27,8 +27,10 @@ import {
   searchIndex,
   searchNotes,
   searchWorkspace,
+  syncIndex,
   updateIndex,
   type IndexedRoot,
+  type IndexSyncResult,
   type SearchResult,
   type WorkspaceModel,
   type WorkspaceSettings,
@@ -78,6 +80,9 @@ let workspaceSettings: WorkspaceSettings | null = null;
 let workspaceSettingsStore: WorkspaceSettingsStore;
 let terminalManager: TerminalManager;
 let workspaceWatcherService: WorkspaceWatcherService;
+let indexSyncTimer: NodeJS.Timeout | null = null;
+let indexSyncPromise: Promise<IndexSyncResult> | null = null;
+let indexSyncQueued = false;
 const rendererRecoveryTimestamps: number[] = [];
 const streamingTerminalIds = new Set<string>();
 
@@ -141,6 +146,7 @@ function startCommandServer() {
     onIndexStatus: () => getIndexStatus(workspaceModel, runtimeConfig.runtimeRoot),
     onIndexAddRoot: (input) => addIndexedRoot(input),
     onIndexRemoveRoot: (target) => removeIndexedRoot(target),
+    onIndexSync: () => runIndexSync("command"),
     onIndexUpdate: () => updateIndex(workspaceModel, runtimeConfig.runtimeRoot),
     onIndexEmbed: () => embedIndex(workspaceModel, runtimeConfig.runtimeRoot),
     onListTerminals: () => terminalManager.list(),
@@ -392,6 +398,7 @@ function registerIpcHandlers() {
   ipcMain.handle("workspace:get-model", async () => workspaceModel);
   ipcMain.handle("workspace:get-settings", async () => currentWorkspaceSettings());
   ipcMain.handle("workspace:get-index-status", async () => getIndexStatus(workspaceModel, resolveRuntimeConfig().runtimeRoot));
+  ipcMain.handle("workspace:index-sync", async () => runIndexSync("settings"));
   ipcMain.handle("workspace:index-update", async () => updateIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot));
   ipcMain.handle("workspace:index-embed", async () => embedIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot));
   ipcMain.handle("workspace:save-settings", async (_event, settings: WorkspaceSettings) => {
@@ -446,9 +453,10 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle("notes:read", async (_event, filePath: string) => readWorkspaceDocument(filePath));
-  ipcMain.handle("notes:save", async (_event, filePath: string, frontmatter: Record<string, unknown>, body: string) =>
-    saveWorkspaceDocument(filePath, frontmatter, body),
-  );
+  ipcMain.handle("notes:save", async (_event, filePath: string, frontmatter: Record<string, unknown>, body: string) => {
+    await saveWorkspaceDocument(filePath, frontmatter, body);
+    scheduleIndexSyncForFile(filePath, "note-save");
+  });
   ipcMain.handle("notes:stat", async (_event, filePath: string) => {
     try {
       const info = await stat(filePath);
@@ -599,6 +607,7 @@ function currentWorkspaceSettings(): WorkspaceSettings {
 }
 
 async function saveWorkspaceSettings(settings: WorkspaceSettings): Promise<WorkspaceSettings> {
+  const previousSettings = currentWorkspaceSettings();
   workspaceSettings = await workspaceSettingsStore.save(settings);
   applyWorkspaceSettings(workspaceSettings);
   workspaceModel = resolveWorkspaceModel();
@@ -606,6 +615,9 @@ async function saveWorkspaceSettings(settings: WorkspaceSettings): Promise<Works
   workspaceWatcherService.start(workspaceModel);
   terminalManager.setDefaultCwd(workspaceModel.defaultTerminalCwd);
   await terminalManager.syncRuntimeContext();
+  if (shouldSyncAfterSettingsApply(previousSettings, workspaceSettings)) {
+    scheduleIndexSync("settings-apply", 0);
+  }
   return workspaceSettings;
 }
 
@@ -647,6 +659,80 @@ async function removeIndexedRoot(target: string): Promise<WorkspaceSettings> {
     indexedRoots: nextRoots,
     indexing: nextRoots.length === 0 ? { enabled: false, mode: "off", backend: "qmd" } : settings.indexing,
   });
+}
+
+function shouldUseIndex(model = workspaceModel): boolean {
+  return model.indexing.enabled && model.indexing.mode !== "off" && model.indexedRoots.length > 0;
+}
+
+function scheduleIndexSyncForFile(filePath: string, reason: string) {
+  const settings = currentWorkspaceSettings();
+  if (settings.indexUpdateStrategy !== "on-save" || !shouldUseIndex()) {
+    return;
+  }
+  if (!workspaceModel.indexedRoots.some((root) => isPathWithin(root.path, filePath))) {
+    return;
+  }
+  scheduleIndexSync(reason);
+}
+
+function shouldSyncAfterSettingsApply(previous: WorkspaceSettings, next: WorkspaceSettings): boolean {
+  if (!next.indexing.enabled || next.indexing.mode === "off" || next.indexedRoots.length === 0) {
+    return false;
+  }
+  return (
+    !previous.indexing.enabled ||
+    previous.indexing.mode !== next.indexing.mode ||
+    JSON.stringify(previous.indexedRoots.map((root) => root.path).sort()) !== JSON.stringify(next.indexedRoots.map((root) => root.path).sort())
+  );
+}
+
+function scheduleIndexSync(reason: string, delayMs = 15_000) {
+  if (indexSyncTimer) {
+    clearTimeout(indexSyncTimer);
+  }
+  indexSyncTimer = setTimeout(() => {
+    indexSyncTimer = null;
+    runIndexSync(reason).catch((error) => {
+      console.warn("[exo] index sync failed", error);
+    });
+  }, delayMs);
+}
+
+async function runIndexSync(reason: string): Promise<IndexSyncResult> {
+  if (!shouldUseIndex()) {
+    throw new Error("Indexing is disabled or has no indexed roots.");
+  }
+  if (indexSyncPromise) {
+    indexSyncQueued = true;
+    return indexSyncPromise;
+  }
+
+  sendToRenderer("workspace:index-sync-state", { state: "running", reason });
+  indexSyncPromise = syncIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot)
+    .then((result) => {
+      sendToRenderer("workspace:index-sync-state", { state: "idle", reason, result });
+      return result;
+    })
+    .catch((error) => {
+      sendToRenderer("workspace:index-sync-state", {
+        state: "error",
+        reason,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    })
+    .finally(() => {
+      indexSyncPromise = null;
+      if (indexSyncQueued) {
+        indexSyncQueued = false;
+        runIndexSync("queued").catch((error) => {
+          console.warn("[exo] queued index sync failed", error);
+        });
+      }
+    });
+
+  return indexSyncPromise;
 }
 
 function applyWorkspaceSettings(settings: WorkspaceSettings | null) {

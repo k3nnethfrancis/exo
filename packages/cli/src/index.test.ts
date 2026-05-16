@@ -152,6 +152,10 @@ describe("cli package", () => {
         json(res, { enabled: true, mode: "hybrid", backend: "qmd" });
         return;
       }
+      if (req.url === "/index/sync" && req.method === "POST") {
+        json(res, { status: { enabled: true, mode: "hybrid", backend: "qmd" }, phases: [] });
+        return;
+      }
       res.writeHead(404).end();
     });
 
@@ -168,6 +172,15 @@ describe("cli package", () => {
 
       expect(exitCode).toBe(0);
       expect(stdout).toContain('"mode": "hybrid"');
+
+      stdout = "";
+      const syncExitCode = await runCli(["node", "exo-cli", "index", "sync"], {
+        env: { EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace", EXO_RUNTIME_ROOT: runtimeRoot },
+        stdout: { write: (text) => { stdout += text; } },
+        stderr: { write: () => {} },
+      });
+      expect(syncExitCode).toBe(0);
+      expect(stdout).toContain('"phases": []');
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
       await rm(runtimeRoot, { recursive: true, force: true });

@@ -105,6 +105,11 @@ export async function runCli(
       return 0;
     }
 
+    if (subcommand === "sync") {
+      stdout.write(`${JSON.stringify(await client.syncIndex(), null, 2)}\n`);
+      return 0;
+    }
+
     if (subcommand === "add") {
       const { values, positionals } = parseInlineOptions(args);
       const targetPath = positionals[0];
@@ -140,7 +145,7 @@ export async function runCli(
       return 0;
     }
 
-    throw new Error("Usage: exo index <status|add|remove|update|embed>");
+    throw new Error("Usage: exo index <status|sync|add|remove|update|embed>");
   }
 
   // ─── Local agent integrations ───────────────────────────────────────
@@ -593,10 +598,11 @@ export async function runCli(
       "  exo search <query> [--limit n]              Search Exo knowledge index or workspace fallback",
       "  exo read <path-or-docid> [--from n] [--lines n]",
       "  exo index status                           Show QMD-backed index status (app)",
+      "  exo index sync                             Sync documents and embeddings for configured mode (app)",
       "  exo index add <path> [--name n] [--kind k] [--force]",
       "  exo index remove <name-or-path>            Remove an indexed root (app)",
-      "  exo index update                           Refresh indexed documents (app)",
-      "  exo index embed                            Generate pending embeddings (app)",
+      "  exo index update                           Advanced: refresh indexed documents only (app)",
+      "  exo index embed                            Advanced: generate pending embeddings only (app)",
       "  exo open <path>                            Open file in editor (app)",
       "  exo status                                 Workspace status (app)",
       "  exo config get [key]                       Read settings (app)",
