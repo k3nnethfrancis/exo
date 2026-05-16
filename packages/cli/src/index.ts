@@ -551,7 +551,12 @@ export async function runCli(
     const projectRoot = env.EXO_PROJECT_ROOT ?? path.resolve(fileURLToPath(import.meta.url), "../../../..");
     const child = spawn("pnpm", ["dev"], {
       cwd: projectRoot,
-      env: { ...process.env, ...env },
+      env: {
+        ...process.env,
+        ...env,
+        EXO_WORKSPACE_ROOT: env.EXO_WORKSPACE_ROOT ?? projectRoot,
+        EXO_DEFAULT_TERMINAL_CWD: env.EXO_DEFAULT_TERMINAL_CWD ?? env.EXO_WORKSPACE_ROOT ?? projectRoot,
+      },
       stdio: "inherit",
     });
 

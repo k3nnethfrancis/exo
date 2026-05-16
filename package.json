@@ -6,7 +6,7 @@
   "license": "Apache-2.0",
   "packageManager": "pnpm@10.15.0",
   "scripts": {
-    "dev": "pnpm --filter @exo/desktop dev",
+    "dev": "EXO_WORKSPACE_ROOT=${EXO_WORKSPACE_ROOT:-$PWD} EXO_DEFAULT_TERMINAL_CWD=${EXO_DEFAULT_TERMINAL_CWD:-$PWD} pnpm --filter @exo/desktop dev",
     "exo": "tsx packages/cli/src/index.ts",
     "app": "pnpm build && node scripts/run-built-app.mjs",
     "check": "pnpm typecheck && pnpm test && pnpm build",
