@@ -399,7 +399,7 @@ function registerIpcHandlers() {
   ipcMain.handle("runtime:sync", async () => terminalManager.syncRuntimeContext());
   ipcMain.handle(
     "workspace:list-tree",
-    async (_event, rootPath: string, options?: { markdownOnly?: boolean; maxDepth?: number }) =>
+    async (_event, rootPath: string, options?: { markdownOnly?: boolean; maxDepth?: number; includeEmptyDirectories?: boolean }) =>
     listRootTree(rootPath, options),
   );
   ipcMain.handle("workspace:search-notes", async (_event, query: string) => searchNotes(workspaceModel, query));

@@ -45,7 +45,10 @@ export interface DesktopApi {
     getSettings: () => Promise<WorkspaceSettings>;
     saveSettings: (settings: WorkspaceSettings) => Promise<WorkspaceSettings>;
     getIndexStatus: () => Promise<IndexStatus>;
-    listTree: (rootPath: string, options?: { markdownOnly?: boolean; maxDepth?: number }) => Promise<TreeNode[]>;
+    listTree: (
+      rootPath: string,
+      options?: { markdownOnly?: boolean; maxDepth?: number; includeEmptyDirectories?: boolean },
+    ) => Promise<TreeNode[]>;
     searchNotes: (query: string) => Promise<SearchResult[]>;
     searchWorkspace: (query: string) => Promise<WorkspaceSearchResults>;
     searchTag: (tag: string) => Promise<SearchResult[]>;

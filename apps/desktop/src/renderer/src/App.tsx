@@ -256,7 +256,8 @@ export function App() {
       const [nextNoteTrees, nextProjectTrees] = await Promise.all([
         Promise.all(
           model.noteRoots.map(
-            async (root) => [root.path, await window.exo.workspace.listTree(root.path, { markdownOnly: true, maxDepth: NOTE_TREE_MAX_DEPTH })] as const,
+            async (root) =>
+              [root.path, await window.exo.workspace.listTree(root.path, { markdownOnly: true, maxDepth: NOTE_TREE_MAX_DEPTH, includeEmptyDirectories: true })] as const,
           ),
         ),
         Promise.all(
@@ -570,7 +571,8 @@ export function App() {
     const [nextNoteTrees, nextProjectTrees] = await Promise.all([
       Promise.all(
         workspaceModel.noteRoots.map(
-          async (root) => [root.path, await window.exo.workspace.listTree(root.path, { markdownOnly: true, maxDepth: NOTE_TREE_MAX_DEPTH })] as const,
+          async (root) =>
+            [root.path, await window.exo.workspace.listTree(root.path, { markdownOnly: true, maxDepth: NOTE_TREE_MAX_DEPTH, includeEmptyDirectories: true })] as const,
         ),
       ),
       Promise.all(
@@ -603,6 +605,7 @@ export function App() {
     const children = await window.exo.workspace.listTree(directoryPath, {
       markdownOnly: rootKind === "notes",
       maxDepth: 1,
+      includeEmptyDirectories: rootKind === "notes",
     });
 
     if (rootKind === "notes") {
