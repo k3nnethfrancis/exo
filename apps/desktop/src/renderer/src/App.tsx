@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { X } from "lucide-react";
 import type {
   BranchFamily,
   IndexStatus,
@@ -72,7 +73,7 @@ interface WorkspaceSettingsDialogState {
   terminalScrollbackLines: string;
   terminalBufferChars: string;
   explorerScale: string;
-  saveStatus: "idle" | "saved" | "error";
+  saveStatus: "idle" | "saving" | "saved" | "error";
   errorMessage: string | null;
 }
 
@@ -637,23 +638,19 @@ export function App() {
     });
   }
 
-  async function saveWorkspaceSettingsDialog() {
-    if (!workspaceSettingsDialog) {
-      return;
-    }
-
+  function workspaceSettingsFromDialog(settingsDialog: WorkspaceSettingsDialogState): WorkspaceSettings {
     const nextSettings: WorkspaceSettings = {
-      workspaceRoot: workspaceSettingsDialog.workspaceRoot.trim(),
-      defaultTerminalCwd: workspaceSettingsDialog.defaultTerminalCwd.trim(),
-      noteRoots: workspaceSettingsDialog.noteRoots
+      workspaceRoot: settingsDialog.workspaceRoot.trim(),
+      defaultTerminalCwd: settingsDialog.defaultTerminalCwd.trim(),
+      noteRoots: settingsDialog.noteRoots
         .split("\n")
         .map((entry) => entry.trim())
         .filter(Boolean),
-      projectRoots: workspaceSettingsDialog.projectRoots
+      projectRoots: settingsDialog.projectRoots
         .split("\n")
         .map((entry) => entry.trim())
         .filter(Boolean),
-      indexedRoots: workspaceSettingsDialog.indexedRoots
+      indexedRoots: settingsDialog.indexedRoots
         .split("\n")
         .map((entry, index) => ({ entry, index }))
         .filter(({ entry }) => entry.trim())
@@ -667,17 +664,38 @@ export function App() {
           backend: "qmd" as const,
         })),
       indexing: {
-        enabled: workspaceSettingsDialog.indexMode !== "off",
-        mode: workspaceSettingsDialog.indexMode,
+        enabled: settingsDialog.indexMode !== "off",
+        mode: settingsDialog.indexMode,
         backend: "qmd",
       },
-      appearanceMode: workspaceSettingsDialog.appearanceMode,
-      editorFontSize: clampNumber(Number(workspaceSettingsDialog.editorFontSize), 11, 24),
-      terminalFontSize: clampNumber(Number(workspaceSettingsDialog.terminalFontSize), 10, 22),
-      terminalScrollbackLines: clampNumber(Number(workspaceSettingsDialog.terminalScrollbackLines), 500, 100_000),
-      terminalBufferChars: clampNumber(Number(workspaceSettingsDialog.terminalBufferChars), 12_000, 2_000_000),
-      explorerScale: clampNumber(Number(workspaceSettingsDialog.explorerScale), 0.82, 1.35),
+      appearanceMode: settingsDialog.appearanceMode,
+      editorFontSize: clampNumber(Number(settingsDialog.editorFontSize), 11, 24),
+      terminalFontSize: clampNumber(Number(settingsDialog.terminalFontSize), 10, 22),
+      terminalScrollbackLines: clampNumber(Number(settingsDialog.terminalScrollbackLines), 500, 100_000),
+      terminalBufferChars: clampNumber(Number(settingsDialog.terminalBufferChars), 12_000, 2_000_000),
+      explorerScale: clampNumber(Number(settingsDialog.explorerScale), 0.82, 1.35),
     };
+
+    return nextSettings;
+  }
+
+  async function saveWorkspaceSettingsDialog(settingsDialog = workspaceSettingsDialog) {
+    if (!settingsDialog) {
+      return;
+    }
+
+    const nextSettings = workspaceSettingsFromDialog(settingsDialog);
+    const snapshotKey = workspaceSettingsDraftKey(settingsDialog);
+
+    setWorkspaceSettingsDialog((current) =>
+      current && workspaceSettingsDraftKey(current) === snapshotKey
+        ? {
+            ...current,
+            saveStatus: "saving",
+            errorMessage: null,
+          }
+        : current,
+    );
 
     try {
       const saved = await window.exo.workspace.saveSettings(nextSettings);
@@ -689,15 +707,9 @@ export function App() {
       setTerminalBuffers((current) => mapRecordValues(current, (buffer) => trimTerminalBuffer(buffer, saved.terminalBufferChars)));
       setExplorerScale(saved.explorerScale);
       setWorkspaceSettingsDialog((current) =>
-        current
+        current && workspaceSettingsDraftKey(current) === snapshotKey
           ? {
               ...current,
-              appearanceMode: saved.appearanceMode,
-              editorFontSize: String(saved.editorFontSize),
-              terminalFontSize: String(saved.terminalFontSize),
-              terminalScrollbackLines: String(saved.terminalScrollbackLines),
-              terminalBufferChars: String(saved.terminalBufferChars),
-              explorerScale: String(saved.explorerScale),
               saveStatus: "saved",
               errorMessage: null,
             }
@@ -705,7 +717,7 @@ export function App() {
       );
     } catch (error) {
       setWorkspaceSettingsDialog((current) =>
-        current
+        current && workspaceSettingsDraftKey(current) === snapshotKey
           ? {
               ...current,
               saveStatus: "error",
@@ -714,6 +726,27 @@ export function App() {
           : current,
       );
     }
+  }
+
+  useEffect(() => {
+    if (!workspaceSettingsDialog || workspaceSettingsDialog.saveStatus !== "idle") {
+      return;
+    }
+
+    const snapshot = workspaceSettingsDialog;
+    const timeout = window.setTimeout(() => {
+      void saveWorkspaceSettingsDialog(snapshot);
+    }, 650);
+
+    return () => window.clearTimeout(timeout);
+  }, [workspaceSettingsDialog]);
+
+  function closeWorkspaceSettingsDialog() {
+    const snapshot = workspaceSettingsDialog;
+    if (snapshot && snapshot.saveStatus !== "saved" && snapshot.saveStatus !== "saving") {
+      void saveWorkspaceSettingsDialog(snapshot);
+    }
+    setWorkspaceSettingsDialog(null);
   }
 
   function focusEditorPane(leafId: PaneNodeId) {
@@ -1691,7 +1724,19 @@ export function App() {
       {workspaceSettingsDialog ? (
         <div className="dialog-overlay" data-testid="workspace-settings-overlay">
           <div className="dialog-card dialog-card--settings" data-testid="workspace-settings-dialog">
-            <div className="dialog-card__title">Workspace Settings</div>
+            <div className="dialog-card__header">
+              <div className="dialog-card__title">Workspace Settings</div>
+              <button
+                aria-label="Close workspace settings"
+                className="dialog-card__close"
+                data-testid="workspace-settings-close"
+                onClick={closeWorkspaceSettingsDialog}
+                title="Close"
+                type="button"
+              >
+                <X size={16} />
+              </button>
+            </div>
             <div className="dialog-card__message">
               Configure Exo from one settings file. Appearance and sizing apply immediately; workspace paths apply on the next launch.
             </div>
@@ -1974,27 +2019,19 @@ export function App() {
                 </label>
               </div>
             </div>
+            {workspaceSettingsDialog.saveStatus === "saving" ? (
+              <div className="dialog-card__status" data-testid="workspace-settings-status">
+                Saving…
+              </div>
+            ) : null}
             {workspaceSettingsDialog.saveStatus === "saved" ? (
               <div className="dialog-card__status" data-testid="workspace-settings-status">
-                Saved. Restart Exo to apply changed workspace paths.
+                Saved automatically. Restart Exo to apply changed workspace paths.
               </div>
             ) : null}
             {workspaceSettingsDialog.saveStatus === "error" && workspaceSettingsDialog.errorMessage ? (
               <div className="dialog-card__status dialog-card__status--error">{workspaceSettingsDialog.errorMessage}</div>
             ) : null}
-            <div className="dialog-card__actions">
-              <button className="toolbar-button" onClick={() => setWorkspaceSettingsDialog(null)} type="button">
-                Close
-              </button>
-              <button
-                className="toolbar-button"
-                data-testid="workspace-settings-save"
-                onClick={() => void saveWorkspaceSettingsDialog()}
-                type="button"
-              >
-                Save
-              </button>
-            </div>
           </div>
         </div>
       ) : null}
@@ -2287,6 +2324,23 @@ function trimTerminalBuffer(buffer: string, maxChars: number): string {
 
 function mapRecordValues<T>(record: Record<string, T>, mapValue: (value: T) => T): Record<string, T> {
   return Object.fromEntries(Object.entries(record).map(([key, value]) => [key, mapValue(value)]));
+}
+
+function workspaceSettingsDraftKey(settings: WorkspaceSettingsDialogState): string {
+  return JSON.stringify({
+    workspaceRoot: settings.workspaceRoot,
+    defaultTerminalCwd: settings.defaultTerminalCwd,
+    noteRoots: settings.noteRoots,
+    projectRoots: settings.projectRoots,
+    indexedRoots: settings.indexedRoots,
+    indexMode: settings.indexMode,
+    appearanceMode: settings.appearanceMode,
+    editorFontSize: settings.editorFontSize,
+    terminalFontSize: settings.terminalFontSize,
+    terminalScrollbackLines: settings.terminalScrollbackLines,
+    terminalBufferChars: settings.terminalBufferChars,
+    explorerScale: settings.explorerScale,
+  });
 }
 
 function clampNumber(value: number, min: number, max: number): number {
