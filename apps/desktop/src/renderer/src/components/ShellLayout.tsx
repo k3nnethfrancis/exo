@@ -14,6 +14,13 @@ interface RootSection {
   nodes: TreeNode[];
 }
 
+interface IndexStatusLine {
+  label: string;
+  tone: "muted" | "ok" | "warn" | "info" | "error";
+  title: string;
+  busy: boolean;
+}
+
 interface ShellLayoutProps {
   noteSections: RootSection[];
   projectSections: RootSection[];
@@ -26,6 +33,7 @@ interface ShellLayoutProps {
     projectLabel: string | null;
     gitBranch: string | null;
     gitDirty: boolean;
+    index: IndexStatusLine;
   };
   shellLayout: {
     workspaceRef: React.RefObject<HTMLDivElement | null>;
@@ -56,6 +64,7 @@ interface ShellLayoutProps {
   dragManager: DragManager;
   onAppearanceModeChange: (mode: AppearanceMode) => void;
   onOpenWorkspaceSettings: () => void;
+  onOpenIndexSettings: () => void;
   onSearchQueryChange: (value: string) => void;
   onOpenFile: (filePath: string) => void;
   onOpenTag: (tag: string) => void;
@@ -85,6 +94,7 @@ export function ShellLayout(props: ShellLayoutProps) {
     dragManager,
     onAppearanceModeChange,
     onOpenWorkspaceSettings,
+    onOpenIndexSettings,
     onSearchQueryChange,
     onOpenFile,
     onOpenTag,
@@ -231,6 +241,17 @@ export function ShellLayout(props: ShellLayoutProps) {
           {statusLine.projectLabel ? <span>{statusLine.projectLabel}</span> : null}
         </div>
         <div className="statusbar__group statusbar__group--right">
+          <button
+            className={`statusbar__index statusbar__index--${statusLine.index.tone}`}
+            data-testid="statusbar-index"
+            onClick={onOpenIndexSettings}
+            title={statusLine.index.title}
+            type="button"
+          >
+            <span className="statusbar__index-dot" aria-hidden="true" />
+            <span>{statusLine.index.label}</span>
+            {statusLine.index.busy ? <span className="statusbar__ellipsis" aria-hidden="true" /> : null}
+          </button>
           {statusLine.gitBranch ? (
             <span>
               {statusLine.gitBranch}

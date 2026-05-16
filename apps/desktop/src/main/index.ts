@@ -392,6 +392,8 @@ function registerIpcHandlers() {
   ipcMain.handle("workspace:get-model", async () => workspaceModel);
   ipcMain.handle("workspace:get-settings", async () => currentWorkspaceSettings());
   ipcMain.handle("workspace:get-index-status", async () => getIndexStatus(workspaceModel, resolveRuntimeConfig().runtimeRoot));
+  ipcMain.handle("workspace:index-update", async () => updateIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot));
+  ipcMain.handle("workspace:index-embed", async () => embedIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot));
   ipcMain.handle("workspace:save-settings", async (_event, settings: WorkspaceSettings) => {
     return saveWorkspaceSettings(settings);
   });

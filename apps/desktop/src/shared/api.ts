@@ -45,6 +45,8 @@ export interface DesktopApi {
     getSettings: () => Promise<WorkspaceSettings>;
     saveSettings: (settings: WorkspaceSettings) => Promise<WorkspaceSettings>;
     getIndexStatus: () => Promise<IndexStatus>;
+    updateIndex: () => Promise<IndexStatus>;
+    embedIndex: () => Promise<IndexStatus>;
     listTree: (
       rootPath: string,
       options?: { markdownOnly?: boolean; maxDepth?: number; includeEmptyDirectories?: boolean },

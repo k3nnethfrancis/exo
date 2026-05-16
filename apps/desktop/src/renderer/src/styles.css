@@ -1284,8 +1284,8 @@ button svg,
 }
 
 .dialog-card--settings {
-  width: min(560px, calc(100vw - 48px));
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  width: min(520px, calc(100vw - 48px));
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
   overflow: hidden;
 }
 
@@ -1345,6 +1345,39 @@ button svg,
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+
+.dialog-card__actions--split {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.dialog-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  padding: 3px;
+  border: 1px solid var(--surface-border);
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+
+.dialog-tabs__button {
+  min-width: 0;
+  padding: 8px 6px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+
+.dialog-tabs__button--active {
+  border-color: var(--surface-border-strong);
+  background: var(--surface-3);
+  color: var(--text);
 }
 
 .dialog-card__apply-row {
