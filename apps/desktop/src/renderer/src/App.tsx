@@ -75,6 +75,9 @@ interface WorkspaceSettingsDialogState {
   explorerScale: string;
   saveStatus: "idle" | "saving" | "saved" | "error";
   errorMessage: string | null;
+  appliedWorkspaceKey: string;
+  applyStatus: "idle" | "applying" | "applied" | "error";
+  applyErrorMessage: string | null;
 }
 
 // DragState replaced by useDragManager — see DragPayload in hooks/useDragManager.ts
@@ -619,6 +622,7 @@ export function App() {
   async function openWorkspaceSettingsDialog() {
     const settings = await window.exo.workspace.getSettings();
     const indexStatus = await window.exo.workspace.getIndexStatus();
+    const appliedWorkspaceKey = workspaceSettingsStructuralKeyFromSettings(settings);
     setWorkspaceSettingsDialog({
       workspaceRoot: settings.workspaceRoot,
       defaultTerminalCwd: settings.defaultTerminalCwd,
@@ -635,11 +639,15 @@ export function App() {
       explorerScale: String(settings.explorerScale),
       saveStatus: "idle",
       errorMessage: null,
+      appliedWorkspaceKey,
+      applyStatus: "idle",
+      applyErrorMessage: null,
     });
   }
 
-  function workspaceSettingsFromDialog(settingsDialog: WorkspaceSettingsDialogState): WorkspaceSettings {
-    const nextSettings: WorkspaceSettings = {
+  function workspaceSettingsFromDialog(settingsDialog: WorkspaceSettingsDialogState, options: { includeStructural: boolean }): WorkspaceSettings {
+    const currentSettings = workspaceSettingsRef.current;
+    const fallbackStructural = {
       workspaceRoot: settingsDialog.workspaceRoot.trim(),
       defaultTerminalCwd: settingsDialog.defaultTerminalCwd.trim(),
       noteRoots: settingsDialog.noteRoots
@@ -666,8 +674,24 @@ export function App() {
       indexing: {
         enabled: settingsDialog.indexMode !== "off",
         mode: settingsDialog.indexMode,
-        backend: "qmd",
+        backend: "qmd" as const,
       },
+    };
+    const nextSettings: WorkspaceSettings = {
+      workspaceRoot: options.includeStructural ? fallbackStructural.workspaceRoot : currentSettings?.workspaceRoot ?? fallbackStructural.workspaceRoot,
+      defaultTerminalCwd: options.includeStructural ? fallbackStructural.defaultTerminalCwd : currentSettings?.defaultTerminalCwd ?? fallbackStructural.defaultTerminalCwd,
+      noteRoots: options.includeStructural
+        ? fallbackStructural.noteRoots
+        : currentSettings?.noteRoots ?? fallbackStructural.noteRoots,
+      projectRoots: options.includeStructural
+        ? fallbackStructural.projectRoots
+        : currentSettings?.projectRoots ?? fallbackStructural.projectRoots,
+      indexedRoots: options.includeStructural
+        ? fallbackStructural.indexedRoots
+        : currentSettings?.indexedRoots ?? fallbackStructural.indexedRoots,
+      indexing: options.includeStructural
+        ? fallbackStructural.indexing
+        : currentSettings?.indexing ?? fallbackStructural.indexing,
       appearanceMode: settingsDialog.appearanceMode,
       editorFontSize: clampNumber(Number(settingsDialog.editorFontSize), 11, 24),
       terminalFontSize: clampNumber(Number(settingsDialog.terminalFontSize), 10, 22),
@@ -679,20 +703,21 @@ export function App() {
     return nextSettings;
   }
 
-  async function saveWorkspaceSettingsDialog(settingsDialog = workspaceSettingsDialog) {
+  async function saveWorkspaceSettingsDialog(settingsDialog = workspaceSettingsDialog, options = { includeStructural: false }) {
     if (!settingsDialog) {
       return;
     }
 
-    const nextSettings = workspaceSettingsFromDialog(settingsDialog);
-    const snapshotKey = workspaceSettingsDraftKey(settingsDialog);
+    const nextSettings = workspaceSettingsFromDialog(settingsDialog, options);
+    const snapshotKey = options.includeStructural ? workspaceSettingsStructuralDraftKey(settingsDialog) : workspaceSettingsImmediateDraftKey(settingsDialog);
 
     setWorkspaceSettingsDialog((current) =>
-      current && workspaceSettingsDraftKey(current) === snapshotKey
+      current && (options.includeStructural ? workspaceSettingsStructuralDraftKey(current) : workspaceSettingsImmediateDraftKey(current)) === snapshotKey
         ? {
             ...current,
-            saveStatus: "saving",
-            errorMessage: null,
+            ...(options.includeStructural
+              ? { applyStatus: "applying" as const, applyErrorMessage: null }
+              : { saveStatus: "saving" as const, errorMessage: null }),
           }
         : current,
     );
@@ -707,21 +732,36 @@ export function App() {
       setTerminalBuffers((current) => mapRecordValues(current, (buffer) => trimTerminalBuffer(buffer, saved.terminalBufferChars)));
       setExplorerScale(saved.explorerScale);
       setWorkspaceSettingsDialog((current) =>
-        current && workspaceSettingsDraftKey(current) === snapshotKey
+        current && (options.includeStructural ? workspaceSettingsStructuralDraftKey(current) : workspaceSettingsImmediateDraftKey(current)) === snapshotKey
           ? {
               ...current,
-              saveStatus: "saved",
-              errorMessage: null,
+              ...(options.includeStructural
+                ? {
+                    appliedWorkspaceKey: workspaceSettingsStructuralKeyFromSettings(saved),
+                    applyStatus: "applied" as const,
+                    applyErrorMessage: null,
+                  }
+                : {
+                    saveStatus: "saved" as const,
+                    errorMessage: null,
+                  }),
             }
           : current,
       );
     } catch (error) {
       setWorkspaceSettingsDialog((current) =>
-        current && workspaceSettingsDraftKey(current) === snapshotKey
+        current && (options.includeStructural ? workspaceSettingsStructuralDraftKey(current) : workspaceSettingsImmediateDraftKey(current)) === snapshotKey
           ? {
               ...current,
-              saveStatus: "error",
-              errorMessage: error instanceof Error ? error.message : "Unable to save workspace settings.",
+              ...(options.includeStructural
+                ? {
+                    applyStatus: "error" as const,
+                    applyErrorMessage: error instanceof Error ? error.message : "Unable to apply workspace settings.",
+                  }
+                : {
+                    saveStatus: "error" as const,
+                    errorMessage: error instanceof Error ? error.message : "Unable to save workspace settings.",
+                  }),
             }
           : current,
       );
@@ -744,7 +784,7 @@ export function App() {
   function closeWorkspaceSettingsDialog() {
     const snapshot = workspaceSettingsDialog;
     if (snapshot && snapshot.saveStatus !== "saved" && snapshot.saveStatus !== "saving") {
-      void saveWorkspaceSettingsDialog(snapshot);
+      void saveWorkspaceSettingsDialog(snapshot, { includeStructural: false });
     }
     setWorkspaceSettingsDialog(null);
   }
@@ -1753,8 +1793,8 @@ export function App() {
                         ? {
                             ...current,
                             workspaceRoot: event.target.value,
-                            saveStatus: "idle",
-                            errorMessage: null,
+                            applyStatus: "idle",
+                            applyErrorMessage: null,
                           }
                         : current,
                     )
@@ -1773,8 +1813,8 @@ export function App() {
                         ? {
                             ...current,
                             defaultTerminalCwd: event.target.value,
-                            saveStatus: "idle",
-                            errorMessage: null,
+                            applyStatus: "idle",
+                            applyErrorMessage: null,
                           }
                         : current,
                     )
@@ -1794,8 +1834,8 @@ export function App() {
                         ? {
                             ...current,
                             noteRoots: event.target.value,
-                            saveStatus: "idle",
-                            errorMessage: null,
+                            applyStatus: "idle",
+                            applyErrorMessage: null,
                           }
                         : current,
                     )
@@ -1815,8 +1855,8 @@ export function App() {
                         ? {
                             ...current,
                             projectRoots: event.target.value,
-                            saveStatus: "idle",
-                            errorMessage: null,
+                            applyStatus: "idle",
+                            applyErrorMessage: null,
                           }
                         : current,
                     )
@@ -1835,8 +1875,8 @@ export function App() {
                         ? {
                             ...current,
                             indexMode: event.target.value as WorkspaceSettings["indexing"]["mode"],
-                            saveStatus: "idle",
-                            errorMessage: null,
+                            applyStatus: "idle",
+                            applyErrorMessage: null,
                           }
                         : current,
                     )
@@ -1861,8 +1901,8 @@ export function App() {
                         ? {
                             ...current,
                             indexedRoots: event.target.value,
-                            saveStatus: "idle",
-                            errorMessage: null,
+                            applyStatus: "idle",
+                            applyErrorMessage: null,
                           }
                         : current,
                     )
@@ -2019,6 +2059,30 @@ export function App() {
                 </label>
               </div>
             </div>
+            {workspaceSettingsStructuralDraftKey(workspaceSettingsDialog) !== workspaceSettingsDialog.appliedWorkspaceKey ? (
+              <div className="dialog-card__apply-row">
+                <div className="dialog-card__status">
+                  Workspace paths and index roots apply after restart.
+                </div>
+                <button
+                  className="toolbar-button"
+                  data-testid="workspace-settings-apply"
+                  disabled={workspaceSettingsDialog.applyStatus === "applying"}
+                  onClick={() => void saveWorkspaceSettingsDialog(workspaceSettingsDialog, { includeStructural: true })}
+                  type="button"
+                >
+                  {workspaceSettingsDialog.applyStatus === "applying" ? "Applying…" : "Apply"}
+                </button>
+              </div>
+            ) : null}
+            {workspaceSettingsDialog.applyStatus === "applied" ? (
+              <div className="dialog-card__status" data-testid="workspace-settings-apply-status">
+                Applied. Restart Exo to use changed workspace paths.
+              </div>
+            ) : null}
+            {workspaceSettingsDialog.applyStatus === "error" && workspaceSettingsDialog.applyErrorMessage ? (
+              <div className="dialog-card__status dialog-card__status--error">{workspaceSettingsDialog.applyErrorMessage}</div>
+            ) : null}
             {workspaceSettingsDialog.saveStatus === "saving" ? (
               <div className="dialog-card__status" data-testid="workspace-settings-status">
                 Saving…
@@ -2026,7 +2090,7 @@ export function App() {
             ) : null}
             {workspaceSettingsDialog.saveStatus === "saved" ? (
               <div className="dialog-card__status" data-testid="workspace-settings-status">
-                Saved automatically. Restart Exo to apply changed workspace paths.
+                Saved automatically.
               </div>
             ) : null}
             {workspaceSettingsDialog.saveStatus === "error" && workspaceSettingsDialog.errorMessage ? (
@@ -2326,7 +2390,18 @@ function mapRecordValues<T>(record: Record<string, T>, mapValue: (value: T) => T
   return Object.fromEntries(Object.entries(record).map(([key, value]) => [key, mapValue(value)]));
 }
 
-function workspaceSettingsDraftKey(settings: WorkspaceSettingsDialogState): string {
+function workspaceSettingsImmediateDraftKey(settings: WorkspaceSettingsDialogState): string {
+  return JSON.stringify({
+    appearanceMode: settings.appearanceMode,
+    editorFontSize: settings.editorFontSize,
+    terminalFontSize: settings.terminalFontSize,
+    terminalScrollbackLines: settings.terminalScrollbackLines,
+    terminalBufferChars: settings.terminalBufferChars,
+    explorerScale: settings.explorerScale,
+  });
+}
+
+function workspaceSettingsStructuralDraftKey(settings: WorkspaceSettingsDialogState): string {
   return JSON.stringify({
     workspaceRoot: settings.workspaceRoot,
     defaultTerminalCwd: settings.defaultTerminalCwd,
@@ -2334,12 +2409,17 @@ function workspaceSettingsDraftKey(settings: WorkspaceSettingsDialogState): stri
     projectRoots: settings.projectRoots,
     indexedRoots: settings.indexedRoots,
     indexMode: settings.indexMode,
-    appearanceMode: settings.appearanceMode,
-    editorFontSize: settings.editorFontSize,
-    terminalFontSize: settings.terminalFontSize,
-    terminalScrollbackLines: settings.terminalScrollbackLines,
-    terminalBufferChars: settings.terminalBufferChars,
-    explorerScale: settings.explorerScale,
+  });
+}
+
+function workspaceSettingsStructuralKeyFromSettings(settings: WorkspaceSettings): string {
+  return JSON.stringify({
+    workspaceRoot: settings.workspaceRoot,
+    defaultTerminalCwd: settings.defaultTerminalCwd,
+    noteRoots: settings.noteRoots.join("\n"),
+    projectRoots: settings.projectRoots.join("\n"),
+    indexedRoots: settings.indexedRoots.map((root) => root.path).join("\n"),
+    indexMode: settings.indexing.mode,
   });
 }
 

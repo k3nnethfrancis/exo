@@ -1347,6 +1347,18 @@ button svg,
   gap: 10px;
 }
 
+.dialog-card__apply-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 2px;
+}
+
+.dialog-card__apply-row .dialog-card__status {
+  min-width: 0;
+}
+
 .dialog-form {
   display: grid;
   gap: 12px;
