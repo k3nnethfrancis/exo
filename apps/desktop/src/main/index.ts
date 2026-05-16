@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, Menu, nativeImage, nativeTheme, shell, Tray } from "electron";
 import { execFile } from "node:child_process";
 import path from "node:path";
-import { access, appendFile, stat } from "node:fs/promises";
+import { access, appendFile, mkdir, stat } from "node:fs/promises";
 import { constants, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -674,6 +674,7 @@ app.whenReady().then(async () => {
     nativeTheme.themeSource = workspaceSettings.appearanceMode;
   }
   workspaceModel = resolveWorkspaceModel();
+  await ensureNoteRoots(workspaceModel);
   workspaceSettings = await workspaceSettingsStore.save(currentWorkspaceSettings());
   logWorkspaceStartup(workspaceModel);
   terminalManager = new TerminalManager(workspaceModel.defaultTerminalCwd);
@@ -713,6 +714,10 @@ app.whenReady().then(async () => {
     showMainWindow();
   });
 });
+
+async function ensureNoteRoots(model: WorkspaceModel): Promise<void> {
+  await Promise.all(model.noteRoots.map((root) => mkdir(root.path, { recursive: true })));
+}
 
 app.on("before-quit", () => {
   commandServer?.stop();
