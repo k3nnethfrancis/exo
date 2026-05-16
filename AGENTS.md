@@ -11,9 +11,10 @@ Exo is a local-first agentic development environment built around a shared exoco
 5. `docs/architecture.md` - runtime and package boundaries
 6. `docs/harness.md` - gates, work chunks, agent workflow
 7. `docs/tasks.md` - active execution tracker
-8. `docs/roadmap.md` - future plans
-9. `docs/plugins.md` - future extension model
-10. `packages/mcp/README.md` - MCP setup and tool contract
+8. `docs/qmd-integration-notes.md` - current QMD adapter contract and upgrade notes
+9. `docs/roadmap.md` - future plans
+10. `docs/plugins.md` - future extension model
+11. `packages/mcp/README.md` - MCP setup and tool contract
 
 ## Repository Map
 
@@ -70,8 +71,9 @@ CI runs `pnpm check` on macOS.
 - `workspace_root` is primary; `note_roots` and `project_roots` are explicit attachments.
 - Markdown-on-disk is canonical; notebook mode is a projection.
 - Project roots are imported folders, not every folder under workspace `projects/`.
-- App and CLI search are fast note filename/path search only.
-- QMD stays as notes index / retrieval infrastructure for future Exo-managed memory and unified human/agent search.
+- Live Explore typing stays fast filename/path search; optional indexed search is explicit and should not block the renderer.
+- QMD is the active notes-index substrate behind Exo-managed lexical/semantic/hybrid search, CLI, and MCP tools.
+- Keep QMD calls behind `packages/core/src/qmd.ts`; do not patch `node_modules` or fork QMD casually.
 - Future provenance work should track human vs agent-authored changes by source, session, and task.
 - Future project-root control should be exposed through CLI/MCP, not hidden renderer-only state.
 - Optional or personal workflows should go through the plugin architecture rather than becoming core by default.

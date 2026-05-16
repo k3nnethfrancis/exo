@@ -3,11 +3,12 @@
 ## Reference
 
 - Upstream: <https://github.com/tobi/qmd>
-- Local reference clone: `/Users/kenneth/Desktop/lab/projects/reference/qmd`
 - Investigated commit: `746beedb4863524d337332109dc624a0be0b5aa7`
 - License: MIT, copyright Tobi Lutke
 
 QMD is Tobi Lutke's on-device markdown retrieval engine. Exo should present this as an integration with QMD, not as Exo-originated retrieval work. If Exo bundles QMD as a dependency or vendors any source, include the MIT license and a third-party notice.
+
+For the current live adapter contract, known gaps, and upgrade checklist, see `qmd-integration-notes.md`.
 
 ## What QMD Provides
 
@@ -71,59 +72,62 @@ Detect existing QMD setups as an import/reuse option, not as the default:
 
 ## Indexing Policy
 
-Initial implementation should be explicit and conservative:
+Initial implementation is explicit and conservative:
 
 - No automatic full-vault indexing until the user enables the notes index.
-- Run lexical `update()` on setup and by manual command.
-- Add debounced incremental reindex after filesystem watcher events once the manual path is stable.
-- Add embeddings only when the selected compute profile includes semantic mode.
-- Expose reindex controls in settings: manual, on app start, on file save/watch, scheduled interval.
+- Run document refresh and embeddings through a user-visible `Sync index` action.
+- Trigger a full sync when index configuration changes and the user applies settings.
+- Debounce note-save refreshes and scope them to the matching indexed root.
+- Defer embeddings on note save; semantic/hybrid users can rebuild embeddings with `Sync index`.
+- Keep future reindex controls open for app start, scheduled interval, and git events.
 
-Use QMD's `update()`/`reindexCollection()` and `embed()` APIs instead of shelling out when bundled. Keep a CLI fallback only for environments where the SDK cannot be loaded.
+Use QMD's public SDK APIs instead of shelling out when bundled. Current QMD exposes collection-scoped `update({ collections })`, not a public single-file update/delete API.
 
 ## CLI
 
-Add explicit notes-index commands rather than overloading fast search:
+Expose explicit index commands rather than overloading fast search:
 
-- `exo notes index status`
-- `exo notes index update`
-- `exo notes index embed`
-- `exo notes query <query>`
-- `exo notes get <path-or-docid>`
-- `exo notes multi-get <pattern>`
+- `exo index status`
+- `exo index sync`
+- `exo index update`
+- `exo index embed`
+- `exo search <query>`
+- `exo read <path-or-docid>`
 
-Keep `exo notes search` as fast filename/path search until the UI and CLI intentionally expose retrieval tiers.
+Live Explore typing remains fast filename/path search. Indexed retrieval is explicit through Enter in Explore when enabled, and through CLI/MCP index/search tools.
 
 ## MCP
 
 Add Exo MCP tools that mirror QMD's useful primitives but with Exo naming and policy:
 
-- `notes_index_status`
-- `search_notes`
-- `query_notes`
-- `get_note`
-- `multi_get_notes`
-- `refresh_notes_index`
+- `index_status`
+- `sync_index`
+- `update_index`
+- `build_embeddings`
+- `search`
+- `read`
 
 The MCP tools should call Exo's command server, not instantiate their own QMD store. That keeps all agents pointed at the same desktop-managed index and lets the desktop enforce cancellation, caps, status, and settings.
 
-For agent guidance, update Exo runtime instructions from "QMD is future infrastructure" to "use Exo notes tools when available." Continue to credit QMD in documentation and settings.
+Agent-facing search responses should report fallback/warning state when embeddings are not ready or QMD is disabled. Continue to credit QMD in documentation and settings.
 
 ## UI
 
 Keep the current explorer search fast and separate.
 
-Add a notes-index status area in workspace settings:
+The current notes-index status surfaces are:
 
-- enabled tier
+- footer status pill
+- Settings Index panel
 - indexed note roots
 - document count
 - pending embeddings
 - last update time
-- update/embed buttons
+- primary `Sync index` button
+- advanced refresh/embed phase buttons
 - attribution/link to QMD
 
-Later, add a deliberate "deep search" mode in the search pane rather than silently mixing lexical filename results with semantic retrieval.
+Live search should remain snappy. Heavy semantic retrieval should stay explicit, cancellable, and visible.
 
 ## Risks
 
@@ -137,8 +141,8 @@ Later, add a deliberate "deep search" mode in the search pane rather than silent
 
 1. Dependency spike: add `@tobilu/qmd` behind a small `@exo/core` adapter and prove lexical update/search against test fixtures.
 2. Exo-managed storage: create `.exo/qmd`, derive collections from selected note roots, and expose status/update routes on the command server.
-3. CLI and MCP: add notes-index commands and MCP tools backed by command-server routes.
-4. Settings UI: add indexing tier, root list, status, update button, and attribution.
-5. Semantic tier: add embed controls, model status, and guarded query/rerank paths.
-6. Watch/reindex policy: wire debounced note-root watcher events after manual update is reliable.
+3. CLI and MCP: add notes-index commands and MCP tools backed by command-server routes. Completed for current status/search/read/sync/update/embed flows.
+4. Settings UI: add indexing tier, root list, status, update button, and attribution. Completed for the current Index panel.
+5. Semantic tier: add embed controls, model status, and guarded query/rerank paths. Partially complete; improve progress/cancellation and performance.
+6. Watch/reindex policy: wire debounced note-root watcher events after manual update is reliable. Partially complete with collection-scoped save refreshes; true file-level updates need upstream QMD support.
 7. Existing QMD import: detect PATH/config collections and offer import/reuse once Exo-managed indexing works.

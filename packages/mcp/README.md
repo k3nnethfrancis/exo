@@ -54,6 +54,13 @@ Without autostart, Exo must already be running so the MCP server can discover `.
 - `send_agent_message` — send text to a live agent. `submit` defaults to `true`, so the message is submitted with Enter unless explicitly disabled.
 - `interrupt_agent` — send Escape or Ctrl-C to a live agent.
 - `terminate_agent` — terminate an Exo terminal. For terminal agents this also kills the backing tmux session.
+- `workspace_status` — inspect the active Exo workspace model.
+- `index_status` — inspect QMD notes-index status, pending embeddings, and fallback warnings.
+- `sync_index` — refresh indexed documents and build embeddings for semantic/hybrid modes.
+- `update_index` — advanced document-refresh phase only.
+- `build_embeddings` — advanced embedding phase only.
+- `search` — search notes through QMD when enabled, with filesystem fallback when indexing is off or unavailable.
+- `read` — read an indexed or filesystem note/document target.
 
 ## CLI Mirror
 
@@ -67,4 +74,8 @@ bin/exo agents send term-4 "message"
 bin/exo agents send term-4 "raw input without Enter" --raw
 bin/exo agents interrupt term-4 ctrl-c
 bin/exo agents terminate term-4
+bin/exo index status
+bin/exo index sync
+bin/exo search "query"
+bin/exo read /path/or/qmd-target
 ```

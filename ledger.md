@@ -1,6 +1,6 @@
 # Exo Ledger
 
-Last updated: 2026-05-12
+Last updated: 2026-05-16
 
 This is the fastest current-state handoff for Exo. It records what exists now, what changed recently, and what is next. Active tasks live in `docs/tasks.md`; future systems live in `docs/roadmap.md`; product/system strategy lives in `docs/strategy.md`.
 
@@ -20,6 +20,9 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - JSON linting in code-file editor mode.
 - Explicit note roots and project roots.
 - Explorer search mode with fast note filename/path results, snippets, and hover previews.
+- Optional QMD-backed notes index with lexical, semantic, and hybrid modes.
+- Index status pill in the footer and Index settings panel with `Sync index`.
+- CLI and MCP notes-index routes for status, search, read, sync, update, and embed flows through the running Exo command server.
 - Claude, Codex, and shell terminal launchers.
 - Tmux-backed Claude/Codex sessions supervised by Exo.
 - Terminal reload hydration from main-process buffers.
@@ -33,8 +36,9 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 
 ## Current Intentional Limits
 
-- App and CLI search are fast note filename/path search only.
-- QMD is retained as future notes index/retrieval infrastructure, not active app search.
+- Live Explore typing remains fast note filename/path search.
+- Optional indexed Explore search runs explicitly on Enter when QMD lexical search is enabled.
+- QMD-backed semantic/hybrid indexing can be compute-heavy; note-save refreshes are collection-scoped and defer embeddings.
 - Project roots are explicit attachments; Exo does not auto-load every workspace project folder.
 - Terminal panes cannot yet move into the editor canvas.
 - Exo does not yet track authorship/provenance for agent-authored writes.
@@ -52,6 +56,9 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Added canonical `pnpm check` harness and CI alignment.
 - Rewrote README around shared-exocortex / agentic-development positioning.
 - Rewrote `AGENTS.md`, `docs/strategy.md`, `docs/tasks.md`, and `docs/roadmap.md` to remove stale phase-first framing.
+- Completed first-time setup hardening on a fresh machine: pnpm build-script allowlist, portable workspace defaults, note-root creation, renderer crash fix, settings scroll/Apply behavior, and empty folder display.
+- Added Exo-managed QMD indexing UX: footer status, Settings Index panel, sync/apply flows, Explore lexical-on-Enter, CLI/MCP parity, and conservative save-triggered refreshes.
+- Added `docs/qmd-integration-notes.md` to track the QMD adapter boundary, current workarounds, and upstream upgrade checklist.
 
 ## Next Priorities
 
@@ -60,7 +67,7 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 3. Project roots and code review: CLI/MCP root management plus changed-file review for agent-authored edits.
 4. Agent context manager: inspect/edit/compare global and local `AGENTS.md` / `CLAUDE.md`.
 5. Authorship/provenance: observed human vs agent-written changes by session/task/file.
-6. QMD notes index: detect existing setup, offer Exo-managed setup, configure roots/triggers/profiles.
+6. QMD notes index: improve performance, add true incremental file-level updates when QMD exposes them, and refine triggers/profiles.
 7. Multi-agent coordination: roster, objectives, direct messages, file+SQLite transport, CLI/MCP access.
 8. Graph/memory view: backlinks plus QMD-derived relationships and agent/session context.
 9. Plugin architecture: optional workflows and shareable extensions without growing core by default.
@@ -72,6 +79,7 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Do not put private local paths in source defaults.
 - Do not infer provenance with AI detection; track it through observable workflows.
 - Keep QMD focused on notes unless project indexing is explicitly designed later.
+- Keep QMD integration behind `packages/core/src/qmd.ts`; document workarounds in `docs/qmd-integration-notes.md`.
 - Use CLI/MCP as canonical agent-facing control surfaces.
 
 ## Validation

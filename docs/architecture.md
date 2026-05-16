@@ -148,11 +148,13 @@ Project roots are explicit imported folders. First-run source builds attach the 
 
 Search currently returns:
 
-- local note filename/path matches only
+- live Explore typing: local note filename/path matches
+- optional Explore Enter: QMD lexical results when enabled
+- CLI/MCP: QMD-backed search when enabled, with filesystem fallback
 
-Search lives in the explorer search pane and returns fast note filename/path matches with snippets. QMD is not part of desktop or CLI search; broad retrieval should return only as an explicit, isolated future tool after the fast search path is stable.
+Search lives in the explorer search pane and keeps live typing fast. QMD-backed indexed search is explicit so heavy retrieval does not block the renderer.
 
-QMD remains in core as optional notes index / retrieval infrastructure for future agent memory. The eventual unified search design should use the same index agents use, but only with explicit tiers, cancellation, result caps, and renderer safety checks.
+QMD integration lives behind `packages/core/src/qmd.ts`. The desktop command server exposes status, search, read, sync, update, and embed routes; CLI and MCP call those routes rather than instantiating their own QMD stores. See `qmd-integration-notes.md` for the dependency boundary and upgrade checklist.
 
 ## Refactor Boundaries
 

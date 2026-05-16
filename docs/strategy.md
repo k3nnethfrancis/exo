@@ -21,7 +21,7 @@ Exo is organized around:
 - `project_roots[]` - explicitly attached project/code roots.
 - `terminal_sessions[]` - shell, Claude, Codex, and future local/open-source terminal agents.
 - `agent_context_files[]` - global and local `AGENTS.md` / `CLAUDE.md` files.
-- `notes_index` - future Exo-managed QMD-backed index for notes, search, and memory.
+- `notes_index` - Exo-managed QMD-backed index for optional notes search and future memory.
 - `agent_communication` - future inspectable message transport for multi-agent coordination.
 - `workcells[]` - future bounded development/research loops with artifacts, metrics, and replay.
 
@@ -41,7 +41,7 @@ Local/private paths belong in settings or environment examples, not source defau
 - Project roots are explicit attachments.
 - Terminal agents run inside Exo; Exo does not treat them as detached side channels.
 - CLI and MCP are first-class control surfaces.
-- Humans and agents should eventually search the same notes index.
+- Humans and agents should share the same notes index through explicit, observable search modes.
 - Provenance should come from observed workflows, not AI-detector inference.
 - Training data is never ambient; it must be explicitly scoped.
 
@@ -54,6 +54,7 @@ Already shipped:
 - Code-file editor modes for Python, JSON/JSONC, TOML, `.env`, YAML, JS/TS/TSX, HTML/CSS, and shell.
 - Explicit note roots and project roots.
 - Fast note filename/path search in explorer search mode.
+- Optional QMD-backed lexical, semantic, and hybrid notes index.
 - Claude, Codex, and shell terminals.
 - Tmux-backed Claude/Codex persistence and cleanup.
 - Runtime command server and `bin/exo` CLI.
@@ -63,8 +64,8 @@ Already shipped:
 
 Current intentional limits:
 
-- App/CLI search is fast note filename/path search only.
-- QMD is retained as future notes index/retrieval infrastructure, not active app search.
+- Live Explore typing is fast note filename/path search.
+- QMD-backed indexed search is explicit and should not block the renderer.
 - Project roots are not auto-loaded from every workspace project folder.
 - File/terminal panes do not yet share one arbitrary pane graph.
 - Authorship/provenance is not yet tracked.
@@ -90,7 +91,7 @@ Exo should distinguish human-written and agent-written work where it can observe
 
 ### QMD, Notes Index, And Search
 
-QMD should become an Exo-managed notes index. Exo should detect existing QMD setups, offer a built-in setup path, index selected note roots, expose compute profiles, and eventually serve the same index to humans and agents through UI, CLI, and MCP.
+QMD is now the Exo-managed notes-index substrate. Exo should improve performance, detect existing QMD setups, expose compute profiles, add richer trigger controls, and serve the same index to humans and agents through UI, CLI, and MCP.
 
 ### Multi-Agent Coordination
 
@@ -135,6 +136,10 @@ Exo is now documented as a local-first agentic development environment built aro
 
 Search moved out of the top bar. Current search is fast note filename/path matching with snippets and hover previews. Broad/QMD retrieval remains deferred until the notes-index design has explicit tiers, cancellation, caps, and renderer crash coverage.
 
-### 2026-05-11 — QMD Is Future Notes Index Infrastructure
+### 2026-05-11 — QMD Was Future Notes Index Infrastructure
 
-QMD remains in core as notes index/retrieval infrastructure. It is not the current app search backend. The desired future state is Exo-managed QMD setup with selected note roots, compute profiles, and shared human/agent retrieval.
+QMD remained in core as notes index/retrieval infrastructure. It was not the current app search backend at that point. This was superseded by the 2026-05-16 active optional index work.
+
+### 2026-05-16 — QMD Is Active Optional Index Infrastructure
+
+QMD now backs optional lexical, semantic, and hybrid notes indexing through Exo settings, CLI, and MCP. Live Explore typing remains filename/path based for responsiveness; indexed Explore search is explicit on Enter. Save-triggered indexing refreshes the matching indexed root only and defers embeddings.
