@@ -135,6 +135,25 @@ test("opens a new terminal from a project folder context menu", async () => {
   await cleanup();
 });
 
+test("shows terminals created outside renderer controls", async () => {
+  const { page, cleanup } = await launchExoFixture({
+    env: {
+      EXO_SHELL: "/bin/pwd",
+      EXO_SHELL_ARGS: "",
+    },
+  });
+
+  const initialTabs = await page.getByTestId("terminal-tab-shell").count();
+  await page.evaluate(async () => {
+    await window.exo.terminals.create({ kind: "shell" });
+  });
+
+  await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(initialTabs + 1);
+  await expect(page.getByTestId("terminal-tab-shell").last()).toBeVisible();
+
+  await cleanup();
+});
+
 test("expands and collapses the project roots drawer", async () => {
   const { page, cleanup } = await launchExoFixture();
 
@@ -225,6 +244,9 @@ test("opens workspace settings from the sidebar", async () => {
   await page.getByTestId("workspace-settings").click();
   await expect(page.getByTestId("workspace-settings-dialog")).toBeVisible();
   await expect(page.getByTestId("workspace-settings-note-roots")).toContainText("test-notes");
+  await expect(page.getByTestId("workspace-settings-index-mode")).toHaveValue("off");
+  await expect(page.getByTestId("workspace-settings-indexed-roots")).toBeVisible();
+  await expect(page.getByTestId("workspace-settings-dialog")).toContainText("QMD by Tobi Lutke");
 
   await cleanup();
 });

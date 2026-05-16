@@ -36,18 +36,18 @@ describe("integrations", () => {
     const spec = buildExoMcpIntegrationSpec("claude", config);
 
     expect(spec.installCommand).toBe("claude");
-    expect(spec.installArgs.slice(0, 8)).toEqual([
+    expect(spec.installArgs.slice(0, 4)).toEqual([
       "mcp",
-      "add",
-      "--transport",
-      "stdio",
+      "add-json",
       "--scope",
       "user",
-      "--env",
-      "EXO_WORKSPACE_ROOT=/tmp/exo-test-workspace",
     ]);
+    expect(JSON.parse(spec.installArgs.at(-1) ?? "{}")).toMatchObject({
+      type: "stdio",
+      command: "node",
+      env: { EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace" },
+    });
     expect(spec.installArgs).toContain("exo");
-    expect(spec.installArgs.slice(-2)).toEqual(["node", "/tmp/exo-test-workspace/projects/exo/packages/mcp/bin/exo-mcp.mjs"]);
   });
 
   it("formats MCP JSON for documentation and config previews", () => {

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   BranchFamily,
+  IndexStatus,
   NoteDocument,
   NoteKnowledge,
   SearchResult,
@@ -62,6 +63,9 @@ interface WorkspaceSettingsDialogState {
   defaultTerminalCwd: string;
   noteRoots: string;
   projectRoots: string;
+  indexedRoots: string;
+  indexMode: WorkspaceSettings["indexing"]["mode"];
+  indexStatusSummary: string;
   appearanceMode: AppearanceMode;
   editorFontSize: string;
   terminalFontSize: string;
@@ -121,6 +125,7 @@ export function App() {
   const terminalFlushFrameRef = useRef<number | null>(null);
   const bootstrapRunRef = useRef(0);
   const activeTerminalIdsRef = useRef<Set<string>>(new Set());
+  const terminalSessionsRef = useRef<TerminalSessionInfo[]>([]);
   const terminalKindByIdRef = useRef<Record<string, TerminalSessionInfo["kind"]>>({});
   const openDocumentsRef = useRef(openDocuments);
   const activeDocumentPathRef = useRef(activeDocumentPath);
@@ -137,6 +142,7 @@ export function App() {
   const resolvedAppearance: ResolvedAppearance = appearanceMode === "system" ? (systemPrefersDark ? "dark" : "light") : appearanceMode;
 
   useEffect(() => {
+    terminalSessionsRef.current = terminalSessions;
     terminalKindByIdRef.current = Object.fromEntries(terminalSessions.map((session) => [session.id, session.kind]));
   }, [terminalSessions]);
 
@@ -359,6 +365,19 @@ export function App() {
         current.map((session) => (session.id === id ? { ...session, status: "exited", exitCode } : session)),
       );
     });
+    const removeCreatedListener = window.exo.terminals.onCreated((session) => {
+      adoptExternalTerminalSessions([session], { activateLatest: true });
+    });
+    const syncTerminalSessionsInterval = window.setInterval(() => {
+      void window.exo.terminals.list().then((sessions) => {
+        const knownIds = new Set(terminalSessionsRef.current.map((session) => session.id));
+        const unseenSessions = sessions.filter((session) => !knownIds.has(session.id));
+        setTerminalSessions(sessions);
+        if (unseenSessions.length > 0) {
+          adoptExternalTerminalSessions(unseenSessions, { activateLatest: true });
+        }
+      });
+    }, 1500);
 
     return () => {
       cancelled = true;
@@ -367,6 +386,8 @@ export function App() {
       }
       removeDataListener();
       removeExitListener();
+      removeCreatedListener();
+      window.clearInterval(syncTerminalSessionsInterval);
     };
   }, []);
 
@@ -593,11 +614,15 @@ export function App() {
 
   async function openWorkspaceSettingsDialog() {
     const settings = await window.exo.workspace.getSettings();
+    const indexStatus = await window.exo.workspace.getIndexStatus();
     setWorkspaceSettingsDialog({
       workspaceRoot: settings.workspaceRoot,
       defaultTerminalCwd: settings.defaultTerminalCwd,
       noteRoots: settings.noteRoots.join("\n"),
       projectRoots: settings.projectRoots.join("\n"),
+      indexedRoots: settings.indexedRoots.map((root) => root.path).join("\n"),
+      indexMode: settings.indexing.mode,
+      indexStatusSummary: formatIndexStatus(indexStatus),
       appearanceMode: settings.appearanceMode,
       editorFontSize: String(settings.editorFontSize),
       terminalFontSize: String(settings.terminalFontSize),
@@ -625,6 +650,24 @@ export function App() {
         .split("\n")
         .map((entry) => entry.trim())
         .filter(Boolean),
+      indexedRoots: workspaceSettingsDialog.indexedRoots
+        .split("\n")
+        .map((entry, index) => ({ entry, index }))
+        .filter(({ entry }) => entry.trim())
+        .map(({ entry, index }) => ({
+          id: `index-root-${index + 1}`,
+          label: pathLabel(entry.trim()),
+          path: entry.trim(),
+          kind: "mixed" as const,
+          pattern: "**/*.md",
+          ignore: [],
+          backend: "qmd" as const,
+        })),
+      indexing: {
+        enabled: workspaceSettingsDialog.indexMode !== "off",
+        mode: workspaceSettingsDialog.indexMode,
+        backend: "qmd",
+      },
       appearanceMode: workspaceSettingsDialog.appearanceMode,
       editorFontSize: clampNumber(Number(workspaceSettingsDialog.editorFontSize), 11, 24),
       terminalFontSize: clampNumber(Number(workspaceSettingsDialog.terminalFontSize), 10, 22),
@@ -985,7 +1028,9 @@ export function App() {
 
   async function createTerminal(kind: "shell" | "claude" | "codex", cwd?: string, activate = true) {
     const session = await window.exo.terminals.create({ kind, cwd });
-    setTerminalSessions((current) => [...current, session]);
+    setTerminalSessions((current) =>
+      current.some((existing) => existing.id === session.id) ? current : [...current, session],
+    );
 
     // Add to the focused terminal leaf, or find any terminal leaf
     const focusedLeaf = findNode(terminalTree, (n) => n.id === terminalFocusedLeafId) as PaneLeaf | undefined;
@@ -993,6 +1038,9 @@ export function App() {
     if (termLeaf) {
       terminalActions.updateLeafContent(termLeaf.id, (content) => {
         if (content.kind !== "terminal") return content;
+        if (content.terminalIds.includes(session.id)) {
+          return { ...content, activeTerminalId: activate ? session.id : content.activeTerminalId };
+        }
         return {
           ...content,
           terminalIds: [...content.terminalIds, session.id],
@@ -1004,6 +1052,47 @@ export function App() {
       setActiveTerminalId(session.id);
     }
     return session;
+  }
+
+  function adoptExternalTerminalSessions(
+    sessions: TerminalSessionInfo[],
+    options: { activateLatest: boolean },
+  ) {
+    if (sessions.length === 0) {
+      return;
+    }
+
+    setTerminalSessions((current) => {
+      const seen = new Set(current.map((session) => session.id));
+      const next = [...current];
+      for (const session of sessions) {
+        if (!seen.has(session.id)) {
+          next.push(session);
+        }
+      }
+      return next;
+    });
+
+    terminalActions.setTree((currentTree) =>
+      sessions.reduce((nextTree, session) => addTerminalSessionToFirstLeaf(nextTree, session.id), currentTree),
+    );
+
+    if (!options.activateLatest) {
+      return;
+    }
+
+    const latest = sessions.at(-1);
+    if (!latest) {
+      return;
+    }
+
+    setActiveTerminalId(latest.id);
+    void window.exo.terminals.read(latest.id).then((buffer) => {
+      setTerminalBuffers((current) => ({
+        ...current,
+        [latest.id]: trimTerminalBuffer(buffer, workspaceSettingsRef.current?.terminalBufferChars ?? DEFAULT_TERMINAL_BUFFER_CHARS),
+      }));
+    });
   }
 
   async function activateTerminal(leafId: PaneNodeId, id: string) {
@@ -1687,6 +1776,57 @@ export function App() {
                 />
               </label>
               <label className="dialog-field">
+                <span className="dialog-field__label">Knowledge index</span>
+                <select
+                  className="dialog-card__input"
+                  data-testid="workspace-settings-index-mode"
+                  value={workspaceSettingsDialog.indexMode}
+                  onChange={(event) =>
+                    setWorkspaceSettingsDialog((current) =>
+                      current
+                        ? {
+                            ...current,
+                            indexMode: event.target.value as WorkspaceSettings["indexing"]["mode"],
+                            saveStatus: "idle",
+                            errorMessage: null,
+                          }
+                        : current,
+                    )
+                  }
+                >
+                  <option value="off">Off</option>
+                  <option value="lexical">Lexical</option>
+                  <option value="semantic">Semantic</option>
+                  <option value="hybrid">Hybrid</option>
+                </select>
+              </label>
+              <label className="dialog-field">
+                <span className="dialog-field__label">Indexed roots</span>
+                <textarea
+                  className="dialog-card__input dialog-card__input--multiline"
+                  data-testid="workspace-settings-indexed-roots"
+                  rows={3}
+                  value={workspaceSettingsDialog.indexedRoots}
+                  onChange={(event) =>
+                    setWorkspaceSettingsDialog((current) =>
+                      current
+                        ? {
+                            ...current,
+                            indexedRoots: event.target.value,
+                            saveStatus: "idle",
+                            errorMessage: null,
+                          }
+                        : current,
+                    )
+                  }
+                />
+              </label>
+              <div className="dialog-card__message">
+                QMD by Tobi Lutke powers the local Exo knowledge index. Index data is stored under .exo/qmd.
+                {" "}
+                {workspaceSettingsDialog.indexStatusSummary}
+              </div>
+              <label className="dialog-field">
                 <span className="dialog-field__label">Appearance</span>
                 <select
                   className="dialog-card__input"
@@ -1935,6 +2075,36 @@ function collectActiveTerminalIds(tree: PaneNode): Set<string> {
   return ids;
 }
 
+function addTerminalSessionToFirstLeaf(tree: PaneNode, sessionId: string): PaneNode {
+  const termLeaf = findTerminalLeaf(tree);
+  if (!termLeaf) {
+    return tree;
+  }
+
+  return updateNode(tree, termLeaf.id, (node) => {
+    if (node.kind !== "leaf" || node.content.kind !== "terminal") {
+      return node;
+    }
+    if (node.content.terminalIds.includes(sessionId)) {
+      return {
+        ...node,
+        content: {
+          ...node.content,
+          activeTerminalId: sessionId,
+        },
+      };
+    }
+    return {
+      ...node,
+      content: {
+        ...node.content,
+        terminalIds: [...node.content.terminalIds, sessionId],
+        activeTerminalId: sessionId,
+      },
+    };
+  });
+}
+
 function pruneRecordToKeys<T>(record: Record<string, T>, keys: Set<string>): Record<string, T> {
   const entries = Object.entries(record).filter(([key]) => keys.has(key));
   return entries.length === Object.keys(record).length ? record : Object.fromEntries(entries);
@@ -2053,6 +2223,18 @@ function directoryOf(filePath: string): string {
 
 function pathLabel(filePath: string): string {
   return filePath.split("/").filter(Boolean).at(-1) ?? filePath;
+}
+
+function formatIndexStatus(status: IndexStatus): string {
+  const pieces = [
+    `Mode: ${status.mode}`,
+    `${status.indexedRoots.length} root${status.indexedRoots.length === 1 ? "" : "s"}`,
+    `${status.documentCount} document${status.documentCount === 1 ? "" : "s"}`,
+  ];
+  if (status.pendingEmbeddings > 0) {
+    pieces.push(`${status.pendingEmbeddings} pending embeddings`);
+  }
+  return pieces.join(" | ");
 }
 
 function joinPath(parentPath: string, name: string): string {

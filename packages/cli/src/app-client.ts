@@ -57,6 +57,30 @@ export class AppClient {
     return this.get(`${EXO_COMMAND_ROUTES.search}?q=${encodeURIComponent(query)}`);
   }
 
+  async readDocument(target: string, options: { fromLine?: number; maxLines?: number } = {}): Promise<Record<string, unknown>> {
+    return this.post(EXO_COMMAND_ROUTES.read, { target, ...options });
+  }
+
+  async getIndexStatus(): Promise<Record<string, unknown>> {
+    return this.get(EXO_COMMAND_ROUTES.indexStatus);
+  }
+
+  async addIndexRoot(input: { path: string; name?: string; kind?: string; pattern?: string; force?: boolean }): Promise<Record<string, unknown>> {
+    return this.post(EXO_COMMAND_ROUTES.indexRoots, input);
+  }
+
+  async removeIndexRoot(target: string): Promise<Record<string, unknown>> {
+    return this.delete(`${EXO_COMMAND_ROUTES.indexRoots}/${encodeURIComponent(target)}`);
+  }
+
+  async updateIndex(): Promise<Record<string, unknown>> {
+    return this.post(EXO_COMMAND_ROUTES.indexUpdate, {});
+  }
+
+  async embedIndex(): Promise<Record<string, unknown>> {
+    return this.post(EXO_COMMAND_ROUTES.indexEmbed, {});
+  }
+
   async listTerminals(): Promise<unknown[]> {
     return this.get(EXO_COMMAND_ROUTES.terminals);
   }

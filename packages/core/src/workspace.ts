@@ -2,12 +2,26 @@ import { access, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs
 import { constants, existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-import type { AttachedRoot, SearchResult, TreeNode, WorkspaceModel, WorkspaceSearchResults } from "./types";
+import type {
+  AttachedRoot,
+  IndexedRoot,
+  IndexingConfig,
+  SearchResult,
+  TreeNode,
+  WorkspaceModel,
+  WorkspaceSearchResults,
+} from "./types";
 import { readWorkspaceDocument } from "./notes";
 
 const SEARCH_RESULT_LIMIT = 30;
 const PROJECT_SEARCH_RESULT_LIMIT = 25;
 const MAX_SEARCH_VISITED_ENTRIES = 20_000;
+export const DEFAULT_INDEX_PATTERN = "**/*.md";
+export const DEFAULT_INDEXING: IndexingConfig = {
+  enabled: false,
+  mode: "off",
+  backend: "qmd",
+};
 const IGNORED_DIRECTORY_NAMES = new Set([
   ".git",
   ".next",
@@ -43,6 +57,8 @@ export function resolveWorkspaceModel(env: NodeJS.ProcessEnv = process.env): Wor
     env.EXO_PROJECT_ROOTS !== undefined
       ? env.EXO_PROJECT_ROOTS.split(path.delimiter).filter(Boolean)
       : defaultProjectRoots(workspaceRoot);
+  const indexedRoots = parseIndexedRoots(env.EXO_INDEXED_ROOTS);
+  const indexing = parseIndexingConfig(env);
 
   return {
     workspaceRoot,
@@ -53,8 +69,88 @@ export function resolveWorkspaceModel(env: NodeJS.ProcessEnv = process.env): Wor
     projectRoots: projectRootCandidates.map((targetPath, index) =>
       attachedRoot(`project-root-${index + 1}`, path.basename(targetPath), targetPath, "projects"),
     ),
+    indexedRoots,
+    indexing,
     attachedWorkcells: [],
   };
+}
+
+export function createIndexedRoot(
+  targetPath: string,
+  options: Partial<Omit<IndexedRoot, "path" | "backend" | "ignore">> & { ignore?: string[] } = {},
+): IndexedRoot {
+  const resolvedPath = path.resolve(targetPath);
+  const label = options.label?.trim() || path.basename(resolvedPath) || "root";
+  return {
+    id: options.id?.trim() || `index-${handelize(label)}`,
+    label,
+    path: resolvedPath,
+    kind: options.kind ?? "mixed",
+    pattern: options.pattern?.trim() || DEFAULT_INDEX_PATTERN,
+    ignore: options.ignore ?? [],
+    backend: "qmd",
+  };
+}
+
+function parseIndexedRoots(rawValue?: string): IndexedRoot[] {
+  if (!rawValue) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue) as unknown;
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed.map((entry, index) => normalizeIndexedRoot(entry, index)).filter(isIndexedRoot);
+  } catch {
+    return rawValue
+      .split(path.delimiter)
+      .filter(Boolean)
+      .map((entry, index) => createIndexedRoot(entry, { id: `index-root-${index + 1}` }));
+  }
+}
+
+function normalizeIndexedRoot(entry: unknown, index: number): IndexedRoot | null {
+  if (!entry || typeof entry !== "object") {
+    return null;
+  }
+  const candidate = entry as Partial<IndexedRoot>;
+  if (typeof candidate.path !== "string" || !candidate.path.trim()) {
+    return null;
+  }
+  return createIndexedRoot(candidate.path, {
+    id: typeof candidate.id === "string" && candidate.id.trim() ? candidate.id : `index-root-${index + 1}`,
+    label: typeof candidate.label === "string" ? candidate.label : undefined,
+    kind: candidate.kind === "notes" || candidate.kind === "docs" || candidate.kind === "code" || candidate.kind === "mixed" ? candidate.kind : "mixed",
+    pattern: typeof candidate.pattern === "string" ? candidate.pattern : DEFAULT_INDEX_PATTERN,
+    ignore: Array.isArray(candidate.ignore) ? candidate.ignore.filter((item): item is string => typeof item === "string") : [],
+  });
+}
+
+function isIndexedRoot(value: IndexedRoot | null): value is IndexedRoot {
+  return value !== null;
+}
+
+function parseIndexingConfig(env: NodeJS.ProcessEnv): IndexingConfig {
+  const mode = normalizeIndexMode(env.EXO_INDEX_MODE);
+  return {
+    enabled: env.EXO_INDEX_ENABLED === "1" || mode !== "off",
+    mode,
+    backend: "qmd",
+  };
+}
+
+export function normalizeIndexMode(value: unknown): IndexingConfig["mode"] {
+  return value === "lexical" || value === "semantic" || value === "hybrid" ? value : "off";
+}
+
+function handelize(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    || "root";
 }
 
 function defaultProjectRoots(workspaceRoot: string): string[] {

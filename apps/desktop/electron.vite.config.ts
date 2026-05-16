@@ -5,11 +5,21 @@ import { defineConfig, externalizeDepsPlugin } from "electron-vite";
 import react from "@vitejs/plugin-react";
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
+const qmdExternalDependencies = [
+  "@tobilu/qmd",
+  "better-sqlite3",
+  "sqlite-vec",
+  "node-llama-cpp",
+  /^@node-llama-cpp\/.*/,
+];
 
 export default defineConfig({
   main: {
     build: {
       outDir: "dist/main",
+      rollupOptions: {
+        external: qmdExternalDependencies,
+      },
     },
     plugins: [externalizeDepsPlugin({ exclude: ["@exo/core"] })],
     resolve: {
@@ -22,6 +32,7 @@ export default defineConfig({
     build: {
       outDir: "dist/preload",
       rollupOptions: {
+        external: qmdExternalDependencies,
         output: {
           entryFileNames: "index.js",
           format: "cjs",

@@ -13,11 +13,13 @@ import {
   createBranchFile,
   getBranchFamily,
   readWorkspaceDocument,
+  readIndexDocument,
   renderClaudeOverlay,
   renderPrimaryAgentInstructions,
   resolveAgentLaunchPlan,
   resolveRuntimeConfig,
   resolveWorkspaceModel,
+  searchIndex,
   searchNotes,
   searchWorkspace,
   syncRuntimeContextFiles,
@@ -60,24 +62,85 @@ export async function runCli(
   const [, , command, subcommand, ...args] = argv;
 
   // ─── Search ──────────────────────────────────────────────────────────
-  // Standalone fast workspace search. QMD is intentionally not in this path.
 
   if (command === "search") {
-    const query = subcommand === "--deep" ? args.join(" ") : [subcommand, ...args].filter(Boolean).join(" ");
+    const { values, positionals } = parseInlineOptions([subcommand, ...args].filter(Boolean));
+    const query = positionals.join(" ");
     if (!query) {
       throw new Error("Expected a search query.");
     }
 
     const config = resolveRuntimeConfig(env);
-    const model = config.workspace;
+    const client = await AppClient.connect(config.runtimeRoot);
+    const results = client
+      ? await client.search(query)
+      : await searchIndex(config.workspace, config.runtimeRoot, query, { limit: parsePositiveInt(values.limit) });
+    stdout.write(`${JSON.stringify(results, null, 2)}\n`);
+    return 0;
+  }
 
-    if (subcommand === "--deep") {
-      stderr.write("QMD/deep search is disabled; running fast workspace search only.\n");
+  if (command === "read") {
+    const { values, positionals } = parseInlineOptions([subcommand, ...args].filter(Boolean));
+    const target = positionals[0];
+    if (!target) {
+      throw new Error("Expected a document path or docid.");
+    }
+    const targetPath = target.startsWith("#") ? target : path.resolve(cwd, target);
+
+    const config = resolveRuntimeConfig(env);
+    const client = await AppClient.connect(config.runtimeRoot);
+    const result = client
+      ? await client.readDocument(targetPath, { fromLine: parsePositiveInt(values.from), maxLines: parsePositiveInt(values.lines) })
+      : await readIndexDocument(config.workspace, config.runtimeRoot, targetPath, { fromLine: parsePositiveInt(values.from), maxLines: parsePositiveInt(values.lines) });
+    stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    return 0;
+  }
+
+  if (command === "index") {
+    const client = await connectOrFail(env, stderr);
+    if (!client) return 1;
+
+    if (subcommand === "status" || !subcommand) {
+      stdout.write(`${JSON.stringify(await client.getIndexStatus(), null, 2)}\n`);
+      return 0;
     }
 
-    const fast = await searchWorkspace(model, query);
-    stdout.write(`${JSON.stringify(fast, null, 2)}\n`);
-    return 0;
+    if (subcommand === "add") {
+      const { values, positionals } = parseInlineOptions(args);
+      const targetPath = positionals[0];
+      if (!targetPath) {
+        throw new Error("Usage: exo index add <path> [--name <name>] [--kind notes|docs|code|mixed] [--pattern \"**/*.md\"]");
+      }
+      stdout.write(`${JSON.stringify(await client.addIndexRoot({
+        path: path.resolve(cwd, targetPath),
+        name: values.name,
+        kind: values.kind,
+        pattern: values.pattern,
+        force: values.force === "1",
+      }), null, 2)}\n`);
+      return 0;
+    }
+
+    if (subcommand === "remove") {
+      const target = args[0];
+      if (!target) {
+        throw new Error("Usage: exo index remove <name-or-path>");
+      }
+      stdout.write(`${JSON.stringify(await client.removeIndexRoot(target), null, 2)}\n`);
+      return 0;
+    }
+
+    if (subcommand === "update") {
+      stdout.write(`${JSON.stringify(await client.updateIndex(), null, 2)}\n`);
+      return 0;
+    }
+
+    if (subcommand === "embed") {
+      stdout.write(`${JSON.stringify(await client.embedIndex(), null, 2)}\n`);
+      return 0;
+    }
+
+    throw new Error("Usage: exo index <status|add|remove|update|embed>");
   }
 
   // ─── Local agent integrations ───────────────────────────────────────
@@ -522,7 +585,13 @@ export async function runCli(
     [
       "Usage:",
       "  exo dev                                    Launch the desktop app",
-      "  exo search <query>                         Search attached notes by filename/path",
+      "  exo search <query> [--limit n]              Search Exo knowledge index or workspace fallback",
+      "  exo read <path-or-docid> [--from n] [--lines n]",
+      "  exo index status                           Show QMD-backed index status (app)",
+      "  exo index add <path> [--name n] [--kind k] [--force]",
+      "  exo index remove <name-or-path>            Remove an indexed root (app)",
+      "  exo index update                           Refresh indexed documents (app)",
+      "  exo index embed                            Generate pending embeddings (app)",
       "  exo open <path>                            Open file in editor (app)",
       "  exo status                                 Workspace status (app)",
       "  exo config get [key]                       Read settings (app)",
@@ -657,6 +726,35 @@ function parseTailChars(args: string[]): number {
     throw new Error("Expected --tail to be a number from 0 to 200000.");
   }
   return parsed;
+}
+
+function parseInlineOptions(args: string[]): { values: Record<string, string>; positionals: string[] } {
+  const values: Record<string, string> = {};
+  const positionals: string[] = [];
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg.startsWith("--")) {
+      const key = arg.slice(2);
+      const next = args[index + 1];
+      if (next && !next.startsWith("--")) {
+        values[key] = next;
+        index += 1;
+      } else {
+        values[key] = "1";
+      }
+    } else {
+      positionals.push(arg);
+    }
+  }
+  return { values, positionals };
+}
+
+function parsePositiveInt(value: string | undefined): number | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }
 
 function stripAnsi(input: string): string {

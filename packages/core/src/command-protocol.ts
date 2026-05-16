@@ -2,6 +2,11 @@ export const EXO_COMMAND_ROUTES = {
   status: "/status",
   show: "/show",
   search: "/search",
+  read: "/read",
+  indexStatus: "/index/status",
+  indexRoots: "/index/roots",
+  indexUpdate: "/index/update",
+  indexEmbed: "/index/embed",
   open: "/open",
   config: "/config",
   terminals: "/terminals",
@@ -38,4 +43,19 @@ export interface ExoCreateTerminalRequest {
 
 export interface ExoWriteTerminalRequest {
   data?: string;
+}
+
+export interface ExoIndexRootRequest {
+  path?: string;
+  name?: string;
+  kind?: string;
+  pattern?: string;
+  ignore?: string[];
+  force?: boolean;
+}
+
+export interface ExoReadDocumentRequest {
+  target?: string;
+  fromLine?: number;
+  maxLines?: number;
 }

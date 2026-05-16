@@ -96,6 +96,49 @@ describe("ExoCommandClient", () => {
     expect(JSON.parse(receivedBody)).toEqual({ data: "hello\r" });
   });
 
+  it("calls index search and read endpoints", async () => {
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-mcp-"));
+    tempPaths.push(runtimeRoot);
+    let readBody = "";
+
+    const server = createServer((req, res) => {
+      if (req.url === "/status") {
+        json(res, { ok: true });
+        return;
+      }
+      if (req.url === "/index/status") {
+        json(res, { mode: "hybrid", backend: "qmd" });
+        return;
+      }
+      if (req.url?.startsWith("/search?")) {
+        json(res, { query: "focus", results: [{ title: "Focus" }] });
+        return;
+      }
+      if (req.url === "/read" && req.method === "POST") {
+        req.on("data", (chunk) => {
+          readBody += chunk;
+        });
+        req.on("end", () => json(res, { title: "Focus", body: "hello" }));
+        return;
+      }
+      res.writeHead(404).end();
+    });
+    servers.push(server);
+
+    const port = await listen(server);
+    await writeFile(path.join(runtimeRoot, "server.json"), JSON.stringify({ port, pid: process.pid }), "utf8");
+
+    const client = await ExoCommandClient.connect({
+      EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
+      EXO_RUNTIME_ROOT: runtimeRoot,
+    });
+
+    expect(await client.getIndexStatus()).toMatchObject({ mode: "hybrid" });
+    expect(await client.search("focus", { limit: 3, includeContent: true })).toMatchObject({ query: "focus" });
+    expect(await client.readDocument("#abc123", { fromLine: 2, maxLines: 4 })).toMatchObject({ title: "Focus" });
+    expect(JSON.parse(readBody)).toEqual({ target: "#abc123", fromLine: 2, maxLines: 4 });
+  });
+
   it("strips terminal escape codes for readable MCP output", () => {
     expect(stripAnsi("\u001b[31mred\u001b[0m\r\nnext")).toBe("red\nnext");
   });

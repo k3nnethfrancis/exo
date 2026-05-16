@@ -1,6 +1,7 @@
 import type {
   BranchCreateResult,
   BranchFamily,
+  IndexStatus,
   NoteDocument,
   NoteKnowledge,
   SearchResult,
@@ -43,6 +44,7 @@ export interface DesktopApi {
     getModel: () => Promise<WorkspaceModel>;
     getSettings: () => Promise<WorkspaceSettings>;
     saveSettings: (settings: WorkspaceSettings) => Promise<WorkspaceSettings>;
+    getIndexStatus: () => Promise<IndexStatus>;
     listTree: (rootPath: string, options?: { markdownOnly?: boolean; maxDepth?: number }) => Promise<TreeNode[]>;
     searchNotes: (query: string) => Promise<SearchResult[]>;
     searchWorkspace: (query: string) => Promise<WorkspaceSearchResults>;
@@ -80,6 +82,7 @@ export interface DesktopApi {
     setStreaming: (ids: string[]) => Promise<void>;
     kill: (id: string) => Promise<void>;
     resolveDroppedFilePaths: (files: File[]) => string[];
+    onCreated: (callback: (session: TerminalSessionInfo) => void) => () => void;
     onData: (callback: (event: { id: string; data: string }) => void) => () => void;
     onExit: (callback: (event: { id: string; exitCode?: number }) => void) => () => void;
   };

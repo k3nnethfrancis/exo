@@ -89,8 +89,9 @@ describe("runtime", () => {
     expect(primaryText).toContain("Exo Runtime");
     expect(primaryText).toContain("exo-cli runtime launch-plan");
     expect(primaryText).toContain("Optional Notes Index / Retrieval Backend");
-    expect(primaryText).toContain("current_app_search: fast note filename/path search only");
+    expect(primaryText).toContain("index_mode: off");
+    expect(primaryText).toContain("exo-cli search");
     expect(claudeText).toContain("Exo Claude Overlay");
-    expect(claudeText).toContain("QMD is not the current app search path");
+    expect(claudeText).toContain("Use Exo search/read commands when available");
   });
 });

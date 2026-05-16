@@ -48,22 +48,23 @@ export function buildExoMcpIntegrationSpec(
   config: ExoMcpIntegrationConfig,
 ): ExoMcpIntegrationSpec {
   const server = buildExoMcpServerSpec(config);
-  const envArgs = Object.entries(server.env).flatMap(([key, value]) => ["--env", `${key}=${value}`]);
+  const envFlag = client === "codex" ? "--env" : "-e";
+  const envArgs = Object.entries(server.env).flatMap(([key, value]) => [envFlag, `${key}=${value}`]);
   const installArgs =
     client === "codex"
       ? ["mcp", "add", server.serverName, ...envArgs, "--", server.command, ...server.args]
       : [
           "mcp",
-          "add",
-          "--transport",
-          "stdio",
+          "add-json",
           "--scope",
           "user",
-          ...envArgs,
           server.serverName,
-          "--",
-          server.command,
-          ...server.args,
+          JSON.stringify({
+            type: "stdio",
+            command: server.command,
+            args: server.args,
+            env: server.env,
+          }),
         ];
 
   return {

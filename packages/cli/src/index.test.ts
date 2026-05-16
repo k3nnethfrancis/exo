@@ -141,6 +141,76 @@ describe("cli package", () => {
     }
   });
 
+  it("calls the app for index status", async () => {
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-"));
+    const server = createServer((req, res) => {
+      if (req.url === "/status") {
+        json(res, { ok: true });
+        return;
+      }
+      if (req.url === "/index/status") {
+        json(res, { enabled: true, mode: "hybrid", backend: "qmd" });
+        return;
+      }
+      res.writeHead(404).end();
+    });
+
+    try {
+      const port = await listen(server);
+      await writeFile(path.join(runtimeRoot, "server.json"), JSON.stringify({ port, pid: process.pid }), "utf8");
+      let stdout = "";
+
+      const exitCode = await runCli(["node", "exo-cli", "index", "status"], {
+        env: { EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace", EXO_RUNTIME_ROOT: runtimeRoot },
+        stdout: { write: (text) => { stdout += text; } },
+        stderr: { write: () => {} },
+      });
+
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('"mode": "hybrid"');
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      await rm(runtimeRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("adds index roots through the app settings route", async () => {
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-"));
+    let receivedBody = "";
+    const server = createServer((req, res) => {
+      if (req.url === "/status") {
+        json(res, { ok: true });
+        return;
+      }
+      if (req.url === "/index/roots" && req.method === "POST") {
+        req.on("data", (chunk) => {
+          receivedBody += chunk;
+        });
+        req.on("end", () => json(res, { ok: true }));
+        return;
+      }
+      res.writeHead(404).end();
+    });
+
+    try {
+      const port = await listen(server);
+      await writeFile(path.join(runtimeRoot, "server.json"), JSON.stringify({ port, pid: process.pid }), "utf8");
+
+      const exitCode = await runCli(["node", "exo-cli", "index", "add", "notes", "--name", "notes", "--kind", "notes"], {
+        env: { EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace", EXO_RUNTIME_ROOT: runtimeRoot },
+        cwd: "/tmp/exo-test-workspace",
+        stdout: { write: () => {} },
+        stderr: { write: () => {} },
+      });
+
+      expect(exitCode).toBe(0);
+      expect(JSON.parse(receivedBody)).toMatchObject({ path: "/tmp/exo-test-workspace/notes", name: "notes", kind: "notes" });
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      await rm(runtimeRoot, { recursive: true, force: true });
+    }
+  });
+
   it("prints Codex integration config", async () => {
     let stdout = "";
     const exitCode = await runCli(["node", "exo-cli", "integrations", "config", "codex"], {
@@ -182,7 +252,7 @@ describe("cli package", () => {
     });
 
     expect(exitCode).toBe(0);
-    expect(stdout).toContain("claude mcp add --transport stdio --scope user");
+    expect(stdout).toContain("claude mcp add-json --scope user");
     expect(stdout).toContain("EXO_MCP_START_COMMAND");
   });
 
@@ -252,7 +322,7 @@ describe("cli package", () => {
     expect(exitCode).toBe(0);
     expect(calls).toEqual([]);
     expect(stdout).toContain("[dry-run] codex mcp add exo");
-    expect(stdout).toContain("[dry-run] claude mcp add --transport stdio --scope user");
+    expect(stdout).toContain("[dry-run] claude mcp add-json --scope user");
   });
 });
 

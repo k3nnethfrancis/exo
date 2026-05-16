@@ -60,6 +60,32 @@ describe("workspace", () => {
       },
     ]);
     expect(model.projectRoots[0]?.path).toBe(path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../.."));
+    expect(model.indexedRoots).toEqual([]);
+    expect(model.indexing).toEqual({ enabled: false, mode: "off", backend: "qmd" });
+  });
+
+  it("resolves indexed roots and indexing mode from env", () => {
+    const indexPath = path.join(fixtureWorkspaceRoot, "notes/test-notes");
+    const model = resolveWorkspaceModel({
+      EXO_WORKSPACE_ROOT: fixtureWorkspaceRoot,
+      EXO_NOTE_ROOTS: path.join(fixtureWorkspaceRoot, "notes/test-notes"),
+      EXO_PROJECT_ROOTS: "",
+      EXO_INDEX_MODE: "hybrid",
+      EXO_INDEXED_ROOTS: JSON.stringify([{ id: "index-notes", label: "notes", path: indexPath, kind: "notes", pattern: "**/*.md" }]),
+    });
+
+    expect(model.indexing).toEqual({ enabled: true, mode: "hybrid", backend: "qmd" });
+    expect(model.indexedRoots).toEqual([
+      {
+        id: "index-notes",
+        label: "notes",
+        path: indexPath,
+        kind: "notes",
+        pattern: "**/*.md",
+        ignore: [],
+        backend: "qmd",
+      },
+    ]);
   });
 
   it("lists markdown tree nodes", async () => {

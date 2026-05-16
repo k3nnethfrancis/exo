@@ -12,7 +12,7 @@
     "build": "electron-vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run src/renderer/src/App.test.tsx",
-    "rebuild:native": "electron-rebuild -f -w node-pty",
+    "rebuild:native": "electron-rebuild -f -w node-pty,better-sqlite3",
     "setup:runtime": "node scripts/setup-runtime.mjs"
   },
   "dependencies": {
@@ -33,6 +33,7 @@
     "@codemirror/view": "6.38.8",
     "@exo/core": "workspace:*",
     "@lezer/highlight": "^1.2.3",
+    "@tobilu/qmd": "2.1.0",
     "@uiw/react-codemirror": "4.25.8",
     "@xterm/addon-fit": "0.11.0",
     "clsx": "2.1.1",

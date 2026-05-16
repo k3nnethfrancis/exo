@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import type { WorkspaceModel, WorkspaceSettings } from "@exo/core";
+import { DEFAULT_INDEXING, createIndexedRoot, normalizeIndexMode, type IndexedRoot, type WorkspaceModel, type WorkspaceSettings } from "@exo/core";
 
 export const DEFAULT_APPEARANCE_MODE: WorkspaceSettings["appearanceMode"] = "system";
 export const DEFAULT_EDITOR_FONT_SIZE = 15;
@@ -42,6 +42,8 @@ export class WorkspaceSettingsStore {
           .filter(Boolean)
           .filter((entry) => !isBroadDefaultProjectRoot(workspaceRoot, entry))
       : [];
+    const indexedRoots = normalizeIndexedRoots(input.indexedRoots);
+    const indexing = normalizeIndexing(input.indexing, indexedRoots.length);
     const appearanceMode =
       input.appearanceMode === "light" || input.appearanceMode === "dark" || input.appearanceMode === "system"
         ? input.appearanceMode
@@ -61,6 +63,8 @@ export class WorkspaceSettingsStore {
       defaultTerminalCwd,
       noteRoots,
       projectRoots,
+      indexedRoots,
+      indexing,
       appearanceMode,
       editorFontSize,
       terminalFontSize,
@@ -76,6 +80,8 @@ export class WorkspaceSettingsStore {
       defaultTerminalCwd: model.defaultTerminalCwd,
       noteRoots: model.noteRoots.map((root) => root.path),
       projectRoots: model.projectRoots.map((root) => root.path),
+      indexedRoots: model.indexedRoots,
+      indexing: model.indexing,
       appearanceMode: DEFAULT_APPEARANCE_MODE,
       editorFontSize: DEFAULT_EDITOR_FONT_SIZE,
       terminalFontSize: DEFAULT_TERMINAL_FONT_SIZE,
@@ -116,6 +122,9 @@ export function applyWorkspaceSettingsToEnv(settings: WorkspaceSettings | null, 
   env.EXO_DEFAULT_TERMINAL_CWD = settings.defaultTerminalCwd;
   env.EXO_NOTE_ROOTS = settings.noteRoots.join(path.delimiter);
   env.EXO_PROJECT_ROOTS = settings.projectRoots.join(path.delimiter);
+  env.EXO_INDEXED_ROOTS = JSON.stringify(settings.indexedRoots);
+  env.EXO_INDEX_ENABLED = settings.indexing.enabled ? "1" : "0";
+  env.EXO_INDEX_MODE = settings.indexing.mode;
 }
 
 export function isForcedTheme(value: string | undefined): value is WorkspaceSettings["appearanceMode"] {
@@ -132,4 +141,41 @@ function clampSettingsNumber(value: unknown, fallback: number, min: number, max:
 
 function isBroadDefaultProjectRoot(workspaceRoot: string, targetPath: string): boolean {
   return path.resolve(targetPath) === path.resolve(workspaceRoot, "projects");
+}
+
+function normalizeIndexedRoots(value: unknown): IndexedRoot[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.reduce<IndexedRoot[]>((roots, entry, index) => {
+    if (!entry || typeof entry !== "object") {
+      return roots;
+    }
+    const candidate = entry as Partial<IndexedRoot>;
+    if (typeof candidate.path !== "string" || !candidate.path.trim()) {
+      return roots;
+    }
+    roots.push(createIndexedRoot(candidate.path, {
+      id: typeof candidate.id === "string" ? candidate.id : `index-root-${index + 1}`,
+      label: typeof candidate.label === "string" ? candidate.label : undefined,
+      kind: candidate.kind === "notes" || candidate.kind === "docs" || candidate.kind === "code" || candidate.kind === "mixed" ? candidate.kind : "mixed",
+      pattern: typeof candidate.pattern === "string" ? candidate.pattern : undefined,
+      ignore: Array.isArray(candidate.ignore) ? candidate.ignore.filter((item): item is string => typeof item === "string") : [],
+    }));
+    return roots;
+  }, []);
+}
+
+function normalizeIndexing(value: unknown, indexedRootCount: number): WorkspaceSettings["indexing"] {
+  if (!value || typeof value !== "object") {
+    return indexedRootCount > 0 ? { enabled: true, mode: "lexical", backend: "qmd" } : DEFAULT_INDEXING;
+  }
+
+  const candidate = value as Partial<WorkspaceSettings["indexing"]>;
+  const mode = normalizeIndexMode(candidate.mode);
+  return {
+    enabled: Boolean(candidate.enabled) && mode !== "off",
+    mode,
+    backend: "qmd",
+  };
 }

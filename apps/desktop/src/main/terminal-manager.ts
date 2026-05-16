@@ -204,6 +204,7 @@ export class TerminalManager extends EventEmitter {
       });
     }
 
+    this.emit("created", info);
     return info;
   }
 

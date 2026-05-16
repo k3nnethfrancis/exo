@@ -12,6 +12,102 @@ const server = new McpServer({
 });
 
 server.registerTool(
+  "workspace_status",
+  {
+    title: "Workspace Status",
+    description: "Show Exo workspace roots, indexed roots, and runtime status.",
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+    },
+  },
+  async () => {
+    const client = await ExoCommandClient.connect();
+    const status = await client.getStatus();
+    return {
+      content: [{ type: "text", text: JSON.stringify(status, null, 2) }],
+      structuredContent: status,
+    };
+  },
+);
+
+server.registerTool(
+  "index_status",
+  {
+    title: "Index Status",
+    description: "Show Exo's QMD-backed knowledge index status.",
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+    },
+  },
+  async () => {
+    const client = await ExoCommandClient.connect();
+    const status = await client.getIndexStatus();
+    return {
+      content: [{ type: "text", text: JSON.stringify(status, null, 2) }],
+      structuredContent: status,
+    };
+  },
+);
+
+server.registerTool(
+  "search",
+  {
+    title: "Search Exo",
+    description: "Search Exo's configured knowledge index, falling back to lightweight workspace search when the index is off.",
+    inputSchema: {
+      query: z.string().min(1).describe("Search query."),
+      limit: z.number().int().positive().max(50).default(10).describe("Maximum number of results."),
+      intent: z.string().optional().describe("Optional intent/context for semantic or hybrid search."),
+      includeContent: z.boolean().default(false).describe("Include bounded document content in each result."),
+      maxLinesPerResult: z.number().int().positive().max(300).default(80).describe("Maximum content lines per result when includeContent is true."),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+    },
+  },
+  async ({ query, limit, intent, includeContent, maxLinesPerResult }) => {
+    const client = await ExoCommandClient.connect();
+    const results = await client.search(query, { limit, intent, includeContent, maxLinesPerResult });
+    return {
+      content: [{ type: "text", text: JSON.stringify(results, null, 2) }],
+      structuredContent: results,
+    };
+  },
+);
+
+server.registerTool(
+  "read_document",
+  {
+    title: "Read Document",
+    description: "Read a document by filesystem path or Exo/QMD docid.",
+    inputSchema: {
+      target: z.string().min(1).describe("Filesystem path or docid returned by search."),
+      fromLine: z.number().int().positive().optional().describe("Optional 1-indexed starting line."),
+      maxLines: z.number().int().positive().max(1000).optional().describe("Optional maximum lines to return."),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+    },
+  },
+  async ({ target, fromLine, maxLines }) => {
+    const client = await ExoCommandClient.connect();
+    const document = await client.readDocument(target, { fromLine, maxLines });
+    return {
+      content: [{ type: "text", text: JSON.stringify(document, null, 2) }],
+      structuredContent: document,
+    };
+  },
+);
+
+server.registerTool(
   "list_agents",
   {
     title: "List Exo Agents",

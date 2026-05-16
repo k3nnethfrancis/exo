@@ -14,6 +14,8 @@ export interface WorkspaceModel {
   defaultTerminalCwd: string;
   noteRoots: AttachedRoot[];
   projectRoots: AttachedRoot[];
+  indexedRoots: IndexedRoot[];
+  indexing: IndexingConfig;
   attachedWorkcells: string[];
 }
 
@@ -22,6 +24,8 @@ export interface WorkspaceSettings {
   defaultTerminalCwd: string;
   noteRoots: string[];
   projectRoots: string[];
+  indexedRoots: IndexedRoot[];
+  indexing: IndexingConfig;
   appearanceMode: "system" | "light" | "dark";
   editorFontSize: number;
   terminalFontSize: number;
@@ -85,6 +89,69 @@ export interface SemanticSearchResult {
   snippet: string;
   score: number;
   docid: string;
+}
+
+export type IndexedRootKind = "notes" | "docs" | "code" | "mixed";
+export type IndexMode = "off" | "lexical" | "semantic" | "hybrid";
+export type IndexBackend = "qmd";
+
+export interface IndexedRoot {
+  id: string;
+  label: string;
+  path: string;
+  kind: IndexedRootKind;
+  pattern: string;
+  ignore: string[];
+  backend: IndexBackend;
+}
+
+export interface IndexingConfig {
+  enabled: boolean;
+  mode: IndexMode;
+  backend: IndexBackend;
+}
+
+export interface IndexStatus {
+  enabled: boolean;
+  mode: IndexMode;
+  backend: IndexBackend;
+  dbPath: string;
+  runtimePath: string;
+  indexedRoots: IndexedRoot[];
+  documentCount: number;
+  pendingEmbeddings: number;
+  hasVectorIndex: boolean;
+  lastUpdated: string | null;
+  warnings: string[];
+  errors: string[];
+}
+
+export interface IndexSearchResult {
+  filePath: string;
+  title: string;
+  snippet: string;
+  score: number;
+  docid?: string;
+  source: "qmd" | "filesystem";
+  content?: string;
+}
+
+export interface IndexSearchResponse {
+  query: string;
+  mode: IndexMode;
+  source: "qmd" | "filesystem";
+  warnings: string[];
+  results: IndexSearchResult[];
+}
+
+export interface IndexReadResponse {
+  target: string;
+  filePath: string;
+  title: string;
+  body: string;
+  fromLine?: number;
+  maxLines?: number;
+  source: "qmd" | "filesystem";
 }
 
 export interface WorkspaceSearchResults {

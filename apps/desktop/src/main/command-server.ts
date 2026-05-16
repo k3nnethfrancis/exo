@@ -4,10 +4,15 @@ import path from "node:path";
 
 import {
   EXO_COMMAND_ROUTES,
+  type ExoIndexRootRequest,
   type ExoCommandTerminalInfo,
   type ExoCreateTerminalRequest,
+  type ExoReadDocumentRequest,
   type ExoOpenFileRequest,
   type ExoWriteTerminalRequest,
+  type IndexReadResponse,
+  type IndexSearchResponse,
+  type IndexStatus,
   type WorkspaceSearchResults,
   type WorkspaceSettings,
 } from "@exo/core";
@@ -17,6 +22,13 @@ export interface CommandServerOptions {
   onShowWindow: () => void;
   onOpenFile: (filePath: string) => void;
   onSearch: (query: string) => Promise<WorkspaceSearchResults>;
+  onIndexSearch: (query: string, options: { limit?: number; intent?: string; includeContent?: boolean; maxLinesPerResult?: number }) => Promise<IndexSearchResponse>;
+  onReadDocument: (target: string, options: { fromLine?: number; maxLines?: number }) => Promise<IndexReadResponse>;
+  onIndexStatus: () => Promise<IndexStatus>;
+  onIndexAddRoot: (input: ExoIndexRootRequest) => Promise<WorkspaceSettings>;
+  onIndexRemoveRoot: (target: string) => Promise<WorkspaceSettings>;
+  onIndexUpdate: () => Promise<IndexStatus>;
+  onIndexEmbed: () => Promise<IndexStatus>;
   onListTerminals: () => ExoCommandTerminalInfo[];
   onCreateTerminal: (kind: string, cwd?: string) => Promise<ExoCommandTerminalInfo>;
   onReadTerminal: (id: string) => string | null;
@@ -93,8 +105,52 @@ export class CommandServer {
           json(res, { error: "Missing query parameter ?q=" }, 400);
           return;
         }
-        const results = await this.options.onSearch(query);
+        const limit = parseOptionalNumber(url.searchParams.get("limit"));
+        const results = await this.options.onIndexSearch(query, {
+          limit,
+          intent: url.searchParams.get("intent") ?? undefined,
+          includeContent: url.searchParams.get("includeContent") === "1",
+          maxLinesPerResult: parseOptionalNumber(url.searchParams.get("maxLinesPerResult")),
+        });
         json(res, results);
+        return;
+      }
+
+      if (method === "POST" && pathname === EXO_COMMAND_ROUTES.read) {
+        const body = await readBody(req);
+        const { target, fromLine, maxLines } = body as ExoReadDocumentRequest;
+        if (!target) {
+          json(res, { error: "Missing target in body" }, 400);
+          return;
+        }
+        json(res, await this.options.onReadDocument(target, { fromLine, maxLines }));
+        return;
+      }
+
+      if (method === "GET" && pathname === EXO_COMMAND_ROUTES.indexStatus) {
+        json(res, await this.options.onIndexStatus());
+        return;
+      }
+
+      if (method === "POST" && pathname === EXO_COMMAND_ROUTES.indexRoots) {
+        const body = await readBody(req);
+        json(res, await this.options.onIndexAddRoot(body as ExoIndexRootRequest));
+        return;
+      }
+
+      const indexRootMatch = pathname.match(/^\/index\/roots\/(.+)$/);
+      if (method === "DELETE" && indexRootMatch) {
+        json(res, await this.options.onIndexRemoveRoot(decodeURIComponent(indexRootMatch[1])));
+        return;
+      }
+
+      if (method === "POST" && pathname === EXO_COMMAND_ROUTES.indexUpdate) {
+        json(res, await this.options.onIndexUpdate());
+        return;
+      }
+
+      if (method === "POST" && pathname === EXO_COMMAND_ROUTES.indexEmbed) {
+        json(res, await this.options.onIndexEmbed());
         return;
       }
 
@@ -191,6 +247,14 @@ function parseTailChars(value: string | null): number {
   }
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) && parsed >= 0 ? Math.min(parsed, 2_000_000) : 200_000;
+}
+
+function parseOptionalNumber(value: string | null): number | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 function json(res: ServerResponse, data: unknown, status = 200): void {

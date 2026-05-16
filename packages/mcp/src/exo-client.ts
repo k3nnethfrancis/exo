@@ -59,6 +59,23 @@ export class ExoCommandClient {
     return this.get(EXO_COMMAND_ROUTES.status);
   }
 
+  async getIndexStatus(): Promise<Record<string, unknown>> {
+    return this.get(EXO_COMMAND_ROUTES.indexStatus);
+  }
+
+  async search(query: string, options: { limit?: number; intent?: string; includeContent?: boolean; maxLinesPerResult?: number } = {}): Promise<Record<string, unknown>> {
+    const params = new URLSearchParams({ q: query });
+    if (options.limit) params.set("limit", String(options.limit));
+    if (options.intent) params.set("intent", options.intent);
+    if (options.includeContent) params.set("includeContent", "1");
+    if (options.maxLinesPerResult) params.set("maxLinesPerResult", String(options.maxLinesPerResult));
+    return this.get(`${EXO_COMMAND_ROUTES.search}?${params.toString()}`);
+  }
+
+  async readDocument(target: string, options: { fromLine?: number; maxLines?: number } = {}): Promise<Record<string, unknown>> {
+    return this.post(EXO_COMMAND_ROUTES.read, { target, ...options });
+  }
+
   async listAgents(): Promise<ExoAgent[]> {
     return this.get(EXO_COMMAND_ROUTES.terminals);
   }

@@ -9,19 +9,26 @@ import { promisify } from "node:util";
 import {
   createWorkspaceDirectory,
   createWorkspaceFile,
+  createIndexedRoot,
   createBranchFile,
   deleteWorkspacePath,
+  embedIndex,
   getBranchFamily,
+  getIndexStatus,
   getNoteKnowledge,
   listMarkdownFiles,
   listRootTree,
+  readIndexDocument,
   readWorkspaceDocument,
   renameWorkspacePath,
   resolveRuntimeConfig,
   resolveWorkspaceModel,
   saveWorkspaceDocument,
+  searchIndex,
   searchNotes,
   searchWorkspace,
+  updateIndex,
+  type IndexedRoot,
   type SearchResult,
   type WorkspaceModel,
   type WorkspaceSettings,
@@ -129,6 +136,13 @@ function startCommandServer() {
       sendToRenderer("command:open-file", filePath);
     },
     onSearch: (query: string) => searchWorkspace(workspaceModel, query),
+    onIndexSearch: (query, options) => searchIndex(workspaceModel, runtimeConfig.runtimeRoot, query, options),
+    onReadDocument: (target, options) => readIndexDocument(workspaceModel, runtimeConfig.runtimeRoot, target, options),
+    onIndexStatus: () => getIndexStatus(workspaceModel, runtimeConfig.runtimeRoot),
+    onIndexAddRoot: (input) => addIndexedRoot(input),
+    onIndexRemoveRoot: (target) => removeIndexedRoot(target),
+    onIndexUpdate: () => updateIndex(workspaceModel, runtimeConfig.runtimeRoot),
+    onIndexEmbed: () => embedIndex(workspaceModel, runtimeConfig.runtimeRoot),
     onListTerminals: () => terminalManager.list(),
     onCreateTerminal: (kind: string, cwd?: string) => terminalManager.create({ kind: kind as "shell" | "claude" | "codex", cwd }),
     onReadTerminal: (id: string) => terminalManager.readBuffer(id),
@@ -329,6 +343,9 @@ function logWorkspaceStartup(model: WorkspaceModel) {
 }
 
 function broadcastTerminalData() {
+  terminalManager.on("created", (session) => {
+    sendToRenderer("terminal:created", session);
+  });
   terminalManager.on("data", (event) => {
     const info = terminalManager.getInfo(event.id);
     if (info?.kind !== "shell" && !streamingTerminalIds.has(event.id)) {
@@ -374,10 +391,9 @@ function serializeError(error: unknown): unknown {
 function registerIpcHandlers() {
   ipcMain.handle("workspace:get-model", async () => workspaceModel);
   ipcMain.handle("workspace:get-settings", async () => currentWorkspaceSettings());
+  ipcMain.handle("workspace:get-index-status", async () => getIndexStatus(workspaceModel, resolveRuntimeConfig().runtimeRoot));
   ipcMain.handle("workspace:save-settings", async (_event, settings: WorkspaceSettings) => {
-    workspaceSettings = await workspaceSettingsStore.save(settings);
-    applyWorkspaceSettings(workspaceSettings);
-    return workspaceSettings;
+    return saveWorkspaceSettings(settings);
   });
   ipcMain.handle("runtime:get-status", async () => terminalManager.getRuntimeConfig());
   ipcMain.handle("runtime:sync", async () => terminalManager.syncRuntimeContext());
@@ -575,11 +591,72 @@ function currentWorkspaceSettings(): WorkspaceSettings {
   return workspaceSettings ?? workspaceSettingsStore.fromModel(workspaceModel);
 }
 
+async function saveWorkspaceSettings(settings: WorkspaceSettings): Promise<WorkspaceSettings> {
+  workspaceSettings = await workspaceSettingsStore.save(settings);
+  workspaceModel = {
+    ...workspaceModel,
+    indexedRoots: workspaceSettings.indexedRoots,
+    indexing: workspaceSettings.indexing,
+  };
+  applyWorkspaceSettings(workspaceSettings);
+  return workspaceSettings;
+}
+
+async function addIndexedRoot(input: { path?: string; name?: string; kind?: string; pattern?: string; ignore?: string[]; force?: boolean }): Promise<WorkspaceSettings> {
+  if (!input.path) {
+    throw new Error("Missing indexed root path.");
+  }
+  const settings = currentWorkspaceSettings();
+  const root = createIndexedRoot(input.path, {
+    id: input.name ? `index-${input.name}` : undefined,
+    label: input.name,
+    kind: parseIndexedRootKind(input.kind),
+    pattern: input.pattern,
+    ignore: input.ignore,
+  });
+  if (!input.force && isBroadIndexedRoot(root.path)) {
+    throw new Error("Refusing to index a broad home, Desktop, or Documents root directly. Choose a more specific folder.");
+  }
+  const nextRoots = [
+    ...settings.indexedRoots.filter((existing) => existing.id !== root.id && path.resolve(existing.path) !== path.resolve(root.path)),
+    root,
+  ];
+  return saveWorkspaceSettings({
+    ...settings,
+    indexedRoots: nextRoots,
+    indexing: settings.indexing.mode === "off"
+      ? { enabled: true, mode: "lexical", backend: "qmd" }
+      : { ...settings.indexing, enabled: true },
+  });
+}
+
+async function removeIndexedRoot(target: string): Promise<WorkspaceSettings> {
+  const settings = currentWorkspaceSettings();
+  const nextRoots = settings.indexedRoots.filter(
+    (root) => root.id !== target && root.label !== target && path.resolve(root.path) !== path.resolve(target),
+  );
+  return saveWorkspaceSettings({
+    ...settings,
+    indexedRoots: nextRoots,
+    indexing: nextRoots.length === 0 ? { enabled: false, mode: "off", backend: "qmd" } : settings.indexing,
+  });
+}
+
 function applyWorkspaceSettings(settings: WorkspaceSettings | null) {
   applyWorkspaceSettingsToEnv(settings);
   if (!isForcedTheme(process.env.EXO_FORCE_THEME)) {
     nativeTheme.themeSource = settings?.appearanceMode ?? DEFAULT_APPEARANCE_MODE;
   }
+}
+
+function parseIndexedRootKind(value: string | undefined): IndexedRoot["kind"] {
+  return value === "notes" || value === "docs" || value === "code" || value === "mixed" ? value : "mixed";
+}
+
+function isBroadIndexedRoot(targetPath: string): boolean {
+  const resolvedPath = path.resolve(targetPath);
+  return [app.getPath("home"), app.getPath("desktop"), app.getPath("documents")]
+    .some((candidate) => path.resolve(candidate) === resolvedPath);
 }
 
 app.whenReady().then(async () => {

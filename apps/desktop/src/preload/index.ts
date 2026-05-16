@@ -29,6 +29,7 @@ const api: DesktopApi = {
     getModel: () => ipcRenderer.invoke("workspace:get-model"),
     getSettings: () => ipcRenderer.invoke("workspace:get-settings"),
     saveSettings: (settings) => ipcRenderer.invoke("workspace:save-settings", settings),
+    getIndexStatus: () => ipcRenderer.invoke("workspace:get-index-status"),
     listTree: (rootPath, options) => ipcRenderer.invoke("workspace:list-tree", rootPath, options),
     searchNotes: (query) => ipcRenderer.invoke("workspace:search-notes", query),
     searchWorkspace: (query) => ipcRenderer.invoke("workspace:search-workspace", query),
@@ -75,6 +76,12 @@ const api: DesktopApi = {
       files
         .map((file) => webUtils.getPathForFile(file) || droppedFilePathsByKey.get(fileKey(file)) || "")
         .filter((filePath): filePath is string => filePath.length > 0),
+    onCreated: (callback) => {
+      const listener = (_event: unknown, session: Awaited<ReturnType<DesktopApi["terminals"]["create"]>>) =>
+        callback(session);
+      ipcRenderer.on("terminal:created", listener);
+      return () => ipcRenderer.removeListener("terminal:created", listener);
+    },
     onData: (callback) => {
       const listener = (_event: unknown, payload: { id: string; data: string }) => callback(payload);
       ipcRenderer.on("terminal:data", listener);
