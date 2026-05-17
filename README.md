@@ -188,18 +188,20 @@ QMD is the active indexing substrate for optional Exo-managed notes search. Live
 
 ## Development Harness
 
-The canonical local gate is:
+The canonical local/CI gate is:
 
 ```bash
-pnpm check
+pnpm ci:check
 ```
 
 It runs:
 
 ```bash
+pnpm check:repo
 pnpm typecheck
 pnpm test
 pnpm build
+./scripts/install-local --dry-run --skip-install --skip-build
 ```
 
 Focused checks:

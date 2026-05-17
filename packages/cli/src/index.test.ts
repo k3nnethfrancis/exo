@@ -1,7 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { createServer, type ServerResponse } from "node:http";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 
 import { runCli } from "./index";
@@ -103,122 +100,67 @@ describe("cli package", () => {
   });
 
   it("submits agent messages by default", async () => {
-    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-"));
-    let receivedBody = "";
-    const server = createServer((req, res) => {
-      if (req.url === "/status") {
-        json(res, { ok: true });
-        return;
-      }
-      if (req.url === "/terminals/term-1/write" && req.method === "POST") {
-        req.on("data", (chunk) => {
-          receivedBody += chunk;
-        });
-        req.on("end", () => json(res, { ok: true }));
-        return;
-      }
-      res.writeHead(404).end();
+    let receivedData = "";
+    const exitCode = await runCli(["node", "exo-cli", "agents", "send", "term-1", "hello"], {
+      env: testRuntimeEnv(),
+      stdout: { write: () => {} },
+      stderr: { write: () => {} },
+      connectAppClient: async () => fakeAppClient({
+        writeTerminal: async (_id, data) => {
+          receivedData = data;
+        },
+      }),
     });
 
-    try {
-      const port = await listen(server);
-      await writeFile(path.join(runtimeRoot, "server.json"), JSON.stringify({ port, pid: process.pid }), "utf8");
-
-      const exitCode = await runCli(["node", "exo-cli", "agents", "send", "term-1", "hello"], {
-        env: testRuntimeEnv(runtimeRoot),
-        stdout: { write: () => {} },
-        stderr: { write: () => {} },
-      });
-
-      expect(exitCode).toBe(0);
-      expect(JSON.parse(receivedBody)).toEqual({ data: "hello\r" });
-    } finally {
-      await closeServer(server);
-      await rm(runtimeRoot, { recursive: true, force: true });
-    }
+    expect(exitCode).toBe(0);
+    expect(receivedData).toBe("hello\r");
   });
 
   it("calls the app for index status", async () => {
-    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-"));
-    const server = createServer((req, res) => {
-      if (req.url === "/status") {
-        json(res, { ok: true });
-        return;
-      }
-      if (req.url === "/index/status") {
-        json(res, { enabled: true, mode: "hybrid", backend: "qmd" });
-        return;
-      }
-      if (req.url === "/index/sync" && req.method === "POST") {
-        json(res, { status: { enabled: true, mode: "hybrid", backend: "qmd" }, phases: [] });
-        return;
-      }
-      res.writeHead(404).end();
+    const client = fakeAppClient({
+      getIndexStatus: async () => ({ enabled: true, mode: "hybrid", backend: "qmd" }),
+      syncIndex: async () => ({ status: { enabled: true, mode: "hybrid", backend: "qmd" }, phases: [] }),
+    });
+    let stdout = "";
+
+    const exitCode = await runCli(["node", "exo-cli", "index", "status"], {
+      env: testRuntimeEnv(),
+      stdout: { write: (text) => { stdout += text; } },
+      stderr: { write: () => {} },
+      connectAppClient: async () => client,
     });
 
-    try {
-      const port = await listen(server);
-      await writeFile(path.join(runtimeRoot, "server.json"), JSON.stringify({ port, pid: process.pid }), "utf8");
-      let stdout = "";
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('"mode": "hybrid"');
 
-      const exitCode = await runCli(["node", "exo-cli", "index", "status"], {
-        env: testRuntimeEnv(runtimeRoot),
-        stdout: { write: (text) => { stdout += text; } },
-        stderr: { write: () => {} },
-      });
-
-      expect(exitCode).toBe(0);
-      expect(stdout).toContain('"mode": "hybrid"');
-
-      stdout = "";
-      const syncExitCode = await runCli(["node", "exo-cli", "index", "sync"], {
-        env: testRuntimeEnv(runtimeRoot),
-        stdout: { write: (text) => { stdout += text; } },
-        stderr: { write: () => {} },
-      });
-      expect(syncExitCode).toBe(0);
-      expect(stdout).toContain('"phases": []');
-    } finally {
-      await closeServer(server);
-      await rm(runtimeRoot, { recursive: true, force: true });
-    }
+    stdout = "";
+    const syncExitCode = await runCli(["node", "exo-cli", "index", "sync"], {
+      env: testRuntimeEnv(),
+      stdout: { write: (text) => { stdout += text; } },
+      stderr: { write: () => {} },
+      connectAppClient: async () => client,
+    });
+    expect(syncExitCode).toBe(0);
+    expect(stdout).toContain('"phases": []');
   });
 
   it("adds index roots through the app settings route", async () => {
-    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-"));
-    let receivedBody = "";
-    const server = createServer((req, res) => {
-      if (req.url === "/status") {
-        json(res, { ok: true });
-        return;
-      }
-      if (req.url === "/index/roots" && req.method === "POST") {
-        req.on("data", (chunk) => {
-          receivedBody += chunk;
-        });
-        req.on("end", () => json(res, { ok: true }));
-        return;
-      }
-      res.writeHead(404).end();
+    let receivedInput: Record<string, unknown> | null = null;
+    const exitCode = await runCli(["node", "exo-cli", "index", "add", "notes", "--name", "notes", "--kind", "notes"], {
+      env: testRuntimeEnv(),
+      cwd: "/tmp/exo-test-workspace",
+      stdout: { write: () => {} },
+      stderr: { write: () => {} },
+      connectAppClient: async () => fakeAppClient({
+        addIndexRoot: async (input) => {
+          receivedInput = input;
+          return { ok: true };
+        },
+      }),
     });
 
-    try {
-      const port = await listen(server);
-      await writeFile(path.join(runtimeRoot, "server.json"), JSON.stringify({ port, pid: process.pid }), "utf8");
-
-      const exitCode = await runCli(["node", "exo-cli", "index", "add", "notes", "--name", "notes", "--kind", "notes"], {
-        env: testRuntimeEnv(runtimeRoot),
-        cwd: "/tmp/exo-test-workspace",
-        stdout: { write: () => {} },
-        stderr: { write: () => {} },
-      });
-
-      expect(exitCode).toBe(0);
-      expect(JSON.parse(receivedBody)).toMatchObject({ path: "/tmp/exo-test-workspace/notes", name: "notes", kind: "notes" });
-    } finally {
-      await closeServer(server);
-      await rm(runtimeRoot, { recursive: true, force: true });
-    }
+    expect(exitCode).toBe(0);
+    expect(receivedInput).toMatchObject({ path: "/tmp/exo-test-workspace/notes", name: "notes", kind: "notes" });
   });
 
   it("prints Codex integration config", async () => {
@@ -336,43 +278,59 @@ describe("cli package", () => {
   });
 });
 
-function listen(server: ReturnType<typeof createServer>): Promise<number> {
-  return new Promise((resolve, reject) => {
-    server.listen(0, "127.0.0.1", () => {
-      const address = server.address();
-      if (typeof address === "object" && address) {
-        resolve(address.port);
-      } else {
-        reject(new Error("No server address"));
-      }
-    });
-  });
-}
-
-function json(res: ServerResponse, body: unknown) {
-  res.writeHead(200, { "Content-Type": "application/json", "Connection": "close" });
-  res.end(JSON.stringify(body));
-}
-
-function testRuntimeEnv(runtimeRoot: string): NodeJS.ProcessEnv {
+function testRuntimeEnv(): NodeJS.ProcessEnv {
   return {
-    EXO_WORKSPACE_ROOT: path.join(runtimeRoot, "workspace"),
-    EXO_NOTE_ROOTS: path.join(runtimeRoot, "workspace", "notes"),
-    EXO_PROJECT_ROOTS: path.join(runtimeRoot, "workspace", "projects"),
-    EXO_RUNTIME_ROOT: runtimeRoot,
-    EXO_SETTINGS_PATH: path.join(runtimeRoot, "settings.json"),
+    EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
+    EXO_NOTE_ROOTS: "/tmp/exo-test-workspace/notes",
+    EXO_PROJECT_ROOTS: "/tmp/exo-test-workspace/projects",
+    EXO_RUNTIME_ROOT: "/tmp/exo-test-workspace/.exo-test-runtime",
+    EXO_SETTINGS_PATH: "/tmp/exo-test-workspace/settings.json",
+    EXO_APP_CLIENT_REQUEST_TIMEOUT_MS: "500",
   };
 }
 
-function closeServer(server: ReturnType<typeof createServer>): Promise<void> {
-  server.closeAllConnections();
-  return new Promise((resolve, reject) => {
-    server.close((error) => {
-      if (error) {
-        reject(error);
-        return;
-      }
-      resolve();
-    });
-  });
+function fakeAppClient(overrides: Partial<{
+  getStatus: () => Promise<Record<string, unknown>>;
+  openFile: (filePath: string) => Promise<void>;
+  showWindow: () => Promise<void>;
+  getConfig: () => Promise<Record<string, unknown>>;
+  search: (query: string) => Promise<Record<string, unknown>>;
+  readDocument: (target: string, options?: { fromLine?: number; maxLines?: number }) => Promise<Record<string, unknown>>;
+  getIndexStatus: () => Promise<Record<string, unknown>>;
+  syncIndex: () => Promise<Record<string, unknown>>;
+  addIndexRoot: (input: { path: string; name?: string; kind?: string; pattern?: string; force?: boolean }) => Promise<Record<string, unknown>>;
+  removeIndexRoot: (target: string) => Promise<Record<string, unknown>>;
+  updateIndex: () => Promise<Record<string, unknown>>;
+  embedIndex: () => Promise<Record<string, unknown>>;
+  listTerminals: () => Promise<unknown[]>;
+  createTerminal: (kind: string, cwd?: string) => Promise<Record<string, unknown>>;
+  readTerminal: (id: string) => Promise<string>;
+  readTerminalTranscript: (id: string, tailChars?: number) => Promise<string>;
+  writeTerminal: (id: string, data: string) => Promise<void>;
+  killTerminal: (id: string) => Promise<void>;
+}> = {}) {
+  const missing = async () => {
+    throw new Error("Unexpected app client call");
+  };
+  return {
+    getStatus: missing,
+    openFile: missing,
+    showWindow: missing,
+    getConfig: missing,
+    search: missing,
+    readDocument: missing,
+    getIndexStatus: missing,
+    syncIndex: missing,
+    addIndexRoot: missing,
+    removeIndexRoot: missing,
+    updateIndex: missing,
+    embedIndex: missing,
+    listTerminals: missing,
+    createTerminal: missing,
+    readTerminal: missing,
+    readTerminalTranscript: missing,
+    writeTerminal: missing,
+    killTerminal: missing,
+    ...overrides,
+  };
 }

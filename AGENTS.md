@@ -31,7 +31,7 @@ Exo is a local-first agentic development environment built around a shared exoco
 Run the full local gate before handoff when the change is broad:
 
 ```bash
-pnpm check
+pnpm ci:check
 ```
 
 Focused gates:
@@ -48,7 +48,7 @@ pnpm --filter @exo/mcp typecheck && pnpm --filter @exo/mcp test
 pnpm test:e2e
 ```
 
-CI runs `pnpm check` on macOS.
+CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build subset.
 
 ## Dev Loop
 

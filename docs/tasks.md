@@ -11,7 +11,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [ ] Confirm README, AGENTS, CLAUDE, architecture, roadmap, tasks, ledger, and MCP docs agree on the current Exo identity.
 - [ ] Confirm no source defaults point to private or machine-specific paths.
 - [ ] Confirm `.exo/`, terminal transcripts, logs, local settings, release artifacts, and generated runtime state are ignored.
-- [ ] Run `pnpm check`.
+- [ ] Run `pnpm ci:check`.
 - [ ] Run focused desktop e2e for shell/search/terminal flows.
 
 ## Next: Workspace Surface
@@ -109,7 +109,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 
 - [ ] Add deterministic formatting/lint.
 - [ ] Add structural rules for renderer/main/core boundaries.
-- [ ] Add docs link/path checks for README, AGENTS, and docs indexes.
+- [x] Add docs link/path checks for README, AGENTS, and docs indexes.
 - [ ] Add renderer crash regression probes for blank-window failures.
 - [ ] Add golden/snapshot coverage for stable Markdown rendering, terminal hydration, and search output.
 - [x] Keep CLI app-route tests isolated from live Exo command-server state.

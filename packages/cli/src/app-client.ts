@@ -8,13 +8,13 @@ import { EXO_COMMAND_ROUTES, type ExoCommandServerInfo } from "@exo/core";
  * Discovers the server port from .exo/server.json.
  */
 export class AppClient {
-  private constructor(private baseUrl: string) {}
+  private constructor(private baseUrl: string, private readonly requestTimeoutMs = 2_000) {}
 
   /**
    * Attempt to connect to a running Exo desktop app.
    * Returns null if the app isn't running or server.json doesn't exist.
    */
-  static async connect(runtimeRoot: string): Promise<AppClient | null> {
+  static async connect(runtimeRoot: string, env: NodeJS.ProcessEnv = process.env): Promise<AppClient | null> {
     const serverJsonPath = path.join(runtimeRoot, "server.json");
     let info: ExoCommandServerInfo;
 
@@ -26,7 +26,8 @@ export class AppClient {
     }
 
     const baseUrl = `http://127.0.0.1:${info.port}`;
-    const client = new AppClient(baseUrl);
+    const requestTimeoutMs = parsePositiveInt(env.EXO_APP_CLIENT_REQUEST_TIMEOUT_MS) ?? 2_000;
+    const client = new AppClient(baseUrl, requestTimeoutMs);
 
     // Health check
     try {
@@ -112,7 +113,7 @@ export class AppClient {
   }
 
   private async get(path: string): Promise<any> {
-    const res = await fetch(`${this.baseUrl}${path}`);
+    const res = await fetch(`${this.baseUrl}${path}`, { signal: AbortSignal.timeout(this.requestTimeoutMs) });
     if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
     return res.json();
   }
@@ -122,14 +123,23 @@ export class AppClient {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(this.requestTimeoutMs),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
     return res.json();
   }
 
   private async delete(path: string): Promise<any> {
-    const res = await fetch(`${this.baseUrl}${path}`, { method: "DELETE" });
+    const res = await fetch(`${this.baseUrl}${path}`, { method: "DELETE", signal: AbortSignal.timeout(this.requestTimeoutMs) });
     if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
     return res.json();
   }
+}
+
+function parsePositiveInt(value: string | undefined): number | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }
