@@ -5,6 +5,7 @@ export const EXO_COMMAND_ROUTES = {
   read: "/read",
   indexStatus: "/index/status",
   indexRoots: "/index/roots",
+  indexSync: "/index/sync",
   indexUpdate: "/index/update",
   indexEmbed: "/index/embed",
   open: "/open",

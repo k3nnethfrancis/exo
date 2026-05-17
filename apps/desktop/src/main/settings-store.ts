@@ -53,6 +53,11 @@ export class WorkspaceSettingsStore {
     const terminalScrollbackLines = clampSettingsNumber(input.terminalScrollbackLines, DEFAULT_TERMINAL_SCROLLBACK_LINES, 500, 100_000);
     const terminalBufferChars = clampSettingsNumber(input.terminalBufferChars, DEFAULT_TERMINAL_BUFFER_CHARS, 12_000, 2_000_000);
     const explorerScale = clampSettingsNumber(input.explorerScale, DEFAULT_EXPLORER_SCALE, 0.82, 1.35);
+    const exploreIndexSearchOnEnter =
+      typeof input.exploreIndexSearchOnEnter === "boolean"
+        ? input.exploreIndexSearchOnEnter
+        : indexing.enabled && indexing.mode !== "off" && indexedRoots.length > 0;
+    const indexUpdateStrategy = input.indexUpdateStrategy === "manual" ? "manual" : "on-save";
 
     if (!workspaceRoot || !defaultTerminalCwd || noteRoots.length === 0) {
       return null;
@@ -71,6 +76,8 @@ export class WorkspaceSettingsStore {
       terminalScrollbackLines,
       terminalBufferChars,
       explorerScale,
+      exploreIndexSearchOnEnter,
+      indexUpdateStrategy,
     };
   }
 
@@ -88,6 +95,8 @@ export class WorkspaceSettingsStore {
       terminalScrollbackLines: DEFAULT_TERMINAL_SCROLLBACK_LINES,
       terminalBufferChars: DEFAULT_TERMINAL_BUFFER_CHARS,
       explorerScale: DEFAULT_EXPLORER_SCALE,
+      exploreIndexSearchOnEnter: model.indexing.enabled && model.indexing.mode !== "off" && model.indexedRoots.length > 0,
+      indexUpdateStrategy: "on-save",
     };
   }
 

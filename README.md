@@ -26,6 +26,8 @@ Exo is for people who want terminal agents to participate in their actual workin
 - Explicit note roots and project roots.
 - Project files with CodeMirror modes for Python, JSON/JSONC, TOML, `.env`, YAML, JS/TS/TSX, HTML/CSS, and shell.
 - Fast note filename/path search from the explorer search pane.
+- Optional QMD-backed notes indexing with lexical, semantic, and hybrid modes.
+- Index status, sync, and settings controls for selected note roots.
 - Editor and terminal panes with flat tabs, split behavior, and no-empty-leaves pruning.
 - xterm/node-pty terminals rooted in the workspace by default.
 - Claude and Codex terminal launchers backed by Exo runtime launch plans.
@@ -38,9 +40,9 @@ Exo is for people who want terminal agents to participate in their actual workin
 Exo is early, and the long-term system is larger than the current shell. Near-term priorities:
 
 - Drag terminal panes into the editor canvas so files and terminal agents can share one arbitrary split-pane graph.
-- Integrate QMD-style note indexing as an Exo-managed memory/search layer, with machine-size profiles and fallback modes.
-- Detect existing QMD setups, manage Exo-owned QMD setup, and configure indexed note roots plus reindex triggers.
-- Let humans and agents search the same knowledge graph with explicit tiers, cancellation, and result caps.
+- Improve QMD indexing performance with true file-level incremental updates when upstream APIs support it.
+- Detect existing QMD setups, refine Exo-owned QMD setup, and configure richer reindex triggers.
+- Let humans and agents search the same knowledge graph with explicit tiers, cancellation, progress, and result caps.
 - Manage global and project-local `AGENTS.md` / `CLAUDE.md` files from Exo.
 - Compare global and local agent context files, surface conflicts, and install Exo-recommended snippets.
 - Track authorship and provenance so human-written and agent-written changes are distinguishable by source, session, and task.
@@ -72,6 +74,14 @@ Before broad public binary release, Exo still needs signed/notarized macOS packa
 pnpm install
 pnpm dev
 ```
+
+Install a repo-backed local `exo` command:
+
+```bash
+./scripts/install-local
+```
+
+That script installs dependencies, builds Exo, and symlinks `bin/exo` into `~/.local/bin/exo` by default. Use `./scripts/install-local --with-mcp` to also configure supported MCP clients, or `./scripts/install-local --dry-run` to preview actions.
 
 Run with remote debugging when inspecting the real Electron renderer:
 
@@ -116,6 +126,8 @@ Standalone workspace/runtime commands:
 ```bash
 ./bin/exo workspace status
 ./bin/exo search "query"
+./bin/exo index status
+./bin/exo index sync
 ./bin/exo runtime status
 ./bin/exo runtime sync
 ./bin/exo launch claude
@@ -170,23 +182,26 @@ Runtime files live under `.exo/` inside the workspace root:
 - `.exo/instructions/CLAUDE.md` - Exo-generated Claude overlay
 - `.exo/terminal-state.json` - persisted tmux-backed agent terminal state
 - `.exo/terminal-transcripts/` - disk-backed terminal transcripts with retention
+- `.exo/qmd/index.sqlite` - Exo-managed QMD notes index when indexing is enabled
 
-QMD remains the indexing substrate Exo is integrating for future memory/search. Users should eventually be able to use an Exo-managed setup, detect an existing QMD setup, or fall back to simpler filesystem/CLI search on smaller machines.
+QMD is the active indexing substrate for optional Exo-managed notes search. Live Explore typing remains fast filename/path search; indexed search is explicit through Enter in Explore when enabled and through CLI/MCP index/search tools. See `docs/qmd-integration-notes.md` for the adapter contract and upgrade notes.
 
 ## Development Harness
 
-The canonical local gate is:
+The canonical local/CI gate is:
 
 ```bash
-pnpm check
+pnpm ci:check
 ```
 
 It runs:
 
 ```bash
+pnpm check:repo
 pnpm typecheck
 pnpm test
 pnpm build
+./scripts/install-local --dry-run --skip-install --skip-build
 ```
 
 Focused checks:
@@ -226,6 +241,7 @@ See `docs/harness.md` for work-chunk rules, validation evidence, and agent-frien
 - `docs/plugins.md` - future extension model.
 - `docs/tasks.md` - active execution tracker.
 - `docs/roadmap.md` - future work and sequencing.
+- `docs/qmd-integration-notes.md` - current QMD adapter contract and upgrade checklist.
 - `ledger.md` - fastest current-state handoff.
 
 ## Packaging

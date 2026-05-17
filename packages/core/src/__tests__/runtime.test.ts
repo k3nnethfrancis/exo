@@ -39,8 +39,9 @@ describe("runtime", () => {
     expect(plan.cwd).toBe("/tmp/exo-test-workspace/projects/helm");
     expect(plan.command).toBe("claude");
     expect(plan.env.EXO_RUNTIME_PRIMARY_INSTRUCTIONS).toBe(config.instructions.primary);
+    expect(plan.env.EXO_RUNTIME_SECONDARY_INSTRUCTIONS).toBe("");
     expect(plan.env.EXO_AGENT_TRANSPORT).toBe("file-sqlite");
-    expect(plan.secondaryInstructionsPath).toBe(config.instructions.claude);
+    expect(plan.secondaryInstructionsPath).toBeUndefined();
   });
 
   it("adds a supported Codex reasoning-effort override by default", () => {
@@ -91,7 +92,6 @@ describe("runtime", () => {
     expect(primaryText).toContain("Optional Notes Index / Retrieval Backend");
     expect(primaryText).toContain("index_mode: off");
     expect(primaryText).toContain("exo-cli search");
-    expect(claudeText).toContain("Exo Claude Overlay");
-    expect(claudeText).toContain("Use Exo search/read commands when available");
+    expect(claudeText).toBe(primaryText);
   });
 });

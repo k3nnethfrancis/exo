@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { embedIndex, getIndexStatus, readIndexDocument, searchIndex, updateIndex } from "../qmd";
+import { embedIndex, getIndexStatus, readIndexDocument, searchIndex, syncIndex, updateIndex } from "../qmd";
 import { createIndexedRoot, resolveWorkspaceModel } from "../workspace";
 
 const stores: MockStore[] = [];
@@ -73,8 +73,28 @@ describe("QMD index adapter", () => {
 
     const result = await searchIndex(model, path.join(root, ".exo"), "focus");
 
-    expect(result.warnings[0]).toContain("Semantic search is not ready");
+    expect(result.warnings.some((warning) => warning.includes("Semantic search is not ready"))).toBe(true);
     expect(stores[0].searchLexCalls.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("runs hybrid search against every selected indexed root", async () => {
+    const root = await fixtureRoot();
+    const model = {
+      ...resolveWorkspaceModel({
+        EXO_WORKSPACE_ROOT: root,
+        EXO_NOTE_ROOTS: path.join(root, "notes"),
+        EXO_PROJECT_ROOTS: "",
+      }),
+      indexedRoots: [
+        createIndexedRoot(path.join(root, "notes"), { id: "index-notes", label: "notes", kind: "notes" }),
+        createIndexedRoot(path.join(root, "docs"), { id: "index-docs", label: "docs", kind: "docs" }),
+      ],
+      indexing: { enabled: true, mode: "hybrid" as const, backend: "qmd" as const },
+    };
+
+    await searchIndex(model, path.join(root, ".exo"), "focus");
+
+    expect(stores[0].searchCalls.map((call) => call.collections)).toEqual([["notes"], ["docs"]]);
   });
 
   it("reports status and delegates update/embed", async () => {
@@ -89,6 +109,40 @@ describe("QMD index adapter", () => {
     await updateIndex(model, path.join(root, ".exo"));
     await embedIndex(model, path.join(root, ".exo"));
 
+    expect(stores.some((store) => store.updateCalls === 1)).toBe(true);
+    expect(stores.some((store) => store.embedCalls === 1)).toBe(true);
+  });
+
+  it("can scope updates to selected indexed roots", async () => {
+    const root = await fixtureRoot();
+    const model = indexedModel(root, "hybrid");
+
+    await updateIndex(model, path.join(root, ".exo"), { rootIds: ["index-notes"] });
+
+    expect(stores.some((store) => JSON.stringify(store.updateOptions[0]) === JSON.stringify({ collections: ["notes"] }))).toBe(true);
+  });
+
+  it("syncs lexical indexes without embeddings", async () => {
+    const root = await fixtureRoot();
+    const model = indexedModel(root, "lexical");
+
+    const result = await syncIndex(model, path.join(root, ".exo"));
+
+    expect(result.phases).toEqual([
+      { name: "update", status: "completed", message: "Indexed documents refreshed." },
+      { name: "embed", status: "skipped", message: "Embeddings are not needed in lexical mode." },
+    ]);
+    expect(stores.some((store) => store.updateCalls === 1)).toBe(true);
+    expect(stores.some((store) => store.embedCalls === 1)).toBe(false);
+  });
+
+  it("syncs hybrid indexes and embeddings", async () => {
+    const root = await fixtureRoot();
+    const model = indexedModel(root, "hybrid");
+
+    const result = await syncIndex(model, path.join(root, ".exo"));
+
+    expect(result.phases.map((phase) => `${phase.name}:${phase.status}`)).toEqual(["update:completed", "embed:completed"]);
     expect(stores.some((store) => store.updateCalls === 1)).toBe(true);
     expect(stores.some((store) => store.embedCalls === 1)).toBe(true);
   });
@@ -116,6 +170,18 @@ describe("QMD index adapter", () => {
     expect(result.filePath).toBe(path.join(root, "notes", "focus.md"));
     expect(result.source).toBe("qmd");
   });
+
+  it("rejects stale QMD docids outside configured indexed roots", async () => {
+    const root = await fixtureRoot();
+    const model = {
+      ...indexedModel(root, "lexical"),
+      indexedRoots: [createIndexedRoot(path.join(root, "docs"), { id: "index-docs", label: "docs", kind: "docs" })],
+    };
+
+    await expect(readIndexDocument(model, path.join(root, ".exo"), "#abc123")).rejects.toThrow(
+      "outside configured indexed roots",
+    );
+  });
 });
 
 async function fixtureRoot(): Promise<string> {
@@ -140,6 +206,8 @@ function indexedModel(root: string, mode: "lexical" | "semantic" | "hybrid") {
 
 class MockStore {
   searchLexCalls: Array<{ query: string; collection?: string; limit?: number }> = [];
+  searchCalls: Array<{ query?: string; collections?: string[]; limit?: number }> = [];
+  updateOptions: unknown[] = [];
   updateCalls = 0;
   embedCalls = 0;
 
@@ -167,8 +235,9 @@ class MockStore {
     throw new Error("no vectors");
   }
 
-  async search() {
-    return this.searchLex("hybrid", { collection: "notes", limit: 10 });
+  async search(options: { query?: string; collections?: string[]; limit?: number }) {
+    this.searchCalls.push(options);
+    return this.searchLex(options.query ?? "hybrid", { collection: options.collections?.[0] ?? "notes", limit: options.limit ?? 10 });
   }
 
   async get() {
@@ -182,8 +251,9 @@ class MockStore {
     return "# Focus\nalpha";
   }
 
-  async update() {
+  async update(options?: unknown) {
     this.updateCalls += 1;
+    this.updateOptions.push(options);
   }
 
   async embed() {

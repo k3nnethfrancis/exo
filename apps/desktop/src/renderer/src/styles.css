@@ -1263,29 +1263,62 @@ button svg,
   z-index: 50;
   display: grid;
   place-items: center;
+  padding: 24px;
   background: color-mix(in srgb, var(--bg) 58%, transparent);
   backdrop-filter: blur(8px);
+  overflow: hidden;
 }
 
 .dialog-card {
   width: min(420px, calc(100vw - 48px));
   display: grid;
   gap: 14px;
+  max-height: calc(100dvh - 48px);
+  min-height: 0;
   padding: 18px;
   border-radius: 20px;
   background: var(--panel-strong);
   border: 1px solid var(--surface-border-strong);
   box-shadow: var(--shadow);
+  overflow: auto;
 }
 
 .dialog-card--settings {
-  width: min(560px, calc(100vw - 48px));
+  width: min(520px, calc(100vw - 48px));
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  overflow: hidden;
+}
+
+.dialog-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
 }
 
 .dialog-card__title {
   font-size: 18px;
   font-weight: 650;
   letter-spacing: -0.02em;
+}
+
+.dialog-card__close {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.dialog-card__close:hover {
+  border-color: var(--surface-border);
+  background: var(--surface-hover);
+  color: var(--text);
 }
 
 .dialog-card__message {
@@ -1314,9 +1347,60 @@ button svg,
   gap: 10px;
 }
 
+.dialog-card__actions--split {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.dialog-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  padding: 3px;
+  border: 1px solid var(--surface-border);
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+
+.dialog-tabs__button {
+  min-width: 0;
+  padding: 8px 6px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+
+.dialog-tabs__button--active {
+  border-color: var(--surface-border-strong);
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.dialog-card__apply-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 2px;
+}
+
+.dialog-card__apply-row .dialog-card__status {
+  min-width: 0;
+}
+
 .dialog-form {
   display: grid;
   gap: 12px;
+}
+
+.dialog-card--settings .dialog-form {
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .dialog-form__grid {
@@ -1335,6 +1419,38 @@ button svg,
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--muted);
+}
+
+.dialog-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.dialog-check input {
+  accent-color: var(--accent);
+}
+
+.dialog-check:has(input:disabled) {
+  color: var(--muted);
+}
+
+.dialog-details {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.dialog-details summary {
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.dialog-details[open] {
+  display: grid;
+  gap: 8px;
 }
 
 .dialog-card__status {

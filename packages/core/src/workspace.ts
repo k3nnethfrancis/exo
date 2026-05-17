@@ -182,16 +182,23 @@ function findExoRepoRoot(startPath: string): string | null {
   }
 }
 
-export async function listRootTree(rootPath: string, options?: { markdownOnly?: boolean; maxDepth?: number }): Promise<TreeNode[]> {
-  const maxDepth = options?.maxDepth ?? 4;
-  return listTreeRecursive(rootPath, options?.markdownOnly ?? false, maxDepth, 0);
+export interface ListRootTreeOptions {
+  markdownOnly?: boolean;
+  maxDepth?: number;
+  includeEmptyDirectories?: boolean;
 }
 
-async function listTreeRecursive(rootPath: string, markdownOnly: boolean, maxDepth: number, depth: number): Promise<TreeNode[]> {
+export async function listRootTree(rootPath: string, options?: ListRootTreeOptions): Promise<TreeNode[]> {
+  const maxDepth = options?.maxDepth ?? 4;
+  return listTreeRecursive(rootPath, options ?? {}, maxDepth, 0);
+}
+
+async function listTreeRecursive(rootPath: string, options: ListRootTreeOptions, maxDepth: number, depth: number): Promise<TreeNode[]> {
   if (!(await pathExists(rootPath))) {
     return [];
   }
 
+  const markdownOnly = options.markdownOnly ?? false;
   const entries = await readdir(rootPath, { withFileTypes: true });
   const visibleEntries = entries
     .filter((entry) => {
@@ -216,9 +223,9 @@ async function listTreeRecursive(rootPath: string, markdownOnly: boolean, maxDep
 
       if (entry.isDirectory()) {
         const children =
-          depth >= maxDepth ? [] : await listTreeRecursive(entryPath, markdownOnly, maxDepth, depth + 1);
+          depth >= maxDepth ? [] : await listTreeRecursive(entryPath, options, maxDepth, depth + 1);
 
-        if (markdownOnly && children.length === 0) {
+        if (markdownOnly && children.length === 0 && !options.includeEmptyDirectories) {
           return null;
         }
 

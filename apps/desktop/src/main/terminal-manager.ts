@@ -10,7 +10,7 @@ import path from "node:path";
 import { randomBytes } from "node:crypto";
 
 import pty, { type IPty } from "node-pty";
-import { resolveAgentLaunchPlan, resolveRuntimeConfig, syncRuntimeContextFiles } from "@exo/core";
+import { resolveAgentLaunchPlan, resolveRuntimeConfig, syncRuntimeContextFiles, type RuntimeConfig } from "@exo/core";
 
 import type { TerminalCreateOptions, TerminalSessionInfo, TerminalKind } from "../shared/api";
 import { sanitizeTranscriptName, TerminalTranscriptStore } from "./terminal-transcripts";
@@ -42,12 +42,12 @@ export class TerminalManager extends EventEmitter {
   private static readonly maxBufferLength = 12_000;
   private readonly sessions = new Map<string, TerminalRecord>();
   private nextId = 1;
-  private readonly runtimeConfig = resolveRuntimeConfig();
-  private readonly stateFilePath: string;
-  private readonly transcripts: TerminalTranscriptStore;
+  private runtimeConfig = resolveRuntimeConfig();
+  private stateFilePath: string;
+  private transcripts: TerminalTranscriptStore;
   private readonly tmuxAvailable: boolean;
 
-  constructor(private readonly defaultCwd: string) {
+  constructor(private defaultCwd: string) {
     super();
     this.stateFilePath = path.join(this.runtimeConfig.runtimeRoot, "terminal-state.json");
     this.transcripts = new TerminalTranscriptStore(path.join(this.runtimeConfig.runtimeRoot, "terminal-transcripts"));
@@ -95,6 +95,22 @@ export class TerminalManager extends EventEmitter {
 
   getRuntimeConfig() {
     return this.runtimeConfig;
+  }
+
+  setRuntimeConfig(runtimeConfig: RuntimeConfig = resolveRuntimeConfig()) {
+    const previousRuntimeRoot = this.runtimeConfig.runtimeRoot;
+    this.runtimeConfig = runtimeConfig;
+    if (runtimeConfig.runtimeRoot === previousRuntimeRoot) {
+      return;
+    }
+
+    this.flushAllTranscripts();
+    this.stateFilePath = path.join(runtimeConfig.runtimeRoot, "terminal-state.json");
+    this.transcripts = new TerminalTranscriptStore(path.join(runtimeConfig.runtimeRoot, "terminal-transcripts"));
+  }
+
+  setDefaultCwd(cwd: string) {
+    this.defaultCwd = cwd;
   }
 
   async syncRuntimeContext() {
@@ -408,6 +424,12 @@ export class TerminalManager extends EventEmitter {
       return;
     }
     this.transcripts.flush(id, record.transcriptPath);
+  }
+
+  private flushAllTranscripts(): void {
+    for (const id of this.sessions.keys()) {
+      this.flushTranscript(id);
+    }
   }
 }
 

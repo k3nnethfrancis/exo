@@ -11,9 +11,10 @@ Exo is a local-first agentic development environment built around a shared exoco
 5. `docs/architecture.md` - runtime and package boundaries
 6. `docs/harness.md` - gates, work chunks, agent workflow
 7. `docs/tasks.md` - active execution tracker
-8. `docs/roadmap.md` - future plans
-9. `docs/plugins.md` - future extension model
-10. `packages/mcp/README.md` - MCP setup and tool contract
+8. `docs/qmd-integration-notes.md` - current QMD adapter contract and upgrade notes
+9. `docs/roadmap.md` - future plans
+10. `docs/plugins.md` - future extension model
+11. `packages/mcp/README.md` - MCP setup and tool contract
 
 ## Repository Map
 
@@ -23,13 +24,14 @@ Exo is a local-first agentic development environment built around a shared exoco
 - `packages/mcp` - stdio MCP server for local agents.
 - `scripts` - launch/build helpers.
 - `.github/workflows` - CI and macOS packaging workflows.
+- `CLAUDE.md` is a compatibility symlink to `AGENTS.md`; do not add Claude-only repo instructions.
 
 ## Canonical Harness
 
 Run the full local gate before handoff when the change is broad:
 
 ```bash
-pnpm check
+pnpm ci:check
 ```
 
 Focused gates:
@@ -46,11 +48,12 @@ pnpm --filter @exo/mcp typecheck && pnpm --filter @exo/mcp test
 pnpm test:e2e
 ```
 
-CI runs `pnpm check` on macOS.
+CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build subset.
 
 ## Dev Loop
 
 - Start Exo with `pnpm dev`.
+- Install a repo-backed local CLI with `./scripts/install-local`.
 - Use `pnpm --filter @exo/desktop dev -- --remote-debugging-port=9222` for renderer inspection.
 - Restart Exo after touching Electron main, preload, native terminal handling, runtime config, package dependencies, or settings bootstrap.
 - HMR is usually enough only for pure renderer changes.
@@ -70,8 +73,9 @@ CI runs `pnpm check` on macOS.
 - `workspace_root` is primary; `note_roots` and `project_roots` are explicit attachments.
 - Markdown-on-disk is canonical; notebook mode is a projection.
 - Project roots are imported folders, not every folder under workspace `projects/`.
-- App and CLI search are fast note filename/path search only.
-- QMD stays as notes index / retrieval infrastructure for future Exo-managed memory and unified human/agent search.
+- Live Explore typing stays fast filename/path search; optional indexed search is explicit and should not block the renderer.
+- QMD is the active notes-index substrate behind Exo-managed lexical/semantic/hybrid search, CLI, and MCP tools.
+- Keep QMD calls behind `packages/core/src/qmd.ts`; do not patch `node_modules` or fork QMD casually.
 - Future provenance work should track human vs agent-authored changes by source, session, and task.
 - Future project-root control should be exposed through CLI/MCP, not hidden renderer-only state.
 - Optional or personal workflows should go through the plugin architecture rather than becoming core by default.

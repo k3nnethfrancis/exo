@@ -1,6 +1,6 @@
 # Exo Harness
 
-Last updated: 2026-05-12
+Last updated: 2026-05-17
 
 Exo's harness is the set of commands, docs, and evidence habits that keep fast agent-driven development from turning into drift. The near-term goal is practical: make it easy for humans, Codex, Claude Code, and Exo-hosted agents to contribute safely.
 
@@ -9,18 +9,29 @@ Exo's harness is the set of commands, docs, and evidence habits that keep fast a
 The one command for local and CI validation is:
 
 ```bash
-pnpm check
+pnpm ci:check
 ```
 
 It runs:
 
 ```bash
+pnpm check:repo
 pnpm typecheck
 pnpm test
 pnpm build
+./scripts/install-local --dry-run --skip-install --skip-build
 ```
 
-CI runs the same command on macOS in `.github/workflows/ci.yml`.
+`pnpm check` remains the typecheck/test/build subset. CI runs `pnpm ci:check` on macOS in `.github/workflows/ci.yml`.
+
+## Harness Engineering Principles
+
+- One canonical broad gate: local handoff and CI both use `pnpm ci:check`.
+- Focused gates are allowed while iterating, but broad changes finish with the canonical gate.
+- Tests must be hermetic: no package test should depend on or accidentally connect to a live user Exo app.
+- Runtime tests should use temporary `EXO_WORKSPACE_ROOT`, `EXO_RUNTIME_ROOT`, and `EXO_SETTINGS_PATH` values.
+- Tests that create local HTTP command servers must close open connections during cleanup.
+- Harness failures should fail fast with a clear cause rather than hanging until a timeout.
 
 ## Focused Gates
 
@@ -51,6 +62,7 @@ Desktop e2e/visual gates build the desktop app before running Playwright.
 - Visual shell behavior: `pnpm test:visual`.
 - MCP/CLI contracts: package tests plus CLI smoke commands.
 - Docs/context: reviewed manually through `README.md`, `AGENTS.md`, `ledger.md`, `docs/architecture.md`, `docs/tasks.md`, and `docs/roadmap.md`.
+- CLI app-route tests: isolated temporary command server and runtime roots so a live Exo app cannot affect results.
 
 ## Missing Harness Layers
 
@@ -69,7 +81,7 @@ Each meaningful change should be a small work chunk:
 - one primary behavior or refactor
 - docs updated in the same chunk when public behavior changes
 - focused tests or manual evidence included
-- broad `pnpm check` used before handoff when package boundaries or release behavior changed
+- broad `pnpm ci:check` used before handoff when package boundaries or release behavior changed
 
 Good evidence examples:
 
@@ -119,7 +131,7 @@ Already-running Codex/Claude sessions may not see newly installed MCP tools unti
 
 Before an open-source push or release candidate:
 
-- run `pnpm check`
+- run `pnpm ci:check`
 - run focused Playwright tests for touched UI flows
 - confirm `.exo/`, logs, transcripts, and release artifacts are ignored
 - verify README, AGENTS, architecture, tasks, roadmap, and MCP docs agree

@@ -1,0 +1,182 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+PREFIX="${EXO_INSTALL_PREFIX:-$HOME/.local}"
+BIN_DIR=""
+RUN_INSTALL=1
+RUN_BUILD=1
+INSTALL_MCP=0
+DRY_RUN=0
+FORCE=0
+
+usage() {
+  cat <<'EOF'
+Usage: scripts/install-local [options]
+
+Installs a repo-backed local Exo command.
+
+Options:
+  --prefix <path>       Install under this prefix. Default: ~/.local
+  --bin-dir <path>      Install the exo shim into this bin directory.
+  --skip-install        Skip pnpm install.
+  --skip-build          Skip pnpm build.
+  --with-mcp            Configure Exo MCP for supported local agent clients.
+  --force               Replace an existing non-Exo exo command at the target.
+  --dry-run             Print actions without changing files.
+  -h, --help            Show this help.
+
+Examples:
+  ./scripts/install-local
+  ./scripts/install-local --with-mcp
+  ./scripts/install-local --bin-dir /usr/local/bin --force
+EOF
+}
+
+log() {
+  printf '[exo install] %s\n' "$*"
+}
+
+run() {
+  if [ "$DRY_RUN" -eq 1 ]; then
+    printf '[dry-run] %q' "$1"
+    shift || true
+    for arg in "$@"; do
+      printf ' %q' "$arg"
+    done
+    printf '\n'
+    return 0
+  fi
+  "$@"
+}
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --prefix)
+      PREFIX="${2:-}"
+      if [ -z "$PREFIX" ]; then
+        echo "Missing value for --prefix" >&2
+        exit 1
+      fi
+      shift 2
+      ;;
+    --bin-dir)
+      BIN_DIR="${2:-}"
+      if [ -z "$BIN_DIR" ]; then
+        echo "Missing value for --bin-dir" >&2
+        exit 1
+      fi
+      shift 2
+      ;;
+    --skip-install)
+      RUN_INSTALL=0
+      shift
+      ;;
+    --skip-build)
+      RUN_BUILD=0
+      shift
+      ;;
+    --with-mcp)
+      INSTALL_MCP=1
+      shift
+      ;;
+    --force)
+      FORCE=1
+      shift
+      ;;
+    --dry-run)
+      DRY_RUN=1
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
+if [ -z "$BIN_DIR" ]; then
+  BIN_DIR="$PREFIX/bin"
+fi
+
+EXO_SOURCE="$REPO_ROOT/bin/exo"
+EXO_TARGET="$BIN_DIR/exo"
+
+if [ ! -x "$EXO_SOURCE" ]; then
+  echo "Expected executable not found: $EXO_SOURCE" >&2
+  exit 1
+fi
+
+if ! command -v pnpm >/dev/null 2>&1; then
+  echo "pnpm is required. Install it first, then rerun scripts/install-local." >&2
+  exit 1
+fi
+
+log "repo: $REPO_ROOT"
+log "target: $EXO_TARGET"
+
+if [ "$RUN_INSTALL" -eq 1 ]; then
+  log "installing dependencies"
+  run pnpm --dir "$REPO_ROOT" install
+fi
+
+if [ "$RUN_BUILD" -eq 1 ]; then
+  log "building Exo"
+  run pnpm --dir "$REPO_ROOT" build
+fi
+
+if [ -e "$EXO_TARGET" ] || [ -L "$EXO_TARGET" ]; then
+  CURRENT_TARGET="$(readlink "$EXO_TARGET" 2>/dev/null || true)"
+  if [ "$CURRENT_TARGET" != "$EXO_SOURCE" ] && [ "$FORCE" -ne 1 ]; then
+    echo "Refusing to replace existing command: $EXO_TARGET" >&2
+    echo "Use --force to replace it." >&2
+    exit 1
+  fi
+fi
+
+log "installing exo command"
+run mkdir -p "$BIN_DIR"
+run ln -sfn "$EXO_SOURCE" "$EXO_TARGET"
+
+if [ "$INSTALL_MCP" -eq 1 ]; then
+  log "installing MCP integrations"
+  run "$EXO_TARGET" integrations install all
+fi
+
+cat <<EOF
+
+Exo local install complete.
+
+Command:
+  $EXO_TARGET
+
+Try:
+  exo dev
+  exo status
+  exo integrations doctor
+EOF
+
+case ":$PATH:" in
+  *":$BIN_DIR:"*) ;;
+  *)
+    cat <<EOF
+
+Add this to your shell config if 'exo' is not found:
+  export PATH="$BIN_DIR:\$PATH"
+EOF
+    ;;
+esac
+
+cat <<'EOF'
+
+Note:
+  This is a repo-backed local install. Keep this checkout in place.
+  Packaged .app installation and no-arg 'exo' app launch are separate follow-up work.
+EOF

@@ -30,9 +30,13 @@ const api: DesktopApi = {
     getSettings: () => ipcRenderer.invoke("workspace:get-settings"),
     saveSettings: (settings) => ipcRenderer.invoke("workspace:save-settings", settings),
     getIndexStatus: () => ipcRenderer.invoke("workspace:get-index-status"),
+    syncIndex: () => ipcRenderer.invoke("workspace:index-sync"),
+    updateIndex: () => ipcRenderer.invoke("workspace:index-update"),
+    embedIndex: () => ipcRenderer.invoke("workspace:index-embed"),
     listTree: (rootPath, options) => ipcRenderer.invoke("workspace:list-tree", rootPath, options),
     searchNotes: (query) => ipcRenderer.invoke("workspace:search-notes", query),
     searchWorkspace: (query) => ipcRenderer.invoke("workspace:search-workspace", query),
+    searchIndex: (query, options) => ipcRenderer.invoke("workspace:search-index", query, options),
     searchTag: (tag) => ipcRenderer.invoke("workspace:search-tag", tag),
     getGitStatus: (rootPath) => ipcRenderer.invoke("workspace:get-git-status", rootPath),
     createFile: (targetPath, content) => ipcRenderer.invoke("workspace:create-file", targetPath, content),
@@ -44,6 +48,11 @@ const api: DesktopApi = {
         callback(payload);
       ipcRenderer.on("workspace:changed", listener);
       return () => ipcRenderer.removeListener("workspace:changed", listener);
+    },
+    onIndexSyncState: (callback) => {
+      const listener = (_event: unknown, payload: Parameters<typeof callback>[0]) => callback(payload);
+      ipcRenderer.on("workspace:index-sync-state", listener);
+      return () => ipcRenderer.removeListener("workspace:index-sync-state", listener);
     },
     onCommandOpenFile: (callback) => {
       const listener = (_event: unknown, filePath: string) => callback(filePath);

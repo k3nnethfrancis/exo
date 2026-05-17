@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, Menu, nativeImage, nativeTheme, shell, Tray } from "electron";
 import { execFile } from "node:child_process";
 import path from "node:path";
-import { access, appendFile, stat } from "node:fs/promises";
+import { access, appendFile, mkdir, stat } from "node:fs/promises";
 import { constants, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -27,8 +27,10 @@ import {
   searchIndex,
   searchNotes,
   searchWorkspace,
+  syncIndex,
   updateIndex,
   type IndexedRoot,
+  type IndexSyncResult,
   type SearchResult,
   type WorkspaceModel,
   type WorkspaceSettings,
@@ -78,6 +80,12 @@ let workspaceSettings: WorkspaceSettings | null = null;
 let workspaceSettingsStore: WorkspaceSettingsStore;
 let terminalManager: TerminalManager;
 let workspaceWatcherService: WorkspaceWatcherService;
+let indexSyncTimer: NodeJS.Timeout | null = null;
+let indexSyncPromise: Promise<IndexSyncResult> | null = null;
+let indexSyncQueued = false;
+let indexRefreshTimer: NodeJS.Timeout | null = null;
+let indexRefreshPromise: Promise<IndexSyncResult> | null = null;
+const pendingIndexRefreshRootIds = new Set<string>();
 const rendererRecoveryTimestamps: number[] = [];
 const streamingTerminalIds = new Set<string>();
 
@@ -129,6 +137,7 @@ function setupTray() {
 function startCommandServer() {
   const runtimeConfig = resolveRuntimeConfig();
 
+  commandServer?.stop();
   commandServer = new CommandServer({
     runtimeRoot: runtimeConfig.runtimeRoot,
     onShowWindow: () => showMainWindow(),
@@ -136,13 +145,14 @@ function startCommandServer() {
       sendToRenderer("command:open-file", filePath);
     },
     onSearch: (query: string) => searchWorkspace(workspaceModel, query),
-    onIndexSearch: (query, options) => searchIndex(workspaceModel, runtimeConfig.runtimeRoot, query, options),
-    onReadDocument: (target, options) => readIndexDocument(workspaceModel, runtimeConfig.runtimeRoot, target, options),
-    onIndexStatus: () => getIndexStatus(workspaceModel, runtimeConfig.runtimeRoot),
+    onIndexSearch: (query, options) => searchIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot, query, options),
+    onReadDocument: (target, options) => readIndexDocument(workspaceModel, resolveRuntimeConfig().runtimeRoot, target, options),
+    onIndexStatus: () => getIndexStatus(workspaceModel, resolveRuntimeConfig().runtimeRoot),
     onIndexAddRoot: (input) => addIndexedRoot(input),
     onIndexRemoveRoot: (target) => removeIndexedRoot(target),
-    onIndexUpdate: () => updateIndex(workspaceModel, runtimeConfig.runtimeRoot),
-    onIndexEmbed: () => embedIndex(workspaceModel, runtimeConfig.runtimeRoot),
+    onIndexSync: () => runIndexSync("command"),
+    onIndexUpdate: () => updateIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot),
+    onIndexEmbed: () => embedIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot),
     onListTerminals: () => terminalManager.list(),
     onCreateTerminal: (kind: string, cwd?: string) => terminalManager.create({ kind: kind as "shell" | "claude" | "codex", cwd }),
     onReadTerminal: (id: string) => terminalManager.readBuffer(id),
@@ -392,6 +402,9 @@ function registerIpcHandlers() {
   ipcMain.handle("workspace:get-model", async () => workspaceModel);
   ipcMain.handle("workspace:get-settings", async () => currentWorkspaceSettings());
   ipcMain.handle("workspace:get-index-status", async () => getIndexStatus(workspaceModel, resolveRuntimeConfig().runtimeRoot));
+  ipcMain.handle("workspace:index-sync", async () => runIndexSync("settings"));
+  ipcMain.handle("workspace:index-update", async () => updateIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot));
+  ipcMain.handle("workspace:index-embed", async () => embedIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot));
   ipcMain.handle("workspace:save-settings", async (_event, settings: WorkspaceSettings) => {
     return saveWorkspaceSettings(settings);
   });
@@ -399,11 +412,16 @@ function registerIpcHandlers() {
   ipcMain.handle("runtime:sync", async () => terminalManager.syncRuntimeContext());
   ipcMain.handle(
     "workspace:list-tree",
-    async (_event, rootPath: string, options?: { markdownOnly?: boolean; maxDepth?: number }) =>
+    async (_event, rootPath: string, options?: { markdownOnly?: boolean; maxDepth?: number; includeEmptyDirectories?: boolean }) =>
     listRootTree(rootPath, options),
   );
   ipcMain.handle("workspace:search-notes", async (_event, query: string) => searchNotes(workspaceModel, query));
   ipcMain.handle("workspace:search-workspace", async (_event, query: string) => searchWorkspace(workspaceModel, query));
+  ipcMain.handle(
+    "workspace:search-index",
+    async (_event, query: string, options?: { limit?: number; forceMode?: "lexical" | "semantic" | "hybrid" }) =>
+      searchIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot, query, options),
+  );
   ipcMain.handle("workspace:get-git-status", async (_event, rootPath: string) => getGitStatus(rootPath));
   ipcMain.handle("workspace:create-file", async (_event, targetPath: string, content?: string) => createWorkspaceFile(targetPath, content));
   ipcMain.handle("workspace:create-directory", async (_event, targetPath: string) => createWorkspaceDirectory(targetPath));
@@ -439,9 +457,10 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle("notes:read", async (_event, filePath: string) => readWorkspaceDocument(filePath));
-  ipcMain.handle("notes:save", async (_event, filePath: string, frontmatter: Record<string, unknown>, body: string) =>
-    saveWorkspaceDocument(filePath, frontmatter, body),
-  );
+  ipcMain.handle("notes:save", async (_event, filePath: string, frontmatter: Record<string, unknown>, body: string) => {
+    await saveWorkspaceDocument(filePath, frontmatter, body);
+    scheduleIndexSyncForFile(filePath, "note-save");
+  });
   ipcMain.handle("notes:stat", async (_event, filePath: string) => {
     try {
       const info = await stat(filePath);
@@ -592,13 +611,23 @@ function currentWorkspaceSettings(): WorkspaceSettings {
 }
 
 async function saveWorkspaceSettings(settings: WorkspaceSettings): Promise<WorkspaceSettings> {
+  const previousSettings = currentWorkspaceSettings();
+  const previousRuntimeRoot = resolveRuntimeConfig().runtimeRoot;
   workspaceSettings = await workspaceSettingsStore.save(settings);
-  workspaceModel = {
-    ...workspaceModel,
-    indexedRoots: workspaceSettings.indexedRoots,
-    indexing: workspaceSettings.indexing,
-  };
   applyWorkspaceSettings(workspaceSettings);
+  workspaceModel = resolveWorkspaceModel();
+  const nextRuntimeConfig = resolveRuntimeConfig();
+  await ensureNoteRoots(workspaceModel);
+  workspaceWatcherService.start(workspaceModel);
+  terminalManager.setRuntimeConfig(nextRuntimeConfig);
+  terminalManager.setDefaultCwd(workspaceModel.defaultTerminalCwd);
+  await terminalManager.syncRuntimeContext();
+  if (nextRuntimeConfig.runtimeRoot !== previousRuntimeRoot) {
+    startCommandServer();
+  }
+  if (shouldSyncAfterSettingsApply(previousSettings, workspaceSettings)) {
+    scheduleIndexSync("settings-apply", 0);
+  }
   return workspaceSettings;
 }
 
@@ -642,6 +671,151 @@ async function removeIndexedRoot(target: string): Promise<WorkspaceSettings> {
   });
 }
 
+function shouldUseIndex(model = workspaceModel): boolean {
+  return model.indexing.enabled && model.indexing.mode !== "off" && model.indexedRoots.length > 0;
+}
+
+function scheduleIndexSyncForFile(filePath: string, reason: string) {
+  const settings = currentWorkspaceSettings();
+  if (settings.indexUpdateStrategy !== "on-save" || !shouldUseIndex()) {
+    return;
+  }
+  const matchingRootIds = workspaceModel.indexedRoots
+    .filter((root) => isPathWithin(root.path, filePath))
+    .map((root) => root.id);
+  if (matchingRootIds.length === 0) {
+    return;
+  }
+  scheduleIndexRefresh(reason, matchingRootIds);
+}
+
+function shouldSyncAfterSettingsApply(previous: WorkspaceSettings, next: WorkspaceSettings): boolean {
+  if (!next.indexing.enabled || next.indexing.mode === "off" || next.indexedRoots.length === 0) {
+    return false;
+  }
+  return (
+    !previous.indexing.enabled ||
+    previous.indexing.mode !== next.indexing.mode ||
+    JSON.stringify(previous.indexedRoots.map((root) => root.path).sort()) !== JSON.stringify(next.indexedRoots.map((root) => root.path).sort())
+  );
+}
+
+function scheduleIndexSync(reason: string, delayMs = 15_000) {
+  if (indexSyncTimer) {
+    clearTimeout(indexSyncTimer);
+  }
+  indexSyncTimer = setTimeout(() => {
+    indexSyncTimer = null;
+    runIndexSync(reason).catch((error) => {
+      console.warn("[exo] index sync failed", error);
+    });
+  }, delayMs);
+}
+
+async function runIndexSync(reason: string): Promise<IndexSyncResult> {
+  if (!shouldUseIndex()) {
+    throw new Error("Indexing is disabled or has no indexed roots.");
+  }
+  if (indexSyncPromise) {
+    indexSyncQueued = true;
+    return indexSyncPromise;
+  }
+
+  sendToRenderer("workspace:index-sync-state", { state: "running", reason });
+  indexSyncPromise = syncIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot)
+    .then((result) => {
+      sendToRenderer("workspace:index-sync-state", { state: "idle", reason, result });
+      return result;
+    })
+    .catch((error) => {
+      sendToRenderer("workspace:index-sync-state", {
+        state: "error",
+        reason,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    })
+    .finally(() => {
+      indexSyncPromise = null;
+      if (indexSyncQueued) {
+        indexSyncQueued = false;
+        runIndexSync("queued").catch((error) => {
+          console.warn("[exo] queued index sync failed", error);
+        });
+      }
+    });
+
+  return indexSyncPromise;
+}
+
+function scheduleIndexRefresh(reason: string, rootIds: string[], delayMs = 15_000) {
+  for (const rootId of rootIds) {
+    pendingIndexRefreshRootIds.add(rootId);
+  }
+  if (indexRefreshTimer) {
+    clearTimeout(indexRefreshTimer);
+  }
+  indexRefreshTimer = setTimeout(() => {
+    indexRefreshTimer = null;
+    const refreshRootIds = Array.from(pendingIndexRefreshRootIds);
+    pendingIndexRefreshRootIds.clear();
+    runIndexRefresh(reason, refreshRootIds).catch((error) => {
+      console.warn("[exo] index refresh failed", error);
+    });
+  }, delayMs);
+}
+
+async function runIndexRefresh(reason: string, rootIds: string[]): Promise<IndexSyncResult> {
+  if (!shouldUseIndex()) {
+    throw new Error("Indexing is disabled or has no indexed roots.");
+  }
+  if (indexSyncPromise) {
+    return indexSyncPromise;
+  }
+  if (indexRefreshPromise) {
+    return indexRefreshPromise;
+  }
+
+  sendToRenderer("workspace:index-sync-state", { state: "running", reason });
+  indexRefreshPromise = updateIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot, { rootIds })
+    .then((status) => {
+      const result: IndexSyncResult = {
+        status,
+        phases: [
+          {
+            name: "update",
+            status: "completed",
+            message: "Indexed documents refreshed for changed root.",
+          },
+          {
+            name: "embed",
+            status: "skipped",
+            message: "Embeddings are deferred on save; use Sync index to rebuild them.",
+          },
+        ],
+        warnings:
+          workspaceModel.indexing.mode === "lexical"
+            ? []
+            : ["Save-triggered indexing refreshed documents only; embeddings remain available from the previous sync until rebuilt."],
+      };
+      sendToRenderer("workspace:index-sync-state", { state: "idle", reason, result });
+      return result;
+    })
+    .catch((error) => {
+      sendToRenderer("workspace:index-sync-state", {
+        state: "error",
+        reason,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    })
+    .finally(() => {
+      indexRefreshPromise = null;
+    });
+
+  return indexRefreshPromise;
+}
+
 function applyWorkspaceSettings(settings: WorkspaceSettings | null) {
   applyWorkspaceSettingsToEnv(settings);
   if (!isForcedTheme(process.env.EXO_FORCE_THEME)) {
@@ -674,6 +848,7 @@ app.whenReady().then(async () => {
     nativeTheme.themeSource = workspaceSettings.appearanceMode;
   }
   workspaceModel = resolveWorkspaceModel();
+  await ensureNoteRoots(workspaceModel);
   workspaceSettings = await workspaceSettingsStore.save(currentWorkspaceSettings());
   logWorkspaceStartup(workspaceModel);
   terminalManager = new TerminalManager(workspaceModel.defaultTerminalCwd);
@@ -713,6 +888,10 @@ app.whenReady().then(async () => {
     showMainWindow();
   });
 });
+
+async function ensureNoteRoots(model: WorkspaceModel): Promise<void> {
+  await Promise.all(model.noteRoots.map((root) => mkdir(root.path, { recursive: true })));
+}
 
 app.on("before-quit", () => {
   commandServer?.stop();

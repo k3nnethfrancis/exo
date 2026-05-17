@@ -12,6 +12,7 @@ import {
   type ExoWriteTerminalRequest,
   type IndexReadResponse,
   type IndexSearchResponse,
+  type IndexSyncResult,
   type IndexStatus,
   type WorkspaceSearchResults,
   type WorkspaceSettings,
@@ -27,6 +28,7 @@ export interface CommandServerOptions {
   onIndexStatus: () => Promise<IndexStatus>;
   onIndexAddRoot: (input: ExoIndexRootRequest) => Promise<WorkspaceSettings>;
   onIndexRemoveRoot: (target: string) => Promise<WorkspaceSettings>;
+  onIndexSync: () => Promise<IndexSyncResult>;
   onIndexUpdate: () => Promise<IndexStatus>;
   onIndexEmbed: () => Promise<IndexStatus>;
   onListTerminals: () => ExoCommandTerminalInfo[];
@@ -146,6 +148,11 @@ export class CommandServer {
 
       if (method === "POST" && pathname === EXO_COMMAND_ROUTES.indexUpdate) {
         json(res, await this.options.onIndexUpdate());
+        return;
+      }
+
+      if (method === "POST" && pathname === EXO_COMMAND_ROUTES.indexSync) {
+        json(res, await this.options.onIndexSync());
         return;
       }
 

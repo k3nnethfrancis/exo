@@ -1,3 +1,5 @@
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -91,6 +93,27 @@ describe("workspace", () => {
   it("lists markdown tree nodes", async () => {
     const nodes = await listRootTree(path.join(fixtureWorkspaceRoot, "notes/test-notes"), { markdownOnly: true });
     expect(nodes.some((node) => node.name === "focus-note.md")).toBe(true);
+  });
+
+  it("can include empty directories in markdown-only trees", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-empty-notes-"));
+    try {
+      await mkdir(path.join(root, "empty-folder"));
+
+      const hiddenNodes = await listRootTree(root, { markdownOnly: true });
+      expect(hiddenNodes.some((node) => node.name === "empty-folder")).toBe(false);
+
+      const visibleNodes = await listRootTree(root, { markdownOnly: true, includeEmptyDirectories: true });
+      expect(visibleNodes).toContainEqual({
+        id: path.join(root, "empty-folder"),
+        name: "empty-folder",
+        path: path.join(root, "empty-folder"),
+        kind: "directory",
+        children: [],
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 
   it("searches notes by title and path", async () => {

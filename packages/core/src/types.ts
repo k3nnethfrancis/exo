@@ -32,6 +32,8 @@ export interface WorkspaceSettings {
   terminalScrollbackLines: number;
   terminalBufferChars: number;
   explorerScale: number;
+  exploreIndexSearchOnEnter: boolean;
+  indexUpdateStrategy: IndexUpdateStrategy;
 }
 
 export interface TreeNode {
@@ -94,6 +96,7 @@ export interface SemanticSearchResult {
 export type IndexedRootKind = "notes" | "docs" | "code" | "mixed";
 export type IndexMode = "off" | "lexical" | "semantic" | "hybrid";
 export type IndexBackend = "qmd";
+export type IndexUpdateStrategy = "manual" | "on-save";
 
 export interface IndexedRoot {
   id: string;
@@ -124,6 +127,18 @@ export interface IndexStatus {
   lastUpdated: string | null;
   warnings: string[];
   errors: string[];
+}
+
+export interface IndexSyncPhase {
+  name: "update" | "embed";
+  status: "completed" | "skipped" | "failed";
+  message: string;
+}
+
+export interface IndexSyncResult {
+  status: IndexStatus;
+  phases: IndexSyncPhase[];
+  warnings: string[];
 }
 
 export interface IndexSearchResult {

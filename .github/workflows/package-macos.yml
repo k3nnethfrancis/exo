@@ -7,6 +7,7 @@ jobs:
   package:
     name: Build unsigned macOS artifacts
     runs-on: macos-latest
+    timeout-minutes: 45
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
@@ -28,6 +29,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Repo checks
+        run: pnpm check:repo
+
       - name: Package macOS app
         run: pnpm dist:mac
 
@@ -36,3 +40,5 @@ jobs:
         with:
           name: exo-macos-unsigned
           path: release/*
+          if-no-files-found: error
+          retention-days: 14

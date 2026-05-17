@@ -128,8 +128,8 @@ export function renderPrimaryAgentInstructions(config: RuntimeConfig): string {
     `- project_roots: ${workspace.projectRoots.map((root) => root.path).join(", ")}`,
     "",
     "## Runtime Priority",
-    "- Treat AGENTS.md as the primary generic contract.",
-    "- Treat CLAUDE.md as a secondary Claude-specific overlay when present.",
+    "- Treat AGENTS.md as the generic contract for every agent.",
+    "- Treat CLAUDE.md as an identical compatibility alias for tools that discover it.",
     "- Use Exo CLI for runtime-aware operations before inventing local state.",
     "",
     "## Exo Runtime Tools",
@@ -166,23 +166,7 @@ export function renderPrimaryAgentInstructions(config: RuntimeConfig): string {
 }
 
 export function renderClaudeOverlay(config: RuntimeConfig): string {
-  return [
-    "# Exo Claude Overlay",
-    "",
-    "Primary runtime instructions live in AGENTS.md.",
-    "",
-    "Claude-specific notes:",
-    "- Prefer AGENTS.md as the primary generic contract.",
-    "- Use CLAUDE.md as a secondary overlay, not as the sole source of truth.",
-    "- When Exo provides runtime context files or CLI commands, prefer those over manual reconstruction.",
-    "",
-    "Optional retrieval/index and communication are configured by Exo:",
-    `- QMD command: ${config.retrieval.command}`,
-    `- index mode: ${config.workspace.indexing.mode}`,
-    "- Use Exo search/read commands when available.",
-    `- communication transport: ${config.communication.kind}`,
-    "",
-  ].join("\n");
+  return renderPrimaryAgentInstructions(config);
 }
 
 export async function syncRuntimeContextFiles(config: RuntimeConfig): Promise<{ primary: string; claude: string }> {
@@ -205,7 +189,6 @@ export function resolveAgentLaunchPlan(
   cwd = config.workspace.defaultTerminalCwd,
 ): AgentLaunchPlan {
   const launcher = config.launchers[kind];
-  const secondaryInstructionsPath = kind === "claude" ? config.instructions.claude : undefined;
 
   return {
     kind,
@@ -214,7 +197,7 @@ export function resolveAgentLaunchPlan(
     command: launcher.command,
     args: launcher.args,
     primaryInstructionsPath: config.instructions.primary,
-    secondaryInstructionsPath,
+    secondaryInstructionsPath: undefined,
     env: {
       EXO_WORKSPACE_ROOT: config.workspace.workspaceRoot,
       EXO_NOTE_ROOTS: config.workspace.noteRoots.map((root) => root.path).join(path.delimiter),
@@ -222,7 +205,7 @@ export function resolveAgentLaunchPlan(
       EXO_DEFAULT_TERMINAL_CWD: config.workspace.defaultTerminalCwd,
       EXO_RUNTIME_ROOT: config.runtimeRoot,
       EXO_RUNTIME_PRIMARY_INSTRUCTIONS: config.instructions.primary,
-      EXO_RUNTIME_SECONDARY_INSTRUCTIONS: secondaryInstructionsPath ?? "",
+      EXO_RUNTIME_SECONDARY_INSTRUCTIONS: "",
       EXO_RETRIEVAL_PROVIDER: config.retrieval.kind,
       EXO_RETRIEVAL_COMMAND: config.retrieval.command,
       EXO_AGENT_TRANSPORT: config.communication.kind,

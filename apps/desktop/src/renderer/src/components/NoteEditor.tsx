@@ -70,19 +70,12 @@ export function NoteEditor(props: NoteEditorProps) {
     setRawMarkdownMode(false);
   }, [document?.filePath]);
 
-  if (!document) {
-    return (
-      <section className="editor-panel editor-panel--empty" data-testid="editor-empty">
-        <h1>Exo</h1>
-        <p>Open a note from the left sidebar to begin.</p>
-      </section>
-    );
-  }
-
-  const isMarkdown = document.kind === "markdown";
-  const displayTitle = getDocumentDisplayTitle(document.filePath, document.kind);
-  const codeLanguage = useMemo(() => (isMarkdown ? null : codeLanguageForPath(document.filePath)), [document.filePath, isMarkdown]);
-  const frontmatterEntries = Object.entries(document.frontmatter).filter(([key]) => !key.startsWith("branch_"));
+  const documentPath = document?.filePath ?? "";
+  const documentBody = document?.body ?? "";
+  const isMarkdown = document?.kind === "markdown";
+  const displayTitle = document ? getDocumentDisplayTitle(document.filePath, document.kind) : "";
+  const codeLanguage = useMemo(() => (!document || isMarkdown ? null : codeLanguageForPath(document.filePath)), [document, isMarkdown]);
+  const frontmatterEntries = document ? Object.entries(document.frontmatter).filter(([key]) => !key.startsWith("branch_")) : [];
   const cmTheme = useMemo(() => editorTheme(appearance, fontSize), [appearance, fontSize]);
   const syntaxTheme = useMemo(() => syntaxHighlighting(exoSyntaxHighlightStyle(appearance)), [appearance]);
   const saveKeymap = useMemo(
@@ -128,12 +121,16 @@ export function NoteEditor(props: NoteEditorProps) {
       ]),
     [onSave, onZoomEditor],
   );
-  const bodyChanged = previousPathRef.current === document.filePath && previousBodyRef.current !== document.body;
+  const bodyChanged = document !== null && previousPathRef.current === document.filePath && previousBodyRef.current !== document.body;
   if (bodyChanged) {
     restoringScrollRef.current = true;
   }
 
   useEffect(() => {
+    if (!document) {
+      return;
+    }
+
     const scroller = codeMirrorRef.current?.view?.scrollDOM;
     if (!scroller) {
       return;
@@ -154,9 +151,13 @@ export function NoteEditor(props: NoteEditorProps) {
       window.clearInterval(interval);
       scroller.removeEventListener("scroll", handleScroll);
     };
-  }, [document.filePath, rawMarkdownMode, appearance, fontSize]);
+  }, [document, documentPath, rawMarkdownMode, appearance, fontSize]);
 
   useLayoutEffect(() => {
+    if (!document) {
+      return;
+    }
+
     const scroller = codeMirrorRef.current?.view?.scrollDOM;
     const scrollTop = scrollTopByPathRef.current.get(document.filePath);
     if (!scroller || scrollTop === undefined) {
@@ -185,7 +186,16 @@ export function NoteEditor(props: NoteEditorProps) {
       window.clearInterval(interval);
       window.clearTimeout(timeout);
     };
-  }, [document.filePath, document.body, rawMarkdownMode, appearance, fontSize]);
+  }, [document, documentPath, documentBody, rawMarkdownMode, appearance, fontSize]);
+
+  if (!document) {
+    return (
+      <section className="editor-panel editor-panel--empty" data-testid="editor-empty">
+        <h1>Exo</h1>
+        <p>Open a note from the left sidebar to begin.</p>
+      </section>
+    );
+  }
 
   return (
     <section className={`editor-panel ${compact ? "editor-panel--compact" : ""}`} data-testid="editor-panel" onMouseDown={onFocus}>

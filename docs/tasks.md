@@ -1,6 +1,6 @@
 # Exo Tasks
 
-Last updated: 2026-05-12
+Last updated: 2026-05-16
 
 This is the active task tracker for Exo. It is intentionally not a history file; completed implementation history belongs in `ledger.md`. Tasks here should be concrete, current, and ordered by practical priority.
 
@@ -11,7 +11,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [ ] Confirm README, AGENTS, CLAUDE, architecture, roadmap, tasks, ledger, and MCP docs agree on the current Exo identity.
 - [ ] Confirm no source defaults point to private or machine-specific paths.
 - [ ] Confirm `.exo/`, terminal transcripts, logs, local settings, release artifacts, and generated runtime state are ignored.
-- [ ] Run `pnpm check`.
+- [ ] Run `pnpm ci:check`.
 - [ ] Run focused desktop e2e for shell/search/terminal flows.
 
 ## Next: Workspace Surface
@@ -53,16 +53,20 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 
 ## Next: QMD, Notes Index, And Search
 
-- [ ] Keep current app search fast and stable until QMD-backed search is explicitly designed.
-- [ ] Package or vendor the QMD setup Exo needs so first-time users do not have to understand QMD separately.
+- [x] Keep live Explore typing as fast filename/path search while making indexed search explicit.
+- [x] Add Exo-managed QMD setup for selected note roots only.
+- [x] Configure indexed note roots and the first reindex trigger from Exo settings.
+- [x] Expose QMD-backed status/search/read/sync/update/embed through Exo CLI and MCP.
+- [ ] Package the QMD setup Exo needs so first-time users do not have to understand QMD separately.
 - [ ] Detect an existing QMD setup and connect it when it already indexes the selected notes.
-- [ ] Add Exo-managed QMD setup for selected note roots only.
-- [ ] Configure indexed note roots, reindex triggers, and reindex frequency from Exo settings.
+- [ ] Add true file-level incremental indexing when QMD exposes a public API for changed/deleted files.
+- [ ] Add configurable reindex triggers beyond manual/on-save, such as app start, interval, and git events.
+- [ ] Add progress and cancellation for long semantic embedding builds.
 - [ ] Add machine-size/performance profiles:
   - small: low-compute fallback using filename/path and lightweight lexical search
   - medium: local semantic index with conservative caps
   - large: richer semantic retrieval and reranking
-- [ ] Expose the same notes index to humans and agents through Exo search, CLI, and MCP.
+- [ ] Refine shared human/agent search semantics across Explore, CLI, and MCP.
 - [ ] Keep project files out of the notes memory index unless explicitly added later.
 
 ## Next: Multi-Agent Coordination
@@ -105,6 +109,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 
 - [ ] Add deterministic formatting/lint.
 - [ ] Add structural rules for renderer/main/core boundaries.
-- [ ] Add docs link/path checks for README, AGENTS, and docs indexes.
+- [x] Add docs link/path checks for README, AGENTS, and docs indexes.
 - [ ] Add renderer crash regression probes for blank-window failures.
 - [ ] Add golden/snapshot coverage for stable Markdown rendering, terminal hydration, and search output.
+- [x] Keep CLI app-route tests isolated from live Exo command-server state.

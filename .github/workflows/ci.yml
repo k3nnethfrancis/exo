@@ -6,10 +6,15 @@ on:
     branches:
       - main
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   checks:
-    name: Typecheck, test, and build
+    name: Canonical harness
     runs-on: macos-latest
+    timeout-minutes: 30
     env:
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
     steps:
@@ -30,5 +35,5 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Check
-        run: pnpm check
+      - name: CI check
+        run: pnpm ci:check

@@ -6,8 +6,10 @@ import { searchWorkspace } from "./workspace";
 import type {
   IndexedRoot,
   IndexReadResponse,
+  IndexMode,
   IndexSearchResponse,
   IndexSearchResult,
+  IndexSyncResult,
   IndexStatus,
   WorkspaceModel,
 } from "./types";
@@ -21,6 +23,7 @@ export interface IndexSearchOptions {
   rootIds?: string[];
   includeContent?: boolean;
   maxLinesPerResult?: number;
+  forceMode?: Exclude<IndexMode, "off">;
 }
 
 export interface IndexReadOptions {
@@ -35,6 +38,10 @@ export interface IndexRootInput {
   kind?: IndexedRoot["kind"];
   pattern?: string;
   ignore?: string[];
+}
+
+export interface IndexUpdateOptions {
+  rootIds?: string[];
 }
 
 const DEFAULT_SEARCH_LIMIT = 10;
@@ -81,12 +88,13 @@ export async function getIndexStatus(model: WorkspaceModel, runtimeRoot: string)
   }
 }
 
-export async function updateIndex(model: WorkspaceModel, runtimeRoot: string): Promise<IndexStatus> {
+export async function updateIndex(model: WorkspaceModel, runtimeRoot: string, options: IndexUpdateOptions = {}): Promise<IndexStatus> {
   ensureIndexEnabled(model);
   let store: QmdStore | null = null;
   try {
     store = await openQmdStore(model, runtimeRoot);
-    await store.update();
+    const collections = selectedCollectionNames(model.indexedRoots, options.rootIds);
+    await store.update(collections.length > 0 ? { collections } : undefined);
   } finally {
     await store?.close();
   }
@@ -107,6 +115,51 @@ export async function embedIndex(model: WorkspaceModel, runtimeRoot: string): Pr
     await store?.close();
   }
   return getIndexStatus(model, runtimeRoot);
+}
+
+export async function syncIndex(model: WorkspaceModel, runtimeRoot: string): Promise<IndexSyncResult> {
+  const phases: IndexSyncResult["phases"] = [];
+  const warnings: string[] = [];
+
+  let status = await updateIndex(model, runtimeRoot);
+  phases.push({
+    name: "update",
+    status: "completed",
+    message: "Indexed documents refreshed.",
+  });
+
+  if (model.indexing.mode === "lexical") {
+    phases.push({
+      name: "embed",
+      status: "skipped",
+      message: "Embeddings are not needed in lexical mode.",
+    });
+    return { status, phases, warnings };
+  }
+
+  try {
+    status = await embedIndex(model, runtimeRoot);
+    phases.push({
+      name: "embed",
+      status: "completed",
+      message: "Embeddings built.",
+    });
+  } catch (error) {
+    const warning = `Embedding failed (${errorMessage(error)}); lexical search remains available.`;
+    warnings.push(warning);
+    status = await getIndexStatus(model, runtimeRoot);
+    status = {
+      ...status,
+      warnings: [...status.warnings, warning],
+    };
+    phases.push({
+      name: "embed",
+      status: "failed",
+      message: warning,
+    });
+  }
+
+  return { status, phases, warnings };
 }
 
 export async function searchIndex(
@@ -138,10 +191,23 @@ export async function searchIndex(
     let rawResults: unknown[];
     const warnings: string[] = [];
 
-    if (model.indexing.mode === "lexical") {
+    const effectiveMode = options.forceMode ?? model.indexing.mode;
+    if (effectiveMode !== "lexical") {
+      try {
+        const qmdStatus = await store.getStatus();
+        const pendingEmbeddings = Number(qmdStatus.needsEmbedding ?? 0);
+        if (!Boolean(qmdStatus.hasVectorIndex) || pendingEmbeddings > 0) {
+          warnings.push("Embeddings are not ready; Exo will use lexical fallback if semantic/hybrid search is unavailable.");
+        }
+      } catch {
+        // Status warnings are best-effort; search fallback below remains authoritative.
+      }
+    }
+
+    if (effectiveMode === "lexical") {
       const lexical = await Promise.all(collections.map((collection) => store!.searchLex(trimmedQuery, { limit, collection })));
       rawResults = lexical.flat();
-    } else if (model.indexing.mode === "semantic") {
+    } else if (effectiveMode === "semantic") {
       try {
         const [lexical, vector] = await Promise.all([
           Promise.all(collections.map((collection) => store!.searchLex(trimmedQuery, { limit, collection }))),
@@ -155,13 +221,18 @@ export async function searchIndex(
       }
     } else {
       try {
-        rawResults = await store.search({
-          query: trimmedQuery,
-          collections,
-          limit,
-          intent: options.intent,
-          rerank: true,
-        });
+        const hybrid = await Promise.all(
+          collections.map((collection) =>
+            store!.search({
+              query: trimmedQuery,
+              collections: [collection],
+              limit,
+              intent: options.intent,
+              rerank: true,
+            }),
+          ),
+        );
+        rawResults = hybrid.flat();
       } catch (error) {
         warnings.push(`Hybrid search is not ready (${errorMessage(error)}); using lexical search.`);
         const lexical = await Promise.all(collections.map((collection) => store!.searchLex(trimmedQuery, { limit, collection })));
@@ -186,7 +257,7 @@ export async function searchIndex(
 
     return {
       query: trimmedQuery,
-      mode: model.indexing.mode,
+      mode: effectiveMode,
       source: "qmd",
       warnings,
       results,
@@ -212,11 +283,14 @@ export async function readIndexDocument(
       if ("error" in doc) {
         throw new Error(`Document not found: ${target}`);
       }
+      const filePath = resolveQmdPath(doc.filepath, model.indexedRoots);
+      if (!filePath || !isPathAllowedByIndexedRoot(filePath, model)) {
+        throw new Error("Refusing to read a QMD document outside configured indexed roots.");
+      }
       const body = await store.getDocumentBody(target, {
         fromLine: options.fromLine,
         maxLines: options.maxLines,
       });
-      const filePath = resolveQmdPath(doc.filepath, model.indexedRoots) ?? doc.filepath;
       return {
         target,
         filePath,
@@ -375,10 +449,10 @@ function modeWarnings(model: WorkspaceModel, hasVectorIndex: boolean, pendingEmb
     return [];
   }
   if (!hasVectorIndex) {
-    return ["Semantic/hybrid search needs embeddings. Run `exo index embed` after `exo index update`."];
+    return ["Semantic/hybrid search needs embeddings. Run `exo index sync`."];
   }
   if (pendingEmbeddings > 0) {
-    return [`${pendingEmbeddings} document hashes need embeddings. Run \`exo index embed\`.`];
+    return [`${pendingEmbeddings} document hashes need embeddings. Run \`exo index sync\`.`];
   }
   return [];
 }
@@ -394,6 +468,10 @@ function latestCollectionUpdate(collections: Array<{ lastUpdated?: unknown; last
 function isPathAllowed(targetPath: string, model: WorkspaceModel): boolean {
   const roots = [...model.noteRoots, ...model.projectRoots, ...model.indexedRoots].map((root) => root.path);
   return roots.some((root) => isWithin(root, targetPath));
+}
+
+function isPathAllowedByIndexedRoot(targetPath: string, model: WorkspaceModel): boolean {
+  return model.indexedRoots.some((root) => isWithin(root.path, targetPath));
 }
 
 function isWithin(root: string, targetPath: string): boolean {

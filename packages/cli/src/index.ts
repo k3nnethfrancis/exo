@@ -14,7 +14,6 @@ import {
   getBranchFamily,
   readWorkspaceDocument,
   readIndexDocument,
-  renderClaudeOverlay,
   renderPrimaryAgentInstructions,
   resolveAgentLaunchPlan,
   resolveRuntimeConfig,
@@ -35,11 +34,34 @@ interface CommandRunResult {
   stderr: string;
 }
 
+interface AppClientLike {
+  getStatus(): Promise<Record<string, unknown>>;
+  openFile(filePath: string): Promise<void>;
+  showWindow(): Promise<void>;
+  getConfig(): Promise<Record<string, unknown>>;
+  search(query: string): Promise<Record<string, unknown>>;
+  readDocument(target: string, options?: { fromLine?: number; maxLines?: number }): Promise<Record<string, unknown>>;
+  getIndexStatus(): Promise<Record<string, unknown>>;
+  syncIndex(): Promise<Record<string, unknown>>;
+  addIndexRoot(input: { path: string; name?: string; kind?: string; pattern?: string; force?: boolean }): Promise<Record<string, unknown>>;
+  removeIndexRoot(target: string): Promise<Record<string, unknown>>;
+  updateIndex(): Promise<Record<string, unknown>>;
+  embedIndex(): Promise<Record<string, unknown>>;
+  listTerminals(): Promise<unknown[]>;
+  createTerminal(kind: string, cwd?: string): Promise<Record<string, unknown>>;
+  readTerminal(id: string): Promise<string>;
+  readTerminalTranscript(id: string, tailChars?: number): Promise<string>;
+  writeTerminal(id: string, data: string): Promise<void>;
+  killTerminal(id: string): Promise<void>;
+}
+
 type CommandRunner = (
   command: string,
   args: string[],
   options?: { cwd?: string; env?: NodeJS.ProcessEnv },
 ) => Promise<CommandRunResult>;
+
+type AppClientConnector = (runtimeRoot: string, env: NodeJS.ProcessEnv) => Promise<AppClientLike | null>;
 
 export async function runCli(
   argv: string[],
@@ -50,6 +72,7 @@ export async function runCli(
     stderr?: { write: (text: string) => void };
     cwd?: string;
     runCommand?: CommandRunner;
+    connectAppClient?: AppClientConnector;
   } = {},
 ): Promise<number> {
   const env = options.env ?? process.env;
@@ -58,6 +81,7 @@ export async function runCli(
   const stderr = options.stderr ?? process.stderr;
   const cwd = options.cwd ?? process.cwd();
   const runCommand = options.runCommand ?? runProcess;
+  const connectAppClient = options.connectAppClient ?? ((runtimeRoot, connectEnv) => AppClient.connect(runtimeRoot, connectEnv));
 
   const [, , command, subcommand, ...args] = argv;
 
@@ -71,7 +95,7 @@ export async function runCli(
     }
 
     const config = resolveRuntimeConfig(env);
-    const client = await AppClient.connect(config.runtimeRoot);
+    const client = await connectAppClient(config.runtimeRoot, env);
     const results = client
       ? await client.search(query)
       : await searchIndex(config.workspace, config.runtimeRoot, query, { limit: parsePositiveInt(values.limit) });
@@ -88,7 +112,7 @@ export async function runCli(
     const targetPath = target.startsWith("#") ? target : path.resolve(cwd, target);
 
     const config = resolveRuntimeConfig(env);
-    const client = await AppClient.connect(config.runtimeRoot);
+    const client = await connectAppClient(config.runtimeRoot, env);
     const result = client
       ? await client.readDocument(targetPath, { fromLine: parsePositiveInt(values.from), maxLines: parsePositiveInt(values.lines) })
       : await readIndexDocument(config.workspace, config.runtimeRoot, targetPath, { fromLine: parsePositiveInt(values.from), maxLines: parsePositiveInt(values.lines) });
@@ -97,11 +121,16 @@ export async function runCli(
   }
 
   if (command === "index") {
-    const client = await connectOrFail(env, stderr);
+    const client = await connectOrFail(env, stderr, connectAppClient);
     if (!client) return 1;
 
     if (subcommand === "status" || !subcommand) {
       stdout.write(`${JSON.stringify(await client.getIndexStatus(), null, 2)}\n`);
+      return 0;
+    }
+
+    if (subcommand === "sync") {
+      stdout.write(`${JSON.stringify(await client.syncIndex(), null, 2)}\n`);
       return 0;
     }
 
@@ -140,7 +169,7 @@ export async function runCli(
       return 0;
     }
 
-    throw new Error("Usage: exo index <status|add|remove|update|embed>");
+    throw new Error("Usage: exo index <status|sync|add|remove|update|embed>");
   }
 
   // ─── Local agent integrations ───────────────────────────────────────
@@ -252,7 +281,7 @@ export async function runCli(
       throw new Error("Expected a file path.");
     }
 
-    const client = await connectOrFail(env, stderr);
+    const client = await connectOrFail(env, stderr, connectAppClient);
     if (!client) return 1;
     await client.openFile(filePath);
     stdout.write(`Opened: ${filePath}\n`);
@@ -260,7 +289,7 @@ export async function runCli(
   }
 
   if (command === "status") {
-    const client = await connectOrFail(env, stderr);
+    const client = await connectOrFail(env, stderr, connectAppClient);
     if (!client) return 1;
     const status = await client.getStatus();
     stdout.write(`${JSON.stringify(status, null, 2)}\n`);
@@ -268,7 +297,7 @@ export async function runCli(
   }
 
   if (command === "show") {
-    const client = await connectOrFail(env, stderr);
+    const client = await connectOrFail(env, stderr, connectAppClient);
     if (!client) return 1;
     await client.showWindow();
     stdout.write("Showed Exo window.\n");
@@ -276,7 +305,7 @@ export async function runCli(
   }
 
   if (command === "config") {
-    const client = await connectOrFail(env, stderr);
+    const client = await connectOrFail(env, stderr, connectAppClient);
     if (!client) return 1;
 
     if (subcommand === "get") {
@@ -295,7 +324,7 @@ export async function runCli(
   }
 
   if (command === "terminals") {
-    const client = await connectOrFail(env, stderr);
+    const client = await connectOrFail(env, stderr, connectAppClient);
     if (!client) return 1;
 
     if (subcommand === "list" || !subcommand) {
@@ -364,7 +393,7 @@ export async function runCli(
   }
 
   if (command === "agents") {
-    const client = await connectOrFail(env, stderr);
+    const client = await connectOrFail(env, stderr, connectAppClient);
     if (!client) return 1;
 
     if (subcommand === "list" || !subcommand) {
@@ -521,7 +550,7 @@ export async function runCli(
     }
 
     const config = resolveRuntimeConfig(env);
-    const content = kind === "claude" ? renderClaudeOverlay(config) : renderPrimaryAgentInstructions(config);
+    const content = renderPrimaryAgentInstructions(config);
     stdout.write(`${content}\n`);
     return 0;
   }
@@ -551,7 +580,12 @@ export async function runCli(
     const projectRoot = env.EXO_PROJECT_ROOT ?? path.resolve(fileURLToPath(import.meta.url), "../../../..");
     const child = spawn("pnpm", ["dev"], {
       cwd: projectRoot,
-      env: { ...process.env, ...env },
+      env: {
+        ...process.env,
+        ...env,
+        EXO_WORKSPACE_ROOT: env.EXO_WORKSPACE_ROOT ?? projectRoot,
+        EXO_DEFAULT_TERMINAL_CWD: env.EXO_DEFAULT_TERMINAL_CWD ?? env.EXO_WORKSPACE_ROOT ?? projectRoot,
+      },
       stdio: "inherit",
     });
 
@@ -588,10 +622,11 @@ export async function runCli(
       "  exo search <query> [--limit n]              Search Exo knowledge index or workspace fallback",
       "  exo read <path-or-docid> [--from n] [--lines n]",
       "  exo index status                           Show QMD-backed index status (app)",
+      "  exo index sync                             Sync documents and embeddings for configured mode (app)",
       "  exo index add <path> [--name n] [--kind k] [--force]",
       "  exo index remove <name-or-path>            Remove an indexed root (app)",
-      "  exo index update                           Refresh indexed documents (app)",
-      "  exo index embed                            Generate pending embeddings (app)",
+      "  exo index update                           Advanced: refresh indexed documents only (app)",
+      "  exo index embed                            Advanced: generate pending embeddings only (app)",
       "  exo open <path>                            Open file in editor (app)",
       "  exo status                                 Workspace status (app)",
       "  exo config get [key]                       Read settings (app)",
@@ -632,9 +667,10 @@ export async function runCli(
 async function connectOrFail(
   env: NodeJS.ProcessEnv,
   stderr: { write: (text: string) => void },
-): Promise<AppClient | null> {
+  connectAppClient: AppClientConnector,
+): Promise<AppClientLike | null> {
   const config = resolveRuntimeConfig(env);
-  const client = await AppClient.connect(config.runtimeRoot);
+  const client = await connectAppClient(config.runtimeRoot, env);
   if (!client) {
     stderr.write("Exo app is not running. Start it with: exo dev\n");
     return null;
