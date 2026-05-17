@@ -52,6 +52,7 @@ CI runs `pnpm check` on macOS.
 ## Dev Loop
 
 - Start Exo with `pnpm dev`.
+- Install a repo-backed local CLI with `./scripts/install-local`.
 - Use `pnpm --filter @exo/desktop dev -- --remote-debugging-port=9222` for renderer inspection.
 - Restart Exo after touching Electron main, preload, native terminal handling, runtime config, package dependencies, or settings bootstrap.
 - HMR is usually enough only for pure renderer changes.

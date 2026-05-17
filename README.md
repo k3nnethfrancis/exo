@@ -75,6 +75,14 @@ pnpm install
 pnpm dev
 ```
 
+Install a repo-backed local `exo` command:
+
+```bash
+./scripts/install-local
+```
+
+That script installs dependencies, builds Exo, and symlinks `bin/exo` into `~/.local/bin/exo` by default. Use `./scripts/install-local --with-mcp` to also configure supported MCP clients, or `./scripts/install-local --dry-run` to preview actions.
+
 Run with remote debugging when inspecting the real Electron renderer:
 
 ```bash
