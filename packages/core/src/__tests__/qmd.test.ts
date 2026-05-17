@@ -77,6 +77,26 @@ describe("QMD index adapter", () => {
     expect(stores[0].searchLexCalls.length).toBeGreaterThanOrEqual(1);
   });
 
+  it("runs hybrid search against every selected indexed root", async () => {
+    const root = await fixtureRoot();
+    const model = {
+      ...resolveWorkspaceModel({
+        EXO_WORKSPACE_ROOT: root,
+        EXO_NOTE_ROOTS: path.join(root, "notes"),
+        EXO_PROJECT_ROOTS: "",
+      }),
+      indexedRoots: [
+        createIndexedRoot(path.join(root, "notes"), { id: "index-notes", label: "notes", kind: "notes" }),
+        createIndexedRoot(path.join(root, "docs"), { id: "index-docs", label: "docs", kind: "docs" }),
+      ],
+      indexing: { enabled: true, mode: "hybrid" as const, backend: "qmd" as const },
+    };
+
+    await searchIndex(model, path.join(root, ".exo"), "focus");
+
+    expect(stores[0].searchCalls.map((call) => call.collections)).toEqual([["notes"], ["docs"]]);
+  });
+
   it("reports status and delegates update/embed", async () => {
     const root = await fixtureRoot();
     const model = indexedModel(root, "hybrid");
@@ -150,6 +170,18 @@ describe("QMD index adapter", () => {
     expect(result.filePath).toBe(path.join(root, "notes", "focus.md"));
     expect(result.source).toBe("qmd");
   });
+
+  it("rejects stale QMD docids outside configured indexed roots", async () => {
+    const root = await fixtureRoot();
+    const model = {
+      ...indexedModel(root, "lexical"),
+      indexedRoots: [createIndexedRoot(path.join(root, "docs"), { id: "index-docs", label: "docs", kind: "docs" })],
+    };
+
+    await expect(readIndexDocument(model, path.join(root, ".exo"), "#abc123")).rejects.toThrow(
+      "outside configured indexed roots",
+    );
+  });
 });
 
 async function fixtureRoot(): Promise<string> {
@@ -174,6 +206,7 @@ function indexedModel(root: string, mode: "lexical" | "semantic" | "hybrid") {
 
 class MockStore {
   searchLexCalls: Array<{ query: string; collection?: string; limit?: number }> = [];
+  searchCalls: Array<{ query?: string; collections?: string[]; limit?: number }> = [];
   updateOptions: unknown[] = [];
   updateCalls = 0;
   embedCalls = 0;
@@ -202,8 +235,9 @@ class MockStore {
     throw new Error("no vectors");
   }
 
-  async search() {
-    return this.searchLex("hybrid", { collection: "notes", limit: 10 });
+  async search(options: { query?: string; collections?: string[]; limit?: number }) {
+    this.searchCalls.push(options);
+    return this.searchLex(options.query ?? "hybrid", { collection: options.collections?.[0] ?? "notes", limit: options.limit ?? 10 });
   }
 
   async get() {

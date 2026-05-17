@@ -19,10 +19,15 @@ export type ExoAgentKind = "shell" | "claude" | "codex";
 
 const defaultConnectTimeoutMs = 20_000;
 const defaultRequestTimeoutMs = 2_000;
+const defaultMaintenanceRequestTimeoutMs = 30 * 60_000;
 const pollIntervalMs = 250;
 
 export class ExoCommandClient {
-  constructor(readonly baseUrl: string, private readonly requestTimeoutMs = defaultRequestTimeoutMs) {}
+  constructor(
+    readonly baseUrl: string,
+    private readonly requestTimeoutMs = defaultRequestTimeoutMs,
+    private readonly maintenanceRequestTimeoutMs = defaultMaintenanceRequestTimeoutMs,
+  ) {}
 
   static async connect(env: NodeJS.ProcessEnv = process.env): Promise<ExoCommandClient> {
     const runtimeRoot = resolveMcpRuntimeRoot(env);
@@ -30,6 +35,8 @@ export class ExoCommandClient {
     const autostart = env.EXO_MCP_AUTOSTART === "1";
     const timeoutMs = parsePositiveInt(env.EXO_MCP_CONNECT_TIMEOUT_MS) ?? defaultConnectTimeoutMs;
     const requestTimeoutMs = parsePositiveInt(env.EXO_MCP_REQUEST_TIMEOUT_MS) ?? defaultRequestTimeoutMs;
+    const maintenanceRequestTimeoutMs =
+      parsePositiveInt(env.EXO_MCP_MAINTENANCE_TIMEOUT_MS) ?? defaultMaintenanceRequestTimeoutMs;
     let info = await readServerInfo(serverJsonPath);
 
     if (!info && autostart) {
@@ -43,7 +50,7 @@ export class ExoCommandClient {
       );
     }
 
-    let client = new ExoCommandClient(`http://127.0.0.1:${info.port}`, requestTimeoutMs);
+    let client = new ExoCommandClient(`http://127.0.0.1:${info.port}`, requestTimeoutMs, maintenanceRequestTimeoutMs);
     if (await client.isReachable()) {
       return client;
     }
@@ -53,7 +60,7 @@ export class ExoCommandClient {
     }
 
     startExo(env);
-    client = await waitForReachableClient(serverJsonPath, timeoutMs, requestTimeoutMs);
+    client = await waitForReachableClient(serverJsonPath, timeoutMs, requestTimeoutMs, maintenanceRequestTimeoutMs);
     return client;
   }
 
@@ -66,7 +73,7 @@ export class ExoCommandClient {
   }
 
   async syncIndex(): Promise<Record<string, unknown>> {
-    return this.post(EXO_COMMAND_ROUTES.indexSync, {});
+    return this.post(EXO_COMMAND_ROUTES.indexSync, {}, this.maintenanceRequestTimeoutMs);
   }
 
   async search(query: string, options: { limit?: number; intent?: string; includeContent?: boolean; maxLinesPerResult?: number } = {}): Promise<Record<string, unknown>> {
@@ -111,12 +118,12 @@ export class ExoCommandClient {
     return response.json();
   }
 
-  private async post(targetPath: string, body: Record<string, unknown>): Promise<any> {
+  private async post(targetPath: string, body: Record<string, unknown>, timeoutMs = this.requestTimeoutMs): Promise<any> {
     const response = await fetch(`${this.baseUrl}${targetPath}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(this.requestTimeoutMs),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     if (!response.ok) {
       throw new Error(`Exo command server returned HTTP ${response.status}: ${await response.text()}`);
@@ -166,13 +173,18 @@ async function waitForServerInfo(serverJsonPath: string, timeoutMs: number): Pro
   return null;
 }
 
-async function waitForReachableClient(serverJsonPath: string, timeoutMs: number, requestTimeoutMs: number): Promise<ExoCommandClient> {
+async function waitForReachableClient(
+  serverJsonPath: string,
+  timeoutMs: number,
+  requestTimeoutMs: number,
+  maintenanceRequestTimeoutMs: number,
+): Promise<ExoCommandClient> {
   const deadline = Date.now() + timeoutMs;
   let lastBaseUrl = "";
   while (Date.now() < deadline) {
     const info = await readServerInfo(serverJsonPath);
     if (info) {
-      const client = new ExoCommandClient(`http://127.0.0.1:${info.port}`, requestTimeoutMs);
+      const client = new ExoCommandClient(`http://127.0.0.1:${info.port}`, requestTimeoutMs, maintenanceRequestTimeoutMs);
       lastBaseUrl = client.baseUrl;
       if (await client.isReachable()) {
         return client;

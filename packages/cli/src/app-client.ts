@@ -3,12 +3,19 @@ import path from "node:path";
 
 import { EXO_COMMAND_ROUTES, type ExoCommandServerInfo } from "@exo/core";
 
+const defaultRequestTimeoutMs = 2_000;
+const defaultMaintenanceRequestTimeoutMs = 30 * 60_000;
+
 /**
  * HTTP client for communicating with the Exo desktop app's command server.
  * Discovers the server port from .exo/server.json.
  */
 export class AppClient {
-  private constructor(private baseUrl: string, private readonly requestTimeoutMs = 2_000) {}
+  private constructor(
+    private baseUrl: string,
+    private readonly requestTimeoutMs = defaultRequestTimeoutMs,
+    private readonly maintenanceRequestTimeoutMs = defaultMaintenanceRequestTimeoutMs,
+  ) {}
 
   /**
    * Attempt to connect to a running Exo desktop app.
@@ -26,8 +33,10 @@ export class AppClient {
     }
 
     const baseUrl = `http://127.0.0.1:${info.port}`;
-    const requestTimeoutMs = parsePositiveInt(env.EXO_APP_CLIENT_REQUEST_TIMEOUT_MS) ?? 2_000;
-    const client = new AppClient(baseUrl, requestTimeoutMs);
+    const requestTimeoutMs = parsePositiveInt(env.EXO_APP_CLIENT_REQUEST_TIMEOUT_MS) ?? defaultRequestTimeoutMs;
+    const maintenanceRequestTimeoutMs =
+      parsePositiveInt(env.EXO_APP_CLIENT_MAINTENANCE_TIMEOUT_MS) ?? defaultMaintenanceRequestTimeoutMs;
+    const client = new AppClient(baseUrl, requestTimeoutMs, maintenanceRequestTimeoutMs);
 
     // Health check
     try {
@@ -67,7 +76,7 @@ export class AppClient {
   }
 
   async syncIndex(): Promise<Record<string, unknown>> {
-    return this.post(EXO_COMMAND_ROUTES.indexSync, {});
+    return this.post(EXO_COMMAND_ROUTES.indexSync, {}, this.maintenanceRequestTimeoutMs);
   }
 
   async addIndexRoot(input: { path: string; name?: string; kind?: string; pattern?: string; force?: boolean }): Promise<Record<string, unknown>> {
@@ -79,11 +88,11 @@ export class AppClient {
   }
 
   async updateIndex(): Promise<Record<string, unknown>> {
-    return this.post(EXO_COMMAND_ROUTES.indexUpdate, {});
+    return this.post(EXO_COMMAND_ROUTES.indexUpdate, {}, this.maintenanceRequestTimeoutMs);
   }
 
   async embedIndex(): Promise<Record<string, unknown>> {
-    return this.post(EXO_COMMAND_ROUTES.indexEmbed, {});
+    return this.post(EXO_COMMAND_ROUTES.indexEmbed, {}, this.maintenanceRequestTimeoutMs);
   }
 
   async listTerminals(): Promise<unknown[]> {
@@ -118,12 +127,12 @@ export class AppClient {
     return res.json();
   }
 
-  private async post(path: string, body: Record<string, unknown>): Promise<any> {
+  private async post(path: string, body: Record<string, unknown>, timeoutMs = this.requestTimeoutMs): Promise<any> {
     const res = await fetch(`${this.baseUrl}${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(this.requestTimeoutMs),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
     return res.json();

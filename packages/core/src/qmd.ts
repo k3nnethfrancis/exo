@@ -221,13 +221,18 @@ export async function searchIndex(
       }
     } else {
       try {
-        rawResults = await store.search({
-          query: trimmedQuery,
-          collections,
-          limit,
-          intent: options.intent,
-          rerank: true,
-        });
+        const hybrid = await Promise.all(
+          collections.map((collection) =>
+            store!.search({
+              query: trimmedQuery,
+              collections: [collection],
+              limit,
+              intent: options.intent,
+              rerank: true,
+            }),
+          ),
+        );
+        rawResults = hybrid.flat();
       } catch (error) {
         warnings.push(`Hybrid search is not ready (${errorMessage(error)}); using lexical search.`);
         const lexical = await Promise.all(collections.map((collection) => store!.searchLex(trimmedQuery, { limit, collection })));
@@ -278,11 +283,14 @@ export async function readIndexDocument(
       if ("error" in doc) {
         throw new Error(`Document not found: ${target}`);
       }
+      const filePath = resolveQmdPath(doc.filepath, model.indexedRoots);
+      if (!filePath || !isPathAllowedByIndexedRoot(filePath, model)) {
+        throw new Error("Refusing to read a QMD document outside configured indexed roots.");
+      }
       const body = await store.getDocumentBody(target, {
         fromLine: options.fromLine,
         maxLines: options.maxLines,
       });
-      const filePath = resolveQmdPath(doc.filepath, model.indexedRoots) ?? doc.filepath;
       return {
         target,
         filePath,
@@ -460,6 +468,10 @@ function latestCollectionUpdate(collections: Array<{ lastUpdated?: unknown; last
 function isPathAllowed(targetPath: string, model: WorkspaceModel): boolean {
   const roots = [...model.noteRoots, ...model.projectRoots, ...model.indexedRoots].map((root) => root.path);
   return roots.some((root) => isWithin(root, targetPath));
+}
+
+function isPathAllowedByIndexedRoot(targetPath: string, model: WorkspaceModel): boolean {
+  return model.indexedRoots.some((root) => isWithin(root.path, targetPath));
 }
 
 function isWithin(root: string, targetPath: string): boolean {

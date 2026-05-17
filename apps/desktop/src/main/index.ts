@@ -137,6 +137,7 @@ function setupTray() {
 function startCommandServer() {
   const runtimeConfig = resolveRuntimeConfig();
 
+  commandServer?.stop();
   commandServer = new CommandServer({
     runtimeRoot: runtimeConfig.runtimeRoot,
     onShowWindow: () => showMainWindow(),
@@ -144,14 +145,14 @@ function startCommandServer() {
       sendToRenderer("command:open-file", filePath);
     },
     onSearch: (query: string) => searchWorkspace(workspaceModel, query),
-    onIndexSearch: (query, options) => searchIndex(workspaceModel, runtimeConfig.runtimeRoot, query, options),
-    onReadDocument: (target, options) => readIndexDocument(workspaceModel, runtimeConfig.runtimeRoot, target, options),
-    onIndexStatus: () => getIndexStatus(workspaceModel, runtimeConfig.runtimeRoot),
+    onIndexSearch: (query, options) => searchIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot, query, options),
+    onReadDocument: (target, options) => readIndexDocument(workspaceModel, resolveRuntimeConfig().runtimeRoot, target, options),
+    onIndexStatus: () => getIndexStatus(workspaceModel, resolveRuntimeConfig().runtimeRoot),
     onIndexAddRoot: (input) => addIndexedRoot(input),
     onIndexRemoveRoot: (target) => removeIndexedRoot(target),
     onIndexSync: () => runIndexSync("command"),
-    onIndexUpdate: () => updateIndex(workspaceModel, runtimeConfig.runtimeRoot),
-    onIndexEmbed: () => embedIndex(workspaceModel, runtimeConfig.runtimeRoot),
+    onIndexUpdate: () => updateIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot),
+    onIndexEmbed: () => embedIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot),
     onListTerminals: () => terminalManager.list(),
     onCreateTerminal: (kind: string, cwd?: string) => terminalManager.create({ kind: kind as "shell" | "claude" | "codex", cwd }),
     onReadTerminal: (id: string) => terminalManager.readBuffer(id),
@@ -611,13 +612,19 @@ function currentWorkspaceSettings(): WorkspaceSettings {
 
 async function saveWorkspaceSettings(settings: WorkspaceSettings): Promise<WorkspaceSettings> {
   const previousSettings = currentWorkspaceSettings();
+  const previousRuntimeRoot = resolveRuntimeConfig().runtimeRoot;
   workspaceSettings = await workspaceSettingsStore.save(settings);
   applyWorkspaceSettings(workspaceSettings);
   workspaceModel = resolveWorkspaceModel();
+  const nextRuntimeConfig = resolveRuntimeConfig();
   await ensureNoteRoots(workspaceModel);
   workspaceWatcherService.start(workspaceModel);
+  terminalManager.setRuntimeConfig(nextRuntimeConfig);
   terminalManager.setDefaultCwd(workspaceModel.defaultTerminalCwd);
   await terminalManager.syncRuntimeContext();
+  if (nextRuntimeConfig.runtimeRoot !== previousRuntimeRoot) {
+    startCommandServer();
+  }
   if (shouldSyncAfterSettingsApply(previousSettings, workspaceSettings)) {
     scheduleIndexSync("settings-apply", 0);
   }
