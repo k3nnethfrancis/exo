@@ -125,10 +125,7 @@ describe("cli package", () => {
       await writeFile(path.join(runtimeRoot, "server.json"), JSON.stringify({ port, pid: process.pid }), "utf8");
 
       const exitCode = await runCli(["node", "exo-cli", "agents", "send", "term-1", "hello"], {
-        env: {
-          EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
-          EXO_RUNTIME_ROOT: runtimeRoot,
-        },
+        env: testRuntimeEnv(runtimeRoot),
         stdout: { write: () => {} },
         stderr: { write: () => {} },
       });
@@ -136,7 +133,7 @@ describe("cli package", () => {
       expect(exitCode).toBe(0);
       expect(JSON.parse(receivedBody)).toEqual({ data: "hello\r" });
     } finally {
-      await new Promise<void>((resolve) => server.close(() => resolve()));
+      await closeServer(server);
       await rm(runtimeRoot, { recursive: true, force: true });
     }
   });
@@ -165,7 +162,7 @@ describe("cli package", () => {
       let stdout = "";
 
       const exitCode = await runCli(["node", "exo-cli", "index", "status"], {
-        env: { EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace", EXO_RUNTIME_ROOT: runtimeRoot },
+        env: testRuntimeEnv(runtimeRoot),
         stdout: { write: (text) => { stdout += text; } },
         stderr: { write: () => {} },
       });
@@ -175,14 +172,14 @@ describe("cli package", () => {
 
       stdout = "";
       const syncExitCode = await runCli(["node", "exo-cli", "index", "sync"], {
-        env: { EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace", EXO_RUNTIME_ROOT: runtimeRoot },
+        env: testRuntimeEnv(runtimeRoot),
         stdout: { write: (text) => { stdout += text; } },
         stderr: { write: () => {} },
       });
       expect(syncExitCode).toBe(0);
       expect(stdout).toContain('"phases": []');
     } finally {
-      await new Promise<void>((resolve) => server.close(() => resolve()));
+      await closeServer(server);
       await rm(runtimeRoot, { recursive: true, force: true });
     }
   });
@@ -210,7 +207,7 @@ describe("cli package", () => {
       await writeFile(path.join(runtimeRoot, "server.json"), JSON.stringify({ port, pid: process.pid }), "utf8");
 
       const exitCode = await runCli(["node", "exo-cli", "index", "add", "notes", "--name", "notes", "--kind", "notes"], {
-        env: { EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace", EXO_RUNTIME_ROOT: runtimeRoot },
+        env: testRuntimeEnv(runtimeRoot),
         cwd: "/tmp/exo-test-workspace",
         stdout: { write: () => {} },
         stderr: { write: () => {} },
@@ -219,7 +216,7 @@ describe("cli package", () => {
       expect(exitCode).toBe(0);
       expect(JSON.parse(receivedBody)).toMatchObject({ path: "/tmp/exo-test-workspace/notes", name: "notes", kind: "notes" });
     } finally {
-      await new Promise<void>((resolve) => server.close(() => resolve()));
+      await closeServer(server);
       await rm(runtimeRoot, { recursive: true, force: true });
     }
   });
@@ -353,6 +350,29 @@ function listen(server: ReturnType<typeof createServer>): Promise<number> {
 }
 
 function json(res: ServerResponse, body: unknown) {
-  res.writeHead(200, { "Content-Type": "application/json" });
+  res.writeHead(200, { "Content-Type": "application/json", "Connection": "close" });
   res.end(JSON.stringify(body));
+}
+
+function testRuntimeEnv(runtimeRoot: string): NodeJS.ProcessEnv {
+  return {
+    EXO_WORKSPACE_ROOT: path.join(runtimeRoot, "workspace"),
+    EXO_NOTE_ROOTS: path.join(runtimeRoot, "workspace", "notes"),
+    EXO_PROJECT_ROOTS: path.join(runtimeRoot, "workspace", "projects"),
+    EXO_RUNTIME_ROOT: runtimeRoot,
+    EXO_SETTINGS_PATH: path.join(runtimeRoot, "settings.json"),
+  };
+}
+
+function closeServer(server: ReturnType<typeof createServer>): Promise<void> {
+  server.closeAllConnections();
+  return new Promise((resolve, reject) => {
+    server.close((error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve();
+    });
+  });
 }

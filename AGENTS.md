@@ -24,6 +24,7 @@ Exo is a local-first agentic development environment built around a shared exoco
 - `packages/mcp` - stdio MCP server for local agents.
 - `scripts` - launch/build helpers.
 - `.github/workflows` - CI and macOS packaging workflows.
+- `CLAUDE.md` is a compatibility symlink to `AGENTS.md`; do not add Claude-only repo instructions.
 
 ## Canonical Harness
 

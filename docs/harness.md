@@ -1,6 +1,6 @@
 # Exo Harness
 
-Last updated: 2026-05-12
+Last updated: 2026-05-17
 
 Exo's harness is the set of commands, docs, and evidence habits that keep fast agent-driven development from turning into drift. The near-term goal is practical: make it easy for humans, Codex, Claude Code, and Exo-hosted agents to contribute safely.
 
@@ -21,6 +21,15 @@ pnpm build
 ```
 
 CI runs the same command on macOS in `.github/workflows/ci.yml`.
+
+## Harness Engineering Principles
+
+- One canonical broad gate: local handoff and CI both use `pnpm check`.
+- Focused gates are allowed while iterating, but broad changes finish with the canonical gate.
+- Tests must be hermetic: no package test should depend on or accidentally connect to a live user Exo app.
+- Runtime tests should use temporary `EXO_WORKSPACE_ROOT`, `EXO_RUNTIME_ROOT`, and `EXO_SETTINGS_PATH` values.
+- Tests that create local HTTP command servers must close open connections during cleanup.
+- Harness failures should fail fast with a clear cause rather than hanging until a timeout.
 
 ## Focused Gates
 
@@ -51,6 +60,7 @@ Desktop e2e/visual gates build the desktop app before running Playwright.
 - Visual shell behavior: `pnpm test:visual`.
 - MCP/CLI contracts: package tests plus CLI smoke commands.
 - Docs/context: reviewed manually through `README.md`, `AGENTS.md`, `ledger.md`, `docs/architecture.md`, `docs/tasks.md`, and `docs/roadmap.md`.
+- CLI app-route tests: isolated temporary command server and runtime roots so a live Exo app cannot affect results.
 
 ## Missing Harness Layers
 

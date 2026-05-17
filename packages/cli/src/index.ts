@@ -14,7 +14,6 @@ import {
   getBranchFamily,
   readWorkspaceDocument,
   readIndexDocument,
-  renderClaudeOverlay,
   renderPrimaryAgentInstructions,
   resolveAgentLaunchPlan,
   resolveRuntimeConfig,
@@ -526,7 +525,7 @@ export async function runCli(
     }
 
     const config = resolveRuntimeConfig(env);
-    const content = kind === "claude" ? renderClaudeOverlay(config) : renderPrimaryAgentInstructions(config);
+    const content = renderPrimaryAgentInstructions(config);
     stdout.write(`${content}\n`);
     return 0;
   }

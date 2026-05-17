@@ -112,3 +112,4 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [ ] Add docs link/path checks for README, AGENTS, and docs indexes.
 - [ ] Add renderer crash regression probes for blank-window failures.
 - [ ] Add golden/snapshot coverage for stable Markdown rendering, terminal hydration, and search output.
+- [x] Keep CLI app-route tests isolated from live Exo command-server state.
