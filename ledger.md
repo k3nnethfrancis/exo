@@ -1,6 +1,6 @@
 # Exo Ledger
 
-Last updated: 2026-05-16
+Last updated: 2026-05-17
 
 This is the fastest current-state handoff for Exo. It records what exists now, what changed recently, and what is next. Active tasks live in `docs/tasks.md`; future systems live in `docs/roadmap.md`; product/system strategy lives in `docs/strategy.md`.
 
@@ -59,6 +59,7 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Completed first-time setup hardening on a fresh machine: pnpm build-script allowlist, portable workspace defaults, note-root creation, renderer crash fix, settings scroll/Apply behavior, and empty folder display.
 - Added Exo-managed QMD indexing UX: footer status, Settings Index panel, sync/apply flows, Explore lexical-on-Enter, CLI/MCP parity, and conservative save-triggered refreshes.
 - Added `docs/qmd-integration-notes.md` to track the QMD adapter boundary, current workarounds, and upstream upgrade checklist.
+- Merged the fresh-setup/QMD integration PR as `0.1.0-alpha.1`, including QMD docid read safety, multi-root hybrid search, long-running index command timeouts, workspace-root command-server refresh, and an active root `postinstall` script.
 
 ## Next Priorities
 

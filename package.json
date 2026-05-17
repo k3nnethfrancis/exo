@@ -1,7 +1,7 @@
 {
   "name": "exo",
   "private": true,
-  "version": "0.1.0-alpha.0",
+  "version": "0.1.0-alpha.1",
   "description": "Local-first agentic development environment built around a shared exocortex for humans and terminal agents.",
   "license": "Apache-2.0",
   "packageManager": "pnpm@10.15.0",

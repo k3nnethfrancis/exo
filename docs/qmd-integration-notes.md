@@ -1,6 +1,6 @@
 # QMD Integration Notes
 
-Last updated: 2026-05-16
+Last updated: 2026-05-17
 
 This file tracks Exo's live dependency boundary with QMD. Use `docs/qmd-integration-plan.md` for longer-term product direction; use this file when upgrading QMD or changing Exo's adapter.
 

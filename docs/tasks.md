@@ -1,17 +1,17 @@
 # Exo Tasks
 
-Last updated: 2026-05-16
+Last updated: 2026-05-17
 
 This is the active task tracker for Exo. It is intentionally not a history file; completed implementation history belongs in `ledger.md`. Tasks here should be concrete, current, and ordered by practical priority.
 
 ## Now: Pre-Push Cleanup
 
 - [x] Choose and add an open-source license.
-- [ ] Remove or resolve any accidental local edits before commit, including the stray `SECURITY.md` line if it reappears.
-- [ ] Confirm README, AGENTS, CLAUDE, architecture, roadmap, tasks, ledger, and MCP docs agree on the current Exo identity.
-- [ ] Confirm no source defaults point to private or machine-specific paths.
-- [ ] Confirm `.exo/`, terminal transcripts, logs, local settings, release artifacts, and generated runtime state are ignored.
-- [ ] Run `pnpm ci:check`.
+- [x] Remove or resolve any accidental local edits before commit, including the stray `SECURITY.md` line if it reappears.
+- [x] Confirm README, AGENTS, CLAUDE, architecture, roadmap, tasks, ledger, and MCP docs agree on the current Exo identity.
+- [x] Confirm no source defaults point to private or machine-specific paths.
+- [x] Confirm `.exo/`, terminal transcripts, logs, local settings, release artifacts, and generated runtime state are ignored.
+- [x] Run `pnpm ci:check`.
 - [ ] Run focused desktop e2e for shell/search/terminal flows.
 
 ## Next: Workspace Surface
