@@ -30,6 +30,11 @@ export interface TerminalCreateOptions {
   cwd?: string;
 }
 
+export interface TerminalDataEvent {
+  id: string;
+  data: string;
+}
+
 export interface FileStatInfo {
   size: number;
   mtimeMs: number;
@@ -100,7 +105,7 @@ export interface DesktopApi {
     kill: (id: string) => Promise<void>;
     resolveDroppedFilePaths: (files: File[]) => string[];
     onCreated: (callback: (session: TerminalSessionInfo) => void) => () => void;
-    onData: (callback: (event: { id: string; data: string }) => void) => () => void;
+    onData: (callback: (event: TerminalDataEvent) => void) => () => void;
     onExit: (callback: (event: { id: string; exitCode?: number }) => void) => () => void;
   };
   shell: {

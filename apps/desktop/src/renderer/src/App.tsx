@@ -71,8 +71,11 @@ interface WorkspaceSettingsDialogState {
   appearanceMode: AppearanceMode;
   editorFontSize: string;
   terminalFontSize: string;
-  terminalScrollbackLines: string;
-  terminalBufferChars: string;
+  terminalHistoryMode: WorkspaceSettings["terminalHistoryMode"];
+  terminalHistoryLines: string;
+  terminalTranscriptRetention: WorkspaceSettings["terminalTranscriptRetention"];
+  terminalTranscriptRetentionDays: string;
+  terminalStreamingMode: WorkspaceSettings["terminalStreamingMode"];
   explorerScale: string;
   exploreIndexSearchOnEnter: boolean;
   indexUpdateStrategy: WorkspaceSettings["indexUpdateStrategy"];
@@ -91,9 +94,8 @@ type ZoomSurface = "editor" | "terminal" | "explorer";
 type WorkspaceSettingsSection = "workspace" | "index" | "appearance" | "terminal";
 type IndexBusyState = "syncing" | "updating" | "embedding" | null;
 
-const DEFAULT_TERMINAL_SCROLLBACK_LINES = 5_000;
-const DEFAULT_TERMINAL_BUFFER_CHARS = 80_000;
-const MAX_PENDING_TERMINAL_CHUNK_LENGTH = 8_000;
+const FULL_TERMINAL_SCROLLBACK_LINES = 1_000_000;
+const DEFAULT_TERMINAL_STREAMING_MODE: WorkspaceSettings["terminalStreamingMode"] = "visible";
 const NOTE_TREE_MAX_DEPTH = 3;
 const PROJECT_TREE_MAX_DEPTH = 3;
 const DEFAULT_EDITOR_FONT_SIZE = 15;
@@ -128,7 +130,8 @@ export function App() {
   const [zoomSurface, setZoomSurface] = useState<ZoomSurface>("editor");
   const [editorFontSize, setEditorFontSize] = useState(DEFAULT_EDITOR_FONT_SIZE);
   const [terminalFontSize, setTerminalFontSize] = useState(DEFAULT_TERMINAL_FONT_SIZE);
-  const [terminalScrollbackLines, setTerminalScrollbackLines] = useState(DEFAULT_TERMINAL_SCROLLBACK_LINES);
+  const [terminalRuntimeScrollbackLines, setTerminalRuntimeScrollbackLines] = useState(FULL_TERMINAL_SCROLLBACK_LINES);
+  const [terminalStreamingMode, setTerminalStreamingMode] = useState<WorkspaceSettings["terminalStreamingMode"]>(DEFAULT_TERMINAL_STREAMING_MODE);
   const [explorerScale, setExplorerScale] = useState(DEFAULT_EXPLORER_SCALE);
   const [systemPrefersDark, setSystemPrefersDark] = useState(() =>
     window.matchMedia("(prefers-color-scheme: dark)").matches,
@@ -137,6 +140,7 @@ export function App() {
   const terminalFlushFrameRef = useRef<number | null>(null);
   const bootstrapRunRef = useRef(0);
   const activeTerminalIdsRef = useRef<Set<string>>(new Set());
+  const terminalStreamingModeRef = useRef<WorkspaceSettings["terminalStreamingMode"]>(DEFAULT_TERMINAL_STREAMING_MODE);
   const terminalSessionsRef = useRef<TerminalSessionInfo[]>([]);
   const terminalKindByIdRef = useRef<Record<string, TerminalSessionInfo["kind"]>>({});
   const openDocumentsRef = useRef(openDocuments);
@@ -157,6 +161,10 @@ export function App() {
     terminalSessionsRef.current = terminalSessions;
     terminalKindByIdRef.current = Object.fromEntries(terminalSessions.map((session) => [session.id, session.kind]));
   }, [terminalSessions]);
+
+  useEffect(() => {
+    terminalStreamingModeRef.current = terminalStreamingMode;
+  }, [terminalStreamingMode]);
 
   useEffect(() => {
     openDocumentsRef.current = openDocuments;
@@ -206,8 +214,14 @@ export function App() {
       activeIds.add(activeTerminalId);
     }
     activeTerminalIdsRef.current = activeIds;
-    void window.exo.terminals.setStreaming(Array.from(activeIds));
-  }, [activeTerminalId, terminalTree]);
+    const streamingIds =
+      terminalStreamingMode === "all"
+        ? terminalSessions.map((session) => session.id)
+        : terminalStreamingMode === "visible"
+          ? Array.from(activeIds)
+          : [];
+    void window.exo.terminals.setStreaming(streamingIds);
+  }, [activeTerminalId, terminalTree, terminalSessions, terminalStreamingMode]);
 
   useEffect(() => {
     const openPaths = collectOpenEditorPaths(editorTree);
@@ -261,10 +275,12 @@ export function App() {
         window.exo.workspace.getIndexStatus(),
       ]);
       workspaceSettingsRef.current = settings;
+      const terminalPolicy = resolveSettingsTerminalRuntime(settings);
       setAppearanceMode(settings.appearanceMode);
       setEditorFontSize(settings.editorFontSize);
       setTerminalFontSize(settings.terminalFontSize);
-      setTerminalScrollbackLines(settings.terminalScrollbackLines);
+      setTerminalRuntimeScrollbackLines(terminalPolicy.scrollbackLines);
+      setTerminalStreamingMode(settings.terminalStreamingMode);
       setExplorerScale(settings.explorerScale);
       setExploreIndexSearchOnEnter(settings.exploreIndexSearchOnEnter);
       setIndexStatus(status);
@@ -325,7 +341,7 @@ export function App() {
       ]);
       setTerminalSessions(sessions);
       setActiveTerminalId(defaultTerminal.id);
-      setTerminalBuffers({ [defaultTerminal.id]: trimTerminalBuffer(defaultTerminalBuffer, settings.terminalBufferChars) });
+      setTerminalBuffers({ [defaultTerminal.id]: defaultTerminalBuffer });
 
       // Seed the default terminal into the terminal tree
       const termLeaf = findTerminalLeaf(terminalTree);
@@ -354,21 +370,23 @@ export function App() {
 
       setTerminalBuffers((current) => {
         const next = { ...current };
-        for (const [id, chunk] of entries) {
-          next[id] = trimTerminalBuffer(`${next[id] ?? ""}${chunk}`, workspaceSettingsRef.current?.terminalBufferChars ?? DEFAULT_TERMINAL_BUFFER_CHARS);
+        for (const [id, data] of entries) {
+          next[id] = `${next[id] ?? ""}${data}`;
         }
         return next;
       });
     }
 
     const removeDataListener = window.exo.terminals.onData(({ id, data }) => {
-      if (!activeTerminalIdsRef.current.has(id)) {
+      const streamingMode = terminalStreamingModeRef.current;
+      if (streamingMode === "paused") {
+        return;
+      }
+      if (streamingMode === "visible" && !activeTerminalIdsRef.current.has(id)) {
         return;
       }
 
-      pendingTerminalChunksRef.current[id] = `${pendingTerminalChunksRef.current[id] ?? ""}${data}`.slice(
-        -MAX_PENDING_TERMINAL_CHUNK_LENGTH,
-      );
+      pendingTerminalChunksRef.current[id] = `${pendingTerminalChunksRef.current[id] ?? ""}${data}`;
       if (terminalFlushFrameRef.current !== null) {
         return;
       }
@@ -421,10 +439,13 @@ export function App() {
       if (cancelled) {
         return;
       }
-      const nextBuffer = trimTerminalBuffer(buffer, workspaceSettingsRef.current?.terminalBufferChars ?? DEFAULT_TERMINAL_BUFFER_CHARS);
-      setTerminalBuffers((current) =>
-        current[activeTerminalId] === nextBuffer ? current : { ...current, [activeTerminalId]: nextBuffer },
-      );
+      const nextBuffer = buffer;
+      setTerminalBuffers((current) => {
+        if (current[activeTerminalId] === nextBuffer) {
+          return current;
+        }
+        return { ...current, [activeTerminalId]: nextBuffer };
+      });
     }
 
     void refreshActiveAgentBuffer();
@@ -706,8 +727,11 @@ export function App() {
       appearanceMode: settings.appearanceMode,
       editorFontSize: String(settings.editorFontSize),
       terminalFontSize: String(settings.terminalFontSize),
-      terminalScrollbackLines: String(settings.terminalScrollbackLines),
-      terminalBufferChars: String(settings.terminalBufferChars),
+      terminalHistoryMode: settings.terminalHistoryMode,
+      terminalHistoryLines: String(settings.terminalHistoryLines),
+      terminalTranscriptRetention: settings.terminalTranscriptRetention,
+      terminalTranscriptRetentionDays: String(settings.terminalTranscriptRetentionDays),
+      terminalStreamingMode: settings.terminalStreamingMode,
       explorerScale: String(settings.explorerScale),
       exploreIndexSearchOnEnter: settings.exploreIndexSearchOnEnter,
       indexUpdateStrategy: settings.indexUpdateStrategy,
@@ -793,6 +817,7 @@ export function App() {
         backend: "qmd" as const,
       },
     };
+    const terminalHistoryLines = clampNumber(Number(settingsDialog.terminalHistoryLines), 500, FULL_TERMINAL_SCROLLBACK_LINES);
     const nextSettings: WorkspaceSettings = {
       workspaceRoot: options.includeStructural ? fallbackStructural.workspaceRoot : currentSettings?.workspaceRoot ?? fallbackStructural.workspaceRoot,
       defaultTerminalCwd: options.includeStructural ? fallbackStructural.defaultTerminalCwd : currentSettings?.defaultTerminalCwd ?? fallbackStructural.defaultTerminalCwd,
@@ -811,8 +836,11 @@ export function App() {
       appearanceMode: settingsDialog.appearanceMode,
       editorFontSize: clampNumber(Number(settingsDialog.editorFontSize), 11, 24),
       terminalFontSize: clampNumber(Number(settingsDialog.terminalFontSize), 10, 22),
-      terminalScrollbackLines: clampNumber(Number(settingsDialog.terminalScrollbackLines), 500, 100_000),
-      terminalBufferChars: clampNumber(Number(settingsDialog.terminalBufferChars), 12_000, 2_000_000),
+      terminalHistoryMode: settingsDialog.terminalHistoryMode,
+      terminalHistoryLines,
+      terminalTranscriptRetention: settingsDialog.terminalTranscriptRetention,
+      terminalTranscriptRetentionDays: clampNumber(Number(settingsDialog.terminalTranscriptRetentionDays), 1, 3650),
+      terminalStreamingMode: settingsDialog.terminalStreamingMode,
       explorerScale: clampNumber(Number(settingsDialog.explorerScale), 0.82, 1.35),
       exploreIndexSearchOnEnter: settingsDialog.exploreIndexSearchOnEnter,
       indexUpdateStrategy: settingsDialog.indexUpdateStrategy,
@@ -846,8 +874,9 @@ export function App() {
       setAppearanceMode(saved.appearanceMode);
       setEditorFontSize(saved.editorFontSize);
       setTerminalFontSize(saved.terminalFontSize);
-      setTerminalScrollbackLines(saved.terminalScrollbackLines);
-      setTerminalBuffers((current) => mapRecordValues(current, (buffer) => trimTerminalBuffer(buffer, saved.terminalBufferChars)));
+      const savedTerminalPolicy = resolveSettingsTerminalRuntime(saved);
+      setTerminalRuntimeScrollbackLines(savedTerminalPolicy.scrollbackLines);
+      setTerminalStreamingMode(saved.terminalStreamingMode);
       setExplorerScale(saved.explorerScale);
       setExploreIndexSearchOnEnter(saved.exploreIndexSearchOnEnter);
       setWorkspaceSettingsDialog((current) =>
@@ -1288,7 +1317,7 @@ export function App() {
     void window.exo.terminals.read(latest.id).then((buffer) => {
       setTerminalBuffers((current) => ({
         ...current,
-        [latest.id]: trimTerminalBuffer(buffer, workspaceSettingsRef.current?.terminalBufferChars ?? DEFAULT_TERMINAL_BUFFER_CHARS),
+        [latest.id]: buffer,
       }));
     });
   }
@@ -1302,7 +1331,7 @@ export function App() {
     const buffer = await window.exo.terminals.read(id);
     setTerminalBuffers((current) => ({
       ...current,
-      [id]: trimTerminalBuffer(buffer, workspaceSettingsRef.current?.terminalBufferChars ?? DEFAULT_TERMINAL_BUFFER_CHARS),
+      [id]: buffer,
     }));
   }
 
@@ -1811,7 +1840,7 @@ export function App() {
             buffers={terminalBuffers}
             appearance={resolvedAppearance}
             fontSize={terminalFontSize}
-            scrollbackLines={terminalScrollbackLines}
+            scrollbackLines={terminalRuntimeScrollbackLines}
             onFocus={() => setZoomSurface("terminal")}
             onSetActiveTerminal={(id) => {
               setZoomSurface("terminal");
@@ -2258,52 +2287,126 @@ export function App() {
                         />
                       </label>
                       <label className="dialog-field">
-                        <span className="dialog-field__label">Terminal lines</span>
-                        <input
+                        <span className="dialog-field__label">Terminal history</span>
+                        <select
                           className="dialog-card__input"
-                          data-testid="workspace-settings-terminal-scrollback-lines"
-                          type="number"
-                          min={500}
-                          max={100000}
-                          step={500}
-                          value={workspaceSettingsDialog.terminalScrollbackLines}
+                          data-testid="workspace-settings-terminal-history-mode"
+                          value={workspaceSettingsDialog.terminalHistoryMode}
                           onChange={(event) =>
                             setWorkspaceSettingsDialog((current) =>
                               current
                                 ? {
                                     ...current,
-                                    terminalScrollbackLines: event.target.value,
+                                    terminalHistoryMode: event.target.value as WorkspaceSettings["terminalHistoryMode"],
                                     saveStatus: "idle",
                                     errorMessage: null,
                                   }
                                 : current,
                             )
                           }
-                        />
+                        >
+                          <option value="full">Full</option>
+                          <option value="custom">Custom</option>
+                        </select>
                       </label>
+                      {workspaceSettingsDialog.terminalHistoryMode === "custom" ? (
+                        <label className="dialog-field">
+                          <span className="dialog-field__label">History lines</span>
+                          <input
+                            className="dialog-card__input"
+                            data-testid="workspace-settings-terminal-history-lines"
+                            type="number"
+                            min={500}
+                            max={1000000}
+                            step={500}
+                            value={workspaceSettingsDialog.terminalHistoryLines}
+                            onChange={(event) =>
+                              setWorkspaceSettingsDialog((current) =>
+                                current
+                                  ? {
+                                      ...current,
+                                      terminalHistoryLines: event.target.value,
+                                      saveStatus: "idle",
+                                      errorMessage: null,
+                                    }
+                                  : current,
+                              )
+                            }
+                          />
+                        </label>
+                      ) : null}
                       <label className="dialog-field">
-                        <span className="dialog-field__label">Terminal buffer</span>
-                        <input
+                        <span className="dialog-field__label">Transcript retention</span>
+                        <select
                           className="dialog-card__input"
-                          data-testid="workspace-settings-terminal-buffer-chars"
-                          type="number"
-                          min={12000}
-                          max={2000000}
-                          step={12000}
-                          value={workspaceSettingsDialog.terminalBufferChars}
+                          data-testid="workspace-settings-terminal-transcript-retention"
+                          value={workspaceSettingsDialog.terminalTranscriptRetention}
                           onChange={(event) =>
                             setWorkspaceSettingsDialog((current) =>
                               current
                                 ? {
                                     ...current,
-                                    terminalBufferChars: event.target.value,
+                                    terminalTranscriptRetention: event.target.value as WorkspaceSettings["terminalTranscriptRetention"],
                                     saveStatus: "idle",
                                     errorMessage: null,
                                   }
                                 : current,
                             )
                           }
-                        />
+                        >
+                          <option value="forever">Forever</option>
+                          <option value="days">Days</option>
+                        </select>
+                      </label>
+                      {workspaceSettingsDialog.terminalTranscriptRetention === "days" ? (
+                        <label className="dialog-field">
+                          <span className="dialog-field__label">Retention days</span>
+                          <input
+                            className="dialog-card__input"
+                            data-testid="workspace-settings-terminal-transcript-days"
+                            type="number"
+                            min={1}
+                            max={3650}
+                            step={1}
+                            value={workspaceSettingsDialog.terminalTranscriptRetentionDays}
+                            onChange={(event) =>
+                              setWorkspaceSettingsDialog((current) =>
+                                current
+                                  ? {
+                                      ...current,
+                                      terminalTranscriptRetentionDays: event.target.value,
+                                      saveStatus: "idle",
+                                      errorMessage: null,
+                                    }
+                                  : current,
+                              )
+                            }
+                          />
+                        </label>
+                      ) : null}
+                      <label className="dialog-field">
+                        <span className="dialog-field__label">Agent streaming</span>
+                        <select
+                          className="dialog-card__input"
+                          data-testid="workspace-settings-terminal-streaming-mode"
+                          value={workspaceSettingsDialog.terminalStreamingMode}
+                          onChange={(event) =>
+                            setWorkspaceSettingsDialog((current) =>
+                              current
+                                ? {
+                                    ...current,
+                                    terminalStreamingMode: event.target.value as WorkspaceSettings["terminalStreamingMode"],
+                                    saveStatus: "idle",
+                                    errorMessage: null,
+                                  }
+                                : current,
+                            )
+                          }
+                        >
+                          <option value="visible">Visible only</option>
+                          <option value="all">All terminals</option>
+                          <option value="paused">Paused</option>
+                        </select>
                       </label>
                     </>
                   ) : null}
@@ -2692,21 +2795,16 @@ function restoreActiveEditorScrollTop(scrollTop: number) {
   }, 650);
 }
 
-function trimTerminalBuffer(buffer: string, maxChars: number): string {
-  return buffer.length > maxChars ? buffer.slice(-maxChars) : buffer;
-}
-
-function mapRecordValues<T>(record: Record<string, T>, mapValue: (value: T) => T): Record<string, T> {
-  return Object.fromEntries(Object.entries(record).map(([key, value]) => [key, mapValue(value)]));
-}
-
 function workspaceSettingsImmediateDraftKey(settings: WorkspaceSettingsDialogState): string {
   return JSON.stringify({
     appearanceMode: settings.appearanceMode,
     editorFontSize: settings.editorFontSize,
     terminalFontSize: settings.terminalFontSize,
-    terminalScrollbackLines: settings.terminalScrollbackLines,
-    terminalBufferChars: settings.terminalBufferChars,
+    terminalHistoryMode: settings.terminalHistoryMode,
+    terminalHistoryLines: settings.terminalHistoryLines,
+    terminalTranscriptRetention: settings.terminalTranscriptRetention,
+    terminalTranscriptRetentionDays: settings.terminalTranscriptRetentionDays,
+    terminalStreamingMode: settings.terminalStreamingMode,
     explorerScale: settings.explorerScale,
     exploreIndexSearchOnEnter: settings.exploreIndexSearchOnEnter,
     indexUpdateStrategy: settings.indexUpdateStrategy,
@@ -2733,6 +2831,17 @@ function workspaceSettingsStructuralKeyFromSettings(settings: WorkspaceSettings)
     indexedRoots: settings.indexedRoots.map((root) => root.path).join("\n"),
     indexMode: settings.indexing.mode,
   });
+}
+
+function resolveSettingsTerminalRuntime(settings: WorkspaceSettings): { scrollbackLines: number } {
+  if (settings.terminalHistoryMode === "full") {
+    return {
+      scrollbackLines: FULL_TERMINAL_SCROLLBACK_LINES,
+    };
+  }
+  return {
+    scrollbackLines: settings.terminalHistoryLines,
+  };
 }
 
 function clampNumber(value: number, min: number, max: number): number {

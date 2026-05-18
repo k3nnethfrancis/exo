@@ -8,27 +8,23 @@ import {
   readFileSync,
   readSync,
   statSync,
-  writeFileSync,
 } from "node:fs";
 import path from "node:path";
 
-const defaultTranscriptRetentionDays = 14;
-const defaultTranscriptMaxTotalBytes = 500 * 1024 * 1024;
-const defaultTranscriptMaxFileBytes = 50 * 1024 * 1024;
+const defaultTranscriptRetentionDays = 0;
+
+interface TerminalTranscriptStoreOptions {
+  retentionDays?: number;
+}
 
 export class TerminalTranscriptStore {
-  private readonly retentionDays = parsePositiveInt(process.env.EXO_TERMINAL_TRANSCRIPT_RETENTION_DAYS) ?? defaultTranscriptRetentionDays;
-  private readonly maxTotalBytes =
-    (parsePositiveInt(process.env.EXO_TERMINAL_TRANSCRIPT_MAX_TOTAL_MB) ?? 0) * 1024 * 1024 ||
-    defaultTranscriptMaxTotalBytes;
-  private readonly maxFileBytes =
-    (parsePositiveInt(process.env.EXO_TERMINAL_TRANSCRIPT_MAX_FILE_MB) ?? 0) * 1024 * 1024 ||
-    defaultTranscriptMaxFileBytes;
+  private readonly retentionDays: number;
   private readonly pendingWrites = new Map<string, { transcriptPath: string; data: string }>();
-  private readonly bytesSinceTrim = new Map<string, number>();
   private flushTimer: NodeJS.Timeout | null = null;
 
-  constructor(readonly directory: string) {
+  constructor(readonly directory: string, options: TerminalTranscriptStoreOptions = {}) {
+    this.retentionDays =
+      options.retentionDays ?? parseNonNegativeInt(process.env.EXO_TERMINAL_TRANSCRIPT_RETENTION_DAYS) ?? defaultTranscriptRetentionDays;
     mkdirSync(directory, { recursive: true });
     this.enforceRetention();
   }
@@ -55,13 +51,6 @@ export class TerminalTranscriptStore {
     try {
       mkdirSync(path.dirname(transcriptPath), { recursive: true });
       appendFileSync(transcriptPath, pending.data, "utf8");
-      const bytesSinceTrim = (this.bytesSinceTrim.get(id) ?? 0) + Buffer.byteLength(pending.data, "utf8");
-      if (bytesSinceTrim >= 1024 * 1024) {
-        this.trimFile(transcriptPath);
-        this.bytesSinceTrim.set(id, 0);
-      } else {
-        this.bytesSinceTrim.set(id, bytesSinceTrim);
-      }
     } catch (err) {
       console.warn(`[terminal-transcripts] failed to append transcript for ${id}:`, err);
     }
@@ -83,29 +72,11 @@ export class TerminalTranscriptStore {
     }, 100);
   }
 
-  private trimFile(filePath: string): void {
-    try {
-      const stats = statSync(filePath);
-      if (stats.size <= this.maxFileBytes) {
-        return;
-      }
-      const tail = readFileTailBytes(filePath, Math.floor(this.maxFileBytes * 0.8));
-      writeFileSync(
-        filePath,
-        `===== Exo transcript trimmed ${new Date().toISOString()} to enforce per-file retention =====\n${tail}`,
-        "utf8",
-      );
-    } catch (err) {
-      console.warn(`[terminal-transcripts] failed to trim transcript ${filePath}:`, err);
-    }
-  }
-
   private enforceRetention(): void {
     try {
       const files = listTranscriptFiles(this.directory);
       const now = Date.now();
       const maxAgeMs = this.retentionDays * 24 * 60 * 60 * 1000;
-      let survivors = files;
 
       if (this.retentionDays > 0) {
         for (const file of files) {
@@ -113,16 +84,6 @@ export class TerminalTranscriptStore {
             tryUnlink(file.path);
           }
         }
-        survivors = listTranscriptFiles(this.directory);
-      }
-
-      let total = survivors.reduce((sum, file) => sum + file.size, 0);
-      for (const file of survivors.sort((left, right) => left.mtimeMs - right.mtimeMs)) {
-        if (total <= this.maxTotalBytes) {
-          break;
-        }
-        tryUnlink(file.path);
-        total -= file.size;
       }
     } catch (err) {
       console.warn("[terminal-transcripts] failed to enforce transcript retention:", err);
@@ -154,19 +115,6 @@ function readFileTail(filePath: string, tailChars: number): string {
   }
 }
 
-function readFileTailBytes(filePath: string, bytesToRead: number): string {
-  const stats = statSync(filePath);
-  const size = Math.min(stats.size, bytesToRead);
-  const fd = openSync(filePath, "r");
-  try {
-    const buffer = Buffer.alloc(size);
-    readSync(fd, buffer, 0, size, stats.size - size);
-    return buffer.toString("utf8");
-  } finally {
-    closeSync(fd);
-  }
-}
-
 function listTranscriptFiles(directory: string): Array<{ path: string; size: number; mtimeMs: number }> {
   if (!existsSync(directory)) {
     return [];
@@ -193,10 +141,10 @@ function tryUnlink(filePath: string): void {
   }
 }
 
-function parsePositiveInt(value: string | undefined): number | null {
+function parseNonNegativeInt(value: string | undefined): number | null {
   if (!value) {
     return null;
   }
   const parsed = Number.parseInt(value, 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 }

@@ -172,8 +172,10 @@ Portable source defaults:
 - `note_roots = [workspace_root/notes]`
 - `project_roots = [exo repo root]`
 - `default_terminal_cwd = workspace_root`
-- `terminalScrollbackLines = 5000`
-- `terminalBufferChars = 80000`
+- `terminalHistoryMode = full`
+- `terminalHistoryLines = 1000000`
+- `terminalTranscriptRetention = forever`
+- `terminalStreamingMode = visible`
 
 Runtime files live under `.exo/` inside the workspace root:
 
@@ -181,7 +183,7 @@ Runtime files live under `.exo/` inside the workspace root:
 - `.exo/instructions/AGENTS.md` - Exo-generated generic runtime contract
 - `.exo/instructions/CLAUDE.md` - Exo-generated Claude overlay
 - `.exo/terminal-state.json` - persisted tmux-backed agent terminal state
-- `.exo/terminal-transcripts/` - disk-backed terminal transcripts with retention
+- `.exo/terminal-transcripts/` - disk-backed terminal transcripts
 - `.exo/qmd/index.sqlite` - Exo-managed QMD notes index when indexing is enabled
 
 QMD is the active indexing substrate for optional Exo-managed notes search. Live Explore typing remains fast filename/path search; indexed search is explicit through Enter in Explore when enabled and through CLI/MCP index/search tools. See `docs/qmd-integration-notes.md` for the adapter contract and upgrade notes.

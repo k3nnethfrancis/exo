@@ -753,13 +753,13 @@ function parseTailChars(args: string[]): number {
   }
   const tailIndex = args.indexOf("--tail");
   if (tailIndex === -1) {
-    return 20_000;
+    return 0;
   }
 
   const raw = args[tailIndex + 1];
   const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN;
-  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 200_000) {
-    throw new Error("Expected --tail to be a number from 0 to 200000.");
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error("Expected --tail to be a non-negative number.");
   }
   return parsed;
 }

@@ -53,10 +53,12 @@ Terminals are the first agent interface.
 - Claude and Codex terminal agents run in Exo-managed tmux sessions
 - Exo session ids are local app ids such as `term-13`
 - tmux sessions are named `exo-agent-*`
-- terminal buffers are capped in main process memory
-- full terminal transcripts are persisted under `.exo/terminal-transcripts/`
-- transcript retention defaults to 14 days, 500MB total, and 50MB per file
-- renderer reload hydrates terminal output from `terminals:read`
+- terminal history policy is configured through workspace settings
+- `full` terminal history keeps Exo's in-memory buffers untrimmed and uses the configured tmux/xterm line window
+- `custom` terminal history trims Exo's in-memory buffers by the configured line count
+- terminal transcripts are persisted under `.exo/terminal-transcripts/`
+- transcript retention defaults to `forever`; optional day-based retention is explicit in settings
+- restored tmux-backed agent terminals seed xterm once from tmux history, then render only the live PTY/tmux attach stream
 - closing or killing an agent terminal should terminate the backing tmux session
 
 The renderer should treat terminal sessions as live views over supervised processes, not as durable state by itself.
@@ -64,6 +66,7 @@ The renderer should treat terminal sessions as live views over supervised proces
 Stability constraints:
 
 - do not reset xterm with full-buffer rewrites during normal streaming
+- do not replay recurring `tmux capture-pane` snapshots into visible xterm surfaces
 - only the active terminal should receive hot React buffer updates
 - strip mouse tracking modes from app output so wheel scroll remains local scroll in Exo
 - terminal file drops should resolve to filesystem paths before being pasted into the pty

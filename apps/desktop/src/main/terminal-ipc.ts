@@ -12,7 +12,7 @@ export function registerTerminalIpcHandlers(
   ipcMain.handle("terminals:create", async (_event, options: TerminalCreateOptions) => terminalManager.create(options));
   ipcMain.handle("terminals:read", async (_event, id: string) => terminalManager.readBuffer(id) ?? "");
   ipcMain.handle("terminals:read-transcript", async (_event, id: string, tailChars?: number) =>
-    terminalManager.readTranscript(id, typeof tailChars === "number" ? tailChars : 200_000) ?? "",
+    terminalManager.readTranscript(id, typeof tailChars === "number" ? tailChars : 0) ?? "",
   );
   ipcMain.handle("terminals:write", async (_event, id: string, data: string) => terminalManager.write(id, data));
   ipcMain.handle("terminals:resize", async (_event, id: string, cols: number, rows: number) =>

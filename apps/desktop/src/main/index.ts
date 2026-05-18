@@ -41,6 +41,7 @@ import {
   applyWorkspaceSettingsToEnv,
   DEFAULT_APPEARANCE_MODE,
   isForcedTheme,
+  resolveTerminalRuntimePolicy,
   WorkspaceSettingsStore,
 } from "./settings-store";
 import { registerTerminalIpcHandlers } from "./terminal-ipc";
@@ -357,8 +358,7 @@ function broadcastTerminalData() {
     sendToRenderer("terminal:created", session);
   });
   terminalManager.on("data", (event) => {
-    const info = terminalManager.getInfo(event.id);
-    if (info?.kind !== "shell" && !streamingTerminalIds.has(event.id)) {
+    if (!streamingTerminalIds.has(event.id)) {
       return;
     }
     sendToRenderer("terminal:data", event);
@@ -619,8 +619,12 @@ async function saveWorkspaceSettings(settings: WorkspaceSettings): Promise<Works
   const nextRuntimeConfig = resolveRuntimeConfig();
   await ensureNoteRoots(workspaceModel);
   workspaceWatcherService.start(workspaceModel);
+  const terminalPolicy = resolveTerminalRuntimePolicy(workspaceSettings);
   terminalManager.setRuntimeConfig(nextRuntimeConfig);
   terminalManager.setDefaultCwd(workspaceModel.defaultTerminalCwd);
+  terminalManager.setBufferLineLimit(terminalPolicy.bufferLineLimit);
+  terminalManager.setTmuxHistoryLines(terminalPolicy.scrollbackLines);
+  terminalManager.setTranscriptRetentionDays(terminalPolicy.transcriptRetentionDays);
   await terminalManager.syncRuntimeContext();
   if (nextRuntimeConfig.runtimeRoot !== previousRuntimeRoot) {
     startCommandServer();
@@ -851,7 +855,13 @@ app.whenReady().then(async () => {
   await ensureNoteRoots(workspaceModel);
   workspaceSettings = await workspaceSettingsStore.save(currentWorkspaceSettings());
   logWorkspaceStartup(workspaceModel);
-  terminalManager = new TerminalManager(workspaceModel.defaultTerminalCwd);
+  const terminalPolicy = resolveTerminalRuntimePolicy(workspaceSettings);
+  terminalManager = new TerminalManager(
+    workspaceModel.defaultTerminalCwd,
+    terminalPolicy.bufferLineLimit,
+    terminalPolicy.scrollbackLines,
+    terminalPolicy.transcriptRetentionDays,
+  );
   registerIpcHandlers();
   broadcastTerminalData();
   workspaceWatcherService.start(workspaceModel);

@@ -92,7 +92,7 @@ const api: DesktopApi = {
       return () => ipcRenderer.removeListener("terminal:created", listener);
     },
     onData: (callback) => {
-      const listener = (_event: unknown, payload: { id: string; data: string }) => callback(payload);
+      const listener = (_event: unknown, payload: Parameters<typeof callback>[0]) => callback(payload);
       ipcRenderer.on("terminal:data", listener);
       return () => ipcRenderer.removeListener("terminal:data", listener);
     },

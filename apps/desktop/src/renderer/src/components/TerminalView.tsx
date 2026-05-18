@@ -5,10 +5,11 @@ import { Terminal } from "xterm";
 
 import type { TerminalSessionInfo } from "../../../shared/api";
 import type { ResolvedAppearance } from "../App";
+import { isTerminalGeneratedResponse } from "./terminalInputFilters";
 import { registerTerminal, unregisterTerminal } from "./terminalRegistry";
 
 const TERMINAL_WRITE_CHUNK_SIZE = 16_384;
-const TERMINAL_WRITE_QUEUE_MAX_CHARS = 64_000;
+const PROGRAMMATIC_INPUT_GUARD_MS = 250;
 
 interface TerminalViewProps {
   appearance: ResolvedAppearance;
@@ -33,6 +34,7 @@ export function TerminalView(props: TerminalViewProps) {
   const inputHandlerRef = useRef(onInput);
   const resizeHandlerRef = useRef(onResize);
   const wheelInputGuardUntilRef = useRef(0);
+  const programmaticInputGuardUntilRef = useRef(0);
   const sizeRef = useRef({ width: 0, height: 0, cols: 0, rows: 0 });
 
   useEffect(() => {
@@ -55,6 +57,7 @@ export function TerminalView(props: TerminalViewProps) {
     disposedRef.current = false;
     terminal.loadAddon(fitAddon);
     terminal.open(hostRef.current!);
+    programmaticInputGuardUntilRef.current = Date.now() + PROGRAMMATIC_INPUT_GUARD_MS;
     terminal.write("\x1b[?1049l\x1b[?1047l\x1b[?47l");
     requestAnimationFrame(() => {
       safeFit(hostRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef);
@@ -63,6 +66,9 @@ export function TerminalView(props: TerminalViewProps) {
 
     const disposeData = terminal.onData((data) => {
       if (Date.now() < wheelInputGuardUntilRef.current && isWheelGeneratedInput(data)) {
+        return;
+      }
+      if (Date.now() < programmaticInputGuardUntilRef.current && isTerminalGeneratedResponse(data)) {
         return;
       }
       inputHandlerRef.current(session.id, data);
@@ -79,8 +85,7 @@ export function TerminalView(props: TerminalViewProps) {
       terminal.focus();
     }
 
-    function scrollTerminal(event: WheelEvent) {
-      event.stopPropagation();
+    function guardWheelGeneratedInput() {
       wheelInputGuardUntilRef.current = Date.now() + 200;
     }
 
@@ -112,7 +117,7 @@ export function TerminalView(props: TerminalViewProps) {
     }
 
     hostRef.current!.addEventListener("mousedown", focusTerminal);
-    hostRef.current!.addEventListener("wheel", scrollTerminal, { capture: true, passive: false });
+    hostRef.current!.addEventListener("wheel", guardWheelGeneratedInput, { capture: true, passive: false });
     hostRef.current!.addEventListener("dragover", handleDragOver, { capture: true });
     hostRef.current!.addEventListener("drop", handleDrop, { capture: true });
 
@@ -130,7 +135,7 @@ export function TerminalView(props: TerminalViewProps) {
       disposeData.dispose();
       observer.disconnect();
       hostRef.current?.removeEventListener("mousedown", focusTerminal);
-      hostRef.current?.removeEventListener("wheel", scrollTerminal, { capture: true });
+      hostRef.current?.removeEventListener("wheel", guardWheelGeneratedInput, { capture: true });
       hostRef.current?.removeEventListener("dragover", handleDragOver, { capture: true });
       hostRef.current?.removeEventListener("drop", handleDrop, { capture: true });
       terminal.dispose();
@@ -182,12 +187,12 @@ export function TerminalView(props: TerminalViewProps) {
 
     const appendOffset = findAppendOffset(bufferRef.current, buffer);
     if (appendOffset !== null) {
-      enqueueTerminalWrite(terminal, buffer.slice(appendOffset), writeQueueRef, writingRef, disposedRef);
+      enqueueTerminalWrite(terminal, buffer.slice(appendOffset), writeQueueRef, writingRef, disposedRef, programmaticInputGuardUntilRef);
     } else {
       terminal.reset();
       writeQueueRef.current = [];
       writingRef.current = false;
-      enqueueTerminalWrite(terminal, buffer, writeQueueRef, writingRef, disposedRef);
+      enqueueTerminalWrite(terminal, buffer, writeQueueRef, writingRef, disposedRef, programmaticInputGuardUntilRef);
     }
     bufferRef.current = buffer;
     if (shouldFollowOutput) {
@@ -211,6 +216,7 @@ function enqueueTerminalWrite(
   queueRef: MutableRefObject<string[]>,
   writingRef: MutableRefObject<boolean>,
   disposedRef: MutableRefObject<boolean>,
+  programmaticInputGuardUntilRef: MutableRefObject<number>,
 ) {
   if (data.length === 0 || disposedRef.current) {
     return;
@@ -219,20 +225,8 @@ function enqueueTerminalWrite(
   for (let offset = 0; offset < data.length; offset += TERMINAL_WRITE_CHUNK_SIZE) {
     queueRef.current.push(data.slice(offset, offset + TERMINAL_WRITE_CHUNK_SIZE));
   }
-  trimTerminalWriteQueue(queueRef, TERMINAL_WRITE_QUEUE_MAX_CHARS);
 
-  drainTerminalWriteQueue(terminal, queueRef, writingRef, disposedRef);
-}
-
-function trimTerminalWriteQueue(queueRef: MutableRefObject<string[]>, maxChars: number) {
-  let total = 0;
-  for (let index = queueRef.current.length - 1; index >= 0; index -= 1) {
-    total += queueRef.current[index].length;
-    if (total > maxChars) {
-      queueRef.current = queueRef.current.slice(index + 1);
-      return;
-    }
-  }
+  drainTerminalWriteQueue(terminal, queueRef, writingRef, disposedRef, programmaticInputGuardUntilRef);
 }
 
 function drainTerminalWriteQueue(
@@ -240,6 +234,7 @@ function drainTerminalWriteQueue(
   queueRef: MutableRefObject<string[]>,
   writingRef: MutableRefObject<boolean>,
   disposedRef: MutableRefObject<boolean>,
+  programmaticInputGuardUntilRef: MutableRefObject<number>,
 ) {
   if (writingRef.current || disposedRef.current) {
     return;
@@ -251,12 +246,14 @@ function drainTerminalWriteQueue(
   }
 
   writingRef.current = true;
+  programmaticInputGuardUntilRef.current = Date.now() + PROGRAMMATIC_INPUT_GUARD_MS;
   try {
     terminal.write(next, () => {
+      programmaticInputGuardUntilRef.current = Date.now() + PROGRAMMATIC_INPUT_GUARD_MS;
       writingRef.current = false;
       if (!disposedRef.current) {
         window.requestAnimationFrame(() => {
-          drainTerminalWriteQueue(terminal, queueRef, writingRef, disposedRef);
+          drainTerminalWriteQueue(terminal, queueRef, writingRef, disposedRef, programmaticInputGuardUntilRef);
         });
       }
     });

@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { test, expect } from "@playwright/test";
@@ -244,9 +245,14 @@ test("opens workspace settings from the sidebar", async () => {
   await page.getByTestId("workspace-settings").click();
   await expect(page.getByTestId("workspace-settings-dialog")).toBeVisible();
   await expect(page.getByTestId("workspace-settings-note-roots")).toContainText("test-notes");
+  await page.getByTestId("workspace-settings-tab-index").click();
   await expect(page.getByTestId("workspace-settings-index-mode")).toHaveValue("off");
   await expect(page.getByTestId("workspace-settings-indexed-roots")).toBeVisible();
   await expect(page.getByTestId("workspace-settings-dialog")).toContainText("QMD by Tobi Lutke");
+  await page.getByTestId("workspace-settings-tab-terminal").click();
+  await expect(page.getByTestId("workspace-settings-terminal-history-mode")).toHaveValue("full");
+  await expect(page.getByTestId("workspace-settings-terminal-transcript-retention")).toHaveValue("forever");
+  await expect(page.getByTestId("workspace-settings-terminal-streaming-mode")).toHaveValue("visible");
 
   await cleanup();
 });
@@ -292,6 +298,106 @@ test("accepts terminal keyboard input in pane tree", async () => {
   await page.getByTestId("terminal-surface").click();
   await page.keyboard.type("\nsecond line");
   await expect(page.locator(".xterm-rows")).toContainText("second line");
+
+  await cleanup();
+});
+
+test("keeps large terminal bursts available above the visible viewport", async () => {
+  const { page, cleanup } = await launchExoFixture({
+    env: {
+      EXO_SHELL: "/bin/sh",
+      EXO_SHELL_ARGS:
+        "-c,i=1; while [ $i -le 900 ]; do printf 'scrollback-%03d-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\n' \"$i\"; i=$((i+1)); done; sleep 30",
+    },
+  });
+
+  await expect(page.locator(".xterm-rows")).toContainText("scrollback-900");
+  await expect(page.locator(".xterm-rows")).not.toContainText("scrollback-001");
+
+  await page.getByTestId("terminal-surface").hover();
+  await page.mouse.wheel(0, -50000);
+
+  await expect(page.locator(".xterm-rows")).toContainText("scrollback-001");
+
+  await cleanup();
+});
+
+test("keeps app terminal buffer above the legacy 12k cap", async () => {
+  const { page, cleanup } = await launchExoFixture({
+    env: {
+      EXO_SHELL: "/bin/sh",
+      EXO_SHELL_ARGS:
+        "-c,sleep 0.2; i=1; while [ $i -le 220 ]; do printf 'buffer-%03d-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\n' \"$i\"; i=$((i+1)); done; sleep 30",
+    },
+  });
+
+  await expect(page.locator(".xterm-rows")).toContainText("buffer-220");
+  const buffer = await page.evaluate(async () => {
+    const sessions = await window.exo.terminals.list();
+    return sessions[0] ? window.exo.terminals.read(sessions[0].id) : "";
+  });
+
+  expect(buffer.length).toBeGreaterThan(12_000);
+  expect(buffer).toContain("buffer-001");
+
+  await cleanup();
+});
+
+test("renders agent terminal streams without corrupting scrollback", async () => {
+  test.skip(spawnSync("tmux", ["-V"], { stdio: "ignore" }).status !== 0, "tmux is required for agent history");
+
+  const { page, cleanup } = await launchExoFixture({
+    env: {
+      EXO_CLAUDE_COMMAND: "/bin/sh",
+      EXO_CLAUDE_ARGS:
+        "-c,i=1; while [ $i -le 140 ]; do printf 'agent-scrollback-%03d\\n' \"$i\"; i=$((i+1)); done; sleep 30",
+    },
+  });
+
+  try {
+    await page.getByTestId("launch-claude").click();
+    await expect(page.getByTestId("terminal-tab-claude")).toBeVisible();
+    await expect(page.locator(".xterm-rows")).toContainText("agent-scrollback-140");
+
+    const buffer = await page.evaluate(async () => {
+      const sessions = await window.exo.terminals.list();
+      const claude = sessions.find((session) => session.kind === "claude");
+      return claude ? window.exo.terminals.read(claude.id) : "";
+    });
+    expect(buffer).toContain("agent-scrollback-140");
+
+    await page.evaluate(async () => {
+      const sessions = await window.exo.terminals.list();
+      await Promise.all(sessions.filter((session) => session.kind === "claude").map((session) => window.exo.terminals.kill(session.id)));
+    });
+  } finally {
+    await cleanup();
+  }
+});
+
+test("does not feed xterm device responses back into terminal input", async () => {
+  const { page, cleanup } = await launchExoFixture({
+    env: {
+      EXO_SHELL: "/bin/cat",
+      EXO_SHELL_ARGS: "",
+    },
+  });
+
+  await page.evaluate(async () => {
+    const sessions = await window.exo.terminals.list();
+    if (!sessions[0]) {
+      throw new Error("Missing terminal session.");
+    }
+    await window.exo.terminals.write(sessions[0].id, "\x1b[>c");
+  });
+  await page.waitForTimeout(300);
+
+  const buffer = await page.evaluate(async () => {
+    const sessions = await window.exo.terminals.list();
+    return sessions[0] ? window.exo.terminals.read(sessions[0].id) : "";
+  });
+  expect(buffer).not.toContain("0;276;0c");
+  expect(buffer).not.toContain("\x1b[>0;");
 
   await cleanup();
 });

@@ -6,13 +6,23 @@ import { DEFAULT_INDEXING, createIndexedRoot, normalizeIndexMode, type IndexedRo
 export const DEFAULT_APPEARANCE_MODE: WorkspaceSettings["appearanceMode"] = "system";
 export const DEFAULT_EDITOR_FONT_SIZE = 15;
 export const DEFAULT_TERMINAL_FONT_SIZE = 13;
-export const DEFAULT_TERMINAL_SCROLLBACK_LINES = 5_000;
-export const DEFAULT_TERMINAL_BUFFER_CHARS = 80_000;
+export const DEFAULT_TERMINAL_HISTORY_MODE: WorkspaceSettings["terminalHistoryMode"] = "full";
+export const FULL_TERMINAL_SCROLLBACK_LINES = 1_000_000;
+export const DEFAULT_TERMINAL_HISTORY_LINES = FULL_TERMINAL_SCROLLBACK_LINES;
+export const DEFAULT_TERMINAL_TRANSCRIPT_RETENTION: WorkspaceSettings["terminalTranscriptRetention"] = "forever";
+export const DEFAULT_TERMINAL_TRANSCRIPT_RETENTION_DAYS = 14;
+export const DEFAULT_TERMINAL_STREAMING_MODE: WorkspaceSettings["terminalStreamingMode"] = "visible";
 export const DEFAULT_EXPLORER_SCALE = 1;
 
 export interface WorkspaceSettingsStoreOptions {
   userDataPath: string;
   env?: NodeJS.ProcessEnv;
+}
+
+export interface TerminalRuntimePolicy {
+  scrollbackLines: number;
+  bufferLineLimit: number | null;
+  transcriptRetentionDays: number;
 }
 
 export class WorkspaceSettingsStore {
@@ -50,8 +60,26 @@ export class WorkspaceSettingsStore {
         : DEFAULT_APPEARANCE_MODE;
     const editorFontSize = clampSettingsNumber(input.editorFontSize, DEFAULT_EDITOR_FONT_SIZE, 11, 24);
     const terminalFontSize = clampSettingsNumber(input.terminalFontSize, DEFAULT_TERMINAL_FONT_SIZE, 10, 22);
-    const terminalScrollbackLines = clampSettingsNumber(input.terminalScrollbackLines, DEFAULT_TERMINAL_SCROLLBACK_LINES, 500, 100_000);
-    const terminalBufferChars = clampSettingsNumber(input.terminalBufferChars, DEFAULT_TERMINAL_BUFFER_CHARS, 12_000, 2_000_000);
+    const terminalHistoryMode = input.terminalHistoryMode === "custom" ? "custom" : DEFAULT_TERMINAL_HISTORY_MODE;
+    const normalizedTerminalHistoryLines = clampSettingsNumber(
+      input.terminalHistoryLines,
+      DEFAULT_TERMINAL_HISTORY_LINES,
+      500,
+      FULL_TERMINAL_SCROLLBACK_LINES,
+    );
+    const terminalHistoryLines =
+      terminalHistoryMode === "full" ? DEFAULT_TERMINAL_HISTORY_LINES : normalizedTerminalHistoryLines;
+    const terminalTranscriptRetention = input.terminalTranscriptRetention === "days" ? "days" : DEFAULT_TERMINAL_TRANSCRIPT_RETENTION;
+    const terminalTranscriptRetentionDays = clampSettingsNumber(
+      input.terminalTranscriptRetentionDays,
+      DEFAULT_TERMINAL_TRANSCRIPT_RETENTION_DAYS,
+      1,
+      3650,
+    );
+    const terminalStreamingMode =
+      input.terminalStreamingMode === "all" || input.terminalStreamingMode === "paused"
+        ? input.terminalStreamingMode
+        : DEFAULT_TERMINAL_STREAMING_MODE;
     const explorerScale = clampSettingsNumber(input.explorerScale, DEFAULT_EXPLORER_SCALE, 0.82, 1.35);
     const exploreIndexSearchOnEnter =
       typeof input.exploreIndexSearchOnEnter === "boolean"
@@ -73,8 +101,11 @@ export class WorkspaceSettingsStore {
       appearanceMode,
       editorFontSize,
       terminalFontSize,
-      terminalScrollbackLines,
-      terminalBufferChars,
+      terminalHistoryMode,
+      terminalHistoryLines,
+      terminalTranscriptRetention,
+      terminalTranscriptRetentionDays,
+      terminalStreamingMode,
       explorerScale,
       exploreIndexSearchOnEnter,
       indexUpdateStrategy,
@@ -92,8 +123,11 @@ export class WorkspaceSettingsStore {
       appearanceMode: DEFAULT_APPEARANCE_MODE,
       editorFontSize: DEFAULT_EDITOR_FONT_SIZE,
       terminalFontSize: DEFAULT_TERMINAL_FONT_SIZE,
-      terminalScrollbackLines: DEFAULT_TERMINAL_SCROLLBACK_LINES,
-      terminalBufferChars: DEFAULT_TERMINAL_BUFFER_CHARS,
+      terminalHistoryMode: DEFAULT_TERMINAL_HISTORY_MODE,
+      terminalHistoryLines: DEFAULT_TERMINAL_HISTORY_LINES,
+      terminalTranscriptRetention: DEFAULT_TERMINAL_TRANSCRIPT_RETENTION,
+      terminalTranscriptRetentionDays: DEFAULT_TERMINAL_TRANSCRIPT_RETENTION_DAYS,
+      terminalStreamingMode: DEFAULT_TERMINAL_STREAMING_MODE,
       explorerScale: DEFAULT_EXPLORER_SCALE,
       exploreIndexSearchOnEnter: model.indexing.enabled && model.indexing.mode !== "off" && model.indexedRoots.length > 0,
       indexUpdateStrategy: "on-save",
@@ -146,6 +180,32 @@ function clampSettingsNumber(value: unknown, fallback: number, min: number, max:
     return fallback;
   }
   return Math.max(min, Math.min(max, parsed));
+}
+
+export function resolveTerminalScrollbackLines(
+  mode: WorkspaceSettings["terminalHistoryMode"],
+  lines: number,
+): number {
+  return mode === "full" ? FULL_TERMINAL_SCROLLBACK_LINES : lines;
+}
+
+export function resolveTerminalBufferLineLimit(
+  mode: WorkspaceSettings["terminalHistoryMode"],
+  lines: number,
+): number | null {
+  return mode === "full" ? null : lines;
+}
+
+export function resolveTranscriptRetentionDays(settings: Pick<WorkspaceSettings, "terminalTranscriptRetention" | "terminalTranscriptRetentionDays">): number {
+  return settings.terminalTranscriptRetention === "days" ? settings.terminalTranscriptRetentionDays : 0;
+}
+
+export function resolveTerminalRuntimePolicy(settings: WorkspaceSettings): TerminalRuntimePolicy {
+  return {
+    scrollbackLines: resolveTerminalScrollbackLines(settings.terminalHistoryMode, settings.terminalHistoryLines),
+    bufferLineLimit: resolveTerminalBufferLineLimit(settings.terminalHistoryMode, settings.terminalHistoryLines),
+    transcriptRetentionDays: resolveTranscriptRetentionDays(settings),
+  };
 }
 
 function isBroadDefaultProjectRoot(workspaceRoot: string, targetPath: string): boolean {

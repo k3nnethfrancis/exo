@@ -60,6 +60,9 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Added Exo-managed QMD indexing UX: footer status, Settings Index panel, sync/apply flows, Explore lexical-on-Enter, CLI/MCP parity, and conservative save-triggered refreshes.
 - Added `docs/qmd-integration-notes.md` to track the QMD adapter boundary, current workarounds, and upstream upgrade checklist.
 - Merged the fresh-setup/QMD integration PR as `0.1.0-alpha.1`, including QMD docid read safety, multi-root hybrid search, long-running index command timeouts, workspace-root command-server refresh, and an active root `postinstall` script.
+- Simplified terminal history controls around explicit `full` and `custom` modes: `full` keeps Exo buffers untrimmed, transcripts default to forever, tmux/xterm use the configured line window, and restored tmux-backed agents seed visible scrollback once before returning to live PTY streaming.
+- Removed hidden terminal transcript byte caps and renderer-side buffer trimming; terminal history policy now lives in the main terminal manager and workspace settings.
+- Hardened terminal rendering against xterm device-response input leaks and avoided recurring tmux snapshot replay into visible terminals.
 
 ## Next Priorities
 

@@ -250,10 +250,10 @@ export class CommandServer {
 
 function parseTailChars(value: string | null): number {
   if (!value) {
-    return 200_000;
+    return 0;
   }
   const parsed = Number.parseInt(value, 10);
-  return Number.isFinite(parsed) && parsed >= 0 ? Math.min(parsed, 2_000_000) : 200_000;
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
 }
 
 function parseOptionalNumber(value: string | null): number | undefined {

@@ -12,7 +12,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Confirm no source defaults point to private or machine-specific paths.
 - [x] Confirm `.exo/`, terminal transcripts, logs, local settings, release artifacts, and generated runtime state are ignored.
 - [x] Run `pnpm ci:check`.
-- [ ] Run focused desktop e2e for shell/search/terminal flows.
+- [x] Run focused desktop e2e for shell/search/terminal flows.
 
 ## Next: Workspace Surface
 
@@ -57,6 +57,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Add Exo-managed QMD setup for selected note roots only.
 - [x] Configure indexed note roots and the first reindex trigger from Exo settings.
 - [x] Expose QMD-backed status/search/read/sync/update/embed through Exo CLI and MCP.
+- [ ] Fix observed search/index performance regressions from the 2026-05-17 full-vault test: keep embedding/search off the Electron desktop critical path, replace the 2s CLI/MCP search timeout with search-appropriate behavior, and add regression coverage for cold, broad, and in-progress index queries.
 - [ ] Package the QMD setup Exo needs so first-time users do not have to understand QMD separately.
 - [ ] Detect an existing QMD setup and connect it when it already indexes the selected notes.
 - [ ] Add true file-level incremental indexing when QMD exposes a public API for changed/deleted files.

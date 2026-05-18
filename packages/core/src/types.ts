@@ -29,8 +29,11 @@ export interface WorkspaceSettings {
   appearanceMode: "system" | "light" | "dark";
   editorFontSize: number;
   terminalFontSize: number;
-  terminalScrollbackLines: number;
-  terminalBufferChars: number;
+  terminalHistoryMode: TerminalHistoryMode;
+  terminalHistoryLines: number;
+  terminalTranscriptRetention: TerminalTranscriptRetention;
+  terminalTranscriptRetentionDays: number;
+  terminalStreamingMode: TerminalStreamingMode;
   explorerScale: number;
   exploreIndexSearchOnEnter: boolean;
   indexUpdateStrategy: IndexUpdateStrategy;
@@ -97,6 +100,9 @@ export type IndexedRootKind = "notes" | "docs" | "code" | "mixed";
 export type IndexMode = "off" | "lexical" | "semantic" | "hybrid";
 export type IndexBackend = "qmd";
 export type IndexUpdateStrategy = "manual" | "on-save";
+export type TerminalHistoryMode = "full" | "custom";
+export type TerminalTranscriptRetention = "forever" | "days";
+export type TerminalStreamingMode = "visible" | "all" | "paused";
 
 export interface IndexedRoot {
   id: string;

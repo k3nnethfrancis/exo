@@ -37,20 +37,35 @@ interface PersistedState {
 }
 
 const TMUX_PREFIX = "exo-agent";
+const DEFAULT_BUFFER_LINE_LIMIT: number | null = null;
+const DEFAULT_TMUX_HISTORY_LINES = 1_000_000;
+const MIN_TMUX_HISTORY_LINES = 500;
+const MAX_TMUX_HISTORY_LINES = 1_000_000;
+const TMUX_BOOTSTRAP_WINDOW = "exo-bootstrap";
 
 export class TerminalManager extends EventEmitter {
-  private static readonly maxBufferLength = 12_000;
   private readonly sessions = new Map<string, TerminalRecord>();
+  private bufferLineLimit: number | null;
+  private tmuxHistoryLines: number;
+  private transcriptRetentionDays: number;
   private nextId = 1;
   private runtimeConfig = resolveRuntimeConfig();
   private stateFilePath: string;
   private transcripts: TerminalTranscriptStore;
   private readonly tmuxAvailable: boolean;
 
-  constructor(private defaultCwd: string) {
+  constructor(
+    private defaultCwd: string,
+    bufferLineLimit: number | null = DEFAULT_BUFFER_LINE_LIMIT,
+    tmuxHistoryLines = DEFAULT_TMUX_HISTORY_LINES,
+    transcriptRetentionDays = 0,
+  ) {
     super();
+    this.bufferLineLimit = normalizeBufferLineLimit(bufferLineLimit);
+    this.tmuxHistoryLines = normalizeTmuxHistoryLines(tmuxHistoryLines);
+    this.transcriptRetentionDays = normalizeTranscriptRetentionDays(transcriptRetentionDays);
     this.stateFilePath = path.join(this.runtimeConfig.runtimeRoot, "terminal-state.json");
-    this.transcripts = new TerminalTranscriptStore(path.join(this.runtimeConfig.runtimeRoot, "terminal-transcripts"));
+    this.transcripts = this.createTranscriptStore();
     this.tmuxAvailable = detectTmux();
     if (!this.tmuxAvailable) {
       console.warn(
@@ -106,11 +121,33 @@ export class TerminalManager extends EventEmitter {
 
     this.flushAllTranscripts();
     this.stateFilePath = path.join(runtimeConfig.runtimeRoot, "terminal-state.json");
-    this.transcripts = new TerminalTranscriptStore(path.join(runtimeConfig.runtimeRoot, "terminal-transcripts"));
+    this.transcripts = this.createTranscriptStore();
   }
 
   setDefaultCwd(cwd: string) {
     this.defaultCwd = cwd;
+  }
+
+  setBufferLineLimit(bufferLineLimit: number | null) {
+    this.bufferLineLimit = normalizeBufferLineLimit(bufferLineLimit);
+    for (const record of this.sessions.values()) {
+      record.buffer = trimBufferLines(record.buffer, this.bufferLineLimit);
+    }
+  }
+
+  setTmuxHistoryLines(tmuxHistoryLines: number) {
+    this.tmuxHistoryLines = normalizeTmuxHistoryLines(tmuxHistoryLines);
+    for (const record of this.sessions.values()) {
+      if (record.tmuxSession) {
+        setTmuxHistoryLimit(record.tmuxSession, this.tmuxHistoryLines);
+      }
+    }
+  }
+
+  setTranscriptRetentionDays(retentionDays: number) {
+    this.flushAllTranscripts();
+    this.transcriptRetentionDays = normalizeTranscriptRetentionDays(retentionDays);
+    this.transcripts = this.createTranscriptStore();
   }
 
   async syncRuntimeContext() {
@@ -166,17 +203,9 @@ export class TerminalManager extends EventEmitter {
 
     if (useTmux) {
       tmuxSession = `${TMUX_PREFIX}-${options.kind}-${randomBytes(4).toString("hex")}`;
+      createTmuxAgentSession(tmuxSession, launch.cwd, launch.command, launch.args, this.tmuxHistoryLines);
       spawnCommand = "tmux";
-      spawnArgs = [
-        "new-session",
-        "-A",
-        "-s",
-        tmuxSession,
-        "-c",
-        launch.cwd,
-        launch.command,
-        ...launch.args,
-      ];
+      spawnArgs = ["attach-session", "-t", tmuxSession];
     }
 
     const processHandle = pty.spawn(spawnCommand, spawnArgs, {
@@ -230,10 +259,14 @@ export class TerminalManager extends EventEmitter {
   }
 
   readBuffer(id: string): string | null {
-    return this.sessions.get(id)?.buffer ?? null;
+    const record = this.sessions.get(id);
+    if (!record) {
+      return null;
+    }
+    return record.buffer;
   }
 
-  readTranscript(id: string, tailChars = 200_000): string | null {
+  readTranscript(id: string, tailChars = 0): string | null {
     const record = this.sessions.get(id);
     if (!record) {
       return null;
@@ -298,7 +331,8 @@ export class TerminalManager extends EventEmitter {
 
     const id = `term-${this.nextId++}`;
     const transcriptPath = this.makeTranscriptPath(id, entry.kind, entry.tmuxSession);
-    const initialBuffer = captureTmuxPane(entry.tmuxSession).slice(-TerminalManager.maxBufferLength);
+    setTmuxHistoryLimit(entry.tmuxSession, this.tmuxHistoryLines);
+    const historySeed = trimBufferLines(captureTmuxHistory(entry.tmuxSession), this.bufferLineLimit);
     const info: TerminalSessionInfo = {
       id,
       title: entry.title,
@@ -311,15 +345,15 @@ export class TerminalManager extends EventEmitter {
     this.sessions.set(id, {
       info,
       process: processHandle,
-      buffer: initialBuffer,
+      buffer: historySeed,
       transcriptPath,
       tmuxSession: entry.tmuxSession,
     });
 
     if (!existsSync(transcriptPath)) {
       this.appendTranscript(id, this.transcriptHeader(info, entry.tmuxSession));
-      if (initialBuffer.length > 0) {
-        this.appendTranscript(id, initialBuffer.endsWith("\n") ? initialBuffer : `${initialBuffer}\n`);
+      if (historySeed.length > 0) {
+        this.appendTranscript(id, historySeed.endsWith("\n") ? historySeed : `${historySeed}\n`);
       }
     }
     this.wireProcess(id, processHandle, entry.tmuxSession);
@@ -331,10 +365,10 @@ export class TerminalManager extends EventEmitter {
       const record = this.sessions.get(id);
       const sanitizedData = stripMouseTrackingModes(data);
       if (record) {
-        record.buffer = `${record.buffer}${sanitizedData}`.slice(-TerminalManager.maxBufferLength);
         this.appendTranscript(id, sanitizedData);
+        record.buffer = trimBufferLines(`${record.buffer}${sanitizedData}`, this.bufferLineLimit);
+        this.emit("data", { id, data: sanitizedData });
       }
-      this.emit("data", { id, data: sanitizedData });
     });
 
     processHandle.onExit(({ exitCode }) => {
@@ -431,6 +465,12 @@ export class TerminalManager extends EventEmitter {
       this.flushTranscript(id);
     }
   }
+
+  private createTranscriptStore(): TerminalTranscriptStore {
+    return new TerminalTranscriptStore(path.join(this.runtimeConfig.runtimeRoot, "terminal-transcripts"), {
+      retentionDays: this.transcriptRetentionDays,
+    });
+  }
 }
 
 function stripMouseTrackingModes(data: string): string {
@@ -469,9 +509,73 @@ function tmuxSessionExists(name: string): boolean {
   }
 }
 
-function captureTmuxPane(name: string): string {
+function normalizeBufferLineLimit(value: number | null | undefined): number | null {
+  if (value === null || value === undefined || value <= 0) {
+    return DEFAULT_BUFFER_LINE_LIMIT;
+  }
+  if (!Number.isFinite(value)) {
+    return DEFAULT_BUFFER_LINE_LIMIT;
+  }
+  return Math.max(MIN_TMUX_HISTORY_LINES, Math.min(MAX_TMUX_HISTORY_LINES, Math.floor(value)));
+}
+
+function normalizeTmuxHistoryLines(value: number): number {
+  if (!Number.isFinite(value)) {
+    return DEFAULT_TMUX_HISTORY_LINES;
+  }
+  return Math.max(MIN_TMUX_HISTORY_LINES, Math.min(MAX_TMUX_HISTORY_LINES, Math.floor(value)));
+}
+
+function normalizeTranscriptRetentionDays(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.max(0, Math.min(3650, Math.floor(value)));
+}
+
+function trimBufferLines(buffer: string, lineLimit: number | null): string {
+  if (lineLimit === null) {
+    return buffer;
+  }
+
+  const lines = buffer.split("\n");
+  if (lines.length <= lineLimit) {
+    return buffer;
+  }
+  return lines.slice(-lineLimit).join("\n");
+}
+
+function createTmuxAgentSession(name: string, cwd: string, command: string, args: string[], historyLines: number): void {
   try {
-    return execFileSync("tmux", ["capture-pane", "-p", "-S", "-100000", "-t", name], {
+    execFileSync("tmux", ["new-session", "-d", "-s", name, "-c", cwd, "-n", TMUX_BOOTSTRAP_WINDOW, "sleep", "31536000"], {
+      stdio: "ignore",
+    });
+    setTmuxHistoryLimit(name, historyLines);
+    execFileSync("tmux", ["new-window", "-d", "-t", name, "-c", cwd, command, ...args], { stdio: "ignore" });
+    execFileSync("tmux", ["kill-window", "-t", `${name}:${TMUX_BOOTSTRAP_WINDOW}`], { stdio: "ignore" });
+  } catch (err) {
+    try {
+      execFileSync("tmux", ["kill-session", "-t", name], { stdio: "ignore" });
+    } catch {
+      // best effort cleanup
+    }
+    throw err;
+  }
+}
+
+function setTmuxHistoryLimit(name: string, historyLines: number): void {
+  try {
+    execFileSync("tmux", ["set-option", "-t", name, "history-limit", String(normalizeTmuxHistoryLines(historyLines))], {
+      stdio: "ignore",
+    });
+  } catch (err) {
+    console.warn(`[terminal-manager] failed to set tmux history limit for ${name}:`, err);
+  }
+}
+
+function captureTmuxHistory(name: string): string {
+  try {
+    return execFileSync("tmux", ["capture-pane", "-p", "-J", "-S", "-", "-E", "-1", "-t", name], {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
     });
