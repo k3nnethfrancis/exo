@@ -487,6 +487,38 @@ test("keeps list guides aligned with the visible bullet lanes", async () => {
   await cleanup();
 });
 
+test("toggles markdown task checkboxes from live preview", async () => {
+  const { page, cleanup } = await launchExoFixture({
+    prepareWorkspace: async (workspaceRoot) => {
+      const notePath = path.join(workspaceRoot, "notes/test-notes/focus-note.md");
+      await writeFile(
+        notePath,
+        `---\ntitle: Focus Note\n---\n\n# Tasks\n\n- [ ] Pull IRS SOI ZIP Code\n- [x] test\n`,
+      );
+    },
+  });
+
+  async function editorText() {
+    return page.evaluate(() => {
+      const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+      const view = content?.cmView?.view;
+      if (!view) {
+        throw new Error("Unable to resolve CodeMirror view");
+      }
+      return view.state.doc.toString();
+    });
+  }
+
+  await expect(page.locator(".exo-md-checkbox")).toHaveCount(2);
+  await page.locator(".exo-md-checkbox").first().click();
+  await expect.poll(editorText).toContain("- [x] Pull IRS SOI ZIP Code");
+
+  await page.locator(".exo-md-checkbox").nth(1).click();
+  await expect.poll(editorText).toContain("- [ ] test");
+
+  await cleanup();
+});
+
 test("keeps list text aligned when editing a bullet marker", async () => {
   const { page, cleanup } = await launchExoFixture({
     prepareWorkspace: async (workspaceRoot) => {

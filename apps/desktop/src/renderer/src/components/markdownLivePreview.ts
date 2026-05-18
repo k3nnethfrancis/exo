@@ -87,8 +87,18 @@ export function markdownLivePreview(options: MarkdownLivePreviewOptions): Extens
     plugin,
     listPrefixNavigationKeymap,
     EditorView.domEventHandlers({
-      mousedown(event) {
+      mousedown(event, view) {
         if (!(event.target instanceof HTMLElement)) return false;
+
+        const checkbox = event.target.closest<HTMLElement>("[data-exo-checkbox-pos]");
+        if (checkbox) {
+          const toggled = toggleTaskCheckboxAt(view, checkbox.dataset.exoCheckboxPos);
+          if (toggled) {
+            event.preventDefault();
+            event.stopPropagation();
+            return true;
+          }
+        }
 
         const interactivePreviewControl = event.target.closest<HTMLElement>(
           "[data-exo-fold-line], [data-exo-checkbox-pos], [data-exo-link-target], [data-exo-tag]",
@@ -106,14 +116,8 @@ export function markdownLivePreview(options: MarkdownLivePreviewOptions): Extens
         // Checkbox toggle
         const checkbox = event.target.closest<HTMLElement>("[data-exo-checkbox-pos]");
         if (checkbox) {
-          const pos = Number(checkbox.dataset.exoCheckboxPos);
-          if (!Number.isNaN(pos) && pos >= 0 && pos < view.state.doc.length) {
-            const currentChar = view.state.doc.sliceString(pos, pos + 1);
-            const newChar = currentChar === " " ? "x" : " ";
-            view.dispatch({ changes: { from: pos, to: pos + 1, insert: newChar } });
-            event.preventDefault();
-            return true;
-          }
+          event.preventDefault();
+          return true;
         }
 
         // List fold toggle
@@ -151,6 +155,36 @@ export function markdownLivePreview(options: MarkdownLivePreviewOptions): Extens
       },
     }),
   ];
+}
+
+function toggleTaskCheckboxAt(view: EditorView, rawPos: string | undefined) {
+  const pos = Number(rawPos);
+  if (!Number.isInteger(pos) || pos < 0 || pos >= view.state.doc.length) {
+    return false;
+  }
+
+  const currentChar = view.state.doc.sliceString(pos, pos + 1);
+  const newChar = nextTaskCheckboxMarker(currentChar);
+  if (newChar === null) {
+    return false;
+  }
+
+  view.dispatch({
+    changes: { from: pos, to: pos + 1, insert: newChar },
+    userEvent: "input",
+  });
+  view.focus();
+  return true;
+}
+
+function nextTaskCheckboxMarker(currentChar: string) {
+  if (currentChar === " ") {
+    return "x";
+  }
+  if (currentChar === "x" || currentChar === "X") {
+    return " ";
+  }
+  return null;
 }
 
 const listPrefixAtomicRanges = EditorView.atomicRanges.of((view) => {
@@ -765,7 +799,7 @@ class TaskPrefixWidget extends WidgetType {
   }
 
   ignoreEvent(event: Event) {
-    return event.type === "mousedown";
+    return event.type !== "mousedown";
   }
 }
 

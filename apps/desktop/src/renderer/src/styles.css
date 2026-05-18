@@ -753,6 +753,7 @@ button svg,
   background: transparent;
   position: relative;
   opacity: 0.4;
+  pointer-events: auto;
 }
 
 .editor-surface--live-preview .exo-md-checkbox:hover {
