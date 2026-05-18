@@ -22,6 +22,7 @@ The workspace should support files and terminals as equal pane types.
 
 - Terminal panes can be dragged into the editor canvas.
 - Files and terminals can occupy arbitrary split-pane layouts.
+- Mixed file/terminal tab groups should be supported later as a unified pane model, so a terminal tab and document tab can live in the same tab strip without nesting terminal chrome inside editor chrome.
 - Pane layout persists across restarts.
 - Tabs and borders stay visually aligned across all pane positions.
 - Terminal rendering, scroll, reload hydration, and pane splits have regression coverage.

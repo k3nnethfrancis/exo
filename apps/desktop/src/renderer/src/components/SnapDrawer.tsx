@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode, type RefObject } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 
 interface SnapDrawerProps {
   className?: string;
@@ -17,6 +17,7 @@ interface SnapDrawerProps {
   drawerTestId?: string;
   panelTestId?: string;
   resizerTestId?: string;
+  mirrored?: boolean;
   onHeightChange?: (height: number) => void;
   onCollapsedChange: (collapsed: boolean) => void;
   children: ReactNode;
@@ -44,6 +45,7 @@ export function SnapDrawer(props: SnapDrawerProps) {
     drawerTestId,
     panelTestId,
     resizerTestId,
+    mirrored = false,
     onHeightChange,
     onCollapsedChange,
     children,
@@ -138,6 +140,9 @@ export function SnapDrawer(props: SnapDrawerProps) {
     setHeight(resolveDefaultHeight(containerRef.current, defaultOpenFraction, minHeight, minRemaining));
   }
 
+  const collapsedIcon = mirrored ? <ChevronLeft size={14} /> : <ChevronRight size={14} />;
+  const toggleIcon = collapsed ? collapsedIcon : <ChevronDown size={14} />;
+
   return (
     <div
       className={`${className ?? ""} snap-drawer ${collapsed ? "snap-drawer--collapsed" : "snap-drawer--expanded"}`.trim()}
@@ -159,11 +164,22 @@ export function SnapDrawer(props: SnapDrawerProps) {
 
       <div className="snap-drawer__surface" style={!collapsed ? { height: `${height ?? resolveDefaultHeight(containerRef.current, defaultOpenFraction, minHeight, minRemaining)}px` } : undefined}>
         <div className="snap-drawer__header">
-          <button className="snap-drawer__bar" data-testid={toggleTestId} onClick={toggleDrawer} type="button">
-            {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-            {icon ? <span className="snap-drawer__icon">{icon}</span> : null}
-            <span className="snap-drawer__label">{label}</span>
-            {summary ? <span className="snap-drawer__summary">{summary}</span> : null}
+          <button className={`snap-drawer__bar ${mirrored ? "snap-drawer__bar--mirrored" : ""}`} data-testid={toggleTestId} onClick={toggleDrawer} type="button">
+            {mirrored ? (
+              <>
+                {summary ? <span className="snap-drawer__summary">{summary}</span> : null}
+                <span className="snap-drawer__label">{label}</span>
+                {icon ? <span className="snap-drawer__icon">{icon}</span> : null}
+                {toggleIcon}
+              </>
+            ) : (
+              <>
+                {toggleIcon}
+                {icon ? <span className="snap-drawer__icon">{icon}</span> : null}
+                <span className="snap-drawer__label">{label}</span>
+                {summary ? <span className="snap-drawer__summary">{summary}</span> : null}
+              </>
+            )}
           </button>
           {actions ? <div className="snap-drawer__actions">{actions}</div> : null}
         </div>

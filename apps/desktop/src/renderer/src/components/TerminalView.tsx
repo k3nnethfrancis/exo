@@ -50,6 +50,7 @@ export function TerminalView(props: TerminalViewProps) {
       fontFamily: '"IBM Plex Mono", "SF Mono", monospace',
       fontSize,
       cursorBlink: false,
+      minimumContrastRatio: 4.5,
       scrollback: scrollbackLines,
       theme: xtermTheme(appearance),
     });

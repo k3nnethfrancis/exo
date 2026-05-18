@@ -207,11 +207,12 @@ test("accepts terminal keyboard input", async () => {
   await cleanup();
 });
 
-test("shows empty terminal dock after closing the last terminal", async () => {
+test("collapses the terminal pane after closing the last terminal", async () => {
   const { page, cleanup } = await launchExoFixture();
 
   await page.getByTestId("close-terminal-shell").click();
-  await expect(page.getByTestId("terminal-dock")).toHaveClass(/terminal-dock--empty/);
+  await expect(page.getByTestId("terminal-expand")).toBeVisible();
+  await expect(page.locator(".pane-leaf--terminal")).toHaveCount(0);
 
   await cleanup();
 });

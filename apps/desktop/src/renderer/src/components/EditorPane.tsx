@@ -91,6 +91,8 @@ export function EditorPane(props: EditorPaneProps) {
               key={document.filePath}
               active={document.filePath === pane.activePath}
               className="tab-strip__tab"
+              dropPaneId={pane.id}
+              dropKind="editor"
               onClick={() => onActivateTab(document.filePath)}
               onMouseDown={(event) => {
                 dragManager.startDrag(event, {

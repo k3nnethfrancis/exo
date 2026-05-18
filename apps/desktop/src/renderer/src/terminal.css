@@ -30,10 +30,15 @@
   align-items: center;
   gap: 8px;
   padding: 16px 0 8px;
+  box-sizing: border-box;
   width: 42px;
-  border-left: 1px solid color-mix(in srgb, var(--divider) 28%, transparent);
-  background: var(--chrome-bg);
+  border-left: 1px solid color-mix(in srgb, var(--divider) 64%, transparent);
+  background: var(--sidebar-bg);
   z-index: 4;
+}
+
+.terminal-rail__spacer {
+  flex: 1 1 auto;
 }
 
 .terminal-rail .appearance-toggle__button {
@@ -45,8 +50,9 @@
   justify-content: flex-start;
   gap: 8px;
   padding: 16px 0 8px;
+  box-sizing: border-box;
   width: 42px;
-  border-left: 1px solid color-mix(in srgb, var(--divider) 28%, transparent);
+  border-left: 1px solid color-mix(in srgb, var(--divider) 64%, transparent);
   border-bottom: 0;
 }
 

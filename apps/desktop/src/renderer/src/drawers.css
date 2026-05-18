@@ -58,6 +58,14 @@
   color: var(--muted);
 }
 
+.snap-drawer__bar--mirrored .snap-drawer__summary {
+  margin-left: 0;
+}
+
+.snap-drawer__bar--mirrored .snap-drawer__label {
+  margin-left: auto;
+}
+
 .snap-drawer__header {
   display: flex;
   align-items: center;
@@ -113,6 +121,14 @@
 
 .sidebar__drawer .snap-drawer__panel {
   padding: 10px 8px 14px 14px;
+}
+
+.sidebar--mirrored .sidebar__drawer {
+  padding: 0 10px 10px 8px;
+}
+
+.sidebar--mirrored .sidebar__drawer .snap-drawer__panel {
+  padding: 10px 14px 14px 8px;
 }
 
 .sidebar__drawer .snap-drawer__surface {

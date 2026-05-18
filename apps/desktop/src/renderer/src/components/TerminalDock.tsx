@@ -10,6 +10,7 @@ import { TerminalView } from "./TerminalView";
 
 interface TerminalDockProps {
   placement: "right" | "bottom";
+  paneId: string;
   appearance: ResolvedAppearance;
   compact: boolean;
   empty: boolean;
@@ -34,6 +35,7 @@ interface TerminalDockProps {
 export function TerminalDock(props: TerminalDockProps) {
   const {
     placement,
+    paneId,
     appearance,
     empty,
     sessions,
@@ -72,6 +74,8 @@ export function TerminalDock(props: TerminalDockProps) {
                   active={session.id === activeTerminalId}
                   className="terminal-tab"
                   testId={`terminal-tab-${session.kind}`}
+                  dropPaneId={paneId}
+                  dropKind="terminal"
                   onClick={() => onSetActiveTerminal(session.id)}
                   onDoubleClick={() => onTogglePlacement()}
                   onMouseDown={(event) => {

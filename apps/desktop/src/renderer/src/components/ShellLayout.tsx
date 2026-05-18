@@ -1,7 +1,7 @@
 import { useRef, type ReactNode } from "react";
 
-import { FileTree } from "./FileTree";
-import { TerminalRail } from "./TerminalRail";
+import { ExplorerRail, ExplorerRailTopControls, FileTree } from "./FileTree";
+import { TerminalRail, TerminalRailTopControls } from "./TerminalRail";
 import { PaneTree } from "./PaneTree";
 import type { PaneLeaf, PaneNodeId, PaneTreeActions, PaneNode } from "../hooks/usePaneTree";
 import type { DragManager } from "../hooks/useDragManager";
@@ -58,10 +58,12 @@ interface ShellLayoutProps {
     };
     terminalCollapsed: boolean;
     setTerminalCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
+    sidePanesFlipped: boolean;
+    setSidePanesFlipped: React.Dispatch<React.SetStateAction<boolean>>;
     zoneSplitRatio: number;
-    startZoneResize: (event: React.MouseEvent, containerWidth: number) => void;
+    startZoneResize: (event: React.MouseEvent, containerWidth: number, inverted?: boolean) => void;
     sidebarWidth: number;
-    startSidebarResize: (event: React.MouseEvent) => void;
+    startSidebarResize: (event: React.MouseEvent, inverted?: boolean) => void;
   };
   renderEditorLeaf: (leaf: PaneLeaf, isFocused: boolean) => ReactNode;
   renderTerminalLeaf: (leaf: PaneLeaf, isFocused: boolean) => ReactNode;
@@ -127,6 +129,8 @@ export function ShellLayout(props: ShellLayoutProps) {
     terminalPaneTree,
     terminalCollapsed,
     setTerminalCollapsed,
+    sidePanesFlipped,
+    setSidePanesFlipped,
     zoneSplitRatio,
     startZoneResize,
     sidebarWidth,
@@ -137,10 +141,91 @@ export function ShellLayout(props: ShellLayoutProps) {
 
   const zoneGridTemplate = terminalCollapsed
     ? "minmax(0, 1fr)"
-    : `minmax(0, ${zoneSplitRatio}fr) 1px minmax(0, ${1 - zoneSplitRatio}fr)`;
+    : sidePanesFlipped
+      ? `minmax(0, ${1 - zoneSplitRatio}fr) 1px minmax(0, ${zoneSplitRatio}fr)`
+      : `minmax(0, ${zoneSplitRatio}fr) 1px minmax(0, ${1 - zoneSplitRatio}fr)`;
 
-  const sidebarTrack = sidebarCollapsed ? "48px" : `${sidebarWidth}px`;
+  const sidebarTrack = sidebarCollapsed ? "0px" : `${sidebarWidth}px`;
   const sidebarResizerTrack = sidebarCollapsed ? "0px" : "1px";
+  const shellGridTemplate = sidePanesFlipped
+    ? `42px 1fr ${sidebarResizerTrack} ${sidebarTrack} 42px`
+    : `42px ${sidebarTrack} ${sidebarResizerTrack} 1fr 42px`;
+
+  const explorerTopControls = (
+    <ExplorerRailTopControls
+      collapsed={sidebarCollapsed}
+      onToggleCollapsed={() => setSidebarCollapsed((current) => !current)}
+    />
+  );
+  const terminalTopControls = (
+    <TerminalRailTopControls
+      collapsed={terminalCollapsed}
+      onToggleCollapsed={() => setTerminalCollapsed((current) => !current)}
+      onCreateTerminal={onCreateTerminal}
+    />
+  );
+
+  const explorer = (
+    <FileTree
+      collapsed={sidebarCollapsed}
+      noteRoots={noteSections}
+      projectRoots={projectSections}
+      appearanceMode={appearanceMode}
+      resolvedAppearance={resolvedAppearance}
+      searchQuery={searchQuery}
+      searchResults={searchResults}
+      searchResultMode={searchResultMode}
+      searchResultQuery={searchResultQuery}
+      searchMessage={searchMessage}
+      onAppearanceModeChange={onAppearanceModeChange}
+      onToggleCollapsed={() => setSidebarCollapsed((current) => !current)}
+      onOpenWorkspaceSettings={onOpenWorkspaceSettings}
+      onSearchQueryChange={onSearchQueryChange}
+      onSearchSubmit={onSearchSubmit}
+      onOpenFile={onOpenFile}
+      onOpenTag={onOpenTag}
+      onExpandDirectory={onExpandDirectory}
+      explorerScale={explorerScale}
+      onFocusExplorer={onFocusExplorer}
+      dragManager={dragManager}
+      onCreateFile={onCreateFile}
+      onCreateDirectory={onCreateDirectory}
+      onCreateTerminal={onCreateTerminalInDirectory}
+      onRenamePath={onRenamePath}
+      onDeletePath={onDeletePath}
+      rail="none"
+      mirrored={sidePanesFlipped}
+    />
+  );
+
+  const renderSidebarResizer = (inverted: boolean) => sidebarCollapsed ? (
+    <div aria-hidden />
+  ) : (
+    <div
+      className="pane-split-resizer pane-split-resizer--vertical"
+      onMouseDown={(event) => startSidebarResize(event, inverted)}
+    />
+  );
+
+  const editorTree = (
+    <PaneTree
+      node={editorPaneTree.tree}
+      actions={editorPaneTree.actions}
+      focusedLeafId={editorPaneTree.focusedLeafId}
+      renderLeaf={renderEditorLeaf}
+      hoverEdge={dragManager.hoverEdge}
+    />
+  );
+
+  const terminalTree = terminalCollapsed ? null : (
+    <PaneTree
+      node={terminalPaneTree.tree}
+      actions={terminalPaneTree.actions}
+      focusedLeafId={terminalPaneTree.focusedLeafId}
+      renderLeaf={renderTerminalLeaf}
+      hoverEdge={dragManager.hoverEdge}
+    />
+  );
 
   return (
     <div className="shell-frame">
@@ -150,46 +235,20 @@ export function ShellLayout(props: ShellLayoutProps) {
         <div className="topbar__spacer topbar__spacer--right" aria-hidden />
       </header>
       <div
-        className={`shell ${sidebarCollapsed ? "shell--sidebar-collapsed" : ""}`}
-        style={{ gridTemplateColumns: `${sidebarTrack} ${sidebarResizerTrack} 1fr 42px` }}
+        className={`shell ${sidebarCollapsed ? "shell--sidebar-collapsed" : ""} ${sidePanesFlipped ? "shell--side-panes-flipped" : ""}`}
+        style={{ gridTemplateColumns: shellGridTemplate }}
       >
-      <FileTree
+      <ExplorerRail
         collapsed={sidebarCollapsed}
-        noteRoots={noteSections}
-        projectRoots={projectSections}
         appearanceMode={appearanceMode}
         resolvedAppearance={resolvedAppearance}
-        searchQuery={searchQuery}
-        searchResults={searchResults}
-        searchResultMode={searchResultMode}
-        searchResultQuery={searchResultQuery}
-        searchMessage={searchMessage}
         onAppearanceModeChange={onAppearanceModeChange}
         onToggleCollapsed={() => setSidebarCollapsed((current) => !current)}
         onOpenWorkspaceSettings={onOpenWorkspaceSettings}
-        onSearchQueryChange={onSearchQueryChange}
-        onSearchSubmit={onSearchSubmit}
-        onOpenFile={onOpenFile}
-        onOpenTag={onOpenTag}
-        onExpandDirectory={onExpandDirectory}
-        explorerScale={explorerScale}
-        onFocusExplorer={onFocusExplorer}
-        dragManager={dragManager}
-        onCreateFile={onCreateFile}
-        onCreateDirectory={onCreateDirectory}
-        onCreateTerminal={onCreateTerminalInDirectory}
-        onRenamePath={onRenamePath}
-        onDeletePath={onDeletePath}
+        topControls={sidePanesFlipped ? terminalTopControls : explorerTopControls}
       />
-
-      {sidebarCollapsed ? (
-        <div aria-hidden />
-      ) : (
-        <div
-          className="pane-split-resizer pane-split-resizer--vertical"
-          onMouseDown={startSidebarResize}
-        />
-      )}
+      {sidePanesFlipped ? null : explorer}
+      {sidePanesFlipped ? null : renderSidebarResizer(false)}
 
       <div ref={workspaceRef} className="workspace">
         <div
@@ -197,15 +256,24 @@ export function ShellLayout(props: ShellLayoutProps) {
           className="workspace__body"
           style={{ display: "grid", gridTemplateColumns: zoneGridTemplate, overflow: "hidden" }}
         >
-          <PaneTree
-            node={editorPaneTree.tree}
-            actions={editorPaneTree.actions}
-            focusedLeafId={editorPaneTree.focusedLeafId}
-            renderLeaf={renderEditorLeaf}
-            hoverEdge={dragManager.hoverEdge}
-          />
-          {terminalCollapsed ? null : (
+          {terminalCollapsed ? (
+            editorTree
+          ) : sidePanesFlipped ? (
             <>
+              {terminalTree}
+              <div
+                className="pane-split-resizer pane-split-resizer--vertical"
+                onMouseDown={(event) => {
+                  const container = zoneContainerRef.current;
+                  if (!container) return;
+                  startZoneResize(event, container.getBoundingClientRect().width, true);
+                }}
+              />
+              {editorTree}
+            </>
+          ) : (
+            <>
+              {editorTree}
               <div
                 className="pane-split-resizer pane-split-resizer--vertical"
                 onMouseDown={(event) => {
@@ -214,23 +282,23 @@ export function ShellLayout(props: ShellLayoutProps) {
                   startZoneResize(event, container.getBoundingClientRect().width);
                 }}
               />
-              <PaneTree
-                node={terminalPaneTree.tree}
-                actions={terminalPaneTree.actions}
-                focusedLeafId={terminalPaneTree.focusedLeafId}
-                renderLeaf={renderTerminalLeaf}
-                hoverEdge={dragManager.hoverEdge}
-              />
+              {terminalTree}
             </>
           )}
         </div>
       </div>
 
+      {sidePanesFlipped ? renderSidebarResizer(true) : null}
+      {sidePanesFlipped ? explorer : null}
+
       <TerminalRail
         placement="right"
         collapsed={terminalCollapsed}
+        sidePanesFlipped={sidePanesFlipped}
+        topControls={sidePanesFlipped ? explorerTopControls : terminalTopControls}
         style={{}}
         onToggleCollapsed={() => setTerminalCollapsed((c) => !c)}
+        onToggleSidePanes={() => setSidePanesFlipped((current) => !current)}
         onCreateTerminal={onCreateTerminal}
       />
 

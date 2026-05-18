@@ -5,8 +5,9 @@
  * A drag starts after the mouse moves past a threshold (5px).
  * Drop targets are identified by finding the pane leaf under the cursor
  * and computing which edge zone the cursor falls in.
- * Drop targets are filtered by content kind — documents only drop on editor
- * panes, terminals only drop on terminal panes.
+ * Drop targets are filtered by content kind. Documents only drop on editor
+ * panes. Terminal tabs can drop on terminal panes or into the editor canvas,
+ * where they become terminal pane leaves inside the editor split graph.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -34,16 +35,26 @@ export interface DragManager {
   /** Call from onMouseDown on a draggable element */
   startDrag: (event: React.MouseEvent, payload: DragPayload) => void;
   /** Which drop edge is currently hovered */
-  hoverEdge: { leafId: string; edge: DropEdge } | null;
+  hoverEdge: { leafId: string; edge: DropEdge; paneKind: PaneDropKind } | null;
 }
 
 export type DropEdge = "top" | "bottom" | "left" | "right" | "center";
+export type PaneDropKind = "editor" | "terminal";
 
 const DRAG_THRESHOLD = 5;
 
-/** Map drag payload kind to pane content kind for drop zone filtering */
-function payloadToPaneKind(payload: DragPayload): string {
-  return payload.kind === "document" ? "editor" : "terminal";
+function acceptsPayload(paneKind: string | undefined, payload: DragPayload): paneKind is PaneDropKind {
+  if (payload.kind === "document") {
+    return paneKind === "editor";
+  }
+  return paneKind === "editor" || paneKind === "terminal";
+}
+
+function acceptsTabTarget(tabKind: string | undefined, payload: DragPayload): tabKind is PaneDropKind {
+  if (payload.kind === "document") {
+    return tabKind === "editor";
+  }
+  return tabKind === "terminal";
 }
 
 // ---------------------------------------------------------------------------
@@ -54,7 +65,7 @@ export function useDragManager(
   onDrop: (leafId: string, edge: DropEdge, payload: DragPayload) => void,
 ): DragManager {
   const [drag, setDrag] = useState<DragState | null>(null);
-  const [hoverEdge, setHoverEdge] = useState<{ leafId: string; edge: DropEdge } | null>(null);
+  const [hoverEdge, setHoverEdge] = useState<{ leafId: string; edge: DropEdge; paneKind: PaneDropKind } | null>(null);
 
   // Refs to avoid stale closures in window event listeners
   const pendingRef = useRef<{
@@ -77,11 +88,28 @@ export function useDragManager(
   }, []);
 
   useEffect(() => {
-    function findLeafAndEdge(x: number, y: number, requiredKind: string): { leafId: string; edge: DropEdge } | null {
+    function findTabTarget(x: number, y: number, payload: DragPayload): { leafId: string; edge: DropEdge; paneKind: PaneDropKind } | null {
+      const elements = document.elementsFromPoint(x, y);
+      for (const element of elements) {
+        const tab = element instanceof HTMLElement ? element.closest<HTMLElement>("[data-tab-drop-pane-id]") : null;
+        if (!tab) continue;
+
+        const leafId = tab.dataset.tabDropPaneId;
+        if (!leafId || !acceptsTabTarget(tab.dataset.tabDropKind, payload)) continue;
+        return { leafId, edge: "center", paneKind: tab.dataset.tabDropKind };
+      }
+      return null;
+    }
+
+    function findLeafAndEdge(x: number, y: number, payload: DragPayload): { leafId: string; edge: DropEdge; paneKind: PaneDropKind } | null {
+      const tabTarget = findTabTarget(x, y, payload);
+      if (tabTarget) {
+        return tabTarget;
+      }
+
       const leaves = document.querySelectorAll<HTMLElement>("[data-pane-id]");
       for (const leaf of leaves) {
-        // Filter by content kind — only allow drops on matching panes
-        if (leaf.dataset.paneKind !== requiredKind) continue;
+        if (!acceptsPayload(leaf.dataset.paneKind, payload)) continue;
 
         const rect = leaf.getBoundingClientRect();
         if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) continue;
@@ -97,7 +125,7 @@ export function useDragManager(
         else if (relX > 0.75) edge = "right";
         else edge = "center";
 
-        return { leafId, edge };
+        return { leafId, edge, paneKind: leaf.dataset.paneKind };
       }
       return null;
     }
@@ -130,8 +158,7 @@ export function useDragManager(
         setDrag(state);
 
         // Update hover edge for visual feedback
-        const requiredKind = payloadToPaneKind(state.payload);
-        const hit = findLeafAndEdge(event.clientX, event.clientY, requiredKind);
+        const hit = findLeafAndEdge(event.clientX, event.clientY, state.payload);
         setHoverEdge(hit);
       }
     }
@@ -140,9 +167,7 @@ export function useDragManager(
       const wasDragging = dragRef.current;
 
       if (wasDragging) {
-        // Find the drop target — only matches panes of the same kind
-        const requiredKind = payloadToPaneKind(wasDragging.payload);
-        const hit = findLeafAndEdge(event.clientX, event.clientY, requiredKind);
+        const hit = findLeafAndEdge(event.clientX, event.clientY, wasDragging.payload);
         if (hit) {
           onDropRef.current(hit.leafId, hit.edge, wasDragging.payload);
         }

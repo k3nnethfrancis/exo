@@ -1,5 +1,6 @@
-import { ChevronDown, ChevronRight, FolderTree, Hash } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, FolderTree, Hash } from "lucide-react";
 import type { SearchResult, TreeNode } from "@exo/core";
+import type { CSSProperties } from "react";
 import type { DragManager } from "../hooks/useDragManager";
 
 const MAX_LABEL_CHARS = 25;
@@ -44,6 +45,7 @@ interface SectionProps {
   onContextMenu: (event: React.MouseEvent, target: ContextTarget) => void;
   showHeader?: boolean;
   alwaysShowRoots?: boolean;
+  mirrored?: boolean;
 }
 
 export const ROOT_GROUP_PREFIX = "__root__:";
@@ -119,7 +121,9 @@ export function Section(props: SectionProps) {
     onContextMenu,
     showHeader = true,
     alwaysShowRoots = false,
+    mirrored = false,
   } = props;
+  const CollapsedChevron = mirrored ? ChevronLeft : ChevronRight;
 
   if (sections.length === 1 && !alwaysShowRoots) {
     return (
@@ -139,6 +143,7 @@ export function Section(props: SectionProps) {
           onOpenFile={onOpenFile}
           dragManager={dragManager}
           onContextMenu={onContextMenu}
+          mirrored={mirrored}
         />
       </div>
     );
@@ -158,7 +163,7 @@ export function Section(props: SectionProps) {
         return (
           <div key={section.path} className="root-group">
             <button className="root-group__toggle" onClick={() => onTogglePath(rootKey)} type="button">
-              {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+              {expanded ? <ChevronDown size={12} /> : <CollapsedChevron size={12} />}
               <span className="root-group__title">{section.label}</span>
             </button>
             {expanded ? (
@@ -171,6 +176,7 @@ export function Section(props: SectionProps) {
                 onOpenFile={onOpenFile}
                 dragManager={dragManager}
                 onContextMenu={onContextMenu}
+                mirrored={mirrored}
               />
             ) : null}
           </div>
@@ -189,6 +195,7 @@ function TreeNodes({
   onOpenFile,
   dragManager,
   onContextMenu,
+  mirrored,
 }: {
   nodes: TreeNode[];
   depth: number;
@@ -198,22 +205,25 @@ function TreeNodes({
   onOpenFile: (filePath: string) => void;
   dragManager: DragManager;
   onContextMenu: (event: React.MouseEvent, target: ContextTarget) => void;
+  mirrored: boolean;
 }) {
+  const CollapsedChevron = mirrored ? ChevronLeft : ChevronRight;
   return (
     <div className="tree-nodes">
       {nodes.map((node) => {
+        const depthStyle = { "--tree-depth": depth } as CSSProperties;
         if (node.kind === "directory") {
           const expanded = expandedPaths.has(node.path);
           return (
             <div key={node.path}>
               <button
                 className="tree-node tree-node--directory"
-                style={{ paddingLeft: `${depth * 14 + 12}px` }}
+                style={depthStyle}
                 onClick={() => onTogglePath(node.path, rootKind)}
                 onContextMenu={(event) => onContextMenu(event, { path: node.path, kind: "directory" })}
                 type="button"
               >
-                {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                {expanded ? <ChevronDown size={12} /> : <CollapsedChevron size={12} />}
                 <span title={node.name}>{truncateLabel(node.name)}</span>
               </button>
               {expanded && node.children?.length ? (
@@ -226,6 +236,7 @@ function TreeNodes({
                   onOpenFile={onOpenFile}
                   dragManager={dragManager}
                   onContextMenu={onContextMenu}
+                  mirrored={mirrored}
                 />
               ) : null}
             </div>
@@ -236,7 +247,7 @@ function TreeNodes({
           <button
             key={node.path}
             className="tree-node tree-node--file"
-            style={{ paddingLeft: `${depth * 14 + 28}px` }}
+            style={depthStyle}
             onClick={() => onOpenFile(node.path)}
             onMouseDown={(event) =>
               dragManager.startDrag(event, { kind: "document", filePath: node.path })

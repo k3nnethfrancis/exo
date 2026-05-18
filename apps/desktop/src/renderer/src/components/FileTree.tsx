@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 import {
   ClipboardCopy,
@@ -55,8 +55,76 @@ interface FileTreeProps {
   onCreateTerminal: (directoryPath: string) => void;
   onRenamePath: (targetPath: string) => void;
   onDeletePath: (targetPath: string) => void;
+  rail?: "inline" | "none";
+  mirrored?: boolean;
 }
 
+interface ExplorerRailProps {
+  collapsed: boolean;
+  appearanceMode: AppearanceMode;
+  resolvedAppearance: ResolvedAppearance;
+  onAppearanceModeChange: (mode: AppearanceMode) => void;
+  onToggleCollapsed: () => void;
+  onOpenWorkspaceSettings: () => void;
+  topControls?: ReactNode;
+}
+
+export function ExplorerRailTopControls(props: Pick<ExplorerRailProps, "collapsed" | "onToggleCollapsed">) {
+  const { collapsed, onToggleCollapsed } = props;
+  return (
+    <RailButton
+      testId={collapsed ? "sidebar-expand" : "sidebar-collapse"}
+      onClick={onToggleCollapsed}
+      title={collapsed ? "Expand workspace" : "Collapse workspace"}
+    >
+      {collapsed ? <PanelLeftOpen size={13} /> : <PanelLeftClose size={13} />}
+    </RailButton>
+  );
+}
+
+export function ExplorerRail(props: ExplorerRailProps) {
+  const {
+    collapsed,
+    appearanceMode,
+    resolvedAppearance,
+    onAppearanceModeChange,
+    onToggleCollapsed,
+    onOpenWorkspaceSettings,
+    topControls,
+  } = props;
+
+  const appearanceIcon = appearanceMode === "system" ? Monitor : appearanceMode === "light" ? SunMedium : MoonStar;
+  const AppearanceIcon = appearanceIcon;
+
+  function cycleAppearanceMode() {
+    const nextMode = appearanceMode === "system" ? "light" : appearanceMode === "light" ? "dark" : "system";
+    onAppearanceModeChange(nextMode);
+  }
+
+  return (
+    <div className="sidebar__rail">
+      <div className="sidebar__rail-top">
+        {topControls ?? <ExplorerRailTopControls collapsed={collapsed} onToggleCollapsed={onToggleCollapsed} />}
+      </div>
+      <div className="sidebar__rail-bottom">
+        <RailButton
+          testId="appearance-cycle"
+          onClick={cycleAppearanceMode}
+          title={`Appearance: ${appearanceMode} (${resolvedAppearance}). Click to cycle.`}
+        >
+          <AppearanceIcon size={13} />
+        </RailButton>
+        <RailButton
+          testId="workspace-settings"
+          onClick={onOpenWorkspaceSettings}
+          title="Workspace settings"
+        >
+          <Settings size={13} />
+        </RailButton>
+      </div>
+    </div>
+  );
+}
 
 export function FileTree(props: FileTreeProps) {
   const {
@@ -78,6 +146,8 @@ export function FileTree(props: FileTreeProps) {
     onCreateTerminal,
     onRenamePath,
     onDeletePath,
+    rail = "inline",
+    mirrored = false,
   } = props;
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
   const [contextTarget, setContextTarget] = useState<ContextTarget | null>(null);
@@ -152,59 +222,33 @@ export function FileTree(props: FileTreeProps) {
     setContextMenuPosition(null);
   }
 
-  function cycleAppearanceMode() {
-    const nextMode = appearanceMode === "system" ? "light" : appearanceMode === "light" ? "dark" : "system";
-    onAppearanceModeChange(nextMode);
-  }
-
-  const appearanceIcon = appearanceMode === "system" ? Monitor : appearanceMode === "light" ? SunMedium : MoonStar;
-  const AppearanceIcon = appearanceIcon;
   const sidebarStyle = { "--exo-explorer-scale": explorerScale } as CSSProperties;
   const primaryNoteRoot = noteRoots[0]?.path ?? null;
 
   function renderRail() {
     return (
-      <div className="sidebar__rail">
-        <div className="sidebar__rail-top">
-          <RailButton
-            testId={collapsed ? "sidebar-expand" : "sidebar-collapse"}
-            onClick={onToggleCollapsed}
-            title={collapsed ? "Expand workspace" : "Collapse workspace"}
-          >
-            {collapsed ? <PanelLeftOpen size={13} /> : <PanelLeftClose size={13} />}
-          </RailButton>
-        </div>
-        <div className="sidebar__rail-bottom">
-          <RailButton
-            testId="appearance-cycle"
-            onClick={cycleAppearanceMode}
-            title={`Appearance: ${appearanceMode} (${resolvedAppearance}). Click to cycle.`}
-          >
-            <AppearanceIcon size={13} />
-          </RailButton>
-          <RailButton
-            testId="workspace-settings"
-            onClick={onOpenWorkspaceSettings}
-            title="Workspace settings"
-          >
-            <Settings size={13} />
-          </RailButton>
-        </div>
-      </div>
+      <ExplorerRail
+        collapsed={collapsed}
+        appearanceMode={appearanceMode}
+        resolvedAppearance={resolvedAppearance}
+        onAppearanceModeChange={onAppearanceModeChange}
+        onToggleCollapsed={onToggleCollapsed}
+        onOpenWorkspaceSettings={onOpenWorkspaceSettings}
+      />
     );
   }
 
   if (collapsed) {
     return (
       <aside className="sidebar sidebar--collapsed" data-testid="sidebar" onMouseDown={onFocusExplorer} style={sidebarStyle}>
-        {renderRail()}
+        {rail === "inline" ? renderRail() : null}
       </aside>
     );
   }
 
   return (
-    <aside className="sidebar" data-testid="sidebar" onMouseDown={onFocusExplorer} style={sidebarStyle}>
-      {renderRail()}
+    <aside className={`sidebar ${rail === "none" ? "sidebar--content-only" : ""} ${mirrored ? "sidebar--mirrored" : ""}`} data-testid="sidebar" onMouseDown={onFocusExplorer} style={sidebarStyle}>
+      {rail === "inline" ? renderRail() : null}
 
       <div className="sidebar__main">
         <div className="sidebar__toolbar" aria-label="Explorer actions">
@@ -263,6 +307,7 @@ export function FileTree(props: FileTreeProps) {
               onOpenFile={onOpenFile}
               dragManager={dragManager}
               onContextMenu={openContextMenu}
+              mirrored={mirrored}
             />
           </div>
 
@@ -278,6 +323,7 @@ export function FileTree(props: FileTreeProps) {
             panelTestId="project-roots-panel"
             resizerTestId="project-roots-resizer"
             onCollapsedChange={(collapsed) => setProjectRootsExpanded(!collapsed)}
+            mirrored={mirrored}
           >
             <Section
               label="Projects"
@@ -290,6 +336,7 @@ export function FileTree(props: FileTreeProps) {
               onContextMenu={openContextMenu}
               showHeader={false}
               alwaysShowRoots
+              mirrored={mirrored}
             />
           </SidebarDrawer>
           </>

@@ -18,6 +18,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 
 - [ ] Make terminal panes draggable into the editor canvas.
 - [ ] Let files and terminals share one arbitrary split-pane graph.
+- [ ] Roadmap mixed file/terminal tab groups after the split-pane model stabilizes.
 - [ ] Support multiple terminal panes in the main workspace, not just the terminal dock.
 - [ ] Persist pane layout across restart.
 - [ ] Keep file and terminal tab chrome aligned across all pane positions.

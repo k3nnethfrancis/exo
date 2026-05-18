@@ -21,7 +21,7 @@ import { TerminalDock } from "./components/TerminalDock";
 import { useOpenDocumentVersionPolling } from "./hooks/useOpenDocumentVersionPolling";
 import { useShellLayout } from "./hooks/useShellLayout";
 import { useWorkspaceSearch } from "./hooks/useWorkspaceSearch";
-import { collectLeaves, findEditorLeaf, findNode, findTerminalLeaf, findTerminalLeafBySessionId, mapLeaves, pruneEmptyLeaves, updateNode, type PaneLeaf, type PaneNode, type PaneNodeId, type EditorPaneContent, type TerminalPaneContent } from "./hooks/usePaneTree";
+import { collectLeaves, findEditorLeaf, findNode, findTerminalLeaf, mapLeaves, paneId, pruneEmptyLeaves, updateNode, type PaneLeaf, type PaneNode, type PaneNodeId, type EditorPaneContent, type TerminalPaneContent } from "./hooks/usePaneTree";
 import { useDragManager, type DragPayload, type DropEdge } from "./hooks/useDragManager";
 
 interface OpenEditorDocument extends NoteDocument {
@@ -205,7 +205,7 @@ export function App() {
 
   useEffect(() => {
     const activeIds = new Set<string>();
-    for (const leaf of collectLeaves(terminalTree)) {
+    for (const leaf of [...collectLeaves(editorTree), ...collectLeaves(terminalTree)]) {
       if (leaf.content.kind === "terminal" && leaf.content.activeTerminalId) {
         activeIds.add(leaf.content.activeTerminalId);
       }
@@ -221,7 +221,7 @@ export function App() {
           ? Array.from(activeIds)
           : [];
     void window.exo.terminals.setStreaming(streamingIds);
-  }, [activeTerminalId, terminalTree, terminalSessions, terminalStreamingMode]);
+  }, [activeTerminalId, editorTree, terminalTree, terminalSessions, terminalStreamingMode]);
 
   useEffect(() => {
     const openPaths = collectOpenEditorPaths(editorTree);
@@ -236,12 +236,15 @@ export function App() {
   }, [editorTree]);
 
   useEffect(() => {
-    const activeTerminalIds = collectActiveTerminalIds(terminalTree);
+    const activeTerminalIds = collectActiveTerminalIds(editorTree);
+    for (const id of collectActiveTerminalIds(terminalTree)) {
+      activeTerminalIds.add(id);
+    }
     if (activeTerminalId) {
       activeTerminalIds.add(activeTerminalId);
     }
     setTerminalBuffers((current) => pruneRecordToKeys(current, activeTerminalIds));
-  }, [activeTerminalId, terminalTree]);
+  }, [activeTerminalId, editorTree, terminalTree]);
   useEffect(() => {
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
 
@@ -1255,6 +1258,7 @@ export function App() {
 
   async function createTerminal(kind: "shell" | "claude" | "codex", cwd?: string, activate = true) {
     const session = await window.exo.terminals.create({ kind, cwd });
+    shellLayout.setTerminalCollapsed(false);
     setTerminalSessions((current) =>
       current.some((existing) => existing.id === session.id) ? current : [...current, session],
     );
@@ -1288,6 +1292,7 @@ export function App() {
     if (sessions.length === 0) {
       return;
     }
+    shellLayout.setTerminalCollapsed(false);
 
     setTerminalSessions((current) => {
       const seen = new Set(current.map((session) => session.id));
@@ -1354,26 +1359,25 @@ export function App() {
       return next;
     });
 
-    // Remove the session from whichever leaf holds it, then prune any leaf left empty.
+    const remainingSessions = terminalSessions.filter((session) => session.id !== id);
+
+    // Remove the session from whichever leaves hold it, then prune any leaf left empty.
+    editorActions.setTree((prev) =>
+      pruneEmptyLeaves(removeTerminalSessionFromTree(prev, id), (leaf) =>
+        leaf.content.kind === "terminal" && leaf.content.terminalIds.length === 0,
+      ),
+    );
     terminalActions.setTree((prev) => {
-      const next = mapLeaves(prev, (leaf) => {
-        if (leaf.content.kind !== "terminal" || !leaf.content.terminalIds.includes(id)) return leaf;
-        const nextIds = leaf.content.terminalIds.filter((tid) => tid !== id);
-        return {
-          ...leaf,
-          content: {
-            ...leaf.content,
-            terminalIds: nextIds,
-            activeTerminalId: leaf.content.activeTerminalId === id ? (nextIds.at(-1) ?? null) : leaf.content.activeTerminalId,
-          },
-        };
-      });
+      const next = removeTerminalSessionFromTree(prev, id);
       return pruneEmptyLeaves(next, (leaf) => leaf.content.kind === "terminal" && leaf.content.terminalIds.length === 0);
     });
 
     if (activeTerminalId === id) {
-      const fallback = terminalSessions.find((session) => session.id !== id);
+      const fallback = remainingSessions.at(-1);
       setActiveTerminalId(fallback?.id ?? null);
+    }
+    if (remainingSessions.length === 0) {
+      shellLayout.setTerminalCollapsed(true);
     }
   }
 
@@ -1700,52 +1704,36 @@ export function App() {
   }
 
   function handleTerminalDrop(leafId: PaneNodeId, edge: DropEdge, sessionId: string) {
-    // All operations are within the terminal tree only.
-    // Single atomic update: move session, then prune any empty source leaf.
-    if (edge === "center") {
-      terminalActions.setTree((prev) => {
-        const moved = mapLeaves(prev, (leaf) => {
-          if (leaf.content.kind !== "terminal") return leaf;
-          if (leaf.id === leafId) {
-            return {
-              ...leaf,
-              content: {
-                ...leaf.content,
-                terminalIds: leaf.content.terminalIds.includes(sessionId) ? leaf.content.terminalIds : [...leaf.content.terminalIds, sessionId],
-                activeTerminalId: sessionId,
-              },
-            };
-          }
-          if (leaf.content.terminalIds.includes(sessionId)) {
-            return { ...leaf, content: { ...leaf.content, terminalIds: leaf.content.terminalIds.filter((id) => id !== sessionId) } };
-          }
-          return leaf;
-        });
-        return pruneEmptyLeaves(moved, (leaf) => leaf.content.kind === "terminal" && leaf.content.terminalIds.length === 0);
-      });
-    } else {
-      const sourceLeaf = findTerminalLeafBySessionId(terminalTree, sessionId);
-      // Edge-drop within the source pane would orphan one half of the split — skip it.
-      // (The tab is already in the pane; splitting would create an empty sibling, violating the no-empty-leaf invariant.)
-      if (sourceLeaf?.id === leafId && sourceLeaf.content.kind === "terminal" && sourceLeaf.content.terminalIds.length <= 1) {
-        setActiveTerminalId(sessionId);
-        return;
-      }
-      const direction: "horizontal" | "vertical" = (edge === "left" || edge === "right") ? "horizontal" : "vertical";
-      const position: "before" | "after" = (edge === "left" || edge === "top") ? "before" : "after";
-      const newContent: TerminalPaneContent = { kind: "terminal", terminalIds: [sessionId], activeTerminalId: sessionId };
+    const targetInEditorTree = findNode(editorTree, (node) => node.id === leafId);
+    const targetInTerminalTree = findNode(terminalTree, (node) => node.id === leafId);
+    if (!targetInEditorTree && !targetInTerminalTree) {
+      return;
+    }
 
-      // Remove from source first, split target, then prune any leaf left empty.
-      terminalActions.setTree((prev) =>
-        mapLeaves(prev, (leaf) => {
-          if (leaf.content.kind !== "terminal" || !leaf.content.terminalIds.includes(sessionId)) return leaf;
-          return { ...leaf, content: { ...leaf.content, terminalIds: leaf.content.terminalIds.filter((id) => id !== sessionId) } };
-        }),
-      );
-      terminalActions.splitLeaf(leafId, direction, newContent, position);
-      terminalActions.setTree((prev) =>
-        pruneEmptyLeaves(prev, (leaf) => leaf.content.kind === "terminal" && leaf.content.terminalIds.length === 0),
-      );
+    editorActions.setTree((prev) => {
+      const withoutSession = removeTerminalSessionFromTree(prev, sessionId);
+      const moved = targetInEditorTree
+        ? addTerminalSessionToTargetLeaf(withoutSession, leafId, edge, sessionId)
+        : withoutSession;
+      return pruneEmptyLeaves(moved, (leaf) => leaf.content.kind === "terminal" && leaf.content.terminalIds.length === 0);
+    });
+
+    terminalActions.setTree((prev) => {
+      const withoutSession = removeTerminalSessionFromTree(prev, sessionId);
+      const moved = targetInTerminalTree
+        ? addTerminalSessionToTargetLeaf(withoutSession, leafId, edge, sessionId)
+        : withoutSession;
+      return pruneEmptyLeaves(moved, (leaf) => leaf.content.kind === "terminal" && leaf.content.terminalIds.length === 0);
+    });
+
+    if (targetInEditorTree) {
+      editorActions.focusLeaf(leafId);
+      if (treeContainsTerminalSession(terminalTree, sessionId) && countTerminalSessions(terminalTree) <= 1) {
+        shellLayout.setTerminalCollapsed(true);
+      }
+    } else {
+      shellLayout.setTerminalCollapsed(false);
+      terminalActions.focusLeaf(leafId);
     }
     setActiveTerminalId(sessionId);
   }
@@ -1777,10 +1765,47 @@ export function App() {
       }}
       shellLayout={shellLayout}
       renderEditorLeaf={(leaf, isFocused) => {
+        if (leaf.content.kind === "terminal") {
+          const terminalLeafSessions = terminalSessions.filter((s) => leaf.content.kind === "terminal" && leaf.content.terminalIds.includes(s.id));
+          return (
+            <TerminalDock
+              placement="right"
+              paneId={leaf.id}
+              compact={compactEditorChrome}
+              empty={terminalLeafSessions.length === 0}
+              sessions={terminalLeafSessions}
+              activeTerminalId={leaf.content.activeTerminalId}
+              buffers={terminalBuffers}
+              appearance={resolvedAppearance}
+              fontSize={terminalFontSize}
+              scrollbackLines={terminalRuntimeScrollbackLines}
+              onFocus={() => {
+                setZoomSurface("terminal");
+                editorActions.focusLeaf(leaf.id);
+              }}
+              onSetActiveTerminal={(id) => {
+                setZoomSurface("terminal");
+                editorActions.updateLeafContent(leaf.id, (content) =>
+                  content.kind === "terminal" ? { ...content, activeTerminalId: id } : content,
+                );
+                setActiveTerminalId(id);
+                void window.exo.terminals.read(id).then((buffer) => {
+                  setTerminalBuffers((current) => ({ ...current, [id]: buffer }));
+                });
+              }}
+              onWrite={(id, data) => void window.exo.terminals.write(id, data)}
+              onResize={(id, cols, rows) => void window.exo.terminals.resize(id, cols, rows)}
+              onKill={(id) => void closeTerminal(id)}
+              dragManager={dragManager}
+              onTogglePlacement={() => {}}
+              headerActions={null}
+            />
+          );
+        }
         const pane: EditorPaneState = {
           id: leaf.id,
-          openPaths: leaf.content.kind === "editor" ? leaf.content.openPaths : [],
-          activePath: leaf.content.kind === "editor" ? leaf.content.activePath : null,
+          openPaths: leaf.content.openPaths,
+          activePath: leaf.content.activePath,
         };
         return (
           <>
@@ -1833,6 +1858,7 @@ export function App() {
         return (
           <TerminalDock
             placement="right"
+            paneId={leaf.id}
             compact={false}
             empty={terminalLeafSessions.length === 0}
             sessions={terminalLeafSessions}
@@ -2587,6 +2613,77 @@ function addTerminalSessionToFirstLeaf(tree: PaneNode, sessionId: string): PaneN
       },
     };
   });
+}
+
+function removeTerminalSessionFromTree(tree: PaneNode, sessionId: string): PaneNode {
+  return mapLeaves(tree, (leaf) => {
+    if (leaf.content.kind !== "terminal" || !leaf.content.terminalIds.includes(sessionId)) {
+      return leaf;
+    }
+    const terminalIds = leaf.content.terminalIds.filter((id) => id !== sessionId);
+    return {
+      ...leaf,
+      content: {
+        ...leaf.content,
+        terminalIds,
+        activeTerminalId: leaf.content.activeTerminalId === sessionId ? (terminalIds.at(-1) ?? null) : leaf.content.activeTerminalId,
+      },
+    };
+  });
+}
+
+function addTerminalSessionToTargetLeaf(tree: PaneNode, leafId: PaneNodeId, edge: DropEdge, sessionId: string): PaneNode {
+  const terminalContent: TerminalPaneContent = {
+    kind: "terminal",
+    terminalIds: [sessionId],
+    activeTerminalId: sessionId,
+  };
+
+  return updateNode(tree, leafId, (node) => {
+    if (node.kind !== "leaf") {
+      return node;
+    }
+
+    if (edge === "center" && node.content.kind === "terminal") {
+      return {
+        ...node,
+        content: {
+          ...node.content,
+          terminalIds: node.content.terminalIds.includes(sessionId) ? node.content.terminalIds : [...node.content.terminalIds, sessionId],
+          activeTerminalId: sessionId,
+        },
+      };
+    }
+
+    if (node.content.kind === "terminal" && node.content.terminalIds.length === 0) {
+      return { ...node, content: terminalContent };
+    }
+
+    const direction: "horizontal" | "vertical" = (edge === "left" || edge === "right") ? "horizontal" : "vertical";
+    const position: "before" | "after" = (edge === "left" || edge === "top") ? "before" : "after";
+    const newLeaf: PaneLeaf = { kind: "leaf", id: paneId(), content: terminalContent };
+    const splitChildren = position === "before"
+      ? [newLeaf, node] as [PaneNode, PaneNode]
+      : [node, newLeaf] as [PaneNode, PaneNode];
+
+    return {
+      kind: "split",
+      id: paneId(),
+      direction: edge === "center" ? "horizontal" : direction,
+      ratio: 0.5,
+      children: edge === "center" ? [node, newLeaf] as [PaneNode, PaneNode] : splitChildren,
+    };
+  });
+}
+
+function treeContainsTerminalSession(tree: PaneNode, sessionId: string): boolean {
+  return collectLeaves(tree).some((leaf) => leaf.content.kind === "terminal" && leaf.content.terminalIds.includes(sessionId));
+}
+
+function countTerminalSessions(tree: PaneNode): number {
+  return collectLeaves(tree).reduce((count, leaf) =>
+    leaf.content.kind === "terminal" ? count + leaf.content.terminalIds.length : count,
+  0);
 }
 
 function pruneRecordToKeys<T>(record: Record<string, T>, keys: Set<string>): Record<string, T> {

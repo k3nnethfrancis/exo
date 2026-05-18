@@ -6,7 +6,8 @@
  * 2. You can drag tabs within the same zone to split that zone
  * 3. You CANNOT drag editor/notes tabs into the terminal zone
  * 4. You CAN drag terminal tabs into the editor zone
- * 5. No drag operation should ever produce a blank canvas
+ * 5. You can merge split tab groups by dragging a tab back to another group
+ * 6. No drag operation should ever produce a blank canvas
  */
 
 import { test, expect, type Page } from "@playwright/test";
@@ -81,6 +82,56 @@ test.describe("Three-zone layout", () => {
     const editorBox = await getBoundingBox(page, ".pane-leaf--editor");
     const terminalBox = await getBoundingBox(page, ".pane-leaf--terminal");
     expect(editorBox.x).toBeLessThan(terminalBox.x);
+
+    await cleanup();
+  });
+
+  test("swaps terminal pane left and explorer pane right", async () => {
+    const { page, cleanup } = await launchExoFixture();
+
+    await page.getByTestId("swap-side-panes").click();
+
+    const sidebarBox = await getBoundingBox(page, '[data-testid="sidebar"]');
+    const editorBox = await getBoundingBox(page, ".pane-leaf--editor");
+    const terminalBox = await getBoundingBox(page, ".pane-leaf--terminal");
+    const railBox = await getBoundingBox(page, '[data-testid="terminal-rail"]');
+    const launchShellBox = await getBoundingBox(page, '[data-testid="launch-shell"]');
+    const sidebarToggleBox = await getBoundingBox(page, '[data-testid="sidebar-collapse"]');
+    const newNoteBox = await getBoundingBox(page, '[data-testid="sidebar-new-note"]');
+    const searchToggleBox = await getBoundingBox(page, '[data-testid="sidebar-search-toggle"]');
+    const firstFileLabelAlign = await page.locator(".sidebar--mirrored .tree-node--file").first().locator("span").last().evaluate((element) =>
+      window.getComputedStyle(element).textAlign,
+    );
+
+    expect(terminalBox.x).toBeLessThan(editorBox.x);
+    expect(editorBox.x).toBeLessThan(sidebarBox.x);
+    expect(sidebarBox.x).toBeLessThan(railBox.x);
+    expect(launchShellBox.x).toBeLessThan(terminalBox.x);
+    expect(sidebarToggleBox.x).toBeGreaterThan(sidebarBox.x);
+    expect(newNoteBox.x).toBeGreaterThan(searchToggleBox.x);
+    expect(firstFileLabelAlign).toBe("right");
+
+    const firstDirectory = page.locator(".sidebar--mirrored .tree-node--directory").first();
+    if (await firstDirectory.count()) {
+      const firstDirectoryChevronBox = await firstDirectory.locator("svg").boundingBox();
+      const firstDirectoryLabelBox = await firstDirectory.locator("span").boundingBox();
+      const firstDirectoryAlign = await firstDirectory.locator("span").evaluate((element) =>
+        window.getComputedStyle(element).textAlign,
+      );
+      expect(firstDirectoryChevronBox).not.toBeNull();
+      expect(firstDirectoryLabelBox).not.toBeNull();
+      expect(firstDirectoryChevronBox!.x).toBeGreaterThan(firstDirectoryLabelBox!.x);
+      expect(firstDirectoryAlign).toBe("right");
+    }
+
+    await page.getByTestId("swap-side-panes").click();
+
+    const restoredSidebarBox = await getBoundingBox(page, '[data-testid="sidebar"]');
+    const restoredEditorBox = await getBoundingBox(page, ".pane-leaf--editor");
+    const restoredTerminalBox = await getBoundingBox(page, ".pane-leaf--terminal");
+
+    expect(restoredSidebarBox.x).toBeLessThan(restoredEditorBox.x);
+    expect(restoredEditorBox.x).toBeLessThan(restoredTerminalBox.x);
 
     await cleanup();
   });
@@ -218,6 +269,66 @@ test.describe("Within-zone splits", () => {
 
     // Terminal pane should be unaffected
     await expect(page.locator(".pane-leaf--terminal")).toBeVisible();
+
+    await cleanup();
+  });
+
+  test("dragging a split terminal tab back to another terminal tab group merges panes", async () => {
+    const { page, cleanup } = await launchExoFixture();
+
+    await page.evaluate(async () => {
+      await window.exo.terminals.create({ kind: "shell" });
+    });
+    await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(2);
+
+    const terminalBox = await getBoundingBox(page, ".pane-leaf--terminal");
+    const secondTabBox = await page.getByTestId("terminal-tab-shell").nth(1).boundingBox();
+    expect(secondTabBox).not.toBeNull();
+
+    await manualDrag(
+      page,
+      { x: secondTabBox!.x + secondTabBox!.width / 2, y: secondTabBox!.y + secondTabBox!.height / 2 },
+      { x: terminalBox.x + terminalBox.width / 2, y: terminalBox.y + terminalBox.height * 0.9 },
+    );
+
+    await expect(page.locator(".pane-leaf--terminal")).toHaveCount(2);
+
+    const sourceTabBox = await page.locator(".pane-leaf--terminal").nth(1).getByTestId("terminal-tab-shell").first().boundingBox();
+    const targetTabBox = await page.locator(".pane-leaf--terminal").first().getByTestId("terminal-tab-shell").first().boundingBox();
+    expect(sourceTabBox).not.toBeNull();
+    expect(targetTabBox).not.toBeNull();
+
+    await manualDrag(
+      page,
+      { x: sourceTabBox!.x + sourceTabBox!.width / 2, y: sourceTabBox!.y + sourceTabBox!.height / 2 },
+      { x: targetTabBox!.x + targetTabBox!.width / 2, y: targetTabBox!.y + targetTabBox!.height / 2 },
+    );
+
+    await expect(page.locator(".pane-leaf--terminal")).toHaveCount(1);
+    await expect(page.locator(".pane-leaf--terminal").first().getByTestId("terminal-tab-shell")).toHaveCount(2);
+
+    await cleanup();
+  });
+});
+
+test.describe("Cross-zone terminal tab moves", () => {
+  test("dragging a terminal tab into the editor canvas creates a terminal pane there", async () => {
+    const { page, cleanup } = await launchExoFixture();
+
+    const terminalTabBox = await page.getByTestId("terminal-tab-shell").first().boundingBox();
+    const editorBox = await getBoundingBox(page, ".pane-leaf--editor");
+    expect(terminalTabBox).not.toBeNull();
+
+    await manualDrag(
+      page,
+      { x: terminalTabBox!.x + terminalTabBox!.width / 2, y: terminalTabBox!.y + terminalTabBox!.height / 2 },
+      { x: editorBox.x + editorBox.width / 2, y: editorBox.y + editorBox.height / 2 },
+    );
+
+    await expect(page.locator(".workspace__body .pane-leaf--editor")).toBeVisible();
+    await expect(page.locator(".workspace__body .pane-leaf--terminal")).toHaveCount(1);
+    await expect(page.getByTestId("terminal-expand")).toBeVisible();
+    await expect(page.locator(".workspace__body .pane-leaf--terminal").getByTestId("terminal-tab-shell")).toBeVisible();
 
     await cleanup();
   });
