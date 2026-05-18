@@ -1,6 +1,6 @@
 {
   "name": "@exo/desktop",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.2",
   "description": "Local-first agentic development environment built around a shared exocortex for humans and terminal agents.",
   "author": "Exo contributors",
   "license": "Apache-2.0",

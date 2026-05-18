@@ -63,10 +63,13 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Simplified terminal history controls around explicit `full` and `custom` modes: `full` keeps Exo buffers untrimmed, transcripts default to forever, tmux/xterm use the configured line window, and restored tmux-backed agents seed visible scrollback once before returning to live PTY streaming.
 - Removed hidden terminal transcript byte caps and renderer-side buffer trimming; terminal history policy now lives in the main terminal manager and workspace settings.
 - Hardened terminal rendering against xterm device-response input leaks and avoided recurring tmux snapshot replay into visible terminals.
+- Made Markdown task checkboxes clickable in live preview by toggling the underlying `- [ ]` / `- [x]` source text.
+- Hardened CLI/MCP indexed search for full-vault QMD use by giving search a dedicated 30s default timeout, preserving fast normal request timeouts, and adding structured timeout errors plus regression coverage.
+- Verified a fresh Exo-hosted Codex session can call Exo MCP `search` and `index_status` against the 1155-document lab notes index without timing out.
 
 ## Next Priorities
 
-1. Pre-push hygiene: license, ignore checks, stale docs scan, `pnpm check`, focused e2e.
+1. Push `0.1.0-alpha.2` tester-readiness fixes to main.
 2. Workspace surface: terminal panes draggable into the editor canvas and persisted arbitrary split-pane graph.
 3. Project roots and code review: CLI/MCP root management plus changed-file review for agent-authored edits.
 4. Agent context manager: inspect/edit/compare global and local `AGENTS.md` / `CLAUDE.md`.

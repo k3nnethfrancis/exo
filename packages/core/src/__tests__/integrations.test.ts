@@ -25,6 +25,8 @@ describe("integrations", () => {
       "--env",
       "EXO_MCP_AUTOSTART=1",
       "--env",
+      "EXO_MCP_SEARCH_TIMEOUT_MS=30000",
+      "--env",
       "EXO_MCP_START_COMMAND=/tmp/exo-test-workspace/projects/exo/bin/exo dev",
       "--",
       "node",
@@ -57,6 +59,7 @@ describe("integrations", () => {
     expect(json.mcpServers.exo.command).toBe("node");
     expect(json.mcpServers.exo.args).toContain("/tmp/exo-test-workspace/projects/exo/packages/mcp/bin/exo-mcp.mjs");
     expect(json.mcpServers.exo.env.EXO_MCP_AUTOSTART).toBe("1");
+    expect(json.mcpServers.exo.env.EXO_MCP_SEARCH_TIMEOUT_MS).toBe("30000");
   });
 
   it("parses Codex and Claude MCP list output", () => {

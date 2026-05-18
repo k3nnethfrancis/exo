@@ -116,6 +116,30 @@ describe("cli package", () => {
     expect(receivedData).toBe("hello\r");
   });
 
+  it("passes search limits through the app route", async () => {
+    let receivedQuery = "";
+    let receivedLimit: number | undefined;
+    let stdout = "";
+
+    const exitCode = await runCli(["node", "exo-cli", "search", "roleplay", "--limit", "7"], {
+      env: testRuntimeEnv(),
+      stdout: { write: (text) => { stdout += text; } },
+      stderr: { write: () => {} },
+      connectAppClient: async () => fakeAppClient({
+        search: async (query, options) => {
+          receivedQuery = query;
+          receivedLimit = options?.limit;
+          return { source: "qmd", results: [] };
+        },
+      }),
+    });
+
+    expect(exitCode).toBe(0);
+    expect(receivedQuery).toBe("roleplay");
+    expect(receivedLimit).toBe(7);
+    expect(stdout).toContain('"source": "qmd"');
+  });
+
   it("calls the app for index status", async () => {
     const client = fakeAppClient({
       getIndexStatus: async () => ({ enabled: true, mode: "hybrid", backend: "qmd" }),
@@ -294,7 +318,7 @@ function fakeAppClient(overrides: Partial<{
   openFile: (filePath: string) => Promise<void>;
   showWindow: () => Promise<void>;
   getConfig: () => Promise<Record<string, unknown>>;
-  search: (query: string) => Promise<Record<string, unknown>>;
+  search: (query: string, options?: { limit?: number }) => Promise<Record<string, unknown>>;
   readDocument: (target: string, options?: { fromLine?: number; maxLines?: number }) => Promise<Record<string, unknown>>;
   getIndexStatus: () => Promise<Record<string, unknown>>;
   syncIndex: () => Promise<Record<string, unknown>>;

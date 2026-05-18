@@ -38,6 +38,7 @@ export function buildExoMcpServerSpec(config: ExoMcpIntegrationConfig): ExoMcpSe
     env: {
       EXO_WORKSPACE_ROOT: config.workspaceRoot,
       EXO_MCP_AUTOSTART: "1",
+      EXO_MCP_SEARCH_TIMEOUT_MS: "30000",
       EXO_MCP_START_COMMAND: config.startCommand ?? `${config.exoRoot}/bin/exo dev`,
     },
   };

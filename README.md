@@ -63,7 +63,7 @@ Exo is under active development and not yet a polished public binary release.
 - Supported today: source development and unsigned macOS packaging.
 - Coming later: first-class Windows and Linux support.
 - License: Apache-2.0.
-- Current alpha: `0.1.0-alpha.1`.
+- Current alpha: `0.1.0-alpha.2`.
 - Not ready yet: signed/notarized macOS releases, Windows/Linux installers, and cross-platform terminal persistence.
 
 Before broad public binary release, Exo still needs signed/notarized macOS packaging and a clean release checklist from a fresh clone.

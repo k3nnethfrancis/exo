@@ -4,6 +4,7 @@ import path from "node:path";
 import { EXO_COMMAND_ROUTES, type ExoCommandServerInfo } from "@exo/core";
 
 const defaultRequestTimeoutMs = 2_000;
+const defaultSearchRequestTimeoutMs = 30_000;
 const defaultMaintenanceRequestTimeoutMs = 30 * 60_000;
 
 /**
@@ -14,6 +15,7 @@ export class AppClient {
   private constructor(
     private baseUrl: string,
     private readonly requestTimeoutMs = defaultRequestTimeoutMs,
+    private readonly searchRequestTimeoutMs = defaultSearchRequestTimeoutMs,
     private readonly maintenanceRequestTimeoutMs = defaultMaintenanceRequestTimeoutMs,
   ) {}
 
@@ -34,9 +36,10 @@ export class AppClient {
 
     const baseUrl = `http://127.0.0.1:${info.port}`;
     const requestTimeoutMs = parsePositiveInt(env.EXO_APP_CLIENT_REQUEST_TIMEOUT_MS) ?? defaultRequestTimeoutMs;
+    const searchRequestTimeoutMs = parsePositiveInt(env.EXO_APP_CLIENT_SEARCH_TIMEOUT_MS) ?? defaultSearchRequestTimeoutMs;
     const maintenanceRequestTimeoutMs =
       parsePositiveInt(env.EXO_APP_CLIENT_MAINTENANCE_TIMEOUT_MS) ?? defaultMaintenanceRequestTimeoutMs;
-    const client = new AppClient(baseUrl, requestTimeoutMs, maintenanceRequestTimeoutMs);
+    const client = new AppClient(baseUrl, requestTimeoutMs, searchRequestTimeoutMs, maintenanceRequestTimeoutMs);
 
     // Health check
     try {
@@ -63,8 +66,10 @@ export class AppClient {
     return this.get(EXO_COMMAND_ROUTES.config);
   }
 
-  async search(query: string): Promise<Record<string, unknown>> {
-    return this.get(`${EXO_COMMAND_ROUTES.search}?q=${encodeURIComponent(query)}`);
+  async search(query: string, options: { limit?: number } = {}): Promise<Record<string, unknown>> {
+    const params = new URLSearchParams({ q: query });
+    if (options.limit) params.set("limit", String(options.limit));
+    return this.get(`${EXO_COMMAND_ROUTES.search}?${params.toString()}`, this.searchRequestTimeoutMs);
   }
 
   async readDocument(target: string, options: { fromLine?: number; maxLines?: number } = {}): Promise<Record<string, unknown>> {
@@ -121,27 +126,39 @@ export class AppClient {
     await this.delete(EXO_COMMAND_ROUTES.terminal(id));
   }
 
-  private async get(path: string): Promise<any> {
-    const res = await fetch(`${this.baseUrl}${path}`, { signal: AbortSignal.timeout(this.requestTimeoutMs) });
-    if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
-    return res.json();
+  private async get(path: string, timeoutMs = this.requestTimeoutMs): Promise<any> {
+    try {
+      const res = await fetch(`${this.baseUrl}${path}`, { signal: AbortSignal.timeout(timeoutMs) });
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+      return res.json();
+    } catch (error) {
+      throw enhanceTimeoutError(error, "GET", path, timeoutMs);
+    }
   }
 
   private async post(path: string, body: Record<string, unknown>, timeoutMs = this.requestTimeoutMs): Promise<any> {
-    const res = await fetch(`${this.baseUrl}${path}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
-    return res.json();
+    try {
+      const res = await fetch(`${this.baseUrl}${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+      return res.json();
+    } catch (error) {
+      throw enhanceTimeoutError(error, "POST", path, timeoutMs);
+    }
   }
 
   private async delete(path: string): Promise<any> {
-    const res = await fetch(`${this.baseUrl}${path}`, { method: "DELETE", signal: AbortSignal.timeout(this.requestTimeoutMs) });
-    if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
-    return res.json();
+    try {
+      const res = await fetch(`${this.baseUrl}${path}`, { method: "DELETE", signal: AbortSignal.timeout(this.requestTimeoutMs) });
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+      return res.json();
+    } catch (error) {
+      throw enhanceTimeoutError(error, "DELETE", path, this.requestTimeoutMs);
+    }
   }
 }
 
@@ -151,4 +168,15 @@ function parsePositiveInt(value: string | undefined): number | undefined {
   }
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function enhanceTimeoutError(error: unknown, method: string, targetPath: string, timeoutMs: number): Error {
+  if (isAbortError(error)) {
+    return new Error(`Exo command server ${method} ${targetPath} timed out after ${timeoutMs}ms.`);
+  }
+  return error instanceof Error ? error : new Error(String(error));
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && (error.name === "AbortError" || error.name === "TimeoutError");
 }

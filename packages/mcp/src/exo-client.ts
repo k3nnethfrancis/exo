@@ -19,6 +19,7 @@ export type ExoAgentKind = "shell" | "claude" | "codex";
 
 const defaultConnectTimeoutMs = 20_000;
 const defaultRequestTimeoutMs = 2_000;
+const defaultSearchRequestTimeoutMs = 30_000;
 const defaultMaintenanceRequestTimeoutMs = 30 * 60_000;
 const pollIntervalMs = 250;
 
@@ -26,6 +27,7 @@ export class ExoCommandClient {
   constructor(
     readonly baseUrl: string,
     private readonly requestTimeoutMs = defaultRequestTimeoutMs,
+    private readonly searchRequestTimeoutMs = defaultSearchRequestTimeoutMs,
     private readonly maintenanceRequestTimeoutMs = defaultMaintenanceRequestTimeoutMs,
   ) {}
 
@@ -35,6 +37,7 @@ export class ExoCommandClient {
     const autostart = env.EXO_MCP_AUTOSTART === "1";
     const timeoutMs = parsePositiveInt(env.EXO_MCP_CONNECT_TIMEOUT_MS) ?? defaultConnectTimeoutMs;
     const requestTimeoutMs = parsePositiveInt(env.EXO_MCP_REQUEST_TIMEOUT_MS) ?? defaultRequestTimeoutMs;
+    const searchRequestTimeoutMs = parsePositiveInt(env.EXO_MCP_SEARCH_TIMEOUT_MS) ?? defaultSearchRequestTimeoutMs;
     const maintenanceRequestTimeoutMs =
       parsePositiveInt(env.EXO_MCP_MAINTENANCE_TIMEOUT_MS) ?? defaultMaintenanceRequestTimeoutMs;
     let info = await readServerInfo(serverJsonPath);
@@ -50,7 +53,7 @@ export class ExoCommandClient {
       );
     }
 
-    let client = new ExoCommandClient(`http://127.0.0.1:${info.port}`, requestTimeoutMs, maintenanceRequestTimeoutMs);
+    let client = new ExoCommandClient(`http://127.0.0.1:${info.port}`, requestTimeoutMs, searchRequestTimeoutMs, maintenanceRequestTimeoutMs);
     if (await client.isReachable()) {
       return client;
     }
@@ -60,7 +63,7 @@ export class ExoCommandClient {
     }
 
     startExo(env);
-    client = await waitForReachableClient(serverJsonPath, timeoutMs, requestTimeoutMs, maintenanceRequestTimeoutMs);
+    client = await waitForReachableClient(serverJsonPath, timeoutMs, requestTimeoutMs, searchRequestTimeoutMs, maintenanceRequestTimeoutMs);
     return client;
   }
 
@@ -82,7 +85,7 @@ export class ExoCommandClient {
     if (options.intent) params.set("intent", options.intent);
     if (options.includeContent) params.set("includeContent", "1");
     if (options.maxLinesPerResult) params.set("maxLinesPerResult", String(options.maxLinesPerResult));
-    return this.get(`${EXO_COMMAND_ROUTES.search}?${params.toString()}`);
+    return this.get(`${EXO_COMMAND_ROUTES.search}?${params.toString()}`, this.searchRequestTimeoutMs);
   }
 
   async readDocument(target: string, options: { fromLine?: number; maxLines?: number } = {}): Promise<Record<string, unknown>> {
@@ -110,33 +113,45 @@ export class ExoCommandClient {
     await this.delete(EXO_COMMAND_ROUTES.terminal(id));
   }
 
-  private async get(targetPath: string): Promise<any> {
-    const response = await fetch(`${this.baseUrl}${targetPath}`, { signal: AbortSignal.timeout(this.requestTimeoutMs) });
-    if (!response.ok) {
-      throw new Error(`Exo command server returned HTTP ${response.status}: ${await response.text()}`);
+  private async get(targetPath: string, timeoutMs = this.requestTimeoutMs): Promise<any> {
+    try {
+      const response = await fetch(`${this.baseUrl}${targetPath}`, { signal: AbortSignal.timeout(timeoutMs) });
+      if (!response.ok) {
+        throw new Error(`Exo command server returned HTTP ${response.status}: ${await response.text()}`);
+      }
+      return response.json();
+    } catch (error) {
+      throw enhanceTimeoutError(error, "GET", targetPath, timeoutMs);
     }
-    return response.json();
   }
 
   private async post(targetPath: string, body: Record<string, unknown>, timeoutMs = this.requestTimeoutMs): Promise<any> {
-    const response = await fetch(`${this.baseUrl}${targetPath}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    if (!response.ok) {
-      throw new Error(`Exo command server returned HTTP ${response.status}: ${await response.text()}`);
+    try {
+      const response = await fetch(`${this.baseUrl}${targetPath}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (!response.ok) {
+        throw new Error(`Exo command server returned HTTP ${response.status}: ${await response.text()}`);
+      }
+      return response.json();
+    } catch (error) {
+      throw enhanceTimeoutError(error, "POST", targetPath, timeoutMs);
     }
-    return response.json();
   }
 
   private async delete(targetPath: string): Promise<any> {
-    const response = await fetch(`${this.baseUrl}${targetPath}`, { method: "DELETE", signal: AbortSignal.timeout(this.requestTimeoutMs) });
-    if (!response.ok) {
-      throw new Error(`Exo command server returned HTTP ${response.status}: ${await response.text()}`);
+    try {
+      const response = await fetch(`${this.baseUrl}${targetPath}`, { method: "DELETE", signal: AbortSignal.timeout(this.requestTimeoutMs) });
+      if (!response.ok) {
+        throw new Error(`Exo command server returned HTTP ${response.status}: ${await response.text()}`);
+      }
+      return response.json();
+    } catch (error) {
+      throw enhanceTimeoutError(error, "DELETE", targetPath, this.requestTimeoutMs);
     }
-    return response.json();
   }
 
   async isReachable(): Promise<boolean> {
@@ -177,6 +192,7 @@ async function waitForReachableClient(
   serverJsonPath: string,
   timeoutMs: number,
   requestTimeoutMs: number,
+  searchRequestTimeoutMs: number,
   maintenanceRequestTimeoutMs: number,
 ): Promise<ExoCommandClient> {
   const deadline = Date.now() + timeoutMs;
@@ -184,7 +200,7 @@ async function waitForReachableClient(
   while (Date.now() < deadline) {
     const info = await readServerInfo(serverJsonPath);
     if (info) {
-      const client = new ExoCommandClient(`http://127.0.0.1:${info.port}`, requestTimeoutMs, maintenanceRequestTimeoutMs);
+      const client = new ExoCommandClient(`http://127.0.0.1:${info.port}`, requestTimeoutMs, searchRequestTimeoutMs, maintenanceRequestTimeoutMs);
       lastBaseUrl = client.baseUrl;
       if (await client.isReachable()) {
         return client;
@@ -220,6 +236,17 @@ function parsePositiveInt(value?: string): number | null {
   }
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function enhanceTimeoutError(error: unknown, method: string, targetPath: string, timeoutMs: number): Error {
+  if (isAbortError(error)) {
+    return new Error(`Exo command server ${method} ${targetPath} timed out after ${timeoutMs}ms.`);
+  }
+  return error instanceof Error ? error : new Error(String(error));
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && (error.name === "AbortError" || error.name === "TimeoutError");
 }
 
 function sleep(ms: number): Promise<void> {

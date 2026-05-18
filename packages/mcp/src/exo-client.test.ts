@@ -95,6 +95,50 @@ describe("ExoCommandClient", () => {
     expect(JSON.parse(readBody)).toEqual({ target: "#abc123", fromLine: 2, maxLines: 4 });
   });
 
+  it("uses the search timeout instead of the general request timeout for search", async () => {
+    const runtimeRoot = await runtimeFixture();
+    stubCommandServer(async (targetUrl, init) => {
+      if (targetUrl.pathname === "/status") {
+        return json({ ok: true });
+      }
+      if (targetUrl.pathname === "/search") {
+        await delayWithAbort(10, init?.signal);
+        return json({ query: targetUrl.searchParams.get("q"), limit: targetUrl.searchParams.get("limit") });
+      }
+      return json({ error: "not found" }, 404);
+    });
+
+    const client = await ExoCommandClient.connect({
+      ...testRuntimeEnv(runtimeRoot),
+      EXO_MCP_REQUEST_TIMEOUT_MS: "1",
+      EXO_MCP_SEARCH_TIMEOUT_MS: "100",
+    });
+
+    await expect(client.search("roleplay", { limit: 7 })).resolves.toMatchObject({ query: "roleplay", limit: "7" });
+  });
+
+  it("reports search timeout details", async () => {
+    const runtimeRoot = await runtimeFixture();
+    stubCommandServer(async (targetUrl, init) => {
+      if (targetUrl.pathname === "/status") {
+        return json({ ok: true });
+      }
+      if (targetUrl.pathname === "/search") {
+        await delayWithAbort(100, init?.signal);
+        return json({ results: [] });
+      }
+      return json({ error: "not found" }, 404);
+    });
+
+    const client = await ExoCommandClient.connect({
+      ...testRuntimeEnv(runtimeRoot),
+      EXO_MCP_REQUEST_TIMEOUT_MS: "50",
+      EXO_MCP_SEARCH_TIMEOUT_MS: "5",
+    });
+
+    await expect(client.search("roleplay")).rejects.toThrow("GET /search?q=roleplay timed out after 5ms");
+  });
+
   it("strips terminal escape codes for readable MCP output", () => {
     expect(stripAnsi("\u001b[31mred\u001b[0m\r\nnext")).toBe("red\nnext");
   });
@@ -129,5 +173,15 @@ function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { "Content-Type": "application/json" },
+  });
+}
+
+function delayWithAbort(ms: number, signal?: AbortSignal | null): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(resolve, ms);
+    signal?.addEventListener("abort", () => {
+      clearTimeout(timeout);
+      reject(signal.reason ?? new DOMException("The operation was aborted.", "AbortError"));
+    }, { once: true });
   });
 }

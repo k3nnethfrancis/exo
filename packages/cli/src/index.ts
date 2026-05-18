@@ -39,7 +39,7 @@ interface AppClientLike {
   openFile(filePath: string): Promise<void>;
   showWindow(): Promise<void>;
   getConfig(): Promise<Record<string, unknown>>;
-  search(query: string): Promise<Record<string, unknown>>;
+  search(query: string, options?: { limit?: number }): Promise<Record<string, unknown>>;
   readDocument(target: string, options?: { fromLine?: number; maxLines?: number }): Promise<Record<string, unknown>>;
   getIndexStatus(): Promise<Record<string, unknown>>;
   syncIndex(): Promise<Record<string, unknown>>;
@@ -96,9 +96,10 @@ export async function runCli(
 
     const config = resolveRuntimeConfig(env);
     const client = await connectAppClient(config.runtimeRoot, env);
+    const limit = parsePositiveInt(values.limit);
     const results = client
-      ? await client.search(query)
-      : await searchIndex(config.workspace, config.runtimeRoot, query, { limit: parsePositiveInt(values.limit) });
+      ? await client.search(query, { limit })
+      : await searchIndex(config.workspace, config.runtimeRoot, query, { limit });
     stdout.write(`${JSON.stringify(results, null, 2)}\n`);
     return 0;
   }

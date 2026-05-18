@@ -43,6 +43,9 @@ Optional environment:
 
 - `EXO_MCP_START_COMMAND` — shell command used to start Exo. Defaults to this repo's `bin/exo dev`.
 - `EXO_MCP_CONNECT_TIMEOUT_MS` — startup/connect timeout. Defaults to `20000`.
+- `EXO_MCP_REQUEST_TIMEOUT_MS` — normal command-server request timeout. Defaults to `2000`.
+- `EXO_MCP_SEARCH_TIMEOUT_MS` — search request timeout for QMD-backed retrieval. Defaults to `30000`.
+- `EXO_MCP_MAINTENANCE_TIMEOUT_MS` — long-running index maintenance timeout. Defaults to `1800000`.
 
 Without autostart, Exo must already be running so the MCP server can discover `.exo/server.json` and talk to the local command server.
 
