@@ -157,6 +157,7 @@ export function FileTree(props: FileTreeProps) {
   const [projectRootsExpanded, setProjectRootsExpanded] = useState(false);
   const [explorerMode, setExplorerMode] = useState<"files" | "search">("files");
   const panesRef = useRef<HTMLDivElement | null>(null);
+  const processedRevealNonceRef = useRef<number | null>(null);
 
   const defaultExpandedPaths = useMemo(() => {
     const next = new Set<string>();
@@ -180,6 +181,10 @@ export function FileTree(props: FileTreeProps) {
     if (!revealPathRequest) {
       return;
     }
+    if (processedRevealNonceRef.current === revealPathRequest.nonce) {
+      return;
+    }
+    processedRevealNonceRef.current = revealPathRequest.nonce;
 
     const rootKind = rootKindForPath(revealPathRequest.path, noteRoots, projectRoots);
     setExpandedPaths((current) => {

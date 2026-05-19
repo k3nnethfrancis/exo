@@ -391,6 +391,8 @@ test.describe("Explorer file moves", () => {
       }
     }).toBe(true);
     await expect(page.locator(".tree-node--directory", { hasText: "source-dir" }).first()).toBeVisible();
+    await target.click();
+    await expect(page.locator(".tree-node--directory", { hasText: "source-dir" })).toHaveCount(0);
 
     await cleanup();
   });
