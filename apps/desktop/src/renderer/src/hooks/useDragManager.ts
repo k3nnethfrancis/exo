@@ -18,7 +18,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 export type DragPayload =
   | { kind: "document"; filePath: string; sourcePaneId?: string }
-  | { kind: "terminal"; sessionId: string };
+  | { kind: "terminal"; sessionId: string }
+  | { kind: "workspace-path"; path: string; nodeKind: "file" | "directory" };
 
 export interface DragState {
   payload: DragPayload;
@@ -35,17 +36,23 @@ export interface DragManager {
   /** Call from onMouseDown on a draggable element */
   startDrag: (event: React.MouseEvent, payload: DragPayload) => void;
   /** Which drop edge is currently hovered */
-  hoverEdge: { leafId: string; edge: DropEdge; paneKind: PaneDropKind } | null;
+  hoverEdge: DragDropTarget | null;
 }
 
 export type DropEdge = "top" | "bottom" | "left" | "right" | "center";
 export type PaneDropKind = "editor" | "terminal";
+export type DragDropTarget =
+  | { kind: "pane"; leafId: string; edge: DropEdge; paneKind: PaneDropKind }
+  | { kind: "explorer"; targetPath: string; targetKind: "directory" | "file" };
 
 const DRAG_THRESHOLD = 5;
 
 function acceptsPayload(paneKind: string | undefined, payload: DragPayload): paneKind is PaneDropKind {
-  if (payload.kind === "document") {
+  if (payload.kind === "document" || (payload.kind === "workspace-path" && payload.nodeKind === "file")) {
     return paneKind === "editor";
+  }
+  if (payload.kind === "workspace-path") {
+    return false;
   }
   return paneKind === "editor" || paneKind === "terminal";
 }
@@ -53,6 +60,9 @@ function acceptsPayload(paneKind: string | undefined, payload: DragPayload): pan
 function acceptsTabTarget(tabKind: string | undefined, payload: DragPayload): tabKind is PaneDropKind {
   if (payload.kind === "document") {
     return tabKind === "editor";
+  }
+  if (payload.kind === "workspace-path") {
+    return payload.nodeKind === "file" && tabKind === "editor";
   }
   return tabKind === "terminal";
 }
@@ -62,10 +72,10 @@ function acceptsTabTarget(tabKind: string | undefined, payload: DragPayload): ta
 // ---------------------------------------------------------------------------
 
 export function useDragManager(
-  onDrop: (leafId: string, edge: DropEdge, payload: DragPayload) => void,
+  onDrop: (target: DragDropTarget, payload: DragPayload) => void,
 ): DragManager {
   const [drag, setDrag] = useState<DragState | null>(null);
-  const [hoverEdge, setHoverEdge] = useState<{ leafId: string; edge: DropEdge; paneKind: PaneDropKind } | null>(null);
+  const [hoverEdge, setHoverEdge] = useState<DragDropTarget | null>(null);
 
   // Refs to avoid stale closures in window event listeners
   const pendingRef = useRef<{
@@ -80,6 +90,7 @@ export function useDragManager(
   const startDrag = useCallback((event: React.MouseEvent, payload: DragPayload) => {
     // Only left button
     if (event.button !== 0) return;
+    event.preventDefault();
     pendingRef.current = {
       payload,
       startX: event.clientX,
@@ -88,7 +99,23 @@ export function useDragManager(
   }, []);
 
   useEffect(() => {
-    function findTabTarget(x: number, y: number, payload: DragPayload): { leafId: string; edge: DropEdge; paneKind: PaneDropKind } | null {
+    function findExplorerTarget(x: number, y: number, payload: DragPayload): DragDropTarget | null {
+      if (payload.kind !== "workspace-path") {
+        return null;
+      }
+
+      const elements = document.elementsFromPoint(x, y);
+      for (const element of elements) {
+        const target = element instanceof HTMLElement ? element.closest<HTMLElement>("[data-explorer-drop-path]") : null;
+        const targetPath = target?.dataset.explorerDropPath;
+        if (!targetPath) continue;
+        const targetKind = target.dataset.explorerDropKind === "file" ? "file" : "directory";
+        return { kind: "explorer", targetPath, targetKind };
+      }
+      return null;
+    }
+
+    function findTabTarget(x: number, y: number, payload: DragPayload): DragDropTarget | null {
       const elements = document.elementsFromPoint(x, y);
       for (const element of elements) {
         const tab = element instanceof HTMLElement ? element.closest<HTMLElement>("[data-tab-drop-pane-id]") : null;
@@ -96,12 +123,17 @@ export function useDragManager(
 
         const leafId = tab.dataset.tabDropPaneId;
         if (!leafId || !acceptsTabTarget(tab.dataset.tabDropKind, payload)) continue;
-        return { leafId, edge: "center", paneKind: tab.dataset.tabDropKind };
+        return { kind: "pane", leafId, edge: "center", paneKind: tab.dataset.tabDropKind };
       }
       return null;
     }
 
-    function findLeafAndEdge(x: number, y: number, payload: DragPayload): { leafId: string; edge: DropEdge; paneKind: PaneDropKind } | null {
+    function findDropTarget(x: number, y: number, payload: DragPayload): DragDropTarget | null {
+      const explorerTarget = findExplorerTarget(x, y, payload);
+      if (explorerTarget) {
+        return explorerTarget;
+      }
+
       const tabTarget = findTabTarget(x, y, payload);
       if (tabTarget) {
         return tabTarget;
@@ -125,7 +157,7 @@ export function useDragManager(
         else if (relX > 0.75) edge = "right";
         else edge = "center";
 
-        return { leafId, edge, paneKind: leaf.dataset.paneKind };
+        return { kind: "pane", leafId, edge, paneKind: leaf.dataset.paneKind };
       }
       return null;
     }
@@ -158,7 +190,7 @@ export function useDragManager(
         setDrag(state);
 
         // Update hover edge for visual feedback
-        const hit = findLeafAndEdge(event.clientX, event.clientY, state.payload);
+        const hit = findDropTarget(event.clientX, event.clientY, state.payload);
         setHoverEdge(hit);
       }
     }
@@ -167,9 +199,9 @@ export function useDragManager(
       const wasDragging = dragRef.current;
 
       if (wasDragging) {
-        const hit = findLeafAndEdge(event.clientX, event.clientY, wasDragging.payload);
+        const hit = findDropTarget(event.clientX, event.clientY, wasDragging.payload);
         if (hit) {
-          onDropRef.current(hit.leafId, hit.edge, wasDragging.payload);
+          onDropRef.current(hit, wasDragging.payload);
         }
 
         // Suppress the click that would fire after drag ends

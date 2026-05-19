@@ -4,7 +4,7 @@ import { ExplorerRail, ExplorerRailTopControls, FileTree } from "./FileTree";
 import { TerminalRail, TerminalRailTopControls } from "./TerminalRail";
 import { PaneTree } from "./PaneTree";
 import type { PaneLeaf, PaneNodeId, PaneTreeActions, PaneNode } from "../hooks/usePaneTree";
-import type { DragManager } from "../hooks/useDragManager";
+import type { DragManager, DragPayload } from "../hooks/useDragManager";
 import type { WorkspaceSearchResultMode } from "../hooks/useWorkspaceSearch";
 import type { AppearanceMode, ResolvedAppearance } from "../App";
 import type { TreeNode, WorkspaceSearchResults } from "@exo/core";
@@ -68,6 +68,7 @@ interface ShellLayoutProps {
   renderEditorLeaf: (leaf: PaneLeaf, isFocused: boolean) => ReactNode;
   renderTerminalLeaf: (leaf: PaneLeaf, isFocused: boolean) => ReactNode;
   dragManager: DragManager;
+  revealExplorerPathRequest?: { path: string; nonce: number } | null;
   onAppearanceModeChange: (mode: AppearanceMode) => void;
   onOpenWorkspaceSettings: () => void;
   onOpenIndexSettings: () => void;
@@ -102,6 +103,7 @@ export function ShellLayout(props: ShellLayoutProps) {
     renderEditorLeaf,
     renderTerminalLeaf,
     dragManager,
+    revealExplorerPathRequest,
     onAppearanceModeChange,
     onOpenWorkspaceSettings,
     onOpenIndexSettings,
@@ -195,6 +197,7 @@ export function ShellLayout(props: ShellLayoutProps) {
       onDeletePath={onDeletePath}
       rail="none"
       mirrored={sidePanesFlipped}
+      revealPathRequest={revealExplorerPathRequest}
     />
   );
 
@@ -310,9 +313,7 @@ export function ShellLayout(props: ShellLayoutProps) {
             top: dragManager.drag.mouseY,
           }}
         >
-          {dragManager.drag.payload.kind === "document"
-            ? dragManager.drag.payload.filePath.split("/").pop()
-            : "Terminal"}
+          {formatDragGhostLabel(dragManager.drag.payload)}
         </div>
       ) : null}
       </div>
@@ -343,4 +344,14 @@ export function ShellLayout(props: ShellLayoutProps) {
       </footer>
     </div>
   );
+}
+
+function formatDragGhostLabel(payload: DragPayload): string {
+  if (payload.kind === "document") {
+    return payload.filePath.split("/").pop() ?? payload.filePath;
+  }
+  if (payload.kind === "workspace-path") {
+    return payload.path.split("/").pop() ?? payload.path;
+  }
+  return "Terminal";
 }

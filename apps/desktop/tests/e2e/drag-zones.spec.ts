@@ -10,6 +10,9 @@
  * 6. No drag operation should ever produce a blank canvas
  */
 
+import { access, mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
+
 import { test, expect, type Page } from "@playwright/test";
 import { launchExoFixture } from "../helpers";
 
@@ -99,9 +102,12 @@ test.describe("Three-zone layout", () => {
     const sidebarToggleBox = await getBoundingBox(page, '[data-testid="sidebar-collapse"]');
     const newNoteBox = await getBoundingBox(page, '[data-testid="sidebar-new-note"]');
     const searchToggleBox = await getBoundingBox(page, '[data-testid="sidebar-search-toggle"]');
-    const firstFileLabelAlign = await page.locator(".sidebar--mirrored .tree-node--file").first().locator("span").last().evaluate((element) =>
+    const firstMirroredFile = page.locator(".sidebar--mirrored .tree-node--file").first();
+    const firstFileLabelAlign = await firstMirroredFile.locator("span").last().evaluate((element) =>
       window.getComputedStyle(element).textAlign,
     );
+    const firstMirroredFileBox = await firstMirroredFile.boundingBox();
+    const firstMirroredFileLabelBox = await firstMirroredFile.locator("span").last().boundingBox();
 
     expect(terminalBox.x).toBeLessThan(editorBox.x);
     expect(editorBox.x).toBeLessThan(sidebarBox.x);
@@ -110,6 +116,11 @@ test.describe("Three-zone layout", () => {
     expect(sidebarToggleBox.x).toBeGreaterThan(sidebarBox.x);
     expect(newNoteBox.x).toBeGreaterThan(searchToggleBox.x);
     expect(firstFileLabelAlign).toBe("right");
+    expect(firstMirroredFileBox).not.toBeNull();
+    expect(firstMirroredFileLabelBox).not.toBeNull();
+    expect(firstMirroredFileLabelBox!.x + firstMirroredFileLabelBox!.width).toBeGreaterThan(
+      firstMirroredFileBox!.x + firstMirroredFileBox!.width / 2,
+    );
 
     const firstDirectory = page.locator(".sidebar--mirrored .tree-node--directory").first();
     if (await firstDirectory.count()) {
@@ -129,9 +140,19 @@ test.describe("Three-zone layout", () => {
     const restoredSidebarBox = await getBoundingBox(page, '[data-testid="sidebar"]');
     const restoredEditorBox = await getBoundingBox(page, ".pane-leaf--editor");
     const restoredTerminalBox = await getBoundingBox(page, ".pane-leaf--terminal");
+    const restoredFirstFile = page.locator('[data-testid="sidebar"] .tree-node--file').first();
+    const restoredFirstFileLabelAlign = await restoredFirstFile.locator("span").last().evaluate((element) =>
+      window.getComputedStyle(element).textAlign,
+    );
+    const restoredFirstFileBox = await restoredFirstFile.boundingBox();
+    const restoredFirstFileLabelBox = await restoredFirstFile.locator("span").last().boundingBox();
 
     expect(restoredSidebarBox.x).toBeLessThan(restoredEditorBox.x);
     expect(restoredEditorBox.x).toBeLessThan(restoredTerminalBox.x);
+    expect(restoredFirstFileLabelAlign).toBe("left");
+    expect(restoredFirstFileBox).not.toBeNull();
+    expect(restoredFirstFileLabelBox).not.toBeNull();
+    expect(restoredFirstFileLabelBox!.x).toBeLessThan(restoredFirstFileBox!.x + restoredFirstFileBox!.width / 2);
 
     await cleanup();
   });
@@ -329,6 +350,163 @@ test.describe("Cross-zone terminal tab moves", () => {
     await expect(page.locator(".workspace__body .pane-leaf--terminal")).toHaveCount(1);
     await expect(page.getByTestId("terminal-expand")).toBeVisible();
     await expect(page.locator(".workspace__body .pane-leaf--terminal").getByTestId("terminal-tab-shell")).toBeVisible();
+
+    await cleanup();
+  });
+});
+
+test.describe("Explorer file moves", () => {
+  test("dragging a folder onto another folder moves it there", async () => {
+    const { page, workspaceRoot, cleanup } = await launchExoFixture({
+      mutable: true,
+      prepareWorkspace: async (root) => {
+        await mkdir(path.join(root, "notes/test-notes/source-dir"), { recursive: true });
+        await mkdir(path.join(root, "notes/test-notes/target-dir"), { recursive: true });
+        await writeFile(path.join(root, "notes/test-notes/source-dir/nested.md"), "# Nested\n");
+      },
+    });
+
+    const source = page.locator(".tree-node--directory", { hasText: "source-dir" }).first();
+    const target = page.locator(".tree-node--directory", { hasText: "target-dir" }).first();
+    await expect(source).toBeVisible();
+    await expect(target).toBeVisible();
+
+    const sourceBox = await source.boundingBox();
+    const targetBox = await target.boundingBox();
+    expect(sourceBox).not.toBeNull();
+    expect(targetBox).not.toBeNull();
+
+    await manualDrag(
+      page,
+      { x: sourceBox!.x + sourceBox!.width / 2, y: sourceBox!.y + sourceBox!.height / 2 },
+      { x: targetBox!.x + targetBox!.width / 2, y: targetBox!.y + targetBox!.height / 2 },
+    );
+
+    await expect.poll(async () => {
+      try {
+        await access(path.join(workspaceRoot, "notes/test-notes/target-dir/source-dir/nested.md"));
+        return true;
+      } catch {
+        return false;
+      }
+    }).toBe(true);
+    await expect(page.locator(".tree-node--directory", { hasText: "source-dir" }).first()).toBeVisible();
+
+    await cleanup();
+  });
+
+  test("dragging a folder onto an existing destination shows a conflict dialog", async () => {
+    const { page, workspaceRoot, cleanup } = await launchExoFixture({
+      mutable: true,
+      prepareWorkspace: async (root) => {
+        await mkdir(path.join(root, "notes/test-notes/source-dir"), { recursive: true });
+        await writeFile(path.join(root, "notes/test-notes/source-dir/nested.md"), "# Nested\n");
+        await mkdir(path.join(root, "notes/test-notes/target-dir/source-dir"), { recursive: true });
+        await writeFile(path.join(root, "notes/test-notes/target-dir/source-dir/existing.md"), "# Existing\n");
+      },
+    });
+
+    const source = page.locator(".tree-node--directory", { hasText: "source-dir" }).first();
+    const target = page.locator(".tree-node--directory", { hasText: "target-dir" }).first();
+    await expect(source).toBeVisible();
+    await expect(target).toBeVisible();
+
+    const sourceBox = await source.boundingBox();
+    const targetBox = await target.boundingBox();
+    expect(sourceBox).not.toBeNull();
+    expect(targetBox).not.toBeNull();
+
+    await manualDrag(
+      page,
+      { x: sourceBox!.x + sourceBox!.width / 2, y: sourceBox!.y + sourceBox!.height / 2 },
+      { x: targetBox!.x + targetBox!.width / 2, y: targetBox!.y + targetBox!.height / 2 },
+    );
+
+    await expect(page.getByTestId("workspace-dialog")).toContainText("Destination already exists");
+    await expect(page.getByTestId("workspace-dialog")).toContainText("will not merge or overwrite");
+    await access(path.join(workspaceRoot, "notes/test-notes/source-dir/nested.md"));
+    await access(path.join(workspaceRoot, "notes/test-notes/target-dir/source-dir/existing.md"));
+
+    await cleanup();
+  });
+
+  test("dragging a nested folder onto notes whitespace moves it to the root", async () => {
+    const { page, workspaceRoot, cleanup } = await launchExoFixture({
+      mutable: true,
+      prepareWorkspace: async (root) => {
+        await mkdir(path.join(root, "notes/test-notes/parent-dir/nested-dir"), { recursive: true });
+        await writeFile(path.join(root, "notes/test-notes/parent-dir/nested-dir/nested.md"), "# Nested\n");
+      },
+    });
+
+    const parent = page.locator(".tree-node--directory", { hasText: "parent-dir" }).first();
+    await expect(parent).toBeVisible();
+    await parent.click();
+
+    const source = page.locator(".tree-node--directory", { hasText: "nested-dir" }).first();
+    await expect(source).toBeVisible();
+
+    const sourceBox = await source.boundingBox();
+    const notesBox = await page.locator(".sidebar__content--notes").boundingBox();
+    expect(sourceBox).not.toBeNull();
+    expect(notesBox).not.toBeNull();
+
+    await manualDrag(
+      page,
+      { x: sourceBox!.x + sourceBox!.width / 2, y: sourceBox!.y + sourceBox!.height / 2 },
+      { x: notesBox!.x + notesBox!.width / 2, y: notesBox!.y + notesBox!.height - 24 },
+    );
+
+    await expect.poll(async () => {
+      try {
+        await access(path.join(workspaceRoot, "notes/test-notes/nested-dir/nested.md"));
+        return true;
+      } catch {
+        return false;
+      }
+    }).toBe(true);
+
+    await cleanup();
+  });
+
+  test("dragging a nested folder onto a root file moves it to the root", async () => {
+    const { page, workspaceRoot, cleanup } = await launchExoFixture({
+      mutable: true,
+      prepareWorkspace: async (root) => {
+        await mkdir(path.join(root, "notes/test-notes/parent-dir/nested-dir"), { recursive: true });
+        await writeFile(path.join(root, "notes/test-notes/parent-dir/nested-dir/nested.md"), "# Nested\n");
+        await writeFile(path.join(root, "notes/test-notes/root-drop-target.md"), "# Root Target\n");
+      },
+    });
+
+    const parent = page.locator(".tree-node--directory", { hasText: "parent-dir" }).first();
+    await expect(parent).toBeVisible();
+    await parent.click();
+
+    const source = page.locator(".tree-node--directory", { hasText: "nested-dir" }).first();
+    const target = page.locator(".tree-node--file", { hasText: "root-drop-target" }).first();
+    await expect(source).toBeVisible();
+    await expect(target).toBeVisible();
+
+    const sourceBox = await source.boundingBox();
+    const targetBox = await target.boundingBox();
+    expect(sourceBox).not.toBeNull();
+    expect(targetBox).not.toBeNull();
+
+    await manualDrag(
+      page,
+      { x: sourceBox!.x + sourceBox!.width / 2, y: sourceBox!.y + sourceBox!.height / 2 },
+      { x: targetBox!.x + targetBox!.width / 2, y: targetBox!.y + targetBox!.height / 2 },
+    );
+
+    await expect.poll(async () => {
+      try {
+        await access(path.join(workspaceRoot, "notes/test-notes/nested-dir/nested.md"));
+        return true;
+      } catch {
+        return false;
+      }
+    }).toBe(true);
 
     await cleanup();
   });

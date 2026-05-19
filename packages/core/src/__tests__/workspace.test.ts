@@ -1,11 +1,11 @@
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { listRootTree, resolveWorkspaceModel, searchNotes, searchProjectFiles, searchWorkspace } from "../workspace";
+import { listRootTree, renameWorkspacePath, resolveWorkspaceModel, searchNotes, searchProjectFiles, searchWorkspace } from "../workspace";
 
 const fixtureWorkspaceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../fixtures/test-workspace");
 
@@ -151,5 +151,22 @@ describe("workspace", () => {
     expect(results.notes.length).toBeGreaterThan(0);
     expect(results.projectFiles).toEqual([]);
     expect(results.tags).toEqual([]);
+  });
+
+  it("refuses to rename over an existing destination", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-test-"));
+    try {
+      const sourcePath = path.join(root, "source");
+      const destinationPath = path.join(root, "destination");
+      await mkdir(sourcePath);
+      await mkdir(destinationPath);
+      await writeFile(path.join(destinationPath, "existing.md"), "# Existing\n", "utf8");
+
+      await expect(renameWorkspacePath(sourcePath, destinationPath)).rejects.toThrow(
+        `Destination already exists: ${destinationPath}`,
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });

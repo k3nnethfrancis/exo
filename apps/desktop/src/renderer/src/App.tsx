@@ -22,7 +22,7 @@ import { useOpenDocumentVersionPolling } from "./hooks/useOpenDocumentVersionPol
 import { useShellLayout } from "./hooks/useShellLayout";
 import { useWorkspaceSearch } from "./hooks/useWorkspaceSearch";
 import { collectLeaves, findEditorLeaf, findNode, findTerminalLeaf, mapLeaves, paneId, pruneEmptyLeaves, updateNode, type PaneLeaf, type PaneNode, type PaneNodeId, type EditorPaneContent, type TerminalPaneContent } from "./hooks/usePaneTree";
-import { useDragManager, type DragPayload, type DropEdge } from "./hooks/useDragManager";
+import { useDragManager, type DragDropTarget, type DragPayload, type DropEdge } from "./hooks/useDragManager";
 
 interface OpenEditorDocument extends NoteDocument {
   dirty: boolean;
@@ -54,6 +54,12 @@ type WorkspaceDialogState =
   | {
       kind: "delete";
       targetPath: string;
+      title: string;
+      message: string;
+      confirmLabel: string;
+    }
+  | {
+      kind: "move-conflict";
       title: string;
       message: string;
       confirmLabel: string;
@@ -116,8 +122,9 @@ export function App() {
   const [propertiesCollapsed, setPropertiesCollapsed] = useState(true);
   const [tagResults, setTagResults] = useState<SearchResult[]>([]);
   const [activeTag, setActiveTag] = useState<string | null>(null);
-  const handleDropRef = useRef<(leafId: string, edge: DropEdge, payload: DragPayload) => void>(() => {});
-  const dragManager = useDragManager((leafId, edge, payload) => handleDropRef.current(leafId, edge, payload));
+  const [revealExplorerPathRequest, setRevealExplorerPathRequest] = useState<{ path: string; nonce: number } | null>(null);
+  const handleDropRef = useRef<(target: DragDropTarget, payload: DragPayload) => void>(() => {});
+  const dragManager = useDragManager((target, payload) => handleDropRef.current(target, payload));
   const [terminalSessions, setTerminalSessions] = useState<TerminalSessionInfo[]>([]);
   const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null);
   const [terminalBuffers, setTerminalBuffers] = useState<Record<string, string>>({});
@@ -1493,6 +1500,42 @@ export function App() {
     }
   }
 
+  async function moveWorkspacePathIntoDirectory(sourcePath: string, targetDirectoryPath: string) {
+    const sourceLabel = pathLabel(sourcePath);
+    const targetLabel = pathLabel(targetDirectoryPath);
+    if (sourcePath === targetDirectoryPath) {
+      return;
+    }
+    if (directoryOf(sourcePath) === targetDirectoryPath) {
+      return;
+    }
+    if (isPathWithin(sourcePath, targetDirectoryPath)) {
+      return;
+    }
+
+    const nextPath = joinPath(targetDirectoryPath, sourceLabel);
+    try {
+      await window.exo.workspace.renamePath(sourcePath, nextPath);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes("Destination already exists")) {
+        setWorkspaceDialog({
+          kind: "move-conflict",
+          title: "Destination already exists",
+          message: `${sourceLabel} cannot be moved into ${targetLabel} because ${pathLabel(nextPath)} already exists there. Exo will not merge or overwrite folders automatically.`,
+          confirmLabel: "OK",
+        });
+      }
+      throw error;
+    }
+    remapOpenPaths(sourcePath, nextPath);
+    await reloadTrees();
+    setRevealExplorerPathRequest({ path: targetDirectoryPath, nonce: Date.now() });
+    if (sourcePath === activeDocumentPath) {
+      await openFile(nextPath, editorFocusedLeafId);
+    }
+  }
+
   function deleteWorkspacePath(targetPath: string) {
     setWorkspaceDialog({
       kind: "delete",
@@ -1539,6 +1582,11 @@ export function App() {
 
   async function submitWorkspaceDialog() {
     if (!workspaceDialog) {
+      return;
+    }
+
+    if (workspaceDialog.kind === "move-conflict") {
+      setWorkspaceDialog(null);
       return;
     }
 
@@ -1610,11 +1658,23 @@ export function App() {
   }
 
   // Assign the drop handler ref — called by useDragManager on mouseup over a drop zone
-  handleDropRef.current = (leafId: string, edge: DropEdge, payload: DragPayload) => {
+  handleDropRef.current = (target: DragDropTarget, payload: DragPayload) => {
+    if (target.kind === "explorer") {
+      if (payload.kind === "workspace-path") {
+        const targetDirectoryPath = target.targetKind === "file" ? directoryOf(target.targetPath) : target.targetPath;
+        void moveWorkspacePathIntoDirectory(payload.path, targetDirectoryPath).catch((error) => {
+          console.error("[workspace] move failed", error);
+        });
+      }
+      return;
+    }
+
     if (payload.kind === "document") {
-      handleDocumentDrop(leafId, edge, payload.filePath, payload.sourcePaneId);
-    } else {
-      handleTerminalDrop(leafId, edge, payload.sessionId);
+      handleDocumentDrop(target.leafId, target.edge, payload.filePath, payload.sourcePaneId);
+    } else if (payload.kind === "workspace-path" && payload.nodeKind === "file") {
+      handleDocumentDrop(target.leafId, target.edge, payload.path);
+    } else if (payload.kind === "terminal") {
+      handleTerminalDrop(target.leafId, target.edge, payload.sessionId);
     }
   };
 
@@ -1764,6 +1824,7 @@ export function App() {
         index: indexStatusLine,
       }}
       shellLayout={shellLayout}
+      revealExplorerPathRequest={revealExplorerPathRequest}
       renderEditorLeaf={(leaf, isFocused) => {
         if (leaf.content.kind === "terminal") {
           const terminalLeafSessions = terminalSessions.filter((s) => leaf.content.kind === "terminal" && leaf.content.terminalIds.includes(s.id));

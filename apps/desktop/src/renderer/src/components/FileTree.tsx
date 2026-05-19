@@ -57,6 +57,7 @@ interface FileTreeProps {
   onDeletePath: (targetPath: string) => void;
   rail?: "inline" | "none";
   mirrored?: boolean;
+  revealPathRequest?: { path: string; nonce: number } | null;
 }
 
 interface ExplorerRailProps {
@@ -148,6 +149,7 @@ export function FileTree(props: FileTreeProps) {
     onDeletePath,
     rail = "inline",
     mirrored = false,
+    revealPathRequest = null,
   } = props;
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
   const [contextTarget, setContextTarget] = useState<ContextTarget | null>(null);
@@ -173,6 +175,24 @@ export function FileTree(props: FileTreeProps) {
       return next;
     });
   }, [defaultExpandedPaths]);
+
+  useEffect(() => {
+    if (!revealPathRequest) {
+      return;
+    }
+
+    const rootKind = rootKindForPath(revealPathRequest.path, noteRoots, projectRoots);
+    setExpandedPaths((current) => {
+      const next = new Set(current);
+      next.add(revealPathRequest.path);
+      next.add(`${ROOT_GROUP_PREFIX}${revealPathRequest.path}`);
+      return next;
+    });
+
+    if (rootKind) {
+      onExpandDirectory(revealPathRequest.path, rootKind);
+    }
+  }, [noteRoots, onExpandDirectory, projectRoots, revealPathRequest]);
 
   useEffect(() => {
     if (!contextTarget) {
@@ -296,7 +316,10 @@ export function FileTree(props: FileTreeProps) {
             />
           ) : (
           <>
-          <div className="sidebar__content sidebar__content--notes">
+          <div
+            className="sidebar__content sidebar__content--notes"
+            data-explorer-drop-path={noteRoots.length === 1 ? noteRoots[0].path : undefined}
+          >
             <Section
               label="Notes"
               rootKind="notes"
@@ -433,6 +456,24 @@ export function FileTree(props: FileTreeProps) {
       ) : null}
     </aside>
   );
+}
+
+function rootKindForPath(
+  targetPath: string,
+  noteRoots: RootSection[],
+  projectRoots: RootSection[],
+): "notes" | "projects" | null {
+  if (noteRoots.some((root) => pathContains(root.path, targetPath))) {
+    return "notes";
+  }
+  if (projectRoots.some((root) => pathContains(root.path, targetPath))) {
+    return "projects";
+  }
+  return null;
+}
+
+function pathContains(parentPath: string, targetPath: string): boolean {
+  return targetPath === parentPath || targetPath.startsWith(`${parentPath}/`);
 }
 
 function SidebarSearchPane({

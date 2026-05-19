@@ -162,7 +162,12 @@ export function Section(props: SectionProps) {
         const expanded = expandedPaths.has(rootKey);
         return (
           <div key={section.path} className="root-group">
-            <button className="root-group__toggle" onClick={() => onTogglePath(rootKey)} type="button">
+            <button
+              className="root-group__toggle"
+              data-explorer-drop-path={section.path}
+              onClick={() => onTogglePath(rootKey)}
+              type="button"
+            >
               {expanded ? <ChevronDown size={12} /> : <CollapsedChevron size={12} />}
               <span className="root-group__title">{section.label}</span>
             </button>
@@ -218,8 +223,12 @@ function TreeNodes({
             <div key={node.path}>
               <button
                 className="tree-node tree-node--directory"
+                data-explorer-drop-path={node.path}
                 style={depthStyle}
                 onClick={() => onTogglePath(node.path, rootKind)}
+                onMouseDown={(event) =>
+                  dragManager.startDrag(event, { kind: "workspace-path", path: node.path, nodeKind: "directory" })
+                }
                 onContextMenu={(event) => onContextMenu(event, { path: node.path, kind: "directory" })}
                 type="button"
               >
@@ -247,10 +256,12 @@ function TreeNodes({
           <button
             key={node.path}
             className="tree-node tree-node--file"
+            data-explorer-drop-path={node.path}
+            data-explorer-drop-kind="file"
             style={depthStyle}
             onClick={() => onOpenFile(node.path)}
             onMouseDown={(event) =>
-              dragManager.startDrag(event, { kind: "document", filePath: node.path })
+              dragManager.startDrag(event, { kind: "workspace-path", path: node.path, nodeKind: "file" })
             }
             onContextMenu={(event) => onContextMenu(event, { path: node.path, kind: "file" })}
             type="button"

@@ -478,6 +478,9 @@ export async function createWorkspaceDirectory(targetPath: string): Promise<stri
 
 export async function renameWorkspacePath(sourcePath: string, nextPath: string): Promise<string> {
   await mkdir(path.dirname(nextPath), { recursive: true });
+  if (sourcePath !== nextPath && existsSync(nextPath)) {
+    throw new Error(`Destination already exists: ${nextPath}`);
+  }
   await rename(sourcePath, nextPath);
   return nextPath;
 }

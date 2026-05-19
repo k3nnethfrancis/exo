@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { useRef } from "react";
 
 import type { PaneLeaf, PaneNode, PaneNodeId, PaneTreeActions } from "../hooks/usePaneTree";
-import type { DropEdge } from "../hooks/useDragManager";
+import type { DragDropTarget, DropEdge } from "../hooks/useDragManager";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -14,7 +14,7 @@ export interface PaneTreeProps {
   focusedLeafId: PaneNodeId;
   renderLeaf: (leaf: PaneLeaf, isFocused: boolean) => ReactNode;
   /** Which leaf+edge is currently hovered during a drag (from DragManager) */
-  hoverEdge?: { leafId: string; edge: DropEdge } | null;
+  hoverEdge?: DragDropTarget | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -29,7 +29,7 @@ export function PaneTree({ node, actions, focusedLeafId, renderLeaf, hoverEdge }
         isFocused={node.id === focusedLeafId}
         onFocus={() => actions.focusLeaf(node.id)}
         renderLeaf={renderLeaf}
-        hoverEdge={hoverEdge?.leafId === node.id ? hoverEdge.edge : null}
+        hoverEdge={hoverEdge?.kind === "pane" && hoverEdge.leafId === node.id ? hoverEdge.edge : null}
       />
     );
   }
@@ -60,7 +60,7 @@ function PaneSplitContainer({
   actions: PaneTreeActions;
   focusedLeafId: PaneNodeId;
   renderLeaf: (leaf: PaneLeaf, isFocused: boolean) => ReactNode;
-  hoverEdge?: { leafId: string; edge: DropEdge } | null;
+  hoverEdge?: DragDropTarget | null;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const isHorizontal = node.direction === "horizontal";
