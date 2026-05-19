@@ -151,6 +151,7 @@ export function App() {
   const terminalSessionsRef = useRef<TerminalSessionInfo[]>([]);
   const terminalKindByIdRef = useRef<Record<string, TerminalSessionInfo["kind"]>>({});
   const openDocumentsRef = useRef(openDocuments);
+  const saveDocumentRef = useRef<(filePath: string) => Promise<void>>(async () => {});
   const activeDocumentPathRef = useRef(activeDocumentPath);
   const pendingDocumentRefreshesRef = useRef<Map<string, { timeoutId: number; diskVersion: FileStatInfo | null }>>(new Map());
   const loadedTreeDirectoriesRef = useRef<Set<string>>(new Set());
@@ -609,18 +610,18 @@ export function App() {
     });
   }
 
-  // Auto-save dirty documents every 5 seconds
+  // Auto-save dirty documents every 5 seconds without resetting on unrelated renders.
   useEffect(() => {
     const timer = setInterval(() => {
-      const dirtyPaths = Object.entries(openDocuments)
+      const dirtyPaths = Object.entries(openDocumentsRef.current)
         .filter(([, doc]) => doc.dirty)
         .map(([path]) => path);
       for (const filePath of dirtyPaths) {
-        void saveDocument(filePath);
+        void saveDocumentRef.current(filePath);
       }
     }, 5000);
     return () => clearInterval(timer);
-  });
+  }, []);
 
   const noteSections = useMemo(
     () =>
@@ -1216,6 +1217,7 @@ export function App() {
       };
     });
   }
+  saveDocumentRef.current = saveDocument;
 
   async function openKnowledgeTarget(target: string) {
     if (!activeDocumentPath) {
@@ -2191,6 +2193,20 @@ export function App() {
                     QMD by Tobi Lutke powers MCP/CLI index search. Explore live search uses filenames; Enter can use lexical index search. Index data is stored under .exo/qmd.{" "}
                     {workspaceSettingsDialog.indexStatusSummary}
                   </div>
+                  {indexStatus?.recentJobs?.length ? (
+                    <div className="index-activity" data-testid="workspace-settings-index-activity">
+                      <div className="index-activity__title">Recent index activity</div>
+                      {indexStatus.recentJobs.slice(0, 5).map((job) => (
+                        <div className="index-activity__row" key={job.id}>
+                          <span>{job.kind}</span>
+                          <span>{job.reason}</span>
+                          <span>{formatDuration(job.durationMs)}</span>
+                          <span>{formatRelativeTime(job.completedAt)}</span>
+                          <span>{job.status === "failed" ? "failed" : `${job.pendingEmbeddings ?? 0} pending`}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                   <label className="dialog-check">
                     <input
                       checked={workspaceSettingsDialog.exploreIndexSearchOnEnter}
@@ -2877,6 +2893,27 @@ function formatIndexStatus(status: IndexStatus): string {
     pieces.push(`${status.pendingEmbeddings} pending embeddings`);
   }
   return pieces.join(" | ");
+}
+
+function formatDuration(durationMs: number): string {
+  if (durationMs < 1000) {
+    return `${durationMs}ms`;
+  }
+  return `${(durationMs / 1000).toFixed(durationMs < 10_000 ? 1 : 0)}s`;
+}
+
+function formatRelativeTime(value: string): string {
+  const elapsedMs = Date.now() - new Date(value).getTime();
+  if (!Number.isFinite(elapsedMs) || elapsedMs < 0) {
+    return "just now";
+  }
+  if (elapsedMs < 60_000) {
+    return `${Math.max(1, Math.round(elapsedMs / 1000))}s ago`;
+  }
+  if (elapsedMs < 3_600_000) {
+    return `${Math.round(elapsedMs / 60_000)}m ago`;
+  }
+  return `${Math.round(elapsedMs / 3_600_000)}h ago`;
 }
 
 function summarizeIndexStatus(status: IndexStatus | null, busy: IndexBusyState): {

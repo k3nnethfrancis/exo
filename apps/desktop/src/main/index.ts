@@ -30,6 +30,8 @@ import {
   syncIndex,
   updateIndex,
   type IndexedRoot,
+  type IndexJobMetric,
+  type IndexStatus,
   type IndexSyncResult,
   type SearchResult,
   type WorkspaceModel,
@@ -87,6 +89,8 @@ let indexSyncQueued = false;
 let indexRefreshTimer: NodeJS.Timeout | null = null;
 let indexRefreshPromise: Promise<IndexSyncResult> | null = null;
 const pendingIndexRefreshRootIds = new Set<string>();
+let indexJobSequence = 0;
+const indexJobMetrics: IndexJobMetric[] = [];
 const rendererRecoveryTimestamps: number[] = [];
 const streamingTerminalIds = new Set<string>();
 
@@ -148,12 +152,12 @@ function startCommandServer() {
     onSearch: (query: string) => searchWorkspace(workspaceModel, query),
     onIndexSearch: (query, options) => searchIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot, query, options),
     onReadDocument: (target, options) => readIndexDocument(workspaceModel, resolveRuntimeConfig().runtimeRoot, target, options),
-    onIndexStatus: () => getIndexStatus(workspaceModel, resolveRuntimeConfig().runtimeRoot),
+    onIndexStatus: () => getMeasuredIndexStatus(),
     onIndexAddRoot: (input) => addIndexedRoot(input),
     onIndexRemoveRoot: (target) => removeIndexedRoot(target),
     onIndexSync: () => runIndexSync("command"),
-    onIndexUpdate: () => updateIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot),
-    onIndexEmbed: () => embedIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot),
+    onIndexUpdate: () => runMeasuredIndexStatusJob("update", "command", () => updateIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot)),
+    onIndexEmbed: () => runMeasuredIndexStatusJob("embed", "command", () => embedIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot)),
     onListTerminals: () => terminalManager.list(),
     onCreateTerminal: (kind: string, cwd?: string) => terminalManager.create({ kind: kind as "shell" | "claude" | "codex", cwd }),
     onReadTerminal: (id: string) => terminalManager.readBuffer(id),
@@ -398,13 +402,21 @@ function serializeError(error: unknown): unknown {
   return error;
 }
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 function registerIpcHandlers() {
   ipcMain.handle("workspace:get-model", async () => workspaceModel);
   ipcMain.handle("workspace:get-settings", async () => currentWorkspaceSettings());
-  ipcMain.handle("workspace:get-index-status", async () => getIndexStatus(workspaceModel, resolveRuntimeConfig().runtimeRoot));
+  ipcMain.handle("workspace:get-index-status", async () => getMeasuredIndexStatus());
   ipcMain.handle("workspace:index-sync", async () => runIndexSync("settings"));
-  ipcMain.handle("workspace:index-update", async () => updateIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot));
-  ipcMain.handle("workspace:index-embed", async () => embedIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot));
+  ipcMain.handle("workspace:index-update", async () =>
+    runMeasuredIndexStatusJob("update", "settings", () => updateIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot)),
+  );
+  ipcMain.handle("workspace:index-embed", async () =>
+    runMeasuredIndexStatusJob("embed", "settings", () => embedIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot)),
+  );
   ipcMain.handle("workspace:save-settings", async (_event, settings: WorkspaceSettings) => {
     return saveWorkspaceSettings(settings);
   });
@@ -679,6 +691,58 @@ function shouldUseIndex(model = workspaceModel): boolean {
   return model.indexing.enabled && model.indexing.mode !== "off" && model.indexedRoots.length > 0;
 }
 
+async function getMeasuredIndexStatus(): Promise<IndexStatus> {
+  const status = await getIndexStatus(workspaceModel, resolveRuntimeConfig().runtimeRoot);
+  return attachIndexJobMetrics(status);
+}
+
+function attachIndexJobMetrics(status: IndexStatus): IndexStatus {
+  return { ...status, recentJobs: indexJobMetrics.slice(0, 8) };
+}
+
+function recordIndexJob(
+  kind: IndexJobMetric["kind"],
+  reason: string,
+  startedAtMs: number,
+  status: "completed" | "failed",
+  resultStatus?: IndexStatus,
+  warnings: string[] = [],
+  error?: unknown,
+) {
+  const completedAtMs = Date.now();
+  const metric: IndexJobMetric = {
+    id: `index-job-${++indexJobSequence}`,
+    kind,
+    reason,
+    status,
+    startedAt: new Date(startedAtMs).toISOString(),
+    completedAt: new Date(completedAtMs).toISOString(),
+    durationMs: completedAtMs - startedAtMs,
+    documentCount: resultStatus?.documentCount,
+    pendingEmbeddings: resultStatus?.pendingEmbeddings,
+    warnings: [...(resultStatus?.warnings ?? []), ...warnings],
+    error: error ? errorMessage(error) : undefined,
+  };
+  indexJobMetrics.unshift(metric);
+  indexJobMetrics.splice(20);
+}
+
+async function runMeasuredIndexStatusJob(
+  kind: IndexJobMetric["kind"],
+  reason: string,
+  run: () => Promise<IndexStatus>,
+): Promise<IndexStatus> {
+  const startedAtMs = Date.now();
+  try {
+    const status = await run();
+    recordIndexJob(kind, reason, startedAtMs, "completed", status);
+    return attachIndexJobMetrics(status);
+  } catch (error) {
+    recordIndexJob(kind, reason, startedAtMs, "failed", undefined, [], error);
+    throw error;
+  }
+}
+
 function scheduleIndexSyncForFile(filePath: string, reason: string) {
   const settings = currentWorkspaceSettings();
   if (settings.indexUpdateStrategy !== "on-save" || !shouldUseIndex()) {
@@ -690,7 +754,13 @@ function scheduleIndexSyncForFile(filePath: string, reason: string) {
   if (matchingRootIds.length === 0) {
     return;
   }
-  scheduleIndexRefresh(reason, matchingRootIds);
+
+  if (workspaceModel.indexing.mode === "lexical") {
+    scheduleIndexRefresh(reason, matchingRootIds);
+    return;
+  }
+
+  scheduleIndexSync(reason);
 }
 
 function shouldSyncAfterSettingsApply(previous: WorkspaceSettings, next: WorkspaceSettings): boolean {
@@ -725,13 +795,17 @@ async function runIndexSync(reason: string): Promise<IndexSyncResult> {
     return indexSyncPromise;
   }
 
+  const startedAtMs = Date.now();
   sendToRenderer("workspace:index-sync-state", { state: "running", reason });
   indexSyncPromise = syncIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot)
     .then((result) => {
-      sendToRenderer("workspace:index-sync-state", { state: "idle", reason, result });
-      return result;
+      recordIndexJob("sync", reason, startedAtMs, "completed", result.status, result.warnings);
+      const measuredResult = { ...result, status: attachIndexJobMetrics(result.status) };
+      sendToRenderer("workspace:index-sync-state", { state: "idle", reason, result: measuredResult });
+      return measuredResult;
     })
     .catch((error) => {
+      recordIndexJob("sync", reason, startedAtMs, "failed", undefined, [], error);
       sendToRenderer("workspace:index-sync-state", {
         state: "error",
         reason,
@@ -780,6 +854,7 @@ async function runIndexRefresh(reason: string, rootIds: string[]): Promise<Index
     return indexRefreshPromise;
   }
 
+  const startedAtMs = Date.now();
   sendToRenderer("workspace:index-sync-state", { state: "running", reason });
   indexRefreshPromise = updateIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot, { rootIds })
     .then((status) => {
@@ -802,10 +877,13 @@ async function runIndexRefresh(reason: string, rootIds: string[]): Promise<Index
             ? []
             : ["Save-triggered indexing refreshed documents only; embeddings remain available from the previous sync until rebuilt."],
       };
-      sendToRenderer("workspace:index-sync-state", { state: "idle", reason, result });
-      return result;
+      recordIndexJob("update", reason, startedAtMs, "completed", status, result.warnings);
+      const measuredResult = { ...result, status: attachIndexJobMetrics(status) };
+      sendToRenderer("workspace:index-sync-state", { state: "idle", reason, result: measuredResult });
+      return measuredResult;
     })
     .catch((error) => {
+      recordIndexJob("update", reason, startedAtMs, "failed", undefined, [], error);
       sendToRenderer("workspace:index-sync-state", {
         state: "error",
         reason,
@@ -839,7 +917,12 @@ function isBroadIndexedRoot(targetPath: string): boolean {
 
 app.whenReady().then(async () => {
   workspaceSettingsStore = new WorkspaceSettingsStore({ userDataPath: app.getPath("userData") });
-  workspaceWatcherService = new WorkspaceWatcherService((event) => sendToRenderer("workspace:changed", event));
+  workspaceWatcherService = new WorkspaceWatcherService((event) => {
+    sendToRenderer("workspace:changed", event);
+    if (event.filePath) {
+      scheduleIndexSyncForFile(event.filePath, "workspace-change");
+    }
+  });
 
   const forcedTheme = process.env.EXO_FORCE_THEME;
   if (isForcedTheme(forcedTheme)) {

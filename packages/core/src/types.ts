@@ -133,6 +133,21 @@ export interface IndexStatus {
   lastUpdated: string | null;
   warnings: string[];
   errors: string[];
+  recentJobs?: IndexJobMetric[];
+}
+
+export interface IndexJobMetric {
+  id: string;
+  kind: "sync" | "update" | "embed";
+  reason: string;
+  status: "completed" | "failed";
+  startedAt: string;
+  completedAt: string;
+  durationMs: number;
+  documentCount?: number;
+  pendingEmbeddings?: number;
+  warnings?: string[];
+  error?: string;
 }
 
 export interface IndexSyncPhase {

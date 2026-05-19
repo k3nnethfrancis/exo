@@ -1464,6 +1464,37 @@ button svg,
   color: var(--danger-strong);
 }
 
+.index-activity {
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--surface-border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.index-activity__title {
+  color: var(--text);
+  font-weight: 650;
+}
+
+.index-activity__row {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) 56px 64px 78px;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.index-activity__row span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @media (max-width: 1200px) {
   .shell {
     grid-template-columns: 280px 1fr;
