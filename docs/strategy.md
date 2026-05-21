@@ -1,6 +1,6 @@
 # Exo Strategy
 
-Last updated: 2026-05-12
+Last updated: 2026-05-20
 
 This is the strategy document for Exo. `README.md` explains the product publicly, `docs/roadmap.md` describes future systems, `docs/tasks.md` tracks concrete work, and `ledger.md` records shipped history.
 
@@ -24,6 +24,7 @@ Exo is organized around:
 - `notes_index` - Exo-managed QMD-backed index for optional notes search and future memory.
 - `agent_communication` - future inspectable message transport for multi-agent coordination.
 - `workcells[]` - future bounded development/research loops with artifacts, metrics, and replay.
+- `plugins[]` - future local-first extension packages that can add agent launchers, commands, panels, WebView apps, search providers, eval runners, trace collectors, and workflows through permissioned APIs.
 
 Portable source defaults:
 
@@ -44,6 +45,7 @@ Local/private paths belong in settings or environment examples, not source defau
 - Humans and agents should share the same notes index through explicit, observable search modes.
 - Provenance should come from observed workflows, not AI-detector inference.
 - Training data is never ambient; it must be explicitly scoped.
+- Core primitives should stay stable and small; plugins should extend Exo through registries instead of patching internals.
 
 ## Current Foundation
 
@@ -70,6 +72,7 @@ Current intentional limits:
 - File/terminal panes do not yet share one arbitrary pane graph.
 - Authorship/provenance is not yet tracked.
 - Agent-to-agent communication is not yet a durable Exo-native protocol.
+- Plugin APIs are not yet public; optional agent launchers, dashboards, eval runners, and workflow integrations should wait for a clear core/plugin boundary.
 
 ## Next Product Systems
 
@@ -104,6 +107,18 @@ The shared exocortex should be visible. Graph and memory views should combine ba
 ### Workcells, Evals, And Training
 
 Once the workspace, memory, and coordination layers are stable, Exo can support bounded research/development loops, evals, datasets, and local/open-source agent training workflows.
+
+Core should own durable run, artifact, trace, evaluation-result, provenance, and permission primitives. Specific collectors, scorers, dashboards, provider integrations, and training/export flows can be plugins. An eval dashboard may run inside an Exo WebView pane, but the eval system should not be only a hosted web app because it needs permissioned access to Exo's agents, terminal logs, files, search, git state, and artifacts.
+
+### Plugin Architecture
+
+Exo's plugin model should distinguish app plugins, surface plugins, capability plugins, and workflow plugins. The WebView/browser pane belongs in core because many unrelated workflows need local web-app previews, dashboards, docs, and artifact viewers. Plugins can target that primitive with their own apps.
+
+Specific coding agents should use adapter-shaped integrations where possible. Core defines launch, terminal transport, lifecycle, MCP/CLI exposure, and provenance hooks; individual agents such as Claude, Codex, Pi, Aider, Goose, OpenCode, and local/open-source agents can be first-party or community plugins.
+
+### Self-Modifying Exo
+
+Exo can eventually help maintain and improve itself through supervised, reviewable workflows: create a branch, make changes, run the harness, summarize evidence, and prepare a PR or local diff. Core should own policy gates, git/PR primitives, harness execution, audit logs, rollback metadata, and provenance. Concrete maintenance agents and recurring workflows should be plugin-shaped.
 
 ## Validation
 

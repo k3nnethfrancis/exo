@@ -1,6 +1,6 @@
 # Exo Tasks
 
-Last updated: 2026-05-17
+Last updated: 2026-05-20
 
 This is the active task tracker for Exo. It is intentionally not a history file; completed implementation history belongs in `ledger.md`. Tasks here should be concrete, current, and ordered by practical priority.
 
@@ -20,6 +20,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [ ] Let files and terminals share one arbitrary split-pane graph.
 - [ ] Roadmap mixed file/terminal tab groups after the split-pane model stabilizes.
 - [ ] Support multiple terminal panes in the main workspace, not just the terminal dock.
+- [ ] Add a core WebView/browser pane for local web-app previews, docs, dashboards, and future plugin-hosted apps.
 - [ ] Persist pane layout across restart.
 - [ ] Keep file and terminal tab chrome aligned across all pane positions.
 - [ ] Add regression coverage for pane splitting, pane closure, reload, and terminal streaming.
@@ -92,6 +93,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [ ] Add durable memory, trace archive, retrieval/index, and working-memory assembly as separate layers.
 - [ ] Support adding non-Claude/non-Codex terminal agents, including local/open-source agents.
 - [ ] Add workcell model for bounded research/development loops.
+- [ ] Define run, artifact, trace, and evaluation result primitives that plugins can build on.
 - [ ] Add supervised run surfaces with artifacts, metrics, logs, and replay.
 - [ ] Add eval hooks for retrieval quality, memory usefulness, agent recovery, and operator acceptance.
 - [ ] Keep training data explicitly scoped by project, workcell, agent, artifact type, review status, and time window.
@@ -101,12 +103,23 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 
 - [ ] Define plugin manifest shape and version policy.
 - [ ] Define plugin install/load locations.
-- [ ] Define safe renderer panel extension points.
+- [ ] Define plugin extension depths: app plugins, surface plugins, capability plugins, and workflow plugins.
+- [ ] Define safe renderer panel and WebView app extension points.
 - [ ] Define command registration API.
 - [ ] Define settings API for plugin-owned state.
-- [ ] Decide whether plugins can add MCP tools or CLI commands.
+- [ ] Define agent launcher adapter API for Claude, Codex, Pi, Aider, Goose, OpenCode, and local/open-source agents.
+- [ ] Decide how plugins can add MCP tools or CLI commands under explicit permissions.
+- [ ] Define capability permissions for filesystem scopes, process/terminal access, network access, git write/PR rights, secrets, and MCP exposure.
+- [ ] Define search provider, trace collector, eval runner, and workflow extension points.
 - [ ] Decide whether the current branch-family file convention remains core or moves behind a plugin boundary.
 - [ ] Keep optional personal/domain workflows out of core until the plugin boundary exists.
+
+## Later: Self-Modifying Exo
+
+- [ ] Define a supervised self-modification workflow: branch, change, run harness, summarize evidence, and prepare PR or local diff.
+- [ ] Add policy gates for git writes, PR creation, dependency/security updates, and auto-merge eligibility.
+- [ ] Connect self-modification to provenance, audit logs, workcells, and harness results.
+- [ ] Let maintenance workflows be implemented as plugins on top of core git, harness, provenance, and policy primitives.
 
 ## Developer Harness
 
