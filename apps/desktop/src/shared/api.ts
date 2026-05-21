@@ -46,6 +46,19 @@ export interface WorkspaceGitStatus {
   dirty: boolean;
 }
 
+export interface WorkspaceSetupState {
+  complete: boolean;
+  settingsPath: string;
+}
+
+export interface WorkspaceRegistryEntry {
+  id: string;
+  label: string;
+  notesFolder: string;
+  settings: WorkspaceSettings;
+  updatedAt: string;
+}
+
 export interface IndexSyncStateEvent {
   state: "running" | "idle" | "error";
   reason: string;
@@ -57,7 +70,11 @@ export interface DesktopApi {
   workspace: {
     getModel: () => Promise<WorkspaceModel>;
     getSettings: () => Promise<WorkspaceSettings>;
+    getSetupState: () => Promise<WorkspaceSetupState>;
+    listWorkspaces: () => Promise<WorkspaceRegistryEntry[]>;
+    activateWorkspace: (workspaceId: string) => Promise<WorkspaceSettings>;
     saveSettings: (settings: WorkspaceSettings) => Promise<WorkspaceSettings>;
+    selectFolder: (options?: { title?: string; allowMultiple?: boolean; buttonLabel?: string }) => Promise<string[]>;
     getIndexStatus: () => Promise<IndexStatus>;
     syncIndex: () => Promise<IndexSyncResult>;
     updateIndex: () => Promise<IndexStatus>;

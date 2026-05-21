@@ -52,14 +52,18 @@ Collection names should come from attached note roots, using stable sanitized la
 
 ## Onboarding
 
-First-run onboarding should require the user to choose or create a notes folder. Exo should not ship a fake vault as user data.
+First-run onboarding should use the same workspace create/select surface as workspace switching. It should require the user to choose or create a notes folder before the app shell is shown. Exo should not ship a fake vault as user data, and it should not silently create the user's primary notes location.
 
-After the notes folder choice, offer notes indexing as an explicit local feature:
+Project folders are optional during setup and should be managed through native folder selection plus a removable list, not a comma- or newline-separated text box. Source builds can include the Exo repo as the default project folder, but users must be able to add or remove project folders explicitly.
+
+The selected notes folder is the initial workspace boundary for Exo runtime state. That keeps `.exo/qmd` and related local state scoped to that notes folder by default, so separate notes folders can have separate indexes. Switching workspaces should return to the workspace create/select surface rather than editing a raw path in place.
+
+During workspace setup, show and allow changing the default terminal folder and notes indexing settings so users learn those concepts before entering the app:
 
 - Off: filename/path search only.
 - Lexical: local SQLite/FTS index, no models.
 - Semantic: lexical plus embeddings.
-- Full: semantic plus query expansion/reranking.
+- Hybrid: semantic plus query expansion/reranking.
 
 The copy should name QMD and credit it. The UI should explain that indexing creates a local SQLite copy of markdown content and that semantic/full modes may download local GGUF models.
 

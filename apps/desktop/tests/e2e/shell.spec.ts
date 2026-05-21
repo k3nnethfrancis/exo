@@ -248,12 +248,44 @@ test("opens workspace settings from the sidebar", async () => {
   await expect(page.getByTestId("workspace-settings-note-roots")).toContainText("test-notes");
   await page.getByTestId("workspace-settings-tab-index").click();
   await expect(page.getByTestId("workspace-settings-index-mode")).toHaveValue("off");
-  await expect(page.getByTestId("workspace-settings-indexed-roots")).toBeVisible();
-  await expect(page.getByTestId("workspace-settings-dialog")).toContainText("QMD by Tobi Lutke");
+  await expect(page.getByTestId("workspace-settings-dialog")).toContainText("Local QMD Index");
   await page.getByTestId("workspace-settings-tab-terminal").click();
   await expect(page.getByTestId("workspace-settings-terminal-history-mode")).toHaveValue("full");
   await expect(page.getByTestId("workspace-settings-terminal-transcript-retention")).toHaveValue("forever");
   await expect(page.getByTestId("workspace-settings-terminal-streaming-mode")).toHaveValue("visible");
+
+  await cleanup();
+});
+
+test("switch workspace opens the workspace picker", async () => {
+  const { page, cleanup } = await launchExoFixture();
+
+  await page.getByTestId("workspace-settings").click();
+  await page.getByRole("button", { name: "Switch workspace" }).click();
+  await expect(page.getByTestId("onboarding")).toContainText("Select workspace");
+  await expect(page.getByTestId("workspace-picker-item").first()).toContainText("test-notes");
+  await expect(page.getByTestId("workspace-picker-open")).toBeEnabled();
+  await page.getByTestId("workspace-picker-new").click();
+  await expect(page.getByTestId("onboarding")).toContainText("New workspace");
+  await expect(page.getByTestId("onboarding-choose-notes")).toBeVisible();
+
+  await cleanup();
+});
+
+test("shows first-run notes setup before the app shell", async () => {
+  const { page, cleanup } = await launchExoFixture({ configured: false });
+
+  await expect(page.getByTestId("onboarding")).toContainText("Select workspace");
+  await expect(page.getByTestId("workspace-picker-empty")).toContainText("No workspaces yet.");
+  await expect(page.getByTestId("workspace-picker-new")).toBeVisible();
+  await expect(page.getByTestId("workspace-picker-open")).toBeDisabled();
+  await page.getByTestId("workspace-picker-new").click();
+  await expect(page.getByTestId("onboarding")).toContainText("New workspace");
+  await expect(page.getByTestId("onboarding")).toContainText("Default terminal");
+  await expect(page.getByTestId("onboarding")).toContainText("Knowledge index");
+  await expect(page.getByTestId("onboarding-notes-folder")).toContainText("No notes folder selected.");
+  await expect(page.getByTestId("onboarding-continue")).toBeDisabled();
+  await expect(page.getByTestId("sidebar")).toHaveCount(0);
 
   await cleanup();
 });

@@ -13,6 +13,7 @@ export async function launchExoFixture(options?: {
   env?: Record<string, string>;
   prepareWorkspace?: (workspaceRoot: string) => Promise<void>;
   initialNoteLabel?: string | null;
+  configured?: boolean;
 }): Promise<{ electronApp: ElectronApplication; page: Page; workspaceRoot: string; cleanup: () => Promise<void> }> {
   let workspaceRoot = fixtureRoot;
   let tempRoot: string | null = null;
@@ -29,6 +30,14 @@ export async function launchExoFixture(options?: {
     await options.prepareWorkspace(workspaceRoot);
   }
 
+  const configured = options?.configured ?? true;
+  const workspaceEnv = configured
+    ? {
+        EXO_NOTE_ROOTS: path.join(workspaceRoot, "notes/test-notes"),
+        EXO_PROJECT_ROOTS: path.join(workspaceRoot, "projects/sample-project"),
+      }
+    : {};
+
   const electronApp = await electron.launch({
     args: [path.join(repoRoot, "apps/desktop/dist/main/index.js")],
     cwd: repoRoot,
@@ -36,8 +45,6 @@ export async function launchExoFixture(options?: {
       ...process.env,
       EXO_TEST: "1",
       EXO_WORKSPACE_ROOT: workspaceRoot,
-      EXO_NOTE_ROOTS: path.join(workspaceRoot, "notes/test-notes"),
-      EXO_PROJECT_ROOTS: path.join(workspaceRoot, "projects/sample-project"),
       EXO_DEFAULT_TERMINAL_CWD: workspaceRoot,
       EXO_SETTINGS_PATH: settingsPath,
       EXO_USER_DATA_PATH: userDataRoot,
@@ -48,10 +55,28 @@ export async function launchExoFixture(options?: {
       EXO_CLAUDE_ARGS: "claude ready",
       EXO_CODEX_COMMAND: "/bin/echo",
       EXO_CODEX_ARGS: "codex ready",
+      ...workspaceEnv,
       ...options?.env,
     },
   });
   const page = await electronApp.firstWindow();
+  if (!configured) {
+    await expect(page.getByTestId("onboarding")).toBeVisible();
+    return {
+      electronApp,
+      page,
+      workspaceRoot,
+      cleanup: async () => {
+        await electronApp.close();
+        await rm(settingsRoot, { recursive: true, force: true });
+        await rm(userDataRoot, { recursive: true, force: true });
+        if (tempRoot) {
+          await rm(tempRoot, { recursive: true, force: true });
+        }
+      },
+    };
+  }
+
   await expect(page.getByTestId("sidebar")).toBeVisible();
   await expect(page.getByTestId("editor-panel")).toBeVisible();
   await expect(page.getByTestId("terminal-rail")).toBeVisible();

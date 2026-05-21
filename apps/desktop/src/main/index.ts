@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Menu, nativeImage, nativeTheme, shell, Tray } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, nativeTheme, shell, Tray, type OpenDialogOptions } from "electron";
 import { execFile } from "node:child_process";
 import path from "node:path";
 import { access, appendFile, mkdir, stat } from "node:fs/promises";
@@ -81,6 +81,7 @@ let commandServer: CommandServer | null = null;
 let workspaceModel: WorkspaceModel;
 let workspaceSettings: WorkspaceSettings | null = null;
 let workspaceSettingsStore: WorkspaceSettingsStore;
+let workspaceSetupComplete = false;
 let terminalManager: TerminalManager;
 let workspaceWatcherService: WorkspaceWatcherService;
 let indexSyncTimer: NodeJS.Timeout | null = null;
@@ -409,6 +410,18 @@ function errorMessage(error: unknown): string {
 function registerIpcHandlers() {
   ipcMain.handle("workspace:get-model", async () => workspaceModel);
   ipcMain.handle("workspace:get-settings", async () => currentWorkspaceSettings());
+  ipcMain.handle("workspace:get-setup-state", async () => ({
+    complete: workspaceSetupComplete,
+    settingsPath: workspaceSettingsStore.resolvePath(),
+  }));
+  ipcMain.handle("workspace:list-workspaces", async () => workspaceSettingsStore.listWorkspaces(workspaceSettings));
+  ipcMain.handle("workspace:activate-workspace", async (_event, workspaceId: string) => {
+    const entry = await workspaceSettingsStore.getWorkspace(workspaceId);
+    if (!entry) {
+      throw new Error("Workspace not found.");
+    }
+    return saveWorkspaceSettings(entry.settings);
+  });
   ipcMain.handle("workspace:get-index-status", async () => getMeasuredIndexStatus());
   ipcMain.handle("workspace:index-sync", async () => runIndexSync("settings"));
   ipcMain.handle("workspace:index-update", async () =>
@@ -420,6 +433,24 @@ function registerIpcHandlers() {
   ipcMain.handle("workspace:save-settings", async (_event, settings: WorkspaceSettings) => {
     return saveWorkspaceSettings(settings);
   });
+  ipcMain.handle(
+    "workspace:select-folder",
+    async (_event, options?: { title?: string; allowMultiple?: boolean; buttonLabel?: string }) => {
+      const dialogOptions: OpenDialogOptions = {
+        title: options?.title,
+        buttonLabel: options?.buttonLabel,
+        properties: [
+          "openDirectory",
+          "createDirectory",
+          ...(options?.allowMultiple ? ["multiSelections" as const] : []),
+        ],
+      };
+      const result = mainWindow && !mainWindow.isDestroyed()
+        ? await dialog.showOpenDialog(mainWindow, dialogOptions)
+        : await dialog.showOpenDialog(dialogOptions);
+      return result.canceled ? [] : result.filePaths;
+    },
+  );
   ipcMain.handle("runtime:get-status", async () => terminalManager.getRuntimeConfig());
   ipcMain.handle("runtime:sync", async () => terminalManager.syncRuntimeContext());
   ipcMain.handle(
@@ -626,12 +657,13 @@ async function saveWorkspaceSettings(settings: WorkspaceSettings): Promise<Works
   const previousSettings = currentWorkspaceSettings();
   const previousRuntimeRoot = resolveRuntimeConfig().runtimeRoot;
   workspaceSettings = await workspaceSettingsStore.save(settings);
+  workspaceSetupComplete = true;
   applyWorkspaceSettings(workspaceSettings);
   workspaceModel = resolveWorkspaceModel();
   const nextRuntimeConfig = resolveRuntimeConfig();
   await ensureNoteRoots(workspaceModel);
   workspaceWatcherService.start(workspaceModel);
-  const terminalPolicy = resolveTerminalRuntimePolicy(workspaceSettings);
+  const terminalPolicy = resolveTerminalRuntimePolicy(currentWorkspaceSettings());
   terminalManager.setRuntimeConfig(nextRuntimeConfig);
   terminalManager.setDefaultCwd(workspaceModel.defaultTerminalCwd);
   terminalManager.setBufferLineLimit(terminalPolicy.bufferLineLimit);
@@ -919,9 +951,6 @@ app.whenReady().then(async () => {
   workspaceSettingsStore = new WorkspaceSettingsStore({ userDataPath: app.getPath("userData") });
   workspaceWatcherService = new WorkspaceWatcherService((event) => {
     sendToRenderer("workspace:changed", event);
-    if (event.filePath) {
-      scheduleIndexSyncForFile(event.filePath, "workspace-change");
-    }
   });
 
   const forcedTheme = process.env.EXO_FORCE_THEME;
@@ -930,15 +959,18 @@ app.whenReady().then(async () => {
   }
 
   workspaceSettings = await workspaceSettingsStore.load();
+  workspaceSetupComplete = workspaceSettings !== null || Boolean(process.env.EXO_NOTE_ROOTS);
   applyWorkspaceSettings(workspaceSettings);
   if (workspaceSettings && !isForcedTheme(forcedTheme)) {
     nativeTheme.themeSource = workspaceSettings.appearanceMode;
   }
   workspaceModel = resolveWorkspaceModel();
-  await ensureNoteRoots(workspaceModel);
-  workspaceSettings = await workspaceSettingsStore.save(currentWorkspaceSettings());
+  if (workspaceSetupComplete) {
+    await ensureNoteRoots(workspaceModel);
+    workspaceSettings = await workspaceSettingsStore.save(currentWorkspaceSettings());
+  }
   logWorkspaceStartup(workspaceModel);
-  const terminalPolicy = resolveTerminalRuntimePolicy(workspaceSettings);
+  const terminalPolicy = resolveTerminalRuntimePolicy(currentWorkspaceSettings());
   terminalManager = new TerminalManager(
     workspaceModel.defaultTerminalCwd,
     terminalPolicy.bufferLineLimit,

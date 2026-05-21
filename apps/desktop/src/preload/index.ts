@@ -28,7 +28,11 @@ const api: DesktopApi = {
   workspace: {
     getModel: () => ipcRenderer.invoke("workspace:get-model"),
     getSettings: () => ipcRenderer.invoke("workspace:get-settings"),
+    getSetupState: () => ipcRenderer.invoke("workspace:get-setup-state"),
+    listWorkspaces: () => ipcRenderer.invoke("workspace:list-workspaces"),
+    activateWorkspace: (workspaceId) => ipcRenderer.invoke("workspace:activate-workspace", workspaceId),
     saveSettings: (settings) => ipcRenderer.invoke("workspace:save-settings", settings),
+    selectFolder: (options) => ipcRenderer.invoke("workspace:select-folder", options),
     getIndexStatus: () => ipcRenderer.invoke("workspace:get-index-status"),
     syncIndex: () => ipcRenderer.invoke("workspace:index-sync"),
     updateIndex: () => ipcRenderer.invoke("workspace:index-update"),

@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 
 import {
   DEFAULT_TERMINAL_HISTORY_LINES,
@@ -66,6 +69,46 @@ describe("workspace terminal settings", () => {
       bufferLineLimit: 24_000,
       transcriptRetentionDays: 30,
     });
+  });
+});
+
+describe("workspace registry", () => {
+  it("persists saved workspaces for the switcher", async () => {
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-registry-"));
+    const store = new WorkspaceSettingsStore({ userDataPath, env: {} });
+
+    try {
+      const firstSettings = store.normalize({
+        workspaceRoot: "/tmp/exo-test/notes-alpha",
+        defaultTerminalCwd: "/tmp/exo-test/notes-alpha",
+        noteRoots: ["/tmp/exo-test/notes-alpha"],
+        projectRoots: ["/tmp/exo-test/project-alpha"],
+        indexedRoots: [],
+        indexing: { enabled: false, mode: "off", backend: "qmd" },
+      });
+      const secondSettings = store.normalize({
+        workspaceRoot: "/tmp/exo-test/notes-beta",
+        defaultTerminalCwd: "/tmp/exo-test/project-beta",
+        noteRoots: ["/tmp/exo-test/notes-beta"],
+        projectRoots: ["/tmp/exo-test/project-beta"],
+        indexedRoots: [],
+        indexing: { enabled: false, mode: "off", backend: "qmd" },
+      });
+
+      expect(firstSettings).not.toBeNull();
+      expect(secondSettings).not.toBeNull();
+      await store.save(firstSettings!);
+      await store.save(secondSettings!);
+
+      const workspaces = await store.listWorkspaces();
+      expect(workspaces.map((workspace) => workspace.label)).toEqual(["notes-beta", "notes-alpha"]);
+      expect(workspaces[0].settings.defaultTerminalCwd).toBe("/tmp/exo-test/project-beta");
+      await expect(store.getWorkspace(workspaces[1].id)).resolves.toMatchObject({
+        notesFolder: "/tmp/exo-test/notes-alpha",
+      });
+    } finally {
+      await rm(userDataPath, { recursive: true, force: true });
+    }
   });
 });
 

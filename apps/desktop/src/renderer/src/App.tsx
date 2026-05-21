@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { X } from "lucide-react";
+import { HelpCircle, Plus, X } from "lucide-react";
 import type {
   BranchFamily,
   IndexStatus,
@@ -11,7 +11,7 @@ import type {
   WorkspaceSettings,
 } from "@exo/core";
 
-import type { TerminalSessionInfo, WorkspaceGitStatus } from "../../shared/api";
+import type { TerminalSessionInfo, WorkspaceGitStatus, WorkspaceRegistryEntry } from "../../shared/api";
 import type { FileStatInfo } from "../../shared/api";
 
 import { EditorPane, type EditorPaneState } from "./components/EditorPane";
@@ -69,11 +69,10 @@ interface WorkspaceSettingsDialogState {
   section: WorkspaceSettingsSection;
   workspaceRoot: string;
   defaultTerminalCwd: string;
-  noteRoots: string;
-  projectRoots: string;
-  indexedRoots: string;
+  noteRoots: string[];
+  projectRoots: string[];
+  indexedRoots: string[];
   indexMode: WorkspaceSettings["indexing"]["mode"];
-  indexStatusSummary: string;
   appearanceMode: AppearanceMode;
   editorFontSize: string;
   terminalFontSize: string;
@@ -92,6 +91,21 @@ interface WorkspaceSettingsDialogState {
   applyErrorMessage: string | null;
 }
 
+interface OnboardingState {
+  mode: "first-run" | "switch";
+  step: "select" | "configure";
+  workspaces: WorkspaceRegistryEntry[];
+  selectedWorkspaceId: string | null;
+  notesFolder: string;
+  projectFolders: string[];
+  defaultTerminalCwd: string;
+  indexMode: WorkspaceSettings["indexing"]["mode"];
+  exploreIndexSearchOnEnter: boolean;
+  indexUpdateStrategy: WorkspaceSettings["indexUpdateStrategy"];
+  status: "idle" | "saving" | "error";
+  errorMessage: string | null;
+}
+
 // DragState replaced by useDragManager — see DragPayload in hooks/useDragManager.ts
 
 export type AppearanceMode = "system" | "light" | "dark";
@@ -107,6 +121,48 @@ const PROJECT_TREE_MAX_DEPTH = 3;
 const DEFAULT_EDITOR_FONT_SIZE = 15;
 const DEFAULT_TERMINAL_FONT_SIZE = 13;
 const DEFAULT_EXPLORER_SCALE = 1;
+
+function PathList({
+  emptyLabel,
+  onRemove,
+  paths,
+  testId,
+}: {
+  emptyLabel: string;
+  onRemove: (targetPath: string) => void;
+  paths: string[];
+  testId: string;
+}) {
+  return (
+    <div className="path-list" data-testid={testId}>
+      {paths.length === 0 ? <div className="path-list__empty">{emptyLabel}</div> : null}
+      {paths.map((targetPath) => (
+        <div className="path-list__item" key={targetPath}>
+          <span className="path-list__text" title={targetPath}>
+            <span className="path-list__name">{pathLabel(targetPath)}</span>
+            <span className="path-list__path">{targetPath}</span>
+          </span>
+          <button
+            aria-label={`Remove ${pathLabel(targetPath)}`}
+            className="path-list__remove"
+            onClick={() => onRemove(targetPath)}
+            type="button"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function HelpTooltip({ label }: { label: string }) {
+  return (
+    <span aria-label={label} className="help-tooltip" data-tooltip={label} tabIndex={0}>
+      <HelpCircle size={14} />
+    </span>
+  );
+}
 
 export function App() {
   const [workspaceModel, setWorkspaceModel] = useState<WorkspaceModel | null>(null);
@@ -131,6 +187,8 @@ export function App() {
   const [, setAgentAnnotations] = useState<Record<string, { runLabel: string; parentId: string | null }>>({});
   const [workspaceDialog, setWorkspaceDialog] = useState<WorkspaceDialogState | null>(null);
   const [workspaceSettingsDialog, setWorkspaceSettingsDialog] = useState<WorkspaceSettingsDialogState | null>(null);
+  const [onboardingState, setOnboardingState] = useState<OnboardingState | null>(null);
+  const [bootstrapError, setBootstrapError] = useState<string | null>(null);
   const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null);
   const [indexBusy, setIndexBusy] = useState<IndexBusyState>(null);
   const [appearanceMode, setAppearanceMode] = useState<AppearanceMode>("system");
@@ -280,11 +338,17 @@ export function App() {
 
     async function bootstrap() {
       const bootstrapRun = ++bootstrapRunRef.current;
-      const [model, settings, status] = await Promise.all([
+      const workspaceListPromise =
+        typeof window.exo.workspace.listWorkspaces === "function"
+          ? window.exo.workspace.listWorkspaces().catch(() => [])
+          : Promise.resolve([]);
+      const [setupState, model, settings, workspaces] = await Promise.all([
+        window.exo.workspace.getSetupState(),
         window.exo.workspace.getModel(),
         window.exo.workspace.getSettings(),
-        window.exo.workspace.getIndexStatus(),
+        workspaceListPromise,
       ]);
+      setBootstrapError(null);
       workspaceSettingsRef.current = settings;
       const terminalPolicy = resolveSettingsTerminalRuntime(settings);
       setAppearanceMode(settings.appearanceMode);
@@ -294,6 +358,28 @@ export function App() {
       setTerminalStreamingMode(settings.terminalStreamingMode);
       setExplorerScale(settings.explorerScale);
       setExploreIndexSearchOnEnter(settings.exploreIndexSearchOnEnter);
+
+      if (!setupState.complete) {
+        setWorkspaceModel(model);
+        setOnboardingState({
+          mode: "first-run",
+          step: "select",
+          workspaces,
+          selectedWorkspaceId: workspaces[0]?.id ?? null,
+          notesFolder: "",
+          projectFolders: settings.projectRoots,
+          defaultTerminalCwd: "",
+          indexMode: settings.indexing.mode,
+            exploreIndexSearchOnEnter: false,
+          indexUpdateStrategy: settings.indexUpdateStrategy,
+          status: "idle",
+          errorMessage: null,
+        });
+        return;
+      }
+
+      setOnboardingState(null);
+      const status = await window.exo.workspace.getIndexStatus();
       setIndexStatus(status);
       const [nextNoteTrees, nextProjectTrees] = await Promise.all([
         Promise.all(
@@ -368,7 +454,12 @@ export function App() {
       }
     }
 
-    void bootstrap();
+    void bootstrap().catch((error) => {
+      console.error("[exo] renderer bootstrap failed", error);
+      if (!cancelled) {
+        setBootstrapError(error instanceof Error ? error.message : String(error));
+      }
+    });
 
     function flushTerminalChunks() {
       terminalFlushFrameRef.current = null;
@@ -527,9 +618,8 @@ export function App() {
           current
             ? {
                 ...current,
-                indexStatusSummary: formatIndexStatus(event.result!.status),
-              }
-            : current,
+          }
+        : current,
         );
       }
       if (event.state === "error") {
@@ -710,14 +800,6 @@ export function App() {
   async function refreshIndexStatus() {
     const status = await window.exo.workspace.getIndexStatus();
     setIndexStatus(status);
-    setWorkspaceSettingsDialog((current) =>
-      current
-        ? {
-            ...current,
-            indexStatusSummary: formatIndexStatus(status),
-          }
-        : current,
-    );
     return status;
   }
 
@@ -730,11 +812,10 @@ export function App() {
       section,
       workspaceRoot: settings.workspaceRoot,
       defaultTerminalCwd: settings.defaultTerminalCwd,
-      noteRoots: settings.noteRoots.join("\n"),
-      projectRoots: settings.projectRoots.join("\n"),
-      indexedRoots: settings.indexedRoots.map((root) => root.path).join("\n"),
+      noteRoots: settings.noteRoots,
+      projectRoots: settings.projectRoots,
+      indexedRoots: settings.indexedRoots.map((root) => root.path),
       indexMode: settings.indexing.mode,
-      indexStatusSummary: formatIndexStatus(indexStatus),
       appearanceMode: settings.appearanceMode,
       editorFontSize: String(settings.editorFontSize),
       terminalFontSize: String(settings.terminalFontSize),
@@ -752,6 +833,205 @@ export function App() {
       applyStatus: "idle",
       applyErrorMessage: null,
     });
+  }
+
+  async function selectNotesFolderForOnboarding() {
+    const folders = await window.exo.workspace.selectFolder({
+      title: "Choose your notes folder",
+      buttonLabel: "Use Notes Folder",
+    });
+    if (folders[0]) {
+      setOnboardingState((current) =>
+        current
+          ? {
+              ...current,
+              notesFolder: folders[0],
+              errorMessage: null,
+              status: "idle",
+            }
+          : current,
+      );
+    }
+  }
+
+  async function addProjectFoldersForOnboarding() {
+    const folders = await window.exo.workspace.selectFolder({
+      title: "Add project folders",
+      buttonLabel: "Add Projects",
+      allowMultiple: true,
+    });
+    if (folders.length > 0) {
+      setOnboardingState((current) =>
+        current
+          ? {
+              ...current,
+              projectFolders: uniquePaths([...current.projectFolders, ...folders]),
+              errorMessage: null,
+              status: "idle",
+            }
+          : current,
+      );
+    }
+  }
+
+  async function selectDefaultTerminalForOnboarding() {
+    const folders = await window.exo.workspace.selectFolder({
+      title: "Choose default terminal folder",
+      buttonLabel: "Use Terminal Folder",
+    });
+    if (folders[0]) {
+      setOnboardingState((current) =>
+        current
+          ? {
+              ...current,
+              defaultTerminalCwd: folders[0],
+              errorMessage: null,
+              status: "idle",
+            }
+          : current,
+      );
+    }
+  }
+
+  async function openWorkspaceSwitcher() {
+    const current = workspaceSettingsRef.current;
+    const workspaces = await window.exo.workspace.listWorkspaces();
+    setWorkspaceSettingsDialog(null);
+    setOnboardingState({
+      mode: "switch",
+      step: "select",
+      workspaces,
+      selectedWorkspaceId: workspaces.find((workspace) => workspace.notesFolder === current?.noteRoots[0])?.id ?? workspaces[0]?.id ?? null,
+      notesFolder: current?.noteRoots[0] ?? "",
+      projectFolders: current?.projectRoots ?? [],
+      defaultTerminalCwd: current?.defaultTerminalCwd ?? current?.noteRoots[0] ?? "",
+      indexMode: current?.indexing.mode ?? "off",
+      exploreIndexSearchOnEnter: current?.exploreIndexSearchOnEnter ?? false,
+      indexUpdateStrategy: current?.indexUpdateStrategy ?? "on-save",
+      status: "idle",
+      errorMessage: null,
+    });
+  }
+
+  function startNewWorkspaceSetup() {
+    setOnboardingState((current) =>
+      current
+        ? {
+            ...current,
+            step: "configure",
+            selectedWorkspaceId: null,
+            notesFolder: "",
+            projectFolders: [],
+            defaultTerminalCwd: "",
+            indexMode: "hybrid",
+            exploreIndexSearchOnEnter: true,
+            indexUpdateStrategy: "on-save",
+            status: "idle",
+            errorMessage: null,
+          }
+        : current,
+    );
+  }
+
+  async function activateSelectedWorkspace() {
+    if (!onboardingState?.selectedWorkspaceId) {
+      setOnboardingState((current) =>
+        current ? { ...current, status: "error", errorMessage: "Select a workspace to continue." } : current,
+      );
+      return;
+    }
+    setOnboardingState({ ...onboardingState, status: "saving", errorMessage: null });
+    try {
+      const saved = await window.exo.workspace.activateWorkspace(onboardingState.selectedWorkspaceId);
+      workspaceSettingsRef.current = saved;
+      window.location.reload();
+    } catch (error) {
+      setOnboardingState({
+        ...onboardingState,
+        status: "error",
+        errorMessage: error instanceof Error ? error.message : "Unable to open workspace.",
+      });
+    }
+  }
+
+  async function chooseFolderForSettings(target: "workspaceRoot" | "defaultTerminalCwd" | "noteRoot" | "projectRoot") {
+    const folders = await window.exo.workspace.selectFolder({
+      title:
+        target === "noteRoot"
+          ? "Choose notes folder"
+          : target === "projectRoot"
+            ? "Add project folder"
+            : "Choose folder",
+      buttonLabel: target === "projectRoot" ? "Add Folder" : "Use Folder",
+      allowMultiple: target === "projectRoot",
+    });
+    if (folders.length === 0) {
+      return;
+    }
+    setWorkspaceSettingsDialog((current) => {
+      if (!current) {
+        return current;
+      }
+      if (target === "workspaceRoot") {
+        return { ...current, workspaceRoot: folders[0], applyStatus: "idle", applyErrorMessage: null };
+      }
+      if (target === "defaultTerminalCwd") {
+        return { ...current, defaultTerminalCwd: folders[0], applyStatus: "idle", applyErrorMessage: null };
+      }
+      if (target === "noteRoot") {
+        return { ...current, noteRoots: [folders[0]], applyStatus: "idle", applyErrorMessage: null };
+      }
+      if (target === "projectRoot") {
+        return { ...current, projectRoots: uniquePaths([...current.projectRoots, ...folders]), applyStatus: "idle", applyErrorMessage: null };
+      }
+      return current;
+    });
+  }
+
+  async function completeOnboarding() {
+    if (!onboardingState) {
+      return;
+    }
+    const notesFolder = onboardingState.notesFolder.trim();
+    if (!notesFolder) {
+      setOnboardingState({ ...onboardingState, status: "error", errorMessage: "Choose or create a notes folder to continue." });
+      return;
+    }
+
+    setOnboardingState({ ...onboardingState, status: "saving", errorMessage: null });
+    try {
+      const base = workspaceSettingsRef.current ?? await window.exo.workspace.getSettings();
+      const indexMode = onboardingState.indexMode;
+      const indexedRootPaths = indexMode === "off" ? [] : [notesFolder];
+      const nextSettings: WorkspaceSettings = {
+        ...base,
+        workspaceRoot: notesFolder,
+        defaultTerminalCwd: onboardingState.defaultTerminalCwd.trim() || onboardingState.projectFolders[0] || notesFolder,
+        noteRoots: [notesFolder],
+        projectRoots: onboardingState.projectFolders,
+        indexedRoots: indexedRootPaths.map((rootPath, index) => ({
+          id: `index-root-${index + 1}`,
+          label: pathLabel(rootPath),
+          path: rootPath,
+          kind: "notes",
+          pattern: "**/*.md",
+          ignore: [],
+          backend: "qmd",
+        })),
+        indexing: { enabled: indexMode !== "off" && indexedRootPaths.length > 0, mode: indexMode, backend: "qmd" },
+        exploreIndexSearchOnEnter: indexMode !== "off" && onboardingState.exploreIndexSearchOnEnter,
+        indexUpdateStrategy: onboardingState.indexUpdateStrategy,
+      };
+      const saved = await window.exo.workspace.saveSettings(nextSettings);
+      workspaceSettingsRef.current = saved;
+      window.location.reload();
+    } catch (error) {
+      setOnboardingState({
+        ...onboardingState,
+        status: "error",
+        errorMessage: error instanceof Error ? error.message : "Unable to save setup.",
+      });
+    }
   }
 
   async function runIndexUpdate(action: Exclude<IndexBusyState, null>) {
@@ -773,14 +1053,6 @@ export function App() {
           ? await window.exo.workspace.embedIndex()
           : await window.exo.workspace.updateIndex();
       setIndexStatus(status);
-      setWorkspaceSettingsDialog((current) =>
-        current
-          ? {
-              ...current,
-              indexStatusSummary: formatIndexStatus(status),
-            }
-          : current,
-      );
     } catch (error) {
       setWorkspaceSettingsDialog((current) =>
         current
@@ -802,15 +1074,12 @@ export function App() {
       workspaceRoot: settingsDialog.workspaceRoot.trim(),
       defaultTerminalCwd: settingsDialog.defaultTerminalCwd.trim(),
       noteRoots: settingsDialog.noteRoots
-        .split("\n")
         .map((entry) => entry.trim())
         .filter(Boolean),
       projectRoots: settingsDialog.projectRoots
-        .split("\n")
         .map((entry) => entry.trim())
         .filter(Boolean),
       indexedRoots: settingsDialog.indexedRoots
-        .split("\n")
         .map((entry, index) => ({ entry, index }))
         .filter(({ entry }) => entry.trim())
         .map(({ entry, index }) => ({
@@ -1801,7 +2070,240 @@ export function App() {
   }
 
   if (!workspaceModel) {
-    return <div className="shell shell--loading">Loading Exo…</div>;
+    return (
+      <div className="shell shell--loading">
+        <div>Loading Exo…</div>
+        {bootstrapError ? <div className="dialog-card__status dialog-card__status--error">{bootstrapError}</div> : null}
+      </div>
+    );
+  }
+
+  if (onboardingState) {
+    const selectedWorkspace = onboardingState.workspaces.find((workspace) => workspace.id === onboardingState.selectedWorkspaceId) ?? null;
+    return (
+      <div className="onboarding-shell" data-testid="onboarding">
+        <div className="onboarding-card">
+          <div className="onboarding-card__eyebrow">
+            {onboardingState.mode === "first-run" ? "First setup" : "Switch workspace"}
+          </div>
+          {onboardingState.step === "select" ? (
+            <>
+              <h1 className="onboarding-card__title">Select workspace</h1>
+              <p className="onboarding-card__copy">
+                Workspaces are saved notes folders with their own projects, terminal defaults, settings, and local index state.
+              </p>
+              <div className="workspace-picker" data-testid="workspace-picker">
+                {onboardingState.workspaces.length > 0 ? (
+                  onboardingState.workspaces.map((workspace) => (
+                    <button
+                      className={`workspace-picker__item${workspace.id === onboardingState.selectedWorkspaceId ? " workspace-picker__item--selected" : ""}`}
+                      data-testid="workspace-picker-item"
+                      key={workspace.id}
+                      onClick={() =>
+                        setOnboardingState((current) =>
+                          current ? { ...current, selectedWorkspaceId: workspace.id, status: "idle", errorMessage: null } : current,
+                        )
+                      }
+                      type="button"
+                    >
+                      <span className="workspace-picker__name">{workspace.label}</span>
+                      <span className="workspace-picker__path">{workspace.notesFolder}</span>
+                    </button>
+                  ))
+                ) : (
+                  <div className="path-list__empty" data-testid="workspace-picker-empty">No workspaces yet.</div>
+                )}
+              </div>
+              {selectedWorkspace ? (
+                <div className="onboarding-section onboarding-section--summary" data-testid="workspace-picker-detail">
+                  <div className="dialog-field__label">{selectedWorkspace.label}</div>
+                  <div className="onboarding-section__hint">{selectedWorkspace.notesFolder}</div>
+                  <div className="workspace-picker__meta">
+                    {selectedWorkspace.settings.projectRoots.length} project{selectedWorkspace.settings.projectRoots.length === 1 ? "" : "s"}
+                    {" | "}
+                    index {selectedWorkspace.settings.indexing.mode}
+                    {" | "}
+                    terminal {pathLabel(selectedWorkspace.settings.defaultTerminalCwd)}
+                  </div>
+                </div>
+              ) : null}
+              <div className="onboarding-card__actions">
+                {onboardingState.mode === "switch" ? (
+                  <button className="toolbar-button" onClick={() => setOnboardingState(null)} type="button">
+                    Cancel
+                  </button>
+                ) : null}
+                <button className="toolbar-button" data-testid="workspace-picker-new" onClick={startNewWorkspaceSetup} type="button">
+                  New workspace
+                </button>
+                <button
+                  className="toolbar-button toolbar-button--primary"
+                  data-testid="workspace-picker-open"
+                  disabled={!onboardingState.selectedWorkspaceId || onboardingState.status === "saving"}
+                  onClick={() => void activateSelectedWorkspace()}
+                  type="button"
+                >
+                  {onboardingState.status === "saving" ? "Opening…" : "Open workspace"}
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <h1 className="onboarding-card__title">New workspace</h1>
+              <p className="onboarding-card__copy">
+                Choose a notes folder first, then confirm the default terminal, projects, and local index mode.
+              </p>
+              <div className="onboarding-grid">
+                <div className="onboarding-section onboarding-section--primary">
+                  <div className="onboarding-section__header">
+                    <div>
+                      <div className="dialog-field__label">Notes folder</div>
+                      <div className="onboarding-section__hint">Required. This Markdown folder identifies the workspace.</div>
+                    </div>
+                    <button className="toolbar-button" data-testid="onboarding-choose-notes" onClick={() => void selectNotesFolderForOnboarding()} type="button">
+                      Select
+                    </button>
+                  </div>
+                  <PathList
+                    emptyLabel="No notes folder selected."
+                    paths={onboardingState.notesFolder ? [onboardingState.notesFolder] : []}
+                    testId="onboarding-notes-folder"
+                    onRemove={() =>
+                      setOnboardingState((current) =>
+                        current ? { ...current, notesFolder: "", status: "idle", errorMessage: null } : current,
+                      )
+                    }
+                  />
+                </div>
+                <div className="onboarding-section">
+                  <div className="onboarding-section__header">
+                    <div>
+                      <div className="dialog-field__label">Project folders</div>
+                      <div className="onboarding-section__hint">Optional code folders for terminals, review, and agents.</div>
+                    </div>
+                    <button className="toolbar-button toolbar-button--icon" data-testid="onboarding-add-project" onClick={() => void addProjectFoldersForOnboarding()} type="button">
+                      <Plus size={15} />
+                    </button>
+                  </div>
+                  <PathList
+                    emptyLabel="No project folders added."
+                    paths={onboardingState.projectFolders}
+                    testId="onboarding-project-folders"
+                    onRemove={(targetPath) =>
+                      setOnboardingState((current) =>
+                        current
+                          ? {
+                              ...current,
+                              projectFolders: current.projectFolders.filter((entry) => entry !== targetPath),
+                              status: "idle",
+                              errorMessage: null,
+                            }
+                          : current,
+                      )
+                    }
+                  />
+                </div>
+                <div className="onboarding-section">
+                  <div className="onboarding-section__header">
+                    <div>
+                      <div className="dialog-field__label">Default terminal</div>
+                      <div className="onboarding-section__hint">Where new shell, Claude, and Codex sessions start.</div>
+                    </div>
+                    <button className="toolbar-button" data-testid="onboarding-choose-terminal" onClick={() => void selectDefaultTerminalForOnboarding()} type="button">
+                      Select
+                    </button>
+                  </div>
+                  <PathList
+                    emptyLabel={onboardingState.projectFolders[0] || onboardingState.notesFolder || "Defaults to your notes folder."}
+                    paths={onboardingState.defaultTerminalCwd ? [onboardingState.defaultTerminalCwd] : []}
+                    testId="onboarding-terminal-folder"
+                    onRemove={() =>
+                      setOnboardingState((current) =>
+                        current ? { ...current, defaultTerminalCwd: "", status: "idle", errorMessage: null } : current,
+                      )
+                    }
+                  />
+                </div>
+                <div className="onboarding-section onboarding-section--index">
+                  <div className="onboarding-section__header">
+                    <div>
+                      <div className="dialog-field__label">Knowledge index</div>
+                      <div className="onboarding-section__hint">Optional local search over the notes folder. Hybrid uses embeddings.</div>
+                    </div>
+                    <select
+                      className="dialog-card__input onboarding-select"
+                      data-testid="onboarding-index-mode"
+                      value={onboardingState.indexMode}
+                      onChange={(event) => {
+                        const nextMode = event.target.value as WorkspaceSettings["indexing"]["mode"];
+                        setOnboardingState((current) =>
+                          current
+                            ? {
+                                ...current,
+                                indexMode: nextMode,
+                                exploreIndexSearchOnEnter: nextMode !== "off",
+                                status: "idle",
+                                errorMessage: null,
+                              }
+                            : current,
+                        );
+                      }}
+                    >
+                      <option value="off">Off</option>
+                      <option value="lexical">Lexical</option>
+                      <option value="semantic">Semantic</option>
+                      <option value="hybrid">Hybrid</option>
+                    </select>
+                  </div>
+                  {onboardingState.indexMode !== "off" ? (
+                    <label className="dialog-check">
+                      <input
+                        checked={onboardingState.exploreIndexSearchOnEnter}
+                        data-testid="onboarding-index-enter"
+                        onChange={(event) =>
+                          setOnboardingState((current) =>
+                            current ? { ...current, exploreIndexSearchOnEnter: event.target.checked } : current,
+                          )
+                        }
+                        type="checkbox"
+                      />
+                      <span>Use indexed search when pressing Enter in Explore.</span>
+                    </label>
+                  ) : null}
+                </div>
+              </div>
+              <div className="onboarding-card__actions">
+                {onboardingState.workspaces.length > 0 || onboardingState.mode === "switch" ? (
+                  <button
+                    className="toolbar-button"
+                    onClick={() =>
+                      setOnboardingState((current) =>
+                        current ? { ...current, step: "select", status: "idle", errorMessage: null } : current,
+                      )
+                    }
+                    type="button"
+                  >
+                    Back
+                  </button>
+                ) : null}
+                <button
+                  className="toolbar-button toolbar-button--primary"
+                  data-testid="onboarding-continue"
+                  disabled={!onboardingState.notesFolder.trim() || onboardingState.status === "saving"}
+                  onClick={() => void completeOnboarding()}
+                  type="button"
+                >
+                  {onboardingState.status === "saving" ? "Setting up…" : "Create workspace"}
+                </button>
+              </div>
+            </>
+          )}
+          {onboardingState.errorMessage ? (
+            <div className="dialog-card__status dialog-card__status--error">{onboardingState.errorMessage}</div>
+          ) : null}
+        </div>
+      </div>
+    );
   }
 
   const indexStatusLine = summarizeIndexStatus(indexStatus, indexBusy);
@@ -2025,9 +2527,7 @@ export function App() {
                 <X size={16} />
               </button>
             </div>
-            <div className="dialog-card__message">
-              Configure Exo from one settings file. Appearance autosaves; workspace paths apply when you press Apply.
-            </div>
+            <div className="dialog-card__message">Workspace paths and index settings apply when you press Apply.</div>
             <div className="dialog-tabs" role="tablist" aria-label="Workspace settings sections">
               {(["workspace", "index", "appearance", "terminal"] as WorkspaceSettingsSection[]).map((section) => (
                 <button
@@ -2054,7 +2554,7 @@ export function App() {
             <div className="dialog-form">
               {workspaceSettingsDialog.section === "workspace" ? (
                 <>
-                  <label className="dialog-field">
+                  <label className="dialog-field dialog-field--section">
                     <span className="dialog-field__label">Workspace</span>
                     <input
                       className="dialog-card__input"
@@ -2073,8 +2573,13 @@ export function App() {
                         )
                       }
                     />
+                    <div className="dialog-field__actions">
+                      <button className="toolbar-button" onClick={() => void chooseFolderForSettings("workspaceRoot")} type="button">
+                        Select
+                      </button>
+                    </div>
                   </label>
-                  <label className="dialog-field">
+                  <label className="dialog-field dialog-field--section">
                     <span className="dialog-field__label">Default terminal</span>
                     <input
                       className="dialog-card__input"
@@ -2093,20 +2598,53 @@ export function App() {
                         )
                       }
                     />
+                    <div className="dialog-field__actions">
+                      <button className="toolbar-button" onClick={() => void chooseFolderForSettings("defaultTerminalCwd")} type="button">
+                        Select
+                      </button>
+                    </div>
                   </label>
-                  <label className="dialog-field">
-                    <span className="dialog-field__label">Notes</span>
-                    <textarea
-                      className="dialog-card__input dialog-card__input--multiline"
-                      data-testid="workspace-settings-note-roots"
-                      rows={3}
-                      value={workspaceSettingsDialog.noteRoots}
-                      onChange={(event) =>
+                  <div className="dialog-field dialog-field--section">
+                    <div className="dialog-field__header">
+                      <span className="dialog-field__label">Notes folder</span>
+                      <button className="toolbar-button" onClick={() => void openWorkspaceSwitcher()} type="button">
+                        Switch workspace
+                      </button>
+                    </div>
+                    <PathList
+                      emptyLabel="No notes folder selected."
+                      paths={workspaceSettingsDialog.noteRoots}
+                      testId="workspace-settings-note-roots"
+                      onRemove={() =>
+                        setWorkspaceSettingsDialog((current) =>
+                          current ? { ...current, noteRoots: [], applyStatus: "idle", applyErrorMessage: null } : current,
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="dialog-field dialog-field--section">
+                    <div className="dialog-field__header">
+                      <span className="dialog-field__label">Project folders</span>
+                      <button
+                        aria-label="Add project folder"
+                        className="toolbar-button toolbar-button--icon"
+                        onClick={() => void chooseFolderForSettings("projectRoot")}
+                        title="Add project folder"
+                        type="button"
+                      >
+                        <Plus size={15} />
+                      </button>
+                    </div>
+                    <PathList
+                      emptyLabel="No project folders added."
+                      paths={workspaceSettingsDialog.projectRoots}
+                      testId="workspace-settings-project-roots"
+                      onRemove={(targetPath) =>
                         setWorkspaceSettingsDialog((current) =>
                           current
                             ? {
                                 ...current,
-                                noteRoots: event.target.value,
+                                projectRoots: current.projectRoots.filter((entry) => entry !== targetPath),
                                 applyStatus: "idle",
                                 applyErrorMessage: null,
                               }
@@ -2114,84 +2652,31 @@ export function App() {
                         )
                       }
                     />
-                  </label>
-                  <label className="dialog-field">
-                    <span className="dialog-field__label">Imported projects</span>
-                    <textarea
-                      className="dialog-card__input dialog-card__input--multiline"
-                      data-testid="workspace-settings-project-roots"
-                      rows={3}
-                      value={workspaceSettingsDialog.projectRoots}
-                      onChange={(event) =>
-                        setWorkspaceSettingsDialog((current) =>
-                          current
-                            ? {
-                                ...current,
-                                projectRoots: event.target.value,
-                                applyStatus: "idle",
-                                applyErrorMessage: null,
-                              }
-                            : current,
-                        )
-                      }
-                    />
-                  </label>
+                  </div>
                 </>
               ) : null}
               {workspaceSettingsDialog.section === "index" ? (
                 <>
-                  <label className="dialog-field">
-                    <span className="dialog-field__label">Knowledge index</span>
-                    <select
-                      className="dialog-card__input"
-                      data-testid="workspace-settings-index-mode"
-                      value={workspaceSettingsDialog.indexMode}
-                      onChange={(event) => {
-                        const nextMode = event.target.value as WorkspaceSettings["indexing"]["mode"];
-                        setWorkspaceSettingsDialog((current) =>
-                          current
-                            ? {
-                                ...current,
-                                indexMode: nextMode,
-                                exploreIndexSearchOnEnter:
-                                  current.exploreIndexSearchOnEnter || (current.indexMode === "off" && nextMode !== "off"),
-                                applyStatus: "idle",
-                                applyErrorMessage: null,
-                              }
-                            : current,
-                        );
-                      }}
-                    >
-                      <option value="off">Off</option>
-                      <option value="lexical">Lexical</option>
-                      <option value="semantic">Semantic</option>
-                      <option value="hybrid">Hybrid</option>
-                    </select>
-                  </label>
-                  <label className="dialog-field">
-                    <span className="dialog-field__label">Indexed roots</span>
-                    <textarea
-                      className="dialog-card__input dialog-card__input--multiline"
-                      data-testid="workspace-settings-indexed-roots"
-                      rows={3}
-                      value={workspaceSettingsDialog.indexedRoots}
-                      onChange={(event) =>
-                        setWorkspaceSettingsDialog((current) =>
-                          current
-                            ? {
-                                ...current,
-                                indexedRoots: event.target.value,
-                                applyStatus: "idle",
-                                applyErrorMessage: null,
-                              }
-                            : current,
-                        )
-                      }
-                    />
-                  </label>
-                  <div className="dialog-card__message">
-                    QMD by Tobi Lutke powers MCP/CLI index search. Explore live search uses filenames; Enter can use lexical index search. Index data is stored under .exo/qmd.{" "}
-                    {workspaceSettingsDialog.indexStatusSummary}
+                  <div className="index-summary">
+                    <div className="index-summary__header">
+                      <span>
+                        Local{" "}
+                        <button
+                          className="link-button link-button--inline"
+                          onClick={() => void window.exo.shell.openExternal("https://github.com/tobi/qmd")}
+                          type="button"
+                        >
+                          QMD
+                        </button>{" "}
+                        Index
+                      </span>
+                    </div>
+                    <div className="index-summary__stats">
+                      <span>{indexStatus?.mode ?? workspaceSettingsDialog.indexMode}</span>
+                      <span>{indexStatus?.indexedRoots.length ?? workspaceSettingsDialog.indexedRoots.length} root{(indexStatus?.indexedRoots.length ?? workspaceSettingsDialog.indexedRoots.length) === 1 ? "" : "s"}</span>
+                      <span>{indexStatus?.documentCount ?? 0} docs</span>
+                      <span>{indexStatus?.pendingEmbeddings ?? 0} pending</span>
+                    </div>
                   </div>
                   {indexStatus?.recentJobs?.length ? (
                     <div className="index-activity" data-testid="workspace-settings-index-activity">
@@ -2207,6 +2692,35 @@ export function App() {
                       ))}
                     </div>
                   ) : null}
+                  <label className="dialog-field dialog-field--section">
+                    <span className="dialog-field__label">Knowledge index</span>
+                    <select
+                      className="dialog-card__input"
+                      data-testid="workspace-settings-index-mode"
+                      value={workspaceSettingsDialog.indexMode}
+                      onChange={(event) => {
+                        const nextMode = event.target.value as WorkspaceSettings["indexing"]["mode"];
+                        setWorkspaceSettingsDialog((current) =>
+                          current
+                            ? {
+                                ...current,
+                                indexMode: nextMode,
+                                indexedRoots: nextMode === "off" ? [] : current.noteRoots,
+                                exploreIndexSearchOnEnter:
+                                  current.exploreIndexSearchOnEnter || (current.indexMode === "off" && nextMode !== "off"),
+                                applyStatus: "idle",
+                                applyErrorMessage: null,
+                              }
+                            : current,
+                        );
+                      }}
+                    >
+                      <option value="off">Off</option>
+                      <option value="lexical">Lexical</option>
+                      <option value="semantic">Semantic</option>
+                      <option value="hybrid">Hybrid</option>
+                    </select>
+                  </label>
                   <label className="dialog-check">
                     <input
                       checked={workspaceSettingsDialog.exploreIndexSearchOnEnter}
@@ -2228,7 +2742,7 @@ export function App() {
                     />
                     <span>Use indexed lexical search on Enter in Explore.</span>
                   </label>
-                  <label className="dialog-field">
+                  <label className="dialog-field dialog-field--section">
                     <span className="dialog-field__label">Index updates</span>
                     <select
                       className="dialog-card__input"
@@ -2248,44 +2762,31 @@ export function App() {
                         )
                       }
                     >
-                      <option value="on-save">On note save</option>
+                      <option value="on-save">On save</option>
                       <option value="manual">Manual only</option>
                     </select>
                   </label>
-                  <div className="dialog-card__actions dialog-card__actions--split">
-                    <button
-                      className="toolbar-button"
-                      data-testid="workspace-settings-use-note-roots"
-                      onClick={() =>
-                        setWorkspaceSettingsDialog((current) =>
-                          current
-                            ? {
-                                ...current,
-                                indexedRoots: current.noteRoots,
-                                indexMode: current.indexMode === "off" ? "lexical" : current.indexMode,
-                                exploreIndexSearchOnEnter: true,
-                                applyStatus: "idle",
-                                applyErrorMessage: null,
-                              }
-                            : current,
-                        )
-                      }
-                      type="button"
-                    >
-                      Use note roots
-                    </button>
-                    <button
-                      className="toolbar-button"
-                      data-testid="workspace-settings-sync-index"
-                      disabled={indexBusy !== null || !indexStatus?.enabled || indexStatus.indexedRoots.length === 0}
-                      onClick={() => void runIndexUpdate("syncing")}
-                      type="button"
-                    >
-                      {indexBusy === "syncing" ? "Syncing…" : "Sync index"}
-                    </button>
+                  <div className="dialog-field dialog-field--section">
+                    <div className="dialog-field__header">
+                      <span className="dialog-field__label">Manual sync</span>
+                    </div>
+                    <div className="dialog-card__actions dialog-card__actions--split">
+                      <button
+                        className="toolbar-button"
+                        data-testid="workspace-settings-sync-index"
+                        disabled={indexBusy !== null || !indexStatus?.enabled || indexStatus.indexedRoots.length === 0}
+                        onClick={() => void runIndexUpdate("syncing")}
+                        type="button"
+                      >
+                        {indexBusy === "syncing" ? "Syncing…" : "Sync now"}
+                      </button>
+                    </div>
                   </div>
-                  <details className="dialog-details">
-                    <summary>Advanced index phases</summary>
+                  <details className="dialog-details dialog-details--section">
+                    <summary>
+                      Advanced maintenance
+                      <HelpTooltip label="Refresh documents only re-reads Markdown into the lexical index without building embeddings. Build embeddings only creates missing semantic embeddings for documents already in the index. Use these when search looks stale, status says embeddings are needed, or you want to debug one index phase without running a full sync." />
+                    </summary>
                     <div className="dialog-card__actions dialog-card__actions--split">
                       <button
                         className="toolbar-button"
@@ -2883,6 +3384,19 @@ function pathLabel(filePath: string): string {
   return filePath.split("/").filter(Boolean).at(-1) ?? filePath;
 }
 
+function uniquePaths(paths: string[]): string[] {
+  const seen = new Set<string>();
+  const next: string[] = [];
+  for (const targetPath of paths.map((entry) => entry.trim()).filter(Boolean)) {
+    if (seen.has(targetPath)) {
+      continue;
+    }
+    seen.add(targetPath);
+    next.push(targetPath);
+  }
+  return next;
+}
+
 function formatIndexStatus(status: IndexStatus): string {
   const pieces = [
     `Mode: ${status.mode}`,
@@ -3021,9 +3535,9 @@ function workspaceSettingsStructuralKeyFromSettings(settings: WorkspaceSettings)
   return JSON.stringify({
     workspaceRoot: settings.workspaceRoot,
     defaultTerminalCwd: settings.defaultTerminalCwd,
-    noteRoots: settings.noteRoots.join("\n"),
-    projectRoots: settings.projectRoots.join("\n"),
-    indexedRoots: settings.indexedRoots.map((root) => root.path).join("\n"),
+    noteRoots: settings.noteRoots,
+    projectRoots: settings.projectRoots,
+    indexedRoots: settings.indexedRoots.map((root) => root.path),
     indexMode: settings.indexing.mode,
   });
 }

@@ -25,6 +25,19 @@ export interface TerminalRuntimePolicy {
   transcriptRetentionDays: number;
 }
 
+export interface WorkspaceRegistryEntry {
+  id: string;
+  label: string;
+  notesFolder: string;
+  settings: WorkspaceSettings;
+  updatedAt: string;
+}
+
+interface WorkspaceRegistry {
+  activeWorkspaceId: string | null;
+  workspaces: WorkspaceRegistryEntry[];
+}
+
 export class WorkspaceSettingsStore {
   private readonly env: NodeJS.ProcessEnv;
 
@@ -34,6 +47,10 @@ export class WorkspaceSettingsStore {
 
   resolvePath(): string {
     return this.env.EXO_SETTINGS_PATH ?? path.join(this.options.userDataPath, "workspace-settings.json");
+  }
+
+  resolveRegistryPath(): string {
+    return path.join(path.dirname(this.resolvePath()), "workspace-registry.json");
   }
 
   normalize(input: Partial<WorkspaceSettings> | null | undefined): WorkspaceSettings | null {
@@ -152,7 +169,58 @@ export class WorkspaceSettingsStore {
     const settingsPath = this.resolvePath();
     await mkdir(path.dirname(settingsPath), { recursive: true });
     await writeFile(settingsPath, JSON.stringify(normalized, null, 2));
+    await this.saveActiveWorkspace(normalized);
     return normalized;
+  }
+
+  async listWorkspaces(currentSettings?: WorkspaceSettings | null): Promise<WorkspaceRegistryEntry[]> {
+    const registry = await this.loadRegistry();
+    if (registry.workspaces.length > 0) {
+      return registry.workspaces;
+    }
+    const normalized = this.normalize(currentSettings);
+    return normalized ? [workspaceEntryFromSettings(normalized)] : [];
+  }
+
+  async getWorkspace(workspaceId: string): Promise<WorkspaceRegistryEntry | null> {
+    const registry = await this.loadRegistry();
+    return registry.workspaces.find((entry) => entry.id === workspaceId) ?? null;
+  }
+
+  private async saveActiveWorkspace(settings: WorkspaceSettings): Promise<void> {
+    const entry = workspaceEntryFromSettings(settings);
+    const registry = await this.loadRegistry();
+    const nextWorkspaces = registry.workspaces.filter((workspace) => workspace.id !== entry.id);
+    nextWorkspaces.unshift(entry);
+    const nextRegistry: WorkspaceRegistry = {
+      activeWorkspaceId: entry.id,
+      workspaces: nextWorkspaces,
+    };
+    const registryPath = this.resolveRegistryPath();
+    await mkdir(path.dirname(registryPath), { recursive: true });
+    await writeFile(registryPath, JSON.stringify(nextRegistry, null, 2));
+  }
+
+  private async loadRegistry(): Promise<WorkspaceRegistry> {
+    try {
+      const raw = await readFile(this.resolveRegistryPath(), "utf8");
+      const parsed = JSON.parse(raw) as Partial<WorkspaceRegistry>;
+      const workspaces = Array.isArray(parsed.workspaces)
+        ? parsed.workspaces.reduce<WorkspaceRegistryEntry[]>((entries, entry) => {
+            const normalized = normalizeRegistryEntry(entry, this);
+            if (normalized) {
+              entries.push(normalized);
+            }
+            return entries;
+          }, [])
+        : [];
+      return {
+        activeWorkspaceId: typeof parsed.activeWorkspaceId === "string" ? parsed.activeWorkspaceId : workspaces[0]?.id ?? null,
+        workspaces,
+      };
+    } catch {
+      return { activeWorkspaceId: null, workspaces: [] };
+    }
   }
 }
 
@@ -247,4 +315,44 @@ function normalizeIndexing(value: unknown, indexedRootCount: number): WorkspaceS
     mode,
     backend: "qmd",
   };
+}
+
+function workspaceEntryFromSettings(settings: WorkspaceSettings): WorkspaceRegistryEntry {
+  const notesFolder = settings.noteRoots[0] || settings.workspaceRoot;
+  return {
+    id: workspaceIdForNotesFolder(notesFolder),
+    label: path.basename(notesFolder) || notesFolder,
+    notesFolder,
+    settings,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function normalizeRegistryEntry(value: unknown, store: WorkspaceSettingsStore): WorkspaceRegistryEntry | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const candidate = value as Partial<WorkspaceRegistryEntry>;
+  const settings = store.normalize(candidate.settings);
+  if (!settings) {
+    return null;
+  }
+  const notesFolder = typeof candidate.notesFolder === "string" && candidate.notesFolder.trim()
+    ? candidate.notesFolder.trim()
+    : settings.noteRoots[0] || settings.workspaceRoot;
+  return {
+    id: typeof candidate.id === "string" && candidate.id.trim() ? candidate.id : workspaceIdForNotesFolder(notesFolder),
+    label: typeof candidate.label === "string" && candidate.label.trim() ? candidate.label.trim() : path.basename(notesFolder) || notesFolder,
+    notesFolder,
+    settings,
+    updatedAt: typeof candidate.updatedAt === "string" && candidate.updatedAt.trim() ? candidate.updatedAt : new Date().toISOString(),
+  };
+}
+
+function workspaceIdForNotesFolder(notesFolder: string): string {
+  let hash = 0;
+  for (const char of path.resolve(notesFolder)) {
+    hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  }
+  return `workspace-${hash.toString(36)}`;
 }

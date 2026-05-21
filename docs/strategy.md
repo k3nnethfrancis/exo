@@ -38,6 +38,8 @@ Local/private paths belong in settings or environment examples, not source defau
 
 - Local-first by default.
 - Markdown-on-disk is canonical.
+- First-run setup and workspace switching use the same workspace create/select surface.
+- First-run setup requires an explicit notes folder choice before the app shell appears.
 - Notebook mode is a projection over Markdown, not a separate data model.
 - Project roots are explicit attachments.
 - Terminal agents run inside Exo; Exo does not treat them as detached side channels.
