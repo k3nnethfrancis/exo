@@ -37,7 +37,9 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Add CLI/MCP commands to list attached project roots.
 - [x] Add CLI/MCP commands to add and remove attached project roots.
 - [x] Add a changed-files view for agent-authored project edits.
-- [ ] Link terminal-agent sessions/messages to files they changed when Exo can observe the relationship.
+- [x] Link changed files to observable terminal sessions by project cwd.
+- [ ] Link terminal-agent messages to files they changed when Exo can observe the relationship.
+- [x] Add code-review affordances for jumping from a changed file to an associated terminal session.
 - [ ] Add code-review affordances for jumping from an agent session to a changed file and line.
 - [ ] Track external file changes without resetting editor scroll or causing flicker.
 

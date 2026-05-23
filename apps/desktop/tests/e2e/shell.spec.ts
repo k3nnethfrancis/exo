@@ -109,8 +109,12 @@ test("opens project files and creates note branches", async () => {
 });
 
 test("shows changed project files in the project drawer", async () => {
-  const { page, cleanup } = await launchExoFixture({
+  const { page, workspaceRoot, cleanup } = await launchExoFixture({
     mutable: true,
+    env: {
+      EXO_SHELL: "/bin/pwd",
+      EXO_SHELL_ARGS: "",
+    },
     prepareWorkspace: async (workspaceRoot) => {
       const projectRoot = path.join(workspaceRoot, "projects/sample-project");
       spawnSync("git", ["init"], { cwd: projectRoot, stdio: "ignore" });
@@ -122,8 +126,16 @@ test("shows changed project files in the project drawer", async () => {
     },
   });
 
+  const projectRoot = path.join(workspaceRoot, "projects/sample-project");
+  await page.evaluate(async (cwd) => {
+    await window.exo.terminals.create({ kind: "shell", cwd });
+  }, projectRoot);
+
   await page.getByTestId("project-roots-toggle").click();
   await expect(page.getByTestId("project-changes")).toContainText("src/demo.ts");
+  await expect(page.getByTestId("project-changes")).toContainText("shell");
+  await page.getByTestId("project-changes").getByRole("button", { name: "shell" }).click();
+  await expect(page.getByTestId("terminal-surface")).toContainText("sample-project");
   await page.getByTestId("project-changes").getByRole("button", { name: /src\/demo\.ts/ }).click();
   await expect(page.getByTestId("editor-title")).toHaveText("demo.ts");
 

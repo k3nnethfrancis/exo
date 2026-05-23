@@ -33,7 +33,11 @@ interface ShellLayoutProps {
   searchResultMode: WorkspaceSearchResultMode;
   searchResultQuery: string;
   searchMessage: string | null;
-  projectChanges: Array<WorkspaceGitChange & { rootPath: string; rootLabel: string }>;
+  projectChanges: Array<WorkspaceGitChange & {
+    rootPath: string;
+    rootLabel: string;
+    agents: Array<{ id: string; title: string; kind: string; cwd: string }>;
+  }>;
   statusLine: {
     workspaceLabel: string;
     projectLabel: string | null;
@@ -77,6 +81,7 @@ interface ShellLayoutProps {
   onSearchQueryChange: (value: string) => void;
   onSearchSubmit: () => void;
   onOpenFile: (filePath: string) => void;
+  onOpenTerminalSession: (sessionId: string) => void;
   onOpenTag: (tag: string) => void;
   onExpandDirectory: (directoryPath: string, rootKind: "notes" | "projects") => void;
   explorerScale: number;
@@ -113,6 +118,7 @@ export function ShellLayout(props: ShellLayoutProps) {
     onSearchQueryChange,
     onSearchSubmit,
     onOpenFile,
+    onOpenTerminalSession,
     onOpenTag,
     onExpandDirectory,
     explorerScale,
@@ -189,6 +195,7 @@ export function ShellLayout(props: ShellLayoutProps) {
       onSearchQueryChange={onSearchQueryChange}
       onSearchSubmit={onSearchSubmit}
       onOpenFile={onOpenFile}
+      onOpenTerminalSession={onOpenTerminalSession}
       onOpenTag={onOpenTag}
       onExpandDirectory={onExpandDirectory}
       explorerScale={explorerScale}

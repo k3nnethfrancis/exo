@@ -74,6 +74,7 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Documented the mixed file/terminal tab-group migration path: typed tabs inside one pane leaf, shared chrome above typed bodies, and terminal process lifecycle kept separate from pane layout persistence.
 - Added live project-root management through the command server, CLI, and MCP: list attached roots, attach explicit project folders, and detach folders without deleting files.
 - Added a first changed-files review surface in the Projects drawer by parsing `git status --porcelain` for each attached project root and linking changed files directly into the editor.
+- Linked changed project files to live terminal sessions whose cwd is inside the same attached project root, with a jump affordance from the Changes list back to the associated terminal.
 
 ## Next Priorities
 

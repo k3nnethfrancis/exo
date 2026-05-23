@@ -41,13 +41,14 @@ interface FileTreeProps {
   searchResultMode: WorkspaceSearchResultMode;
   searchResultQuery: string;
   searchMessage: string | null;
-  projectChanges: Array<WorkspaceGitChange & { rootPath: string; rootLabel: string }>;
+  projectChanges: ProjectChangeView[];
   onAppearanceModeChange: (mode: AppearanceMode) => void;
   onToggleCollapsed: () => void;
   onOpenWorkspaceSettings: () => void;
   onSearchQueryChange: (value: string) => void;
   onSearchSubmit: () => void;
   onOpenFile: (filePath: string) => void;
+  onOpenTerminalSession: (sessionId: string) => void;
   onOpenTag: (tag: string) => void;
   onExpandDirectory: (directoryPath: string, rootKind: "notes" | "projects") => void;
   explorerScale: number;
@@ -61,6 +62,12 @@ interface FileTreeProps {
   rail?: "inline" | "none";
   mirrored?: boolean;
   revealPathRequest?: { path: string; nonce: number } | null;
+}
+
+interface ProjectChangeView extends WorkspaceGitChange {
+  rootPath: string;
+  rootLabel: string;
+  agents: Array<{ id: string; title: string; kind: string; cwd: string }>;
 }
 
 interface ExplorerRailProps {
@@ -141,6 +148,7 @@ export function FileTree(props: FileTreeProps) {
     onToggleCollapsed,
     onOpenWorkspaceSettings,
     onOpenFile,
+    onOpenTerminalSession,
     projectChanges,
     onExpandDirectory,
     explorerScale,
@@ -357,7 +365,7 @@ export function FileTree(props: FileTreeProps) {
             onCollapsedChange={(collapsed) => setProjectRootsExpanded(!collapsed)}
             mirrored={mirrored}
           >
-            <ProjectChanges changes={projectChanges} onOpenFile={onOpenFile} />
+            <ProjectChanges changes={projectChanges} onOpenFile={onOpenFile} onOpenTerminalSession={onOpenTerminalSession} />
             <Section
               label="Projects"
               rootKind="projects"
@@ -471,9 +479,11 @@ export function FileTree(props: FileTreeProps) {
 function ProjectChanges({
   changes,
   onOpenFile,
+  onOpenTerminalSession,
 }: {
-  changes: Array<WorkspaceGitChange & { rootPath: string; rootLabel: string }>;
+  changes: ProjectChangeView[];
   onOpenFile: (filePath: string) => void;
+  onOpenTerminalSession: (sessionId: string) => void;
 }) {
   if (changes.length === 0) {
     return null;
@@ -487,17 +497,37 @@ function ProjectChanges({
       </div>
       <div className="project-changes__list">
         {changes.slice(0, 20).map((change) => (
-          <button
-            className="project-change"
-            key={`${change.rootPath}:${change.path}:${change.status}`}
-            onClick={() => onOpenFile(change.absolutePath)}
-            title={`${change.status} ${change.absolutePath}`}
-            type="button"
-          >
-            <span className="project-change__status">{change.status}</span>
-            <span className="project-change__path">{change.path}</span>
-            <span className="project-change__root">{change.rootLabel}</span>
-          </button>
+          <div className="project-change" key={`${change.rootPath}:${change.path}:${change.status}`}>
+            <button
+              className="project-change__file"
+              onClick={() => onOpenFile(change.absolutePath)}
+              title={`${change.status} ${change.absolutePath}`}
+              type="button"
+            >
+              <span className="project-change__status">{change.status}</span>
+              <span className="project-change__path">{change.path}</span>
+              <span className="project-change__root">{change.rootLabel}</span>
+            </button>
+            {change.agents.length > 0 ? (
+              <span className="project-change__agents">
+                {change.agents.slice(0, 3).map((agent) => (
+                  <button
+                    className="project-change__agent"
+                    data-testid={`project-change-agent-${agent.id}`}
+                    key={agent.id}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onOpenTerminalSession(agent.id);
+                    }}
+                    title={`Show ${agent.title} in ${agent.cwd}`}
+                    type="button"
+                  >
+                    {agent.kind}
+                  </button>
+                ))}
+              </span>
+            ) : null}
+          </div>
         ))}
       </div>
     </div>

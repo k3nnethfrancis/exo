@@ -821,6 +821,21 @@ export function App() {
       })) ?? [],
     [projectTrees, workspaceModel],
   );
+  const projectReviewChanges = useMemo(
+    () =>
+      projectGitChanges.map((change) => ({
+        ...change,
+        agents: terminalSessions
+          .filter((session) => isPathWithin(change.rootPath, session.cwd))
+          .map((session) => ({
+            id: session.id,
+            title: session.title,
+            kind: session.kind,
+            cwd: session.cwd,
+          })),
+      })),
+    [projectGitChanges, terminalSessions],
+  );
 
   async function reloadTrees() {
     if (!workspaceModel) {
@@ -1708,6 +1723,34 @@ export function App() {
     }));
   }
 
+  async function focusTerminalSession(id: string) {
+    const editorTerminalLeaf = collectLeaves(editorTree).find((leaf) =>
+      leaf.content.kind === "terminal" && leaf.content.terminalIds.includes(id),
+    );
+    if (editorTerminalLeaf) {
+      editorActions.focusLeaf(editorTerminalLeaf.id);
+      editorActions.updateLeafContent(editorTerminalLeaf.id, (content) =>
+        content.kind === "terminal" ? { ...content, activeTerminalId: id } : content,
+      );
+      setZoomSurface("terminal");
+      setActiveTerminalId(id);
+      const buffer = await window.exo.terminals.read(id);
+      setTerminalBuffers((current) => ({ ...current, [id]: buffer }));
+      return;
+    }
+
+    const dockTerminalLeaf = collectLeaves(terminalTree).find((leaf) =>
+      leaf.content.kind === "terminal" && leaf.content.terminalIds.includes(id),
+    );
+    if (!dockTerminalLeaf) {
+      return;
+    }
+    shellLayout.setTerminalCollapsed(false);
+    setZoomSurface("terminal");
+    terminalActions.focusLeaf(dockTerminalLeaf.id);
+    await activateTerminal(dockTerminalLeaf.id, id);
+  }
+
   async function closeTerminal(id: string) {
     await window.exo.terminals.kill(id);
     setTerminalSessions((current) => current.filter((session) => session.id !== id));
@@ -2412,7 +2455,7 @@ export function App() {
       searchResultMode={workspaceSearch.resultMode}
       searchResultQuery={workspaceSearch.resultQuery}
       searchMessage={workspaceSearch.message}
-      projectChanges={projectGitChanges}
+      projectChanges={projectReviewChanges}
       statusLine={{
         workspaceLabel: workspaceModel ? pathLabel(workspaceModel.workspaceRoot) : "workspace",
         projectLabel: workspaceModel?.projectRoots[0] ? pathLabel(workspaceModel.projectRoots[0].path) : null,
@@ -2548,6 +2591,7 @@ export function App() {
       }}
       onSearchSubmit={() => void workspaceSearch.runIndexedSearch()}
       onOpenFile={(filePath) => void openFile(filePath)}
+      onOpenTerminalSession={(sessionId) => void focusTerminalSession(sessionId)}
       onOpenTag={(tag) => void openTag(tag)}
       onExpandDirectory={(directoryPath, rootKind) => void expandTreeDirectory(directoryPath, rootKind)}
       explorerScale={explorerScale}
