@@ -1438,7 +1438,7 @@ export function App() {
       return;
     }
 
-    const scrollTop = filePath === activeDocumentPathRef.current ? getActiveEditorScrollTop() : null;
+    const scrollTop = filePath === activeDocumentPathRef.current ? getEditorScrollTopForPath(filePath) : null;
     const [document, diskVersion] = await Promise.all([
       window.exo.notes.read(filePath),
       knownVersion === undefined ? window.exo.notes.stat(filePath) : Promise.resolve(knownVersion),
@@ -1489,7 +1489,7 @@ export function App() {
     }));
 
     if (scrollTop !== null) {
-      restoreActiveEditorScrollTop(scrollTop);
+      restoreEditorScrollTopForPath(filePath, scrollTop);
     }
   }
 
@@ -3685,14 +3685,14 @@ function isPathWithin(parentPath: string, targetPath: string): boolean {
   return targetPath === parentPath || targetPath.startsWith(`${parentPath}/`);
 }
 
-function getActiveEditorScrollTop(): number | null {
-  const scroller = document.querySelector<HTMLElement>(".editor-surface .cm-scroller");
+function getEditorScrollTopForPath(filePath: string): number | null {
+  const scroller = getEditorScrollerForPath(filePath);
   return scroller ? scroller.scrollTop : null;
 }
 
-function restoreActiveEditorScrollTop(scrollTop: number) {
+function restoreEditorScrollTopForPath(filePath: string, scrollTop: number) {
   const restore = () => {
-    const scroller = document.querySelector<HTMLElement>(".editor-surface .cm-scroller");
+    const scroller = getEditorScrollerForPath(filePath);
     if (scroller) {
       scroller.scrollTop = scrollTop;
     }
@@ -3704,6 +3704,16 @@ function restoreActiveEditorScrollTop(scrollTop: number) {
     restore();
     window.clearInterval(interval);
   }, 650);
+}
+
+function getEditorScrollerForPath(filePath: string): HTMLElement | null {
+  for (const title of document.querySelectorAll<HTMLElement>(".editor-panel__title[title]")) {
+    if (title.title !== filePath) {
+      continue;
+    }
+    return title.closest(".editor-pane")?.querySelector<HTMLElement>(".editor-surface .cm-scroller") ?? null;
+  }
+  return null;
 }
 
 function workspaceSettingsImmediateDraftKey(settings: WorkspaceSettingsDialogState): string {

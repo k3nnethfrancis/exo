@@ -41,7 +41,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [ ] Link terminal-agent messages to files they changed when Exo can observe the relationship.
 - [x] Add code-review affordances for jumping from a changed file to an associated terminal session.
 - [ ] Add code-review affordances for jumping from an agent session to a changed file and line.
-- [ ] Track external file changes without resetting editor scroll or causing flicker.
+- [x] Track external file changes without resetting editor scroll or causing flicker.
 
 ## Next: Agent Context And Config Management
 

@@ -49,7 +49,55 @@ test("preserves editor scroll when an open document refreshes from disk", async 
   await writeFile(target, `# External Scroll Test\n\n${longBody}\nagent appended line\n`, "utf8");
   await page.waitForTimeout(1800);
 
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+        return content?.cmView?.view?.state.doc.toString() ?? "";
+      }),
+    )
+    .toContain("agent appended line");
   await expect.poll(() => scroller.evaluate((element) => element.scrollTop)).toBeGreaterThan(800);
+
+  await cleanup();
+});
+
+test("does not overwrite an unsaved document when the file changes on disk", async () => {
+  const { page, workspaceRoot, cleanup } = await launchExoFixture({
+    mutable: true,
+    prepareWorkspace: async (workspaceRoot) => {
+      const target = path.join(workspaceRoot, "notes/test-notes/external-dirty-test.md");
+      await writeFile(target, "# External Dirty Test\n\noriginal clean body\n", "utf8");
+    },
+  });
+
+  const target = path.join(workspaceRoot, "notes/test-notes/external-dirty-test.md");
+
+  await page.getByRole("button", { name: /external-dirty-test/i }).first().click();
+  await expect(page.getByTestId("editor-panel")).toContainText("original clean body");
+
+  await page.locator(".cm-content").click();
+  await page.evaluate(() => {
+    const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+    const view = content?.cmView?.view;
+    if (!view) {
+      throw new Error("Unable to resolve CodeMirror view");
+    }
+    view.dispatch({
+      changes: {
+        from: view.state.doc.length,
+        insert: "\nlocal unsaved line",
+      },
+    });
+  });
+  await expect(page.getByTestId("editor-panel")).toContainText("local unsaved line");
+  await expect(page.locator(".status-dot--dirty")).toHaveCount(1);
+
+  await writeFile(target, "# External Dirty Test\n\nexternal overwrite attempt\n", "utf8");
+  await page.waitForTimeout(1800);
+
+  await expect(page.getByTestId("editor-panel")).toContainText("local unsaved line");
+  await expect(page.getByTestId("editor-panel")).not.toContainText("external overwrite attempt");
 
   await cleanup();
 });
