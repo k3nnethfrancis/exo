@@ -7,6 +7,7 @@ import type {
   NoteKnowledge,
   SearchResult,
   TreeNode,
+  WorkspaceLayoutSettings,
   WorkspaceModel,
   WorkspaceSettings,
 } from "@exo/core";
@@ -198,6 +199,7 @@ export function App() {
   const [terminalRuntimeScrollbackLines, setTerminalRuntimeScrollbackLines] = useState(FULL_TERMINAL_SCROLLBACK_LINES);
   const [terminalStreamingMode, setTerminalStreamingMode] = useState<WorkspaceSettings["terminalStreamingMode"]>(DEFAULT_TERMINAL_STREAMING_MODE);
   const [explorerScale, setExplorerScale] = useState(DEFAULT_EXPLORER_SCALE);
+  const [layoutPersistenceReady, setLayoutPersistenceReady] = useState(false);
   const [systemPrefersDark, setSystemPrefersDark] = useState(() =>
     window.matchMedia("(prefers-color-scheme: dark)").matches,
   );
@@ -350,6 +352,7 @@ export function App() {
       ]);
       setBootstrapError(null);
       workspaceSettingsRef.current = settings;
+      setLayoutPersistenceReady(false);
       const terminalPolicy = resolveSettingsTerminalRuntime(settings);
       setAppearanceMode(settings.appearanceMode);
       setEditorFontSize(settings.editorFontSize);
@@ -358,6 +361,7 @@ export function App() {
       setTerminalStreamingMode(settings.terminalStreamingMode);
       setExplorerScale(settings.explorerScale);
       setExploreIndexSearchOnEnter(settings.exploreIndexSearchOnEnter);
+      shellLayout.applyPersistedLayout(settings.layout);
 
       if (!setupState.complete) {
         setWorkspaceModel(model);
@@ -422,7 +426,20 @@ export function App() {
       }
 
       if (firstNote) {
-        await openFile(firstNote.path, editorFocusedLeafId);
+        const restoredPaths = settings.layout ? collectOpenEditorPaths(settings.layout.editorTree as PaneNode) : new Set<string>();
+        if (restoredPaths.size > 0) {
+          await Promise.all(
+            Array.from(restoredPaths).map((filePath) =>
+              ensureDocumentLoaded(filePath).catch((error) => {
+                console.warn("[exo] failed to restore open document", { filePath, error });
+              }),
+            ),
+          );
+          const restoredActivePath = findActiveEditorPath(settings.layout?.editorTree as PaneNode | undefined);
+          setActiveDocumentPath(restoredActivePath ?? restoredPaths.values().next().value ?? firstNote.path);
+        } else {
+          await openFile(firstNote.path, editorFocusedLeafId);
+        }
       }
 
       if (cancelled || bootstrapRun !== bootstrapRunRef.current) {
@@ -440,18 +457,27 @@ export function App() {
       setActiveTerminalId(defaultTerminal.id);
       setTerminalBuffers({ [defaultTerminal.id]: defaultTerminalBuffer });
 
-      // Seed the default terminal into the terminal tree
-      const termLeaf = findTerminalLeaf(terminalTree);
-      if (termLeaf) {
-        terminalActions.updateLeafContent(termLeaf.id, (content) => {
-          if (content.kind !== "terminal") return content;
-          return {
-            ...content,
-            terminalIds: sessions.map((s) => s.id),
-            activeTerminalId: defaultTerminal.id,
-          };
-        });
-      }
+      const sessionIds = sessions.map((session) => session.id);
+      const restoreTerminalsInEditor = Boolean(settings.layout?.terminalCollapsed && settings.layout.editorTree);
+      const persistedEditorTerminalIds = settings.layout
+        ? collectTerminalSessionIds(settings.layout.editorTree as PaneNode)
+        : new Set<string>();
+      const terminalTreeSessionIds = restoreTerminalsInEditor
+        ? []
+        : sessionIds.filter((sessionId) => !persistedEditorTerminalIds.has(sessionId));
+      editorActions.setTree((currentTree) => {
+        const pruned = pruneStaleTerminalSessions(currentTree, new Set(sessionIds));
+        return restoreTerminalsInEditor
+          ? sessionIds.reduce((nextTree, sessionId) => addTerminalSessionToFirstLeaf(nextTree, sessionId), pruned)
+          : pruned;
+      });
+      terminalActions.setTree((currentTree) => {
+        const pruned = pruneStaleTerminalSessions(currentTree, new Set(sessionIds));
+        return restoreTerminalsInEditor
+          ? pruned
+          : terminalTreeSessionIds.reduce((nextTree, sessionId) => addTerminalSessionToFirstLeaf(nextTree, sessionId), pruned);
+      });
+      setLayoutPersistenceReady(true);
     }
 
     void bootstrap().catch((error) => {
@@ -556,6 +582,53 @@ export function App() {
       cancelled = true;
     };
   }, [activeTerminalId, terminalSessions]);
+
+  useEffect(() => {
+    if (!layoutPersistenceReady || onboardingState || !workspaceModel) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      const currentSettings = workspaceSettingsRef.current;
+      if (!currentSettings) {
+        return;
+      }
+
+      const layout = createWorkspaceLayoutSnapshot({
+        editorTree,
+        terminalTree,
+        terminalCollapsed: shellLayout.terminalCollapsed,
+        sidePanesFlipped: shellLayout.sidePanesFlipped,
+        zoneSplitRatio: shellLayout.zoneSplitRatio,
+        sidebarCollapsed: shellLayout.sidebarCollapsed,
+        sidebarWidth: shellLayout.sidebarWidth,
+        inspectorCollapsed: shellLayout.inspectorCollapsed,
+      });
+      if (stableJson(currentSettings.layout ?? null) === stableJson(layout)) {
+        return;
+      }
+
+      void window.exo.workspace.saveSettings({ ...currentSettings, layout }).then((saved) => {
+        workspaceSettingsRef.current = saved;
+      }).catch((error) => {
+        console.warn("[exo] failed to persist workspace layout", error);
+      });
+    }, 900);
+
+    return () => window.clearTimeout(timeout);
+  }, [
+    editorTree,
+    terminalTree,
+    shellLayout.terminalCollapsed,
+    shellLayout.sidePanesFlipped,
+    shellLayout.zoneSplitRatio,
+    shellLayout.sidebarCollapsed,
+    shellLayout.sidebarWidth,
+    shellLayout.inspectorCollapsed,
+    layoutPersistenceReady,
+    onboardingState,
+    workspaceModel,
+  ]);
 
   useEffect(() => {
     setAgentAnnotations((current) => {
@@ -3153,6 +3226,18 @@ function collectOpenEditorPaths(tree: PaneNode): Set<string> {
   return paths;
 }
 
+function findActiveEditorPath(tree: PaneNode | undefined): string | null {
+  if (!tree) {
+    return null;
+  }
+  for (const leaf of collectLeaves(tree)) {
+    if (leaf.content.kind === "editor" && leaf.content.activePath) {
+      return leaf.content.activePath;
+    }
+  }
+  return null;
+}
+
 function collectActiveTerminalIds(tree: PaneNode): Set<string> {
   const ids = new Set<string>();
   for (const leaf of collectLeaves(tree)) {
@@ -3161,6 +3246,40 @@ function collectActiveTerminalIds(tree: PaneNode): Set<string> {
     }
   }
   return ids;
+}
+
+function collectTerminalSessionIds(tree: PaneNode): Set<string> {
+  const ids = new Set<string>();
+  for (const leaf of collectLeaves(tree)) {
+    if (leaf.content.kind !== "terminal") {
+      continue;
+    }
+    for (const id of leaf.content.terminalIds) {
+      ids.add(id);
+    }
+  }
+  return ids;
+}
+
+function createWorkspaceLayoutSnapshot(input: WorkspaceLayoutSettings): WorkspaceLayoutSettings {
+  return {
+    editorTree: input.editorTree,
+    terminalTree: input.terminalTree,
+    terminalCollapsed: input.terminalCollapsed,
+    sidePanesFlipped: input.sidePanesFlipped,
+    zoneSplitRatio: roundLayoutNumber(input.zoneSplitRatio),
+    sidebarCollapsed: input.sidebarCollapsed,
+    sidebarWidth: Math.round(input.sidebarWidth),
+    inspectorCollapsed: input.inspectorCollapsed,
+  };
+}
+
+function roundLayoutNumber(value: number): number {
+  return Math.round(value * 1000) / 1000;
+}
+
+function stableJson(value: unknown): string {
+  return JSON.stringify(value);
 }
 
 function addTerminalSessionToFirstLeaf(tree: PaneNode, sessionId: string): PaneNode {
@@ -3205,6 +3324,25 @@ function removeTerminalSessionFromTree(tree: PaneNode, sessionId: string): PaneN
         ...leaf.content,
         terminalIds,
         activeTerminalId: leaf.content.activeTerminalId === sessionId ? (terminalIds.at(-1) ?? null) : leaf.content.activeTerminalId,
+      },
+    };
+  });
+}
+
+function pruneStaleTerminalSessions(tree: PaneNode, activeSessionIds: Set<string>): PaneNode {
+  return mapLeaves(tree, (leaf) => {
+    if (leaf.content.kind !== "terminal") {
+      return leaf;
+    }
+    const terminalIds = leaf.content.terminalIds.filter((id) => activeSessionIds.has(id));
+    return {
+      ...leaf,
+      content: {
+        ...leaf.content,
+        terminalIds,
+        activeTerminalId: leaf.content.activeTerminalId && terminalIds.includes(leaf.content.activeTerminalId)
+          ? leaf.content.activeTerminalId
+          : terminalIds.at(-1) ?? null,
       },
     };
   });

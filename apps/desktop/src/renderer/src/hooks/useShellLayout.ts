@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { WorkspaceLayoutSettings } from "@exo/core";
 
 import { paneId, usePaneTree, type PaneNode } from "./usePaneTree";
 
@@ -103,6 +104,20 @@ export function useShellLayout() {
     };
   }, []);
 
+  const applyPersistedLayout = useCallback((layout: WorkspaceLayoutSettings | undefined) => {
+    if (!layout) {
+      return;
+    }
+    editorPaneTree.actions.setTree(layout.editorTree);
+    terminalPaneTree.actions.setTree(layout.terminalTree);
+    setTerminalCollapsed(layout.terminalCollapsed);
+    setSidePanesFlipped(layout.sidePanesFlipped);
+    setZoneSplitRatio(layout.zoneSplitRatio);
+    setSidebarCollapsed(layout.sidebarCollapsed);
+    setSidebarWidth(layout.sidebarWidth);
+    setInspectorCollapsed(layout.inspectorCollapsed);
+  }, [editorPaneTree.actions, terminalPaneTree.actions]);
+
   return {
     workspaceRef,
     workspaceBodyRef,
@@ -117,8 +132,11 @@ export function useShellLayout() {
     sidePanesFlipped,
     setSidePanesFlipped,
     zoneSplitRatio,
+    setZoneSplitRatio,
     startZoneResize,
     sidebarWidth,
+    setSidebarWidth,
     startSidebarResize,
+    applyPersistedLayout,
   };
 }

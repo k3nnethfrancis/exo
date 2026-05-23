@@ -2,7 +2,7 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import type { IndexMode, WorkspaceSettings } from "./types";
+import type { IndexMode, WorkspaceLayoutSettings, WorkspacePaneContent, WorkspacePaneNode, WorkspaceSettings } from "./types";
 import { createIndexedRoot, DEFAULT_INDEXING } from "./workspace";
 
 export const DEFAULT_APPEARANCE_MODE: WorkspaceSettings["appearanceMode"] = "system";
@@ -186,6 +186,7 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
     explorerScale: clampSettingsNumber(input.explorerScale, DEFAULT_EXPLORER_SCALE, 0.82, 1.35),
     exploreIndexSearchOnEnter: typeof input.exploreIndexSearchOnEnter === "boolean" ? input.exploreIndexSearchOnEnter : indexing.enabled && indexing.mode !== "off" && indexedRoots.length > 0,
     indexUpdateStrategy: input.indexUpdateStrategy === "manual" ? "manual" : "on-save",
+    layout: normalizeWorkspaceLayout(input.layout),
   };
 }
 
@@ -258,6 +259,89 @@ function workspaceIdForNotesFolder(notesFolder: string): string {
 function clampSettingsNumber(value: unknown, fallback: number, min: number, max: number): number {
   const parsed = typeof value === "number" ? value : Number(value);
   return Number.isFinite(parsed) ? Math.max(min, Math.min(max, parsed)) : fallback;
+}
+
+function normalizeWorkspaceLayout(input: unknown): WorkspaceLayoutSettings | undefined {
+  if (!input || typeof input !== "object") {
+    return undefined;
+  }
+  const candidate = input as Partial<WorkspaceLayoutSettings>;
+  const editorTree = normalizePaneNode(candidate.editorTree, 0);
+  const terminalTree = normalizePaneNode(candidate.terminalTree, 0);
+  if (!editorTree || !terminalTree || !hasLeafKind(editorTree, "editor") || !hasLeafKind(terminalTree, "terminal")) {
+    return undefined;
+  }
+  return {
+    editorTree,
+    terminalTree,
+    terminalCollapsed: Boolean(candidate.terminalCollapsed),
+    sidePanesFlipped: Boolean(candidate.sidePanesFlipped),
+    zoneSplitRatio: clampSettingsNumber(candidate.zoneSplitRatio, 0.6, 0.15, 0.85),
+    sidebarCollapsed: Boolean(candidate.sidebarCollapsed),
+    sidebarWidth: clampSettingsNumber(candidate.sidebarWidth, 260, 260, 800),
+    inspectorCollapsed: typeof candidate.inspectorCollapsed === "boolean" ? candidate.inspectorCollapsed : true,
+  };
+}
+
+function normalizePaneNode(input: unknown, depth: number): WorkspacePaneNode | null {
+  if (!input || typeof input !== "object" || depth > 8) {
+    return null;
+  }
+  const candidate = input as Partial<WorkspacePaneNode>;
+  const id = typeof candidate.id === "string" && candidate.id.trim() ? candidate.id : `layout-pane-${depth}`;
+  if (candidate.kind === "leaf") {
+    const content = normalizePaneContent("content" in candidate ? candidate.content : null);
+    return content ? { kind: "leaf", id, content } : null;
+  }
+  if (candidate.kind === "split") {
+    const children = Array.isArray(candidate.children) ? candidate.children : [];
+    if (children.length !== 2) {
+      return null;
+    }
+    const left = normalizePaneNode(children[0], depth + 1);
+    const right = normalizePaneNode(children[1], depth + 1);
+    if (!left || !right) {
+      return null;
+    }
+    return {
+      kind: "split",
+      id,
+      direction: candidate.direction === "vertical" ? "vertical" : "horizontal",
+      ratio: clampSettingsNumber(candidate.ratio, 0.5, 0.15, 0.85),
+      children: [left, right],
+    };
+  }
+  return null;
+}
+
+function normalizePaneContent(input: unknown): WorkspacePaneContent | null {
+  const candidate = input && typeof input === "object" ? input as { kind?: unknown; openPaths?: unknown; activePath?: unknown; terminalIds?: unknown; activeTerminalId?: unknown } : {};
+  if (candidate.kind === "terminal") {
+    const terminalIds = Array.isArray(candidate.terminalIds)
+      ? candidate.terminalIds.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+      : [];
+    const activeTerminalId = typeof candidate.activeTerminalId === "string" && terminalIds.includes(candidate.activeTerminalId)
+      ? candidate.activeTerminalId
+      : terminalIds.at(-1) ?? null;
+    return { kind: "terminal", terminalIds, activeTerminalId };
+  }
+  if (candidate.kind === "editor") {
+    const openPaths = Array.isArray(candidate.openPaths)
+      ? candidate.openPaths.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+      : [];
+    const activePath = typeof candidate.activePath === "string" && openPaths.includes(candidate.activePath)
+      ? candidate.activePath
+      : openPaths.at(-1) ?? null;
+    return { kind: "editor", openPaths, activePath };
+  }
+  return null;
+}
+
+function hasLeafKind(node: WorkspacePaneNode, kind: "editor" | "terminal"): boolean {
+  if (node.kind === "leaf") {
+    return node.content.kind === kind;
+  }
+  return hasLeafKind(node.children[0], kind) || hasLeafKind(node.children[1], kind);
 }
 
 function isBroadDefaultProjectRoot(workspaceRoot: string, targetPath: string): boolean {

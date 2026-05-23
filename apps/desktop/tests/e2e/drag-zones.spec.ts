@@ -10,7 +10,7 @@
  * 6. No drag operation should ever produce a blank canvas
  */
 
-import { access, mkdir, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { test, expect, type Page } from "@playwright/test";
@@ -334,7 +334,7 @@ test.describe("Within-zone splits", () => {
 
 test.describe("Cross-zone terminal tab moves", () => {
   test("dragging a terminal tab into the editor canvas creates a terminal pane there", async () => {
-    const { page, cleanup } = await launchExoFixture();
+    const { page, settingsPath, cleanup } = await launchExoFixture();
 
     const terminalTabBox = await page.getByTestId("terminal-tab-shell").first().boundingBox();
     const editorBox = await getBoundingBox(page, ".pane-leaf--editor");
@@ -350,6 +350,18 @@ test.describe("Cross-zone terminal tab moves", () => {
     await expect(page.locator(".workspace__body .pane-leaf--terminal")).toHaveCount(1);
     await expect(page.getByTestId("terminal-expand")).toBeVisible();
     await expect(page.locator(".workspace__body .pane-leaf--terminal").getByTestId("terminal-tab-shell")).toBeVisible();
+
+    await expect.poll(async () => {
+      const settings = JSON.parse(await readFile(settingsPath, "utf8"));
+      return settings.layout?.terminalCollapsed === true && settings.layout?.editorTree
+        ? JSON.stringify(settings.layout.editorTree).includes('"kind":"terminal"')
+        : false;
+    }).toBe(true);
+
+    await page.reload();
+    await expect(page.getByTestId("sidebar")).toBeVisible();
+    await expect(page.locator(".workspace__body .pane-leaf--terminal").getByTestId("terminal-tab-shell")).toBeVisible();
+    await expect(page.getByTestId("terminal-expand")).toBeVisible();
 
     await cleanup();
   });

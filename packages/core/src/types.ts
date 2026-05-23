@@ -37,6 +37,48 @@ export interface WorkspaceSettings {
   explorerScale: number;
   exploreIndexSearchOnEnter: boolean;
   indexUpdateStrategy: IndexUpdateStrategy;
+  layout?: WorkspaceLayoutSettings;
+}
+
+export interface WorkspaceLayoutSettings {
+  editorTree: WorkspacePaneNode;
+  terminalTree: WorkspacePaneNode;
+  terminalCollapsed: boolean;
+  sidePanesFlipped: boolean;
+  zoneSplitRatio: number;
+  sidebarCollapsed: boolean;
+  sidebarWidth: number;
+  inspectorCollapsed: boolean;
+}
+
+export type WorkspacePaneNode = WorkspacePaneLeaf | WorkspacePaneSplit;
+
+export interface WorkspacePaneLeaf {
+  kind: "leaf";
+  id: string;
+  content: WorkspacePaneContent;
+}
+
+export interface WorkspacePaneSplit {
+  kind: "split";
+  id: string;
+  direction: "horizontal" | "vertical";
+  ratio: number;
+  children: [WorkspacePaneNode, WorkspacePaneNode];
+}
+
+export type WorkspacePaneContent = WorkspaceEditorPaneContent | WorkspaceTerminalPaneContent;
+
+export interface WorkspaceEditorPaneContent {
+  kind: "editor";
+  openPaths: string[];
+  activePath: string | null;
+}
+
+export interface WorkspaceTerminalPaneContent {
+  kind: "terminal";
+  terminalIds: string[];
+  activeTerminalId: string | null;
 }
 
 export interface TreeNode {

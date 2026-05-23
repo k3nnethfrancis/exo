@@ -1,6 +1,6 @@
 # Exo Tasks
 
-Last updated: 2026-05-20
+Last updated: 2026-05-23
 
 This is the active task tracker for Exo. It is intentionally not a history file; completed implementation history belongs in `ledger.md`. Tasks here should be concrete, current, and ordered by practical priority.
 
@@ -22,12 +22,12 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Add a setup/switch-workspace surface that shows notes folder, project folders, default terminal, and index settings before entering the app.
 - [x] Add a persisted workspace registry so users can switch among saved workspaces without reselecting folders.
 - [x] Make CLI/MCP workspace resolution use the active workspace registry when explicit env vars are not set.
-- [ ] Make terminal panes draggable into the editor canvas.
+- [x] Make terminal panes draggable into the editor canvas.
 - [ ] Let files and terminals share one arbitrary split-pane graph.
 - [ ] Roadmap mixed file/terminal tab groups after the split-pane model stabilizes.
 - [ ] Support multiple terminal panes in the main workspace, not just the terminal dock.
 - [ ] Add a core WebView/browser pane for local web-app previews, docs, dashboards, and future plugin-hosted apps.
-- [ ] Persist pane layout across restart.
+- [x] Persist pane layout across restart.
 - [ ] Keep file and terminal tab chrome aligned across all pane positions.
 - [ ] Add regression coverage for pane splitting, pane closure, reload, and terminal streaming.
 

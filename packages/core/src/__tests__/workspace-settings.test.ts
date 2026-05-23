@@ -12,6 +12,70 @@ import {
 } from "../workspace-settings";
 
 describe("workspace settings registry", () => {
+  it("normalizes persisted pane layout settings", async () => {
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-layout-"));
+
+    try {
+      const saved = await saveWorkspaceSettings({
+        workspaceRoot: "/tmp/exo-layout/notes",
+        defaultTerminalCwd: "/tmp/exo-layout/project",
+        noteRoots: ["/tmp/exo-layout/notes"],
+        projectRoots: ["/tmp/exo-layout/project"],
+        indexedRoots: [],
+        indexing: { enabled: false, mode: "off", backend: "qmd" },
+        appearanceMode: "system",
+        editorFontSize: 15,
+        terminalFontSize: 13,
+        terminalHistoryMode: "full",
+        terminalHistoryLines: 1_000_000,
+        terminalTranscriptRetention: "forever",
+        terminalTranscriptRetentionDays: 14,
+        terminalStreamingMode: "visible",
+        explorerScale: 1,
+        exploreIndexSearchOnEnter: false,
+        indexUpdateStrategy: "on-save",
+        layout: {
+          editorTree: {
+            kind: "split",
+            id: "editor-split",
+            direction: "horizontal",
+            ratio: 0.9,
+            children: [
+              { kind: "leaf", id: "editor-a", content: { kind: "editor", openPaths: ["/tmp/exo-layout/notes/a.md"], activePath: "/tmp/exo-layout/notes/a.md" } },
+              { kind: "leaf", id: "editor-b", content: { kind: "terminal", terminalIds: ["term-1"], activeTerminalId: "term-1" } },
+            ],
+          },
+          terminalTree: {
+            kind: "leaf",
+            id: "terminal-a",
+            content: { kind: "terminal", terminalIds: ["term-2"], activeTerminalId: "missing" },
+          },
+          terminalCollapsed: true,
+          sidePanesFlipped: true,
+          zoneSplitRatio: 0.01,
+          sidebarCollapsed: true,
+          sidebarWidth: 9999,
+          inspectorCollapsed: false,
+        },
+      }, { EXO_USER_DATA_PATH: userDataPath });
+
+      expect(saved.layout).toMatchObject({
+        terminalCollapsed: true,
+        sidePanesFlipped: true,
+        zoneSplitRatio: 0.15,
+        sidebarWidth: 800,
+        inspectorCollapsed: false,
+      });
+      expect(saved.layout?.editorTree.kind).toBe("split");
+      expect(saved.layout?.terminalTree.kind).toBe("leaf");
+      if (saved.layout?.terminalTree.kind === "leaf" && saved.layout.terminalTree.content.kind === "terminal") {
+        expect(saved.layout.terminalTree.content.activeTerminalId).toBe("term-2");
+      }
+    } finally {
+      await rm(userDataPath, { recursive: true, force: true });
+    }
+  });
+
   it("persists and reloads the active desktop workspace", async () => {
     const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-workspace-registry-"));
     const env = { EXO_USER_DATA_PATH: userDataPath };
