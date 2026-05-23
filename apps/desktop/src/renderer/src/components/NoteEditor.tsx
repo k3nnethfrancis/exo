@@ -37,6 +37,7 @@ interface NoteEditorProps {
   fontSize: number;
   onZoomEditor: (direction: -1 | 0 | 1) => void;
   compact: boolean;
+  revealLineRequest?: { filePath: string; line: number; nonce: number } | null;
 }
 
 export function NoteEditor(props: NoteEditorProps) {
@@ -58,6 +59,7 @@ export function NoteEditor(props: NoteEditorProps) {
     fontSize,
     onZoomEditor,
     compact,
+    revealLineRequest,
   } = props;
   const [rawMarkdownMode, setRawMarkdownMode] = useState(false);
   const codeMirrorRef = useRef<ReactCodeMirrorRef>(null);
@@ -65,6 +67,7 @@ export function NoteEditor(props: NoteEditorProps) {
   const previousBodyRef = useRef(document?.body ?? "");
   const previousPathRef = useRef(document?.filePath ?? "");
   const restoringScrollRef = useRef(false);
+  const processedRevealLineNonceRef = useRef<number | null>(null);
 
   useEffect(() => {
     setRawMarkdownMode(false);
@@ -187,6 +190,43 @@ export function NoteEditor(props: NoteEditorProps) {
       window.clearTimeout(timeout);
     };
   }, [document, documentPath, documentBody, rawMarkdownMode, appearance, fontSize]);
+
+  useEffect(() => {
+    if (!document || !revealLineRequest || revealLineRequest.filePath !== document.filePath) {
+      return;
+    }
+    if (processedRevealLineNonceRef.current === revealLineRequest.nonce) {
+      return;
+    }
+
+    processedRevealLineNonceRef.current = revealLineRequest.nonce;
+    const reveal = () => {
+      const view = codeMirrorRef.current?.view;
+      if (!view) {
+        return;
+      }
+      const lineNumber = Math.max(1, Math.min(revealLineRequest.line, view.state.doc.lines));
+      const line = view.state.doc.line(lineNumber);
+      view.dispatch({
+        selection: { anchor: line.from },
+        effects: EditorView.scrollIntoView(line.from, { y: "center" }),
+      });
+      view.focus();
+    };
+
+    const frame = window.requestAnimationFrame(reveal);
+    const interval = window.setInterval(reveal, 50);
+    const timeout = window.setTimeout(() => {
+      reveal();
+      window.clearInterval(interval);
+    }, 350);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearInterval(interval);
+      window.clearTimeout(timeout);
+    };
+  }, [document, documentPath, revealLineRequest]);
 
   if (!document) {
     return (

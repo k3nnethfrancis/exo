@@ -51,6 +51,7 @@ export interface WorkspaceGitChange {
   path: string;
   absolutePath: string;
   status: string;
+  firstChangedLine?: number | null;
 }
 
 export interface WorkspaceSetupState {

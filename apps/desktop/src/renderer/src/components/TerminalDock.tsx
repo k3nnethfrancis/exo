@@ -22,7 +22,7 @@ interface TerminalDockProps {
   scrollbackLines: number;
   onFocus: () => void;
   onSetActiveTerminal: (id: string) => void;
-  onOpenChangedFile?: (filePath: string) => void;
+  onOpenChangedFile?: (filePath: string, line?: number | null) => void;
   onWrite: (id: string, data: string) => void;
   onResize: (id: string, cols: number, rows: number) => void;
   onKill: (id: string) => void;
@@ -125,12 +125,13 @@ export function TerminalDock(props: TerminalDockProps) {
                   <button
                     className="terminal-review-strip__item"
                     key={`${change.rootPath}:${change.path}:${change.status}`}
-                    onClick={() => onOpenChangedFile(change.absolutePath)}
+                    onClick={() => onOpenChangedFile(change.absolutePath, change.firstChangedLine)}
                     title={`${change.status} ${change.absolutePath}`}
                     type="button"
                   >
                     <span className="terminal-review-strip__status">{change.status}</span>
                     <span className="terminal-review-strip__path">{change.path}</span>
+                    {change.firstChangedLine ? <span className="terminal-review-strip__line">:{change.firstChangedLine}</span> : null}
                   </button>
                 ))}
               </div>

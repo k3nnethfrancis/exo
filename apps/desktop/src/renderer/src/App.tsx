@@ -181,6 +181,7 @@ export function App() {
   const [tagResults, setTagResults] = useState<SearchResult[]>([]);
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [revealExplorerPathRequest, setRevealExplorerPathRequest] = useState<{ path: string; nonce: number } | null>(null);
+  const [editorRevealLineRequest, setEditorRevealLineRequest] = useState<{ filePath: string; line: number; nonce: number } | null>(null);
   const handleDropRef = useRef<(target: DragDropTarget, payload: DragPayload) => void>(() => {});
   const dragManager = useDragManager((target, payload) => handleDropRef.current(target, payload));
   const [terminalSessions, setTerminalSessions] = useState<TerminalSessionInfo[]>([]);
@@ -1504,7 +1505,7 @@ export function App() {
     }
   }
 
-  async function openFile(filePath: string, leafId?: PaneNodeId) {
+  async function openFile(filePath: string, leafId?: PaneNodeId, options?: { line?: number | null }) {
     const targetLeafId = leafId ?? editorFocusedLeafId;
     await ensureDocumentLoaded(filePath);
 
@@ -1525,6 +1526,9 @@ export function App() {
     setActiveDocumentPath(filePath);
     setActiveTag(null);
     setTagResults([]);
+    if (options?.line && options.line > 0) {
+      setEditorRevealLineRequest({ filePath, line: options.line, nonce: Date.now() });
+    }
   }
 
   function updateBody(body: string) {
@@ -2506,7 +2510,7 @@ export function App() {
                   setTerminalBuffers((current) => ({ ...current, [id]: buffer }));
                 });
               }}
-              onOpenChangedFile={(filePath) => void openFile(filePath)}
+              onOpenChangedFile={(filePath, line) => void openFile(filePath, undefined, { line })}
               onWrite={(id, data) => void window.exo.terminals.write(id, data)}
               onResize={(id, cols, rows) => void window.exo.terminals.resize(id, cols, rows)}
               onKill={(id) => void closeTerminal(id)}
@@ -2551,6 +2555,7 @@ export function App() {
               fontSize={editorFontSize}
               onZoomEditor={(direction) => updateFocusedSurfaceZoom(direction, "editor")}
               compact={compactEditorChrome}
+              revealLineRequest={editorRevealLineRequest}
             />
             <InspectorDock
               document={activeDocument}
@@ -2587,7 +2592,7 @@ export function App() {
               setZoomSurface("terminal");
               void activateTerminal(leaf.id, id);
             }}
-            onOpenChangedFile={(filePath) => void openFile(filePath)}
+            onOpenChangedFile={(filePath, line) => void openFile(filePath, undefined, { line })}
             onWrite={(id, data) => void window.exo.terminals.write(id, data)}
             onResize={(id, cols, rows) => void window.exo.terminals.resize(id, cols, rows)}
             onKill={(id) => void closeTerminal(id)}
@@ -2605,7 +2610,7 @@ export function App() {
         workspaceSearch.setSubmittedQuery(value.trim());
       }}
       onSearchSubmit={() => void workspaceSearch.runIndexedSearch()}
-      onOpenFile={(filePath) => void openFile(filePath)}
+      onOpenFile={(filePath, line) => void openFile(filePath, undefined, { line })}
       onOpenTerminalSession={(sessionId) => void focusTerminalSession(sessionId)}
       onOpenTag={(tag) => void openTag(tag)}
       onExpandDirectory={(directoryPath, rootKind) => void expandTreeDirectory(directoryPath, rootKind)}

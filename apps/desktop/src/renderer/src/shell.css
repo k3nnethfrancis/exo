@@ -621,7 +621,7 @@
 
 .project-change__file {
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
+  grid-template-columns: 28px minmax(0, 1fr) auto;
   gap: 6px;
   align-items: center;
   min-width: 0;
@@ -659,8 +659,14 @@
 }
 
 .project-change__root {
-  grid-column: 2;
+  grid-column: 2 / span 2;
   color: var(--muted);
+  font-size: 10px;
+}
+
+.project-change__line {
+  color: var(--muted);
+  font-family: var(--mono);
   font-size: 10px;
 }
 

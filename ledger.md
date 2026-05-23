@@ -77,18 +77,18 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Linked changed project files to live terminal sessions whose cwd is inside the same attached project root, with a jump affordance from the Changes list back to the associated terminal.
 - Scoped external-file refresh scroll preservation to the editor pane showing the refreshed path, and added e2e coverage for clean refreshes, scroll retention, and unsaved-document protection during external writes.
 - Added the reverse project-review affordance: active terminal panes now show associated changed files for their cwd-linked session and can jump directly back into the editor.
+- Added first changed-line targeting by deriving tracked-file hunk starts from `git diff --unified=0 HEAD -- .`, showing line chips in review surfaces, and scrolling/selecting the editor line when opening a changed file.
 
 ## Next Priorities
 
 1. Push `0.1.0-alpha.2` tester-readiness fixes to main.
-2. Project roots and code review: jump from agent sessions to changed file hunks or lines when Exo has reliable diff/provenance data.
-3. Core WebView/browser pane for local previews, docs, dashboards, and future plugin-hosted apps.
-4. Agent context manager: inspect/edit/compare global and local `AGENTS.md` / `CLAUDE.md`.
-5. Authorship/provenance: observed human vs agent-written changes by session/task/file.
-6. QMD notes index: improve performance, add true incremental file-level updates when QMD exposes them, and refine triggers/profiles.
-7. Multi-agent coordination: roster, objectives, direct messages, file+SQLite transport, CLI/MCP access.
-8. Graph/memory view: backlinks plus QMD-derived relationships and agent/session context.
-9. Plugin architecture: optional workflows and shareable extensions without growing core by default.
+2. Core WebView/browser pane for local previews, docs, dashboards, and future plugin-hosted apps.
+3. Agent context manager: inspect/edit/compare global and local `AGENTS.md` / `CLAUDE.md`.
+4. Authorship/provenance: observed human vs agent-written changes by session/task/file.
+5. QMD notes index: improve performance, add true incremental file-level updates when QMD exposes them, and refine triggers/profiles.
+6. Multi-agent coordination: roster, objectives, direct messages, file+SQLite transport, CLI/MCP access.
+7. Graph/memory view: backlinks plus QMD-derived relationships and agent/session context.
+8. Plugin architecture: optional workflows and shareable extensions without growing core by default.
 
 ## Operating Rules
 

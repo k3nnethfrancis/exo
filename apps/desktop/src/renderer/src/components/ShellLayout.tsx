@@ -80,7 +80,7 @@ interface ShellLayoutProps {
   onOpenIndexSettings: () => void;
   onSearchQueryChange: (value: string) => void;
   onSearchSubmit: () => void;
-  onOpenFile: (filePath: string) => void;
+  onOpenFile: (filePath: string, line?: number | null) => void;
   onOpenTerminalSession: (sessionId: string) => void;
   onOpenTag: (tag: string) => void;
   onExpandDirectory: (directoryPath: string, rootKind: "notes" | "projects") => void;

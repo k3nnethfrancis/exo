@@ -41,6 +41,7 @@ interface EditorPaneProps {
   fontSize: number;
   onZoomEditor: (direction: -1 | 0 | 1) => void;
   compact: boolean;
+  revealLineRequest?: { filePath: string; line: number; nonce: number } | null;
 }
 
 export function EditorPane(props: EditorPaneProps) {
@@ -68,6 +69,7 @@ export function EditorPane(props: EditorPaneProps) {
     fontSize,
     onZoomEditor,
     compact,
+    revealLineRequest,
   } = props;
 
   const activeDocument = pane.activePath ? documents[pane.activePath] ?? null : null;
@@ -144,6 +146,7 @@ export function EditorPane(props: EditorPaneProps) {
         fontSize={fontSize}
         onZoomEditor={onZoomEditor}
         compact={compact}
+        revealLineRequest={revealLineRequest}
       />
     </div>
   );

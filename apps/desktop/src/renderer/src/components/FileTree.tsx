@@ -47,7 +47,7 @@ interface FileTreeProps {
   onOpenWorkspaceSettings: () => void;
   onSearchQueryChange: (value: string) => void;
   onSearchSubmit: () => void;
-  onOpenFile: (filePath: string) => void;
+  onOpenFile: (filePath: string, line?: number | null) => void;
   onOpenTerminalSession: (sessionId: string) => void;
   onOpenTag: (tag: string) => void;
   onExpandDirectory: (directoryPath: string, rootKind: "notes" | "projects") => void;
@@ -482,7 +482,7 @@ function ProjectChanges({
   onOpenTerminalSession,
 }: {
   changes: ProjectChangeView[];
-  onOpenFile: (filePath: string) => void;
+  onOpenFile: (filePath: string, line?: number | null) => void;
   onOpenTerminalSession: (sessionId: string) => void;
 }) {
   if (changes.length === 0) {
@@ -500,12 +500,13 @@ function ProjectChanges({
           <div className="project-change" key={`${change.rootPath}:${change.path}:${change.status}`}>
             <button
               className="project-change__file"
-              onClick={() => onOpenFile(change.absolutePath)}
+              onClick={() => onOpenFile(change.absolutePath, change.firstChangedLine)}
               title={`${change.status} ${change.absolutePath}`}
               type="button"
             >
               <span className="project-change__status">{change.status}</span>
               <span className="project-change__path">{change.path}</span>
+              {change.firstChangedLine ? <span className="project-change__line">:{change.firstChangedLine}</span> : null}
               <span className="project-change__root">{change.rootLabel}</span>
             </button>
             {change.agents.length > 0 ? (

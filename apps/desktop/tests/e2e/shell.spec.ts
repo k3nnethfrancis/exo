@@ -120,9 +120,10 @@ test("shows changed project files in the project drawer", async () => {
       spawnSync("git", ["init"], { cwd: projectRoot, stdio: "ignore" });
       spawnSync("git", ["config", "user.email", "exo@example.test"], { cwd: projectRoot, stdio: "ignore" });
       spawnSync("git", ["config", "user.name", "Exo Test"], { cwd: projectRoot, stdio: "ignore" });
+      await writeFile(path.join(projectRoot, "src/demo.ts"), "export const stable = true;\nexport const demo = 'original';\n");
       spawnSync("git", ["add", "."], { cwd: projectRoot, stdio: "ignore" });
       spawnSync("git", ["commit", "-m", "fixture"], { cwd: projectRoot, stdio: "ignore" });
-      await writeFile(path.join(projectRoot, "src/demo.ts"), "export const demo = 'changed';\n");
+      await writeFile(path.join(projectRoot, "src/demo.ts"), "export const stable = true;\nexport const demo = 'changed';\n");
     },
   });
 
@@ -134,17 +135,32 @@ test("shows changed project files in the project drawer", async () => {
 
   await page.getByTestId("project-roots-toggle").click();
   await expect(page.getByTestId("project-changes")).toContainText("src/demo.ts");
+  await expect(page.getByTestId("project-changes")).toContainText(":2");
   await expect(page.getByTestId("project-changes")).toContainText("shell");
   await page.getByTestId("project-changes").getByRole("button", { name: "shell" }).click();
   await expect(page.getByTestId("terminal-surface")).toContainText("sample-project");
   await expect(page.getByTestId(`terminal-session-changes-${sessionId}`)).toContainText("src/demo.ts");
+  await expect(page.getByTestId(`terminal-session-changes-${sessionId}`)).toContainText(":2");
   await page.getByTestId(`terminal-session-changes-${sessionId}`).getByRole("button", { name: /src\/demo\.ts/ }).click();
   await expect(page.getByTestId("editor-title")).toHaveText("demo.ts");
+  await expect.poll(() => activeEditorLine(page)).toBe(2);
   await page.getByTestId("project-changes").getByRole("button", { name: /src\/demo\.ts/ }).click();
   await expect(page.getByTestId("editor-title")).toHaveText("demo.ts");
+  await expect.poll(() => activeEditorLine(page)).toBe(2);
 
   await cleanup();
 });
+
+async function activeEditorLine(page: import("@playwright/test").Page) {
+  return page.evaluate(() => {
+    const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+    const view = content?.cmView?.view;
+    if (!view) {
+      return null;
+    }
+    return view.state.doc.lineAt(view.state.selection.main.head).number;
+  });
+}
 
 test("opens a new terminal from a project folder context menu", async () => {
   const { page, cleanup } = await launchExoFixture({

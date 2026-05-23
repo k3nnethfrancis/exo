@@ -219,7 +219,7 @@
 
 .terminal-review-strip__item {
   display: inline-grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 5px;
   align-items: center;
   min-width: 0;
@@ -251,6 +251,12 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 11px;
+}
+
+.terminal-review-strip__line {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
 }
 
 /* Subagent drawer — full-width bottom bar in terminal dock */
