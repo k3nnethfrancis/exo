@@ -66,6 +66,19 @@ export class AppClient {
     return this.get(EXO_COMMAND_ROUTES.config);
   }
 
+  async listProjectRoots(): Promise<string[]> {
+    const result = await this.get(EXO_COMMAND_ROUTES.projectRoots);
+    return Array.isArray(result.projectRoots) ? result.projectRoots.map(String) : [];
+  }
+
+  async addProjectRoot(projectRootPath: string): Promise<Record<string, unknown>> {
+    return this.post(EXO_COMMAND_ROUTES.projectRoots, { path: projectRootPath });
+  }
+
+  async removeProjectRoot(target: string): Promise<Record<string, unknown>> {
+    return this.delete(EXO_COMMAND_ROUTES.projectRoot(target));
+  }
+
   async search(query: string, options: { limit?: number } = {}): Promise<Record<string, unknown>> {
     const params = new URLSearchParams({ q: query });
     if (options.limit) params.set("limit", String(options.limit));

@@ -7,6 +7,7 @@ import {
   type ExoIndexRootRequest,
   type ExoCommandTerminalInfo,
   type ExoCreateTerminalRequest,
+  type ExoProjectRootRequest,
   type ExoReadDocumentRequest,
   type ExoOpenFileRequest,
   type ExoWriteTerminalRequest,
@@ -31,6 +32,9 @@ export interface CommandServerOptions {
   onIndexSync: () => Promise<IndexSyncResult>;
   onIndexUpdate: () => Promise<IndexStatus>;
   onIndexEmbed: () => Promise<IndexStatus>;
+  onListProjectRoots: () => string[];
+  onAddProjectRoot: (input: ExoProjectRootRequest) => Promise<WorkspaceSettings>;
+  onRemoveProjectRoot: (target: string) => Promise<WorkspaceSettings>;
   onListTerminals: () => ExoCommandTerminalInfo[];
   onCreateTerminal: (kind: string, cwd?: string) => Promise<ExoCommandTerminalInfo>;
   onReadTerminal: (id: string) => string | null;
@@ -175,6 +179,28 @@ export class CommandServer {
 
       if (method === "GET" && pathname === EXO_COMMAND_ROUTES.config) {
         json(res, this.options.onGetSettings());
+        return;
+      }
+
+      if (method === "GET" && pathname === EXO_COMMAND_ROUTES.projectRoots) {
+        json(res, { projectRoots: this.options.onListProjectRoots() });
+        return;
+      }
+
+      if (method === "POST" && pathname === EXO_COMMAND_ROUTES.projectRoots) {
+        const body = await readBody(req);
+        const { path: projectRootPath } = body as ExoProjectRootRequest;
+        if (!projectRootPath) {
+          json(res, { error: "Missing path in body" }, 400);
+          return;
+        }
+        json(res, await this.options.onAddProjectRoot({ path: projectRootPath }));
+        return;
+      }
+
+      const projectRootMatch = pathname.match(/^\/project-roots\/(.+)$/);
+      if (method === "DELETE" && projectRootMatch) {
+        json(res, await this.options.onRemoveProjectRoot(decodeURIComponent(projectRootMatch[1])));
         return;
       }
 

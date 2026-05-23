@@ -170,6 +170,9 @@ Commands that drive a running Exo app:
 ./bin/exo open /path/to/file
 ./bin/exo status
 ./bin/exo config get
+./bin/exo project-roots list
+./bin/exo project-roots add /path/to/project
+./bin/exo project-roots remove /path/to/project
 ./bin/exo terminals list
 ./bin/exo terminals create shell
 ./bin/exo terminals read term-4

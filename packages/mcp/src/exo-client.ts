@@ -94,6 +94,19 @@ export class ExoCommandClient {
     return this.post(EXO_COMMAND_ROUTES.read, { target, ...options });
   }
 
+  async listProjectRoots(): Promise<string[]> {
+    const result = await this.get(EXO_COMMAND_ROUTES.projectRoots);
+    return Array.isArray(result.projectRoots) ? result.projectRoots.map(String) : [];
+  }
+
+  async addProjectRoot(projectRootPath: string): Promise<Record<string, unknown>> {
+    return this.post(EXO_COMMAND_ROUTES.projectRoots, { path: projectRootPath });
+  }
+
+  async removeProjectRoot(target: string): Promise<Record<string, unknown>> {
+    return this.delete(EXO_COMMAND_ROUTES.projectRoot(target));
+  }
+
   async listAgents(): Promise<ExoAgent[]> {
     return this.get(EXO_COMMAND_ROUTES.terminals);
   }

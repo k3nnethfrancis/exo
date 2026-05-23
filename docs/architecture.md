@@ -86,6 +86,9 @@ Workspace resolution is shared with the desktop app. Explicit workspace env vars
 
 Current live terminal commands:
 
+- `exo project-roots list`
+- `exo project-roots add <path>`
+- `exo project-roots remove <path>`
 - `exo terminals list`
 - `exo terminals create <shell|claude|codex> [cwd]`
 - `exo terminals read <id>`

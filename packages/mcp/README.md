@@ -60,6 +60,9 @@ Without autostart, Exo must already be running so the MCP server can discover `.
 - `interrupt_agent` — send Escape or Ctrl-C to a live agent.
 - `terminate_agent` — terminate an Exo terminal. For terminal agents this also kills the backing tmux session.
 - `workspace_status` — inspect the active Exo workspace model.
+- `list_project_roots` — list attached project folders.
+- `add_project_root` — attach an explicit project folder to the running Exo workspace.
+- `remove_project_root` — detach a project folder from Exo workspace settings without deleting files.
 - `index_status` — inspect QMD notes-index status, pending embeddings, and fallback warnings.
 - `sync_index` — refresh indexed documents and build embeddings for semantic/hybrid modes.
 - `update_index` — advanced document-refresh phase only.
@@ -81,6 +84,9 @@ bin/exo agents interrupt term-4 ctrl-c
 bin/exo agents terminate term-4
 bin/exo index status
 bin/exo index sync
+bin/exo project-roots list
+bin/exo project-roots add /path/to/project
+bin/exo project-roots remove /path/to/project
 bin/exo search "query"
 bin/exo read /path/or/qmd-target
 ```

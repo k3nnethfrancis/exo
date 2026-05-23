@@ -46,6 +46,9 @@ interface AppClientLike {
   openFile(filePath: string): Promise<void>;
   showWindow(): Promise<void>;
   getConfig(): Promise<Record<string, unknown>>;
+  listProjectRoots(): Promise<string[]>;
+  addProjectRoot(projectRootPath: string): Promise<Record<string, unknown>>;
+  removeProjectRoot(target: string): Promise<Record<string, unknown>>;
   search(query: string, options?: { limit?: number }): Promise<Record<string, unknown>>;
   readDocument(target: string, options?: { fromLine?: number; maxLines?: number }): Promise<Record<string, unknown>>;
   getIndexStatus(): Promise<Record<string, unknown>>;
@@ -328,6 +331,37 @@ export async function runCli(
     }
 
     stderr.write("Usage: exo config get [key]\n");
+    return 1;
+  }
+
+  if (command === "project-roots") {
+    const client = await connectOrFail(env, stderr, connectAppClient);
+    if (!client) return 1;
+
+    if (subcommand === "list" || !subcommand) {
+      stdout.write(`${JSON.stringify(await client.listProjectRoots(), null, 2)}\n`);
+      return 0;
+    }
+
+    if (subcommand === "add") {
+      const targetPath = args[0];
+      if (!targetPath) {
+        throw new Error("Usage: exo project-roots add <path>");
+      }
+      stdout.write(`${JSON.stringify(await client.addProjectRoot(path.resolve(cwd, targetPath)), null, 2)}\n`);
+      return 0;
+    }
+
+    if (subcommand === "remove") {
+      const target = args[0];
+      if (!target) {
+        throw new Error("Usage: exo project-roots remove <path>");
+      }
+      stdout.write(`${JSON.stringify(await client.removeProjectRoot(path.resolve(cwd, target)), null, 2)}\n`);
+      return 0;
+    }
+
+    stderr.write("Usage: exo project-roots [list | add <path> | remove <path>]\n");
     return 1;
   }
 
@@ -669,6 +703,9 @@ export async function runCli(
       "  exo open <path>                            Open file in editor (app)",
       "  exo status                                 Workspace status (app)",
       "  exo config get [key]                       Read settings (app)",
+      "  exo project-roots [list]                   List attached project roots (app)",
+      "  exo project-roots add <path>               Attach a project root (app)",
+      "  exo project-roots remove <path>            Detach a project root (app)",
       "  exo terminals [list]                       List terminals (app)",
       "  exo terminals create <shell|claude|codex>  Create terminal (app)",
       "  exo terminals read <id>                    Read buffered terminal output (app)",

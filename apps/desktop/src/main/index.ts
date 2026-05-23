@@ -159,6 +159,9 @@ function startCommandServer() {
     onIndexSync: () => runIndexSync("command"),
     onIndexUpdate: () => runMeasuredIndexStatusJob("update", "command", () => updateIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot)),
     onIndexEmbed: () => runMeasuredIndexStatusJob("embed", "command", () => embedIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot)),
+    onListProjectRoots: () => currentWorkspaceSettings().projectRoots,
+    onAddProjectRoot: (input) => addProjectRoot(input.path),
+    onRemoveProjectRoot: (target) => removeProjectRoot(target),
     onListTerminals: () => terminalManager.list(),
     onCreateTerminal: (kind: string, cwd?: string) => terminalManager.create({ kind: kind as "shell" | "claude" | "codex", cwd }),
     onReadTerminal: (id: string) => terminalManager.readBuffer(id),
@@ -717,6 +720,40 @@ async function removeIndexedRoot(target: string): Promise<WorkspaceSettings> {
     indexedRoots: nextRoots,
     indexing: nextRoots.length === 0 ? { enabled: false, mode: "off", backend: "qmd" } : settings.indexing,
   });
+}
+
+async function addProjectRoot(targetPath?: string): Promise<WorkspaceSettings> {
+  if (!targetPath) {
+    throw new Error("Missing project root path.");
+  }
+  const settings = currentWorkspaceSettings();
+  const resolvedPath = path.resolve(targetPath);
+  const nextRoots = uniqueResolvedPaths([...settings.projectRoots, resolvedPath]);
+  return saveWorkspaceSettings({ ...settings, projectRoots: nextRoots });
+}
+
+async function removeProjectRoot(target: string): Promise<WorkspaceSettings> {
+  if (!target) {
+    throw new Error("Missing project root target.");
+  }
+  const settings = currentWorkspaceSettings();
+  const resolvedTarget = path.resolve(target);
+  const nextRoots = settings.projectRoots.filter((root) => path.resolve(root) !== resolvedTarget && root !== target);
+  return saveWorkspaceSettings({ ...settings, projectRoots: nextRoots });
+}
+
+function uniqueResolvedPaths(paths: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const entry of paths) {
+    const resolved = path.resolve(entry);
+    if (seen.has(resolved)) {
+      continue;
+    }
+    seen.add(resolved);
+    result.push(resolved);
+  }
+  return result;
 }
 
 function shouldUseIndex(model = workspaceModel): boolean {

@@ -10,6 +10,8 @@ export const EXO_COMMAND_ROUTES = {
   indexEmbed: "/index/embed",
   open: "/open",
   config: "/config",
+  projectRoots: "/project-roots",
+  projectRoot: (target: string) => `/project-roots/${encodeURIComponent(target)}`,
   terminals: "/terminals",
   terminalBuffer: (id: string) => `/terminals/${encodeURIComponent(id)}/buffer`,
   terminalTranscript: (id: string, tailChars: number) =>
@@ -53,6 +55,10 @@ export interface ExoIndexRootRequest {
   pattern?: string;
   ignore?: string[];
   force?: boolean;
+}
+
+export interface ExoProjectRootRequest {
+  path?: string;
 }
 
 export interface ExoReadDocumentRequest {

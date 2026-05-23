@@ -72,6 +72,7 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Hardened the repo-backed `exo` launcher and local installer against stale Corepack package-manager signature metadata by defaulting `COREPACK_ENABLE_PROJECT_SPEC=0` for Exo-managed pnpm invocations.
 - Aligned terminal pane tab chrome with editor panes by using the same 40px strip rhythm in dock and canvas placements, and added e2e geometry coverage for canvas terminal headers.
 - Documented the mixed file/terminal tab-group migration path: typed tabs inside one pane leaf, shared chrome above typed bodies, and terminal process lifecycle kept separate from pane layout persistence.
+- Added live project-root management through the command server, CLI, and MCP: list attached roots, attach explicit project folders, and detach folders without deleting files.
 
 ## Next Priorities
 

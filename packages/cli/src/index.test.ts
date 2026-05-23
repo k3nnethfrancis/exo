@@ -229,6 +229,53 @@ describe("cli package", () => {
     expect(receivedInput).toMatchObject({ path: "/tmp/exo-test-workspace/notes", name: "notes", kind: "notes" });
   });
 
+  it("manages project roots through the app settings route", async () => {
+    const calls: Array<[string, string?]> = [];
+    let stdout = "";
+    const client = fakeAppClient({
+      listProjectRoots: async () => ["/tmp/exo-test-workspace/projects/sample"],
+      addProjectRoot: async (targetPath) => {
+        calls.push(["add", targetPath]);
+        return { projectRoots: [targetPath] };
+      },
+      removeProjectRoot: async (target) => {
+        calls.push(["remove", target]);
+        return { projectRoots: [] };
+      },
+    });
+
+    const listExitCode = await runCli(["node", "exo-cli", "project-roots", "list"], {
+      env: testRuntimeEnv(),
+      stdout: { write: (text) => { stdout += text; } },
+      stderr: { write: () => {} },
+      connectAppClient: async () => client,
+    });
+    expect(listExitCode).toBe(0);
+    expect(stdout).toContain("/tmp/exo-test-workspace/projects/sample");
+
+    const addExitCode = await runCli(["node", "exo-cli", "project-roots", "add", "projects/new-root"], {
+      env: testRuntimeEnv(),
+      cwd: "/tmp/exo-test-workspace",
+      stdout: { write: () => {} },
+      stderr: { write: () => {} },
+      connectAppClient: async () => client,
+    });
+    expect(addExitCode).toBe(0);
+
+    const removeExitCode = await runCli(["node", "exo-cli", "project-roots", "remove", "projects/new-root"], {
+      env: testRuntimeEnv(),
+      cwd: "/tmp/exo-test-workspace",
+      stdout: { write: () => {} },
+      stderr: { write: () => {} },
+      connectAppClient: async () => client,
+    });
+    expect(removeExitCode).toBe(0);
+    expect(calls).toEqual([
+      ["add", "/tmp/exo-test-workspace/projects/new-root"],
+      ["remove", "/tmp/exo-test-workspace/projects/new-root"],
+    ]);
+  });
+
   it("prints Codex integration config", async () => {
     let stdout = "";
     const exitCode = await runCli(["node", "exo-cli", "integrations", "config", "codex"], {
@@ -360,6 +407,9 @@ function fakeAppClient(overrides: Partial<{
   openFile: (filePath: string) => Promise<void>;
   showWindow: () => Promise<void>;
   getConfig: () => Promise<Record<string, unknown>>;
+  listProjectRoots: () => Promise<string[]>;
+  addProjectRoot: (projectRootPath: string) => Promise<Record<string, unknown>>;
+  removeProjectRoot: (target: string) => Promise<Record<string, unknown>>;
   search: (query: string, options?: { limit?: number }) => Promise<Record<string, unknown>>;
   readDocument: (target: string, options?: { fromLine?: number; maxLines?: number }) => Promise<Record<string, unknown>>;
   getIndexStatus: () => Promise<Record<string, unknown>>;
@@ -383,6 +433,9 @@ function fakeAppClient(overrides: Partial<{
     openFile: missing,
     showWindow: missing,
     getConfig: missing,
+    listProjectRoots: missing,
+    addProjectRoot: missing,
+    removeProjectRoot: missing,
     search: missing,
     readDocument: missing,
     getIndexStatus: missing,
