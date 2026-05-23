@@ -334,7 +334,16 @@ test("edits agent context files from workspace settings", async () => {
   const { page, workspaceRoot, cleanup } = await launchExoFixture({
     mutable: true,
     prepareWorkspace: async (workspaceRoot) => {
-      await writeFile(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"), "# Existing project context\n", "utf8");
+      await writeFile(
+        path.join(workspaceRoot, "notes/test-notes/AGENTS.md"),
+        "- Always run tests before finishing.\n- Use npm for scripts.\n",
+        "utf8",
+      );
+      await writeFile(
+        path.join(workspaceRoot, "projects/sample-project/AGENTS.md"),
+        "# Existing project context\n- Always run tests before finishing.\n- Use pnpm for scripts.\n",
+        "utf8",
+      );
     },
   });
 
@@ -343,13 +352,16 @@ test("edits agent context files from workspace settings", async () => {
   await expect(page.getByTestId("agent-context-settings")).toBeVisible();
   await page.getByRole("button", { name: /sample-project \/ AGENTS\.md/i }).click();
   await expect(page.getByTestId("agent-context-editor")).toHaveValue(/Existing project context/);
-  await page.getByTestId("agent-context-editor").fill("# Updated project context\n\nUse Exo review links.\n");
+  await expect(page.getByTestId("agent-context-signals")).toContainText("Duplicate");
+  await expect(page.getByTestId("agent-context-signals")).toContainText("Package manager mismatch");
+  await page.getByTestId("agent-context-insert-exo-snippet").click();
+  await expect(page.getByTestId("agent-context-editor")).toHaveValue(/Exo Workspace Tools/);
   await page.getByTestId("agent-context-save").click();
   await expect(page.getByTestId("agent-context-status")).toContainText("Saved");
 
   await expect.poll(async () =>
     readFile(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"), "utf8"),
-  ).toContain("Use Exo review links.");
+  ).toContain("exo project-roots list");
 
   await cleanup();
 });

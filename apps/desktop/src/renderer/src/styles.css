@@ -1457,10 +1457,51 @@ select.dialog-card__input {
 
 .agent-context-settings__editor {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
   gap: 8px;
   min-width: 0;
   min-height: 0;
+}
+
+.agent-context-settings__signals {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.agent-context-settings__signal {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 7px 9px;
+  border: 1px solid color-mix(in srgb, var(--divider) 55%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-2) 64%, transparent);
+}
+
+.agent-context-settings__signal span:first-child {
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.agent-context-settings__signal span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-soft);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-context-settings__signal--conflict {
+  border-color: var(--danger-border);
+  background: var(--danger-soft);
+}
+
+.agent-context-settings__signal--duplicate {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--divider));
 }
 
 .agent-context-settings__textarea {

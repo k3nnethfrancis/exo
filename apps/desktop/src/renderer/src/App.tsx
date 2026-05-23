@@ -123,6 +123,12 @@ interface AgentContextEditorState {
   errorMessage: string | null;
 }
 
+interface AgentContextSignal {
+  kind: "duplicate" | "conflict" | "coverage";
+  label: string;
+  detail: string;
+}
+
 interface ObservedWorkspaceWrite {
   filePath: string;
   rootPath: string;
@@ -889,6 +895,11 @@ export function App() {
     }
     return changesBySession;
   }, [projectReviewChanges]);
+  const agentContextSignals = useMemo(
+    () => summarizeAgentContextSignals(agentContextEditor.files, agentContextEditor.selectedPath),
+    [agentContextEditor.files, agentContextEditor.selectedPath],
+  );
+  const selectedAgentContextFile = agentContextEditor.files.find((file) => file.path === agentContextEditor.selectedPath) ?? null;
 
   async function reloadTrees() {
     if (!workspaceModel) {
@@ -1088,6 +1099,24 @@ export function App() {
         errorMessage: error instanceof Error ? error.message : String(error),
       }));
     }
+  }
+
+  function insertExoAgentContextSnippet() {
+    setAgentContextEditor((current) => {
+      if (!current.selectedPath) {
+        return current;
+      }
+      const snippet = exoAgentContextSnippet();
+      const separator = current.draftBody.trim().length > 0 ? "\n\n" : "";
+      return {
+        ...current,
+        draftBody: current.draftBody.includes("## Exo Workspace Tools")
+          ? current.draftBody
+          : `${current.draftBody.trimEnd()}${separator}${snippet}`,
+        saveStatus: "idle",
+        errorMessage: null,
+      };
+    });
   }
 
   async function selectNotesFolderForOnboarding() {
@@ -3169,20 +3198,46 @@ export function App() {
                   <div className="agent-context-settings__editor">
                     <div className="dialog-field__header">
                       <span className="dialog-field__label">
-                        {agentContextEditor.files.find((file) => file.path === agentContextEditor.selectedPath)?.label ?? "Agent context"}
+                        {selectedAgentContextFile?.label ?? "Agent context"}
                       </span>
-                      <button
-                        className="toolbar-button"
-                        data-testid="agent-context-save"
-                        disabled={!agentContextEditor.selectedPath || agentContextEditor.saveStatus === "saving"}
-                        onClick={() => void saveAgentContextDraft()}
-                        type="button"
-                      >
-                        {agentContextEditor.saveStatus === "saving" ? "Saving…" : "Save"}
-                      </button>
+                      <div className="dialog-card__actions dialog-card__actions--split">
+                        <button
+                          className="toolbar-button"
+                          data-testid="agent-context-insert-exo-snippet"
+                          disabled={!agentContextEditor.selectedPath}
+                          onClick={insertExoAgentContextSnippet}
+                          type="button"
+                        >
+                          Insert Exo snippet
+                        </button>
+                        <button
+                          className="toolbar-button"
+                          data-testid="agent-context-save"
+                          disabled={!agentContextEditor.selectedPath || agentContextEditor.saveStatus === "saving"}
+                          onClick={() => void saveAgentContextDraft()}
+                          type="button"
+                        >
+                          {agentContextEditor.saveStatus === "saving" ? "Saving…" : "Save"}
+                        </button>
+                      </div>
                     </div>
                     <div className="agent-context-settings__path">
                       {agentContextEditor.selectedPath ?? "No context file selected."}
+                    </div>
+                    <div className="agent-context-settings__signals" data-testid="agent-context-signals">
+                      {agentContextSignals.length > 0 ? (
+                        agentContextSignals.map((signal) => (
+                          <div className={`agent-context-settings__signal agent-context-settings__signal--${signal.kind}`} key={`${signal.kind}:${signal.label}:${signal.detail}`}>
+                            <span>{signal.label}</span>
+                            <span>{signal.detail}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="agent-context-settings__signal agent-context-settings__signal--coverage">
+                          <span>No overlap found</span>
+                          <span>{selectedAgentContextFile ? "Selected file has no obvious duplicate or package-manager conflict with other context files." : "Select a context file to compare."}</span>
+                        </div>
+                      )}
                     </div>
                     <textarea
                       className="dialog-card__input agent-context-settings__textarea"
@@ -3593,6 +3648,85 @@ async function loadProjectGitChanges(projectRoots: WorkspaceModel["projectRoots"
       status: await window.exo.workspace.getGitStatus(root.path).catch(() => null),
     })),
   );
+}
+
+function summarizeAgentContextSignals(files: AgentContextFile[], selectedPath: string | null): AgentContextSignal[] {
+  const selected = files.find((file) => file.path === selectedPath);
+  if (!selected) {
+    return [];
+  }
+
+  const selectedLines = normalizedInstructionLines(selected.body);
+  const selectedPackageManagers = packageManagersMentioned(selected.body);
+  const otherFiles = files.filter((file) => file.path !== selected.path && file.body.trim().length > 0);
+  const signals: AgentContextSignal[] = [];
+
+  for (const other of otherFiles) {
+    const otherLines = new Set(normalizedInstructionLines(other.body));
+    const duplicateLines = selectedLines.filter((line) => otherLines.has(line)).slice(0, 3);
+    if (duplicateLines.length > 0) {
+      signals.push({
+        kind: "duplicate",
+        label: `Duplicate with ${other.label}`,
+        detail: duplicateLines.join(" / "),
+      });
+    }
+  }
+
+  for (const other of otherFiles) {
+    const otherPackageManagers = packageManagersMentioned(other.body);
+    const allManagers = new Set([...selectedPackageManagers, ...otherPackageManagers]);
+    if (allManagers.size > 1 && selectedPackageManagers.length > 0 && otherPackageManagers.length > 0) {
+      signals.push({
+        kind: "conflict",
+        label: `Package manager mismatch with ${other.label}`,
+        detail: [...allManagers].join(", "),
+      });
+    }
+  }
+
+  if (selected.scope !== "global") {
+    const globalFiles = files.filter((file) => file.scope === "global" && file.body.trim().length > 0);
+    if (globalFiles.length > 0) {
+      signals.push({
+        kind: "coverage",
+        label: "Global context applies",
+        detail: `Compare this local file with ${globalFiles.map((file) => file.label).join(", ")} before duplicating broad instructions.`,
+      });
+    }
+  }
+
+  return signals.slice(0, 6);
+}
+
+function normalizedInstructionLines(body: string): string[] {
+  const seen = new Set<string>();
+  return body
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^[-*]\s+/, "").trim().toLowerCase())
+    .filter((line) => line.length >= 14 && !line.startsWith("#"))
+    .filter((line) => {
+      if (seen.has(line)) {
+        return false;
+      }
+      seen.add(line);
+      return true;
+    });
+}
+
+function packageManagersMentioned(body: string): string[] {
+  const lower = body.toLowerCase();
+  return ["pnpm", "npm", "yarn", "bun"].filter((manager) => new RegExp(`\\b${manager}\\b`).test(lower));
+}
+
+function exoAgentContextSnippet(): string {
+  return [
+    "## Exo Workspace Tools",
+    "",
+    "- Use `exo project-roots list` to inspect attached project roots before assuming workspace scope.",
+    "- Use Exo MCP search/read tools for notes context when available instead of scanning unrelated folders.",
+    "- Prefer focused edits, run the relevant tests, and leave a concise summary of changed files and verification.",
+  ].join("\n");
 }
 
 function createWorkspaceLayoutSnapshot(input: WorkspaceLayoutSettings): WorkspaceLayoutSettings {
