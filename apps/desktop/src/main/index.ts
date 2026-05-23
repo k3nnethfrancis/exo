@@ -1,7 +1,8 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, nativeTheme, shell, Tray, type OpenDialogOptions } from "electron";
 import { execFile } from "node:child_process";
+import os from "node:os";
 import path from "node:path";
-import { access, appendFile, mkdir, stat } from "node:fs/promises";
+import { access, appendFile, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { constants, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -470,6 +471,8 @@ function registerIpcHandlers() {
       searchIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot, query, options),
   );
   ipcMain.handle("workspace:get-git-status", async (_event, rootPath: string) => getGitStatus(rootPath));
+  ipcMain.handle("workspace:list-agent-context-files", async () => listAgentContextFiles());
+  ipcMain.handle("workspace:save-agent-context-file", async (_event, filePath: string, body: string) => saveAgentContextFile(filePath, body));
   ipcMain.handle("workspace:create-file", async (_event, targetPath: string, content?: string) => createWorkspaceFile(targetPath, content));
   ipcMain.handle("workspace:create-directory", async (_event, targetPath: string) => createWorkspaceDirectory(targetPath));
   ipcMain.handle("workspace:rename-path", async (_event, sourcePath: string, nextPath: string) => renameWorkspacePath(sourcePath, nextPath));
@@ -687,6 +690,55 @@ function parseGitDiffFirstChangedLines(output: string): Map<string, number> {
   }
 
   return linesByPath;
+}
+
+async function listAgentContextFiles() {
+  return Promise.all(agentContextCandidates().map(readAgentContextCandidate));
+}
+
+async function saveAgentContextFile(filePath: string, body: string) {
+  const candidate = agentContextCandidates().find((entry) => path.resolve(entry.path) === path.resolve(filePath));
+  if (!candidate) {
+    throw new Error("Agent context file is outside the active global/workspace context set.");
+  }
+  await mkdir(path.dirname(candidate.path), { recursive: true });
+  await writeFile(candidate.path, body, "utf8");
+  return readAgentContextCandidate(candidate);
+}
+
+function agentContextCandidates() {
+  const roots = [
+    { scope: "global" as const, label: "Global", path: os.homedir() },
+    ...workspaceModel.noteRoots.map((root) => ({ scope: "notes" as const, label: root.label, path: root.path })),
+    ...workspaceModel.projectRoots.map((root) => ({ scope: "project" as const, label: root.label, path: root.path })),
+  ];
+  const names = ["AGENTS.md", "CLAUDE.md"];
+
+  return roots.flatMap((root) =>
+    names.map((name) => {
+      const filePath = path.join(root.path, name);
+      return {
+        id: `${root.scope}:${filePath}`,
+        scope: root.scope,
+        label: `${root.label} / ${name}`,
+        path: filePath,
+      };
+    }),
+  );
+}
+
+async function readAgentContextCandidate(candidate: ReturnType<typeof agentContextCandidates>[number]) {
+  const body = await readFile(candidate.path, "utf8").catch((error: NodeJS.ErrnoException) => {
+    if (error.code === "ENOENT") {
+      return "";
+    }
+    throw error;
+  });
+  return {
+    ...candidate,
+    exists: body.length > 0 || existsSync(candidate.path),
+    body,
+  };
 }
 
 async function fileExists(targetPath: string): Promise<boolean> {

@@ -46,8 +46,8 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 
 ## Next: Agent Context And Config Management
 
-- [ ] Add a first-class agent config manager.
-- [ ] Let users inspect and edit global and selected local `AGENTS.md` / `CLAUDE.md` files from Exo.
+- [x] Add a first-class agent config manager.
+- [x] Let users inspect and edit global and selected local `AGENTS.md` / `CLAUDE.md` files from Exo.
 - [ ] Let users choose which attached roots receive local agent context files.
 - [ ] Compare global vs local agent context files.
 - [ ] Surface conflicting or duplicated instructions.

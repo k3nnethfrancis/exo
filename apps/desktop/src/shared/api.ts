@@ -67,6 +67,15 @@ export interface WorkspaceRegistryEntry {
   updatedAt: string;
 }
 
+export interface AgentContextFile {
+  id: string;
+  scope: "global" | "notes" | "project";
+  label: string;
+  path: string;
+  exists: boolean;
+  body: string;
+}
+
 export interface IndexSyncStateEvent {
   state: "running" | "idle" | "error";
   reason: string;
@@ -96,6 +105,8 @@ export interface DesktopApi {
     searchIndex: (query: string, options?: { limit?: number; forceMode?: "lexical" | "semantic" | "hybrid" }) => Promise<IndexSearchResponse>;
     searchTag: (tag: string) => Promise<SearchResult[]>;
     getGitStatus: (rootPath: string) => Promise<WorkspaceGitStatus | null>;
+    listAgentContextFiles: () => Promise<AgentContextFile[]>;
+    saveAgentContextFile: (filePath: string, body: string) => Promise<AgentContextFile>;
     createFile: (targetPath: string, content?: string) => Promise<string>;
     createDirectory: (targetPath: string) => Promise<string>;
     renamePath: (sourcePath: string, nextPath: string) => Promise<string>;

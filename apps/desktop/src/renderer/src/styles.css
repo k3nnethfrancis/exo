@@ -1382,7 +1382,7 @@ select.dialog-card__input {
 
 .dialog-tabs {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 6px;
   padding: 3px;
   border: 1px solid var(--surface-border);
@@ -1406,6 +1406,69 @@ select.dialog-card__input {
   border-color: var(--surface-border-strong);
   background: var(--surface-3);
   color: var(--text);
+}
+
+.agent-context-settings {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.42fr) minmax(0, 1fr);
+  gap: 12px;
+  min-width: 0;
+  min-height: 360px;
+}
+
+.agent-context-settings__list {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.agent-context-settings__file {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 8px 9px;
+  border: 1px solid color-mix(in srgb, var(--divider) 55%, transparent);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-soft);
+  text-align: left;
+  cursor: pointer;
+}
+
+.agent-context-settings__file:hover,
+.agent-context-settings__file--active {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.agent-context-settings__file span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-context-settings__file span:last-child,
+.agent-context-settings__path {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.agent-context-settings__editor {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: 8px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.agent-context-settings__textarea {
+  min-height: 300px;
+  resize: none;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .dialog-card__apply-row {

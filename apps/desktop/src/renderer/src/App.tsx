@@ -12,7 +12,7 @@ import type {
   WorkspaceSettings,
 } from "@exo/core";
 
-import type { TerminalSessionInfo, WorkspaceGitChange, WorkspaceGitStatus, WorkspaceRegistryEntry } from "../../shared/api";
+import type { AgentContextFile, TerminalSessionInfo, WorkspaceGitChange, WorkspaceGitStatus, WorkspaceRegistryEntry } from "../../shared/api";
 import type { FileStatInfo } from "../../shared/api";
 
 import { EditorPane, type EditorPaneState } from "./components/EditorPane";
@@ -113,7 +113,15 @@ interface OnboardingState {
 export type AppearanceMode = "system" | "light" | "dark";
 export type ResolvedAppearance = "light" | "dark";
 type ZoomSurface = "editor" | "terminal" | "explorer";
-type WorkspaceSettingsSection = "workspace" | "index" | "appearance" | "terminal";
+type WorkspaceSettingsSection = "workspace" | "index" | "agents" | "appearance" | "terminal";
+
+interface AgentContextEditorState {
+  files: AgentContextFile[];
+  selectedPath: string | null;
+  draftBody: string;
+  saveStatus: "idle" | "saving" | "saved" | "error";
+  errorMessage: string | null;
+}
 type IndexBusyState = "syncing" | "updating" | "embedding" | null;
 
 const FULL_TERMINAL_SCROLLBACK_LINES = 1_000_000;
@@ -191,6 +199,13 @@ export function App() {
   const [, setAgentAnnotations] = useState<Record<string, { runLabel: string; parentId: string | null }>>({});
   const [workspaceDialog, setWorkspaceDialog] = useState<WorkspaceDialogState | null>(null);
   const [workspaceSettingsDialog, setWorkspaceSettingsDialog] = useState<WorkspaceSettingsDialogState | null>(null);
+  const [agentContextEditor, setAgentContextEditor] = useState<AgentContextEditorState>({
+    files: [],
+    selectedPath: null,
+    draftBody: "",
+    saveStatus: "idle",
+    errorMessage: null,
+  });
   const [onboardingState, setOnboardingState] = useState<OnboardingState | null>(null);
   const [bootstrapError, setBootstrapError] = useState<string | null>(null);
   const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null);
@@ -924,7 +939,18 @@ export function App() {
   async function openWorkspaceSettingsDialog(section: WorkspaceSettingsSection = "workspace") {
     const settings = await window.exo.workspace.getSettings();
     const indexStatus = await window.exo.workspace.getIndexStatus();
+    const agentContextFiles = await window.exo.workspace.listAgentContextFiles().catch((error) => {
+      console.warn("[exo] failed to list agent context files", error);
+      return [];
+    });
     setIndexStatus(indexStatus);
+    setAgentContextEditor({
+      files: agentContextFiles,
+      selectedPath: agentContextFiles[0]?.path ?? null,
+      draftBody: agentContextFiles[0]?.body ?? "",
+      saveStatus: "idle",
+      errorMessage: null,
+    });
     const appliedWorkspaceKey = workspaceSettingsStructuralKeyFromSettings(settings);
     setWorkspaceSettingsDialog({
       section,
@@ -951,6 +977,47 @@ export function App() {
       applyStatus: "idle",
       applyErrorMessage: null,
     });
+  }
+
+  function selectAgentContextFile(filePath: string) {
+    setAgentContextEditor((current) => {
+      const selected = current.files.find((file) => file.path === filePath);
+      return selected
+        ? {
+            ...current,
+            selectedPath: selected.path,
+            draftBody: selected.body,
+            saveStatus: "idle",
+            errorMessage: null,
+          }
+        : current;
+    });
+  }
+
+  async function saveAgentContextDraft() {
+    const snapshot = agentContextEditor;
+    if (!snapshot.selectedPath) {
+      return;
+    }
+
+    setAgentContextEditor((current) => ({ ...current, saveStatus: "saving", errorMessage: null }));
+    try {
+      const saved = await window.exo.workspace.saveAgentContextFile(snapshot.selectedPath, snapshot.draftBody);
+      setAgentContextEditor((current) => ({
+        ...current,
+        files: current.files.map((file) => file.path === saved.path ? saved : file),
+        selectedPath: saved.path,
+        draftBody: saved.body,
+        saveStatus: "saved",
+        errorMessage: null,
+      }));
+    } catch (error) {
+      setAgentContextEditor((current) => ({
+        ...current,
+        saveStatus: "error",
+        errorMessage: error instanceof Error ? error.message : String(error),
+      }));
+    }
   }
 
   async function selectNotesFolderForOnboarding() {
@@ -2731,7 +2798,7 @@ export function App() {
             </div>
             <div className="dialog-card__message">Workspace paths and index settings apply when you press Apply.</div>
             <div className="dialog-tabs" role="tablist" aria-label="Workspace settings sections">
-              {(["workspace", "index", "appearance", "terminal"] as WorkspaceSettingsSection[]).map((section) => (
+              {(["workspace", "index", "agents", "appearance", "terminal"] as WorkspaceSettingsSection[]).map((section) => (
                 <button
                   className={`dialog-tabs__button ${workspaceSettingsDialog.section === section ? "dialog-tabs__button--active" : ""}`}
                   data-testid={`workspace-settings-tab-${section}`}
@@ -3011,6 +3078,65 @@ export function App() {
                     </div>
                   </details>
                 </>
+              ) : null}
+              {workspaceSettingsDialog.section === "agents" ? (
+                <div className="agent-context-settings" data-testid="agent-context-settings">
+                  <div className="agent-context-settings__list" data-testid="agent-context-file-list">
+                    {agentContextEditor.files.map((file) => (
+                      <button
+                        className={`agent-context-settings__file ${file.path === agentContextEditor.selectedPath ? "agent-context-settings__file--active" : ""}`}
+                        data-testid={`agent-context-file-${file.scope}`}
+                        key={file.id}
+                        onClick={() => selectAgentContextFile(file.path)}
+                        title={file.path}
+                        type="button"
+                      >
+                        <span>{file.label}</span>
+                        <span>{file.exists ? "Existing" : "New"}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="agent-context-settings__editor">
+                    <div className="dialog-field__header">
+                      <span className="dialog-field__label">
+                        {agentContextEditor.files.find((file) => file.path === agentContextEditor.selectedPath)?.label ?? "Agent context"}
+                      </span>
+                      <button
+                        className="toolbar-button"
+                        data-testid="agent-context-save"
+                        disabled={!agentContextEditor.selectedPath || agentContextEditor.saveStatus === "saving"}
+                        onClick={() => void saveAgentContextDraft()}
+                        type="button"
+                      >
+                        {agentContextEditor.saveStatus === "saving" ? "Saving…" : "Save"}
+                      </button>
+                    </div>
+                    <div className="agent-context-settings__path">
+                      {agentContextEditor.selectedPath ?? "No context file selected."}
+                    </div>
+                    <textarea
+                      className="dialog-card__input agent-context-settings__textarea"
+                      data-testid="agent-context-editor"
+                      disabled={!agentContextEditor.selectedPath}
+                      spellCheck={false}
+                      value={agentContextEditor.draftBody}
+                      onChange={(event) =>
+                        setAgentContextEditor((current) => ({
+                          ...current,
+                          draftBody: event.target.value,
+                          saveStatus: "idle",
+                          errorMessage: null,
+                        }))
+                      }
+                    />
+                    {agentContextEditor.saveStatus === "saved" ? (
+                      <div className="dialog-card__status" data-testid="agent-context-status">Saved.</div>
+                    ) : null}
+                    {agentContextEditor.saveStatus === "error" && agentContextEditor.errorMessage ? (
+                      <div className="dialog-card__status dialog-card__status--error">{agentContextEditor.errorMessage}</div>
+                    ) : null}
+                  </div>
+                </div>
               ) : null}
               {workspaceSettingsDialog.section === "appearance" ? (
                 <>

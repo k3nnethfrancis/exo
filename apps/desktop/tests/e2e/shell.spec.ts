@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { test, expect } from "@playwright/test";
 
@@ -324,6 +324,30 @@ test("opens workspace settings from the sidebar", async () => {
   await expect(page.getByTestId("workspace-settings-terminal-history-mode")).toHaveValue("full");
   await expect(page.getByTestId("workspace-settings-terminal-transcript-retention")).toHaveValue("forever");
   await expect(page.getByTestId("workspace-settings-terminal-streaming-mode")).toHaveValue("visible");
+
+  await cleanup();
+});
+
+test("edits agent context files from workspace settings", async () => {
+  const { page, workspaceRoot, cleanup } = await launchExoFixture({
+    mutable: true,
+    prepareWorkspace: async (workspaceRoot) => {
+      await writeFile(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"), "# Existing project context\n", "utf8");
+    },
+  });
+
+  await page.getByTestId("workspace-settings").click();
+  await page.getByTestId("workspace-settings-tab-agents").click();
+  await expect(page.getByTestId("agent-context-settings")).toBeVisible();
+  await page.getByRole("button", { name: /sample-project \/ AGENTS\.md/i }).click();
+  await expect(page.getByTestId("agent-context-editor")).toHaveValue(/Existing project context/);
+  await page.getByTestId("agent-context-editor").fill("# Updated project context\n\nUse Exo review links.\n");
+  await page.getByTestId("agent-context-save").click();
+  await expect(page.getByTestId("agent-context-status")).toContainText("Saved");
+
+  await expect.poll(async () =>
+    readFile(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"), "utf8"),
+  ).toContain("Use Exo review links.");
 
   await cleanup();
 });

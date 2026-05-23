@@ -79,11 +79,12 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Added the reverse project-review affordance: active terminal panes now show associated changed files for their cwd-linked session and can jump directly back into the editor.
 - Added first changed-line targeting by deriving tracked-file hunk starts from `git diff --unified=0 HEAD -- .`, showing line chips in review surfaces, and scrolling/selecting the editor line when opening a changed file.
 - Added a first workspace browser pane backed by Electron `webview`: users can open a preview pane from the rail, enter local URLs, keep it in the shared split graph, and persist browser leaves in workspace layout settings.
+- Added the first agent context manager surface in Workspace Settings: Exo lists global, note-root, and project-root `AGENTS.md` / `CLAUDE.md` files, lets users inspect existing or new files, and saves edits through a constrained IPC route.
 
 ## Next Priorities
 
 1. Push `0.1.0-alpha.2` tester-readiness fixes to main.
-2. Agent context manager: inspect/edit/compare global and local `AGENTS.md` / `CLAUDE.md`.
+2. Agent context manager: compare global vs local `AGENTS.md` / `CLAUDE.md`, detect conflicting or duplicated instructions, and offer Exo-recommended snippets.
 3. Authorship/provenance: observed human vs agent-written changes by session/task/file.
 4. QMD notes index: improve performance, add true incremental file-level updates when QMD exposes them, and refine triggers/profiles.
 5. Multi-agent coordination: roster, objectives, direct messages, file+SQLite transport, CLI/MCP access.
