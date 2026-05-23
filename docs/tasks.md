@@ -40,7 +40,8 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Link changed files to observable terminal sessions by project cwd.
 - [ ] Link terminal-agent messages to files they changed when Exo can observe the relationship.
 - [x] Add code-review affordances for jumping from a changed file to an associated terminal session.
-- [ ] Add code-review affordances for jumping from an agent session to a changed file and line.
+- [x] Add code-review affordances for jumping from an agent session to associated changed files.
+- [ ] Add code-review affordances for jumping from an agent session to a changed file hunk or line.
 - [x] Track external file changes without resetting editor scroll or causing flicker.
 
 ## Next: Agent Context And Config Management

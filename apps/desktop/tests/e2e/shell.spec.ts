@@ -127,8 +127,9 @@ test("shows changed project files in the project drawer", async () => {
   });
 
   const projectRoot = path.join(workspaceRoot, "projects/sample-project");
-  await page.evaluate(async (cwd) => {
-    await window.exo.terminals.create({ kind: "shell", cwd });
+  const sessionId = await page.evaluate(async (cwd) => {
+    const session = await window.exo.terminals.create({ kind: "shell", cwd });
+    return session.id;
   }, projectRoot);
 
   await page.getByTestId("project-roots-toggle").click();
@@ -136,6 +137,9 @@ test("shows changed project files in the project drawer", async () => {
   await expect(page.getByTestId("project-changes")).toContainText("shell");
   await page.getByTestId("project-changes").getByRole("button", { name: "shell" }).click();
   await expect(page.getByTestId("terminal-surface")).toContainText("sample-project");
+  await expect(page.getByTestId(`terminal-session-changes-${sessionId}`)).toContainText("src/demo.ts");
+  await page.getByTestId(`terminal-session-changes-${sessionId}`).getByRole("button", { name: /src\/demo\.ts/ }).click();
+  await expect(page.getByTestId("editor-title")).toHaveText("demo.ts");
   await page.getByTestId("project-changes").getByRole("button", { name: /src\/demo\.ts/ }).click();
   await expect(page.getByTestId("editor-title")).toHaveText("demo.ts");
 

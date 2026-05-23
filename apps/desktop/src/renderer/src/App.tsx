@@ -836,6 +836,17 @@ export function App() {
       })),
     [projectGitChanges, terminalSessions],
   );
+  const projectReviewChangesBySession = useMemo(() => {
+    const changesBySession = new Map<string, Array<WorkspaceGitChange & { rootPath: string; rootLabel: string }>>();
+    for (const change of projectReviewChanges) {
+      for (const agent of change.agents) {
+        const current = changesBySession.get(agent.id) ?? [];
+        current.push(change);
+        changesBySession.set(agent.id, current);
+      }
+    }
+    return changesBySession;
+  }, [projectReviewChanges]);
 
   async function reloadTrees() {
     if (!workspaceModel) {
@@ -2476,6 +2487,7 @@ export function App() {
               empty={terminalLeafSessions.length === 0}
               sessions={terminalLeafSessions}
               activeTerminalId={leaf.content.activeTerminalId}
+              sessionChanges={leaf.content.activeTerminalId ? projectReviewChangesBySession.get(leaf.content.activeTerminalId) ?? [] : []}
               buffers={terminalBuffers}
               appearance={resolvedAppearance}
               fontSize={terminalFontSize}
@@ -2494,6 +2506,7 @@ export function App() {
                   setTerminalBuffers((current) => ({ ...current, [id]: buffer }));
                 });
               }}
+              onOpenChangedFile={(filePath) => void openFile(filePath)}
               onWrite={(id, data) => void window.exo.terminals.write(id, data)}
               onResize={(id, cols, rows) => void window.exo.terminals.resize(id, cols, rows)}
               onKill={(id) => void closeTerminal(id)}
@@ -2564,6 +2577,7 @@ export function App() {
             empty={terminalLeafSessions.length === 0}
             sessions={terminalLeafSessions}
             activeTerminalId={leafActiveTerminalId}
+            sessionChanges={leafActiveTerminalId ? projectReviewChangesBySession.get(leafActiveTerminalId) ?? [] : []}
             buffers={terminalBuffers}
             appearance={resolvedAppearance}
             fontSize={terminalFontSize}
@@ -2573,6 +2587,7 @@ export function App() {
               setZoomSurface("terminal");
               void activateTerminal(leaf.id, id);
             }}
+            onOpenChangedFile={(filePath) => void openFile(filePath)}
             onWrite={(id, data) => void window.exo.terminals.write(id, data)}
             onResize={(id, cols, rows) => void window.exo.terminals.resize(id, cols, rows)}
             onKill={(id) => void closeTerminal(id)}

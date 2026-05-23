@@ -76,11 +76,12 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Added a first changed-files review surface in the Projects drawer by parsing `git status --porcelain` for each attached project root and linking changed files directly into the editor.
 - Linked changed project files to live terminal sessions whose cwd is inside the same attached project root, with a jump affordance from the Changes list back to the associated terminal.
 - Scoped external-file refresh scroll preservation to the editor pane showing the refreshed path, and added e2e coverage for clean refreshes, scroll retention, and unsaved-document protection during external writes.
+- Added the reverse project-review affordance: active terminal panes now show associated changed files for their cwd-linked session and can jump directly back into the editor.
 
 ## Next Priorities
 
 1. Push `0.1.0-alpha.2` tester-readiness fixes to main.
-2. Project roots and code review: jump from agent sessions to changed files and lines.
+2. Project roots and code review: jump from agent sessions to changed file hunks or lines when Exo has reliable diff/provenance data.
 3. Core WebView/browser pane for local previews, docs, dashboards, and future plugin-hosted apps.
 4. Agent context manager: inspect/edit/compare global and local `AGENTS.md` / `CLAUDE.md`.
 5. Authorship/provenance: observed human vs agent-written changes by session/task/file.
