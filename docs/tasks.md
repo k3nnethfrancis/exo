@@ -29,7 +29,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [ ] Add a core WebView/browser pane for local web-app previews, docs, dashboards, and future plugin-hosted apps.
 - [x] Persist pane layout across restart.
 - [ ] Keep file and terminal tab chrome aligned across all pane positions.
-- [ ] Add broader regression coverage for pane closure, reload, and terminal streaming.
+- [x] Add broader regression coverage for pane closure, reload, and terminal streaming.
 
 ## Next: Project Roots And Code Review
 

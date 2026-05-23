@@ -68,11 +68,12 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Verified a fresh Exo-hosted Codex session can call Exo MCP `search` and `index_status` against the 1155-document lab notes index without timing out.
 - Added workspace-layout persistence for editor/terminal pane trees, side-pane placement, split ratios, sidebar width, and inspector/terminal collapsed state, with guarded settings normalization and e2e coverage for terminal panes restored in the editor canvas after reload.
 - Completed the first shared file/terminal pane graph behavior: canvas terminal leaves now accept document/file edge drops to split the main workspace graph, while the separate terminal dock still rejects document drops.
+- Broadened workspace pane regression coverage for canvas terminal streaming and pruning after closing the last workspace terminal session.
 
 ## Next Priorities
 
 1. Push `0.1.0-alpha.2` tester-readiness fixes to main.
-2. Workspace surface: broaden regression coverage for pane closure, reload, and terminal streaming, then roadmap mixed file/terminal tab groups.
+2. Workspace surface: roadmap mixed file/terminal tab groups and keep file/terminal chrome aligned across pane positions.
 3. Project roots and code review: CLI/MCP root management plus changed-file review for agent-authored edits.
 4. Agent context manager: inspect/edit/compare global and local `AGENTS.md` / `CLAUDE.md`.
 5. Authorship/provenance: observed human vs agent-written changes by session/task/file.

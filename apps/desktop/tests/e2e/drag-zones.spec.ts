@@ -399,6 +399,40 @@ test.describe("Cross-zone terminal tab moves", () => {
 
     await cleanup();
   });
+
+  test("workspace terminal panes stream input and prune when closed", async () => {
+    const { page, cleanup } = await launchExoFixture({
+      env: {
+        EXO_SHELL: "/bin/cat",
+        EXO_SHELL_ARGS: "",
+      },
+    });
+
+    const terminalTabBox = await page.getByTestId("terminal-tab-shell").first().boundingBox();
+    const editorBox = await getBoundingBox(page, ".pane-leaf--editor");
+    expect(terminalTabBox).not.toBeNull();
+
+    await manualDrag(
+      page,
+      { x: terminalTabBox!.x + terminalTabBox!.width / 2, y: terminalTabBox!.y + terminalTabBox!.height / 2 },
+      { x: editorBox.x + editorBox.width / 2, y: editorBox.y + editorBox.height / 2 },
+    );
+
+    const workspaceTerminal = page.locator(".workspace__body .pane-leaf--terminal").first();
+    await expect(workspaceTerminal).toBeVisible();
+    await expect(page.getByTestId("terminal-expand")).toBeVisible();
+
+    await workspaceTerminal.getByTestId("terminal-surface").click();
+    await page.keyboard.type("canvas terminal\n");
+    await expect(workspaceTerminal.locator(".xterm-rows")).toContainText("canvas terminal");
+
+    await workspaceTerminal.getByTestId("close-terminal-shell").click();
+    await expect(page.locator(".workspace__body .pane-leaf--terminal")).toHaveCount(0);
+    await expect(page.locator(".workspace__body .pane-leaf--editor")).toBeVisible();
+    await expect(page.getByTestId("terminal-expand")).toBeVisible();
+
+    await cleanup();
+  });
 });
 
 test.describe("Explorer file moves", () => {
