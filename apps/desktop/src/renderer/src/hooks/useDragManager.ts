@@ -41,15 +41,20 @@ export interface DragManager {
 
 export type DropEdge = "top" | "bottom" | "left" | "right" | "center";
 export type PaneDropKind = "editor" | "terminal";
+export type PaneDropZone = "workspace" | "terminal-dock";
 export type DragDropTarget =
-  | { kind: "pane"; leafId: string; edge: DropEdge; paneKind: PaneDropKind }
+  | { kind: "pane"; leafId: string; edge: DropEdge; paneKind: PaneDropKind; paneZone: PaneDropZone }
   | { kind: "explorer"; targetPath: string; targetKind: "directory" | "file" };
 
 const DRAG_THRESHOLD = 5;
 
-function acceptsPayload(paneKind: string | undefined, payload: DragPayload): paneKind is PaneDropKind {
+function acceptsPayload(
+  paneKind: string | undefined,
+  paneZone: string | undefined,
+  payload: DragPayload,
+): paneKind is PaneDropKind {
   if (payload.kind === "document" || (payload.kind === "workspace-path" && payload.nodeKind === "file")) {
-    return paneKind === "editor";
+    return paneKind === "editor" || (paneKind === "terminal" && paneZone === "workspace");
   }
   if (payload.kind === "workspace-path") {
     return false;
@@ -123,7 +128,7 @@ export function useDragManager(
 
         const leafId = tab.dataset.tabDropPaneId;
         if (!leafId || !acceptsTabTarget(tab.dataset.tabDropKind, payload)) continue;
-        return { kind: "pane", leafId, edge: "center", paneKind: tab.dataset.tabDropKind };
+        return { kind: "pane", leafId, edge: "center", paneKind: tab.dataset.tabDropKind, paneZone: "workspace" };
       }
       return null;
     }
@@ -141,7 +146,7 @@ export function useDragManager(
 
       const leaves = document.querySelectorAll<HTMLElement>("[data-pane-id]");
       for (const leaf of leaves) {
-        if (!acceptsPayload(leaf.dataset.paneKind, payload)) continue;
+        if (!acceptsPayload(leaf.dataset.paneKind, leaf.dataset.paneZone, payload)) continue;
 
         const rect = leaf.getBoundingClientRect();
         if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) continue;
@@ -157,7 +162,13 @@ export function useDragManager(
         else if (relX > 0.75) edge = "right";
         else edge = "center";
 
-        return { kind: "pane", leafId, edge, paneKind: leaf.dataset.paneKind };
+        return {
+          kind: "pane",
+          leafId,
+          edge,
+          paneKind: leaf.dataset.paneKind,
+          paneZone: leaf.dataset.paneZone === "terminal-dock" ? "terminal-dock" : "workspace",
+        };
       }
       return null;
     }

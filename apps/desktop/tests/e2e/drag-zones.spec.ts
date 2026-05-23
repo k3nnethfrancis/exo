@@ -365,6 +365,40 @@ test.describe("Cross-zone terminal tab moves", () => {
 
     await cleanup();
   });
+
+  test("dragging an editor tab onto a canvas terminal pane splits the shared graph", async () => {
+    const { page, cleanup } = await launchExoFixture();
+
+    const terminalTabBox = await page.getByTestId("terminal-tab-shell").first().boundingBox();
+    const editorBox = await getBoundingBox(page, ".pane-leaf--editor");
+    expect(terminalTabBox).not.toBeNull();
+
+    await manualDrag(
+      page,
+      { x: terminalTabBox!.x + terminalTabBox!.width / 2, y: terminalTabBox!.y + terminalTabBox!.height / 2 },
+      { x: editorBox.x + editorBox.width / 2, y: editorBox.y + editorBox.height / 2 },
+    );
+
+    await expect(page.getByTestId("terminal-expand")).toBeVisible();
+    await expect(page.locator(".workspace__body .pane-leaf--terminal")).toHaveCount(1);
+
+    const editorTabBox = await page.locator(".workspace__body .pane-leaf--editor .chrome-tab").first().boundingBox();
+    const canvasTerminalBox = await page.locator(".workspace__body .pane-leaf--terminal").first().boundingBox();
+    expect(editorTabBox).not.toBeNull();
+    expect(canvasTerminalBox).not.toBeNull();
+
+    await manualDrag(
+      page,
+      { x: editorTabBox!.x + editorTabBox!.width / 2, y: editorTabBox!.y + editorTabBox!.height / 2 },
+      { x: canvasTerminalBox!.x + canvasTerminalBox!.width * 0.9, y: canvasTerminalBox!.y + canvasTerminalBox!.height / 2 },
+    );
+
+    await expect(page.locator(".workspace__body .pane-leaf--terminal")).toHaveCount(1);
+    await expect(page.locator(".workspace__body .pane-leaf--editor")).toHaveCount(2);
+    await expect(page.getByTestId("terminal-expand")).toBeVisible();
+
+    await cleanup();
+  });
 });
 
 test.describe("Explorer file moves", () => {

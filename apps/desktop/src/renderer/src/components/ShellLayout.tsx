@@ -216,6 +216,7 @@ export function ShellLayout(props: ShellLayoutProps) {
       actions={editorPaneTree.actions}
       focusedLeafId={editorPaneTree.focusedLeafId}
       renderLeaf={renderEditorLeaf}
+      dropZone="workspace"
       hoverEdge={dragManager.hoverEdge}
     />
   );
@@ -226,6 +227,7 @@ export function ShellLayout(props: ShellLayoutProps) {
       actions={terminalPaneTree.actions}
       focusedLeafId={terminalPaneTree.focusedLeafId}
       renderLeaf={renderTerminalLeaf}
+      dropZone="terminal-dock"
       hoverEdge={dragManager.hoverEdge}
     />
   );

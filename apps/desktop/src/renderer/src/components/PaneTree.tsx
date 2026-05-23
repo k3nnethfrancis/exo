@@ -13,6 +13,7 @@ export interface PaneTreeProps {
   actions: PaneTreeActions;
   focusedLeafId: PaneNodeId;
   renderLeaf: (leaf: PaneLeaf, isFocused: boolean) => ReactNode;
+  dropZone?: "workspace" | "terminal-dock";
   /** Which leaf+edge is currently hovered during a drag (from DragManager) */
   hoverEdge?: DragDropTarget | null;
 }
@@ -21,7 +22,7 @@ export interface PaneTreeProps {
 // PaneTree — recursive renderer
 // ---------------------------------------------------------------------------
 
-export function PaneTree({ node, actions, focusedLeafId, renderLeaf, hoverEdge }: PaneTreeProps) {
+export function PaneTree({ node, actions, focusedLeafId, renderLeaf, dropZone = "workspace", hoverEdge }: PaneTreeProps) {
   if (node.kind === "leaf") {
     return (
       <PaneLeafContainer
@@ -29,6 +30,7 @@ export function PaneTree({ node, actions, focusedLeafId, renderLeaf, hoverEdge }
         isFocused={node.id === focusedLeafId}
         onFocus={() => actions.focusLeaf(node.id)}
         renderLeaf={renderLeaf}
+        dropZone={dropZone}
         hoverEdge={hoverEdge?.kind === "pane" && hoverEdge.leafId === node.id ? hoverEdge.edge : null}
       />
     );
@@ -40,6 +42,7 @@ export function PaneTree({ node, actions, focusedLeafId, renderLeaf, hoverEdge }
       actions={actions}
       focusedLeafId={focusedLeafId}
       renderLeaf={renderLeaf}
+      dropZone={dropZone}
       hoverEdge={hoverEdge}
     />
   );
@@ -54,12 +57,14 @@ function PaneSplitContainer({
   actions,
   focusedLeafId,
   renderLeaf,
+  dropZone,
   hoverEdge,
 }: {
   node: PaneNode & { kind: "split" };
   actions: PaneTreeActions;
   focusedLeafId: PaneNodeId;
   renderLeaf: (leaf: PaneLeaf, isFocused: boolean) => ReactNode;
+  dropZone: "workspace" | "terminal-dock";
   hoverEdge?: DragDropTarget | null;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -86,6 +91,7 @@ function PaneSplitContainer({
         actions={actions}
         focusedLeafId={focusedLeafId}
         renderLeaf={renderLeaf}
+        dropZone={dropZone}
         hoverEdge={hoverEdge}
       />
       <PaneSplitResizer
@@ -108,6 +114,7 @@ function PaneSplitContainer({
         actions={actions}
         focusedLeafId={focusedLeafId}
         renderLeaf={renderLeaf}
+        dropZone={dropZone}
         hoverEdge={hoverEdge}
       />
     </div>
@@ -142,12 +149,14 @@ function PaneLeafContainer({
   isFocused,
   onFocus,
   renderLeaf,
+  dropZone,
   hoverEdge,
 }: {
   leaf: PaneLeaf;
   isFocused: boolean;
   onFocus: () => void;
   renderLeaf: (leaf: PaneLeaf, isFocused: boolean) => ReactNode;
+  dropZone: "workspace" | "terminal-dock";
   hoverEdge: DropEdge | null;
 }) {
   return (
@@ -156,6 +165,7 @@ function PaneLeafContainer({
       onMouseDown={onFocus}
       data-pane-id={leaf.id}
       data-pane-kind={leaf.content.kind}
+      data-pane-zone={dropZone}
     >
       {renderLeaf(leaf, isFocused)}
       {hoverEdge ? (

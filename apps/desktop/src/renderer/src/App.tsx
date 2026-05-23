@@ -2025,12 +2025,14 @@ export function App() {
   function handleDocumentDrop(leafId: PaneNodeId, edge: DropEdge, filePath: string, sourceLeafId?: string) {
     // Ensure the document content is loaded (may be a new file dragged from explorer)
     void ensureDocumentLoaded(filePath);
+    const targetLeaf = findNode(editorTree, (n) => n.id === leafId && n.kind === "leaf") as PaneLeaf | undefined;
+    const dropEdge = targetLeaf?.content.kind === "terminal" && edge === "center" ? "right" : edge;
 
     // All operations are within the editor tree only.
     const isEmptyEditor = (leaf: PaneLeaf) =>
       leaf.content.kind === "editor" && leaf.content.openPaths.length === 0;
 
-    if (edge === "center") {
+    if (dropEdge === "center") {
       editorActions.setTree((prev) => {
         let tree = mapLeaves(prev, (leaf) => {
           if (leaf.content.kind !== "editor") return leaf;
@@ -2072,8 +2074,8 @@ export function App() {
         }
       }
 
-      const direction: "horizontal" | "vertical" = (edge === "left" || edge === "right") ? "horizontal" : "vertical";
-      const position: "before" | "after" = (edge === "left" || edge === "top") ? "before" : "after";
+      const direction: "horizontal" | "vertical" = (dropEdge === "left" || dropEdge === "right") ? "horizontal" : "vertical";
+      const position: "before" | "after" = (dropEdge === "left" || dropEdge === "top") ? "before" : "after";
       const newLeafId = `pane-${Date.now().toString(36)}`;
       const newContent: EditorPaneContent = { kind: "editor", openPaths: [filePath], activePath: filePath };
 
