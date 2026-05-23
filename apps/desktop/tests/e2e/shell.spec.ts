@@ -108,6 +108,28 @@ test("opens project files and creates note branches", async () => {
   await cleanup();
 });
 
+test("shows changed project files in the project drawer", async () => {
+  const { page, cleanup } = await launchExoFixture({
+    mutable: true,
+    prepareWorkspace: async (workspaceRoot) => {
+      const projectRoot = path.join(workspaceRoot, "projects/sample-project");
+      spawnSync("git", ["init"], { cwd: projectRoot, stdio: "ignore" });
+      spawnSync("git", ["config", "user.email", "exo@example.test"], { cwd: projectRoot, stdio: "ignore" });
+      spawnSync("git", ["config", "user.name", "Exo Test"], { cwd: projectRoot, stdio: "ignore" });
+      spawnSync("git", ["add", "."], { cwd: projectRoot, stdio: "ignore" });
+      spawnSync("git", ["commit", "-m", "fixture"], { cwd: projectRoot, stdio: "ignore" });
+      await writeFile(path.join(projectRoot, "src/demo.ts"), "export const demo = 'changed';\n");
+    },
+  });
+
+  await page.getByTestId("project-roots-toggle").click();
+  await expect(page.getByTestId("project-changes")).toContainText("src/demo.ts");
+  await page.getByTestId("project-changes").getByRole("button", { name: /src\/demo\.ts/ }).click();
+  await expect(page.getByTestId("editor-title")).toHaveText("demo.ts");
+
+  await cleanup();
+});
+
 test("opens a new terminal from a project folder context menu", async () => {
   const { page, cleanup } = await launchExoFixture({
     env: {

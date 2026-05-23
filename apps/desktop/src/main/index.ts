@@ -627,17 +627,35 @@ async function getGitStatus(rootPath: string) {
   try {
     const [{ stdout: branchStdout }, { stdout: statusStdout }] = await Promise.all([
       execFileAsync("git", ["-C", rootPath, "branch", "--show-current"]),
-      execFileAsync("git", ["-C", rootPath, "status", "--porcelain"]),
+      execFileAsync("git", ["-C", rootPath, "status", "--porcelain", "--", "."]),
     ]);
 
     return {
       rootPath,
       branch: branchStdout.trim() || null,
       dirty: statusStdout.trim().length > 0,
+      changes: parseGitStatusChanges(rootPath, statusStdout),
     };
   } catch {
     return null;
   }
+}
+
+function parseGitStatusChanges(rootPath: string, output: string) {
+  return output
+    .split(/\r?\n/)
+    .map((line) => line.trimEnd())
+    .filter(Boolean)
+    .map((line) => {
+      const status = line.slice(0, 2).trim() || "??";
+      const rawPath = line.slice(3).trim();
+      const filePath = rawPath.includes(" -> ") ? rawPath.split(" -> ").at(-1) ?? rawPath : rawPath;
+      return {
+        path: filePath,
+        absolutePath: path.resolve(rootPath, filePath),
+        status,
+      };
+    });
 }
 
 async function fileExists(targetPath: string): Promise<boolean> {

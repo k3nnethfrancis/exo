@@ -4,6 +4,7 @@ import {
   ClipboardCopy,
   FilePlus2,
   FolderPlus,
+  GitCompare,
   Monitor,
   MoonStar,
   PanelLeftClose,
@@ -16,6 +17,7 @@ import {
   Trash2,
 } from "lucide-react";
 import type { WorkspaceSearchResults } from "@exo/core";
+import type { WorkspaceGitChange } from "../../../shared/api";
 import type { AppearanceMode, ResolvedAppearance } from "../App";
 import type { DragManager } from "../hooks/useDragManager";
 import type { WorkspaceSearchResultMode } from "../hooks/useWorkspaceSearch";
@@ -39,6 +41,7 @@ interface FileTreeProps {
   searchResultMode: WorkspaceSearchResultMode;
   searchResultQuery: string;
   searchMessage: string | null;
+  projectChanges: Array<WorkspaceGitChange & { rootPath: string; rootLabel: string }>;
   onAppearanceModeChange: (mode: AppearanceMode) => void;
   onToggleCollapsed: () => void;
   onOpenWorkspaceSettings: () => void;
@@ -138,6 +141,7 @@ export function FileTree(props: FileTreeProps) {
     onToggleCollapsed,
     onOpenWorkspaceSettings,
     onOpenFile,
+    projectChanges,
     onExpandDirectory,
     explorerScale,
     onFocusExplorer,
@@ -353,6 +357,7 @@ export function FileTree(props: FileTreeProps) {
             onCollapsedChange={(collapsed) => setProjectRootsExpanded(!collapsed)}
             mirrored={mirrored}
           >
+            <ProjectChanges changes={projectChanges} onOpenFile={onOpenFile} />
             <Section
               label="Projects"
               rootKind="projects"
@@ -460,6 +465,42 @@ export function FileTree(props: FileTreeProps) {
         </>
       ) : null}
     </aside>
+  );
+}
+
+function ProjectChanges({
+  changes,
+  onOpenFile,
+}: {
+  changes: Array<WorkspaceGitChange & { rootPath: string; rootLabel: string }>;
+  onOpenFile: (filePath: string) => void;
+}) {
+  if (changes.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="project-changes" data-testid="project-changes">
+      <div className="project-changes__title">
+        <GitCompare size={13} />
+        Changes
+      </div>
+      <div className="project-changes__list">
+        {changes.slice(0, 20).map((change) => (
+          <button
+            className="project-change"
+            key={`${change.rootPath}:${change.path}:${change.status}`}
+            onClick={() => onOpenFile(change.absolutePath)}
+            title={`${change.status} ${change.absolutePath}`}
+            type="button"
+          >
+            <span className="project-change__status">{change.status}</span>
+            <span className="project-change__path">{change.path}</span>
+            <span className="project-change__root">{change.rootLabel}</span>
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 

@@ -8,6 +8,7 @@ import type { DragManager, DragPayload } from "../hooks/useDragManager";
 import type { WorkspaceSearchResultMode } from "../hooks/useWorkspaceSearch";
 import type { AppearanceMode, ResolvedAppearance } from "../App";
 import type { TreeNode, WorkspaceSearchResults } from "@exo/core";
+import type { WorkspaceGitChange } from "../../../shared/api";
 
 interface RootSection {
   label: string;
@@ -32,6 +33,7 @@ interface ShellLayoutProps {
   searchResultMode: WorkspaceSearchResultMode;
   searchResultQuery: string;
   searchMessage: string | null;
+  projectChanges: Array<WorkspaceGitChange & { rootPath: string; rootLabel: string }>;
   statusLine: {
     workspaceLabel: string;
     projectLabel: string | null;
@@ -98,6 +100,7 @@ export function ShellLayout(props: ShellLayoutProps) {
     searchResultMode,
     searchResultQuery,
     searchMessage,
+    projectChanges,
     statusLine,
     shellLayout,
     renderEditorLeaf,
@@ -179,6 +182,7 @@ export function ShellLayout(props: ShellLayoutProps) {
       searchResultMode={searchResultMode}
       searchResultQuery={searchResultQuery}
       searchMessage={searchMessage}
+      projectChanges={projectChanges}
       onAppearanceModeChange={onAppearanceModeChange}
       onToggleCollapsed={() => setSidebarCollapsed((current) => !current)}
       onOpenWorkspaceSettings={onOpenWorkspaceSettings}

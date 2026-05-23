@@ -36,7 +36,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [ ] Keep project imports explicit; do not auto-load every workspace project folder.
 - [x] Add CLI/MCP commands to list attached project roots.
 - [x] Add CLI/MCP commands to add and remove attached project roots.
-- [ ] Add a changed-files view for agent-authored project edits.
+- [x] Add a changed-files view for agent-authored project edits.
 - [ ] Link terminal-agent sessions/messages to files they changed when Exo can observe the relationship.
 - [ ] Add code-review affordances for jumping from an agent session to a changed file and line.
 - [ ] Track external file changes without resetting editor scroll or causing flicker.

@@ -44,6 +44,13 @@ export interface WorkspaceGitStatus {
   rootPath: string;
   branch: string | null;
   dirty: boolean;
+  changes: WorkspaceGitChange[];
+}
+
+export interface WorkspaceGitChange {
+  path: string;
+  absolutePath: string;
+  status: string;
 }
 
 export interface WorkspaceSetupState {

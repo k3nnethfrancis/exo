@@ -12,7 +12,7 @@ import type {
   WorkspaceSettings,
 } from "@exo/core";
 
-import type { TerminalSessionInfo, WorkspaceGitStatus, WorkspaceRegistryEntry } from "../../shared/api";
+import type { TerminalSessionInfo, WorkspaceGitChange, WorkspaceGitStatus, WorkspaceRegistryEntry } from "../../shared/api";
 import type { FileStatInfo } from "../../shared/api";
 
 import { EditorPane, type EditorPaneState } from "./components/EditorPane";
@@ -176,6 +176,7 @@ export function App() {
   const [branchFamiliesByPath, setBranchFamiliesByPath] = useState<Record<string, BranchFamily>>({});
   const [activeDocumentPath, setActiveDocumentPath] = useState<string | null>(null);
   const [workspaceGitStatus, setWorkspaceGitStatus] = useState<WorkspaceGitStatus | null>(null);
+  const [projectGitChanges, setProjectGitChanges] = useState<Array<WorkspaceGitChange & { rootPath: string; rootLabel: string }>>([]);
   const [propertiesCollapsed, setPropertiesCollapsed] = useState(true);
   const [tagResults, setTagResults] = useState<SearchResult[]>([]);
   const [activeTag, setActiveTag] = useState<string | null>(null);
@@ -243,20 +244,36 @@ export function App() {
   }, [activeDocumentPath]);
 
   useEffect(() => {
-    const projectRoot = workspaceModel?.projectRoots[0] ?? null;
-    if (!projectRoot) {
+    const projectRoots = workspaceModel?.projectRoots ?? [];
+    if (projectRoots.length === 0) {
       setWorkspaceGitStatus(null);
+      setProjectGitChanges([]);
       return;
     }
 
     let cancelled = false;
-    void window.exo.workspace.getGitStatus(projectRoot.path).then((status) => {
+    void Promise.all(
+      projectRoots.map(async (root) => ({
+        root,
+        status: await window.exo.workspace.getGitStatus(root.path).catch(() => null),
+      })),
+    ).then((results) => {
       if (!cancelled) {
-        setWorkspaceGitStatus(status);
+        setWorkspaceGitStatus(results[0]?.status ?? null);
+        setProjectGitChanges(
+          results.flatMap(({ root, status }) =>
+            (status?.changes ?? []).map((change) => ({
+              ...change,
+              rootPath: root.path,
+              rootLabel: root.label,
+            })),
+          ),
+        );
       }
     }).catch(() => {
       if (!cancelled) {
         setWorkspaceGitStatus(null);
+        setProjectGitChanges([]);
       }
     });
 
@@ -2395,6 +2412,7 @@ export function App() {
       searchResultMode={workspaceSearch.resultMode}
       searchResultQuery={workspaceSearch.resultQuery}
       searchMessage={workspaceSearch.message}
+      projectChanges={projectGitChanges}
       statusLine={{
         workspaceLabel: workspaceModel ? pathLabel(workspaceModel.workspaceRoot) : "workspace",
         projectLabel: workspaceModel?.projectRoots[0] ? pathLabel(workspaceModel.projectRoots[0].path) : null,
