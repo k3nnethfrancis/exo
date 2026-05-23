@@ -69,6 +69,7 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Added workspace-layout persistence for editor/terminal pane trees, side-pane placement, split ratios, sidebar width, and inspector/terminal collapsed state, with guarded settings normalization and e2e coverage for terminal panes restored in the editor canvas after reload.
 - Completed the first shared file/terminal pane graph behavior: canvas terminal leaves now accept document/file edge drops to split the main workspace graph, while the separate terminal dock still rejects document drops.
 - Broadened workspace pane regression coverage for canvas terminal streaming and pruning after closing the last workspace terminal session.
+- Hardened the repo-backed `exo` launcher and local installer against stale Corepack package-manager signature metadata by defaulting `COREPACK_ENABLE_PROJECT_SPEC=0` for Exo-managed pnpm invocations.
 
 ## Next Priorities
 

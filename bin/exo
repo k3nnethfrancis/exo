@@ -9,4 +9,5 @@ while [ -L "$SOURCE" ]; do
 done
 
 ROOT="$(cd -P "$(dirname "$SOURCE")/.." && pwd)"
+export COREPACK_ENABLE_PROJECT_SPEC="${COREPACK_ENABLE_PROJECT_SPEC:-0}"
 exec pnpm --dir "$ROOT" exec tsx packages/cli/src/index.ts "$@"

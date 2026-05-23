@@ -621,6 +621,7 @@ export async function runCli(
       env: {
         ...process.env,
         ...env,
+        COREPACK_ENABLE_PROJECT_SPEC: env.COREPACK_ENABLE_PROJECT_SPEC ?? process.env.COREPACK_ENABLE_PROJECT_SPEC ?? "0",
         EXO_WORKSPACE_ROOT: env.EXO_WORKSPACE_ROOT ?? projectRoot,
         EXO_DEFAULT_TERMINAL_CWD: env.EXO_DEFAULT_TERMINAL_CWD ?? env.EXO_WORKSPACE_ROOT ?? projectRoot,
       },

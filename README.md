@@ -73,10 +73,17 @@ Before broad public binary release, Exo still needs signed/notarized macOS packa
 Prerequisites:
 
 - Node.js 22 or newer.
-- pnpm 11.2.2. Corepack will use the version pinned in `package.json`; with Homebrew pnpm, run `pnpm --version` and upgrade if needed.
+- pnpm 11.2.2. With Homebrew pnpm, run `pnpm --version` and upgrade if needed.
 - tmux for persistent Claude/Codex terminal sessions.
 
-If Corepack fails before install with a package-manager signature or key error, update Node/Corepack or install pnpm 11.2.2 through your system package manager, then rerun `pnpm install`.
+If Corepack fails before install with a package-manager signature or key error, either update Node/Corepack or use your installed pnpm directly:
+
+```bash
+COREPACK_ENABLE_PROJECT_SPEC=0 pnpm install
+COREPACK_ENABLE_PROJECT_SPEC=0 pnpm dev
+```
+
+The repo-backed `exo` launcher and `scripts/install-local` set `COREPACK_ENABLE_PROJECT_SPEC=0` automatically so `exo dev` does not trip stale Corepack key metadata.
 
 ```bash
 pnpm install
