@@ -8,7 +8,7 @@
     "exo-mcp": "bin/exo-mcp.mjs"
   },
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/index.js --log-level=silent",
+    "build": "node scripts/build.mjs",
     "start": "node bin/exo-mcp.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"

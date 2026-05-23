@@ -18,10 +18,17 @@ import {
   resolveAgentLaunchPlan,
   resolveRuntimeConfig,
   resolveWorkspaceModel,
+  loadActiveWorkspaceSettings,
+  listWorkspaceRegistryEntries,
+  getWorkspaceRegistryEntry,
+  saveWorkspaceSettings,
+  resolveWorkspaceSettingsPath,
   searchIndex,
   searchNotes,
   searchWorkspace,
   syncRuntimeContextFiles,
+  workspaceEnvOverrides,
+  workspaceSettingsToEnv,
   type ManagedAgentKind,
   type ExoMcpIntegrationClient,
 } from "@exo/core";
@@ -94,7 +101,7 @@ export async function runCli(
       throw new Error("Expected a search query.");
     }
 
-    const config = resolveRuntimeConfig(env);
+    const config = await resolveCliRuntimeConfig(env);
     const client = await connectAppClient(config.runtimeRoot, env);
     const limit = parsePositiveInt(values.limit);
     const results = client
@@ -112,7 +119,7 @@ export async function runCli(
     }
     const targetPath = target.startsWith("#") ? target : path.resolve(cwd, target);
 
-    const config = resolveRuntimeConfig(env);
+    const config = await resolveCliRuntimeConfig(env);
     const client = await connectAppClient(config.runtimeRoot, env);
     const result = client
       ? await client.readDocument(targetPath, { fromLine: parsePositiveInt(values.from), maxLines: parsePositiveInt(values.lines) })
@@ -177,7 +184,7 @@ export async function runCli(
 
   if (command === "integrations") {
     const exoRoot = resolveExoRoot(env);
-    const workspaceRoot = resolveRuntimeConfig(env).workspace.workspaceRoot;
+    const workspaceRoot = (await resolveCliRuntimeConfig(env)).workspace.workspaceRoot;
     const targets = parseIntegrationTargets(args);
 
     if (subcommand === "doctor" || !subcommand) {
@@ -471,8 +478,38 @@ export async function runCli(
   // ─── Workspace commands ──────────────────────────────────────────────
 
   if (command === "workspace" && subcommand === "status") {
-    const model = resolveWorkspaceModel(env);
+    const model = resolveWorkspaceModel(await resolveCliWorkspaceEnv(env));
     stdout.write(`${JSON.stringify(model, null, 2)}\n`);
+    return 0;
+  }
+
+  if (command === "workspace" && subcommand === "current") {
+    const settings = workspaceEnvOverrides(env) ? null : await loadActiveWorkspaceSettings(env);
+    const model = resolveWorkspaceModel(settings ? { ...env, ...workspaceSettingsToEnv(settings) } : env);
+    stdout.write(`${JSON.stringify({ workspace: model, settingsPath: resolveWorkspaceSettingsPath(env), source: settings ? "registry" : "env" }, null, 2)}\n`);
+    return 0;
+  }
+
+  if (command === "workspace" && subcommand === "list") {
+    const workspaces = await listWorkspaceRegistryEntries(env, await loadActiveWorkspaceSettings(env));
+    stdout.write(`${JSON.stringify(workspaces, null, 2)}\n`);
+    return 0;
+  }
+
+  if (command === "workspace" && subcommand === "use") {
+    const target = args[0];
+    if (!target) {
+      throw new Error("Usage: exo workspace use <workspace-id-or-notes-path>");
+    }
+    const workspaces = await listWorkspaceRegistryEntries(env, await loadActiveWorkspaceSettings(env));
+    const selected =
+      workspaces.find((workspace) => workspace.id === target || workspace.notesFolder === path.resolve(cwd, target) || workspace.notesFolder === target) ??
+      await getWorkspaceRegistryEntry(target, env);
+    if (!selected) {
+      throw new Error(`Workspace not found: ${target}`);
+    }
+    await saveWorkspaceSettings(selected.settings, env);
+    stdout.write(`${JSON.stringify(selected, null, 2)}\n`);
     return 0;
   }
 
@@ -484,7 +521,7 @@ export async function runCli(
 
   if (command === "workspace" && subcommand === "search") {
     const query = args.join(" ");
-    const model = resolveWorkspaceModel(env);
+    const model = resolveWorkspaceModel(await resolveCliWorkspaceEnv(env));
     const results = await searchWorkspace(model, query);
     stdout.write(`${JSON.stringify(results, null, 2)}\n`);
     return 0;
@@ -494,7 +531,7 @@ export async function runCli(
 
   if (command === "notes" && subcommand === "search") {
     const query = args.join(" ");
-    const model = resolveWorkspaceModel(env);
+    const model = resolveWorkspaceModel(await resolveCliWorkspaceEnv(env));
     const results = await searchNotes(model, query);
     stdout.write(`${JSON.stringify(results, null, 2)}\n`);
     return 0;
@@ -518,7 +555,7 @@ export async function runCli(
     }
 
     const document = await readWorkspaceDocument(targetPath);
-    const model = resolveWorkspaceModel(env);
+    const model = resolveWorkspaceModel(await resolveCliWorkspaceEnv(env));
     const result = await createBranchFile(targetPath, document, model.noteRoots.map((root) => root.path));
     stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     return 0;
@@ -530,7 +567,7 @@ export async function runCli(
       throw new Error("Expected a markdown note path.");
     }
 
-    const model = resolveWorkspaceModel(env);
+    const model = resolveWorkspaceModel(await resolveCliWorkspaceEnv(env));
     const family = await getBranchFamily(targetPath, model.noteRoots.map((root) => root.path));
     stdout.write(`${JSON.stringify(family, null, 2)}\n`);
     return 0;
@@ -539,7 +576,7 @@ export async function runCli(
   // ─── Runtime commands ────────────────────────────────────────────────
 
   if (command === "runtime" && subcommand === "status") {
-    const config = resolveRuntimeConfig(env);
+    const config = await resolveCliRuntimeConfig(env);
     stdout.write(`${JSON.stringify(config, null, 2)}\n`);
     return 0;
   }
@@ -550,7 +587,7 @@ export async function runCli(
       throw new Error("Expected one of: shell, claude, codex.");
     }
 
-    const config = resolveRuntimeConfig(env);
+    const config = await resolveCliRuntimeConfig(env);
     const content = renderPrimaryAgentInstructions(config);
     stdout.write(`${content}\n`);
     return 0;
@@ -562,14 +599,14 @@ export async function runCli(
       throw new Error("Expected one of: shell, claude, codex.");
     }
 
-    const config = resolveRuntimeConfig(env);
+    const config = await resolveCliRuntimeConfig(env);
     const launchPlan = resolveAgentLaunchPlan(config, kind, args[1]);
     stdout.write(`${JSON.stringify(launchPlan, null, 2)}\n`);
     return 0;
   }
 
   if (command === "runtime" && subcommand === "sync") {
-    const config = resolveRuntimeConfig(env);
+    const config = await resolveCliRuntimeConfig(env);
     const paths = await syncRuntimeContextFiles(config);
     stdout.write(`${JSON.stringify(paths, null, 2)}\n`);
     return 0;
@@ -608,7 +645,7 @@ export async function runCli(
       throw new Error("Expected one of: shell, claude, codex.");
     }
 
-    const config = resolveRuntimeConfig(env);
+    const config = await resolveCliRuntimeConfig(env);
     await syncRuntimeContextFiles(config);
     const launchPlan = resolveAgentLaunchPlan(config, kind, args[0]);
     return launchAgent(launchPlan, { env, stdin, stdout, stderr });
@@ -647,6 +684,9 @@ export async function runCli(
       "  exo agents terminate <id>                  Terminate agent (app)",
       "  exo launch <shell|claude|codex> [cwd]",
       "  exo workspace status",
+      "  exo workspace current",
+      "  exo workspace list",
+      "  exo workspace use <workspace-id-or-notes-path>",
       "  exo workspace search <query>",
       "  exo notes search <query>",
       "  exo notes read <path>",
@@ -670,13 +710,25 @@ async function connectOrFail(
   stderr: { write: (text: string) => void },
   connectAppClient: AppClientConnector,
 ): Promise<AppClientLike | null> {
-  const config = resolveRuntimeConfig(env);
+  const config = await resolveCliRuntimeConfig(env);
   const client = await connectAppClient(config.runtimeRoot, env);
   if (!client) {
     stderr.write("Exo app is not running. Start it with: exo dev\n");
     return null;
   }
   return client;
+}
+
+async function resolveCliWorkspaceEnv(env: NodeJS.ProcessEnv): Promise<NodeJS.ProcessEnv> {
+  if (workspaceEnvOverrides(env)) {
+    return env;
+  }
+  const settings = await loadActiveWorkspaceSettings(env);
+  return settings ? { ...env, ...workspaceSettingsToEnv(settings) } : env;
+}
+
+async function resolveCliRuntimeConfig(env: NodeJS.ProcessEnv) {
+  return resolveRuntimeConfig(await resolveCliWorkspaceEnv(env));
 }
 
 async function launchAgent(

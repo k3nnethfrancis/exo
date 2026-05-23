@@ -39,6 +39,8 @@ Manual config shape:
 
 With `EXO_MCP_AUTOSTART=1`, the MCP server starts Exo when the local command server is missing or stale, then waits for `.exo/server.json`.
 
+Workspace resolution matches the CLI: explicit `EXO_RUNTIME_ROOT` or workspace env vars win; otherwise MCP reads Exo's active desktop workspace registry and uses that workspace's `.exo/server.json`.
+
 Optional environment:
 
 - `EXO_MCP_START_COMMAND` — shell command used to start Exo. Defaults to this repo's `bin/exo dev`.

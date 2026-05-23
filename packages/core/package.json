@@ -6,7 +6,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./command-protocol": "./src/command-protocol.ts"
+    "./command-protocol": "./src/command-protocol.ts",
+    "./workspace-settings": "./src/workspace-settings.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",

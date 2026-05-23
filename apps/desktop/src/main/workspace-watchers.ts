@@ -1,5 +1,5 @@
 import path from "node:path";
-import { watch, type FSWatcher } from "node:fs";
+import { existsSync, watch, type FSWatcher } from "node:fs";
 
 import type { WorkspaceModel } from "@exo/core";
 
@@ -23,6 +23,10 @@ export class WorkspaceWatcherService {
     const uniqueRootPaths = [...new Set(rootPaths)];
 
     for (const rootPath of uniqueRootPaths) {
+      if (!existsSync(rootPath)) {
+        continue;
+      }
+
       try {
         const watcher = watch(rootPath, { recursive: true }, (eventType, filename) => {
           this.queue({

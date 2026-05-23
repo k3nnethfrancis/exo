@@ -4,7 +4,7 @@
   "version": "0.1.0-alpha.2",
   "description": "Local-first agentic development environment built around a shared exocortex for humans and terminal agents.",
   "license": "Apache-2.0",
-  "packageManager": "pnpm@10.15.0",
+  "packageManager": "pnpm@11.2.2",
   "scripts": {
     "dev": "EXO_WORKSPACE_ROOT=${EXO_WORKSPACE_ROOT:-$PWD} EXO_DEFAULT_TERMINAL_CWD=${EXO_DEFAULT_TERMINAL_CWD:-$PWD} pnpm --filter @exo/desktop dev",
     "exo": "tsx packages/cli/src/index.ts",
@@ -30,21 +30,7 @@
     "esbuild": "0.27.4",
     "tsx": "4.21.0",
     "typescript": "5.9.3",
+    "vite": "8.0.14",
     "vitest": "4.1.0"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "better-sqlite3",
-      "electron",
-      "electron-winstaller",
-      "esbuild",
-      "node-llama-cpp",
-      "node-pty",
-      "tree-sitter-go",
-      "tree-sitter-javascript",
-      "tree-sitter-python",
-      "tree-sitter-rust",
-      "tree-sitter-typescript"
-    ]
   }
 }

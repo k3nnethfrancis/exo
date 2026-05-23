@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 
 import { runCli } from "./index";
+import { saveWorkspaceSettings } from "@exo/core";
 
 describe("cli package", () => {
   it("renders runtime status", async () => {
@@ -25,6 +28,45 @@ describe("cli package", () => {
     expect(exitCode).toBe(0);
     expect(stdout).toContain('"workspaceRoot": "/tmp/exo-test-workspace"');
     expect(stdout).toContain('"kind": "qmd"');
+  });
+
+  it("uses the active workspace registry when env does not override workspace paths", async () => {
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-cli-workspace-registry-"));
+    let stdout = "";
+
+    try {
+      await saveWorkspaceSettings({
+        workspaceRoot: "/tmp/exo-active/notes",
+        defaultTerminalCwd: "/tmp/exo-active/project",
+        noteRoots: ["/tmp/exo-active/notes"],
+        projectRoots: ["/tmp/exo-active/project"],
+        indexedRoots: [],
+        indexing: { enabled: false, mode: "off", backend: "qmd" },
+        appearanceMode: "system",
+        editorFontSize: 15,
+        terminalFontSize: 13,
+        terminalHistoryMode: "full",
+        terminalHistoryLines: 1_000_000,
+        terminalTranscriptRetention: "forever",
+        terminalTranscriptRetentionDays: 14,
+        terminalStreamingMode: "visible",
+        explorerScale: 1,
+        exploreIndexSearchOnEnter: false,
+        indexUpdateStrategy: "on-save",
+      }, { EXO_USER_DATA_PATH: userDataPath });
+
+      const exitCode = await runCli(["node", "exo-cli", "runtime", "status"], {
+        env: { EXO_USER_DATA_PATH: userDataPath },
+        stdout: { write: (text) => { stdout += text; } },
+        stderr: { write: () => {} },
+      });
+
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('"workspaceRoot": "/tmp/exo-active/notes"');
+      expect(stdout).toContain('"defaultTerminalCwd": "/tmp/exo-active/project"');
+    } finally {
+      await rm(userDataPath, { recursive: true, force: true });
+    }
   });
 
   it("renders a launch plan for Claude", async () => {

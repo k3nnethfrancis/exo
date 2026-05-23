@@ -21,8 +21,6 @@ describe("integrations", () => {
       "add",
       "exo",
       "--env",
-      "EXO_WORKSPACE_ROOT=/tmp/exo-test-workspace",
-      "--env",
       "EXO_MCP_AUTOSTART=1",
       "--env",
       "EXO_MCP_SEARCH_TIMEOUT_MS=30000",
@@ -47,7 +45,11 @@ describe("integrations", () => {
     expect(JSON.parse(spec.installArgs.at(-1) ?? "{}")).toMatchObject({
       type: "stdio",
       command: "node",
-      env: { EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace" },
+      env: {
+        EXO_MCP_AUTOSTART: "1",
+        EXO_MCP_SEARCH_TIMEOUT_MS: "30000",
+        EXO_MCP_START_COMMAND: "/tmp/exo-test-workspace/projects/exo/bin/exo dev",
+      },
     });
     expect(spec.installArgs).toContain("exo");
   });

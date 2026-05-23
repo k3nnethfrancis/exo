@@ -1,0 +1,265 @@
+import { readFile, writeFile, mkdir } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+
+import type { IndexMode, WorkspaceSettings } from "./types";
+import { createIndexedRoot, DEFAULT_INDEXING } from "./workspace";
+
+export const DEFAULT_APPEARANCE_MODE: WorkspaceSettings["appearanceMode"] = "system";
+export const DEFAULT_EDITOR_FONT_SIZE = 15;
+export const DEFAULT_TERMINAL_FONT_SIZE = 13;
+export const DEFAULT_TERMINAL_HISTORY_MODE: WorkspaceSettings["terminalHistoryMode"] = "full";
+export const FULL_TERMINAL_SCROLLBACK_LINES = 1_000_000;
+export const DEFAULT_TERMINAL_HISTORY_LINES = FULL_TERMINAL_SCROLLBACK_LINES;
+export const DEFAULT_TERMINAL_TRANSCRIPT_RETENTION: WorkspaceSettings["terminalTranscriptRetention"] = "forever";
+export const DEFAULT_TERMINAL_TRANSCRIPT_RETENTION_DAYS = 14;
+export const DEFAULT_TERMINAL_STREAMING_MODE: WorkspaceSettings["terminalStreamingMode"] = "visible";
+export const DEFAULT_EXPLORER_SCALE = 1;
+
+export interface WorkspaceRegistryEntry {
+  id: string;
+  label: string;
+  notesFolder: string;
+  settings: WorkspaceSettings;
+  updatedAt: string;
+}
+
+export interface WorkspaceRegistry {
+  activeWorkspaceId: string | null;
+  workspaces: WorkspaceRegistryEntry[];
+}
+
+export function workspaceEnvOverrides(env: NodeJS.ProcessEnv = process.env): boolean {
+  return Boolean(
+    env.EXO_WORKSPACE_ROOT ||
+      env.EXO_DEFAULT_TERMINAL_CWD ||
+      env.EXO_NOTE_ROOTS ||
+      env.EXO_PROJECT_ROOTS ||
+      env.EXO_INDEXED_ROOTS ||
+      env.EXO_INDEX_ENABLED ||
+      env.EXO_INDEX_MODE,
+  );
+}
+
+export function resolveWorkspaceSettingsPath(env: NodeJS.ProcessEnv = process.env): string {
+  return env.EXO_SETTINGS_PATH ?? path.join(resolveDesktopUserDataPath(env), "workspace-settings.json");
+}
+
+export function resolveWorkspaceRegistryPath(env: NodeJS.ProcessEnv = process.env): string {
+  return path.join(path.dirname(resolveWorkspaceSettingsPath(env)), "workspace-registry.json");
+}
+
+export async function loadWorkspaceSettings(env: NodeJS.ProcessEnv = process.env): Promise<WorkspaceSettings | null> {
+  try {
+    const raw = await readFile(resolveWorkspaceSettingsPath(env), "utf8");
+    return normalizeWorkspaceSettings(JSON.parse(raw) as Partial<WorkspaceSettings>);
+  } catch {
+    return null;
+  }
+}
+
+export async function saveWorkspaceSettings(settings: WorkspaceSettings, env: NodeJS.ProcessEnv = process.env): Promise<WorkspaceSettings> {
+  const normalized = normalizeWorkspaceSettings(settings);
+  if (!normalized) {
+    throw new Error("Workspace settings are incomplete.");
+  }
+  const settingsPath = resolveWorkspaceSettingsPath(env);
+  await mkdir(path.dirname(settingsPath), { recursive: true });
+  await writeFile(settingsPath, JSON.stringify(normalized, null, 2));
+  await saveActiveWorkspace(normalized, env);
+  return normalized;
+}
+
+export async function loadWorkspaceRegistry(env: NodeJS.ProcessEnv = process.env): Promise<WorkspaceRegistry> {
+  try {
+    const raw = await readFile(resolveWorkspaceRegistryPath(env), "utf8");
+    const parsed = JSON.parse(raw) as Partial<WorkspaceRegistry>;
+    const workspaces = Array.isArray(parsed.workspaces)
+      ? parsed.workspaces.reduce<WorkspaceRegistryEntry[]>((entries, entry) => {
+          const normalized = normalizeRegistryEntry(entry);
+          if (normalized) {
+            entries.push(normalized);
+          }
+          return entries;
+        }, [])
+      : [];
+    return {
+      activeWorkspaceId: typeof parsed.activeWorkspaceId === "string" ? parsed.activeWorkspaceId : workspaces[0]?.id ?? null,
+      workspaces,
+    };
+  } catch {
+    return { activeWorkspaceId: null, workspaces: [] };
+  }
+}
+
+export async function listWorkspaceRegistryEntries(env: NodeJS.ProcessEnv = process.env, currentSettings?: WorkspaceSettings | null): Promise<WorkspaceRegistryEntry[]> {
+  const registry = await loadWorkspaceRegistry(env);
+  if (registry.workspaces.length > 0) {
+    return registry.workspaces;
+  }
+  const normalized = normalizeWorkspaceSettings(currentSettings);
+  return normalized ? [workspaceEntryFromSettings(normalized)] : [];
+}
+
+export async function getWorkspaceRegistryEntry(workspaceId: string, env: NodeJS.ProcessEnv = process.env): Promise<WorkspaceRegistryEntry | null> {
+  const registry = await loadWorkspaceRegistry(env);
+  return registry.workspaces.find((entry) => entry.id === workspaceId) ?? null;
+}
+
+export async function saveActiveWorkspace(settings: WorkspaceSettings, env: NodeJS.ProcessEnv = process.env): Promise<void> {
+  const entry = workspaceEntryFromSettings(settings);
+  const registry = await loadWorkspaceRegistry(env);
+  const nextWorkspaces = registry.workspaces.filter((workspace) => workspace.id !== entry.id);
+  nextWorkspaces.unshift(entry);
+  const registryPath = resolveWorkspaceRegistryPath(env);
+  await mkdir(path.dirname(registryPath), { recursive: true });
+  await writeFile(registryPath, JSON.stringify({ activeWorkspaceId: entry.id, workspaces: nextWorkspaces }, null, 2));
+}
+
+export async function loadActiveWorkspaceSettings(env: NodeJS.ProcessEnv = process.env): Promise<WorkspaceSettings | null> {
+  const directSettings = await loadWorkspaceSettings(env);
+  if (directSettings) {
+    return directSettings;
+  }
+  const registry = await loadWorkspaceRegistry(env);
+  const active = registry.workspaces.find((entry) => entry.id === registry.activeWorkspaceId) ?? registry.workspaces[0];
+  return active?.settings ?? null;
+}
+
+export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | null | undefined): WorkspaceSettings | null {
+  if (!input) {
+    return null;
+  }
+
+  const workspaceRoot = typeof input.workspaceRoot === "string" ? input.workspaceRoot.trim() : "";
+  const defaultTerminalCwd = typeof input.defaultTerminalCwd === "string" ? input.defaultTerminalCwd.trim() : "";
+  const noteRoots = Array.isArray(input.noteRoots)
+    ? input.noteRoots.map((entry) => (typeof entry === "string" ? entry.trim() : "")).filter(Boolean)
+    : [];
+  const projectRoots = Array.isArray(input.projectRoots)
+    ? input.projectRoots
+        .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
+        .filter(Boolean)
+        .filter((entry) => !isBroadDefaultProjectRoot(workspaceRoot, entry))
+    : [];
+  const indexedRoots = Array.isArray(input.indexedRoots)
+    ? input.indexedRoots.reduce<WorkspaceSettings["indexedRoots"]>((roots, entry, index) => {
+        if (!entry || typeof entry !== "object" || typeof entry.path !== "string" || !entry.path.trim()) {
+          return roots;
+        }
+        roots.push(createIndexedRoot(entry.path, {
+          id: typeof entry.id === "string" ? entry.id : `index-root-${index + 1}`,
+          label: typeof entry.label === "string" ? entry.label : undefined,
+          kind: entry.kind === "notes" || entry.kind === "docs" || entry.kind === "code" || entry.kind === "mixed" ? entry.kind : "mixed",
+          pattern: typeof entry.pattern === "string" ? entry.pattern : undefined,
+          ignore: Array.isArray(entry.ignore) ? entry.ignore.filter((item): item is string => typeof item === "string") : [],
+        }));
+        return roots;
+      }, [])
+    : [];
+  const mode: IndexMode = input.indexing?.mode === "lexical" || input.indexing?.mode === "semantic" || input.indexing?.mode === "hybrid" ? input.indexing.mode : input.indexing?.mode === "off" ? "off" : indexedRoots.length > 0 ? "lexical" : "off";
+  const indexing = input.indexing && typeof input.indexing === "object"
+    ? { enabled: Boolean(input.indexing.enabled) && mode !== "off", mode, backend: "qmd" as const }
+    : indexedRoots.length > 0
+      ? { enabled: true, mode: "lexical" as const, backend: "qmd" as const }
+      : DEFAULT_INDEXING;
+
+  if (!workspaceRoot || !defaultTerminalCwd || noteRoots.length === 0) {
+    return null;
+  }
+
+  return {
+    workspaceRoot,
+    defaultTerminalCwd,
+    noteRoots,
+    projectRoots,
+    indexedRoots,
+    indexing,
+    appearanceMode: input.appearanceMode === "light" || input.appearanceMode === "dark" || input.appearanceMode === "system" ? input.appearanceMode : DEFAULT_APPEARANCE_MODE,
+    editorFontSize: clampSettingsNumber(input.editorFontSize, DEFAULT_EDITOR_FONT_SIZE, 11, 24),
+    terminalFontSize: clampSettingsNumber(input.terminalFontSize, DEFAULT_TERMINAL_FONT_SIZE, 10, 22),
+    terminalHistoryMode: input.terminalHistoryMode === "custom" ? "custom" : DEFAULT_TERMINAL_HISTORY_MODE,
+    terminalHistoryLines: input.terminalHistoryMode === "custom" ? clampSettingsNumber(input.terminalHistoryLines, DEFAULT_TERMINAL_HISTORY_LINES, 500, FULL_TERMINAL_SCROLLBACK_LINES) : DEFAULT_TERMINAL_HISTORY_LINES,
+    terminalTranscriptRetention: input.terminalTranscriptRetention === "days" ? "days" : DEFAULT_TERMINAL_TRANSCRIPT_RETENTION,
+    terminalTranscriptRetentionDays: clampSettingsNumber(input.terminalTranscriptRetentionDays, DEFAULT_TERMINAL_TRANSCRIPT_RETENTION_DAYS, 1, 3650),
+    terminalStreamingMode: input.terminalStreamingMode === "all" || input.terminalStreamingMode === "paused" ? input.terminalStreamingMode : DEFAULT_TERMINAL_STREAMING_MODE,
+    explorerScale: clampSettingsNumber(input.explorerScale, DEFAULT_EXPLORER_SCALE, 0.82, 1.35),
+    exploreIndexSearchOnEnter: typeof input.exploreIndexSearchOnEnter === "boolean" ? input.exploreIndexSearchOnEnter : indexing.enabled && indexing.mode !== "off" && indexedRoots.length > 0,
+    indexUpdateStrategy: input.indexUpdateStrategy === "manual" ? "manual" : "on-save",
+  };
+}
+
+export function workspaceEntryFromSettings(settings: WorkspaceSettings): WorkspaceRegistryEntry {
+  const notesFolder = settings.noteRoots[0] || settings.workspaceRoot;
+  return {
+    id: workspaceIdForNotesFolder(notesFolder),
+    label: path.basename(notesFolder) || notesFolder,
+    notesFolder,
+    settings,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+export function workspaceSettingsToEnv(settings: WorkspaceSettings): Record<string, string> {
+  return {
+    EXO_WORKSPACE_ROOT: settings.workspaceRoot,
+    EXO_DEFAULT_TERMINAL_CWD: settings.defaultTerminalCwd,
+    EXO_NOTE_ROOTS: settings.noteRoots.join(path.delimiter),
+    EXO_PROJECT_ROOTS: settings.projectRoots.join(path.delimiter),
+    EXO_INDEXED_ROOTS: JSON.stringify(settings.indexedRoots),
+    EXO_INDEX_ENABLED: settings.indexing.enabled ? "1" : "0",
+    EXO_INDEX_MODE: settings.indexing.mode,
+  };
+}
+
+function normalizeRegistryEntry(value: unknown): WorkspaceRegistryEntry | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const candidate = value as Partial<WorkspaceRegistryEntry>;
+  const settings = normalizeWorkspaceSettings(candidate.settings);
+  if (!settings) {
+    return null;
+  }
+  const notesFolder = typeof candidate.notesFolder === "string" && candidate.notesFolder.trim()
+    ? candidate.notesFolder.trim()
+    : settings.noteRoots[0] || settings.workspaceRoot;
+  return {
+    id: typeof candidate.id === "string" && candidate.id.trim() ? candidate.id : workspaceIdForNotesFolder(notesFolder),
+    label: typeof candidate.label === "string" && candidate.label.trim() ? candidate.label.trim() : path.basename(notesFolder) || notesFolder,
+    notesFolder,
+    settings,
+    updatedAt: typeof candidate.updatedAt === "string" && candidate.updatedAt.trim() ? candidate.updatedAt : new Date().toISOString(),
+  };
+}
+
+function resolveDesktopUserDataPath(env: NodeJS.ProcessEnv): string {
+  if (env.EXO_USER_DATA_PATH) {
+    return env.EXO_USER_DATA_PATH;
+  }
+  const home = os.homedir();
+  if (process.platform === "darwin") {
+    return path.join(home, "Library", "Application Support", "@exo", "desktop");
+  }
+  if (process.platform === "win32") {
+    return path.join(env.APPDATA ?? path.join(home, "AppData", "Roaming"), "@exo", "desktop");
+  }
+  return path.join(env.XDG_CONFIG_HOME ?? path.join(home, ".config"), "@exo", "desktop");
+}
+
+function workspaceIdForNotesFolder(notesFolder: string): string {
+  let hash = 0;
+  for (const char of path.resolve(notesFolder)) {
+    hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  }
+  return `workspace-${hash.toString(36)}`;
+}
+
+function clampSettingsNumber(value: unknown, fallback: number, min: number, max: number): number {
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? Math.max(min, Math.min(max, parsed)) : fallback;
+}
+
+function isBroadDefaultProjectRoot(workspaceRoot: string, targetPath: string): boolean {
+  return path.resolve(targetPath) === path.resolve(workspaceRoot, "projects");
+}

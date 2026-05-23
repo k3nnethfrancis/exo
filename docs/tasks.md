@@ -13,13 +13,15 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Confirm `.exo/`, terminal transcripts, logs, local settings, release artifacts, and generated runtime state are ignored.
 - [x] Run `pnpm ci:check`.
 - [x] Run focused desktop e2e for shell/search/terminal flows.
+- [x] Harden fresh-clone setup for pnpm 11, blocked dependency builds, patched Vite/picomatch installs, and secured-network Electron downloads.
 
 ## Next: Workspace Surface
 
 - [x] Add first-run onboarding that requires a user-selected notes folder before showing the app shell.
 - [x] Replace free-text notes/project path setup with native folder selection and removable folder lists.
 - [x] Add a setup/switch-workspace surface that shows notes folder, project folders, default terminal, and index settings before entering the app.
-- [ ] Add a persisted workspace registry so users can switch among saved workspaces without reselecting folders.
+- [x] Add a persisted workspace registry so users can switch among saved workspaces without reselecting folders.
+- [x] Make CLI/MCP workspace resolution use the active workspace registry when explicit env vars are not set.
 - [ ] Make terminal panes draggable into the editor canvas.
 - [ ] Let files and terminals share one arbitrary split-pane graph.
 - [ ] Roadmap mixed file/terminal tab groups after the split-pane model stabilizes.

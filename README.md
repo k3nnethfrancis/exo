@@ -70,6 +70,14 @@ Before broad public binary release, Exo still needs signed/notarized macOS packa
 
 ## Quick Start
 
+Prerequisites:
+
+- Node.js 22 or newer.
+- pnpm 11.2.2. Corepack will use the version pinned in `package.json`; with Homebrew pnpm, run `pnpm --version` and upgrade if needed.
+- tmux for persistent Claude/Codex terminal sessions.
+
+If Corepack fails before install with a package-manager signature or key error, update Node/Corepack or install pnpm 11.2.2 through your system package manager, then rerun `pnpm install`.
+
 ```bash
 pnpm install
 pnpm dev
@@ -90,6 +98,22 @@ pnpm --filter @exo/desktop dev -- --remote-debugging-port=9222
 ```
 
 The browser at `localhost:5173` is not equivalent to the Electron app; it does not have the preload `window.exo` bridge.
+
+### Secured Networks And Native Builds
+
+Exo allows the native dependency build scripts it needs through `allowBuilds` in `pnpm-workspace.yaml`. If pnpm reports blocked builds after a dependency change, run `pnpm approve-builds` and commit the resulting `allowBuilds` updates instead of bypassing all scripts.
+
+Electron downloads its app binary during install, and `@electron/rebuild` may download headers while rebuilding native modules. On corporate networks with TLS inspection or download allow-lists, configure the trusted CA or Electron mirror explicitly before running install, for example:
+
+```bash
+export NODE_EXTRA_CA_CERTS=/path/to/corporate-ca.pem
+export ELECTRON_GET_USE_PROXY=1
+export ELECTRON_MIRROR=https://your-approved-electron-mirror/
+pnpm install
+pnpm rebuild:native
+```
+
+Avoid `NODE_TLS_REJECT_UNAUTHORIZED=0` except as a temporary local diagnostic; it disables TLS verification for the Node process.
 
 ## Agent Integrations
 

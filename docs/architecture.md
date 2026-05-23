@@ -78,6 +78,12 @@ The `bin/exo` CLI has two modes:
 - static workspace/runtime commands that read local config
 - live app commands that require a running Exo command server
 
+Workspace resolution is shared with the desktop app. Explicit workspace env vars still win; otherwise the CLI reads the active desktop workspace registry and falls back to cwd/dev defaults. The workspace registry surface is:
+
+- `exo workspace current`
+- `exo workspace list`
+- `exo workspace use <workspace-id-or-notes-path>`
+
 Current live terminal commands:
 
 - `exo terminals list`
@@ -119,7 +125,7 @@ Integration setup commands:
 - `interrupt_agent`
 - `terminate_agent`
 
-By default, the MCP server needs Exo already running so it can read `.exo/server.json`. With `EXO_MCP_AUTOSTART=1`, it can start Exo through `EXO_MCP_START_COMMAND` and wait for the command server.
+By default, the MCP server needs Exo already running so it can read `.exo/server.json`. With `EXO_MCP_AUTOSTART=1`, it can start Exo through `EXO_MCP_START_COMMAND` and wait for the command server. If `EXO_RUNTIME_ROOT` or explicit workspace env vars are not set, MCP uses the same active desktop workspace registry as the CLI to find the runtime root.
 
 `bin/exo integrations doctor|config|install|test` is the setup surface for external agent clients. It installs the same stdio MCP server into Codex and Claude Code through their native MCP CLIs, while the MCP server itself continues to speak to Exo through the shared command-server contract.
 

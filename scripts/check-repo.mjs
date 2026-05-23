@@ -71,8 +71,8 @@ for (const file of requiredFiles) {
 assertSymlink('CLAUDE.md', 'AGENTS.md');
 
 const packageJson = JSON.parse(read('package.json'));
-if (packageJson.packageManager !== 'pnpm@10.15.0') {
-  fail('package.json packageManager must stay pinned to pnpm@10.15.0');
+if (packageJson.packageManager !== 'pnpm@11.2.2') {
+  fail('package.json packageManager must stay pinned to pnpm@11.2.2');
 }
 for (const scriptName of ['ci:check', 'check:repo', 'check', 'build', 'test', 'typecheck', 'install:local']) {
   if (!packageJson.scripts?.[scriptName]) {
@@ -83,7 +83,7 @@ for (const scriptName of ['ci:check', 'check:repo', 'check', 'build', 'test', 't
 assertContains('.github/workflows/ci.yml', 'pull_request:');
 assertContains('.github/workflows/ci.yml', 'branches:');
 assertContains('.github/workflows/ci.yml', '- main');
-assertContains('.github/workflows/ci.yml', 'version: 10.15.0');
+assertContains('.github/workflows/ci.yml', 'version: 11.2.2');
 assertContains('.github/workflows/ci.yml', 'node-version: 24');
 assertContains('.github/workflows/ci.yml', 'pnpm install --frozen-lockfile');
 assertContains('.github/workflows/ci.yml', 'pnpm ci:check');

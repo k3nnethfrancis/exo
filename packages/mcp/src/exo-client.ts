@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { EXO_COMMAND_ROUTES, type ExoCommandServerInfo } from "@exo/core/command-protocol";
+import { loadActiveWorkspaceSettings, workspaceEnvOverrides, workspaceSettingsToEnv } from "@exo/core/workspace-settings";
 
 export interface ExoAgent {
   id: string;
@@ -32,7 +33,7 @@ export class ExoCommandClient {
   ) {}
 
   static async connect(env: NodeJS.ProcessEnv = process.env): Promise<ExoCommandClient> {
-    const runtimeRoot = resolveMcpRuntimeRoot(env);
+    const runtimeRoot = await resolveMcpRuntimeRoot(env);
     const serverJsonPath = path.join(runtimeRoot, "server.json");
     const autostart = env.EXO_MCP_AUTOSTART === "1";
     const timeoutMs = parsePositiveInt(env.EXO_MCP_CONNECT_TIMEOUT_MS) ?? defaultConnectTimeoutMs;
@@ -42,8 +43,9 @@ export class ExoCommandClient {
       parsePositiveInt(env.EXO_MCP_MAINTENANCE_TIMEOUT_MS) ?? defaultMaintenanceRequestTimeoutMs;
     let info = await readServerInfo(serverJsonPath);
 
+    const startEnv = await resolveMcpWorkspaceEnv(env);
     if (!info && autostart) {
-      startExo(env);
+      startExo(startEnv);
       info = await waitForServerInfo(serverJsonPath, timeoutMs);
     }
 
@@ -62,7 +64,7 @@ export class ExoCommandClient {
       throw new Error(`Exo command server is stale or unreachable at ${client.baseUrl}. Set EXO_MCP_AUTOSTART=1 to let MCP start Exo.`);
     }
 
-    startExo(env);
+    startExo(startEnv);
     client = await waitForReachableClient(serverJsonPath, timeoutMs, requestTimeoutMs, searchRequestTimeoutMs, maintenanceRequestTimeoutMs);
     return client;
   }
@@ -164,8 +166,20 @@ export class ExoCommandClient {
   }
 }
 
-function resolveMcpRuntimeRoot(env: NodeJS.ProcessEnv): string {
-  return env.EXO_RUNTIME_ROOT ?? path.join(env.EXO_WORKSPACE_ROOT ?? process.cwd(), ".exo");
+async function resolveMcpRuntimeRoot(env: NodeJS.ProcessEnv): Promise<string> {
+  if (env.EXO_RUNTIME_ROOT) {
+    return env.EXO_RUNTIME_ROOT;
+  }
+  const workspaceEnv = await resolveMcpWorkspaceEnv(env);
+  return path.join(workspaceEnv.EXO_WORKSPACE_ROOT ?? process.cwd(), ".exo");
+}
+
+async function resolveMcpWorkspaceEnv(env: NodeJS.ProcessEnv): Promise<NodeJS.ProcessEnv> {
+  if (workspaceEnvOverrides(env)) {
+    return env;
+  }
+  const settings = await loadActiveWorkspaceSettings(env);
+  return settings ? { ...env, ...workspaceSettingsToEnv(settings) } : env;
 }
 
 async function readServerInfo(serverJsonPath: string): Promise<ExoCommandServerInfo | null> {

@@ -2,3 +2,20 @@ packages:
   - apps/*
   - packages/*
 
+overrides:
+  picomatch: 4.0.4
+
+allowBuilds:
+  better-sqlite3: true
+  electron: true
+  electron-winstaller: true
+  esbuild: true
+  node-llama-cpp: true
+  node-pty: true
+  tree-sitter-go: true
+  tree-sitter-javascript: true
+  tree-sitter-python: true
+  tree-sitter-rust: true
+  tree-sitter-typescript: true
+
+preferSymlinkedExecutables: true
