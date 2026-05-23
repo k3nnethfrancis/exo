@@ -80,12 +80,13 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Added first changed-line targeting by deriving tracked-file hunk starts from `git diff --unified=0 HEAD -- .`, showing line chips in review surfaces, and scrolling/selecting the editor line when opening a changed file.
 - Added a first workspace browser pane backed by Electron `webview`: users can open a preview pane from the rail, enter local URLs, keep it in the shared split graph, and persist browser leaves in workspace layout settings.
 - Added the first agent context manager surface in Workspace Settings: Exo lists global, note-root, and project-root `AGENTS.md` / `CLAUDE.md` files, lets users inspect existing or new files, and saves edits through a constrained IPC route.
+- Added a conservative provenance foundation: workspace file-change events are recorded as observed write candidates for the most-specific live terminal cwd, then review badges prefer observed associations over broad cwd matching without claiming certain authorship.
 
 ## Next Priorities
 
 1. Push `0.1.0-alpha.2` tester-readiness fixes to main.
 2. Agent context manager: compare global vs local `AGENTS.md` / `CLAUDE.md`, detect conflicting or duplicated instructions, and offer Exo-recommended snippets.
-3. Authorship/provenance: observed human vs agent-written changes by session/task/file.
+3. Authorship/provenance: promote observed write candidates into explicit human vs agent review states only when Exo controls the write path or receives a trusted session event.
 4. QMD notes index: improve performance, add true incremental file-level updates when QMD exposes them, and refine triggers/profiles.
 5. Multi-agent coordination: roster, objectives, direct messages, file+SQLite transport, CLI/MCP access.
 6. Graph/memory view: backlinks plus QMD-derived relationships and agent/session context.

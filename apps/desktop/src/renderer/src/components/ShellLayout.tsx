@@ -36,7 +36,7 @@ interface ShellLayoutProps {
   projectChanges: Array<WorkspaceGitChange & {
     rootPath: string;
     rootLabel: string;
-    agents: Array<{ id: string; title: string; kind: string; cwd: string }>;
+    agents: Array<{ id: string; title: string; kind: string; cwd: string; observed?: boolean; observedAt?: number | null }>;
   }>;
   statusLine: {
     workspaceLabel: string;

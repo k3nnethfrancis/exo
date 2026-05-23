@@ -140,7 +140,6 @@ test("shows changed project files in the project drawer", async () => {
       await writeFile(path.join(projectRoot, "src/demo.ts"), "export const stable = true;\nexport const demo = 'original';\n");
       spawnSync("git", ["add", "."], { cwd: projectRoot, stdio: "ignore" });
       spawnSync("git", ["commit", "-m", "fixture"], { cwd: projectRoot, stdio: "ignore" });
-      await writeFile(path.join(projectRoot, "src/demo.ts"), "export const stable = true;\nexport const demo = 'changed';\n");
     },
   });
 
@@ -149,11 +148,14 @@ test("shows changed project files in the project drawer", async () => {
     const session = await window.exo.terminals.create({ kind: "shell", cwd });
     return session.id;
   }, projectRoot);
+  await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(2);
+  await writeFile(path.join(projectRoot, "src/demo.ts"), "export const stable = true;\nexport const demo = 'changed';\n");
 
   await page.getByTestId("project-roots-toggle").click();
   await expect(page.getByTestId("project-changes")).toContainText("src/demo.ts");
   await expect(page.getByTestId("project-changes")).toContainText(":2");
   await expect(page.getByTestId("project-changes")).toContainText("shell");
+  await expect(page.getByTestId(`project-change-agent-${sessionId}`)).toHaveClass(/project-change__agent--observed/);
   await page.getByTestId("project-changes").getByRole("button", { name: "shell" }).click();
   await expect(page.getByTestId("terminal-surface")).toContainText("sample-project");
   await expect(page.getByTestId(`terminal-session-changes-${sessionId}`)).toContainText("src/demo.ts");

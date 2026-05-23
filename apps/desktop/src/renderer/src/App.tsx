@@ -122,6 +122,14 @@ interface AgentContextEditorState {
   saveStatus: "idle" | "saving" | "saved" | "error";
   errorMessage: string | null;
 }
+
+interface ObservedWorkspaceWrite {
+  filePath: string;
+  rootPath: string;
+  sessionId: string;
+  observedAt: number;
+  association: "cwd-match";
+}
 type IndexBusyState = "syncing" | "updating" | "embedding" | null;
 
 const FULL_TERMINAL_SCROLLBACK_LINES = 1_000_000;
@@ -186,6 +194,7 @@ export function App() {
   const [activeDocumentPath, setActiveDocumentPath] = useState<string | null>(null);
   const [workspaceGitStatus, setWorkspaceGitStatus] = useState<WorkspaceGitStatus | null>(null);
   const [projectGitChanges, setProjectGitChanges] = useState<Array<WorkspaceGitChange & { rootPath: string; rootLabel: string }>>([]);
+  const [observedWorkspaceWrites, setObservedWorkspaceWrites] = useState<ObservedWorkspaceWrite[]>([]);
   const [propertiesCollapsed, setPropertiesCollapsed] = useState(true);
   const [tagResults, setTagResults] = useState<SearchResult[]>([]);
   const [activeTag, setActiveTag] = useState<string | null>(null);
@@ -269,12 +278,7 @@ export function App() {
     }
 
     let cancelled = false;
-    void Promise.all(
-      projectRoots.map(async (root) => ({
-        root,
-        status: await window.exo.workspace.getGitStatus(root.path).catch(() => null),
-      })),
-    ).then((results) => {
+    void loadProjectGitChanges(projectRoots).then((results) => {
       if (!cancelled) {
         setWorkspaceGitStatus(results[0]?.status ?? null);
         setProjectGitChanges(
@@ -703,7 +707,12 @@ export function App() {
         void reloadTrees();
       }
       if (event.filePath) {
-        scheduleOpenDocumentRefresh(event.filePath);
+        const filePath = event.filePath;
+        scheduleOpenDocumentRefresh(filePath);
+        recordObservedWorkspaceWrite(event.rootPath, filePath);
+        if (workspaceModel?.projectRoots.some((root) => isPathWithin(root.path, filePath))) {
+          void refreshProjectGitStatus(workspaceModel);
+        }
       }
     });
 
@@ -838,20 +847,36 @@ export function App() {
       })) ?? [],
     [projectTrees, workspaceModel],
   );
+  const observedWritesByPath = useMemo(() => {
+    const writesByPath = new Map<string, ObservedWorkspaceWrite[]>();
+    for (const write of observedWorkspaceWrites) {
+      const current = writesByPath.get(write.filePath) ?? [];
+      current.push(write);
+      writesByPath.set(write.filePath, current);
+    }
+    return writesByPath;
+  }, [observedWorkspaceWrites]);
   const projectReviewChanges = useMemo(
     () =>
-      projectGitChanges.map((change) => ({
-        ...change,
-        agents: terminalSessions
-          .filter((session) => isPathWithin(change.rootPath, session.cwd))
-          .map((session) => ({
+      projectGitChanges.map((change) => {
+        const observedWrites = observedWritesByPath.get(change.absolutePath) ?? [];
+        const observedSessionIds = new Set(observedWrites.map((write) => write.sessionId));
+        const associatedSessions = observedSessionIds.size > 0
+          ? terminalSessions.filter((session) => observedSessionIds.has(session.id))
+          : terminalSessions.filter((session) => isPathWithin(change.rootPath, session.cwd));
+        return {
+          ...change,
+          agents: associatedSessions.map((session) => ({
             id: session.id,
             title: session.title,
             kind: session.kind,
             cwd: session.cwd,
+            observed: observedSessionIds.has(session.id),
+            observedAt: observedWrites.find((write) => write.sessionId === session.id)?.observedAt ?? null,
           })),
-      })),
-    [projectGitChanges, terminalSessions],
+        };
+      }),
+    [observedWritesByPath, projectGitChanges, terminalSessions],
   );
   const projectReviewChangesBySession = useMemo(() => {
     const changesBySession = new Map<string, Array<WorkspaceGitChange & { rootPath: string; rootLabel: string }>>();
@@ -871,6 +896,51 @@ export function App() {
     }
 
     await reloadTreesForModel(workspaceModel);
+  }
+
+  async function refreshProjectGitStatus(model = workspaceModel) {
+    const projectRoots = model?.projectRoots ?? [];
+    if (projectRoots.length === 0) {
+      setWorkspaceGitStatus(null);
+      setProjectGitChanges([]);
+      return;
+    }
+    const results = await loadProjectGitChanges(projectRoots);
+    setWorkspaceGitStatus(results[0]?.status ?? null);
+    setProjectGitChanges(
+      results.flatMap(({ root, status }) =>
+        (status?.changes ?? []).map((change) => ({
+          ...change,
+          rootPath: root.path,
+          rootLabel: root.label,
+        })),
+      ),
+    );
+  }
+
+  function recordObservedWorkspaceWrite(rootPath: string, filePath: string) {
+    const candidateSessions = terminalSessionsRef.current.filter((session) => isPathWithin(session.cwd, filePath));
+    const longestCwdLength = Math.max(0, ...candidateSessions.map((session) => session.cwd.length));
+    const matchingSessions = candidateSessions.filter((session) => session.cwd.length === longestCwdLength);
+    if (matchingSessions.length === 0) {
+      return;
+    }
+    const observedAt = Date.now();
+    setObservedWorkspaceWrites((current) => {
+      const withoutDuplicate = current.filter(
+        (write) => !(write.filePath === filePath && matchingSessions.some((session) => session.id === write.sessionId)),
+      );
+      return [
+        ...matchingSessions.map((session) => ({
+          filePath,
+          rootPath,
+          sessionId: session.id,
+          observedAt,
+          association: "cwd-match" as const,
+        })),
+        ...withoutDuplicate,
+      ].slice(0, 200);
+    });
   }
 
   async function reloadTreesForModel(model: WorkspaceModel) {
@@ -3514,6 +3584,15 @@ function collectTerminalSessionIds(tree: PaneNode): Set<string> {
     }
   }
   return ids;
+}
+
+async function loadProjectGitChanges(projectRoots: WorkspaceModel["projectRoots"]) {
+  return Promise.all(
+    projectRoots.map(async (root) => ({
+      root,
+      status: await window.exo.workspace.getGitStatus(root.path).catch(() => null),
+    })),
+  );
 }
 
 function createWorkspaceLayoutSnapshot(input: WorkspaceLayoutSettings): WorkspaceLayoutSettings {

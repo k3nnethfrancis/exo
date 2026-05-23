@@ -56,8 +56,8 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 
 ## Next: Authorship And Provenance
 
-- [ ] Track writes made through Exo-managed terminal agents.
-- [ ] Record source agent, session id, task/objective, timestamp, and target file for observable writes.
+- [x] Track observed file changes near Exo-managed terminal sessions as provenance candidates.
+- [x] Record session id, timestamp, association method, and target file for observable write candidates.
 - [ ] Distinguish human-authored and agent-authored note/code changes in the UI.
 - [ ] Explore block-level or line-level provenance only where Exo can track it reliably.
 - [ ] Avoid AI-detector-style inference; provenance should come from observed writes and controlled workflows.

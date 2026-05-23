@@ -692,6 +692,11 @@
   cursor: pointer;
 }
 
+.project-change__agent--observed {
+  background: color-mix(in srgb, var(--accent-soft) 72%, var(--surface-2));
+  color: var(--accent);
+}
+
 .search-result,
 .footer-item {
   width: 100%;

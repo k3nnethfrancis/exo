@@ -67,7 +67,7 @@ interface FileTreeProps {
 interface ProjectChangeView extends WorkspaceGitChange {
   rootPath: string;
   rootLabel: string;
-  agents: Array<{ id: string; title: string; kind: string; cwd: string }>;
+  agents: Array<{ id: string; title: string; kind: string; cwd: string; observed?: boolean; observedAt?: number | null }>;
 }
 
 interface ExplorerRailProps {
@@ -513,14 +513,14 @@ function ProjectChanges({
               <span className="project-change__agents">
                 {change.agents.slice(0, 3).map((agent) => (
                   <button
-                    className="project-change__agent"
+                    className={`project-change__agent ${agent.observed ? "project-change__agent--observed" : ""}`}
                     data-testid={`project-change-agent-${agent.id}`}
                     key={agent.id}
                     onClick={(event) => {
                       event.stopPropagation();
                       onOpenTerminalSession(agent.id);
                     }}
-                    title={`Show ${agent.title} in ${agent.cwd}`}
+                    title={agent.observed ? `Observed change near ${agent.title} in ${agent.cwd}` : `Show ${agent.title} in ${agent.cwd}`}
                     type="button"
                   >
                     {agent.kind}
