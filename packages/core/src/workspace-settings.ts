@@ -315,7 +315,9 @@ function normalizePaneNode(input: unknown, depth: number): WorkspacePaneNode | n
 }
 
 function normalizePaneContent(input: unknown): WorkspacePaneContent | null {
-  const candidate = input && typeof input === "object" ? input as { kind?: unknown; openPaths?: unknown; activePath?: unknown; terminalIds?: unknown; activeTerminalId?: unknown } : {};
+  const candidate = input && typeof input === "object"
+    ? input as { kind?: unknown; openPaths?: unknown; activePath?: unknown; terminalIds?: unknown; activeTerminalId?: unknown; url?: unknown }
+    : {};
   if (candidate.kind === "terminal") {
     const terminalIds = Array.isArray(candidate.terminalIds)
       ? candidate.terminalIds.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
@@ -334,10 +336,14 @@ function normalizePaneContent(input: unknown): WorkspacePaneContent | null {
       : openPaths.at(-1) ?? null;
     return { kind: "editor", openPaths, activePath };
   }
+  if (candidate.kind === "browser") {
+    const url = typeof candidate.url === "string" && candidate.url.trim() ? candidate.url.trim() : "about:blank";
+    return { kind: "browser", url };
+  }
   return null;
 }
 
-function hasLeafKind(node: WorkspacePaneNode, kind: "editor" | "terminal"): boolean {
+function hasLeafKind(node: WorkspacePaneNode, kind: WorkspacePaneContent["kind"]): boolean {
   if (node.kind === "leaf") {
     return node.content.kind === kind;
   }

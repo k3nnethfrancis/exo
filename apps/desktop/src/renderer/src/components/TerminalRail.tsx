@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
-import { PanelRightClose, PanelRightOpen, PanelsLeftBottom, SquareTerminal } from "lucide-react";
+import { Globe2, PanelRightClose, PanelRightOpen, PanelsLeftBottom, SquareTerminal } from "lucide-react";
 
 import { AgentIcon } from "./AgentIcon";
 import { RailButton } from "./Chrome";
@@ -12,11 +12,12 @@ interface TerminalRailProps {
   onToggleCollapsed: () => void;
   onToggleSidePanes: () => void;
   onCreateTerminal: (kind: "shell" | "claude" | "codex") => void;
+  onCreateBrowserPane: () => void;
   style?: CSSProperties;
 }
 
 export function TerminalRail(props: TerminalRailProps) {
-  const { collapsed, sidePanesFlipped, topControls, onToggleCollapsed, onToggleSidePanes, onCreateTerminal, style } = props;
+  const { collapsed, sidePanesFlipped, topControls, onToggleCollapsed, onToggleSidePanes, onCreateTerminal, onCreateBrowserPane, style } = props;
 
   return (
     <div className="terminal-rail" data-testid="terminal-rail" style={style}>
@@ -25,6 +26,7 @@ export function TerminalRail(props: TerminalRailProps) {
           collapsed={collapsed}
           onToggleCollapsed={onToggleCollapsed}
           onCreateTerminal={onCreateTerminal}
+          onCreateBrowserPane={onCreateBrowserPane}
         />
       )}
       <div className="terminal-rail__spacer" aria-hidden="true" />
@@ -43,8 +45,9 @@ export function TerminalRailTopControls(props: {
   collapsed: boolean;
   onToggleCollapsed: () => void;
   onCreateTerminal: (kind: "shell" | "claude" | "codex") => void;
+  onCreateBrowserPane: () => void;
 }) {
-  const { collapsed, onToggleCollapsed, onCreateTerminal } = props;
+  const { collapsed, onToggleCollapsed, onCreateTerminal, onCreateBrowserPane } = props;
   const CollapseIcon = collapsed ? PanelRightOpen : PanelRightClose;
 
   return (
@@ -62,6 +65,13 @@ export function TerminalRailTopControls(props: {
         title="New terminal"
       >
         <SquareTerminal size={16} />
+      </RailButton>
+      <RailButton
+        testId="launch-browser"
+        onClick={onCreateBrowserPane}
+        title="New preview pane"
+      >
+        <Globe2 size={16} />
       </RailButton>
       <RailButton
         testId="launch-claude"

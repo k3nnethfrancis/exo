@@ -78,17 +78,17 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Scoped external-file refresh scroll preservation to the editor pane showing the refreshed path, and added e2e coverage for clean refreshes, scroll retention, and unsaved-document protection during external writes.
 - Added the reverse project-review affordance: active terminal panes now show associated changed files for their cwd-linked session and can jump directly back into the editor.
 - Added first changed-line targeting by deriving tracked-file hunk starts from `git diff --unified=0 HEAD -- .`, showing line chips in review surfaces, and scrolling/selecting the editor line when opening a changed file.
+- Added a first workspace browser pane backed by Electron `webview`: users can open a preview pane from the rail, enter local URLs, keep it in the shared split graph, and persist browser leaves in workspace layout settings.
 
 ## Next Priorities
 
 1. Push `0.1.0-alpha.2` tester-readiness fixes to main.
-2. Core WebView/browser pane for local previews, docs, dashboards, and future plugin-hosted apps.
-3. Agent context manager: inspect/edit/compare global and local `AGENTS.md` / `CLAUDE.md`.
-4. Authorship/provenance: observed human vs agent-written changes by session/task/file.
-5. QMD notes index: improve performance, add true incremental file-level updates when QMD exposes them, and refine triggers/profiles.
-6. Multi-agent coordination: roster, objectives, direct messages, file+SQLite transport, CLI/MCP access.
-7. Graph/memory view: backlinks plus QMD-derived relationships and agent/session context.
-8. Plugin architecture: optional workflows and shareable extensions without growing core by default.
+2. Agent context manager: inspect/edit/compare global and local `AGENTS.md` / `CLAUDE.md`.
+3. Authorship/provenance: observed human vs agent-written changes by session/task/file.
+4. QMD notes index: improve performance, add true incremental file-level updates when QMD exposes them, and refine triggers/profiles.
+5. Multi-agent coordination: roster, objectives, direct messages, file+SQLite transport, CLI/MCP access.
+6. Graph/memory view: backlinks plus QMD-derived relationships and agent/session context.
+7. Plugin architecture: optional workflows and shareable extensions without growing core by default.
 
 ## Operating Rules
 

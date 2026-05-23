@@ -34,7 +34,12 @@ export interface TerminalPaneContent {
   activeTerminalId: string | null;
 }
 
-export type PaneContent = EditorPaneContent | TerminalPaneContent;
+export interface BrowserPaneContent {
+  kind: "browser";
+  url: string;
+}
+
+export type PaneContent = EditorPaneContent | TerminalPaneContent | BrowserPaneContent;
 
 export type DropEdge = "top" | "bottom" | "left" | "right" | "center";
 
@@ -134,7 +139,7 @@ export function findEditorLeafByPath(tree: PaneNode, filePath: string): PaneLeaf
 }
 
 /** Count leaves of a specific content kind. */
-export function countLeaves(tree: PaneNode, kind: "editor" | "terminal"): number {
+export function countLeaves(tree: PaneNode, kind: PaneContent["kind"]): number {
   return collectLeaves(tree).filter((l) => l.content.kind === kind).length;
 }
 

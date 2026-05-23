@@ -92,6 +92,7 @@ interface ShellLayoutProps {
   onRenamePath: (targetPath: string) => void;
   onDeletePath: (targetPath: string) => void;
   onCreateTerminal: (kind: "shell" | "claude" | "codex") => void;
+  onCreateBrowserPane: () => void;
 }
 
 export function ShellLayout(props: ShellLayoutProps) {
@@ -129,6 +130,7 @@ export function ShellLayout(props: ShellLayoutProps) {
     onRenamePath,
     onDeletePath,
     onCreateTerminal,
+    onCreateBrowserPane,
   } = props;
 
   const {
@@ -173,6 +175,7 @@ export function ShellLayout(props: ShellLayoutProps) {
       collapsed={terminalCollapsed}
       onToggleCollapsed={() => setTerminalCollapsed((current) => !current)}
       onCreateTerminal={onCreateTerminal}
+      onCreateBrowserPane={onCreateBrowserPane}
     />
   );
 
@@ -316,6 +319,7 @@ export function ShellLayout(props: ShellLayoutProps) {
         onToggleCollapsed={() => setTerminalCollapsed((c) => !c)}
         onToggleSidePanes={() => setSidePanesFlipped((current) => !current)}
         onCreateTerminal={onCreateTerminal}
+        onCreateBrowserPane={onCreateBrowserPane}
       />
 
       {dragManager.drag ? (

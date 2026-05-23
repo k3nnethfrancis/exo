@@ -67,7 +67,7 @@ export interface WorkspacePaneSplit {
   children: [WorkspacePaneNode, WorkspacePaneNode];
 }
 
-export type WorkspacePaneContent = WorkspaceEditorPaneContent | WorkspaceTerminalPaneContent;
+export type WorkspacePaneContent = WorkspaceEditorPaneContent | WorkspaceTerminalPaneContent | WorkspaceBrowserPaneContent;
 
 export interface WorkspaceEditorPaneContent {
   kind: "editor";
@@ -79,6 +79,11 @@ export interface WorkspaceTerminalPaneContent {
   kind: "terminal";
   terminalIds: string[];
   activeTerminalId: string | null;
+}
+
+export interface WorkspaceBrowserPaneContent {
+  kind: "browser";
+  url: string;
 }
 
 export interface TreeNode {

@@ -199,6 +199,7 @@ function createWindow() {
     },
     webPreferences: {
       preload: preloadPath,
+      webviewTag: true,
     },
   });
 

@@ -42,7 +42,7 @@ describe("workspace settings registry", () => {
             ratio: 0.9,
             children: [
               { kind: "leaf", id: "editor-a", content: { kind: "editor", openPaths: ["/tmp/exo-layout/notes/a.md"], activePath: "/tmp/exo-layout/notes/a.md" } },
-              { kind: "leaf", id: "editor-b", content: { kind: "terminal", terminalIds: ["term-1"], activeTerminalId: "term-1" } },
+              { kind: "leaf", id: "editor-b", content: { kind: "browser", url: "localhost:3000" } },
             ],
           },
           terminalTree: {
@@ -67,6 +67,9 @@ describe("workspace settings registry", () => {
         inspectorCollapsed: false,
       });
       expect(saved.layout?.editorTree.kind).toBe("split");
+      if (saved.layout?.editorTree.kind === "split" && saved.layout.editorTree.children[1].kind === "leaf") {
+        expect(saved.layout.editorTree.children[1].content).toEqual({ kind: "browser", url: "localhost:3000" });
+      }
       expect(saved.layout?.terminalTree.kind).toBe("leaf");
       if (saved.layout?.terminalTree.kind === "leaf" && saved.layout.terminalTree.content.kind === "terminal") {
         expect(saved.layout.terminalTree.content.activeTerminalId).toBe("term-2");

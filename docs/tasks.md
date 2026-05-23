@@ -26,7 +26,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Let files and terminals share one arbitrary split-pane graph.
 - [x] Roadmap mixed file/terminal tab groups after the split-pane model stabilizes.
 - [x] Support multiple terminal panes in the main workspace, not just the terminal dock.
-- [ ] Add a core WebView/browser pane for local web-app previews, docs, dashboards, and future plugin-hosted apps.
+- [x] Add a core WebView/browser pane for local web-app previews, docs, dashboards, and future plugin-hosted apps.
 - [x] Persist pane layout across restart.
 - [x] Keep file and terminal tab chrome aligned across all pane positions.
 - [x] Add broader regression coverage for pane closure, reload, and terminal streaming.

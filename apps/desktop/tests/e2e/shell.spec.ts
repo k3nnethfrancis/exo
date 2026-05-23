@@ -88,6 +88,23 @@ test("shows a visible BrowserWindow on startup", async () => {
   await cleanup();
 });
 
+test("opens a browser preview pane in the workspace", async () => {
+  const { page, cleanup } = await launchExoFixture();
+
+  await page.getByTestId("launch-browser").click();
+  await expect(page.getByTestId("browser-pane")).toBeVisible();
+  await expect(page.getByTestId("browser-url-input")).toHaveValue("about:blank");
+  await expect(page.getByText("Enter a local URL to preview.")).toBeVisible();
+
+  await page.getByTestId("browser-url-input").fill("localhost:4321");
+  await page.getByTestId("browser-load-url").click();
+  await expect(page.getByTestId("browser-url-input")).toHaveValue("http://localhost:4321");
+  await expect(page.getByTestId("browser-webview")).toHaveAttribute("src", "http://localhost:4321");
+  await expect(page.locator(".pane-leaf--browser")).toBeVisible();
+
+  await cleanup();
+});
+
 test("opens project files and creates note branches", async () => {
   const { page, cleanup } = await launchExoFixture({ mutable: true });
 

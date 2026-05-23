@@ -16,13 +16,14 @@ import type { TerminalSessionInfo, WorkspaceGitChange, WorkspaceGitStatus, Works
 import type { FileStatInfo } from "../../shared/api";
 
 import { EditorPane, type EditorPaneState } from "./components/EditorPane";
+import { BrowserPane } from "./components/BrowserPane";
 import { InspectorDock } from "./components/InspectorDock";
 import { ShellLayout } from "./components/ShellLayout";
 import { TerminalDock } from "./components/TerminalDock";
 import { useOpenDocumentVersionPolling } from "./hooks/useOpenDocumentVersionPolling";
 import { useShellLayout } from "./hooks/useShellLayout";
 import { useWorkspaceSearch } from "./hooks/useWorkspaceSearch";
-import { collectLeaves, findEditorLeaf, findNode, findTerminalLeaf, mapLeaves, paneId, pruneEmptyLeaves, updateNode, type PaneLeaf, type PaneNode, type PaneNodeId, type EditorPaneContent, type TerminalPaneContent } from "./hooks/usePaneTree";
+import { collectLeaves, findEditorLeaf, findNode, findTerminalLeaf, mapLeaves, paneId, pruneEmptyLeaves, updateNode, type PaneLeaf, type PaneNode, type PaneNodeId, type BrowserPaneContent, type EditorPaneContent, type TerminalPaneContent } from "./hooks/usePaneTree";
 import { useDragManager, type DragDropTarget, type DragPayload, type DropEdge } from "./hooks/useDragManager";
 
 interface OpenEditorDocument extends NoteDocument {
@@ -1766,6 +1767,31 @@ export function App() {
     await activateTerminal(dockTerminalLeaf.id, id);
   }
 
+  function createBrowserPane(url = "about:blank") {
+    const focusedLeaf = findNode(editorTree, (node) => node.id === editorFocusedLeafId && node.kind === "leaf") as PaneLeaf | undefined;
+    const targetLeaf = focusedLeaf ?? collectLeaves(editorTree)[0];
+    if (!targetLeaf) {
+      return;
+    }
+
+    const newLeafId = paneId();
+    const browserContent: BrowserPaneContent = { kind: "browser", url };
+    editorActions.setTree((prev) =>
+      updateNode(prev, targetLeaf.id, (node) => ({
+        kind: "split" as const,
+        id: paneId(),
+        direction: "horizontal",
+        ratio: 0.58,
+        children: [
+          node as PaneLeaf,
+          { kind: "leaf", id: newLeafId, content: browserContent },
+        ],
+      })),
+    );
+    editorActions.focusLeaf(newLeafId);
+    setZoomSurface("editor");
+  }
+
   async function closeTerminal(id: string) {
     await window.exo.terminals.kill(id);
     setTerminalSessions((current) => current.filter((session) => session.id !== id));
@@ -2481,6 +2507,24 @@ export function App() {
       shellLayout={shellLayout}
       revealExplorerPathRequest={revealExplorerPathRequest}
       renderEditorLeaf={(leaf, isFocused) => {
+        if (leaf.content.kind === "browser") {
+          return (
+            <BrowserPane
+              url={leaf.content.url}
+              compact={compactEditorChrome}
+              onFocus={() => {
+                setZoomSurface("editor");
+                editorActions.focusLeaf(leaf.id);
+              }}
+              onNavigate={(url) => {
+                editorActions.updateLeafContent(leaf.id, (content) =>
+                  content.kind === "browser" ? { ...content, url } : content,
+                );
+              }}
+              onClosePane={collectLeaves(editorTree).length > 1 ? () => editorActions.removeLeaf(leaf.id) : null}
+            />
+          );
+        }
         if (leaf.content.kind === "terminal") {
           const terminalLeafSessions = terminalSessions.filter((s) => leaf.content.kind === "terminal" && leaf.content.terminalIds.includes(s.id));
           return (
@@ -2623,6 +2667,7 @@ export function App() {
       onRenamePath={(targetPath) => renameWorkspacePath(targetPath)}
       onDeletePath={(targetPath) => deleteWorkspacePath(targetPath)}
       onCreateTerminal={(kind) => void createTerminal(kind)}
+      onCreateBrowserPane={() => createBrowserPane()}
       />
 
       {workspaceDialog ? (
