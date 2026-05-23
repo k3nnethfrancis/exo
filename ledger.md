@@ -71,12 +71,13 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Broadened workspace pane regression coverage for canvas terminal streaming and pruning after closing the last workspace terminal session.
 - Hardened the repo-backed `exo` launcher and local installer against stale Corepack package-manager signature metadata by defaulting `COREPACK_ENABLE_PROJECT_SPEC=0` for Exo-managed pnpm invocations.
 - Aligned terminal pane tab chrome with editor panes by using the same 40px strip rhythm in dock and canvas placements, and added e2e geometry coverage for canvas terminal headers.
+- Documented the mixed file/terminal tab-group migration path: typed tabs inside one pane leaf, shared chrome above typed bodies, and terminal process lifecycle kept separate from pane layout persistence.
 
 ## Next Priorities
 
 1. Push `0.1.0-alpha.2` tester-readiness fixes to main.
-2. Workspace surface: roadmap mixed file/terminal tab groups before changing pane content semantics.
-3. Project roots and code review: CLI/MCP root management plus changed-file review for agent-authored edits.
+2. Project roots and code review: CLI/MCP root management plus changed-file review for agent-authored edits.
+3. Core WebView/browser pane for local previews, docs, dashboards, and future plugin-hosted apps.
 4. Agent context manager: inspect/edit/compare global and local `AGENTS.md` / `CLAUDE.md`.
 5. Authorship/provenance: observed human vs agent-written changes by session/task/file.
 6. QMD notes index: improve performance, add true incremental file-level updates when QMD exposes them, and refine triggers/profiles.

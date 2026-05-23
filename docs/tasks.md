@@ -24,7 +24,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Make CLI/MCP workspace resolution use the active workspace registry when explicit env vars are not set.
 - [x] Make terminal panes draggable into the editor canvas.
 - [x] Let files and terminals share one arbitrary split-pane graph.
-- [ ] Roadmap mixed file/terminal tab groups after the split-pane model stabilizes.
+- [x] Roadmap mixed file/terminal tab groups after the split-pane model stabilizes.
 - [x] Support multiple terminal panes in the main workspace, not just the terminal dock.
 - [ ] Add a core WebView/browser pane for local web-app previews, docs, dashboards, and future plugin-hosted apps.
 - [x] Persist pane layout across restart.

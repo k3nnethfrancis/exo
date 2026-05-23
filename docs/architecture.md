@@ -153,6 +153,27 @@ Future linter work should plug external tools into this path instead of replacin
 
 Project roots are explicit imported folders. First-run source builds attach the Exo repo as the first project root so the app can inspect and edit itself; Exo does not attach the workspace-level `projects/` directory by default.
 
+## Pane Model
+
+The current workspace pane graph is a split tree whose leaves are typed as either editor leaves or terminal leaves. Editor leaves own document tabs; terminal leaves own terminal session tabs. This supports arbitrary file/terminal split layouts without mixing live process state into document state.
+
+Mixed file/terminal tab groups should be a deliberate next model, not a visual shortcut. The target shape is one pane leaf with typed tabs:
+
+- document tabs point at open file paths
+- terminal tabs point at supervised terminal session ids
+- the active tab chooses which body renderer mounts
+- tab drag/drop moves a typed tab between compatible pane leaves
+- closing a terminal tab kills or detaches the supervised process through the terminal service, while closing a document tab only mutates editor state
+
+Avoid nesting a full `TerminalDock` inside editor chrome for mixed groups. Shared tab chrome should sit above typed tab bodies, with terminals remaining live views over main-process sessions. Persistence should store pane/tab layout separately from terminal process lifecycle; restored layouts must prune stale terminal ids rather than recreating processes implicitly.
+
+Migration path:
+
+1. Keep the current split-tree leaf model stable for separate editor and terminal leaves.
+2. Introduce a normalized tab descriptor type that can represent documents and terminals.
+3. Convert editor and terminal leaves to render through the shared tab descriptor without changing behavior.
+4. Only then allow a single leaf to contain both document and terminal descriptors.
+
 ## Search And Retrieval
 
 Search currently returns:
