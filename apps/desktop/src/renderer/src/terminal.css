@@ -74,7 +74,7 @@
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-rows: 44px minmax(0, 1fr);
+  grid-template-rows: 40px minmax(0, 1fr);
   position: relative;
 }
 
@@ -85,9 +85,9 @@
   padding: 0;
   padding-right: 8px;
   border-bottom: 1px solid color-mix(in srgb, var(--divider) 52%, transparent);
-  background: var(--chrome-bg);
+  background: transparent;
   justify-content: space-between;
-  min-height: 44px;
+  min-height: 40px;
   grid-column: 1;
   grid-row: 1;
   min-width: 0;
@@ -143,6 +143,10 @@
 .terminal-dock--right .terminal-tab {
   padding: 8px 12px;
   gap: 6px;
+}
+
+.terminal-dock--compact .terminal-tab {
+  max-width: 220px;
 }
 
 .terminal-tab.chrome-tab--active {

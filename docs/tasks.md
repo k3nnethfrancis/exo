@@ -28,7 +28,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Support multiple terminal panes in the main workspace, not just the terminal dock.
 - [ ] Add a core WebView/browser pane for local web-app previews, docs, dashboards, and future plugin-hosted apps.
 - [x] Persist pane layout across restart.
-- [ ] Keep file and terminal tab chrome aligned across all pane positions.
+- [x] Keep file and terminal tab chrome aligned across all pane positions.
 - [x] Add broader regression coverage for pane closure, reload, and terminal streaming.
 
 ## Next: Project Roots And Code Review

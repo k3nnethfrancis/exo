@@ -351,6 +351,12 @@ test.describe("Cross-zone terminal tab moves", () => {
     await expect(page.getByTestId("terminal-expand")).toBeVisible();
     await expect(page.locator(".workspace__body .pane-leaf--terminal").getByTestId("terminal-tab-shell")).toBeVisible();
 
+    const editorTabStripBox = await page.locator(".workspace__body .pane-leaf--editor .tab-strip").first().boundingBox();
+    const canvasTerminalHeaderBox = await page.locator(".workspace__body .pane-leaf--terminal .terminal-dock__header").first().boundingBox();
+    expect(editorTabStripBox).not.toBeNull();
+    expect(canvasTerminalHeaderBox).not.toBeNull();
+    expect(Math.abs(editorTabStripBox!.height - canvasTerminalHeaderBox!.height)).toBeLessThanOrEqual(1);
+
     await expect.poll(async () => {
       const settings = JSON.parse(await readFile(settingsPath, "utf8"));
       return settings.layout?.terminalCollapsed === true && settings.layout?.editorTree

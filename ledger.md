@@ -70,11 +70,12 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Completed the first shared file/terminal pane graph behavior: canvas terminal leaves now accept document/file edge drops to split the main workspace graph, while the separate terminal dock still rejects document drops.
 - Broadened workspace pane regression coverage for canvas terminal streaming and pruning after closing the last workspace terminal session.
 - Hardened the repo-backed `exo` launcher and local installer against stale Corepack package-manager signature metadata by defaulting `COREPACK_ENABLE_PROJECT_SPEC=0` for Exo-managed pnpm invocations.
+- Aligned terminal pane tab chrome with editor panes by using the same 40px strip rhythm in dock and canvas placements, and added e2e geometry coverage for canvas terminal headers.
 
 ## Next Priorities
 
 1. Push `0.1.0-alpha.2` tester-readiness fixes to main.
-2. Workspace surface: roadmap mixed file/terminal tab groups and keep file/terminal chrome aligned across pane positions.
+2. Workspace surface: roadmap mixed file/terminal tab groups before changing pane content semantics.
 3. Project roots and code review: CLI/MCP root management plus changed-file review for agent-authored edits.
 4. Agent context manager: inspect/edit/compare global and local `AGENTS.md` / `CLAUDE.md`.
 5. Authorship/provenance: observed human vs agent-written changes by session/task/file.

@@ -37,6 +37,7 @@ export function TerminalDock(props: TerminalDockProps) {
     placement,
     paneId,
     appearance,
+    compact,
     empty,
     sessions,
     activeTerminalId,
@@ -59,7 +60,7 @@ export function TerminalDock(props: TerminalDockProps) {
 
   return (
     <section
-      className={`terminal-dock terminal-dock--${placement} ${empty ? "terminal-dock--empty" : ""}`}
+      className={`terminal-dock terminal-dock--${placement} ${compact ? "terminal-dock--compact" : ""} ${empty ? "terminal-dock--empty" : ""}`}
       data-testid="terminal-dock"
       onMouseDown={onFocus}
       style={style}
