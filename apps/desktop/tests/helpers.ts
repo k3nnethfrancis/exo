@@ -14,12 +14,13 @@ export async function launchExoFixture(options?: {
   prepareWorkspace?: (workspaceRoot: string) => Promise<void>;
   initialNoteLabel?: string | null;
   configured?: boolean;
-}): Promise<{ electronApp: ElectronApplication; page: Page; workspaceRoot: string; settingsPath: string; cleanup: () => Promise<void> }> {
+}): Promise<{ electronApp: ElectronApplication; page: Page; workspaceRoot: string; settingsPath: string; homeRoot: string; cleanup: () => Promise<void> }> {
   let workspaceRoot = fixtureRoot;
   let tempRoot: string | null = null;
   const settingsRoot = await mkdtemp(path.join(os.tmpdir(), "exo-settings-"));
   const settingsPath = path.join(settingsRoot, "workspace-settings.json");
   const userDataRoot = await mkdtemp(path.join(os.tmpdir(), "exo-userdata-"));
+  const homeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-home-"));
   if (options?.mutable || options?.prepareWorkspace) {
     tempRoot = await mkdtemp(path.join(os.tmpdir(), "exo-fixture-"));
     workspaceRoot = path.join(tempRoot, "test-workspace");
@@ -49,6 +50,7 @@ export async function launchExoFixture(options?: {
       EXO_SETTINGS_PATH: settingsPath,
       EXO_USER_DATA_PATH: userDataRoot,
       EXO_FORCE_THEME: "dark",
+      HOME: homeRoot,
       EXO_SHELL: "/bin/echo",
       EXO_SHELL_ARGS: "shell ready",
       EXO_CLAUDE_COMMAND: "/bin/echo",
@@ -67,10 +69,12 @@ export async function launchExoFixture(options?: {
       page,
       workspaceRoot,
       settingsPath,
+      homeRoot,
       cleanup: async () => {
         await electronApp.close();
         await rm(settingsRoot, { recursive: true, force: true });
         await rm(userDataRoot, { recursive: true, force: true });
+        await rm(homeRoot, { recursive: true, force: true });
         if (tempRoot) {
           await rm(tempRoot, { recursive: true, force: true });
         }
@@ -96,10 +100,12 @@ export async function launchExoFixture(options?: {
     page,
     workspaceRoot,
     settingsPath,
+    homeRoot,
     cleanup: async () => {
       await electronApp.close();
       await rm(settingsRoot, { recursive: true, force: true });
       await rm(userDataRoot, { recursive: true, force: true });
+      await rm(homeRoot, { recursive: true, force: true });
       if (tempRoot) {
         await rm(tempRoot, { recursive: true, force: true });
       }
