@@ -1433,15 +1433,8 @@ select.dialog-card__input {
   padding-block: 4px;
 }
 
-.agent-context-settings__composer-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  min-width: 0;
-}
-
 .agent-context-settings__composer-textarea {
-  min-height: 110px;
+  min-height: 130px;
   resize: vertical;
   font-family: var(--mono);
   font-size: 11px;

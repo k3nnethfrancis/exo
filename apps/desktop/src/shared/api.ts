@@ -120,9 +120,7 @@ export interface DesktopApi {
     saveAgentContextFile: (filePath: string, body: string) => Promise<AgentContextFile>;
     saveAgentContextBundle: (input: {
       targetId: string;
-      sharedBody: string;
-      claudeBody: string;
-      codexBody: string;
+      body: string;
     }) => Promise<AgentContextFile[]>;
     createFile: (targetPath: string, content?: string) => Promise<string>;
     createDirectory: (targetPath: string) => Promise<string>;

@@ -43,7 +43,7 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Exo does not yet track authorship/provenance for agent-authored writes.
 - Exo does not yet have durable agent-to-agent communication beyond terminal/CLI/MCP control.
 - Agent context comparison is heuristic: Exo surfaces obvious duplicates, package-manager mismatches, and broad global/local coverage reminders.
-- The unified agent context composer writes provider files for a selected scope, but it does not yet preserve unrelated manual content outside Exo-generated output or keep version history.
+- The unified agent context composer writes provider-compatible files for a selected scope, preserving manual content outside Exo-managed blocks, but it does not yet keep version history.
 
 ## Recent Completed Work
 
@@ -82,12 +82,13 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Added the first agent context manager surface in Workspace Settings: Exo lists global, note-root, and project-root `AGENTS.md` / `CLAUDE.md` files, lets users inspect existing or new files, and saves edits through a constrained IPC route.
 - Added a conservative provenance foundation: workspace file-change events are recorded as observed write candidates for the most-specific live terminal cwd, then review badges prefer observed associations over broad cwd matching without claiming certain authorship.
 - Polished the agent context manager with global/local comparison signals for duplicated instructions, package-manager conflicts, and global coverage, plus an Exo snippet insertion action for CLI/MCP guidance.
-- Added a unified agent instruction composer in Workspace Settings so users can choose a global/note/project scope once, write shared plus Claude-only and Codex-only instructions, and let Exo render the matching `CLAUDE.md` and `AGENTS.md` files.
+- Added a unified agent instruction composer in Workspace Settings so users can choose a global/note/project scope once, write one agent-agnostic instruction body, and let Exo keep `AGENTS.md`, `CLAUDE.md`, and future provider files aligned through an explained managed block.
+- Hardened agent context writes to preserve manual file content outside the Exo-managed block and round-trip existing managed content back into the unified composer.
 
 ## Next Priorities
 
 1. Push `0.1.0-alpha.2` tester-readiness fixes to main.
-2. Agent context manager: preserve manual context content while round-tripping Exo-generated sections, then add version history and separate runtime overlays under `.exo/instructions/`.
+2. Agent context manager: add version history/diff/restore, extend provider file adapters beyond `AGENTS.md` / `CLAUDE.md`, and separate runtime overlays under `.exo/instructions/`.
 3. Authorship/provenance: promote observed write candidates into explicit human vs agent review states only when Exo controls the write path or receives a trusted session event.
 4. QMD notes index: improve performance, add true incremental file-level updates when QMD exposes them, and refine triggers/profiles.
 5. Multi-agent coordination: roster, objectives, direct messages, file+SQLite transport, CLI/MCP access.

@@ -52,10 +52,10 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Compare global vs local agent context files.
 - [x] Surface conflicting or duplicated instructions.
 - [x] Offer Exo-recommended snippets that explain Exo CLI/MCP tools to terminal agents.
-- [x] Add a unified shared/Claude/Codex instruction composer that renders provider-specific context files.
-- [ ] Preserve and round-trip Exo-managed unified sections without overwriting unrelated manual content.
+- [x] Add a unified agent-agnostic instruction composer that renders provider-compatible context files.
+- [x] Preserve and round-trip Exo-managed unified sections without overwriting unrelated manual content.
 - [ ] Add version history and diff/restore for generated provider context files.
-- [ ] Extend agent config management to MCP/provider config files.
+- [ ] Extend agent config management to MCP/provider config files and additional provider instruction files such as `soul.md`.
 - [ ] Keep Exo-generated runtime overlays under `.exo/instructions/` separate from user-authored context files.
 
 ## Next: Authorship And Provenance

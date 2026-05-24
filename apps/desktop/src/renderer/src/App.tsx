@@ -131,9 +131,7 @@ interface AgentContextSignal {
 
 interface AgentContextComposerState {
   selectedTargetId: string | null;
-  sharedBody: string;
-  claudeBody: string;
-  codexBody: string;
+  body: string;
   saveStatus: "idle" | "saving" | "saved" | "error";
   errorMessage: string | null;
 }
@@ -232,9 +230,7 @@ export function App() {
   });
   const [agentContextComposer, setAgentContextComposer] = useState<AgentContextComposerState>({
     selectedTargetId: null,
-    sharedBody: "",
-    claudeBody: "",
-    codexBody: "",
+    body: "",
     saveStatus: "idle",
     errorMessage: null,
   });
@@ -1052,9 +1048,7 @@ export function App() {
     });
     setAgentContextComposer({
       selectedTargetId: agentContextFiles[0]?.targetId ?? null,
-      sharedBody: "",
-      claudeBody: "",
-      codexBody: "",
+      body: agentContextFiles[0]?.targetId ? managedAgentContextBodyForTarget(agentContextFiles, agentContextFiles[0].targetId) : "",
       saveStatus: "idle",
       errorMessage: null,
     });
@@ -1155,9 +1149,7 @@ export function App() {
     try {
       const savedFiles = await window.exo.workspace.saveAgentContextBundle({
         targetId: snapshot.selectedTargetId,
-        sharedBody: snapshot.sharedBody,
-        claudeBody: snapshot.claudeBody,
-        codexBody: snapshot.codexBody,
+        body: snapshot.body,
       });
       setAgentContextEditor((current) => {
         const filesByPath = new Map(savedFiles.map((file) => [file.path, file]));
@@ -3257,6 +3249,7 @@ export function App() {
                             setAgentContextComposer((current) => ({
                               ...current,
                               selectedTargetId: event.target.value || null,
+                              body: event.target.value ? managedAgentContextBodyForTarget(agentContextEditor.files, event.target.value) : "",
                               saveStatus: "idle",
                               errorMessage: null,
                             }))
@@ -3279,59 +3272,23 @@ export function App() {
                         </button>
                       </div>
                     </div>
-                    <div className="agent-context-settings__composer-grid">
-                      <label className="dialog-field">
-                        <span className="dialog-field__label">Shared</span>
-                        <textarea
-                          className="dialog-card__input agent-context-settings__composer-textarea"
-                          data-testid="agent-context-shared-editor"
-                          spellCheck={false}
-                          value={agentContextComposer.sharedBody}
-                          onChange={(event) =>
-                            setAgentContextComposer((current) => ({
-                              ...current,
-                              sharedBody: event.target.value,
-                              saveStatus: "idle",
-                              errorMessage: null,
-                            }))
-                          }
-                        />
-                      </label>
-                      <label className="dialog-field">
-                        <span className="dialog-field__label">Claude only</span>
-                        <textarea
-                          className="dialog-card__input agent-context-settings__composer-textarea"
-                          data-testid="agent-context-claude-editor"
-                          spellCheck={false}
-                          value={agentContextComposer.claudeBody}
-                          onChange={(event) =>
-                            setAgentContextComposer((current) => ({
-                              ...current,
-                              claudeBody: event.target.value,
-                              saveStatus: "idle",
-                              errorMessage: null,
-                            }))
-                          }
-                        />
-                      </label>
-                      <label className="dialog-field">
-                        <span className="dialog-field__label">Codex only</span>
-                        <textarea
-                          className="dialog-card__input agent-context-settings__composer-textarea"
-                          data-testid="agent-context-codex-editor"
-                          spellCheck={false}
-                          value={agentContextComposer.codexBody}
-                          onChange={(event) =>
-                            setAgentContextComposer((current) => ({
-                              ...current,
-                              codexBody: event.target.value,
-                              saveStatus: "idle",
-                              errorMessage: null,
-                            }))
-                          }
-                        />
-                      </label>
-                    </div>
+                    <label className="dialog-field">
+                      <span className="dialog-field__label">Instructions for all terminal agents</span>
+                      <textarea
+                        className="dialog-card__input agent-context-settings__composer-textarea"
+                        data-testid="agent-context-unified-editor"
+                        spellCheck={false}
+                        value={agentContextComposer.body}
+                        onChange={(event) =>
+                          setAgentContextComposer((current) => ({
+                            ...current,
+                            body: event.target.value,
+                            saveStatus: "idle",
+                            errorMessage: null,
+                          }))
+                        }
+                      />
+                    </label>
                     {agentContextComposer.saveStatus === "saved" ? (
                       <div className="dialog-card__status" data-testid="agent-context-unified-status">Provider files written.</div>
                     ) : null}
@@ -3822,6 +3779,29 @@ function agentContextTargetsFromFiles(files: AgentContextFile[]) {
     }
   }
   return [...targets.values()];
+}
+
+const EXO_AGENT_CONTEXT_START_PREFIX = "<!-- exo:managed:start";
+const EXO_AGENT_CONTEXT_END = "<!-- exo:managed:end -->";
+const EXO_AGENT_CONTEXT_BODY_PATTERN = /<!-- exo:managed:start[\s\S]*?-->\s*# Agent Instructions\s*(?:<!--[\s\S]*?-->)?\s*([\s\S]*?)\s*<!-- exo:managed:end -->/;
+
+function managedAgentContextBodyForTarget(files: AgentContextFile[], targetId: string): string {
+  const targetFiles = files.filter((file) => file.targetId === targetId);
+  for (const file of targetFiles) {
+    const body = extractManagedAgentContextBody(file.body);
+    if (body.length > 0) {
+      return body;
+    }
+  }
+  return "";
+}
+
+function extractManagedAgentContextBody(body: string): string {
+  if (!body.includes(EXO_AGENT_CONTEXT_START_PREFIX) || !body.includes(EXO_AGENT_CONTEXT_END)) {
+    return "";
+  }
+  const match = EXO_AGENT_CONTEXT_BODY_PATTERN.exec(body);
+  return match?.[1]?.trim() ?? "";
 }
 
 function summarizeAgentContextSignals(files: AgentContextFile[], selectedPath: string | null): AgentContextSignal[] {

@@ -473,7 +473,7 @@ function registerIpcHandlers() {
   ipcMain.handle("workspace:get-git-status", async (_event, rootPath: string) => getGitStatus(rootPath));
   ipcMain.handle("workspace:list-agent-context-files", async () => listAgentContextFiles());
   ipcMain.handle("workspace:save-agent-context-file", async (_event, filePath: string, body: string) => saveAgentContextFile(filePath, body));
-  ipcMain.handle("workspace:save-agent-context-bundle", async (_event, input: { targetId: string; sharedBody: string; claudeBody: string; codexBody: string }) =>
+  ipcMain.handle("workspace:save-agent-context-bundle", async (_event, input: { targetId: string; body: string }) =>
     saveAgentContextBundle(input),
   );
   ipcMain.handle("workspace:create-file", async (_event, targetPath: string, content?: string) => createWorkspaceFile(targetPath, content));
@@ -709,46 +709,56 @@ async function saveAgentContextFile(filePath: string, body: string) {
   return readAgentContextCandidate(candidate);
 }
 
-async function saveAgentContextBundle(input: { targetId: string; sharedBody: string; claudeBody: string; codexBody: string }) {
+async function saveAgentContextBundle(input: { targetId: string; body: string }) {
   const candidates = agentContextCandidates();
   const targetCandidates = candidates.filter((entry) => entry.targetId === input.targetId);
   if (targetCandidates.length === 0) {
     throw new Error("Agent context target is outside the active global/workspace context set.");
   }
 
-  const claudeCandidate = targetCandidates.find((entry) => entry.provider === "claude");
-  const codexCandidate = targetCandidates.find((entry) => entry.provider === "codex");
-  if (!claudeCandidate || !codexCandidate) {
-    throw new Error("Agent context target is missing a provider file candidate.");
-  }
-
-  await Promise.all([
-    writeAgentContextProviderFile(claudeCandidate.path, renderAgentContextProviderFile(input.sharedBody, input.claudeBody, "Claude")),
-    writeAgentContextProviderFile(codexCandidate.path, renderAgentContextProviderFile(input.sharedBody, input.codexBody, "Codex")),
-  ]);
+  await Promise.all(targetCandidates.map((candidate) => writeAgentContextProviderFile(candidate.path, input.body)));
 
   return Promise.all(targetCandidates.map(readAgentContextCandidate));
 }
 
-async function writeAgentContextProviderFile(filePath: string, body: string) {
+async function writeAgentContextProviderFile(filePath: string, instructionBody: string) {
+  const currentBody = await readFile(filePath, "utf8").catch((error: NodeJS.ErrnoException) => {
+    if (error.code === "ENOENT") {
+      return "";
+    }
+    throw error;
+  });
   await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, body, "utf8");
+  await writeFile(filePath, upsertManagedAgentContextBlock(currentBody, instructionBody), "utf8");
 }
 
-function renderAgentContextProviderFile(sharedBody: string, providerBody: string, providerLabel: string) {
-  const sections = [
+const EXO_AGENT_CONTEXT_START = "<!-- exo:managed:start - Exo keeps this instruction block synced across agent provider files. Edit it from Workspace Settings > Agents. -->";
+const EXO_AGENT_CONTEXT_END = "<!-- exo:managed:end -->";
+const EXO_AGENT_CONTEXT_PATTERN = new RegExp(`${escapeRegExp(EXO_AGENT_CONTEXT_START)}[\\s\\S]*?${escapeRegExp(EXO_AGENT_CONTEXT_END)}`);
+
+function upsertManagedAgentContextBlock(currentBody: string, instructionBody: string) {
+  const block = renderManagedAgentContextBlock(instructionBody);
+  if (EXO_AGENT_CONTEXT_PATTERN.test(currentBody)) {
+    return currentBody.replace(EXO_AGENT_CONTEXT_PATTERN, block);
+  }
+  const separator = currentBody.trim().length > 0 ? "\n\n" : "";
+  return `${currentBody.trimEnd()}${separator}${block}\n`;
+}
+
+function renderManagedAgentContextBlock(instructionBody: string) {
+  return [
+    EXO_AGENT_CONTEXT_START,
     "# Agent Instructions",
     "",
-    "<!-- Managed by Exo. Edit from Workspace Settings > Agents to keep provider files aligned. -->",
-  ];
-  if (sharedBody.trim().length > 0) {
-    sections.push("", "## Shared", "", sharedBody.trim());
-  }
-  if (providerBody.trim().length > 0) {
-    sections.push("", `## ${providerLabel}`, "", providerBody.trim());
-  }
-  sections.push("");
-  return sections.join("\n");
+    "<!-- Managed by Exo so AGENTS.md, CLAUDE.md, and future provider files stay aligned. Edit this block from Workspace Settings > Agents. -->",
+    "",
+    instructionBody.trim(),
+    EXO_AGENT_CONTEXT_END,
+  ].join("\n");
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function agentContextCandidates() {

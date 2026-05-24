@@ -364,58 +364,69 @@ test("edits agent context files from workspace settings", async () => {
   ).toContain("exo project-roots list");
 
   await page.getByTestId("agent-context-target").selectOption({ label: "sample-project (project)" });
-  await page.getByTestId("agent-context-shared-editor").fill("Use shared Exo context.");
-  await page.getByTestId("agent-context-claude-editor").fill("Use Claude provider context.");
-  await page.getByTestId("agent-context-codex-editor").fill("Use Codex provider context.");
+  await page.getByTestId("agent-context-unified-editor").fill("Use unified project context.");
   await page.getByTestId("agent-context-save-unified").click();
   await expect(page.getByTestId("agent-context-unified-status")).toContainText("Provider files written");
 
   await expect.poll(async () =>
     readFile(path.join(workspaceRoot, "projects/sample-project/CLAUDE.md"), "utf8"),
-  ).toContain("Use Claude provider context.");
+  ).toContain("Use unified project context.");
   await expect.poll(async () =>
     readFile(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"), "utf8"),
-  ).toContain("Use Codex provider context.");
+  ).toContain("Use unified project context.");
   await expect.poll(async () =>
     readFile(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"), "utf8"),
-  ).toContain("Use shared Exo context.");
+  ).toContain("Existing project context");
   await expect.poll(async () =>
-    readFile(path.join(workspaceRoot, "projects/sample-project/CLAUDE.md"), "utf8"),
-  ).toContain("Use shared Exo context.");
+    readFile(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"), "utf8"),
+  ).toContain("exo:managed:start");
+
+  await page.getByTestId("agent-context-unified-editor").fill("Use updated unified project context.");
+  await page.getByTestId("agent-context-save-unified").click();
+  await expect(page.getByTestId("agent-context-unified-status")).toContainText("Provider files written");
+  await expect.poll(async () =>
+    readFile(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"), "utf8"),
+  ).toContain("Use updated unified project context.");
+  await expect.poll(async () =>
+    readFile(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"), "utf8"),
+  ).not.toContain("Use unified project context.");
+  await expect.poll(async () =>
+    readFile(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"), "utf8"),
+  ).toContain("Existing project context");
   await expect(access(path.join(workspaceRoot, "notes/test-notes/CLAUDE.md"))).rejects.toThrow();
   await expect(access(path.join(homeRoot, "CLAUDE.md"))).rejects.toThrow();
 
   await page.getByTestId("agent-context-target").selectOption({ label: "test-notes (notes)" });
-  await page.getByTestId("agent-context-shared-editor").fill("Use shared notes context.");
-  await page.getByTestId("agent-context-claude-editor").fill("Use Claude notes context.");
-  await page.getByTestId("agent-context-codex-editor").fill("Use Codex notes context.");
+  await expect(page.getByTestId("agent-context-unified-editor")).toHaveValue("");
+  await page.getByTestId("agent-context-unified-editor").fill("Use unified notes context.");
   await page.getByTestId("agent-context-save-unified").click();
   await expect(page.getByTestId("agent-context-unified-status")).toContainText("Provider files written");
   await expect.poll(async () =>
     readFile(path.join(workspaceRoot, "notes/test-notes/CLAUDE.md"), "utf8"),
-  ).toContain("Use Claude notes context.");
+  ).toContain("Use unified notes context.");
   await expect.poll(async () =>
     readFile(path.join(workspaceRoot, "notes/test-notes/AGENTS.md"), "utf8"),
-  ).toContain("Use Codex notes context.");
+  ).toContain("Use unified notes context.");
   await expect.poll(async () =>
     readFile(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"), "utf8"),
-  ).toContain("Use Codex provider context.");
+  ).toContain("Use updated unified project context.");
 
   await page.getByTestId("agent-context-target").selectOption({ label: "Global (global)" });
-  await page.getByTestId("agent-context-shared-editor").fill("Use shared global context.");
-  await page.getByTestId("agent-context-claude-editor").fill("Use Claude global context.");
-  await page.getByTestId("agent-context-codex-editor").fill("Use Codex global context.");
+  await page.getByTestId("agent-context-unified-editor").fill("Use unified global context.");
   await page.getByTestId("agent-context-save-unified").click();
   await expect(page.getByTestId("agent-context-unified-status")).toContainText("Provider files written");
-  await expect.poll(async () => readFile(path.join(homeRoot, "CLAUDE.md"), "utf8")).toContain("Use Claude global context.");
-  await expect.poll(async () => readFile(path.join(homeRoot, "AGENTS.md"), "utf8")).toContain("Use Codex global context.");
+  await expect.poll(async () => readFile(path.join(homeRoot, "CLAUDE.md"), "utf8")).toContain("Use unified global context.");
+  await expect.poll(async () => readFile(path.join(homeRoot, "AGENTS.md"), "utf8")).toContain("Use unified global context.");
   await expect.poll(async () =>
     readFile(path.join(workspaceRoot, "notes/test-notes/AGENTS.md"), "utf8"),
-  ).toContain("Use Codex notes context.");
+  ).toContain("Use unified notes context.");
 
   await page.getByTestId("workspace-settings-close").click();
   await page.getByTestId("workspace-settings").click();
   await page.getByTestId("workspace-settings-tab-agents").click();
+  await expect(page.getByTestId("agent-context-unified-editor")).toHaveValue("Use unified global context.");
+  await page.getByTestId("agent-context-target").selectOption({ label: "sample-project (project)" });
+  await expect(page.getByTestId("agent-context-unified-editor")).toHaveValue("Use updated unified project context.");
   await expect(page.getByRole("button", { name: /Global \/ CLAUDE\.md/i })).toContainText("Existing");
   await expect(page.getByRole("button", { name: /test-notes \/ CLAUDE\.md/i })).toContainText("Existing");
   await expect(page.getByRole("button", { name: /sample-project \/ CLAUDE\.md/i })).toContainText("Existing");
