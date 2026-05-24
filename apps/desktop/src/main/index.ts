@@ -1,5 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, nativeTheme, shell, Tray, type OpenDialogOptions } from "electron";
 import { execFile } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { access, appendFile, mkdir, readFile, stat, writeFile } from "node:fs/promises";
@@ -472,10 +473,12 @@ function registerIpcHandlers() {
   );
   ipcMain.handle("workspace:get-git-status", async (_event, rootPath: string) => getGitStatus(rootPath));
   ipcMain.handle("workspace:list-agent-context-files", async () => listAgentContextFiles());
+  ipcMain.handle("workspace:list-agent-context-history", async () => listAgentContextHistory());
   ipcMain.handle("workspace:save-agent-context-file", async (_event, filePath: string, body: string) => saveAgentContextFile(filePath, body));
   ipcMain.handle("workspace:save-agent-context-bundle", async (_event, input: { targetId: string; body: string }) =>
     saveAgentContextBundle(input),
   );
+  ipcMain.handle("workspace:restore-agent-context-history", async (_event, historyId: string) => restoreAgentContextHistory(historyId));
   ipcMain.handle("workspace:create-file", async (_event, targetPath: string, content?: string) => createWorkspaceFile(targetPath, content));
   ipcMain.handle("workspace:create-directory", async (_event, targetPath: string) => createWorkspaceDirectory(targetPath));
   ipcMain.handle("workspace:rename-path", async (_event, sourcePath: string, nextPath: string) => renameWorkspacePath(sourcePath, nextPath));
@@ -699,6 +702,14 @@ async function listAgentContextFiles() {
   return Promise.all(agentContextCandidates().map(readAgentContextCandidate));
 }
 
+async function listAgentContextHistory() {
+  const entries = await readAgentContextHistoryEntries();
+  const targetIds = new Set(agentContextCandidates().map((candidate) => candidate.targetId));
+  return entries
+    .filter((entry) => targetIds.has(entry.targetId))
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+}
+
 async function saveAgentContextFile(filePath: string, body: string) {
   const candidate = agentContextCandidates().find((entry) => path.resolve(entry.path) === path.resolve(filePath));
   if (!candidate) {
@@ -716,9 +727,97 @@ async function saveAgentContextBundle(input: { targetId: string; body: string })
     throw new Error("Agent context target is outside the active global/workspace context set.");
   }
 
+  await recordAgentContextHistory(targetCandidates, input.body);
   await Promise.all(targetCandidates.map((candidate) => writeAgentContextProviderFile(candidate.path, input.body)));
 
-  return Promise.all(targetCandidates.map(readAgentContextCandidate));
+  return {
+    files: await Promise.all(targetCandidates.map(readAgentContextCandidate)),
+    history: await listAgentContextHistory(),
+  };
+}
+
+async function restoreAgentContextHistory(historyId: string) {
+  const entry = (await listAgentContextHistory()).find((historyEntry) => historyEntry.id === historyId);
+  if (!entry) {
+    throw new Error("Agent context history entry is unavailable for the active workspace.");
+  }
+  return saveAgentContextBundle({ targetId: entry.targetId, body: entry.previousBody });
+}
+
+async function recordAgentContextHistory(targetCandidates: ReturnType<typeof agentContextCandidates>, nextBody: string) {
+  const previousBody = await currentManagedAgentContextBody(targetCandidates);
+  const normalizedPrevious = previousBody.trim();
+  const normalizedNext = nextBody.trim();
+  if (normalizedPrevious.length === 0 || normalizedPrevious === normalizedNext) {
+    return;
+  }
+
+  const firstCandidate = targetCandidates[0];
+  const entry = {
+    id: randomUUID(),
+    targetId: firstCandidate.targetId,
+    targetLabel: firstCandidate.targetLabel,
+    scope: firstCandidate.scope,
+    rootPath: firstCandidate.rootPath,
+    createdAt: new Date().toISOString(),
+    previousBody: normalizedPrevious,
+    nextBody: normalizedNext,
+  };
+  const historyFilePath = agentContextHistoryFilePath();
+  await mkdir(path.dirname(historyFilePath), { recursive: true });
+  await appendFile(historyFilePath, `${JSON.stringify(entry)}\n`, "utf8");
+}
+
+async function currentManagedAgentContextBody(targetCandidates: ReturnType<typeof agentContextCandidates>) {
+  for (const candidate of targetCandidates) {
+    const body = await readFile(candidate.path, "utf8").catch((error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") {
+        return "";
+      }
+      throw error;
+    });
+    const managedBody = extractManagedAgentContextBlockBody(body);
+    if (managedBody.trim().length > 0) {
+      return managedBody;
+    }
+  }
+  return "";
+}
+
+async function readAgentContextHistoryEntries() {
+  const filePath = agentContextHistoryFilePath();
+  const body = await readFile(filePath, "utf8").catch((error: NodeJS.ErrnoException) => {
+    if (error.code === "ENOENT") {
+      return "";
+    }
+    throw error;
+  });
+  const entries = [];
+  for (const line of body.split(/\r?\n/)) {
+    if (line.trim().length === 0) {
+      continue;
+    }
+    try {
+      entries.push(JSON.parse(line) as {
+        id: string;
+        targetId: string;
+        targetLabel: string;
+        scope: "global" | "notes" | "project";
+        rootPath: string;
+        createdAt: string;
+        previousBody: string;
+        nextBody: string;
+      });
+    } catch {
+      // Ignore malformed historical lines; the current workspace remains usable.
+    }
+  }
+  return entries;
+}
+
+function agentContextHistoryFilePath() {
+  const historyDirectory = path.join(workspaceModel.workspaceRoot, ".exo", "agent-context-history");
+  return path.join(historyDirectory, "history.jsonl");
 }
 
 async function writeAgentContextProviderFile(filePath: string, instructionBody: string) {
@@ -735,6 +834,7 @@ async function writeAgentContextProviderFile(filePath: string, instructionBody: 
 const EXO_AGENT_CONTEXT_START = "<!-- exo:managed:start - Exo keeps this instruction block synced across agent provider files. Edit it from Workspace Settings > Agents. -->";
 const EXO_AGENT_CONTEXT_END = "<!-- exo:managed:end -->";
 const EXO_AGENT_CONTEXT_PATTERN = new RegExp(`${escapeRegExp(EXO_AGENT_CONTEXT_START)}[\\s\\S]*?${escapeRegExp(EXO_AGENT_CONTEXT_END)}`);
+const EXO_AGENT_CONTEXT_BODY_PATTERN = /<!-- exo:managed:start[\s\S]*?-->\s*# Agent Instructions\s*(?:<!--[\s\S]*?-->)?\s*([\s\S]*?)\s*<!-- exo:managed:end -->/;
 
 function upsertManagedAgentContextBlock(currentBody: string, instructionBody: string) {
   const block = renderManagedAgentContextBlock(instructionBody);
@@ -755,6 +855,11 @@ function renderManagedAgentContextBlock(instructionBody: string) {
     instructionBody.trim(),
     EXO_AGENT_CONTEXT_END,
   ].join("\n");
+}
+
+function extractManagedAgentContextBlockBody(body: string) {
+  const match = EXO_AGENT_CONTEXT_BODY_PATTERN.exec(body);
+  return match?.[1]?.trim() ?? "";
 }
 
 function escapeRegExp(value: string) {

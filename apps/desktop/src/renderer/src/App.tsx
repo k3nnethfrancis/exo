@@ -12,7 +12,7 @@ import type {
   WorkspaceSettings,
 } from "@exo/core";
 
-import type { AgentContextFile, TerminalSessionInfo, WorkspaceGitChange, WorkspaceGitStatus, WorkspaceRegistryEntry } from "../../shared/api";
+import type { AgentContextFile, AgentContextHistoryEntry, TerminalSessionInfo, WorkspaceGitChange, WorkspaceGitStatus, WorkspaceRegistryEntry } from "../../shared/api";
 import type { FileStatInfo } from "../../shared/api";
 
 import { EditorPane, type EditorPaneState } from "./components/EditorPane";
@@ -132,6 +132,8 @@ interface AgentContextSignal {
 interface AgentContextComposerState {
   selectedTargetId: string | null;
   body: string;
+  history: AgentContextHistoryEntry[];
+  historyOpen: boolean;
   saveStatus: "idle" | "saving" | "saved" | "error";
   errorMessage: string | null;
 }
@@ -231,6 +233,8 @@ export function App() {
   const [agentContextComposer, setAgentContextComposer] = useState<AgentContextComposerState>({
     selectedTargetId: null,
     body: "",
+    history: [],
+    historyOpen: false,
     saveStatus: "idle",
     errorMessage: null,
   });
@@ -914,6 +918,10 @@ export function App() {
   );
   const selectedAgentContextFile = agentContextEditor.files.find((file) => file.path === agentContextEditor.selectedPath) ?? null;
   const agentContextTargets = useMemo(() => agentContextTargetsFromFiles(agentContextEditor.files), [agentContextEditor.files]);
+  const selectedAgentContextHistory = useMemo(
+    () => latestAgentContextHistoryForTarget(agentContextComposer.history, agentContextComposer.selectedTargetId),
+    [agentContextComposer.history, agentContextComposer.selectedTargetId],
+  );
 
   async function reloadTrees() {
     if (!workspaceModel) {
@@ -1038,6 +1046,10 @@ export function App() {
       console.warn("[exo] failed to list agent context files", error);
       return [];
     });
+    const agentContextHistory = await window.exo.workspace.listAgentContextHistory().catch((error) => {
+      console.warn("[exo] failed to list agent context history", error);
+      return [];
+    });
     setIndexStatus(indexStatus);
     setAgentContextEditor({
       files: agentContextFiles,
@@ -1049,6 +1061,8 @@ export function App() {
     setAgentContextComposer({
       selectedTargetId: agentContextFiles[0]?.targetId ?? null,
       body: agentContextFiles[0]?.targetId ? managedAgentContextBodyForTarget(agentContextFiles, agentContextFiles[0].targetId) : "",
+      history: agentContextHistory,
+      historyOpen: false,
       saveStatus: "idle",
       errorMessage: null,
     });
@@ -1147,10 +1161,11 @@ export function App() {
 
     setAgentContextComposer((current) => ({ ...current, saveStatus: "saving", errorMessage: null }));
     try {
-      const savedFiles = await window.exo.workspace.saveAgentContextBundle({
+      const result = await window.exo.workspace.saveAgentContextBundle({
         targetId: snapshot.selectedTargetId,
         body: snapshot.body,
       });
+      const savedFiles = result.files;
       setAgentContextEditor((current) => {
         const filesByPath = new Map(savedFiles.map((file) => [file.path, file]));
         const selectedFile = current.selectedPath ? filesByPath.get(current.selectedPath) : null;
@@ -1164,6 +1179,42 @@ export function App() {
       });
       setAgentContextComposer((current) => ({
         ...current,
+        history: result.history,
+        saveStatus: "saved",
+        errorMessage: null,
+      }));
+    } catch (error) {
+      setAgentContextComposer((current) => ({
+        ...current,
+        saveStatus: "error",
+        errorMessage: error instanceof Error ? error.message : String(error),
+      }));
+    }
+  }
+
+  async function restoreAgentContextHistoryEntry(historyId: string) {
+    setAgentContextComposer((current) => ({ ...current, saveStatus: "saving", errorMessage: null }));
+    try {
+      const result = await window.exo.workspace.restoreAgentContextHistory(historyId);
+      const savedFiles = result.files;
+      setAgentContextEditor((current) => {
+        const filesByPath = new Map(savedFiles.map((file) => [file.path, file]));
+        const selectedFile = current.selectedPath ? filesByPath.get(current.selectedPath) : null;
+        return {
+          ...current,
+          files: current.files.map((file) => filesByPath.get(file.path) ?? file),
+          draftBody: selectedFile ? selectedFile.body : current.draftBody,
+          saveStatus: selectedFile ? "saved" : current.saveStatus,
+          errorMessage: null,
+        };
+      });
+      const restoredTargetId = savedFiles[0]?.targetId ?? agentContextComposer.selectedTargetId;
+      setAgentContextComposer((current) => ({
+        ...current,
+        selectedTargetId: restoredTargetId,
+        body: restoredTargetId ? managedAgentContextBodyForTarget(savedFiles, restoredTargetId) : current.body,
+        history: result.history,
+        historyOpen: false,
         saveStatus: "saved",
         errorMessage: null,
       }));
@@ -3289,6 +3340,42 @@ export function App() {
                         }
                       />
                     </label>
+                    <div className="agent-context-settings__history" data-testid="agent-context-history">
+                      {selectedAgentContextHistory ? (
+                        <>
+                          <div>
+                            <span>Last changed {formatAgentContextHistoryTime(selectedAgentContextHistory.createdAt)}</span>
+                            <span>{selectedAgentContextHistory.targetLabel}</span>
+                          </div>
+                          <div className="dialog-card__actions dialog-card__actions--split">
+                            <button
+                              className="toolbar-button"
+                              data-testid="agent-context-toggle-diff"
+                              onClick={() => setAgentContextComposer((current) => ({ ...current, historyOpen: !current.historyOpen }))}
+                              type="button"
+                            >
+                              {agentContextComposer.historyOpen ? "Hide diff" : "View diff"}
+                            </button>
+                            <button
+                              className="toolbar-button"
+                              data-testid="agent-context-restore-history"
+                              disabled={agentContextComposer.saveStatus === "saving"}
+                              onClick={() => void restoreAgentContextHistoryEntry(selectedAgentContextHistory.id)}
+                              type="button"
+                            >
+                              Restore previous
+                            </button>
+                          </div>
+                          {agentContextComposer.historyOpen ? (
+                            <pre className="agent-context-settings__diff" data-testid="agent-context-history-diff">
+                              {formatAgentContextHistoryDiff(selectedAgentContextHistory)}
+                            </pre>
+                          ) : null}
+                        </>
+                      ) : (
+                        <span>No previous Exo-managed version for this scope.</span>
+                      )}
+                    </div>
                     {agentContextComposer.saveStatus === "saved" ? (
                       <div className="dialog-card__status" data-testid="agent-context-unified-status">Provider files written.</div>
                     ) : null}
@@ -3802,6 +3889,38 @@ function extractManagedAgentContextBody(body: string): string {
   }
   const match = EXO_AGENT_CONTEXT_BODY_PATTERN.exec(body);
   return match?.[1]?.trim() ?? "";
+}
+
+function latestAgentContextHistoryForTarget(history: AgentContextHistoryEntry[], targetId: string | null) {
+  if (!targetId) {
+    return null;
+  }
+  return history
+    .filter((entry) => entry.targetId === targetId)
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] ?? null;
+}
+
+function formatAgentContextHistoryTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return date.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function formatAgentContextHistoryDiff(entry: AgentContextHistoryEntry): string {
+  return [
+    "Previous",
+    ...entry.previousBody.split(/\r?\n/).map((line) => `- ${line}`),
+    "",
+    "Current",
+    ...entry.nextBody.split(/\r?\n/).map((line) => `+ ${line}`),
+  ].join("\n");
 }
 
 function summarizeAgentContextSignals(files: AgentContextFile[], selectedPath: string | null): AgentContextSignal[] {

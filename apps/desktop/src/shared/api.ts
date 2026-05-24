@@ -87,6 +87,22 @@ export interface AgentContextTarget {
   rootPath: string;
 }
 
+export interface AgentContextHistoryEntry {
+  id: string;
+  targetId: string;
+  targetLabel: string;
+  scope: "global" | "notes" | "project";
+  rootPath: string;
+  createdAt: string;
+  previousBody: string;
+  nextBody: string;
+}
+
+export interface AgentContextBundleResult {
+  files: AgentContextFile[];
+  history: AgentContextHistoryEntry[];
+}
+
 export interface IndexSyncStateEvent {
   state: "running" | "idle" | "error";
   reason: string;
@@ -117,11 +133,13 @@ export interface DesktopApi {
     searchTag: (tag: string) => Promise<SearchResult[]>;
     getGitStatus: (rootPath: string) => Promise<WorkspaceGitStatus | null>;
     listAgentContextFiles: () => Promise<AgentContextFile[]>;
+    listAgentContextHistory: () => Promise<AgentContextHistoryEntry[]>;
     saveAgentContextFile: (filePath: string, body: string) => Promise<AgentContextFile>;
     saveAgentContextBundle: (input: {
       targetId: string;
       body: string;
-    }) => Promise<AgentContextFile[]>;
+    }) => Promise<AgentContextBundleResult>;
+    restoreAgentContextHistory: (historyId: string) => Promise<AgentContextBundleResult>;
     createFile: (targetPath: string, content?: string) => Promise<string>;
     createDirectory: (targetPath: string) => Promise<string>;
     renamePath: (sourcePath: string, nextPath: string) => Promise<string>;

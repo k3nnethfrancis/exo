@@ -54,7 +54,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Offer Exo-recommended snippets that explain Exo CLI/MCP tools to terminal agents.
 - [x] Add a unified agent-agnostic instruction composer that renders provider-compatible context files.
 - [x] Preserve and round-trip Exo-managed unified sections without overwriting unrelated manual content.
-- [ ] Add version history and diff/restore for generated provider context files.
+- [x] Add version history and diff/restore for Exo-managed unified instruction bodies.
 - [ ] Extend agent config management to MCP/provider config files and additional provider instruction files such as `soul.md`.
 - [ ] Keep Exo-generated runtime overlays under `.exo/instructions/` separate from user-authored context files.
 

@@ -393,6 +393,22 @@ test("edits agent context files from workspace settings", async () => {
   await expect.poll(async () =>
     readFile(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"), "utf8"),
   ).toContain("Existing project context");
+  await expect(page.getByTestId("agent-context-history")).toContainText("Last changed");
+  await page.getByTestId("agent-context-toggle-diff").click();
+  await expect(page.getByTestId("agent-context-history-diff")).toContainText("- Use unified project context.");
+  await expect(page.getByTestId("agent-context-history-diff")).toContainText("+ Use updated unified project context.");
+  await expect.poll(async () =>
+    readFile(path.join(workspaceRoot, ".exo/agent-context-history/history.jsonl"), "utf8"),
+  ).toContain("Use unified project context.");
+  await page.getByTestId("agent-context-restore-history").click();
+  await expect(page.getByTestId("agent-context-unified-status")).toContainText("Provider files written");
+  await expect(page.getByTestId("agent-context-unified-editor")).toHaveValue("Use unified project context.");
+  await expect.poll(async () =>
+    readFile(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"), "utf8"),
+  ).toContain("Use unified project context.");
+  await expect.poll(async () =>
+    readFile(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"), "utf8"),
+  ).not.toContain("Use updated unified project context.");
   await expect(access(path.join(workspaceRoot, "notes/test-notes/CLAUDE.md"))).rejects.toThrow();
   await expect(access(path.join(homeRoot, "CLAUDE.md"))).rejects.toThrow();
 
@@ -409,7 +425,7 @@ test("edits agent context files from workspace settings", async () => {
   ).toContain("Use unified notes context.");
   await expect.poll(async () =>
     readFile(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"), "utf8"),
-  ).toContain("Use updated unified project context.");
+  ).toContain("Use unified project context.");
 
   await page.getByTestId("agent-context-target").selectOption({ label: "Global (global)" });
   await page.getByTestId("agent-context-unified-editor").fill("Use unified global context.");
@@ -426,7 +442,7 @@ test("edits agent context files from workspace settings", async () => {
   await page.getByTestId("workspace-settings-tab-agents").click();
   await expect(page.getByTestId("agent-context-unified-editor")).toHaveValue("Use unified global context.");
   await page.getByTestId("agent-context-target").selectOption({ label: "sample-project (project)" });
-  await expect(page.getByTestId("agent-context-unified-editor")).toHaveValue("Use updated unified project context.");
+  await expect(page.getByTestId("agent-context-unified-editor")).toHaveValue("Use unified project context.");
   await expect(page.getByRole("button", { name: /Global \/ CLAUDE\.md/i })).toContainText("Existing");
   await expect(page.getByRole("button", { name: /test-notes \/ CLAUDE\.md/i })).toContainText("Existing");
   await expect(page.getByRole("button", { name: /sample-project \/ CLAUDE\.md/i })).toContainText("Existing");
