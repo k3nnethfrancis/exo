@@ -45,6 +45,7 @@ const api: DesktopApi = {
     getGitStatus: (rootPath) => ipcRenderer.invoke("workspace:get-git-status", rootPath),
     listAgentContextFiles: () => ipcRenderer.invoke("workspace:list-agent-context-files"),
     saveAgentContextFile: (filePath, body) => ipcRenderer.invoke("workspace:save-agent-context-file", filePath, body),
+    saveAgentContextBundle: (input) => ipcRenderer.invoke("workspace:save-agent-context-bundle", input),
     createFile: (targetPath, content) => ipcRenderer.invoke("workspace:create-file", targetPath, content),
     createDirectory: (targetPath) => ipcRenderer.invoke("workspace:create-directory", targetPath),
     renamePath: (sourcePath, nextPath) => ipcRenderer.invoke("workspace:rename-path", sourcePath, nextPath),

@@ -363,6 +363,23 @@ test("edits agent context files from workspace settings", async () => {
     readFile(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"), "utf8"),
   ).toContain("exo project-roots list");
 
+  await page.getByTestId("agent-context-target").selectOption({ label: "sample-project (project)" });
+  await page.getByTestId("agent-context-shared-editor").fill("Use shared Exo context.");
+  await page.getByTestId("agent-context-claude-editor").fill("Use Claude provider context.");
+  await page.getByTestId("agent-context-codex-editor").fill("Use Codex provider context.");
+  await page.getByTestId("agent-context-save-unified").click();
+  await expect(page.getByTestId("agent-context-unified-status")).toContainText("Provider files written");
+
+  await expect.poll(async () =>
+    readFile(path.join(workspaceRoot, "projects/sample-project/CLAUDE.md"), "utf8"),
+  ).toContain("Use Claude provider context.");
+  await expect.poll(async () =>
+    readFile(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"), "utf8"),
+  ).toContain("Use Codex provider context.");
+  await expect.poll(async () =>
+    readFile(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"), "utf8"),
+  ).toContain("Use shared Exo context.");
+
   await cleanup();
 });
 

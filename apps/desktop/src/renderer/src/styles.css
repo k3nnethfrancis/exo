@@ -1416,6 +1416,38 @@ select.dialog-card__input {
   min-height: 360px;
 }
 
+.agent-context-settings__composer {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--divider) 55%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+}
+
+.agent-context-settings__target {
+  width: min(260px, 38vw);
+  min-height: 30px;
+  padding-block: 4px;
+}
+
+.agent-context-settings__composer-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+
+.agent-context-settings__composer-textarea {
+  min-height: 110px;
+  resize: vertical;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
 .agent-context-settings__list {
   display: grid;
   align-content: start;

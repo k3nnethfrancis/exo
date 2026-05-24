@@ -473,6 +473,9 @@ function registerIpcHandlers() {
   ipcMain.handle("workspace:get-git-status", async (_event, rootPath: string) => getGitStatus(rootPath));
   ipcMain.handle("workspace:list-agent-context-files", async () => listAgentContextFiles());
   ipcMain.handle("workspace:save-agent-context-file", async (_event, filePath: string, body: string) => saveAgentContextFile(filePath, body));
+  ipcMain.handle("workspace:save-agent-context-bundle", async (_event, input: { targetId: string; sharedBody: string; claudeBody: string; codexBody: string }) =>
+    saveAgentContextBundle(input),
+  );
   ipcMain.handle("workspace:create-file", async (_event, targetPath: string, content?: string) => createWorkspaceFile(targetPath, content));
   ipcMain.handle("workspace:create-directory", async (_event, targetPath: string) => createWorkspaceDirectory(targetPath));
   ipcMain.handle("workspace:rename-path", async (_event, sourcePath: string, nextPath: string) => renameWorkspacePath(sourcePath, nextPath));
@@ -706,20 +709,70 @@ async function saveAgentContextFile(filePath: string, body: string) {
   return readAgentContextCandidate(candidate);
 }
 
+async function saveAgentContextBundle(input: { targetId: string; sharedBody: string; claudeBody: string; codexBody: string }) {
+  const candidates = agentContextCandidates();
+  const targetCandidates = candidates.filter((entry) => entry.targetId === input.targetId);
+  if (targetCandidates.length === 0) {
+    throw new Error("Agent context target is outside the active global/workspace context set.");
+  }
+
+  const claudeCandidate = targetCandidates.find((entry) => entry.provider === "claude");
+  const codexCandidate = targetCandidates.find((entry) => entry.provider === "codex");
+  if (!claudeCandidate || !codexCandidate) {
+    throw new Error("Agent context target is missing a provider file candidate.");
+  }
+
+  await Promise.all([
+    writeAgentContextProviderFile(claudeCandidate.path, renderAgentContextProviderFile(input.sharedBody, input.claudeBody, "Claude")),
+    writeAgentContextProviderFile(codexCandidate.path, renderAgentContextProviderFile(input.sharedBody, input.codexBody, "Codex")),
+  ]);
+
+  return Promise.all(targetCandidates.map(readAgentContextCandidate));
+}
+
+async function writeAgentContextProviderFile(filePath: string, body: string) {
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await writeFile(filePath, body, "utf8");
+}
+
+function renderAgentContextProviderFile(sharedBody: string, providerBody: string, providerLabel: string) {
+  const sections = [
+    "# Agent Instructions",
+    "",
+    "<!-- Managed by Exo. Edit from Workspace Settings > Agents to keep provider files aligned. -->",
+  ];
+  if (sharedBody.trim().length > 0) {
+    sections.push("", "## Shared", "", sharedBody.trim());
+  }
+  if (providerBody.trim().length > 0) {
+    sections.push("", `## ${providerLabel}`, "", providerBody.trim());
+  }
+  sections.push("");
+  return sections.join("\n");
+}
+
 function agentContextCandidates() {
   const roots = [
-    { scope: "global" as const, label: "Global", path: os.homedir() },
-    ...workspaceModel.noteRoots.map((root) => ({ scope: "notes" as const, label: root.label, path: root.path })),
-    ...workspaceModel.projectRoots.map((root) => ({ scope: "project" as const, label: root.label, path: root.path })),
+    { scope: "global" as const, label: "Global", rootPath: os.homedir() },
+    ...workspaceModel.noteRoots.map((root) => ({ scope: "notes" as const, label: root.label, rootPath: root.path })),
+    ...workspaceModel.projectRoots.map((root) => ({ scope: "project" as const, label: root.label, rootPath: root.path })),
   ];
-  const names = ["AGENTS.md", "CLAUDE.md"];
+  const providers = [
+    { provider: "codex" as const, name: "AGENTS.md" },
+    { provider: "claude" as const, name: "CLAUDE.md" },
+  ];
 
   return roots.flatMap((root) =>
-    names.map((name) => {
-      const filePath = path.join(root.path, name);
+    providers.map(({ provider, name }) => {
+      const filePath = path.join(root.rootPath, name);
+      const targetId = `${root.scope}:${root.rootPath}`;
       return {
-        id: `${root.scope}:${filePath}`,
+        id: `${root.scope}:${provider}:${filePath}`,
         scope: root.scope,
+        provider,
+        targetId,
+        targetLabel: root.label,
+        rootPath: root.rootPath,
         label: `${root.label} / ${name}`,
         path: filePath,
       };

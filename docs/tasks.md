@@ -48,10 +48,14 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 
 - [x] Add a first-class agent config manager.
 - [x] Let users inspect and edit global and selected local `AGENTS.md` / `CLAUDE.md` files from Exo.
-- [ ] Let users choose which attached roots receive local agent context files.
+- [x] Let users choose which attached roots receive local agent context files.
 - [x] Compare global vs local agent context files.
 - [x] Surface conflicting or duplicated instructions.
 - [x] Offer Exo-recommended snippets that explain Exo CLI/MCP tools to terminal agents.
+- [x] Add a unified shared/Claude/Codex instruction composer that renders provider-specific context files.
+- [ ] Preserve and round-trip Exo-managed unified sections without overwriting unrelated manual content.
+- [ ] Add version history and diff/restore for generated provider context files.
+- [ ] Extend agent config management to MCP/provider config files.
 - [ ] Keep Exo-generated runtime overlays under `.exo/instructions/` separate from user-authored context files.
 
 ## Next: Authorship And Provenance

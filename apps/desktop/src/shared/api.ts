@@ -70,10 +70,21 @@ export interface WorkspaceRegistryEntry {
 export interface AgentContextFile {
   id: string;
   scope: "global" | "notes" | "project";
+  provider: "codex" | "claude";
+  targetId: string;
+  targetLabel: string;
+  rootPath: string;
   label: string;
   path: string;
   exists: boolean;
   body: string;
+}
+
+export interface AgentContextTarget {
+  id: string;
+  scope: "global" | "notes" | "project";
+  label: string;
+  rootPath: string;
 }
 
 export interface IndexSyncStateEvent {
@@ -107,6 +118,12 @@ export interface DesktopApi {
     getGitStatus: (rootPath: string) => Promise<WorkspaceGitStatus | null>;
     listAgentContextFiles: () => Promise<AgentContextFile[]>;
     saveAgentContextFile: (filePath: string, body: string) => Promise<AgentContextFile>;
+    saveAgentContextBundle: (input: {
+      targetId: string;
+      sharedBody: string;
+      claudeBody: string;
+      codexBody: string;
+    }) => Promise<AgentContextFile[]>;
     createFile: (targetPath: string, content?: string) => Promise<string>;
     createDirectory: (targetPath: string) => Promise<string>;
     renamePath: (sourcePath: string, nextPath: string) => Promise<string>;

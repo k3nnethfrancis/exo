@@ -129,6 +129,15 @@ interface AgentContextSignal {
   detail: string;
 }
 
+interface AgentContextComposerState {
+  selectedTargetId: string | null;
+  sharedBody: string;
+  claudeBody: string;
+  codexBody: string;
+  saveStatus: "idle" | "saving" | "saved" | "error";
+  errorMessage: string | null;
+}
+
 interface ObservedWorkspaceWrite {
   filePath: string;
   rootPath: string;
@@ -218,6 +227,14 @@ export function App() {
     files: [],
     selectedPath: null,
     draftBody: "",
+    saveStatus: "idle",
+    errorMessage: null,
+  });
+  const [agentContextComposer, setAgentContextComposer] = useState<AgentContextComposerState>({
+    selectedTargetId: null,
+    sharedBody: "",
+    claudeBody: "",
+    codexBody: "",
     saveStatus: "idle",
     errorMessage: null,
   });
@@ -900,6 +917,7 @@ export function App() {
     [agentContextEditor.files, agentContextEditor.selectedPath],
   );
   const selectedAgentContextFile = agentContextEditor.files.find((file) => file.path === agentContextEditor.selectedPath) ?? null;
+  const agentContextTargets = useMemo(() => agentContextTargetsFromFiles(agentContextEditor.files), [agentContextEditor.files]);
 
   async function reloadTrees() {
     if (!workspaceModel) {
@@ -1032,6 +1050,14 @@ export function App() {
       saveStatus: "idle",
       errorMessage: null,
     });
+    setAgentContextComposer({
+      selectedTargetId: agentContextFiles[0]?.targetId ?? null,
+      sharedBody: "",
+      claudeBody: "",
+      codexBody: "",
+      saveStatus: "idle",
+      errorMessage: null,
+    });
     const appliedWorkspaceKey = workspaceSettingsStructuralKeyFromSettings(settings);
     setWorkspaceSettingsDialog({
       section,
@@ -1117,6 +1143,45 @@ export function App() {
         errorMessage: null,
       };
     });
+  }
+
+  async function saveUnifiedAgentContext() {
+    const snapshot = agentContextComposer;
+    if (!snapshot.selectedTargetId) {
+      return;
+    }
+
+    setAgentContextComposer((current) => ({ ...current, saveStatus: "saving", errorMessage: null }));
+    try {
+      const savedFiles = await window.exo.workspace.saveAgentContextBundle({
+        targetId: snapshot.selectedTargetId,
+        sharedBody: snapshot.sharedBody,
+        claudeBody: snapshot.claudeBody,
+        codexBody: snapshot.codexBody,
+      });
+      setAgentContextEditor((current) => {
+        const filesByPath = new Map(savedFiles.map((file) => [file.path, file]));
+        const selectedFile = current.selectedPath ? filesByPath.get(current.selectedPath) : null;
+        return {
+          ...current,
+          files: current.files.map((file) => filesByPath.get(file.path) ?? file),
+          draftBody: selectedFile ? selectedFile.body : current.draftBody,
+          saveStatus: selectedFile ? "saved" : current.saveStatus,
+          errorMessage: null,
+        };
+      });
+      setAgentContextComposer((current) => ({
+        ...current,
+        saveStatus: "saved",
+        errorMessage: null,
+      }));
+    } catch (error) {
+      setAgentContextComposer((current) => ({
+        ...current,
+        saveStatus: "error",
+        errorMessage: error instanceof Error ? error.message : String(error),
+      }));
+    }
   }
 
   async function selectNotesFolderForOnboarding() {
@@ -3180,6 +3245,100 @@ export function App() {
               ) : null}
               {workspaceSettingsDialog.section === "agents" ? (
                 <div className="agent-context-settings" data-testid="agent-context-settings">
+                  <div className="agent-context-settings__composer" data-testid="agent-context-composer">
+                    <div className="dialog-field__header">
+                      <span className="dialog-field__label">Unified instructions</span>
+                      <div className="dialog-card__actions dialog-card__actions--split">
+                        <select
+                          className="dialog-card__input agent-context-settings__target"
+                          data-testid="agent-context-target"
+                          value={agentContextComposer.selectedTargetId ?? ""}
+                          onChange={(event) =>
+                            setAgentContextComposer((current) => ({
+                              ...current,
+                              selectedTargetId: event.target.value || null,
+                              saveStatus: "idle",
+                              errorMessage: null,
+                            }))
+                          }
+                        >
+                          {agentContextTargets.map((target) => (
+                            <option key={target.id} value={target.id}>
+                              {target.label}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          className="toolbar-button"
+                          data-testid="agent-context-save-unified"
+                          disabled={!agentContextComposer.selectedTargetId || agentContextComposer.saveStatus === "saving"}
+                          onClick={() => void saveUnifiedAgentContext()}
+                          type="button"
+                        >
+                          {agentContextComposer.saveStatus === "saving" ? "Writing…" : "Write provider files"}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="agent-context-settings__composer-grid">
+                      <label className="dialog-field">
+                        <span className="dialog-field__label">Shared</span>
+                        <textarea
+                          className="dialog-card__input agent-context-settings__composer-textarea"
+                          data-testid="agent-context-shared-editor"
+                          spellCheck={false}
+                          value={agentContextComposer.sharedBody}
+                          onChange={(event) =>
+                            setAgentContextComposer((current) => ({
+                              ...current,
+                              sharedBody: event.target.value,
+                              saveStatus: "idle",
+                              errorMessage: null,
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className="dialog-field">
+                        <span className="dialog-field__label">Claude only</span>
+                        <textarea
+                          className="dialog-card__input agent-context-settings__composer-textarea"
+                          data-testid="agent-context-claude-editor"
+                          spellCheck={false}
+                          value={agentContextComposer.claudeBody}
+                          onChange={(event) =>
+                            setAgentContextComposer((current) => ({
+                              ...current,
+                              claudeBody: event.target.value,
+                              saveStatus: "idle",
+                              errorMessage: null,
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className="dialog-field">
+                        <span className="dialog-field__label">Codex only</span>
+                        <textarea
+                          className="dialog-card__input agent-context-settings__composer-textarea"
+                          data-testid="agent-context-codex-editor"
+                          spellCheck={false}
+                          value={agentContextComposer.codexBody}
+                          onChange={(event) =>
+                            setAgentContextComposer((current) => ({
+                              ...current,
+                              codexBody: event.target.value,
+                              saveStatus: "idle",
+                              errorMessage: null,
+                            }))
+                          }
+                        />
+                      </label>
+                    </div>
+                    {agentContextComposer.saveStatus === "saved" ? (
+                      <div className="dialog-card__status" data-testid="agent-context-unified-status">Provider files written.</div>
+                    ) : null}
+                    {agentContextComposer.saveStatus === "error" && agentContextComposer.errorMessage ? (
+                      <div className="dialog-card__status dialog-card__status--error">{agentContextComposer.errorMessage}</div>
+                    ) : null}
+                  </div>
                   <div className="agent-context-settings__list" data-testid="agent-context-file-list">
                     {agentContextEditor.files.map((file) => (
                       <button
@@ -3648,6 +3807,21 @@ async function loadProjectGitChanges(projectRoots: WorkspaceModel["projectRoots"
       status: await window.exo.workspace.getGitStatus(root.path).catch(() => null),
     })),
   );
+}
+
+function agentContextTargetsFromFiles(files: AgentContextFile[]) {
+  const targets = new Map<string, { id: string; scope: AgentContextFile["scope"]; label: string; rootPath: string }>();
+  for (const file of files) {
+    if (!targets.has(file.targetId)) {
+      targets.set(file.targetId, {
+        id: file.targetId,
+        scope: file.scope,
+        label: `${file.targetLabel} (${file.scope})`,
+        rootPath: file.rootPath,
+      });
+    }
+  }
+  return [...targets.values()];
 }
 
 function summarizeAgentContextSignals(files: AgentContextFile[], selectedPath: string | null): AgentContextSignal[] {
