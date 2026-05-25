@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode, Ref } from "react";
-import { FileDiff, GripVertical, SquareTerminal, X } from "lucide-react";
+import { GripVertical, SquareTerminal, X } from "lucide-react";
 
-import type { TerminalSessionInfo, WorkspaceGitChange } from "../../../shared/api";
+import type { TerminalSessionInfo } from "../../../shared/api";
 import type { ResolvedAppearance } from "../App";
 import type { DragManager } from "../hooks/useDragManager";
 import { AgentIcon } from "./AgentIcon";
@@ -16,13 +16,11 @@ interface TerminalDockProps {
   empty: boolean;
   sessions: TerminalSessionInfo[];
   activeTerminalId: string | null;
-  sessionChanges?: TerminalSessionChange[];
   buffers: Record<string, string>;
   fontSize: number;
   scrollbackLines: number;
   onFocus: () => void;
   onSetActiveTerminal: (id: string) => void;
-  onOpenChangedFile?: (filePath: string, line?: number | null) => void;
   onWrite: (id: string, data: string) => void;
   onResize: (id: string, cols: number, rows: number) => void;
   onKill: (id: string) => void;
@@ -34,11 +32,6 @@ interface TerminalDockProps {
   style?: CSSProperties;
 }
 
-interface TerminalSessionChange extends WorkspaceGitChange {
-  rootPath: string;
-  rootLabel: string;
-}
-
 export function TerminalDock(props: TerminalDockProps) {
   const {
     placement,
@@ -48,13 +41,11 @@ export function TerminalDock(props: TerminalDockProps) {
     empty,
     sessions,
     activeTerminalId,
-    sessionChanges = [],
     buffers,
     fontSize,
     scrollbackLines,
     onFocus,
     onSetActiveTerminal,
-    onOpenChangedFile,
     onWrite,
     onResize,
     onKill,
@@ -66,7 +57,6 @@ export function TerminalDock(props: TerminalDockProps) {
     style,
   } = props;
   const activeSession = sessions.find((session) => session.id === activeTerminalId) ?? null;
-  const visibleSessionChanges = activeSession ? sessionChanges.slice(0, 4) : [];
 
   return (
     <section
@@ -113,30 +103,6 @@ export function TerminalDock(props: TerminalDockProps) {
             </div>
             {headerActions ? <div className="terminal-dock__actions">{headerActions}</div> : null}
           </div>
-
-          {activeSession && visibleSessionChanges.length > 0 && onOpenChangedFile ? (
-            <div className="terminal-review-strip" data-testid={`terminal-session-changes-${activeSession.id}`}>
-              <div className="terminal-review-strip__label">
-                <FileDiff size={13} />
-                Changed files
-              </div>
-              <div className="terminal-review-strip__items">
-                {visibleSessionChanges.map((change) => (
-                  <button
-                    className="terminal-review-strip__item"
-                    key={`${change.rootPath}:${change.path}:${change.status}`}
-                    onClick={() => onOpenChangedFile(change.absolutePath, change.firstChangedLine)}
-                    title={`${change.status} ${change.absolutePath}`}
-                    type="button"
-                  >
-                    <span className="terminal-review-strip__status">{change.status}</span>
-                    <span className="terminal-review-strip__path">{change.path}</span>
-                    {change.firstChangedLine ? <span className="terminal-review-strip__line">:{change.firstChangedLine}</span> : null}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : null}
 
           {activeSession ? (
             <TerminalView

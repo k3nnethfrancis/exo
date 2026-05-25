@@ -144,23 +144,24 @@ test("shows changed project files in the project drawer", async () => {
   });
 
   const projectRoot = path.join(workspaceRoot, "projects/sample-project");
-  const sessionId = await page.evaluate(async (cwd) => {
+  await page.evaluate(async (cwd) => {
     const session = await window.exo.terminals.create({ kind: "shell", cwd });
     return session.id;
   }, projectRoot);
-  await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(2);
+  await page.evaluate(async (cwd) => {
+    const session = await window.exo.terminals.create({ kind: "shell", cwd });
+    return session.id;
+  }, projectRoot);
+  await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(3);
   await writeFile(path.join(projectRoot, "src/demo.ts"), "export const stable = true;\nexport const demo = 'changed';\n");
 
   await page.getByTestId("project-roots-toggle").click();
   await expect(page.getByTestId("project-changes")).toContainText("src/demo.ts");
   await expect(page.getByTestId("project-changes")).toContainText(":2");
-  await expect(page.getByTestId("project-changes")).toContainText("shell");
-  await expect(page.getByTestId(`project-change-agent-${sessionId}`)).toHaveClass(/project-change__agent--observed/);
-  await page.getByTestId("project-changes").getByRole("button", { name: "shell" }).click();
-  await expect(page.getByTestId("terminal-surface")).toContainText("sample-project");
-  await expect(page.getByTestId(`terminal-session-changes-${sessionId}`)).toContainText("src/demo.ts");
-  await expect(page.getByTestId(`terminal-session-changes-${sessionId}`)).toContainText(":2");
-  await page.getByTestId(`terminal-session-changes-${sessionId}`).getByRole("button", { name: /src\/demo\.ts/ }).click();
+  await expect(page.getByTestId("project-changes").locator(".project-change__agent")).toHaveCount(0);
+  await expect(page.locator('[data-testid^="terminal-session-changes-"]')).toHaveCount(0);
+  await expect(page.getByTestId("statusbar-changes")).toHaveText("1 change");
+  await page.getByTestId("statusbar-changes").click();
   await expect(page.getByTestId("editor-title")).toHaveText("demo.ts");
   await expect.poll(() => activeEditorLine(page)).toBe(2);
   await page.getByTestId("project-changes").getByRole("button", { name: /src\/demo\.ts/ }).click();

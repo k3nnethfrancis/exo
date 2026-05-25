@@ -25,6 +25,7 @@ import { useShellLayout } from "./hooks/useShellLayout";
 import { useWorkspaceSearch } from "./hooks/useWorkspaceSearch";
 import { collectLeaves, findEditorLeaf, findNode, findTerminalLeaf, mapLeaves, paneId, pruneEmptyLeaves, removeNode, updateNode, type PaneLeaf, type PaneNode, type PaneNodeId, type BrowserPaneContent, type EditorPaneContent, type TerminalPaneContent } from "./hooks/usePaneTree";
 import { useDragManager, type DragDropTarget, type DragPayload, type DropEdge } from "./hooks/useDragManager";
+import { buildProjectReviewChanges, uniqueCwdMatchedSession, type ObservedWorkspaceWrite } from "./changedFileReview";
 
 interface OpenEditorDocument extends NoteDocument {
   dirty: boolean;
@@ -62,6 +63,12 @@ type WorkspaceDialogState =
     }
   | {
       kind: "move-conflict";
+      title: string;
+      message: string;
+      confirmLabel: string;
+    }
+  | {
+      kind: "attach-project";
       title: string;
       message: string;
       confirmLabel: string;
@@ -166,13 +173,6 @@ interface McpServerEditorState {
   errorMessage: string | null;
 }
 
-interface ObservedWorkspaceWrite {
-  filePath: string;
-  rootPath: string;
-  sessionId: string;
-  observedAt: number;
-  association: "cwd-match";
-}
 type IndexBusyState = "syncing" | "updating" | "embedding" | null;
 
 const FULL_TERMINAL_SCROLLBACK_LINES = 1_000_000;
@@ -924,48 +924,10 @@ export function App() {
       })) ?? [],
     [projectTrees, workspaceModel],
   );
-  const observedWritesByPath = useMemo(() => {
-    const writesByPath = new Map<string, ObservedWorkspaceWrite[]>();
-    for (const write of observedWorkspaceWrites) {
-      const current = writesByPath.get(write.filePath) ?? [];
-      current.push(write);
-      writesByPath.set(write.filePath, current);
-    }
-    return writesByPath;
-  }, [observedWorkspaceWrites]);
   const projectReviewChanges = useMemo(
-    () =>
-      projectGitChanges.map((change) => {
-        const observedWrites = observedWritesByPath.get(change.absolutePath) ?? [];
-        const observedSessionIds = new Set(observedWrites.map((write) => write.sessionId));
-        const associatedSessions = observedSessionIds.size > 0
-          ? terminalSessions.filter((session) => observedSessionIds.has(session.id))
-          : terminalSessions.filter((session) => isPathWithin(change.rootPath, session.cwd));
-        return {
-          ...change,
-          agents: associatedSessions.map((session) => ({
-            id: session.id,
-            title: session.title,
-            kind: session.kind,
-            cwd: session.cwd,
-            observed: observedSessionIds.has(session.id),
-            observedAt: observedWrites.find((write) => write.sessionId === session.id)?.observedAt ?? null,
-          })),
-        };
-      }),
-    [observedWritesByPath, projectGitChanges, terminalSessions],
+    () => buildProjectReviewChanges(projectGitChanges, observedWorkspaceWrites, terminalSessions),
+    [observedWorkspaceWrites, projectGitChanges, terminalSessions],
   );
-  const projectReviewChangesBySession = useMemo(() => {
-    const changesBySession = new Map<string, Array<WorkspaceGitChange & { rootPath: string; rootLabel: string }>>();
-    for (const change of projectReviewChanges) {
-      for (const agent of change.agents) {
-        const current = changesBySession.get(agent.id) ?? [];
-        current.push(change);
-        changesBySession.set(agent.id, current);
-      }
-    }
-    return changesBySession;
-  }, [projectReviewChanges]);
   const agentContextSignals = useMemo(
     () => summarizeAgentContextSignals(agentContextEditor.files, agentContextEditor.selectedPath),
     [agentContextEditor.files, agentContextEditor.selectedPath],
@@ -1047,26 +1009,75 @@ export function App() {
     );
   }
 
+  async function openProjectChangesFromStatus() {
+    if (!workspaceModel || projectReviewChanges.length === 0) {
+      return;
+    }
+    const attachedProjectRoots = workspaceModel.projectRoots.map((root) => root.path);
+    const attachedChanges = projectReviewChanges.filter((change) =>
+      attachedProjectRoots.some((rootPath) => isPathWithin(rootPath, change.absolutePath)),
+    );
+    if (attachedChanges.length === 0) {
+      setWorkspaceDialog({
+        kind: "attach-project",
+        title: "Attach project to review changes",
+        message: "Changed files belong to a folder that is not attached to this workspace. Attach or import the project before opening its changed files.",
+        confirmLabel: "Open Settings",
+      });
+      return;
+    }
+
+    const changesToOpen = attachedChanges.slice(0, 8);
+    await Promise.all(changesToOpen.map((change) => ensureDocumentLoaded(change.absolutePath)));
+    const targetLeaf = findNode(editorTree, (n) => n.id === editorFocusedLeafId && n.kind === "leaf" && n.content.kind === "editor");
+    const editorLeafId = targetLeaf?.id ?? findEditorLeaf(editorTree)?.id;
+    if (editorLeafId) {
+      editorActions.updateLeafContent(editorLeafId, (content) => {
+        if (content.kind !== "editor") return content;
+        const nextOpenPaths = [...content.openPaths];
+        for (const change of changesToOpen) {
+          if (!nextOpenPaths.includes(change.absolutePath)) {
+            nextOpenPaths.push(change.absolutePath);
+          }
+        }
+        return {
+          ...content,
+          activePath: changesToOpen[0].absolutePath,
+          openPaths: nextOpenPaths,
+        };
+      });
+      editorActions.focusLeaf(editorLeafId);
+    }
+    setActiveDocumentPath(changesToOpen[0].absolutePath);
+    setActiveTag(null);
+    setTagResults([]);
+    if (changesToOpen[0].firstChangedLine && changesToOpen[0].firstChangedLine > 0) {
+      setEditorRevealLineRequest({
+        filePath: changesToOpen[0].absolutePath,
+        line: changesToOpen[0].firstChangedLine,
+        nonce: Date.now(),
+      });
+    }
+  }
+
   function recordObservedWorkspaceWrite(rootPath: string, filePath: string) {
-    const candidateSessions = terminalSessionsRef.current.filter((session) => isPathWithin(session.cwd, filePath));
-    const longestCwdLength = Math.max(0, ...candidateSessions.map((session) => session.cwd.length));
-    const matchingSessions = candidateSessions.filter((session) => session.cwd.length === longestCwdLength);
-    if (matchingSessions.length === 0) {
+    const matchingSession = uniqueCwdMatchedSession(terminalSessionsRef.current, filePath);
+    if (!matchingSession) {
       return;
     }
     const observedAt = Date.now();
     setObservedWorkspaceWrites((current) => {
       const withoutDuplicate = current.filter(
-        (write) => !(write.filePath === filePath && matchingSessions.some((session) => session.id === write.sessionId)),
+        (write) => !(write.filePath === filePath && write.sessionId === matchingSession.id),
       );
       return [
-        ...matchingSessions.map((session) => ({
+        {
           filePath,
           rootPath,
-          sessionId: session.id,
+          sessionId: matchingSession.id,
           observedAt,
-          association: "cwd-match" as const,
-        })),
+          association: "unique-cwd-match" as const,
+        },
         ...withoutDuplicate,
       ].slice(0, 200);
     });
@@ -2657,6 +2668,12 @@ export function App() {
       return;
     }
 
+    if (workspaceDialog.kind === "attach-project") {
+      setWorkspaceDialog(null);
+      await openWorkspaceSettingsDialog("workspace");
+      return;
+    }
+
     if (workspaceDialog.kind === "delete") {
       await commitDeleteWorkspacePath(workspaceDialog.targetPath);
       setWorkspaceDialog(null);
@@ -3176,6 +3193,7 @@ export function App() {
         projectLabel: workspaceModel?.projectRoots[0] ? pathLabel(workspaceModel.projectRoots[0].path) : null,
         gitBranch: workspaceGitStatus?.branch ?? null,
         gitDirty: workspaceGitStatus?.dirty ?? false,
+        changedFiles: projectReviewChanges.length,
         index: indexStatusLine,
       }}
       shellLayout={shellLayout}
@@ -3211,7 +3229,6 @@ export function App() {
               empty={terminalLeafSessions.length === 0}
               sessions={terminalLeafSessions}
               activeTerminalId={leaf.content.activeTerminalId}
-              sessionChanges={leaf.content.activeTerminalId ? projectReviewChangesBySession.get(leaf.content.activeTerminalId) ?? [] : []}
               buffers={terminalBuffers}
               appearance={resolvedAppearance}
               fontSize={terminalFontSize}
@@ -3230,7 +3247,6 @@ export function App() {
                   setTerminalBuffers((current) => ({ ...current, [id]: buffer }));
                 });
               }}
-              onOpenChangedFile={(filePath, line) => void openFile(filePath, undefined, { line })}
               onWrite={(id, data) => void window.exo.terminals.write(id, data)}
               onResize={(id, cols, rows) => void window.exo.terminals.resize(id, cols, rows)}
               onKill={(id) => void closeTerminal(id)}
@@ -3302,7 +3318,6 @@ export function App() {
             empty={terminalLeafSessions.length === 0}
             sessions={terminalLeafSessions}
             activeTerminalId={leafActiveTerminalId}
-            sessionChanges={leafActiveTerminalId ? projectReviewChangesBySession.get(leafActiveTerminalId) ?? [] : []}
             buffers={terminalBuffers}
             appearance={resolvedAppearance}
             fontSize={terminalFontSize}
@@ -3312,7 +3327,6 @@ export function App() {
               setZoomSurface("terminal");
               void activateTerminal(leaf.id, id);
             }}
-            onOpenChangedFile={(filePath, line) => void openFile(filePath, undefined, { line })}
             onWrite={(id, data) => void window.exo.terminals.write(id, data)}
             onResize={(id, cols, rows) => void window.exo.terminals.resize(id, cols, rows)}
             onKill={(id) => void closeTerminal(id)}
@@ -3325,6 +3339,7 @@ export function App() {
       onAppearanceModeChange={updateAppearanceMode}
       onOpenWorkspaceSettings={() => void openWorkspaceSettingsDialog()}
       onOpenIndexSettings={() => void openWorkspaceSettingsDialog("index")}
+      onOpenProjectChanges={() => void openProjectChangesFromStatus()}
       onSearchQueryChange={(value) => {
         workspaceSearch.setQuery(value);
         workspaceSearch.setSubmittedQuery(value.trim());
