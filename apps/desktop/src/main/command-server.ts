@@ -11,6 +11,7 @@ import {
   type ExoReadDocumentRequest,
   type ExoOpenFileRequest,
   type ExoWriteTerminalRequest,
+  type ExoWriteTerminalResponse,
   type IndexReadResponse,
   type IndexSearchResponse,
   type IndexSyncResult,
@@ -39,7 +40,7 @@ export interface CommandServerOptions {
   onCreateTerminal: (kind: string, cwd?: string) => Promise<ExoCommandTerminalInfo>;
   onReadTerminal: (id: string) => string | null;
   onReadTerminalTranscript: (id: string, tailChars: number) => string | null;
-  onWriteTerminal: (id: string, data: string) => Promise<void>;
+  onWriteTerminal: (id: string, data: string) => Promise<ExoWriteTerminalResponse>;
   onKillTerminal: (id: string) => Promise<void>;
   onGetSettings: () => WorkspaceSettings;
   onGetStatus: () => object;
@@ -255,8 +256,7 @@ export class CommandServer {
           json(res, { error: "Missing string data in body" }, 400);
           return;
         }
-        await this.options.onWriteTerminal(decodeURIComponent(terminalWriteMatch[1]), data);
-        json(res, { ok: true });
+        json(res, await this.options.onWriteTerminal(decodeURIComponent(terminalWriteMatch[1]), data));
         return;
       }
 

@@ -151,12 +151,28 @@ describe("cli package", () => {
       connectAppClient: async () => fakeAppClient({
         writeTerminal: async (_id, data) => {
           receivedData = data;
+          return { ok: true as const, delivery: "sent" as const };
         },
       }),
     });
 
     expect(exitCode).toBe(0);
     expect(receivedData).toBe("hello\r");
+  });
+
+  it("reports when agent messages are queued behind startup readiness", async () => {
+    let stdout = "";
+    const exitCode = await runCli(["node", "exo-cli", "agents", "send", "term-1", "hello"], {
+      env: testRuntimeEnv(),
+      stdout: { write: (text) => { stdout += text; } },
+      stderr: { write: () => {} },
+      connectAppClient: async () => fakeAppClient({
+        writeTerminal: async () => ({ ok: true as const, delivery: "queued" as const, queuedInputCount: 1 }),
+      }),
+    });
+
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain("Queued message for term-1");
   });
 
   it("passes search limits through the app route", async () => {
@@ -423,10 +439,10 @@ function fakeAppClient(overrides: Partial<{
   createTerminal: (kind: string, cwd?: string) => Promise<Record<string, unknown>>;
   readTerminal: (id: string) => Promise<string>;
   readTerminalTranscript: (id: string, tailChars?: number) => Promise<string>;
-  writeTerminal: (id: string, data: string) => Promise<void>;
+  writeTerminal: (id: string, data: string) => Promise<{ ok: true; delivery: "sent" | "queued" | "not-found"; queuedInputCount?: number }>;
   killTerminal: (id: string) => Promise<void>;
 }> = {}) {
-  const missing = async () => {
+  const missing = async (..._args: unknown[]) => {
     throw new Error("Unexpected app client call");
   };
   return {
@@ -449,7 +465,10 @@ function fakeAppClient(overrides: Partial<{
     createTerminal: missing,
     readTerminal: missing,
     readTerminalTranscript: missing,
-    writeTerminal: missing,
+    writeTerminal: async (...args: [string, string]) => {
+      await missing(...args);
+      return { ok: true as const, delivery: "not-found" as const };
+    },
     killTerminal: missing,
     ...overrides,
   };

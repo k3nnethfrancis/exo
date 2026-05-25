@@ -291,10 +291,13 @@ server.registerTool(
   },
   async ({ agentId, message, submit }) => {
     const client = await ExoCommandClient.connect();
-    await client.sendAgentInput(agentId, submit ? `${message}\r` : message);
+    const result = await client.sendAgentInput(agentId, submit ? `${message}\r` : message);
+    const text = result.delivery === "queued"
+      ? `Queued message for ${agentId} until the agent is ready (${result.queuedInputCount ?? 1} pending).`
+      : `Sent ${submit ? "message plus Enter" : "raw input"} to ${agentId}.`;
     return {
-      content: [{ type: "text", text: `Sent ${submit ? "message plus Enter" : "raw input"} to ${agentId}.` }],
-      structuredContent: { agentId, submitted: submit },
+      content: [{ type: "text", text }],
+      structuredContent: { agentId, submitted: submit, delivery: result.delivery, queuedInputCount: result.queuedInputCount ?? 0 },
     };
   },
 );

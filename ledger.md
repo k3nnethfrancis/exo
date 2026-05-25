@@ -47,6 +47,7 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Provider instruction files are now adapter-backed internally, but users cannot yet configure adapters from Settings.
 - Exo runtime overlays are generated under `.exo/instructions/` and previewed in Settings; they are not inserted into user-authored provider context files.
 - Exo-launched terminal agents receive the matching overlay path through `EXO_INSTRUCTIONS` plus scope/label env vars.
+- Codex startup sends are readiness-gated: submitted task text queues during startup/trust interstitials and flushes only after normal chat input is ready, while raw input remains available for answering prompts.
 
 ## Recent Completed Work
 
@@ -96,6 +97,7 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Upgraded agent context history browsing from latest-only restore to a per-scope version list with selectable diffs and restore of the selected version.
 - Extended the Agent Context Manager beyond instruction files with a managed-config surface for global provider configs and workspace/root `.mcp.json` files, including constrained read/write IPC and e2e coverage for project MCP config edits.
 - Added a schema-aware `.mcp.json` editor for managed MCP configs: users can edit server name, command, args, and env fields through controls while Exo writes normalized MCP JSON.
+- Fixed EXO-ISSUE-004 by adding Codex readiness/queue semantics around Exo agent sends, including regression coverage for trust prompts, startup grace flushing, and raw interstitial input.
 
 ## Next Priorities
 

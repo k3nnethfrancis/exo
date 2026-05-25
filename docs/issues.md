@@ -6,21 +6,6 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 
 ## Open
 
-### EXO-ISSUE-004: Codex agent launch in a new worktree can consume queued task text at the trust prompt
-
-- Status: open
-- Severity: high
-- Area: agent terminal launch, Codex provider integration, worktree orchestration
-- Observed: creating a Codex agent in a newly-created worktree shows Codex's directory trust prompt. If Exo sends the task brief before the prompt is cleared, the task text is typed into the trust prompt instead of the normal Codex chat input, and the agent can exit without doing the work.
-- Expected: Exo should detect provider startup prompts or otherwise avoid delivering task text until the agent is ready for normal chat input.
-- Investigation notes:
-  - This appeared while coordinating parallel QA agents for `qa/preview-pane-layout` and `qa/changed-file-attribution`.
-  - Existing agents launched from the trusted workspace root did not hit the same startup prompt.
-  - Worktree paths may resolve to the original repository root for trust purposes, so the prompt text can mention the main repo even when the agent cwd is the worktree.
-- QA coverage to add:
-  - Agent-launch QA for a Codex agent created in a fresh worktree.
-  - Regression that queued task text is not sent until the provider is ready for chat input.
-
 ### EXO-ISSUE-005: Dev app can exit after build without exposing the Exo CLI server
 
 - Status: open
@@ -78,6 +63,20 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 - QA coverage to add:
   - App QA walkthrough with a new-user lens: identify active scope, edit unified instructions, see output files, inspect overlay, edit MCP config.
   - Narrow-window QA to ensure labels, paths, and controls remain readable without overlap.
+
+## Resolved
+
+### EXO-ISSUE-004: Codex agent launch in a new worktree can consume queued task text at the trust prompt
+
+- Status: resolved
+- Severity: high
+- Area: agent terminal launch, Codex provider integration, worktree orchestration
+- Observed: creating a Codex agent in a newly-created worktree shows Codex's directory trust prompt. If Exo sends the task brief before the prompt is cleared, the task text is typed into the trust prompt instead of the normal Codex chat input, and the agent can exit without doing the work.
+- Resolution: Codex terminal sessions now start in a short `starting` readiness gate. Submitted chat messages are queued during that gate, remain queued if a Codex trust/startup prompt is detected, and flush only after normal Codex chat readiness appears. Raw non-submitted input still passes through so the user can answer interstitial prompts.
+- QA coverage added:
+  - Regression that submitted Codex task text is queued across a startup trust prompt and flushes on chat readiness.
+  - Regression that queued text flushes after the startup grace when no prompt appears.
+  - Regression that raw non-submitted input can still answer provider interstitials.
 
 ## Fixed
 

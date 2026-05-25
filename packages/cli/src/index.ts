@@ -33,7 +33,7 @@ import {
   type ExoMcpIntegrationClient,
 } from "@exo/core";
 
-import { AppClient } from "./app-client";
+import { AppClient, type AppClientWriteResult } from "./app-client";
 
 interface CommandRunResult {
   code: number;
@@ -61,7 +61,7 @@ interface AppClientLike {
   createTerminal(kind: string, cwd?: string): Promise<Record<string, unknown>>;
   readTerminal(id: string): Promise<string>;
   readTerminalTranscript(id: string, tailChars?: number): Promise<string>;
-  writeTerminal(id: string, data: string): Promise<void>;
+  writeTerminal(id: string, data: string): Promise<AppClientWriteResult>;
   killTerminal(id: string): Promise<void>;
 }
 
@@ -479,8 +479,12 @@ export async function runCli(
       if (!id || !message) {
         throw new Error(`Usage: exo agents ${subcommand} <agent-id> <message> [--raw|--no-submit]`);
       }
-      await client.writeTerminal(id, raw ? message : `${message}\r`);
-      stdout.write(`Sent ${raw ? "raw input" : "message plus Enter"} to ${id}.\n`);
+      const result = await client.writeTerminal(id, raw ? message : `${message}\r`);
+      if (result.delivery === "queued") {
+        stdout.write(`Queued message for ${id} until the agent is ready (${result.queuedInputCount ?? 1} pending).\n`);
+      } else {
+        stdout.write(`Sent ${raw ? "raw input" : "message plus Enter"} to ${id}.\n`);
+      }
       return 0;
     }
 

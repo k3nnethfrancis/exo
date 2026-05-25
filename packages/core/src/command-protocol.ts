@@ -33,6 +33,9 @@ export interface ExoCommandTerminalInfo {
   command?: string;
   status: string;
   exitCode?: number;
+  readiness?: "ready" | "starting" | "blocked";
+  readinessDetail?: string;
+  queuedInputCount?: number;
 }
 
 export interface ExoOpenFileRequest {
@@ -46,6 +49,14 @@ export interface ExoCreateTerminalRequest {
 
 export interface ExoWriteTerminalRequest {
   data?: string;
+}
+
+export interface ExoWriteTerminalResponse {
+  ok: true;
+  delivery: "sent" | "queued" | "not-found";
+  queuedInputCount?: number;
+  readiness?: ExoCommandTerminalInfo["readiness"];
+  readinessDetail?: string;
 }
 
 export interface ExoIndexRootRequest {
