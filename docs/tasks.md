@@ -1,11 +1,15 @@
 # Exo Tasks
 
-Last updated: 2026-05-23
+Last updated: 2026-05-25
 
 This is the active task tracker for Exo. It is intentionally not a history file; completed implementation history belongs in `ledger.md`. Tasks here should be concrete, current, and ordered by practical priority.
 
 ## Now: Pre-Push Cleanup
 
+- [ ] Review and prepare the 52 local commits for push: decide whether to keep the stack or squash into coherent feature commits.
+- [ ] Run one final clean-state QA pass after cleanup: `pnpm typecheck`, `pnpm test`, `pnpm build`, focused Playwright, and live Exo smoke.
+- [ ] Verify fresh-clone/setup docs against current pnpm/Corepack/Electron/MCP behavior.
+- [ ] Push the reviewed branch and open the review/PR surface.
 - [x] Choose and add an open-source license.
 - [x] Remove or resolve any accidental local edits before commit, including the stray `SECURITY.md` line if it reappears.
 - [x] Confirm README, AGENTS, CLAUDE, architecture, roadmap, tasks, ledger, and MCP docs agree on the current Exo identity.
@@ -14,10 +18,10 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Run `pnpm ci:check`.
 - [x] Run focused desktop e2e for shell/search/terminal flows.
 - [x] Harden fresh-clone setup for pnpm 11, blocked dependency builds, patched Vite/picomatch installs, and secured-network Electron downloads.
+- [x] Fix QA issues tracked in `docs/issues.md` through `EXO-ISSUE-012`; no open issues are currently tracked there.
 
 ## Next: Workspace Surface
 
-- [ ] Fix QA issues tracked in `docs/issues.md`: settings open failure, preview pane resizing/drag behavior, and terminal-specific changed-file attribution.
 - [x] Add first-run onboarding that requires a user-selected notes folder before showing the app shell.
 - [x] Replace free-text notes/project path setup with native folder selection and removable folder lists.
 - [x] Add a setup/switch-workspace surface that shows notes folder, project folders, default terminal, and index settings before entering the app.
@@ -39,7 +43,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Add CLI/MCP commands to add and remove attached project roots.
 - [x] Add a changed-files view for agent-authored project edits.
 - [x] Link changed files to observable terminal sessions by project cwd.
-- [ ] Link terminal-agent messages to files they changed when Exo can observe the relationship.
+- [ ] Link terminal-agent messages to files they changed only when Exo can observe the relationship reliably; keep ambiguous changes in neutral workspace/status surfaces.
 - [x] Add code-review affordances for jumping from a changed file to an associated terminal session.
 - [x] Add code-review affordances for jumping from an agent session to associated changed files.
 - [x] Add code-review affordances for jumping from an agent session to a changed file hunk or line.
@@ -146,5 +150,6 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [ ] Add structural rules for renderer/main/core boundaries.
 - [x] Add docs link/path checks for README, AGENTS, and docs indexes.
 - [ ] Add renderer crash regression probes for blank-window failures.
+- [x] Cap live renderer terminal buffers while preserving transcripts so reattached long-running agents do not crash the renderer.
 - [ ] Add golden/snapshot coverage for stable Markdown rendering, terminal hydration, and search output.
 - [x] Keep CLI app-route tests isolated from live Exo command-server state.

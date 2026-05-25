@@ -4085,7 +4085,7 @@ export function App() {
                 <small>Generated context passed to terminal agent launches.</small>
               </div>
             </div>
-            <div className="agent-context-manager" data-testid="agent-context-settings">
+            <div className="agent-context-manager" data-testid="agent-context-manager-body">
               <div className="agent-context-manager__main" data-testid="agent-context-composer">
                 <section className="agent-context-manager__section agent-context-manager__section--primary">
                   <div className="agent-context-manager__section-header">
