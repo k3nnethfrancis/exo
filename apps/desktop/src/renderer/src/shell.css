@@ -934,18 +934,33 @@
 }
 
 .pane-split-resizer {
-  background: color-mix(in srgb, var(--divider) 28%, transparent);
+  background: transparent;
   position: relative;
   z-index: 4;
   flex-shrink: 0;
   overflow: visible;
 }
 
-.pane-split-resizer::after {
+.pane-split-resizer::before {
   content: "";
   position: absolute;
   z-index: 5;
+  background: color-mix(in srgb, var(--divider) 38%, transparent);
+}
+
+.pane-split-resizer::after {
+  content: "";
+  position: absolute;
+  z-index: 6;
   background: transparent;
+}
+
+.pane-split-resizer--vertical::before {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
 }
 
 .pane-split-resizer--vertical::after {
@@ -955,6 +970,14 @@
   right: -5px;
 }
 
+.pane-split-resizer--horizontal::before {
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  transform: translateY(-50%);
+}
+
 .pane-split-resizer--horizontal::after {
   left: 0;
   right: 0;
@@ -962,8 +985,8 @@
   bottom: -5px;
 }
 
-.pane-split-resizer:hover {
-  background: color-mix(in srgb, var(--accent) 30%, transparent);
+.pane-split-resizer:hover::before {
+  background: color-mix(in srgb, var(--accent) 54%, transparent);
 }
 
 .pane-split-resizer--vertical {
@@ -972,6 +995,16 @@
 
 .pane-split-resizer--horizontal {
   cursor: ns-resize;
+}
+
+body.pane-resize-active,
+body.pane-resize-active * {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+body.pane-resize-active .browser-pane__webview {
+  pointer-events: none;
 }
 
 /* Leaf drop zones --------------------------------------------------------- */

@@ -14,7 +14,7 @@ interface ChromeTabProps {
   testId?: string;
   className?: string;
   dropPaneId?: string;
-  dropKind?: "editor" | "terminal";
+  dropKind?: "editor" | "terminal" | "browser";
   onClick: MouseEventHandler<HTMLElement>;
   onDoubleClick?: MouseEventHandler<HTMLElement>;
   onMouseDown?: MouseEventHandler<HTMLElement>;
