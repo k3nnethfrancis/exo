@@ -1808,6 +1808,30 @@ select.dialog-card__input {
   min-height: 190px;
 }
 
+.agent-mcp-editor {
+  display: grid;
+  gap: 9px;
+  min-width: 0;
+  padding: 9px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--divider));
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-2) 62%, transparent);
+}
+
+.agent-mcp-editor__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.agent-mcp-editor__textarea {
+  min-height: 74px;
+  resize: vertical;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
 @media (max-width: 860px) {
   .agent-context-summary__header,
   .agent-context-summary__footer {
@@ -1816,7 +1840,8 @@ select.dialog-card__input {
   }
 
   .agent-context-summary__grid,
-  .agent-context-manager {
+  .agent-context-manager,
+  .agent-mcp-editor__grid {
     grid-template-columns: 1fr;
   }
 }

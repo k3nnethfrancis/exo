@@ -391,12 +391,19 @@ test("edits agent context files from workspace settings", async () => {
   await expect(page.getByTestId("agent-context-adapters")).toContainText("soul.md");
   await expect(page.getByTestId("agent-managed-config-list")).toContainText(".mcp.json");
   await page.getByRole("button", { name: /sample-project \/ \.mcp\.json/i }).click();
-  await page.getByTestId("agent-managed-config-textarea").fill('{"mcpServers":{"exo":{"command":"node"}}}');
-  await page.getByTestId("agent-managed-config-save").click();
+  await expect(page.getByTestId("agent-mcp-editor")).toBeVisible();
+  await page.getByTestId("agent-mcp-server-name").fill("exo");
+  await page.getByTestId("agent-mcp-server-command").fill("node");
+  await page.getByTestId("agent-mcp-server-args").fill("packages/mcp/bin/exo-mcp.mjs");
+  await page.getByTestId("agent-mcp-server-env").fill("EXO_MCP_AUTOSTART=1");
+  await page.getByTestId("agent-mcp-server-save").click();
   await expect(page.getByTestId("agent-managed-config-status")).toContainText("Config saved");
   await expect.poll(async () =>
     readFile(path.join(workspaceRoot, "projects/sample-project/.mcp.json"), "utf8"),
   ).toContain('"mcpServers"');
+  await expect.poll(async () =>
+    readFile(path.join(workspaceRoot, "projects/sample-project/.mcp.json"), "utf8"),
+  ).toContain('"EXO_MCP_AUTOSTART": "1"');
   await expect(page.getByTestId("agent-instruction-overlay-body")).toContainText("Exo Runtime Context");
   await expect(page.getByTestId("agent-instruction-overlay-body")).toContainText("sample-project");
   await expect.poll(async () => readFile(path.join(workspaceRoot, ".exo/instructions/global.md"), "utf8")).toContain("Attached Project Roots");

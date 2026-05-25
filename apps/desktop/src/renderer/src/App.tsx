@@ -157,6 +157,14 @@ interface AgentManagedConfigState {
   errorMessage: string | null;
 }
 
+interface McpServerEditorState {
+  serverName: string;
+  command: string;
+  argsText: string;
+  envText: string;
+  errorMessage: string | null;
+}
+
 interface ObservedWorkspaceWrite {
   filePath: string;
   rootPath: string;
@@ -273,6 +281,13 @@ export function App() {
     selectedPath: null,
     draftBody: "",
     saveStatus: "idle",
+    errorMessage: null,
+  });
+  const [mcpServerEditor, setMcpServerEditor] = useState<McpServerEditorState>({
+    serverName: "exo",
+    command: "",
+    argsText: "",
+    envText: "",
     errorMessage: null,
   });
   const [onboardingState, setOnboardingState] = useState<OnboardingState | null>(null);
@@ -976,6 +991,11 @@ export function App() {
     [agentContextComposer.history],
   );
   const selectedAgentManagedConfig = agentManagedConfigs.files.find((file) => file.path === agentManagedConfigs.selectedPath) ?? null;
+  const selectedManagedConfigIsMcp = selectedAgentManagedConfig?.category === "mcp";
+  const managedMcpServerNames = useMemo(
+    () => selectedManagedConfigIsMcp ? managedMcpServerNamesFromBody(agentManagedConfigs.draftBody) : [],
+    [agentManagedConfigs.draftBody, selectedManagedConfigIsMcp],
+  );
 
   async function reloadTrees() {
     if (!workspaceModel) {
@@ -1146,6 +1166,7 @@ export function App() {
       saveStatus: "idle",
       errorMessage: null,
     });
+    setMcpServerEditor(mcpServerEditorStateFromBody(agentManagedConfigFiles[0]?.body ?? ""));
   }
 
   async function openAgentContextManager() {
@@ -1205,6 +1226,9 @@ export function App() {
   function selectAgentManagedConfigFile(filePath: string) {
     setAgentManagedConfigs((current) => {
       const selected = current.files.find((file) => file.path === filePath);
+      if (selected) {
+        setMcpServerEditor(mcpServerEditorStateFromBody(selected.body));
+      }
       return selected
         ? {
             ...current,
@@ -1218,14 +1242,18 @@ export function App() {
   }
 
   async function saveAgentManagedConfigDraft() {
-    const snapshot = agentManagedConfigs;
-    if (!snapshot.selectedPath) {
+    await saveAgentManagedConfigBody(agentManagedConfigs.draftBody);
+  }
+
+  async function saveAgentManagedConfigBody(body: string) {
+    const selectedPath = agentManagedConfigs.selectedPath;
+    if (!selectedPath) {
       return;
     }
 
     setAgentManagedConfigs((current) => ({ ...current, saveStatus: "saving", errorMessage: null }));
     try {
-      const saved = await window.exo.workspace.saveAgentManagedConfigFile(snapshot.selectedPath, snapshot.draftBody);
+      const saved = await window.exo.workspace.saveAgentManagedConfigFile(selectedPath, body);
       setAgentManagedConfigs((current) => ({
         ...current,
         files: current.files.map((file) => file.path === saved.path ? saved : file),
@@ -1241,6 +1269,58 @@ export function App() {
         errorMessage: error instanceof Error ? error.message : String(error),
       }));
     }
+  }
+
+  async function saveStructuredMcpServer() {
+    const serverName = mcpServerEditor.serverName.trim();
+    const command = mcpServerEditor.command.trim();
+    if (!serverName || !command) {
+      setMcpServerEditor((current) => ({ ...current, errorMessage: "Server name and command are required." }));
+      return;
+    }
+    const parsed = parseManagedMcpConfig(agentManagedConfigs.draftBody);
+    if (!parsed.ok) {
+      setMcpServerEditor((current) => ({ ...current, errorMessage: parsed.error }));
+      return;
+    }
+
+    const args = mcpServerEditor.argsText
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    const env = envTextToRecord(mcpServerEditor.envText);
+    const nextConfig = {
+      ...parsed.value,
+      mcpServers: {
+        ...parsed.value.mcpServers,
+        [serverName]: {
+          command,
+          ...(args.length > 0 ? { args } : {}),
+          ...(Object.keys(env).length > 0 ? { env } : {}),
+        },
+      },
+    };
+    setMcpServerEditor((current) => ({ ...current, errorMessage: null }));
+    await saveAgentManagedConfigBody(`${JSON.stringify(nextConfig, null, 2)}\n`);
+  }
+
+  async function removeStructuredMcpServer() {
+    const serverName = mcpServerEditor.serverName.trim();
+    if (!serverName) {
+      return;
+    }
+    const parsed = parseManagedMcpConfig(agentManagedConfigs.draftBody);
+    if (!parsed.ok) {
+      setMcpServerEditor((current) => ({ ...current, errorMessage: parsed.error }));
+      return;
+    }
+    const { [serverName]: _removed, ...remainingServers } = parsed.value.mcpServers;
+    const nextConfig = {
+      ...parsed.value,
+      mcpServers: remainingServers,
+    };
+    setMcpServerEditor(mcpServerEditorStateFromBody(JSON.stringify(nextConfig)));
+    await saveAgentManagedConfigBody(`${JSON.stringify(nextConfig, null, 2)}\n`);
   }
 
   async function saveAgentContextDraft() {
@@ -4056,20 +4136,117 @@ export function App() {
                   <div className="agent-context-settings__path">
                     {selectedAgentManagedConfig?.path ?? "No config file selected."}
                   </div>
+                  {selectedManagedConfigIsMcp ? (
+                    <div className="agent-mcp-editor" data-testid="agent-mcp-editor">
+                      <div className="dialog-field__header">
+                        <span className="dialog-field__label">MCP servers</span>
+                        <select
+                          className="dialog-card__input agent-context-settings__target"
+                          data-testid="agent-mcp-server-select"
+                          value={mcpServerEditor.serverName}
+                          onChange={(event) =>
+                            setMcpServerEditor(mcpServerEditorStateFromBody(agentManagedConfigs.draftBody, event.target.value))
+                          }
+                        >
+                          {managedMcpServerNames.length === 0 ? <option value={mcpServerEditor.serverName}>{mcpServerEditor.serverName || "exo"}</option> : null}
+                          {managedMcpServerNames.map((serverName) => (
+                            <option key={serverName} value={serverName}>{serverName}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="agent-mcp-editor__grid">
+                        <label className="dialog-field">
+                          <span className="dialog-field__label">Server name</span>
+                          <input
+                            className="dialog-card__input"
+                            data-testid="agent-mcp-server-name"
+                            value={mcpServerEditor.serverName}
+                            onChange={(event) =>
+                              setMcpServerEditor((current) => ({ ...current, serverName: event.target.value, errorMessage: null }))
+                            }
+                          />
+                        </label>
+                        <label className="dialog-field">
+                          <span className="dialog-field__label">Command</span>
+                          <input
+                            className="dialog-card__input"
+                            data-testid="agent-mcp-server-command"
+                            value={mcpServerEditor.command}
+                            onChange={(event) =>
+                              setMcpServerEditor((current) => ({ ...current, command: event.target.value, errorMessage: null }))
+                            }
+                          />
+                        </label>
+                      </div>
+                      <div className="agent-mcp-editor__grid">
+                        <label className="dialog-field">
+                          <span className="dialog-field__label">Args</span>
+                          <textarea
+                            className="dialog-card__input agent-mcp-editor__textarea"
+                            data-testid="agent-mcp-server-args"
+                            spellCheck={false}
+                            value={mcpServerEditor.argsText}
+                            onChange={(event) =>
+                              setMcpServerEditor((current) => ({ ...current, argsText: event.target.value, errorMessage: null }))
+                            }
+                          />
+                        </label>
+                        <label className="dialog-field">
+                          <span className="dialog-field__label">Env</span>
+                          <textarea
+                            className="dialog-card__input agent-mcp-editor__textarea"
+                            data-testid="agent-mcp-server-env"
+                            spellCheck={false}
+                            value={mcpServerEditor.envText}
+                            onChange={(event) =>
+                              setMcpServerEditor((current) => ({ ...current, envText: event.target.value, errorMessage: null }))
+                            }
+                          />
+                        </label>
+                      </div>
+                      <div className="dialog-card__actions dialog-card__actions--split">
+                        <button
+                          className="toolbar-button"
+                          data-testid="agent-mcp-server-save"
+                          disabled={agentManagedConfigs.saveStatus === "saving"}
+                          onClick={() => void saveStructuredMcpServer()}
+                          type="button"
+                        >
+                          Save MCP server
+                        </button>
+                        <button
+                          className="toolbar-button"
+                          data-testid="agent-mcp-server-remove"
+                          disabled={agentManagedConfigs.saveStatus === "saving" || !managedMcpServerNames.includes(mcpServerEditor.serverName)}
+                          onClick={() => void removeStructuredMcpServer()}
+                          type="button"
+                        >
+                          Remove server
+                        </button>
+                      </div>
+                      {mcpServerEditor.errorMessage ? (
+                        <div className="dialog-card__status dialog-card__status--error">{mcpServerEditor.errorMessage}</div>
+                      ) : null}
+                    </div>
+                  ) : null}
                   <textarea
                     className="dialog-card__input agent-context-settings__textarea agent-context-settings__textarea--config"
                     data-testid="agent-managed-config-textarea"
                     disabled={!agentManagedConfigs.selectedPath}
                     spellCheck={false}
                     value={agentManagedConfigs.draftBody}
-                    onChange={(event) =>
+                    onChange={(event) => {
+                      const nextBody = event.target.value;
                       setAgentManagedConfigs((current) => ({
                         ...current,
-                        draftBody: event.target.value,
+                        draftBody: nextBody,
                         saveStatus: "idle",
                         errorMessage: null,
-                      }))
-                    }
+                      }));
+                      if (selectedManagedConfigIsMcp) {
+                        setMcpServerEditor(mcpServerEditorStateFromBody(nextBody, mcpServerEditor.serverName));
+                      }
+                    }}
                   />
                   {agentManagedConfigs.saveStatus === "saved" ? (
                     <div className="dialog-card__status" data-testid="agent-managed-config-status">Config saved.</div>
@@ -4433,6 +4610,96 @@ function agentContextHistorySummary(entry: AgentContextHistoryEntry): string {
     return "Cleared managed body";
   }
   return "Updated managed body";
+}
+
+interface ManagedMcpServerConfig {
+  command?: unknown;
+  args?: unknown;
+  env?: unknown;
+}
+
+interface ManagedMcpConfig {
+  mcpServers: Record<string, ManagedMcpServerConfig>;
+  [key: string]: unknown;
+}
+
+function parseManagedMcpConfig(body: string): { ok: true; value: ManagedMcpConfig } | { ok: false; error: string } {
+  if (!body.trim()) {
+    return { ok: true, value: { mcpServers: {} } };
+  }
+  try {
+    const parsed = JSON.parse(body) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return { ok: false, error: "MCP config must be a JSON object." };
+    }
+    const value = parsed as Record<string, unknown>;
+    const rawServers = value.mcpServers;
+    if (rawServers !== undefined && (!rawServers || typeof rawServers !== "object" || Array.isArray(rawServers))) {
+      return { ok: false, error: "mcpServers must be an object." };
+    }
+    return {
+      ok: true,
+      value: {
+        ...value,
+        mcpServers: rawServers ? rawServers as Record<string, ManagedMcpServerConfig> : {},
+      },
+    };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Invalid JSON." };
+  }
+}
+
+function managedMcpServerNamesFromBody(body: string): string[] {
+  const parsed = parseManagedMcpConfig(body);
+  return parsed.ok ? Object.keys(parsed.value.mcpServers) : [];
+}
+
+function mcpServerEditorStateFromBody(body: string, preferredServerName?: string | null): McpServerEditorState {
+  const parsed = parseManagedMcpConfig(body);
+  if (!parsed.ok) {
+    return {
+      serverName: preferredServerName || "exo",
+      command: "",
+      argsText: "",
+      envText: "",
+      errorMessage: parsed.error,
+    };
+  }
+  const serverName = preferredServerName && parsed.value.mcpServers[preferredServerName]
+    ? preferredServerName
+    : Object.keys(parsed.value.mcpServers)[0] ?? preferredServerName ?? "exo";
+  const server = parsed.value.mcpServers[serverName] ?? {};
+  const command = typeof server.command === "string" ? server.command : "";
+  const argsText = Array.isArray(server.args) ? server.args.filter((arg): arg is string => typeof arg === "string").join("\n") : "";
+  const envText = server.env && typeof server.env === "object" && !Array.isArray(server.env)
+    ? Object.entries(server.env)
+        .filter((entry): entry is [string, string] => typeof entry[1] === "string")
+        .map(([key, value]) => `${key}=${value}`)
+        .join("\n")
+    : "";
+  return {
+    serverName,
+    command,
+    argsText,
+    envText,
+    errorMessage: null,
+  };
+}
+
+function envTextToRecord(value: string): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const line of value.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      continue;
+    }
+    const separator = trimmed.indexOf("=");
+    if (separator <= 0) {
+      continue;
+    }
+    env[trimmed.slice(0, separator)] = trimmed.slice(separator + 1);
+  }
+  return env;
 }
 
 function summarizeAgentContextSignals(files: AgentContextFile[], selectedPath: string | null): AgentContextSignal[] {
