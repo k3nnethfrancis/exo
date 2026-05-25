@@ -6,22 +6,31 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 
 ## Open
 
-### EXO-ISSUE-010: Codex agent sessions report Exo MCP startup handshake failure
+### EXO-ISSUE-011: Exo agent send can require an extra raw Enter before Codex starts work
 
 - Status: open
-- Severity: medium
-- Area: MCP server integration, Codex provider integration, Exo-on-Exo workflow
-- Observed: newly launched Codex terminals show `MCP client for exo failed to start: MCP startup failed: handshaking with MCP server failed: connection closed: initialize response`.
-- Expected: Codex-launched Exo MCP integration should initialize cleanly when the Exo desktop command server is reachable, or show an actionable configuration error if the MCP command cannot connect.
+- Severity: high
+- Area: agent terminal write path, Codex provider integration, tmux orchestration
+- Observed: `exo agents send <id> <brief>` reported queued delivery and the brief appeared at the Codex prompt, but Codex did not start processing until `exo agents send <id> $'\r' --raw` was sent afterward.
+- Expected: submitted messages should reliably include the final Enter across direct pty and tmux-backed Codex sessions.
 - Investigation notes:
-  - The desktop command server was reachable via `exo agents list` when this occurred.
-  - This warning appeared in multiple Exo-managed Codex sessions during the multi-agent QA stress test.
-  - May be distinct from CLI command-server discovery because normal `exo agents` commands succeeded.
+  - Reproduced while assigning `EXO-ISSUE-009` and `EXO-ISSUE-010` to fresh Exo-managed Codex agents.
+  - This appears related to, but distinct from, `EXO-ISSUE-004`: readiness queueing prevents startup prompt loss, but the final submitted input may still not execute.
 - QA coverage to add:
-  - Live Codex-agent launch smoke that verifies the Exo MCP server handshake succeeds or emits a structured, actionable error.
-  - MCP server unit/integration coverage for initialize response compatibility with Codex's MCP client.
+  - Live or terminal-manager regression that a submitted queued message flushes as executable input in a tmux-backed Codex session.
 
 ## Resolved
+
+### EXO-ISSUE-010: Codex agent sessions report Exo MCP startup handshake failure
+
+- Status: resolved
+- Severity: medium
+- Area: MCP server integration, Codex provider integration, Exo-on-Exo workflow
+- Observed: newly launched Codex terminals showed `MCP client for exo failed to start: MCP startup failed: handshaking with MCP server failed: connection closed: initialize response`.
+- Resolution: the repo-backed MCP launcher now imports a bundled CommonJS runtime artifact. The previous bundled ESM artifact crashed on startup with `Dynamic require of "fs" is not supported` before it could answer MCP `initialize`.
+- QA coverage added:
+  - MCP stdio launcher regression that starts `packages/mcp/bin/exo-mcp.mjs`, performs a real SDK `initialize`, and verifies `tools/list` includes `workspace_status`.
+  - Live Exo-launched Codex smoke should verify the warning is absent when the desktop command server is reachable.
 
 ### EXO-ISSUE-004: Codex agent launch in a new worktree can consume queued task text at the trust prompt
 
