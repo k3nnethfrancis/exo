@@ -835,6 +835,10 @@ const EXO_AGENT_CONTEXT_START = "<!-- exo:managed:start - Exo keeps this instruc
 const EXO_AGENT_CONTEXT_END = "<!-- exo:managed:end -->";
 const EXO_AGENT_CONTEXT_PATTERN = new RegExp(`${escapeRegExp(EXO_AGENT_CONTEXT_START)}[\\s\\S]*?${escapeRegExp(EXO_AGENT_CONTEXT_END)}`);
 const EXO_AGENT_CONTEXT_BODY_PATTERN = /<!-- exo:managed:start[\s\S]*?-->\s*# Agent Instructions\s*(?:<!--[\s\S]*?-->)?\s*([\s\S]*?)\s*<!-- exo:managed:end -->/;
+const DEFAULT_AGENT_CONTEXT_FILE_ADAPTERS = [
+  { id: "codex", label: "Codex compatibility", fileName: "AGENTS.md" },
+  { id: "claude", label: "Claude compatibility", fileName: "CLAUDE.md" },
+];
 
 function upsertManagedAgentContextBlock(currentBody: string, instructionBody: string) {
   const block = renderManagedAgentContextBlock(instructionBody);
@@ -872,27 +876,53 @@ function agentContextCandidates() {
     ...workspaceModel.noteRoots.map((root) => ({ scope: "notes" as const, label: root.label, rootPath: root.path })),
     ...workspaceModel.projectRoots.map((root) => ({ scope: "project" as const, label: root.label, rootPath: root.path })),
   ];
-  const providers = [
-    { provider: "codex" as const, name: "AGENTS.md" },
-    { provider: "claude" as const, name: "CLAUDE.md" },
-  ];
+  const adapters = agentContextFileAdapters();
 
   return roots.flatMap((root) =>
-    providers.map(({ provider, name }) => {
-      const filePath = path.join(root.rootPath, name);
+    adapters.map((adapter) => {
+      const filePath = path.join(root.rootPath, adapter.fileName);
       const targetId = `${root.scope}:${root.rootPath}`;
       return {
-        id: `${root.scope}:${provider}:${filePath}`,
+        id: `${root.scope}:${adapter.id}:${filePath}`,
         scope: root.scope,
-        provider,
+        provider: adapter.id,
+        providerLabel: adapter.label,
         targetId,
         targetLabel: root.label,
         rootPath: root.rootPath,
-        label: `${root.label} / ${name}`,
+        label: `${root.label} / ${adapter.fileName}`,
         path: filePath,
       };
     }),
   );
+}
+
+function agentContextFileAdapters() {
+  return [...DEFAULT_AGENT_CONTEXT_FILE_ADAPTERS, ...extraAgentContextFileAdapters()];
+}
+
+function extraAgentContextFileAdapters() {
+  const raw = process.env.EXO_AGENT_CONTEXT_EXTRA_FILES?.trim();
+  if (!raw) {
+    return [];
+  }
+
+  return raw
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map((entry) => {
+      const [id, fileName, label] = entry.split(":").map((part) => part.trim());
+      if (!id || !fileName || fileName.includes("/") || fileName.includes("\\")) {
+        return null;
+      }
+      return {
+        id,
+        fileName,
+        label: label || `${id} compatibility`,
+      };
+    })
+    .filter((entry): entry is { id: string; fileName: string; label: string } => entry !== null);
 }
 
 async function readAgentContextCandidate(candidate: ReturnType<typeof agentContextCandidates>[number]) {

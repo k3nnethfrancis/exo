@@ -333,6 +333,9 @@ test("opens workspace settings from the sidebar", async () => {
 test("edits agent context files from workspace settings", async () => {
   const { page, workspaceRoot, homeRoot, cleanup } = await launchExoFixture({
     mutable: true,
+    env: {
+      EXO_AGENT_CONTEXT_EXTRA_FILES: "soul:soul.md:Soul compatibility",
+    },
     prepareWorkspace: async (workspaceRoot) => {
       await writeFile(
         path.join(workspaceRoot, "notes/test-notes/AGENTS.md"),
@@ -375,6 +378,9 @@ test("edits agent context files from workspace settings", async () => {
     readFile(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"), "utf8"),
   ).toContain("Use unified project context.");
   await expect.poll(async () =>
+    readFile(path.join(workspaceRoot, "projects/sample-project/soul.md"), "utf8"),
+  ).toContain("Use unified project context.");
+  await expect.poll(async () =>
     readFile(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"), "utf8"),
   ).toContain("Existing project context");
   await expect.poll(async () =>
@@ -409,6 +415,9 @@ test("edits agent context files from workspace settings", async () => {
   await expect.poll(async () =>
     readFile(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"), "utf8"),
   ).not.toContain("Use updated unified project context.");
+  await expect.poll(async () =>
+    readFile(path.join(workspaceRoot, "projects/sample-project/soul.md"), "utf8"),
+  ).not.toContain("Use updated unified project context.");
   await expect(access(path.join(workspaceRoot, "notes/test-notes/CLAUDE.md"))).rejects.toThrow();
   await expect(access(path.join(homeRoot, "CLAUDE.md"))).rejects.toThrow();
 
@@ -424,6 +433,9 @@ test("edits agent context files from workspace settings", async () => {
     readFile(path.join(workspaceRoot, "notes/test-notes/AGENTS.md"), "utf8"),
   ).toContain("Use unified notes context.");
   await expect.poll(async () =>
+    readFile(path.join(workspaceRoot, "notes/test-notes/soul.md"), "utf8"),
+  ).toContain("Use unified notes context.");
+  await expect.poll(async () =>
     readFile(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"), "utf8"),
   ).toContain("Use unified project context.");
 
@@ -433,6 +445,7 @@ test("edits agent context files from workspace settings", async () => {
   await expect(page.getByTestId("agent-context-unified-status")).toContainText("Provider files written");
   await expect.poll(async () => readFile(path.join(homeRoot, "CLAUDE.md"), "utf8")).toContain("Use unified global context.");
   await expect.poll(async () => readFile(path.join(homeRoot, "AGENTS.md"), "utf8")).toContain("Use unified global context.");
+  await expect.poll(async () => readFile(path.join(homeRoot, "soul.md"), "utf8")).toContain("Use unified global context.");
   await expect.poll(async () =>
     readFile(path.join(workspaceRoot, "notes/test-notes/AGENTS.md"), "utf8"),
   ).toContain("Use unified notes context.");
@@ -446,6 +459,7 @@ test("edits agent context files from workspace settings", async () => {
   await expect(page.getByRole("button", { name: /Global \/ CLAUDE\.md/i })).toContainText("Existing");
   await expect(page.getByRole("button", { name: /test-notes \/ CLAUDE\.md/i })).toContainText("Existing");
   await expect(page.getByRole("button", { name: /sample-project \/ CLAUDE\.md/i })).toContainText("Existing");
+  await expect(page.getByRole("button", { name: /sample-project \/ soul\.md/i })).toContainText("Existing");
 
   await cleanup();
 });

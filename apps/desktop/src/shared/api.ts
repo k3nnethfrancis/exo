@@ -70,7 +70,8 @@ export interface WorkspaceRegistryEntry {
 export interface AgentContextFile {
   id: string;
   scope: "global" | "notes" | "project";
-  provider: "codex" | "claude";
+  provider: string;
+  providerLabel: string;
   targetId: string;
   targetLabel: string;
   rootPath: string;
