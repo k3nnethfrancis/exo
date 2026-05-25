@@ -41,11 +41,13 @@ interface PersistedState {
 
 const TMUX_PREFIX = "exo-agent";
 const DEFAULT_BUFFER_LINE_LIMIT: number | null = null;
+const MAX_RENDERER_BUFFER_CHARS = 250_000;
 const DEFAULT_TMUX_HISTORY_LINES = 1_000_000;
 const MIN_TMUX_HISTORY_LINES = 500;
 const MAX_TMUX_HISTORY_LINES = 1_000_000;
 const TMUX_BOOTSTRAP_WINDOW = "exo-bootstrap";
 const CODEX_STARTUP_GRACE_MS = 1_500;
+const CODEX_QUEUED_SUBMIT_DELAY_MS = 120;
 
 export class TerminalManager extends EventEmitter {
   private readonly sessions = new Map<string, TerminalRecord>();
@@ -135,7 +137,7 @@ export class TerminalManager extends EventEmitter {
   setBufferLineLimit(bufferLineLimit: number | null) {
     this.bufferLineLimit = normalizeBufferLineLimit(bufferLineLimit);
     for (const record of this.sessions.values()) {
-      record.buffer = trimBufferLines(record.buffer, this.bufferLineLimit);
+      record.buffer = trimTerminalBuffer(record.buffer, this.bufferLineLimit);
     }
   }
 
@@ -382,7 +384,7 @@ export class TerminalManager extends EventEmitter {
     const id = `term-${this.nextId++}`;
     const transcriptPath = this.makeTranscriptPath(id, entry.kind, entry.tmuxSession);
     setTmuxHistoryLimit(entry.tmuxSession, this.tmuxHistoryLines);
-    const historySeed = trimBufferLines(captureTmuxHistory(entry.tmuxSession), this.bufferLineLimit);
+    const historySeed = trimTerminalBuffer(captureTmuxHistory(entry.tmuxSession), this.bufferLineLimit);
     const info: TerminalSessionInfo = {
       id,
       title: entry.title,
@@ -420,7 +422,7 @@ export class TerminalManager extends EventEmitter {
       const sanitizedData = stripMouseTrackingModes(data);
       if (record) {
         this.appendTranscript(id, sanitizedData);
-        record.buffer = trimBufferLines(`${record.buffer}${sanitizedData}`, this.bufferLineLimit);
+        record.buffer = trimTerminalBuffer(`${record.buffer}${sanitizedData}`, this.bufferLineLimit);
         this.updateAgentReadiness(record);
         this.emit("data", { id, data: sanitizedData });
       }
@@ -556,10 +558,25 @@ export class TerminalManager extends EventEmitter {
     while (record.pendingWrites.length > 0 && record.info.status !== "exited") {
       const data = record.pendingWrites.shift();
       if (data !== undefined) {
-        record.process.write(data);
+        this.writePendingData(record, data);
       }
     }
     this.updateQueuedInputCount(record);
+  }
+
+  private writePendingData(record: TerminalRecord, data: string): void {
+    if (record.info.kind === "codex" && looksLikeSubmittedChatMessage(data)) {
+      const body = data.slice(0, -1);
+      record.process.write(body);
+      setTimeout(() => {
+        if (record.info.status === "running") {
+          record.process.write("\r");
+        }
+      }, CODEX_QUEUED_SUBMIT_DELAY_MS);
+      return;
+    }
+
+    record.process.write(data);
   }
 
   private updateQueuedInputCount(record: TerminalRecord): void {
@@ -701,6 +718,15 @@ function trimBufferLines(buffer: string, lineLimit: number | null): string {
     return buffer;
   }
   return lines.slice(-lineLimit).join("\n");
+}
+
+function trimTerminalBuffer(buffer: string, lineLimit: number | null): string {
+  const lineTrimmed = trimBufferLines(buffer, lineLimit);
+  if (lineTrimmed.length <= MAX_RENDERER_BUFFER_CHARS) {
+    return lineTrimmed;
+  }
+
+  return lineTrimmed.slice(-MAX_RENDERER_BUFFER_CHARS);
 }
 
 function createTmuxAgentSession(name: string, cwd: string, command: string, args: string[], historyLines: number, env: Record<string, string | undefined>): void {

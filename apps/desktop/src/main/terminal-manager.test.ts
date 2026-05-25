@@ -112,7 +112,11 @@ describe("TerminalManager Codex readiness", () => {
       readiness: "ready",
       queuedInputCount: 0,
     });
-    expect(pty.writes).toEqual(["Fix the issue\r"]);
+    expect(pty.writes).toEqual(["Fix the issue"]);
+
+    vi.advanceTimersByTime(120);
+
+    expect(pty.writes).toEqual(["Fix the issue", "\r"]);
   });
 
   it("flushes queued Codex text after the startup grace when no prompt appears", async () => {
@@ -134,7 +138,11 @@ describe("TerminalManager Codex readiness", () => {
       readiness: "ready",
       queuedInputCount: 0,
     });
-    expect(pty.writes).toEqual(["Start cleanly\r"]);
+    expect(pty.writes).toEqual(["Start cleanly"]);
+
+    vi.advanceTimersByTime(120);
+
+    expect(pty.writes).toEqual(["Start cleanly", "\r"]);
   });
 
   it("lets raw non-submitted input through so a user can answer interstitials", async () => {
@@ -148,6 +156,20 @@ describe("TerminalManager Codex readiness", () => {
     await expect(manager.write(agent.id, "y")).resolves.toMatchObject({ delivery: "sent" });
 
     expect(pty.writes).toEqual(["y"]);
+  });
+
+  it("caps live renderer buffers while transcripts keep receiving data", async () => {
+    const workspaceRoot = await workspaceFixture();
+    const manager = managerForWorkspace(workspaceRoot);
+
+    const terminal = await manager.create({ kind: "shell", cwd: workspaceRoot });
+    const pty = ptyState.spawned[0];
+    const largeChunk = "x".repeat(300_000);
+
+    pty.emitData(largeChunk);
+
+    expect(manager.readBuffer(terminal.id)?.length).toBe(250_000);
+    expect(manager.readTranscript(terminal.id)).toContain(largeChunk.slice(0, 100));
   });
 });
 

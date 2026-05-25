@@ -6,18 +6,7 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 
 ## Open
 
-### EXO-ISSUE-011: Exo agent send can require an extra raw Enter before Codex starts work
-
-- Status: open
-- Severity: high
-- Area: agent terminal write path, Codex provider integration, tmux orchestration
-- Observed: `exo agents send <id> <brief>` reported queued delivery and the brief appeared at the Codex prompt, but Codex did not start processing until `exo agents send <id> $'\r' --raw` was sent afterward.
-- Expected: submitted messages should reliably include the final Enter across direct pty and tmux-backed Codex sessions.
-- Investigation notes:
-  - Reproduced while assigning `EXO-ISSUE-009` and `EXO-ISSUE-010` to fresh Exo-managed Codex agents.
-  - This appears related to, but distinct from, `EXO-ISSUE-004`: readiness queueing prevents startup prompt loss, but the final submitted input may still not execute.
-- QA coverage to add:
-  - Live or terminal-manager regression that a submitted queued message flushes as executable input in a tmux-backed Codex session.
+No open issues tracked in this file.
 
 ## Resolved
 
@@ -45,6 +34,30 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
   - Regression that raw non-submitted input can still answer provider interstitials.
 
 ## Fixed
+
+### EXO-ISSUE-012: Reattached long-running Codex sessions can crash the renderer with huge buffers
+
+- Status: fixed
+- Severity: high
+- Area: terminal persistence, renderer stability, Exo-on-Exo stress
+- Observed: after the multi-agent stress test, the dev app repeatedly logged renderer crashes while reattaching Codex sessions with very large terminal buffers.
+- Fixed:
+  - Live renderer terminal buffers are now capped by character count even when terminal history mode keeps full tmux/transcript history.
+  - Transcript storage still receives complete terminal data; only the in-memory renderer buffer is trimmed.
+- QA coverage:
+  - Added terminal-manager regression that large terminal output is capped for `readBuffer()` while transcript reads still include the full emitted content.
+
+### EXO-ISSUE-011: Exo agent send can require an extra raw Enter before Codex starts work
+
+- Status: fixed
+- Severity: high
+- Area: agent terminal write path, Codex provider integration, tmux orchestration
+- Observed: `exo agents send <id> <brief>` reported queued delivery and the brief appeared at the Codex prompt, but Codex did not start processing until `exo agents send <id> $'\r' --raw` was sent afterward.
+- Fixed:
+  - Queued Codex submitted messages now flush as message body followed by a short delayed Enter, so Codex/tmux has time to finish activating the prompt before submit.
+- QA coverage:
+  - Updated terminal-manager regressions to verify queued Codex task text writes body first and delayed Enter afterward.
+  - Live Exo-launched Codex smoke verified a queued `exo agents send` message starts work and receives `OK` without a second raw Enter.
 
 ### EXO-ISSUE-009: Agent create subcommand treats `--help` as a cwd
 
