@@ -934,6 +934,12 @@ export function App() {
   );
   const selectedAgentContextFile = agentContextEditor.files.find((file) => file.path === agentContextEditor.selectedPath) ?? null;
   const agentContextTargets = useMemo(() => agentContextTargetsFromFiles(agentContextEditor.files), [agentContextEditor.files]);
+  const selectedAgentContextTarget =
+    agentContextTargets.find((target) => target.id === agentContextComposer.selectedTargetId) ?? agentContextTargets[0] ?? null;
+  const enabledAgentContextAdapterLabels = useMemo(
+    () => agentContextAdapters.adapters.filter((adapter) => adapter.enabled).map((adapter) => adapter.fileName),
+    [agentContextAdapters.adapters],
+  );
   const agentContextHistoryForSelectedTarget = useMemo(
     () => agentContextHistoryEntriesForTarget(agentContextComposer.history, agentContextComposer.selectedTargetId),
     [agentContextComposer.history, agentContextComposer.selectedTargetId],
@@ -4057,11 +4063,40 @@ export function App() {
                 ))}
               </div>
             ) : null}
+            <div className="agent-context-manager__overview" data-testid="agent-context-manager-overview">
+              <div className="agent-context-manager__overview-item">
+                <span>Active scope</span>
+                <strong>{selectedAgentContextTarget?.label ?? "No scope selected"}</strong>
+                <small title={selectedAgentContextTarget?.rootPath}>{selectedAgentContextTarget?.rootPath ?? "Choose a scope before writing provider files."}</small>
+              </div>
+              <div className="agent-context-manager__overview-item">
+                <span>Provider outputs</span>
+                <strong>{enabledAgentContextAdapterLabels.length > 0 ? enabledAgentContextAdapterLabels.join(", ") : "None enabled"}</strong>
+                <small>Generated from unified instructions for the selected scope.</small>
+              </div>
+              <div className="agent-context-manager__overview-item">
+                <span>Managed configs</span>
+                <strong>{agentManagedConfigs.files.length}</strong>
+                <small>{agentManagedConfigs.files.length > 0 ? "Launch-time config files available to edit." : "Unavailable in this renderer/preload session."}</small>
+              </div>
+              <div className="agent-context-manager__overview-item">
+                <span>Runtime overlay</span>
+                <strong>{selectedInstructionOverlay?.label ?? "None"}</strong>
+                <small>Generated context passed to terminal agent launches.</small>
+              </div>
+            </div>
             <div className="agent-context-manager" data-testid="agent-context-settings">
               <div className="agent-context-manager__main" data-testid="agent-context-composer">
-                <div className="dialog-field__header">
-                  <span className="dialog-field__label">Unified instructions</span>
-                  <div className="dialog-card__actions dialog-card__actions--split">
+                <section className="agent-context-manager__section agent-context-manager__section--primary">
+                  <div className="agent-context-manager__section-header">
+                    <div>
+                      <span className="dialog-field__label">
+                        Unified instructions
+                        <HelpTooltip label="Write shared instructions once, then let Exo update enabled provider files for the selected global, notes, or project scope." />
+                      </span>
+                      <div className="agent-context-manager__section-copy">Use this as the source of truth for what terminal agents should read in the active scope.</div>
+                    </div>
+                    <div className="dialog-card__actions dialog-card__actions--split agent-context-manager__controls" data-testid="agent-context-manager-controls">
                     <select
                       className="dialog-card__input agent-context-settings__target"
                       data-testid="agent-context-target"
@@ -4083,101 +4118,117 @@ export function App() {
                         </option>
                       ))}
                     </select>
-                    <button
-                      className="toolbar-button"
-                      data-testid="agent-context-save-unified"
-                      disabled={!agentContextComposer.selectedTargetId || agentContextComposer.saveStatus === "saving"}
-                      onClick={() => void saveUnifiedAgentContext()}
-                      type="button"
-                    >
-                      {agentContextComposer.saveStatus === "saving" ? "Writing…" : "Write provider files"}
-                    </button>
+                      <button
+                        className="toolbar-button"
+                        data-testid="agent-context-save-unified"
+                        disabled={!agentContextComposer.selectedTargetId || agentContextComposer.saveStatus === "saving"}
+                        onClick={() => void saveUnifiedAgentContext()}
+                        type="button"
+                      >
+                        {agentContextComposer.saveStatus === "saving" ? "Writing…" : "Write provider files"}
+                      </button>
+                    </div>
                   </div>
-                </div>
-                <label className="dialog-field agent-context-manager__composer-field">
-                  <span className="dialog-field__label">Instructions for all terminal agents</span>
-                  <textarea
-                    className="dialog-card__input agent-context-settings__composer-textarea"
-                    data-testid="agent-context-unified-editor"
-                    spellCheck={false}
-                    value={agentContextComposer.body}
-                    onChange={(event) =>
-                      setAgentContextComposer((current) => ({
-                        ...current,
-                        body: event.target.value,
-                        saveStatus: "idle",
-                        errorMessage: null,
-                      }))
-                    }
-                  />
-                </label>
-                {agentContextComposer.saveStatus === "saved" ? (
-                  <div className="dialog-card__status" data-testid="agent-context-unified-status">Provider files written.</div>
-                ) : null}
-                {agentContextComposer.saveStatus === "error" && agentContextComposer.errorMessage ? (
-                  <div className="dialog-card__status dialog-card__status--error">{agentContextComposer.errorMessage}</div>
-                ) : null}
-                <div className="agent-context-settings__history" data-testid="agent-context-history">
-                  {agentContextHistoryForSelectedTarget.length > 0 ? (
-                    <>
-                      <div>
-                        <span>{agentContextHistoryForSelectedTarget.length} managed version{agentContextHistoryForSelectedTarget.length === 1 ? "" : "s"}</span>
-                        <span>{selectedAgentContextHistory?.targetLabel ?? "Selected scope"}</span>
-                      </div>
-                      <div className="agent-context-settings__history-list" data-testid="agent-context-history-list">
-                        {agentContextHistoryForSelectedTarget.map((entry) => (
+                  <label className="dialog-field agent-context-manager__composer-field">
+                    <span className="dialog-field__label">Instructions for all terminal agents</span>
+                    <textarea
+                      className="dialog-card__input agent-context-settings__composer-textarea"
+                      data-testid="agent-context-unified-editor"
+                      spellCheck={false}
+                      value={agentContextComposer.body}
+                      onChange={(event) =>
+                        setAgentContextComposer((current) => ({
+                          ...current,
+                          body: event.target.value,
+                          saveStatus: "idle",
+                          errorMessage: null,
+                        }))
+                      }
+                    />
+                  </label>
+                  {agentContextComposer.saveStatus === "saved" ? (
+                    <div className="dialog-card__status" data-testid="agent-context-unified-status">Provider files written.</div>
+                  ) : null}
+                  {agentContextComposer.saveStatus === "error" && agentContextComposer.errorMessage ? (
+                    <div className="dialog-card__status dialog-card__status--error">{agentContextComposer.errorMessage}</div>
+                  ) : null}
+                </section>
+                <section className="agent-context-manager__section">
+                  <div className="agent-context-manager__section-header">
+                    <div>
+                      <span className="dialog-field__label">
+                        Managed history
+                        <HelpTooltip label="Restore points are created when Exo writes managed instruction blocks into provider files." />
+                      </span>
+                      <div className="agent-context-manager__section-copy">Compare or restore previous managed instruction bodies for the selected scope.</div>
+                    </div>
+                  </div>
+                  <div className="agent-context-settings__history" data-testid="agent-context-history">
+                    {agentContextHistoryForSelectedTarget.length > 0 ? (
+                      <>
+                        <div>
+                          <span>{agentContextHistoryForSelectedTarget.length} managed version{agentContextHistoryForSelectedTarget.length === 1 ? "" : "s"}</span>
+                          <span>{selectedAgentContextHistory?.targetLabel ?? "Selected scope"}</span>
+                        </div>
+                        <div className="agent-context-settings__history-list" data-testid="agent-context-history-list">
+                          {agentContextHistoryForSelectedTarget.map((entry) => (
+                            <button
+                              className={`agent-context-settings__history-entry ${entry.id === selectedAgentContextHistory?.id ? "agent-context-settings__history-entry--active" : ""}`}
+                              data-testid="agent-context-history-entry"
+                              key={entry.id}
+                              onClick={() =>
+                                setAgentContextComposer((current) => ({
+                                  ...current,
+                                  selectedHistoryId: entry.id,
+                                  historyOpen: true,
+                                }))
+                              }
+                              type="button"
+                            >
+                              <span>{formatAgentContextHistoryTime(entry.createdAt)}</span>
+                              <span>{agentContextHistorySummary(entry)}</span>
+                            </button>
+                          ))}
+                        </div>
+                        <div className="dialog-card__actions dialog-card__actions--split">
                           <button
-                            className={`agent-context-settings__history-entry ${entry.id === selectedAgentContextHistory?.id ? "agent-context-settings__history-entry--active" : ""}`}
-                            data-testid="agent-context-history-entry"
-                            key={entry.id}
-                            onClick={() =>
-                              setAgentContextComposer((current) => ({
-                                ...current,
-                                selectedHistoryId: entry.id,
-                                historyOpen: true,
-                              }))
-                            }
+                            className="toolbar-button"
+                            data-testid="agent-context-toggle-diff"
+                            onClick={() => setAgentContextComposer((current) => ({ ...current, historyOpen: !current.historyOpen }))}
                             type="button"
                           >
-                            <span>{formatAgentContextHistoryTime(entry.createdAt)}</span>
-                            <span>{agentContextHistorySummary(entry)}</span>
+                            {agentContextComposer.historyOpen ? "Hide diff" : "View diff"}
                           </button>
-                        ))}
-                      </div>
-                      <div className="dialog-card__actions dialog-card__actions--split">
-                        <button
-                          className="toolbar-button"
-                          data-testid="agent-context-toggle-diff"
-                          onClick={() => setAgentContextComposer((current) => ({ ...current, historyOpen: !current.historyOpen }))}
-                          type="button"
-                        >
-                          {agentContextComposer.historyOpen ? "Hide diff" : "View diff"}
-                        </button>
-                        <button
-                          className="toolbar-button"
-                          data-testid="agent-context-restore-history"
-                          disabled={agentContextComposer.saveStatus === "saving" || !selectedAgentContextHistory}
-                          onClick={() => selectedAgentContextHistory ? void restoreAgentContextHistoryEntry(selectedAgentContextHistory.id) : undefined}
-                          type="button"
-                        >
-                          Restore selected
-                        </button>
-                      </div>
-                      {agentContextComposer.historyOpen && selectedAgentContextHistory ? (
-                        <pre className="agent-context-settings__diff" data-testid="agent-context-history-diff">
-                          {formatAgentContextHistoryDiff(selectedAgentContextHistory)}
-                        </pre>
-                      ) : null}
-                    </>
-                  ) : (
-                    <span>No previous Exo-managed version for this scope.</span>
-                  )}
-                </div>
+                          <button
+                            className="toolbar-button"
+                            data-testid="agent-context-restore-history"
+                            disabled={agentContextComposer.saveStatus === "saving" || !selectedAgentContextHistory}
+                            onClick={() => selectedAgentContextHistory ? void restoreAgentContextHistoryEntry(selectedAgentContextHistory.id) : undefined}
+                            type="button"
+                          >
+                            Restore selected
+                          </button>
+                        </div>
+                        {agentContextComposer.historyOpen && selectedAgentContextHistory ? (
+                          <pre className="agent-context-settings__diff" data-testid="agent-context-history-diff">
+                            {formatAgentContextHistoryDiff(selectedAgentContextHistory)}
+                          </pre>
+                        ) : null}
+                      </>
+                    ) : (
+                      <span>No previous Exo-managed version for this scope.</span>
+                    )}
+                  </div>
+                </section>
                 <div className="agent-context-settings__editor">
                   <div className="dialog-field__header">
-                    <span className="dialog-field__label">
-                      {selectedAgentContextFile?.label ?? "Agent context"}
-                    </span>
+                    <div>
+                      <span className="dialog-field__label">
+                        Provider file editor
+                        <HelpTooltip label="Inspect or patch a specific provider instruction file. Unified writes preserve unmanaged content outside Exo's managed block." />
+                      </span>
+                      <div className="agent-context-manager__section-copy">{selectedAgentContextFile?.label ?? "Select a provider file from the side panel."}</div>
+                    </div>
                     <div className="dialog-card__actions dialog-card__actions--split">
                       <button
                         className="toolbar-button"
@@ -4241,9 +4292,13 @@ export function App() {
                 </div>
                 <div className="agent-context-settings__editor agent-context-settings__editor--config" data-testid="agent-managed-config-editor">
                   <div className="dialog-field__header">
-                    <span className="dialog-field__label">
-                      {selectedAgentManagedConfig?.label ?? "Managed config"}
-                    </span>
+                    <div>
+                      <span className="dialog-field__label">
+                        Managed config editor
+                        <HelpTooltip label="Edit launch-adjacent provider config such as MCP server settings for a selected global, notes, or project scope." />
+                      </span>
+                      <div className="agent-context-manager__section-copy">{selectedAgentManagedConfig?.label ?? "Select a managed config from the side panel."}</div>
+                    </div>
                     <button
                       className="toolbar-button"
                       data-testid="agent-managed-config-save"
@@ -4379,7 +4434,13 @@ export function App() {
               </div>
               <div className="agent-context-manager__side">
                 <section className="agent-context-manager__section agent-context-adapters" data-testid="agent-context-adapters">
-                  <div className="dialog-field__label">Instruction outputs</div>
+                  <div>
+                    <span className="dialog-field__label">
+                      Instruction outputs
+                      <HelpTooltip label="Enabled outputs are the provider files Exo writes when you use Write provider files." />
+                    </span>
+                    <div className="agent-context-manager__section-copy">Choose which provider-compatible files Exo should generate.</div>
+                  </div>
                   <div className="agent-context-adapters__list">
                     {agentContextAdapters.adapters.map((adapter) => (
                       <div className="agent-context-adapters__row" key={adapter.id}>
@@ -4457,7 +4518,13 @@ export function App() {
                   ) : null}
                 </section>
                 <section className="agent-context-manager__section">
-                  <div className="dialog-field__label">Provider files</div>
+                  <div>
+                    <span className="dialog-field__label">
+                      Provider files
+                      <HelpTooltip label="These are the actual instruction files agents may read in global, notes, and attached project scopes." />
+                    </span>
+                    <div className="agent-context-manager__section-copy">Select a file to inspect conflicts, duplicates, and unmanaged content.</div>
+                  </div>
                   <div className="agent-context-settings__list" data-testid="agent-context-file-list">
                     {agentContextEditor.files.map((file) => (
                       <button
@@ -4475,7 +4542,13 @@ export function App() {
                   </div>
                 </section>
                 <section className="agent-context-manager__section">
-                  <div className="dialog-field__label">Managed configs</div>
+                  <div>
+                    <span className="dialog-field__label">
+                      Managed configs
+                      <HelpTooltip label="Config files here affect provider launch behavior, including MCP server definitions used by agents." />
+                    </span>
+                    <div className="agent-context-manager__section-copy">Select a config to edit raw JSON or structured MCP settings.</div>
+                  </div>
                   <div className="agent-context-settings__list" data-testid="agent-managed-config-list">
                     {agentManagedConfigs.files.map((file) => (
                       <button
@@ -4494,7 +4567,10 @@ export function App() {
                 </section>
                 <section className="agent-context-manager__section agent-context-settings__overlay" data-testid="agent-instruction-overlay-preview">
                   <div className="dialog-field__header">
-                    <span className="dialog-field__label">Generated overlay</span>
+                    <span className="dialog-field__label">
+                      Generated overlay
+                      <HelpTooltip label="Runtime overlays are generated by Exo and passed to terminal agent launches; they do not replace provider files." />
+                    </span>
                     <select
                       className="dialog-card__input agent-context-settings__target"
                       data-testid="agent-instruction-overlay-select"

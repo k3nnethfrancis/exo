@@ -121,6 +121,10 @@ const api: DesktopApi = {
   },
 };
 
+if (process.env.EXO_TEST_OMIT_MANAGED_CONFIG_API === "1") {
+  delete (api.workspace as Partial<typeof api.workspace>).listAgentManagedConfigFiles;
+}
+
 contextBridge.exposeInMainWorld("exo", api);
 
 function fileKey(file: File): string {

@@ -1302,7 +1302,7 @@ button svg,
 
 .dialog-card--agent-context-manager {
   width: min(1120px, calc(100vw - 48px));
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto minmax(0, 1fr);
   overflow: hidden;
 }
 
@@ -1488,6 +1488,50 @@ select.dialog-card__input {
   overflow: hidden;
 }
 
+.agent-context-manager__overview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+
+.agent-context-manager__overview-item {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid color-mix(in srgb, var(--divider) 55%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-2) 58%, transparent);
+}
+
+.agent-context-manager__overview-item span,
+.agent-context-manager__overview-item small,
+.agent-context-manager__section-copy {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.agent-context-manager__overview-item span {
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.agent-context-manager__overview-item strong,
+.agent-context-manager__overview-item small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-context-manager__overview-item strong {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 650;
+}
+
 .agent-context-manager__main,
 .agent-context-manager__side,
 .agent-context-manager__section {
@@ -1503,6 +1547,33 @@ select.dialog-card__input {
 .agent-context-manager__side {
   overflow: auto;
   padding-right: 2px;
+}
+
+.agent-context-manager__section {
+  padding: 9px;
+  border: 1px solid color-mix(in srgb, var(--divider) 50%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-2) 35%, transparent);
+}
+
+.agent-context-manager__section--primary {
+  background: color-mix(in srgb, var(--surface-2) 56%, transparent);
+}
+
+.agent-context-manager__section-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.agent-context-manager__controls {
+  min-width: min(360px, 100%);
+}
+
+.agent-context-manager__controls .toolbar-button {
+  flex: 0 0 auto;
 }
 
 .agent-context-manager__composer-field {
@@ -1581,7 +1652,7 @@ select.dialog-card__input {
 }
 
 .agent-context-settings__target {
-  width: min(260px, 38vw);
+  width: min(260px, 100%);
   min-height: 30px;
   padding-block: 4px;
 }
@@ -1839,10 +1910,28 @@ select.dialog-card__input {
     flex-direction: column;
   }
 
+  .dialog-card--agent-context-manager {
+    width: min(760px, calc(100vw - 24px));
+  }
+
   .agent-context-summary__grid,
+  .agent-context-manager__overview,
   .agent-context-manager,
   .agent-mcp-editor__grid {
     grid-template-columns: 1fr;
+  }
+
+  .agent-context-manager__section-header {
+    grid-template-columns: 1fr;
+  }
+
+  .agent-context-manager__controls {
+    min-width: 0;
+  }
+
+  .agent-context-manager__controls .agent-context-settings__target,
+  .agent-context-manager__controls .toolbar-button {
+    flex: 1 1 220px;
   }
 }
 

@@ -5,6 +5,10 @@ import { test, expect } from "@playwright/test";
 
 import { launchExoFixture } from "../helpers";
 
+function boxesOverlap(a: { x: number; y: number; width: number; height: number }, b: { x: number; y: number; width: number; height: number }) {
+  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+}
+
 async function cycleAppearanceTo(page: import("@playwright/test").Page, targetMode: "system" | "light" | "dark") {
   for (let attempt = 0; attempt < 4; attempt += 1) {
     const currentMode = await page.locator("html").getAttribute("data-appearance-mode");
@@ -388,7 +392,76 @@ test("opens workspace settings with partial agent context discovery errors", asy
     await page.getByTestId("agent-context-open-manager").click();
     await expect(page.getByTestId("agent-context-manager")).toBeVisible();
     await expect(page.getByTestId("agent-context-manager-partial-errors")).toContainText("sample-project / AGENTS.md");
+    await expect(page.getByTestId("agent-context-manager-overview")).toContainText("Active scope");
     await expect(page.getByTestId("agent-context-file-list")).toContainText("Error");
+  } finally {
+    await cleanup();
+  }
+});
+
+test("opens agent context manager when managed config preload API is unavailable", async () => {
+  const { page, cleanup } = await launchExoFixture({
+    env: {
+      EXO_INDEX_ENABLED: "0",
+      EXO_INDEX_MODE: "off",
+      EXO_INDEXED_ROOTS: "[]",
+      EXO_TEST_OMIT_MANAGED_CONFIG_API: "1",
+    },
+  });
+
+  try {
+    await page.getByTestId("workspace-settings").click();
+    await page.getByTestId("workspace-settings-tab-agents").click();
+    await expect(page.getByTestId("agent-context-partial-errors")).toContainText("Managed config editor is unavailable");
+    await expect(page.getByTestId("workspace-settings-dialog")).not.toContainText("is not a function");
+    await page.getByTestId("agent-context-open-manager").click();
+    await expect(page.getByTestId("agent-context-manager")).toBeVisible();
+    await expect(page.getByTestId("agent-context-manager-partial-errors")).toContainText("latest preload bridge");
+    await expect(page.getByTestId("agent-managed-config-editor")).toContainText("Select a managed config");
+  } finally {
+    await cleanup();
+  }
+});
+
+test("keeps long agent context errors separate from narrow manager controls", async () => {
+  const { electronApp, page, cleanup } = await launchExoFixture({
+    env: {
+      EXO_INDEX_ENABLED: "0",
+      EXO_INDEX_MODE: "off",
+      EXO_INDEXED_ROOTS: "[]",
+    },
+  });
+
+  try {
+    const longError = [
+      "managed agent config files:",
+      "window.exo.workspace.listAgentManagedConfigFiles is not a function after a stale preload bridge restart",
+      "/very/long/workspace/path/with/provider/config/.mcp.json",
+      "restart Exo to reload the preload bundle before editing managed configs",
+    ].join(" ");
+    await electronApp.evaluate(({ ipcMain }, errorMessage) => {
+      ipcMain.removeHandler("workspace:list-agent-managed-config-files");
+      ipcMain.handle("workspace:list-agent-managed-config-files", async () => {
+        throw new Error(errorMessage);
+      });
+    }, longError);
+
+    await page.getByTestId("workspace-settings").click();
+    await page.getByTestId("workspace-settings-tab-agents").click();
+    await page.getByTestId("agent-context-open-manager").click();
+    await expect(page.getByTestId("agent-context-manager")).toBeVisible();
+    await page.setViewportSize({ width: 720, height: 720 });
+    await expect(page.getByTestId("agent-context-manager-partial-errors")).toContainText("stale preload bridge restart");
+    await expect(page.getByTestId("agent-context-manager-overview")).toContainText("Active scope");
+
+    const errorBox = await page.getByTestId("agent-context-manager-partial-errors").boundingBox();
+    const controlsBox = await page.getByTestId("agent-context-manager-controls").boundingBox();
+    const targetBox = await page.getByTestId("agent-context-target").boundingBox();
+    expect(errorBox).not.toBeNull();
+    expect(controlsBox).not.toBeNull();
+    expect(targetBox).not.toBeNull();
+    expect(boxesOverlap(errorBox!, controlsBox!)).toBe(false);
+    expect(boxesOverlap(errorBox!, targetBox!)).toBe(false);
   } finally {
     await cleanup();
   }
@@ -418,6 +491,9 @@ test("edits agent context files from workspace settings", async () => {
   await expect(page.getByTestId("agent-context-settings")).toContainText("Instruction outputs");
   await page.getByTestId("agent-context-open-manager").click();
   await expect(page.getByTestId("agent-context-manager")).toBeVisible();
+  await expect(page.getByTestId("agent-context-manager-overview")).toContainText("Provider outputs");
+  await expect(page.getByTestId("agent-context-composer")).toContainText("Managed history");
+  await expect(page.getByTestId("agent-instruction-overlay-preview")).toContainText("Generated overlay");
   await expect(page.getByTestId("agent-context-adapters")).toContainText("AGENTS.md");
   await expect(page.getByTestId("agent-context-adapters")).toContainText("CLAUDE.md");
   await page.getByTestId("agent-context-adapter-file-name").fill("soul.md");
