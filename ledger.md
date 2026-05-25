@@ -99,7 +99,7 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Added a schema-aware `.mcp.json` editor for managed MCP configs: users can edit server name, command, args, and env fields through controls while Exo writes normalized MCP JSON.
 - Fixed EXO-ISSUE-004 by adding Codex readiness/queue semantics around Exo agent sends, including regression coverage for trust prompts, startup grace flushing, and raw interstitial input.
 - Fixed EXO-ISSUE-009 by handling `exo agents create --help` and `exo agents create <provider> --help` before app connection or terminal creation, plus rejecting option-shaped create cwd values.
-- Fixed EXO-ISSUE-010 by changing the Exo MCP launcher to import a bundled CommonJS runtime artifact, avoiding the prior bundled ESM startup crash before MCP `initialize`; added a stdio launcher handshake regression.
+- Fixed EXO-ISSUE-010 by changing the Exo MCP launcher to import a bundled CommonJS runtime artifact, avoid rebuilding when `dist/index.cjs` already exists, and fall back with Corepack project-spec disabled; added a stdio launcher handshake regression and live Codex smoke.
 
 ## Next Priorities
 

@@ -1,18 +1,26 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const mcpRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const exoRoot = path.resolve(mcpRoot, "../..");
+const builtEntry = path.join(mcpRoot, "dist/index.cjs");
 
-const build = spawnSync("pnpm", ["--silent", "--dir", exoRoot, "--filter", "@exo/mcp", "build"], {
-  stdio: ["ignore", "ignore", "inherit"],
-});
+if (!existsSync(builtEntry)) {
+  const build = spawnSync("pnpm", ["--silent", "--dir", exoRoot, "--filter", "@exo/mcp", "build"], {
+    env: {
+      ...process.env,
+      COREPACK_ENABLE_PROJECT_SPEC: process.env.COREPACK_ENABLE_PROJECT_SPEC ?? "0",
+    },
+    stdio: ["ignore", "ignore", "inherit"],
+  });
 
-if (build.status !== 0) {
-  process.exit(build.status ?? 1);
+  if (build.status !== 0) {
+    process.exit(build.status ?? 1);
+  }
 }
 
-const { runServer } = await import(path.join(mcpRoot, "dist/index.cjs"));
+const { runServer } = await import(builtEntry);
 await runServer();

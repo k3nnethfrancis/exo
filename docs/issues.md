@@ -27,10 +27,10 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 - Severity: medium
 - Area: MCP server integration, Codex provider integration, Exo-on-Exo workflow
 - Observed: newly launched Codex terminals showed `MCP client for exo failed to start: MCP startup failed: handshaking with MCP server failed: connection closed: initialize response`.
-- Resolution: the repo-backed MCP launcher now imports a bundled CommonJS runtime artifact. The previous bundled ESM artifact crashed on startup with `Dynamic require of "fs" is not supported` before it could answer MCP `initialize`.
+- Resolution: the repo-backed MCP launcher now imports a bundled CommonJS runtime artifact, uses an existing build without invoking `pnpm` on every startup, and only rebuilds as a fallback with Corepack project-spec disabled. The previous bundled ESM artifact crashed on startup with `Dynamic require of "fs" is not supported` before it could answer MCP `initialize`.
 - QA coverage added:
   - MCP stdio launcher regression that starts `packages/mcp/bin/exo-mcp.mjs`, performs a real SDK `initialize`, and verifies `tools/list` includes `workspace_status`.
-  - Live Exo-launched Codex smoke should verify the warning is absent when the desktop command server is reachable.
+  - Live Exo-launched Codex smoke verified the Exo MCP startup warning is absent when the desktop command server is reachable.
 
 ### EXO-ISSUE-004: Codex agent launch in a new worktree can consume queued task text at the trust prompt
 
