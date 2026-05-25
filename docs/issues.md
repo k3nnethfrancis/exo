@@ -21,6 +21,20 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
   - Agent-launch QA for a Codex agent created in a fresh worktree.
   - Regression that queued task text is not sent until the provider is ready for chat input.
 
+### EXO-ISSUE-005: Dev app can exit after build without exposing the Exo CLI server
+
+- Status: open
+- Severity: high
+- Area: desktop dev startup, command server, agent orchestration
+- Observed: after the parallel-agent stress test, `pnpm dev` built the Electron main/preload/renderer successfully, printed `starting electron app...`, then exited with code 0. Subsequent `exo agents list` reported `Exo app is not running. Start it with: exo dev`.
+- Expected: `pnpm dev` should either keep the Electron app and command server alive, or print a clear startup failure explaining why the app exited.
+- Investigation notes:
+  - This interrupted the Exo-managed agent coordination loop and forced review/takeover from git worktrees instead of live agent transcripts.
+  - Focused Playwright Electron launches still passed after this occurred, so the failure may be specific to dev-mode startup, an existing singleton instance, command-server boot, or the local terminal-agent state.
+- QA coverage to add:
+  - Dev startup smoke test that confirms the command server becomes reachable after `pnpm dev`.
+  - Regression that a clean app exit during startup emits actionable diagnostics.
+
 ## Fixed
 
 ### EXO-ISSUE-001: Workspace settings button does not open settings
