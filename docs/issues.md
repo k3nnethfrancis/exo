@@ -26,7 +26,7 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 - Status: open
 - Severity: high
 - Area: desktop dev startup, command server, agent orchestration
-- Observed: after the parallel-agent stress test, `pnpm dev` built the Electron main/preload/renderer successfully, printed `starting electron app...`, then exited with code 0. Subsequent `exo agents list` reported `Exo app is not running. Start it with: exo dev`.
+- Observed: after the parallel-agent stress test, `pnpm dev` built the Electron main/preload/renderer successfully, printed `starting electron app...`, then exited with code 0. Subsequent `exo agents list` reported `Exo app is not running. Start it with: exo dev`. The user also saw the leftover Codex windows/panes as blank and closed them manually.
 - Expected: `pnpm dev` should either keep the Electron app and command server alive, or print a clear startup failure explaining why the app exited.
 - Investigation notes:
   - This interrupted the Exo-managed agent coordination loop and forced review/takeover from git worktrees instead of live agent transcripts.
@@ -34,6 +34,50 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 - QA coverage to add:
   - Dev startup smoke test that confirms the command server becomes reachable after `pnpm dev`.
   - Regression that a clean app exit during startup emits actionable diagnostics.
+  - Agent-session cleanup QA that confirms exited/disconnected Codex windows do not remain as blank panes without useful state or recovery actions.
+
+### EXO-ISSUE-006: Agent Context Manager can show stale preload API errors after app crashes/restarts
+
+- Status: open
+- Severity: high
+- Area: desktop preload bridge, workspace settings, agent context manager
+- Observed: Workspace Settings and Agent Context Manager showed `managed agent config files: window.exo.workspace.listAgentManagedConfigFiles is not a function`.
+- Expected: renderer/preload/main API versions should stay aligned after crashes and restarts. If they are temporarily mismatched, the UI should show a clear restart/update message instead of a raw JavaScript function error.
+- Investigation notes:
+  - Current source includes `listAgentManagedConfigFiles` in preload and main IPC wiring, so this likely came from a stale or mixed renderer/preload state after Exo crashed during the multi-agent stress test.
+  - The renderer should still defensively tolerate missing optional agent-management APIs so settings remains usable.
+- QA coverage to add:
+  - Regression that Agent Context Manager opens when managed config preload APIs are missing.
+  - Dev/restart QA that confirms renderer and preload bundles update together after repeated crashes.
+
+### EXO-ISSUE-007: Agent Context Manager error and control layout can overlap in narrow or partially failed states
+
+- Status: open
+- Severity: medium
+- Area: agent context manager layout, settings UI polish
+- Observed: the partial-load error text overlapped the target selector and `Write provider files` action in the Agent Context Manager.
+- Expected: error states should occupy their own bounded row, wrap long technical messages, and never collide with form controls.
+- Investigation notes:
+  - Screenshot evidence showed the raw managed-config error running through the controls near the top of the manager.
+  - Long provider/config paths and API error messages need wrapping and clipping rules.
+- QA coverage to add:
+  - Visual or e2e layout regression for long agent-context partial-load errors.
+  - Narrow-window QA for the manager header, target selector, actions, and side panel.
+
+### EXO-ISSUE-008: Agent Context Manager needs a clearer information architecture and explanatory UX
+
+- Status: open
+- Severity: medium
+- Area: agent context manager UX, settings information architecture
+- Observed: the manager is hard to understand at a glance. It mixes unified instructions, provider files, instruction outputs, runtime overlays, history, and managed configs without enough hierarchy or explanation.
+- Expected: users should quickly understand what Exo-managed agent context is for, which files agents will read, which scopes are affected, how provider outputs are generated, and how managed configs/MCP settings relate to agent launches.
+- Candidate fixes:
+  - Rework the manager into clearer sections or tabs for unified instructions, provider outputs, runtime overlays, history, and managed configs.
+  - Add concise tooltips/help affordances for scope, provider files, instruction outputs, generated overlays, and managed configs.
+  - Apply the same settings-design principles used elsewhere: compact hierarchy, explicit state, predictable actions, no marketing copy, and no in-app explanatory walls.
+- QA coverage to add:
+  - App QA walkthrough with a new-user lens: identify active scope, edit unified instructions, see output files, inspect overlay, edit MCP config.
+  - Narrow-window QA to ensure labels, paths, and controls remain readable without overlap.
 
 ## Fixed
 

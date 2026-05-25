@@ -1302,7 +1302,7 @@ button svg,
 
 .dialog-card--agent-context-manager {
   width: min(1120px, calc(100vw - 48px));
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   overflow: hidden;
 }
 
@@ -2257,9 +2257,17 @@ select.dialog-card__input {
   color: var(--muted);
   font-size: 13px;
   line-height: 1.5;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .dialog-card__status--error {
+  display: grid;
+  gap: 3px;
+  padding: 8px 10px;
+  border: 1px solid var(--danger-border);
+  border-radius: 8px;
+  background: var(--danger-soft);
   color: var(--danger-strong);
 }
 

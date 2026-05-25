@@ -1161,7 +1161,12 @@ export function App() {
     const agentContextFiles = await loadOrFallback("agent context files", () => window.exo.workspace.listAgentContextFiles(), [] as AgentContextFile[]);
     const agentContextHistory = await loadOrFallback("agent context history", () => window.exo.workspace.listAgentContextHistory(), [] as AgentContextHistoryEntry[]);
     const agentContextFileAdapters = await loadOrFallback("agent context file adapters", () => window.exo.workspace.listAgentContextFileAdapters(), [] as AgentContextFileAdapter[]);
-    const agentManagedConfigFiles = await loadOrFallback("managed agent config files", () => window.exo.workspace.listAgentManagedConfigFiles(), [] as AgentManagedConfigFile[]);
+    const agentManagedConfigFiles = typeof window.exo.workspace.listAgentManagedConfigFiles === "function"
+      ? await loadOrFallback("managed agent config files", () => window.exo.workspace.listAgentManagedConfigFiles(), [] as AgentManagedConfigFile[])
+      : [];
+    if (typeof window.exo.workspace.listAgentManagedConfigFiles !== "function") {
+      loadErrors.push("Managed config editor is unavailable until Exo is restarted with the latest preload bridge.");
+    }
     const instructionOverlays = await loadOrFallback("agent instruction overlays", () => window.exo.workspace.listAgentInstructionOverlays(), [] as AgentInstructionOverlay[]);
     const partialErrors = uniqueMessages([
       ...loadErrors,
