@@ -11,7 +11,7 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run src/renderer/src/App.test.tsx",
+    "test": "vitest run src/main/command-server.test.ts src/renderer/src/App.test.tsx",
     "rebuild:native": "electron-rebuild -f -w node-pty,better-sqlite3",
     "setup:runtime": "node scripts/setup-runtime.mjs"
   },

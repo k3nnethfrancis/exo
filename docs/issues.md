@@ -21,21 +21,6 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
   - Agent-launch QA for a Codex agent created in a fresh worktree.
   - Regression that queued task text is not sent until the provider is ready for chat input.
 
-### EXO-ISSUE-005: Dev app can exit after build without exposing the Exo CLI server
-
-- Status: open
-- Severity: high
-- Area: desktop dev startup, command server, agent orchestration
-- Observed: after the parallel-agent stress test, `pnpm dev` built the Electron main/preload/renderer successfully, printed `starting electron app...`, then exited with code 0. Subsequent `exo agents list` reported `Exo app is not running. Start it with: exo dev`. The user also saw the leftover Codex windows/panes as blank and closed them manually.
-- Expected: `pnpm dev` should either keep the Electron app and command server alive, or print a clear startup failure explaining why the app exited.
-- Investigation notes:
-  - This interrupted the Exo-managed agent coordination loop and forced review/takeover from git worktrees instead of live agent transcripts.
-  - Focused Playwright Electron launches still passed after this occurred, so the failure may be specific to dev-mode startup, an existing singleton instance, command-server boot, or the local terminal-agent state.
-- QA coverage to add:
-  - Dev startup smoke test that confirms the command server becomes reachable after `pnpm dev`.
-  - Regression that a clean app exit during startup emits actionable diagnostics.
-  - Agent-session cleanup QA that confirms exited/disconnected Codex windows do not remain as blank panes without useful state or recovery actions.
-
 ### EXO-ISSUE-006: Agent Context Manager can show stale preload API errors after app crashes/restarts
 
 - Status: open
@@ -80,6 +65,21 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
   - Narrow-window QA to ensure labels, paths, and controls remain readable without overlap.
 
 ## Fixed
+
+### EXO-ISSUE-005: Dev app can exit after build without exposing the Exo CLI server
+
+- Status: fixed
+- Severity: high
+- Area: desktop dev startup, command server, agent orchestration
+- Observed: after the parallel-agent stress test, a live command server was still bound on port `50037`, but `/Users/kenneth/Desktop/lab/.exo/server.json` was missing. CLI discovery therefore reported `Exo app is not running. Start it with: exo dev`, and a second `pnpm dev` exited because Electron's single-instance lock was held.
+- Expected: `pnpm dev` should either keep the Electron app and command server alive, or print a clear startup failure explaining why the app exited. A running app should be able to restore command-server discovery if `.exo/server.json` disappears.
+- Fixed:
+  - Command server startup now exposes `ensureDiscoveryFile()` and periodically refreshes `.exo/server.json` while the server is listening.
+  - Duplicate Electron launches now pass runtime metadata to the primary instance, print an actionable diagnostic before exiting, and ask the running app to refresh command-server discovery.
+  - Command-server startup failures are logged to the main log instead of leaving stale in-memory server state.
+- QA coverage:
+  - Added a main-process unit regression that deletes `server.json` while the command server is live and verifies `ensureDiscoveryFile()` rewrites the correct port and pid.
+  - Focused checks: `pnpm --filter @exo/desktop typecheck`; `pnpm --filter @exo/desktop test`.
 
 ### EXO-ISSUE-001: Workspace settings button does not open settings
 

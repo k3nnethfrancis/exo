@@ -4,6 +4,7 @@ import path from "node:path";
 
 import {
   EXO_COMMAND_ROUTES,
+  type ExoCommandServerInfo,
   type ExoIndexRootRequest,
   type ExoCommandTerminalInfo,
   type ExoCreateTerminalRequest,
@@ -49,6 +50,7 @@ export class CommandServer {
   private server: Server | null = null;
   private port = 0;
   private serverJsonPath: string;
+  private discoveryRefreshTimer: NodeJS.Timeout | null = null;
 
   constructor(private options: CommandServerOptions) {
     this.serverJsonPath = path.join(options.runtimeRoot, "server.json");
@@ -60,12 +62,18 @@ export class CommandServer {
     this.server = createServer((req, res) => this.handleRequest(req, res));
 
     return new Promise((resolve, reject) => {
-      this.server!.listen(0, "127.0.0.1", async () => {
+      this.server!.listen(0, "127.0.0.1", () => {
         const address = this.server!.address();
         if (typeof address === "object" && address) {
           this.port = address.port;
-          await this.writeServerJson();
-          resolve(this.port);
+          this.writeServerJson().then(() => {
+            this.startDiscoveryRefreshTimer();
+            resolve(this.port);
+          }, (error) => {
+            this.server?.close();
+            this.server = null;
+            reject(error);
+          });
         } else {
           reject(new Error("Failed to get server address"));
         }
@@ -76,16 +84,50 @@ export class CommandServer {
   }
 
   stop(): void {
+    if (this.discoveryRefreshTimer) {
+      clearInterval(this.discoveryRefreshTimer);
+      this.discoveryRefreshTimer = null;
+    }
     if (this.server) {
-      this.server.close();
+      if (this.server.listening) {
+        this.server.close();
+      }
       this.server = null;
     }
     rm(this.serverJsonPath, { force: true }).catch(() => {});
   }
 
+  isListening(): boolean {
+    return Boolean(this.server?.listening && this.port > 0);
+  }
+
+  async ensureDiscoveryFile(): Promise<ExoCommandServerInfo & { path: string }> {
+    if (!this.isListening()) {
+      throw new Error("Command server is not listening.");
+    }
+    await this.writeServerJson();
+    return { port: this.port, pid: process.pid, path: this.serverJsonPath };
+  }
+
   private async writeServerJson(): Promise<void> {
     const data = JSON.stringify({ port: this.port, pid: process.pid }, null, 2);
+    await mkdir(this.options.runtimeRoot, { recursive: true });
     await writeFile(this.serverJsonPath, data, "utf-8");
+  }
+
+  private startDiscoveryRefreshTimer(): void {
+    if (this.discoveryRefreshTimer) {
+      clearInterval(this.discoveryRefreshTimer);
+    }
+    this.discoveryRefreshTimer = setInterval(() => {
+      if (!this.isListening()) {
+        return;
+      }
+      this.writeServerJson().catch((error) => {
+        console.warn("[exo] failed to refresh command server discovery:", error);
+      });
+    }, 5_000);
+    this.discoveryRefreshTimer.unref?.();
   }
 
   private async handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
