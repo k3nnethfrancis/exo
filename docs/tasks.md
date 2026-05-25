@@ -17,6 +17,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 
 ## Next: Workspace Surface
 
+- [ ] Fix QA issues tracked in `docs/issues.md`: settings open failure, preview pane resizing/drag behavior, and terminal-specific changed-file attribution.
 - [x] Add first-run onboarding that requires a user-selected notes folder before showing the app shell.
 - [x] Replace free-text notes/project path setup with native folder selection and removable folder lists.
 - [x] Add a setup/switch-workspace surface that shows notes folder, project folders, default terminal, and index settings before entering the app.
