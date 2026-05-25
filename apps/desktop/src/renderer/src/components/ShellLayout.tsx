@@ -10,6 +10,8 @@ import type { AppearanceMode, ResolvedAppearance } from "../App";
 import type { TreeNode, WorkspaceSearchResults } from "@exo/core";
 import type { WorkspaceGitChange } from "../../../shared/api";
 
+const RESIZER_TRACK_SIZE = "6px";
+
 interface RootSection {
   label: string;
   path: string;
@@ -155,8 +157,8 @@ export function ShellLayout(props: ShellLayoutProps) {
   const zoneGridTemplate = terminalCollapsed
     ? "minmax(0, 1fr)"
     : sidePanesFlipped
-      ? `minmax(0, ${1 - zoneSplitRatio}fr) 1px minmax(0, ${zoneSplitRatio}fr)`
-      : `minmax(0, ${zoneSplitRatio}fr) 1px minmax(0, ${1 - zoneSplitRatio}fr)`;
+      ? `minmax(0, ${1 - zoneSplitRatio}fr) ${RESIZER_TRACK_SIZE} minmax(0, ${zoneSplitRatio}fr)`
+      : `minmax(0, ${zoneSplitRatio}fr) ${RESIZER_TRACK_SIZE} minmax(0, ${1 - zoneSplitRatio}fr)`;
 
   const sidebarTrack = sidebarCollapsed ? "0px" : `${sidebarWidth}px`;
   const sidebarResizerTrack = sidebarCollapsed ? "0px" : "1px";
@@ -283,6 +285,7 @@ export function ShellLayout(props: ShellLayoutProps) {
               <div
                 className="pane-split-resizer pane-split-resizer--vertical"
                 onMouseDown={(event) => {
+                  event.preventDefault();
                   const container = zoneContainerRef.current;
                   if (!container) return;
                   startZoneResize(event, container.getBoundingClientRect().width, true);
@@ -296,6 +299,7 @@ export function ShellLayout(props: ShellLayoutProps) {
               <div
                 className="pane-split-resizer pane-split-resizer--vertical"
                 onMouseDown={(event) => {
+                  event.preventDefault();
                   const container = zoneContainerRef.current;
                   if (!container) return;
                   startZoneResize(event, container.getBoundingClientRect().width);
@@ -369,6 +373,9 @@ function formatDragGhostLabel(payload: DragPayload): string {
   }
   if (payload.kind === "workspace-path") {
     return payload.path.split("/").pop() ?? payload.path;
+  }
+  if (payload.kind === "browser") {
+    return "Preview";
   }
   return "Terminal";
 }

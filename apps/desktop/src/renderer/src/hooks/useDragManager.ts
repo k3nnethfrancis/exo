@@ -5,9 +5,9 @@
  * A drag starts after the mouse moves past a threshold (5px).
  * Drop targets are identified by finding the pane leaf under the cursor
  * and computing which edge zone the cursor falls in.
- * Drop targets are filtered by content kind. Documents only drop on editor
- * panes. Terminal tabs can drop on terminal panes or into the editor canvas,
- * where they become terminal pane leaves inside the editor split graph.
+ * Drop targets are filtered by content kind. Documents open in editor panes
+ * and can split browser/terminal leaves in the workspace. Terminal and browser
+ * tabs can split panes inside the shared workspace graph.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -19,6 +19,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 export type DragPayload =
   | { kind: "document"; filePath: string; sourcePaneId?: string }
   | { kind: "terminal"; sessionId: string }
+  | { kind: "browser"; url: string; sourcePaneId: string }
   | { kind: "workspace-path"; path: string; nodeKind: "file" | "directory" };
 
 export interface DragState {
@@ -40,7 +41,7 @@ export interface DragManager {
 }
 
 export type DropEdge = "top" | "bottom" | "left" | "right" | "center";
-export type PaneDropKind = "editor" | "terminal";
+export type PaneDropKind = "editor" | "terminal" | "browser";
 export type PaneDropZone = "workspace" | "terminal-dock";
 export type DragDropTarget =
   | { kind: "pane"; leafId: string; edge: DropEdge; paneKind: PaneDropKind; paneZone: PaneDropZone }
@@ -54,12 +55,15 @@ function acceptsPayload(
   payload: DragPayload,
 ): paneKind is PaneDropKind {
   if (payload.kind === "document" || (payload.kind === "workspace-path" && payload.nodeKind === "file")) {
-    return paneKind === "editor" || (paneKind === "terminal" && paneZone === "workspace");
+    return paneKind === "editor" || ((paneKind === "terminal" || paneKind === "browser") && paneZone === "workspace");
   }
   if (payload.kind === "workspace-path") {
     return false;
   }
-  return paneKind === "editor" || paneKind === "terminal";
+  if (payload.kind === "browser") {
+    return paneZone === "workspace" && (paneKind === "editor" || paneKind === "terminal" || paneKind === "browser");
+  }
+  return paneKind === "editor" || paneKind === "terminal" || paneKind === "browser";
 }
 
 function acceptsTabTarget(tabKind: string | undefined, payload: DragPayload): tabKind is PaneDropKind {
@@ -68,6 +72,9 @@ function acceptsTabTarget(tabKind: string | undefined, payload: DragPayload): ta
   }
   if (payload.kind === "workspace-path") {
     return payload.nodeKind === "file" && tabKind === "editor";
+  }
+  if (payload.kind === "browser") {
+    return tabKind === "editor" || tabKind === "browser";
   }
   return tabKind === "terminal";
 }

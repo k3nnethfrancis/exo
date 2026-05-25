@@ -52,6 +52,8 @@ export function PaneTree({ node, actions, focusedLeafId, renderLeaf, dropZone = 
 // PaneSplitContainer
 // ---------------------------------------------------------------------------
 
+const RESIZER_TRACK_SIZE = "6px";
+
 function PaneSplitContainer({
   node,
   actions,
@@ -70,7 +72,7 @@ function PaneSplitContainer({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const isHorizontal = node.direction === "horizontal";
 
-  const gridTemplate = `minmax(0, ${node.ratio}fr) 1px minmax(0, ${1 - node.ratio}fr)`;
+  const gridTemplate = `minmax(0, ${node.ratio}fr) ${RESIZER_TRACK_SIZE} minmax(0, ${1 - node.ratio}fr)`;
 
   return (
     <div
@@ -97,6 +99,7 @@ function PaneSplitContainer({
       <PaneSplitResizer
         direction={node.direction}
         onMouseDown={(event) => {
+          event.preventDefault();
           const container = containerRef.current;
           if (!container) return;
           const rect = container.getBoundingClientRect();

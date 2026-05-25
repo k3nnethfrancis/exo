@@ -186,9 +186,14 @@ interface ResizeState {
 
 const MIN_RATIO = 0.15;
 const MAX_RATIO = 0.85;
+const RESIZE_BODY_CLASS = "pane-resize-active";
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+function setResizeShield(active: boolean) {
+  document.body.classList.toggle(RESIZE_BODY_CLASS, active);
 }
 
 export interface PaneTreeActions {
@@ -233,6 +238,7 @@ export function usePaneTree(initialTree: PaneNode) {
 
     function onMouseUp() {
       resizeRef.current = null;
+      setResizeShield(false);
     }
 
     window.addEventListener("mousemove", onMouseMove);
@@ -240,6 +246,7 @@ export function usePaneTree(initialTree: PaneNode) {
     return () => {
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
+      setResizeShield(false);
     };
   }, [setTreeForResize]);
 
@@ -287,7 +294,7 @@ export function usePaneTree(initialTree: PaneNode) {
 
     startResize(splitId, axis, clientPos, containerSize) {
       const split = findNode(treeRef.current, (n) => n.id === splitId);
-      if (!split || split.kind !== "split") return;
+      if (!split || split.kind !== "split" || containerSize <= 0) return;
       resizeRef.current = {
         splitId,
         axis,
@@ -295,6 +302,7 @@ export function usePaneTree(initialTree: PaneNode) {
         startRatio: split.ratio,
         containerSize,
       };
+      setResizeShield(true);
     },
 
     focusLeaf(leafId) {

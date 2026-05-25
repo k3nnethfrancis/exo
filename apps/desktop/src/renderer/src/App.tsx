@@ -23,7 +23,7 @@ import { TerminalDock } from "./components/TerminalDock";
 import { useOpenDocumentVersionPolling } from "./hooks/useOpenDocumentVersionPolling";
 import { useShellLayout } from "./hooks/useShellLayout";
 import { useWorkspaceSearch } from "./hooks/useWorkspaceSearch";
-import { collectLeaves, findEditorLeaf, findNode, findTerminalLeaf, mapLeaves, paneId, pruneEmptyLeaves, updateNode, type PaneLeaf, type PaneNode, type PaneNodeId, type BrowserPaneContent, type EditorPaneContent, type TerminalPaneContent } from "./hooks/usePaneTree";
+import { collectLeaves, findEditorLeaf, findNode, findTerminalLeaf, mapLeaves, paneId, pruneEmptyLeaves, removeNode, updateNode, type PaneLeaf, type PaneNode, type PaneNodeId, type BrowserPaneContent, type EditorPaneContent, type TerminalPaneContent } from "./hooks/usePaneTree";
 import { useDragManager, type DragDropTarget, type DragPayload, type DropEdge } from "./hooks/useDragManager";
 
 interface OpenEditorDocument extends NoteDocument {
@@ -2711,6 +2711,8 @@ export function App() {
       handleDocumentDrop(target.leafId, target.edge, payload.path);
     } else if (payload.kind === "terminal") {
       handleTerminalDrop(target.leafId, target.edge, payload.sessionId);
+    } else if (payload.kind === "browser") {
+      handleBrowserDrop(target.leafId, target.edge, payload.url, payload.sourcePaneId);
     }
   };
 
@@ -2718,7 +2720,7 @@ export function App() {
     // Ensure the document content is loaded (may be a new file dragged from explorer)
     void ensureDocumentLoaded(filePath);
     const targetLeaf = findNode(editorTree, (n) => n.id === leafId && n.kind === "leaf") as PaneLeaf | undefined;
-    const dropEdge = targetLeaf?.content.kind === "terminal" && edge === "center" ? "right" : edge;
+    const dropEdge = targetLeaf?.content.kind !== "editor" && edge === "center" ? "right" : edge;
 
     // All operations are within the editor tree only.
     const isEmptyEditor = (leaf: PaneLeaf) =>
@@ -2834,6 +2836,56 @@ export function App() {
       terminalActions.focusLeaf(leafId);
     }
     setActiveTerminalId(sessionId);
+  }
+
+  function handleBrowserDrop(leafId: PaneNodeId, edge: DropEdge, url: string, sourceLeafId: string) {
+    const targetLeaf = findNode(editorTree, (node) => node.id === leafId && node.kind === "leaf") as PaneLeaf | undefined;
+    if (!targetLeaf) {
+      return;
+    }
+    if (sourceLeafId === leafId) {
+      editorActions.focusLeaf(leafId);
+      setZoomSurface("editor");
+      return;
+    }
+
+    const browserContent: BrowserPaneContent = { kind: "browser", url };
+    const dropEdge = targetLeaf.content.kind === "browser" ? edge : (edge === "center" ? "right" : edge);
+
+    if (dropEdge === "center") {
+      editorActions.setTree((prev) => {
+        let tree = mapLeaves(prev, (leaf) =>
+          leaf.id === leafId && leaf.content.kind === "browser"
+            ? { ...leaf, content: browserContent }
+            : leaf,
+        );
+        const withoutSource = removeNode(tree, sourceLeafId);
+        tree = withoutSource ?? tree;
+        return tree;
+      });
+      editorActions.focusLeaf(leafId);
+      setZoomSurface("editor");
+      return;
+    }
+
+    const direction: "horizontal" | "vertical" = (dropEdge === "left" || dropEdge === "right") ? "horizontal" : "vertical";
+    const position: "before" | "after" = (dropEdge === "left" || dropEdge === "top") ? "before" : "after";
+    const newLeafId = paneId();
+    const newLeaf: PaneLeaf = { kind: "leaf", id: newLeafId, content: browserContent };
+
+    editorActions.setTree((prev) => {
+      let tree = updateNode(prev, leafId, (node) => ({
+        kind: "split" as const,
+        id: paneId(),
+        direction,
+        ratio: 0.5,
+        children: (position === "before" ? [newLeaf, node as PaneLeaf] : [node as PaneLeaf, newLeaf]) as [PaneNode, PaneNode],
+      }));
+      const withoutSource = removeNode(tree, sourceLeafId);
+      return withoutSource ?? tree;
+    });
+    editorActions.focusLeaf(newLeafId);
+    setZoomSurface("editor");
   }
 
   if (!workspaceModel) {
@@ -3101,6 +3153,7 @@ export function App() {
         if (leaf.content.kind === "browser") {
           return (
             <BrowserPane
+              paneId={leaf.id}
               url={leaf.content.url}
               compact={compactEditorChrome}
               onFocus={() => {
@@ -3113,6 +3166,7 @@ export function App() {
                 );
               }}
               onClosePane={collectLeaves(editorTree).length > 1 ? () => editorActions.removeLeaf(leaf.id) : null}
+              dragManager={dragManager}
             />
           );
         }

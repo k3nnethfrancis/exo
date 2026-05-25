@@ -25,6 +25,7 @@ const TERMINAL_DEFAULT: PaneNode = {
 
 const MIN_ZONE_RATIO = 0.15;
 const MAX_ZONE_RATIO = 0.85;
+const RESIZE_BODY_CLASS = "pane-resize-active";
 
 const SIDEBAR_DEFAULT_WIDTH = 260;
 const SIDEBAR_MIN_WIDTH = 260;
@@ -32,6 +33,10 @@ const SIDEBAR_MAX_WIDTH = 800;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+function setResizeShield(active: boolean) {
+  document.body.classList.toggle(RESIZE_BODY_CLASS, active);
 }
 
 // ---------------------------------------------------------------------------
@@ -55,12 +60,16 @@ export function useShellLayout() {
   const zoneResizeRef = useRef<{ startX: number; startRatio: number; containerWidth: number; inverted: boolean } | null>(null);
 
   const startZoneResize = useCallback((event: React.MouseEvent, containerWidth: number, inverted = false) => {
+    if (containerWidth <= 0) {
+      return;
+    }
     zoneResizeRef.current = {
       startX: event.clientX,
       startRatio: zoneSplitRatio,
       containerWidth,
       inverted,
     };
+    setResizeShield(true);
   }, [zoneSplitRatio]);
 
   // Sidebar width (pixels)
@@ -94,6 +103,7 @@ export function useShellLayout() {
     function onMouseUp() {
       zoneResizeRef.current = null;
       sidebarResizeRef.current = null;
+      setResizeShield(false);
     }
 
     window.addEventListener("mousemove", onMouseMove);
@@ -101,6 +111,7 @@ export function useShellLayout() {
     return () => {
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
+      setResizeShield(false);
     };
   }, []);
 
