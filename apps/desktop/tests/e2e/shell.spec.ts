@@ -443,7 +443,9 @@ test("edits agent context files from workspace settings", async () => {
   await expect.poll(async () =>
     readFile(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"), "utf8"),
   ).toContain("Existing project context");
-  await expect(page.getByTestId("agent-context-history")).toContainText("Last changed");
+  await expect(page.getByTestId("agent-context-history")).toContainText("managed version");
+  await expect(page.getByTestId("agent-context-history-list")).toBeVisible();
+  await expect(page.getByTestId("agent-context-history-entry").first()).toContainText("Updated managed body");
   await page.getByTestId("agent-context-toggle-diff").click();
   await expect(page.getByTestId("agent-context-history-diff")).toContainText("- Use unified project context.");
   await expect(page.getByTestId("agent-context-history-diff")).toContainText("+ Use updated unified project context.");

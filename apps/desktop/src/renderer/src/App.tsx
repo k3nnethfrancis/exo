@@ -134,6 +134,7 @@ interface AgentContextComposerState {
   body: string;
   history: AgentContextHistoryEntry[];
   historyOpen: boolean;
+  selectedHistoryId: string | null;
   overlays: AgentInstructionOverlay[];
   selectedOverlayId: string | null;
   saveStatus: "idle" | "saving" | "saved" | "error";
@@ -246,6 +247,7 @@ export function App() {
     body: "",
     history: [],
     historyOpen: false,
+    selectedHistoryId: null,
     overlays: [],
     selectedOverlayId: null,
     saveStatus: "idle",
@@ -938,9 +940,16 @@ export function App() {
   );
   const selectedAgentContextFile = agentContextEditor.files.find((file) => file.path === agentContextEditor.selectedPath) ?? null;
   const agentContextTargets = useMemo(() => agentContextTargetsFromFiles(agentContextEditor.files), [agentContextEditor.files]);
-  const selectedAgentContextHistory = useMemo(
-    () => latestAgentContextHistoryForTarget(agentContextComposer.history, agentContextComposer.selectedTargetId),
+  const agentContextHistoryForSelectedTarget = useMemo(
+    () => agentContextHistoryEntriesForTarget(agentContextComposer.history, agentContextComposer.selectedTargetId),
     [agentContextComposer.history, agentContextComposer.selectedTargetId],
+  );
+  const selectedAgentContextHistory = useMemo(
+    () =>
+      agentContextHistoryForSelectedTarget.find((entry) => entry.id === agentContextComposer.selectedHistoryId)
+        ?? agentContextHistoryForSelectedTarget[0]
+        ?? null,
+    [agentContextComposer.selectedHistoryId, agentContextHistoryForSelectedTarget],
   );
   const selectedInstructionOverlay = agentContextComposer.overlays.find((overlay) => overlay.id === agentContextComposer.selectedOverlayId) ?? agentContextComposer.overlays[0] ?? null;
   const agentContextOutputLabels = useMemo(
@@ -1097,6 +1106,7 @@ export function App() {
       body: agentContextFiles[0]?.targetId ? managedAgentContextBodyForTarget(agentContextFiles, agentContextFiles[0].targetId) : "",
       history: agentContextHistory,
       historyOpen: false,
+      selectedHistoryId: latestAgentContextHistoryForTarget(agentContextHistory, agentContextFiles[0]?.targetId ?? null)?.id ?? null,
       overlays: instructionOverlays,
       selectedOverlayId: instructionOverlays[0]?.id ?? null,
       saveStatus: "idle",
@@ -1236,6 +1246,7 @@ export function App() {
       setAgentContextComposer((current) => ({
         ...current,
         history: result.history,
+        selectedHistoryId: latestAgentContextHistoryForTarget(result.history, snapshot.selectedTargetId)?.id ?? current.selectedHistoryId,
         saveStatus: "saved",
         errorMessage: null,
       }));
@@ -1271,6 +1282,7 @@ export function App() {
         body: restoredTargetId ? managedAgentContextBodyForTarget(savedFiles, restoredTargetId) : current.body,
         history: result.history,
         historyOpen: false,
+        selectedHistoryId: latestAgentContextHistoryForTarget(result.history, restoredTargetId)?.id ?? null,
         saveStatus: "saved",
         errorMessage: null,
       }));
@@ -1329,6 +1341,7 @@ export function App() {
           selectedTargetId,
           body: selectedTargetId ? managedAgentContextBodyForTarget(files, selectedTargetId) : "",
           history,
+          selectedHistoryId: latestAgentContextHistoryForTarget(history, selectedTargetId)?.id ?? null,
           overlays,
           selectedOverlayId: overlays.find((overlay) => overlay.id === current.selectedOverlayId)?.id ?? overlays[0]?.id ?? null,
           saveStatus: "idle",
@@ -3789,6 +3802,7 @@ export function App() {
                           ...current,
                           selectedTargetId: event.target.value || null,
                           body: event.target.value ? managedAgentContextBodyForTarget(agentContextEditor.files, event.target.value) : "",
+                          selectedHistoryId: latestAgentContextHistoryForTarget(current.history, event.target.value || null)?.id ?? null,
                           saveStatus: "idle",
                           errorMessage: null,
                         }))
@@ -3835,11 +3849,31 @@ export function App() {
                   <div className="dialog-card__status dialog-card__status--error">{agentContextComposer.errorMessage}</div>
                 ) : null}
                 <div className="agent-context-settings__history" data-testid="agent-context-history">
-                  {selectedAgentContextHistory ? (
+                  {agentContextHistoryForSelectedTarget.length > 0 ? (
                     <>
                       <div>
-                        <span>Last changed {formatAgentContextHistoryTime(selectedAgentContextHistory.createdAt)}</span>
-                        <span>{selectedAgentContextHistory.targetLabel}</span>
+                        <span>{agentContextHistoryForSelectedTarget.length} managed version{agentContextHistoryForSelectedTarget.length === 1 ? "" : "s"}</span>
+                        <span>{selectedAgentContextHistory?.targetLabel ?? "Selected scope"}</span>
+                      </div>
+                      <div className="agent-context-settings__history-list" data-testid="agent-context-history-list">
+                        {agentContextHistoryForSelectedTarget.map((entry) => (
+                          <button
+                            className={`agent-context-settings__history-entry ${entry.id === selectedAgentContextHistory?.id ? "agent-context-settings__history-entry--active" : ""}`}
+                            data-testid="agent-context-history-entry"
+                            key={entry.id}
+                            onClick={() =>
+                              setAgentContextComposer((current) => ({
+                                ...current,
+                                selectedHistoryId: entry.id,
+                                historyOpen: true,
+                              }))
+                            }
+                            type="button"
+                          >
+                            <span>{formatAgentContextHistoryTime(entry.createdAt)}</span>
+                            <span>{agentContextHistorySummary(entry)}</span>
+                          </button>
+                        ))}
                       </div>
                       <div className="dialog-card__actions dialog-card__actions--split">
                         <button
@@ -3853,14 +3887,14 @@ export function App() {
                         <button
                           className="toolbar-button"
                           data-testid="agent-context-restore-history"
-                          disabled={agentContextComposer.saveStatus === "saving"}
-                          onClick={() => void restoreAgentContextHistoryEntry(selectedAgentContextHistory.id)}
+                          disabled={agentContextComposer.saveStatus === "saving" || !selectedAgentContextHistory}
+                          onClick={() => selectedAgentContextHistory ? void restoreAgentContextHistoryEntry(selectedAgentContextHistory.id) : undefined}
                           type="button"
                         >
-                          Restore previous
+                          Restore selected
                         </button>
                       </div>
-                      {agentContextComposer.historyOpen ? (
+                      {agentContextComposer.historyOpen && selectedAgentContextHistory ? (
                         <pre className="agent-context-settings__diff" data-testid="agent-context-history-diff">
                           {formatAgentContextHistoryDiff(selectedAgentContextHistory)}
                         </pre>
@@ -4219,13 +4253,17 @@ function extractManagedAgentContextBody(body: string): string {
   return match?.[1]?.trim() ?? "";
 }
 
-function latestAgentContextHistoryForTarget(history: AgentContextHistoryEntry[], targetId: string | null) {
+function agentContextHistoryEntriesForTarget(history: AgentContextHistoryEntry[], targetId: string | null) {
   if (!targetId) {
-    return null;
+    return [];
   }
   return history
     .filter((entry) => entry.targetId === targetId)
-    .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] ?? null;
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+}
+
+function latestAgentContextHistoryForTarget(history: AgentContextHistoryEntry[], targetId: string | null) {
+  return agentContextHistoryEntriesForTarget(history, targetId)[0] ?? null;
 }
 
 function latestAgentContextHistoryEntry(history: AgentContextHistoryEntry[]) {
@@ -4257,6 +4295,18 @@ function formatAgentContextHistoryDiff(entry: AgentContextHistoryEntry): string 
     "Current",
     ...entry.nextBody.split(/\r?\n/).map((line) => `+ ${line}`),
   ].join("\n");
+}
+
+function agentContextHistorySummary(entry: AgentContextHistoryEntry): string {
+  const previous = entry.previousBody.trim();
+  const next = entry.nextBody.trim();
+  if (!previous && next) {
+    return "Created managed body";
+  }
+  if (previous && !next) {
+    return "Cleared managed body";
+  }
+  return "Updated managed body";
 }
 
 function summarizeAgentContextSignals(files: AgentContextFile[], selectedPath: string | null): AgentContextSignal[] {

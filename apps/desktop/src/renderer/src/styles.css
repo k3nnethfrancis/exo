@@ -1616,6 +1616,45 @@ select.dialog-card__input {
   font-size: 10px;
 }
 
+.agent-context-settings__history-list {
+  display: grid;
+  gap: 5px;
+  max-height: 132px;
+  min-width: 0;
+  overflow: auto;
+}
+
+.agent-context-settings__history-entry {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid color-mix(in srgb, var(--divider) 55%, transparent);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-soft);
+  text-align: left;
+}
+
+.agent-context-settings__history-entry:hover,
+.agent-context-settings__history-entry--active {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--divider));
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.agent-context-settings__history-entry span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-context-settings__history-entry span:last-child {
+  color: var(--muted);
+  font-size: 10px;
+}
+
 .agent-context-settings__diff {
   max-height: 140px;
   min-width: 0;

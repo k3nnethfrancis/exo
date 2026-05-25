@@ -55,6 +55,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Add a unified agent-agnostic instruction composer that renders provider-compatible context files.
 - [x] Preserve and round-trip Exo-managed unified sections without overwriting unrelated manual content.
 - [x] Add version history and diff/restore for Exo-managed unified instruction bodies.
+- [x] Add richer history browsing for Exo-managed unified instruction bodies.
 - [x] Add a provider file adapter registry so future instruction files such as `soul.md` can share the same unified composer path.
 - [x] Move the full agent context workbench into a dedicated manager launched from Settings.
 - [x] Add a user-facing provider file adapter settings UI.
