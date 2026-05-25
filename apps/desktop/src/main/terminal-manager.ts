@@ -12,7 +12,7 @@ import { randomBytes } from "node:crypto";
 import pty, { type IPty } from "node-pty";
 import { resolveAgentLaunchPlan, resolveRuntimeConfig, syncRuntimeContextFiles, type RuntimeConfig } from "@exo/core";
 
-import type { TerminalCreateOptions, TerminalSessionInfo, TerminalKind } from "../shared/api";
+import type { TerminalCreateOptions, TerminalSessionInfo, TerminalKind, TerminalWriteResult } from "../shared/api";
 import { agentInstructionOverlayEnv, writeAgentInstructionOverlaysSync } from "./agent-instruction-overlays";
 import { sanitizeTranscriptName, TerminalTranscriptStore } from "./terminal-transcripts";
 
@@ -22,6 +22,8 @@ interface TerminalRecord {
   buffer: string;
   transcriptPath: string;
   tmuxSession?: string;
+  pendingWrites: string[];
+  readinessTimer?: NodeJS.Timeout;
 }
 
 interface PersistedAgentSession {
@@ -43,6 +45,7 @@ const DEFAULT_TMUX_HISTORY_LINES = 1_000_000;
 const MIN_TMUX_HISTORY_LINES = 500;
 const MAX_TMUX_HISTORY_LINES = 1_000_000;
 const TMUX_BOOTSTRAP_WINDOW = "exo-bootstrap";
+const CODEX_STARTUP_GRACE_MS = 1_500;
 
 export class TerminalManager extends EventEmitter {
   private readonly sessions = new Map<string, TerminalRecord>();
@@ -232,15 +235,31 @@ export class TerminalManager extends EventEmitter {
       command: launch.command,
       instructionOverlayPath: overlayEnv.EXO_INSTRUCTIONS ?? null,
       status: "running",
+      readiness: initialReadiness(options.kind),
+      readinessDetail: initialReadinessDetail(options.kind),
+      queuedInputCount: 0,
     };
 
-    this.sessions.set(id, {
+    const record: TerminalRecord = {
       info,
       process: processHandle,
       buffer: "",
       transcriptPath,
       tmuxSession,
-    });
+      pendingWrites: [],
+    };
+
+    if (shouldGateStartupInput(info)) {
+      record.readinessTimer = setTimeout(() => {
+        const current = this.sessions.get(id);
+        if (!current || current.info.readiness !== "starting") {
+          return;
+        }
+        this.markReady(current, "Codex startup grace elapsed.");
+      }, CODEX_STARTUP_GRACE_MS);
+    }
+
+    this.sessions.set(id, record);
 
     this.appendTranscript(id, this.transcriptHeader(info, tmuxSession));
     this.wireProcess(id, processHandle, tmuxSession);
@@ -260,9 +279,32 @@ export class TerminalManager extends EventEmitter {
     return info;
   }
 
-  async write(id: string, data: string): Promise<void> {
+  async write(id: string, data: string): Promise<TerminalWriteResult> {
     const record = this.sessions.get(id);
-    record?.process.write(data);
+    if (!record || record.info.status === "exited") {
+      return { ok: true, delivery: "not-found" };
+    }
+
+    if (shouldQueueWrite(record, data)) {
+      record.pendingWrites.push(data);
+      this.updateQueuedInputCount(record);
+      return {
+        ok: true,
+        delivery: "queued",
+        queuedInputCount: record.pendingWrites.length,
+        readiness: record.info.readiness,
+        readinessDetail: record.info.readinessDetail,
+      };
+    }
+
+    record.process.write(data);
+    return {
+      ok: true,
+      delivery: "sent",
+      queuedInputCount: record.pendingWrites.length,
+      readiness: record.info.readiness,
+      readinessDetail: record.info.readinessDetail,
+    };
   }
 
   readBuffer(id: string): string | null {
@@ -310,6 +352,7 @@ export class TerminalManager extends EventEmitter {
     }
 
     this.flushTranscript(id);
+    this.clearReadinessTimer(record);
     record.process.kill();
     this.sessions.delete(id);
   }
@@ -348,6 +391,8 @@ export class TerminalManager extends EventEmitter {
       command: entry.command,
       instructionOverlayPath: agentInstructionOverlayEnv(this.runtimeConfig.workspace, entry.cwd).EXO_INSTRUCTIONS,
       status: "running",
+      readiness: "ready",
+      queuedInputCount: 0,
     };
 
     this.sessions.set(id, {
@@ -356,6 +401,7 @@ export class TerminalManager extends EventEmitter {
       buffer: historySeed,
       transcriptPath,
       tmuxSession: entry.tmuxSession,
+      pendingWrites: [],
     });
 
     if (!existsSync(transcriptPath)) {
@@ -375,6 +421,7 @@ export class TerminalManager extends EventEmitter {
       if (record) {
         this.appendTranscript(id, sanitizedData);
         record.buffer = trimBufferLines(`${record.buffer}${sanitizedData}`, this.bufferLineLimit);
+        this.updateAgentReadiness(record);
         this.emit("data", { id, data: sanitizedData });
       }
     });
@@ -387,6 +434,7 @@ export class TerminalManager extends EventEmitter {
 
       record.info.status = "exited";
       record.info.exitCode = exitCode;
+      this.clearReadinessTimer(record);
       this.emit("exit", { id, exitCode });
 
       if (tmuxSession && !tmuxSessionExists(tmuxSession)) {
@@ -479,6 +527,108 @@ export class TerminalManager extends EventEmitter {
       retentionDays: this.transcriptRetentionDays,
     });
   }
+
+  private updateAgentReadiness(record: TerminalRecord): void {
+    if (record.info.kind !== "codex" || record.info.readiness === "ready") {
+      return;
+    }
+
+    if (isCodexChatReady(record.buffer)) {
+      this.markReady(record, "Codex chat input is ready.");
+      return;
+    }
+
+    if (isCodexStartupTrustPrompt(record.buffer)) {
+      this.clearReadinessTimer(record);
+      record.info.readiness = "blocked";
+      record.info.readinessDetail = "Codex startup trust prompt is waiting for interactive confirmation.";
+    }
+  }
+
+  private markReady(record: TerminalRecord, detail: string): void {
+    this.clearReadinessTimer(record);
+    record.info.readiness = "ready";
+    record.info.readinessDetail = detail;
+    this.flushPendingWrites(record);
+  }
+
+  private flushPendingWrites(record: TerminalRecord): void {
+    while (record.pendingWrites.length > 0 && record.info.status !== "exited") {
+      const data = record.pendingWrites.shift();
+      if (data !== undefined) {
+        record.process.write(data);
+      }
+    }
+    this.updateQueuedInputCount(record);
+  }
+
+  private updateQueuedInputCount(record: TerminalRecord): void {
+    record.info.queuedInputCount = record.pendingWrites.length;
+  }
+
+  private clearReadinessTimer(record: TerminalRecord): void {
+    if (record.readinessTimer) {
+      clearTimeout(record.readinessTimer);
+      record.readinessTimer = undefined;
+    }
+  }
+}
+
+function initialReadiness(kind: TerminalKind): TerminalSessionInfo["readiness"] {
+  return kind === "codex" ? "starting" : "ready";
+}
+
+function initialReadinessDetail(kind: TerminalKind): string | undefined {
+  return kind === "codex" ? "Waiting briefly for Codex startup interstitials." : undefined;
+}
+
+function shouldGateStartupInput(info: TerminalSessionInfo): boolean {
+  return info.kind === "codex" && info.status === "running" && info.readiness === "starting";
+}
+
+function shouldQueueWrite(record: TerminalRecord, data: string): boolean {
+  return (
+    record.info.kind === "codex" &&
+    record.info.status === "running" &&
+    record.info.readiness !== "ready" &&
+    looksLikeSubmittedChatMessage(data)
+  );
+}
+
+function looksLikeSubmittedChatMessage(data: string): boolean {
+  if (!data.endsWith("\r")) {
+    return false;
+  }
+
+  const body = data.slice(0, -1);
+  return body.length > 0 && !/[\u0000-\u0008\u000b-\u001f\u007f]/.test(body);
+}
+
+function isCodexStartupTrustPrompt(buffer: string): boolean {
+  const text = normalizeTerminalText(buffer);
+  return (
+    /\bdo you trust\b/.test(text) ||
+    /\btrust (?:the )?(?:files|folder|directory|workspace|repo|repository)\b/.test(text) ||
+    /\b(?:folder|directory|workspace|repo|repository).{0,80}\btrust\b/.test(text)
+  );
+}
+
+function isCodexChatReady(buffer: string): boolean {
+  const text = normalizeTerminalText(buffer);
+  return (
+    /\bask codex\b/.test(text) ||
+    /\btype (?:a )?message\b/.test(text) ||
+    /\bwhat can i help\b/.test(text) ||
+    /\bcodex is ready\b/.test(text)
+  );
+}
+
+function normalizeTerminalText(buffer: string): string {
+  return buffer
+    .replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "")
+    .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, "")
+    .replace(/\s+/g, " ")
+    .toLowerCase();
 }
 
 function stripMouseTrackingModes(data: string): string {

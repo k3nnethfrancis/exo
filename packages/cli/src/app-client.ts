@@ -3,6 +3,14 @@ import path from "node:path";
 
 import { EXO_COMMAND_ROUTES, type ExoCommandServerInfo } from "@exo/core";
 
+export interface AppClientWriteResult {
+  ok: true;
+  delivery: "sent" | "queued" | "not-found";
+  queuedInputCount?: number;
+  readiness?: "ready" | "starting" | "blocked";
+  readinessDetail?: string;
+}
+
 const defaultRequestTimeoutMs = 2_000;
 const defaultSearchRequestTimeoutMs = 30_000;
 const defaultMaintenanceRequestTimeoutMs = 30 * 60_000;
@@ -131,8 +139,8 @@ export class AppClient {
     return String(result.transcript ?? "");
   }
 
-  async writeTerminal(id: string, data: string): Promise<void> {
-    await this.post(EXO_COMMAND_ROUTES.terminalWrite(id), { data });
+  async writeTerminal(id: string, data: string): Promise<AppClientWriteResult> {
+    return this.post(EXO_COMMAND_ROUTES.terminalWrite(id), { data });
   }
 
   async killTerminal(id: string): Promise<void> {

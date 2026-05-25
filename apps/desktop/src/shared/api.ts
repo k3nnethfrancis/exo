@@ -24,6 +24,9 @@ export interface TerminalSessionInfo {
   instructionOverlayPath?: string | null;
   status: "running" | "exited";
   exitCode?: number;
+  readiness?: "ready" | "starting" | "blocked";
+  readinessDetail?: string;
+  queuedInputCount?: number;
 }
 
 export interface TerminalCreateOptions {
@@ -34,6 +37,14 @@ export interface TerminalCreateOptions {
 export interface TerminalDataEvent {
   id: string;
   data: string;
+}
+
+export interface TerminalWriteResult {
+  ok: true;
+  delivery: "sent" | "queued" | "not-found";
+  queuedInputCount?: number;
+  readiness?: TerminalSessionInfo["readiness"];
+  readinessDetail?: string;
 }
 
 export interface FileStatInfo {
@@ -204,7 +215,7 @@ export interface DesktopApi {
     create: (options: TerminalCreateOptions) => Promise<TerminalSessionInfo>;
     read: (id: string) => Promise<string>;
     readTranscript: (id: string, tailChars?: number) => Promise<string>;
-    write: (id: string, data: string) => Promise<void>;
+    write: (id: string, data: string) => Promise<TerminalWriteResult>;
     resize: (id: string, cols: number, rows: number) => Promise<void>;
     setStreaming: (ids: string[]) => Promise<void>;
     kill: (id: string) => Promise<void>;

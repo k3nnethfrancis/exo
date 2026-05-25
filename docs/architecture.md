@@ -102,7 +102,7 @@ Agent-oriented aliases mirror the MCP tools for already-running local agent sess
 - `exo agents list`
 - `exo agents create <shell|claude|codex> [cwd]`
 - `exo agents read <id> [--tail n] [--raw]`
-- `exo agents send <id> <text>` sends the message and presses Enter by default
+- `exo agents send <id> <text>` sends the message and presses Enter by default; Codex startup sends may be queued until normal chat input is ready
 - `exo agents message <id> <text>` / `exo agents tell <id> <text>` alias `agents send`
 - `exo agents send <id> <text> --raw` writes without pressing Enter
 - `exo agents interrupt <id> [escape|ctrl-c]`

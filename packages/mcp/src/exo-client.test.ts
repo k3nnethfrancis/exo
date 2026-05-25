@@ -52,14 +52,14 @@ describe("ExoCommandClient", () => {
       }
       if (targetUrl.pathname === "/terminals/term-1/write" && init?.method === "POST") {
         receivedBody = String(init.body ?? "");
-        return json({ ok: true });
+        return json({ ok: true, delivery: "queued", queuedInputCount: 1 });
       }
       return json({ error: "not found" }, 404);
     });
 
     const client = await ExoCommandClient.connect(testRuntimeEnv(runtimeRoot));
 
-    await client.sendAgentInput("term-1", "hello\r");
+    await expect(client.sendAgentInput("term-1", "hello\r")).resolves.toMatchObject({ delivery: "queued" });
     expect(JSON.parse(receivedBody)).toEqual({ data: "hello\r" });
   });
 

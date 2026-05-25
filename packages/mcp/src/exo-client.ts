@@ -18,6 +18,14 @@ export interface ExoAgent {
 
 export type ExoAgentKind = "shell" | "claude" | "codex";
 
+export interface ExoAgentInputResult {
+  ok: true;
+  delivery: "sent" | "queued" | "not-found";
+  queuedInputCount?: number;
+  readiness?: "ready" | "starting" | "blocked";
+  readinessDetail?: string;
+}
+
 const defaultConnectTimeoutMs = 20_000;
 const defaultRequestTimeoutMs = 2_000;
 const defaultSearchRequestTimeoutMs = 30_000;
@@ -120,8 +128,8 @@ export class ExoCommandClient {
     return String(result.transcript ?? "");
   }
 
-  async sendAgentInput(id: string, input: string): Promise<void> {
-    await this.post(EXO_COMMAND_ROUTES.terminalWrite(id), { data: input });
+  async sendAgentInput(id: string, input: string): Promise<ExoAgentInputResult> {
+    return this.post(EXO_COMMAND_ROUTES.terminalWrite(id), { data: input });
   }
 
   async killAgent(id: string): Promise<void> {
