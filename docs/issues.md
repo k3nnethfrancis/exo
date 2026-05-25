@@ -77,7 +77,7 @@ No open issues tracked in this file.
 - Status: fixed
 - Severity: high
 - Area: desktop dev startup, command server, agent orchestration
-- Observed: after the parallel-agent stress test, a live command server was still bound on port `50037`, but `/Users/kenneth/Desktop/lab/.exo/server.json` was missing. CLI discovery therefore reported `Exo app is not running. Start it with: exo dev`, and a second `pnpm dev` exited because Electron's single-instance lock was held.
+- Observed: after the parallel-agent stress test, a live command server was still bound, but `${workspaceRoot}/.exo/server.json` was missing. CLI discovery therefore reported `Exo app is not running. Start it with: exo dev`, and a second `pnpm dev` exited because Electron's single-instance lock was held.
 - Expected: `pnpm dev` should either keep the Electron app and command server alive, or print a clear startup failure explaining why the app exited. A running app should be able to restore command-server discovery if `.exo/server.json` disappears.
 - Fixed:
   - Command server startup now exposes `ensureDiscoveryFile()` and periodically refreshes `.exo/server.json` while the server is listening.
