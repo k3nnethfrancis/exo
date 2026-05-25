@@ -1,6 +1,6 @@
 # Exo Ledger
 
-Last updated: 2026-05-23
+Last updated: 2026-05-25
 
 This is the fastest current-state handoff for Exo. It records what exists now, what changed recently, and what is next. Active tasks live in `docs/tasks.md`; future systems live in `docs/roadmap.md`; product/system strategy lives in `docs/strategy.md`.
 
@@ -98,6 +98,7 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Extended the Agent Context Manager beyond instruction files with a managed-config surface for global provider configs and workspace/root `.mcp.json` files, including constrained read/write IPC and e2e coverage for project MCP config edits.
 - Added a schema-aware `.mcp.json` editor for managed MCP configs: users can edit server name, command, args, and env fields through controls while Exo writes normalized MCP JSON.
 - Fixed EXO-ISSUE-004 by adding Codex readiness/queue semantics around Exo agent sends, including regression coverage for trust prompts, startup grace flushing, and raw interstitial input.
+- Fixed EXO-ISSUE-009 by handling `exo agents create --help` and `exo agents create <provider> --help` before app connection or terminal creation, plus rejecting option-shaped create cwd values.
 
 ## Next Priorities
 

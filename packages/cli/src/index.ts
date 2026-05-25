@@ -435,6 +435,16 @@ export async function runCli(
   }
 
   if (command === "agents") {
+    if (isHelpFlag(subcommand)) {
+      stdout.write(formatAgentsHelp());
+      return 0;
+    }
+
+    if (subcommand === "create" && args.some(isHelpFlag)) {
+      stdout.write(formatAgentsCreateHelp());
+      return 0;
+    }
+
     const client = await connectOrFail(env, stderr, connectAppClient);
     if (!client) return 1;
 
@@ -449,7 +459,11 @@ export async function runCli(
       if (!kind || !["shell", "claude", "codex"].includes(kind)) {
         throw new Error("Usage: exo agents create <shell|claude|codex> [cwd]");
       }
-      const agent = await client.createTerminal(kind, args[1]);
+      const cwdArg = args[1];
+      if (cwdArg?.startsWith("-")) {
+        throw new Error(`Invalid cwd for exo agents create: ${cwdArg}`);
+      }
+      const agent = await client.createTerminal(kind, cwdArg);
       stdout.write(`${JSON.stringify(agent, null, 2)}\n`);
       return 0;
     }
@@ -823,6 +837,38 @@ function normalizeAgentKind(value?: string): ManagedAgentKind | null {
   }
 
   return null;
+}
+
+function isHelpFlag(value: string | undefined): boolean {
+  return value === "--help" || value === "-h";
+}
+
+function formatAgentsHelp(): string {
+  return [
+    "Usage: exo agents [list | create <shell|claude|codex> [cwd] | read <id> [--tail chars] [--raw] | send <id> <text> [--raw|--no-submit] | message <id> <text> | tell <id> <text> | interrupt <id> [escape|ctrl-c] | terminate <id>]",
+    "",
+    "Commands:",
+    "  list                                      List live Exo agents",
+    "  create <shell|claude|codex> [cwd]        Create an Exo agent",
+    "  read <id> [--tail chars] [--raw]       Read an agent transcript",
+    "  send <id> <text> [--raw|--no-submit]     Send a message plus Enter to an agent",
+    "  interrupt <id> [escape|ctrl-c]           Interrupt an agent",
+    "  terminate <id>                           Terminate an agent",
+    "",
+  ].join("\n");
+}
+
+function formatAgentsCreateHelp(): string {
+  return [
+    "Usage: exo agents create <shell|claude|codex> [cwd]",
+    "",
+    "Create an Exo-managed agent terminal in the running app.",
+    "",
+    "Arguments:",
+    "  shell|claude|codex                       Agent provider to launch",
+    "  cwd                                      Optional working directory for the agent",
+    "",
+  ].join("\n");
 }
 
 function formatAgents(agents: unknown[]): string {
