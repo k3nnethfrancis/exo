@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { access, readFile, writeFile } from "node:fs/promises";
+import { access, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { test, expect } from "@playwright/test";
 
@@ -353,6 +353,11 @@ test("edits agent context files from workspace settings", async () => {
   await page.getByTestId("workspace-settings").click();
   await page.getByTestId("workspace-settings-tab-agents").click();
   await expect(page.getByTestId("agent-context-settings")).toBeVisible();
+  await expect(page.getByTestId("agent-instruction-overlay-body")).toContainText("Exo Runtime Context");
+  await expect(page.getByTestId("agent-instruction-overlay-body")).toContainText("sample-project");
+  await expect.poll(async () => readFile(path.join(workspaceRoot, ".exo/instructions/global.md"), "utf8")).toContain("Attached Project Roots");
+  const projectOverlayFiles = await readdir(path.join(workspaceRoot, ".exo/instructions/projects"));
+  expect(projectOverlayFiles.some((file) => file.endsWith(".md"))).toBeTruthy();
   await page.getByRole("button", { name: /sample-project \/ AGENTS\.md/i }).click();
   await expect(page.getByTestId("agent-context-editor")).toHaveValue(/Existing project context/);
   await expect(page.getByTestId("agent-context-signals")).toContainText("Duplicate");
@@ -383,6 +388,9 @@ test("edits agent context files from workspace settings", async () => {
   await expect.poll(async () =>
     readFile(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"), "utf8"),
   ).toContain("Existing project context");
+  await expect.poll(async () =>
+    readFile(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"), "utf8"),
+  ).not.toContain("Attached Project Roots");
   await expect.poll(async () =>
     readFile(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"), "utf8"),
   ).toContain("exo:managed:start");

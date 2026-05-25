@@ -1478,6 +1478,30 @@ select.dialog-card__input {
   white-space: pre-wrap;
 }
 
+.agent-context-settings__overlay {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  padding: 8px 9px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 42%, var(--divider));
+  border-radius: 7px;
+}
+
+.agent-context-settings__overlay-body {
+  max-height: 150px;
+  min-width: 0;
+  overflow: auto;
+  margin: 0;
+  padding: 8px;
+  border-radius: 6px;
+  background: var(--surface-1);
+  color: var(--text-soft);
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
 .agent-context-settings__list {
   display: grid;
   align-content: start;

@@ -45,6 +45,7 @@ const api: DesktopApi = {
     getGitStatus: (rootPath) => ipcRenderer.invoke("workspace:get-git-status", rootPath),
     listAgentContextFiles: () => ipcRenderer.invoke("workspace:list-agent-context-files"),
     listAgentContextHistory: () => ipcRenderer.invoke("workspace:list-agent-context-history"),
+    listAgentInstructionOverlays: () => ipcRenderer.invoke("workspace:list-agent-instruction-overlays"),
     saveAgentContextFile: (filePath, body) => ipcRenderer.invoke("workspace:save-agent-context-file", filePath, body),
     saveAgentContextBundle: (input) => ipcRenderer.invoke("workspace:save-agent-context-bundle", input),
     restoreAgentContextHistory: (historyId) => ipcRenderer.invoke("workspace:restore-agent-context-history", historyId),

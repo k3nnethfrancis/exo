@@ -12,7 +12,7 @@ import type {
   WorkspaceSettings,
 } from "@exo/core";
 
-import type { AgentContextFile, AgentContextHistoryEntry, TerminalSessionInfo, WorkspaceGitChange, WorkspaceGitStatus, WorkspaceRegistryEntry } from "../../shared/api";
+import type { AgentContextFile, AgentContextHistoryEntry, AgentInstructionOverlay, TerminalSessionInfo, WorkspaceGitChange, WorkspaceGitStatus, WorkspaceRegistryEntry } from "../../shared/api";
 import type { FileStatInfo } from "../../shared/api";
 
 import { EditorPane, type EditorPaneState } from "./components/EditorPane";
@@ -134,6 +134,8 @@ interface AgentContextComposerState {
   body: string;
   history: AgentContextHistoryEntry[];
   historyOpen: boolean;
+  overlays: AgentInstructionOverlay[];
+  selectedOverlayId: string | null;
   saveStatus: "idle" | "saving" | "saved" | "error";
   errorMessage: string | null;
 }
@@ -235,6 +237,8 @@ export function App() {
     body: "",
     history: [],
     historyOpen: false,
+    overlays: [],
+    selectedOverlayId: null,
     saveStatus: "idle",
     errorMessage: null,
   });
@@ -922,6 +926,7 @@ export function App() {
     () => latestAgentContextHistoryForTarget(agentContextComposer.history, agentContextComposer.selectedTargetId),
     [agentContextComposer.history, agentContextComposer.selectedTargetId],
   );
+  const selectedInstructionOverlay = agentContextComposer.overlays.find((overlay) => overlay.id === agentContextComposer.selectedOverlayId) ?? agentContextComposer.overlays[0] ?? null;
 
   async function reloadTrees() {
     if (!workspaceModel) {
@@ -1050,6 +1055,10 @@ export function App() {
       console.warn("[exo] failed to list agent context history", error);
       return [];
     });
+    const instructionOverlays = await window.exo.workspace.listAgentInstructionOverlays().catch((error) => {
+      console.warn("[exo] failed to list agent instruction overlays", error);
+      return [];
+    });
     setIndexStatus(indexStatus);
     setAgentContextEditor({
       files: agentContextFiles,
@@ -1063,6 +1072,8 @@ export function App() {
       body: agentContextFiles[0]?.targetId ? managedAgentContextBodyForTarget(agentContextFiles, agentContextFiles[0].targetId) : "",
       history: agentContextHistory,
       historyOpen: false,
+      overlays: instructionOverlays,
+      selectedOverlayId: instructionOverlays[0]?.id ?? null,
       saveStatus: "idle",
       errorMessage: null,
     });
@@ -3382,6 +3393,34 @@ export function App() {
                     {agentContextComposer.saveStatus === "error" && agentContextComposer.errorMessage ? (
                       <div className="dialog-card__status dialog-card__status--error">{agentContextComposer.errorMessage}</div>
                     ) : null}
+                    <div className="agent-context-settings__overlay" data-testid="agent-instruction-overlay-preview">
+                      <div className="dialog-field__header">
+                        <span className="dialog-field__label">Generated overlay</span>
+                        <select
+                          className="dialog-card__input agent-context-settings__target"
+                          data-testid="agent-instruction-overlay-select"
+                          value={selectedInstructionOverlay?.id ?? ""}
+                          onChange={(event) =>
+                            setAgentContextComposer((current) => ({
+                              ...current,
+                              selectedOverlayId: event.target.value || null,
+                            }))
+                          }
+                        >
+                          {agentContextComposer.overlays.map((overlay) => (
+                            <option key={overlay.id} value={overlay.id}>
+                              {overlay.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="agent-context-settings__path">
+                        {selectedInstructionOverlay?.path ?? "No overlay generated."}
+                      </div>
+                      <pre className="agent-context-settings__overlay-body" data-testid="agent-instruction-overlay-body">
+                        {selectedInstructionOverlay?.body ?? ""}
+                      </pre>
+                    </div>
                   </div>
                   <div className="agent-context-settings__list" data-testid="agent-context-file-list">
                     {agentContextEditor.files.map((file) => (

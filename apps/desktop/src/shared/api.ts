@@ -104,6 +104,14 @@ export interface AgentContextBundleResult {
   history: AgentContextHistoryEntry[];
 }
 
+export interface AgentInstructionOverlay {
+  id: string;
+  scope: "global" | "notes" | "project";
+  label: string;
+  path: string;
+  body: string;
+}
+
 export interface IndexSyncStateEvent {
   state: "running" | "idle" | "error";
   reason: string;
@@ -135,6 +143,7 @@ export interface DesktopApi {
     getGitStatus: (rootPath: string) => Promise<WorkspaceGitStatus | null>;
     listAgentContextFiles: () => Promise<AgentContextFile[]>;
     listAgentContextHistory: () => Promise<AgentContextHistoryEntry[]>;
+    listAgentInstructionOverlays: () => Promise<AgentInstructionOverlay[]>;
     saveAgentContextFile: (filePath: string, body: string) => Promise<AgentContextFile>;
     saveAgentContextBundle: (input: {
       targetId: string;

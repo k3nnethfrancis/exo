@@ -58,7 +58,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Add a provider file adapter registry so future instruction files such as `soul.md` can share the same unified composer path.
 - [ ] Add a user-facing provider file adapter settings UI.
 - [ ] Extend agent config management to MCP/provider config files beyond instruction files.
-- [ ] Keep Exo-generated runtime overlays under `.exo/instructions/` separate from user-authored context files.
+- [x] Keep Exo-generated runtime overlays under `.exo/instructions/` separate from user-authored context files.
 
 ## Next: Authorship And Provenance
 
