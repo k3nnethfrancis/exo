@@ -73,7 +73,7 @@ function commandServerOptions(runtimeRoot: string): CommandServerOptions {
     }),
     onReadTerminal: () => "",
     onReadTerminalTranscript: () => "",
-    onWriteTerminal: async () => {},
+    onWriteTerminal: async () => ({ ok: true, delivery: "sent" }),
     onKillTerminal: async () => {},
     onGetSettings: () => workspaceSettings(),
     onGetStatus: () => ({ ok: true }),

@@ -6,48 +6,33 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 
 ## Open
 
-### EXO-ISSUE-006: Agent Context Manager can show stale preload API errors after app crashes/restarts
+### EXO-ISSUE-009: Agent create subcommand treats `--help` as a cwd
 
 - Status: open
-- Severity: high
-- Area: desktop preload bridge, workspace settings, agent context manager
-- Observed: Workspace Settings and Agent Context Manager showed `managed agent config files: window.exo.workspace.listAgentManagedConfigFiles is not a function`.
-- Expected: renderer/preload/main API versions should stay aligned after crashes and restarts. If they are temporarily mismatched, the UI should show a clear restart/update message instead of a raw JavaScript function error.
+- Severity: low
+- Area: CLI ergonomics, agent orchestration
+- Observed: running `exo agents create codex --help` created a Codex terminal with cwd `--help` instead of showing help for the create subcommand.
+- Expected: `--help` should be handled as help text at every agent subcommand boundary, or rejected as an invalid path with a clear message.
 - Investigation notes:
-  - Current source includes `listAgentManagedConfigFiles` in preload and main IPC wiring, so this likely came from a stale or mixed renderer/preload state after Exo crashed during the multi-agent stress test.
-  - The renderer should still defensively tolerate missing optional agent-management APIs so settings remains usable.
+  - Found during post-merge app QA while checking the live `exo agents` command surface.
+  - The accidental session was terminated immediately.
 - QA coverage to add:
-  - Regression that Agent Context Manager opens when managed config preload APIs are missing.
-  - Dev/restart QA that confirms renderer and preload bundles update together after repeated crashes.
+  - CLI regression for `exo agents create --help` and `exo agents create codex --help`.
 
-### EXO-ISSUE-007: Agent Context Manager error and control layout can overlap in narrow or partially failed states
+### EXO-ISSUE-010: Codex agent sessions report Exo MCP startup handshake failure
 
 - Status: open
 - Severity: medium
-- Area: agent context manager layout, settings UI polish
-- Observed: the partial-load error text overlapped the target selector and `Write provider files` action in the Agent Context Manager.
-- Expected: error states should occupy their own bounded row, wrap long technical messages, and never collide with form controls.
+- Area: MCP server integration, Codex provider integration, Exo-on-Exo workflow
+- Observed: newly launched Codex terminals show `MCP client for exo failed to start: MCP startup failed: handshaking with MCP server failed: connection closed: initialize response`.
+- Expected: Codex-launched Exo MCP integration should initialize cleanly when the Exo desktop command server is reachable, or show an actionable configuration error if the MCP command cannot connect.
 - Investigation notes:
-  - Screenshot evidence showed the raw managed-config error running through the controls near the top of the manager.
-  - Long provider/config paths and API error messages need wrapping and clipping rules.
+  - The desktop command server was reachable via `exo agents list` when this occurred.
+  - This warning appeared in multiple Exo-managed Codex sessions during the multi-agent QA stress test.
+  - May be distinct from CLI command-server discovery because normal `exo agents` commands succeeded.
 - QA coverage to add:
-  - Visual or e2e layout regression for long agent-context partial-load errors.
-  - Narrow-window QA for the manager header, target selector, actions, and side panel.
-
-### EXO-ISSUE-008: Agent Context Manager needs a clearer information architecture and explanatory UX
-
-- Status: open
-- Severity: medium
-- Area: agent context manager UX, settings information architecture
-- Observed: the manager is hard to understand at a glance. It mixes unified instructions, provider files, instruction outputs, runtime overlays, history, and managed configs without enough hierarchy or explanation.
-- Expected: users should quickly understand what Exo-managed agent context is for, which files agents will read, which scopes are affected, how provider outputs are generated, and how managed configs/MCP settings relate to agent launches.
-- Candidate fixes:
-  - Rework the manager into clearer sections or tabs for unified instructions, provider outputs, runtime overlays, history, and managed configs.
-  - Add concise tooltips/help affordances for scope, provider files, instruction outputs, generated overlays, and managed configs.
-  - Apply the same settings-design principles used elsewhere: compact hierarchy, explicit state, predictable actions, no marketing copy, and no in-app explanatory walls.
-- QA coverage to add:
-  - App QA walkthrough with a new-user lens: identify active scope, edit unified instructions, see output files, inspect overlay, edit MCP config.
-  - Narrow-window QA to ensure labels, paths, and controls remain readable without overlap.
+  - Live Codex-agent launch smoke that verifies the Exo MCP server handshake succeeds or emits a structured, actionable error.
+  - MCP server unit/integration coverage for initialize response compatibility with Codex's MCP client.
 
 ## Resolved
 
@@ -79,6 +64,43 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 - QA coverage:
   - Added a main-process unit regression that deletes `server.json` while the command server is live and verifies `ensureDiscoveryFile()` rewrites the correct port and pid.
   - Focused checks: `pnpm --filter @exo/desktop typecheck`; `pnpm --filter @exo/desktop test`.
+
+### EXO-ISSUE-006: Agent Context Manager can show stale preload API errors after app crashes/restarts
+
+- Status: fixed
+- Severity: high
+- Area: desktop preload bridge, workspace settings, agent context manager
+- Observed: Workspace Settings and Agent Context Manager showed `managed agent config files: window.exo.workspace.listAgentManagedConfigFiles is not a function`.
+- Fixed:
+  - Renderer now treats managed-config preload APIs as optional and reports a clear restart/update message when they are unavailable.
+  - Settings and Agent Context Manager still open with partial error state instead of failing the dialog.
+- QA coverage:
+  - Added Playwright regression that opens Agent Context Manager when the managed-config preload API is intentionally omitted.
+
+### EXO-ISSUE-007: Agent Context Manager error and control layout can overlap in narrow or partially failed states
+
+- Status: fixed
+- Severity: medium
+- Area: agent context manager layout, settings UI polish
+- Observed: the partial-load error text overlapped the target selector and `Write provider files` action in the Agent Context Manager.
+- Fixed:
+  - Partial-load errors now render in their own bounded row, wrap long technical messages, and stay separate from the scope/action controls.
+  - Narrow manager layouts have dedicated responsive spacing for overview, controls, and side panel content.
+- QA coverage:
+  - Added Playwright layout regression for long agent-context errors in a narrow manager.
+
+### EXO-ISSUE-008: Agent Context Manager needs a clearer information architecture and explanatory UX
+
+- Status: fixed
+- Severity: medium
+- Area: agent context manager UX, settings information architecture
+- Observed: the manager mixed unified instructions, provider files, instruction outputs, runtime overlays, history, and managed configs without enough hierarchy or explanation.
+- Fixed:
+  - Added an overview row for active scope, provider outputs, managed configs, and runtime overlay.
+  - Reworked the manager into clearer sections for unified instructions, managed history, provider files, and managed config editing.
+  - Added concise tooltips/help affordances for scope, provider outputs, overlays, history, and managed configs.
+- QA coverage:
+  - Extended Playwright settings QA to verify the overview, sections, and output controls.
 
 ### EXO-ISSUE-001: Workspace settings button does not open settings
 
