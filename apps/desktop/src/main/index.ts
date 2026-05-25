@@ -479,6 +479,8 @@ function registerIpcHandlers() {
   ipcMain.handle("workspace:save-agent-context-file-adapters", async (_event, adapters: WorkspaceSettings["agentContextFileAdapters"]) =>
     saveAgentContextFileAdapters(adapters),
   );
+  ipcMain.handle("workspace:list-agent-managed-config-files", async () => listAgentManagedConfigFiles());
+  ipcMain.handle("workspace:save-agent-managed-config-file", async (_event, filePath: string, body: string) => saveAgentManagedConfigFile(filePath, body));
   ipcMain.handle("workspace:list-agent-context-history", async () => listAgentContextHistory());
   ipcMain.handle("workspace:list-agent-instruction-overlays", async () => listAgentInstructionOverlays());
   ipcMain.handle("workspace:save-agent-context-file", async (_event, filePath: string, body: string) => saveAgentContextFile(filePath, body));
@@ -709,6 +711,20 @@ async function listAgentContextFiles() {
   return Promise.all(agentContextCandidates().map(readAgentContextCandidate));
 }
 
+async function listAgentManagedConfigFiles() {
+  return Promise.all(agentManagedConfigCandidates().map(readAgentManagedConfigCandidate));
+}
+
+async function saveAgentManagedConfigFile(filePath: string, body: string) {
+  const candidate = agentManagedConfigCandidates().find((entry) => path.resolve(entry.path) === path.resolve(filePath));
+  if (!candidate) {
+    throw new Error("Managed agent config file is outside the active global/workspace context set.");
+  }
+  await mkdir(path.dirname(candidate.path), { recursive: true });
+  await writeFile(candidate.path, body, "utf8");
+  return readAgentManagedConfigCandidate(candidate);
+}
+
 function listAgentContextFileAdapters() {
   return configuredAgentContextFileAdapters();
 }
@@ -917,6 +933,43 @@ function agentContextCandidates() {
   );
 }
 
+function agentManagedConfigCandidates() {
+  const roots = [
+    { scope: "workspace" as const, label: "Workspace", rootPath: workspaceModel.workspaceRoot },
+    ...workspaceModel.noteRoots.map((root) => ({ scope: "notes" as const, label: root.label, rootPath: root.path })),
+    ...workspaceModel.projectRoots.map((root) => ({ scope: "project" as const, label: root.label, rootPath: root.path })),
+  ];
+  const projectConfigFiles = roots.flatMap((root) => [
+    {
+      id: `${root.scope}:mcp:${path.join(root.rootPath, ".mcp.json")}`,
+      scope: root.scope,
+      category: "mcp" as const,
+      provider: "MCP",
+      label: `${root.label} / .mcp.json`,
+      path: path.join(root.rootPath, ".mcp.json"),
+    },
+  ]);
+  return [
+    {
+      id: `global:provider:${path.join(os.homedir(), ".codex", "config.toml")}`,
+      scope: "global" as const,
+      category: "provider" as const,
+      provider: "Codex",
+      label: "Global / Codex config.toml",
+      path: path.join(os.homedir(), ".codex", "config.toml"),
+    },
+    {
+      id: `global:provider:${path.join(os.homedir(), ".claude", "settings.json")}`,
+      scope: "global" as const,
+      category: "provider" as const,
+      provider: "Claude",
+      label: "Global / Claude settings.json",
+      path: path.join(os.homedir(), ".claude", "settings.json"),
+    },
+    ...projectConfigFiles,
+  ];
+}
+
 function agentContextFileAdapters() {
   return configuredAgentContextFileAdapters().filter((adapter) => adapter.enabled);
 }
@@ -962,6 +1015,20 @@ async function readAgentContextCandidate(candidate: ReturnType<typeof agentConte
   return {
     ...candidate,
     exists: body.length > 0 || existsSync(candidate.path),
+    body,
+  };
+}
+
+async function readAgentManagedConfigCandidate(candidate: ReturnType<typeof agentManagedConfigCandidates>[number]) {
+  const body = await readFile(candidate.path, "utf8").catch((error: NodeJS.ErrnoException) => {
+    if (error.code === "ENOENT") {
+      return "";
+    }
+    throw error;
+  });
+  return {
+    ...candidate,
+    exists: body.length > 0,
     body,
   };
 }

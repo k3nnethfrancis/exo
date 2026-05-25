@@ -1799,6 +1799,15 @@ select.dialog-card__input {
   line-height: 1.5;
 }
 
+.agent-context-settings__editor--config {
+  padding-top: 4px;
+  border-top: 1px solid color-mix(in srgb, var(--divider) 55%, transparent);
+}
+
+.agent-context-settings__textarea--config {
+  min-height: 190px;
+}
+
 @media (max-width: 860px) {
   .agent-context-summary__header,
   .agent-context-summary__footer {

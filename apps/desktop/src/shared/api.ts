@@ -90,6 +90,17 @@ export interface AgentContextFileAdapter {
   builtIn?: boolean;
 }
 
+export interface AgentManagedConfigFile {
+  id: string;
+  scope: "global" | "workspace" | "notes" | "project";
+  category: "mcp" | "provider";
+  provider: string;
+  label: string;
+  path: string;
+  exists: boolean;
+  body: string;
+}
+
 export interface AgentContextTarget {
   id: string;
   scope: "global" | "notes" | "project";
@@ -153,6 +164,8 @@ export interface DesktopApi {
     listAgentContextFiles: () => Promise<AgentContextFile[]>;
     listAgentContextFileAdapters: () => Promise<AgentContextFileAdapter[]>;
     saveAgentContextFileAdapters: (adapters: AgentContextFileAdapter[]) => Promise<AgentContextFileAdapter[]>;
+    listAgentManagedConfigFiles: () => Promise<AgentManagedConfigFile[]>;
+    saveAgentManagedConfigFile: (filePath: string, body: string) => Promise<AgentManagedConfigFile>;
     listAgentContextHistory: () => Promise<AgentContextHistoryEntry[]>;
     listAgentInstructionOverlays: () => Promise<AgentInstructionOverlay[]>;
     saveAgentContextFile: (filePath: string, body: string) => Promise<AgentContextFile>;

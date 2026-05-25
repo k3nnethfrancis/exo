@@ -12,7 +12,7 @@ import type {
   WorkspaceSettings,
 } from "@exo/core";
 
-import type { AgentContextFile, AgentContextFileAdapter, AgentContextHistoryEntry, AgentInstructionOverlay, TerminalSessionInfo, WorkspaceGitChange, WorkspaceGitStatus, WorkspaceRegistryEntry } from "../../shared/api";
+import type { AgentContextFile, AgentContextFileAdapter, AgentContextHistoryEntry, AgentInstructionOverlay, AgentManagedConfigFile, TerminalSessionInfo, WorkspaceGitChange, WorkspaceGitStatus, WorkspaceRegistryEntry } from "../../shared/api";
 import type { FileStatInfo } from "../../shared/api";
 
 import { EditorPane, type EditorPaneState } from "./components/EditorPane";
@@ -149,6 +149,14 @@ interface AgentContextAdapterState {
   errorMessage: string | null;
 }
 
+interface AgentManagedConfigState {
+  files: AgentManagedConfigFile[];
+  selectedPath: string | null;
+  draftBody: string;
+  saveStatus: "idle" | "saving" | "saved" | "error";
+  errorMessage: string | null;
+}
+
 interface ObservedWorkspaceWrite {
   filePath: string;
   rootPath: string;
@@ -257,6 +265,13 @@ export function App() {
     adapters: [],
     draftFileName: "",
     draftLabel: "",
+    saveStatus: "idle",
+    errorMessage: null,
+  });
+  const [agentManagedConfigs, setAgentManagedConfigs] = useState<AgentManagedConfigState>({
+    files: [],
+    selectedPath: null,
+    draftBody: "",
     saveStatus: "idle",
     errorMessage: null,
   });
@@ -960,6 +975,7 @@ export function App() {
     () => latestAgentContextHistoryEntry(agentContextComposer.history),
     [agentContextComposer.history],
   );
+  const selectedAgentManagedConfig = agentManagedConfigs.files.find((file) => file.path === agentManagedConfigs.selectedPath) ?? null;
 
   async function reloadTrees() {
     if (!workspaceModel) {
@@ -1090,6 +1106,10 @@ export function App() {
       console.warn("[exo] failed to list agent context file adapters", error);
       return [];
     });
+    const agentManagedConfigFiles = await window.exo.workspace.listAgentManagedConfigFiles().catch((error) => {
+      console.warn("[exo] failed to list managed agent config files", error);
+      return [];
+    });
     const instructionOverlays = await window.exo.workspace.listAgentInstructionOverlays().catch((error) => {
       console.warn("[exo] failed to list agent instruction overlays", error);
       return [];
@@ -1116,6 +1136,13 @@ export function App() {
       adapters: agentContextFileAdapters,
       draftFileName: "",
       draftLabel: "",
+      saveStatus: "idle",
+      errorMessage: null,
+    });
+    setAgentManagedConfigs({
+      files: agentManagedConfigFiles,
+      selectedPath: agentManagedConfigFiles[0]?.path ?? null,
+      draftBody: agentManagedConfigFiles[0]?.body ?? "",
       saveStatus: "idle",
       errorMessage: null,
     });
@@ -1173,6 +1200,47 @@ export function App() {
           }
         : current;
     });
+  }
+
+  function selectAgentManagedConfigFile(filePath: string) {
+    setAgentManagedConfigs((current) => {
+      const selected = current.files.find((file) => file.path === filePath);
+      return selected
+        ? {
+            ...current,
+            selectedPath: selected.path,
+            draftBody: selected.body,
+            saveStatus: "idle",
+            errorMessage: null,
+          }
+        : current;
+    });
+  }
+
+  async function saveAgentManagedConfigDraft() {
+    const snapshot = agentManagedConfigs;
+    if (!snapshot.selectedPath) {
+      return;
+    }
+
+    setAgentManagedConfigs((current) => ({ ...current, saveStatus: "saving", errorMessage: null }));
+    try {
+      const saved = await window.exo.workspace.saveAgentManagedConfigFile(snapshot.selectedPath, snapshot.draftBody);
+      setAgentManagedConfigs((current) => ({
+        ...current,
+        files: current.files.map((file) => file.path === saved.path ? saved : file),
+        selectedPath: saved.path,
+        draftBody: saved.body,
+        saveStatus: "saved",
+        errorMessage: null,
+      }));
+    } catch (error) {
+      setAgentManagedConfigs((current) => ({
+        ...current,
+        saveStatus: "error",
+        errorMessage: error instanceof Error ? error.message : String(error),
+      }));
+    }
   }
 
   async function saveAgentContextDraft() {
@@ -3970,6 +4038,46 @@ export function App() {
                     <div className="dialog-card__status dialog-card__status--error">{agentContextEditor.errorMessage}</div>
                   ) : null}
                 </div>
+                <div className="agent-context-settings__editor agent-context-settings__editor--config" data-testid="agent-managed-config-editor">
+                  <div className="dialog-field__header">
+                    <span className="dialog-field__label">
+                      {selectedAgentManagedConfig?.label ?? "Managed config"}
+                    </span>
+                    <button
+                      className="toolbar-button"
+                      data-testid="agent-managed-config-save"
+                      disabled={!agentManagedConfigs.selectedPath || agentManagedConfigs.saveStatus === "saving"}
+                      onClick={() => void saveAgentManagedConfigDraft()}
+                      type="button"
+                    >
+                      {agentManagedConfigs.saveStatus === "saving" ? "Saving…" : "Save config"}
+                    </button>
+                  </div>
+                  <div className="agent-context-settings__path">
+                    {selectedAgentManagedConfig?.path ?? "No config file selected."}
+                  </div>
+                  <textarea
+                    className="dialog-card__input agent-context-settings__textarea agent-context-settings__textarea--config"
+                    data-testid="agent-managed-config-textarea"
+                    disabled={!agentManagedConfigs.selectedPath}
+                    spellCheck={false}
+                    value={agentManagedConfigs.draftBody}
+                    onChange={(event) =>
+                      setAgentManagedConfigs((current) => ({
+                        ...current,
+                        draftBody: event.target.value,
+                        saveStatus: "idle",
+                        errorMessage: null,
+                      }))
+                    }
+                  />
+                  {agentManagedConfigs.saveStatus === "saved" ? (
+                    <div className="dialog-card__status" data-testid="agent-managed-config-status">Config saved.</div>
+                  ) : null}
+                  {agentManagedConfigs.saveStatus === "error" && agentManagedConfigs.errorMessage ? (
+                    <div className="dialog-card__status dialog-card__status--error">{agentManagedConfigs.errorMessage}</div>
+                  ) : null}
+                </div>
               </div>
               <div className="agent-context-manager__side">
                 <section className="agent-context-manager__section agent-context-adapters" data-testid="agent-context-adapters">
@@ -4064,6 +4172,24 @@ export function App() {
                       >
                         <span>{file.label}</span>
                         <span>{file.providerLabel} · {file.exists ? "Existing" : "New"}</span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+                <section className="agent-context-manager__section">
+                  <div className="dialog-field__label">Managed configs</div>
+                  <div className="agent-context-settings__list" data-testid="agent-managed-config-list">
+                    {agentManagedConfigs.files.map((file) => (
+                      <button
+                        className={`agent-context-settings__file ${file.path === agentManagedConfigs.selectedPath ? "agent-context-settings__file--active" : ""}`}
+                        data-testid={`agent-managed-config-${file.scope}`}
+                        key={file.id}
+                        onClick={() => selectAgentManagedConfigFile(file.path)}
+                        title={file.path}
+                        type="button"
+                      >
+                        <span>{file.label}</span>
+                        <span>{file.provider} · {file.category.toUpperCase()} · {file.exists ? "Existing" : "New"}</span>
                       </button>
                     ))}
                   </div>

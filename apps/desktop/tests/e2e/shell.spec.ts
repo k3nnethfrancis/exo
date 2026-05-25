@@ -389,6 +389,14 @@ test("edits agent context files from workspace settings", async () => {
   await page.getByTestId("agent-context-adapter-add").click();
   await expect(page.getByTestId("agent-context-adapters-status")).toContainText("Instruction outputs updated");
   await expect(page.getByTestId("agent-context-adapters")).toContainText("soul.md");
+  await expect(page.getByTestId("agent-managed-config-list")).toContainText(".mcp.json");
+  await page.getByRole("button", { name: /sample-project \/ \.mcp\.json/i }).click();
+  await page.getByTestId("agent-managed-config-textarea").fill('{"mcpServers":{"exo":{"command":"node"}}}');
+  await page.getByTestId("agent-managed-config-save").click();
+  await expect(page.getByTestId("agent-managed-config-status")).toContainText("Config saved");
+  await expect.poll(async () =>
+    readFile(path.join(workspaceRoot, "projects/sample-project/.mcp.json"), "utf8"),
+  ).toContain('"mcpServers"');
   await expect(page.getByTestId("agent-instruction-overlay-body")).toContainText("Exo Runtime Context");
   await expect(page.getByTestId("agent-instruction-overlay-body")).toContainText("sample-project");
   await expect.poll(async () => readFile(path.join(workspaceRoot, ".exo/instructions/global.md"), "utf8")).toContain("Attached Project Roots");
