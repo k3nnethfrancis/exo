@@ -43,6 +43,7 @@ interface ShellLayoutProps {
     projectLabel: string | null;
     gitBranch: string | null;
     gitDirty: boolean;
+    changedFiles: number;
     index: IndexStatusLine;
   };
   shellLayout: {
@@ -78,6 +79,7 @@ interface ShellLayoutProps {
   onAppearanceModeChange: (mode: AppearanceMode) => void;
   onOpenWorkspaceSettings: () => void;
   onOpenIndexSettings: () => void;
+  onOpenProjectChanges: () => void;
   onSearchQueryChange: (value: string) => void;
   onSearchSubmit: () => void;
   onOpenFile: (filePath: string, line?: number | null) => void;
@@ -116,6 +118,7 @@ export function ShellLayout(props: ShellLayoutProps) {
     onAppearanceModeChange,
     onOpenWorkspaceSettings,
     onOpenIndexSettings,
+    onOpenProjectChanges,
     onSearchQueryChange,
     onSearchSubmit,
     onOpenFile,
@@ -356,6 +359,17 @@ export function ShellLayout(props: ShellLayoutProps) {
               {statusLine.gitBranch}
               {statusLine.gitDirty ? "*" : ""}
             </span>
+          ) : null}
+          {statusLine.changedFiles > 0 ? (
+            <button
+              className="statusbar__changes"
+              data-testid="statusbar-changes"
+              onClick={onOpenProjectChanges}
+              title="Open changed project files"
+              type="button"
+            >
+              {statusLine.changedFiles} change{statusLine.changedFiles === 1 ? "" : "s"}
+            </button>
           ) : null}
         </div>
       </footer>

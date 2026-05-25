@@ -11,6 +11,7 @@ import {
   resolveTerminalRuntimePolicy,
   WorkspaceSettingsStore,
 } from "../../main/settings-store";
+import { buildProjectReviewChanges, uniqueCwdMatchedSession } from "./changedFileReview";
 import { isTerminalGeneratedResponse } from "./components/terminalInputFilters";
 
 describe("desktop shell", () => {
@@ -120,5 +121,35 @@ describe("terminal input filtering", () => {
     expect(isTerminalGeneratedResponse("\x1b[24;80R")).toBe(true);
     expect(isTerminalGeneratedResponse("hello")).toBe(false);
     expect(isTerminalGeneratedResponse("try this out")).toBe(false);
+  });
+});
+
+describe("changed file review attribution", () => {
+  it("does not associate ambiguous same-cwd file changes with every terminal", () => {
+    const sessions = [
+      { id: "term-a", title: "Shell A", cwd: "/workspace/project", kind: "shell", command: "zsh", status: "running" },
+      { id: "term-b", title: "Shell B", cwd: "/workspace/project", kind: "shell", command: "zsh", status: "running" },
+    ] as const;
+    const change = {
+      rootPath: "/workspace/project",
+      rootLabel: "project",
+      path: "src/demo.ts",
+      absolutePath: "/workspace/project/src/demo.ts",
+      status: "M",
+      firstChangedLine: 2,
+    };
+
+    expect(uniqueCwdMatchedSession([...sessions], change.absolutePath)).toBeNull();
+    expect(buildProjectReviewChanges([change], [], [...sessions])[0].agents).toEqual([]);
+    expect(
+      buildProjectReviewChanges(
+        [change],
+        [
+          { rootPath: change.rootPath, filePath: change.absolutePath, sessionId: "term-a", observedAt: 1, association: "unique-cwd-match" },
+          { rootPath: change.rootPath, filePath: change.absolutePath, sessionId: "term-b", observedAt: 2, association: "unique-cwd-match" },
+        ],
+        [...sessions],
+      )[0].agents,
+    ).toEqual([]);
   });
 });

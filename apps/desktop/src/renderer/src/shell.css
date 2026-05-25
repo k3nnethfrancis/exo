@@ -181,6 +181,25 @@
   background: var(--surface-hover);
 }
 
+.statusbar__changes {
+  display: inline-flex;
+  align-items: center;
+  max-width: 120px;
+  padding: 2px 6px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.statusbar__changes:hover {
+  border-color: var(--surface-border);
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
 .statusbar__index-dot {
   width: 6px;
   height: 6px;
