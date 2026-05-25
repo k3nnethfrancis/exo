@@ -6,9 +6,26 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 
 ## Open
 
-### EXO-ISSUE-001: Workspace settings button does not open settings
+### EXO-ISSUE-004: Codex agent launch in a new worktree can consume queued task text at the trust prompt
 
 - Status: open
+- Severity: high
+- Area: agent terminal launch, Codex provider integration, worktree orchestration
+- Observed: creating a Codex agent in a newly-created worktree shows Codex's directory trust prompt. If Exo sends the task brief before the prompt is cleared, the task text is typed into the trust prompt instead of the normal Codex chat input, and the agent can exit without doing the work.
+- Expected: Exo should detect provider startup prompts or otherwise avoid delivering task text until the agent is ready for normal chat input.
+- Investigation notes:
+  - This appeared while coordinating parallel QA agents for `qa/preview-pane-layout` and `qa/changed-file-attribution`.
+  - Existing agents launched from the trusted workspace root did not hit the same startup prompt.
+  - Worktree paths may resolve to the original repository root for trust purposes, so the prompt text can mention the main repo even when the agent cwd is the worktree.
+- QA coverage to add:
+  - Agent-launch QA for a Codex agent created in a fresh worktree.
+  - Regression that queued task text is not sent until the provider is ready for chat input.
+
+## Fixed
+
+### EXO-ISSUE-001: Workspace settings button does not open settings
+
+- Status: fixed
 - Severity: high
 - Area: desktop shell, settings dialog, command routing
 - Observed: clicking the settings button does not open Workspace Settings.
@@ -20,10 +37,11 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 - QA coverage to add:
   - E2E that clicks settings in a real configured workspace after agent manager/config files are present.
   - Regression for settings opening even if agent context/config discovery fails.
+- Fixed in: `aeed5a5` / merged to `main`.
 
 ### EXO-ISSUE-002: Preview pane sizing and drag behavior is not consistent with editor/terminal panes
 
-- Status: open
+- Status: fixed
 - Severity: high
 - Area: pane graph, browser preview pane, split resizing, drag/drop tab behavior
 - Observed:
@@ -41,10 +59,11 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
   - E2E for resizing a vertical split where one pane is browser preview and another is terminal/editor.
   - E2E for dragging browser preview tabs/panes using the same affordances as editor/terminal.
   - App QA screenshots for preview + terminal + editor layout before and after resize.
+- Fixed in: `3733b9d` / merged to `main`.
 
 ### EXO-ISSUE-003: Changed-file badges inside terminal panes are not terminal-specific
 
-- Status: open
+- Status: fixed
 - Severity: high
 - Area: project review, terminal provenance, changed-files UI
 - Observed: active file changes appear inside all terminal panes, not just the terminal that plausibly produced or owns the change.
@@ -62,18 +81,4 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
   - E2E with two terminals in the same project root where only one has an observed write candidate.
   - E2E with ambiguous changed files confirming they do not appear as terminal-specific.
   - E2E/status-bar QA for opening changed files and prompting to attach missing projects.
-
-### EXO-ISSUE-004: Codex agent launch in a new worktree can consume queued task text at the trust prompt
-
-- Status: open
-- Severity: high
-- Area: agent terminal launch, Codex provider integration, worktree orchestration
-- Observed: creating a Codex agent in a newly-created worktree shows Codex's directory trust prompt. If Exo sends the task brief before the prompt is cleared, the task text is typed into the trust prompt instead of the normal Codex chat input, and the agent can exit without doing the work.
-- Expected: Exo should detect provider startup prompts or otherwise avoid delivering task text until the agent is ready for normal chat input.
-- Investigation notes:
-  - This appeared while coordinating parallel QA agents for `qa/preview-pane-layout` and `qa/changed-file-attribution`.
-  - Existing agents launched from the trusted workspace root did not hit the same startup prompt.
-  - Worktree paths may resolve to the original repository root for trust purposes, so the prompt text can mention the main repo even when the agent cwd is the worktree.
-- QA coverage to add:
-  - Agent-launch QA for a Codex agent created in a fresh worktree.
-  - Regression that queued task text is not sent until the provider is ready for chat input.
+- Fixed in: `f7f886d` / merged to `main`.
