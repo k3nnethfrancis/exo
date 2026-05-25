@@ -92,11 +92,12 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Added generated Exo runtime overlays under `.exo/instructions/` for global, notes, and project scopes, with read-only Settings preview and e2e coverage that provider context files stay free of dynamic workspace facts.
 - Added the runtime overlay launcher bridge: Claude/Codex terminal launches now regenerate overlays, select the most-specific overlay for the launch cwd, expose it via `EXO_INSTRUCTIONS`, and set the same env inside tmux-backed sessions.
 - Split the agent context UX so Workspace Settings now shows a compact status/entry summary while the full composer, provider-file editor, runtime overlay preview, and history controls live in a dedicated Agent Context Manager.
+- Added user-facing instruction output settings in the Agent Context Manager: users can enable/disable provider files and add workspace-scoped outputs such as `soul.md`, with the unified composer writing only enabled outputs.
 
 ## Next Priorities
 
 1. Push `0.1.0-alpha.2` tester-readiness fixes to main.
-2. Agent context manager: add user-facing provider adapter settings and richer history browsing.
+2. Agent context manager: add richer history browsing.
 3. Authorship/provenance: promote observed write candidates into explicit human vs agent review states only when Exo controls the write path or receives a trusted session event.
 4. QMD notes index: improve performance, add true incremental file-level updates when QMD exposes them, and refine triggers/profiles.
 5. Multi-agent coordination: roster, objectives, direct messages, file+SQLite transport, CLI/MCP access.

@@ -1496,6 +1496,7 @@ select.dialog-card__input {
   gap: 10px;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
 }
 
 .agent-context-manager__main,
@@ -1506,6 +1507,66 @@ select.dialog-card__input {
 
 .agent-context-manager__composer-field {
   min-height: 210px;
+}
+
+.agent-context-adapters {
+  padding-bottom: 2px;
+}
+
+.agent-context-adapters__list,
+.agent-context-adapters__add {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.agent-context-adapters__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 9px;
+  border: 1px solid color-mix(in srgb, var(--divider) 55%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+}
+
+.agent-context-adapters__toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.agent-context-adapters__toggle span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.agent-context-adapters__toggle strong,
+.agent-context-adapters__toggle small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-context-adapters__toggle strong {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.agent-context-adapters__toggle small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.agent-context-adapters__add .dialog-card__input {
+  min-height: 34px;
+  padding-block: 7px;
 }
 
 .agent-context-settings__composer {
@@ -1601,6 +1662,11 @@ select.dialog-card__input {
   min-width: 0;
 }
 
+.agent-context-manager__side .agent-context-settings__list {
+  max-height: min(280px, 30dvh);
+  overflow: auto;
+}
+
 .agent-context-settings__file {
   display: grid;
   gap: 3px;
@@ -1629,8 +1695,12 @@ select.dialog-card__input {
 
 .agent-context-settings__file span:last-child,
 .agent-context-settings__path {
+  min-width: 0;
+  overflow: hidden;
   color: var(--muted);
   font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .agent-context-settings__editor {

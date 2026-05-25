@@ -6,12 +6,26 @@ import { describe, expect, it } from "vitest";
 import {
   listWorkspaceRegistryEntries,
   loadActiveWorkspaceSettings,
+  normalizeAgentContextFileAdapters,
   saveWorkspaceSettings,
   workspaceEnvOverrides,
   workspaceSettingsToEnv,
 } from "../workspace-settings";
 
 describe("workspace settings registry", () => {
+  it("normalizes agent context file adapters with defaults and custom outputs", () => {
+    expect(normalizeAgentContextFileAdapters(null).map((adapter) => adapter.fileName)).toEqual(["AGENTS.md", "CLAUDE.md"]);
+    expect(normalizeAgentContextFileAdapters([
+      { id: "claude", label: "Claude off", fileName: "CLAUDE.md", enabled: false },
+      { id: "soul", label: "Soul compatibility", fileName: "soul.md", enabled: true },
+      { id: "bad", label: "Bad", fileName: "../bad.md", enabled: true },
+    ])).toMatchObject([
+      { id: "codex", fileName: "AGENTS.md", enabled: true },
+      { id: "claude", fileName: "CLAUDE.md", enabled: false },
+      { id: "soul", fileName: "soul.md", enabled: true },
+    ]);
+  });
+
   it("normalizes persisted pane layout settings", async () => {
     const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-layout-"));
 
@@ -34,6 +48,7 @@ describe("workspace settings registry", () => {
         explorerScale: 1,
         exploreIndexSearchOnEnter: false,
         indexUpdateStrategy: "on-save",
+        agentContextFileAdapters: [],
         layout: {
           editorTree: {
             kind: "split",
@@ -102,6 +117,7 @@ describe("workspace settings registry", () => {
         explorerScale: 1,
         exploreIndexSearchOnEnter: false,
         indexUpdateStrategy: "on-save",
+        agentContextFileAdapters: [],
       }, env);
 
       await expect(loadActiveWorkspaceSettings(env)).resolves.toMatchObject({

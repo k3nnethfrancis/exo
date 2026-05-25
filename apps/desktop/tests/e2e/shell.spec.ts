@@ -361,9 +361,6 @@ test("opens workspace settings from the sidebar", async () => {
 test("edits agent context files from workspace settings", async () => {
   const { page, workspaceRoot, homeRoot, cleanup } = await launchExoFixture({
     mutable: true,
-    env: {
-      EXO_AGENT_CONTEXT_EXTRA_FILES: "soul:soul.md:Soul compatibility",
-    },
     prepareWorkspace: async (workspaceRoot) => {
       await writeFile(
         path.join(workspaceRoot, "notes/test-notes/AGENTS.md"),
@@ -385,6 +382,13 @@ test("edits agent context files from workspace settings", async () => {
   await expect(page.getByTestId("agent-context-settings")).toContainText("Instruction outputs");
   await page.getByTestId("agent-context-open-manager").click();
   await expect(page.getByTestId("agent-context-manager")).toBeVisible();
+  await expect(page.getByTestId("agent-context-adapters")).toContainText("AGENTS.md");
+  await expect(page.getByTestId("agent-context-adapters")).toContainText("CLAUDE.md");
+  await page.getByTestId("agent-context-adapter-file-name").fill("soul.md");
+  await page.getByTestId("agent-context-adapter-label").fill("Soul compatibility");
+  await page.getByTestId("agent-context-adapter-add").click();
+  await expect(page.getByTestId("agent-context-adapters-status")).toContainText("Instruction outputs updated");
+  await expect(page.getByTestId("agent-context-adapters")).toContainText("soul.md");
   await expect(page.getByTestId("agent-instruction-overlay-body")).toContainText("Exo Runtime Context");
   await expect(page.getByTestId("agent-instruction-overlay-body")).toContainText("sample-project");
   await expect.poll(async () => readFile(path.join(workspaceRoot, ".exo/instructions/global.md"), "utf8")).toContain("Attached Project Roots");

@@ -82,6 +82,14 @@ export interface AgentContextFile {
   body: string;
 }
 
+export interface AgentContextFileAdapter {
+  id: string;
+  label: string;
+  fileName: string;
+  enabled: boolean;
+  builtIn?: boolean;
+}
+
 export interface AgentContextTarget {
   id: string;
   scope: "global" | "notes" | "project";
@@ -143,6 +151,8 @@ export interface DesktopApi {
     searchTag: (tag: string) => Promise<SearchResult[]>;
     getGitStatus: (rootPath: string) => Promise<WorkspaceGitStatus | null>;
     listAgentContextFiles: () => Promise<AgentContextFile[]>;
+    listAgentContextFileAdapters: () => Promise<AgentContextFileAdapter[]>;
+    saveAgentContextFileAdapters: (adapters: AgentContextFileAdapter[]) => Promise<AgentContextFileAdapter[]>;
     listAgentContextHistory: () => Promise<AgentContextHistoryEntry[]>;
     listAgentInstructionOverlays: () => Promise<AgentInstructionOverlay[]>;
     saveAgentContextFile: (filePath: string, body: string) => Promise<AgentContextFile>;

@@ -20,6 +20,7 @@ import {
   getNoteKnowledge,
   listMarkdownFiles,
   listRootTree,
+  normalizeAgentContextFileAdapters,
   readIndexDocument,
   readWorkspaceDocument,
   renameWorkspacePath,
@@ -474,6 +475,10 @@ function registerIpcHandlers() {
   );
   ipcMain.handle("workspace:get-git-status", async (_event, rootPath: string) => getGitStatus(rootPath));
   ipcMain.handle("workspace:list-agent-context-files", async () => listAgentContextFiles());
+  ipcMain.handle("workspace:list-agent-context-file-adapters", async () => listAgentContextFileAdapters());
+  ipcMain.handle("workspace:save-agent-context-file-adapters", async (_event, adapters: WorkspaceSettings["agentContextFileAdapters"]) =>
+    saveAgentContextFileAdapters(adapters),
+  );
   ipcMain.handle("workspace:list-agent-context-history", async () => listAgentContextHistory());
   ipcMain.handle("workspace:list-agent-instruction-overlays", async () => listAgentInstructionOverlays());
   ipcMain.handle("workspace:save-agent-context-file", async (_event, filePath: string, body: string) => saveAgentContextFile(filePath, body));
@@ -704,6 +709,20 @@ async function listAgentContextFiles() {
   return Promise.all(agentContextCandidates().map(readAgentContextCandidate));
 }
 
+function listAgentContextFileAdapters() {
+  return configuredAgentContextFileAdapters();
+}
+
+async function saveAgentContextFileAdapters(adapters: WorkspaceSettings["agentContextFileAdapters"]) {
+  const settings = currentWorkspaceSettings();
+  const normalizedAdapters = normalizeAgentContextFileAdapters(adapters);
+  await saveWorkspaceSettings({
+    ...settings,
+    agentContextFileAdapters: normalizedAdapters,
+  });
+  return configuredAgentContextFileAdapters();
+}
+
 async function listAgentContextHistory() {
   const entries = await readAgentContextHistoryEntries();
   const targetIds = new Set(agentContextCandidates().map((candidate) => candidate.targetId));
@@ -841,11 +860,6 @@ const EXO_AGENT_CONTEXT_START = "<!-- exo:managed:start - Exo keeps this instruc
 const EXO_AGENT_CONTEXT_END = "<!-- exo:managed:end -->";
 const EXO_AGENT_CONTEXT_PATTERN = new RegExp(`${escapeRegExp(EXO_AGENT_CONTEXT_START)}[\\s\\S]*?${escapeRegExp(EXO_AGENT_CONTEXT_END)}`);
 const EXO_AGENT_CONTEXT_BODY_PATTERN = /<!-- exo:managed:start[\s\S]*?-->\s*# Agent Instructions\s*(?:<!--[\s\S]*?-->)?\s*([\s\S]*?)\s*<!-- exo:managed:end -->/;
-const DEFAULT_AGENT_CONTEXT_FILE_ADAPTERS = [
-  { id: "codex", label: "Codex compatibility", fileName: "AGENTS.md" },
-  { id: "claude", label: "Claude compatibility", fileName: "CLAUDE.md" },
-];
-
 function upsertManagedAgentContextBlock(currentBody: string, instructionBody: string) {
   const block = renderManagedAgentContextBlock(instructionBody);
   if (EXO_AGENT_CONTEXT_PATTERN.test(currentBody)) {
@@ -904,7 +918,14 @@ function agentContextCandidates() {
 }
 
 function agentContextFileAdapters() {
-  return [...DEFAULT_AGENT_CONTEXT_FILE_ADAPTERS, ...extraAgentContextFileAdapters()];
+  return configuredAgentContextFileAdapters().filter((adapter) => adapter.enabled);
+}
+
+function configuredAgentContextFileAdapters() {
+  return normalizeAgentContextFileAdapters([
+    ...currentWorkspaceSettings().agentContextFileAdapters,
+    ...extraAgentContextFileAdapters(),
+  ]);
 }
 
 function extraAgentContextFileAdapters() {

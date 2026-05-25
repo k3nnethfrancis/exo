@@ -12,7 +12,7 @@ import type {
   WorkspaceSettings,
 } from "@exo/core";
 
-import type { AgentContextFile, AgentContextHistoryEntry, AgentInstructionOverlay, TerminalSessionInfo, WorkspaceGitChange, WorkspaceGitStatus, WorkspaceRegistryEntry } from "../../shared/api";
+import type { AgentContextFile, AgentContextFileAdapter, AgentContextHistoryEntry, AgentInstructionOverlay, TerminalSessionInfo, WorkspaceGitChange, WorkspaceGitStatus, WorkspaceRegistryEntry } from "../../shared/api";
 import type { FileStatInfo } from "../../shared/api";
 
 import { EditorPane, type EditorPaneState } from "./components/EditorPane";
@@ -140,6 +140,14 @@ interface AgentContextComposerState {
   errorMessage: string | null;
 }
 
+interface AgentContextAdapterState {
+  adapters: AgentContextFileAdapter[];
+  draftFileName: string;
+  draftLabel: string;
+  saveStatus: "idle" | "saving" | "saved" | "error";
+  errorMessage: string | null;
+}
+
 interface ObservedWorkspaceWrite {
   filePath: string;
   rootPath: string;
@@ -240,6 +248,13 @@ export function App() {
     historyOpen: false,
     overlays: [],
     selectedOverlayId: null,
+    saveStatus: "idle",
+    errorMessage: null,
+  });
+  const [agentContextAdapters, setAgentContextAdapters] = useState<AgentContextAdapterState>({
+    adapters: [],
+    draftFileName: "",
+    draftLabel: "",
     saveStatus: "idle",
     errorMessage: null,
   });
@@ -1062,6 +1077,10 @@ export function App() {
       console.warn("[exo] failed to list agent context history", error);
       return [];
     });
+    const agentContextFileAdapters = await window.exo.workspace.listAgentContextFileAdapters().catch((error) => {
+      console.warn("[exo] failed to list agent context file adapters", error);
+      return [];
+    });
     const instructionOverlays = await window.exo.workspace.listAgentInstructionOverlays().catch((error) => {
       console.warn("[exo] failed to list agent instruction overlays", error);
       return [];
@@ -1080,6 +1099,13 @@ export function App() {
       historyOpen: false,
       overlays: instructionOverlays,
       selectedOverlayId: instructionOverlays[0]?.id ?? null,
+      saveStatus: "idle",
+      errorMessage: null,
+    });
+    setAgentContextAdapters({
+      adapters: agentContextFileAdapters,
+      draftFileName: "",
+      draftLabel: "",
       saveStatus: "idle",
       errorMessage: null,
     });
@@ -1255,6 +1281,105 @@ export function App() {
         errorMessage: error instanceof Error ? error.message : String(error),
       }));
     }
+  }
+
+  async function saveAgentContextAdapters(nextAdapters: AgentContextFileAdapter[], options: { clearDraft?: boolean } = {}) {
+    setAgentContextAdapters((current) => ({
+      ...current,
+      adapters: nextAdapters,
+      draftFileName: options.clearDraft ? "" : current.draftFileName,
+      draftLabel: options.clearDraft ? "" : current.draftLabel,
+      saveStatus: "saving",
+      errorMessage: null,
+    }));
+    try {
+      const savedAdapters = await window.exo.workspace.saveAgentContextFileAdapters(nextAdapters);
+      const [settings, files, history, overlays] = await Promise.all([
+        window.exo.workspace.getSettings(),
+        window.exo.workspace.listAgentContextFiles(),
+        window.exo.workspace.listAgentContextHistory(),
+        window.exo.workspace.listAgentInstructionOverlays(),
+      ]);
+      workspaceSettingsRef.current = settings;
+      setAgentContextAdapters({
+        adapters: savedAdapters,
+        draftFileName: "",
+        draftLabel: "",
+        saveStatus: "saved",
+        errorMessage: null,
+      });
+      setAgentContextEditor((current) => {
+        const selectedFile = current.selectedPath ? files.find((file) => file.path === current.selectedPath) : null;
+        return {
+          ...current,
+          files,
+          selectedPath: selectedFile?.path ?? files[0]?.path ?? null,
+          draftBody: selectedFile?.body ?? files[0]?.body ?? "",
+          saveStatus: "idle",
+          errorMessage: null,
+        };
+      });
+      setAgentContextComposer((current) => {
+        const selectedTargetStillExists = current.selectedTargetId
+          ? files.some((file) => file.targetId === current.selectedTargetId)
+          : false;
+        const selectedTargetId = selectedTargetStillExists ? current.selectedTargetId : files[0]?.targetId ?? null;
+        return {
+          ...current,
+          selectedTargetId,
+          body: selectedTargetId ? managedAgentContextBodyForTarget(files, selectedTargetId) : "",
+          history,
+          overlays,
+          selectedOverlayId: overlays.find((overlay) => overlay.id === current.selectedOverlayId)?.id ?? overlays[0]?.id ?? null,
+          saveStatus: "idle",
+          errorMessage: null,
+        };
+      });
+    } catch (error) {
+      setAgentContextAdapters((current) => ({
+        ...current,
+        saveStatus: "error",
+        errorMessage: error instanceof Error ? error.message : String(error),
+      }));
+    }
+  }
+
+  function toggleAgentContextAdapter(adapterId: string, enabled: boolean) {
+    const nextAdapters = agentContextAdapters.adapters.map((adapter) => adapter.id === adapterId ? { ...adapter, enabled } : adapter);
+    void saveAgentContextAdapters(nextAdapters, { clearDraft: true });
+  }
+
+  function removeAgentContextAdapter(adapterId: string) {
+    const nextAdapters = agentContextAdapters.adapters.filter((adapter) => adapter.id !== adapterId || adapter.builtIn);
+    void saveAgentContextAdapters(nextAdapters);
+  }
+
+  function addAgentContextAdapter() {
+    const fileName = agentContextAdapters.draftFileName.trim();
+    if (!isSafeAgentContextFileName(fileName)) {
+      setAgentContextAdapters((current) => ({
+        ...current,
+        saveStatus: "error",
+        errorMessage: "Use a file name without slashes, such as soul.md.",
+      }));
+      return;
+    }
+    const id = fileName.toLowerCase().replace(/\.[^.]+$/, "").replace(/[^a-z0-9_-]+/g, "-").replace(/^-|-$/g, "") || "agent-context";
+    const existingIds = new Set(agentContextAdapters.adapters.map((adapter) => adapter.id));
+    let uniqueId = id;
+    for (let index = 2; existingIds.has(uniqueId); index += 1) {
+      uniqueId = `${id}-${index}`;
+    }
+    const nextAdapters = [
+      ...agentContextAdapters.adapters,
+      {
+        id: uniqueId,
+        label: agentContextAdapters.draftLabel.trim() || `${fileName} compatibility`,
+        fileName,
+        enabled: true,
+      },
+    ];
+    void saveAgentContextAdapters(nextAdapters);
   }
 
   async function selectNotesFolderForOnboarding() {
@@ -1546,6 +1671,7 @@ export function App() {
       explorerScale: clampNumber(Number(settingsDialog.explorerScale), 0.82, 1.35),
       exploreIndexSearchOnEnter: settingsDialog.exploreIndexSearchOnEnter,
       indexUpdateStrategy: settingsDialog.indexUpdateStrategy,
+      agentContextFileAdapters: currentSettings?.agentContextFileAdapters ?? agentContextAdapters.adapters,
     };
 
     return nextSettings;
@@ -3812,6 +3938,84 @@ export function App() {
                 </div>
               </div>
               <div className="agent-context-manager__side">
+                <section className="agent-context-manager__section agent-context-adapters" data-testid="agent-context-adapters">
+                  <div className="dialog-field__label">Instruction outputs</div>
+                  <div className="agent-context-adapters__list">
+                    {agentContextAdapters.adapters.map((adapter) => (
+                      <div className="agent-context-adapters__row" key={adapter.id}>
+                        <label className="agent-context-adapters__toggle">
+                          <input
+                            checked={adapter.enabled}
+                            data-testid={`agent-context-adapter-${adapter.id}`}
+                            disabled={agentContextAdapters.saveStatus === "saving"}
+                            onChange={(event) => toggleAgentContextAdapter(adapter.id, event.target.checked)}
+                            type="checkbox"
+                          />
+                          <span>
+                            <strong>{adapter.fileName}</strong>
+                            <small>{adapter.label}</small>
+                          </span>
+                        </label>
+                        {!adapter.builtIn ? (
+                          <button
+                            aria-label={`Remove ${adapter.fileName}`}
+                            className="dialog-card__close"
+                            disabled={agentContextAdapters.saveStatus === "saving"}
+                            onClick={() => removeAgentContextAdapter(adapter.id)}
+                            type="button"
+                          >
+                            <X size={14} />
+                          </button>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="agent-context-adapters__add">
+                    <input
+                      className="dialog-card__input"
+                      data-testid="agent-context-adapter-file-name"
+                      placeholder="soul.md"
+                      value={agentContextAdapters.draftFileName}
+                      onChange={(event) =>
+                        setAgentContextAdapters((current) => ({
+                          ...current,
+                          draftFileName: event.target.value,
+                          saveStatus: "idle",
+                          errorMessage: null,
+                        }))
+                      }
+                    />
+                    <input
+                      className="dialog-card__input"
+                      data-testid="agent-context-adapter-label"
+                      placeholder="Soul compatibility"
+                      value={agentContextAdapters.draftLabel}
+                      onChange={(event) =>
+                        setAgentContextAdapters((current) => ({
+                          ...current,
+                          draftLabel: event.target.value,
+                          saveStatus: "idle",
+                          errorMessage: null,
+                        }))
+                      }
+                    />
+                    <button
+                      className="toolbar-button"
+                      data-testid="agent-context-adapter-add"
+                      disabled={agentContextAdapters.saveStatus === "saving" || !agentContextAdapters.draftFileName.trim()}
+                      onClick={addAgentContextAdapter}
+                      type="button"
+                    >
+                      Add output
+                    </button>
+                  </div>
+                  {agentContextAdapters.saveStatus === "saved" ? (
+                    <div className="dialog-card__status" data-testid="agent-context-adapters-status">Instruction outputs updated.</div>
+                  ) : null}
+                  {agentContextAdapters.saveStatus === "error" && agentContextAdapters.errorMessage ? (
+                    <div className="dialog-card__status dialog-card__status--error">{agentContextAdapters.errorMessage}</div>
+                  ) : null}
+                </section>
                 <section className="agent-context-manager__section">
                   <div className="dialog-field__label">Provider files</div>
                   <div className="agent-context-settings__list" data-testid="agent-context-file-list">
@@ -4026,6 +4230,10 @@ function latestAgentContextHistoryForTarget(history: AgentContextHistoryEntry[],
 
 function latestAgentContextHistoryEntry(history: AgentContextHistoryEntry[]) {
   return [...history].sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] ?? null;
+}
+
+function isSafeAgentContextFileName(fileName: string) {
+  return Boolean(fileName.trim()) && !fileName.includes("/") && !fileName.includes("\\") && !fileName.startsWith(".");
 }
 
 function formatAgentContextHistoryTime(value: string): string {
