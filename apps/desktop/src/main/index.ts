@@ -76,7 +76,7 @@ process.on("unhandledRejection", (reason) => {
   logMain("unhandled rejection", serializeError(reason));
 });
 
-const singleInstanceLock = app.requestSingleInstanceLock();
+const singleInstanceLock = app.requestSingleInstanceLock(resolveSingleInstanceData());
 
 let mainWindow: BrowserWindow | null = null;
 let rendererReady = false;
@@ -100,6 +100,9 @@ const rendererRecoveryTimestamps: number[] = [];
 const streamingTerminalIds = new Set<string>();
 
 if (!singleInstanceLock) {
+  console.error(
+    "[exo] another Exo instance is already running; this dev process will exit after asking the running app to focus and refresh command-server discovery.",
+  );
   app.quit();
 }
 
@@ -148,7 +151,7 @@ function startCommandServer() {
   const runtimeConfig = resolveRuntimeConfig();
 
   commandServer?.stop();
-  commandServer = new CommandServer({
+  const nextCommandServer = new CommandServer({
     runtimeRoot: runtimeConfig.runtimeRoot,
     onShowWindow: () => showMainWindow(),
     onOpenFile: (filePath: string) => {
@@ -178,10 +181,52 @@ function startCommandServer() {
       terminals: terminalManager.list(),
     }),
   });
+  commandServer = nextCommandServer;
 
-  commandServer.start().catch((error) => {
+  nextCommandServer.start().then((port) => {
+    logMain("command server started", { runtimeRoot: runtimeConfig.runtimeRoot, port });
+  }).catch((error) => {
+    if (commandServer === nextCommandServer) {
+      commandServer = null;
+    }
     console.error("Failed to start command server:", error);
+    logMain("command server start failed", serializeError(error));
   });
+}
+
+async function refreshCommandServerDiscovery(reason: string): Promise<void> {
+  if (!commandServer?.isListening()) {
+    console.warn(`[exo] command server was not listening during ${reason}; restarting it.`);
+    logMain("command server discovery refresh restarting server", { reason });
+    startCommandServer();
+    return;
+  }
+
+  try {
+    const info = await commandServer.ensureDiscoveryFile();
+    console.info(`[exo] command server discovery refreshed for ${reason}: ${info.path} (port ${info.port})`);
+    logMain("command server discovery refreshed", { reason, path: info.path, port: info.port });
+  } catch (error) {
+    console.error(`[exo] failed to refresh command server discovery for ${reason}:`, error);
+    logMain("command server discovery refresh failed", { reason, error: serializeError(error) });
+  }
+}
+
+function resolveSingleInstanceData(): Record<string, string | number> {
+  const runtimeConfig = resolveRuntimeConfig();
+  return {
+    pid: process.pid,
+    runtimeRoot: runtimeConfig.runtimeRoot,
+    workspaceRoot: runtimeConfig.workspace.workspaceRoot,
+  };
+}
+
+function extractRuntimeRoot(value: unknown): string | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+  const runtimeRoot = (value as { runtimeRoot?: unknown }).runtimeRoot;
+  return typeof runtimeRoot === "string" ? runtimeRoot : undefined;
 }
 
 function createWindow() {
@@ -1465,7 +1510,12 @@ app.whenReady().then(async () => {
     showMainWindow();
   });
 
-  app.on("second-instance", () => {
+  app.on("second-instance", (_event, _commandLine, workingDirectory, additionalData) => {
+    logMain("second instance requested focus", {
+      workingDirectory,
+      requestedRuntimeRoot: extractRuntimeRoot(additionalData),
+    });
+    void refreshCommandServerDiscovery("second-instance");
     showMainWindow();
   });
 });
