@@ -13,6 +13,7 @@ import pty, { type IPty } from "node-pty";
 import { resolveAgentLaunchPlan, resolveRuntimeConfig, syncRuntimeContextFiles, type RuntimeConfig } from "@exo/core";
 
 import type { TerminalCreateOptions, TerminalSessionInfo, TerminalKind } from "../shared/api";
+import { agentInstructionOverlayEnv, writeAgentInstructionOverlaysSync } from "./agent-instruction-overlays";
 import { sanitizeTranscriptName, TerminalTranscriptStore } from "./terminal-transcripts";
 
 interface TerminalRecord {
@@ -186,15 +187,20 @@ export class TerminalManager extends EventEmitter {
     const cwd = options.cwd ?? this.defaultCwd;
     await this.syncRuntimeContext();
     const launch = resolveAgentLaunchPlan(this.runtimeConfig, options.kind, cwd);
+    const isAgent = options.kind === "claude" || options.kind === "codex";
+    const overlayEnv = isAgent ? agentInstructionOverlayEnv(this.runtimeConfig.workspace, launch.cwd) : {};
+    if (isAgent) {
+      writeAgentInstructionOverlaysSync(this.runtimeConfig.workspace);
+    }
     const env = {
       ...process.env,
       TERM: "xterm-256color",
       COLORTERM: "truecolor",
       SHELL_SESSIONS_DISABLE: "1",
       ...launch.env,
+      ...overlayEnv,
     };
 
-    const isAgent = options.kind === "claude" || options.kind === "codex";
     const useTmux = isAgent && this.tmuxAvailable;
 
     let spawnCommand = launch.command;
@@ -203,7 +209,7 @@ export class TerminalManager extends EventEmitter {
 
     if (useTmux) {
       tmuxSession = `${TMUX_PREFIX}-${options.kind}-${randomBytes(4).toString("hex")}`;
-      createTmuxAgentSession(tmuxSession, launch.cwd, launch.command, launch.args, this.tmuxHistoryLines);
+      createTmuxAgentSession(tmuxSession, launch.cwd, launch.command, launch.args, this.tmuxHistoryLines, env);
       spawnCommand = "tmux";
       spawnArgs = ["attach-session", "-t", tmuxSession];
     }
@@ -224,6 +230,7 @@ export class TerminalManager extends EventEmitter {
       cwd: launch.cwd,
       kind: options.kind,
       command: launch.command,
+      instructionOverlayPath: overlayEnv.EXO_INSTRUCTIONS ?? null,
       status: "running",
     };
 
@@ -339,6 +346,7 @@ export class TerminalManager extends EventEmitter {
       cwd: entry.cwd,
       kind: entry.kind,
       command: entry.command,
+      instructionOverlayPath: agentInstructionOverlayEnv(this.runtimeConfig.workspace, entry.cwd).EXO_INSTRUCTIONS,
       status: "running",
     };
 
@@ -545,12 +553,17 @@ function trimBufferLines(buffer: string, lineLimit: number | null): string {
   return lines.slice(-lineLimit).join("\n");
 }
 
-function createTmuxAgentSession(name: string, cwd: string, command: string, args: string[], historyLines: number): void {
+function createTmuxAgentSession(name: string, cwd: string, command: string, args: string[], historyLines: number, env: Record<string, string | undefined>): void {
   try {
     execFileSync("tmux", ["new-session", "-d", "-s", name, "-c", cwd, "-n", TMUX_BOOTSTRAP_WINDOW, "sleep", "31536000"], {
       stdio: "ignore",
     });
     setTmuxHistoryLimit(name, historyLines);
+    for (const [key, value] of Object.entries(env)) {
+      if (key.startsWith("EXO_") && value !== undefined) {
+        execFileSync("tmux", ["set-environment", "-t", name, key, value], { stdio: "ignore" });
+      }
+    }
     execFileSync("tmux", ["new-window", "-d", "-t", name, "-c", cwd, command, ...args], { stdio: "ignore" });
     execFileSync("tmux", ["kill-window", "-t", `${name}:${TMUX_BOOTSTRAP_WINDOW}`], { stdio: "ignore" });
   } catch (err) {

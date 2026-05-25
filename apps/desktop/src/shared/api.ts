@@ -21,6 +21,7 @@ export interface TerminalSessionInfo {
   cwd: string;
   kind: TerminalKind;
   command: string;
+  instructionOverlayPath?: string | null;
   status: "running" | "exited";
   exitCode?: number;
 }

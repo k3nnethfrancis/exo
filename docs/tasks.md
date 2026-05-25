@@ -59,6 +59,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [ ] Add a user-facing provider file adapter settings UI.
 - [ ] Extend agent config management to MCP/provider config files beyond instruction files.
 - [x] Keep Exo-generated runtime overlays under `.exo/instructions/` separate from user-authored context files.
+- [x] Pass the matching `.exo/instructions/` overlay to Exo-launched terminal agents through environment variables.
 
 ## Next: Authorship And Provenance
 

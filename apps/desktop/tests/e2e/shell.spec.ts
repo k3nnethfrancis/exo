@@ -228,6 +228,34 @@ test("shows terminals created outside renderer controls", async () => {
   await cleanup();
 });
 
+test("passes Exo instruction overlays to launched terminal agents", async () => {
+  const { page, workspaceRoot, cleanup } = await launchExoFixture({
+    mutable: true,
+    env: {
+      EXO_CLAUDE_COMMAND: "/bin/sh",
+      EXO_CLAUDE_ARGS: "-lc,printf 'EXO_INSTRUCTIONS=%s\\n' \"$EXO_INSTRUCTIONS\"; test -f \"$EXO_INSTRUCTIONS\" && grep -m1 'Exo Runtime Context' \"$EXO_INSTRUCTIONS\"; printf 'EXO_WORKSPACE_ROOT=%s\\n' \"$EXO_WORKSPACE_ROOT\"; printf 'EXO_PROJECT_ROOTS=%s\\n' \"$EXO_PROJECT_ROOTS\"; sleep 10",
+    },
+  });
+  const projectRoot = path.join(workspaceRoot, "projects/sample-project");
+  const sessionId = await page.evaluate(async (cwd) => {
+    const session = await window.exo.terminals.create({ kind: "claude", cwd });
+    return session.id;
+  }, projectRoot);
+
+  await expect.poll(async () => page.evaluate((id) => window.exo.terminals.read(id), sessionId)).toContain("EXO_INSTRUCTIONS=");
+  const buffer = await page.evaluate((id) => window.exo.terminals.read(id), sessionId);
+  expect(buffer).toContain("Exo Runtime Context");
+  expect(buffer).toContain(`EXO_WORKSPACE_ROOT=${workspaceRoot}`);
+  expect(buffer).toContain(projectRoot);
+
+  const sessions = await page.evaluate(() => window.exo.terminals.list());
+  const claude = sessions.find((session) => session.id === sessionId);
+  expect(claude?.instructionOverlayPath).toContain(path.join(".exo", "instructions", "projects"));
+  await expect.poll(async () => readFile(claude?.instructionOverlayPath ?? "", "utf8")).toContain("sample-project");
+
+  await cleanup();
+});
+
 test("expands and collapses the project roots drawer", async () => {
   const { page, cleanup } = await launchExoFixture();
 
