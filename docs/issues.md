@@ -6,19 +6,6 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 
 ## Open
 
-### EXO-ISSUE-009: Agent create subcommand treats `--help` as a cwd
-
-- Status: open
-- Severity: low
-- Area: CLI ergonomics, agent orchestration
-- Observed: running `exo agents create codex --help` created a Codex terminal with cwd `--help` instead of showing help for the create subcommand.
-- Expected: `--help` should be handled as help text at every agent subcommand boundary, or rejected as an invalid path with a clear message.
-- Investigation notes:
-  - Found during post-merge app QA while checking the live `exo agents` command surface.
-  - The accidental session was terminated immediately.
-- QA coverage to add:
-  - CLI regression for `exo agents create --help` and `exo agents create codex --help`.
-
 ### EXO-ISSUE-010: Codex agent sessions report Exo MCP startup handshake failure
 
 - Status: open
@@ -49,6 +36,19 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
   - Regression that raw non-submitted input can still answer provider interstitials.
 
 ## Fixed
+
+### EXO-ISSUE-009: Agent create subcommand treats `--help` as a cwd
+
+- Status: fixed
+- Severity: low
+- Area: CLI ergonomics, agent orchestration
+- Observed: running `exo agents create codex --help` created a Codex terminal with cwd `--help` instead of showing help for the create subcommand.
+- Fixed:
+  - `exo agents --help`, `exo agents create --help`, and `exo agents create <provider> --help` are handled before app connection/terminal creation.
+  - Option-shaped create cwd values now fail with a clear invalid-cwd error instead of being passed to terminal creation.
+- QA coverage:
+  - Added CLI regressions for `exo agents create --help`, `exo agents create codex --help`, and non-help option-shaped cwd rejection.
+  - Live app QA verified identical `exo agents list` output before and after both help commands.
 
 ### EXO-ISSUE-005: Dev app can exit after build without exposing the Exo CLI server
 

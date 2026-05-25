@@ -175,6 +175,64 @@ describe("cli package", () => {
     expect(stdout).toContain("Queued message for term-1");
   });
 
+  it("prints agents create help without connecting to the app", async () => {
+    let stdout = "";
+    let connected = false;
+
+    const exitCode = await runCli(["node", "exo-cli", "agents", "create", "--help"], {
+      env: testRuntimeEnv(),
+      stdout: { write: (text) => { stdout += text; } },
+      stderr: { write: () => {} },
+      connectAppClient: async () => {
+        connected = true;
+        return fakeAppClient();
+      },
+    });
+
+    expect(exitCode).toBe(0);
+    expect(connected).toBe(false);
+    expect(stdout).toContain("Usage: exo agents create <shell|claude|codex> [cwd]");
+  });
+
+  it("prints provider-specific agents create help without creating a terminal", async () => {
+    let stdout = "";
+    let created = false;
+
+    const exitCode = await runCli(["node", "exo-cli", "agents", "create", "codex", "--help"], {
+      env: testRuntimeEnv(),
+      stdout: { write: (text) => { stdout += text; } },
+      stderr: { write: () => {} },
+      connectAppClient: async () => fakeAppClient({
+        createTerminal: async () => {
+          created = true;
+          return { id: "term-1" };
+        },
+      }),
+    });
+
+    expect(exitCode).toBe(0);
+    expect(created).toBe(false);
+    expect(stdout).toContain("Usage: exo agents create <shell|claude|codex> [cwd]");
+  });
+
+  it("rejects option-shaped agent create cwd values without creating a terminal", async () => {
+    let created = false;
+
+    await expect(runCli(["node", "exo-cli", "agents", "create", "codex", "--unexpected"], {
+      env: testRuntimeEnv(),
+      stdout: { write: () => {} },
+      stderr: { write: () => {} },
+      connectAppClient: async () => fakeAppClient({
+        createTerminal: async () => {
+          created = true;
+          return { id: "term-1" };
+        },
+      }),
+    })).rejects.toThrow("Invalid cwd for exo agents create: --unexpected");
+
+    expect(created).toBe(false);
+  });
+
   it("passes search limits through the app route", async () => {
     let receivedQuery = "";
     let receivedLimit: number | undefined;
