@@ -708,11 +708,11 @@ function parseGitDiffFirstChangedLines(output: string): Map<string, number> {
 }
 
 async function listAgentContextFiles() {
-  return Promise.all(agentContextCandidates().map(readAgentContextCandidate));
+  return Promise.all(agentContextCandidates().map(readAgentContextCandidateSafe));
 }
 
 async function listAgentManagedConfigFiles() {
-  return Promise.all(agentManagedConfigCandidates().map(readAgentManagedConfigCandidate));
+  return Promise.all(agentManagedConfigCandidates().map(readAgentManagedConfigCandidateSafe));
 }
 
 async function saveAgentManagedConfigFile(filePath: string, body: string) {
@@ -1019,6 +1019,19 @@ async function readAgentContextCandidate(candidate: ReturnType<typeof agentConte
   };
 }
 
+async function readAgentContextCandidateSafe(candidate: ReturnType<typeof agentContextCandidates>[number]) {
+  try {
+    return await readAgentContextCandidate(candidate);
+  } catch (error) {
+    return {
+      ...candidate,
+      exists: existsSync(candidate.path),
+      body: "",
+      errorMessage: errorMessage(error),
+    };
+  }
+}
+
 async function readAgentManagedConfigCandidate(candidate: ReturnType<typeof agentManagedConfigCandidates>[number]) {
   const body = await readFile(candidate.path, "utf8").catch((error: NodeJS.ErrnoException) => {
     if (error.code === "ENOENT") {
@@ -1031,6 +1044,19 @@ async function readAgentManagedConfigCandidate(candidate: ReturnType<typeof agen
     exists: body.length > 0,
     body,
   };
+}
+
+async function readAgentManagedConfigCandidateSafe(candidate: ReturnType<typeof agentManagedConfigCandidates>[number]) {
+  try {
+    return await readAgentManagedConfigCandidate(candidate);
+  } catch (error) {
+    return {
+      ...candidate,
+      exists: existsSync(candidate.path),
+      body: "",
+      errorMessage: errorMessage(error),
+    };
+  }
 }
 
 async function fileExists(targetPath: string): Promise<boolean> {

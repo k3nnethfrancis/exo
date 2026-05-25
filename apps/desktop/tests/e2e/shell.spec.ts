@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { access, readFile, readdir, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { test, expect } from "@playwright/test";
 
@@ -342,7 +342,13 @@ test("renders inspector content when expanded", async () => {
 });
 
 test("opens workspace settings from the sidebar", async () => {
-  const { page, cleanup } = await launchExoFixture();
+  const { page, cleanup } = await launchExoFixture({
+    env: {
+      EXO_INDEX_ENABLED: "0",
+      EXO_INDEX_MODE: "off",
+      EXO_INDEXED_ROOTS: "[]",
+    },
+  });
 
   await page.getByTestId("workspace-settings").click();
   await expect(page.getByTestId("workspace-settings-dialog")).toBeVisible();
@@ -356,6 +362,35 @@ test("opens workspace settings from the sidebar", async () => {
   await expect(page.getByTestId("workspace-settings-terminal-streaming-mode")).toHaveValue("visible");
 
   await cleanup();
+});
+
+test("opens workspace settings with partial agent context discovery errors", async () => {
+  const { page, workspaceRoot, cleanup } = await launchExoFixture({
+    env: {
+      EXO_INDEX_ENABLED: "0",
+      EXO_INDEX_MODE: "off",
+      EXO_INDEXED_ROOTS: "[]",
+    },
+    prepareWorkspace: async (workspaceRoot) => {
+      await mkdir(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"));
+    },
+  });
+
+  try {
+    await page.getByTestId("workspace-settings").click();
+    await expect(page.getByTestId("workspace-settings-dialog")).toBeVisible();
+    await expect(page.getByTestId("workspace-settings-note-roots")).toContainText("test-notes");
+    await page.getByTestId("workspace-settings-tab-agents").click();
+    await expect(page.getByTestId("agent-context-settings")).toContainText("Agent context");
+    await expect(page.getByTestId("agent-context-partial-errors")).toContainText("Some agent context data could not be loaded");
+    await expect(page.getByTestId("agent-context-partial-errors")).toContainText("sample-project / AGENTS.md");
+    await page.getByTestId("agent-context-open-manager").click();
+    await expect(page.getByTestId("agent-context-manager")).toBeVisible();
+    await expect(page.getByTestId("agent-context-manager-partial-errors")).toContainText("sample-project / AGENTS.md");
+    await expect(page.getByTestId("agent-context-file-list")).toContainText("Error");
+  } finally {
+    await cleanup();
+  }
 });
 
 test("edits agent context files from workspace settings", async () => {

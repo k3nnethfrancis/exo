@@ -91,6 +91,7 @@ interface WorkspaceSettingsDialogState {
   appliedWorkspaceKey: string;
   applyStatus: "idle" | "applying" | "applied" | "error";
   applyErrorMessage: string | null;
+  partialErrorMessages: string[];
 }
 
 interface OnboardingState {
@@ -251,6 +252,7 @@ export function App() {
   const [workspaceDialog, setWorkspaceDialog] = useState<WorkspaceDialogState | null>(null);
   const [workspaceSettingsDialog, setWorkspaceSettingsDialog] = useState<WorkspaceSettingsDialogState | null>(null);
   const [agentContextManagerOpen, setAgentContextManagerOpen] = useState(false);
+  const [agentContextLoadErrors, setAgentContextLoadErrors] = useState<string[]>([]);
   const [agentContextEditor, setAgentContextEditor] = useState<AgentContextEditorState>({
     files: [],
     selectedPath: null,
@@ -986,6 +988,26 @@ export function App() {
     () => [...new Set(agentContextEditor.files.map((file) => file.providerLabel))],
     [agentContextEditor.files],
   );
+  const agentContextPartialErrors = useMemo(
+    () =>
+      uniqueMessages([
+        ...agentContextLoadErrors,
+        ...agentContextEditor.files.flatMap((file) =>
+          file.errorMessage ? [`${file.label}: ${file.errorMessage}`] : [],
+        ),
+        ...agentManagedConfigs.files.flatMap((file) =>
+          file.errorMessage ? [`${file.label}: ${file.errorMessage}`] : [],
+        ),
+      ]),
+    [agentContextEditor.files, agentContextLoadErrors, agentManagedConfigs.files],
+  );
+  const workspaceSettingsPartialErrors = useMemo(
+    () =>
+      workspaceSettingsDialog
+        ? uniqueMessages([...workspaceSettingsDialog.partialErrorMessages, ...agentContextPartialErrors])
+        : agentContextPartialErrors,
+    [agentContextPartialErrors, workspaceSettingsDialog],
+  );
   const latestAgentContextHistory = useMemo(
     () => latestAgentContextHistoryEntry(agentContextComposer.history),
     [agentContextComposer.history],
@@ -1114,26 +1136,27 @@ export function App() {
   }
 
   async function loadAgentContextState() {
-    const agentContextFiles = await window.exo.workspace.listAgentContextFiles().catch((error) => {
-      console.warn("[exo] failed to list agent context files", error);
-      return [];
-    });
-    const agentContextHistory = await window.exo.workspace.listAgentContextHistory().catch((error) => {
-      console.warn("[exo] failed to list agent context history", error);
-      return [];
-    });
-    const agentContextFileAdapters = await window.exo.workspace.listAgentContextFileAdapters().catch((error) => {
-      console.warn("[exo] failed to list agent context file adapters", error);
-      return [];
-    });
-    const agentManagedConfigFiles = await window.exo.workspace.listAgentManagedConfigFiles().catch((error) => {
-      console.warn("[exo] failed to list managed agent config files", error);
-      return [];
-    });
-    const instructionOverlays = await window.exo.workspace.listAgentInstructionOverlays().catch((error) => {
-      console.warn("[exo] failed to list agent instruction overlays", error);
-      return [];
-    });
+    const loadErrors: string[] = [];
+    const loadOrFallback = async <T,>(label: string, load: () => Promise<T>, fallback: T): Promise<T> => {
+      try {
+        return await load();
+      } catch (error) {
+        console.warn(`[exo] failed to load ${label}`, error);
+        loadErrors.push(`${label}: ${error instanceof Error ? error.message : String(error)}`);
+        return fallback;
+      }
+    };
+
+    const agentContextFiles = await loadOrFallback("agent context files", () => window.exo.workspace.listAgentContextFiles(), [] as AgentContextFile[]);
+    const agentContextHistory = await loadOrFallback("agent context history", () => window.exo.workspace.listAgentContextHistory(), [] as AgentContextHistoryEntry[]);
+    const agentContextFileAdapters = await loadOrFallback("agent context file adapters", () => window.exo.workspace.listAgentContextFileAdapters(), [] as AgentContextFileAdapter[]);
+    const agentManagedConfigFiles = await loadOrFallback("managed agent config files", () => window.exo.workspace.listAgentManagedConfigFiles(), [] as AgentManagedConfigFile[]);
+    const instructionOverlays = await loadOrFallback("agent instruction overlays", () => window.exo.workspace.listAgentInstructionOverlays(), [] as AgentInstructionOverlay[]);
+    const partialErrors = uniqueMessages([
+      ...loadErrors,
+      ...agentContextFiles.flatMap((file) => file.errorMessage ? [`${file.label}: ${file.errorMessage}`] : []),
+      ...agentManagedConfigFiles.flatMap((file) => file.errorMessage ? [`${file.label}: ${file.errorMessage}`] : []),
+    ]);
     setAgentContextEditor({
       files: agentContextFiles,
       selectedPath: agentContextFiles[0]?.path ?? null,
@@ -1167,20 +1190,20 @@ export function App() {
       errorMessage: null,
     });
     setMcpServerEditor(mcpServerEditorStateFromBody(agentManagedConfigFiles[0]?.body ?? ""));
+    setAgentContextLoadErrors(partialErrors);
+    return partialErrors;
   }
 
   async function openAgentContextManager() {
-    await loadAgentContextState();
     setWorkspaceSettingsDialog(null);
     setAgentContextManagerOpen(true);
+    void loadAgentContextState();
   }
 
   async function openWorkspaceSettingsDialog(section: WorkspaceSettingsSection = "workspace") {
     const settings = await window.exo.workspace.getSettings();
-    const indexStatus = await window.exo.workspace.getIndexStatus();
-    setIndexStatus(indexStatus);
-    await loadAgentContextState();
     const appliedWorkspaceKey = workspaceSettingsStructuralKeyFromSettings(settings);
+    setAgentContextLoadErrors([]);
     setWorkspaceSettingsDialog({
       section,
       workspaceRoot: settings.workspaceRoot,
@@ -1205,6 +1228,14 @@ export function App() {
       appliedWorkspaceKey,
       applyStatus: "idle",
       applyErrorMessage: null,
+      partialErrorMessages: [],
+    });
+    void window.exo.workspace.getIndexStatus().then(setIndexStatus).catch((error) => {
+      console.warn("[exo] failed to load index status", error);
+      setIndexStatus(null);
+    });
+    void loadAgentContextState().then((partialErrorMessages) => {
+      setWorkspaceSettingsDialog((current) => current ? { ...current, partialErrorMessages } : current);
     });
   }
 
@@ -3321,6 +3352,14 @@ export function App() {
               </button>
             </div>
             <div className="dialog-card__message">Workspace paths and index settings apply when you press Apply.</div>
+            {workspaceSettingsPartialErrors.length > 0 ? (
+              <div className="dialog-card__status dialog-card__status--error" data-testid="agent-context-partial-errors">
+                <div>Some agent context data could not be loaded.</div>
+                {workspaceSettingsPartialErrors.slice(0, 3).map((message) => (
+                  <div key={message}>{message}</div>
+                ))}
+              </div>
+            ) : null}
             <div className="dialog-tabs" role="tablist" aria-label="Workspace settings sections">
               {(["workspace", "index", "agents", "appearance", "terminal"] as WorkspaceSettingsSection[]).map((section) => (
                 <button
@@ -3936,6 +3975,14 @@ export function App() {
                 <X size={16} />
               </button>
             </div>
+            {agentContextPartialErrors.length > 0 ? (
+              <div className="dialog-card__status dialog-card__status--error" data-testid="agent-context-manager-partial-errors">
+                <div>Some agent context data could not be loaded.</div>
+                {agentContextPartialErrors.slice(0, 3).map((message) => (
+                  <div key={message}>{message}</div>
+                ))}
+              </div>
+            ) : null}
             <div className="agent-context-manager" data-testid="agent-context-settings">
               <div className="agent-context-manager__main" data-testid="agent-context-composer">
                 <div className="dialog-field__header">
@@ -4348,7 +4395,7 @@ export function App() {
                         type="button"
                       >
                         <span>{file.label}</span>
-                        <span>{file.providerLabel} · {file.exists ? "Existing" : "New"}</span>
+                        <span>{file.providerLabel} · {file.errorMessage ? "Error" : file.exists ? "Existing" : "New"}</span>
                       </button>
                     ))}
                   </div>
@@ -4366,7 +4413,7 @@ export function App() {
                         type="button"
                       >
                         <span>{file.label}</span>
-                        <span>{file.provider} · {file.category.toUpperCase()} · {file.exists ? "Existing" : "New"}</span>
+                        <span>{file.provider} · {file.category.toUpperCase()} · {file.errorMessage ? "Error" : file.exists ? "Existing" : "New"}</span>
                       </button>
                     ))}
                   </div>
@@ -4554,6 +4601,10 @@ function extractManagedAgentContextBody(body: string): string {
   }
   const match = EXO_AGENT_CONTEXT_BODY_PATTERN.exec(body);
   return match?.[1]?.trim() ?? "";
+}
+
+function uniqueMessages(messages: string[]): string[] {
+  return [...new Set(messages.map((message) => message.trim()).filter(Boolean))];
 }
 
 function agentContextHistoryEntriesForTarget(history: AgentContextHistoryEntry[], targetId: string | null) {

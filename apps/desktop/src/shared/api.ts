@@ -80,6 +80,7 @@ export interface AgentContextFile {
   path: string;
   exists: boolean;
   body: string;
+  errorMessage?: string | null;
 }
 
 export interface AgentContextFileAdapter {
@@ -99,6 +100,7 @@ export interface AgentManagedConfigFile {
   path: string;
   exists: boolean;
   body: string;
+  errorMessage?: string | null;
 }
 
 export interface AgentContextTarget {
