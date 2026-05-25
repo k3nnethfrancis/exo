@@ -1300,6 +1300,12 @@ button svg,
   overflow: hidden;
 }
 
+.dialog-card--agent-context-manager {
+  width: min(1120px, calc(100vw - 48px));
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
 .dialog-card__header {
   display: flex;
   align-items: center;
@@ -1416,6 +1422,92 @@ select.dialog-card__input {
   min-height: 360px;
 }
 
+.agent-context-summary {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.agent-context-summary__header,
+.agent-context-summary__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-width: 0;
+}
+
+.agent-context-summary__copy {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.agent-context-summary__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.agent-context-summary__metric {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--divider) 55%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+}
+
+.agent-context-summary__metric span,
+.agent-context-summary__metric small,
+.agent-context-summary__footer {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.agent-context-summary__metric strong {
+  color: var(--text);
+  font-size: 20px;
+  font-weight: 650;
+}
+
+.agent-context-summary__metric small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-context-manager {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.34fr);
+  gap: 14px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.agent-context-manager__main,
+.agent-context-manager__side,
+.agent-context-manager__section {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.agent-context-manager__main,
+.agent-context-manager__side {
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.agent-context-manager__composer-field {
+  min-height: 210px;
+}
+
 .agent-context-settings__composer {
   display: grid;
   grid-column: 1 / -1;
@@ -1434,7 +1526,7 @@ select.dialog-card__input {
 }
 
 .agent-context-settings__composer-textarea {
-  min-height: 130px;
+  min-height: 180px;
   resize: vertical;
   font-family: var(--mono);
   font-size: 11px;
@@ -1591,11 +1683,24 @@ select.dialog-card__input {
 }
 
 .agent-context-settings__textarea {
-  min-height: 300px;
+  min-height: 260px;
   resize: none;
   font-family: var(--mono);
   font-size: 12px;
   line-height: 1.5;
+}
+
+@media (max-width: 860px) {
+  .agent-context-summary__header,
+  .agent-context-summary__footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .agent-context-summary__grid,
+  .agent-context-manager {
+    grid-template-columns: 1fr;
+  }
 }
 
 .dialog-card__apply-row {

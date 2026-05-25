@@ -381,6 +381,10 @@ test("edits agent context files from workspace settings", async () => {
   await page.getByTestId("workspace-settings").click();
   await page.getByTestId("workspace-settings-tab-agents").click();
   await expect(page.getByTestId("agent-context-settings")).toBeVisible();
+  await expect(page.getByTestId("agent-context-settings")).toContainText("Agent context");
+  await expect(page.getByTestId("agent-context-settings")).toContainText("Instruction outputs");
+  await page.getByTestId("agent-context-open-manager").click();
+  await expect(page.getByTestId("agent-context-manager")).toBeVisible();
   await expect(page.getByTestId("agent-instruction-overlay-body")).toContainText("Exo Runtime Context");
   await expect(page.getByTestId("agent-instruction-overlay-body")).toContainText("sample-project");
   await expect.poll(async () => readFile(path.join(workspaceRoot, ".exo/instructions/global.md"), "utf8")).toContain("Attached Project Roots");
@@ -486,9 +490,11 @@ test("edits agent context files from workspace settings", async () => {
     readFile(path.join(workspaceRoot, "notes/test-notes/AGENTS.md"), "utf8"),
   ).toContain("Use unified notes context.");
 
-  await page.getByTestId("workspace-settings-close").click();
+  await page.getByTestId("agent-context-manager-close").click();
   await page.getByTestId("workspace-settings").click();
   await page.getByTestId("workspace-settings-tab-agents").click();
+  await expect(page.getByTestId("agent-context-settings")).toContainText("Instruction outputs");
+  await page.getByTestId("agent-context-open-manager").click();
   await expect(page.getByTestId("agent-context-unified-editor")).toHaveValue("Use unified global context.");
   await page.getByTestId("agent-context-target").selectOption({ label: "sample-project (project)" });
   await expect(page.getByTestId("agent-context-unified-editor")).toHaveValue("Use unified project context.");

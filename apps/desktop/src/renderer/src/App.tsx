@@ -225,6 +225,7 @@ export function App() {
   const [, setAgentAnnotations] = useState<Record<string, { runLabel: string; parentId: string | null }>>({});
   const [workspaceDialog, setWorkspaceDialog] = useState<WorkspaceDialogState | null>(null);
   const [workspaceSettingsDialog, setWorkspaceSettingsDialog] = useState<WorkspaceSettingsDialogState | null>(null);
+  const [agentContextManagerOpen, setAgentContextManagerOpen] = useState(false);
   const [agentContextEditor, setAgentContextEditor] = useState<AgentContextEditorState>({
     files: [],
     selectedPath: null,
@@ -927,6 +928,14 @@ export function App() {
     [agentContextComposer.history, agentContextComposer.selectedTargetId],
   );
   const selectedInstructionOverlay = agentContextComposer.overlays.find((overlay) => overlay.id === agentContextComposer.selectedOverlayId) ?? agentContextComposer.overlays[0] ?? null;
+  const agentContextOutputLabels = useMemo(
+    () => [...new Set(agentContextEditor.files.map((file) => file.providerLabel))],
+    [agentContextEditor.files],
+  );
+  const latestAgentContextHistory = useMemo(
+    () => latestAgentContextHistoryEntry(agentContextComposer.history),
+    [agentContextComposer.history],
+  );
 
   async function reloadTrees() {
     if (!workspaceModel) {
@@ -1044,9 +1053,7 @@ export function App() {
     return status;
   }
 
-  async function openWorkspaceSettingsDialog(section: WorkspaceSettingsSection = "workspace") {
-    const settings = await window.exo.workspace.getSettings();
-    const indexStatus = await window.exo.workspace.getIndexStatus();
+  async function loadAgentContextState() {
     const agentContextFiles = await window.exo.workspace.listAgentContextFiles().catch((error) => {
       console.warn("[exo] failed to list agent context files", error);
       return [];
@@ -1059,7 +1066,6 @@ export function App() {
       console.warn("[exo] failed to list agent instruction overlays", error);
       return [];
     });
-    setIndexStatus(indexStatus);
     setAgentContextEditor({
       files: agentContextFiles,
       selectedPath: agentContextFiles[0]?.path ?? null,
@@ -1077,6 +1083,19 @@ export function App() {
       saveStatus: "idle",
       errorMessage: null,
     });
+  }
+
+  async function openAgentContextManager() {
+    await loadAgentContextState();
+    setWorkspaceSettingsDialog(null);
+    setAgentContextManagerOpen(true);
+  }
+
+  async function openWorkspaceSettingsDialog(section: WorkspaceSettingsSection = "workspace") {
+    const settings = await window.exo.workspace.getSettings();
+    const indexStatus = await window.exo.workspace.getIndexStatus();
+    setIndexStatus(indexStatus);
+    await loadAgentContextState();
     const appliedWorkspaceKey = workspaceSettingsStructuralKeyFromSettings(settings);
     setWorkspaceSettingsDialog({
       section,
@@ -3298,210 +3317,43 @@ export function App() {
                 </>
               ) : null}
               {workspaceSettingsDialog.section === "agents" ? (
-                <div className="agent-context-settings" data-testid="agent-context-settings">
-                  <div className="agent-context-settings__composer" data-testid="agent-context-composer">
-                    <div className="dialog-field__header">
-                      <span className="dialog-field__label">Unified instructions</span>
-                      <div className="dialog-card__actions dialog-card__actions--split">
-                        <select
-                          className="dialog-card__input agent-context-settings__target"
-                          data-testid="agent-context-target"
-                          value={agentContextComposer.selectedTargetId ?? ""}
-                          onChange={(event) =>
-                            setAgentContextComposer((current) => ({
-                              ...current,
-                              selectedTargetId: event.target.value || null,
-                              body: event.target.value ? managedAgentContextBodyForTarget(agentContextEditor.files, event.target.value) : "",
-                              saveStatus: "idle",
-                              errorMessage: null,
-                            }))
-                          }
-                        >
-                          {agentContextTargets.map((target) => (
-                            <option key={target.id} value={target.id}>
-                              {target.label}
-                            </option>
-                          ))}
-                        </select>
-                        <button
-                          className="toolbar-button"
-                          data-testid="agent-context-save-unified"
-                          disabled={!agentContextComposer.selectedTargetId || agentContextComposer.saveStatus === "saving"}
-                          onClick={() => void saveUnifiedAgentContext()}
-                          type="button"
-                        >
-                          {agentContextComposer.saveStatus === "saving" ? "Writing…" : "Write provider files"}
-                        </button>
+                <div className="agent-context-summary" data-testid="agent-context-settings">
+                  <div className="agent-context-summary__header">
+                    <div>
+                      <div className="dialog-field__label">Agent context</div>
+                      <div className="agent-context-summary__copy">
+                        Unified instructions, provider output files, runtime overlays, and restore history live in the agent context manager.
                       </div>
                     </div>
-                    <label className="dialog-field">
-                      <span className="dialog-field__label">Instructions for all terminal agents</span>
-                      <textarea
-                        className="dialog-card__input agent-context-settings__composer-textarea"
-                        data-testid="agent-context-unified-editor"
-                        spellCheck={false}
-                        value={agentContextComposer.body}
-                        onChange={(event) =>
-                          setAgentContextComposer((current) => ({
-                            ...current,
-                            body: event.target.value,
-                            saveStatus: "idle",
-                            errorMessage: null,
-                          }))
-                        }
-                      />
-                    </label>
-                    <div className="agent-context-settings__history" data-testid="agent-context-history">
-                      {selectedAgentContextHistory ? (
-                        <>
-                          <div>
-                            <span>Last changed {formatAgentContextHistoryTime(selectedAgentContextHistory.createdAt)}</span>
-                            <span>{selectedAgentContextHistory.targetLabel}</span>
-                          </div>
-                          <div className="dialog-card__actions dialog-card__actions--split">
-                            <button
-                              className="toolbar-button"
-                              data-testid="agent-context-toggle-diff"
-                              onClick={() => setAgentContextComposer((current) => ({ ...current, historyOpen: !current.historyOpen }))}
-                              type="button"
-                            >
-                              {agentContextComposer.historyOpen ? "Hide diff" : "View diff"}
-                            </button>
-                            <button
-                              className="toolbar-button"
-                              data-testid="agent-context-restore-history"
-                              disabled={agentContextComposer.saveStatus === "saving"}
-                              onClick={() => void restoreAgentContextHistoryEntry(selectedAgentContextHistory.id)}
-                              type="button"
-                            >
-                              Restore previous
-                            </button>
-                          </div>
-                          {agentContextComposer.historyOpen ? (
-                            <pre className="agent-context-settings__diff" data-testid="agent-context-history-diff">
-                              {formatAgentContextHistoryDiff(selectedAgentContextHistory)}
-                            </pre>
-                          ) : null}
-                        </>
-                      ) : (
-                        <span>No previous Exo-managed version for this scope.</span>
-                      )}
+                    <button
+                      className="toolbar-button"
+                      data-testid="agent-context-open-manager"
+                      onClick={() => void openAgentContextManager()}
+                      type="button"
+                    >
+                      Open manager
+                    </button>
+                  </div>
+                  <div className="agent-context-summary__grid">
+                    <div className="agent-context-summary__metric">
+                      <span>Scopes</span>
+                      <strong>{agentContextTargets.length}</strong>
+                      <small>Global, notes, and attached projects.</small>
                     </div>
-                    {agentContextComposer.saveStatus === "saved" ? (
-                      <div className="dialog-card__status" data-testid="agent-context-unified-status">Provider files written.</div>
-                    ) : null}
-                    {agentContextComposer.saveStatus === "error" && agentContextComposer.errorMessage ? (
-                      <div className="dialog-card__status dialog-card__status--error">{agentContextComposer.errorMessage}</div>
-                    ) : null}
-                    <div className="agent-context-settings__overlay" data-testid="agent-instruction-overlay-preview">
-                      <div className="dialog-field__header">
-                        <span className="dialog-field__label">Generated overlay</span>
-                        <select
-                          className="dialog-card__input agent-context-settings__target"
-                          data-testid="agent-instruction-overlay-select"
-                          value={selectedInstructionOverlay?.id ?? ""}
-                          onChange={(event) =>
-                            setAgentContextComposer((current) => ({
-                              ...current,
-                              selectedOverlayId: event.target.value || null,
-                            }))
-                          }
-                        >
-                          {agentContextComposer.overlays.map((overlay) => (
-                            <option key={overlay.id} value={overlay.id}>
-                              {overlay.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="agent-context-settings__path">
-                        {selectedInstructionOverlay?.path ?? "No overlay generated."}
-                      </div>
-                      <pre className="agent-context-settings__overlay-body" data-testid="agent-instruction-overlay-body">
-                        {selectedInstructionOverlay?.body ?? ""}
-                      </pre>
+                    <div className="agent-context-summary__metric">
+                      <span>Instruction outputs</span>
+                      <strong>{agentContextOutputLabels.length}</strong>
+                      <small>{agentContextOutputLabels.length > 0 ? agentContextOutputLabels.join(", ") : "No provider outputs found."}</small>
+                    </div>
+                    <div className="agent-context-summary__metric">
+                      <span>Runtime overlays</span>
+                      <strong>{agentContextComposer.overlays.length}</strong>
+                      <small>Generated under .exo/instructions.</small>
                     </div>
                   </div>
-                  <div className="agent-context-settings__list" data-testid="agent-context-file-list">
-                    {agentContextEditor.files.map((file) => (
-                      <button
-                        className={`agent-context-settings__file ${file.path === agentContextEditor.selectedPath ? "agent-context-settings__file--active" : ""}`}
-                        data-testid={`agent-context-file-${file.scope}`}
-                        key={file.id}
-                        onClick={() => selectAgentContextFile(file.path)}
-                        title={file.path}
-                        type="button"
-                      >
-                        <span>{file.label}</span>
-                        <span>{file.exists ? "Existing" : "New"}</span>
-                      </button>
-                    ))}
-                  </div>
-                  <div className="agent-context-settings__editor">
-                    <div className="dialog-field__header">
-                      <span className="dialog-field__label">
-                        {selectedAgentContextFile?.label ?? "Agent context"}
-                      </span>
-                      <div className="dialog-card__actions dialog-card__actions--split">
-                        <button
-                          className="toolbar-button"
-                          data-testid="agent-context-insert-exo-snippet"
-                          disabled={!agentContextEditor.selectedPath}
-                          onClick={insertExoAgentContextSnippet}
-                          type="button"
-                        >
-                          Insert Exo snippet
-                        </button>
-                        <button
-                          className="toolbar-button"
-                          data-testid="agent-context-save"
-                          disabled={!agentContextEditor.selectedPath || agentContextEditor.saveStatus === "saving"}
-                          onClick={() => void saveAgentContextDraft()}
-                          type="button"
-                        >
-                          {agentContextEditor.saveStatus === "saving" ? "Saving…" : "Save"}
-                        </button>
-                      </div>
-                    </div>
-                    <div className="agent-context-settings__path">
-                      {agentContextEditor.selectedPath ?? "No context file selected."}
-                    </div>
-                    <div className="agent-context-settings__signals" data-testid="agent-context-signals">
-                      {agentContextSignals.length > 0 ? (
-                        agentContextSignals.map((signal) => (
-                          <div className={`agent-context-settings__signal agent-context-settings__signal--${signal.kind}`} key={`${signal.kind}:${signal.label}:${signal.detail}`}>
-                            <span>{signal.label}</span>
-                            <span>{signal.detail}</span>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="agent-context-settings__signal agent-context-settings__signal--coverage">
-                          <span>No overlap found</span>
-                          <span>{selectedAgentContextFile ? "Selected file has no obvious duplicate or package-manager conflict with other context files." : "Select a context file to compare."}</span>
-                        </div>
-                      )}
-                    </div>
-                    <textarea
-                      className="dialog-card__input agent-context-settings__textarea"
-                      data-testid="agent-context-editor"
-                      disabled={!agentContextEditor.selectedPath}
-                      spellCheck={false}
-                      value={agentContextEditor.draftBody}
-                      onChange={(event) =>
-                        setAgentContextEditor((current) => ({
-                          ...current,
-                          draftBody: event.target.value,
-                          saveStatus: "idle",
-                          errorMessage: null,
-                        }))
-                      }
-                    />
-                    {agentContextEditor.saveStatus === "saved" ? (
-                      <div className="dialog-card__status" data-testid="agent-context-status">Saved.</div>
-                    ) : null}
-                    {agentContextEditor.saveStatus === "error" && agentContextEditor.errorMessage ? (
-                      <div className="dialog-card__status dialog-card__status--error">{agentContextEditor.errorMessage}</div>
-                    ) : null}
+                  <div className="agent-context-summary__footer">
+                    <span>{latestAgentContextHistory ? `Last managed change ${formatAgentContextHistoryTime(latestAgentContextHistory.createdAt)}` : "No managed instruction history yet."}</span>
+                    <span>{agentContextEditor.files.filter((file) => file.exists).length} existing file{agentContextEditor.files.filter((file) => file.exists).length === 1 ? "" : "s"}</span>
                   </div>
                 </div>
               ) : null}
@@ -3778,6 +3630,239 @@ export function App() {
           </div>
         </div>
       ) : null}
+      {agentContextManagerOpen ? (
+        <div className="dialog-overlay" data-testid="agent-context-manager-overlay">
+          <div className="dialog-card dialog-card--agent-context-manager" data-testid="agent-context-manager">
+            <div className="dialog-card__header">
+              <div>
+                <div className="dialog-card__title">Agent Context Manager</div>
+                <div className="dialog-card__message">Manage what terminal agents read across scopes, provider files, runtime overlays, and history.</div>
+              </div>
+              <button
+                aria-label="Close agent context manager"
+                className="dialog-card__close"
+                data-testid="agent-context-manager-close"
+                onClick={() => setAgentContextManagerOpen(false)}
+                title="Close"
+                type="button"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="agent-context-manager" data-testid="agent-context-settings">
+              <div className="agent-context-manager__main" data-testid="agent-context-composer">
+                <div className="dialog-field__header">
+                  <span className="dialog-field__label">Unified instructions</span>
+                  <div className="dialog-card__actions dialog-card__actions--split">
+                    <select
+                      className="dialog-card__input agent-context-settings__target"
+                      data-testid="agent-context-target"
+                      value={agentContextComposer.selectedTargetId ?? ""}
+                      onChange={(event) =>
+                        setAgentContextComposer((current) => ({
+                          ...current,
+                          selectedTargetId: event.target.value || null,
+                          body: event.target.value ? managedAgentContextBodyForTarget(agentContextEditor.files, event.target.value) : "",
+                          saveStatus: "idle",
+                          errorMessage: null,
+                        }))
+                      }
+                    >
+                      {agentContextTargets.map((target) => (
+                        <option key={target.id} value={target.id}>
+                          {target.label}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      className="toolbar-button"
+                      data-testid="agent-context-save-unified"
+                      disabled={!agentContextComposer.selectedTargetId || agentContextComposer.saveStatus === "saving"}
+                      onClick={() => void saveUnifiedAgentContext()}
+                      type="button"
+                    >
+                      {agentContextComposer.saveStatus === "saving" ? "Writing…" : "Write provider files"}
+                    </button>
+                  </div>
+                </div>
+                <label className="dialog-field agent-context-manager__composer-field">
+                  <span className="dialog-field__label">Instructions for all terminal agents</span>
+                  <textarea
+                    className="dialog-card__input agent-context-settings__composer-textarea"
+                    data-testid="agent-context-unified-editor"
+                    spellCheck={false}
+                    value={agentContextComposer.body}
+                    onChange={(event) =>
+                      setAgentContextComposer((current) => ({
+                        ...current,
+                        body: event.target.value,
+                        saveStatus: "idle",
+                        errorMessage: null,
+                      }))
+                    }
+                  />
+                </label>
+                {agentContextComposer.saveStatus === "saved" ? (
+                  <div className="dialog-card__status" data-testid="agent-context-unified-status">Provider files written.</div>
+                ) : null}
+                {agentContextComposer.saveStatus === "error" && agentContextComposer.errorMessage ? (
+                  <div className="dialog-card__status dialog-card__status--error">{agentContextComposer.errorMessage}</div>
+                ) : null}
+                <div className="agent-context-settings__history" data-testid="agent-context-history">
+                  {selectedAgentContextHistory ? (
+                    <>
+                      <div>
+                        <span>Last changed {formatAgentContextHistoryTime(selectedAgentContextHistory.createdAt)}</span>
+                        <span>{selectedAgentContextHistory.targetLabel}</span>
+                      </div>
+                      <div className="dialog-card__actions dialog-card__actions--split">
+                        <button
+                          className="toolbar-button"
+                          data-testid="agent-context-toggle-diff"
+                          onClick={() => setAgentContextComposer((current) => ({ ...current, historyOpen: !current.historyOpen }))}
+                          type="button"
+                        >
+                          {agentContextComposer.historyOpen ? "Hide diff" : "View diff"}
+                        </button>
+                        <button
+                          className="toolbar-button"
+                          data-testid="agent-context-restore-history"
+                          disabled={agentContextComposer.saveStatus === "saving"}
+                          onClick={() => void restoreAgentContextHistoryEntry(selectedAgentContextHistory.id)}
+                          type="button"
+                        >
+                          Restore previous
+                        </button>
+                      </div>
+                      {agentContextComposer.historyOpen ? (
+                        <pre className="agent-context-settings__diff" data-testid="agent-context-history-diff">
+                          {formatAgentContextHistoryDiff(selectedAgentContextHistory)}
+                        </pre>
+                      ) : null}
+                    </>
+                  ) : (
+                    <span>No previous Exo-managed version for this scope.</span>
+                  )}
+                </div>
+                <div className="agent-context-settings__editor">
+                  <div className="dialog-field__header">
+                    <span className="dialog-field__label">
+                      {selectedAgentContextFile?.label ?? "Agent context"}
+                    </span>
+                    <div className="dialog-card__actions dialog-card__actions--split">
+                      <button
+                        className="toolbar-button"
+                        data-testid="agent-context-insert-exo-snippet"
+                        disabled={!agentContextEditor.selectedPath}
+                        onClick={insertExoAgentContextSnippet}
+                        type="button"
+                      >
+                        Insert Exo snippet
+                      </button>
+                      <button
+                        className="toolbar-button"
+                        data-testid="agent-context-save"
+                        disabled={!agentContextEditor.selectedPath || agentContextEditor.saveStatus === "saving"}
+                        onClick={() => void saveAgentContextDraft()}
+                        type="button"
+                      >
+                        {agentContextEditor.saveStatus === "saving" ? "Saving…" : "Save"}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="agent-context-settings__path">
+                    {selectedAgentContextFile?.path ?? "No context file selected."}
+                  </div>
+                  <div className="agent-context-settings__signals" data-testid="agent-context-signals">
+                    {agentContextSignals.length > 0 ? (
+                      agentContextSignals.map((signal) => (
+                        <div className={`agent-context-settings__signal agent-context-settings__signal--${signal.kind}`} key={`${signal.kind}:${signal.label}:${signal.detail}`}>
+                          <span>{signal.label}</span>
+                          <span>{signal.detail}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="agent-context-settings__signal agent-context-settings__signal--coverage">
+                        <span>No overlap found</span>
+                        <span>{selectedAgentContextFile ? "Selected file has no obvious duplicate or package-manager conflict with other context files." : "Select a context file to compare."}</span>
+                      </div>
+                    )}
+                  </div>
+                  <textarea
+                    className="dialog-card__input agent-context-settings__textarea"
+                    data-testid="agent-context-editor"
+                    disabled={!agentContextEditor.selectedPath}
+                    spellCheck={false}
+                    value={agentContextEditor.draftBody}
+                    onChange={(event) =>
+                      setAgentContextEditor((current) => ({
+                        ...current,
+                        draftBody: event.target.value,
+                        saveStatus: "idle",
+                        errorMessage: null,
+                      }))
+                    }
+                  />
+                  {agentContextEditor.saveStatus === "saved" ? (
+                    <div className="dialog-card__status" data-testid="agent-context-status">Saved.</div>
+                  ) : null}
+                  {agentContextEditor.saveStatus === "error" && agentContextEditor.errorMessage ? (
+                    <div className="dialog-card__status dialog-card__status--error">{agentContextEditor.errorMessage}</div>
+                  ) : null}
+                </div>
+              </div>
+              <div className="agent-context-manager__side">
+                <section className="agent-context-manager__section">
+                  <div className="dialog-field__label">Provider files</div>
+                  <div className="agent-context-settings__list" data-testid="agent-context-file-list">
+                    {agentContextEditor.files.map((file) => (
+                      <button
+                        className={`agent-context-settings__file ${file.path === agentContextEditor.selectedPath ? "agent-context-settings__file--active" : ""}`}
+                        data-testid={`agent-context-file-${file.scope}`}
+                        key={file.id}
+                        onClick={() => selectAgentContextFile(file.path)}
+                        title={file.path}
+                        type="button"
+                      >
+                        <span>{file.label}</span>
+                        <span>{file.providerLabel} · {file.exists ? "Existing" : "New"}</span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+                <section className="agent-context-manager__section agent-context-settings__overlay" data-testid="agent-instruction-overlay-preview">
+                  <div className="dialog-field__header">
+                    <span className="dialog-field__label">Generated overlay</span>
+                    <select
+                      className="dialog-card__input agent-context-settings__target"
+                      data-testid="agent-instruction-overlay-select"
+                      value={selectedInstructionOverlay?.id ?? ""}
+                      onChange={(event) =>
+                        setAgentContextComposer((current) => ({
+                          ...current,
+                          selectedOverlayId: event.target.value || null,
+                        }))
+                      }
+                    >
+                      {agentContextComposer.overlays.map((overlay) => (
+                        <option key={overlay.id} value={overlay.id}>
+                          {overlay.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="agent-context-settings__path">
+                    {selectedInstructionOverlay?.path ?? "No overlay generated."}
+                  </div>
+                  <pre className="agent-context-settings__overlay-body" data-testid="agent-instruction-overlay-body">
+                    {selectedInstructionOverlay?.body ?? ""}
+                  </pre>
+                </section>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }
@@ -3937,6 +4022,10 @@ function latestAgentContextHistoryForTarget(history: AgentContextHistoryEntry[],
   return history
     .filter((entry) => entry.targetId === targetId)
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] ?? null;
+}
+
+function latestAgentContextHistoryEntry(history: AgentContextHistoryEntry[]) {
+  return [...history].sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] ?? null;
 }
 
 function formatAgentContextHistoryTime(value: string): string {
