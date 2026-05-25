@@ -14,5 +14,5 @@ if (build.status !== 0) {
   process.exit(build.status ?? 1);
 }
 
-const { runServer } = await import(path.join(mcpRoot, "dist/index.js"));
+const { runServer } = await import(path.join(mcpRoot, "dist/index.cjs"));
 await runServer();

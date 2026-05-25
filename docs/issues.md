@@ -19,22 +19,18 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 - QA coverage to add:
   - CLI regression for `exo agents create --help` and `exo agents create codex --help`.
 
+## Resolved
+
 ### EXO-ISSUE-010: Codex agent sessions report Exo MCP startup handshake failure
 
-- Status: open
+- Status: resolved
 - Severity: medium
 - Area: MCP server integration, Codex provider integration, Exo-on-Exo workflow
-- Observed: newly launched Codex terminals show `MCP client for exo failed to start: MCP startup failed: handshaking with MCP server failed: connection closed: initialize response`.
-- Expected: Codex-launched Exo MCP integration should initialize cleanly when the Exo desktop command server is reachable, or show an actionable configuration error if the MCP command cannot connect.
-- Investigation notes:
-  - The desktop command server was reachable via `exo agents list` when this occurred.
-  - This warning appeared in multiple Exo-managed Codex sessions during the multi-agent QA stress test.
-  - May be distinct from CLI command-server discovery because normal `exo agents` commands succeeded.
-- QA coverage to add:
-  - Live Codex-agent launch smoke that verifies the Exo MCP server handshake succeeds or emits a structured, actionable error.
-  - MCP server unit/integration coverage for initialize response compatibility with Codex's MCP client.
-
-## Resolved
+- Observed: newly launched Codex terminals showed `MCP client for exo failed to start: MCP startup failed: handshaking with MCP server failed: connection closed: initialize response`.
+- Resolution: the repo-backed MCP launcher now imports a bundled CommonJS runtime artifact. The previous bundled ESM artifact crashed on startup with `Dynamic require of "fs" is not supported` before it could answer MCP `initialize`.
+- QA coverage added:
+  - MCP stdio launcher regression that starts `packages/mcp/bin/exo-mcp.mjs`, performs a real SDK `initialize`, and verifies `tools/list` includes `workspace_status`.
+  - Live Exo-launched Codex smoke should verify the warning is absent when the desktop command server is reachable.
 
 ### EXO-ISSUE-004: Codex agent launch in a new worktree can consume queued task text at the trust prompt
 
