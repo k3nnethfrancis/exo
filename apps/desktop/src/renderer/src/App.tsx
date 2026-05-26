@@ -26,6 +26,7 @@ import { useWorkspaceSearch } from "./hooks/useWorkspaceSearch";
 import { collectLeaves, findEditorLeaf, findNode, findTerminalLeaf, mapLeaves, paneId, pruneEmptyLeaves, removeNode, updateNode, type PaneLeaf, type PaneNode, type PaneNodeId, type BrowserPaneContent, type EditorPaneContent, type TerminalPaneContent } from "./hooks/usePaneTree";
 import { useDragManager, type DragDropTarget, type DragPayload, type DropEdge } from "./hooks/useDragManager";
 import { buildProjectReviewChanges, uniqueCwdMatchedSession, type ObservedWorkspaceWrite } from "./changedFileReview";
+import { trimRendererTerminalBuffer } from "./terminalBuffer";
 
 interface OpenEditorDocument extends NoteDocument {
   dirty: boolean;
@@ -614,7 +615,7 @@ export function App() {
       setTerminalBuffers((current) => {
         const next = { ...current };
         for (const [id, data] of entries) {
-          next[id] = `${next[id] ?? ""}${data}`;
+          next[id] = trimRendererTerminalBuffer(`${next[id] ?? ""}${data}`);
         }
         return next;
       });

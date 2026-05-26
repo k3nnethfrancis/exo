@@ -101,7 +101,7 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Fixed EXO-ISSUE-009 by handling `exo agents create --help` and `exo agents create <provider> --help` before app connection or terminal creation, plus rejecting option-shaped create cwd values.
 - Fixed EXO-ISSUE-010 by changing the Exo MCP launcher to import a bundled CommonJS runtime artifact, avoid rebuilding when `dist/index.cjs` already exists, and fall back with Corepack project-spec disabled; added a stdio launcher handshake regression and live Codex smoke.
 - Fixed EXO-ISSUE-011 by splitting queued Codex submitted messages into body plus delayed Enter so tmux-backed Codex prompts execute without a second raw submit.
-- Fixed EXO-ISSUE-012 by capping live renderer terminal buffers while preserving complete transcript writes, preventing long-running reattached Codex sessions from flooding the renderer.
+- Fixed EXO-ISSUE-012 by capping live renderer terminal buffers while preserving complete transcript writes, preventing reattached or actively streaming long-running Codex sessions from flooding the renderer.
 
 ## Next Priorities
 

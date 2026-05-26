@@ -44,8 +44,10 @@ No open issues tracked in this file.
 - Fixed:
   - Live renderer terminal buffers are now capped by character count even when terminal history mode keeps full tmux/transcript history.
   - Transcript storage still receives complete terminal data; only the in-memory renderer buffer is trimmed.
+  - Renderer-side streaming buffers are capped as chunks arrive, so active visible terminals cannot grow unbounded before the next main-process read.
 - QA coverage:
   - Added terminal-manager regression that large terminal output is capped for `readBuffer()` while transcript reads still include the full emitted content.
+  - Added renderer utility regression for streamed terminal buffer trimming.
 
 ### EXO-ISSUE-011: Exo agent send can require an extra raw Enter before Codex starts work
 

@@ -13,6 +13,7 @@ import {
 } from "../../main/settings-store";
 import { buildProjectReviewChanges, uniqueCwdMatchedSession } from "./changedFileReview";
 import { isTerminalGeneratedResponse } from "./components/terminalInputFilters";
+import { trimRendererTerminalBuffer } from "./terminalBuffer";
 
 describe("desktop shell", () => {
   it("keeps a renderer test surface in place", () => {
@@ -121,6 +122,17 @@ describe("terminal input filtering", () => {
     expect(isTerminalGeneratedResponse("\x1b[24;80R")).toBe(true);
     expect(isTerminalGeneratedResponse("hello")).toBe(false);
     expect(isTerminalGeneratedResponse("try this out")).toBe(false);
+  });
+});
+
+describe("renderer terminal buffers", () => {
+  it("caps streamed terminal buffers before they accumulate in renderer state", () => {
+    const buffer = `start-${"x".repeat(300_000)}`;
+
+    const trimmed = trimRendererTerminalBuffer(buffer);
+
+    expect(trimmed).toHaveLength(250_000);
+    expect(trimmed).not.toContain("start-");
   });
 });
 
