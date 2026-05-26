@@ -42,12 +42,12 @@ No open issues tracked in this file.
 - Area: terminal persistence, renderer stability, Exo-on-Exo stress
 - Observed: after the multi-agent stress test, the dev app repeatedly logged renderer crashes while reattaching Codex sessions with very large terminal buffers.
 - Fixed:
-  - Live renderer terminal buffers are now capped by character count even when terminal history mode keeps full tmux/transcript history.
-  - Transcript storage still receives complete terminal data; only the in-memory renderer buffer is trimmed.
-  - Renderer-side streaming buffers are capped as chunks arrive, so active visible terminals cannot grow unbounded before the next main-process read.
+  - Live terminal buffers now follow the user-configured live scrollback line count instead of a hidden character cap.
+  - Transcript storage still receives complete terminal data; only the live interface buffer is trimmed.
+  - Renderer-side streaming buffers apply the same line-based scrollback setting as chunks arrive, so active visible terminals match the settings model.
 - QA coverage:
-  - Added terminal-manager regression that large terminal output is capped for `readBuffer()` while transcript reads still include the full emitted content.
-  - Added renderer utility regression for streamed terminal buffer trimming.
+  - Added terminal-manager regression that live buffers follow configured scrollback lines while transcript reads still include the full emitted content.
+  - Added renderer utility regression for streamed terminal buffer trimming from the same configured line count.
 
 ### EXO-ISSUE-011: Exo agent send can require an extra raw Enter before Codex starts work
 

@@ -150,6 +150,6 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [ ] Add structural rules for renderer/main/core boundaries.
 - [x] Add docs link/path checks for README, AGENTS, and docs indexes.
 - [ ] Add renderer crash regression probes for blank-window failures.
-- [x] Cap live renderer terminal buffers while preserving transcripts so reattached or actively streaming long-running agents do not crash the renderer.
+- [x] Apply user-configured live terminal scrollback to renderer/main buffers while preserving transcripts for reattached or actively streaming long-running agents.
 - [ ] Add golden/snapshot coverage for stable Markdown rendering, terminal hydration, and search output.
 - [x] Keep CLI app-route tests isolated from live Exo command-server state.

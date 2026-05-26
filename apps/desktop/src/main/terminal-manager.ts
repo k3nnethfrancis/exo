@@ -40,9 +40,8 @@ interface PersistedState {
 }
 
 const TMUX_PREFIX = "exo-agent";
-const DEFAULT_BUFFER_LINE_LIMIT: number | null = null;
-const MAX_RENDERER_BUFFER_CHARS = 250_000;
 const DEFAULT_TMUX_HISTORY_LINES = 1_000_000;
+const DEFAULT_BUFFER_LINE_LIMIT = DEFAULT_TMUX_HISTORY_LINES;
 const MIN_TMUX_HISTORY_LINES = 500;
 const MAX_TMUX_HISTORY_LINES = 1_000_000;
 const TMUX_BOOTSTRAP_WINDOW = "exo-bootstrap";
@@ -721,12 +720,7 @@ function trimBufferLines(buffer: string, lineLimit: number | null): string {
 }
 
 function trimTerminalBuffer(buffer: string, lineLimit: number | null): string {
-  const lineTrimmed = trimBufferLines(buffer, lineLimit);
-  if (lineTrimmed.length <= MAX_RENDERER_BUFFER_CHARS) {
-    return lineTrimmed;
-  }
-
-  return lineTrimmed.slice(-MAX_RENDERER_BUFFER_CHARS);
+  return trimBufferLines(buffer, lineLimit);
 }
 
 function createTmuxAgentSession(name: string, cwd: string, command: string, args: string[], historyLines: number, env: Record<string, string | undefined>): void {

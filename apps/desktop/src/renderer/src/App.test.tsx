@@ -40,7 +40,7 @@ describe("workspace terminal settings", () => {
     expect(Object.prototype.hasOwnProperty.call(settings, "terminalScrollbackLines")).toBe(false);
     expect(Object.prototype.hasOwnProperty.call(settings, "terminalBufferChars")).toBe(false);
     expect(settings ? resolveTerminalRuntimePolicy(settings) : null).toMatchObject({
-      bufferLineLimit: null,
+      bufferLineLimit: DEFAULT_TERMINAL_HISTORY_LINES,
       transcriptRetentionDays: 0,
     });
   });
@@ -126,13 +126,12 @@ describe("terminal input filtering", () => {
 });
 
 describe("renderer terminal buffers", () => {
-  it("caps streamed terminal buffers before they accumulate in renderer state", () => {
-    const buffer = `start-${"x".repeat(300_000)}`;
+  it("uses the configured live scrollback line count for streamed renderer buffers", () => {
+    const buffer = ["first", "second", "third", "fourth"].join("\n");
 
-    const trimmed = trimRendererTerminalBuffer(buffer);
+    const trimmed = trimRendererTerminalBuffer(buffer, 2);
 
-    expect(trimmed).toHaveLength(250_000);
-    expect(trimmed).not.toContain("start-");
+    expect(trimmed).toBe(["third", "fourth"].join("\n"));
   });
 });
 

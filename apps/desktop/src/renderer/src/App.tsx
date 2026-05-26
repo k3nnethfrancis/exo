@@ -312,6 +312,7 @@ export function App() {
   const terminalFlushFrameRef = useRef<number | null>(null);
   const bootstrapRunRef = useRef(0);
   const activeTerminalIdsRef = useRef<Set<string>>(new Set());
+  const terminalRuntimeScrollbackLinesRef = useRef(FULL_TERMINAL_SCROLLBACK_LINES);
   const terminalStreamingModeRef = useRef<WorkspaceSettings["terminalStreamingMode"]>(DEFAULT_TERMINAL_STREAMING_MODE);
   const terminalSessionsRef = useRef<TerminalSessionInfo[]>([]);
   const terminalKindByIdRef = useRef<Record<string, TerminalSessionInfo["kind"]>>({});
@@ -334,6 +335,20 @@ export function App() {
     terminalSessionsRef.current = terminalSessions;
     terminalKindByIdRef.current = Object.fromEntries(terminalSessions.map((session) => [session.id, session.kind]));
   }, [terminalSessions]);
+
+  useEffect(() => {
+    terminalRuntimeScrollbackLinesRef.current = terminalRuntimeScrollbackLines;
+    setTerminalBuffers((current) => {
+      let changed = false;
+      const next: Record<string, string> = {};
+      for (const [id, buffer] of Object.entries(current)) {
+        const trimmed = trimRendererTerminalBuffer(buffer, terminalRuntimeScrollbackLines);
+        next[id] = trimmed;
+        changed = changed || trimmed !== buffer;
+      }
+      return changed ? next : current;
+    });
+  }, [terminalRuntimeScrollbackLines]);
 
   useEffect(() => {
     terminalStreamingModeRef.current = terminalStreamingMode;
@@ -615,7 +630,10 @@ export function App() {
       setTerminalBuffers((current) => {
         const next = { ...current };
         for (const [id, data] of entries) {
-          next[id] = trimRendererTerminalBuffer(`${next[id] ?? ""}${data}`);
+          next[id] = trimRendererTerminalBuffer(
+            `${next[id] ?? ""}${data}`,
+            terminalRuntimeScrollbackLinesRef.current,
+          );
         }
         return next;
       });
@@ -3845,7 +3863,10 @@ export function App() {
                         />
                       </label>
                       <label className="dialog-field">
-                        <span className="dialog-field__label">Terminal history</span>
+                        <span className="dialog-field__label">
+                          Live terminal scrollback
+                          <HelpTooltip label="Controls how many terminal output lines Exo keeps in the live interface. Terminal transcripts are controlled separately." />
+                        </span>
                         <select
                           className="dialog-card__input"
                           data-testid="workspace-settings-terminal-history-mode"
@@ -3863,13 +3884,13 @@ export function App() {
                             )
                           }
                         >
-                          <option value="full">Full</option>
+                          <option value="full">Maximum</option>
                           <option value="custom">Custom</option>
                         </select>
                       </label>
                       {workspaceSettingsDialog.terminalHistoryMode === "custom" ? (
                         <label className="dialog-field">
-                          <span className="dialog-field__label">History lines</span>
+                          <span className="dialog-field__label">Scrollback lines</span>
                           <input
                             className="dialog-card__input"
                             data-testid="workspace-settings-terminal-history-lines"

@@ -128,8 +128,8 @@ export function resolveTerminalScrollbackLines(
 export function resolveTerminalBufferLineLimit(
   mode: WorkspaceSettings["terminalHistoryMode"],
   lines: number,
-): number | null {
-  return mode === "full" ? null : lines;
+): number {
+  return mode === "full" ? FULL_TERMINAL_SCROLLBACK_LINES : lines;
 }
 
 export function resolveTranscriptRetentionDays(settings: Pick<WorkspaceSettings, "terminalTranscriptRetention" | "terminalTranscriptRetentionDays">): number {

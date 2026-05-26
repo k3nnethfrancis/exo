@@ -362,7 +362,12 @@ test("opens workspace settings from the sidebar", async () => {
   await expect(page.getByTestId("workspace-settings-index-mode")).toHaveValue("off");
   await expect(page.getByTestId("workspace-settings-dialog")).toContainText("Local QMD Index");
   await page.getByTestId("workspace-settings-tab-terminal").click();
+  await expect(page.getByTestId("workspace-settings-dialog")).toContainText("Live terminal scrollback");
+  await expect(page.getByTestId("workspace-settings-terminal-history-mode").locator("option:checked")).toHaveText("Maximum");
   await expect(page.getByTestId("workspace-settings-terminal-history-mode")).toHaveValue("full");
+  await page.getByTestId("workspace-settings-terminal-history-mode").selectOption("custom");
+  await expect(page.getByTestId("workspace-settings-terminal-history-lines")).toBeVisible();
+  await expect(page.getByTestId("workspace-settings-dialog")).toContainText("Scrollback lines");
   await expect(page.getByTestId("workspace-settings-terminal-transcript-retention")).toHaveValue("forever");
   await expect(page.getByTestId("workspace-settings-terminal-streaming-mode")).toHaveValue("visible");
 

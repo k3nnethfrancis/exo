@@ -64,8 +64,8 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Added Exo-managed QMD indexing UX: footer status, Settings Index panel, sync/apply flows, Explore lexical-on-Enter, CLI/MCP parity, and conservative save-triggered refreshes.
 - Added `docs/qmd-integration-notes.md` to track the QMD adapter boundary, current workarounds, and upstream upgrade checklist.
 - Merged the fresh-setup/QMD integration PR as `0.1.0-alpha.1`, including QMD docid read safety, multi-root hybrid search, long-running index command timeouts, workspace-root command-server refresh, and an active root `postinstall` script.
-- Simplified terminal history controls around explicit `full` and `custom` modes: `full` keeps Exo buffers untrimmed, transcripts default to forever, tmux/xterm use the configured line window, and restored tmux-backed agents seed visible scrollback once before returning to live PTY streaming.
-- Removed hidden terminal transcript byte caps and renderer-side buffer trimming; terminal history policy now lives in the main terminal manager and workspace settings.
+- Simplified terminal history controls around explicit `full` and `custom` modes: `full` uses Exo's maximum configured live scrollback line window, transcripts default to forever, and restored tmux-backed agents seed visible scrollback once before returning to live PTY streaming.
+- Removed hidden terminal transcript byte caps and hidden character-based buffer trimming; live terminal buffers follow workspace settings.
 - Hardened terminal rendering against xterm device-response input leaks and avoided recurring tmux snapshot replay into visible terminals.
 - Made Markdown task checkboxes clickable in live preview by toggling the underlying `- [ ]` / `- [x]` source text.
 - Hardened CLI/MCP indexed search for full-vault QMD use by giving search a dedicated 30s default timeout, preserving fast normal request timeouts, and adding structured timeout errors plus regression coverage.
@@ -101,7 +101,7 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Fixed EXO-ISSUE-009 by handling `exo agents create --help` and `exo agents create <provider> --help` before app connection or terminal creation, plus rejecting option-shaped create cwd values.
 - Fixed EXO-ISSUE-010 by changing the Exo MCP launcher to import a bundled CommonJS runtime artifact, avoid rebuilding when `dist/index.cjs` already exists, and fall back with Corepack project-spec disabled; added a stdio launcher handshake regression and live Codex smoke.
 - Fixed EXO-ISSUE-011 by splitting queued Codex submitted messages into body plus delayed Enter so tmux-backed Codex prompts execute without a second raw submit.
-- Fixed EXO-ISSUE-012 by capping live renderer terminal buffers while preserving complete transcript writes, preventing reattached or actively streaming long-running Codex sessions from flooding the renderer.
+- Fixed EXO-ISSUE-012 by applying user-configured live terminal scrollback to renderer/main buffers while preserving complete transcript writes for reattached or actively streaming Codex sessions.
 
 ## Next Priorities
 

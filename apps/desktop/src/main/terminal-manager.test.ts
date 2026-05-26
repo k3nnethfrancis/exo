@@ -158,18 +158,19 @@ describe("TerminalManager Codex readiness", () => {
     expect(pty.writes).toEqual(["y"]);
   });
 
-  it("caps live renderer buffers while transcripts keep receiving data", async () => {
+  it("uses configured live scrollback lines while transcripts keep receiving data", async () => {
     const workspaceRoot = await workspaceFixture();
-    const manager = managerForWorkspace(workspaceRoot);
+    const manager = new TerminalManager(workspaceRoot, 500);
 
     const terminal = await manager.create({ kind: "shell", cwd: workspaceRoot });
     const pty = ptyState.spawned[0];
-    const largeChunk = "x".repeat(300_000);
+    const lines = Array.from({ length: 505 }, (_, index) => `line-${index + 1}`);
+    const largeChunk = lines.join("\n");
 
     pty.emitData(largeChunk);
 
-    expect(manager.readBuffer(terminal.id)?.length).toBe(250_000);
-    expect(manager.readTranscript(terminal.id)).toContain(largeChunk.slice(0, 100));
+    expect(manager.readBuffer(terminal.id)).toBe(lines.slice(-500).join("\n"));
+    expect(manager.readTranscript(terminal.id)).toContain("line-1");
   });
 });
 
