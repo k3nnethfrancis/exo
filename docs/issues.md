@@ -132,10 +132,11 @@ No open issues tracked in this file.
 - Observed: the manager mixed unified instructions, provider files, instruction outputs, runtime overlays, history, and managed configs without enough hierarchy or explanation.
 - Fixed:
   - Reworked the manager into clearer sections for unified instructions, managed history, provider files, instruction outputs, runtime overlays, and managed config editing.
+  - Replaced the single scope dropdown with explicit Global vs Selected scopes controls, including multi-select notes/project targets and a write-summary showing how many scopes will be touched.
   - Removed the summary overview strip after QA showed it added visual clutter without a clear action.
   - Added concise tooltips/help affordances for scope, provider outputs, overlays, history, and managed configs.
 - QA coverage:
-  - Extended Playwright settings QA to verify the core sections, output controls, and absence of the removed overview strip.
+  - Extended Playwright settings QA to verify the core sections, output controls, multi-scope writes, and absence of the removed overview strip.
 
 ### EXO-ISSUE-001: Workspace settings button does not open settings
 

@@ -139,7 +139,8 @@ interface AgentContextSignal {
 }
 
 interface AgentContextComposerState {
-  selectedTargetId: string | null;
+  scopeMode: "global" | "selected";
+  selectedTargetIds: string[];
   body: string;
   history: AgentContextHistoryEntry[];
   historyOpen: boolean;
@@ -262,7 +263,8 @@ export function App() {
     errorMessage: null,
   });
   const [agentContextComposer, setAgentContextComposer] = useState<AgentContextComposerState>({
-    selectedTargetId: null,
+    scopeMode: "global",
+    selectedTargetIds: [],
     body: "",
     history: [],
     historyOpen: false,
@@ -953,11 +955,25 @@ export function App() {
   );
   const selectedAgentContextFile = agentContextEditor.files.find((file) => file.path === agentContextEditor.selectedPath) ?? null;
   const agentContextTargets = useMemo(() => agentContextTargetsFromFiles(agentContextEditor.files), [agentContextEditor.files]);
-  const selectedAgentContextTarget =
-    agentContextTargets.find((target) => target.id === agentContextComposer.selectedTargetId) ?? agentContextTargets[0] ?? null;
+  const globalAgentContextTarget = agentContextTargets.find((target) => target.scope === "global") ?? null;
+  const selectableAgentContextTargets = useMemo(
+    () => agentContextTargets.filter((target) => target.scope !== "global"),
+    [agentContextTargets],
+  );
+  const agentContextWriteTargetIds = useMemo(
+    () => {
+      if (agentContextComposer.scopeMode === "global") {
+        return globalAgentContextTarget ? [globalAgentContextTarget.id] : [];
+      }
+      const availableTargetIds = new Set(selectableAgentContextTargets.map((target) => target.id));
+      return agentContextComposer.selectedTargetIds.filter((targetId) => availableTargetIds.has(targetId));
+    },
+    [agentContextComposer.scopeMode, agentContextComposer.selectedTargetIds, globalAgentContextTarget, selectableAgentContextTargets],
+  );
+  const primaryAgentContextTargetId = agentContextWriteTargetIds[0] ?? null;
   const agentContextHistoryForSelectedTarget = useMemo(
-    () => agentContextHistoryEntriesForTarget(agentContextComposer.history, agentContextComposer.selectedTargetId),
-    [agentContextComposer.history, agentContextComposer.selectedTargetId],
+    () => agentContextHistoryEntriesForTarget(agentContextComposer.history, primaryAgentContextTargetId),
+    [agentContextComposer.history, primaryAgentContextTargetId],
   );
   const selectedAgentContextHistory = useMemo(
     () =>
@@ -1201,12 +1217,15 @@ export function App() {
       saveStatus: "idle",
       errorMessage: null,
     });
+    const agentTargets = agentContextTargetsFromFiles(agentContextFiles);
+    const globalTarget = agentTargets.find((target) => target.scope === "global") ?? agentTargets[0] ?? null;
     setAgentContextComposer({
-      selectedTargetId: agentContextFiles[0]?.targetId ?? null,
-      body: agentContextFiles[0]?.targetId ? managedAgentContextBodyForTarget(agentContextFiles, agentContextFiles[0].targetId) : "",
+      scopeMode: "global",
+      selectedTargetIds: [],
+      body: globalTarget ? managedAgentContextBodyForTarget(agentContextFiles, globalTarget.id) : "",
       history: agentContextHistory,
       historyOpen: false,
-      selectedHistoryId: latestAgentContextHistoryForTarget(agentContextHistory, agentContextFiles[0]?.targetId ?? null)?.id ?? null,
+      selectedHistoryId: latestAgentContextHistoryForTarget(agentContextHistory, globalTarget?.id ?? null)?.id ?? null,
       overlays: instructionOverlays,
       selectedOverlayId: instructionOverlays[0]?.id ?? null,
       saveStatus: "idle",
@@ -1435,16 +1454,56 @@ export function App() {
     });
   }
 
+  function setAgentContextScopeMode(mode: AgentContextComposerState["scopeMode"]) {
+    const targetId = mode === "global"
+      ? globalAgentContextTarget?.id ?? null
+      : agentContextComposer.selectedTargetIds[0] ?? null;
+    setAgentContextComposer((current) => ({
+      ...current,
+      scopeMode: mode,
+      body: targetId ? managedAgentContextBodyForTarget(agentContextEditor.files, targetId) : current.body,
+      selectedHistoryId: latestAgentContextHistoryForTarget(current.history, targetId)?.id ?? null,
+      saveStatus: "idle",
+      errorMessage: null,
+    }));
+  }
+
+  function toggleAgentContextWriteTarget(targetId: string, enabled: boolean) {
+    setAgentContextComposer((current) => {
+      const selectedTargetIds = enabled
+        ? [...new Set([...current.selectedTargetIds, targetId])]
+        : current.selectedTargetIds.filter((id) => id !== targetId);
+      const previousPrimaryTargetId = current.selectedTargetIds[0] ?? null;
+      const nextPrimaryTargetId = selectedTargetIds[0] ?? null;
+      const shouldLoadTargetBody =
+        current.scopeMode !== "selected"
+        || previousPrimaryTargetId === null
+        || previousPrimaryTargetId === targetId;
+      return {
+        ...current,
+        scopeMode: "selected",
+        selectedTargetIds,
+        body: shouldLoadTargetBody && nextPrimaryTargetId
+          ? managedAgentContextBodyForTarget(agentContextEditor.files, nextPrimaryTargetId)
+          : current.body,
+        selectedHistoryId: latestAgentContextHistoryForTarget(current.history, nextPrimaryTargetId)?.id ?? null,
+        saveStatus: "idle",
+        errorMessage: null,
+      };
+    });
+  }
+
   async function saveUnifiedAgentContext() {
     const snapshot = agentContextComposer;
-    if (!snapshot.selectedTargetId) {
+    const targetIds = agentContextWriteTargetIds;
+    if (targetIds.length === 0) {
       return;
     }
 
     setAgentContextComposer((current) => ({ ...current, saveStatus: "saving", errorMessage: null }));
     try {
       const result = await window.exo.workspace.saveAgentContextBundle({
-        targetId: snapshot.selectedTargetId,
+        targetIds,
         body: snapshot.body,
       });
       const savedFiles = result.files;
@@ -1462,7 +1521,7 @@ export function App() {
       setAgentContextComposer((current) => ({
         ...current,
         history: result.history,
-        selectedHistoryId: latestAgentContextHistoryForTarget(result.history, snapshot.selectedTargetId)?.id ?? current.selectedHistoryId,
+        selectedHistoryId: latestAgentContextHistoryForTarget(result.history, targetIds[0] ?? null)?.id ?? current.selectedHistoryId,
         saveStatus: "saved",
         errorMessage: null,
       }));
@@ -1491,10 +1550,11 @@ export function App() {
           errorMessage: null,
         };
       });
-      const restoredTargetId = savedFiles[0]?.targetId ?? agentContextComposer.selectedTargetId;
+      const restoredTargetId = savedFiles[0]?.targetId ?? primaryAgentContextTargetId;
       setAgentContextComposer((current) => ({
         ...current,
-        selectedTargetId: restoredTargetId,
+        scopeMode: savedFiles[0]?.scope === "global" ? "global" : "selected",
+        selectedTargetIds: restoredTargetId && savedFiles[0]?.scope !== "global" ? [restoredTargetId] : current.selectedTargetIds,
         body: restoredTargetId ? managedAgentContextBodyForTarget(savedFiles, restoredTargetId) : current.body,
         history: result.history,
         historyOpen: false,
@@ -1548,16 +1608,19 @@ export function App() {
         };
       });
       setAgentContextComposer((current) => {
-        const selectedTargetStillExists = current.selectedTargetId
-          ? files.some((file) => file.targetId === current.selectedTargetId)
-          : false;
-        const selectedTargetId = selectedTargetStillExists ? current.selectedTargetId : files[0]?.targetId ?? null;
+        const targets = agentContextTargetsFromFiles(files);
+        const globalTarget = targets.find((target) => target.scope === "global") ?? null;
+        const selectableTargetIds = new Set(targets.filter((target) => target.scope !== "global").map((target) => target.id));
+        const selectedTargetIds = current.selectedTargetIds.filter((targetId) => selectableTargetIds.has(targetId));
+        const primaryTargetId = current.scopeMode === "global"
+          ? globalTarget?.id ?? null
+          : selectedTargetIds[0] ?? null;
         return {
           ...current,
-          selectedTargetId,
-          body: selectedTargetId ? managedAgentContextBodyForTarget(files, selectedTargetId) : "",
+          selectedTargetIds,
+          body: primaryTargetId ? managedAgentContextBodyForTarget(files, primaryTargetId) : "",
           history,
-          selectedHistoryId: latestAgentContextHistoryForTarget(history, selectedTargetId)?.id ?? null,
+          selectedHistoryId: latestAgentContextHistoryForTarget(history, primaryTargetId)?.id ?? null,
           overlays,
           selectedOverlayId: overlays.find((overlay) => overlay.id === current.selectedOverlayId)?.id ?? overlays[0]?.id ?? null,
           saveStatus: "idle",
@@ -4092,36 +4155,60 @@ export function App() {
                       </span>
                       <div className="agent-context-manager__section-copy">Use this as the source of truth for what terminal agents should read in the active scope.</div>
                     </div>
-                    <div className="dialog-card__actions dialog-card__actions--split agent-context-manager__controls" data-testid="agent-context-manager-controls">
-                    <select
-                      className="dialog-card__input agent-context-settings__target"
-                      data-testid="agent-context-target"
-                      value={agentContextComposer.selectedTargetId ?? ""}
-                      onChange={(event) =>
-                        setAgentContextComposer((current) => ({
-                          ...current,
-                          selectedTargetId: event.target.value || null,
-                          body: event.target.value ? managedAgentContextBodyForTarget(agentContextEditor.files, event.target.value) : "",
-                          selectedHistoryId: latestAgentContextHistoryForTarget(current.history, event.target.value || null)?.id ?? null,
-                          saveStatus: "idle",
-                          errorMessage: null,
-                        }))
-                      }
-                    >
-                      {agentContextTargets.map((target) => (
-                        <option key={target.id} value={target.id}>
-                          {target.label}
-                        </option>
-                      ))}
-                    </select>
+                  </div>
+                  <div className="agent-context-scope" data-testid="agent-context-scope-controls">
+                    <div className="agent-context-scope__mode" role="group" aria-label="Instruction scope mode">
+                      <button
+                        className={`agent-context-scope__mode-button ${agentContextComposer.scopeMode === "global" ? "agent-context-scope__mode-button--active" : ""}`}
+                        data-testid="agent-context-scope-global"
+                        disabled={!globalAgentContextTarget}
+                        onClick={() => setAgentContextScopeMode("global")}
+                        type="button"
+                      >
+                        Global
+                      </button>
+                      <button
+                        className={`agent-context-scope__mode-button ${agentContextComposer.scopeMode === "selected" ? "agent-context-scope__mode-button--active" : ""}`}
+                        data-testid="agent-context-scope-selected"
+                        disabled={selectableAgentContextTargets.length === 0}
+                        onClick={() => setAgentContextScopeMode("selected")}
+                        type="button"
+                      >
+                        Selected scopes
+                      </button>
+                    </div>
+                    {agentContextComposer.scopeMode === "selected" ? (
+                      <div className="agent-context-scope__targets" data-testid="agent-context-targets">
+                        {selectableAgentContextTargets.map((target) => (
+                          <label className="agent-context-scope__target" key={target.id}>
+                            <input
+                              checked={agentContextWriteTargetIds.includes(target.id)}
+                              data-testid={`agent-context-target-${target.scope}-${slugifyTestId(target.label)}`}
+                              onChange={(event) => toggleAgentContextWriteTarget(target.id, event.target.checked)}
+                              type="checkbox"
+                            />
+                            <span>
+                              <strong>{target.label}</strong>
+                              <small>{target.rootPath}</small>
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    ) : null}
+                    <div className="agent-context-scope__footer">
+                      <span data-testid="agent-context-write-summary">
+                        {agentContextWriteTargetIds.length === 0
+                          ? "No scope selected."
+                          : `Will write ${enabledAgentContextFileNames(agentContextAdapters.adapters).join(", ")} to ${agentContextWriteTargetIds.length} scope${agentContextWriteTargetIds.length === 1 ? "" : "s"}.`}
+                      </span>
                       <button
                         className="toolbar-button"
                         data-testid="agent-context-save-unified"
-                        disabled={!agentContextComposer.selectedTargetId || agentContextComposer.saveStatus === "saving"}
+                        disabled={agentContextWriteTargetIds.length === 0 || agentContextComposer.saveStatus === "saving"}
                         onClick={() => void saveUnifiedAgentContext()}
                         type="button"
                       >
-                        {agentContextComposer.saveStatus === "saving" ? "Writing…" : "Write provider files"}
+                        {agentContextComposer.saveStatus === "saving" ? "Writing…" : agentContextComposer.scopeMode === "global" ? "Write global provider files" : "Write selected scopes"}
                       </button>
                     </div>
                   </div>
@@ -4724,6 +4811,15 @@ function agentContextTargetsFromFiles(files: AgentContextFile[]) {
     }
   }
   return [...targets.values()];
+}
+
+function enabledAgentContextFileNames(adapters: AgentContextFileAdapter[]) {
+  const fileNames = adapters.filter((adapter) => adapter.enabled).map((adapter) => adapter.fileName);
+  return fileNames.length > 0 ? fileNames : ["provider files"];
+}
+
+function slugifyTestId(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
 const EXO_AGENT_CONTEXT_START_PREFIX = "<!-- exo:managed:start";

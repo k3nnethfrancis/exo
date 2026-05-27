@@ -183,7 +183,8 @@ export interface DesktopApi {
     listAgentInstructionOverlays: () => Promise<AgentInstructionOverlay[]>;
     saveAgentContextFile: (filePath: string, body: string) => Promise<AgentContextFile>;
     saveAgentContextBundle: (input: {
-      targetId: string;
+      targetId?: string;
+      targetIds?: string[];
       body: string;
     }) => Promise<AgentContextBundleResult>;
     restoreAgentContextHistory: (historyId: string) => Promise<AgentContextBundleResult>;

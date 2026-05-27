@@ -529,7 +529,7 @@ function registerIpcHandlers() {
   ipcMain.handle("workspace:list-agent-context-history", async () => listAgentContextHistory());
   ipcMain.handle("workspace:list-agent-instruction-overlays", async () => listAgentInstructionOverlays());
   ipcMain.handle("workspace:save-agent-context-file", async (_event, filePath: string, body: string) => saveAgentContextFile(filePath, body));
-  ipcMain.handle("workspace:save-agent-context-bundle", async (_event, input: { targetId: string; body: string }) =>
+  ipcMain.handle("workspace:save-agent-context-bundle", async (_event, input: { targetId?: string; targetIds?: string[]; body: string }) =>
     saveAgentContextBundle(input),
   );
   ipcMain.handle("workspace:restore-agent-context-history", async (_event, historyId: string) => restoreAgentContextHistory(historyId));
@@ -806,14 +806,19 @@ async function saveAgentContextFile(filePath: string, body: string) {
   return readAgentContextCandidate(candidate);
 }
 
-async function saveAgentContextBundle(input: { targetId: string; body: string }) {
+async function saveAgentContextBundle(input: { targetId?: string; targetIds?: string[]; body: string }) {
   const candidates = agentContextCandidates();
-  const targetCandidates = candidates.filter((entry) => entry.targetId === input.targetId);
-  if (targetCandidates.length === 0) {
+  const targetIds = [...new Set(input.targetIds ?? (input.targetId ? [input.targetId] : []))];
+  if (targetIds.length === 0) {
+    throw new Error("Choose at least one agent context scope before writing provider files.");
+  }
+  const candidatesByTarget = targetIds.map((targetId) => candidates.filter((entry) => entry.targetId === targetId));
+  if (candidatesByTarget.some((entries) => entries.length === 0)) {
     throw new Error("Agent context target is outside the active global/workspace context set.");
   }
+  const targetCandidates = candidatesByTarget.flat();
 
-  await recordAgentContextHistory(targetCandidates, input.body);
+  await Promise.all(candidatesByTarget.map((entries) => recordAgentContextHistory(entries, input.body)));
   await Promise.all(targetCandidates.map((candidate) => writeAgentContextProviderFile(candidate.path, input.body)));
 
   return {

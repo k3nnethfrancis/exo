@@ -1542,6 +1542,96 @@ select.dialog-card__input {
   min-height: 210px;
 }
 
+.agent-context-scope {
+  display: grid;
+  gap: 9px;
+  min-width: 0;
+  padding: 9px;
+  border: 1px solid color-mix(in srgb, var(--divider) 55%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-2) 42%, transparent);
+}
+
+.agent-context-scope__mode {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding: 3px;
+  border: 1px solid var(--surface-border);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+.agent-context-scope__mode-button {
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+
+.agent-context-scope__mode-button--active {
+  border-color: var(--surface-border-strong);
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.agent-context-scope__targets {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.agent-context-scope__target {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid color-mix(in srgb, var(--divider) 55%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-2) 54%, transparent);
+}
+
+.agent-context-scope__target span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.agent-context-scope__target strong,
+.agent-context-scope__target small,
+.agent-context-scope__footer span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-context-scope__target strong {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.agent-context-scope__target small,
+.agent-context-scope__footer span {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.agent-context-scope__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
 .agent-context-adapters {
   padding-bottom: 2px;
 }
