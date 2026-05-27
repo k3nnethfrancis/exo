@@ -397,7 +397,7 @@ test("opens workspace settings with partial agent context discovery errors", asy
     await page.getByTestId("agent-context-open-manager").click();
     await expect(page.getByTestId("agent-context-manager")).toBeVisible();
     await expect(page.getByTestId("agent-context-manager-partial-errors")).toContainText("sample-project / AGENTS.md");
-    await expect(page.getByTestId("agent-context-manager-overview")).toContainText("Active scope");
+    await expect(page.getByTestId("agent-context-composer")).toContainText("Unified instructions");
     await expect(page.getByTestId("agent-context-file-list")).toContainText("Error");
   } finally {
     await cleanup();
@@ -457,7 +457,7 @@ test("keeps long agent context errors separate from narrow manager controls", as
     await expect(page.getByTestId("agent-context-manager")).toBeVisible();
     await page.setViewportSize({ width: 720, height: 720 });
     await expect(page.getByTestId("agent-context-manager-partial-errors")).toContainText("stale preload bridge restart");
-    await expect(page.getByTestId("agent-context-manager-overview")).toContainText("Active scope");
+    await expect(page.getByTestId("agent-context-composer")).toContainText("Unified instructions");
 
     const errorBox = await page.getByTestId("agent-context-manager-partial-errors").boundingBox();
     const controlsBox = await page.getByTestId("agent-context-manager-controls").boundingBox();
@@ -496,7 +496,7 @@ test("edits agent context files from workspace settings", async () => {
   await expect(page.getByTestId("agent-context-settings")).toContainText("Instruction outputs");
   await page.getByTestId("agent-context-open-manager").click();
   await expect(page.getByTestId("agent-context-manager")).toBeVisible();
-  await expect(page.getByTestId("agent-context-manager-overview")).toContainText("Provider outputs");
+  await expect(page.getByTestId("agent-context-manager")).not.toContainText("Provider outputs");
   await expect(page.getByTestId("agent-context-composer")).toContainText("Managed history");
   await expect(page.getByTestId("agent-instruction-overlay-preview")).toContainText("Generated overlay");
   await expect(page.getByTestId("agent-context-adapters")).toContainText("AGENTS.md");

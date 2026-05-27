@@ -1488,48 +1488,10 @@ select.dialog-card__input {
   overflow: hidden;
 }
 
-.agent-context-manager__overview {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-  min-width: 0;
-}
-
-.agent-context-manager__overview-item {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-  padding: 9px 10px;
-  border: 1px solid color-mix(in srgb, var(--divider) 55%, transparent);
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--surface-2) 58%, transparent);
-}
-
-.agent-context-manager__overview-item span,
-.agent-context-manager__overview-item small,
 .agent-context-manager__section-copy {
   color: var(--muted);
   font-size: 10px;
   line-height: 1.4;
-}
-
-.agent-context-manager__overview-item span {
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.agent-context-manager__overview-item strong,
-.agent-context-manager__overview-item small {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.agent-context-manager__overview-item strong {
-  color: var(--text);
-  font-size: 12px;
-  font-weight: 650;
 }
 
 .agent-context-manager__main,
@@ -1914,7 +1876,6 @@ select.dialog-card__input {
   }
 
   .agent-context-summary__grid,
-  .agent-context-manager__overview,
   .agent-context-manager,
   .agent-mcp-editor__grid {
     grid-template-columns: 1fr;

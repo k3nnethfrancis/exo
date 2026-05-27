@@ -131,11 +131,11 @@ No open issues tracked in this file.
 - Area: agent context manager UX, settings information architecture
 - Observed: the manager mixed unified instructions, provider files, instruction outputs, runtime overlays, history, and managed configs without enough hierarchy or explanation.
 - Fixed:
-  - Added an overview row for active scope, provider outputs, managed configs, and runtime overlay.
-  - Reworked the manager into clearer sections for unified instructions, managed history, provider files, and managed config editing.
+  - Reworked the manager into clearer sections for unified instructions, managed history, provider files, instruction outputs, runtime overlays, and managed config editing.
+  - Removed the summary overview strip after QA showed it added visual clutter without a clear action.
   - Added concise tooltips/help affordances for scope, provider outputs, overlays, history, and managed configs.
 - QA coverage:
-  - Extended Playwright settings QA to verify the overview, sections, and output controls.
+  - Extended Playwright settings QA to verify the core sections, output controls, and absence of the removed overview strip.
 
 ### EXO-ISSUE-001: Workspace settings button does not open settings
 

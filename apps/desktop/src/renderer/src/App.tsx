@@ -955,10 +955,6 @@ export function App() {
   const agentContextTargets = useMemo(() => agentContextTargetsFromFiles(agentContextEditor.files), [agentContextEditor.files]);
   const selectedAgentContextTarget =
     agentContextTargets.find((target) => target.id === agentContextComposer.selectedTargetId) ?? agentContextTargets[0] ?? null;
-  const enabledAgentContextAdapterLabels = useMemo(
-    () => agentContextAdapters.adapters.filter((adapter) => adapter.enabled).map((adapter) => adapter.fileName),
-    [agentContextAdapters.adapters],
-  );
   const agentContextHistoryForSelectedTarget = useMemo(
     () => agentContextHistoryEntriesForTarget(agentContextComposer.history, agentContextComposer.selectedTargetId),
     [agentContextComposer.history, agentContextComposer.selectedTargetId],
@@ -4085,28 +4081,6 @@ export function App() {
                 ))}
               </div>
             ) : null}
-            <div className="agent-context-manager__overview" data-testid="agent-context-manager-overview">
-              <div className="agent-context-manager__overview-item">
-                <span>Active scope</span>
-                <strong>{selectedAgentContextTarget?.label ?? "No scope selected"}</strong>
-                <small title={selectedAgentContextTarget?.rootPath}>{selectedAgentContextTarget?.rootPath ?? "Choose a scope before writing provider files."}</small>
-              </div>
-              <div className="agent-context-manager__overview-item">
-                <span>Provider outputs</span>
-                <strong>{enabledAgentContextAdapterLabels.length > 0 ? enabledAgentContextAdapterLabels.join(", ") : "None enabled"}</strong>
-                <small>Generated from unified instructions for the selected scope.</small>
-              </div>
-              <div className="agent-context-manager__overview-item">
-                <span>Managed configs</span>
-                <strong>{agentManagedConfigs.files.length}</strong>
-                <small>{agentManagedConfigs.files.length > 0 ? "Launch-time config files available to edit." : "Unavailable in this renderer/preload session."}</small>
-              </div>
-              <div className="agent-context-manager__overview-item">
-                <span>Runtime overlay</span>
-                <strong>{selectedInstructionOverlay?.label ?? "None"}</strong>
-                <small>Generated context passed to terminal agent launches.</small>
-              </div>
-            </div>
             <div className="agent-context-manager" data-testid="agent-context-manager-body">
               <div className="agent-context-manager__main" data-testid="agent-context-composer">
                 <section className="agent-context-manager__section agent-context-manager__section--primary">
