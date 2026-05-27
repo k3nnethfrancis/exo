@@ -316,6 +316,32 @@ button svg,
   color: var(--text);
 }
 
+.editor-panel__actions .toolbar-button:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+
+.editor-panel__save-state {
+  max-width: 88px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editor-panel__save-state--saving {
+  color: var(--accent);
+}
+
+.editor-panel__save-state--saved {
+  color: var(--accent-strong);
+}
+
+.editor-panel__save-state--error {
+  color: var(--danger-text);
+}
+
 .toolbar-button {
   display: inline-flex;
   align-items: center;

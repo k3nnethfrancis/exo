@@ -95,6 +95,8 @@ test("shows a visible BrowserWindow on startup", async () => {
 test("opens a browser preview pane in the workspace", async () => {
   const { page, cleanup } = await launchExoFixture();
 
+  await expect(page.locator('[data-testid="terminal-rail"] [data-testid="launch-browser"]')).toHaveCount(0);
+  await expect(page.locator('.sidebar__rail [data-testid="launch-browser"]')).toBeVisible();
   await page.getByTestId("launch-browser").click();
   await expect(page.getByTestId("browser-pane")).toBeVisible();
   await expect(page.getByTestId("browser-url-input")).toHaveValue("about:blank");
@@ -110,13 +112,51 @@ test("opens a browser preview pane in the workspace", async () => {
 });
 
 test("opens project files and creates note branches", async () => {
-  const { page, cleanup } = await launchExoFixture({ mutable: true });
+  const { page, workspaceRoot, cleanup } = await launchExoFixture({ mutable: true });
 
   await page.getByTestId("project-roots-toggle").click();
   await page.getByRole("button", { name: "src" }).click();
   await page.getByTestId("sidebar").getByRole("button", { name: "demo.ts" }).click();
   await expect(page.getByTestId("editor-title")).toHaveText("demo.ts");
   await expect(page.getByTestId("properties-panel")).toContainText("Project file");
+  await expect(page.getByTestId("editor-save-status")).toHaveText("Saved");
+  await page.evaluate(() => {
+    const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+    const view = content?.cmView?.view;
+    if (!view) {
+      throw new Error("Unable to resolve CodeMirror view");
+    }
+    view.dispatch({
+      changes: {
+        from: 0,
+        to: view.state.doc.length,
+        insert: "export const demo = 'saved';\n",
+      },
+    });
+  });
+  await expect(page.getByTestId("editor-save-status")).toHaveText("Unsaved");
+  await page.getByTestId("editor-save").click();
+  await expect(page.getByTestId("editor-save-status")).toHaveText("Saved");
+  await expect.poll(async () => readFile(path.join(workspaceRoot, "projects/sample-project/src/demo.ts"), "utf8")).toContain("saved");
+  await page.getByTestId("sidebar").getByRole("button", { name: "README" }).click();
+  await expect(page.getByTestId("editor-title")).toHaveText("README");
+  await page.evaluate(() => {
+    const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+    const view = content?.cmView?.view;
+    if (!view) {
+      throw new Error("Unable to resolve CodeMirror view");
+    }
+    view.dispatch({
+      changes: {
+        from: view.state.doc.length,
+        insert: "\n\nSaved from Exo.",
+      },
+    });
+  });
+  await expect(page.getByTestId("editor-save-status")).toHaveText("Unsaved");
+  await page.getByTestId("editor-save").click();
+  await expect(page.getByTestId("editor-save-status")).toHaveText("Saved");
+  await expect.poll(async () => readFile(path.join(workspaceRoot, "projects/sample-project/README.md"), "utf8")).toContain("Saved from Exo.");
 
   await page.getByTestId("sidebar-search-toggle").click();
   await page.getByTestId("sidebar-search-input").fill("focus-note");

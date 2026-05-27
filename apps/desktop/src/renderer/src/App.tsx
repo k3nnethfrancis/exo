@@ -234,6 +234,7 @@ export function App() {
   const [exploreIndexSearchOnEnter, setExploreIndexSearchOnEnter] = useState(false);
   const workspaceSearch = useWorkspaceSearch({ indexedOnEnter: exploreIndexSearchOnEnter });
   const [openDocuments, setOpenDocuments] = useState<Record<string, OpenEditorDocument>>({});
+  const [documentSaveStatuses, setDocumentSaveStatuses] = useState<Record<string, "idle" | "saving" | "saved" | "error">>({});
   const [knowledgeByPath, setKnowledgeByPath] = useState<Record<string, NoteKnowledge>>({});
   const [branchFamiliesByPath, setBranchFamiliesByPath] = useState<Record<string, BranchFamily>>({});
   const [activeDocumentPath, setActiveDocumentPath] = useState<string | null>(null);
@@ -2267,6 +2268,7 @@ export function App() {
         dirty: true,
       },
     }));
+    setDocumentSaveStatuses((current) => ({ ...current, [activeDocumentPath]: "idle" }));
   }
 
   function updateFrontmatter(key: string, value: unknown) {
@@ -2285,49 +2287,64 @@ export function App() {
         dirty: true,
       },
     }));
+    setDocumentSaveStatuses((current) => ({ ...current, [activeDocumentPath]: "idle" }));
   }
 
   async function saveDocument(filePath: string) {
-    const document = openDocuments[filePath];
+    const document = openDocumentsRef.current[filePath];
     if (!document) {
       return;
     }
 
-    await window.exo.notes.save(filePath, document.frontmatter, document.body);
-    const diskVersion = await window.exo.notes.stat(filePath);
-    const remainsOpen = collectOpenEditorPaths(editorTree).has(filePath);
-    if (document.kind === "markdown" && remainsOpen) {
-      const [knowledge, branchFamily] = await Promise.all([
-        window.exo.notes.getKnowledge(filePath),
-        window.exo.notes.getBranchFamily(filePath),
-      ]);
-      setKnowledgeByPath((current) => ({
-        ...current,
-        [filePath]: knowledge,
-      }));
-      setBranchFamiliesByPath((current) => ({
-        ...current,
-        [filePath]: branchFamily,
-      }));
+    setDocumentSaveStatuses((current) => ({ ...current, [filePath]: "saving" }));
+    try {
+      await window.exo.notes.save(filePath, document.frontmatter, document.body);
+      const diskVersion = await window.exo.notes.stat(filePath);
+      const remainsOpen = collectOpenEditorPaths(editorTree).has(filePath);
+      const isAttachedNote = workspaceModel
+        ? isInsideAttachedRoot(filePath, workspaceModel.noteRoots.map((root) => root.path))
+        : true;
+      if (document.kind === "markdown" && remainsOpen && isAttachedNote) {
+        const [knowledge, branchFamily] = await Promise.all([
+          window.exo.notes.getKnowledge(filePath),
+          window.exo.notes.getBranchFamily(filePath),
+        ]);
+        setKnowledgeByPath((current) => ({
+          ...current,
+          [filePath]: knowledge,
+        }));
+        setBranchFamiliesByPath((current) => ({
+          ...current,
+          [filePath]: branchFamily,
+        }));
+      }
+      setOpenDocuments((current) => {
+        if (!current[filePath]) {
+          return current;
+        }
+        if (!remainsOpen) {
+          const next = { ...current };
+          delete next[filePath];
+          return next;
+        }
+        return {
+          ...current,
+          [filePath]: {
+            ...current[filePath],
+            dirty: false,
+            diskVersion,
+          },
+        };
+      });
+      setDocumentSaveStatuses((current) => ({ ...current, [filePath]: "saved" }));
+      window.setTimeout(() => {
+        setDocumentSaveStatuses((current) => current[filePath] === "saved" ? { ...current, [filePath]: "idle" } : current);
+      }, 1600);
+    } catch (error) {
+      console.error("[exo] failed to save document", { filePath, error });
+      setDocumentSaveStatuses((current) => ({ ...current, [filePath]: "error" }));
+      throw error;
     }
-    setOpenDocuments((current) => {
-      if (!current[filePath]) {
-        return current;
-      }
-      if (!remainsOpen) {
-        const next = { ...current };
-        delete next[filePath];
-        return next;
-      }
-      return {
-        ...current,
-        [filePath]: {
-          ...current[filePath],
-          dirty: false,
-          diskVersion,
-        },
-      };
-    });
   }
   saveDocumentRef.current = saveDocument;
 
@@ -3356,6 +3373,7 @@ export function App() {
               key={leaf.id}
               pane={pane}
               documents={openDocuments}
+              saveStatuses={documentSaveStatuses}
               branchFamiliesByPath={branchFamiliesByPath}
               propertiesCollapsed={propertiesCollapsed}
               isFocused={isFocused}

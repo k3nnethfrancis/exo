@@ -19,6 +19,7 @@ export interface EditorPaneState {
 interface EditorPaneProps {
   pane: EditorPaneState;
   documents: Record<string, EditorDocument>;
+  saveStatuses: Record<string, "idle" | "saving" | "saved" | "error">;
   branchFamiliesByPath: Record<string, BranchFamily>;
   propertiesCollapsed: boolean;
   isFocused: boolean;
@@ -48,6 +49,7 @@ export function EditorPane(props: EditorPaneProps) {
   const {
     pane,
     documents,
+    saveStatuses,
     branchFamiliesByPath,
     propertiesCollapsed,
     isFocused,
@@ -130,6 +132,7 @@ export function EditorPane(props: EditorPaneProps) {
 
       <NoteEditor
         document={activeDocument}
+        saveStatus={pane.activePath ? saveStatuses[pane.activePath] ?? "idle" : "idle"}
         branchFamily={pane.activePath ? branchFamiliesByPath[pane.activePath] ?? null : null}
         propertiesCollapsed={propertiesCollapsed}
         onToggleProperties={onToggleProperties}

@@ -8,7 +8,7 @@ import { bracketMatching, foldGutter, HighlightStyle, syntaxHighlighting } from 
 import { lintGutter, lintKeymap } from "@codemirror/lint";
 import { keymap, lineNumbers, EditorView } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
-import { Code2, GitBranch, SlidersHorizontal } from "lucide-react";
+import { Code2, GitBranch, Save, SlidersHorizontal } from "lucide-react";
 import type { BranchFamily, NoteDocument } from "@exo/core";
 import type { ResolvedAppearance } from "../App";
 import { codeLanguageForPath } from "./codeLanguages";
@@ -21,12 +21,13 @@ interface EditorDocument extends NoteDocument {
 
 interface NoteEditorProps {
   document: EditorDocument | null;
+  saveStatus: "idle" | "saving" | "saved" | "error";
   branchFamily: BranchFamily | null;
   propertiesCollapsed: boolean;
   onToggleProperties: () => void;
   onUpdateFrontmatter: (key: string, value: unknown) => void;
   onBodyChange: (body: string) => void;
-  onSave: () => void;
+  onSave: () => void | Promise<void>;
   onOpenTag: (tag: string) => void;
   onOpenTarget: (target: string) => void;
   onOpenBranch: (filePath: string) => void;
@@ -43,6 +44,7 @@ interface NoteEditorProps {
 export function NoteEditor(props: NoteEditorProps) {
   const {
     document,
+    saveStatus,
     branchFamily,
     propertiesCollapsed,
     onToggleProperties,
@@ -261,6 +263,23 @@ export function NoteEditor(props: NoteEditorProps) {
         </div>
 
         <div className="editor-panel__actions">
+          <span
+            className={`editor-panel__save-state editor-panel__save-state--${saveStatus}`}
+            data-testid="editor-save-status"
+          >
+            {saveStatus === "saving" ? "Saving" : saveStatus === "saved" ? "Saved" : saveStatus === "error" ? "Save failed" : document.dirty ? "Unsaved" : "Saved"}
+          </span>
+          <button
+            aria-label="Save document"
+            className={`toolbar-button toolbar-button--icon ${compact ? "toolbar-button--compact" : ""}`}
+            data-testid="editor-save"
+            disabled={!document.dirty || saveStatus === "saving"}
+            onClick={() => void onSave()}
+            title={document.dirty ? "Save" : "No unsaved changes"}
+            type="button"
+          >
+            <Save size={14} />
+          </button>
           {isMarkdown && branchFamily ? (
             <div className="branch-selector branch-selector--icon-only" data-testid="branch-selector-wrap" title="Branches">
               <GitBranch size={14} />

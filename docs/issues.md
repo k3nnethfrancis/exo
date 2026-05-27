@@ -6,7 +6,19 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 
 ## Open
 
-No open issues tracked in this file.
+### EXO-ISSUE-017: Terminal tabs can become blank, show stale `[exited]`, or lag while typing
+
+- Status: open
+- Severity: high
+- Area: terminal renderer, terminal session switching, xterm performance
+- Observed:
+  - New terminals sometimes do not fully load.
+  - Switching between terminals can show a blank surface or stale `[exited]` message, then recover after switching again.
+  - Typing into terminals can lag enough to become unusable.
+- Next:
+  - Reproduce with restored sessions and fresh shell sessions.
+  - Inspect whether active terminal reads, renderer buffer state, xterm remounts, or transcript/scrollback trimming are causing input/render contention.
+  - Add focused terminal switching/performance QA before marking fixed.
 
 ## Resolved
 
@@ -34,6 +46,32 @@ No open issues tracked in this file.
   - Regression that raw non-submitted input can still answer provider interstitials.
 
 ## Fixed
+
+### EXO-ISSUE-016: Project-file saves have no visible confirmation
+
+- Status: fixed
+- Severity: medium
+- Area: editor save UX, project files
+- Observed: editing project files did not visibly indicate unsaved, saving, saved, or failed state, making it unclear whether `README` and source-file edits persisted.
+- Fixed:
+  - Added explicit editor save control and save status text for unsaved/saving/saved/error states.
+  - Save now reads the latest document state from the renderer ref before writing, avoiding stale state when invoking save immediately after edits.
+  - Project markdown saves no longer try to refresh note-only knowledge/branch metadata when the file is outside an attached note root.
+- QA coverage:
+  - Focused Electron QA covers editing a project source file and project `README.md`, observing dirty state, saving, and confirming the files on disk changed.
+  - Live app QA verified the editor save status/control is visible in the active editor toolbar.
+
+### EXO-ISSUE-015: Browser preview launcher is on the terminal rail
+
+- Status: fixed
+- Severity: low
+- Area: shell navigation, browser preview
+- Observed: browser preview launch lived with terminal controls even though it opens a workspace/editor pane.
+- Fixed:
+  - Moved the preview launcher to the explorer rail directly under the explorer collapse/expand control.
+- QA coverage:
+  - Focused Electron QA verifies the launcher is absent from the terminal rail, present in the explorer rail, and opens a browser preview pane.
+  - Live app QA verified the launcher placement and preview-pane creation in the running desktop app.
 
 ### EXO-ISSUE-013: Agent Config Editor sections can overlap near the bottom of the dialog
 

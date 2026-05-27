@@ -5,6 +5,7 @@ import {
   FilePlus2,
   FolderPlus,
   GitCompare,
+  Globe2,
   Monitor,
   MoonStar,
   PanelLeftClose,
@@ -77,19 +78,31 @@ interface ExplorerRailProps {
   onAppearanceModeChange: (mode: AppearanceMode) => void;
   onToggleCollapsed: () => void;
   onOpenWorkspaceSettings: () => void;
+  onCreateBrowserPane?: () => void;
   topControls?: ReactNode;
 }
 
-export function ExplorerRailTopControls(props: Pick<ExplorerRailProps, "collapsed" | "onToggleCollapsed">) {
-  const { collapsed, onToggleCollapsed } = props;
+export function ExplorerRailTopControls(props: Pick<ExplorerRailProps, "collapsed" | "onToggleCollapsed" | "onCreateBrowserPane">) {
+  const { collapsed, onToggleCollapsed, onCreateBrowserPane } = props;
   return (
-    <RailButton
-      testId={collapsed ? "sidebar-expand" : "sidebar-collapse"}
-      onClick={onToggleCollapsed}
-      title={collapsed ? "Expand workspace" : "Collapse workspace"}
-    >
-      {collapsed ? <PanelLeftOpen size={13} /> : <PanelLeftClose size={13} />}
-    </RailButton>
+    <>
+      <RailButton
+        testId={collapsed ? "sidebar-expand" : "sidebar-collapse"}
+        onClick={onToggleCollapsed}
+        title={collapsed ? "Expand workspace" : "Collapse workspace"}
+      >
+        {collapsed ? <PanelLeftOpen size={13} /> : <PanelLeftClose size={13} />}
+      </RailButton>
+      {onCreateBrowserPane ? (
+        <RailButton
+          testId="launch-browser"
+          onClick={onCreateBrowserPane}
+          title="New preview pane"
+        >
+          <Globe2 size={13} />
+        </RailButton>
+      ) : null}
+    </>
   );
 }
 
@@ -101,6 +114,7 @@ export function ExplorerRail(props: ExplorerRailProps) {
     onAppearanceModeChange,
     onToggleCollapsed,
     onOpenWorkspaceSettings,
+    onCreateBrowserPane,
     topControls,
   } = props;
 
@@ -115,7 +129,7 @@ export function ExplorerRail(props: ExplorerRailProps) {
   return (
     <div className="sidebar__rail">
       <div className="sidebar__rail-top">
-        {topControls ?? <ExplorerRailTopControls collapsed={collapsed} onToggleCollapsed={onToggleCollapsed} />}
+        {topControls ?? <ExplorerRailTopControls collapsed={collapsed} onToggleCollapsed={onToggleCollapsed} onCreateBrowserPane={onCreateBrowserPane} />}
       </div>
       <div className="sidebar__rail-bottom">
         <RailButton

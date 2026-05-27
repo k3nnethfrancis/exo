@@ -173,6 +173,7 @@ export function ShellLayout(props: ShellLayoutProps) {
     <ExplorerRailTopControls
       collapsed={sidebarCollapsed}
       onToggleCollapsed={() => setSidebarCollapsed((current) => !current)}
+      onCreateBrowserPane={onCreateBrowserPane}
     />
   );
   const terminalTopControls = (
@@ -180,7 +181,6 @@ export function ShellLayout(props: ShellLayoutProps) {
       collapsed={terminalCollapsed}
       onToggleCollapsed={() => setTerminalCollapsed((current) => !current)}
       onCreateTerminal={onCreateTerminal}
-      onCreateBrowserPane={onCreateBrowserPane}
     />
   );
 
@@ -269,6 +269,7 @@ export function ShellLayout(props: ShellLayoutProps) {
         onAppearanceModeChange={onAppearanceModeChange}
         onToggleCollapsed={() => setSidebarCollapsed((current) => !current)}
         onOpenWorkspaceSettings={onOpenWorkspaceSettings}
+        onCreateBrowserPane={onCreateBrowserPane}
         topControls={sidePanesFlipped ? terminalTopControls : explorerTopControls}
       />
       {sidePanesFlipped ? null : explorer}
@@ -326,7 +327,6 @@ export function ShellLayout(props: ShellLayoutProps) {
         onToggleCollapsed={() => setTerminalCollapsed((c) => !c)}
         onToggleSidePanes={() => setSidePanesFlipped((current) => !current)}
         onCreateTerminal={onCreateTerminal}
-        onCreateBrowserPane={onCreateBrowserPane}
       />
 
       {dragManager.drag ? (
