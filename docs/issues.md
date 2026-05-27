@@ -50,6 +50,25 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 
 ## Fixed
 
+### EXO-ISSUE-018: Agent Config Editor remains cluttered after first UX pass
+
+- Status: fixed
+- Severity: medium
+- Area: agent config editor UX, settings information architecture
+- Observed:
+  - Right-side provider/config/overlay lists consumed too much space.
+  - Provider file selection felt detached from the provider file editor.
+  - Managed history and generated overlay preview added density without supporting the primary edit path.
+  - The provider editor needed more vertical space.
+- Fixed:
+  - Moved provider file selection into a tab strip directly above the provider editor.
+  - Replaced managed history with a compact history popover control near the provider editor actions.
+  - Collapsed managed config editing and generated overlay details by default.
+  - Increased provider editor height and reduced top-section density.
+- QA coverage:
+  - Focused Electron QA covers agent-config partial-load states, narrow-error layout, provider file editing, history popover, managed config expansion, and generated overlay expansion.
+  - Live app QA verified the editor opens with provider tabs attached to the editor and secondary sections collapsed.
+
 ### EXO-ISSUE-016: Project-file saves have no visible confirmation
 
 - Status: fixed

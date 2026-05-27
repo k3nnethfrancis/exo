@@ -534,7 +534,7 @@ test("edits agent context files from workspace settings", async () => {
   await page.getByTestId("agent-context-open-manager").click();
   await expect(page.getByTestId("agent-context-manager")).toBeVisible();
   await expect(page.getByTestId("agent-context-manager")).not.toContainText("Provider outputs");
-  await expect(page.getByTestId("agent-context-composer")).toContainText("Managed history");
+  await expect(page.getByTestId("agent-context-history-toggle")).toBeVisible();
   await expect(page.getByTestId("agent-instruction-overlay-preview")).toContainText("Generated overlay");
   await expect(page.getByTestId("agent-context-adapters")).toContainText("AGENTS.md");
   await expect(page.getByTestId("agent-context-adapters")).toContainText("CLAUDE.md");
@@ -545,6 +545,7 @@ test("edits agent context files from workspace settings", async () => {
   await expect(page.getByTestId("agent-context-adapters")).toContainText("soul.md");
   await expect(page.getByTestId("agent-managed-config-list")).toContainText(".mcp.json");
   await page.getByRole("button", { name: /sample-project \/ \.mcp\.json/i }).click();
+  await page.getByTestId("agent-managed-config-summary").click();
   await expect(page.getByTestId("agent-mcp-editor")).toBeVisible();
   const providerEditorBox = await page.getByTestId("agent-context-editor").boundingBox();
   const managedConfigBox = await page.getByTestId("agent-managed-config-editor").boundingBox();
@@ -563,6 +564,7 @@ test("edits agent context files from workspace settings", async () => {
   await expect.poll(async () =>
     readFile(path.join(workspaceRoot, "projects/sample-project/.mcp.json"), "utf8"),
   ).toContain('"EXO_MCP_AUTOSTART": "1"');
+  await page.getByTestId("agent-instruction-overlay-preview").locator("summary").click();
   await expect(page.getByTestId("agent-instruction-overlay-body")).toContainText("Exo Runtime Context");
   await expect(page.getByTestId("agent-instruction-overlay-body")).toContainText("sample-project");
   await expect.poll(async () => readFile(path.join(workspaceRoot, ".exo/instructions/global.md"), "utf8")).toContain("Attached Project Roots");
@@ -619,7 +621,8 @@ test("edits agent context files from workspace settings", async () => {
   await expect.poll(async () =>
     readFile(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"), "utf8"),
   ).toContain("Existing project context");
-  await expect(page.getByTestId("agent-context-history")).toContainText("managed version");
+  await page.getByTestId("agent-context-history-toggle").click();
+  await expect(page.getByTestId("agent-context-history-popover")).toBeVisible();
   await expect(page.getByTestId("agent-context-history-list")).toBeVisible();
   await expect(page.getByTestId("agent-context-history-entry").first()).toContainText("Updated managed body");
   await page.getByTestId("agent-context-toggle-diff").click();
