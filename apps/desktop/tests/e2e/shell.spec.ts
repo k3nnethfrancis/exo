@@ -509,6 +509,11 @@ test("edits agent context files from workspace settings", async () => {
   await expect(page.getByTestId("agent-managed-config-list")).toContainText(".mcp.json");
   await page.getByRole("button", { name: /sample-project \/ \.mcp\.json/i }).click();
   await expect(page.getByTestId("agent-mcp-editor")).toBeVisible();
+  const providerEditorBox = await page.getByTestId("agent-context-editor").boundingBox();
+  const managedConfigBox = await page.getByTestId("agent-managed-config-editor").boundingBox();
+  expect(providerEditorBox).not.toBeNull();
+  expect(managedConfigBox).not.toBeNull();
+  expect(boxesOverlap(providerEditorBox!, managedConfigBox!)).toBe(false);
   await page.getByTestId("agent-mcp-server-name").fill("exo");
   await page.getByTestId("agent-mcp-server-command").fill("node");
   await page.getByTestId("agent-mcp-server-args").fill("packages/mcp/bin/exo-mcp.mjs");

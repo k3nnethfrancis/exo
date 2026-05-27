@@ -1815,10 +1815,9 @@ select.dialog-card__input {
 
 .agent-context-settings__editor {
   display: grid;
-  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
   gap: 8px;
   min-width: 0;
-  min-height: 0;
+  overflow: visible;
 }
 
 .agent-context-settings__signals {

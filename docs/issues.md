@@ -1,6 +1,6 @@
 # Exo Issues
 
-Last updated: 2026-05-25
+Last updated: 2026-05-26
 
 This is the active bug/QA tracker. It captures user-observed issues that need investigation before the next push/release pass.
 
@@ -34,6 +34,17 @@ No open issues tracked in this file.
   - Regression that raw non-submitted input can still answer provider interstitials.
 
 ## Fixed
+
+### EXO-ISSUE-013: Agent Context Manager editor sections can overlap near the bottom of the dialog
+
+- Status: fixed
+- Severity: medium
+- Area: agent context manager layout, managed config editor
+- Observed: the Managed config editor header and contents could visually overlap the provider file editor when the manager had constrained vertical space.
+- Fixed:
+  - Agent context editor blocks now size from their content and let the manager's main column scroll instead of using a flexible textarea row with an indefinite parent height.
+- QA coverage:
+  - Added Playwright layout regression that verifies the provider file editor and managed config editor do not overlap after selecting a managed `.mcp.json` config.
 
 ### EXO-ISSUE-012: Reattached long-running Codex sessions can crash the renderer with huge buffers
 
