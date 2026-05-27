@@ -17,6 +17,7 @@ interface TerminalDockProps {
   sessions: TerminalSessionInfo[];
   activeTerminalId: string | null;
   buffers: Record<string, string>;
+  bufferVersions: Record<string, number>;
   fontSize: number;
   scrollbackLines: number;
   onFocus: () => void;
@@ -42,6 +43,7 @@ export function TerminalDock(props: TerminalDockProps) {
     sessions,
     activeTerminalId,
     buffers,
+    bufferVersions,
     fontSize,
     scrollbackLines,
     onFocus,
@@ -109,6 +111,7 @@ export function TerminalDock(props: TerminalDockProps) {
               appearance={appearance}
               session={activeSession}
               buffer={buffers[activeSession.id] ?? ""}
+              bufferVersion={bufferVersions[activeSession.id] ?? 0}
               fontSize={fontSize}
               scrollbackLines={scrollbackLines}
               onFocus={onFocus}

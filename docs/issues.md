@@ -8,7 +8,7 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 
 ### EXO-ISSUE-017: Terminal tabs can become blank, show stale `[exited]`, or lag while typing
 
-- Status: open
+- Status: partially fixed
 - Severity: high
 - Area: terminal renderer, terminal session switching, xterm performance
 - Observed:
@@ -16,9 +16,12 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
   - Switching between terminals can show a blank surface or stale `[exited]` message, then recover after switching again.
   - Typing into terminals can lag enough to become unusable.
 - Next:
-  - Reproduce with restored sessions and fresh shell sessions.
-  - Inspect whether active terminal reads, renderer buffer state, xterm remounts, or transcript/scrollback trimming are causing input/render contention.
+  - Reproduce blank/stale `[exited]` behavior with restored sessions and fresh shell sessions.
+  - Inspect whether active terminal reads, session status sync, xterm remounts, or tmux attach/exit events are causing stale terminal surfaces.
   - Add focused terminal switching/performance QA before marking fixed.
+- Fixed:
+  - Reduced terminal typing/output lag by appending streamed chunks through an append-specific live buffer path instead of trimming and comparing whole terminal buffers on every frame.
+  - Explicit terminal reads now mark buffer resets so switching/restoring terminals still refreshes the xterm surface when the source buffer is replaced.
 
 ## Resolved
 

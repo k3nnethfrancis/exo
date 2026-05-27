@@ -13,7 +13,7 @@ import {
 } from "../../main/settings-store";
 import { buildProjectReviewChanges, uniqueCwdMatchedSession } from "./changedFileReview";
 import { isTerminalGeneratedResponse } from "./components/terminalInputFilters";
-import { trimRendererTerminalBuffer } from "./terminalBuffer";
+import { appendRendererTerminalBuffer, trimRendererTerminalBuffer } from "./terminalBuffer";
 
 describe("desktop shell", () => {
   it("keeps a renderer test surface in place", () => {
@@ -132,6 +132,18 @@ describe("renderer terminal buffers", () => {
     const trimmed = trimRendererTerminalBuffer(buffer, 2);
 
     expect(trimmed).toBe(["third", "fourth"].join("\n"));
+  });
+
+  it("appends terminal chunks without trimming when no new line can exceed scrollback", () => {
+    const appended = appendRendererTerminalBuffer("prompt> ", "hello", 2);
+
+    expect(appended).toBe("prompt> hello");
+  });
+
+  it("trims appended terminal chunks to the configured live scrollback", () => {
+    const appended = appendRendererTerminalBuffer("first\nsecond", "\nthird\nfourth", 2);
+
+    expect(appended).toBe("third\nfourth");
   });
 });
 

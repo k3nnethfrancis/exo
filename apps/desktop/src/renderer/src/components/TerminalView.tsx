@@ -15,6 +15,7 @@ interface TerminalViewProps {
   appearance: ResolvedAppearance;
   session: TerminalSessionInfo;
   buffer: string;
+  bufferVersion: number;
   fontSize: number;
   scrollbackLines: number;
   onFocus: () => void;
@@ -23,11 +24,12 @@ interface TerminalViewProps {
 }
 
 export function TerminalView(props: TerminalViewProps) {
-  const { appearance, session, buffer, fontSize, scrollbackLines, onFocus, onInput, onResize } = props;
+  const { appearance, session, buffer, bufferVersion, fontSize, scrollbackLines, onFocus, onInput, onResize } = props;
   const hostRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const bufferRef = useRef("");
+  const bufferVersionRef = useRef(bufferVersion);
   const writeQueueRef = useRef<string[]>([]);
   const writingRef = useRef(false);
   const disposedRef = useRef(false);
@@ -186,7 +188,10 @@ export function TerminalView(props: TerminalViewProps) {
 
     const shouldFollowOutput = isScrolledToBottom(terminal);
 
-    const appendOffset = findAppendOffset(bufferRef.current, buffer);
+    const forceReset = bufferVersionRef.current !== bufferVersion;
+    bufferVersionRef.current = bufferVersion;
+
+    const appendOffset = forceReset ? null : findAppendOffset(bufferRef.current, buffer);
     if (appendOffset !== null) {
       enqueueTerminalWrite(terminal, buffer.slice(appendOffset), writeQueueRef, writingRef, disposedRef, programmaticInputGuardUntilRef);
     } else {
@@ -199,7 +204,7 @@ export function TerminalView(props: TerminalViewProps) {
     if (shouldFollowOutput) {
       terminal.scrollToBottom();
     }
-  }, [buffer, session.id]);
+  }, [buffer, bufferVersion, session.id]);
 
   return (
     <div
@@ -313,6 +318,10 @@ function isScrolledToBottom(terminal: Terminal): boolean {
 function findAppendOffset(previous: string, next: string): number | null {
   if (previous === next) {
     return next.length;
+  }
+
+  if (next.length > previous.length && previous.length > 65_536) {
+    return previous.length;
   }
 
   if (next.startsWith(previous)) {

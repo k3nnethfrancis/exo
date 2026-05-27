@@ -26,7 +26,7 @@ import { useWorkspaceSearch } from "./hooks/useWorkspaceSearch";
 import { collectLeaves, findEditorLeaf, findNode, findTerminalLeaf, mapLeaves, paneId, pruneEmptyLeaves, removeNode, updateNode, type PaneLeaf, type PaneNode, type PaneNodeId, type BrowserPaneContent, type EditorPaneContent, type TerminalPaneContent } from "./hooks/usePaneTree";
 import { useDragManager, type DragDropTarget, type DragPayload, type DropEdge } from "./hooks/useDragManager";
 import { buildProjectReviewChanges, uniqueCwdMatchedSession, type ObservedWorkspaceWrite } from "./changedFileReview";
-import { trimRendererTerminalBuffer } from "./terminalBuffer";
+import { appendRendererTerminalBuffer, trimRendererTerminalBuffer } from "./terminalBuffer";
 
 interface OpenEditorDocument extends NoteDocument {
   dirty: boolean;
@@ -251,6 +251,7 @@ export function App() {
   const [terminalSessions, setTerminalSessions] = useState<TerminalSessionInfo[]>([]);
   const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null);
   const [terminalBuffers, setTerminalBuffers] = useState<Record<string, string>>({});
+  const [terminalBufferVersions, setTerminalBufferVersions] = useState<Record<string, number>>({});
   const [, setAgentAnnotations] = useState<Record<string, { runLabel: string; parentId: string | null }>>({});
   const [workspaceDialog, setWorkspaceDialog] = useState<WorkspaceDialogState | null>(null);
   const [workspaceSettingsDialog, setWorkspaceSettingsDialog] = useState<WorkspaceSettingsDialogState | null>(null);
@@ -357,6 +358,10 @@ export function App() {
     terminalStreamingModeRef.current = terminalStreamingMode;
   }, [terminalStreamingMode]);
 
+  function markTerminalBufferReset(id: string) {
+    setTerminalBufferVersions((current) => ({ ...current, [id]: (current[id] ?? 0) + 1 }));
+  }
+
   useEffect(() => {
     openDocumentsRef.current = openDocuments;
   }, [openDocuments]);
@@ -446,6 +451,7 @@ export function App() {
       activeTerminalIds.add(activeTerminalId);
     }
     setTerminalBuffers((current) => pruneRecordToKeys(current, activeTerminalIds));
+    setTerminalBufferVersions((current) => pruneRecordToKeys(current, activeTerminalIds));
   }, [activeTerminalId, editorTree, terminalTree]);
   useEffect(() => {
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
@@ -590,6 +596,7 @@ export function App() {
       setTerminalSessions(sessions);
       setActiveTerminalId(defaultTerminal.id);
       setTerminalBuffers({ [defaultTerminal.id]: defaultTerminalBuffer });
+      markTerminalBufferReset(defaultTerminal.id);
 
       const sessionIds = sessions.map((session) => session.id);
       const restoreTerminalsInEditor = Boolean(settings.layout?.terminalCollapsed && settings.layout.editorTree);
@@ -633,10 +640,7 @@ export function App() {
       setTerminalBuffers((current) => {
         const next = { ...current };
         for (const [id, data] of entries) {
-          next[id] = trimRendererTerminalBuffer(
-            `${next[id] ?? ""}${data}`,
-            terminalRuntimeScrollbackLinesRef.current,
-          );
+          next[id] = appendRendererTerminalBuffer(next[id] ?? "", data, terminalRuntimeScrollbackLinesRef.current);
         }
         return next;
       });
@@ -709,6 +713,7 @@ export function App() {
         if (current[activeTerminalId] === nextBuffer) {
           return current;
         }
+        markTerminalBufferReset(activeTerminalId);
         return { ...current, [activeTerminalId]: nextBuffer };
       });
     }
@@ -2462,6 +2467,7 @@ export function App() {
         ...current,
         [latest.id]: buffer,
       }));
+      markTerminalBufferReset(latest.id);
     });
   }
 
@@ -2476,6 +2482,7 @@ export function App() {
       ...current,
       [id]: buffer,
     }));
+    markTerminalBufferReset(id);
   }
 
   async function focusTerminalSession(id: string) {
@@ -2491,6 +2498,7 @@ export function App() {
       setActiveTerminalId(id);
       const buffer = await window.exo.terminals.read(id);
       setTerminalBuffers((current) => ({ ...current, [id]: buffer }));
+      markTerminalBufferReset(id);
       return;
     }
 
@@ -2535,6 +2543,11 @@ export function App() {
     await window.exo.terminals.kill(id);
     setTerminalSessions((current) => current.filter((session) => session.id !== id));
     setTerminalBuffers((current) => {
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
+    setTerminalBufferVersions((current) => {
       const next = { ...current };
       delete next[id];
       return next;
@@ -3336,6 +3349,7 @@ export function App() {
               sessions={terminalLeafSessions}
               activeTerminalId={leaf.content.activeTerminalId}
               buffers={terminalBuffers}
+              bufferVersions={terminalBufferVersions}
               appearance={resolvedAppearance}
               fontSize={terminalFontSize}
               scrollbackLines={terminalRuntimeScrollbackLines}
@@ -3351,6 +3365,7 @@ export function App() {
                 setActiveTerminalId(id);
                 void window.exo.terminals.read(id).then((buffer) => {
                   setTerminalBuffers((current) => ({ ...current, [id]: buffer }));
+                  markTerminalBufferReset(id);
                 });
               }}
               onWrite={(id, data) => void window.exo.terminals.write(id, data)}
@@ -3426,6 +3441,7 @@ export function App() {
             sessions={terminalLeafSessions}
             activeTerminalId={leafActiveTerminalId}
             buffers={terminalBuffers}
+            bufferVersions={terminalBufferVersions}
             appearance={resolvedAppearance}
             fontSize={terminalFontSize}
             scrollbackLines={terminalRuntimeScrollbackLines}
