@@ -3804,9 +3804,9 @@ export function App() {
                 <div className="agent-context-summary" data-testid="agent-context-settings">
                   <div className="agent-context-summary__header">
                     <div>
-                      <div className="dialog-field__label">Agent context</div>
+                      <div className="dialog-field__label">Agent config</div>
                       <div className="agent-context-summary__copy">
-                        Unified instructions, provider output files, runtime overlays, and restore history live in the agent context manager.
+                        Edit AGENTS.md, CLAUDE.md, provider outputs, runtime overlays, and restore history from one place.
                       </div>
                     </div>
                     <button
@@ -3815,7 +3815,7 @@ export function App() {
                       onClick={() => void openAgentContextManager()}
                       type="button"
                     >
-                      Open manager
+                      Open editor
                     </button>
                   </div>
                   <div className="agent-context-summary__grid">
@@ -4122,11 +4122,11 @@ export function App() {
           <div className="dialog-card dialog-card--agent-context-manager" data-testid="agent-context-manager">
             <div className="dialog-card__header">
               <div>
-                <div className="dialog-card__title">Agent Context Manager</div>
-                <div className="dialog-card__message">Manage what terminal agents read across scopes, provider files, runtime overlays, and history.</div>
+                <div className="dialog-card__title">Agent Config Editor</div>
+                <div className="dialog-card__message">Manage provider instruction files across global, notes, and project scopes.</div>
               </div>
               <button
-                aria-label="Close agent context manager"
+                aria-label="Close agent config editor"
                 className="dialog-card__close"
                 data-testid="agent-context-manager-close"
                 onClick={() => setAgentContextManagerOpen(false)}

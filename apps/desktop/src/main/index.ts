@@ -966,7 +966,7 @@ function agentContextCandidates() {
 
   return roots.flatMap((root) =>
     adapters.map((adapter) => {
-      const filePath = path.join(root.rootPath, adapter.fileName);
+      const filePath = agentContextFilePathForAdapter(root, adapter);
       const targetId = `${root.scope}:${root.rootPath}`;
       return {
         id: `${root.scope}:${adapter.id}:${filePath}`,
@@ -981,6 +981,22 @@ function agentContextCandidates() {
       };
     }),
   );
+}
+
+function agentContextFilePathForAdapter(
+  root: { scope: "global" | "notes" | "project"; rootPath: string },
+  adapter: { id: string; fileName: string },
+) {
+  if (root.scope !== "global") {
+    return path.join(root.rootPath, adapter.fileName);
+  }
+  if (adapter.id === "codex" && adapter.fileName === "AGENTS.md") {
+    return path.join(os.homedir(), ".codex", "AGENTS.md");
+  }
+  if (adapter.id === "claude" && adapter.fileName === "CLAUDE.md") {
+    return path.join(os.homedir(), ".claude", "CLAUDE.md");
+  }
+  return path.join(root.rootPath, adapter.fileName);
 }
 
 function agentManagedConfigCandidates() {

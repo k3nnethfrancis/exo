@@ -391,7 +391,7 @@ test("opens workspace settings with partial agent context discovery errors", asy
     await expect(page.getByTestId("workspace-settings-dialog")).toBeVisible();
     await expect(page.getByTestId("workspace-settings-note-roots")).toContainText("test-notes");
     await page.getByTestId("workspace-settings-tab-agents").click();
-    await expect(page.getByTestId("agent-context-settings")).toContainText("Agent context");
+    await expect(page.getByTestId("agent-context-settings")).toContainText("Agent config");
     await expect(page.getByTestId("agent-context-partial-errors")).toContainText("Some agent context data could not be loaded");
     await expect(page.getByTestId("agent-context-partial-errors")).toContainText("sample-project / AGENTS.md");
     await page.getByTestId("agent-context-open-manager").click();
@@ -404,7 +404,7 @@ test("opens workspace settings with partial agent context discovery errors", asy
   }
 });
 
-test("opens agent context manager when managed config preload API is unavailable", async () => {
+test("opens agent config editor when managed config preload API is unavailable", async () => {
   const { page, cleanup } = await launchExoFixture({
     env: {
       EXO_INDEX_ENABLED: "0",
@@ -489,7 +489,7 @@ test("edits agent context files from workspace settings", async () => {
   await page.getByTestId("workspace-settings").click();
   await page.getByTestId("workspace-settings-tab-agents").click();
   await expect(page.getByTestId("agent-context-settings")).toBeVisible();
-  await expect(page.getByTestId("agent-context-settings")).toContainText("Agent context");
+  await expect(page.getByTestId("agent-context-settings")).toContainText("Agent config");
   await expect(page.getByTestId("agent-context-settings")).toContainText("Instruction outputs");
   await page.getByTestId("agent-context-open-manager").click();
   await expect(page.getByTestId("agent-context-manager")).toBeVisible();
@@ -601,7 +601,7 @@ test("edits agent context files from workspace settings", async () => {
     readFile(path.join(workspaceRoot, "projects/sample-project/soul.md"), "utf8"),
   ).not.toContain("Use updated unified project context.");
   await expect(access(path.join(workspaceRoot, "notes/test-notes/CLAUDE.md"))).rejects.toThrow();
-  await expect(access(path.join(homeRoot, "CLAUDE.md"))).rejects.toThrow();
+  await expect(access(path.join(homeRoot, ".claude/CLAUDE.md"))).rejects.toThrow();
 
   await page.getByTestId("agent-context-target-project-sample-project-project").uncheck();
   await page.getByTestId("agent-context-target-notes-test-notes-notes").check();
@@ -637,8 +637,8 @@ test("edits agent context files from workspace settings", async () => {
   await page.getByTestId("agent-context-unified-editor").fill("Use unified global context.");
   await page.getByTestId("agent-context-save-unified").click();
   await expect(page.getByTestId("agent-context-unified-status")).toContainText("Provider files written");
-  await expect.poll(async () => readFile(path.join(homeRoot, "CLAUDE.md"), "utf8")).toContain("Use unified global context.");
-  await expect.poll(async () => readFile(path.join(homeRoot, "AGENTS.md"), "utf8")).toContain("Use unified global context.");
+  await expect.poll(async () => readFile(path.join(homeRoot, ".claude/CLAUDE.md"), "utf8")).toContain("Use unified global context.");
+  await expect.poll(async () => readFile(path.join(homeRoot, ".codex/AGENTS.md"), "utf8")).toContain("Use unified global context.");
   await expect.poll(async () => readFile(path.join(homeRoot, "soul.md"), "utf8")).toContain("Use unified global context.");
   await expect.poll(async () =>
     readFile(path.join(workspaceRoot, "notes/test-notes/AGENTS.md"), "utf8"),

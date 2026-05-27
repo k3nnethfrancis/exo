@@ -35,14 +35,14 @@ No open issues tracked in this file.
 
 ## Fixed
 
-### EXO-ISSUE-013: Agent Context Manager editor sections can overlap near the bottom of the dialog
+### EXO-ISSUE-013: Agent Config Editor sections can overlap near the bottom of the dialog
 
 - Status: fixed
 - Severity: medium
-- Area: agent context manager layout, managed config editor
+- Area: agent config editor layout, managed config editor
 - Observed: the Managed config editor header and contents could visually overlap the provider file editor when the manager had constrained vertical space.
 - Fixed:
-  - Agent context editor blocks now size from their content and let the manager's main column scroll instead of using a flexible textarea row with an indefinite parent height.
+  - Agent config editor blocks now size from their content and let the editor's main column scroll instead of using a flexible textarea row with an indefinite parent height.
 - QA coverage:
   - Added Playwright layout regression that verifies the provider file editor and managed config editor do not overlap after selecting a managed `.mcp.json` config.
 
@@ -100,39 +100,40 @@ No open issues tracked in this file.
   - Added a main-process unit regression that deletes `server.json` while the command server is live and verifies `ensureDiscoveryFile()` rewrites the correct port and pid.
   - Focused checks: `pnpm --filter @exo/desktop typecheck`; `pnpm --filter @exo/desktop test`.
 
-### EXO-ISSUE-006: Agent Context Manager can show stale preload API errors after app crashes/restarts
+### EXO-ISSUE-006: Agent Config Editor can show stale preload API errors after app crashes/restarts
 
 - Status: fixed
 - Severity: high
-- Area: desktop preload bridge, workspace settings, agent context manager
-- Observed: Workspace Settings and Agent Context Manager showed `managed agent config files: window.exo.workspace.listAgentManagedConfigFiles is not a function`.
+- Area: desktop preload bridge, workspace settings, agent config editor
+- Observed: Workspace Settings and Agent Config Editor showed `managed agent config files: window.exo.workspace.listAgentManagedConfigFiles is not a function`.
 - Fixed:
   - Renderer now treats managed-config preload APIs as optional and reports a clear restart/update message when they are unavailable.
-  - Settings and Agent Context Manager still open with partial error state instead of failing the dialog.
+  - Settings and Agent Config Editor still open with partial error state instead of failing the dialog.
 - QA coverage:
-  - Added Playwright regression that opens Agent Context Manager when the managed-config preload API is intentionally omitted.
+  - Added Playwright regression that opens Agent Config Editor when the managed-config preload API is intentionally omitted.
 
-### EXO-ISSUE-007: Agent Context Manager error and control layout can overlap in narrow or partially failed states
+### EXO-ISSUE-007: Agent Config Editor error and control layout can overlap in narrow or partially failed states
 
 - Status: fixed
 - Severity: medium
-- Area: agent context manager layout, settings UI polish
-- Observed: the partial-load error text overlapped the target selector and `Write provider files` action in the Agent Context Manager.
+- Area: agent config editor layout, settings UI polish
+- Observed: the partial-load error text overlapped the target selector and write action in the Agent Config Editor.
 - Fixed:
   - Partial-load errors now render in their own bounded row, wrap long technical messages, and stay separate from the scope/action controls.
   - Narrow manager layouts have dedicated responsive spacing for overview, controls, and side panel content.
 - QA coverage:
   - Added Playwright layout regression for long agent-context errors in a narrow manager.
 
-### EXO-ISSUE-008: Agent Context Manager needs a clearer information architecture and explanatory UX
+### EXO-ISSUE-008: Agent Config Editor needs a clearer information architecture and explanatory UX
 
 - Status: fixed
 - Severity: medium
-- Area: agent context manager UX, settings information architecture
+- Area: agent config editor UX, settings information architecture
 - Observed: the manager mixed unified instructions, provider files, instruction outputs, runtime overlays, history, and managed configs without enough hierarchy or explanation.
 - Fixed:
   - Reworked the manager into clearer sections for unified instructions, managed history, provider files, instruction outputs, runtime overlays, and managed config editing.
   - Replaced the single scope dropdown with explicit Global vs Selected scopes controls, including multi-select notes/project targets and a write-summary showing how many scopes will be touched.
+  - Corrected provider global instruction paths: Codex writes `~/.codex/AGENTS.md`; Claude writes `~/.claude/CLAUDE.md`.
   - Removed the summary overview strip after QA showed it added visual clutter without a clear action.
   - Added concise tooltips/help affordances for scope, provider outputs, overlays, history, and managed configs.
 - QA coverage:
@@ -147,7 +148,7 @@ No open issues tracked in this file.
 - Expected: the settings button should reliably open the Workspace Settings dialog from the sidebar.
 - Investigation notes:
   - Verify whether the button handler is failing, the dialog is opening behind another overlay, or an exception is thrown while loading settings/agent context state.
-  - Check recent Agent Context Manager changes because `openWorkspaceSettingsDialog` now eagerly loads agent context files, adapters, overlays, and managed configs.
+  - Check recent Agent Config Editor changes because `openWorkspaceSettingsDialog` now eagerly loads agent context files, adapters, overlays, and managed configs.
   - If one load path fails or hangs, settings should still open with partial error state rather than failing the whole dialog.
 - QA coverage to add:
   - E2E that clicks settings in a real configured workspace after agent manager/config files are present.
