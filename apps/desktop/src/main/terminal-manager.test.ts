@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -170,6 +170,37 @@ describe("TerminalManager Codex readiness", () => {
     expect(pty.writes).toEqual([bracketedPaste(message), "\r"]);
   });
 
+  it("sends semantic shell messages as plain text because shells may not support bracketed paste", async () => {
+    vi.useFakeTimers();
+    const workspaceRoot = await workspaceFixture();
+    const manager = managerForWorkspace(workspaceRoot);
+
+    const terminal = await manager.create({ kind: "shell", cwd: workspaceRoot });
+    const pty = ptyState.spawned[0];
+    const message = "printf 'shell semantic: %s\\n' 'one   two'";
+
+    await expect(manager.sendMessage(terminal.id, message, true)).resolves.toMatchObject({ delivery: "sent" });
+
+    expect(pty.writes).toEqual([message]);
+    vi.advanceTimersByTime(120);
+    expect(pty.writes).toEqual([message, "\r"]);
+  });
+
+  it("can paste semantic messages without submitting", async () => {
+    vi.useFakeTimers();
+    const workspaceRoot = await workspaceFixture();
+    const manager = managerForWorkspace(workspaceRoot);
+
+    const agent = await manager.create({ kind: "claude", cwd: workspaceRoot });
+    const pty = ptyState.spawned[0];
+    const message = "Draft with   spaces\nand a second line.";
+
+    await expect(manager.sendMessage(agent.id, message, false)).resolves.toMatchObject({ delivery: "sent" });
+
+    vi.advanceTimersByTime(500);
+    expect(pty.writes).toEqual([bracketedPaste(message)]);
+  });
+
   it("lets raw non-submitted input through so a user can answer interstitials", async () => {
     vi.useFakeTimers();
     const workspaceRoot = await workspaceFixture();
@@ -196,6 +227,50 @@ describe("TerminalManager Codex readiness", () => {
 
     expect(manager.readBuffer(terminal.id)).toBe(lines.slice(-500).join("\n"));
     expect(manager.readTranscript(terminal.id)).toContain("line-1");
+  });
+
+  it("reports process diagnostics without transport or tmux state", async () => {
+    const workspaceRoot = await workspaceFixture();
+    const manager = managerForWorkspace(workspaceRoot);
+
+    await manager.create({ kind: "shell", cwd: workspaceRoot });
+
+    const [diagnostic] = manager.diagnostics();
+    expect(diagnostic).toMatchObject({
+      kind: "shell",
+      status: "running",
+      command: expect.any(String),
+      transcriptPath: expect.stringContaining("terminal-transcripts"),
+    });
+    expect(diagnostic).not.toHaveProperty("transport");
+    expect(diagnostic).not.toHaveProperty("tmux");
+    expect(diagnostic).not.toHaveProperty("tmuxSession");
+  });
+
+  it("ignores legacy persisted terminal-state files", async () => {
+    const workspaceRoot = await workspaceFixture();
+    const runtimeRoot = path.join(workspaceRoot, ".exo");
+    await mkdir(runtimeRoot, { recursive: true });
+    await writeFile(
+      path.join(runtimeRoot, "terminal-state.json"),
+      JSON.stringify({
+        agents: [
+          {
+            id: "term-legacy",
+            kind: "codex",
+            cwd: workspaceRoot,
+            tmuxSession: "exo-legacy",
+            title: "Codex",
+            command: "codex",
+          },
+        ],
+      }),
+    );
+
+    const manager = managerForWorkspace(workspaceRoot);
+
+    expect(manager.list()).toEqual([]);
+    expect(manager.diagnostics()).toEqual([]);
   });
 
   it("launches Codex with an explicit Exo MCP config for the current checkout", async () => {

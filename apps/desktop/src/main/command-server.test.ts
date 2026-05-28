@@ -37,6 +37,99 @@ describe("CommandServer discovery", () => {
   });
 });
 
+describe("CommandServer terminal routes", () => {
+  it("preserves semantic terminal messages and submit=false over HTTP", async () => {
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-command-server-"));
+    tempPaths.push(runtimeRoot);
+    let receivedId = "";
+    let receivedMessage = "";
+    let receivedSubmit = true;
+    const server = new CommandServer({
+      ...commandServerOptions(runtimeRoot),
+      onSendTerminalMessage: async (id, message, submit) => {
+        receivedId = id;
+        receivedMessage = message;
+        receivedSubmit = submit;
+        return { ok: true, delivery: "sent" };
+      },
+    });
+
+    try {
+      const port = await server.start();
+      const message = "Keep   exact spaces.\nAnd punctuation: !?()";
+      const response = await fetch(`http://127.0.0.1:${port}/terminals/term-1/message`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message, submit: false }),
+      });
+
+      await expect(response.json()).resolves.toEqual({ ok: true, delivery: "sent" });
+      expect(receivedId).toBe("term-1");
+      expect(receivedMessage).toBe(message);
+      expect(receivedSubmit).toBe(false);
+    } finally {
+      server.stop();
+    }
+  });
+
+  it("exposes terminal sessions and diagnostics without transport or tmux fields", async () => {
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-command-server-"));
+    tempPaths.push(runtimeRoot);
+    const server = new CommandServer({
+      ...commandServerOptions(runtimeRoot),
+      onListTerminals: () => [
+        {
+          id: "term-1",
+          kind: "codex",
+          title: "Codex",
+          cwd: runtimeRoot,
+          command: "codex",
+          status: "running",
+        },
+      ],
+      onTerminalDiagnostics: () => [
+        {
+          id: "term-1",
+          kind: "codex",
+          title: "Codex",
+          cwd: runtimeRoot,
+          command: "codex",
+          status: "running",
+          health: "healthy",
+          healthDetail: "Recent terminal input/output observed.",
+          bufferedLines: 1,
+          bufferedChars: 12,
+          transcriptPath: path.join(runtimeRoot, "terminal-transcripts", "term-1-codex.ansi.log"),
+          lastInputAt: null,
+          lastOutputAt: null,
+          lastWriteId: 0,
+          lastWriteLatencyMs: null,
+        },
+      ],
+    });
+
+    try {
+      const port = await server.start();
+      const terminals = await fetchJson(`http://127.0.0.1:${port}/terminals`);
+      const diagnostics = await fetchJson(`http://127.0.0.1:${port}/terminals/diagnostics`);
+
+      expect(terminals[0]).not.toHaveProperty("transport");
+      expect(terminals[0]).not.toHaveProperty("tmuxSession");
+      expect(diagnostics[0]).not.toHaveProperty("transport");
+      expect(diagnostics[0]).not.toHaveProperty("tmux");
+      expect(diagnostics[0]).not.toHaveProperty("tmuxSession");
+    } finally {
+      server.stop();
+    }
+  });
+});
+
+async function fetchJson(url: string): Promise<any> {
+  const response = await fetch(url);
+  expect(response.ok).toBe(true);
+  return response.json();
+}
+
 async function readServerInfo(runtimeRoot: string): Promise<{ port: number; pid: number }> {
   return JSON.parse(await readFile(path.join(runtimeRoot, "server.json"), "utf8")) as { port: number; pid: number };
 }

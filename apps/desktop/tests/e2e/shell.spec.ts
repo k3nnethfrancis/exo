@@ -38,15 +38,17 @@ test("boots the shell, opens notes, and manages terminal tabs", async () => {
   await expect(page.getByTestId("terminal-tab-claude")).toBeVisible();
   await expect.poll(async () => {
     const sessions = await page.evaluate(() => window.exo.terminals.list());
-    return sessions.find((session) => session.kind === "claude")?.status;
-  }).toBe("running");
+    const claude = sessions.find((session) => session.kind === "claude");
+    return claude ? page.evaluate((id) => window.exo.terminals.read(id), claude.id) : "";
+  }).toContain("claude ready");
 
   await page.getByTestId("launch-codex").click();
   await expect(page.getByTestId("terminal-tab-codex")).toBeVisible();
   await expect.poll(async () => {
     const sessions = await page.evaluate(() => window.exo.terminals.list());
-    return sessions.find((session) => session.kind === "codex")?.status;
-  }).toBe("running");
+    const codex = sessions.find((session) => session.kind === "codex");
+    return codex ? page.evaluate((id) => window.exo.terminals.read(id), codex.id) : "";
+  }).toContain("codex ready");
 
   await page.getByTestId("terminal-tab-shell").dblclick();
   await expect(page.getByTestId("terminal-dock")).toBeVisible();
@@ -361,6 +363,69 @@ test("accepts terminal keyboard input", async () => {
   await cleanup();
 });
 
+test("keeps terminal interactive after large output, tab switches, and semantic sends", async () => {
+  const { page, cleanup } = await launchExoFixture({
+    env: {
+      EXO_SHELL: "/bin/sh",
+      EXO_SHELL_ARGS: "",
+      EXO_CLAUDE_COMMAND: "/bin/sh",
+      EXO_CLAUDE_ARGS:
+        "-c,i=1; while [ $i -le 140 ]; do printf 'agent-scrollback-%03d\\n' \"$i\"; i=$((i+1)); done; sleep 5",
+    },
+  });
+
+  try {
+    const shellId = await page.evaluate(async () => {
+      const sessions = await window.exo.terminals.list();
+      const shell = sessions.find((session) => session.kind === "shell");
+      if (!shell) {
+        throw new Error("No shell terminal found");
+      }
+      return shell.id;
+    });
+
+    await page.evaluate(async (id) => {
+      await window.exo.terminals.write(
+        id,
+        "python3 - <<'PY'\nfor i in range(1500): print(f'qa-line-{i}')\nPY\n",
+      );
+    }, shellId);
+    await expect.poll(async () => page.evaluate((id) => window.exo.terminals.read(id), shellId)).toContain("qa-line-1499");
+
+    await page.getByTestId("launch-shell").click();
+    await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(2);
+    await page.getByTestId("terminal-tab-shell").first().click();
+    await expect(page.getByTestId("terminal-surface")).toContainText("qa-line-1499");
+    await page.getByTestId("terminal-tab-shell").last().click();
+    await page.getByTestId("terminal-tab-shell").first().click();
+    await expect(page.getByTestId("terminal-surface")).toContainText("qa-line-1499");
+
+    await page.evaluate(async (id) => {
+      await window.exo.terminals.sendMessage(id, "printf 'semantic qa: %s\\n' 'one   two'", true);
+    }, shellId);
+    await expect.poll(async () => page.evaluate((id) => window.exo.terminals.read(id), shellId)).toContain("semantic qa: one   two");
+
+    await page.getByTestId("launch-claude").click();
+    await expect(page.getByTestId("terminal-tab-claude")).toBeVisible();
+    await expect(page.locator(".xterm-rows")).toContainText("agent-scrollback-140");
+    const agentBuffer = await page.evaluate(async () => {
+      const sessions = await window.exo.terminals.list();
+      const claude = sessions.find((session) => session.kind === "claude");
+      return claude ? window.exo.terminals.read(claude.id) : "";
+    });
+    expect(agentBuffer).toContain("agent-scrollback-140");
+
+    const sessions = await page.evaluate(() => window.exo.terminals.list());
+    const diagnostics = await page.evaluate(() => window.exo.terminals.diagnostics());
+    expect(JSON.stringify(sessions)).not.toContain("tmux");
+    expect(JSON.stringify(sessions)).not.toContain("transport");
+    expect(JSON.stringify(diagnostics)).not.toContain("tmux");
+    expect(JSON.stringify(diagnostics)).not.toContain("transport");
+  } finally {
+    await cleanup();
+  }
+});
+
 test("collapses the terminal pane after closing the last terminal", async () => {
   const { page, cleanup } = await launchExoFixture();
 
@@ -630,19 +695,21 @@ test("keeps large terminal bursts available above the visible viewport", async (
     env: {
       EXO_SHELL: "/bin/sh",
       EXO_SHELL_ARGS:
-        "-c,i=1; while [ $i -le 900 ]; do printf 'scrollback-%03d-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\n' \"$i\"; i=$((i+1)); done; sleep 30",
+        "-c,i=1; while [ $i -le 900 ]; do printf 'scrollback-%03d-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\n' \"$i\"; i=$((i+1)); done; sleep 5",
     },
   });
 
-  await expect(page.locator(".xterm-rows")).toContainText("scrollback-900");
-  await expect(page.locator(".xterm-rows")).not.toContainText("scrollback-001");
+  try {
+    await expect(page.locator(".xterm-rows")).toContainText("scrollback-900");
+    await expect(page.locator(".xterm-rows")).not.toContainText("scrollback-001");
 
-  await page.getByTestId("terminal-surface").hover();
-  await page.mouse.wheel(0, -50000);
+    await page.getByTestId("terminal-surface").hover();
+    await page.mouse.wheel(0, -50000);
 
-  await expect(page.locator(".xterm-rows")).toContainText("scrollback-001");
-
-  await cleanup();
+    await expect(page.locator(".xterm-rows")).toContainText("scrollback-001");
+  } finally {
+    await cleanup();
+  }
 });
 
 test("keeps app terminal buffer above the legacy 12k cap", async () => {
@@ -650,52 +717,19 @@ test("keeps app terminal buffer above the legacy 12k cap", async () => {
     env: {
       EXO_SHELL: "/bin/sh",
       EXO_SHELL_ARGS:
-        "-c,sleep 0.2; i=1; while [ $i -le 220 ]; do printf 'buffer-%03d-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\n' \"$i\"; i=$((i+1)); done; sleep 30",
-    },
-  });
-
-  await expect(page.locator(".xterm-rows")).toContainText("buffer-220");
-  const buffer = await page.evaluate(async () => {
-    const sessions = await window.exo.terminals.list();
-    return sessions[0] ? window.exo.terminals.read(sessions[0].id) : "";
-  });
-
-  expect(buffer.length).toBeGreaterThan(12_000);
-  expect(buffer).toContain("buffer-001");
-
-  await cleanup();
-});
-
-test("renders agent terminal streams without corrupting scrollback", async () => {
-  const { page, cleanup } = await launchExoFixture({
-    env: {
-      EXO_CLAUDE_COMMAND: "/bin/sh",
-      EXO_CLAUDE_ARGS:
-        "-c,i=1; while [ $i -le 140 ]; do printf 'agent-scrollback-%03d\\n' \"$i\"; i=$((i+1)); done; sleep 30",
+        "-c,sleep 0.2; i=1; while [ $i -le 220 ]; do printf 'buffer-%03d-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\n' \"$i\"; i=$((i+1)); done; sleep 5",
     },
   });
 
   try {
-    await page.getByTestId("launch-claude").click();
-    await expect(page.getByTestId("terminal-tab-claude")).toBeVisible();
-    await expect(page.locator(".xterm-rows")).toContainText("agent-scrollback-140");
-
+    await expect(page.locator(".xterm-rows")).toContainText("buffer-220");
     const buffer = await page.evaluate(async () => {
       const sessions = await window.exo.terminals.list();
-      const claude = sessions.find((session) => session.kind === "claude");
-      return claude ? window.exo.terminals.read(claude.id) : "";
+      return sessions[0] ? window.exo.terminals.read(sessions[0].id) : "";
     });
-    expect(buffer).toContain("agent-scrollback-140");
-    const status = await page.evaluate(async () => {
-      const sessions = await window.exo.terminals.list();
-      return sessions.find((session) => session.kind === "claude")?.status;
-    });
-    expect(status).toBe("running");
 
-    await page.evaluate(async () => {
-      const sessions = await window.exo.terminals.list();
-      await Promise.all(sessions.filter((session) => session.kind === "claude").map((session) => window.exo.terminals.kill(session.id)));
-    });
+    expect(buffer.length).toBeGreaterThan(12_000);
+    expect(buffer).toContain("buffer-001");
   } finally {
     await cleanup();
   }

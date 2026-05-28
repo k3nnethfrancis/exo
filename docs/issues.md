@@ -6,6 +6,21 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 
 ## Open
 
+### EXO-ISSUE-021: Full shell e2e file can exhaust Electron launch reliability after many serial app launches
+
+- Status: open
+- Severity: medium
+- Area: test harness, Electron Playwright QA, terminal regression coverage
+- Observed:
+  - On 2026-05-28, `pnpm exec playwright test -c apps/desktop/playwright.config.ts apps/desktop/tests/e2e/shell.spec.ts` repeatedly passed the first 27 app-launching tests, then timed out waiting for an Electron window on the next test.
+  - The same affected tests pass when run directly by grep.
+  - No leftover Exo Electron or pty processes were visible afterward, which points to launch-harness exhaustion or Electron startup flakiness under many serial launches rather than a specific product workflow failure.
+- Expected:
+  - The full e2e suite should be runnable as one command without hitting an app-launch ceiling.
+- Next:
+  - Split the large shell e2e file into smaller files or add a fixture strategy that reuses a launched app where appropriate.
+  - Keep terminal stress coverage in the focused terminal e2e path until the broader harness is made deterministic.
+
 ### EXO-ISSUE-017: Terminal tabs can become blank, show stale `[exited]`, or lag while typing
 
 - Status: fixed pending broader bug-bash

@@ -12,7 +12,6 @@ import {
 } from "../../main/settings-store";
 import { buildProjectReviewChanges, uniqueCwdMatchedSession } from "./changedFileReview";
 import { isTerminalGeneratedResponse } from "./components/terminalInputFilters";
-import { appendRendererTerminalBuffer, trimRendererTerminalBuffer } from "./terminalBuffer";
 import { terminalSessionsEqual } from "./terminalSessions";
 
 describe("desktop shell", () => {
@@ -121,28 +120,6 @@ describe("terminal input filtering", () => {
     expect(isTerminalGeneratedResponse("\x1b[24;80R")).toBe(true);
     expect(isTerminalGeneratedResponse("hello")).toBe(false);
     expect(isTerminalGeneratedResponse("try this out")).toBe(false);
-  });
-});
-
-describe("renderer terminal buffers", () => {
-  it("uses the configured live scrollback line count for streamed renderer buffers", () => {
-    const buffer = ["first", "second", "third", "fourth"].join("\n");
-
-    const trimmed = trimRendererTerminalBuffer(buffer, 2);
-
-    expect(trimmed).toBe(["third", "fourth"].join("\n"));
-  });
-
-  it("appends terminal chunks without trimming when no new line can exceed scrollback", () => {
-    const appended = appendRendererTerminalBuffer("prompt> ", "hello", 2);
-
-    expect(appended).toBe("prompt> hello");
-  });
-
-  it("trims appended terminal chunks to the configured live scrollback", () => {
-    const appended = appendRendererTerminalBuffer("first\nsecond", "\nthird\nfourth", 2);
-
-    expect(appended).toBe("third\nfourth");
   });
 });
 

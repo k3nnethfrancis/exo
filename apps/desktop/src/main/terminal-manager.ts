@@ -229,7 +229,7 @@ export class TerminalManager extends EventEmitter {
     }
 
     const pendingWrite = {
-      data: bracketedPaste(message),
+      data: record.info.kind === "shell" ? message : bracketedPaste(message),
       delayedSubmit: submit,
     };
     return this.writeToRecord(record, pendingWrite, submit && shouldQueueSubmittedAgentMessage(record));
