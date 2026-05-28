@@ -12,15 +12,17 @@ import type {
   WorkspaceSettings,
 } from "@exo/core";
 
-import type { AgentInstructionConfig, AgentInstructionProviderId, AgentInstructionScope, AgentInstructionScopeId, TerminalSessionInfo, WorkspaceGitChange, WorkspaceGitStatus, WorkspaceRegistryEntry } from "../../shared/api";
+import type { TerminalSessionInfo, WorkspaceGitChange, WorkspaceGitStatus, WorkspaceRegistryEntry } from "../../shared/api";
 import type { FileStatInfo } from "../../shared/api";
 
+import { AgentConfigEditorDialog } from "./components/AgentConfigEditorDialog";
 import { EditorPane, type EditorPaneState } from "./components/EditorPane";
 import { BrowserPane } from "./components/BrowserPane";
 import { InspectorDock } from "./components/InspectorDock";
 import { ShellLayout } from "./components/ShellLayout";
 import { TerminalDock } from "./components/TerminalDock";
 import { writeTerminalData } from "./components/terminalRegistry";
+import { agentInstructionStatusLabel, useAgentInstructionEditor } from "./hooks/useAgentInstructionEditor";
 import { useShellLayout } from "./hooks/useShellLayout";
 import { useWorkspaceSearch } from "./hooks/useWorkspaceSearch";
 import { collectLeaves, findEditorLeaf, findNode, findTerminalLeaf, mapLeaves, paneId, pruneEmptyLeaves, removeNode, updateNode, type PaneLeaf, type PaneNode, type PaneNodeId, type BrowserPaneContent, type EditorPaneContent, type TerminalPaneContent } from "./hooks/usePaneTree";
@@ -124,15 +126,6 @@ export type ResolvedAppearance = "light" | "dark";
 type ZoomSurface = "editor" | "terminal" | "explorer";
 type WorkspaceSettingsSection = "workspace" | "index" | "agents" | "appearance" | "terminal";
 
-interface AgentInstructionEditorState {
-  config: AgentInstructionConfig | null;
-  selectedScopeId: AgentInstructionScopeId;
-  draftBody: string;
-  sourceChoice: AgentInstructionProviderId | "template" | null;
-  saveStatus: "idle" | "saving" | "saved" | "error";
-  errorMessage: string | null;
-}
-
 type IndexBusyState = "syncing" | "updating" | "embedding" | null;
 
 const FULL_TERMINAL_SCROLLBACK_LINES = 1_000_000;
@@ -214,15 +207,7 @@ export function App() {
   const [workspaceDialog, setWorkspaceDialog] = useState<WorkspaceDialogState | null>(null);
   const [workspaceSettingsDialog, setWorkspaceSettingsDialog] = useState<WorkspaceSettingsDialogState | null>(null);
   const [agentContextManagerOpen, setAgentContextManagerOpen] = useState(false);
-  const [agentContextLoadErrors, setAgentContextLoadErrors] = useState<string[]>([]);
-  const [agentInstructionEditor, setAgentInstructionEditor] = useState<AgentInstructionEditorState>({
-    config: null,
-    selectedScopeId: "global",
-    draftBody: "",
-    sourceChoice: null,
-    saveStatus: "idle",
-    errorMessage: null,
-  });
+  const agentInstructionEditor = useAgentInstructionEditor();
   const [onboardingState, setOnboardingState] = useState<OnboardingState | null>(null);
   const [bootstrapError, setBootstrapError] = useState<string | null>(null);
   const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null);
@@ -838,23 +823,12 @@ export function App() {
     () => buildProjectReviewChanges(projectGitChanges, observedWorkspaceWrites, terminalSessions),
     [observedWorkspaceWrites, projectGitChanges, terminalSessions],
   );
-  const selectedAgentInstructionScope = agentInstructionEditor.config?.scopes.find((scope) => scope.id === agentInstructionEditor.selectedScopeId)
-    ?? agentInstructionEditor.config?.scopes[0]
-    ?? null;
-  const agentContextPartialErrors = useMemo(
-    () =>
-      uniqueMessages([
-        ...agentContextLoadErrors,
-        ...(selectedAgentInstructionScope?.errorMessages ?? []),
-      ]),
-    [agentContextLoadErrors, selectedAgentInstructionScope],
-  );
   const workspaceSettingsPartialErrors = useMemo(
     () =>
       workspaceSettingsDialog
-        ? uniqueMessages([...workspaceSettingsDialog.partialErrorMessages, ...agentContextPartialErrors])
-        : agentContextPartialErrors,
-    [agentContextPartialErrors, workspaceSettingsDialog],
+        ? uniqueMessages([...workspaceSettingsDialog.partialErrorMessages, ...agentInstructionEditor.partialErrors])
+        : agentInstructionEditor.partialErrors,
+    [agentInstructionEditor.partialErrors, workspaceSettingsDialog],
   );
 
   async function reloadTrees() {
@@ -1022,49 +996,16 @@ export function App() {
     return status;
   }
 
-  async function loadAgentContextState() {
-    try {
-      const config = await window.exo.workspace.getAgentInstructionConfig();
-      setAgentInstructionEditor((current) => {
-        const selectedScope = config.scopes.find((scope) => scope.id === current.selectedScopeId) ?? config.scopes[0] ?? null;
-        return {
-          ...current,
-          config,
-          selectedScopeId: selectedScope?.id ?? "global",
-          draftBody: selectedScope ? editableAgentInstructionBody(selectedScope) : "",
-          sourceChoice: selectedScope?.source === "agents" || selectedScope?.source === "claude" ? selectedScope.source : null,
-          saveStatus: "idle",
-          errorMessage: null,
-        };
-      });
-      const partialErrors = uniqueMessages(config.scopes.flatMap((scope) => scope.errorMessages));
-      setAgentContextLoadErrors(partialErrors);
-      return partialErrors;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setAgentInstructionEditor((current) => ({
-        ...current,
-        config: null,
-        draftBody: "",
-        sourceChoice: null,
-        saveStatus: "error",
-        errorMessage: message,
-      }));
-      setAgentContextLoadErrors([`agent instructions: ${message}`]);
-      return [`agent instructions: ${message}`];
-    }
-  }
-
   async function openAgentContextManager() {
     setWorkspaceSettingsDialog(null);
     setAgentContextManagerOpen(true);
-    void loadAgentContextState();
+    void agentInstructionEditor.load();
   }
 
   async function openWorkspaceSettingsDialog(section: WorkspaceSettingsSection = "workspace") {
     const settings = await window.exo.workspace.getSettings();
     const appliedWorkspaceKey = workspaceSettingsStructuralKeyFromSettings(settings);
-    setAgentContextLoadErrors([]);
+    agentInstructionEditor.resetLoadErrors();
     setWorkspaceSettingsDialog({
       section,
       workspaceRoot: settings.workspaceRoot,
@@ -1094,82 +1035,9 @@ export function App() {
       console.warn("[exo] failed to load index status", error);
       setIndexStatus(null);
     });
-    void loadAgentContextState().then((partialErrorMessages) => {
+    void agentInstructionEditor.load().then((partialErrorMessages) => {
       setWorkspaceSettingsDialog((current) => current ? { ...current, partialErrorMessages } : current);
     });
-  }
-
-  function selectAgentInstructionScope(scopeId: AgentInstructionScopeId) {
-    setAgentInstructionEditor((current) => {
-      const scope = current.config?.scopes.find((entry) => entry.id === scopeId);
-      return scope
-        ? {
-            ...current,
-            selectedScopeId: scope.id,
-            draftBody: editableAgentInstructionBody(scope),
-            sourceChoice: scope.source === "agents" || scope.source === "claude" ? scope.source : null,
-            saveStatus: "idle",
-            errorMessage: null,
-          }
-        : current;
-    });
-  }
-
-  function useAgentInstructionSource(providerId: AgentInstructionProviderId) {
-    setAgentInstructionEditor((current) => {
-      const scope = current.config?.scopes.find((entry) => entry.id === current.selectedScopeId);
-      const file = scope?.files[providerId];
-      return file
-        ? {
-            ...current,
-            draftBody: file.body,
-            sourceChoice: providerId,
-            saveStatus: "idle",
-            errorMessage: null,
-          }
-        : current;
-    });
-  }
-
-  function loadAgentInstructionTemplate() {
-    setAgentInstructionEditor((current) => ({
-      ...current,
-      draftBody: current.config?.starterTemplate ?? "",
-      sourceChoice: "template",
-      saveStatus: "idle",
-      errorMessage: null,
-    }));
-  }
-
-  async function saveAgentInstructionDraft() {
-    const snapshot = agentInstructionEditor;
-    if (!snapshot.config?.scopes.some((scope) => scope.id === snapshot.selectedScopeId)) {
-      return;
-    }
-    setAgentInstructionEditor((current) => ({ ...current, saveStatus: "saving", errorMessage: null }));
-    try {
-      const config = await window.exo.workspace.saveAgentInstructionConfig({
-        scopeId: snapshot.selectedScopeId,
-        body: snapshot.draftBody,
-      });
-      const scope = config.scopes.find((entry) => entry.id === snapshot.selectedScopeId) ?? config.scopes[0] ?? null;
-      setAgentInstructionEditor((current) => ({
-        ...current,
-        config,
-        selectedScopeId: scope?.id ?? current.selectedScopeId,
-        draftBody: scope ? editableAgentInstructionBody(scope) : current.draftBody,
-        sourceChoice: scope?.source === "agents" || scope?.source === "claude" ? scope.source : current.sourceChoice,
-        saveStatus: "saved",
-        errorMessage: null,
-      }));
-      setAgentContextLoadErrors(uniqueMessages(config.scopes.flatMap((entry) => entry.errorMessages)));
-    } catch (error) {
-      setAgentInstructionEditor((current) => ({
-        ...current,
-        saveStatus: "error",
-        errorMessage: error instanceof Error ? error.message : String(error),
-      }));
-    }
   }
 
   async function selectNotesFolderForOnboarding() {
@@ -3347,13 +3215,13 @@ export function App() {
                   <div className="agent-context-summary__grid">
                     <div className="agent-context-summary__metric">
                       <span>Global</span>
-                      <strong>{agentInstructionStatusLabel(agentInstructionEditor.config?.scopes.find((scope) => scope.id === "global") ?? null)}</strong>
+                      <strong>{agentInstructionStatusLabel(agentInstructionEditor.state.config?.scopes.find((scope) => scope.id === "global") ?? null)}</strong>
                       <small>~/.codex/AGENTS.md and ~/.claude/CLAUDE.md</small>
                     </div>
                     <div className="agent-context-summary__metric">
                       <span>Exocortex</span>
-                      <strong>{agentInstructionStatusLabel(agentInstructionEditor.config?.scopes.find((scope) => scope.id === "exocortex") ?? null)}</strong>
-                      <small>{agentInstructionEditor.config?.scopes.find((scope) => scope.id === "exocortex")?.rootPath ?? "No notes folder selected."}</small>
+                      <strong>{agentInstructionStatusLabel(agentInstructionEditor.state.config?.scopes.find((scope) => scope.id === "exocortex") ?? null)}</strong>
+                      <small>{agentInstructionEditor.state.config?.scopes.find((scope) => scope.id === "exocortex")?.rootPath ?? "No notes folder selected."}</small>
                     </div>
                     <div className="agent-context-summary__metric">
                       <span>Outputs</span>
@@ -3619,139 +3487,10 @@ export function App() {
         </div>
       ) : null}
       {agentContextManagerOpen ? (
-        <div className="dialog-overlay" data-testid="agent-context-manager-overlay">
-          <div className="dialog-card dialog-card--agent-context-manager" data-testid="agent-context-manager">
-            <div className="dialog-card__header">
-              <div>
-                <div className="dialog-card__title">Agent Config Editor</div>
-                <div className="dialog-card__message">Edit the shared instructions Exo keeps aligned for Codex and Claude.</div>
-              </div>
-              <button
-                aria-label="Close agent config editor"
-                className="dialog-card__close"
-                data-testid="agent-context-manager-close"
-                onClick={() => setAgentContextManagerOpen(false)}
-                title="Close"
-                type="button"
-              >
-                <X size={16} />
-              </button>
-            </div>
-            {agentContextPartialErrors.length > 0 ? (
-              <div className="dialog-card__status dialog-card__status--error" data-testid="agent-context-manager-partial-errors">
-                <div>Some agent instruction data could not be loaded.</div>
-                {agentContextPartialErrors.slice(0, 3).map((message) => (
-                  <div key={message}>{message}</div>
-                ))}
-              </div>
-            ) : null}
-            <div className="agent-config-editor" data-testid="agent-context-manager-body">
-              <div className="agent-config-editor__scope" data-testid="agent-context-scope-controls">
-                <span className="dialog-field__label">Scope</span>
-                <div className="agent-config-editor__scope-buttons" role="group" aria-label="Agent instruction scope">
-                  {agentInstructionEditor.config?.scopes.map((scope) => (
-                    <button
-                      className={`agent-config-editor__scope-button ${scope.id === selectedAgentInstructionScope?.id ? "agent-config-editor__scope-button--active" : ""}`}
-                      data-testid={`agent-context-scope-${scope.id}`}
-                      key={scope.id}
-                      onClick={() => selectAgentInstructionScope(scope.id)}
-                      type="button"
-                    >
-                      <strong>{scope.label}</strong>
-                      <small>{scope.description}</small>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {selectedAgentInstructionScope ? (
-                <>
-                  <div className="agent-config-editor__status" data-testid="agent-config-status">
-                    <div>
-                      <span className="dialog-field__label">{agentInstructionStatusLabel(selectedAgentInstructionScope)}</span>
-                      <div className="agent-config-editor__path">{selectedAgentInstructionScope.rootPath}</div>
-                    </div>
-                    <div className="agent-config-editor__files">
-                      <div>
-                        <strong>AGENTS.md</strong>
-                        <span>{selectedAgentInstructionScope.files.agents.exists ? "Existing" : "Missing"}</span>
-                        <small>{selectedAgentInstructionScope.files.agents.path}</small>
-                      </div>
-                      <div>
-                        <strong>CLAUDE.md</strong>
-                        <span>{selectedAgentInstructionScope.files.claude.exists ? "Existing" : "Missing"}</span>
-                        <small>{selectedAgentInstructionScope.files.claude.path}</small>
-                      </div>
-                    </div>
-                  </div>
-
-                  {selectedAgentInstructionScope.status === "different" ? (
-                    <div className="dialog-card__status dialog-card__status--warning" data-testid="agent-config-divergence">
-                      <div>AGENTS.md and CLAUDE.md are different. Choose a source, or edit the text below before saving both files.</div>
-                      <div className="dialog-card__actions dialog-card__actions--split">
-                        <button className="toolbar-button" data-testid="agent-config-use-agents" onClick={() => useAgentInstructionSource("agents")} type="button">Use AGENTS.md</button>
-                        <button className="toolbar-button" data-testid="agent-config-use-claude" onClick={() => useAgentInstructionSource("claude")} type="button">Use CLAUDE.md</button>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {selectedAgentInstructionScope.status === "missing-agents" || selectedAgentInstructionScope.status === "missing-claude" ? (
-                    <div className="dialog-card__status" data-testid="agent-config-missing">
-                      Saving will create the missing provider file from the editor content.
-                    </div>
-                  ) : null}
-
-                  <label className="dialog-field agent-config-editor__editor-field">
-                    <span className="dialog-field__label">Agent instructions</span>
-                    <textarea
-                      className="dialog-card__input agent-config-editor__textarea"
-                      data-testid="agent-context-unified-editor"
-                      spellCheck={false}
-                      value={agentInstructionEditor.draftBody}
-                      onChange={(event) =>
-                        setAgentInstructionEditor((current) => ({
-                          ...current,
-                          draftBody: event.target.value,
-                          sourceChoice: null,
-                          saveStatus: "idle",
-                          errorMessage: null,
-                        }))
-                      }
-                    />
-                  </label>
-
-                  <div className="dialog-card__actions dialog-card__actions--split">
-                    <button
-                      className="toolbar-button"
-                      data-testid="agent-config-load-template"
-                      onClick={loadAgentInstructionTemplate}
-                      type="button"
-                    >
-                      Load Exo starter template
-                    </button>
-                    <button
-                      className="toolbar-button"
-                      data-testid="agent-context-save-unified"
-                      disabled={agentInstructionEditor.saveStatus === "saving" || selectedAgentInstructionScope.status === "error"}
-                      onClick={() => void saveAgentInstructionDraft()}
-                      type="button"
-                    >
-                      {agentInstructionEditor.saveStatus === "saving" ? "Saving…" : "Save both files"}
-                    </button>
-                  </div>
-                  {agentInstructionEditor.saveStatus === "saved" ? (
-                    <div className="dialog-card__status" data-testid="agent-context-unified-status">AGENTS.md and CLAUDE.md are aligned.</div>
-                  ) : null}
-                  {agentInstructionEditor.saveStatus === "error" && agentInstructionEditor.errorMessage ? (
-                    <div className="dialog-card__status dialog-card__status--error">{agentInstructionEditor.errorMessage}</div>
-                  ) : null}
-                </>
-              ) : (
-                <div className="dialog-card__status dialog-card__status--error">No agent instruction scope is available.</div>
-              )}
-            </div>
-          </div>
-        </div>
+        <AgentConfigEditorDialog
+          editor={agentInstructionEditor}
+          onClose={() => setAgentContextManagerOpen(false)}
+        />
       ) : null}
     </>
   );
@@ -3869,30 +3608,6 @@ async function loadProjectGitChanges(projectRoots: WorkspaceModel["projectRoots"
 
 function uniqueMessages(messages: string[]): string[] {
   return [...new Set(messages.map((message) => message.trim()).filter(Boolean))];
-}
-
-function editableAgentInstructionBody(scope: AgentInstructionScope): string {
-  return scope.status === "different" || scope.status === "error" ? "" : scope.body;
-}
-
-function agentInstructionStatusLabel(scope: AgentInstructionScope | null): string {
-  if (!scope) {
-    return "Unavailable";
-  }
-  switch (scope.status) {
-    case "aligned":
-      return "Aligned";
-    case "different":
-      return "Different";
-    case "missing-agents":
-      return "Missing AGENTS.md";
-    case "missing-claude":
-      return "Missing CLAUDE.md";
-    case "missing-both":
-      return "Not set up";
-    case "error":
-      return "Error";
-  }
 }
 
 function createWorkspaceLayoutSnapshot(input: WorkspaceLayoutSettings): WorkspaceLayoutSettings {
