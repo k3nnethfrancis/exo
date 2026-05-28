@@ -43,6 +43,7 @@ interface EditorPaneProps {
   onZoomEditor: (direction: -1 | 0 | 1) => void;
   compact: boolean;
   revealLineRequest?: { filePath: string; line: number; nonce: number } | null;
+  scrollRestoreRequest?: { filePath: string; scrollTop: number; nonce: number } | null;
 }
 
 export function EditorPane(props: EditorPaneProps) {
@@ -72,6 +73,7 @@ export function EditorPane(props: EditorPaneProps) {
     onZoomEditor,
     compact,
     revealLineRequest,
+    scrollRestoreRequest,
   } = props;
 
   const activeDocument = pane.activePath ? documents[pane.activePath] ?? null : null;
@@ -150,6 +152,7 @@ export function EditorPane(props: EditorPaneProps) {
         onZoomEditor={onZoomEditor}
         compact={compact}
         revealLineRequest={revealLineRequest}
+        scrollRestoreRequest={scrollRestoreRequest}
       />
     </div>
   );

@@ -64,9 +64,12 @@ CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build 
 - Renderer code must not touch filesystem or processes directly; use preload APIs backed by main-process services.
 - CLI and MCP are peer clients of the local command server discovered through `${workspace_root}/.exo/server.json`.
 - `packages/core/src/command-protocol.ts` owns shared command routes and payload shapes.
-- Claude/Codex terminals are tmux-backed `exo-agent-*` sessions; close/kill through Exo must terminate the backing tmux session.
-- Terminal live buffers are bounded; full transcripts live under `.exo/terminal-transcripts/` with retention.
+- New shell, Claude, and Codex terminals use direct `node-pty` sessions for responsiveness. Legacy restored tmux sessions may still exist, but tmux is a compatibility path, not the default product model.
+- Terminal output must stream into xterm imperatively. React state may keep bounded metadata/tail state for restore, tabs, diagnostics, and tests, but must not be the live rendering source for high-volume terminal output.
+- Terminal live scrollback is user-facing configuration. Avoid hidden hard caps or internal truncation that users cannot discover or change; if a guard is necessary, expose the behavior in settings/docs and keep durable transcripts independent.
+- Full transcripts live under `.exo/terminal-transcripts/` with retention.
 - Terminal scroll must stay local to xterm and must not become Claude/Codex history input.
+- Workspace filesystem changes should flow from `WorkspaceWatcherService` events. Do not add renderer polling loops for open-document freshness unless a watcher gap is proven and documented.
 
 ## Product Rules
 
@@ -81,6 +84,9 @@ CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build 
 - Optional or personal workflows should go through the plugin architecture rather than becoming core by default.
 - CLI-first operator surfaces come before deep UI.
 - Every fragile UI/runtime behavior needs an automated harness or a documented manual evidence path.
+- Expose user outcomes, not implementation toggles. Prefer one solid default over user-facing switches like transport modes, streaming modes, or provider-specific branches unless there is a clear workflow that needs the choice.
+- Agent-facing configuration is provider-agnostic at the product layer. `AGENTS.md` and `CLAUDE.md` are compatibility outputs, not separate product concepts; do not add Claude-only or Codex-only repo guidance here.
+- Settings surfaces should stay compact and task-oriented. When a control affects hidden files, runtime behavior, or indexing, label the outcome and provide just enough tooltip/help text to explain the consequence.
 
 ## Work Chunk Rules
 
@@ -88,3 +94,6 @@ CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build 
 - Update docs in the same chunk when public commands, architecture, settings, runtime behavior, or agent workflow changes.
 - Record future work in `docs/tasks.md` or `docs/roadmap.md`; record shipped current state in `ledger.md`.
 - Do not include local secrets, private paths as source defaults, transcripts, logs, or `.exo/` runtime files.
+- Preserve unrelated local edits. Before staging, inspect `git status` and include only files that belong to the current task.
+- UI and terminal changes require app QA in the real Electron app, not only browser or unit tests. Use focused automated tests first, then manually exercise the affected workflow.
+- Prefer extracting pure helpers or focused hooks over expanding `App.tsx` or `main/index.ts`. Keep IPC types in `@exo/core` when shared across CLI/MCP/desktop and avoid duplicate type definitions in preload-only files.

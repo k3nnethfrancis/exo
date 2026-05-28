@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { HelpCircle, Plus, X } from "lucide-react";
 import type {
   BranchFamily,
@@ -21,13 +21,13 @@ import { InspectorDock } from "./components/InspectorDock";
 import { ShellLayout } from "./components/ShellLayout";
 import { TerminalDock } from "./components/TerminalDock";
 import { writeTerminalData } from "./components/terminalRegistry";
-import { useOpenDocumentVersionPolling } from "./hooks/useOpenDocumentVersionPolling";
 import { useShellLayout } from "./hooks/useShellLayout";
 import { useWorkspaceSearch } from "./hooks/useWorkspaceSearch";
 import { collectLeaves, findEditorLeaf, findNode, findTerminalLeaf, mapLeaves, paneId, pruneEmptyLeaves, removeNode, updateNode, type PaneLeaf, type PaneNode, type PaneNodeId, type BrowserPaneContent, type EditorPaneContent, type TerminalPaneContent } from "./hooks/usePaneTree";
 import { useDragManager, type DragDropTarget, type DragPayload, type DropEdge } from "./hooks/useDragManager";
 import { buildProjectReviewChanges, uniqueCwdMatchedSession, type ObservedWorkspaceWrite } from "./changedFileReview";
 import { appendRendererTerminalBuffer, trimRendererTerminalBuffer } from "./terminalBuffer";
+import { terminalSessionsEqual } from "./terminalSessions";
 
 interface OpenEditorDocument extends NoteDocument {
   dirty: boolean;
@@ -203,6 +203,7 @@ export function App() {
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [revealExplorerPathRequest, setRevealExplorerPathRequest] = useState<{ path: string; nonce: number } | null>(null);
   const [editorRevealLineRequest, setEditorRevealLineRequest] = useState<{ filePath: string; line: number; nonce: number } | null>(null);
+  const [editorScrollRestoreRequest, setEditorScrollRestoreRequest] = useState<{ filePath: string; scrollTop: number; nonce: number } | null>(null);
   const handleDropRef = useRef<(target: DragDropTarget, payload: DragPayload) => void>(() => {});
   const dragManager = useDragManager((target, payload) => handleDropRef.current(target, payload));
   const [terminalSessions, setTerminalSessions] = useState<TerminalSessionInfo[]>([]);
@@ -239,6 +240,7 @@ export function App() {
   const pendingTerminalChunksRef = useRef<Record<string, string>>({});
   const terminalFlushFrameRef = useRef<number | null>(null);
   const bootstrapRunRef = useRef(0);
+  const editorScrollRestoreNonceRef = useRef(0);
   const terminalRuntimeScrollbackLinesRef = useRef(FULL_TERMINAL_SCROLLBACK_LINES);
   const terminalSessionsRef = useRef<TerminalSessionInfo[]>([]);
   const terminalKindByIdRef = useRef<Record<string, TerminalSessionInfo["kind"]>>({});
@@ -322,12 +324,6 @@ export function App() {
     };
   }, [workspaceModel]);
 
-  const scheduleOpenDocumentRefreshCallback = useCallback(
-    (filePath: string, diskVersion: FileStatInfo) => scheduleOpenDocumentRefresh(filePath, diskVersion),
-    [],
-  );
-  useOpenDocumentVersionPolling(openDocumentsRef, pendingDocumentRefreshesRef, scheduleOpenDocumentRefreshCallback);
-
   useEffect(() => {
     const openPaths = collectOpenEditorPaths(editorTree);
     setOpenDocuments((current) => {
@@ -378,10 +374,7 @@ export function App() {
 
     async function bootstrap() {
       const bootstrapRun = ++bootstrapRunRef.current;
-      const workspaceListPromise =
-        typeof window.exo.workspace.listWorkspaces === "function"
-          ? window.exo.workspace.listWorkspaces().catch(() => [])
-          : Promise.resolve([]);
+      const workspaceListPromise = window.exo.workspace.listWorkspaces().catch(() => []);
       const [setupState, model, settings, workspaces] = await Promise.all([
         window.exo.workspace.getSetupState(),
         window.exo.workspace.getModel(),
@@ -565,7 +558,7 @@ export function App() {
       void window.exo.terminals.list().then((sessions) => {
         const knownIds = new Set(terminalSessionsRef.current.map((session) => session.id));
         const unseenSessions = sessions.filter((session) => !knownIds.has(session.id));
-        setTerminalSessions(sessions);
+        setTerminalSessions((current) => (terminalSessionsEqual(current, sessions) ? current : sessions));
         if (unseenSessions.length > 0) {
           adoptExternalTerminalSessions(unseenSessions, { activateLatest: true });
         }
@@ -1589,8 +1582,8 @@ export function App() {
   }
 
   function closeDocumentInPane(leafId: PaneNodeId, filePath: string) {
-    editorActions.setTree((prev) => {
-      const next = mapLeaves(prev, (leaf) => {
+    const nextTree = pruneEmptyLeaves(
+      mapLeaves(editorTree, (leaf) => {
         if (leaf.id !== leafId || leaf.content.kind !== "editor") return leaf;
         const nextOpenPaths = leaf.content.openPaths.filter((p) => p !== filePath);
         const closedIndex = leaf.content.openPaths.indexOf(filePath);
@@ -1598,26 +1591,27 @@ export function App() {
           ? (nextOpenPaths[Math.max(0, closedIndex - 1)] ?? nextOpenPaths[0] ?? null)
           : leaf.content.activePath;
         return { ...leaf, content: { ...leaf.content, openPaths: nextOpenPaths, activePath: nextActivePath } };
-      });
-      return pruneEmptyLeaves(next, (leaf) => leaf.content.kind === "editor" && leaf.content.openPaths.length === 0);
-    });
+      }),
+      (leaf) => leaf.content.kind === "editor" && leaf.content.openPaths.length === 0,
+    );
+    editorActions.setTree(nextTree);
 
-    setTimeout(() => {
-      const focused = findNode(editorTree, (n) => n.id === editorFocusedLeafId) as PaneLeaf | undefined;
-      const nextPath = focused?.content.kind === "editor" ? focused.content.activePath : null;
-      setActiveDocumentPath(nextPath);
-      if (!nextPath) {
-        setActiveTag(null);
-        setTagResults([]);
-        const editorLeavesNow = collectLeaves(editorTree).filter((l) => l.content.kind === "editor");
-        const allEmpty = editorLeavesNow.every(
-          (l) => l.content.kind === "editor" && l.content.openPaths.length === 0,
-        );
-        if (allEmpty) {
-          void openOrCreateDailyNote();
-        }
+    const focused = findNode(nextTree, (n) => n.id === editorFocusedLeafId) as PaneLeaf | undefined;
+    const fallback = findEditorLeaf(nextTree);
+    const nextLeaf = focused?.content.kind === "editor" ? focused : fallback;
+    const nextPath = nextLeaf?.content.kind === "editor" ? nextLeaf.content.activePath : null;
+    setActiveDocumentPath(nextPath);
+    if (!nextPath) {
+      setActiveTag(null);
+      setTagResults([]);
+      const editorLeavesNow = collectLeaves(nextTree).filter((leaf) => leaf.content.kind === "editor");
+      const allEmpty = editorLeavesNow.every(
+        (leaf) => leaf.content.kind === "editor" && leaf.content.openPaths.length === 0,
+      );
+      if (allEmpty) {
+        void openOrCreateDailyNote();
       }
-    }, 0);
+    }
   }
 
   /** Load a document's content into state without touching the pane tree. */
@@ -1726,7 +1720,8 @@ export function App() {
     }));
 
     if (scrollTop !== null) {
-      restoreEditorScrollTopForPath(filePath, scrollTop);
+      editorScrollRestoreNonceRef.current += 1;
+      setEditorScrollRestoreRequest({ filePath, scrollTop, nonce: editorScrollRestoreNonceRef.current });
     }
   }
 
@@ -2910,6 +2905,7 @@ export function App() {
               onZoomEditor={(direction) => updateFocusedSurfaceZoom(direction, "editor")}
               compact={compactEditorChrome}
               revealLineRequest={editorRevealLineRequest}
+              scrollRestoreRequest={editorScrollRestoreRequest}
             />
             <InspectorDock
               document={activeDocument}
@@ -4262,22 +4258,6 @@ function isPathWithin(parentPath: string, targetPath: string): boolean {
 function getEditorScrollTopForPath(filePath: string): number | null {
   const scroller = getEditorScrollerForPath(filePath);
   return scroller ? scroller.scrollTop : null;
-}
-
-function restoreEditorScrollTopForPath(filePath: string, scrollTop: number) {
-  const restore = () => {
-    const scroller = getEditorScrollerForPath(filePath);
-    if (scroller) {
-      scroller.scrollTop = scrollTop;
-    }
-  };
-
-  window.requestAnimationFrame(restore);
-  const interval = window.setInterval(restore, 50);
-  window.setTimeout(() => {
-    restore();
-    window.clearInterval(interval);
-  }, 650);
 }
 
 function getEditorScrollerForPath(filePath: string): HTMLElement | null {

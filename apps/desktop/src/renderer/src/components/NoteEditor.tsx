@@ -39,6 +39,7 @@ interface NoteEditorProps {
   onZoomEditor: (direction: -1 | 0 | 1) => void;
   compact: boolean;
   revealLineRequest?: { filePath: string; line: number; nonce: number } | null;
+  scrollRestoreRequest?: { filePath: string; scrollTop: number; nonce: number } | null;
 }
 
 export function NoteEditor(props: NoteEditorProps) {
@@ -62,6 +63,7 @@ export function NoteEditor(props: NoteEditorProps) {
     onZoomEditor,
     compact,
     revealLineRequest,
+    scrollRestoreRequest,
   } = props;
   const [rawMarkdownMode, setRawMarkdownMode] = useState(false);
   const codeMirrorRef = useRef<ReactCodeMirrorRef>(null);
@@ -70,6 +72,7 @@ export function NoteEditor(props: NoteEditorProps) {
   const previousPathRef = useRef(document?.filePath ?? "");
   const restoringScrollRef = useRef(false);
   const processedRevealLineNonceRef = useRef<number | null>(null);
+  const processedScrollRestoreNonceRef = useRef<number | null>(null);
 
   useEffect(() => {
     setRawMarkdownMode(false);
@@ -229,6 +232,30 @@ export function NoteEditor(props: NoteEditorProps) {
       window.clearTimeout(timeout);
     };
   }, [document, documentPath, revealLineRequest]);
+
+  useLayoutEffect(() => {
+    if (!document || !scrollRestoreRequest || scrollRestoreRequest.filePath !== document.filePath) {
+      return;
+    }
+    if (processedScrollRestoreNonceRef.current === scrollRestoreRequest.nonce) {
+      return;
+    }
+
+    const scroller = codeMirrorRef.current?.view?.scrollDOM;
+    if (!scroller) {
+      return;
+    }
+
+    processedScrollRestoreNonceRef.current = scrollRestoreRequest.nonce;
+    restoringScrollRef.current = true;
+    scroller.scrollTop = scrollRestoreRequest.scrollTop;
+    const frame = window.requestAnimationFrame(() => {
+      restoringScrollRef.current = false;
+    });
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
+  }, [document, documentPath, scrollRestoreRequest]);
 
   if (!document) {
     return (

@@ -13,6 +13,7 @@ import {
 import { buildProjectReviewChanges, uniqueCwdMatchedSession } from "./changedFileReview";
 import { isTerminalGeneratedResponse } from "./components/terminalInputFilters";
 import { appendRendererTerminalBuffer, trimRendererTerminalBuffer } from "./terminalBuffer";
+import { terminalSessionsEqual } from "./terminalSessions";
 
 describe("desktop shell", () => {
   it("keeps a renderer test surface in place", () => {
@@ -142,6 +143,27 @@ describe("renderer terminal buffers", () => {
     const appended = appendRendererTerminalBuffer("first\nsecond", "\nthird\nfourth", 2);
 
     expect(appended).toBe("third\nfourth");
+  });
+});
+
+describe("terminal session sync", () => {
+  it("detects unchanged terminal session snapshots", () => {
+    const sessions = [
+      {
+        id: "term-a",
+        title: "Shell",
+        cwd: "/workspace",
+        kind: "shell",
+        command: "zsh",
+        transport: "direct",
+        status: "running",
+        health: "healthy",
+        healthDetail: "running",
+      },
+    ] as const;
+
+    expect(terminalSessionsEqual([...sessions], [...sessions])).toBe(true);
+    expect(terminalSessionsEqual([...sessions], [{ ...sessions[0], healthDetail: "stale output" }])).toBe(false);
   });
 });
 
