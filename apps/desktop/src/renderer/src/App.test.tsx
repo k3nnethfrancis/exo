@@ -6,8 +6,6 @@ import path from "node:path";
 import {
   DEFAULT_TERMINAL_HISTORY_LINES,
   DEFAULT_TERMINAL_HISTORY_MODE,
-  DEFAULT_TERMINAL_AGENT_TRANSPORT,
-  DEFAULT_TERMINAL_STREAMING_MODE,
   DEFAULT_TERMINAL_TRANSCRIPT_RETENTION,
   resolveTerminalRuntimePolicy,
   WorkspaceSettingsStore,
@@ -37,8 +35,8 @@ describe("workspace terminal settings", () => {
     expect(settings?.terminalHistoryMode).toBe(DEFAULT_TERMINAL_HISTORY_MODE);
     expect(settings?.terminalHistoryLines).toBe(DEFAULT_TERMINAL_HISTORY_LINES);
     expect(settings?.terminalTranscriptRetention).toBe(DEFAULT_TERMINAL_TRANSCRIPT_RETENTION);
-    expect(settings?.terminalStreamingMode).toBe(DEFAULT_TERMINAL_STREAMING_MODE);
-    expect(settings?.terminalAgentTransport).toBe(DEFAULT_TERMINAL_AGENT_TRANSPORT);
+    expect(Object.prototype.hasOwnProperty.call(settings, "terminalStreamingMode")).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(settings, "terminalAgentTransport")).toBe(false);
     expect(Object.prototype.hasOwnProperty.call(settings, "terminalScrollbackLines")).toBe(false);
     expect(Object.prototype.hasOwnProperty.call(settings, "terminalBufferChars")).toBe(false);
     expect(settings ? resolveTerminalRuntimePolicy(settings) : null).toMatchObject({
@@ -60,21 +58,16 @@ describe("workspace terminal settings", () => {
       terminalHistoryLines: 24_000,
       terminalTranscriptRetention: "days",
       terminalTranscriptRetentionDays: 30,
-      terminalStreamingMode: "paused",
-      terminalAgentTransport: "tmux",
     });
 
     expect(settings?.terminalHistoryMode).toBe("custom");
     expect(settings?.terminalHistoryLines).toBe(24_000);
     expect(settings?.terminalTranscriptRetention).toBe("days");
     expect(settings?.terminalTranscriptRetentionDays).toBe(30);
-    expect(settings?.terminalStreamingMode).toBe("paused");
-    expect(settings?.terminalAgentTransport).toBe("tmux");
     expect(settings ? resolveTerminalRuntimePolicy(settings) : null).toEqual({
       scrollbackLines: 24_000,
       bufferLineLimit: 24_000,
       transcriptRetentionDays: 30,
-      agentTransport: "tmux",
     });
   });
 });

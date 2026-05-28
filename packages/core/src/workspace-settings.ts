@@ -13,8 +13,6 @@ export const FULL_TERMINAL_SCROLLBACK_LINES = 1_000_000;
 export const DEFAULT_TERMINAL_HISTORY_LINES = FULL_TERMINAL_SCROLLBACK_LINES;
 export const DEFAULT_TERMINAL_TRANSCRIPT_RETENTION: WorkspaceSettings["terminalTranscriptRetention"] = "forever";
 export const DEFAULT_TERMINAL_TRANSCRIPT_RETENTION_DAYS = 14;
-export const DEFAULT_TERMINAL_STREAMING_MODE: WorkspaceSettings["terminalStreamingMode"] = "visible";
-export const DEFAULT_TERMINAL_AGENT_TRANSPORT: WorkspaceSettings["terminalAgentTransport"] = "direct";
 export const DEFAULT_EXPLORER_SCALE = 1;
 export interface WorkspaceRegistryEntry {
   id: string;
@@ -182,8 +180,6 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
     terminalHistoryLines: input.terminalHistoryMode === "custom" ? clampSettingsNumber(input.terminalHistoryLines, DEFAULT_TERMINAL_HISTORY_LINES, 500, FULL_TERMINAL_SCROLLBACK_LINES) : DEFAULT_TERMINAL_HISTORY_LINES,
     terminalTranscriptRetention: input.terminalTranscriptRetention === "days" ? "days" : DEFAULT_TERMINAL_TRANSCRIPT_RETENTION,
     terminalTranscriptRetentionDays: clampSettingsNumber(input.terminalTranscriptRetentionDays, DEFAULT_TERMINAL_TRANSCRIPT_RETENTION_DAYS, 1, 3650),
-    terminalStreamingMode: input.terminalStreamingMode === "all" || input.terminalStreamingMode === "paused" ? input.terminalStreamingMode : DEFAULT_TERMINAL_STREAMING_MODE,
-    terminalAgentTransport: input.terminalAgentTransport === "tmux" ? "tmux" : DEFAULT_TERMINAL_AGENT_TRANSPORT,
     explorerScale: clampSettingsNumber(input.explorerScale, DEFAULT_EXPLORER_SCALE, 0.82, 1.35),
     exploreIndexSearchOnEnter: typeof input.exploreIndexSearchOnEnter === "boolean" ? input.exploreIndexSearchOnEnter : indexing.enabled && indexing.mode !== "off" && indexedRoots.length > 0,
     indexUpdateStrategy: input.indexUpdateStrategy === "manual" ? "manual" : "on-save",

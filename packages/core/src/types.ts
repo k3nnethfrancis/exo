@@ -1,7 +1,6 @@
 export type RootKind = "notes" | "projects";
 export type DocumentKind = "markdown" | "text";
 export type ManagedAgentKind = "shell" | "claude" | "codex";
-export type TerminalAgentTransport = "direct" | "tmux";
 
 export interface AttachedRoot {
   id: string;
@@ -34,8 +33,6 @@ export interface WorkspaceSettings {
   terminalHistoryLines: number;
   terminalTranscriptRetention: TerminalTranscriptRetention;
   terminalTranscriptRetentionDays: number;
-  terminalStreamingMode: TerminalStreamingMode;
-  terminalAgentTransport: TerminalAgentTransport;
   explorerScale: number;
   exploreIndexSearchOnEnter: boolean;
   indexUpdateStrategy: IndexUpdateStrategy;
@@ -151,7 +148,6 @@ export type IndexBackend = "qmd";
 export type IndexUpdateStrategy = "manual" | "on-save";
 export type TerminalHistoryMode = "full" | "custom";
 export type TerminalTranscriptRetention = "forever" | "days";
-export type TerminalStreamingMode = "visible" | "all" | "paused";
 
 export interface IndexedRoot {
   id: string;

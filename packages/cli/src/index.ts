@@ -59,7 +59,7 @@ interface AppClientLike {
   embedIndex(): Promise<Record<string, unknown>>;
   listTerminals(): Promise<unknown[]>;
   terminalDiagnostics(): Promise<unknown[]>;
-  createTerminal(kind: string, cwd?: string, transport?: "direct" | "tmux"): Promise<Record<string, unknown>>;
+  createTerminal(kind: string, cwd?: string): Promise<Record<string, unknown>>;
   readTerminal(id: string): Promise<string>;
   readTerminalTranscript(id: string, tailChars?: number): Promise<string>;
   writeTerminal(id: string, data: string): Promise<AppClientWriteResult>;
@@ -387,9 +387,7 @@ export async function runCli(
       if (!kind || !["shell", "claude", "codex"].includes(kind)) {
         throw new Error("Expected one of: shell, claude, codex.");
       }
-      const transport = args.includes("--tmux") ? "tmux" : args.includes("--direct") ? "direct" : undefined;
-      const cwd = args.find((arg, index) => index > 0 && arg !== "--tmux" && arg !== "--direct");
-      const terminal = await client.createTerminal(kind, cwd, transport);
+      const terminal = await client.createTerminal(kind, args[1]);
       stdout.write(`${JSON.stringify(terminal, null, 2)}\n`);
       return 0;
     }
@@ -439,7 +437,7 @@ export async function runCli(
       return 0;
     }
 
-    stderr.write("Usage: exo terminals [list | diagnostics | create <shell|claude|codex> [cwd] [--direct|--tmux] | read <id> | transcript <id> [--tail chars] [--full] | write <id> <text> | send <id> <text> | kill <id>]\n");
+    stderr.write("Usage: exo terminals [list | diagnostics | create <shell|claude|codex> [cwd] | read <id> | transcript <id> [--tail chars] [--full] | write <id> <text> | send <id> <text> | kill <id>]\n");
     return 1;
   }
 

@@ -7,7 +7,6 @@ import {
   writeFileSync,
 } from "node:fs";
 import path from "node:path";
-import { randomBytes } from "node:crypto";
 
 import pty, { type IPty } from "node-pty";
 import { resolveAgentLaunchPlan, resolveRuntimeConfig, syncRuntimeContextFiles, type RuntimeConfig } from "@exo/core";
@@ -38,19 +37,16 @@ interface PersistedAgentSession {
   tmuxSession: string;
   title: string;
   command: string;
-  transport?: TerminalTransport;
 }
 
 interface PersistedState {
   agents: PersistedAgentSession[];
 }
 
-const TMUX_PREFIX = "exo-agent";
 const DEFAULT_TMUX_HISTORY_LINES = 1_000_000;
 const DEFAULT_BUFFER_LINE_LIMIT = DEFAULT_TMUX_HISTORY_LINES;
 const MIN_TMUX_HISTORY_LINES = 500;
 const MAX_TMUX_HISTORY_LINES = 1_000_000;
-const TMUX_BOOTSTRAP_WINDOW = "exo-bootstrap";
 const CODEX_STARTUP_GRACE_MS = 1_500;
 const CODEX_QUEUED_SUBMIT_DELAY_MS = 120;
 
@@ -64,7 +60,6 @@ export class TerminalManager extends EventEmitter {
   private stateFilePath: string;
   private transcripts: TerminalTranscriptStore;
   private readonly tmuxAvailable: boolean;
-  private agentTransport: TerminalTransport = "direct";
   private nextWriteId = 1;
 
   constructor(
@@ -179,10 +174,6 @@ export class TerminalManager extends EventEmitter {
     this.transcripts = this.createTranscriptStore();
   }
 
-  setAgentTransport(transport: TerminalTransport) {
-    this.agentTransport = transport === "tmux" ? "tmux" : "direct";
-  }
-
   async syncRuntimeContext() {
     return syncRuntimeContextFiles(this.runtimeConfig);
   }
@@ -233,20 +224,11 @@ export class TerminalManager extends EventEmitter {
       ...overlayEnv,
     };
 
-    const requestedTransport = options.transport ?? (isAgent ? this.agentTransport : "direct");
-    const useTmux = isAgent && requestedTransport === "tmux" && this.tmuxAvailable;
-    const transport: TerminalTransport = useTmux ? "tmux" : "direct";
+    const transport: TerminalTransport = "direct";
 
     let spawnCommand = launch.command;
     let spawnArgs = launch.args;
     let tmuxSession: string | undefined;
-
-    if (useTmux) {
-      tmuxSession = `${TMUX_PREFIX}-${options.kind}-${randomBytes(4).toString("hex")}`;
-      createTmuxAgentSession(tmuxSession, launch.cwd, launch.command, launch.args, this.tmuxHistoryLines, env);
-      spawnCommand = "tmux";
-      spawnArgs = ["attach-session", "-t", tmuxSession];
-    }
 
     const processHandle = pty.spawn(spawnCommand, spawnArgs, {
       cols: 120,
@@ -297,18 +279,6 @@ export class TerminalManager extends EventEmitter {
 
     this.appendTranscript(id, this.transcriptHeader(info, tmuxSession));
     this.wireProcess(id, processHandle, tmuxSession);
-
-    if (tmuxSession && options.kind !== "shell") {
-      this.persistAgent({
-        id,
-        kind: options.kind,
-        cwd: launch.cwd,
-        tmuxSession,
-        title: launch.title,
-        command: launch.command,
-        transport,
-      });
-    }
 
     this.emit("created", info);
     return info;
@@ -902,29 +872,6 @@ function trimBufferLines(buffer: string, lineLimit: number | null): string {
 
 function trimTerminalBuffer(buffer: string, lineLimit: number | null): string {
   return trimBufferLines(buffer, lineLimit);
-}
-
-function createTmuxAgentSession(name: string, cwd: string, command: string, args: string[], historyLines: number, env: Record<string, string | undefined>): void {
-  try {
-    execFileSync("tmux", ["new-session", "-d", "-s", name, "-c", cwd, "-n", TMUX_BOOTSTRAP_WINDOW, "sleep", "31536000"], {
-      stdio: "ignore",
-    });
-    setTmuxHistoryLimit(name, historyLines);
-    for (const [key, value] of Object.entries(env)) {
-      if (key.startsWith("EXO_") && value !== undefined) {
-        execFileSync("tmux", ["set-environment", "-t", name, key, value], { stdio: "ignore" });
-      }
-    }
-    execFileSync("tmux", ["new-window", "-d", "-t", name, "-c", cwd, command, ...args], { stdio: "ignore" });
-    execFileSync("tmux", ["kill-window", "-t", `${name}:${TMUX_BOOTSTRAP_WINDOW}`], { stdio: "ignore" });
-  } catch (err) {
-    try {
-      execFileSync("tmux", ["kill-session", "-t", name], { stdio: "ignore" });
-    } catch {
-      // best effort cleanup
-    }
-    throw err;
-  }
 }
 
 function setTmuxHistoryLimit(name: string, historyLines: number): void {

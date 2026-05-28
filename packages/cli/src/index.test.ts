@@ -49,8 +49,6 @@ describe("cli package", () => {
         terminalHistoryLines: 1_000_000,
         terminalTranscriptRetention: "forever",
         terminalTranscriptRetentionDays: 14,
-        terminalStreamingMode: "visible",
-        terminalAgentTransport: "direct",
         explorerScale: 1,
         exploreIndexSearchOnEnter: false,
         indexUpdateStrategy: "on-save",
@@ -495,7 +493,7 @@ function fakeAppClient(overrides: Partial<{
   embedIndex: () => Promise<Record<string, unknown>>;
   listTerminals: () => Promise<unknown[]>;
   terminalDiagnostics: () => Promise<unknown[]>;
-  createTerminal: (kind: string, cwd?: string, transport?: "direct" | "tmux") => Promise<Record<string, unknown>>;
+  createTerminal: (kind: string, cwd?: string) => Promise<Record<string, unknown>>;
   readTerminal: (id: string) => Promise<string>;
   readTerminalTranscript: (id: string, tailChars?: number) => Promise<string>;
   writeTerminal: (id: string, data: string) => Promise<{ ok: true; delivery: "sent" | "queued" | "not-found"; queuedInputCount?: number }>;

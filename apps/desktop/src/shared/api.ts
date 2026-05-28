@@ -37,7 +37,6 @@ export interface TerminalSessionInfo {
 export interface TerminalCreateOptions {
   kind: TerminalKind;
   cwd?: string;
-  transport?: TerminalTransport;
 }
 
 export interface TerminalDataEvent {
@@ -222,7 +221,6 @@ export interface DesktopApi {
     readTranscript: (id: string, tailChars?: number) => Promise<string>;
     write: (id: string, data: string) => Promise<TerminalWriteResult>;
     resize: (id: string, cols: number, rows: number) => Promise<void>;
-    setStreaming: (ids: string[]) => Promise<void>;
     kill: (id: string) => Promise<void>;
     resolveDroppedFilePaths: (files: File[]) => string[];
     onCreated: (callback: (session: TerminalSessionInfo) => void) => () => void;

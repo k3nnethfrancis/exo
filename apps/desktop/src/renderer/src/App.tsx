@@ -91,8 +91,6 @@ interface WorkspaceSettingsDialogState {
   terminalHistoryLines: string;
   terminalTranscriptRetention: WorkspaceSettings["terminalTranscriptRetention"];
   terminalTranscriptRetentionDays: string;
-  terminalStreamingMode: WorkspaceSettings["terminalStreamingMode"];
-  terminalAgentTransport: WorkspaceSettings["terminalAgentTransport"];
   explorerScale: string;
   exploreIndexSearchOnEnter: boolean;
   indexUpdateStrategy: WorkspaceSettings["indexUpdateStrategy"];
@@ -138,7 +136,6 @@ interface AgentInstructionEditorState {
 type IndexBusyState = "syncing" | "updating" | "embedding" | null;
 
 const FULL_TERMINAL_SCROLLBACK_LINES = 1_000_000;
-const DEFAULT_TERMINAL_STREAMING_MODE: WorkspaceSettings["terminalStreamingMode"] = "visible";
 const NOTE_TREE_MAX_DEPTH = 3;
 const PROJECT_TREE_MAX_DEPTH = 3;
 const DEFAULT_EDITOR_FONT_SIZE = 15;
@@ -234,7 +231,6 @@ export function App() {
   const [editorFontSize, setEditorFontSize] = useState(DEFAULT_EDITOR_FONT_SIZE);
   const [terminalFontSize, setTerminalFontSize] = useState(DEFAULT_TERMINAL_FONT_SIZE);
   const [terminalRuntimeScrollbackLines, setTerminalRuntimeScrollbackLines] = useState(FULL_TERMINAL_SCROLLBACK_LINES);
-  const [terminalStreamingMode, setTerminalStreamingMode] = useState<WorkspaceSettings["terminalStreamingMode"]>(DEFAULT_TERMINAL_STREAMING_MODE);
   const [explorerScale, setExplorerScale] = useState(DEFAULT_EXPLORER_SCALE);
   const [layoutPersistenceReady, setLayoutPersistenceReady] = useState(false);
   const [systemPrefersDark, setSystemPrefersDark] = useState(() =>
@@ -243,9 +239,7 @@ export function App() {
   const pendingTerminalChunksRef = useRef<Record<string, string>>({});
   const terminalFlushFrameRef = useRef<number | null>(null);
   const bootstrapRunRef = useRef(0);
-  const activeTerminalIdsRef = useRef<Set<string>>(new Set());
   const terminalRuntimeScrollbackLinesRef = useRef(FULL_TERMINAL_SCROLLBACK_LINES);
-  const terminalStreamingModeRef = useRef<WorkspaceSettings["terminalStreamingMode"]>(DEFAULT_TERMINAL_STREAMING_MODE);
   const terminalSessionsRef = useRef<TerminalSessionInfo[]>([]);
   const terminalKindByIdRef = useRef<Record<string, TerminalSessionInfo["kind"]>>({});
   const openDocumentsRef = useRef(openDocuments);
@@ -281,10 +275,6 @@ export function App() {
       return changed ? next : current;
     });
   }, [terminalRuntimeScrollbackLines]);
-
-  useEffect(() => {
-    terminalStreamingModeRef.current = terminalStreamingMode;
-  }, [terminalStreamingMode]);
 
   function markTerminalBufferReset(id: string) {
     setTerminalBufferVersions((current) => ({ ...current, [id]: (current[id] ?? 0) + 1 }));
@@ -337,26 +327,6 @@ export function App() {
     [],
   );
   useOpenDocumentVersionPolling(openDocumentsRef, pendingDocumentRefreshesRef, scheduleOpenDocumentRefreshCallback);
-
-  useEffect(() => {
-    const activeIds = new Set<string>();
-    for (const leaf of [...collectLeaves(editorTree), ...collectLeaves(terminalTree)]) {
-      if (leaf.content.kind === "terminal" && leaf.content.activeTerminalId) {
-        activeIds.add(leaf.content.activeTerminalId);
-      }
-    }
-    if (activeTerminalId) {
-      activeIds.add(activeTerminalId);
-    }
-    activeTerminalIdsRef.current = activeIds;
-    const streamingIds =
-      terminalStreamingMode === "all"
-        ? terminalSessions.map((session) => session.id)
-        : terminalStreamingMode === "visible"
-          ? Array.from(activeIds)
-          : [];
-    void window.exo.terminals.setStreaming(streamingIds);
-  }, [activeTerminalId, editorTree, terminalTree, terminalSessions, terminalStreamingMode]);
 
   useEffect(() => {
     const openPaths = collectOpenEditorPaths(editorTree);
@@ -426,7 +396,6 @@ export function App() {
       setEditorFontSize(settings.editorFontSize);
       setTerminalFontSize(settings.terminalFontSize);
       setTerminalRuntimeScrollbackLines(terminalPolicy.scrollbackLines);
-      setTerminalStreamingMode(settings.terminalStreamingMode);
       setExplorerScale(settings.explorerScale);
       setExploreIndexSearchOnEnter(settings.exploreIndexSearchOnEnter);
       shellLayout.applyPersistedLayout(settings.layout);
@@ -575,14 +544,6 @@ export function App() {
     }
 
     const removeDataListener = window.exo.terminals.onData(({ id, data }) => {
-      const streamingMode = terminalStreamingModeRef.current;
-      if (streamingMode === "paused") {
-        return;
-      }
-      if (streamingMode === "visible" && !activeTerminalIdsRef.current.has(id)) {
-        return;
-      }
-
       writeTerminalData(id, data);
       pendingTerminalChunksRef.current[id] = `${pendingTerminalChunksRef.current[id] ?? ""}${data}`;
       if (terminalFlushFrameRef.current !== null) {
@@ -1126,8 +1087,6 @@ export function App() {
       terminalHistoryLines: String(settings.terminalHistoryLines),
       terminalTranscriptRetention: settings.terminalTranscriptRetention,
       terminalTranscriptRetentionDays: String(settings.terminalTranscriptRetentionDays),
-      terminalStreamingMode: settings.terminalStreamingMode,
-      terminalAgentTransport: settings.terminalAgentTransport,
       explorerScale: String(settings.explorerScale),
       exploreIndexSearchOnEnter: settings.exploreIndexSearchOnEnter,
       indexUpdateStrategy: settings.indexUpdateStrategy,
@@ -1505,8 +1464,6 @@ export function App() {
       terminalHistoryLines,
       terminalTranscriptRetention: settingsDialog.terminalTranscriptRetention,
       terminalTranscriptRetentionDays: clampNumber(Number(settingsDialog.terminalTranscriptRetentionDays), 1, 3650),
-      terminalStreamingMode: settingsDialog.terminalStreamingMode,
-      terminalAgentTransport: settingsDialog.terminalAgentTransport,
       explorerScale: clampNumber(Number(settingsDialog.explorerScale), 0.82, 1.35),
       exploreIndexSearchOnEnter: settingsDialog.exploreIndexSearchOnEnter,
       indexUpdateStrategy: settingsDialog.indexUpdateStrategy,
@@ -1542,7 +1499,6 @@ export function App() {
       setTerminalFontSize(saved.terminalFontSize);
       const savedTerminalPolicy = resolveSettingsTerminalRuntime(saved);
       setTerminalRuntimeScrollbackLines(savedTerminalPolicy.scrollbackLines);
-      setTerminalStreamingMode(saved.terminalStreamingMode);
       setExplorerScale(saved.explorerScale);
       setExploreIndexSearchOnEnter(saved.exploreIndexSearchOnEnter);
       setWorkspaceSettingsDialog((current) =>
@@ -3595,56 +3551,6 @@ export function App() {
                           />
                         </label>
                       ) : null}
-                      <label className="dialog-field">
-                        <span className="dialog-field__label">Agent streaming</span>
-                        <select
-                          className="dialog-card__input"
-                          data-testid="workspace-settings-terminal-streaming-mode"
-                          value={workspaceSettingsDialog.terminalStreamingMode}
-                          onChange={(event) =>
-                            setWorkspaceSettingsDialog((current) =>
-                              current
-                                ? {
-                                    ...current,
-                                    terminalStreamingMode: event.target.value as WorkspaceSettings["terminalStreamingMode"],
-                                    saveStatus: "idle",
-                                    errorMessage: null,
-                                  }
-                                : current,
-                            )
-                          }
-                        >
-                          <option value="visible">Visible only</option>
-                          <option value="all">All terminals</option>
-                          <option value="paused">Paused</option>
-                        </select>
-                      </label>
-                      <label className="dialog-field">
-                        <span className="dialog-field__label">
-                          Agent terminal transport
-                          <HelpTooltip label="Direct pty gives the most reliable typing path. Persistent tmux keeps agent sessions alive across Exo restarts but adds another transport layer." />
-                        </span>
-                        <select
-                          className="dialog-card__input"
-                          data-testid="workspace-settings-terminal-agent-transport"
-                          value={workspaceSettingsDialog.terminalAgentTransport}
-                          onChange={(event) =>
-                            setWorkspaceSettingsDialog((current) =>
-                              current
-                                ? {
-                                    ...current,
-                                    terminalAgentTransport: event.target.value as WorkspaceSettings["terminalAgentTransport"],
-                                    saveStatus: "idle",
-                                    errorMessage: null,
-                                  }
-                                : current,
-                            )
-                          }
-                        >
-                          <option value="direct">Direct pty</option>
-                          <option value="tmux">Persistent tmux</option>
-                        </select>
-                      </label>
                     </>
                   ) : null}
                   {workspaceSettingsDialog.section === "appearance" ? (
@@ -4393,8 +4299,6 @@ function workspaceSettingsImmediateDraftKey(settings: WorkspaceSettingsDialogSta
     terminalHistoryLines: settings.terminalHistoryLines,
     terminalTranscriptRetention: settings.terminalTranscriptRetention,
     terminalTranscriptRetentionDays: settings.terminalTranscriptRetentionDays,
-    terminalStreamingMode: settings.terminalStreamingMode,
-    terminalAgentTransport: settings.terminalAgentTransport,
     explorerScale: settings.explorerScale,
     exploreIndexSearchOnEnter: settings.exploreIndexSearchOnEnter,
     indexUpdateStrategy: settings.indexUpdateStrategy,

@@ -40,7 +40,7 @@ export interface CommandServerOptions {
   onRemoveProjectRoot: (target: string) => Promise<WorkspaceSettings>;
   onListTerminals: () => ExoCommandTerminalInfo[];
   onTerminalDiagnostics: () => ExoCommandTerminalDiagnostics[];
-  onCreateTerminal: (kind: string, cwd?: string, transport?: "direct" | "tmux") => Promise<ExoCommandTerminalInfo>;
+  onCreateTerminal: (kind: string, cwd?: string) => Promise<ExoCommandTerminalInfo>;
   onReadTerminal: (id: string) => string | null;
   onReadTerminalTranscript: (id: string, tailChars: number) => string | null;
   onWriteTerminal: (id: string, data: string) => Promise<ExoWriteTerminalResponse>;
@@ -261,12 +261,12 @@ export class CommandServer {
 
       if (method === "POST" && pathname === EXO_COMMAND_ROUTES.terminals) {
         const body = await readBody(req);
-        const { kind, cwd, transport } = body as ExoCreateTerminalRequest;
+        const { kind, cwd } = body as ExoCreateTerminalRequest;
         if (!kind || !["shell", "claude", "codex"].includes(kind)) {
           json(res, { error: "kind must be shell, claude, or codex" }, 400);
           return;
         }
-        const terminal = await this.options.onCreateTerminal(kind, cwd, transport);
+        const terminal = await this.options.onCreateTerminal(kind, cwd);
         json(res, terminal);
         return;
       }

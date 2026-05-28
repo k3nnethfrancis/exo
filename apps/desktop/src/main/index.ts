@@ -95,7 +95,6 @@ const pendingIndexRefreshRootIds = new Set<string>();
 let indexJobSequence = 0;
 const indexJobMetrics: IndexJobMetric[] = [];
 const rendererRecoveryTimestamps: number[] = [];
-const streamingTerminalIds = new Set<string>();
 
 if (!singleInstanceLock) {
   console.error(
@@ -169,8 +168,8 @@ function startCommandServer() {
     onRemoveProjectRoot: (target) => removeProjectRoot(target),
     onListTerminals: () => terminalManager.list(),
     onTerminalDiagnostics: () => terminalManager.diagnostics(),
-    onCreateTerminal: (kind: string, cwd?: string, transport?: "direct" | "tmux") =>
-      terminalManager.create({ kind: kind as "shell" | "claude" | "codex", cwd, transport }),
+    onCreateTerminal: (kind: string, cwd?: string) =>
+      terminalManager.create({ kind: kind as "shell" | "claude" | "codex", cwd }),
     onReadTerminal: (id: string) => terminalManager.readBuffer(id),
     onReadTerminalTranscript: (id: string, tailChars: number) => terminalManager.readTranscript(id, tailChars),
     onWriteTerminal: (id: string, data: string) => terminalManager.write(id, data),
@@ -416,9 +415,6 @@ function broadcastTerminalData() {
     sendToRenderer("terminal:created", session);
   });
   terminalManager.on("data", (event) => {
-    if (!streamingTerminalIds.has(event.id)) {
-      return;
-    }
     sendToRenderer("terminal:data", event);
   });
   terminalManager.on("exit", (event) => {
@@ -599,7 +595,7 @@ function registerIpcHandlers() {
     ),
   );
 
-  registerTerminalIpcHandlers(terminalManager, streamingTerminalIds);
+  registerTerminalIpcHandlers(terminalManager);
   ipcMain.handle("shell:open-external", async (_event, target: string) => shell.openExternal(target));
 }
 
@@ -924,7 +920,6 @@ async function saveWorkspaceSettings(settings: WorkspaceSettings): Promise<Works
   terminalManager.setBufferLineLimit(terminalPolicy.bufferLineLimit);
   terminalManager.setTmuxHistoryLines(terminalPolicy.scrollbackLines);
   terminalManager.setTranscriptRetentionDays(terminalPolicy.transcriptRetentionDays);
-  terminalManager.setAgentTransport(terminalPolicy.agentTransport);
   await terminalManager.syncRuntimeContext();
   if (nextRuntimeConfig.runtimeRoot !== previousRuntimeRoot) {
     startCommandServer();
@@ -1267,7 +1262,6 @@ app.whenReady().then(async () => {
     terminalPolicy.scrollbackLines,
     terminalPolicy.transcriptRetentionDays,
   );
-  terminalManager.setAgentTransport(terminalPolicy.agentTransport);
   registerIpcHandlers();
   broadcastTerminalData();
   workspaceWatcherService.start(workspaceModel);

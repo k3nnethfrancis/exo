@@ -114,8 +114,6 @@ function workspaceSettings(): CommandServerOptions["onGetSettings"] extends () =
     terminalHistoryLines: 1_000_000,
     terminalTranscriptRetention: "forever",
     terminalTranscriptRetentionDays: 14,
-    terminalStreamingMode: "visible",
-    terminalAgentTransport: "direct",
     explorerScale: 1,
     exploreIndexSearchOnEnter: false,
     indexUpdateStrategy: "on-save",

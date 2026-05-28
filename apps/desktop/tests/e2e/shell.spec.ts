@@ -417,10 +417,8 @@ test("opens workspace settings from the sidebar", async () => {
   await expect(page.getByTestId("workspace-settings-terminal-history-lines")).toBeVisible();
   await expect(page.getByTestId("workspace-settings-dialog")).toContainText("Scrollback lines");
   await expect(page.getByTestId("workspace-settings-terminal-transcript-retention")).toHaveValue("forever");
-  await expect(page.getByTestId("workspace-settings-terminal-streaming-mode")).toHaveValue("visible");
-  await expect(page.getByTestId("workspace-settings-terminal-agent-transport")).toHaveValue("direct");
-  await page.getByTestId("workspace-settings-terminal-agent-transport").selectOption("tmux");
-  await expect(page.getByTestId("workspace-settings-terminal-agent-transport")).toHaveValue("tmux");
+  await expect(page.getByTestId("workspace-settings-dialog")).not.toContainText("Agent streaming");
+  await expect(page.getByTestId("workspace-settings-dialog")).not.toContainText("Agent terminal transport");
 
   await cleanup();
 });

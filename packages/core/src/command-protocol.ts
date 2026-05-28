@@ -69,7 +69,6 @@ export interface ExoOpenFileRequest {
 export interface ExoCreateTerminalRequest {
   kind?: string;
   cwd?: string;
-  transport?: "direct" | "tmux";
 }
 
 export interface ExoWriteTerminalRequest {

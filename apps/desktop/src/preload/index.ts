@@ -87,7 +87,6 @@ const api: DesktopApi = {
     readTranscript: (id, tailChars) => ipcRenderer.invoke("terminals:read-transcript", id, tailChars),
     write: (id, data) => ipcRenderer.invoke("terminals:write", id, data),
     resize: (id, cols, rows) => ipcRenderer.invoke("terminals:resize", id, cols, rows),
-    setStreaming: (ids) => ipcRenderer.invoke("terminals:set-streaming", ids),
     kill: (id) => ipcRenderer.invoke("terminals:kill", id),
     resolveDroppedFilePaths: (files) =>
       files
