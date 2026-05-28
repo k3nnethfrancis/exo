@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, nativeTheme, shell, Tray, type OpenDialogOptions } from "electron";
+import { app, BrowserWindow, Menu, nativeImage, nativeTheme, Tray } from "electron";
 import { execFile } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
@@ -50,6 +50,7 @@ import {
 } from "./settings-store";
 import { registerTerminalIpcHandlers } from "./terminal-ipc";
 import { TerminalManager } from "./terminal-manager";
+import { registerWorkspaceIpcHandlers } from "./workspace-ipc";
 import { WorkspaceWatcherService } from "./workspace-watchers";
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -457,146 +458,103 @@ function errorMessage(error: unknown): string {
 }
 
 function registerIpcHandlers() {
-  ipcMain.handle("workspace:get-model", async () => workspaceModel);
-  ipcMain.handle("workspace:get-settings", async () => currentWorkspaceSettings());
-  ipcMain.handle("workspace:get-setup-state", async () => ({
-    complete: workspaceSetupComplete,
-    settingsPath: workspaceSettingsStore.resolvePath(),
-  }));
-  ipcMain.handle("workspace:list-workspaces", async () => workspaceSettingsStore.listWorkspaces(workspaceSettings));
-  ipcMain.handle("workspace:activate-workspace", async (_event, workspaceId: string) => {
-    const entry = await workspaceSettingsStore.getWorkspace(workspaceId);
-    if (!entry) {
-      throw new Error("Workspace not found.");
-    }
-    return saveWorkspaceSettings(entry.settings);
-  });
-  ipcMain.handle("workspace:get-index-status", async () => getMeasuredIndexStatus());
-  ipcMain.handle("workspace:index-sync", async () => runIndexSync("settings"));
-  ipcMain.handle("workspace:index-update", async () =>
-    runMeasuredIndexStatusJob("update", "settings", () => updateIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot)),
-  );
-  ipcMain.handle("workspace:index-embed", async () =>
-    runMeasuredIndexStatusJob("embed", "settings", () => embedIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot)),
-  );
-  ipcMain.handle("workspace:save-settings", async (_event, settings: WorkspaceSettings) => {
-    return saveWorkspaceSettings(settings);
-  });
-  ipcMain.handle(
-    "workspace:select-folder",
-    async (_event, options?: { title?: string; allowMultiple?: boolean; buttonLabel?: string }) => {
-      const dialogOptions: OpenDialogOptions = {
-        title: options?.title,
-        buttonLabel: options?.buttonLabel,
-        properties: [
-          "openDirectory",
-          "createDirectory",
-          ...(options?.allowMultiple ? ["multiSelections" as const] : []),
-        ],
-      };
-      const result = mainWindow && !mainWindow.isDestroyed()
-        ? await dialog.showOpenDialog(mainWindow, dialogOptions)
-        : await dialog.showOpenDialog(dialogOptions);
-      return result.canceled ? [] : result.filePaths;
+  registerWorkspaceIpcHandlers({
+    activateWorkspace: async (workspaceId) => {
+      const entry = await workspaceSettingsStore.getWorkspace(workspaceId);
+      if (!entry) {
+        throw new Error("Workspace not found.");
+      }
+      return saveWorkspaceSettings(entry.settings);
     },
-  );
-  ipcMain.handle("runtime:get-status", async () => terminalManager.getRuntimeConfig());
-  ipcMain.handle("runtime:sync", async () => terminalManager.syncRuntimeContext());
-  ipcMain.handle(
-    "workspace:list-tree",
-    async (_event, rootPath: string, options?: { markdownOnly?: boolean; maxDepth?: number; includeEmptyDirectories?: boolean }) =>
-    listRootTree(rootPath, options),
-  );
-  ipcMain.handle("workspace:search-notes", async (_event, query: string) => searchNotes(workspaceModel, query));
-  ipcMain.handle("workspace:search-workspace", async (_event, query: string) => searchWorkspace(workspaceModel, query));
-  ipcMain.handle(
-    "workspace:search-index",
-    async (_event, query: string, options?: { limit?: number; forceMode?: "lexical" | "semantic" | "hybrid" }) =>
-      searchIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot, query, options),
-  );
-  ipcMain.handle("workspace:get-git-status", async (_event, rootPath: string) => getGitStatus(rootPath));
-  ipcMain.handle("workspace:get-agent-instruction-config", async () => getAgentInstructionConfig());
-  ipcMain.handle("workspace:save-agent-instruction-config", async (_event, input: { scopeId: "global" | "exocortex"; body: string }) =>
-    saveAgentInstructionConfig(input),
-  );
-  ipcMain.handle("workspace:list-agent-instruction-overlays", async () => listAgentInstructionOverlays());
-  ipcMain.handle("workspace:create-file", async (_event, targetPath: string, content?: string) => createWorkspaceFile(targetPath, content));
-  ipcMain.handle("workspace:create-directory", async (_event, targetPath: string) => createWorkspaceDirectory(targetPath));
-  ipcMain.handle("workspace:rename-path", async (_event, sourcePath: string, nextPath: string) => renameWorkspacePath(sourcePath, nextPath));
-  ipcMain.handle("workspace:delete-path", async (_event, targetPath: string) => deleteWorkspacePath(targetPath));
-  ipcMain.handle("workspace:search-tag", async (_event, tag: string): Promise<SearchResult[]> => {
-    const normalized = tag.replace(/^#/, "");
-    const files = await listMarkdownFiles(workspaceModel.noteRoots.map((root) => root.path));
-    const results: Array<SearchResult | null> = await Promise.all(
-      files.map(async (filePath) => {
-        const document = await readWorkspaceDocument(filePath);
-        const rawTags = Array.isArray(document.frontmatter.tags)
-          ? document.frontmatter.tags.filter((entry): entry is string => typeof entry === "string")
-          : typeof document.frontmatter.tags === "string"
-            ? document.frontmatter.tags.split(/[,\s]+/)
-            : [];
-        const bodyIncludes = document.body.toLowerCase().includes(`#${normalized.toLowerCase()}`);
-        const frontmatterIncludes = rawTags.some((entry) => entry.replace(/^#/, "").toLowerCase() === normalized.toLowerCase());
-        if (!bodyIncludes && !frontmatterIncludes) {
-          return null;
-        }
-
-        return {
-          filePath,
-          title: document.title,
-          snippet: `#${normalized}`,
-          kind: "tag" as const,
-        };
-      }),
-    );
-
-    return results.filter((entry): entry is SearchResult => entry !== null);
-  });
-
-  ipcMain.handle("notes:read", async (_event, filePath: string) => readWorkspaceDocument(filePath));
-  ipcMain.handle("notes:save", async (_event, filePath: string, frontmatter: Record<string, unknown>, body: string) => {
-    await saveWorkspaceDocument(filePath, frontmatter, body);
-    scheduleIndexSyncForFile(filePath, "note-save");
-  });
-  ipcMain.handle("notes:stat", async (_event, filePath: string) => {
-    try {
-      const info = await stat(filePath);
-      return { size: info.size, mtimeMs: info.mtimeMs };
-    } catch {
-      return null;
-    }
-  });
-  ipcMain.handle("notes:get-knowledge", async (_event, filePath: string) =>
-    getNoteKnowledge(filePath, workspaceModel.noteRoots.map((root) => root.path)),
-  );
-  ipcMain.handle("notes:resolve-target", async (_event, sourceFilePath: string, target: string) =>
-    resolveNoteTarget(sourceFilePath, target),
-  );
-  ipcMain.handle("notes:ensure-target", async (_event, sourceFilePath: string, target: string) =>
-    ensureNoteTarget(sourceFilePath, target),
-  );
-  ipcMain.handle("notes:suggest-targets", async (_event, sourceFilePath: string, query: string) =>
-    suggestNoteTargets(sourceFilePath, query),
-  );
-  ipcMain.handle("notes:get-branch-family", async (_event, filePath: string) =>
-    getBranchFamily(filePath, workspaceModel.noteRoots.map((root) => root.path)),
-  );
-  ipcMain.handle("notes:create-branch", async (_event, filePath: string, frontmatter: Record<string, unknown>, body: string) =>
-    createBranchFile(
-      filePath,
-      {
+    createBranch: (filePath, frontmatter, body) =>
+      createBranchFile(
         filePath,
-        title: typeof frontmatter.title === "string" ? frontmatter.title : path.basename(filePath, path.extname(filePath)),
-        frontmatter,
-        body,
-        kind: "markdown",
-      },
-      workspaceModel.noteRoots.map((root) => root.path),
-    ),
+        {
+          filePath,
+          title: typeof frontmatter.title === "string" ? frontmatter.title : path.basename(filePath, path.extname(filePath)),
+          frontmatter,
+          body,
+          kind: "markdown",
+        },
+        workspaceModel.noteRoots.map((root) => root.path),
+      ),
+    createDirectory: createWorkspaceDirectory,
+    createFile: createWorkspaceFile,
+    deletePath: deleteWorkspacePath,
+    embedIndex: () => runMeasuredIndexStatusJob("embed", "settings", () => embedIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot)),
+    ensureTarget: ensureNoteTarget,
+    getAgentInstructionConfig,
+    getBranchFamily: (filePath) => getBranchFamily(filePath, workspaceModel.noteRoots.map((root) => root.path)),
+    getGitStatus,
+    getIndexStatus: getMeasuredIndexStatus,
+    getKnowledge: (filePath) => getNoteKnowledge(filePath, workspaceModel.noteRoots.map((root) => root.path)),
+    getMainWindow: () => mainWindow,
+    getModel: () => workspaceModel,
+    getRuntimeStatus: () => terminalManager.getRuntimeConfig(),
+    getSettings: currentWorkspaceSettings,
+    getSetupState: () => ({
+      complete: workspaceSetupComplete,
+      settingsPath: workspaceSettingsStore.resolvePath(),
+    }),
+    listAgentInstructionOverlays,
+    listTree: listRootTree,
+    listWorkspaces: () => workspaceSettingsStore.listWorkspaces(workspaceSettings),
+    readNote: readWorkspaceDocument,
+    renamePath: renameWorkspacePath,
+    resolveTarget: resolveNoteTarget,
+    saveAgentInstructionConfig,
+    saveNote: async (filePath, frontmatter, body) => {
+      await saveWorkspaceDocument(filePath, frontmatter, body);
+      scheduleIndexSyncForFile(filePath, "note-save");
+    },
+    saveSettings: saveWorkspaceSettings,
+    searchIndex: (query, options) => searchIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot, query, options),
+    searchNotes: (query) => searchNotes(workspaceModel, query),
+    searchTag,
+    searchWorkspace: (query) => searchWorkspace(workspaceModel, query),
+    statNote: async (filePath) => {
+      try {
+        const info = await stat(filePath);
+        return { size: info.size, mtimeMs: info.mtimeMs };
+      } catch {
+        return null;
+      }
+    },
+    suggestTargets: suggestNoteTargets,
+    syncIndex: () => runIndexSync("settings"),
+    syncRuntime: () => terminalManager.syncRuntimeContext(),
+    updateIndex: () => runMeasuredIndexStatusJob("update", "settings", () => updateIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot)),
+  });
+  registerTerminalIpcHandlers(terminalManager);
+}
+
+async function searchTag(tag: string): Promise<SearchResult[]> {
+  const normalized = tag.replace(/^#/, "");
+  const files = await listMarkdownFiles(workspaceModel.noteRoots.map((root) => root.path));
+  const results: Array<SearchResult | null> = await Promise.all(
+    files.map(async (filePath) => {
+      const document = await readWorkspaceDocument(filePath);
+      const rawTags = Array.isArray(document.frontmatter.tags)
+        ? document.frontmatter.tags.filter((entry): entry is string => typeof entry === "string")
+        : typeof document.frontmatter.tags === "string"
+          ? document.frontmatter.tags.split(/[,\s]+/)
+          : [];
+      const bodyIncludes = document.body.toLowerCase().includes(`#${normalized.toLowerCase()}`);
+      const frontmatterIncludes = rawTags.some((entry) => entry.replace(/^#/, "").toLowerCase() === normalized.toLowerCase());
+      if (!bodyIncludes && !frontmatterIncludes) {
+        return null;
+      }
+
+      return {
+        filePath,
+        title: document.title,
+        snippet: `#${normalized}`,
+        kind: "tag" as const,
+      };
+    }),
   );
 
-  registerTerminalIpcHandlers(terminalManager);
-  ipcMain.handle("shell:open-external", async (_event, target: string) => shell.openExternal(target));
+  return results.filter((entry): entry is SearchResult => entry !== null);
 }
 
 async function resolveNoteTarget(sourceFilePath: string, target: string): Promise<string | null> {
