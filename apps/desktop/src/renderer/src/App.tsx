@@ -4188,105 +4188,113 @@ export function App() {
             ) : null}
             <div className="agent-context-manager" data-testid="agent-context-manager-body">
               <div className="agent-context-manager__main" data-testid="agent-context-composer">
-                <section className="agent-context-manager__section agent-context-manager__section--primary">
-                  <div className="agent-context-manager__section-header">
-                    <div>
+                <details className="agent-context-manager__section agent-context-manager__section--primary" open>
+                  <summary className="agent-context-settings__details-summary">
+                    <span>
                       <span className="dialog-field__label">
                         Unified instructions
                         <HelpTooltip label="Write shared instructions once, then let Exo update enabled provider files for the selected global, notes, or project scope." />
                       </span>
                       <div className="agent-context-manager__section-copy">Use this as the source of truth for what terminal agents should read in the active scope.</div>
-                    </div>
-                  </div>
-                  <div className="agent-context-scope" data-testid="agent-context-scope-controls">
-                    <div className="agent-context-scope__mode" role="group" aria-label="Instruction scope mode">
-                      <button
-                        className={`agent-context-scope__mode-button ${agentContextComposer.scopeMode === "global" ? "agent-context-scope__mode-button--active" : ""}`}
-                        data-testid="agent-context-scope-global"
-                        disabled={!globalAgentContextTarget}
-                        onClick={() => setAgentContextScopeMode("global")}
-                        type="button"
-                      >
-                        Global
-                      </button>
-                      <button
-                        className={`agent-context-scope__mode-button ${agentContextComposer.scopeMode === "selected" ? "agent-context-scope__mode-button--active" : ""}`}
-                        data-testid="agent-context-scope-selected"
-                        disabled={selectableAgentContextTargets.length === 0}
-                        onClick={() => setAgentContextScopeMode("selected")}
-                        type="button"
-                      >
-                        Selected scopes
-                      </button>
-                    </div>
-                    {agentContextComposer.scopeMode === "selected" ? (
-                      <div className="agent-context-scope__targets" data-testid="agent-context-targets">
-                        {selectableAgentContextTargets.map((target) => (
-                          <label className="agent-context-scope__target" key={target.id}>
-                            <input
-                              checked={agentContextWriteTargetIds.includes(target.id)}
-                              data-testid={`agent-context-target-${target.scope}-${slugifyTestId(target.label)}`}
-                              onChange={(event) => toggleAgentContextWriteTarget(target.id, event.target.checked)}
-                              type="checkbox"
-                            />
-                            <span>
-                              <strong>{target.label}</strong>
-                              <small>{target.rootPath}</small>
-                            </span>
-                          </label>
-                        ))}
-                      </div>
-                    ) : null}
-                    <div className="agent-context-scope__footer">
-                      <span data-testid="agent-context-write-summary">
-                        {agentContextWriteTargetIds.length === 0
-                          ? "No scope selected."
-                          : `Will write ${enabledAgentContextFileNames(agentContextAdapters.adapters).join(", ")} to ${agentContextWriteTargetIds.length} scope${agentContextWriteTargetIds.length === 1 ? "" : "s"}.`}
                       </span>
-                      <button
-                        className="toolbar-button"
-                        data-testid="agent-context-save-unified"
-                        disabled={agentContextWriteTargetIds.length === 0 || agentContextComposer.saveStatus === "saving"}
-                        onClick={() => void saveUnifiedAgentContext()}
-                        type="button"
-                      >
-                        {agentContextComposer.saveStatus === "saving" ? "Writing…" : agentContextComposer.scopeMode === "global" ? "Write global provider files" : "Write selected scopes"}
-                      </button>
+                    <ChevronDown size={14} />
+                  </summary>
+                  <div className="agent-context-manager__section-body">
+                    <div className="agent-context-scope" data-testid="agent-context-scope-controls">
+                      <div className="agent-context-scope__mode" role="group" aria-label="Instruction scope mode">
+                        <button
+                          className={`agent-context-scope__mode-button ${agentContextComposer.scopeMode === "global" ? "agent-context-scope__mode-button--active" : ""}`}
+                          data-testid="agent-context-scope-global"
+                          disabled={!globalAgentContextTarget}
+                          onClick={() => setAgentContextScopeMode("global")}
+                          type="button"
+                        >
+                          Global
+                        </button>
+                        <button
+                          className={`agent-context-scope__mode-button ${agentContextComposer.scopeMode === "selected" ? "agent-context-scope__mode-button--active" : ""}`}
+                          data-testid="agent-context-scope-selected"
+                          disabled={selectableAgentContextTargets.length === 0}
+                          onClick={() => setAgentContextScopeMode("selected")}
+                          type="button"
+                        >
+                          Selected scopes
+                        </button>
+                      </div>
+                      {agentContextComposer.scopeMode === "selected" ? (
+                        <div className="agent-context-scope__targets" data-testid="agent-context-targets">
+                          {selectableAgentContextTargets.map((target) => (
+                            <label className="agent-context-scope__target" key={target.id}>
+                              <input
+                                checked={agentContextWriteTargetIds.includes(target.id)}
+                                data-testid={`agent-context-target-${target.scope}-${slugifyTestId(target.label)}`}
+                                onChange={(event) => toggleAgentContextWriteTarget(target.id, event.target.checked)}
+                                type="checkbox"
+                              />
+                              <span>
+                                <strong>{target.label}</strong>
+                                <small>{target.rootPath}</small>
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      ) : null}
+                      <div className="agent-context-scope__footer">
+                        <span data-testid="agent-context-write-summary">
+                          {agentContextWriteTargetIds.length === 0
+                            ? "No scope selected."
+                            : `Will write ${enabledAgentContextFileNames(agentContextAdapters.adapters).join(", ")} to ${agentContextWriteTargetIds.length} scope${agentContextWriteTargetIds.length === 1 ? "" : "s"}.`}
+                        </span>
+                        <button
+                          className="toolbar-button"
+                          data-testid="agent-context-save-unified"
+                          disabled={agentContextWriteTargetIds.length === 0 || agentContextComposer.saveStatus === "saving"}
+                          onClick={() => void saveUnifiedAgentContext()}
+                          type="button"
+                        >
+                          {agentContextComposer.saveStatus === "saving" ? "Writing…" : agentContextComposer.scopeMode === "global" ? "Write global provider files" : "Write selected scopes"}
+                        </button>
+                      </div>
                     </div>
+                    <label className="dialog-field agent-context-manager__composer-field">
+                      <span className="dialog-field__label">Instructions for all terminal agents</span>
+                      <textarea
+                        className="dialog-card__input agent-context-settings__composer-textarea"
+                        data-testid="agent-context-unified-editor"
+                        spellCheck={false}
+                        value={agentContextComposer.body}
+                        onChange={(event) =>
+                          setAgentContextComposer((current) => ({
+                            ...current,
+                            body: event.target.value,
+                            saveStatus: "idle",
+                            errorMessage: null,
+                          }))
+                        }
+                      />
+                    </label>
+                    {agentContextComposer.saveStatus === "saved" ? (
+                      <div className="dialog-card__status" data-testid="agent-context-unified-status">Provider files written.</div>
+                    ) : null}
+                    {agentContextComposer.saveStatus === "error" && agentContextComposer.errorMessage ? (
+                      <div className="dialog-card__status dialog-card__status--error">{agentContextComposer.errorMessage}</div>
+                    ) : null}
                   </div>
-                  <label className="dialog-field agent-context-manager__composer-field">
-                    <span className="dialog-field__label">Instructions for all terminal agents</span>
-                    <textarea
-                      className="dialog-card__input agent-context-settings__composer-textarea"
-                      data-testid="agent-context-unified-editor"
-                      spellCheck={false}
-                      value={agentContextComposer.body}
-                      onChange={(event) =>
-                        setAgentContextComposer((current) => ({
-                          ...current,
-                          body: event.target.value,
-                          saveStatus: "idle",
-                          errorMessage: null,
-                        }))
-                      }
-                    />
-                  </label>
-                  {agentContextComposer.saveStatus === "saved" ? (
-                    <div className="dialog-card__status" data-testid="agent-context-unified-status">Provider files written.</div>
-                  ) : null}
-                  {agentContextComposer.saveStatus === "error" && agentContextComposer.errorMessage ? (
-                    <div className="dialog-card__status dialog-card__status--error">{agentContextComposer.errorMessage}</div>
-                  ) : null}
-                </section>
-                <div className="agent-context-settings__editor">
-                  <div className="dialog-field__header">
-                    <div>
+                </details>
+                <details className="agent-context-settings__editor" open>
+                  <summary className="agent-context-settings__details-summary">
+                    <span>
                       <span className="dialog-field__label">
                         Provider file editor
                         <HelpTooltip label="Inspect or patch a specific provider instruction file. Unified writes preserve unmanaged content outside Exo's managed block." />
                       </span>
-                      <div className="agent-context-manager__section-copy">{selectedAgentContextFile?.path ?? "Select a provider file."}</div>
-                    </div>
+                      <small>{selectedAgentContextFile?.path ?? "Select a provider file."}</small>
+                    </span>
+                    <ChevronDown size={14} />
+                  </summary>
+                  <div className="agent-context-manager__section-body">
+                    <div className="dialog-field__header">
+                      <div />
                     <div className="dialog-card__actions dialog-card__actions--split">
                       <div className="agent-context-settings__history-control" data-testid="agent-context-history">
                         <button
@@ -4430,7 +4438,8 @@ export function App() {
                   {agentContextEditor.saveStatus === "error" && agentContextEditor.errorMessage ? (
                     <div className="dialog-card__status dialog-card__status--error">{agentContextEditor.errorMessage}</div>
                   ) : null}
-                </div>
+                  </div>
+                </details>
                 <details className="agent-context-settings__editor agent-context-settings__editor--config" data-testid="agent-managed-config-editor">
                   <summary className="agent-context-settings__details-summary" data-testid="agent-managed-config-summary">
                     <span>
@@ -4442,6 +4451,7 @@ export function App() {
                     </span>
                     <ChevronDown size={14} />
                   </summary>
+                  <div className="agent-context-manager__section-body">
                   <div className="dialog-field__header">
                     <div>
                       <div className="agent-context-manager__section-copy">{selectedAgentManagedConfig?.label ?? "No managed config selected."}</div>
@@ -4455,6 +4465,21 @@ export function App() {
                     >
                       {agentManagedConfigs.saveStatus === "saving" ? "Saving…" : "Save config"}
                     </button>
+                  </div>
+                  <div className="agent-context-settings__file-tabs" data-testid="agent-managed-config-list">
+                    {agentManagedConfigs.files.map((file) => (
+                      <button
+                        className={`agent-context-settings__file-tab ${file.path === agentManagedConfigs.selectedPath ? "agent-context-settings__file-tab--active" : ""}`}
+                        data-testid={`agent-managed-config-${file.scope}`}
+                        key={file.id}
+                        onClick={() => selectAgentManagedConfigFile(file.path)}
+                        title={file.path}
+                        type="button"
+                      >
+                        <span>{file.label}</span>
+                        <small>{file.provider} · {file.category.toUpperCase()} · {file.errorMessage ? "Error" : file.exists ? "Existing" : "New"}</small>
+                      </button>
+                    ))}
                   </div>
                   <div className="agent-context-settings__path">
                     {selectedAgentManagedConfig?.path ?? "No config file selected."}
@@ -4577,17 +4602,22 @@ export function App() {
                   {agentManagedConfigs.saveStatus === "error" && agentManagedConfigs.errorMessage ? (
                     <div className="dialog-card__status dialog-card__status--error">{agentManagedConfigs.errorMessage}</div>
                   ) : null}
+                  </div>
                 </details>
               </div>
               <div className="agent-context-manager__side">
-                <section className="agent-context-manager__section agent-context-adapters" data-testid="agent-context-adapters">
-                  <div>
+                <details className="agent-context-manager__section agent-context-adapters" data-testid="agent-context-adapters" open>
+                  <summary className="agent-context-settings__details-summary">
+                    <span>
                     <span className="dialog-field__label">
                       Instruction outputs
                       <HelpTooltip label="Enabled outputs are the provider files Exo writes when you use Write provider files." />
                     </span>
-                    <div className="agent-context-manager__section-copy">Choose which provider-compatible files Exo should generate.</div>
-                  </div>
+                    <small>Choose which provider-compatible files Exo should generate.</small>
+                    </span>
+                    <ChevronDown size={14} />
+                  </summary>
+                  <div className="agent-context-manager__section-body">
                   <div className="agent-context-adapters__list">
                     {agentContextAdapters.adapters.map((adapter) => (
                       <div className="agent-context-adapters__row" key={adapter.id}>
@@ -4663,31 +4693,8 @@ export function App() {
                   {agentContextAdapters.saveStatus === "error" && agentContextAdapters.errorMessage ? (
                     <div className="dialog-card__status dialog-card__status--error">{agentContextAdapters.errorMessage}</div>
                   ) : null}
-                </section>
-                <section className="agent-context-manager__section">
-                  <div>
-                    <span className="dialog-field__label">
-                      Managed configs
-                      <HelpTooltip label="Config files here affect provider launch behavior, including MCP server definitions used by agents." />
-                    </span>
-                    <div className="agent-context-manager__section-copy">Select a config to edit raw JSON or structured MCP settings.</div>
                   </div>
-                  <div className="agent-context-settings__list" data-testid="agent-managed-config-list">
-                    {agentManagedConfigs.files.map((file) => (
-                      <button
-                        className={`agent-context-settings__file ${file.path === agentManagedConfigs.selectedPath ? "agent-context-settings__file--active" : ""}`}
-                        data-testid={`agent-managed-config-${file.scope}`}
-                        key={file.id}
-                        onClick={() => selectAgentManagedConfigFile(file.path)}
-                        title={file.path}
-                        type="button"
-                      >
-                        <span>{file.label}</span>
-                        <span>{file.provider} · {file.category.toUpperCase()} · {file.errorMessage ? "Error" : file.exists ? "Existing" : "New"}</span>
-                      </button>
-                    ))}
-                  </div>
-                </section>
+                </details>
                 <details className="agent-context-manager__section agent-context-settings__overlay" data-testid="agent-instruction-overlay-preview">
                   <summary className="agent-context-settings__details-summary">
                     <span>

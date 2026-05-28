@@ -546,9 +546,9 @@ test("edits agent context files from workspace settings", async () => {
   await page.getByTestId("agent-context-adapter-add").click();
   await expect(page.getByTestId("agent-context-adapters-status")).toContainText("Instruction outputs updated");
   await expect(page.getByTestId("agent-context-adapters")).toContainText("soul.md");
+  await page.getByTestId("agent-managed-config-summary").click();
   await expect(page.getByTestId("agent-managed-config-list")).toContainText(".mcp.json");
   await page.getByRole("button", { name: /sample-project \/ \.mcp\.json/i }).click();
-  await page.getByTestId("agent-managed-config-summary").click();
   await expect(page.getByTestId("agent-mcp-editor")).toBeVisible();
   const providerEditorBox = await page.getByTestId("agent-context-editor").boundingBox();
   const managedConfigBox = await page.getByTestId("agent-managed-config-editor").boundingBox();

@@ -1546,7 +1546,16 @@ select.dialog-card__input {
 
 .agent-context-manager__section--primary {
   background: color-mix(in srgb, var(--surface-2) 56%, transparent);
+}
+
+.agent-context-manager__section--primary[open] {
   min-height: 292px;
+}
+
+.agent-context-manager__section-body {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
 }
 
 .agent-context-manager__section-header {
@@ -1908,6 +1917,7 @@ details[open] > .agent-context-settings__details-summary svg {
   transform: rotate(180deg);
 }
 
+details.agent-context-manager__section[open],
 details.agent-context-settings__editor[open],
 details.agent-context-settings__overlay[open] {
   display: grid;
@@ -2028,6 +2038,10 @@ details.agent-context-settings__overlay[open] {
   display: grid;
   gap: 8px;
   min-width: 0;
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, var(--divider) 50%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-2) 24%, transparent);
   overflow: visible;
 }
 
@@ -2081,9 +2095,7 @@ details.agent-context-settings__overlay[open] {
 }
 
 .agent-context-settings__editor--config {
-  padding: 8px;
   border: 1px solid color-mix(in srgb, var(--divider) 55%, transparent);
-  border-radius: 8px;
   background: color-mix(in srgb, var(--surface-2) 30%, transparent);
 }
 
