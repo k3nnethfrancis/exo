@@ -5,6 +5,7 @@ import { Terminal } from "xterm";
 
 import type { TerminalSessionInfo } from "../../../shared/api";
 import type { ResolvedAppearance } from "../App";
+import { appendRendererTerminalBuffer } from "../terminalBuffer";
 import { isTerminalGeneratedResponse } from "./terminalInputFilters";
 import { registerTerminal, unregisterTerminal } from "./terminalRegistry";
 
@@ -37,7 +38,7 @@ export function TerminalView(props: TerminalViewProps) {
   const resizeHandlerRef = useRef(onResize);
   const wheelInputGuardUntilRef = useRef(0);
   const programmaticInputGuardUntilRef = useRef(0);
-  const sizeRef = useRef({ width: 0, height: 0, cols: 0, rows: 0 });
+  const sizeRef = useRef({ width: 0, height: 0, cols: 0, rows: 0, resizeTimer: 0 });
 
   useEffect(() => {
     inputHandlerRef.current = onInput;
@@ -127,8 +128,11 @@ export function TerminalView(props: TerminalViewProps) {
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
     bufferRef.current = "";
-    sizeRef.current = { width: 0, height: 0, cols: 0, rows: 0 };
-    registerTerminal(session.id, terminal);
+    sizeRef.current = { width: 0, height: 0, cols: 0, rows: 0, resizeTimer: 0 };
+    registerTerminal(session.id, terminal, (data) => {
+      enqueueTerminalWrite(terminal, data, writeQueueRef, writingRef, disposedRef, programmaticInputGuardUntilRef);
+      bufferRef.current = appendRendererTerminalBuffer(bufferRef.current, data, scrollbackLines);
+    });
 
     return () => {
       unregisterTerminal(session.id);
@@ -142,6 +146,9 @@ export function TerminalView(props: TerminalViewProps) {
       hostRef.current?.removeEventListener("dragover", handleDragOver, { capture: true });
       hostRef.current?.removeEventListener("drop", handleDrop, { capture: true });
       terminal.dispose();
+      if (sizeRef.current.resizeTimer) {
+        window.clearTimeout(sizeRef.current.resizeTimer);
+      }
     };
   }, [appearance, session.id]);
 
@@ -182,16 +189,15 @@ export function TerminalView(props: TerminalViewProps) {
       return;
     }
 
-    if (bufferRef.current === buffer) {
-      return;
-    }
-
     const shouldFollowOutput = isScrolledToBottom(terminal);
 
     const forceReset = bufferVersionRef.current !== bufferVersion;
+    if (!forceReset) {
+      return;
+    }
     bufferVersionRef.current = bufferVersion;
 
-    const appendOffset = forceReset ? null : findAppendOffset(bufferRef.current, buffer);
+    const appendOffset = null;
     if (appendOffset !== null) {
       enqueueTerminalWrite(terminal, buffer.slice(appendOffset), writeQueueRef, writingRef, disposedRef, programmaticInputGuardUntilRef);
     } else {
@@ -275,7 +281,7 @@ function safeFit(
   fitAddon: FitAddon,
   sessionId: string,
   onResize: (id: string, cols: number, rows: number) => void,
-  sizeRef: MutableRefObject<{ width: number; height: number; cols: number; rows: number }>,
+  sizeRef: MutableRefObject<{ width: number; height: number; cols: number; rows: number; resizeTimer: number }>,
 ) {
   const rect = host?.getBoundingClientRect();
   if (!rect || rect.width < 80 || rect.height < 60) {
@@ -298,8 +304,15 @@ function safeFit(
     height: rect.height,
     cols: terminal.cols,
     rows: terminal.rows,
+    resizeTimer: sizeRef.current.resizeTimer,
   };
-  onResize(sessionId, terminal.cols, terminal.rows);
+  if (sizeRef.current.resizeTimer) {
+    window.clearTimeout(sizeRef.current.resizeTimer);
+  }
+  sizeRef.current.resizeTimer = window.setTimeout(() => {
+    sizeRef.current.resizeTimer = 0;
+    onResize(sessionId, terminal.cols, terminal.rows);
+  }, 75);
 }
 
 function shellEscape(path: string): string {

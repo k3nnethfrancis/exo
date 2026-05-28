@@ -36,9 +36,17 @@ test("boots the shell, opens notes, and manages terminal tabs", async () => {
 
   await page.getByTestId("launch-claude").click();
   await expect(page.getByTestId("terminal-tab-claude")).toBeVisible();
+  await expect.poll(async () => {
+    const sessions = await page.evaluate(() => window.exo.terminals.list());
+    return sessions.find((session) => session.kind === "claude")?.transport;
+  }).toBe("direct");
 
   await page.getByTestId("launch-codex").click();
   await expect(page.getByTestId("terminal-tab-codex")).toBeVisible();
+  await expect.poll(async () => {
+    const sessions = await page.evaluate(() => window.exo.terminals.list());
+    return sessions.find((session) => session.kind === "codex")?.transport;
+  }).toBe("direct");
 
   await page.getByTestId("terminal-tab-shell").dblclick();
   await expect(page.getByTestId("terminal-dock")).toBeVisible();
@@ -295,7 +303,7 @@ test("passes Exo instruction overlays to launched terminal agents", async () => 
 
   const sessions = await page.evaluate(() => window.exo.terminals.list());
   const claude = sessions.find((session) => session.id === sessionId);
-  expect(claude?.instructionOverlayPath).toContain(path.join(".exo", "instructions", "projects"));
+  expect(claude?.instructionOverlayPath).toContain(path.join("instructions", "projects"));
   await expect.poll(async () => readFile(claude?.instructionOverlayPath ?? "", "utf8")).toContain("sample-project");
 
   await cleanup();
@@ -410,6 +418,9 @@ test("opens workspace settings from the sidebar", async () => {
   await expect(page.getByTestId("workspace-settings-dialog")).toContainText("Scrollback lines");
   await expect(page.getByTestId("workspace-settings-terminal-transcript-retention")).toHaveValue("forever");
   await expect(page.getByTestId("workspace-settings-terminal-streaming-mode")).toHaveValue("visible");
+  await expect(page.getByTestId("workspace-settings-terminal-agent-transport")).toHaveValue("direct");
+  await page.getByTestId("workspace-settings-terminal-agent-transport").selectOption("tmux");
+  await expect(page.getByTestId("workspace-settings-terminal-agent-transport")).toHaveValue("tmux");
 
   await cleanup();
 });
@@ -658,8 +669,6 @@ test("keeps app terminal buffer above the legacy 12k cap", async () => {
 });
 
 test("renders agent terminal streams without corrupting scrollback", async () => {
-  test.skip(spawnSync("tmux", ["-V"], { stdio: "ignore" }).status !== 0, "tmux is required for agent history");
-
   const { page, cleanup } = await launchExoFixture({
     env: {
       EXO_CLAUDE_COMMAND: "/bin/sh",
@@ -679,6 +688,11 @@ test("renders agent terminal streams without corrupting scrollback", async () =>
       return claude ? window.exo.terminals.read(claude.id) : "";
     });
     expect(buffer).toContain("agent-scrollback-140");
+    const transport = await page.evaluate(async () => {
+      const sessions = await window.exo.terminals.list();
+      return sessions.find((session) => session.kind === "claude")?.transport;
+    });
+    expect(transport).toBe("direct");
 
     await page.evaluate(async () => {
       const sessions = await window.exo.terminals.list();

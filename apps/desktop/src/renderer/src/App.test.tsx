@@ -6,6 +6,7 @@ import path from "node:path";
 import {
   DEFAULT_TERMINAL_HISTORY_LINES,
   DEFAULT_TERMINAL_HISTORY_MODE,
+  DEFAULT_TERMINAL_AGENT_TRANSPORT,
   DEFAULT_TERMINAL_STREAMING_MODE,
   DEFAULT_TERMINAL_TRANSCRIPT_RETENTION,
   resolveTerminalRuntimePolicy,
@@ -37,6 +38,7 @@ describe("workspace terminal settings", () => {
     expect(settings?.terminalHistoryLines).toBe(DEFAULT_TERMINAL_HISTORY_LINES);
     expect(settings?.terminalTranscriptRetention).toBe(DEFAULT_TERMINAL_TRANSCRIPT_RETENTION);
     expect(settings?.terminalStreamingMode).toBe(DEFAULT_TERMINAL_STREAMING_MODE);
+    expect(settings?.terminalAgentTransport).toBe(DEFAULT_TERMINAL_AGENT_TRANSPORT);
     expect(Object.prototype.hasOwnProperty.call(settings, "terminalScrollbackLines")).toBe(false);
     expect(Object.prototype.hasOwnProperty.call(settings, "terminalBufferChars")).toBe(false);
     expect(settings ? resolveTerminalRuntimePolicy(settings) : null).toMatchObject({
@@ -59,6 +61,7 @@ describe("workspace terminal settings", () => {
       terminalTranscriptRetention: "days",
       terminalTranscriptRetentionDays: 30,
       terminalStreamingMode: "paused",
+      terminalAgentTransport: "tmux",
     });
 
     expect(settings?.terminalHistoryMode).toBe("custom");
@@ -66,10 +69,12 @@ describe("workspace terminal settings", () => {
     expect(settings?.terminalTranscriptRetention).toBe("days");
     expect(settings?.terminalTranscriptRetentionDays).toBe(30);
     expect(settings?.terminalStreamingMode).toBe("paused");
+    expect(settings?.terminalAgentTransport).toBe("tmux");
     expect(settings ? resolveTerminalRuntimePolicy(settings) : null).toEqual({
       scrollbackLines: 24_000,
       bufferLineLimit: 24_000,
       transcriptRetentionDays: 30,
+      agentTransport: "tmux",
     });
   });
 });
@@ -150,8 +155,8 @@ describe("renderer terminal buffers", () => {
 describe("changed file review attribution", () => {
   it("does not associate ambiguous same-cwd file changes with every terminal", () => {
     const sessions = [
-      { id: "term-a", title: "Shell A", cwd: "/workspace/project", kind: "shell", command: "zsh", status: "running" },
-      { id: "term-b", title: "Shell B", cwd: "/workspace/project", kind: "shell", command: "zsh", status: "running" },
+      { id: "term-a", title: "Shell A", cwd: "/workspace/project", kind: "shell", command: "zsh", transport: "direct", status: "running" },
+      { id: "term-b", title: "Shell B", cwd: "/workspace/project", kind: "shell", command: "zsh", transport: "direct", status: "running" },
     ] as const;
     const change = {
       rootPath: "/workspace/project",

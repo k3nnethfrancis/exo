@@ -12,18 +12,23 @@ import { randomBytes } from "node:crypto";
 import pty, { type IPty } from "node-pty";
 import { resolveAgentLaunchPlan, resolveRuntimeConfig, syncRuntimeContextFiles, type RuntimeConfig } from "@exo/core";
 
-import type { TerminalCreateOptions, TerminalSessionInfo, TerminalKind, TerminalWriteResult } from "../shared/api";
+import type { TerminalCreateOptions, TerminalDiagnostics, TerminalHealthState, TerminalSessionInfo, TerminalKind, TerminalTransport, TerminalWriteResult } from "../shared/api";
 import { agentInstructionOverlayEnv, writeAgentInstructionOverlaysSync } from "./agent-instruction-overlays";
 import { sanitizeTranscriptName, TerminalTranscriptStore } from "./terminal-transcripts";
 
 interface TerminalRecord {
   info: TerminalSessionInfo;
   process: IPty;
-  buffer: string;
+  buffer: TerminalLineBuffer;
   transcriptPath: string;
+  transport: TerminalTransport;
   tmuxSession?: string;
   pendingWrites: string[];
   readinessTimer?: NodeJS.Timeout;
+  lastInputAt?: number;
+  lastOutputAt?: number;
+  lastWriteId: number;
+  lastWriteLatencyMs?: number;
 }
 
 interface PersistedAgentSession {
@@ -33,6 +38,7 @@ interface PersistedAgentSession {
   tmuxSession: string;
   title: string;
   command: string;
+  transport?: TerminalTransport;
 }
 
 interface PersistedState {
@@ -58,6 +64,8 @@ export class TerminalManager extends EventEmitter {
   private stateFilePath: string;
   private transcripts: TerminalTranscriptStore;
   private readonly tmuxAvailable: boolean;
+  private agentTransport: TerminalTransport = "direct";
+  private nextWriteId = 1;
 
   constructor(
     private defaultCwd: string,
@@ -80,22 +88,38 @@ export class TerminalManager extends EventEmitter {
   }
 
   list(): TerminalSessionInfo[] {
+    const now = Date.now();
     return Array.from(this.sessions.values())
-      .map((record) => record.info)
+      .map((record) => {
+        record.info.health = terminalHealth(record, now);
+        record.info.healthDetail = terminalHealthDetail(record, now);
+        return record.info;
+      })
       .sort((left, right) => left.id.localeCompare(right.id));
   }
 
   diagnostics() {
+    const now = Date.now();
     return Array.from(this.sessions.values())
-      .map((record) => ({
+      .map((record): TerminalDiagnostics => ({
         id: record.info.id,
         kind: record.info.kind,
         status: record.info.status,
+        health: terminalHealth(record, now),
+        healthDetail: terminalHealthDetail(record, now),
         cwd: record.info.cwd,
         title: record.info.title,
-        bufferLength: record.buffer.length,
+        command: record.info.command,
+        transport: record.transport,
+        bufferedLines: record.buffer.lineCount,
+        bufferedChars: record.buffer.length,
         transcriptPath: record.transcriptPath,
         tmuxSession: record.tmuxSession ?? null,
+        lastInputAt: record.lastInputAt ? new Date(record.lastInputAt).toISOString() : null,
+        lastOutputAt: record.lastOutputAt ? new Date(record.lastOutputAt).toISOString() : null,
+        lastWriteId: record.lastWriteId,
+        lastWriteLatencyMs: record.lastWriteLatencyMs ?? null,
+        tmux: record.tmuxSession ? readTmuxDiagnostics(record.tmuxSession) : null,
       }))
       .sort((left, right) => left.id.localeCompare(right.id));
   }
@@ -136,7 +160,7 @@ export class TerminalManager extends EventEmitter {
   setBufferLineLimit(bufferLineLimit: number | null) {
     this.bufferLineLimit = normalizeBufferLineLimit(bufferLineLimit);
     for (const record of this.sessions.values()) {
-      record.buffer = trimTerminalBuffer(record.buffer, this.bufferLineLimit);
+      record.buffer.setLineLimit(this.bufferLineLimit);
     }
   }
 
@@ -153,6 +177,10 @@ export class TerminalManager extends EventEmitter {
     this.flushAllTranscripts();
     this.transcriptRetentionDays = normalizeTranscriptRetentionDays(retentionDays);
     this.transcripts = this.createTranscriptStore();
+  }
+
+  setAgentTransport(transport: TerminalTransport) {
+    this.agentTransport = transport === "tmux" ? "tmux" : "direct";
   }
 
   async syncRuntimeContext() {
@@ -205,7 +233,9 @@ export class TerminalManager extends EventEmitter {
       ...overlayEnv,
     };
 
-    const useTmux = isAgent && this.tmuxAvailable;
+    const requestedTransport = options.transport ?? (isAgent ? this.agentTransport : "direct");
+    const useTmux = isAgent && requestedTransport === "tmux" && this.tmuxAvailable;
+    const transport: TerminalTransport = useTmux ? "tmux" : "direct";
 
     let spawnCommand = launch.command;
     let spawnArgs = launch.args;
@@ -234,6 +264,7 @@ export class TerminalManager extends EventEmitter {
       cwd: launch.cwd,
       kind: options.kind,
       command: launch.command,
+      transport,
       instructionOverlayPath: overlayEnv.EXO_INSTRUCTIONS ?? null,
       status: "running",
       readiness: initialReadiness(options.kind),
@@ -244,10 +275,12 @@ export class TerminalManager extends EventEmitter {
     const record: TerminalRecord = {
       info,
       process: processHandle,
-      buffer: "",
+      buffer: new TerminalLineBuffer(this.bufferLineLimit),
       transcriptPath,
+      transport,
       tmuxSession,
       pendingWrites: [],
+      lastWriteId: 0,
     };
 
     if (shouldGateStartupInput(info)) {
@@ -273,6 +306,7 @@ export class TerminalManager extends EventEmitter {
         tmuxSession,
         title: launch.title,
         command: launch.command,
+        transport,
       });
     }
 
@@ -298,10 +332,14 @@ export class TerminalManager extends EventEmitter {
       };
     }
 
+    const writeId = this.nextWriteId++;
+    record.lastWriteId = writeId;
+    record.lastInputAt = Date.now();
     record.process.write(data);
     return {
       ok: true,
       delivery: "sent",
+      writeId,
       queuedInputCount: record.pendingWrites.length,
       readiness: record.info.readiness,
       readinessDetail: record.info.readinessDetail,
@@ -313,7 +351,7 @@ export class TerminalManager extends EventEmitter {
     if (!record) {
       return null;
     }
-    return record.buffer;
+    return record.buffer.toString();
   }
 
   readTranscript(id: string, tailChars = 0): string | null {
@@ -390,6 +428,7 @@ export class TerminalManager extends EventEmitter {
       cwd: entry.cwd,
       kind: entry.kind,
       command: entry.command,
+      transport: "tmux",
       instructionOverlayPath: agentInstructionOverlayEnv(this.runtimeConfig.workspace, entry.cwd).EXO_INSTRUCTIONS,
       status: "running",
       readiness: "ready",
@@ -399,10 +438,12 @@ export class TerminalManager extends EventEmitter {
     this.sessions.set(id, {
       info,
       process: processHandle,
-      buffer: historySeed,
+      buffer: new TerminalLineBuffer(this.bufferLineLimit, historySeed),
       transcriptPath,
+      transport: "tmux",
       tmuxSession: entry.tmuxSession,
       pendingWrites: [],
+      lastWriteId: 0,
     });
 
     if (!existsSync(transcriptPath)) {
@@ -421,8 +462,14 @@ export class TerminalManager extends EventEmitter {
       const sanitizedData = stripMouseTrackingModes(data);
       if (record) {
         this.appendTranscript(id, sanitizedData);
-        record.buffer = trimTerminalBuffer(`${record.buffer}${sanitizedData}`, this.bufferLineLimit);
+        record.lastOutputAt = Date.now();
+        if (record.lastInputAt) {
+          record.lastWriteLatencyMs = record.lastOutputAt - record.lastInputAt;
+        }
+        record.buffer.append(sanitizedData);
         this.updateAgentReadiness(record);
+        record.info.health = terminalHealth(record, Date.now());
+        record.info.healthDetail = terminalHealthDetail(record, Date.now());
         this.emit("data", { id, data: sanitizedData });
       }
     });
@@ -434,6 +481,8 @@ export class TerminalManager extends EventEmitter {
       }
 
       record.info.status = "exited";
+      record.info.health = "exited";
+      record.info.healthDetail = `Process exited with code ${exitCode}.`;
       record.info.exitCode = exitCode;
       this.clearReadinessTimer(record);
       this.emit("exit", { id, exitCode });
@@ -534,12 +583,13 @@ export class TerminalManager extends EventEmitter {
       return;
     }
 
-    if (isCodexChatReady(record.buffer)) {
+    const buffer = record.buffer.toString();
+    if (isCodexChatReady(buffer)) {
       this.markReady(record, "Codex chat input is ready.");
       return;
     }
 
-    if (isCodexStartupTrustPrompt(record.buffer)) {
+    if (isCodexStartupTrustPrompt(buffer)) {
       this.clearReadinessTimer(record);
       record.info.readiness = "blocked";
       record.info.readinessDetail = "Codex startup trust prompt is waiting for interactive confirmation.";
@@ -653,6 +703,79 @@ function stripMouseTrackingModes(data: string): string {
     .replace(/\x1b\[\?(?:47|1047|1048|1049)(?:;(?:47|1047|1048|1049))*[hl]/g, "");
 }
 
+class TerminalLineBuffer {
+  private lines: string[] = [""];
+
+  constructor(private lineLimit: number | null, initial = "") {
+    if (initial.length > 0) {
+      this.append(initial);
+    }
+  }
+
+  get length(): number {
+    return this.lines.reduce((total, line, index) => total + line.length + (index === 0 ? 0 : 1), 0);
+  }
+
+  get lineCount(): number {
+    return this.lines.length;
+  }
+
+  append(data: string): void {
+    if (data.length === 0) {
+      return;
+    }
+    const parts = data.split("\n");
+    this.lines[this.lines.length - 1] += parts[0] ?? "";
+    for (const part of parts.slice(1)) {
+      this.lines.push(part);
+    }
+    this.trim();
+  }
+
+  setLineLimit(lineLimit: number | null): void {
+    this.lineLimit = lineLimit;
+    this.trim();
+  }
+
+  toString(): string {
+    return this.lines.join("\n");
+  }
+
+  private trim(): void {
+    if (this.lineLimit === null || this.lines.length <= this.lineLimit) {
+      return;
+    }
+    this.lines = this.lines.slice(-this.lineLimit);
+  }
+}
+
+function terminalHealth(record: TerminalRecord, now = Date.now()): TerminalHealthState {
+  if (record.info.status === "exited") {
+    return "exited";
+  }
+  if (record.lastInputAt && (!record.lastOutputAt || record.lastOutputAt < record.lastInputAt) && now - record.lastInputAt > 10_000) {
+    return "unhealthy";
+  }
+  if (!record.lastOutputAt || now - record.lastOutputAt > 120_000) {
+    return "idle";
+  }
+  return "healthy";
+}
+
+function terminalHealthDetail(record: TerminalRecord, now = Date.now()): string {
+  const health = terminalHealth(record, now);
+  if (health === "exited") {
+    return record.info.exitCode === undefined ? "Process exited." : `Process exited with code ${record.info.exitCode}.`;
+  }
+  if (health === "unhealthy") {
+    return "Input was sent but no terminal output has been observed for more than 10 seconds.";
+  }
+  if (health === "idle") {
+    return "No recent terminal output; terminal may simply be waiting for input.";
+  }
+  return "Recent terminal input/output observed.";
+}
+
 function detectTmux(): boolean {
   try {
     const result = spawnSync("tmux", ["-V"], { stdio: "ignore" });
@@ -680,6 +803,64 @@ function tmuxSessionExists(name: string): boolean {
     return result.status === 0;
   } catch {
     return false;
+  }
+}
+
+function readTmuxDiagnostics(name: string): NonNullable<TerminalDiagnostics["tmux"]> {
+  const sessionExists = tmuxSessionExists(name);
+  const pane = sessionExists ? readTmuxPane(name) : null;
+  const clients = sessionExists ? readTmuxClients(name) : { attachedClients: 0, readonlyClients: 0 };
+  return {
+    sessionExists,
+    paneDead: pane?.paneDead ?? null,
+    paneActive: pane?.paneActive ?? null,
+    currentCommand: pane?.currentCommand ?? null,
+    currentPath: pane?.currentPath ?? null,
+    attachedClients: clients.attachedClients,
+    readonlyClients: clients.readonlyClients,
+  };
+}
+
+function readTmuxPane(name: string): { paneDead: boolean; paneActive: boolean; currentCommand: string; currentPath: string } | null {
+  try {
+    const out = execFileSync("tmux", [
+      "list-panes",
+      "-t",
+      name,
+      "-F",
+      "#{pane_dead}\t#{pane_active}\t#{pane_current_command}\t#{pane_current_path}",
+    ], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).split("\n").find(Boolean);
+    if (!out) {
+      return null;
+    }
+    const [paneDead, paneActive, currentCommand, currentPath] = out.split("\t");
+    return {
+      paneDead: paneDead === "1",
+      paneActive: paneActive === "1",
+      currentCommand: currentCommand ?? "",
+      currentPath: currentPath ?? "",
+    };
+  } catch {
+    return null;
+  }
+}
+
+function readTmuxClients(name: string): { attachedClients: number; readonlyClients: number } {
+  try {
+    const out = execFileSync("tmux", ["list-clients", "-t", name, "-F", "#{client_readonly}"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    const clients = out.split("\n").map((line) => line.trim()).filter(Boolean);
+    return {
+      attachedClients: clients.length,
+      readonlyClients: clients.filter((client) => client === "1").length,
+    };
+  } catch {
+    return { attachedClients: 0, readonlyClients: 0 };
   }
 }
 

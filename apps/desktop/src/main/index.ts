@@ -168,7 +168,9 @@ function startCommandServer() {
     onAddProjectRoot: (input) => addProjectRoot(input.path),
     onRemoveProjectRoot: (target) => removeProjectRoot(target),
     onListTerminals: () => terminalManager.list(),
-    onCreateTerminal: (kind: string, cwd?: string) => terminalManager.create({ kind: kind as "shell" | "claude" | "codex", cwd }),
+    onTerminalDiagnostics: () => terminalManager.diagnostics(),
+    onCreateTerminal: (kind: string, cwd?: string, transport?: "direct" | "tmux") =>
+      terminalManager.create({ kind: kind as "shell" | "claude" | "codex", cwd, transport }),
     onReadTerminal: (id: string) => terminalManager.readBuffer(id),
     onReadTerminalTranscript: (id: string, tailChars: number) => terminalManager.readTranscript(id, tailChars),
     onWriteTerminal: (id: string, data: string) => terminalManager.write(id, data),
@@ -922,6 +924,7 @@ async function saveWorkspaceSettings(settings: WorkspaceSettings): Promise<Works
   terminalManager.setBufferLineLimit(terminalPolicy.bufferLineLimit);
   terminalManager.setTmuxHistoryLines(terminalPolicy.scrollbackLines);
   terminalManager.setTranscriptRetentionDays(terminalPolicy.transcriptRetentionDays);
+  terminalManager.setAgentTransport(terminalPolicy.agentTransport);
   await terminalManager.syncRuntimeContext();
   if (nextRuntimeConfig.runtimeRoot !== previousRuntimeRoot) {
     startCommandServer();
@@ -1264,6 +1267,7 @@ app.whenReady().then(async () => {
     terminalPolicy.scrollbackLines,
     terminalPolicy.transcriptRetentionDays,
   );
+  terminalManager.setAgentTransport(terminalPolicy.agentTransport);
   registerIpcHandlers();
   broadcastTerminalData();
   workspaceWatcherService.start(workspaceModel);

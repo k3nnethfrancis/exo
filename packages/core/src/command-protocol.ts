@@ -13,6 +13,7 @@ export const EXO_COMMAND_ROUTES = {
   projectRoots: "/project-roots",
   projectRoot: (target: string) => `/project-roots/${encodeURIComponent(target)}`,
   terminals: "/terminals",
+  terminalDiagnostics: "/terminals/diagnostics",
   terminalBuffer: (id: string) => `/terminals/${encodeURIComponent(id)}/buffer`,
   terminalTranscript: (id: string, tailChars: number) =>
     `/terminals/${encodeURIComponent(id)}/transcript?tailChars=${encodeURIComponent(String(tailChars))}`,
@@ -31,11 +32,34 @@ export interface ExoCommandTerminalInfo {
   cwd: string;
   kind: string;
   command?: string;
+  transport?: "direct" | "tmux";
   status: string;
   exitCode?: number;
   readiness?: "ready" | "starting" | "blocked";
   readinessDetail?: string;
   queuedInputCount?: number;
+  health?: "healthy" | "idle" | "unhealthy" | "exited";
+  healthDetail?: string;
+}
+
+export interface ExoCommandTerminalDiagnostics extends ExoCommandTerminalInfo {
+  bufferedLines: number;
+  bufferedChars: number;
+  transcriptPath: string;
+  tmuxSession: string | null;
+  lastInputAt: string | null;
+  lastOutputAt: string | null;
+  lastWriteId: number;
+  lastWriteLatencyMs: number | null;
+  tmux?: {
+    sessionExists: boolean;
+    paneDead: boolean | null;
+    paneActive: boolean | null;
+    currentCommand: string | null;
+    currentPath: string | null;
+    attachedClients: number;
+    readonlyClients: number;
+  } | null;
 }
 
 export interface ExoOpenFileRequest {
@@ -45,6 +69,7 @@ export interface ExoOpenFileRequest {
 export interface ExoCreateTerminalRequest {
   kind?: string;
   cwd?: string;
+  transport?: "direct" | "tmux";
 }
 
 export interface ExoWriteTerminalRequest {
@@ -54,6 +79,7 @@ export interface ExoWriteTerminalRequest {
 export interface ExoWriteTerminalResponse {
   ok: true;
   delivery: "sent" | "queued" | "not-found";
+  writeId?: number;
   queuedInputCount?: number;
   readiness?: ExoCommandTerminalInfo["readiness"];
   readinessDetail?: string;

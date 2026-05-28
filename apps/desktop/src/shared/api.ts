@@ -14,6 +14,8 @@ import type {
 } from "@exo/core";
 
 export type TerminalKind = "shell" | "claude" | "codex";
+export type TerminalTransport = "direct" | "tmux";
+export type TerminalHealthState = "healthy" | "idle" | "unhealthy" | "exited";
 
 export interface TerminalSessionInfo {
   id: string;
@@ -21,17 +23,21 @@ export interface TerminalSessionInfo {
   cwd: string;
   kind: TerminalKind;
   command: string;
+  transport: TerminalTransport;
   instructionOverlayPath?: string | null;
   status: "running" | "exited";
   exitCode?: number;
   readiness?: "ready" | "starting" | "blocked";
   readinessDetail?: string;
   queuedInputCount?: number;
+  health?: TerminalHealthState;
+  healthDetail?: string;
 }
 
 export interface TerminalCreateOptions {
   kind: TerminalKind;
   cwd?: string;
+  transport?: TerminalTransport;
 }
 
 export interface TerminalDataEvent {
@@ -42,9 +48,39 @@ export interface TerminalDataEvent {
 export interface TerminalWriteResult {
   ok: true;
   delivery: "sent" | "queued" | "not-found";
+  writeId?: number;
   queuedInputCount?: number;
   readiness?: TerminalSessionInfo["readiness"];
   readinessDetail?: string;
+}
+
+export interface TerminalDiagnostics {
+  id: string;
+  kind: TerminalKind;
+  status: TerminalSessionInfo["status"];
+  health: TerminalHealthState;
+  healthDetail: string;
+  cwd: string;
+  title: string;
+  command: string;
+  transport: TerminalTransport;
+  bufferedLines: number;
+  bufferedChars: number;
+  transcriptPath: string;
+  tmuxSession: string | null;
+  lastInputAt: string | null;
+  lastOutputAt: string | null;
+  lastWriteId: number;
+  lastWriteLatencyMs: number | null;
+  tmux?: {
+    sessionExists: boolean;
+    paneDead: boolean | null;
+    paneActive: boolean | null;
+    currentCommand: string | null;
+    currentPath: string | null;
+    attachedClients: number;
+    readonlyClients: number;
+  } | null;
 }
 
 export interface FileStatInfo {
@@ -180,6 +216,7 @@ export interface DesktopApi {
   terminals: {
     ensureDefault: () => Promise<TerminalSessionInfo>;
     list: () => Promise<TerminalSessionInfo[]>;
+    diagnostics: () => Promise<TerminalDiagnostics[]>;
     create: (options: TerminalCreateOptions) => Promise<TerminalSessionInfo>;
     read: (id: string) => Promise<string>;
     readTranscript: (id: string, tailChars?: number) => Promise<string>;

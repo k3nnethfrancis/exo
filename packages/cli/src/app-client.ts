@@ -125,8 +125,12 @@ export class AppClient {
     return this.get(EXO_COMMAND_ROUTES.terminals);
   }
 
-  async createTerminal(kind: string, cwd?: string): Promise<Record<string, unknown>> {
-    return this.post(EXO_COMMAND_ROUTES.terminals, { kind, cwd });
+  async terminalDiagnostics(): Promise<unknown[]> {
+    return this.get(EXO_COMMAND_ROUTES.terminalDiagnostics);
+  }
+
+  async createTerminal(kind: string, cwd?: string, transport?: "direct" | "tmux"): Promise<Record<string, unknown>> {
+    return this.post(EXO_COMMAND_ROUTES.terminals, { kind, cwd, transport });
   }
 
   async readTerminal(id: string): Promise<string> {

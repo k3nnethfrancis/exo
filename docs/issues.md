@@ -8,20 +8,33 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 
 ### EXO-ISSUE-017: Terminal tabs can become blank, show stale `[exited]`, or lag while typing
 
-- Status: partially fixed
-- Severity: high
-- Area: terminal renderer, terminal session switching, xterm performance
+- Status: fixed pending broader bug-bash
+- Severity: critical
+- Area: terminal renderer, terminal session switching, xterm performance, tmux-backed agent terminals
 - Observed:
   - New terminals sometimes do not fully load.
   - Switching between terminals can show a blank surface or stale `[exited]` message, then recover after switching again.
   - Typing into terminals can lag enough to become unusable.
+  - A tmux-backed Claude agent launched from `lab` completed an organization-protocol run and asked follow-up questions, but the terminal then became unresponsive and the user could not type a reply.
+- Suspected reliability risks:
+  - Agent terminals run through a double layer: Exo spawns a pty that attaches to tmux, and tmux runs the agent process. This can hide dead, blocked, or detached panes behind a still-running attach process.
+  - Terminal activation/switching can still force full-buffer reads and xterm replay, which can make the renderer busy exactly when the user tries to type.
+  - Large terminal buffers and transcript handling can amplify long agent outputs into expensive string work.
+  - Only-visible terminal streaming can leave inactive terminals stale, then require a full read/replay when switching back.
+  - Resize events are sent through the terminal/tmux path frequently during pane/layout changes and need coalescing.
+  - Exo currently lacks terminal health and latency instrumentation, so unresponsive terminals are hard to distinguish from slow rendering, dropped input, blocked tmux panes, or exited agent processes.
 - Next:
-  - Reproduce blank/stale `[exited]` behavior with restored sessions and fresh shell sessions.
-  - Inspect whether active terminal reads, session status sync, xterm remounts, or tmux attach/exit events are causing stale terminal surfaces.
-  - Add focused terminal switching/performance QA before marking fixed.
+  - Continue broader bug-bash QA with long-running real Claude/Codex sessions.
+  - Watch for any remaining stale restored tmux-session behavior; restored tmux sessions are supported, but new agent sessions now default to direct pty.
 - Fixed:
   - Reduced terminal typing/output lag by appending streamed chunks through an append-specific live buffer path instead of trimming and comparing whole terminal buffers on every frame.
   - Explicit terminal reads now mark buffer resets so switching/restoring terminals still refreshes the xterm surface when the source buffer is replaced.
+  - New Claude and Codex terminals now default to direct pty transport; persistent tmux remains available as an explicit setting/CLI option.
+  - Added terminal transport, health, latency, transcript, buffer, and tmux pane/client diagnostics in app IPC, command server, and `exo terminals diagnostics`.
+  - Replaced main-process live terminal storage with a bounded line buffer and bounded renderer-side terminal tracking.
+  - Live active terminal output now streams directly into xterm through the terminal registry, avoiding React full-buffer state as the primary render path.
+  - Debounced terminal resize events before they reach pty/tmux.
+  - Added terminal settings UI for agent transport with Direct pty as the default.
 
 ## Resolved
 

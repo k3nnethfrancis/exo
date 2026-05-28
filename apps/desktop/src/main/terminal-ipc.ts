@@ -9,6 +9,7 @@ export function registerTerminalIpcHandlers(
 ): void {
   ipcMain.handle("terminals:ensure-default", async () => terminalManager.ensureDefault());
   ipcMain.handle("terminals:list", async () => terminalManager.list());
+  ipcMain.handle("terminals:diagnostics", async () => terminalManager.diagnostics());
   ipcMain.handle("terminals:create", async (_event, options: TerminalCreateOptions) => terminalManager.create(options));
   ipcMain.handle("terminals:read", async (_event, id: string) => terminalManager.readBuffer(id) ?? "");
   ipcMain.handle("terminals:read-transcript", async (_event, id: string, tailChars?: number) =>

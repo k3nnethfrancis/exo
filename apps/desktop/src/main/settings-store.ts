@@ -3,6 +3,7 @@ import {
   DEFAULT_EDITOR_FONT_SIZE,
   DEFAULT_EXPLORER_SCALE,
   DEFAULT_TERMINAL_FONT_SIZE,
+  DEFAULT_TERMINAL_AGENT_TRANSPORT,
   DEFAULT_TERMINAL_HISTORY_LINES,
   DEFAULT_TERMINAL_HISTORY_MODE,
   DEFAULT_TERMINAL_STREAMING_MODE,
@@ -27,6 +28,7 @@ export {
   DEFAULT_EDITOR_FONT_SIZE,
   DEFAULT_EXPLORER_SCALE,
   DEFAULT_TERMINAL_FONT_SIZE,
+  DEFAULT_TERMINAL_AGENT_TRANSPORT,
   DEFAULT_TERMINAL_HISTORY_LINES,
   DEFAULT_TERMINAL_HISTORY_MODE,
   DEFAULT_TERMINAL_STREAMING_MODE,
@@ -45,6 +47,7 @@ export interface TerminalRuntimePolicy {
   scrollbackLines: number;
   bufferLineLimit: number | null;
   transcriptRetentionDays: number;
+  agentTransport: WorkspaceSettings["terminalAgentTransport"];
 }
 
 export class WorkspaceSettingsStore {
@@ -82,6 +85,7 @@ export class WorkspaceSettingsStore {
       terminalTranscriptRetention: DEFAULT_TERMINAL_TRANSCRIPT_RETENTION,
       terminalTranscriptRetentionDays: DEFAULT_TERMINAL_TRANSCRIPT_RETENTION_DAYS,
       terminalStreamingMode: DEFAULT_TERMINAL_STREAMING_MODE,
+      terminalAgentTransport: DEFAULT_TERMINAL_AGENT_TRANSPORT,
       explorerScale: DEFAULT_EXPLORER_SCALE,
       exploreIndexSearchOnEnter: model.indexing.enabled && model.indexing.mode !== "off" && model.indexedRoots.length > 0,
       indexUpdateStrategy: "on-save",
@@ -140,5 +144,6 @@ export function resolveTerminalRuntimePolicy(settings: WorkspaceSettings): Termi
     scrollbackLines: resolveTerminalScrollbackLines(settings.terminalHistoryMode, settings.terminalHistoryLines),
     bufferLineLimit: resolveTerminalBufferLineLimit(settings.terminalHistoryMode, settings.terminalHistoryLines),
     transcriptRetentionDays: resolveTranscriptRetentionDays(settings),
+    agentTransport: settings.terminalAgentTransport,
   };
 }

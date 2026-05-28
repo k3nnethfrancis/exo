@@ -206,8 +206,13 @@ button svg,
 }
 
 .status-dot--dirty,
-.status-dot--running {
+.status-dot--running,
+.status-dot--healthy {
   background: var(--accent);
+}
+
+.status-dot--unhealthy {
+  background: var(--danger);
 }
 
 .terminal-tab__close {

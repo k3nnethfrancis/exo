@@ -20,6 +20,7 @@ import { BrowserPane } from "./components/BrowserPane";
 import { InspectorDock } from "./components/InspectorDock";
 import { ShellLayout } from "./components/ShellLayout";
 import { TerminalDock } from "./components/TerminalDock";
+import { writeTerminalData } from "./components/terminalRegistry";
 import { useOpenDocumentVersionPolling } from "./hooks/useOpenDocumentVersionPolling";
 import { useShellLayout } from "./hooks/useShellLayout";
 import { useWorkspaceSearch } from "./hooks/useWorkspaceSearch";
@@ -91,6 +92,7 @@ interface WorkspaceSettingsDialogState {
   terminalTranscriptRetention: WorkspaceSettings["terminalTranscriptRetention"];
   terminalTranscriptRetentionDays: string;
   terminalStreamingMode: WorkspaceSettings["terminalStreamingMode"];
+  terminalAgentTransport: WorkspaceSettings["terminalAgentTransport"];
   explorerScale: string;
   exploreIndexSearchOnEnter: boolean;
   indexUpdateStrategy: WorkspaceSettings["indexUpdateStrategy"];
@@ -581,6 +583,7 @@ export function App() {
         return;
       }
 
+      writeTerminalData(id, data);
       pendingTerminalChunksRef.current[id] = `${pendingTerminalChunksRef.current[id] ?? ""}${data}`;
       if (terminalFlushFrameRef.current !== null) {
         return;
@@ -1124,6 +1127,7 @@ export function App() {
       terminalTranscriptRetention: settings.terminalTranscriptRetention,
       terminalTranscriptRetentionDays: String(settings.terminalTranscriptRetentionDays),
       terminalStreamingMode: settings.terminalStreamingMode,
+      terminalAgentTransport: settings.terminalAgentTransport,
       explorerScale: String(settings.explorerScale),
       exploreIndexSearchOnEnter: settings.exploreIndexSearchOnEnter,
       indexUpdateStrategy: settings.indexUpdateStrategy,
@@ -1502,6 +1506,7 @@ export function App() {
       terminalTranscriptRetention: settingsDialog.terminalTranscriptRetention,
       terminalTranscriptRetentionDays: clampNumber(Number(settingsDialog.terminalTranscriptRetentionDays), 1, 3650),
       terminalStreamingMode: settingsDialog.terminalStreamingMode,
+      terminalAgentTransport: settingsDialog.terminalAgentTransport,
       explorerScale: clampNumber(Number(settingsDialog.explorerScale), 0.82, 1.35),
       exploreIndexSearchOnEnter: settingsDialog.exploreIndexSearchOnEnter,
       indexUpdateStrategy: settingsDialog.indexUpdateStrategy,
@@ -3614,6 +3619,32 @@ export function App() {
                           <option value="paused">Paused</option>
                         </select>
                       </label>
+                      <label className="dialog-field">
+                        <span className="dialog-field__label">
+                          Agent terminal transport
+                          <HelpTooltip label="Direct pty gives the most reliable typing path. Persistent tmux keeps agent sessions alive across Exo restarts but adds another transport layer." />
+                        </span>
+                        <select
+                          className="dialog-card__input"
+                          data-testid="workspace-settings-terminal-agent-transport"
+                          value={workspaceSettingsDialog.terminalAgentTransport}
+                          onChange={(event) =>
+                            setWorkspaceSettingsDialog((current) =>
+                              current
+                                ? {
+                                    ...current,
+                                    terminalAgentTransport: event.target.value as WorkspaceSettings["terminalAgentTransport"],
+                                    saveStatus: "idle",
+                                    errorMessage: null,
+                                  }
+                                : current,
+                            )
+                          }
+                        >
+                          <option value="direct">Direct pty</option>
+                          <option value="tmux">Persistent tmux</option>
+                        </select>
+                      </label>
                     </>
                   ) : null}
                   {workspaceSettingsDialog.section === "appearance" ? (
@@ -4363,6 +4394,7 @@ function workspaceSettingsImmediateDraftKey(settings: WorkspaceSettingsDialogSta
     terminalTranscriptRetention: settings.terminalTranscriptRetention,
     terminalTranscriptRetentionDays: settings.terminalTranscriptRetentionDays,
     terminalStreamingMode: settings.terminalStreamingMode,
+    terminalAgentTransport: settings.terminalAgentTransport,
     explorerScale: settings.explorerScale,
     exploreIndexSearchOnEnter: settings.exploreIndexSearchOnEnter,
     indexUpdateStrategy: settings.indexUpdateStrategy,

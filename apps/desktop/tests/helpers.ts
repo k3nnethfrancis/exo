@@ -20,6 +20,7 @@ export async function launchExoFixture(options?: {
   const settingsRoot = await mkdtemp(path.join(os.tmpdir(), "exo-settings-"));
   const settingsPath = path.join(settingsRoot, "workspace-settings.json");
   const userDataRoot = await mkdtemp(path.join(os.tmpdir(), "exo-userdata-"));
+  const runtimeRoot = path.join(userDataRoot, "runtime");
   const homeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-home-"));
   if (options?.mutable || options?.prepareWorkspace) {
     tempRoot = await mkdtemp(path.join(os.tmpdir(), "exo-fixture-"));
@@ -49,6 +50,7 @@ export async function launchExoFixture(options?: {
       EXO_DEFAULT_TERMINAL_CWD: workspaceRoot,
       EXO_SETTINGS_PATH: settingsPath,
       EXO_USER_DATA_PATH: userDataRoot,
+      EXO_RUNTIME_ROOT: runtimeRoot,
       EXO_FORCE_THEME: "dark",
       HOME: homeRoot,
       EXO_SHELL: "/bin/echo",
@@ -61,7 +63,7 @@ export async function launchExoFixture(options?: {
       ...options?.env,
     },
   });
-  const page = await electronApp.firstWindow();
+  const page = electronApp.windows()[0] ?? await electronApp.firstWindow();
   if (!configured) {
     await expect(page.getByTestId("onboarding")).toBeVisible();
     return {

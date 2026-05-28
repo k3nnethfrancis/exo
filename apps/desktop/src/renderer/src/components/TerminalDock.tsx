@@ -87,7 +87,7 @@ export function TerminalDock(props: TerminalDockProps) {
                       sessionId: session.id,
                     });
                   }}
-                  title={placement === "right" ? "Drag to bottom or double-click to dock bottom" : "Drag to right or double-click to dock right"}
+                  title={`${session.title} · ${session.transport} · ${session.health ?? session.status}${session.healthDetail ? ` · ${session.healthDetail}` : ""}`}
                   leading={<GripVertical size={11} />}
                   trailing={session.kind === "shell" ? <SquareTerminal size={12} /> : <AgentIcon kind={session.kind} size={12} />}
                   closeLabel={`Close ${session.title}`}
@@ -98,8 +98,9 @@ export function TerminalDock(props: TerminalDockProps) {
                     onKill(session.id);
                   }}
                 >
-                  <span className={`status-dot status-dot--${session.status}`} />
+                  <span className={`status-dot status-dot--${session.health ?? session.status}`} />
                   {session.title}
+                  {session.transport === "tmux" ? <span className="terminal-tab__transport">tmux</span> : null}
                 </ChromeTab>
               ))}
             </div>

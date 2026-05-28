@@ -153,6 +153,12 @@
   background: var(--terminal-bg);
 }
 
+.terminal-tab__transport {
+  color: var(--text-muted);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
 .terminal-dock--right .terminal-dock__actions {
   gap: 6px;
 }

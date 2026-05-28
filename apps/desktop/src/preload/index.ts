@@ -81,6 +81,7 @@ const api: DesktopApi = {
   terminals: {
     ensureDefault: () => ipcRenderer.invoke("terminals:ensure-default"),
     list: () => ipcRenderer.invoke("terminals:list"),
+    diagnostics: () => ipcRenderer.invoke("terminals:diagnostics"),
     create: (options) => ipcRenderer.invoke("terminals:create", options),
     read: (id) => ipcRenderer.invoke("terminals:read", id),
     readTranscript: (id, tailChars) => ipcRenderer.invoke("terminals:read-transcript", id, tailChars),
