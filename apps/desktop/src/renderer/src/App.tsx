@@ -25,11 +25,32 @@ import { writeTerminalData } from "./components/terminalRegistry";
 import { agentInstructionStatusLabel, useAgentInstructionEditor } from "./hooks/useAgentInstructionEditor";
 import { useShellLayout } from "./hooks/useShellLayout";
 import { useWorkspaceSearch } from "./hooks/useWorkspaceSearch";
-import { collectLeaves, findEditorLeaf, findNode, findTerminalLeaf, mapLeaves, paneId, pruneEmptyLeaves, removeNode, updateNode, type PaneLeaf, type PaneNode, type PaneNodeId, type BrowserPaneContent, type EditorPaneContent, type TerminalPaneContent } from "./hooks/usePaneTree";
+import { collectLeaves, findEditorLeaf, findNode, findTerminalLeaf, mapLeaves, paneId, pruneEmptyLeaves, removeNode, updateNode, type PaneLeaf, type PaneNode, type PaneNodeId, type BrowserPaneContent, type EditorPaneContent } from "./hooks/usePaneTree";
 import { useDragManager, type DragDropTarget, type DragPayload, type DropEdge } from "./hooks/useDragManager";
 import { buildProjectReviewChanges, uniqueCwdMatchedSession, type ObservedWorkspaceWrite } from "./changedFileReview";
 import { appendRendererTerminalBuffer, trimRendererTerminalBuffer } from "./terminalBuffer";
+import {
+  addTerminalSessionToFirstLeaf,
+  addTerminalSessionToTargetLeaf,
+  collectActiveTerminalIds,
+  collectOpenEditorPaths,
+  collectTerminalSessionIds,
+  countTerminalSessions,
+  findActiveEditorPath,
+  removeTerminalSessionFromTree,
+  pruneStaleTerminalSessions,
+  treeContainsTerminalSession,
+} from "./paneTreeSelectors";
 import { terminalSessionsEqual } from "./terminalSessions";
+import {
+  directoryOf,
+  pathLabel,
+  pickInitialNote,
+  replaceTreeChildrenInRoots,
+  treeDirectoryHasChildrenInRoots,
+  treeLoadKey,
+  uniquePaths,
+} from "./workspaceTree";
 
 interface OpenEditorDocument extends NoteDocument {
   dirty: boolean;
@@ -3539,64 +3560,6 @@ function resolveZoomSurface(event: KeyboardEvent): ZoomSurface {
   return "editor";
 }
 
-function flattenFiles(nodes: TreeNode[]): TreeNode[] {
-  return nodes.flatMap((node) => {
-    if (node.kind === "file") {
-      return [node];
-    }
-
-    return node.children ? flattenFiles(node.children) : [];
-  });
-}
-
-function collectOpenEditorPaths(tree: PaneNode): Set<string> {
-  const paths = new Set<string>();
-  for (const leaf of collectLeaves(tree)) {
-    if (leaf.content.kind !== "editor") {
-      continue;
-    }
-    for (const filePath of leaf.content.openPaths) {
-      paths.add(filePath);
-    }
-  }
-  return paths;
-}
-
-function findActiveEditorPath(tree: PaneNode | undefined): string | null {
-  if (!tree) {
-    return null;
-  }
-  for (const leaf of collectLeaves(tree)) {
-    if (leaf.content.kind === "editor" && leaf.content.activePath) {
-      return leaf.content.activePath;
-    }
-  }
-  return null;
-}
-
-function collectActiveTerminalIds(tree: PaneNode): Set<string> {
-  const ids = new Set<string>();
-  for (const leaf of collectLeaves(tree)) {
-    if (leaf.content.kind === "terminal" && leaf.content.activeTerminalId) {
-      ids.add(leaf.content.activeTerminalId);
-    }
-  }
-  return ids;
-}
-
-function collectTerminalSessionIds(tree: PaneNode): Set<string> {
-  const ids = new Set<string>();
-  for (const leaf of collectLeaves(tree)) {
-    if (leaf.content.kind !== "terminal") {
-      continue;
-    }
-    for (const id of leaf.content.terminalIds) {
-      ids.add(id);
-    }
-  }
-  return ids;
-}
-
 async function loadProjectGitChanges(projectRoots: WorkspaceModel["projectRoots"]) {
   return Promise.all(
     projectRoots.map(async (root) => ({
@@ -3631,257 +3594,9 @@ function stableJson(value: unknown): string {
   return JSON.stringify(value);
 }
 
-function addTerminalSessionToFirstLeaf(tree: PaneNode, sessionId: string): PaneNode {
-  const termLeaf = findTerminalLeaf(tree);
-  if (!termLeaf) {
-    return tree;
-  }
-
-  return updateNode(tree, termLeaf.id, (node) => {
-    if (node.kind !== "leaf" || node.content.kind !== "terminal") {
-      return node;
-    }
-    if (node.content.terminalIds.includes(sessionId)) {
-      return {
-        ...node,
-        content: {
-          ...node.content,
-          activeTerminalId: sessionId,
-        },
-      };
-    }
-    return {
-      ...node,
-      content: {
-        ...node.content,
-        terminalIds: [...node.content.terminalIds, sessionId],
-        activeTerminalId: sessionId,
-      },
-    };
-  });
-}
-
-function removeTerminalSessionFromTree(tree: PaneNode, sessionId: string): PaneNode {
-  return mapLeaves(tree, (leaf) => {
-    if (leaf.content.kind !== "terminal" || !leaf.content.terminalIds.includes(sessionId)) {
-      return leaf;
-    }
-    const terminalIds = leaf.content.terminalIds.filter((id) => id !== sessionId);
-    return {
-      ...leaf,
-      content: {
-        ...leaf.content,
-        terminalIds,
-        activeTerminalId: leaf.content.activeTerminalId === sessionId ? (terminalIds.at(-1) ?? null) : leaf.content.activeTerminalId,
-      },
-    };
-  });
-}
-
-function pruneStaleTerminalSessions(tree: PaneNode, activeSessionIds: Set<string>): PaneNode {
-  return mapLeaves(tree, (leaf) => {
-    if (leaf.content.kind !== "terminal") {
-      return leaf;
-    }
-    const terminalIds = leaf.content.terminalIds.filter((id) => activeSessionIds.has(id));
-    return {
-      ...leaf,
-      content: {
-        ...leaf.content,
-        terminalIds,
-        activeTerminalId: leaf.content.activeTerminalId && terminalIds.includes(leaf.content.activeTerminalId)
-          ? leaf.content.activeTerminalId
-          : terminalIds.at(-1) ?? null,
-      },
-    };
-  });
-}
-
-function addTerminalSessionToTargetLeaf(tree: PaneNode, leafId: PaneNodeId, edge: DropEdge, sessionId: string): PaneNode {
-  const terminalContent: TerminalPaneContent = {
-    kind: "terminal",
-    terminalIds: [sessionId],
-    activeTerminalId: sessionId,
-  };
-
-  return updateNode(tree, leafId, (node) => {
-    if (node.kind !== "leaf") {
-      return node;
-    }
-
-    if (edge === "center" && node.content.kind === "terminal") {
-      return {
-        ...node,
-        content: {
-          ...node.content,
-          terminalIds: node.content.terminalIds.includes(sessionId) ? node.content.terminalIds : [...node.content.terminalIds, sessionId],
-          activeTerminalId: sessionId,
-        },
-      };
-    }
-
-    if (node.content.kind === "terminal" && node.content.terminalIds.length === 0) {
-      return { ...node, content: terminalContent };
-    }
-
-    const direction: "horizontal" | "vertical" = (edge === "left" || edge === "right") ? "horizontal" : "vertical";
-    const position: "before" | "after" = (edge === "left" || edge === "top") ? "before" : "after";
-    const newLeaf: PaneLeaf = { kind: "leaf", id: paneId(), content: terminalContent };
-    const splitChildren = position === "before"
-      ? [newLeaf, node] as [PaneNode, PaneNode]
-      : [node, newLeaf] as [PaneNode, PaneNode];
-
-    return {
-      kind: "split",
-      id: paneId(),
-      direction: edge === "center" ? "horizontal" : direction,
-      ratio: 0.5,
-      children: edge === "center" ? [node, newLeaf] as [PaneNode, PaneNode] : splitChildren,
-    };
-  });
-}
-
-function treeContainsTerminalSession(tree: PaneNode, sessionId: string): boolean {
-  return collectLeaves(tree).some((leaf) => leaf.content.kind === "terminal" && leaf.content.terminalIds.includes(sessionId));
-}
-
-function countTerminalSessions(tree: PaneNode): number {
-  return collectLeaves(tree).reduce((count, leaf) =>
-    leaf.content.kind === "terminal" ? count + leaf.content.terminalIds.length : count,
-  0);
-}
-
 function pruneRecordToKeys<T>(record: Record<string, T>, keys: Set<string>): Record<string, T> {
   const entries = Object.entries(record).filter(([key]) => keys.has(key));
   return entries.length === Object.keys(record).length ? record : Object.fromEntries(entries);
-}
-
-function treeLoadKey(rootKind: "notes" | "projects", directoryPath: string): string {
-  return `${rootKind}:${directoryPath}`;
-}
-
-function replaceTreeChildrenInRoots(
-  roots: Record<string, TreeNode[]>,
-  directoryPath: string,
-  children: TreeNode[],
-): Record<string, TreeNode[]> {
-  let changed = false;
-  const next = Object.fromEntries(
-    Object.entries(roots).map(([rootPath, nodes]) => {
-      const nextNodes = replaceTreeChildren(nodes, directoryPath, children);
-      if (nextNodes !== nodes) {
-        changed = true;
-      }
-      return [rootPath, nextNodes];
-    }),
-  );
-  return changed ? next : roots;
-}
-
-function replaceTreeChildren(nodes: TreeNode[], directoryPath: string, children: TreeNode[]): TreeNode[] {
-  let changed = false;
-  const nextNodes = nodes.map((node) => {
-    if (node.kind !== "directory") {
-      return node;
-    }
-    if (node.path === directoryPath) {
-      changed = true;
-      return { ...node, children: mergeTreeChildren(node.children ?? [], children) };
-    }
-    const nextChildren = node.children ? replaceTreeChildren(node.children, directoryPath, children) : node.children;
-    if (nextChildren !== node.children) {
-      changed = true;
-      return { ...node, children: nextChildren };
-    }
-    return node;
-  });
-  return changed ? nextNodes : nodes;
-}
-
-function mergeTreeChildren(existing: TreeNode[], incoming: TreeNode[]): TreeNode[] {
-  if (existing.length === 0) {
-    return incoming;
-  }
-  const existingByPath = new Map(existing.map((node) => [node.path, node]));
-  return incoming.map((node) => {
-    const previous = existingByPath.get(node.path);
-    if (!previous || previous.kind !== "directory" || node.kind !== "directory") {
-      return node;
-    }
-    if ((previous.children?.length ?? 0) > 0 && (node.children?.length ?? 0) === 0) {
-      return previous;
-    }
-    return {
-      ...node,
-      children: mergeTreeChildren(previous.children ?? [], node.children ?? []),
-    };
-  });
-}
-
-function treeDirectoryHasChildrenInRoots(roots: Record<string, TreeNode[]>, directoryPath: string): boolean {
-  return Object.values(roots).some((nodes) => treeDirectoryHasChildren(nodes, directoryPath));
-}
-
-function treeDirectoryHasChildren(nodes: TreeNode[], directoryPath: string): boolean {
-  for (const node of nodes) {
-    if (node.kind !== "directory") {
-      continue;
-    }
-    if (node.path === directoryPath) {
-      return (node.children?.length ?? 0) > 0;
-    }
-    if (node.children && treeDirectoryHasChildren(node.children, directoryPath)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-function pickInitialNote(entries: Array<readonly [string, TreeNode[]]>): TreeNode | undefined {
-  const files = entries.flatMap((entry) => flattenFiles(entry[1]));
-  for (const [rootPath] of entries) {
-    const rootTasks = files.find((file) => file.path === joinPath(rootPath, "tasks.md"));
-    if (rootTasks) {
-      return rootTasks;
-    }
-  }
-
-  const exoTasks = files.find((file) => file.path.endsWith("/projects/exo/tasks.md"));
-  if (exoTasks) {
-    return exoTasks;
-  }
-
-  const preferred = ["tasks.md", "schedule.md", "goals.md", "CLAUDE.md"];
-  for (const name of preferred) {
-    const match = files.find((file) => file.path.endsWith(`/${name}`));
-    if (match) {
-      return match;
-    }
-  }
-
-  return files.find((file) => !file.path.includes("-looms/")) ?? files[0];
-}
-
-function directoryOf(filePath: string): string {
-  const parts = filePath.split("/");
-  return parts.slice(0, -1).join("/") || "/";
-}
-
-function pathLabel(filePath: string): string {
-  return filePath.split("/").filter(Boolean).at(-1) ?? filePath;
-}
-
-function uniquePaths(paths: string[]): string[] {
-  const seen = new Set<string>();
-  const next: string[] = [];
-  for (const targetPath of paths.map((entry) => entry.trim()).filter(Boolean)) {
-    if (seen.has(targetPath)) {
-      continue;
-    }
-    seen.add(targetPath);
-    next.push(targetPath);
-  }
-  return next;
 }
 
 function formatIndexStatus(status: IndexStatus): string {

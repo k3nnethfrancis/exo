@@ -1,0 +1,125 @@
+import type { TreeNode } from "@exo/core";
+
+import { flattenFiles } from "./paneTreeSelectors";
+
+export function treeLoadKey(rootKind: "notes" | "projects", directoryPath: string): string {
+  return `${rootKind}:${directoryPath}`;
+}
+
+export function replaceTreeChildrenInRoots(
+  roots: Record<string, TreeNode[]>,
+  directoryPath: string,
+  children: TreeNode[],
+): Record<string, TreeNode[]> {
+  let changed = false;
+  const next = Object.fromEntries(
+    Object.entries(roots).map(([rootPath, nodes]) => {
+      const nextNodes = replaceTreeChildren(nodes, directoryPath, children);
+      if (nextNodes !== nodes) {
+        changed = true;
+      }
+      return [rootPath, nextNodes];
+    }),
+  );
+  return changed ? next : roots;
+}
+
+export function replaceTreeChildren(nodes: TreeNode[], directoryPath: string, children: TreeNode[]): TreeNode[] {
+  let changed = false;
+  const nextNodes = nodes.map((node) => {
+    if (node.kind !== "directory") {
+      return node;
+    }
+    if (node.path === directoryPath) {
+      changed = true;
+      return { ...node, children: mergeTreeChildren(node.children ?? [], children) };
+    }
+    const nextChildren = node.children ? replaceTreeChildren(node.children, directoryPath, children) : node.children;
+    if (nextChildren !== node.children) {
+      changed = true;
+      return { ...node, children: nextChildren };
+    }
+    return node;
+  });
+  return changed ? nextNodes : nodes;
+}
+
+export function mergeTreeChildren(existing: TreeNode[], incoming: TreeNode[]): TreeNode[] {
+  if (existing.length === 0) {
+    return incoming;
+  }
+  const existingByPath = new Map(existing.map((node) => [node.path, node]));
+  return incoming.map((node) => {
+    const previous = existingByPath.get(node.path);
+    if (!previous || previous.kind !== "directory" || node.kind !== "directory") {
+      return node;
+    }
+    if ((previous.children?.length ?? 0) > 0 && (node.children?.length ?? 0) === 0) {
+      return previous;
+    }
+    return {
+      ...node,
+      children: mergeTreeChildren(previous.children ?? [], node.children ?? []),
+    };
+  });
+}
+
+export function treeDirectoryHasChildrenInRoots(roots: Record<string, TreeNode[]>, directoryPath: string): boolean {
+  return Object.values(roots).some((nodes) => treeDirectoryHasChildren(nodes, directoryPath));
+}
+
+export function treeDirectoryHasChildren(nodes: TreeNode[], directoryPath: string): boolean {
+  for (const node of nodes) {
+    if (node.kind !== "directory") {
+      continue;
+    }
+    if (node.path === directoryPath) {
+      return (node.children?.length ?? 0) > 0;
+    }
+    if (node.children && treeDirectoryHasChildren(node.children, directoryPath)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function pickInitialNote(entries: Array<readonly [string, TreeNode[]]>): TreeNode | undefined {
+  const files = entries.flatMap((entry) => flattenFiles(entry[1]));
+  for (const [rootPath] of entries) {
+    const rootTasks = files.find((file) => file.path === joinPath(rootPath, "tasks.md"));
+    if (rootTasks) {
+      return rootTasks;
+    }
+  }
+
+  const exoTasks = files.find((file) => file.path.endsWith("/projects/exo/tasks.md"));
+  if (exoTasks) {
+    return exoTasks;
+  }
+
+  const preferred = ["tasks.md", "schedule.md", "goals.md", "CLAUDE.md"];
+  for (const name of preferred) {
+    const match = files.find((file) => file.path.endsWith(`/${name}`));
+    if (match) {
+      return match;
+    }
+  }
+
+  return files.find((file) => !file.path.includes("-looms/")) ?? files[0];
+}
+
+export function directoryOf(filePath: string): string {
+  return filePath.split("/").slice(0, -1).join("/") || "/";
+}
+
+export function pathLabel(filePath: string): string {
+  return filePath.split("/").filter(Boolean).at(-1) ?? filePath;
+}
+
+export function uniquePaths(paths: string[]): string[] {
+  return Array.from(new Set(paths));
+}
+
+function joinPath(parentPath: string, name: string): string {
+  return `${parentPath.replace(/\/$/, "")}/${name.replace(/^\//, "")}`;
+}
