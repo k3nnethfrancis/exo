@@ -16,8 +16,8 @@ interface TerminalDockProps {
   empty: boolean;
   sessions: TerminalSessionInfo[];
   activeTerminalId: string | null;
-  buffers: Record<string, string>;
-  bufferVersions: Record<string, number>;
+  hydrationSnapshots: Record<string, string>;
+  hydrationVersions: Record<string, number>;
   fontSize: number;
   scrollbackLines: number;
   onFocus: () => void;
@@ -42,8 +42,8 @@ export function TerminalDock(props: TerminalDockProps) {
     empty,
     sessions,
     activeTerminalId,
-    buffers,
-    bufferVersions,
+    hydrationSnapshots,
+    hydrationVersions,
     fontSize,
     scrollbackLines,
     onFocus,
@@ -87,7 +87,7 @@ export function TerminalDock(props: TerminalDockProps) {
                       sessionId: session.id,
                     });
                   }}
-                  title={`${session.title} · ${session.transport} · ${session.health ?? session.status}${session.healthDetail ? ` · ${session.healthDetail}` : ""}`}
+                  title={`${session.title} · ${session.health ?? session.status}${session.healthDetail ? ` · ${session.healthDetail}` : ""}`}
                   leading={<GripVertical size={11} />}
                   trailing={session.kind === "shell" ? <SquareTerminal size={12} /> : <AgentIcon kind={session.kind} size={12} />}
                   closeLabel={`Close ${session.title}`}
@@ -100,7 +100,6 @@ export function TerminalDock(props: TerminalDockProps) {
                 >
                   <span className={`status-dot status-dot--${session.health ?? session.status}`} />
                   {session.title}
-                  {session.transport === "tmux" ? <span className="terminal-tab__transport">tmux</span> : null}
                 </ChromeTab>
               ))}
             </div>
@@ -111,8 +110,8 @@ export function TerminalDock(props: TerminalDockProps) {
             <TerminalView
               appearance={appearance}
               session={activeSession}
-              buffer={buffers[activeSession.id] ?? ""}
-              bufferVersion={bufferVersions[activeSession.id] ?? 0}
+              hydrationSnapshot={hydrationSnapshots[activeSession.id] ?? ""}
+              hydrationVersion={hydrationVersions[activeSession.id] ?? 0}
               fontSize={fontSize}
               scrollbackLines={scrollbackLines}
               onFocus={onFocus}

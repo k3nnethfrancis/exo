@@ -147,6 +147,10 @@ export class AppClient {
     return this.post(EXO_COMMAND_ROUTES.terminalWrite(id), { data });
   }
 
+  async sendTerminalMessage(id: string, message: string, submit = true): Promise<AppClientWriteResult> {
+    return this.post(EXO_COMMAND_ROUTES.terminalMessage(id), { message, submit });
+  }
+
   async killTerminal(id: string): Promise<void> {
     await this.delete(EXO_COMMAND_ROUTES.terminal(id));
   }

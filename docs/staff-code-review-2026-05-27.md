@@ -2,6 +2,8 @@
 
 Scope: post-modularization review of `apps/desktop/src/renderer/src/App.tsx`, `apps/desktop/src/main/index.ts`, `workspace-ipc.ts`, `terminal-manager.ts`, terminal renderer/data path, workspace settings and agent config modules, AGENTS/docs, and tests. I did not modify source code. Working tree note: `apps/desktop/src/main/agent-instruction-overlays.ts` was already locally modified before this review.
 
+Update 2026-05-28: terminal runtime drift called out in this review has been superseded by `docs/terminal-runtime-decision.md`. Core terminals are now direct `node-pty` only, stale tmux runtime paths were removed, and renderer terminal ownership was changed to live streaming plus bounded hydration snapshots. Keep the remaining findings focused on modularity, settings races, IPC contracts, and service boundaries.
+
 ## Executive Summary
 
 The modularization moved real pieces out of the biggest files (`terminal-ipc`, `workspace-ipc`, `settings-store`, watcher/transcript helpers, pane/tree helpers), but the repo is not yet at a stable modular boundary. `App.tsx` and `main/index.ts` still act as service locators plus business-logic hosts. That is acceptable for a near-term product shell, but it is now the main contributor-risk surface: future agents will naturally append behavior to these files because all state and examples are there.

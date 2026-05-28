@@ -5,7 +5,6 @@ import { Terminal } from "xterm";
 
 import type { TerminalSessionInfo } from "../../../shared/api";
 import type { ResolvedAppearance } from "../appearance";
-import { appendRendererTerminalBuffer } from "../terminalBuffer";
 import { isTerminalGeneratedResponse } from "./terminalInputFilters";
 import { registerTerminal, unregisterTerminal } from "./terminalRegistry";
 
@@ -15,8 +14,8 @@ const PROGRAMMATIC_INPUT_GUARD_MS = 250;
 interface TerminalViewProps {
   appearance: ResolvedAppearance;
   session: TerminalSessionInfo;
-  buffer: string;
-  bufferVersion: number;
+  hydrationSnapshot: string;
+  hydrationVersion: number;
   fontSize: number;
   scrollbackLines: number;
   onFocus: () => void;
@@ -25,12 +24,11 @@ interface TerminalViewProps {
 }
 
 export function TerminalView(props: TerminalViewProps) {
-  const { appearance, session, buffer, bufferVersion, fontSize, scrollbackLines, onFocus, onInput, onResize } = props;
+  const { appearance, session, hydrationSnapshot, hydrationVersion, fontSize, scrollbackLines, onFocus, onInput, onResize } = props;
   const hostRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
-  const bufferRef = useRef("");
-  const bufferVersionRef = useRef(bufferVersion);
+  const hydrationVersionRef = useRef(-1);
   const writeQueueRef = useRef<string[]>([]);
   const writingRef = useRef(false);
   const disposedRef = useRef(false);
@@ -127,11 +125,9 @@ export function TerminalView(props: TerminalViewProps) {
 
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
-    bufferRef.current = "";
     sizeRef.current = { width: 0, height: 0, cols: 0, rows: 0, resizeTimer: 0 };
     registerTerminal(session.id, terminal, (data) => {
       enqueueTerminalWrite(terminal, data, writeQueueRef, writingRef, disposedRef, programmaticInputGuardUntilRef);
-      bufferRef.current = appendRendererTerminalBuffer(bufferRef.current, data, scrollbackLines);
     });
 
     return () => {
@@ -191,26 +187,20 @@ export function TerminalView(props: TerminalViewProps) {
 
     const shouldFollowOutput = isScrolledToBottom(terminal);
 
-    const forceReset = bufferVersionRef.current !== bufferVersion;
+    const forceReset = hydrationVersionRef.current !== hydrationVersion;
     if (!forceReset) {
       return;
     }
-    bufferVersionRef.current = bufferVersion;
+    hydrationVersionRef.current = hydrationVersion;
 
-    const appendOffset = null;
-    if (appendOffset !== null) {
-      enqueueTerminalWrite(terminal, buffer.slice(appendOffset), writeQueueRef, writingRef, disposedRef, programmaticInputGuardUntilRef);
-    } else {
-      terminal.reset();
-      writeQueueRef.current = [];
-      writingRef.current = false;
-      enqueueTerminalWrite(terminal, buffer, writeQueueRef, writingRef, disposedRef, programmaticInputGuardUntilRef);
-    }
-    bufferRef.current = buffer;
+    terminal.reset();
+    writeQueueRef.current = [];
+    writingRef.current = false;
+    enqueueTerminalWrite(terminal, hydrationSnapshot, writeQueueRef, writingRef, disposedRef, programmaticInputGuardUntilRef);
     if (shouldFollowOutput) {
       terminal.scrollToBottom();
     }
-  }, [buffer, bufferVersion, session.id]);
+  }, [hydrationSnapshot, hydrationVersion, session.id]);
 
   return (
     <div

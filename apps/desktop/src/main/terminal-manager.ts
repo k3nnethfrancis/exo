@@ -1,17 +1,17 @@
 import { EventEmitter } from "node:events";
-import { execFileSync, spawnSync } from "node:child_process";
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import pty, { type IPty } from "node-pty";
-import { resolveAgentLaunchPlan, resolveRuntimeConfig, syncRuntimeContextFiles, type RuntimeConfig } from "@exo/core";
+import {
+  buildExoMcpServerSpec,
+  resolveAgentLaunchPlan,
+  resolveRuntimeConfig,
+  syncRuntimeContextFiles,
+  type RuntimeConfig,
+} from "@exo/core";
 
-import type { TerminalCreateOptions, TerminalDiagnostics, TerminalHealthState, TerminalSessionInfo, TerminalKind, TerminalTransport, TerminalWriteResult } from "../shared/api";
+import type { TerminalCreateOptions, TerminalDiagnostics, TerminalHealthState, TerminalSessionInfo, TerminalKind, TerminalWriteResult } from "../shared/api";
 import { agentInstructionOverlayEnv, writeAgentInstructionOverlaysSync } from "./agent-instruction-overlays";
 import { sanitizeTranscriptName, TerminalTranscriptStore } from "./terminal-transcripts";
 
@@ -20,9 +20,7 @@ interface TerminalRecord {
   process: IPty;
   buffer: TerminalLineBuffer;
   transcriptPath: string;
-  transport: TerminalTransport;
-  tmuxSession?: string;
-  pendingWrites: string[];
+  pendingWrites: PendingTerminalWrite[];
   readinessTimer?: NodeJS.Timeout;
   lastInputAt?: number;
   lastOutputAt?: number;
@@ -30,56 +28,36 @@ interface TerminalRecord {
   lastWriteLatencyMs?: number;
 }
 
-interface PersistedAgentSession {
-  id: string;
-  kind: Exclude<TerminalKind, "shell">;
-  cwd: string;
-  tmuxSession: string;
-  title: string;
-  command: string;
+interface PendingTerminalWrite {
+  data: string;
+  delayedSubmit: boolean;
 }
 
-interface PersistedState {
-  agents: PersistedAgentSession[];
-}
-
-const DEFAULT_TMUX_HISTORY_LINES = 1_000_000;
-const DEFAULT_BUFFER_LINE_LIMIT = DEFAULT_TMUX_HISTORY_LINES;
-const MIN_TMUX_HISTORY_LINES = 500;
-const MAX_TMUX_HISTORY_LINES = 1_000_000;
+const DEFAULT_LIVE_SCROLLBACK_LINES = 1_000_000;
+const DEFAULT_BUFFER_LINE_LIMIT = DEFAULT_LIVE_SCROLLBACK_LINES;
+const MIN_LIVE_SCROLLBACK_LINES = 500;
+const MAX_LIVE_SCROLLBACK_LINES = 1_000_000;
 const CODEX_STARTUP_GRACE_MS = 1_500;
 const CODEX_QUEUED_SUBMIT_DELAY_MS = 120;
 
 export class TerminalManager extends EventEmitter {
   private readonly sessions = new Map<string, TerminalRecord>();
   private bufferLineLimit: number | null;
-  private tmuxHistoryLines: number;
   private transcriptRetentionDays: number;
   private nextId = 1;
   private runtimeConfig = resolveRuntimeConfig();
-  private stateFilePath: string;
   private transcripts: TerminalTranscriptStore;
-  private readonly tmuxAvailable: boolean;
   private nextWriteId = 1;
 
   constructor(
     private defaultCwd: string,
     bufferLineLimit: number | null = DEFAULT_BUFFER_LINE_LIMIT,
-    tmuxHistoryLines = DEFAULT_TMUX_HISTORY_LINES,
     transcriptRetentionDays = 0,
   ) {
     super();
     this.bufferLineLimit = normalizeBufferLineLimit(bufferLineLimit);
-    this.tmuxHistoryLines = normalizeTmuxHistoryLines(tmuxHistoryLines);
     this.transcriptRetentionDays = normalizeTranscriptRetentionDays(transcriptRetentionDays);
-    this.stateFilePath = path.join(this.runtimeConfig.runtimeRoot, "terminal-state.json");
     this.transcripts = this.createTranscriptStore();
-    this.tmuxAvailable = detectTmux();
-    if (!this.tmuxAvailable) {
-      console.warn(
-        "[terminal-manager] tmux not found on PATH — agent terminals will not survive Exo restarts.",
-      );
-    }
   }
 
   list(): TerminalSessionInfo[] {
@@ -105,16 +83,13 @@ export class TerminalManager extends EventEmitter {
         cwd: record.info.cwd,
         title: record.info.title,
         command: record.info.command,
-        transport: record.transport,
         bufferedLines: record.buffer.lineCount,
         bufferedChars: record.buffer.length,
         transcriptPath: record.transcriptPath,
-        tmuxSession: record.tmuxSession ?? null,
         lastInputAt: record.lastInputAt ? new Date(record.lastInputAt).toISOString() : null,
         lastOutputAt: record.lastOutputAt ? new Date(record.lastOutputAt).toISOString() : null,
         lastWriteId: record.lastWriteId,
         lastWriteLatencyMs: record.lastWriteLatencyMs ?? null,
-        tmux: record.tmuxSession ? readTmuxDiagnostics(record.tmuxSession) : null,
       }))
       .sort((left, right) => left.id.localeCompare(right.id));
   }
@@ -144,7 +119,6 @@ export class TerminalManager extends EventEmitter {
     }
 
     this.flushAllTranscripts();
-    this.stateFilePath = path.join(runtimeConfig.runtimeRoot, "terminal-state.json");
     this.transcripts = this.createTranscriptStore();
   }
 
@@ -159,15 +133,6 @@ export class TerminalManager extends EventEmitter {
     }
   }
 
-  setTmuxHistoryLines(tmuxHistoryLines: number) {
-    this.tmuxHistoryLines = normalizeTmuxHistoryLines(tmuxHistoryLines);
-    for (const record of this.sessions.values()) {
-      if (record.tmuxSession) {
-        setTmuxHistoryLimit(record.tmuxSession, this.tmuxHistoryLines);
-      }
-    }
-  }
-
   setTranscriptRetentionDays(retentionDays: number) {
     this.flushAllTranscripts();
     this.transcriptRetentionDays = normalizeTranscriptRetentionDays(retentionDays);
@@ -176,34 +141,6 @@ export class TerminalManager extends EventEmitter {
 
   async syncRuntimeContext() {
     return syncRuntimeContextFiles(this.runtimeConfig);
-  }
-
-  async restoreAgentSessions(): Promise<TerminalSessionInfo[]> {
-    if (!this.tmuxAvailable) return [];
-
-    const persisted = this.loadState();
-    if (persisted.agents.length === 0) return [];
-
-    const liveTmuxSessions = new Set(listTmuxSessions());
-    const restored: TerminalSessionInfo[] = [];
-    const survivors: PersistedAgentSession[] = [];
-
-    for (const entry of persisted.agents) {
-      if (!liveTmuxSessions.has(entry.tmuxSession)) {
-        continue;
-      }
-
-      try {
-        const info = this.attachExistingAgent(entry);
-        restored.push(info);
-        survivors.push({ ...entry, id: info.id });
-      } catch (err) {
-        console.warn(`[terminal-manager] failed to reattach ${entry.tmuxSession}:`, err);
-      }
-    }
-
-    this.saveState({ agents: survivors });
-    return restored;
   }
 
   async create(options: TerminalCreateOptions): Promise<TerminalSessionInfo> {
@@ -224,13 +161,8 @@ export class TerminalManager extends EventEmitter {
       ...overlayEnv,
     };
 
-    const transport: TerminalTransport = "direct";
-
-    let spawnCommand = launch.command;
-    let spawnArgs = launch.args;
-    let tmuxSession: string | undefined;
-
-    const processHandle = pty.spawn(spawnCommand, spawnArgs, {
+    const spawnArgs = options.kind === "codex" ? withCodexMcpOverrides(launch.args, this.runtimeConfig, launch.cwd) : launch.args;
+    const processHandle = pty.spawn(launch.command, spawnArgs, {
       cols: 120,
       rows: 32,
       cwd: launch.cwd,
@@ -239,14 +171,13 @@ export class TerminalManager extends EventEmitter {
     });
 
     const id = `term-${this.nextId++}`;
-    const transcriptPath = this.makeTranscriptPath(id, options.kind, tmuxSession);
+    const transcriptPath = this.makeTranscriptPath(id, options.kind);
     const info: TerminalSessionInfo = {
       id,
       title: launch.title,
       cwd: launch.cwd,
       kind: options.kind,
       command: launch.command,
-      transport,
       instructionOverlayPath: overlayEnv.EXO_INSTRUCTIONS ?? null,
       status: "running",
       readiness: initialReadiness(options.kind),
@@ -259,8 +190,6 @@ export class TerminalManager extends EventEmitter {
       process: processHandle,
       buffer: new TerminalLineBuffer(this.bufferLineLimit),
       transcriptPath,
-      transport,
-      tmuxSession,
       pendingWrites: [],
       lastWriteId: 0,
     };
@@ -277,8 +206,8 @@ export class TerminalManager extends EventEmitter {
 
     this.sessions.set(id, record);
 
-    this.appendTranscript(id, this.transcriptHeader(info, tmuxSession));
-    this.wireProcess(id, processHandle, tmuxSession);
+    this.appendTranscript(id, this.transcriptHeader(info));
+    this.wireProcess(id, processHandle);
 
     this.emit("created", info);
     return info;
@@ -290,30 +219,20 @@ export class TerminalManager extends EventEmitter {
       return { ok: true, delivery: "not-found" };
     }
 
-    if (shouldQueueWrite(record, data)) {
-      record.pendingWrites.push(data);
-      this.updateQueuedInputCount(record);
-      return {
-        ok: true,
-        delivery: "queued",
-        queuedInputCount: record.pendingWrites.length,
-        readiness: record.info.readiness,
-        readinessDetail: record.info.readinessDetail,
-      };
+    return this.writeToRecord(record, { data, delayedSubmit: false }, shouldQueueWrite(record, data));
+  }
+
+  async sendMessage(id: string, message: string, submit = true): Promise<TerminalWriteResult> {
+    const record = this.sessions.get(id);
+    if (!record || record.info.status === "exited") {
+      return { ok: true, delivery: "not-found" };
     }
 
-    const writeId = this.nextWriteId++;
-    record.lastWriteId = writeId;
-    record.lastInputAt = Date.now();
-    record.process.write(data);
-    return {
-      ok: true,
-      delivery: "sent",
-      writeId,
-      queuedInputCount: record.pendingWrites.length,
-      readiness: record.info.readiness,
-      readinessDetail: record.info.readinessDetail,
+    const pendingWrite = {
+      data: bracketedPaste(message),
+      delayedSubmit: submit,
     };
+    return this.writeToRecord(record, pendingWrite, submit && shouldQueueSubmittedAgentMessage(record));
   }
 
   readBuffer(id: string): string | null {
@@ -342,22 +261,10 @@ export class TerminalManager extends EventEmitter {
     record.process.resize(Math.max(20, cols), Math.max(8, rows));
   }
 
-  async kill(id: string, options: { terminate?: boolean } = {}): Promise<void> {
+  async kill(id: string): Promise<void> {
     const record = this.sessions.get(id);
     if (!record) {
       return;
-    }
-
-    if (record.tmuxSession && options.terminate) {
-      try {
-        execFileSync("tmux", ["kill-session", "-t", record.tmuxSession], { stdio: "ignore" });
-      } catch (err) {
-        console.warn(
-          `[terminal-manager] tmux kill-session failed for ${record.tmuxSession}:`,
-          err,
-        );
-      }
-      this.removePersistedAgent(id);
     }
 
     this.flushTranscript(id);
@@ -368,65 +275,34 @@ export class TerminalManager extends EventEmitter {
 
   // --- internals ---
 
-  private attachExistingAgent(entry: PersistedAgentSession): TerminalSessionInfo {
-    const env = {
-      ...process.env,
-      TERM: "xterm-256color",
-      COLORTERM: "truecolor",
-      SHELL_SESSIONS_DISABLE: "1",
-    };
-
-    const processHandle = pty.spawn(
-      "tmux",
-      ["attach-session", "-t", entry.tmuxSession],
-      {
-        cols: 120,
-        rows: 32,
-        cwd: entry.cwd,
-        env,
-        name: "xterm-256color",
-      },
-    );
-
-    const id = `term-${this.nextId++}`;
-    const transcriptPath = this.makeTranscriptPath(id, entry.kind, entry.tmuxSession);
-    setTmuxHistoryLimit(entry.tmuxSession, this.tmuxHistoryLines);
-    const historySeed = trimTerminalBuffer(captureTmuxHistory(entry.tmuxSession), this.bufferLineLimit);
-    const info: TerminalSessionInfo = {
-      id,
-      title: entry.title,
-      cwd: entry.cwd,
-      kind: entry.kind,
-      command: entry.command,
-      transport: "tmux",
-      instructionOverlayPath: agentInstructionOverlayEnv(this.runtimeConfig.workspace, entry.cwd).EXO_INSTRUCTIONS,
-      status: "running",
-      readiness: "ready",
-      queuedInputCount: 0,
-    };
-
-    this.sessions.set(id, {
-      info,
-      process: processHandle,
-      buffer: new TerminalLineBuffer(this.bufferLineLimit, historySeed),
-      transcriptPath,
-      transport: "tmux",
-      tmuxSession: entry.tmuxSession,
-      pendingWrites: [],
-      lastWriteId: 0,
-    });
-
-    if (!existsSync(transcriptPath)) {
-      this.appendTranscript(id, this.transcriptHeader(info, entry.tmuxSession));
-      if (historySeed.length > 0) {
-        this.appendTranscript(id, historySeed.endsWith("\n") ? historySeed : `${historySeed}\n`);
-      }
+  private writeToRecord(record: TerminalRecord, pendingWrite: PendingTerminalWrite, queue: boolean): TerminalWriteResult {
+    if (queue) {
+      record.pendingWrites.push(pendingWrite);
+      this.updateQueuedInputCount(record);
+      return {
+        ok: true,
+        delivery: "queued",
+        queuedInputCount: record.pendingWrites.length,
+        readiness: record.info.readiness,
+        readinessDetail: record.info.readinessDetail,
+      };
     }
-    this.wireProcess(id, processHandle, entry.tmuxSession);
-    return info;
+
+    const writeId = this.nextWriteId++;
+    record.lastWriteId = writeId;
+    record.lastInputAt = Date.now();
+    this.writePendingData(record, pendingWrite);
+    return {
+      ok: true,
+      delivery: "sent",
+      writeId,
+      queuedInputCount: record.pendingWrites.length,
+      readiness: record.info.readiness,
+      readinessDetail: record.info.readinessDetail,
+    };
   }
 
-  private wireProcess(id: string, processHandle: IPty, tmuxSession: string | undefined) {
+  private wireProcess(id: string, processHandle: IPty) {
     processHandle.onData((data) => {
       const record = this.sessions.get(id);
       const sanitizedData = stripMouseTrackingModes(data);
@@ -456,57 +332,15 @@ export class TerminalManager extends EventEmitter {
       record.info.exitCode = exitCode;
       this.clearReadinessTimer(record);
       this.emit("exit", { id, exitCode });
-
-      if (tmuxSession && !tmuxSessionExists(tmuxSession)) {
-        this.removePersistedAgent(id);
-      }
     });
   }
 
-  private loadState(): PersistedState {
-    try {
-      if (!existsSync(this.stateFilePath)) return { agents: [] };
-      const raw = readFileSync(this.stateFilePath, "utf8");
-      const parsed = JSON.parse(raw) as PersistedState;
-      return { agents: Array.isArray(parsed.agents) ? parsed.agents : [] };
-    } catch (err) {
-      console.warn("[terminal-manager] failed to load terminal state:", err);
-      return { agents: [] };
-    }
-  }
-
-  private saveState(state: PersistedState): void {
-    try {
-      mkdirSync(path.dirname(this.stateFilePath), { recursive: true });
-      writeFileSync(this.stateFilePath, JSON.stringify(state, null, 2), "utf8");
-    } catch (err) {
-      console.warn("[terminal-manager] failed to save terminal state:", err);
-    }
-  }
-
-  private persistAgent(entry: PersistedAgentSession): void {
-    const state = this.loadState();
-    const filtered = state.agents.filter(
-      (a) => a.tmuxSession !== entry.tmuxSession && a.id !== entry.id,
-    );
-    filtered.push(entry);
-    this.saveState({ agents: filtered });
-  }
-
-  private removePersistedAgent(id: string): void {
-    const state = this.loadState();
-    const filtered = state.agents.filter((a) => a.id !== id);
-    if (filtered.length !== state.agents.length) {
-      this.saveState({ agents: filtered });
-    }
-  }
-
-  private makeTranscriptPath(id: string, kind: TerminalKind, tmuxSession?: string): string {
-    const name = sanitizeTranscriptName(tmuxSession ?? `${id}-${kind}`);
+  private makeTranscriptPath(id: string, kind: TerminalKind): string {
+    const name = sanitizeTranscriptName(`${id}-${kind}`);
     return path.join(this.transcripts.directory, `${name}.ansi.log`);
   }
 
-  private transcriptHeader(info: TerminalSessionInfo, tmuxSession: string | undefined): string {
+  private transcriptHeader(info: TerminalSessionInfo): string {
     return [
       "",
       `\n===== Exo terminal transcript started ${new Date().toISOString()} =====`,
@@ -514,7 +348,6 @@ export class TerminalManager extends EventEmitter {
       `kind: ${info.kind}`,
       `cwd: ${info.cwd}`,
       `command: ${info.command}`,
-      tmuxSession ? `tmux: ${tmuxSession}` : null,
       "============================================================",
       "",
     ].filter((line): line is string => line !== null).join("\n");
@@ -575,18 +408,17 @@ export class TerminalManager extends EventEmitter {
 
   private flushPendingWrites(record: TerminalRecord): void {
     while (record.pendingWrites.length > 0 && record.info.status !== "exited") {
-      const data = record.pendingWrites.shift();
-      if (data !== undefined) {
-        this.writePendingData(record, data);
+      const pendingWrite = record.pendingWrites.shift();
+      if (pendingWrite !== undefined) {
+        this.writePendingData(record, pendingWrite);
       }
     }
     this.updateQueuedInputCount(record);
   }
 
-  private writePendingData(record: TerminalRecord, data: string): void {
-    if (record.info.kind === "codex" && looksLikeSubmittedChatMessage(data)) {
-      const body = data.slice(0, -1);
-      record.process.write(body);
+  private writePendingData(record: TerminalRecord, pendingWrite: PendingTerminalWrite): void {
+    record.process.write(pendingWrite.data);
+    if (pendingWrite.delayedSubmit) {
       setTimeout(() => {
         if (record.info.status === "running") {
           record.process.write("\r");
@@ -594,8 +426,6 @@ export class TerminalManager extends EventEmitter {
       }, CODEX_QUEUED_SUBMIT_DELAY_MS);
       return;
     }
-
-    record.process.write(data);
   }
 
   private updateQueuedInputCount(record: TerminalRecord): void {
@@ -631,6 +461,14 @@ function shouldQueueWrite(record: TerminalRecord, data: string): boolean {
   );
 }
 
+function shouldQueueSubmittedAgentMessage(record: TerminalRecord): boolean {
+  return (
+    record.info.kind === "codex" &&
+    record.info.status === "running" &&
+    record.info.readiness !== "ready"
+  );
+}
+
 function looksLikeSubmittedChatMessage(data: string): boolean {
   if (!data.endsWith("\r")) {
     return false;
@@ -638,6 +476,10 @@ function looksLikeSubmittedChatMessage(data: string): boolean {
 
   const body = data.slice(0, -1);
   return body.length > 0 && !/[\u0000-\u0008\u000b-\u001f\u007f]/.test(body);
+}
+
+function bracketedPaste(data: string): string {
+  return `\x1b[200~${data}\x1b[201~`;
 }
 
 function isCodexStartupTrustPrompt(buffer: string): boolean {
@@ -746,94 +588,6 @@ function terminalHealthDetail(record: TerminalRecord, now = Date.now()): string 
   return "Recent terminal input/output observed.";
 }
 
-function detectTmux(): boolean {
-  try {
-    const result = spawnSync("tmux", ["-V"], { stdio: "ignore" });
-    return result.status === 0;
-  } catch {
-    return false;
-  }
-}
-
-function listTmuxSessions(): string[] {
-  try {
-    const out = execFileSync("tmux", ["ls", "-F", "#{session_name}"], {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    });
-    return out.split("\n").map((s) => s.trim()).filter(Boolean);
-  } catch {
-    return [];
-  }
-}
-
-function tmuxSessionExists(name: string): boolean {
-  try {
-    const result = spawnSync("tmux", ["has-session", "-t", name], { stdio: "ignore" });
-    return result.status === 0;
-  } catch {
-    return false;
-  }
-}
-
-function readTmuxDiagnostics(name: string): NonNullable<TerminalDiagnostics["tmux"]> {
-  const sessionExists = tmuxSessionExists(name);
-  const pane = sessionExists ? readTmuxPane(name) : null;
-  const clients = sessionExists ? readTmuxClients(name) : { attachedClients: 0, readonlyClients: 0 };
-  return {
-    sessionExists,
-    paneDead: pane?.paneDead ?? null,
-    paneActive: pane?.paneActive ?? null,
-    currentCommand: pane?.currentCommand ?? null,
-    currentPath: pane?.currentPath ?? null,
-    attachedClients: clients.attachedClients,
-    readonlyClients: clients.readonlyClients,
-  };
-}
-
-function readTmuxPane(name: string): { paneDead: boolean; paneActive: boolean; currentCommand: string; currentPath: string } | null {
-  try {
-    const out = execFileSync("tmux", [
-      "list-panes",
-      "-t",
-      name,
-      "-F",
-      "#{pane_dead}\t#{pane_active}\t#{pane_current_command}\t#{pane_current_path}",
-    ], {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    }).split("\n").find(Boolean);
-    if (!out) {
-      return null;
-    }
-    const [paneDead, paneActive, currentCommand, currentPath] = out.split("\t");
-    return {
-      paneDead: paneDead === "1",
-      paneActive: paneActive === "1",
-      currentCommand: currentCommand ?? "",
-      currentPath: currentPath ?? "",
-    };
-  } catch {
-    return null;
-  }
-}
-
-function readTmuxClients(name: string): { attachedClients: number; readonlyClients: number } {
-  try {
-    const out = execFileSync("tmux", ["list-clients", "-t", name, "-F", "#{client_readonly}"], {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    });
-    const clients = out.split("\n").map((line) => line.trim()).filter(Boolean);
-    return {
-      attachedClients: clients.length,
-      readonlyClients: clients.filter((client) => client === "1").length,
-    };
-  } catch {
-    return { attachedClients: 0, readonlyClients: 0 };
-  }
-}
-
 function normalizeBufferLineLimit(value: number | null | undefined): number | null {
   if (value === null || value === undefined || value <= 0) {
     return DEFAULT_BUFFER_LINE_LIMIT;
@@ -841,14 +595,7 @@ function normalizeBufferLineLimit(value: number | null | undefined): number | nu
   if (!Number.isFinite(value)) {
     return DEFAULT_BUFFER_LINE_LIMIT;
   }
-  return Math.max(MIN_TMUX_HISTORY_LINES, Math.min(MAX_TMUX_HISTORY_LINES, Math.floor(value)));
-}
-
-function normalizeTmuxHistoryLines(value: number): number {
-  if (!Number.isFinite(value)) {
-    return DEFAULT_TMUX_HISTORY_LINES;
-  }
-  return Math.max(MIN_TMUX_HISTORY_LINES, Math.min(MAX_TMUX_HISTORY_LINES, Math.floor(value)));
+  return Math.max(MIN_LIVE_SCROLLBACK_LINES, Math.min(MAX_LIVE_SCROLLBACK_LINES, Math.floor(value)));
 }
 
 function normalizeTranscriptRetentionDays(value: number): number {
@@ -858,39 +605,86 @@ function normalizeTranscriptRetentionDays(value: number): number {
   return Math.max(0, Math.min(3650, Math.floor(value)));
 }
 
-function trimBufferLines(buffer: string, lineLimit: number | null): string {
-  if (lineLimit === null) {
-    return buffer;
+function withCodexMcpOverrides(args: string[], config: RuntimeConfig, cwd: string): string[] {
+  const exoRoot = findExoRepoRoot(config, cwd);
+  if (!exoRoot) {
+    return args;
   }
 
-  const lines = buffer.split("\n");
-  if (lines.length <= lineLimit) {
-    return buffer;
+  const spec = buildExoMcpServerSpec({
+    exoRoot,
+    workspaceRoot: config.workspace.workspaceRoot,
+  });
+
+  return [
+    ...args,
+    "-c",
+    `mcp_servers.${spec.serverName}.command=${tomlString(spec.command)}`,
+    "-c",
+    `mcp_servers.${spec.serverName}.args=${tomlStringArray(spec.args)}`,
+    "-c",
+    `mcp_servers.${spec.serverName}.env=${tomlInlineTable(spec.env)}`,
+  ];
+}
+
+function findExoRepoRoot(config: RuntimeConfig, cwd: string): string | null {
+  const candidates = [
+    cwd,
+    process.cwd(),
+    config.workspace.workspaceRoot,
+    config.workspace.defaultTerminalCwd,
+    ...config.workspace.projectRoots.map((root) => root.path),
+  ];
+
+  for (const candidate of candidates) {
+    const root = findExoRepoRootFrom(candidate);
+    if (root) {
+      return root;
+    }
   }
-  return lines.slice(-lineLimit).join("\n");
+
+  return null;
 }
 
-function trimTerminalBuffer(buffer: string, lineLimit: number | null): string {
-  return trimBufferLines(buffer, lineLimit);
+function findExoRepoRootFrom(startPath: string): string | null {
+  let current = path.resolve(startPath);
+  while (true) {
+    if (isExoRepoRoot(current)) {
+      return current;
+    }
+    const parent = path.dirname(current);
+    if (parent === current) {
+      return null;
+    }
+    current = parent;
+  }
 }
 
-function setTmuxHistoryLimit(name: string, historyLines: number): void {
+function isExoRepoRoot(candidate: string): boolean {
+  const packageJsonPath = path.join(candidate, "package.json");
+  const mcpLauncherPath = path.join(candidate, "packages", "mcp", "bin", "exo-mcp.mjs");
+  if (!existsSync(packageJsonPath) || !existsSync(mcpLauncherPath)) {
+    return false;
+  }
+
   try {
-    execFileSync("tmux", ["set-option", "-t", name, "history-limit", String(normalizeTmuxHistoryLines(historyLines))], {
-      stdio: "ignore",
-    });
-  } catch (err) {
-    console.warn(`[terminal-manager] failed to set tmux history limit for ${name}:`, err);
-  }
-}
-
-function captureTmuxHistory(name: string): string {
-  try {
-    return execFileSync("tmux", ["capture-pane", "-p", "-J", "-S", "-", "-E", "-1", "-t", name], {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    });
+    const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as { name?: string };
+    return packageJson.name === "exo";
   } catch {
-    return "";
+    return false;
   }
+}
+
+function tomlString(value: string): string {
+  return JSON.stringify(value);
+}
+
+function tomlStringArray(values: string[]): string {
+  return `[${values.map(tomlString).join(", ")}]`;
+}
+
+function tomlInlineTable(values: Record<string, string>): string {
+  return `{${Object.entries(values)
+    .map(([key, value]) => `${key}=${tomlString(value)}`)
+    .join(", ")}}`;
 }

@@ -6,39 +6,6 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 
 ## Open
 
-### EXO-ISSUE-020: Exo agent terminal send can strip spaces from long Codex prompts
-
-- Status: open
-- Severity: critical
-- Area: agent terminal write path, CLI `exo agents send`, direct pty transport, Codex provider integration
-- Observed:
-  - During an Exo-on-Exo staff-review stress test on 2026-05-28, `exo agents send term-3 "<long review prompt>"` reported successful delivery.
-  - The Codex transcript showed the submitted prompt with spaces removed, e.g. `Pleaseperformaread-onlystaffsoftwareengineer...`, making the request effectively unusable.
-  - The same session's earlier startup text preserved spaces, so the failure appears specific to Exo's agent-input/send path or transcript capture around submitted input, not general terminal display.
-- Expected:
-  - Submitted agent messages preserve whitespace exactly, including spaces, newlines, and punctuation.
-  - Long prompts should be delivered using a robust paste/write strategy and covered by tests that read back what the provider receives.
-- Next:
-  - Add a regression around `exo agents send`/terminal manager write preserving spaces for long submitted messages.
-  - Test the direct pty path as the canonical terminal runtime.
-  - Verify whether the issue is actual pty input corruption or transcript/render cleaning before fixing.
-
-### EXO-ISSUE-019: Exo-launched Codex can still report Exo MCP startup handshake failure
-
-- Status: reopened
-- Severity: high
-- Area: MCP server integration, Codex provider integration, Exo-on-Exo workflow
-- Observed:
-  - During an Exo-on-Exo staff-review stress test on 2026-05-28, a newly created Codex agent showed `MCP client for exo failed to start: MCP startup failed: handshaking with MCP server failed: connection closed: initialize response`.
-  - This appears to recur despite EXO-ISSUE-010 previously being marked resolved.
-- Expected:
-  - A Codex agent launched by Exo should start with the Exo MCP available whenever the desktop command server is reachable.
-  - MCP startup failures should include enough diagnostics to distinguish command-server discovery, MCP stdio launcher, build artifact, and provider config failures.
-- Next:
-  - Re-run the MCP stdio launcher regression against the current built artifact and the exact environment used by Exo-launched Codex.
-  - Capture the Codex MCP config emitted for Exo-launched sessions and compare it with the passing manual startup path.
-  - Add a live Exo-launched Codex smoke that asserts the transcript does not contain MCP startup failure text.
-
 ### EXO-ISSUE-017: Terminal tabs can become blank, show stale `[exited]`, or lag while typing
 
 - Status: fixed pending broader bug-bash
@@ -55,14 +22,14 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
   - Large terminal buffers and transcript handling can amplify long agent outputs into expensive string work.
   - Only-visible terminal streaming can leave inactive terminals stale, then require a full read/replay when switching back.
   - Resize events are sent through the terminal path frequently during pane/layout changes and need coalescing.
-  - Exo currently lacks terminal health and latency instrumentation, so unresponsive terminals are hard to distinguish from slow rendering, dropped input, blocked tmux panes, or exited agent processes.
+  - Exo currently lacks enough terminal health and latency instrumentation, so unresponsive terminals are hard to distinguish from slow rendering, dropped input, blocked prompts, or exited agent processes.
 - Next:
   - Continue broader bug-bash QA with long-running real Claude/Codex sessions.
-  - Remove stale tmux compatibility code and keep direct pty as the only core terminal runtime.
 - Fixed:
+  - Removed stale tmux runtime compatibility code, diagnostics, restore state, and transport UI/API fields from the core terminal path.
   - Reduced terminal typing/output lag by appending streamed chunks through an append-specific live buffer path instead of trimming and comparing whole terminal buffers on every frame.
   - Explicit terminal reads now mark buffer resets so switching/restoring terminals still refreshes the xterm surface when the source buffer is replaced.
-  - New Claude and Codex terminals now default to direct pty.
+  - Claude and Codex terminals now use direct pty only.
   - Added terminal health, latency, transcript, and buffer diagnostics in app IPC, command server, and `exo terminals diagnostics`.
   - Replaced main-process live terminal storage with a bounded line buffer and bounded renderer-side terminal tracking.
   - Live active terminal output now streams directly into xterm through the terminal registry, avoiding React full-buffer state as the primary render path.
@@ -76,10 +43,42 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 - Severity: medium
 - Area: MCP server integration, Codex provider integration, Exo-on-Exo workflow
 - Observed: newly launched Codex terminals showed `MCP client for exo failed to start: MCP startup failed: handshaking with MCP server failed: connection closed: initialize response`.
-- Resolution: the repo-backed MCP launcher now imports a bundled CommonJS runtime artifact, uses an existing build without invoking `pnpm` on every startup, and only rebuilds as a fallback with Corepack project-spec disabled. The previous bundled ESM artifact crashed on startup with `Dynamic require of "fs" is not supported` before it could answer MCP `initialize`.
+- Resolution: the repo-backed MCP launcher imports a bundled CommonJS runtime artifact and fails clearly if the built artifact is missing. It does not invoke `pnpm` during MCP startup. The previous bundled ESM artifact crashed on startup with `Dynamic require of "fs" is not supported` before it could answer MCP `initialize`.
 - QA coverage added:
   - MCP stdio launcher regression that starts `packages/mcp/bin/exo-mcp.mjs`, performs a real SDK `initialize`, and verifies `tools/list` includes `workspace_status`.
   - Live Exo-launched Codex smoke verified the Exo MCP startup warning is absent when the desktop command server is reachable.
+
+### EXO-ISSUE-019: Exo-launched Codex can still report Exo MCP startup handshake failure
+
+- Status: resolved
+- Severity: high
+- Area: MCP server integration, Codex provider integration, Exo-on-Exo workflow
+- Observed:
+  - During an Exo-on-Exo staff-review stress test on 2026-05-28, a newly created Codex agent showed `MCP client for exo failed to start: MCP startup failed: handshaking with MCP server failed: connection closed: initialize response`.
+  - The immediate cause was a stale global Codex MCP config pointing at an old Exo worktree.
+- Resolution:
+  - Exo-launched Codex sessions now append an explicit `mcp_servers.exo` override that points at the current Exo checkout's `packages/mcp/bin/exo-mcp.mjs` launcher.
+  - This does not mutate the user's global Codex config; it only controls Exo-launched Codex sessions.
+- QA coverage added:
+  - Terminal manager regression verifies Codex spawn args include the current checkout MCP command, args, and env.
+  - Live Exo-launched Codex smoke verified no fresh Exo MCP failure appears after the new transcript header.
+
+### EXO-ISSUE-020: Exo agent terminal send can strip spaces from long Codex prompts
+
+- Status: resolved
+- Severity: critical
+- Area: agent terminal write path, CLI `exo agents send`, direct pty transport, Codex provider integration
+- Observed:
+  - During an Exo-on-Exo staff-review stress test on 2026-05-28, `exo agents send term-3 "<long review prompt>"` reported successful delivery.
+  - The Codex transcript showed the submitted prompt with spaces removed, e.g. `Pleaseperformaread-onlystaffsoftwareengineer...`, making the request effectively unusable.
+- Resolution:
+  - Added a semantic terminal-message path distinct from raw terminal writes.
+  - CLI and MCP agent-message sends now use bracketed paste and delayed submit so spaces, punctuation, and multiline text survive provider terminal input handling.
+  - Raw writes remain available for keystrokes and control characters.
+- QA coverage added:
+  - Terminal manager regression covers bracketed-paste semantic delivery, queued Codex startup sends, submit/no-submit behavior, and raw interstitial input.
+  - CLI and MCP tests cover message delivery preserving long/multiline whitespace.
+  - Live app QA verified shell input remains responsive and spaces survive a terminal command round trip.
 
 ### EXO-ISSUE-004: Codex agent launch in a new worktree can consume queued task text at the trust prompt
 
@@ -170,10 +169,10 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 
 - Status: fixed
 - Severity: high
-- Area: agent terminal write path, Codex provider integration, tmux orchestration
+- Area: agent terminal write path, Codex provider integration, direct pty orchestration
 - Observed: `exo agents send <id> <brief>` reported queued delivery and the brief appeared at the Codex prompt, but Codex did not start processing until `exo agents send <id> $'\r' --raw` was sent afterward.
 - Fixed:
-  - Queued Codex submitted messages now flush as message body followed by a short delayed Enter, so Codex/tmux has time to finish activating the prompt before submit.
+  - Queued Codex submitted messages now flush as message body followed by a short delayed Enter, so Codex has time to finish activating the prompt before submit.
 - QA coverage:
   - Updated terminal-manager regressions to verify queued Codex task text writes body first and delayed Enter afterward.
   - Live Exo-launched Codex smoke verified a queued `exo agents send` message starts work and receives `OK` without a second raw Enter.

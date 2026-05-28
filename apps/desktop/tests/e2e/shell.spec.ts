@@ -38,15 +38,15 @@ test("boots the shell, opens notes, and manages terminal tabs", async () => {
   await expect(page.getByTestId("terminal-tab-claude")).toBeVisible();
   await expect.poll(async () => {
     const sessions = await page.evaluate(() => window.exo.terminals.list());
-    return sessions.find((session) => session.kind === "claude")?.transport;
-  }).toBe("direct");
+    return sessions.find((session) => session.kind === "claude")?.status;
+  }).toBe("running");
 
   await page.getByTestId("launch-codex").click();
   await expect(page.getByTestId("terminal-tab-codex")).toBeVisible();
   await expect.poll(async () => {
     const sessions = await page.evaluate(() => window.exo.terminals.list());
-    return sessions.find((session) => session.kind === "codex")?.transport;
-  }).toBe("direct");
+    return sessions.find((session) => session.kind === "codex")?.status;
+  }).toBe("running");
 
   await page.getByTestId("terminal-tab-shell").dblclick();
   await expect(page.getByTestId("terminal-dock")).toBeVisible();
@@ -686,11 +686,11 @@ test("renders agent terminal streams without corrupting scrollback", async () =>
       return claude ? window.exo.terminals.read(claude.id) : "";
     });
     expect(buffer).toContain("agent-scrollback-140");
-    const transport = await page.evaluate(async () => {
+    const status = await page.evaluate(async () => {
       const sessions = await window.exo.terminals.list();
-      return sessions.find((session) => session.kind === "claude")?.transport;
+      return sessions.find((session) => session.kind === "claude")?.status;
     });
-    expect(transport).toBe("direct");
+    expect(status).toBe("running");
 
     await page.evaluate(async () => {
       const sessions = await window.exo.terminals.list();

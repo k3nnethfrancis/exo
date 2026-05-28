@@ -14,7 +14,6 @@ import type {
 } from "@exo/core";
 
 export type TerminalKind = "shell" | "claude" | "codex";
-export type TerminalTransport = "direct" | "tmux";
 export type TerminalHealthState = "healthy" | "idle" | "unhealthy" | "exited";
 
 export interface TerminalSessionInfo {
@@ -23,7 +22,6 @@ export interface TerminalSessionInfo {
   cwd: string;
   kind: TerminalKind;
   command: string;
-  transport: TerminalTransport;
   instructionOverlayPath?: string | null;
   status: "running" | "exited";
   exitCode?: number;
@@ -53,6 +51,8 @@ export interface TerminalWriteResult {
   readinessDetail?: string;
 }
 
+export interface TerminalMessageResult extends TerminalWriteResult {}
+
 export interface TerminalDiagnostics {
   id: string;
   kind: TerminalKind;
@@ -62,24 +62,13 @@ export interface TerminalDiagnostics {
   cwd: string;
   title: string;
   command: string;
-  transport: TerminalTransport;
   bufferedLines: number;
   bufferedChars: number;
   transcriptPath: string;
-  tmuxSession: string | null;
   lastInputAt: string | null;
   lastOutputAt: string | null;
   lastWriteId: number;
   lastWriteLatencyMs: number | null;
-  tmux?: {
-    sessionExists: boolean;
-    paneDead: boolean | null;
-    paneActive: boolean | null;
-    currentCommand: string | null;
-    currentPath: string | null;
-    attachedClients: number;
-    readonlyClients: number;
-  } | null;
 }
 
 export interface FileStatInfo {
@@ -220,6 +209,7 @@ export interface DesktopApi {
     read: (id: string) => Promise<string>;
     readTranscript: (id: string, tailChars?: number) => Promise<string>;
     write: (id: string, data: string) => Promise<TerminalWriteResult>;
+    sendMessage: (id: string, message: string, submit?: boolean) => Promise<TerminalMessageResult>;
     resize: (id: string, cols: number, rows: number) => Promise<void>;
     kill: (id: string) => Promise<void>;
     resolveDroppedFilePaths: (files: File[]) => string[];

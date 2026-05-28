@@ -63,7 +63,7 @@ The browser/WebView pane is a core primitive, not merely a plugin. Many unrelate
 Specific coding agents should be adapter-shaped where possible. Exo core defines the contract:
 
 - launch command, cwd, environment, and arguments
-- terminal/tmux/pty transport
+- terminal/session adapters
 - lifecycle status and cleanup
 - MCP/CLI tools exposed to the agent
 - optional metadata such as model, provider, objective, and capabilities

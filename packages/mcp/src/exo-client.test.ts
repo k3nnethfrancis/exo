@@ -63,6 +63,27 @@ describe("ExoCommandClient", () => {
     expect(JSON.parse(receivedBody)).toEqual({ data: "hello\r" });
   });
 
+  it("sends agent messages through the semantic message endpoint", async () => {
+    const runtimeRoot = await runtimeFixture();
+    let receivedBody = "";
+    stubCommandServer(async (targetUrl, init) => {
+      if (targetUrl.pathname === "/status") {
+        return json({ ok: true });
+      }
+      if (targetUrl.pathname === "/terminals/term-1/message" && init?.method === "POST") {
+        receivedBody = String(init.body ?? "");
+        return json({ ok: true, delivery: "sent" });
+      }
+      return json({ error: "not found" }, 404);
+    });
+
+    const client = await ExoCommandClient.connect(testRuntimeEnv(runtimeRoot));
+    const message = "hello   agent\npreserve spaces";
+
+    await expect(client.sendAgentMessage("term-1", message, true)).resolves.toMatchObject({ delivery: "sent" });
+    expect(JSON.parse(receivedBody)).toEqual({ message, submit: true });
+  });
+
   it("calls index search and read endpoints", async () => {
     const runtimeRoot = await runtimeFixture();
     let readBody = "";

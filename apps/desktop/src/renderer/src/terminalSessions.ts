@@ -13,7 +13,6 @@ export function terminalSessionsEqual(left: TerminalSessionInfo[], right: Termin
       leftSession.cwd === rightSession.cwd &&
       leftSession.kind === rightSession.kind &&
       leftSession.command === rightSession.command &&
-      leftSession.transport === rightSession.transport &&
       leftSession.status === rightSession.status &&
       leftSession.exitCode === rightSession.exitCode &&
       leftSession.readiness === rightSession.readiness &&

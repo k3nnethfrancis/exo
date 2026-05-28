@@ -12,6 +12,7 @@ import {
   type ExoProjectRootRequest,
   type ExoReadDocumentRequest,
   type ExoOpenFileRequest,
+  type ExoSendTerminalMessageRequest,
   type ExoWriteTerminalRequest,
   type ExoWriteTerminalResponse,
   type IndexReadResponse,
@@ -44,6 +45,7 @@ export interface CommandServerOptions {
   onReadTerminal: (id: string) => string | null;
   onReadTerminalTranscript: (id: string, tailChars: number) => string | null;
   onWriteTerminal: (id: string, data: string) => Promise<ExoWriteTerminalResponse>;
+  onSendTerminalMessage: (id: string, message: string, submit: boolean) => Promise<ExoWriteTerminalResponse>;
   onKillTerminal: (id: string) => Promise<void>;
   onGetSettings: () => WorkspaceSettings;
   onGetStatus: () => object;
@@ -306,6 +308,18 @@ export class CommandServer {
           return;
         }
         json(res, await this.options.onWriteTerminal(decodeURIComponent(terminalWriteMatch[1]), data));
+        return;
+      }
+
+      const terminalMessageMatch = pathname.match(/^\/terminals\/([^/]+)\/message$/);
+      if (method === "POST" && terminalMessageMatch) {
+        const body = await readBody(req);
+        const { message, submit } = body as ExoSendTerminalMessageRequest;
+        if (typeof message !== "string") {
+          json(res, { error: "Missing string message in body" }, 400);
+          return;
+        }
+        json(res, await this.options.onSendTerminalMessage(decodeURIComponent(terminalMessageMatch[1]), message, submit !== false));
         return;
       }
 

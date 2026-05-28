@@ -132,6 +132,10 @@ export class ExoCommandClient {
     return this.post(EXO_COMMAND_ROUTES.terminalWrite(id), { data: input });
   }
 
+  async sendAgentMessage(id: string, message: string, submit = true): Promise<ExoAgentInputResult> {
+    return this.post(EXO_COMMAND_ROUTES.terminalMessage(id), { message, submit });
+  }
+
   async killAgent(id: string): Promise<void> {
     await this.delete(EXO_COMMAND_ROUTES.terminal(id));
   }

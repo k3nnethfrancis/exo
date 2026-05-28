@@ -155,7 +155,6 @@ describe("terminal session sync", () => {
         cwd: "/workspace",
         kind: "shell",
         command: "zsh",
-        transport: "direct",
         status: "running",
         health: "healthy",
         healthDetail: "running",
@@ -170,8 +169,8 @@ describe("terminal session sync", () => {
 describe("changed file review attribution", () => {
   it("does not associate ambiguous same-cwd file changes with every terminal", () => {
     const sessions = [
-      { id: "term-a", title: "Shell A", cwd: "/workspace/project", kind: "shell", command: "zsh", transport: "direct", status: "running" },
-      { id: "term-b", title: "Shell B", cwd: "/workspace/project", kind: "shell", command: "zsh", transport: "direct", status: "running" },
+      { id: "term-a", title: "Shell A", cwd: "/workspace/project", kind: "shell", command: "zsh", status: "running" },
+      { id: "term-b", title: "Shell B", cwd: "/workspace/project", kind: "shell", command: "zsh", status: "running" },
     ] as const;
     const change = {
       rootPath: "/workspace/project",

@@ -6,6 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const ptyState = vi.hoisted(() => ({
   spawned: [] as Array<{
+    command: string;
+    args: string[];
+    options: { cwd?: string; env?: Record<string, string | undefined> };
     writes: string[];
     emitData: (data: string) => void;
     emitExit: (exitCode?: number) => void;
@@ -19,6 +22,9 @@ vi.mock("node:child_process", () => ({
 
 vi.mock("node-pty", () => {
   class FakePty {
+    command = "";
+    args: string[] = [];
+    options: { cwd?: string; env?: Record<string, string | undefined> } = {};
     writes: string[] = [];
     private dataHandlers: Array<(data: string) => void> = [];
     private exitHandlers: Array<(event: { exitCode?: number }) => void> = [];
@@ -56,8 +62,11 @@ vi.mock("node-pty", () => {
 
   return {
     default: {
-      spawn: vi.fn(() => {
+      spawn: vi.fn((command: string, args: string[], options: { cwd?: string; env?: Record<string, string | undefined> }) => {
         const fake = new FakePty();
+        fake.command = command;
+        fake.args = args;
+        fake.options = options;
         ptyState.spawned.push(fake);
         return fake;
       }),
@@ -92,7 +101,7 @@ describe("TerminalManager Codex readiness", () => {
     const agent = await manager.create({ kind: "codex", cwd: workspaceRoot });
     const pty = ptyState.spawned[0];
 
-    const writeResult = await manager.write(agent.id, "Fix the issue\r");
+    const writeResult = await manager.sendMessage(agent.id, "Fix the issue", true);
 
     expect(writeResult.delivery).toBe("queued");
     expect(pty.writes).toEqual([]);
@@ -112,11 +121,11 @@ describe("TerminalManager Codex readiness", () => {
       readiness: "ready",
       queuedInputCount: 0,
     });
-    expect(pty.writes).toEqual(["Fix the issue"]);
+    expect(pty.writes).toEqual([bracketedPaste("Fix the issue")]);
 
     vi.advanceTimersByTime(120);
 
-    expect(pty.writes).toEqual(["Fix the issue", "\r"]);
+    expect(pty.writes).toEqual([bracketedPaste("Fix the issue"), "\r"]);
   });
 
   it("flushes queued Codex text after the startup grace when no prompt appears", async () => {
@@ -127,7 +136,7 @@ describe("TerminalManager Codex readiness", () => {
     const agent = await manager.create({ kind: "codex", cwd: workspaceRoot });
     const pty = ptyState.spawned[0];
 
-    await expect(manager.write(agent.id, "Start cleanly\r")).resolves.toMatchObject({
+    await expect(manager.sendMessage(agent.id, "Start cleanly", true)).resolves.toMatchObject({
       delivery: "queued",
       queuedInputCount: 1,
     });
@@ -138,11 +147,27 @@ describe("TerminalManager Codex readiness", () => {
       readiness: "ready",
       queuedInputCount: 0,
     });
-    expect(pty.writes).toEqual(["Start cleanly"]);
+    expect(pty.writes).toEqual([bracketedPaste("Start cleanly")]);
 
     vi.advanceTimersByTime(120);
 
-    expect(pty.writes).toEqual(["Start cleanly", "\r"]);
+    expect(pty.writes).toEqual([bracketedPaste("Start cleanly"), "\r"]);
+  });
+
+  it("sends semantic messages with bracketed paste to preserve whitespace", async () => {
+    vi.useFakeTimers();
+    const workspaceRoot = await workspaceFixture();
+    const manager = managerForWorkspace(workspaceRoot);
+
+    const agent = await manager.create({ kind: "claude", cwd: workspaceRoot });
+    const pty = ptyState.spawned[0];
+    const message = "Please keep   spaces.\nAnd newlines.";
+
+    await expect(manager.sendMessage(agent.id, message, true)).resolves.toMatchObject({ delivery: "sent" });
+
+    expect(pty.writes).toEqual([bracketedPaste(message)]);
+    vi.advanceTimersByTime(120);
+    expect(pty.writes).toEqual([bracketedPaste(message), "\r"]);
   });
 
   it("lets raw non-submitted input through so a user can answer interstitials", async () => {
@@ -172,6 +197,23 @@ describe("TerminalManager Codex readiness", () => {
     expect(manager.readBuffer(terminal.id)).toBe(lines.slice(-500).join("\n"));
     expect(manager.readTranscript(terminal.id)).toContain("line-1");
   });
+
+  it("launches Codex with an explicit Exo MCP config for the current checkout", async () => {
+    const workspaceRoot = await workspaceFixture();
+    const manager = managerForWorkspace(workspaceRoot);
+
+    await manager.create({ kind: "codex", cwd: workspaceRoot });
+
+    const pty = ptyState.spawned[0];
+    const exoRoot = path.resolve(process.cwd(), "../..");
+    expect(pty.command).toBe("codex");
+    expect(pty.args).toContain("-c");
+    expect(pty.args).toContain(`mcp_servers.exo.command="node"`);
+    expect(pty.args).toContain(`mcp_servers.exo.args=["${exoRoot}/packages/mcp/bin/exo-mcp.mjs"]`);
+    expect(pty.args).toContain(
+      `mcp_servers.exo.env={EXO_MCP_AUTOSTART="1", EXO_MCP_SEARCH_TIMEOUT_MS="30000", EXO_MCP_START_COMMAND="${exoRoot}/bin/exo dev"}`,
+    );
+  });
 });
 
 async function workspaceFixture(): Promise<string> {
@@ -188,4 +230,8 @@ function managerForWorkspace(workspaceRoot: string): TerminalManager {
   vi.stubEnv("EXO_RUNTIME_ROOT", path.join(workspaceRoot, ".exo"));
   vi.stubEnv("EXO_CODEX_COMMAND", "codex");
   return new TerminalManager(workspaceRoot);
+}
+
+function bracketedPaste(data: string): string {
+  return `\x1b[200~${data}\x1b[201~`;
 }

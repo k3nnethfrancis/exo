@@ -2,6 +2,12 @@
 
 Exposes the running Exo app as an MCP server.
 
+The stdio launcher expects `packages/mcp/dist/index.cjs` to exist. Build the package before configuring or starting MCP:
+
+```bash
+pnpm --filter @exo/mcp build
+```
+
 ## Configure
 
 Recommended setup:

@@ -291,10 +291,10 @@ server.registerTool(
   },
   async ({ agentId, message, submit }) => {
     const client = await ExoCommandClient.connect();
-    const result = await client.sendAgentInput(agentId, submit ? `${message}\r` : message);
+    const result = await client.sendAgentMessage(agentId, message, submit);
     const text = result.delivery === "queued"
       ? `Queued message for ${agentId} until the agent is ready (${result.queuedInputCount ?? 1} pending).`
-      : `Sent ${submit ? "message plus Enter" : "raw input"} to ${agentId}.`;
+      : `Sent ${submit ? "message plus Enter" : "message without Enter"} to ${agentId}.`;
     return {
       content: [{ type: "text", text }],
       structuredContent: { agentId, submitted: submit, delivery: result.delivery, queuedInputCount: result.queuedInputCount ?? 0 },
@@ -306,7 +306,7 @@ server.registerTool(
   "terminate_agent",
   {
     title: "Terminate Exo Agent",
-    description: "Terminate an Exo-managed terminal session. For Claude/Codex sessions this also kills the backing tmux session.",
+    description: "Terminate an Exo-managed terminal session and its supervised pty process.",
     inputSchema: {
       agentId: z.string().min(1).describe("Agent id from list_agents, for example term-3."),
     },

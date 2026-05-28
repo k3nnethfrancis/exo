@@ -174,7 +174,8 @@ function startCommandServer() {
     onReadTerminal: (id: string) => terminalManager.readBuffer(id),
     onReadTerminalTranscript: (id: string, tailChars: number) => terminalManager.readTranscript(id, tailChars),
     onWriteTerminal: (id: string, data: string) => terminalManager.write(id, data),
-    onKillTerminal: (id: string) => terminalManager.kill(id, { terminate: true }),
+    onSendTerminalMessage: (id: string, message: string, submit: boolean) => terminalManager.sendMessage(id, message, submit),
+    onKillTerminal: (id: string) => terminalManager.kill(id),
     onGetSettings: () => currentWorkspaceSettings(),
     onGetStatus: () => ({
       workspace: workspaceModel,
@@ -876,7 +877,6 @@ async function saveWorkspaceSettings(settings: WorkspaceSettings): Promise<Works
   terminalManager.setRuntimeConfig(nextRuntimeConfig);
   terminalManager.setDefaultCwd(workspaceModel.defaultTerminalCwd);
   terminalManager.setBufferLineLimit(terminalPolicy.bufferLineLimit);
-  terminalManager.setTmuxHistoryLines(terminalPolicy.scrollbackLines);
   terminalManager.setTranscriptRetentionDays(terminalPolicy.transcriptRetentionDays);
   await terminalManager.syncRuntimeContext();
   if (nextRuntimeConfig.runtimeRoot !== previousRuntimeRoot) {
@@ -1217,21 +1217,12 @@ app.whenReady().then(async () => {
   terminalManager = new TerminalManager(
     workspaceModel.defaultTerminalCwd,
     terminalPolicy.bufferLineLimit,
-    terminalPolicy.scrollbackLines,
     terminalPolicy.transcriptRetentionDays,
   );
   registerIpcHandlers();
   broadcastTerminalData();
   workspaceWatcherService.start(workspaceModel);
   await terminalManager.syncRuntimeContext();
-  try {
-    const restored = await terminalManager.restoreAgentSessions();
-    if (restored.length > 0) {
-      console.log(`[main] reattached ${restored.length} agent terminal(s) from previous session`);
-    }
-  } catch (err) {
-    console.warn("[main] failed to restore agent terminals:", err);
-  }
   createWindow();
   setupTray();
   startCommandServer();

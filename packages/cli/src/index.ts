@@ -63,6 +63,7 @@ interface AppClientLike {
   readTerminal(id: string): Promise<string>;
   readTerminalTranscript(id: string, tailChars?: number): Promise<string>;
   writeTerminal(id: string, data: string): Promise<AppClientWriteResult>;
+  sendTerminalMessage(id: string, message: string, submit?: boolean): Promise<AppClientWriteResult>;
   killTerminal(id: string): Promise<void>;
 }
 
@@ -495,16 +496,17 @@ export async function runCli(
 
     if (subcommand === "send" || subcommand === "message" || subcommand === "tell") {
       const id = args[0];
-      const raw = args.includes("--raw") || args.includes("--no-submit");
+      const raw = args.includes("--raw");
+      const submit = !args.includes("--no-submit");
       const message = args.slice(1).filter((arg) => !["--submit", "--raw", "--no-submit"].includes(arg)).join(" ");
       if (!id || !message) {
         throw new Error(`Usage: exo agents ${subcommand} <agent-id> <message> [--raw|--no-submit]`);
       }
-      const result = await client.writeTerminal(id, raw ? message : `${message}\r`);
+      const result = raw ? await client.writeTerminal(id, message) : await client.sendTerminalMessage(id, message, submit);
       if (result.delivery === "queued") {
         stdout.write(`Queued message for ${id} until the agent is ready (${result.queuedInputCount ?? 1} pending).\n`);
       } else {
-        stdout.write(`Sent ${raw ? "raw input" : "message plus Enter"} to ${id}.\n`);
+        stdout.write(`Sent ${raw ? "raw input" : submit ? "message plus Enter" : "message without Enter"} to ${id}.\n`);
       }
       return 0;
     }

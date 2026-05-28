@@ -31,7 +31,6 @@ import { useWorkspaceSearch } from "./hooks/useWorkspaceSearch";
 import { collectLeaves, findEditorLeaf, findNode, findTerminalLeaf, mapLeaves, paneId, pruneEmptyLeaves, removeNode, updateNode, type PaneLeaf, type PaneNode, type PaneNodeId, type BrowserPaneContent, type EditorPaneContent } from "./hooks/usePaneTree";
 import { useDragManager, type DragDropTarget, type DragPayload, type DropEdge } from "./hooks/useDragManager";
 import { buildProjectReviewChanges, uniqueCwdMatchedSession, type ObservedWorkspaceWrite } from "./changedFileReview";
-import { appendRendererTerminalBuffer, trimRendererTerminalBuffer } from "./terminalBuffer";
 import {
   addTerminalSessionToFirstLeaf,
   addTerminalSessionToTargetLeaf,
@@ -153,8 +152,8 @@ export function App() {
   const dragManager = useDragManager((target, payload) => handleDropRef.current(target, payload));
   const [terminalSessions, setTerminalSessions] = useState<TerminalSessionInfo[]>([]);
   const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null);
-  const [terminalBuffers, setTerminalBuffers] = useState<Record<string, string>>({});
-  const [terminalBufferVersions, setTerminalBufferVersions] = useState<Record<string, number>>({});
+  const [terminalHydrationSnapshots, setTerminalHydrationSnapshots] = useState<Record<string, string>>({});
+  const [terminalHydrationVersions, setTerminalHydrationVersions] = useState<Record<string, number>>({});
   const [, setAgentAnnotations] = useState<Record<string, { runLabel: string; parentId: string | null }>>({});
   const [workspaceDialog, setWorkspaceDialog] = useState<WorkspaceDialogState | null>(null);
   const [workspaceSettingsDialog, setWorkspaceSettingsDialog] = useState<WorkspaceSettingsDialogState | null>(null);
@@ -174,8 +173,6 @@ export function App() {
   const [systemPrefersDark, setSystemPrefersDark] = useState(() =>
     window.matchMedia("(prefers-color-scheme: dark)").matches,
   );
-  const pendingTerminalChunksRef = useRef<Record<string, string>>({});
-  const terminalFlushFrameRef = useRef<number | null>(null);
   const bootstrapRunRef = useRef(0);
   const editorScrollRestoreNonceRef = useRef(0);
   const terminalRuntimeScrollbackLinesRef = useRef(FULL_TERMINAL_SCROLLBACK_LINES);
@@ -203,20 +200,16 @@ export function App() {
 
   useEffect(() => {
     terminalRuntimeScrollbackLinesRef.current = terminalRuntimeScrollbackLines;
-    setTerminalBuffers((current) => {
-      let changed = false;
-      const next: Record<string, string> = {};
-      for (const [id, buffer] of Object.entries(current)) {
-        const trimmed = trimRendererTerminalBuffer(buffer, terminalRuntimeScrollbackLines);
-        next[id] = trimmed;
-        changed = changed || trimmed !== buffer;
-      }
-      return changed ? next : current;
-    });
   }, [terminalRuntimeScrollbackLines]);
 
-  function markTerminalBufferReset(id: string) {
-    setTerminalBufferVersions((current) => ({ ...current, [id]: (current[id] ?? 0) + 1 }));
+  function setTerminalHydrationSnapshot(id: string, snapshot: string) {
+    setTerminalHydrationSnapshots((current) => ({ ...current, [id]: snapshot }));
+    setTerminalHydrationVersions((current) => ({ ...current, [id]: (current[id] ?? 0) + 1 }));
+  }
+
+  async function hydrateTerminal(id: string) {
+    const snapshot = await window.exo.terminals.read(id);
+    setTerminalHydrationSnapshot(id, snapshot);
   }
 
   useEffect(() => {
@@ -281,8 +274,8 @@ export function App() {
     if (activeTerminalId) {
       activeTerminalIds.add(activeTerminalId);
     }
-    setTerminalBuffers((current) => pruneRecordToKeys(current, activeTerminalIds));
-    setTerminalBufferVersions((current) => pruneRecordToKeys(current, activeTerminalIds));
+    setTerminalHydrationSnapshots((current) => pruneRecordToKeys(current, activeTerminalIds));
+    setTerminalHydrationVersions((current) => pruneRecordToKeys(current, activeTerminalIds));
   }, [activeTerminalId, editorTree, terminalTree]);
   useEffect(() => {
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
@@ -373,7 +366,7 @@ export function App() {
       const firstNote = pickInitialNote(nextNoteTrees);
       const defaultTerminal = await window.exo.terminals.ensureDefault();
       const sessions = await window.exo.terminals.list();
-      const defaultTerminalBuffer = await window.exo.terminals.read(defaultTerminal.id);
+      const defaultTerminalSnapshot = await window.exo.terminals.read(defaultTerminal.id);
 
       if (cancelled || bootstrapRun !== bootstrapRunRef.current) {
         return;
@@ -422,8 +415,7 @@ export function App() {
       ]);
       setTerminalSessions(sessions);
       setActiveTerminalId(defaultTerminal.id);
-      setTerminalBuffers({ [defaultTerminal.id]: defaultTerminalBuffer });
-      markTerminalBufferReset(defaultTerminal.id);
+      setTerminalHydrationSnapshot(defaultTerminal.id, defaultTerminalSnapshot);
 
       const sessionIds = sessions.map((session) => session.id);
       const restoreTerminalsInEditor = Boolean(settings.layout?.terminalCollapsed && settings.layout.editorTree);
@@ -455,32 +447,8 @@ export function App() {
       }
     });
 
-    function flushTerminalChunks() {
-      terminalFlushFrameRef.current = null;
-      const pending = pendingTerminalChunksRef.current;
-      pendingTerminalChunksRef.current = {};
-      const entries = Object.entries(pending);
-      if (entries.length === 0) {
-        return;
-      }
-
-      setTerminalBuffers((current) => {
-        const next = { ...current };
-        for (const [id, data] of entries) {
-          next[id] = appendRendererTerminalBuffer(next[id] ?? "", data, terminalRuntimeScrollbackLinesRef.current);
-        }
-        return next;
-      });
-    }
-
     const removeDataListener = window.exo.terminals.onData(({ id, data }) => {
       writeTerminalData(id, data);
-      pendingTerminalChunksRef.current[id] = `${pendingTerminalChunksRef.current[id] ?? ""}${data}`;
-      if (terminalFlushFrameRef.current !== null) {
-        return;
-      }
-
-      terminalFlushFrameRef.current = window.requestAnimationFrame(flushTerminalChunks);
     });
 
     const removeExitListener = window.exo.terminals.onExit(({ id, exitCode }) => {
@@ -504,9 +472,6 @@ export function App() {
 
     return () => {
       cancelled = true;
-      if (terminalFlushFrameRef.current !== null) {
-        window.cancelAnimationFrame(terminalFlushFrameRef.current);
-      }
       removeDataListener();
       removeExitListener();
       removeCreatedListener();
@@ -524,18 +489,11 @@ export function App() {
       if (!activeTerminalId) {
         return;
       }
-      const buffer = await window.exo.terminals.read(activeTerminalId);
+      const snapshot = await window.exo.terminals.read(activeTerminalId);
       if (cancelled) {
         return;
       }
-      const nextBuffer = buffer;
-      setTerminalBuffers((current) => {
-        if (current[activeTerminalId] === nextBuffer) {
-          return current;
-        }
-        markTerminalBufferReset(activeTerminalId);
-        return { ...current, [activeTerminalId]: nextBuffer };
-      });
+      setTerminalHydrationSnapshot(activeTerminalId, snapshot);
     }
 
     void refreshActiveAgentBuffer();
@@ -1773,13 +1731,7 @@ export function App() {
     }
 
     setActiveTerminalId(latest.id);
-    void window.exo.terminals.read(latest.id).then((buffer) => {
-      setTerminalBuffers((current) => ({
-        ...current,
-        [latest.id]: buffer,
-      }));
-      markTerminalBufferReset(latest.id);
-    });
+    void hydrateTerminal(latest.id);
   }
 
   async function activateTerminal(leafId: PaneNodeId, id: string) {
@@ -1788,12 +1740,7 @@ export function App() {
       return { ...content, activeTerminalId: id };
     });
     setActiveTerminalId(id);
-    const buffer = await window.exo.terminals.read(id);
-    setTerminalBuffers((current) => ({
-      ...current,
-      [id]: buffer,
-    }));
-    markTerminalBufferReset(id);
+    await hydrateTerminal(id);
   }
 
   async function focusTerminalSession(id: string) {
@@ -1807,9 +1754,7 @@ export function App() {
       );
       setZoomSurface("terminal");
       setActiveTerminalId(id);
-      const buffer = await window.exo.terminals.read(id);
-      setTerminalBuffers((current) => ({ ...current, [id]: buffer }));
-      markTerminalBufferReset(id);
+      await hydrateTerminal(id);
       return;
     }
 
@@ -1853,12 +1798,12 @@ export function App() {
   async function closeTerminal(id: string) {
     await window.exo.terminals.kill(id);
     setTerminalSessions((current) => current.filter((session) => session.id !== id));
-    setTerminalBuffers((current) => {
+    setTerminalHydrationSnapshots((current) => {
       const next = { ...current };
       delete next[id];
       return next;
     });
-    setTerminalBufferVersions((current) => {
+    setTerminalHydrationVersions((current) => {
       const next = { ...current };
       delete next[id];
       return next;
@@ -2659,8 +2604,8 @@ export function App() {
               empty={terminalLeafSessions.length === 0}
               sessions={terminalLeafSessions}
               activeTerminalId={leaf.content.activeTerminalId}
-              buffers={terminalBuffers}
-              bufferVersions={terminalBufferVersions}
+              hydrationSnapshots={terminalHydrationSnapshots}
+              hydrationVersions={terminalHydrationVersions}
               appearance={resolvedAppearance}
               fontSize={terminalFontSize}
               scrollbackLines={terminalRuntimeScrollbackLines}
@@ -2674,10 +2619,7 @@ export function App() {
                   content.kind === "terminal" ? { ...content, activeTerminalId: id } : content,
                 );
                 setActiveTerminalId(id);
-                void window.exo.terminals.read(id).then((buffer) => {
-                  setTerminalBuffers((current) => ({ ...current, [id]: buffer }));
-                  markTerminalBufferReset(id);
-                });
+                void hydrateTerminal(id);
               }}
               onWrite={(id, data) => void window.exo.terminals.write(id, data)}
               onResize={(id, cols, rows) => void window.exo.terminals.resize(id, cols, rows)}
@@ -2752,8 +2694,8 @@ export function App() {
             empty={terminalLeafSessions.length === 0}
             sessions={terminalLeafSessions}
             activeTerminalId={leafActiveTerminalId}
-            buffers={terminalBuffers}
-            bufferVersions={terminalBufferVersions}
+            hydrationSnapshots={terminalHydrationSnapshots}
+            hydrationVersions={terminalHydrationVersions}
             appearance={resolvedAppearance}
             fontSize={terminalFontSize}
             scrollbackLines={terminalRuntimeScrollbackLines}

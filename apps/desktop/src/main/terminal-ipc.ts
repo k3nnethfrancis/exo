@@ -15,8 +15,11 @@ export function registerTerminalIpcHandlers(
     terminalManager.readTranscript(id, typeof tailChars === "number" ? tailChars : 0) ?? "",
   );
   ipcMain.handle("terminals:write", async (_event, id: string, data: string) => terminalManager.write(id, data));
+  ipcMain.handle("terminals:send-message", async (_event, id: string, message: string, submit?: boolean) =>
+    terminalManager.sendMessage(id, message, submit !== false),
+  );
   ipcMain.handle("terminals:resize", async (_event, id: string, cols: number, rows: number) =>
     terminalManager.resize(id, cols, rows),
   );
-  ipcMain.handle("terminals:kill", async (_event, id: string) => terminalManager.kill(id, { terminate: true }));
+  ipcMain.handle("terminals:kill", async (_event, id: string) => terminalManager.kill(id));
 }

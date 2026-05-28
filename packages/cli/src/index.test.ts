@@ -141,21 +141,88 @@ describe("cli package", () => {
   });
 
   it("submits agent messages by default", async () => {
-    let receivedData = "";
+    let receivedMessage = "";
+    let receivedSubmit: boolean | undefined;
     const exitCode = await runCli(["node", "exo-cli", "agents", "send", "term-1", "hello"], {
       env: testRuntimeEnv(),
       stdout: { write: () => {} },
       stderr: { write: () => {} },
       connectAppClient: async () => fakeAppClient({
-        writeTerminal: async (_id, data) => {
-          receivedData = data;
+        sendTerminalMessage: async (_id, message, submit) => {
+          receivedMessage = message;
+          receivedSubmit = submit;
           return { ok: true as const, delivery: "sent" as const };
         },
       }),
     });
 
     expect(exitCode).toBe(0);
-    expect(receivedData).toBe("hello\r");
+    expect(receivedMessage).toBe("hello");
+    expect(receivedSubmit).toBe(true);
+  });
+
+  it("preserves whitespace in submitted agent messages", async () => {
+    let receivedMessage = "";
+    const message = "Please review this carefully.\nKeep spaces   and punctuation.";
+    const exitCode = await runCli(["node", "exo-cli", "agents", "send", "term-1", message], {
+      env: testRuntimeEnv(),
+      stdout: { write: () => {} },
+      stderr: { write: () => {} },
+      connectAppClient: async () => fakeAppClient({
+        sendTerminalMessage: async (_id, nextMessage) => {
+          receivedMessage = nextMessage;
+          return { ok: true as const, delivery: "sent" as const };
+        },
+      }),
+    });
+
+    expect(exitCode).toBe(0);
+    expect(receivedMessage).toBe(message);
+  });
+
+  it("sends semantic messages without submitting when requested", async () => {
+    let receivedMessage = "";
+    let receivedSubmit: boolean | undefined;
+    const exitCode = await runCli(["node", "exo-cli", "agents", "send", "term-1", "draft   text", "--no-submit"], {
+      env: testRuntimeEnv(),
+      stdout: { write: () => {} },
+      stderr: { write: () => {} },
+      connectAppClient: async () => fakeAppClient({
+        sendTerminalMessage: async (_id, message, submit) => {
+          receivedMessage = message;
+          receivedSubmit = submit;
+          return { ok: true as const, delivery: "sent" as const };
+        },
+      }),
+    });
+
+    expect(exitCode).toBe(0);
+    expect(receivedMessage).toBe("draft   text");
+    expect(receivedSubmit).toBe(false);
+  });
+
+  it("keeps raw terminal writes separate from semantic agent messages", async () => {
+    let rawInput = "";
+    let semanticCalled = false;
+    const exitCode = await runCli(["node", "exo-cli", "agents", "send", "term-1", "y", "--raw"], {
+      env: testRuntimeEnv(),
+      stdout: { write: () => {} },
+      stderr: { write: () => {} },
+      connectAppClient: async () => fakeAppClient({
+        writeTerminal: async (_id, data) => {
+          rawInput = data;
+          return { ok: true as const, delivery: "sent" as const };
+        },
+        sendTerminalMessage: async () => {
+          semanticCalled = true;
+          return { ok: true as const, delivery: "sent" as const };
+        },
+      }),
+    });
+
+    expect(exitCode).toBe(0);
+    expect(rawInput).toBe("y");
+    expect(semanticCalled).toBe(false);
   });
 
   it("reports when agent messages are queued behind startup readiness", async () => {
@@ -165,7 +232,7 @@ describe("cli package", () => {
       stdout: { write: (text) => { stdout += text; } },
       stderr: { write: () => {} },
       connectAppClient: async () => fakeAppClient({
-        writeTerminal: async () => ({ ok: true as const, delivery: "queued" as const, queuedInputCount: 1 }),
+        sendTerminalMessage: async () => ({ ok: true as const, delivery: "queued" as const, queuedInputCount: 1 }),
       }),
     });
 
@@ -497,6 +564,7 @@ function fakeAppClient(overrides: Partial<{
   readTerminal: (id: string) => Promise<string>;
   readTerminalTranscript: (id: string, tailChars?: number) => Promise<string>;
   writeTerminal: (id: string, data: string) => Promise<{ ok: true; delivery: "sent" | "queued" | "not-found"; queuedInputCount?: number }>;
+  sendTerminalMessage: (id: string, message: string, submit?: boolean) => Promise<{ ok: true; delivery: "sent" | "queued" | "not-found"; queuedInputCount?: number }>;
   killTerminal: (id: string) => Promise<void>;
 }> = {}) {
   const missing = async (..._args: unknown[]) => {
@@ -524,6 +592,10 @@ function fakeAppClient(overrides: Partial<{
     readTerminal: missing,
     readTerminalTranscript: missing,
     writeTerminal: async (...args: [string, string]) => {
+      await missing(...args);
+      return { ok: true as const, delivery: "not-found" as const };
+    },
+    sendTerminalMessage: async (...args: [string, string, boolean?]) => {
       await missing(...args);
       return { ok: true as const, delivery: "not-found" as const };
     },
