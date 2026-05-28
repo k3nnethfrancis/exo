@@ -79,14 +79,12 @@ export interface WorkspaceRegistryEntry {
   updatedAt: string;
 }
 
-export interface AgentContextFile {
-  id: string;
-  scope: "global" | "notes" | "project";
-  provider: string;
-  providerLabel: string;
-  targetId: string;
-  targetLabel: string;
-  rootPath: string;
+export type AgentInstructionScopeId = "global" | "exocortex";
+export type AgentInstructionProviderId = "agents" | "claude";
+export type AgentInstructionStatus = "aligned" | "different" | "missing-agents" | "missing-claude" | "missing-both" | "error";
+
+export interface AgentInstructionProviderFile {
+  id: AgentInstructionProviderId;
   label: string;
   path: string;
   exists: boolean;
@@ -94,47 +92,24 @@ export interface AgentContextFile {
   errorMessage?: string | null;
 }
 
-export interface AgentContextFileAdapter {
-  id: string;
+export interface AgentInstructionScope {
+  id: AgentInstructionScopeId;
   label: string;
-  fileName: string;
-  enabled: boolean;
-  builtIn?: boolean;
-}
-
-export interface AgentManagedConfigFile {
-  id: string;
-  scope: "global" | "workspace" | "notes" | "project";
-  category: "mcp" | "provider";
-  provider: string;
-  label: string;
-  path: string;
-  exists: boolean;
+  description: string;
+  rootPath: string;
+  files: {
+    agents: AgentInstructionProviderFile;
+    claude: AgentInstructionProviderFile;
+  };
+  status: AgentInstructionStatus;
   body: string;
-  errorMessage?: string | null;
+  source: AgentInstructionProviderId | "empty" | "unresolved";
+  errorMessages: string[];
 }
 
-export interface AgentContextTarget {
-  id: string;
-  scope: "global" | "notes" | "project";
-  label: string;
-  rootPath: string;
-}
-
-export interface AgentContextHistoryEntry {
-  id: string;
-  targetId: string;
-  targetLabel: string;
-  scope: "global" | "notes" | "project";
-  rootPath: string;
-  createdAt: string;
-  previousBody: string;
-  nextBody: string;
-}
-
-export interface AgentContextBundleResult {
-  files: AgentContextFile[];
-  history: AgentContextHistoryEntry[];
+export interface AgentInstructionConfig {
+  scopes: AgentInstructionScope[];
+  starterTemplate: string;
 }
 
 export interface AgentInstructionOverlay {
@@ -174,20 +149,12 @@ export interface DesktopApi {
     searchIndex: (query: string, options?: { limit?: number; forceMode?: "lexical" | "semantic" | "hybrid" }) => Promise<IndexSearchResponse>;
     searchTag: (tag: string) => Promise<SearchResult[]>;
     getGitStatus: (rootPath: string) => Promise<WorkspaceGitStatus | null>;
-    listAgentContextFiles: () => Promise<AgentContextFile[]>;
-    listAgentContextFileAdapters: () => Promise<AgentContextFileAdapter[]>;
-    saveAgentContextFileAdapters: (adapters: AgentContextFileAdapter[]) => Promise<AgentContextFileAdapter[]>;
-    listAgentManagedConfigFiles: () => Promise<AgentManagedConfigFile[]>;
-    saveAgentManagedConfigFile: (filePath: string, body: string) => Promise<AgentManagedConfigFile>;
-    listAgentContextHistory: () => Promise<AgentContextHistoryEntry[]>;
-    listAgentInstructionOverlays: () => Promise<AgentInstructionOverlay[]>;
-    saveAgentContextFile: (filePath: string, body: string) => Promise<AgentContextFile>;
-    saveAgentContextBundle: (input: {
-      targetId?: string;
-      targetIds?: string[];
+    getAgentInstructionConfig: () => Promise<AgentInstructionConfig>;
+    saveAgentInstructionConfig: (input: {
+      scopeId: AgentInstructionScopeId;
       body: string;
-    }) => Promise<AgentContextBundleResult>;
-    restoreAgentContextHistory: (historyId: string) => Promise<AgentContextBundleResult>;
+    }) => Promise<AgentInstructionConfig>;
+    listAgentInstructionOverlays: () => Promise<AgentInstructionOverlay[]>;
     createFile: (targetPath: string, content?: string) => Promise<string>;
     createDirectory: (targetPath: string) => Promise<string>;
     renamePath: (sourcePath: string, nextPath: string) => Promise<string>;

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, HelpCircle, History, Plus, X } from "lucide-react";
+import { HelpCircle, Plus, X } from "lucide-react";
 import type {
   BranchFamily,
   IndexStatus,
@@ -12,7 +12,7 @@ import type {
   WorkspaceSettings,
 } from "@exo/core";
 
-import type { AgentContextFile, AgentContextFileAdapter, AgentContextHistoryEntry, AgentInstructionOverlay, AgentManagedConfigFile, TerminalSessionInfo, WorkspaceGitChange, WorkspaceGitStatus, WorkspaceRegistryEntry } from "../../shared/api";
+import type { AgentInstructionConfig, AgentInstructionProviderId, AgentInstructionScope, AgentInstructionScopeId, TerminalSessionInfo, WorkspaceGitChange, WorkspaceGitStatus, WorkspaceRegistryEntry } from "../../shared/api";
 import type { FileStatInfo } from "../../shared/api";
 
 import { EditorPane, type EditorPaneState } from "./components/EditorPane";
@@ -124,55 +124,12 @@ export type ResolvedAppearance = "light" | "dark";
 type ZoomSurface = "editor" | "terminal" | "explorer";
 type WorkspaceSettingsSection = "workspace" | "index" | "agents" | "appearance" | "terminal";
 
-interface AgentContextEditorState {
-  files: AgentContextFile[];
-  selectedPath: string | null;
+interface AgentInstructionEditorState {
+  config: AgentInstructionConfig | null;
+  selectedScopeId: AgentInstructionScopeId;
   draftBody: string;
+  sourceChoice: AgentInstructionProviderId | "template" | null;
   saveStatus: "idle" | "saving" | "saved" | "error";
-  errorMessage: string | null;
-}
-
-interface AgentContextSignal {
-  kind: "duplicate" | "conflict" | "coverage";
-  label: string;
-  detail: string;
-}
-
-interface AgentContextComposerState {
-  scopeMode: "global" | "selected";
-  selectedTargetIds: string[];
-  body: string;
-  history: AgentContextHistoryEntry[];
-  historyOpen: boolean;
-  historyPopoverOpen: boolean;
-  selectedHistoryId: string | null;
-  overlays: AgentInstructionOverlay[];
-  selectedOverlayId: string | null;
-  saveStatus: "idle" | "saving" | "saved" | "error";
-  errorMessage: string | null;
-}
-
-interface AgentContextAdapterState {
-  adapters: AgentContextFileAdapter[];
-  draftFileName: string;
-  draftLabel: string;
-  saveStatus: "idle" | "saving" | "saved" | "error";
-  errorMessage: string | null;
-}
-
-interface AgentManagedConfigState {
-  files: AgentManagedConfigFile[];
-  selectedPath: string | null;
-  draftBody: string;
-  saveStatus: "idle" | "saving" | "saved" | "error";
-  errorMessage: string | null;
-}
-
-interface McpServerEditorState {
-  serverName: string;
-  command: string;
-  argsText: string;
-  envText: string;
   errorMessage: string | null;
 }
 
@@ -258,45 +215,12 @@ export function App() {
   const [workspaceSettingsDialog, setWorkspaceSettingsDialog] = useState<WorkspaceSettingsDialogState | null>(null);
   const [agentContextManagerOpen, setAgentContextManagerOpen] = useState(false);
   const [agentContextLoadErrors, setAgentContextLoadErrors] = useState<string[]>([]);
-  const [agentContextEditor, setAgentContextEditor] = useState<AgentContextEditorState>({
-    files: [],
-    selectedPath: null,
+  const [agentInstructionEditor, setAgentInstructionEditor] = useState<AgentInstructionEditorState>({
+    config: null,
+    selectedScopeId: "global",
     draftBody: "",
+    sourceChoice: null,
     saveStatus: "idle",
-    errorMessage: null,
-  });
-  const [agentContextComposer, setAgentContextComposer] = useState<AgentContextComposerState>({
-    scopeMode: "global",
-    selectedTargetIds: [],
-    body: "",
-    history: [],
-    historyOpen: false,
-    historyPopoverOpen: false,
-    selectedHistoryId: null,
-    overlays: [],
-    selectedOverlayId: null,
-    saveStatus: "idle",
-    errorMessage: null,
-  });
-  const [agentContextAdapters, setAgentContextAdapters] = useState<AgentContextAdapterState>({
-    adapters: [],
-    draftFileName: "",
-    draftLabel: "",
-    saveStatus: "idle",
-    errorMessage: null,
-  });
-  const [agentManagedConfigs, setAgentManagedConfigs] = useState<AgentManagedConfigState>({
-    files: [],
-    selectedPath: null,
-    draftBody: "",
-    saveStatus: "idle",
-    errorMessage: null,
-  });
-  const [mcpServerEditor, setMcpServerEditor] = useState<McpServerEditorState>({
-    serverName: "exo",
-    command: "",
-    argsText: "",
-    envText: "",
     errorMessage: null,
   });
   const [onboardingState, setOnboardingState] = useState<OnboardingState | null>(null);
@@ -957,56 +881,16 @@ export function App() {
     () => buildProjectReviewChanges(projectGitChanges, observedWorkspaceWrites, terminalSessions),
     [observedWorkspaceWrites, projectGitChanges, terminalSessions],
   );
-  const agentContextSignals = useMemo(
-    () => summarizeAgentContextSignals(agentContextEditor.files, agentContextEditor.selectedPath),
-    [agentContextEditor.files, agentContextEditor.selectedPath],
-  );
-  const selectedAgentContextFile = agentContextEditor.files.find((file) => file.path === agentContextEditor.selectedPath) ?? null;
-  const agentContextTargets = useMemo(() => agentContextTargetsFromFiles(agentContextEditor.files), [agentContextEditor.files]);
-  const globalAgentContextTarget = agentContextTargets.find((target) => target.scope === "global") ?? null;
-  const selectableAgentContextTargets = useMemo(
-    () => agentContextTargets.filter((target) => target.scope !== "global"),
-    [agentContextTargets],
-  );
-  const agentContextWriteTargetIds = useMemo(
-    () => {
-      if (agentContextComposer.scopeMode === "global") {
-        return globalAgentContextTarget ? [globalAgentContextTarget.id] : [];
-      }
-      const availableTargetIds = new Set(selectableAgentContextTargets.map((target) => target.id));
-      return agentContextComposer.selectedTargetIds.filter((targetId) => availableTargetIds.has(targetId));
-    },
-    [agentContextComposer.scopeMode, agentContextComposer.selectedTargetIds, globalAgentContextTarget, selectableAgentContextTargets],
-  );
-  const primaryAgentContextTargetId = agentContextWriteTargetIds[0] ?? null;
-  const agentContextHistoryForSelectedTarget = useMemo(
-    () => agentContextHistoryEntriesForTarget(agentContextComposer.history, primaryAgentContextTargetId),
-    [agentContextComposer.history, primaryAgentContextTargetId],
-  );
-  const selectedAgentContextHistory = useMemo(
-    () =>
-      agentContextHistoryForSelectedTarget.find((entry) => entry.id === agentContextComposer.selectedHistoryId)
-        ?? agentContextHistoryForSelectedTarget[0]
-        ?? null,
-    [agentContextComposer.selectedHistoryId, agentContextHistoryForSelectedTarget],
-  );
-  const selectedInstructionOverlay = agentContextComposer.overlays.find((overlay) => overlay.id === agentContextComposer.selectedOverlayId) ?? agentContextComposer.overlays[0] ?? null;
-  const agentContextOutputLabels = useMemo(
-    () => [...new Set(agentContextEditor.files.map((file) => file.providerLabel))],
-    [agentContextEditor.files],
-  );
+  const selectedAgentInstructionScope = agentInstructionEditor.config?.scopes.find((scope) => scope.id === agentInstructionEditor.selectedScopeId)
+    ?? agentInstructionEditor.config?.scopes[0]
+    ?? null;
   const agentContextPartialErrors = useMemo(
     () =>
       uniqueMessages([
         ...agentContextLoadErrors,
-        ...agentContextEditor.files.flatMap((file) =>
-          file.errorMessage ? [`${file.label}: ${file.errorMessage}`] : [],
-        ),
-        ...agentManagedConfigs.files.flatMap((file) =>
-          file.errorMessage ? [`${file.label}: ${file.errorMessage}`] : [],
-        ),
+        ...(selectedAgentInstructionScope?.errorMessages ?? []),
       ]),
-    [agentContextEditor.files, agentContextLoadErrors, agentManagedConfigs.files],
+    [agentContextLoadErrors, selectedAgentInstructionScope],
   );
   const workspaceSettingsPartialErrors = useMemo(
     () =>
@@ -1014,16 +898,6 @@ export function App() {
         ? uniqueMessages([...workspaceSettingsDialog.partialErrorMessages, ...agentContextPartialErrors])
         : agentContextPartialErrors,
     [agentContextPartialErrors, workspaceSettingsDialog],
-  );
-  const latestAgentContextHistory = useMemo(
-    () => latestAgentContextHistoryEntry(agentContextComposer.history),
-    [agentContextComposer.history],
-  );
-  const selectedAgentManagedConfig = agentManagedConfigs.files.find((file) => file.path === agentManagedConfigs.selectedPath) ?? null;
-  const selectedManagedConfigIsMcp = selectedAgentManagedConfig?.category === "mcp";
-  const managedMcpServerNames = useMemo(
-    () => selectedManagedConfigIsMcp ? managedMcpServerNamesFromBody(agentManagedConfigs.draftBody) : [],
-    [agentManagedConfigs.draftBody, selectedManagedConfigIsMcp],
   );
 
   async function reloadTrees() {
@@ -1192,71 +1066,36 @@ export function App() {
   }
 
   async function loadAgentContextState() {
-    const loadErrors: string[] = [];
-    const loadOrFallback = async <T,>(label: string, load: () => Promise<T>, fallback: T): Promise<T> => {
-      try {
-        return await load();
-      } catch (error) {
-        console.warn(`[exo] failed to load ${label}`, error);
-        loadErrors.push(`${label}: ${error instanceof Error ? error.message : String(error)}`);
-        return fallback;
-      }
-    };
-
-    const agentContextFiles = await loadOrFallback("agent context files", () => window.exo.workspace.listAgentContextFiles(), [] as AgentContextFile[]);
-    const agentContextHistory = await loadOrFallback("agent context history", () => window.exo.workspace.listAgentContextHistory(), [] as AgentContextHistoryEntry[]);
-    const agentContextFileAdapters = await loadOrFallback("agent context file adapters", () => window.exo.workspace.listAgentContextFileAdapters(), [] as AgentContextFileAdapter[]);
-    const agentManagedConfigFiles = typeof window.exo.workspace.listAgentManagedConfigFiles === "function"
-      ? await loadOrFallback("managed agent config files", () => window.exo.workspace.listAgentManagedConfigFiles(), [] as AgentManagedConfigFile[])
-      : [];
-    if (typeof window.exo.workspace.listAgentManagedConfigFiles !== "function") {
-      loadErrors.push("Managed config editor is unavailable until Exo is restarted with the latest preload bridge.");
+    try {
+      const config = await window.exo.workspace.getAgentInstructionConfig();
+      setAgentInstructionEditor((current) => {
+        const selectedScope = config.scopes.find((scope) => scope.id === current.selectedScopeId) ?? config.scopes[0] ?? null;
+        return {
+          ...current,
+          config,
+          selectedScopeId: selectedScope?.id ?? "global",
+          draftBody: selectedScope ? editableAgentInstructionBody(selectedScope) : "",
+          sourceChoice: selectedScope?.source === "agents" || selectedScope?.source === "claude" ? selectedScope.source : null,
+          saveStatus: "idle",
+          errorMessage: null,
+        };
+      });
+      const partialErrors = uniqueMessages(config.scopes.flatMap((scope) => scope.errorMessages));
+      setAgentContextLoadErrors(partialErrors);
+      return partialErrors;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setAgentInstructionEditor((current) => ({
+        ...current,
+        config: null,
+        draftBody: "",
+        sourceChoice: null,
+        saveStatus: "error",
+        errorMessage: message,
+      }));
+      setAgentContextLoadErrors([`agent instructions: ${message}`]);
+      return [`agent instructions: ${message}`];
     }
-    const instructionOverlays = await loadOrFallback("agent instruction overlays", () => window.exo.workspace.listAgentInstructionOverlays(), [] as AgentInstructionOverlay[]);
-    const partialErrors = uniqueMessages([
-      ...loadErrors,
-      ...agentContextFiles.flatMap((file) => file.errorMessage ? [`${file.label}: ${file.errorMessage}`] : []),
-      ...agentManagedConfigFiles.flatMap((file) => file.errorMessage ? [`${file.label}: ${file.errorMessage}`] : []),
-    ]);
-    setAgentContextEditor({
-      files: agentContextFiles,
-      selectedPath: agentContextFiles[0]?.path ?? null,
-      draftBody: agentContextFiles[0]?.body ?? "",
-      saveStatus: "idle",
-      errorMessage: null,
-    });
-    const agentTargets = agentContextTargetsFromFiles(agentContextFiles);
-    const globalTarget = agentTargets.find((target) => target.scope === "global") ?? agentTargets[0] ?? null;
-    setAgentContextComposer({
-      scopeMode: "global",
-      selectedTargetIds: [],
-      body: globalTarget ? managedAgentContextBodyForTarget(agentContextFiles, globalTarget.id) : "",
-      history: agentContextHistory,
-      historyOpen: false,
-      historyPopoverOpen: false,
-      selectedHistoryId: latestAgentContextHistoryForTarget(agentContextHistory, globalTarget?.id ?? null)?.id ?? null,
-      overlays: instructionOverlays,
-      selectedOverlayId: instructionOverlays[0]?.id ?? null,
-      saveStatus: "idle",
-      errorMessage: null,
-    });
-    setAgentContextAdapters({
-      adapters: agentContextFileAdapters,
-      draftFileName: "",
-      draftLabel: "",
-      saveStatus: "idle",
-      errorMessage: null,
-    });
-    setAgentManagedConfigs({
-      files: agentManagedConfigFiles,
-      selectedPath: agentManagedConfigFiles[0]?.path ?? null,
-      draftBody: agentManagedConfigFiles[0]?.body ?? "",
-      saveStatus: "idle",
-      errorMessage: null,
-    });
-    setMcpServerEditor(mcpServerEditorStateFromBody(agentManagedConfigFiles[0]?.body ?? ""));
-    setAgentContextLoadErrors(partialErrors);
-    return partialErrors;
   }
 
   async function openAgentContextManager() {
@@ -1304,14 +1143,15 @@ export function App() {
     });
   }
 
-  function selectAgentContextFile(filePath: string) {
-    setAgentContextEditor((current) => {
-      const selected = current.files.find((file) => file.path === filePath);
-      return selected
+  function selectAgentInstructionScope(scopeId: AgentInstructionScopeId) {
+    setAgentInstructionEditor((current) => {
+      const scope = current.config?.scopes.find((entry) => entry.id === scopeId);
+      return scope
         ? {
             ...current,
-            selectedPath: selected.path,
-            draftBody: selected.body,
+            selectedScopeId: scope.id,
+            draftBody: editableAgentInstructionBody(scope),
+            sourceChoice: scope.source === "agents" || scope.source === "claude" ? scope.source : null,
             saveStatus: "idle",
             errorMessage: null,
           }
@@ -1319,17 +1159,15 @@ export function App() {
     });
   }
 
-  function selectAgentManagedConfigFile(filePath: string) {
-    setAgentManagedConfigs((current) => {
-      const selected = current.files.find((file) => file.path === filePath);
-      if (selected) {
-        setMcpServerEditor(mcpServerEditorStateFromBody(selected.body));
-      }
-      return selected
+  function useAgentInstructionSource(providerId: AgentInstructionProviderId) {
+    setAgentInstructionEditor((current) => {
+      const scope = current.config?.scopes.find((entry) => entry.id === current.selectedScopeId);
+      const file = scope?.files[providerId];
+      return file
         ? {
             ...current,
-            selectedPath: selected.path,
-            draftBody: selected.body,
+            draftBody: file.body,
+            sourceChoice: providerId,
             saveStatus: "idle",
             errorMessage: null,
           }
@@ -1337,355 +1175,45 @@ export function App() {
     });
   }
 
-  async function saveAgentManagedConfigDraft() {
-    await saveAgentManagedConfigBody(agentManagedConfigs.draftBody);
-  }
-
-  async function saveAgentManagedConfigBody(body: string) {
-    const selectedPath = agentManagedConfigs.selectedPath;
-    if (!selectedPath) {
-      return;
-    }
-
-    setAgentManagedConfigs((current) => ({ ...current, saveStatus: "saving", errorMessage: null }));
-    try {
-      const saved = await window.exo.workspace.saveAgentManagedConfigFile(selectedPath, body);
-      setAgentManagedConfigs((current) => ({
-        ...current,
-        files: current.files.map((file) => file.path === saved.path ? saved : file),
-        selectedPath: saved.path,
-        draftBody: saved.body,
-        saveStatus: "saved",
-        errorMessage: null,
-      }));
-    } catch (error) {
-      setAgentManagedConfigs((current) => ({
-        ...current,
-        saveStatus: "error",
-        errorMessage: error instanceof Error ? error.message : String(error),
-      }));
-    }
-  }
-
-  async function saveStructuredMcpServer() {
-    const serverName = mcpServerEditor.serverName.trim();
-    const command = mcpServerEditor.command.trim();
-    if (!serverName || !command) {
-      setMcpServerEditor((current) => ({ ...current, errorMessage: "Server name and command are required." }));
-      return;
-    }
-    const parsed = parseManagedMcpConfig(agentManagedConfigs.draftBody);
-    if (!parsed.ok) {
-      setMcpServerEditor((current) => ({ ...current, errorMessage: parsed.error }));
-      return;
-    }
-
-    const args = mcpServerEditor.argsText
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean);
-    const env = envTextToRecord(mcpServerEditor.envText);
-    const nextConfig = {
-      ...parsed.value,
-      mcpServers: {
-        ...parsed.value.mcpServers,
-        [serverName]: {
-          command,
-          ...(args.length > 0 ? { args } : {}),
-          ...(Object.keys(env).length > 0 ? { env } : {}),
-        },
-      },
-    };
-    setMcpServerEditor((current) => ({ ...current, errorMessage: null }));
-    await saveAgentManagedConfigBody(`${JSON.stringify(nextConfig, null, 2)}\n`);
-  }
-
-  async function removeStructuredMcpServer() {
-    const serverName = mcpServerEditor.serverName.trim();
-    if (!serverName) {
-      return;
-    }
-    const parsed = parseManagedMcpConfig(agentManagedConfigs.draftBody);
-    if (!parsed.ok) {
-      setMcpServerEditor((current) => ({ ...current, errorMessage: parsed.error }));
-      return;
-    }
-    const { [serverName]: _removed, ...remainingServers } = parsed.value.mcpServers;
-    const nextConfig = {
-      ...parsed.value,
-      mcpServers: remainingServers,
-    };
-    setMcpServerEditor(mcpServerEditorStateFromBody(JSON.stringify(nextConfig)));
-    await saveAgentManagedConfigBody(`${JSON.stringify(nextConfig, null, 2)}\n`);
-  }
-
-  async function saveAgentContextDraft() {
-    const snapshot = agentContextEditor;
-    if (!snapshot.selectedPath) {
-      return;
-    }
-
-    setAgentContextEditor((current) => ({ ...current, saveStatus: "saving", errorMessage: null }));
-    try {
-      const saved = await window.exo.workspace.saveAgentContextFile(snapshot.selectedPath, snapshot.draftBody);
-      setAgentContextEditor((current) => ({
-        ...current,
-        files: current.files.map((file) => file.path === saved.path ? saved : file),
-        selectedPath: saved.path,
-        draftBody: saved.body,
-        saveStatus: "saved",
-        errorMessage: null,
-      }));
-    } catch (error) {
-      setAgentContextEditor((current) => ({
-        ...current,
-        saveStatus: "error",
-        errorMessage: error instanceof Error ? error.message : String(error),
-      }));
-    }
-  }
-
-  function insertExoAgentContextSnippet() {
-    setAgentContextEditor((current) => {
-      if (!current.selectedPath) {
-        return current;
-      }
-      const snippet = exoAgentContextSnippet();
-      const separator = current.draftBody.trim().length > 0 ? "\n\n" : "";
-      return {
-        ...current,
-        draftBody: current.draftBody.includes("## Exo Workspace Tools")
-          ? current.draftBody
-          : `${current.draftBody.trimEnd()}${separator}${snippet}`,
-        saveStatus: "idle",
-        errorMessage: null,
-      };
-    });
-  }
-
-  function setAgentContextScopeMode(mode: AgentContextComposerState["scopeMode"]) {
-    const targetId = mode === "global"
-      ? globalAgentContextTarget?.id ?? null
-      : agentContextComposer.selectedTargetIds[0] ?? null;
-    setAgentContextComposer((current) => ({
+  function loadAgentInstructionTemplate() {
+    setAgentInstructionEditor((current) => ({
       ...current,
-      scopeMode: mode,
-      body: targetId ? managedAgentContextBodyForTarget(agentContextEditor.files, targetId) : current.body,
-      selectedHistoryId: latestAgentContextHistoryForTarget(current.history, targetId)?.id ?? null,
-      historyOpen: false,
-      historyPopoverOpen: false,
+      draftBody: current.config?.starterTemplate ?? "",
+      sourceChoice: "template",
       saveStatus: "idle",
       errorMessage: null,
     }));
   }
 
-  function toggleAgentContextWriteTarget(targetId: string, enabled: boolean) {
-    setAgentContextComposer((current) => {
-      const selectedTargetIds = enabled
-        ? [...new Set([...current.selectedTargetIds, targetId])]
-        : current.selectedTargetIds.filter((id) => id !== targetId);
-      const previousPrimaryTargetId = current.selectedTargetIds[0] ?? null;
-      const nextPrimaryTargetId = selectedTargetIds[0] ?? null;
-      const shouldLoadTargetBody =
-        current.scopeMode !== "selected"
-        || previousPrimaryTargetId === null
-        || previousPrimaryTargetId === targetId;
-      return {
-        ...current,
-        scopeMode: "selected",
-        selectedTargetIds,
-        body: shouldLoadTargetBody && nextPrimaryTargetId
-          ? managedAgentContextBodyForTarget(agentContextEditor.files, nextPrimaryTargetId)
-          : current.body,
-        selectedHistoryId: latestAgentContextHistoryForTarget(current.history, nextPrimaryTargetId)?.id ?? null,
-        historyOpen: false,
-        historyPopoverOpen: false,
-        saveStatus: "idle",
-        errorMessage: null,
-      };
-    });
-  }
-
-  async function saveUnifiedAgentContext() {
-    const snapshot = agentContextComposer;
-    const targetIds = agentContextWriteTargetIds;
-    if (targetIds.length === 0) {
+  async function saveAgentInstructionDraft() {
+    const snapshot = agentInstructionEditor;
+    if (!snapshot.config?.scopes.some((scope) => scope.id === snapshot.selectedScopeId)) {
       return;
     }
-
-    setAgentContextComposer((current) => ({ ...current, saveStatus: "saving", errorMessage: null }));
+    setAgentInstructionEditor((current) => ({ ...current, saveStatus: "saving", errorMessage: null }));
     try {
-      const result = await window.exo.workspace.saveAgentContextBundle({
-        targetIds,
-        body: snapshot.body,
+      const config = await window.exo.workspace.saveAgentInstructionConfig({
+        scopeId: snapshot.selectedScopeId,
+        body: snapshot.draftBody,
       });
-      const savedFiles = result.files;
-      setAgentContextEditor((current) => {
-        const filesByPath = new Map(savedFiles.map((file) => [file.path, file]));
-        const selectedFile = current.selectedPath ? filesByPath.get(current.selectedPath) : null;
-        return {
-          ...current,
-          files: current.files.map((file) => filesByPath.get(file.path) ?? file),
-          draftBody: selectedFile ? selectedFile.body : current.draftBody,
-          saveStatus: selectedFile ? "saved" : current.saveStatus,
-          errorMessage: null,
-        };
-      });
-      setAgentContextComposer((current) => ({
+      const scope = config.scopes.find((entry) => entry.id === snapshot.selectedScopeId) ?? config.scopes[0] ?? null;
+      setAgentInstructionEditor((current) => ({
         ...current,
-        history: result.history,
-        selectedHistoryId: latestAgentContextHistoryForTarget(result.history, targetIds[0] ?? null)?.id ?? current.selectedHistoryId,
+        config,
+        selectedScopeId: scope?.id ?? current.selectedScopeId,
+        draftBody: scope ? editableAgentInstructionBody(scope) : current.draftBody,
+        sourceChoice: scope?.source === "agents" || scope?.source === "claude" ? scope.source : current.sourceChoice,
         saveStatus: "saved",
         errorMessage: null,
       }));
+      setAgentContextLoadErrors(uniqueMessages(config.scopes.flatMap((entry) => entry.errorMessages)));
     } catch (error) {
-      setAgentContextComposer((current) => ({
+      setAgentInstructionEditor((current) => ({
         ...current,
         saveStatus: "error",
         errorMessage: error instanceof Error ? error.message : String(error),
       }));
     }
-  }
-
-  async function restoreAgentContextHistoryEntry(historyId: string) {
-    setAgentContextComposer((current) => ({ ...current, saveStatus: "saving", errorMessage: null }));
-    try {
-      const result = await window.exo.workspace.restoreAgentContextHistory(historyId);
-      const savedFiles = result.files;
-      setAgentContextEditor((current) => {
-        const filesByPath = new Map(savedFiles.map((file) => [file.path, file]));
-        const selectedFile = current.selectedPath ? filesByPath.get(current.selectedPath) : null;
-        return {
-          ...current,
-          files: current.files.map((file) => filesByPath.get(file.path) ?? file),
-          draftBody: selectedFile ? selectedFile.body : current.draftBody,
-          saveStatus: selectedFile ? "saved" : current.saveStatus,
-          errorMessage: null,
-        };
-      });
-      const restoredTargetId = savedFiles[0]?.targetId ?? primaryAgentContextTargetId;
-      setAgentContextComposer((current) => ({
-        ...current,
-        scopeMode: savedFiles[0]?.scope === "global" ? "global" : "selected",
-        selectedTargetIds: restoredTargetId && savedFiles[0]?.scope !== "global" ? [restoredTargetId] : current.selectedTargetIds,
-        body: restoredTargetId ? managedAgentContextBodyForTarget(savedFiles, restoredTargetId) : current.body,
-        history: result.history,
-        historyOpen: false,
-        historyPopoverOpen: false,
-        selectedHistoryId: latestAgentContextHistoryForTarget(result.history, restoredTargetId)?.id ?? null,
-        saveStatus: "saved",
-        errorMessage: null,
-      }));
-    } catch (error) {
-      setAgentContextComposer((current) => ({
-        ...current,
-        saveStatus: "error",
-        errorMessage: error instanceof Error ? error.message : String(error),
-      }));
-    }
-  }
-
-  async function saveAgentContextAdapters(nextAdapters: AgentContextFileAdapter[], options: { clearDraft?: boolean } = {}) {
-    setAgentContextAdapters((current) => ({
-      ...current,
-      adapters: nextAdapters,
-      draftFileName: options.clearDraft ? "" : current.draftFileName,
-      draftLabel: options.clearDraft ? "" : current.draftLabel,
-      saveStatus: "saving",
-      errorMessage: null,
-    }));
-    try {
-      const savedAdapters = await window.exo.workspace.saveAgentContextFileAdapters(nextAdapters);
-      const [settings, files, history, overlays] = await Promise.all([
-        window.exo.workspace.getSettings(),
-        window.exo.workspace.listAgentContextFiles(),
-        window.exo.workspace.listAgentContextHistory(),
-        window.exo.workspace.listAgentInstructionOverlays(),
-      ]);
-      workspaceSettingsRef.current = settings;
-      setAgentContextAdapters({
-        adapters: savedAdapters,
-        draftFileName: "",
-        draftLabel: "",
-        saveStatus: "saved",
-        errorMessage: null,
-      });
-      setAgentContextEditor((current) => {
-        const selectedFile = current.selectedPath ? files.find((file) => file.path === current.selectedPath) : null;
-        return {
-          ...current,
-          files,
-          selectedPath: selectedFile?.path ?? files[0]?.path ?? null,
-          draftBody: selectedFile?.body ?? files[0]?.body ?? "",
-          saveStatus: "idle",
-          errorMessage: null,
-        };
-      });
-      setAgentContextComposer((current) => {
-        const targets = agentContextTargetsFromFiles(files);
-        const globalTarget = targets.find((target) => target.scope === "global") ?? null;
-        const selectableTargetIds = new Set(targets.filter((target) => target.scope !== "global").map((target) => target.id));
-        const selectedTargetIds = current.selectedTargetIds.filter((targetId) => selectableTargetIds.has(targetId));
-        const primaryTargetId = current.scopeMode === "global"
-          ? globalTarget?.id ?? null
-          : selectedTargetIds[0] ?? null;
-        return {
-          ...current,
-          selectedTargetIds,
-          body: primaryTargetId ? managedAgentContextBodyForTarget(files, primaryTargetId) : "",
-          history,
-          selectedHistoryId: latestAgentContextHistoryForTarget(history, primaryTargetId)?.id ?? null,
-          overlays,
-          selectedOverlayId: overlays.find((overlay) => overlay.id === current.selectedOverlayId)?.id ?? overlays[0]?.id ?? null,
-          saveStatus: "idle",
-          errorMessage: null,
-        };
-      });
-    } catch (error) {
-      setAgentContextAdapters((current) => ({
-        ...current,
-        saveStatus: "error",
-        errorMessage: error instanceof Error ? error.message : String(error),
-      }));
-    }
-  }
-
-  function toggleAgentContextAdapter(adapterId: string, enabled: boolean) {
-    const nextAdapters = agentContextAdapters.adapters.map((adapter) => adapter.id === adapterId ? { ...adapter, enabled } : adapter);
-    void saveAgentContextAdapters(nextAdapters, { clearDraft: true });
-  }
-
-  function removeAgentContextAdapter(adapterId: string) {
-    const nextAdapters = agentContextAdapters.adapters.filter((adapter) => adapter.id !== adapterId || adapter.builtIn);
-    void saveAgentContextAdapters(nextAdapters);
-  }
-
-  function addAgentContextAdapter() {
-    const fileName = agentContextAdapters.draftFileName.trim();
-    if (!isSafeAgentContextFileName(fileName)) {
-      setAgentContextAdapters((current) => ({
-        ...current,
-        saveStatus: "error",
-        errorMessage: "Use a file name without slashes, such as soul.md.",
-      }));
-      return;
-    }
-    const id = fileName.toLowerCase().replace(/\.[^.]+$/, "").replace(/[^a-z0-9_-]+/g, "-").replace(/^-|-$/g, "") || "agent-context";
-    const existingIds = new Set(agentContextAdapters.adapters.map((adapter) => adapter.id));
-    let uniqueId = id;
-    for (let index = 2; existingIds.has(uniqueId); index += 1) {
-      uniqueId = `${id}-${index}`;
-    }
-    const nextAdapters = [
-      ...agentContextAdapters.adapters,
-      {
-        id: uniqueId,
-        label: agentContextAdapters.draftLabel.trim() || `${fileName} compatibility`,
-        fileName,
-        enabled: true,
-      },
-    ];
-    void saveAgentContextAdapters(nextAdapters);
   }
 
   async function selectNotesFolderForOnboarding() {
@@ -1977,7 +1505,6 @@ export function App() {
       explorerScale: clampNumber(Number(settingsDialog.explorerScale), 0.82, 1.35),
       exploreIndexSearchOnEnter: settingsDialog.exploreIndexSearchOnEnter,
       indexUpdateStrategy: settingsDialog.indexUpdateStrategy,
-      agentContextFileAdapters: currentSettings?.agentContextFileAdapters ?? agentContextAdapters.adapters,
     };
 
     return nextSettings;
@@ -3554,7 +3081,7 @@ export function App() {
             <div className="dialog-card__message">Workspace paths and index settings apply when you press Apply.</div>
             {workspaceSettingsPartialErrors.length > 0 ? (
               <div className="dialog-card__status dialog-card__status--error" data-testid="agent-context-partial-errors">
-                <div>Some agent context data could not be loaded.</div>
+                      <div>Some agent instruction data could not be loaded.</div>
                 {workspaceSettingsPartialErrors.slice(0, 3).map((message) => (
                   <div key={message}>{message}</div>
                 ))}
@@ -3848,7 +3375,7 @@ export function App() {
                     <div>
                       <div className="dialog-field__label">Agent config</div>
                       <div className="agent-context-summary__copy">
-                        Edit AGENTS.md, CLAUDE.md, provider outputs, runtime overlays, and restore history from one place.
+                        Keep Codex AGENTS.md and Claude CLAUDE.md aligned for global and notes instructions.
                       </div>
                     </div>
                     <button
@@ -3862,24 +3389,23 @@ export function App() {
                   </div>
                   <div className="agent-context-summary__grid">
                     <div className="agent-context-summary__metric">
-                      <span>Scopes</span>
-                      <strong>{agentContextTargets.length}</strong>
-                      <small>Global, notes, and attached projects.</small>
+                      <span>Global</span>
+                      <strong>{agentInstructionStatusLabel(agentInstructionEditor.config?.scopes.find((scope) => scope.id === "global") ?? null)}</strong>
+                      <small>~/.codex/AGENTS.md and ~/.claude/CLAUDE.md</small>
                     </div>
                     <div className="agent-context-summary__metric">
-                      <span>Instruction outputs</span>
-                      <strong>{agentContextOutputLabels.length}</strong>
-                      <small>{agentContextOutputLabels.length > 0 ? agentContextOutputLabels.join(", ") : "No provider outputs found."}</small>
+                      <span>Exocortex</span>
+                      <strong>{agentInstructionStatusLabel(agentInstructionEditor.config?.scopes.find((scope) => scope.id === "exocortex") ?? null)}</strong>
+                      <small>{agentInstructionEditor.config?.scopes.find((scope) => scope.id === "exocortex")?.rootPath ?? "No notes folder selected."}</small>
                     </div>
                     <div className="agent-context-summary__metric">
-                      <span>Runtime overlays</span>
-                      <strong>{agentContextComposer.overlays.length}</strong>
-                      <small>Generated under .exo/instructions.</small>
+                      <span>Outputs</span>
+                      <strong>2</strong>
+                      <small>AGENTS.md and CLAUDE.md only.</small>
                     </div>
                   </div>
                   <div className="agent-context-summary__footer">
-                    <span>{latestAgentContextHistory ? `Last managed change ${formatAgentContextHistoryTime(latestAgentContextHistory.createdAt)}` : "No managed instruction history yet."}</span>
-                    <span>{agentContextEditor.files.filter((file) => file.exists).length} existing file{agentContextEditor.files.filter((file) => file.exists).length === 1 ? "" : "s"}</span>
+                    <span>Exo writes only the selected layer and leaves arbitrary project agent files alone.</span>
                   </div>
                 </div>
               ) : null}
@@ -4165,7 +3691,7 @@ export function App() {
             <div className="dialog-card__header">
               <div>
                 <div className="dialog-card__title">Agent Config Editor</div>
-                <div className="dialog-card__message">Manage provider instruction files across global, notes, and project scopes.</div>
+                <div className="dialog-card__message">Edit the shared instructions Exo keeps aligned for Codex and Claude.</div>
               </div>
               <button
                 aria-label="Close agent config editor"
@@ -4180,559 +3706,116 @@ export function App() {
             </div>
             {agentContextPartialErrors.length > 0 ? (
               <div className="dialog-card__status dialog-card__status--error" data-testid="agent-context-manager-partial-errors">
-                <div>Some agent context data could not be loaded.</div>
+                <div>Some agent instruction data could not be loaded.</div>
                 {agentContextPartialErrors.slice(0, 3).map((message) => (
                   <div key={message}>{message}</div>
                 ))}
               </div>
             ) : null}
-            <div className="agent-context-manager" data-testid="agent-context-manager-body">
-              <div className="agent-context-manager__main" data-testid="agent-context-composer">
-                <details className="agent-context-manager__section agent-context-manager__section--primary" open>
-                  <summary className="agent-context-settings__details-summary">
-                    <span>
-                      <span className="dialog-field__label">
-                        Unified instructions
-                        <HelpTooltip label="Write shared instructions once, then let Exo update enabled provider files for the selected global, notes, or project scope." />
-                      </span>
-                      <div className="agent-context-manager__section-copy">Use this as the source of truth for what terminal agents should read in the active scope.</div>
-                      </span>
-                    <ChevronDown size={14} />
-                  </summary>
-                  <div className="agent-context-manager__section-body">
-                    <div className="agent-context-scope" data-testid="agent-context-scope-controls">
-                      <div className="agent-context-scope__mode" role="group" aria-label="Instruction scope mode">
-                        <button
-                          className={`agent-context-scope__mode-button ${agentContextComposer.scopeMode === "global" ? "agent-context-scope__mode-button--active" : ""}`}
-                          data-testid="agent-context-scope-global"
-                          disabled={!globalAgentContextTarget}
-                          onClick={() => setAgentContextScopeMode("global")}
-                          type="button"
-                        >
-                          Global
-                        </button>
-                        <button
-                          className={`agent-context-scope__mode-button ${agentContextComposer.scopeMode === "selected" ? "agent-context-scope__mode-button--active" : ""}`}
-                          data-testid="agent-context-scope-selected"
-                          disabled={selectableAgentContextTargets.length === 0}
-                          onClick={() => setAgentContextScopeMode("selected")}
-                          type="button"
-                        >
-                          Selected scopes
-                        </button>
-                      </div>
-                      {agentContextComposer.scopeMode === "selected" ? (
-                        <div className="agent-context-scope__targets" data-testid="agent-context-targets">
-                          {selectableAgentContextTargets.map((target) => (
-                            <label className="agent-context-scope__target" key={target.id}>
-                              <input
-                                checked={agentContextWriteTargetIds.includes(target.id)}
-                                data-testid={`agent-context-target-${target.scope}-${slugifyTestId(target.label)}`}
-                                onChange={(event) => toggleAgentContextWriteTarget(target.id, event.target.checked)}
-                                type="checkbox"
-                              />
-                              <span>
-                                <strong>{target.label}</strong>
-                                <small>{target.rootPath}</small>
-                              </span>
-                            </label>
-                          ))}
-                        </div>
-                      ) : null}
-                      <div className="agent-context-scope__footer">
-                        <span data-testid="agent-context-write-summary">
-                          {agentContextWriteTargetIds.length === 0
-                            ? "No scope selected."
-                            : `Will write ${enabledAgentContextFileNames(agentContextAdapters.adapters).join(", ")} to ${agentContextWriteTargetIds.length} scope${agentContextWriteTargetIds.length === 1 ? "" : "s"}.`}
-                        </span>
-                        <button
-                          className="toolbar-button"
-                          data-testid="agent-context-save-unified"
-                          disabled={agentContextWriteTargetIds.length === 0 || agentContextComposer.saveStatus === "saving"}
-                          onClick={() => void saveUnifiedAgentContext()}
-                          type="button"
-                        >
-                          {agentContextComposer.saveStatus === "saving" ? "Writing…" : agentContextComposer.scopeMode === "global" ? "Write global provider files" : "Write selected scopes"}
-                        </button>
-                      </div>
-                    </div>
-                    <label className="dialog-field agent-context-manager__composer-field">
-                      <span className="dialog-field__label">Instructions for all terminal agents</span>
-                      <textarea
-                        className="dialog-card__input agent-context-settings__composer-textarea"
-                        data-testid="agent-context-unified-editor"
-                        spellCheck={false}
-                        value={agentContextComposer.body}
-                        onChange={(event) =>
-                          setAgentContextComposer((current) => ({
-                            ...current,
-                            body: event.target.value,
-                            saveStatus: "idle",
-                            errorMessage: null,
-                          }))
-                        }
-                      />
-                    </label>
-                    {agentContextComposer.saveStatus === "saved" ? (
-                      <div className="dialog-card__status" data-testid="agent-context-unified-status">Provider files written.</div>
-                    ) : null}
-                    {agentContextComposer.saveStatus === "error" && agentContextComposer.errorMessage ? (
-                      <div className="dialog-card__status dialog-card__status--error">{agentContextComposer.errorMessage}</div>
-                    ) : null}
-                  </div>
-                </details>
-                <details className="agent-context-settings__editor" open>
-                  <summary className="agent-context-settings__details-summary">
-                    <span>
-                      <span className="dialog-field__label">
-                        Provider file editor
-                        <HelpTooltip label="Inspect or patch a specific provider instruction file. Unified writes preserve unmanaged content outside Exo's managed block." />
-                      </span>
-                      <small>{selectedAgentContextFile?.path ?? "Select a provider file."}</small>
-                    </span>
-                    <ChevronDown size={14} />
-                  </summary>
-                  <div className="agent-context-manager__section-body">
-                    <div className="dialog-field__header">
-                      <div />
-                    <div className="dialog-card__actions dialog-card__actions--split">
-                      <div className="agent-context-settings__history-control" data-testid="agent-context-history">
-                        <button
-                          aria-expanded={agentContextComposer.historyPopoverOpen}
-                          aria-label="Managed history"
-                          className="toolbar-button toolbar-button--icon"
-                          data-testid="agent-context-history-toggle"
-                          onClick={() => setAgentContextComposer((current) => ({ ...current, historyPopoverOpen: !current.historyPopoverOpen }))}
-                          title="Managed history"
-                          type="button"
-                        >
-                          <History size={14} />
-                          <span className="agent-context-settings__history-count">{agentContextHistoryForSelectedTarget.length}</span>
-                        </button>
-                        {agentContextComposer.historyPopoverOpen ? (
-                          <div className="agent-context-settings__history-popover" data-testid="agent-context-history-popover">
-                            {agentContextHistoryForSelectedTarget.length > 0 ? (
-                              <>
-                                <div className="agent-context-settings__history-list" data-testid="agent-context-history-list">
-                                  {agentContextHistoryForSelectedTarget.map((entry) => (
-                                    <button
-                                      className={`agent-context-settings__history-entry ${entry.id === selectedAgentContextHistory?.id ? "agent-context-settings__history-entry--active" : ""}`}
-                                      data-testid="agent-context-history-entry"
-                                      key={entry.id}
-                                      onClick={() =>
-                                        setAgentContextComposer((current) => ({
-                                          ...current,
-                                          selectedHistoryId: entry.id,
-                                          historyOpen: true,
-                                        }))
-                                      }
-                                      type="button"
-                                    >
-                                      <span>{formatAgentContextHistoryTime(entry.createdAt)}</span>
-                                      <span>{agentContextHistorySummary(entry)}</span>
-                                    </button>
-                                  ))}
-                                </div>
-                                <div className="dialog-card__actions dialog-card__actions--split">
-                                  <button
-                                    className="toolbar-button"
-                                    data-testid="agent-context-toggle-diff"
-                                    onClick={() => setAgentContextComposer((current) => ({ ...current, historyOpen: !current.historyOpen }))}
-                                    type="button"
-                                  >
-                                    {agentContextComposer.historyOpen ? "Hide diff" : "View diff"}
-                                  </button>
-                                  <button
-                                    className="toolbar-button"
-                                    data-testid="agent-context-restore-history"
-                                    disabled={agentContextComposer.saveStatus === "saving" || !selectedAgentContextHistory}
-                                    onClick={() => selectedAgentContextHistory ? void restoreAgentContextHistoryEntry(selectedAgentContextHistory.id) : undefined}
-                                    type="button"
-                                  >
-                                    Restore
-                                  </button>
-                                </div>
-                                {agentContextComposer.historyOpen && selectedAgentContextHistory ? (
-                                  <pre className="agent-context-settings__diff" data-testid="agent-context-history-diff">
-                                    {formatAgentContextHistoryDiff(selectedAgentContextHistory)}
-                                  </pre>
-                                ) : null}
-                              </>
-                            ) : (
-                              <span>No previous Exo-managed version for this scope.</span>
-                            )}
-                          </div>
-                        ) : null}
-                      </div>
-                      <button
-                        className="toolbar-button"
-                        data-testid="agent-context-insert-exo-snippet"
-                        disabled={!agentContextEditor.selectedPath}
-                        onClick={insertExoAgentContextSnippet}
-                        type="button"
-                      >
-                        Insert Exo snippet
-                      </button>
-                      <button
-                        className="toolbar-button"
-                        data-testid="agent-context-save"
-                        disabled={!agentContextEditor.selectedPath || agentContextEditor.saveStatus === "saving"}
-                        onClick={() => void saveAgentContextDraft()}
-                        type="button"
-                      >
-                        {agentContextEditor.saveStatus === "saving" ? "Saving…" : "Save"}
-                      </button>
-                    </div>
-                  </div>
-                  <div className="agent-context-settings__file-tabs" data-testid="agent-context-file-list">
-                    {agentContextEditor.files.map((file) => (
-                      <button
-                        className={`agent-context-settings__file-tab ${file.path === agentContextEditor.selectedPath ? "agent-context-settings__file-tab--active" : ""}`}
-                        data-testid={`agent-context-file-${file.scope}`}
-                        key={file.id}
-                        onClick={() => selectAgentContextFile(file.path)}
-                        title={file.path}
-                        type="button"
-                      >
-                        <span>{file.label}</span>
-                        <small>{file.providerLabel} · {file.errorMessage ? "Error" : file.exists ? "Existing" : "New"}</small>
-                      </button>
-                    ))}
-                  </div>
-                  <div className="agent-context-settings__path">
-                    {selectedAgentContextFile?.path ?? "No context file selected."}
-                  </div>
-                  <div className="agent-context-settings__signals" data-testid="agent-context-signals">
-                    {agentContextSignals.length > 0 ? (
-                      agentContextSignals.map((signal) => (
-                        <div className={`agent-context-settings__signal agent-context-settings__signal--${signal.kind}`} key={`${signal.kind}:${signal.label}:${signal.detail}`}>
-                          <span>{signal.label}</span>
-                          <span>{signal.detail}</span>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="agent-context-settings__signal agent-context-settings__signal--coverage">
-                        <span>No overlap found</span>
-                        <span>{selectedAgentContextFile ? "Selected file has no obvious duplicate or package-manager conflict with other context files." : "Select a context file to compare."}</span>
-                      </div>
-                    )}
-                  </div>
-                  <textarea
-                    className="dialog-card__input agent-context-settings__textarea"
-                    data-testid="agent-context-editor"
-                    disabled={!agentContextEditor.selectedPath}
-                    spellCheck={false}
-                    value={agentContextEditor.draftBody}
-                    onChange={(event) =>
-                      setAgentContextEditor((current) => ({
-                        ...current,
-                        draftBody: event.target.value,
-                        saveStatus: "idle",
-                        errorMessage: null,
-                      }))
-                    }
-                  />
-                  {agentContextEditor.saveStatus === "saved" ? (
-                    <div className="dialog-card__status" data-testid="agent-context-status">Saved.</div>
-                  ) : null}
-                  {agentContextEditor.saveStatus === "error" && agentContextEditor.errorMessage ? (
-                    <div className="dialog-card__status dialog-card__status--error">{agentContextEditor.errorMessage}</div>
-                  ) : null}
-                  </div>
-                </details>
-                <details className="agent-context-settings__editor agent-context-settings__editor--config" data-testid="agent-managed-config-editor">
-                  <summary className="agent-context-settings__details-summary" data-testid="agent-managed-config-summary">
-                    <span>
-                      <span className="dialog-field__label">
-                        Managed config editor
-                        <HelpTooltip label="Edit launch-adjacent provider config such as MCP server settings for a selected global, notes, or project scope." />
-                      </span>
-                      <small>{selectedAgentManagedConfig?.label ?? "Select a managed config from the right panel."}</small>
-                    </span>
-                    <ChevronDown size={14} />
-                  </summary>
-                  <div className="agent-context-manager__section-body">
-                  <div className="dialog-field__header">
+            <div className="agent-config-editor" data-testid="agent-context-manager-body">
+              <div className="agent-config-editor__scope" data-testid="agent-context-scope-controls">
+                <span className="dialog-field__label">Scope</span>
+                <div className="agent-config-editor__scope-buttons" role="group" aria-label="Agent instruction scope">
+                  {agentInstructionEditor.config?.scopes.map((scope) => (
+                    <button
+                      className={`agent-config-editor__scope-button ${scope.id === selectedAgentInstructionScope?.id ? "agent-config-editor__scope-button--active" : ""}`}
+                      data-testid={`agent-context-scope-${scope.id}`}
+                      key={scope.id}
+                      onClick={() => selectAgentInstructionScope(scope.id)}
+                      type="button"
+                    >
+                      <strong>{scope.label}</strong>
+                      <small>{scope.description}</small>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {selectedAgentInstructionScope ? (
+                <>
+                  <div className="agent-config-editor__status" data-testid="agent-config-status">
                     <div>
-                      <div className="agent-context-manager__section-copy">{selectedAgentManagedConfig?.label ?? "No managed config selected."}</div>
+                      <span className="dialog-field__label">{agentInstructionStatusLabel(selectedAgentInstructionScope)}</span>
+                      <div className="agent-config-editor__path">{selectedAgentInstructionScope.rootPath}</div>
                     </div>
-                    <button
-                      className="toolbar-button"
-                      data-testid="agent-managed-config-save"
-                      disabled={!agentManagedConfigs.selectedPath || agentManagedConfigs.saveStatus === "saving"}
-                      onClick={() => void saveAgentManagedConfigDraft()}
-                      type="button"
-                    >
-                      {agentManagedConfigs.saveStatus === "saving" ? "Saving…" : "Save config"}
-                    </button>
-                  </div>
-                  <div className="agent-context-settings__file-tabs" data-testid="agent-managed-config-list">
-                    {agentManagedConfigs.files.map((file) => (
-                      <button
-                        className={`agent-context-settings__file-tab ${file.path === agentManagedConfigs.selectedPath ? "agent-context-settings__file-tab--active" : ""}`}
-                        data-testid={`agent-managed-config-${file.scope}`}
-                        key={file.id}
-                        onClick={() => selectAgentManagedConfigFile(file.path)}
-                        title={file.path}
-                        type="button"
-                      >
-                        <span>{file.label}</span>
-                        <small>{file.provider} · {file.category.toUpperCase()} · {file.errorMessage ? "Error" : file.exists ? "Existing" : "New"}</small>
-                      </button>
-                    ))}
-                  </div>
-                  <div className="agent-context-settings__path">
-                    {selectedAgentManagedConfig?.path ?? "No config file selected."}
-                  </div>
-                  {selectedManagedConfigIsMcp ? (
-                    <div className="agent-mcp-editor" data-testid="agent-mcp-editor">
-                      <div className="dialog-field__header">
-                        <span className="dialog-field__label">MCP servers</span>
-                        <select
-                          className="dialog-card__input agent-context-settings__target"
-                          data-testid="agent-mcp-server-select"
-                          value={mcpServerEditor.serverName}
-                          onChange={(event) =>
-                            setMcpServerEditor(mcpServerEditorStateFromBody(agentManagedConfigs.draftBody, event.target.value))
-                          }
-                        >
-                          {managedMcpServerNames.length === 0 ? <option value={mcpServerEditor.serverName}>{mcpServerEditor.serverName || "exo"}</option> : null}
-                          {managedMcpServerNames.map((serverName) => (
-                            <option key={serverName} value={serverName}>{serverName}</option>
-                          ))}
-                        </select>
+                    <div className="agent-config-editor__files">
+                      <div>
+                        <strong>AGENTS.md</strong>
+                        <span>{selectedAgentInstructionScope.files.agents.exists ? "Existing" : "Missing"}</span>
+                        <small>{selectedAgentInstructionScope.files.agents.path}</small>
                       </div>
-                      <div className="agent-mcp-editor__grid">
-                        <label className="dialog-field">
-                          <span className="dialog-field__label">Server name</span>
-                          <input
-                            className="dialog-card__input"
-                            data-testid="agent-mcp-server-name"
-                            value={mcpServerEditor.serverName}
-                            onChange={(event) =>
-                              setMcpServerEditor((current) => ({ ...current, serverName: event.target.value, errorMessage: null }))
-                            }
-                          />
-                        </label>
-                        <label className="dialog-field">
-                          <span className="dialog-field__label">Command</span>
-                          <input
-                            className="dialog-card__input"
-                            data-testid="agent-mcp-server-command"
-                            value={mcpServerEditor.command}
-                            onChange={(event) =>
-                              setMcpServerEditor((current) => ({ ...current, command: event.target.value, errorMessage: null }))
-                            }
-                          />
-                        </label>
+                      <div>
+                        <strong>CLAUDE.md</strong>
+                        <span>{selectedAgentInstructionScope.files.claude.exists ? "Existing" : "Missing"}</span>
+                        <small>{selectedAgentInstructionScope.files.claude.path}</small>
                       </div>
-                      <div className="agent-mcp-editor__grid">
-                        <label className="dialog-field">
-                          <span className="dialog-field__label">Args</span>
-                          <textarea
-                            className="dialog-card__input agent-mcp-editor__textarea"
-                            data-testid="agent-mcp-server-args"
-                            spellCheck={false}
-                            value={mcpServerEditor.argsText}
-                            onChange={(event) =>
-                              setMcpServerEditor((current) => ({ ...current, argsText: event.target.value, errorMessage: null }))
-                            }
-                          />
-                        </label>
-                        <label className="dialog-field">
-                          <span className="dialog-field__label">Env</span>
-                          <textarea
-                            className="dialog-card__input agent-mcp-editor__textarea"
-                            data-testid="agent-mcp-server-env"
-                            spellCheck={false}
-                            value={mcpServerEditor.envText}
-                            onChange={(event) =>
-                              setMcpServerEditor((current) => ({ ...current, envText: event.target.value, errorMessage: null }))
-                            }
-                          />
-                        </label>
-                      </div>
+                    </div>
+                  </div>
+
+                  {selectedAgentInstructionScope.status === "different" ? (
+                    <div className="dialog-card__status dialog-card__status--warning" data-testid="agent-config-divergence">
+                      <div>AGENTS.md and CLAUDE.md are different. Choose a source, or edit the text below before saving both files.</div>
                       <div className="dialog-card__actions dialog-card__actions--split">
-                        <button
-                          className="toolbar-button"
-                          data-testid="agent-mcp-server-save"
-                          disabled={agentManagedConfigs.saveStatus === "saving"}
-                          onClick={() => void saveStructuredMcpServer()}
-                          type="button"
-                        >
-                          Save MCP server
-                        </button>
-                        <button
-                          className="toolbar-button"
-                          data-testid="agent-mcp-server-remove"
-                          disabled={agentManagedConfigs.saveStatus === "saving" || !managedMcpServerNames.includes(mcpServerEditor.serverName)}
-                          onClick={() => void removeStructuredMcpServer()}
-                          type="button"
-                        >
-                          Remove server
-                        </button>
+                        <button className="toolbar-button" data-testid="agent-config-use-agents" onClick={() => useAgentInstructionSource("agents")} type="button">Use AGENTS.md</button>
+                        <button className="toolbar-button" data-testid="agent-config-use-claude" onClick={() => useAgentInstructionSource("claude")} type="button">Use CLAUDE.md</button>
                       </div>
-                      {mcpServerEditor.errorMessage ? (
-                        <div className="dialog-card__status dialog-card__status--error">{mcpServerEditor.errorMessage}</div>
-                      ) : null}
                     </div>
                   ) : null}
-                  <textarea
-                    className="dialog-card__input agent-context-settings__textarea agent-context-settings__textarea--config"
-                    data-testid="agent-managed-config-textarea"
-                    disabled={!agentManagedConfigs.selectedPath}
-                    spellCheck={false}
-                    value={agentManagedConfigs.draftBody}
-                    onChange={(event) => {
-                      const nextBody = event.target.value;
-                      setAgentManagedConfigs((current) => ({
-                        ...current,
-                        draftBody: nextBody,
-                        saveStatus: "idle",
-                        errorMessage: null,
-                      }));
-                      if (selectedManagedConfigIsMcp) {
-                        setMcpServerEditor(mcpServerEditorStateFromBody(nextBody, mcpServerEditor.serverName));
-                      }
-                    }}
-                  />
-                  {agentManagedConfigs.saveStatus === "saved" ? (
-                    <div className="dialog-card__status" data-testid="agent-managed-config-status">Config saved.</div>
+
+                  {selectedAgentInstructionScope.status === "missing-agents" || selectedAgentInstructionScope.status === "missing-claude" ? (
+                    <div className="dialog-card__status" data-testid="agent-config-missing">
+                      Saving will create the missing provider file from the editor content.
+                    </div>
                   ) : null}
-                  {agentManagedConfigs.saveStatus === "error" && agentManagedConfigs.errorMessage ? (
-                    <div className="dialog-card__status dialog-card__status--error">{agentManagedConfigs.errorMessage}</div>
-                  ) : null}
-                  </div>
-                </details>
-              </div>
-              <div className="agent-context-manager__side">
-                <details className="agent-context-manager__section agent-context-adapters" data-testid="agent-context-adapters" open>
-                  <summary className="agent-context-settings__details-summary">
-                    <span>
-                    <span className="dialog-field__label">
-                      Instruction outputs
-                      <HelpTooltip label="Enabled outputs are the provider files Exo writes when you use Write provider files." />
-                    </span>
-                    <small>Choose which provider-compatible files Exo should generate.</small>
-                    </span>
-                    <ChevronDown size={14} />
-                  </summary>
-                  <div className="agent-context-manager__section-body">
-                  <div className="agent-context-adapters__list">
-                    {agentContextAdapters.adapters.map((adapter) => (
-                      <div className="agent-context-adapters__row" key={adapter.id}>
-                        <label className="agent-context-adapters__toggle">
-                          <input
-                            checked={adapter.enabled}
-                            data-testid={`agent-context-adapter-${adapter.id}`}
-                            disabled={agentContextAdapters.saveStatus === "saving"}
-                            onChange={(event) => toggleAgentContextAdapter(adapter.id, event.target.checked)}
-                            type="checkbox"
-                          />
-                          <span>
-                            <strong>{adapter.fileName}</strong>
-                            <small>{adapter.label}</small>
-                          </span>
-                        </label>
-                        {!adapter.builtIn ? (
-                          <button
-                            aria-label={`Remove ${adapter.fileName}`}
-                            className="dialog-card__close"
-                            disabled={agentContextAdapters.saveStatus === "saving"}
-                            onClick={() => removeAgentContextAdapter(adapter.id)}
-                            type="button"
-                          >
-                            <X size={14} />
-                          </button>
-                        ) : null}
-                      </div>
-                    ))}
-                  </div>
-                  <div className="agent-context-adapters__add">
-                    <input
-                      className="dialog-card__input"
-                      data-testid="agent-context-adapter-file-name"
-                      placeholder="soul.md"
-                      value={agentContextAdapters.draftFileName}
+
+                  <label className="dialog-field agent-config-editor__editor-field">
+                    <span className="dialog-field__label">Agent instructions</span>
+                    <textarea
+                      className="dialog-card__input agent-config-editor__textarea"
+                      data-testid="agent-context-unified-editor"
+                      spellCheck={false}
+                      value={agentInstructionEditor.draftBody}
                       onChange={(event) =>
-                        setAgentContextAdapters((current) => ({
+                        setAgentInstructionEditor((current) => ({
                           ...current,
-                          draftFileName: event.target.value,
+                          draftBody: event.target.value,
+                          sourceChoice: null,
                           saveStatus: "idle",
                           errorMessage: null,
                         }))
                       }
                     />
-                    <input
-                      className="dialog-card__input"
-                      data-testid="agent-context-adapter-label"
-                      placeholder="Soul compatibility"
-                      value={agentContextAdapters.draftLabel}
-                      onChange={(event) =>
-                        setAgentContextAdapters((current) => ({
-                          ...current,
-                          draftLabel: event.target.value,
-                          saveStatus: "idle",
-                          errorMessage: null,
-                        }))
-                      }
-                    />
+                  </label>
+
+                  <div className="dialog-card__actions dialog-card__actions--split">
                     <button
                       className="toolbar-button"
-                      data-testid="agent-context-adapter-add"
-                      disabled={agentContextAdapters.saveStatus === "saving" || !agentContextAdapters.draftFileName.trim()}
-                      onClick={addAgentContextAdapter}
+                      data-testid="agent-config-load-template"
+                      onClick={loadAgentInstructionTemplate}
                       type="button"
                     >
-                      Add output
+                      Load Exo starter template
+                    </button>
+                    <button
+                      className="toolbar-button"
+                      data-testid="agent-context-save-unified"
+                      disabled={agentInstructionEditor.saveStatus === "saving" || selectedAgentInstructionScope.status === "error"}
+                      onClick={() => void saveAgentInstructionDraft()}
+                      type="button"
+                    >
+                      {agentInstructionEditor.saveStatus === "saving" ? "Saving…" : "Save both files"}
                     </button>
                   </div>
-                  {agentContextAdapters.saveStatus === "saved" ? (
-                    <div className="dialog-card__status" data-testid="agent-context-adapters-status">Instruction outputs updated.</div>
+                  {agentInstructionEditor.saveStatus === "saved" ? (
+                    <div className="dialog-card__status" data-testid="agent-context-unified-status">AGENTS.md and CLAUDE.md are aligned.</div>
                   ) : null}
-                  {agentContextAdapters.saveStatus === "error" && agentContextAdapters.errorMessage ? (
-                    <div className="dialog-card__status dialog-card__status--error">{agentContextAdapters.errorMessage}</div>
+                  {agentInstructionEditor.saveStatus === "error" && agentInstructionEditor.errorMessage ? (
+                    <div className="dialog-card__status dialog-card__status--error">{agentInstructionEditor.errorMessage}</div>
                   ) : null}
-                  </div>
-                </details>
-                <details className="agent-context-manager__section agent-context-settings__overlay" data-testid="agent-instruction-overlay-preview">
-                  <summary className="agent-context-settings__details-summary">
-                    <span>
-                      <span className="dialog-field__label">
-                      Generated overlay
-                      <HelpTooltip label="Runtime overlays are generated by Exo and passed to terminal agent launches; they do not replace provider files." />
-                      </span>
-                      <small>{selectedInstructionOverlay?.label ?? "No overlay generated."}</small>
-                    </span>
-                    <ChevronDown size={14} />
-                  </summary>
-                  <div className="dialog-field__header">
-                    <select
-                      className="dialog-card__input agent-context-settings__target"
-                      data-testid="agent-instruction-overlay-select"
-                      value={selectedInstructionOverlay?.id ?? ""}
-                      onChange={(event) =>
-                        setAgentContextComposer((current) => ({
-                          ...current,
-                          selectedOverlayId: event.target.value || null,
-                        }))
-                      }
-                    >
-                      {agentContextComposer.overlays.map((overlay) => (
-                        <option key={overlay.id} value={overlay.id}>
-                          {overlay.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="agent-context-settings__path">
-                    {selectedInstructionOverlay?.path ?? "No overlay generated."}
-                  </div>
-                  <pre className="agent-context-settings__overlay-body" data-testid="agent-instruction-overlay-body">
-                    {selectedInstructionOverlay?.body ?? ""}
-                  </pre>
-                </details>
-              </div>
+                </>
+              ) : (
+                <div className="dialog-card__status dialog-card__status--error">No agent instruction scope is available.</div>
+              )}
             </div>
           </div>
         </div>
@@ -4851,280 +3934,32 @@ async function loadProjectGitChanges(projectRoots: WorkspaceModel["projectRoots"
   );
 }
 
-function agentContextTargetsFromFiles(files: AgentContextFile[]) {
-  const targets = new Map<string, { id: string; scope: AgentContextFile["scope"]; label: string; rootPath: string }>();
-  for (const file of files) {
-    if (!targets.has(file.targetId)) {
-      targets.set(file.targetId, {
-        id: file.targetId,
-        scope: file.scope,
-        label: `${file.targetLabel} (${file.scope})`,
-        rootPath: file.rootPath,
-      });
-    }
-  }
-  return [...targets.values()];
-}
-
-function enabledAgentContextFileNames(adapters: AgentContextFileAdapter[]) {
-  const fileNames = adapters.filter((adapter) => adapter.enabled).map((adapter) => adapter.fileName);
-  return fileNames.length > 0 ? fileNames : ["provider files"];
-}
-
-function slugifyTestId(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-}
-
-const EXO_AGENT_CONTEXT_START_PREFIX = "<!-- exo:managed:start";
-const EXO_AGENT_CONTEXT_END = "<!-- exo:managed:end -->";
-const EXO_AGENT_CONTEXT_BODY_PATTERN = /<!-- exo:managed:start[\s\S]*?-->\s*# Agent Instructions\s*(?:<!--[\s\S]*?-->)?\s*([\s\S]*?)\s*<!-- exo:managed:end -->/;
-
-function managedAgentContextBodyForTarget(files: AgentContextFile[], targetId: string): string {
-  const targetFiles = files.filter((file) => file.targetId === targetId);
-  for (const file of targetFiles) {
-    const body = extractManagedAgentContextBody(file.body);
-    if (body.length > 0) {
-      return body;
-    }
-  }
-  return "";
-}
-
-function extractManagedAgentContextBody(body: string): string {
-  if (!body.includes(EXO_AGENT_CONTEXT_START_PREFIX) || !body.includes(EXO_AGENT_CONTEXT_END)) {
-    return "";
-  }
-  const match = EXO_AGENT_CONTEXT_BODY_PATTERN.exec(body);
-  return match?.[1]?.trim() ?? "";
-}
-
 function uniqueMessages(messages: string[]): string[] {
   return [...new Set(messages.map((message) => message.trim()).filter(Boolean))];
 }
 
-function agentContextHistoryEntriesForTarget(history: AgentContextHistoryEntry[], targetId: string | null) {
-  if (!targetId) {
-    return [];
+function editableAgentInstructionBody(scope: AgentInstructionScope): string {
+  return scope.status === "different" || scope.status === "error" ? "" : scope.body;
+}
+
+function agentInstructionStatusLabel(scope: AgentInstructionScope | null): string {
+  if (!scope) {
+    return "Unavailable";
   }
-  return history
-    .filter((entry) => entry.targetId === targetId)
-    .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
-}
-
-function latestAgentContextHistoryForTarget(history: AgentContextHistoryEntry[], targetId: string | null) {
-  return agentContextHistoryEntriesForTarget(history, targetId)[0] ?? null;
-}
-
-function latestAgentContextHistoryEntry(history: AgentContextHistoryEntry[]) {
-  return [...history].sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] ?? null;
-}
-
-function isSafeAgentContextFileName(fileName: string) {
-  return Boolean(fileName.trim()) && !fileName.includes("/") && !fileName.includes("\\") && !fileName.startsWith(".");
-}
-
-function formatAgentContextHistoryTime(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
+  switch (scope.status) {
+    case "aligned":
+      return "Aligned";
+    case "different":
+      return "Different";
+    case "missing-agents":
+      return "Missing AGENTS.md";
+    case "missing-claude":
+      return "Missing CLAUDE.md";
+    case "missing-both":
+      return "Not set up";
+    case "error":
+      return "Error";
   }
-  return date.toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
-function formatAgentContextHistoryDiff(entry: AgentContextHistoryEntry): string {
-  return [
-    "Previous",
-    ...entry.previousBody.split(/\r?\n/).map((line) => `- ${line}`),
-    "",
-    "Current",
-    ...entry.nextBody.split(/\r?\n/).map((line) => `+ ${line}`),
-  ].join("\n");
-}
-
-function agentContextHistorySummary(entry: AgentContextHistoryEntry): string {
-  const previous = entry.previousBody.trim();
-  const next = entry.nextBody.trim();
-  if (!previous && next) {
-    return "Created managed body";
-  }
-  if (previous && !next) {
-    return "Cleared managed body";
-  }
-  return "Updated managed body";
-}
-
-interface ManagedMcpServerConfig {
-  command?: unknown;
-  args?: unknown;
-  env?: unknown;
-}
-
-interface ManagedMcpConfig {
-  mcpServers: Record<string, ManagedMcpServerConfig>;
-  [key: string]: unknown;
-}
-
-function parseManagedMcpConfig(body: string): { ok: true; value: ManagedMcpConfig } | { ok: false; error: string } {
-  if (!body.trim()) {
-    return { ok: true, value: { mcpServers: {} } };
-  }
-  try {
-    const parsed = JSON.parse(body) as unknown;
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return { ok: false, error: "MCP config must be a JSON object." };
-    }
-    const value = parsed as Record<string, unknown>;
-    const rawServers = value.mcpServers;
-    if (rawServers !== undefined && (!rawServers || typeof rawServers !== "object" || Array.isArray(rawServers))) {
-      return { ok: false, error: "mcpServers must be an object." };
-    }
-    return {
-      ok: true,
-      value: {
-        ...value,
-        mcpServers: rawServers ? rawServers as Record<string, ManagedMcpServerConfig> : {},
-      },
-    };
-  } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : "Invalid JSON." };
-  }
-}
-
-function managedMcpServerNamesFromBody(body: string): string[] {
-  const parsed = parseManagedMcpConfig(body);
-  return parsed.ok ? Object.keys(parsed.value.mcpServers) : [];
-}
-
-function mcpServerEditorStateFromBody(body: string, preferredServerName?: string | null): McpServerEditorState {
-  const parsed = parseManagedMcpConfig(body);
-  if (!parsed.ok) {
-    return {
-      serverName: preferredServerName || "exo",
-      command: "",
-      argsText: "",
-      envText: "",
-      errorMessage: parsed.error,
-    };
-  }
-  const serverName = preferredServerName && parsed.value.mcpServers[preferredServerName]
-    ? preferredServerName
-    : Object.keys(parsed.value.mcpServers)[0] ?? preferredServerName ?? "exo";
-  const server = parsed.value.mcpServers[serverName] ?? {};
-  const command = typeof server.command === "string" ? server.command : "";
-  const argsText = Array.isArray(server.args) ? server.args.filter((arg): arg is string => typeof arg === "string").join("\n") : "";
-  const envText = server.env && typeof server.env === "object" && !Array.isArray(server.env)
-    ? Object.entries(server.env)
-        .filter((entry): entry is [string, string] => typeof entry[1] === "string")
-        .map(([key, value]) => `${key}=${value}`)
-        .join("\n")
-    : "";
-  return {
-    serverName,
-    command,
-    argsText,
-    envText,
-    errorMessage: null,
-  };
-}
-
-function envTextToRecord(value: string): Record<string, string> {
-  const env: Record<string, string> = {};
-  for (const line of value.split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed) {
-      continue;
-    }
-    const separator = trimmed.indexOf("=");
-    if (separator <= 0) {
-      continue;
-    }
-    env[trimmed.slice(0, separator)] = trimmed.slice(separator + 1);
-  }
-  return env;
-}
-
-function summarizeAgentContextSignals(files: AgentContextFile[], selectedPath: string | null): AgentContextSignal[] {
-  const selected = files.find((file) => file.path === selectedPath);
-  if (!selected) {
-    return [];
-  }
-
-  const selectedLines = normalizedInstructionLines(selected.body);
-  const selectedPackageManagers = packageManagersMentioned(selected.body);
-  const otherFiles = files.filter((file) => file.path !== selected.path && file.body.trim().length > 0);
-  const signals: AgentContextSignal[] = [];
-
-  for (const other of otherFiles) {
-    const otherLines = new Set(normalizedInstructionLines(other.body));
-    const duplicateLines = selectedLines.filter((line) => otherLines.has(line)).slice(0, 3);
-    if (duplicateLines.length > 0) {
-      signals.push({
-        kind: "duplicate",
-        label: `Duplicate with ${other.label}`,
-        detail: duplicateLines.join(" / "),
-      });
-    }
-  }
-
-  for (const other of otherFiles) {
-    const otherPackageManagers = packageManagersMentioned(other.body);
-    const allManagers = new Set([...selectedPackageManagers, ...otherPackageManagers]);
-    if (allManagers.size > 1 && selectedPackageManagers.length > 0 && otherPackageManagers.length > 0) {
-      signals.push({
-        kind: "conflict",
-        label: `Package manager mismatch with ${other.label}`,
-        detail: [...allManagers].join(", "),
-      });
-    }
-  }
-
-  if (selected.scope !== "global") {
-    const globalFiles = files.filter((file) => file.scope === "global" && file.body.trim().length > 0);
-    if (globalFiles.length > 0) {
-      signals.push({
-        kind: "coverage",
-        label: "Global context applies",
-        detail: `Compare this local file with ${globalFiles.map((file) => file.label).join(", ")} before duplicating broad instructions.`,
-      });
-    }
-  }
-
-  return signals.slice(0, 6);
-}
-
-function normalizedInstructionLines(body: string): string[] {
-  const seen = new Set<string>();
-  return body
-    .split(/\r?\n/)
-    .map((line) => line.replace(/^[-*]\s+/, "").trim().toLowerCase())
-    .filter((line) => line.length >= 14 && !line.startsWith("#"))
-    .filter((line) => {
-      if (seen.has(line)) {
-        return false;
-      }
-      seen.add(line);
-      return true;
-    });
-}
-
-function packageManagersMentioned(body: string): string[] {
-  const lower = body.toLowerCase();
-  return ["pnpm", "npm", "yarn", "bun"].filter((manager) => new RegExp(`\\b${manager}\\b`).test(lower));
-}
-
-function exoAgentContextSnippet(): string {
-  return [
-    "## Exo Workspace Tools",
-    "",
-    "- Use `exo project-roots list` to inspect attached project roots before assuming workspace scope.",
-    "- Use Exo MCP search/read tools for notes context when available instead of scanning unrelated folders.",
-    "- Prefer focused edits, run the relevant tests, and leave a concise summary of changed files and verification.",
-  ].join("\n");
 }
 
 function createWorkspaceLayoutSnapshot(input: WorkspaceLayoutSettings): WorkspaceLayoutSettings {

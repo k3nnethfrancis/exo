@@ -116,6 +116,5 @@ function workspaceSettings(): CommandServerOptions["onGetSettings"] extends () =
     explorerScale: 1,
     exploreIndexSearchOnEnter: false,
     indexUpdateStrategy: "on-save",
-    agentContextFileAdapters: [],
   };
 }

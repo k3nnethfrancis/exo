@@ -61,17 +61,14 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
   - Managed history and generated overlay preview added density without supporting the primary edit path.
   - The provider editor needed more vertical space.
 - Fixed:
-  - Moved provider file selection into a tab strip directly above the provider editor.
-  - Replaced managed history with a compact history popover control near the provider editor actions.
-  - Collapsed managed config editing and generated overlay details by default.
-  - Increased provider editor height and reduced top-section density.
-  - Fixed the unified instructions textarea being clipped after the density pass by reserving real layout height instead of allowing overlap.
-  - Converted the main editor blocks and side-rail blocks into collapsible sections so users can reclaim vertical space.
-  - Moved managed config selection into the managed config editor as the same tab-strip pattern used by provider files.
-  - Added internal scroll containment for editor panels, tab strips, and textareas so long content scrolls inside the relevant component box.
+  - Replaced the broad agent-context workbench with a minimal sync editor for two managed layers: global instructions and the selected notes/exocortex root.
+  - Removed provider-output adapters, arbitrary project-scope writes, raw provider file editing, managed config editing, history UI, generated-overlay preview, and future-file placeholders from the primary feature.
+  - The editor now writes only `AGENTS.md` and `CLAUDE.md` for the selected layer, detects divergence, lets the user choose either file as the source, and aligns both files on save.
+  - Global writes now target provider-owned global paths: `~/.codex/AGENTS.md` and `~/.claude/CLAUDE.md`.
+  - Exocortex writes target the active notes root: `AGENTS.md` and `CLAUDE.md`.
 - QA coverage:
-  - Focused Electron QA covers agent-config partial-load states, narrow-error layout, provider file editing, visible and scrollable unified editor height, history popover, managed config expansion/tab selection, and generated overlay expansion.
-  - Live app QA verified the editor opens with provider/config tabs attached to their editors, collapsible sections working, and the unified instructions editor visible.
+  - Focused Electron QA covers partial-load states, narrow-error layout, global sync, exocortex divergence resolution, internal editor scrolling, and verifies `soul.md`/project files are not created.
+  - Live app QA verified the simplified editor opens, scope switching works, divergence controls are visible, and the editor is scrollable.
 
 ### EXO-ISSUE-016: Project-file saves have no visible confirmation
 

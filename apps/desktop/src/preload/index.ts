@@ -43,16 +43,9 @@ const api: DesktopApi = {
     searchIndex: (query, options) => ipcRenderer.invoke("workspace:search-index", query, options),
     searchTag: (tag) => ipcRenderer.invoke("workspace:search-tag", tag),
     getGitStatus: (rootPath) => ipcRenderer.invoke("workspace:get-git-status", rootPath),
-    listAgentContextFiles: () => ipcRenderer.invoke("workspace:list-agent-context-files"),
-    listAgentContextFileAdapters: () => ipcRenderer.invoke("workspace:list-agent-context-file-adapters"),
-    saveAgentContextFileAdapters: (adapters) => ipcRenderer.invoke("workspace:save-agent-context-file-adapters", adapters),
-    listAgentManagedConfigFiles: () => ipcRenderer.invoke("workspace:list-agent-managed-config-files"),
-    saveAgentManagedConfigFile: (filePath, body) => ipcRenderer.invoke("workspace:save-agent-managed-config-file", filePath, body),
-    listAgentContextHistory: () => ipcRenderer.invoke("workspace:list-agent-context-history"),
+    getAgentInstructionConfig: () => ipcRenderer.invoke("workspace:get-agent-instruction-config"),
+    saveAgentInstructionConfig: (input) => ipcRenderer.invoke("workspace:save-agent-instruction-config", input),
     listAgentInstructionOverlays: () => ipcRenderer.invoke("workspace:list-agent-instruction-overlays"),
-    saveAgentContextFile: (filePath, body) => ipcRenderer.invoke("workspace:save-agent-context-file", filePath, body),
-    saveAgentContextBundle: (input) => ipcRenderer.invoke("workspace:save-agent-context-bundle", input),
-    restoreAgentContextHistory: (historyId) => ipcRenderer.invoke("workspace:restore-agent-context-history", historyId),
     createFile: (targetPath, content) => ipcRenderer.invoke("workspace:create-file", targetPath, content),
     createDirectory: (targetPath) => ipcRenderer.invoke("workspace:create-directory", targetPath),
     renamePath: (sourcePath, nextPath) => ipcRenderer.invoke("workspace:rename-path", sourcePath, nextPath),
@@ -120,10 +113,6 @@ const api: DesktopApi = {
     openExternal: (target) => ipcRenderer.invoke("shell:open-external", target),
   },
 };
-
-if (process.env.EXO_TEST_OMIT_MANAGED_CONFIG_API === "1") {
-  delete (api.workspace as Partial<typeof api.workspace>).listAgentManagedConfigFiles;
-}
 
 contextBridge.exposeInMainWorld("exo", api);
 

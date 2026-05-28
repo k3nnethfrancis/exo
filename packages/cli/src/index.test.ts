@@ -53,7 +53,6 @@ describe("cli package", () => {
         explorerScale: 1,
         exploreIndexSearchOnEnter: false,
         indexUpdateStrategy: "on-save",
-        agentContextFileAdapters: [],
       }, { EXO_USER_DATA_PATH: userDataPath });
 
       const exitCode = await runCli(["node", "exo-cli", "runtime", "status"], {

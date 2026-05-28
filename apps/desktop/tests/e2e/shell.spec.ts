@@ -414,7 +414,7 @@ test("opens workspace settings from the sidebar", async () => {
   await cleanup();
 });
 
-test("opens workspace settings with partial agent context discovery errors", async () => {
+test("opens workspace settings with partial agent instruction discovery errors", async () => {
   const { page, workspaceRoot, cleanup } = await launchExoFixture({
     env: {
       EXO_INDEX_ENABLED: "0",
@@ -422,53 +422,27 @@ test("opens workspace settings with partial agent context discovery errors", asy
       EXO_INDEXED_ROOTS: "[]",
     },
     prepareWorkspace: async (workspaceRoot) => {
-      await mkdir(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"));
+      await mkdir(path.join(workspaceRoot, "notes/test-notes/AGENTS.md"));
     },
   });
 
   try {
     await page.getByTestId("workspace-settings").click();
     await expect(page.getByTestId("workspace-settings-dialog")).toBeVisible();
-    await expect(page.getByTestId("workspace-settings-note-roots")).toContainText("test-notes");
     await page.getByTestId("workspace-settings-tab-agents").click();
     await expect(page.getByTestId("agent-context-settings")).toContainText("Agent config");
-    await expect(page.getByTestId("agent-context-partial-errors")).toContainText("Some agent context data could not be loaded");
-    await expect(page.getByTestId("agent-context-partial-errors")).toContainText("sample-project / AGENTS.md");
+    await expect(page.getByTestId("agent-context-partial-errors")).toContainText("Some agent instruction data could not be loaded");
+    await expect(page.getByTestId("agent-context-partial-errors")).toContainText("Notes AGENTS.md");
     await page.getByTestId("agent-context-open-manager").click();
     await expect(page.getByTestId("agent-context-manager")).toBeVisible();
-    await expect(page.getByTestId("agent-context-manager-partial-errors")).toContainText("sample-project / AGENTS.md");
-    await expect(page.getByTestId("agent-context-composer")).toContainText("Unified instructions");
-    await expect(page.getByTestId("agent-context-file-list")).toContainText("Error");
+    await expect(page.getByTestId("agent-context-manager-partial-errors")).toContainText("Notes AGENTS.md");
+    await expect(page.getByTestId("agent-context-manager-body")).toContainText("Scope");
   } finally {
     await cleanup();
   }
 });
 
-test("opens agent config editor when managed config preload API is unavailable", async () => {
-  const { page, cleanup } = await launchExoFixture({
-    env: {
-      EXO_INDEX_ENABLED: "0",
-      EXO_INDEX_MODE: "off",
-      EXO_INDEXED_ROOTS: "[]",
-      EXO_TEST_OMIT_MANAGED_CONFIG_API: "1",
-    },
-  });
-
-  try {
-    await page.getByTestId("workspace-settings").click();
-    await page.getByTestId("workspace-settings-tab-agents").click();
-    await expect(page.getByTestId("agent-context-partial-errors")).toContainText("Managed config editor is unavailable");
-    await expect(page.getByTestId("workspace-settings-dialog")).not.toContainText("is not a function");
-    await page.getByTestId("agent-context-open-manager").click();
-    await expect(page.getByTestId("agent-context-manager")).toBeVisible();
-    await expect(page.getByTestId("agent-context-manager-partial-errors")).toContainText("latest preload bridge");
-    await expect(page.getByTestId("agent-managed-config-editor")).toContainText("Select a managed config");
-  } finally {
-    await cleanup();
-  }
-});
-
-test("keeps long agent context errors separate from narrow manager controls", async () => {
+test("keeps long agent instruction errors separate from narrow manager controls", async () => {
   const { electronApp, page, cleanup } = await launchExoFixture({
     env: {
       EXO_INDEX_ENABLED: "0",
@@ -479,14 +453,14 @@ test("keeps long agent context errors separate from narrow manager controls", as
 
   try {
     const longError = [
-      "managed agent config files:",
-      "window.exo.workspace.listAgentManagedConfigFiles is not a function after a stale preload bridge restart",
-      "/very/long/workspace/path/with/provider/config/.mcp.json",
-      "restart Exo to reload the preload bundle before editing managed configs",
+      "agent instructions:",
+      "failed to inspect a very long provider instruction path after a stale preload bridge restart",
+      "/very/long/workspace/path/with/provider/instructions/AGENTS.md",
+      "restart Exo to reload the preload bundle before editing agent instructions",
     ].join(" ");
     await electronApp.evaluate(({ ipcMain }, errorMessage) => {
-      ipcMain.removeHandler("workspace:list-agent-managed-config-files");
-      ipcMain.handle("workspace:list-agent-managed-config-files", async () => {
+      ipcMain.removeHandler("workspace:get-agent-instruction-config");
+      ipcMain.handle("workspace:get-agent-instruction-config", async () => {
         throw new Error(errorMessage);
       });
     }, longError);
@@ -497,7 +471,6 @@ test("keeps long agent context errors separate from narrow manager controls", as
     await expect(page.getByTestId("agent-context-manager")).toBeVisible();
     await page.setViewportSize({ width: 720, height: 720 });
     await expect(page.getByTestId("agent-context-manager-partial-errors")).toContainText("stale preload bridge restart");
-    await expect(page.getByTestId("agent-context-composer")).toContainText("Unified instructions");
 
     const errorBox = await page.getByTestId("agent-context-manager-partial-errors").boundingBox();
     const controlsBox = await page.getByTestId("agent-context-scope-controls").boundingBox();
@@ -509,210 +482,60 @@ test("keeps long agent context errors separate from narrow manager controls", as
   }
 });
 
-test("edits agent context files from workspace settings", async () => {
+test("syncs global and exocortex agent instruction files from workspace settings", async () => {
   const { page, workspaceRoot, homeRoot, cleanup } = await launchExoFixture({
     mutable: true,
     prepareWorkspace: async (workspaceRoot) => {
-      await writeFile(
-        path.join(workspaceRoot, "notes/test-notes/AGENTS.md"),
-        "- Always run tests before finishing.\n- Use npm for scripts.\n",
-        "utf8",
-      );
-      await writeFile(
-        path.join(workspaceRoot, "projects/sample-project/AGENTS.md"),
-        "# Existing project context\n- Always run tests before finishing.\n- Use pnpm for scripts.\n",
-        "utf8",
-      );
+      await writeFile(path.join(workspaceRoot, "notes/test-notes/AGENTS.md"), "# Notes agents\nUse notes AGENTS source.\n", "utf8");
+      await writeFile(path.join(workspaceRoot, "notes/test-notes/CLAUDE.md"), "# Notes claude\nUse notes CLAUDE source.\n", "utf8");
     },
   });
 
-  await page.getByTestId("workspace-settings").click();
-  await page.getByTestId("workspace-settings-tab-agents").click();
-  await expect(page.getByTestId("agent-context-settings")).toBeVisible();
-  await expect(page.getByTestId("agent-context-settings")).toContainText("Agent config");
-  await expect(page.getByTestId("agent-context-settings")).toContainText("Instruction outputs");
-  await page.getByTestId("agent-context-open-manager").click();
-  await expect(page.getByTestId("agent-context-manager")).toBeVisible();
-  await expect(page.getByTestId("agent-context-manager")).not.toContainText("Provider outputs");
-  await expect(page.getByTestId("agent-context-history-toggle")).toBeVisible();
-  await expect(page.getByTestId("agent-instruction-overlay-preview")).toContainText("Generated overlay");
-  const unifiedEditorBox = await page.getByTestId("agent-context-unified-editor").boundingBox();
-  expect(unifiedEditorBox).not.toBeNull();
-  expect(unifiedEditorBox!.height).toBeGreaterThan(100);
-  await page.getByTestId("agent-context-unified-editor").fill(Array.from({ length: 24 }, (_, index) => `line ${index + 1}`).join("\n"));
-  await expect.poll(async () =>
-    page.getByTestId("agent-context-unified-editor").evaluate((node) => {
-      const textarea = node as HTMLTextAreaElement;
-      textarea.scrollTop = textarea.scrollHeight;
-      return textarea.scrollTop;
-    }),
-  ).toBeGreaterThan(0);
-  await expect(page.getByTestId("agent-context-adapters")).toContainText("AGENTS.md");
-  await expect(page.getByTestId("agent-context-adapters")).toContainText("CLAUDE.md");
-  await page.getByTestId("agent-context-adapter-file-name").fill("soul.md");
-  await page.getByTestId("agent-context-adapter-label").fill("Soul compatibility");
-  await page.getByTestId("agent-context-adapter-add").click();
-  await expect(page.getByTestId("agent-context-adapters-status")).toContainText("Instruction outputs updated");
-  await expect(page.getByTestId("agent-context-adapters")).toContainText("soul.md");
-  await page.getByTestId("agent-managed-config-summary").click();
-  await expect(page.getByTestId("agent-managed-config-list")).toContainText(".mcp.json");
-  await page.getByRole("button", { name: /sample-project \/ \.mcp\.json/i }).click();
-  await expect(page.getByTestId("agent-mcp-editor")).toBeVisible();
-  const providerEditorBox = await page.getByTestId("agent-context-editor").boundingBox();
-  const managedConfigBox = await page.getByTestId("agent-managed-config-editor").boundingBox();
-  expect(providerEditorBox).not.toBeNull();
-  expect(managedConfigBox).not.toBeNull();
-  expect(boxesOverlap(providerEditorBox!, managedConfigBox!)).toBe(false);
-  await page.getByTestId("agent-mcp-server-name").fill("exo");
-  await page.getByTestId("agent-mcp-server-command").fill("node");
-  await page.getByTestId("agent-mcp-server-args").fill("packages/mcp/bin/exo-mcp.mjs");
-  await page.getByTestId("agent-mcp-server-env").fill("EXO_MCP_AUTOSTART=1");
-  await page.getByTestId("agent-mcp-server-save").click();
-  await expect(page.getByTestId("agent-managed-config-status")).toContainText("Config saved");
-  await expect.poll(async () =>
-    readFile(path.join(workspaceRoot, "projects/sample-project/.mcp.json"), "utf8"),
-  ).toContain('"mcpServers"');
-  await expect.poll(async () =>
-    readFile(path.join(workspaceRoot, "projects/sample-project/.mcp.json"), "utf8"),
-  ).toContain('"EXO_MCP_AUTOSTART": "1"');
-  await page.getByTestId("agent-instruction-overlay-preview").locator("summary").click();
-  await expect(page.getByTestId("agent-instruction-overlay-body")).toContainText("Exo Runtime Context");
-  await expect(page.getByTestId("agent-instruction-overlay-body")).toContainText("sample-project");
-  await expect.poll(async () => readFile(path.join(workspaceRoot, ".exo/instructions/global.md"), "utf8")).toContain("Attached Project Roots");
-  const projectOverlayFiles = await readdir(path.join(workspaceRoot, ".exo/instructions/projects"));
-  expect(projectOverlayFiles.some((file) => file.endsWith(".md"))).toBeTruthy();
-  await page.getByRole("button", { name: /sample-project \/ AGENTS\.md/i }).click();
-  await expect(page.getByTestId("agent-context-editor")).toHaveValue(/Existing project context/);
-  await expect(page.getByTestId("agent-context-signals")).toContainText("Duplicate");
-  await expect(page.getByTestId("agent-context-signals")).toContainText("Package manager mismatch");
-  await page.getByTestId("agent-context-insert-exo-snippet").click();
-  await expect(page.getByTestId("agent-context-editor")).toHaveValue(/Exo Workspace Tools/);
-  await page.getByTestId("agent-context-save").click();
-  await expect(page.getByTestId("agent-context-status")).toContainText("Saved");
+  try {
+    await page.getByTestId("workspace-settings").click();
+    await page.getByTestId("workspace-settings-tab-agents").click();
+    await expect(page.getByTestId("agent-context-settings")).toContainText("AGENTS.md and CLAUDE.md only");
+    await page.getByTestId("agent-context-open-manager").click();
+    await expect(page.getByTestId("agent-context-manager")).toBeVisible();
+    await expect(page.getByTestId("agent-context-manager")).not.toContainText("soul.md");
+    await expect(page.getByTestId("agent-context-manager")).not.toContainText("Managed config editor");
 
-  await expect.poll(async () =>
-    readFile(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"), "utf8"),
-  ).toContain("exo project-roots list");
+    const editorBox = await page.getByTestId("agent-context-unified-editor").boundingBox();
+    expect(editorBox).not.toBeNull();
+    expect(editorBox!.height).toBeGreaterThan(240);
+    await page.getByTestId("agent-context-unified-editor").fill(Array.from({ length: 40 }, (_, index) => `line ${index + 1}`).join("\n"));
+    await expect.poll(async () =>
+      page.getByTestId("agent-context-unified-editor").evaluate((node) => {
+        const textarea = node as HTMLTextAreaElement;
+        textarea.scrollTop = textarea.scrollHeight;
+        return textarea.scrollTop;
+      }),
+    ).toBeGreaterThan(0);
 
-  await page.getByTestId("agent-context-scope-selected").click();
-  await page.getByTestId("agent-context-target-project-sample-project-project").check();
-  await expect(page.getByTestId("agent-context-write-summary")).toContainText("1 scope");
-  await page.getByTestId("agent-context-unified-editor").fill("Use unified project context.");
-  await page.getByTestId("agent-context-save-unified").click();
-  await expect(page.getByTestId("agent-context-unified-status")).toContainText("Provider files written");
+    await page.getByTestId("agent-config-load-template").click();
+    await expect(page.getByTestId("agent-context-unified-editor")).toHaveValue(/Exo Agent Instructions/);
+    await page.getByTestId("agent-context-unified-editor").fill("Use unified global context.");
+    await page.getByTestId("agent-context-save-unified").click();
+    await expect(page.getByTestId("agent-context-unified-status")).toContainText("aligned");
+    await expect.poll(async () => readFile(path.join(homeRoot, ".codex/AGENTS.md"), "utf8")).toBe("Use unified global context.\n");
+    await expect.poll(async () => readFile(path.join(homeRoot, ".claude/CLAUDE.md"), "utf8")).toBe("Use unified global context.\n");
+    await expect(access(path.join(homeRoot, "soul.md"))).rejects.toThrow();
 
-  await expect.poll(async () =>
-    readFile(path.join(workspaceRoot, "projects/sample-project/CLAUDE.md"), "utf8"),
-  ).toContain("Use unified project context.");
-  await expect.poll(async () =>
-    readFile(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"), "utf8"),
-  ).toContain("Use unified project context.");
-  await expect.poll(async () =>
-    readFile(path.join(workspaceRoot, "projects/sample-project/soul.md"), "utf8"),
-  ).toContain("Use unified project context.");
-  await expect.poll(async () =>
-    readFile(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"), "utf8"),
-  ).toContain("Existing project context");
-  await expect.poll(async () =>
-    readFile(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"), "utf8"),
-  ).not.toContain("Attached Project Roots");
-  await expect.poll(async () =>
-    readFile(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"), "utf8"),
-  ).toContain("exo:managed:start");
-
-  await page.getByTestId("agent-context-unified-editor").fill("Use updated unified project context.");
-  await page.getByTestId("agent-context-save-unified").click();
-  await expect(page.getByTestId("agent-context-unified-status")).toContainText("Provider files written");
-  await expect.poll(async () =>
-    readFile(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"), "utf8"),
-  ).toContain("Use updated unified project context.");
-  await expect.poll(async () =>
-    readFile(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"), "utf8"),
-  ).not.toContain("Use unified project context.");
-  await expect.poll(async () =>
-    readFile(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"), "utf8"),
-  ).toContain("Existing project context");
-  await page.getByTestId("agent-context-history-toggle").click();
-  await expect(page.getByTestId("agent-context-history-popover")).toBeVisible();
-  await expect(page.getByTestId("agent-context-history-list")).toBeVisible();
-  await expect(page.getByTestId("agent-context-history-entry").first()).toContainText("Updated managed body");
-  await page.getByTestId("agent-context-toggle-diff").click();
-  await expect(page.getByTestId("agent-context-history-diff")).toContainText("- Use unified project context.");
-  await expect(page.getByTestId("agent-context-history-diff")).toContainText("+ Use updated unified project context.");
-  await expect.poll(async () =>
-    readFile(path.join(workspaceRoot, ".exo/agent-context-history/history.jsonl"), "utf8"),
-  ).toContain("Use unified project context.");
-  await page.getByTestId("agent-context-restore-history").click();
-  await expect(page.getByTestId("agent-context-unified-status")).toContainText("Provider files written");
-  await expect(page.getByTestId("agent-context-unified-editor")).toHaveValue("Use unified project context.");
-  await expect.poll(async () =>
-    readFile(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"), "utf8"),
-  ).toContain("Use unified project context.");
-  await expect.poll(async () =>
-    readFile(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"), "utf8"),
-  ).not.toContain("Use updated unified project context.");
-  await expect.poll(async () =>
-    readFile(path.join(workspaceRoot, "projects/sample-project/soul.md"), "utf8"),
-  ).not.toContain("Use updated unified project context.");
-  await expect(access(path.join(workspaceRoot, "notes/test-notes/CLAUDE.md"))).rejects.toThrow();
-  await expect(access(path.join(homeRoot, ".claude/CLAUDE.md"))).rejects.toThrow();
-
-  await page.getByTestId("agent-context-target-project-sample-project-project").uncheck();
-  await page.getByTestId("agent-context-target-notes-test-notes-notes").check();
-  await expect(page.getByTestId("agent-context-unified-editor")).toHaveValue("");
-  await page.getByTestId("agent-context-unified-editor").fill("Use unified notes context.");
-  await page.getByTestId("agent-context-save-unified").click();
-  await expect(page.getByTestId("agent-context-unified-status")).toContainText("Provider files written");
-  await expect.poll(async () =>
-    readFile(path.join(workspaceRoot, "notes/test-notes/CLAUDE.md"), "utf8"),
-  ).toContain("Use unified notes context.");
-  await expect.poll(async () =>
-    readFile(path.join(workspaceRoot, "notes/test-notes/AGENTS.md"), "utf8"),
-  ).toContain("Use unified notes context.");
-  await expect.poll(async () =>
-    readFile(path.join(workspaceRoot, "notes/test-notes/soul.md"), "utf8"),
-  ).toContain("Use unified notes context.");
-  await expect.poll(async () =>
-    readFile(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"), "utf8"),
-  ).toContain("Use unified project context.");
-  await page.getByTestId("agent-context-target-project-sample-project-project").check();
-  await expect(page.getByTestId("agent-context-write-summary")).toContainText("2 scopes");
-  await page.getByTestId("agent-context-unified-editor").fill("Use shared selected context.");
-  await page.getByTestId("agent-context-save-unified").click();
-  await expect(page.getByTestId("agent-context-unified-status")).toContainText("Provider files written");
-  await expect.poll(async () =>
-    readFile(path.join(workspaceRoot, "notes/test-notes/AGENTS.md"), "utf8"),
-  ).toContain("Use shared selected context.");
-  await expect.poll(async () =>
-    readFile(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"), "utf8"),
-  ).toContain("Use shared selected context.");
-
-  await page.getByTestId("agent-context-scope-global").click();
-  await page.getByTestId("agent-context-unified-editor").fill("Use unified global context.");
-  await page.getByTestId("agent-context-save-unified").click();
-  await expect(page.getByTestId("agent-context-unified-status")).toContainText("Provider files written");
-  await expect.poll(async () => readFile(path.join(homeRoot, ".claude/CLAUDE.md"), "utf8")).toContain("Use unified global context.");
-  await expect.poll(async () => readFile(path.join(homeRoot, ".codex/AGENTS.md"), "utf8")).toContain("Use unified global context.");
-  await expect.poll(async () => readFile(path.join(homeRoot, "soul.md"), "utf8")).toContain("Use unified global context.");
-  await expect.poll(async () =>
-    readFile(path.join(workspaceRoot, "notes/test-notes/AGENTS.md"), "utf8"),
-  ).toContain("Use shared selected context.");
-
-  await page.getByTestId("agent-context-manager-close").click();
-  await page.getByTestId("workspace-settings").click();
-  await page.getByTestId("workspace-settings-tab-agents").click();
-  await expect(page.getByTestId("agent-context-settings")).toContainText("Instruction outputs");
-  await page.getByTestId("agent-context-open-manager").click();
-  await expect(page.getByTestId("agent-context-unified-editor")).toHaveValue("Use unified global context.");
-  await page.getByTestId("agent-context-scope-selected").click();
-  await page.getByTestId("agent-context-target-project-sample-project-project").check();
-  await expect(page.getByTestId("agent-context-unified-editor")).toHaveValue("Use shared selected context.");
-  await expect(page.getByRole("button", { name: /Global \/ CLAUDE\.md/i })).toContainText("Existing");
-  await expect(page.getByRole("button", { name: /test-notes \/ CLAUDE\.md/i })).toContainText("Existing");
-  await expect(page.getByRole("button", { name: /sample-project \/ CLAUDE\.md/i })).toContainText("Existing");
-  await expect(page.getByRole("button", { name: /sample-project \/ soul\.md/i })).toContainText("Existing");
-
-  await cleanup();
+    await page.getByTestId("agent-context-scope-exocortex").click();
+    await expect(page.getByTestId("agent-config-status")).toContainText("Different");
+    await expect(page.getByTestId("agent-config-divergence")).toContainText("AGENTS.md and CLAUDE.md are different");
+    await page.getByTestId("agent-config-use-claude").click();
+    await expect(page.getByTestId("agent-context-unified-editor")).toHaveValue(/Use notes CLAUDE source/);
+    await page.getByTestId("agent-context-unified-editor").fill("Use unified notes context.");
+    await page.getByTestId("agent-context-save-unified").click();
+    await expect(page.getByTestId("agent-context-unified-status")).toContainText("aligned");
+    await expect.poll(async () => readFile(path.join(workspaceRoot, "notes/test-notes/AGENTS.md"), "utf8")).toBe("Use unified notes context.\n");
+    await expect.poll(async () => readFile(path.join(workspaceRoot, "notes/test-notes/CLAUDE.md"), "utf8")).toBe("Use unified notes context.\n");
+    await expect(access(path.join(workspaceRoot, "notes/test-notes/soul.md"))).rejects.toThrow();
+    await expect(access(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"))).rejects.toThrow();
+  } finally {
+    await cleanup();
+  }
 });
 
 test("switch workspace opens the workspace picker", async () => {

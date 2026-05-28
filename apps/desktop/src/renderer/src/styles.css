@@ -1506,635 +1506,100 @@ select.dialog-card__input {
   white-space: nowrap;
 }
 
-.agent-context-manager {
+.agent-config-editor {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 260px;
-  gap: 12px;
+  gap: 14px;
+  min-width: 0;
   min-height: 0;
-  overflow: hidden;
 }
 
-.agent-context-manager__section-copy {
+.agent-config-editor__scope {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.agent-config-editor__scope-buttons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.agent-config-editor__scope-button {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--divider) 58%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-2) 45%, transparent);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.agent-config-editor__scope-button--active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-2));
+}
+
+.agent-config-editor__scope-button small,
+.agent-config-editor__path,
+.agent-config-editor__files small,
+.agent-config-editor__files span {
+  min-width: 0;
+  overflow: hidden;
   color: var(--muted);
-  font-size: 10px;
-  line-height: 1.4;
+  font-size: 11px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.agent-context-manager__main,
-.agent-context-manager__side,
-.agent-context-manager__section {
-  display: grid;
-  align-content: start;
-  gap: 10px;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.agent-context-manager__main,
-.agent-context-manager__side {
-  overflow: auto;
-  padding-right: 2px;
-}
-
-.agent-context-manager__section {
-  padding: 8px;
-  border: 1px solid color-mix(in srgb, var(--divider) 50%, transparent);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--surface-2) 35%, transparent);
-}
-
-.agent-context-manager__section--primary {
-  background: color-mix(in srgb, var(--surface-2) 56%, transparent);
-}
-
-.agent-context-manager__section--primary[open] {
-  min-height: 292px;
-}
-
-.agent-context-manager__section-body {
+.agent-config-editor__status {
   display: grid;
   gap: 10px;
-  max-height: min(520px, 62dvh);
   min-width: 0;
-  min-height: 0;
-  overflow: auto;
-  overscroll-behavior: contain;
-}
-
-.agent-context-manager__section-header {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 12px;
-  min-width: 0;
-}
-
-.agent-context-manager__controls {
-  min-width: min(360px, 100%);
-}
-
-.agent-context-manager__controls .toolbar-button {
-  flex: 0 0 auto;
-}
-
-.agent-context-manager__composer-field {
-  grid-template-rows: auto minmax(116px, auto);
-  min-height: 148px;
-}
-
-.agent-context-scope {
-  display: grid;
-  gap: 9px;
-  min-width: 0;
-  padding: 9px;
+  padding: 10px;
   border: 1px solid color-mix(in srgb, var(--divider) 55%, transparent);
   border-radius: 7px;
   background: color-mix(in srgb, var(--surface-2) 42%, transparent);
 }
 
-.agent-context-scope__mode {
+.agent-config-editor__files {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-  padding: 3px;
-  border: 1px solid var(--surface-border);
-  border-radius: 10px;
-  background: var(--surface-2);
-}
-
-.agent-context-scope__mode-button {
-  min-width: 0;
-  padding: 7px 8px;
-  border: 1px solid transparent;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  font: inherit;
-  font-size: 12px;
-}
-
-.agent-context-scope__mode-button--active {
-  border-color: var(--surface-border-strong);
-  background: var(--surface-3);
-  color: var(--text);
-}
-
-.agent-context-scope__targets {
-  display: grid;
-  gap: 6px;
-  min-width: 0;
-}
-
-.agent-context-scope__target {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  padding: 7px 8px;
-  border: 1px solid color-mix(in srgb, var(--divider) 55%, transparent);
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--surface-2) 54%, transparent);
-}
-
-.agent-context-scope__target span {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-
-.agent-context-scope__target strong,
-.agent-context-scope__target small,
-.agent-context-scope__footer span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.agent-context-scope__target strong {
-  color: var(--text);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.agent-context-scope__target small,
-.agent-context-scope__footer span {
-  color: var(--muted);
-  font-size: 10px;
-}
-
-.agent-context-scope__footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  min-width: 0;
-}
-
-.agent-context-adapters {
-  padding-bottom: 2px;
-}
-
-.agent-context-adapters__list,
-.agent-context-adapters__add {
-  display: grid;
-  gap: 7px;
-  min-width: 0;
-}
-
-.agent-context-adapters__row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-width: 0;
-  padding: 8px 9px;
-  border: 1px solid color-mix(in srgb, var(--divider) 55%, transparent);
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
-}
-
-.agent-context-adapters__toggle {
-  display: flex;
-  align-items: center;
   gap: 8px;
   min-width: 0;
 }
 
-.agent-context-adapters__toggle span {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-
-.agent-context-adapters__toggle strong,
-.agent-context-adapters__toggle small {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.agent-context-adapters__toggle strong {
-  color: var(--text);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.agent-context-adapters__toggle small {
-  color: var(--muted);
-  font-size: 10px;
-}
-
-.agent-context-adapters__add .dialog-card__input {
-  min-height: 34px;
-  padding-block: 7px;
-}
-
-.agent-context-settings__composer {
-  display: grid;
-  grid-column: 1 / -1;
-  gap: 8px;
-  min-width: 0;
-  padding: 10px;
-  border: 1px solid color-mix(in srgb, var(--divider) 55%, transparent);
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
-}
-
-.agent-context-settings__target {
-  width: min(260px, 100%);
-  min-height: 30px;
-  padding-block: 4px;
-}
-
-.agent-context-settings__composer-textarea {
-  box-sizing: border-box;
-  height: 116px;
-  min-height: 116px;
-  overflow: auto;
-  overscroll-behavior: contain;
-  resize: vertical;
-  font-family: var(--mono);
-  font-size: 11px;
-  line-height: 1.45;
-}
-
-.agent-context-settings__history {
-  display: grid;
-  gap: 7px;
-  min-width: 0;
-  padding: 8px 9px;
-  border: 1px solid color-mix(in srgb, var(--divider) 55%, transparent);
-  border-radius: 7px;
-  color: var(--text-soft);
-  font-size: 11px;
-}
-
-.agent-context-settings__history-control {
-  position: relative;
-}
-
-.agent-context-settings__history-count {
-  min-width: 14px;
-  height: 14px;
-  margin-left: -4px;
-  padding: 0 3px;
-  border-radius: 999px;
-  background: var(--surface-3);
-  color: var(--muted);
-  font-size: 9px;
-  line-height: 14px;
-}
-
-.agent-context-settings__history-popover {
-  position: absolute;
-  z-index: 30;
-  top: calc(100% + 6px);
-  right: 0;
-  display: grid;
-  gap: 7px;
-  width: min(340px, 70vw);
-  max-height: 360px;
-  min-width: 0;
-  overflow: auto;
-  padding: 8px;
-  border: 1px solid var(--surface-border);
-  border-radius: 8px;
-  background: var(--surface-1);
-  box-shadow: var(--shadow-2);
-  color: var(--text-soft);
-  font-size: 11px;
-}
-
-.agent-context-settings__history > div:first-child {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-
-.agent-context-settings__history > div:first-child span:last-child {
-  color: var(--muted);
-  font-size: 10px;
-}
-
-.agent-context-settings__history-list {
-  display: grid;
-  gap: 5px;
-  max-height: 132px;
-  min-width: 0;
-  overflow: auto;
-}
-
-.agent-context-settings__history-entry {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-  padding: 7px 8px;
-  border: 1px solid color-mix(in srgb, var(--divider) 55%, transparent);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text-soft);
-  text-align: left;
-}
-
-.agent-context-settings__history-entry:hover,
-.agent-context-settings__history-entry--active {
-  border-color: color-mix(in srgb, var(--accent) 34%, var(--divider));
-  background: var(--surface-hover);
-  color: var(--text);
-}
-
-.agent-context-settings__history-entry span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.agent-context-settings__history-entry span:last-child {
-  color: var(--muted);
-  font-size: 10px;
-}
-
-.agent-context-settings__diff {
-  max-height: 140px;
-  min-width: 0;
-  overflow: auto;
-  margin: 0;
-  padding: 8px;
-  border-radius: 6px;
-  background: var(--surface-1);
-  color: var(--text);
-  font-family: var(--mono);
-  font-size: 10px;
-  line-height: 1.45;
-  white-space: pre-wrap;
-}
-
-.agent-context-settings__overlay {
-  display: grid;
-  gap: 7px;
-  min-width: 0;
-  padding: 8px 9px;
-  border: 1px dashed color-mix(in srgb, var(--accent) 42%, var(--divider));
-  border-radius: 7px;
-}
-
-.agent-context-settings__details-summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-width: 0;
-  cursor: pointer;
-  list-style: none;
-}
-
-.agent-context-settings__details-summary::-webkit-details-marker {
-  display: none;
-}
-
-.agent-context-settings__details-summary > span {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-
-.agent-context-settings__details-summary small {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 400;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.agent-context-settings__details-summary svg {
-  color: var(--muted);
-  transition: transform 120ms ease;
-}
-
-details[open] > .agent-context-settings__details-summary svg {
-  transform: rotate(180deg);
-}
-
-details.agent-context-manager__section[open],
-details.agent-context-settings__editor[open],
-details.agent-context-settings__overlay[open] {
-  display: grid;
-  gap: 8px;
-}
-
-.agent-context-settings__overlay-body {
-  max-height: 150px;
-  min-width: 0;
-  overflow: auto;
-  margin: 0;
-  padding: 8px;
-  border-radius: 6px;
-  background: var(--surface-1);
-  color: var(--text-soft);
-  font-family: var(--mono);
-  font-size: 10px;
-  line-height: 1.45;
-  white-space: pre-wrap;
-}
-
-.agent-context-settings__list {
-  display: grid;
-  align-content: start;
-  gap: 6px;
-  min-width: 0;
-}
-
-.agent-context-manager__side .agent-context-settings__list {
-  max-height: min(220px, 24dvh);
-  overflow: auto;
-}
-
-.agent-context-settings__file {
+.agent-config-editor__files > div {
   display: grid;
   gap: 3px;
   min-width: 0;
-  padding: 7px 8px;
-  border: 1px solid color-mix(in srgb, var(--divider) 55%, transparent);
-  border-radius: 7px;
-  background: transparent;
-  color: var(--text-soft);
-  text-align: left;
-  cursor: pointer;
-}
-
-.agent-context-settings__file-tab {
-  display: grid;
-  flex: 0 0 auto;
-  gap: 2px;
-  max-width: 210px;
-  min-width: 128px;
-  padding: 7px 9px;
-  border: 1px solid color-mix(in srgb, var(--divider) 55%, transparent);
-  border-radius: 7px 7px 0 0;
-  background: color-mix(in srgb, var(--surface-2) 45%, transparent);
-  color: var(--text-soft);
-  cursor: pointer;
-  text-align: left;
-}
-
-.agent-context-settings__file-tab:hover,
-.agent-context-settings__file-tab--active {
-  border-color: color-mix(in srgb, var(--accent) 34%, var(--divider));
-  background: var(--surface-hover);
-  color: var(--text);
-}
-
-.agent-context-settings__file-tab span,
-.agent-context-settings__file-tab small {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.agent-context-settings__file-tab span {
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.agent-context-settings__file-tab small {
-  color: var(--muted);
-  font-size: 10px;
-}
-
-.agent-context-settings__file-tabs {
-  display: flex;
-  min-width: 0;
-  overflow-x: auto;
-  overscroll-behavior-inline: contain;
-  padding-top: 2px;
-}
-
-.agent-context-settings__file:hover,
-.agent-context-settings__file--active {
-  background: var(--surface-hover);
-  color: var(--text);
-}
-
-.agent-context-settings__file span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.agent-context-settings__file span:last-child,
-.agent-context-settings__path {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--muted);
-  font-size: 10px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.agent-context-settings__editor {
-  display: grid;
-  gap: 8px;
-  min-width: 0;
   padding: 8px;
-  border: 1px solid color-mix(in srgb, var(--divider) 50%, transparent);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--surface-2) 24%, transparent);
-  overflow: visible;
-}
-
-.agent-context-settings__signals {
-  display: grid;
-  gap: 6px;
-  min-width: 0;
-}
-
-.agent-context-settings__signal {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-  padding: 7px 9px;
-  border: 1px solid color-mix(in srgb, var(--divider) 55%, transparent);
+  border: 1px solid color-mix(in srgb, var(--divider) 48%, transparent);
   border-radius: 7px;
-  background: color-mix(in srgb, var(--surface-2) 64%, transparent);
+  background: color-mix(in srgb, var(--surface-1) 54%, transparent);
 }
 
-.agent-context-settings__signal span:first-child {
-  color: var(--muted);
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+.agent-config-editor__editor-field {
+  grid-template-rows: auto minmax(360px, 52dvh);
+  min-height: 0;
 }
 
-.agent-context-settings__signal span:last-child {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--text-soft);
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.agent-context-settings__signal--conflict {
-  border-color: var(--danger-border);
-  background: var(--danger-soft);
-}
-
-.agent-context-settings__signal--duplicate {
-  border-color: color-mix(in srgb, var(--accent) 34%, var(--divider));
-}
-
-.agent-context-settings__textarea {
-  max-height: min(460px, 52dvh);
+.agent-config-editor__textarea {
+  box-sizing: border-box;
   min-height: 360px;
+  max-height: min(560px, 56dvh);
   overflow: auto;
   overscroll-behavior: contain;
-  resize: none;
-  font-family: var(--mono);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.agent-context-settings__editor--config {
-  border: 1px solid color-mix(in srgb, var(--divider) 55%, transparent);
-  background: color-mix(in srgb, var(--surface-2) 30%, transparent);
-}
-
-.agent-context-settings__textarea--config {
-  max-height: min(300px, 38dvh);
-  min-height: 190px;
-}
-
-.agent-mcp-editor {
-  display: grid;
-  gap: 9px;
-  min-width: 0;
-  padding: 9px;
-  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--divider));
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--surface-2) 62%, transparent);
-}
-
-.agent-mcp-editor__grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.agent-mcp-editor__textarea {
-  min-height: 74px;
   resize: vertical;
   font-family: var(--mono);
-  font-size: 11px;
-  line-height: 1.4;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre;
 }
 
 @media (max-width: 860px) {
@@ -2149,22 +1614,9 @@ details.agent-context-settings__overlay[open] {
   }
 
   .agent-context-summary__grid,
-  .agent-context-manager,
-  .agent-mcp-editor__grid {
+  .agent-config-editor__scope-buttons,
+  .agent-config-editor__files {
     grid-template-columns: 1fr;
-  }
-
-  .agent-context-manager__section-header {
-    grid-template-columns: 1fr;
-  }
-
-  .agent-context-manager__controls {
-    min-width: 0;
-  }
-
-  .agent-context-manager__controls .agent-context-settings__target,
-  .agent-context-manager__controls .toolbar-button {
-    flex: 1 1 220px;
   }
 }
 
@@ -2591,6 +2043,16 @@ details.agent-context-settings__overlay[open] {
   border-radius: 8px;
   background: var(--danger-soft);
   color: var(--danger-strong);
+}
+
+.dialog-card__status--warning {
+  display: grid;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--divider));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface-2));
+  color: var(--text);
 }
 
 .index-activity {

@@ -37,16 +37,7 @@ export interface WorkspaceSettings {
   explorerScale: number;
   exploreIndexSearchOnEnter: boolean;
   indexUpdateStrategy: IndexUpdateStrategy;
-  agentContextFileAdapters: AgentContextFileAdapterSettings[];
   layout?: WorkspaceLayoutSettings;
-}
-
-export interface AgentContextFileAdapterSettings {
-  id: string;
-  label: string;
-  fileName: string;
-  enabled: boolean;
-  builtIn?: boolean;
 }
 
 export interface WorkspaceLayoutSettings {

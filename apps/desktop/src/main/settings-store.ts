@@ -85,7 +85,6 @@ export class WorkspaceSettingsStore {
       explorerScale: DEFAULT_EXPLORER_SCALE,
       exploreIndexSearchOnEnter: model.indexing.enabled && model.indexing.mode !== "off" && model.indexedRoots.length > 0,
       indexUpdateStrategy: "on-save",
-      agentContextFileAdapters: [],
     };
   }
 

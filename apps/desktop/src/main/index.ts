@@ -1,6 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, nativeTheme, shell, Tray, type OpenDialogOptions } from "electron";
 import { execFile } from "node:child_process";
-import { randomUUID } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { access, appendFile, mkdir, readFile, stat, writeFile } from "node:fs/promises";
@@ -20,7 +19,6 @@ import {
   getNoteKnowledge,
   listMarkdownFiles,
   listRootTree,
-  normalizeAgentContextFileAdapters,
   readIndexDocument,
   readWorkspaceDocument,
   renameWorkspacePath,
@@ -519,20 +517,11 @@ function registerIpcHandlers() {
       searchIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot, query, options),
   );
   ipcMain.handle("workspace:get-git-status", async (_event, rootPath: string) => getGitStatus(rootPath));
-  ipcMain.handle("workspace:list-agent-context-files", async () => listAgentContextFiles());
-  ipcMain.handle("workspace:list-agent-context-file-adapters", async () => listAgentContextFileAdapters());
-  ipcMain.handle("workspace:save-agent-context-file-adapters", async (_event, adapters: WorkspaceSettings["agentContextFileAdapters"]) =>
-    saveAgentContextFileAdapters(adapters),
+  ipcMain.handle("workspace:get-agent-instruction-config", async () => getAgentInstructionConfig());
+  ipcMain.handle("workspace:save-agent-instruction-config", async (_event, input: { scopeId: "global" | "exocortex"; body: string }) =>
+    saveAgentInstructionConfig(input),
   );
-  ipcMain.handle("workspace:list-agent-managed-config-files", async () => listAgentManagedConfigFiles());
-  ipcMain.handle("workspace:save-agent-managed-config-file", async (_event, filePath: string, body: string) => saveAgentManagedConfigFile(filePath, body));
-  ipcMain.handle("workspace:list-agent-context-history", async () => listAgentContextHistory());
   ipcMain.handle("workspace:list-agent-instruction-overlays", async () => listAgentInstructionOverlays());
-  ipcMain.handle("workspace:save-agent-context-file", async (_event, filePath: string, body: string) => saveAgentContextFile(filePath, body));
-  ipcMain.handle("workspace:save-agent-context-bundle", async (_event, input: { targetId?: string; targetIds?: string[]; body: string }) =>
-    saveAgentContextBundle(input),
-  );
-  ipcMain.handle("workspace:restore-agent-context-history", async (_event, historyId: string) => restoreAgentContextHistory(historyId));
   ipcMain.handle("workspace:create-file", async (_event, targetPath: string, content?: string) => createWorkspaceFile(targetPath, content));
   ipcMain.handle("workspace:create-directory", async (_event, targetPath: string) => createWorkspaceDirectory(targetPath));
   ipcMain.handle("workspace:rename-path", async (_event, sourcePath: string, nextPath: string) => renameWorkspacePath(sourcePath, nextPath));
@@ -752,377 +741,153 @@ function parseGitDiffFirstChangedLines(output: string): Map<string, number> {
   return linesByPath;
 }
 
-async function listAgentContextFiles() {
-  return Promise.all(agentContextCandidates().map(readAgentContextCandidateSafe));
-}
-
-async function listAgentManagedConfigFiles() {
-  return Promise.all(agentManagedConfigCandidates().map(readAgentManagedConfigCandidateSafe));
-}
-
-async function saveAgentManagedConfigFile(filePath: string, body: string) {
-  const candidate = agentManagedConfigCandidates().find((entry) => path.resolve(entry.path) === path.resolve(filePath));
-  if (!candidate) {
-    throw new Error("Managed agent config file is outside the active global/workspace context set.");
-  }
-  await mkdir(path.dirname(candidate.path), { recursive: true });
-  await writeFile(candidate.path, body, "utf8");
-  return readAgentManagedConfigCandidate(candidate);
-}
-
-function listAgentContextFileAdapters() {
-  return configuredAgentContextFileAdapters();
-}
-
-async function saveAgentContextFileAdapters(adapters: WorkspaceSettings["agentContextFileAdapters"]) {
-  const settings = currentWorkspaceSettings();
-  const normalizedAdapters = normalizeAgentContextFileAdapters(adapters);
-  await saveWorkspaceSettings({
-    ...settings,
-    agentContextFileAdapters: normalizedAdapters,
-  });
-  return configuredAgentContextFileAdapters();
-}
-
-async function listAgentContextHistory() {
-  const entries = await readAgentContextHistoryEntries();
-  const targetIds = new Set(agentContextCandidates().map((candidate) => candidate.targetId));
-  return entries
-    .filter((entry) => targetIds.has(entry.targetId))
-    .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
-}
-
 async function listAgentInstructionOverlays() {
   return writeAgentInstructionOverlays(workspaceModel);
 }
 
-async function saveAgentContextFile(filePath: string, body: string) {
-  const candidate = agentContextCandidates().find((entry) => path.resolve(entry.path) === path.resolve(filePath));
-  if (!candidate) {
-    throw new Error("Agent context file is outside the active global/workspace context set.");
-  }
-  await mkdir(path.dirname(candidate.path), { recursive: true });
-  await writeFile(candidate.path, body, "utf8");
-  return readAgentContextCandidate(candidate);
-}
-
-async function saveAgentContextBundle(input: { targetId?: string; targetIds?: string[]; body: string }) {
-  const candidates = agentContextCandidates();
-  const targetIds = [...new Set(input.targetIds ?? (input.targetId ? [input.targetId] : []))];
-  if (targetIds.length === 0) {
-    throw new Error("Choose at least one agent context scope before writing provider files.");
-  }
-  const candidatesByTarget = targetIds.map((targetId) => candidates.filter((entry) => entry.targetId === targetId));
-  if (candidatesByTarget.some((entries) => entries.length === 0)) {
-    throw new Error("Agent context target is outside the active global/workspace context set.");
-  }
-  const targetCandidates = candidatesByTarget.flat();
-
-  await Promise.all(candidatesByTarget.map((entries) => recordAgentContextHistory(entries, input.body)));
-  await Promise.all(targetCandidates.map((candidate) => writeAgentContextProviderFile(candidate.path, input.body)));
-
+async function getAgentInstructionConfig() {
   return {
-    files: await Promise.all(targetCandidates.map(readAgentContextCandidate)),
-    history: await listAgentContextHistory(),
+    scopes: await Promise.all(agentInstructionScopeCandidates().map(readAgentInstructionScope)),
+    starterTemplate: exoAgentInstructionStarterTemplate(),
   };
 }
 
-async function restoreAgentContextHistory(historyId: string) {
-  const entry = (await listAgentContextHistory()).find((historyEntry) => historyEntry.id === historyId);
-  if (!entry) {
-    throw new Error("Agent context history entry is unavailable for the active workspace.");
+async function saveAgentInstructionConfig(input: { scopeId: "global" | "exocortex"; body: string }) {
+  const scope = agentInstructionScopeCandidates().find((candidate) => candidate.id === input.scopeId);
+  if (!scope) {
+    throw new Error("Agent instruction scope is unavailable for the active workspace.");
   }
-  return saveAgentContextBundle({ targetId: entry.targetId, body: entry.previousBody });
+  await Promise.all(Object.values(scope.files).map(async (file) => {
+    await mkdir(path.dirname(file.path), { recursive: true });
+    await writeFile(file.path, normalizeInstructionFileBody(input.body), "utf8");
+  }));
+  return getAgentInstructionConfig();
 }
 
-async function recordAgentContextHistory(targetCandidates: ReturnType<typeof agentContextCandidates>, nextBody: string) {
-  const previousBody = await currentManagedAgentContextBody(targetCandidates);
-  const normalizedPrevious = previousBody.trim();
-  const normalizedNext = nextBody.trim();
-  if (normalizedPrevious.length === 0 || normalizedPrevious === normalizedNext) {
-    return;
-  }
+function agentInstructionScopeCandidates() {
+  const notesRoot = workspaceModel.noteRoots[0];
+  return [
+    {
+      id: "global" as const,
+      label: "Global",
+      description: "Personal instructions loaded by supported terminal agents across workspaces.",
+      rootPath: os.homedir(),
+      files: {
+        agents: {
+          id: "agents" as const,
+          label: "Codex AGENTS.md",
+          path: path.join(os.homedir(), ".codex", "AGENTS.md"),
+        },
+        claude: {
+          id: "claude" as const,
+          label: "Claude CLAUDE.md",
+          path: path.join(os.homedir(), ".claude", "CLAUDE.md"),
+        },
+      },
+    },
+    ...(notesRoot ? [{
+      id: "exocortex" as const,
+      label: "Exocortex",
+      description: "Instructions stored in the active notes folder for agents working with your Exo context.",
+      rootPath: notesRoot.path,
+      files: {
+        agents: {
+          id: "agents" as const,
+          label: "Notes AGENTS.md",
+          path: path.join(notesRoot.path, "AGENTS.md"),
+        },
+        claude: {
+          id: "claude" as const,
+          label: "Notes CLAUDE.md",
+          path: path.join(notesRoot.path, "CLAUDE.md"),
+        },
+      },
+    }] : []),
+  ];
+}
 
-  const firstCandidate = targetCandidates[0];
-  const entry = {
-    id: randomUUID(),
-    targetId: firstCandidate.targetId,
-    targetLabel: firstCandidate.targetLabel,
-    scope: firstCandidate.scope,
-    rootPath: firstCandidate.rootPath,
-    createdAt: new Date().toISOString(),
-    previousBody: normalizedPrevious,
-    nextBody: normalizedNext,
+async function readAgentInstructionScope(scope: ReturnType<typeof agentInstructionScopeCandidates>[number]) {
+  const [agents, claude] = await Promise.all([
+    readAgentInstructionProviderFile(scope.files.agents),
+    readAgentInstructionProviderFile(scope.files.claude),
+  ]);
+  const errorMessages = [agents, claude].flatMap((file) => file.errorMessage ? [`${file.label}: ${file.errorMessage}`] : []);
+  const agentsHasBody = agents.body.trim().length > 0;
+  const claudeHasBody = claude.body.trim().length > 0;
+  const bodiesMatch = normalizeInstructionComparisonBody(agents.body) === normalizeInstructionComparisonBody(claude.body);
+  const status = errorMessages.length > 0
+    ? "error"
+    : !agents.exists && !claude.exists
+      ? "missing-both"
+      : agents.exists && !claude.exists
+        ? "missing-claude"
+        : !agents.exists && claude.exists
+          ? "missing-agents"
+          : bodiesMatch
+            ? "aligned"
+            : "different";
+  const source = status === "different" || status === "error"
+    ? "unresolved"
+    : agentsHasBody
+      ? "agents"
+      : claudeHasBody
+        ? "claude"
+        : "empty";
+  const body = source === "agents" ? agents.body : source === "claude" ? claude.body : "";
+  return {
+    id: scope.id,
+    label: scope.label,
+    description: scope.description,
+    rootPath: scope.rootPath,
+    files: { agents, claude },
+    status,
+    body,
+    source,
+    errorMessages,
   };
-  const historyFilePath = agentContextHistoryFilePath();
-  await mkdir(path.dirname(historyFilePath), { recursive: true });
-  await appendFile(historyFilePath, `${JSON.stringify(entry)}\n`, "utf8");
 }
 
-async function currentManagedAgentContextBody(targetCandidates: ReturnType<typeof agentContextCandidates>) {
-  for (const candidate of targetCandidates) {
-    const body = await readFile(candidate.path, "utf8").catch((error: NodeJS.ErrnoException) => {
+async function readAgentInstructionProviderFile(file: { id: "agents" | "claude"; label: string; path: string }) {
+  try {
+    const body = await readFile(file.path, "utf8").catch((error: NodeJS.ErrnoException) => {
       if (error.code === "ENOENT") {
         return "";
       }
       throw error;
     });
-    const managedBody = extractManagedAgentContextBlockBody(body);
-    if (managedBody.trim().length > 0) {
-      return managedBody;
-    }
+    return {
+      ...file,
+      exists: body.length > 0 || existsSync(file.path),
+      body,
+      errorMessage: null,
+    };
+  } catch (error) {
+    return {
+      ...file,
+      exists: existsSync(file.path),
+      body: "",
+      errorMessage: errorMessage(error),
+    };
   }
-  return "";
 }
 
-async function readAgentContextHistoryEntries() {
-  const filePath = agentContextHistoryFilePath();
-  const body = await readFile(filePath, "utf8").catch((error: NodeJS.ErrnoException) => {
-    if (error.code === "ENOENT") {
-      return "";
-    }
-    throw error;
-  });
-  const entries = [];
-  for (const line of body.split(/\r?\n/)) {
-    if (line.trim().length === 0) {
-      continue;
-    }
-    try {
-      entries.push(JSON.parse(line) as {
-        id: string;
-        targetId: string;
-        targetLabel: string;
-        scope: "global" | "notes" | "project";
-        rootPath: string;
-        createdAt: string;
-        previousBody: string;
-        nextBody: string;
-      });
-    } catch {
-      // Ignore malformed historical lines; the current workspace remains usable.
-    }
-  }
-  return entries;
+function normalizeInstructionFileBody(body: string) {
+  return `${body.trimEnd()}\n`;
 }
 
-function agentContextHistoryFilePath() {
-  const historyDirectory = path.join(workspaceModel.workspaceRoot, ".exo", "agent-context-history");
-  return path.join(historyDirectory, "history.jsonl");
+function normalizeInstructionComparisonBody(body: string) {
+  return body.replace(/\r\n/g, "\n").trimEnd();
 }
 
-async function writeAgentContextProviderFile(filePath: string, instructionBody: string) {
-  const currentBody = await readFile(filePath, "utf8").catch((error: NodeJS.ErrnoException) => {
-    if (error.code === "ENOENT") {
-      return "";
-    }
-    throw error;
-  });
-  await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, upsertManagedAgentContextBlock(currentBody, instructionBody), "utf8");
-}
-
-const EXO_AGENT_CONTEXT_START = "<!-- exo:managed:start - Exo keeps this instruction block synced across agent provider files. Edit it from Workspace Settings > Agents. -->";
-const EXO_AGENT_CONTEXT_END = "<!-- exo:managed:end -->";
-const EXO_AGENT_CONTEXT_PATTERN = new RegExp(`${escapeRegExp(EXO_AGENT_CONTEXT_START)}[\\s\\S]*?${escapeRegExp(EXO_AGENT_CONTEXT_END)}`);
-const EXO_AGENT_CONTEXT_BODY_PATTERN = /<!-- exo:managed:start[\s\S]*?-->\s*# Agent Instructions\s*(?:<!--[\s\S]*?-->)?\s*([\s\S]*?)\s*<!-- exo:managed:end -->/;
-function upsertManagedAgentContextBlock(currentBody: string, instructionBody: string) {
-  const block = renderManagedAgentContextBlock(instructionBody);
-  if (EXO_AGENT_CONTEXT_PATTERN.test(currentBody)) {
-    return currentBody.replace(EXO_AGENT_CONTEXT_PATTERN, block);
-  }
-  const separator = currentBody.trim().length > 0 ? "\n\n" : "";
-  return `${currentBody.trimEnd()}${separator}${block}\n`;
-}
-
-function renderManagedAgentContextBlock(instructionBody: string) {
+function exoAgentInstructionStarterTemplate() {
   return [
-    EXO_AGENT_CONTEXT_START,
-    "# Agent Instructions",
+    "# Exo Agent Instructions",
     "",
-    "<!-- Managed by Exo so AGENTS.md, CLAUDE.md, and future provider files stay aligned. Edit this block from Workspace Settings > Agents. -->",
-    "",
-    instructionBody.trim(),
-    EXO_AGENT_CONTEXT_END,
+    "- Exo is the local workspace app for navigating the user's notes, projects, terminals, and indexed context.",
+    "- Use Exo MCP or CLI tools to inspect attached project roots and indexed notes before guessing where context lives.",
+    "- Treat notes as user-authored working context. Preserve organization, links, and private drafts unless asked to change them.",
+    "- Prefer explicit attached roots over broad filesystem searches.",
   ].join("\n");
-}
-
-function extractManagedAgentContextBlockBody(body: string) {
-  const match = EXO_AGENT_CONTEXT_BODY_PATTERN.exec(body);
-  return match?.[1]?.trim() ?? "";
-}
-
-function escapeRegExp(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function agentContextCandidates() {
-  const roots = [
-    { scope: "global" as const, label: "Global", rootPath: os.homedir() },
-    ...workspaceModel.noteRoots.map((root) => ({ scope: "notes" as const, label: root.label, rootPath: root.path })),
-    ...workspaceModel.projectRoots.map((root) => ({ scope: "project" as const, label: root.label, rootPath: root.path })),
-  ];
-  const adapters = agentContextFileAdapters();
-
-  return roots.flatMap((root) =>
-    adapters.map((adapter) => {
-      const filePath = agentContextFilePathForAdapter(root, adapter);
-      const targetId = `${root.scope}:${root.rootPath}`;
-      return {
-        id: `${root.scope}:${adapter.id}:${filePath}`,
-        scope: root.scope,
-        provider: adapter.id,
-        providerLabel: adapter.label,
-        targetId,
-        targetLabel: root.label,
-        rootPath: root.rootPath,
-        label: `${root.label} / ${adapter.fileName}`,
-        path: filePath,
-      };
-    }),
-  );
-}
-
-function agentContextFilePathForAdapter(
-  root: { scope: "global" | "notes" | "project"; rootPath: string },
-  adapter: { id: string; fileName: string },
-) {
-  if (root.scope !== "global") {
-    return path.join(root.rootPath, adapter.fileName);
-  }
-  if (adapter.id === "codex" && adapter.fileName === "AGENTS.md") {
-    return path.join(os.homedir(), ".codex", "AGENTS.md");
-  }
-  if (adapter.id === "claude" && adapter.fileName === "CLAUDE.md") {
-    return path.join(os.homedir(), ".claude", "CLAUDE.md");
-  }
-  return path.join(root.rootPath, adapter.fileName);
-}
-
-function agentManagedConfigCandidates() {
-  const roots = [
-    { scope: "workspace" as const, label: "Workspace", rootPath: workspaceModel.workspaceRoot },
-    ...workspaceModel.noteRoots.map((root) => ({ scope: "notes" as const, label: root.label, rootPath: root.path })),
-    ...workspaceModel.projectRoots.map((root) => ({ scope: "project" as const, label: root.label, rootPath: root.path })),
-  ];
-  const projectConfigFiles = roots.flatMap((root) => [
-    {
-      id: `${root.scope}:mcp:${path.join(root.rootPath, ".mcp.json")}`,
-      scope: root.scope,
-      category: "mcp" as const,
-      provider: "MCP",
-      label: `${root.label} / .mcp.json`,
-      path: path.join(root.rootPath, ".mcp.json"),
-    },
-  ]);
-  return [
-    {
-      id: `global:provider:${path.join(os.homedir(), ".codex", "config.toml")}`,
-      scope: "global" as const,
-      category: "provider" as const,
-      provider: "Codex",
-      label: "Global / Codex config.toml",
-      path: path.join(os.homedir(), ".codex", "config.toml"),
-    },
-    {
-      id: `global:provider:${path.join(os.homedir(), ".claude", "settings.json")}`,
-      scope: "global" as const,
-      category: "provider" as const,
-      provider: "Claude",
-      label: "Global / Claude settings.json",
-      path: path.join(os.homedir(), ".claude", "settings.json"),
-    },
-    ...projectConfigFiles,
-  ];
-}
-
-function agentContextFileAdapters() {
-  return configuredAgentContextFileAdapters().filter((adapter) => adapter.enabled);
-}
-
-function configuredAgentContextFileAdapters() {
-  return normalizeAgentContextFileAdapters([
-    ...currentWorkspaceSettings().agentContextFileAdapters,
-    ...extraAgentContextFileAdapters(),
-  ]);
-}
-
-function extraAgentContextFileAdapters() {
-  const raw = process.env.EXO_AGENT_CONTEXT_EXTRA_FILES?.trim();
-  if (!raw) {
-    return [];
-  }
-
-  return raw
-    .split(",")
-    .map((entry) => entry.trim())
-    .filter(Boolean)
-    .map((entry) => {
-      const [id, fileName, label] = entry.split(":").map((part) => part.trim());
-      if (!id || !fileName || fileName.includes("/") || fileName.includes("\\")) {
-        return null;
-      }
-      return {
-        id,
-        fileName,
-        label: label || `${id} compatibility`,
-      };
-    })
-    .filter((entry): entry is { id: string; fileName: string; label: string } => entry !== null);
-}
-
-async function readAgentContextCandidate(candidate: ReturnType<typeof agentContextCandidates>[number]) {
-  const body = await readFile(candidate.path, "utf8").catch((error: NodeJS.ErrnoException) => {
-    if (error.code === "ENOENT") {
-      return "";
-    }
-    throw error;
-  });
-  return {
-    ...candidate,
-    exists: body.length > 0 || existsSync(candidate.path),
-    body,
-  };
-}
-
-async function readAgentContextCandidateSafe(candidate: ReturnType<typeof agentContextCandidates>[number]) {
-  try {
-    return await readAgentContextCandidate(candidate);
-  } catch (error) {
-    return {
-      ...candidate,
-      exists: existsSync(candidate.path),
-      body: "",
-      errorMessage: errorMessage(error),
-    };
-  }
-}
-
-async function readAgentManagedConfigCandidate(candidate: ReturnType<typeof agentManagedConfigCandidates>[number]) {
-  const body = await readFile(candidate.path, "utf8").catch((error: NodeJS.ErrnoException) => {
-    if (error.code === "ENOENT") {
-      return "";
-    }
-    throw error;
-  });
-  return {
-    ...candidate,
-    exists: body.length > 0,
-    body,
-  };
-}
-
-async function readAgentManagedConfigCandidateSafe(candidate: ReturnType<typeof agentManagedConfigCandidates>[number]) {
-  try {
-    return await readAgentManagedConfigCandidate(candidate);
-  } catch (error) {
-    return {
-      ...candidate,
-      exists: existsSync(candidate.path),
-      body: "",
-      errorMessage: errorMessage(error),
-    };
-  }
 }
 
 async function fileExists(targetPath: string): Promise<boolean> {

@@ -52,19 +52,11 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 ## Next: Agent Context And Config Management
 
 - [x] Add a first-class agent config manager.
-- [x] Let users inspect and edit global and selected local `AGENTS.md` / `CLAUDE.md` files from Exo.
-- [x] Let users choose which attached roots receive local agent context files.
-- [x] Compare global vs local agent context files.
-- [x] Surface conflicting or duplicated instructions.
-- [x] Offer Exo-recommended snippets that explain Exo CLI/MCP tools to terminal agents.
-- [x] Add a unified agent-agnostic instruction composer that renders provider-compatible context files.
-- [x] Preserve and round-trip Exo-managed unified sections without overwriting unrelated manual content.
-- [x] Add version history and diff/restore for Exo-managed unified instruction bodies.
-- [x] Add richer history browsing for Exo-managed unified instruction bodies.
-- [x] Add a provider file adapter registry so future instruction files such as `soul.md` can share the same unified composer path.
-- [x] Move the full agent context workbench into a dedicated manager launched from Settings.
-- [x] Add a user-facing provider file adapter settings UI.
-- [x] Extend agent config management to MCP/provider config files beyond instruction files.
+- [x] Simplify the manager to global and active exocortex/notes-root instruction layers.
+- [x] Keep Codex `AGENTS.md` and Claude `CLAUDE.md` aligned from one editor for each managed layer.
+- [x] Detect when `AGENTS.md` and `CLAUDE.md` diverge and require the user to choose a source or manually edit before saving both.
+- [x] Remove arbitrary project-scope writes, custom instruction outputs, provider-file adapter settings, history UI, generated-overlay preview, and managed provider/MCP config editing from the Agent Config Editor.
+- [x] Add an optional Exo starter template for managed instruction files.
 - [x] Keep Exo-generated runtime overlays under `.exo/instructions/` separate from user-authored context files.
 - [x] Pass the matching `.exo/instructions/` overlay to Exo-launched terminal agents through environment variables.
 

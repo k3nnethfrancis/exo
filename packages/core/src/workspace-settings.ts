@@ -2,7 +2,7 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import type { AgentContextFileAdapterSettings, IndexMode, WorkspaceLayoutSettings, WorkspacePaneContent, WorkspacePaneNode, WorkspaceSettings } from "./types";
+import type { IndexMode, WorkspaceLayoutSettings, WorkspacePaneContent, WorkspacePaneNode, WorkspaceSettings } from "./types";
 import { createIndexedRoot, DEFAULT_INDEXING } from "./workspace";
 
 export const DEFAULT_APPEARANCE_MODE: WorkspaceSettings["appearanceMode"] = "system";
@@ -15,11 +15,6 @@ export const DEFAULT_TERMINAL_TRANSCRIPT_RETENTION: WorkspaceSettings["terminalT
 export const DEFAULT_TERMINAL_TRANSCRIPT_RETENTION_DAYS = 14;
 export const DEFAULT_TERMINAL_STREAMING_MODE: WorkspaceSettings["terminalStreamingMode"] = "visible";
 export const DEFAULT_EXPLORER_SCALE = 1;
-export const DEFAULT_AGENT_CONTEXT_FILE_ADAPTERS: AgentContextFileAdapterSettings[] = [
-  { id: "codex", label: "Codex compatibility", fileName: "AGENTS.md", enabled: true, builtIn: true },
-  { id: "claude", label: "Claude compatibility", fileName: "CLAUDE.md", enabled: true, builtIn: true },
-];
-
 export interface WorkspaceRegistryEntry {
   id: string;
   label: string;
@@ -190,45 +185,8 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
     explorerScale: clampSettingsNumber(input.explorerScale, DEFAULT_EXPLORER_SCALE, 0.82, 1.35),
     exploreIndexSearchOnEnter: typeof input.exploreIndexSearchOnEnter === "boolean" ? input.exploreIndexSearchOnEnter : indexing.enabled && indexing.mode !== "off" && indexedRoots.length > 0,
     indexUpdateStrategy: input.indexUpdateStrategy === "manual" ? "manual" : "on-save",
-    agentContextFileAdapters: normalizeAgentContextFileAdapters(input.agentContextFileAdapters),
     layout: normalizeWorkspaceLayout(input.layout),
   };
-}
-
-export function normalizeAgentContextFileAdapters(input: unknown): AgentContextFileAdapterSettings[] {
-  const entries = Array.isArray(input) ? input : [];
-  const byId = new Map(DEFAULT_AGENT_CONTEXT_FILE_ADAPTERS.map((adapter) => [adapter.id, adapter]));
-  for (const entry of entries) {
-    const normalized = normalizeAgentContextFileAdapter(entry);
-    if (normalized) {
-      byId.set(normalized.id, normalized);
-    }
-  }
-  return [...byId.values()];
-}
-
-function normalizeAgentContextFileAdapter(input: unknown): AgentContextFileAdapterSettings | null {
-  if (!input || typeof input !== "object") {
-    return null;
-  }
-  const candidate = input as Partial<AgentContextFileAdapterSettings>;
-  const id = typeof candidate.id === "string" ? candidate.id.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-|-$/g, "") : "";
-  const fileName = typeof candidate.fileName === "string" ? candidate.fileName.trim() : "";
-  if (!id || !isSafeAgentContextFileName(fileName)) {
-    return null;
-  }
-  const builtIn = DEFAULT_AGENT_CONTEXT_FILE_ADAPTERS.find((adapter) => adapter.id === id);
-  return {
-    id,
-    label: typeof candidate.label === "string" && candidate.label.trim() ? candidate.label.trim() : builtIn?.label ?? `${fileName} compatibility`,
-    fileName,
-    enabled: typeof candidate.enabled === "boolean" ? candidate.enabled : true,
-    builtIn: builtIn?.builtIn ?? Boolean(candidate.builtIn),
-  };
-}
-
-function isSafeAgentContextFileName(fileName: string): boolean {
-  return Boolean(fileName) && !fileName.includes("/") && !fileName.includes("\\") && !fileName.startsWith(".");
 }
 
 export function workspaceEntryFromSettings(settings: WorkspaceSettings): WorkspaceRegistryEntry {
