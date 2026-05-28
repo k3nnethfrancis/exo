@@ -20,7 +20,7 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
   - Long prompts should be delivered using a robust paste/write strategy and covered by tests that read back what the provider receives.
 - Next:
   - Add a regression around `exo agents send`/terminal manager write preserving spaces for long submitted messages.
-  - Test both direct pty and restored tmux-backed transports.
+  - Test the direct pty path as the canonical terminal runtime.
   - Verify whether the issue is actual pty input corruption or transcript/render cleaning before fixing.
 
 ### EXO-ISSUE-019: Exo-launched Codex can still report Exo MCP startup handshake failure
@@ -43,31 +43,30 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 
 - Status: fixed pending broader bug-bash
 - Severity: critical
-- Area: terminal renderer, terminal session switching, xterm performance, tmux-backed agent terminals
+- Area: terminal renderer, terminal session switching, xterm performance, direct pty agent terminals
 - Observed:
   - New terminals sometimes do not fully load.
   - Switching between terminals can show a blank surface or stale `[exited]` message, then recover after switching again.
   - Typing into terminals can lag enough to become unusable.
   - A tmux-backed Claude agent launched from `lab` completed an organization-protocol run and asked follow-up questions, but the terminal then became unresponsive and the user could not type a reply.
 - Suspected reliability risks:
-  - Agent terminals run through a double layer: Exo spawns a pty that attaches to tmux, and tmux runs the agent process. This can hide dead, blocked, or detached panes behind a still-running attach process.
+  - Historical tmux-backed sessions added a second terminal layer that could hide dead, blocked, or detached panes behind a still-running attach process. The runtime direction is direct pty only; see `terminal-runtime-decision.md`.
   - Terminal activation/switching can still force full-buffer reads and xterm replay, which can make the renderer busy exactly when the user tries to type.
   - Large terminal buffers and transcript handling can amplify long agent outputs into expensive string work.
   - Only-visible terminal streaming can leave inactive terminals stale, then require a full read/replay when switching back.
-  - Resize events are sent through the terminal/tmux path frequently during pane/layout changes and need coalescing.
+  - Resize events are sent through the terminal path frequently during pane/layout changes and need coalescing.
   - Exo currently lacks terminal health and latency instrumentation, so unresponsive terminals are hard to distinguish from slow rendering, dropped input, blocked tmux panes, or exited agent processes.
 - Next:
   - Continue broader bug-bash QA with long-running real Claude/Codex sessions.
-  - Watch for any remaining stale restored tmux-session behavior; restored tmux sessions are supported, but new agent sessions now default to direct pty.
+  - Remove stale tmux compatibility code and keep direct pty as the only core terminal runtime.
 - Fixed:
   - Reduced terminal typing/output lag by appending streamed chunks through an append-specific live buffer path instead of trimming and comparing whole terminal buffers on every frame.
   - Explicit terminal reads now mark buffer resets so switching/restoring terminals still refreshes the xterm surface when the source buffer is replaced.
-  - New Claude and Codex terminals now default to direct pty transport; persistent tmux remains available as an explicit setting/CLI option.
-  - Added terminal transport, health, latency, transcript, buffer, and tmux pane/client diagnostics in app IPC, command server, and `exo terminals diagnostics`.
+  - New Claude and Codex terminals now default to direct pty.
+  - Added terminal health, latency, transcript, and buffer diagnostics in app IPC, command server, and `exo terminals diagnostics`.
   - Replaced main-process live terminal storage with a bounded line buffer and bounded renderer-side terminal tracking.
   - Live active terminal output now streams directly into xterm through the terminal registry, avoiding React full-buffer state as the primary render path.
-  - Debounced terminal resize events before they reach pty/tmux.
-  - Added terminal settings UI for agent transport with Direct pty as the default.
+  - Debounced terminal resize events before they reach pty.
 
 ## Resolved
 

@@ -49,24 +49,23 @@ Current endpoints in `apps/desktop/src/main/command-server.ts`:
 
 Terminals are the first agent interface.
 
-- plain shell terminals use `node-pty`
-- Claude and Codex terminal agents run in Exo-managed tmux sessions
+- shell, Claude, and Codex terminals use direct `node-pty` sessions
 - Exo session ids are local app ids such as `term-13`
-- tmux sessions are named `exo-agent-*`
 - terminal history policy is configured through workspace settings
-- `full` terminal history keeps Exo's in-memory buffers untrimmed and uses the configured tmux/xterm line window
+- `full` terminal history keeps Exo's live terminal buffers at the configured full xterm line window
 - `custom` terminal history trims Exo's in-memory buffers by the configured line count
 - terminal transcripts are persisted under `.exo/terminal-transcripts/`
 - transcript retention defaults to `forever`; optional day-based retention is explicit in settings
-- restored tmux-backed agent terminals seed xterm once from tmux history, then render only the live PTY/tmux attach stream
-- closing or killing an agent terminal should terminate the backing tmux session
+- closing or killing a terminal terminates the supervised pty process
+
+See `terminal-runtime-decision.md` for the direct pty decision, tmux tradeoffs, and revisit criteria.
 
 The renderer should treat terminal sessions as live views over supervised processes, not as durable state by itself.
 
 Stability constraints:
 
 - do not reset xterm with full-buffer rewrites during normal streaming
-- do not replay recurring `tmux capture-pane` snapshots into visible xterm surfaces
+- do not add secondary terminal transports or hidden process-survival fallbacks without a design decision
 - only the active terminal should receive hot React buffer updates
 - strip mouse tracking modes from app output so wheel scroll remains local scroll in Exo
 - terminal file drops should resolve to filesystem paths before being pasted into the pty

@@ -58,7 +58,7 @@ Without autostart, Exo must already be running so the MCP server can discover `.
 - `read_agent` — read buffered terminal output. ANSI cleanup is enabled by default.
 - `send_agent_message` — send text to a live agent. `submit` defaults to `true`, so the message is submitted with Enter unless explicitly disabled. Codex startup sends may be queued until normal chat input is ready.
 - `interrupt_agent` — send Escape or Ctrl-C to a live agent.
-- `terminate_agent` — terminate an Exo terminal. For terminal agents this also kills the backing tmux session.
+- `terminate_agent` — terminate an Exo terminal and its supervised pty process.
 - `workspace_status` — inspect the active Exo workspace model.
 - `list_project_roots` — list attached project folders.
 - `add_project_root` — attach an explicit project folder to the running Exo workspace.

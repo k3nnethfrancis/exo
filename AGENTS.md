@@ -11,10 +11,11 @@ Exo is a local-first agentic development environment built around a shared exoco
 5. `docs/architecture.md` - runtime and package boundaries
 6. `docs/harness.md` - gates, work chunks, agent workflow
 7. `docs/tasks.md` - active execution tracker
-8. `docs/qmd-integration-notes.md` - current QMD adapter contract and upgrade notes
-9. `docs/roadmap.md` - future plans
-10. `docs/plugins.md` - future extension model
-11. `packages/mcp/README.md` - MCP setup and tool contract
+8. `docs/terminal-runtime-decision.md` - terminal pty/tmux decision and revisit criteria
+9. `docs/qmd-integration-notes.md` - current QMD adapter contract and upgrade notes
+10. `docs/roadmap.md` - future plans
+11. `docs/plugins.md` - future extension model
+12. `packages/mcp/README.md` - MCP setup and tool contract
 
 ## Repository Map
 
@@ -64,7 +65,7 @@ CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build 
 - Renderer code must not touch filesystem or processes directly; use preload APIs backed by main-process services.
 - CLI and MCP are peer clients of the local command server discovered through `${workspace_root}/.exo/server.json`.
 - `packages/core/src/command-protocol.ts` owns shared command routes and payload shapes.
-- New shell, Claude, and Codex terminals use direct `node-pty` sessions for responsiveness. Legacy restored tmux sessions may still exist, but tmux is a compatibility path, not the default product model.
+- New shell, Claude, and Codex terminals use direct `node-pty` sessions for responsiveness. Do not add tmux or another transport fallback to core terminal management without following `docs/terminal-runtime-decision.md`.
 - Terminal output must stream into xterm imperatively. React state may keep bounded metadata/tail state for restore, tabs, diagnostics, and tests, but must not be the live rendering source for high-volume terminal output.
 - Terminal live scrollback is user-facing configuration. Avoid hidden hard caps or internal truncation that users cannot discover or change; if a guard is necessary, expose the behavior in settings/docs and keep durable transcripts independent.
 - Full transcripts live under `.exo/terminal-transcripts/` with retention.
