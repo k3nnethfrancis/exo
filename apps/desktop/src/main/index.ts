@@ -171,7 +171,7 @@ function startCommandServer() {
     onTerminalDiagnostics: () => terminalManager.diagnostics(),
     onCreateTerminal: (kind: string, cwd?: string) =>
       terminalManager.create({ kind: kind as "shell" | "claude" | "codex", cwd }),
-    onReadTerminal: (id: string) => terminalManager.readBuffer(id),
+    onReadTerminalTail: (id: string) => terminalManager.readTail(id),
     onReadTerminalTranscript: (id: string, tailChars: number) => terminalManager.readTranscript(id, tailChars),
     onWriteTerminal: (id: string, data: string) => terminalManager.write(id, data),
     onSendTerminalMessage: (id: string, message: string, submit: boolean) => terminalManager.sendMessage(id, message, submit),

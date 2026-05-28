@@ -33,21 +33,21 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
   - A tmux-backed Claude agent launched from `lab` completed an organization-protocol run and asked follow-up questions, but the terminal then became unresponsive and the user could not type a reply.
 - Suspected reliability risks:
   - Historical tmux-backed sessions added a second terminal layer that could hide dead, blocked, or detached panes behind a still-running attach process. The runtime direction is direct pty only; see `terminal-runtime-decision.md`.
-  - Terminal activation/switching can still force full-buffer reads and xterm replay, which can make the renderer busy exactly when the user tries to type.
-  - Large terminal buffers and transcript handling can amplify long agent outputs into expensive string work.
-  - Only-visible terminal streaming can leave inactive terminals stale, then require a full read/replay when switching back.
+  - Historical terminal activation/switching forced full-output reads and xterm replay, which made the renderer busy exactly when the user tried to type.
+  - Large live terminal tails and transcript handling can amplify long agent outputs into expensive string work if they are treated as full-history state.
+  - Only-visible terminal streaming can leave inactive terminals stale, then require a tail hydration read when switching back.
   - Resize events are sent through the terminal path frequently during pane/layout changes and need coalescing.
   - Exo currently lacks enough terminal health and latency instrumentation, so unresponsive terminals are hard to distinguish from slow rendering, dropped input, blocked prompts, or exited agent processes.
 - Next:
   - Continue broader bug-bash QA with long-running real Claude/Codex sessions.
 - Fixed:
   - Removed stale tmux runtime compatibility code, diagnostics, restore state, and transport UI/API fields from the core terminal path.
-  - Reduced terminal typing/output lag by appending streamed chunks through an append-specific live buffer path instead of trimming and comparing whole terminal buffers on every frame.
-  - Explicit terminal reads now mark buffer resets so switching/restoring terminals still refreshes the xterm surface when the source buffer is replaced.
+  - Reduced terminal typing/output lag by appending streamed chunks through an append-specific live stream path instead of trimming and comparing whole terminal output on every frame.
+  - Explicit terminal reads now hydrate from bounded live tails so switching/restoring terminals still refreshes the xterm surface without pretending the live tail is durable history.
   - Claude and Codex terminals now use direct pty only.
-  - Added terminal health, latency, transcript, and buffer diagnostics in app IPC, command server, and `exo terminals diagnostics`.
-  - Replaced main-process live terminal storage with a bounded line buffer and bounded renderer-side terminal tracking.
-  - Live active terminal output now streams directly into xterm through the terminal registry, avoiding React full-buffer state as the primary render path.
+  - Added terminal health, latency, transcript, and live-tail diagnostics in app IPC, command server, and `exo terminals diagnostics`.
+  - Replaced main-process live terminal storage with a bounded line tail and bounded renderer-side terminal tracking.
+  - Live active terminal output now streams directly into xterm through the terminal registry, avoiding React-owned full-output state as the primary render path.
   - Debounced terminal resize events before they reach pty.
 
 ## Resolved
@@ -171,14 +171,14 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 - Status: fixed
 - Severity: high
 - Area: terminal persistence, renderer stability, Exo-on-Exo stress
-- Observed: after the multi-agent stress test, the dev app repeatedly logged renderer crashes while reattaching Codex sessions with very large terminal buffers.
+- Observed: after the multi-agent stress test, the dev app repeatedly logged renderer crashes while reattaching Codex sessions with very large terminal live-output tails.
 - Fixed:
-  - Live terminal buffers now follow the user-configured live scrollback line count instead of a hidden character cap.
-  - Transcript storage still receives complete terminal data; only the live interface buffer is trimmed.
-  - Renderer-side streaming buffers apply the same line-based scrollback setting as chunks arrive, so active visible terminals match the settings model.
+  - Live terminal tails now follow the user-configured live scrollback line count instead of a hidden character cap.
+  - Transcript storage still receives complete terminal data; only the live interface tail is trimmed.
+  - Renderer-side streaming tails apply the same line-based scrollback setting as chunks arrive, so active visible terminals match the settings model.
 - QA coverage:
-  - Added terminal-manager regression that live buffers follow configured scrollback lines while transcript reads still include the full emitted content.
-  - Added renderer utility regression for streamed terminal buffer trimming from the same configured line count.
+  - Added terminal-manager regression that live tails follow configured scrollback lines while transcript reads still include the full emitted content.
+  - Added renderer utility regression for streamed terminal tail trimming from the same configured line count.
 
 ### EXO-ISSUE-011: Exo agent send can require an extra raw Enter before Codex starts work
 

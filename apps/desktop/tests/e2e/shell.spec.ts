@@ -712,7 +712,7 @@ test("keeps large terminal bursts available above the visible viewport", async (
   }
 });
 
-test("keeps app terminal buffer above the legacy 12k cap", async () => {
+test("keeps app terminal tail above the legacy 12k cap", async () => {
   const { page, cleanup } = await launchExoFixture({
     env: {
       EXO_SHELL: "/bin/sh",

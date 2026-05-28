@@ -38,7 +38,7 @@ Current endpoints in `apps/desktop/src/main/command-server.ts`:
 - `POST /open`
 - `GET /terminals`
 - `POST /terminals`
-- `GET /terminals/:id/buffer`
+- `GET /terminals/:id/tail`
 - `GET /terminals/:id/transcript`
 - `POST /terminals/:id/write`
 - `DELETE /terminals/:id`
@@ -52,8 +52,8 @@ Terminals are the first agent interface.
 - shell, Claude, and Codex terminals use direct `node-pty` sessions
 - Exo session ids are local app ids such as `term-13`
 - terminal history policy is configured through workspace settings
-- `full` terminal history keeps Exo's live terminal buffers at the configured full xterm line window
-- `custom` terminal history trims Exo's in-memory buffers by the configured line count
+- `full` terminal history keeps Exo's live terminal tail at the configured full xterm line window
+- `custom` terminal history trims Exo's in-memory tail by the configured line count
 - terminal transcripts are persisted under `.exo/terminal-transcripts/`
 - transcript retention defaults to `forever`; optional day-based retention is explicit in settings
 - closing or killing a terminal terminates the supervised pty process
@@ -64,9 +64,9 @@ The renderer should treat terminal sessions as live views over supervised proces
 
 Stability constraints:
 
-- do not reset xterm with full-buffer rewrites during normal streaming
+- do not reset xterm with full-output rewrites during normal streaming
 - do not add secondary terminal transports or hidden process-survival fallbacks without a design decision
-- only the active terminal should receive hot React buffer updates
+- only the active terminal should receive hot renderer append work
 - strip mouse tracking modes from app output so wheel scroll remains local scroll in Exo
 - terminal file drops should resolve to filesystem paths before being pasted into the pty
 

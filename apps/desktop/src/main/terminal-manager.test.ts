@@ -225,7 +225,7 @@ describe("TerminalManager Codex readiness", () => {
 
     pty.emitData(largeChunk);
 
-    expect(manager.readBuffer(terminal.id)).toBe(lines.slice(-500).join("\n"));
+    expect(manager.readTail(terminal.id)).toBe(lines.slice(-500).join("\n"));
     expect(manager.readTranscript(terminal.id)).toContain("line-1");
   });
 

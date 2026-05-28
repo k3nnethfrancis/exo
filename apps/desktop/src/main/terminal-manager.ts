@@ -235,7 +235,7 @@ export class TerminalManager extends EventEmitter {
     return this.writeToRecord(record, pendingWrite, submit && shouldQueueSubmittedAgentMessage(record));
   }
 
-  readBuffer(id: string): string | null {
+  readTail(id: string): string | null {
     const record = this.sessions.get(id);
     if (!record) {
       return null;

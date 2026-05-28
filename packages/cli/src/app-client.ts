@@ -134,8 +134,8 @@ export class AppClient {
   }
 
   async readTerminal(id: string): Promise<string> {
-    const result = await this.get(EXO_COMMAND_ROUTES.terminalBuffer(id));
-    return String(result.buffer ?? "");
+    const result = await this.get(EXO_COMMAND_ROUTES.terminalTail(id));
+    return String(result.tail ?? "");
   }
 
   async readTerminalTranscript(id: string, tailChars = 0): Promise<string> {

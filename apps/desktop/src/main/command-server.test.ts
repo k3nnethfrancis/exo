@@ -165,7 +165,7 @@ function commandServerOptions(runtimeRoot: string): CommandServerOptions {
       command: "zsh",
       status: "running",
     }),
-    onReadTerminal: () => "",
+    onReadTerminalTail: () => "",
     onReadTerminalTranscript: () => "",
     onWriteTerminal: async () => ({ ok: true, delivery: "sent" }),
     onSendTerminalMessage: async () => ({ ok: true, delivery: "sent" }),

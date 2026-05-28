@@ -398,9 +398,9 @@ export async function runCli(
       if (!id) {
         throw new Error("Expected a terminal id.");
       }
-      const buffer = await client.readTerminal(id);
-      stdout.write(buffer);
-      if (buffer && !buffer.endsWith("\n")) {
+      const tail = await client.readTerminal(id);
+      stdout.write(tail);
+      if (tail && !tail.endsWith("\n")) {
         stdout.write("\n");
       }
       return 0;
@@ -735,7 +735,7 @@ export async function runCli(
       "  exo project-roots remove <path>            Detach a project root (app)",
       "  exo terminals [list]                       List terminals (app)",
       "  exo terminals create <shell|claude|codex>  Create terminal (app)",
-      "  exo terminals read <id>                    Read buffered terminal output (app)",
+      "  exo terminals read <id>                    Read bounded live terminal tail (app)",
       "  exo terminals transcript <id> [--tail n]   Read disk-backed terminal transcript (app)",
       "  exo terminals write <id> <text>            Write raw input to terminal (app)",
       "  exo terminals send <id> <text>             Send input plus Enter to terminal (app)",

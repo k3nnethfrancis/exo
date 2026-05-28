@@ -248,10 +248,10 @@ server.registerTool(
   "read_agent",
   {
     title: "Read Exo Agent",
-    description: "Read buffered terminal output for one Exo agent. This is read-only.",
+    description: "Read the bounded live terminal tail for one Exo agent. This is read-only.",
     inputSchema: {
       agentId: z.string().min(1).describe("Agent id from list_agents, for example term-3."),
-      tailChars: z.number().int().positive().max(200_000).default(20_000).describe("Maximum characters to return from the end of the buffer."),
+      tailChars: z.number().int().positive().max(200_000).default(20_000).describe("Maximum characters to return from the end of the transcript."),
       clean: z.boolean().default(true).describe("Strip ANSI terminal escape codes before returning output."),
     },
     annotations: {

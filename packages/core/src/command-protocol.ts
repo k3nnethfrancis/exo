@@ -14,7 +14,7 @@ export const EXO_COMMAND_ROUTES = {
   projectRoot: (target: string) => `/project-roots/${encodeURIComponent(target)}`,
   terminals: "/terminals",
   terminalDiagnostics: "/terminals/diagnostics",
-  terminalBuffer: (id: string) => `/terminals/${encodeURIComponent(id)}/buffer`,
+  terminalTail: (id: string) => `/terminals/${encodeURIComponent(id)}/tail`,
   terminalTranscript: (id: string, tailChars: number) =>
     `/terminals/${encodeURIComponent(id)}/transcript?tailChars=${encodeURIComponent(String(tailChars))}`,
   terminalWrite: (id: string) => `/terminals/${encodeURIComponent(id)}/write`,

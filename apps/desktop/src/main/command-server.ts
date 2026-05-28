@@ -42,7 +42,7 @@ export interface CommandServerOptions {
   onListTerminals: () => ExoCommandTerminalInfo[];
   onTerminalDiagnostics: () => ExoCommandTerminalDiagnostics[];
   onCreateTerminal: (kind: string, cwd?: string) => Promise<ExoCommandTerminalInfo>;
-  onReadTerminal: (id: string) => string | null;
+  onReadTerminalTail: (id: string) => string | null;
   onReadTerminalTranscript: (id: string, tailChars: number) => string | null;
   onWriteTerminal: (id: string, data: string) => Promise<ExoWriteTerminalResponse>;
   onSendTerminalMessage: (id: string, message: string, submit: boolean) => Promise<ExoWriteTerminalResponse>;
@@ -273,14 +273,14 @@ export class CommandServer {
         return;
       }
 
-      const terminalReadMatch = pathname.match(/^\/terminals\/([^/]+)\/buffer$/);
+      const terminalReadMatch = pathname.match(/^\/terminals\/([^/]+)\/tail$/);
       if (method === "GET" && terminalReadMatch) {
-        const buffer = this.options.onReadTerminal(decodeURIComponent(terminalReadMatch[1]));
-        if (buffer === null) {
+        const tail = this.options.onReadTerminalTail(decodeURIComponent(terminalReadMatch[1]));
+        if (tail === null) {
           json(res, { error: "Terminal not found" }, 404);
           return;
         }
-        json(res, { buffer });
+        json(res, { tail });
         return;
       }
 

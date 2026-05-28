@@ -1,7 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-
 import type { WorkspaceModel } from "@exo/core";
 import type { AgentInstructionOverlay } from "../shared/api";
 
