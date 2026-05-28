@@ -68,8 +68,9 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
   - Fixed the unified instructions textarea being clipped after the density pass by reserving real layout height instead of allowing overlap.
   - Converted the main editor blocks and side-rail blocks into collapsible sections so users can reclaim vertical space.
   - Moved managed config selection into the managed config editor as the same tab-strip pattern used by provider files.
+  - Added internal scroll containment for editor panels, tab strips, and textareas so long content scrolls inside the relevant component box.
 - QA coverage:
-  - Focused Electron QA covers agent-config partial-load states, narrow-error layout, provider file editing, visible unified editor height, history popover, managed config expansion/tab selection, and generated overlay expansion.
+  - Focused Electron QA covers agent-config partial-load states, narrow-error layout, provider file editing, visible and scrollable unified editor height, history popover, managed config expansion/tab selection, and generated overlay expansion.
   - Live app QA verified the editor opens with provider/config tabs attached to their editors, collapsible sections working, and the unified instructions editor visible.
 
 ### EXO-ISSUE-016: Project-file saves have no visible confirmation

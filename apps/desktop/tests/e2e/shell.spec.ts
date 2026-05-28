@@ -539,6 +539,14 @@ test("edits agent context files from workspace settings", async () => {
   const unifiedEditorBox = await page.getByTestId("agent-context-unified-editor").boundingBox();
   expect(unifiedEditorBox).not.toBeNull();
   expect(unifiedEditorBox!.height).toBeGreaterThan(100);
+  await page.getByTestId("agent-context-unified-editor").fill(Array.from({ length: 24 }, (_, index) => `line ${index + 1}`).join("\n"));
+  await expect.poll(async () =>
+    page.getByTestId("agent-context-unified-editor").evaluate((node) => {
+      const textarea = node as HTMLTextAreaElement;
+      textarea.scrollTop = textarea.scrollHeight;
+      return textarea.scrollTop;
+    }),
+  ).toBeGreaterThan(0);
   await expect(page.getByTestId("agent-context-adapters")).toContainText("AGENTS.md");
   await expect(page.getByTestId("agent-context-adapters")).toContainText("CLAUDE.md");
   await page.getByTestId("agent-context-adapter-file-name").fill("soul.md");

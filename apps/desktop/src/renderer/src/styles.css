@@ -1555,7 +1555,11 @@ select.dialog-card__input {
 .agent-context-manager__section-body {
   display: grid;
   gap: 10px;
+  max-height: min(520px, 62dvh);
   min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .agent-context-manager__section-header {
@@ -1751,6 +1755,7 @@ select.dialog-card__input {
   height: 116px;
   min-height: 116px;
   overflow: auto;
+  overscroll-behavior: contain;
   resize: vertical;
   font-family: var(--mono);
   font-size: 11px;
@@ -2008,6 +2013,7 @@ details.agent-context-settings__overlay[open] {
   display: flex;
   min-width: 0;
   overflow-x: auto;
+  overscroll-behavior-inline: contain;
   padding-top: 2px;
 }
 
@@ -2087,7 +2093,10 @@ details.agent-context-settings__overlay[open] {
 }
 
 .agent-context-settings__textarea {
+  max-height: min(460px, 52dvh);
   min-height: 360px;
+  overflow: auto;
+  overscroll-behavior: contain;
   resize: none;
   font-family: var(--mono);
   font-size: 12px;
@@ -2100,6 +2109,7 @@ details.agent-context-settings__overlay[open] {
 }
 
 .agent-context-settings__textarea--config {
+  max-height: min(300px, 38dvh);
   min-height: 190px;
 }
 
