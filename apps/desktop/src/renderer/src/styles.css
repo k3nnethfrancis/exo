@@ -1546,6 +1546,7 @@ select.dialog-card__input {
 
 .agent-context-manager__section--primary {
   background: color-mix(in srgb, var(--surface-2) 56%, transparent);
+  min-height: 292px;
 }
 
 .agent-context-manager__section-header {
@@ -1565,7 +1566,8 @@ select.dialog-card__input {
 }
 
 .agent-context-manager__composer-field {
-  min-height: 124px;
+  grid-template-rows: auto minmax(116px, auto);
+  min-height: 148px;
 }
 
 .agent-context-scope {
@@ -1736,7 +1738,10 @@ select.dialog-card__input {
 }
 
 .agent-context-settings__composer-textarea {
-  min-height: 120px;
+  box-sizing: border-box;
+  height: 116px;
+  min-height: 116px;
+  overflow: auto;
   resize: vertical;
   font-family: var(--mono);
   font-size: 11px;

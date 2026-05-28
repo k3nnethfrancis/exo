@@ -536,6 +536,9 @@ test("edits agent context files from workspace settings", async () => {
   await expect(page.getByTestId("agent-context-manager")).not.toContainText("Provider outputs");
   await expect(page.getByTestId("agent-context-history-toggle")).toBeVisible();
   await expect(page.getByTestId("agent-instruction-overlay-preview")).toContainText("Generated overlay");
+  const unifiedEditorBox = await page.getByTestId("agent-context-unified-editor").boundingBox();
+  expect(unifiedEditorBox).not.toBeNull();
+  expect(unifiedEditorBox!.height).toBeGreaterThan(100);
   await expect(page.getByTestId("agent-context-adapters")).toContainText("AGENTS.md");
   await expect(page.getByTestId("agent-context-adapters")).toContainText("CLAUDE.md");
   await page.getByTestId("agent-context-adapter-file-name").fill("soul.md");

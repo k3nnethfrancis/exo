@@ -65,9 +65,10 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
   - Replaced managed history with a compact history popover control near the provider editor actions.
   - Collapsed managed config editing and generated overlay details by default.
   - Increased provider editor height and reduced top-section density.
+  - Fixed the unified instructions textarea being clipped after the density pass by reserving real layout height instead of allowing overlap.
 - QA coverage:
-  - Focused Electron QA covers agent-config partial-load states, narrow-error layout, provider file editing, history popover, managed config expansion, and generated overlay expansion.
-  - Live app QA verified the editor opens with provider tabs attached to the editor and secondary sections collapsed.
+  - Focused Electron QA covers agent-config partial-load states, narrow-error layout, provider file editing, visible unified editor height, history popover, managed config expansion, and generated overlay expansion.
+  - Live app QA verified the editor opens with provider tabs attached to the editor, secondary sections collapsed, and the unified instructions editor visible.
 
 ### EXO-ISSUE-016: Project-file saves have no visible confirmation
 
