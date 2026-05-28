@@ -71,6 +71,15 @@ CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build 
 - Terminal scroll must stay local to xterm and must not become Claude/Codex history input.
 - Workspace filesystem changes should flow from `WorkspaceWatcherService` events. Do not add renderer polling loops for open-document freshness unless a watcher gap is proven and documented.
 
+## Code Organization
+
+- `apps/desktop/src/renderer/src/App.tsx` is the shell orchestrator. Keep bootstrap, top-level workspace composition, and cross-feature coordination there; move feature UI, state machines, and pure algorithms into named modules.
+- Pure pane/tree algorithms belong in focused helper modules such as `paneTreeSelectors.ts` and `workspaceTree.ts`. They should not capture React state or call preload APIs.
+- Renderer feature modules should have one obvious owner: a component for rendering, a hook for state/effects, and small pure helpers for deterministic transforms. Avoid mixing all three in one file.
+- Main-process code should follow the same boundary: command-server routing, terminal management, settings storage, indexing, and filesystem mutation should remain separate services. Do not grow `main/index.ts` with new inline subsystems.
+- Prefer extracting stable seams over moving churn. If a block changes often because the product is still being shaped, keep the boundary simple and name the ownership clearly before abstracting deeply.
+- Inline comments should explain non-obvious runtime constraints, invariants, or race-prevention logic. Do not add comments that restate the code.
+
 ## Product Rules
 
 - `workspace_root` is primary; `note_roots` and `project_roots` are explicit attachments.
@@ -97,3 +106,4 @@ CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build 
 - Preserve unrelated local edits. Before staging, inspect `git status` and include only files that belong to the current task.
 - UI and terminal changes require app QA in the real Electron app, not only browser or unit tests. Use focused automated tests first, then manually exercise the affected workflow.
 - Prefer extracting pure helpers or focused hooks over expanding `App.tsx` or `main/index.ts`. Keep IPC types in `@exo/core` when shared across CLI/MCP/desktop and avoid duplicate type definitions in preload-only files.
+- For simplification work, preserve behavior first. Run targeted tests for the moved surface, then full `pnpm ci:check` before handoff. Report line-count movement separately from architecture improvement because extraction can increase net LOC while reducing cognitive load.
