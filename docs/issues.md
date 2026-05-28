@@ -1,10 +1,43 @@
 # Exo Issues
 
-Last updated: 2026-05-26
+Last updated: 2026-05-28
 
 This is the active bug/QA tracker. It captures user-observed issues that need investigation before the next push/release pass.
 
 ## Open
+
+### EXO-ISSUE-020: Exo agent terminal send can strip spaces from long Codex prompts
+
+- Status: open
+- Severity: critical
+- Area: agent terminal write path, CLI `exo agents send`, direct pty transport, Codex provider integration
+- Observed:
+  - During an Exo-on-Exo staff-review stress test on 2026-05-28, `exo agents send term-3 "<long review prompt>"` reported successful delivery.
+  - The Codex transcript showed the submitted prompt with spaces removed, e.g. `Pleaseperformaread-onlystaffsoftwareengineer...`, making the request effectively unusable.
+  - The same session's earlier startup text preserved spaces, so the failure appears specific to Exo's agent-input/send path or transcript capture around submitted input, not general terminal display.
+- Expected:
+  - Submitted agent messages preserve whitespace exactly, including spaces, newlines, and punctuation.
+  - Long prompts should be delivered using a robust paste/write strategy and covered by tests that read back what the provider receives.
+- Next:
+  - Add a regression around `exo agents send`/terminal manager write preserving spaces for long submitted messages.
+  - Test both direct pty and restored tmux-backed transports.
+  - Verify whether the issue is actual pty input corruption or transcript/render cleaning before fixing.
+
+### EXO-ISSUE-019: Exo-launched Codex can still report Exo MCP startup handshake failure
+
+- Status: reopened
+- Severity: high
+- Area: MCP server integration, Codex provider integration, Exo-on-Exo workflow
+- Observed:
+  - During an Exo-on-Exo staff-review stress test on 2026-05-28, a newly created Codex agent showed `MCP client for exo failed to start: MCP startup failed: handshaking with MCP server failed: connection closed: initialize response`.
+  - This appears to recur despite EXO-ISSUE-010 previously being marked resolved.
+- Expected:
+  - A Codex agent launched by Exo should start with the Exo MCP available whenever the desktop command server is reachable.
+  - MCP startup failures should include enough diagnostics to distinguish command-server discovery, MCP stdio launcher, build artifact, and provider config failures.
+- Next:
+  - Re-run the MCP stdio launcher regression against the current built artifact and the exact environment used by Exo-launched Codex.
+  - Capture the Codex MCP config emitted for Exo-launched sessions and compare it with the passing manual startup path.
+  - Add a live Exo-launched Codex smoke that asserts the transcript does not contain MCP startup failure text.
 
 ### EXO-ISSUE-017: Terminal tabs can become blank, show stale `[exited]`, or lag while typing
 
