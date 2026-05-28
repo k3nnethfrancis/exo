@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import type { WorkspaceSearchResults } from "@exo/core";
 import type { WorkspaceGitChange } from "../../../shared/api";
-import type { AppearanceMode, ResolvedAppearance } from "../App";
+import type { AppearanceMode, ResolvedAppearance } from "../appearance";
 import type { DragManager } from "../hooks/useDragManager";
 import type { WorkspaceSearchResultMode } from "../hooks/useWorkspaceSearch";
 import { RailButton } from "./Chrome";

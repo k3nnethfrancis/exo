@@ -2,7 +2,7 @@ import type { CSSProperties, ReactNode, Ref } from "react";
 import { GripVertical, SquareTerminal, X } from "lucide-react";
 
 import type { TerminalSessionInfo } from "../../../shared/api";
-import type { ResolvedAppearance } from "../App";
+import type { ResolvedAppearance } from "../appearance";
 import type { DragManager } from "../hooks/useDragManager";
 import { AgentIcon } from "./AgentIcon";
 import { ChromeTab } from "./Chrome";

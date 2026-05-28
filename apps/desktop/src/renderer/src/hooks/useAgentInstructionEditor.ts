@@ -163,6 +163,8 @@ export function useAgentInstructionEditor() {
   };
 }
 
+export type AgentInstructionEditorController = ReturnType<typeof useAgentInstructionEditor>;
+
 export function agentInstructionStatusLabel(scope: AgentInstructionScope | null): string {
   if (!scope) {
     return "Unavailable";

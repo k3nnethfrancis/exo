@@ -1,5 +1,5 @@
 import type { BranchFamily, NoteDocument } from "@exo/core";
-import type { ResolvedAppearance } from "../App";
+import type { ResolvedAppearance } from "../appearance";
 import type { DragManager } from "../hooks/useDragManager";
 
 import { ChromeTab } from "./Chrome";

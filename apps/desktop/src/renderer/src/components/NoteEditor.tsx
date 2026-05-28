@@ -10,7 +10,7 @@ import { keymap, lineNumbers, EditorView } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 import { Code2, GitBranch, Save, SlidersHorizontal } from "lucide-react";
 import type { BranchFamily, NoteDocument } from "@exo/core";
-import type { ResolvedAppearance } from "../App";
+import type { ResolvedAppearance } from "../appearance";
 import { codeLanguageForPath } from "./codeLanguages";
 import { coerceFrontmatterValue, getDocumentDisplayTitle, stringifyFrontmatterValue } from "./documentDisplay";
 import { markdownLivePreview } from "./markdownLivePreview";

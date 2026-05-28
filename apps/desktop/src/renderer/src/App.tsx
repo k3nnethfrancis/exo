@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { HelpCircle, Plus, X } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import type {
   BranchFamily,
   IndexStatus,
@@ -15,14 +15,17 @@ import type {
 import type { TerminalSessionInfo, WorkspaceGitChange, WorkspaceGitStatus, WorkspaceRegistryEntry } from "../../shared/api";
 import type { FileStatInfo } from "../../shared/api";
 
+import type { AppearanceMode, ResolvedAppearance } from "./appearance";
 import { AgentConfigEditorDialog } from "./components/AgentConfigEditorDialog";
 import { EditorPane, type EditorPaneState } from "./components/EditorPane";
 import { BrowserPane } from "./components/BrowserPane";
 import { InspectorDock } from "./components/InspectorDock";
+import { PathList } from "./components/PathList";
 import { ShellLayout } from "./components/ShellLayout";
 import { TerminalDock } from "./components/TerminalDock";
+import { WorkspaceSettingsDialog } from "./components/WorkspaceSettingsDialog";
 import { writeTerminalData } from "./components/terminalRegistry";
-import { agentInstructionStatusLabel, useAgentInstructionEditor } from "./hooks/useAgentInstructionEditor";
+import { useAgentInstructionEditor } from "./hooks/useAgentInstructionEditor";
 import { useShellLayout } from "./hooks/useShellLayout";
 import { useWorkspaceSearch } from "./hooks/useWorkspaceSearch";
 import { collectLeaves, findEditorLeaf, findNode, findTerminalLeaf, mapLeaves, paneId, pruneEmptyLeaves, removeNode, updateNode, type PaneLeaf, type PaneNode, type PaneNodeId, type BrowserPaneContent, type EditorPaneContent } from "./hooks/usePaneTree";
@@ -51,6 +54,7 @@ import {
   treeLoadKey,
   uniquePaths,
 } from "./workspaceTree";
+import type { IndexBusyState, WorkspaceSettingsDialogState, WorkspaceSettingsSection } from "./workspaceSettingsDialogTypes";
 
 interface OpenEditorDocument extends NoteDocument {
   dirty: boolean;
@@ -99,32 +103,6 @@ type WorkspaceDialogState =
       confirmLabel: string;
     };
 
-interface WorkspaceSettingsDialogState {
-  section: WorkspaceSettingsSection;
-  workspaceRoot: string;
-  defaultTerminalCwd: string;
-  noteRoots: string[];
-  projectRoots: string[];
-  indexedRoots: string[];
-  indexMode: WorkspaceSettings["indexing"]["mode"];
-  appearanceMode: AppearanceMode;
-  editorFontSize: string;
-  terminalFontSize: string;
-  terminalHistoryMode: WorkspaceSettings["terminalHistoryMode"];
-  terminalHistoryLines: string;
-  terminalTranscriptRetention: WorkspaceSettings["terminalTranscriptRetention"];
-  terminalTranscriptRetentionDays: string;
-  explorerScale: string;
-  exploreIndexSearchOnEnter: boolean;
-  indexUpdateStrategy: WorkspaceSettings["indexUpdateStrategy"];
-  saveStatus: "idle" | "saving" | "saved" | "error";
-  errorMessage: string | null;
-  appliedWorkspaceKey: string;
-  applyStatus: "idle" | "applying" | "applied" | "error";
-  applyErrorMessage: string | null;
-  partialErrorMessages: string[];
-}
-
 interface OnboardingState {
   mode: "first-run" | "switch";
   step: "select" | "configure";
@@ -142,12 +120,7 @@ interface OnboardingState {
 
 // DragState replaced by useDragManager — see DragPayload in hooks/useDragManager.ts
 
-export type AppearanceMode = "system" | "light" | "dark";
-export type ResolvedAppearance = "light" | "dark";
 type ZoomSurface = "editor" | "terminal" | "explorer";
-type WorkspaceSettingsSection = "workspace" | "index" | "agents" | "appearance" | "terminal";
-
-type IndexBusyState = "syncing" | "updating" | "embedding" | null;
 
 const FULL_TERMINAL_SCROLLBACK_LINES = 1_000_000;
 const NOTE_TREE_MAX_DEPTH = 3;
@@ -155,48 +128,6 @@ const PROJECT_TREE_MAX_DEPTH = 3;
 const DEFAULT_EDITOR_FONT_SIZE = 15;
 const DEFAULT_TERMINAL_FONT_SIZE = 13;
 const DEFAULT_EXPLORER_SCALE = 1;
-
-function PathList({
-  emptyLabel,
-  onRemove,
-  paths,
-  testId,
-}: {
-  emptyLabel: string;
-  onRemove: (targetPath: string) => void;
-  paths: string[];
-  testId: string;
-}) {
-  return (
-    <div className="path-list" data-testid={testId}>
-      {paths.length === 0 ? <div className="path-list__empty">{emptyLabel}</div> : null}
-      {paths.map((targetPath) => (
-        <div className="path-list__item" key={targetPath}>
-          <span className="path-list__text" title={targetPath}>
-            <span className="path-list__name">{pathLabel(targetPath)}</span>
-            <span className="path-list__path">{targetPath}</span>
-          </span>
-          <button
-            aria-label={`Remove ${pathLabel(targetPath)}`}
-            className="path-list__remove"
-            onClick={() => onRemove(targetPath)}
-            type="button"
-          >
-            <X size={14} />
-          </button>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function HelpTooltip({ label }: { label: string }) {
-  return (
-    <span aria-label={label} className="help-tooltip" data-tooltip={label} tabIndex={0}>
-      <HelpCircle size={14} />
-    </span>
-  );
-}
 
 export function App() {
   const [workspaceModel, setWorkspaceModel] = useState<WorkspaceModel | null>(null);
@@ -2909,603 +2840,21 @@ export function App() {
       ) : null}
 
       {workspaceSettingsDialog ? (
-        <div className="dialog-overlay" data-testid="workspace-settings-overlay">
-          <div className="dialog-card dialog-card--settings" data-testid="workspace-settings-dialog">
-            <div className="dialog-card__header">
-              <div className="dialog-card__title">Workspace Settings</div>
-              <button
-                aria-label="Close workspace settings"
-                className="dialog-card__close"
-                data-testid="workspace-settings-close"
-                onClick={closeWorkspaceSettingsDialog}
-                title="Close"
-                type="button"
-              >
-                <X size={16} />
-              </button>
-            </div>
-            <div className="dialog-card__message">Workspace paths and index settings apply when you press Apply.</div>
-            {workspaceSettingsPartialErrors.length > 0 ? (
-              <div className="dialog-card__status dialog-card__status--error" data-testid="agent-context-partial-errors">
-                      <div>Some agent instruction data could not be loaded.</div>
-                {workspaceSettingsPartialErrors.slice(0, 3).map((message) => (
-                  <div key={message}>{message}</div>
-                ))}
-              </div>
-            ) : null}
-            <div className="dialog-tabs" role="tablist" aria-label="Workspace settings sections">
-              {(["workspace", "index", "agents", "appearance", "terminal"] as WorkspaceSettingsSection[]).map((section) => (
-                <button
-                  className={`dialog-tabs__button ${workspaceSettingsDialog.section === section ? "dialog-tabs__button--active" : ""}`}
-                  data-testid={`workspace-settings-tab-${section}`}
-                  key={section}
-                  onClick={() =>
-                    setWorkspaceSettingsDialog((current) =>
-                      current
-                        ? {
-                            ...current,
-                            section,
-                          }
-                        : current,
-                    )
-                  }
-                  role="tab"
-                  type="button"
-                >
-                  {section[0].toUpperCase() + section.slice(1)}
-                </button>
-              ))}
-            </div>
-            <div className="dialog-form">
-              {workspaceSettingsDialog.section === "workspace" ? (
-                <>
-                  <label className="dialog-field dialog-field--section">
-                    <span className="dialog-field__label">Workspace</span>
-                    <input
-                      className="dialog-card__input"
-                      data-testid="workspace-settings-workspace-root"
-                      value={workspaceSettingsDialog.workspaceRoot}
-                      onChange={(event) =>
-                        setWorkspaceSettingsDialog((current) =>
-                          current
-                            ? {
-                                ...current,
-                                workspaceRoot: event.target.value,
-                                applyStatus: "idle",
-                                applyErrorMessage: null,
-                              }
-                            : current,
-                        )
-                      }
-                    />
-                    <div className="dialog-field__actions">
-                      <button className="toolbar-button" onClick={() => void chooseFolderForSettings("workspaceRoot")} type="button">
-                        Select
-                      </button>
-                    </div>
-                  </label>
-                  <label className="dialog-field dialog-field--section">
-                    <span className="dialog-field__label">Default terminal</span>
-                    <input
-                      className="dialog-card__input"
-                      data-testid="workspace-settings-terminal-cwd"
-                      value={workspaceSettingsDialog.defaultTerminalCwd}
-                      onChange={(event) =>
-                        setWorkspaceSettingsDialog((current) =>
-                          current
-                            ? {
-                                ...current,
-                                defaultTerminalCwd: event.target.value,
-                                applyStatus: "idle",
-                                applyErrorMessage: null,
-                              }
-                            : current,
-                        )
-                      }
-                    />
-                    <div className="dialog-field__actions">
-                      <button className="toolbar-button" onClick={() => void chooseFolderForSettings("defaultTerminalCwd")} type="button">
-                        Select
-                      </button>
-                    </div>
-                  </label>
-                  <div className="dialog-field dialog-field--section">
-                    <div className="dialog-field__header">
-                      <span className="dialog-field__label">Notes folder</span>
-                      <button className="toolbar-button" onClick={() => void openWorkspaceSwitcher()} type="button">
-                        Switch workspace
-                      </button>
-                    </div>
-                    <PathList
-                      emptyLabel="No notes folder selected."
-                      paths={workspaceSettingsDialog.noteRoots}
-                      testId="workspace-settings-note-roots"
-                      onRemove={() =>
-                        setWorkspaceSettingsDialog((current) =>
-                          current ? { ...current, noteRoots: [], applyStatus: "idle", applyErrorMessage: null } : current,
-                        )
-                      }
-                    />
-                  </div>
-                  <div className="dialog-field dialog-field--section">
-                    <div className="dialog-field__header">
-                      <span className="dialog-field__label">Project folders</span>
-                      <button
-                        aria-label="Add project folder"
-                        className="toolbar-button toolbar-button--icon"
-                        onClick={() => void chooseFolderForSettings("projectRoot")}
-                        title="Add project folder"
-                        type="button"
-                      >
-                        <Plus size={15} />
-                      </button>
-                    </div>
-                    <PathList
-                      emptyLabel="No project folders added."
-                      paths={workspaceSettingsDialog.projectRoots}
-                      testId="workspace-settings-project-roots"
-                      onRemove={(targetPath) =>
-                        setWorkspaceSettingsDialog((current) =>
-                          current
-                            ? {
-                                ...current,
-                                projectRoots: current.projectRoots.filter((entry) => entry !== targetPath),
-                                applyStatus: "idle",
-                                applyErrorMessage: null,
-                              }
-                            : current,
-                        )
-                      }
-                    />
-                  </div>
-                </>
-              ) : null}
-              {workspaceSettingsDialog.section === "index" ? (
-                <>
-                  <div className="index-summary">
-                    <div className="index-summary__header">
-                      <span>
-                        Local{" "}
-                        <button
-                          className="link-button link-button--inline"
-                          onClick={() => void window.exo.shell.openExternal("https://github.com/tobi/qmd")}
-                          type="button"
-                        >
-                          QMD
-                        </button>{" "}
-                        Index
-                      </span>
-                    </div>
-                    <div className="index-summary__stats">
-                      <span>{indexStatus?.mode ?? workspaceSettingsDialog.indexMode}</span>
-                      <span>{indexStatus?.indexedRoots.length ?? workspaceSettingsDialog.indexedRoots.length} root{(indexStatus?.indexedRoots.length ?? workspaceSettingsDialog.indexedRoots.length) === 1 ? "" : "s"}</span>
-                      <span>{indexStatus?.documentCount ?? 0} docs</span>
-                      <span>{indexStatus?.pendingEmbeddings ?? 0} pending</span>
-                    </div>
-                  </div>
-                  {indexStatus?.recentJobs?.length ? (
-                    <div className="index-activity" data-testid="workspace-settings-index-activity">
-                      <div className="index-activity__title">Recent index activity</div>
-                      {indexStatus.recentJobs.slice(0, 5).map((job) => (
-                        <div className="index-activity__row" key={job.id}>
-                          <span>{job.kind}</span>
-                          <span>{job.reason}</span>
-                          <span>{formatDuration(job.durationMs)}</span>
-                          <span>{formatRelativeTime(job.completedAt)}</span>
-                          <span>{job.status === "failed" ? "failed" : `${job.pendingEmbeddings ?? 0} pending`}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-                  <label className="dialog-field dialog-field--section">
-                    <span className="dialog-field__label">Knowledge index</span>
-                    <select
-                      className="dialog-card__input"
-                      data-testid="workspace-settings-index-mode"
-                      value={workspaceSettingsDialog.indexMode}
-                      onChange={(event) => {
-                        const nextMode = event.target.value as WorkspaceSettings["indexing"]["mode"];
-                        setWorkspaceSettingsDialog((current) =>
-                          current
-                            ? {
-                                ...current,
-                                indexMode: nextMode,
-                                indexedRoots: nextMode === "off" ? [] : current.noteRoots,
-                                exploreIndexSearchOnEnter:
-                                  current.exploreIndexSearchOnEnter || (current.indexMode === "off" && nextMode !== "off"),
-                                applyStatus: "idle",
-                                applyErrorMessage: null,
-                              }
-                            : current,
-                        );
-                      }}
-                    >
-                      <option value="off">Off</option>
-                      <option value="lexical">Lexical</option>
-                      <option value="semantic">Semantic</option>
-                      <option value="hybrid">Hybrid</option>
-                    </select>
-                  </label>
-                  <label className="dialog-check">
-                    <input
-                      checked={workspaceSettingsDialog.exploreIndexSearchOnEnter}
-                      data-testid="workspace-settings-explore-index-enter"
-                      disabled={workspaceSettingsDialog.indexMode === "off"}
-                      onChange={(event) =>
-                        setWorkspaceSettingsDialog((current) =>
-                          current
-                            ? {
-                                ...current,
-                                exploreIndexSearchOnEnter: event.target.checked,
-                                saveStatus: "idle",
-                                errorMessage: null,
-                              }
-                            : current,
-                        )
-                      }
-                      type="checkbox"
-                    />
-                    <span>Use indexed lexical search on Enter in Explore.</span>
-                  </label>
-                  <label className="dialog-field dialog-field--section">
-                    <span className="dialog-field__label">Index updates</span>
-                    <select
-                      className="dialog-card__input"
-                      data-testid="workspace-settings-index-update-strategy"
-                      disabled={workspaceSettingsDialog.indexMode === "off"}
-                      value={workspaceSettingsDialog.indexUpdateStrategy}
-                      onChange={(event) =>
-                        setWorkspaceSettingsDialog((current) =>
-                          current
-                            ? {
-                                ...current,
-                                indexUpdateStrategy: event.target.value as WorkspaceSettings["indexUpdateStrategy"],
-                                saveStatus: "idle",
-                                errorMessage: null,
-                              }
-                            : current,
-                        )
-                      }
-                    >
-                      <option value="on-save">On save</option>
-                      <option value="manual">Manual only</option>
-                    </select>
-                  </label>
-                  <div className="dialog-field dialog-field--section">
-                    <div className="dialog-field__header">
-                      <span className="dialog-field__label">Manual sync</span>
-                    </div>
-                    <div className="dialog-card__actions dialog-card__actions--split">
-                      <button
-                        className="toolbar-button"
-                        data-testid="workspace-settings-sync-index"
-                        disabled={indexBusy !== null || !indexStatus?.enabled || indexStatus.indexedRoots.length === 0}
-                        onClick={() => void runIndexUpdate("syncing")}
-                        type="button"
-                      >
-                        {indexBusy === "syncing" ? "Syncing…" : "Sync now"}
-                      </button>
-                    </div>
-                  </div>
-                  <details className="dialog-details dialog-details--section">
-                    <summary>
-                      Advanced maintenance
-                      <HelpTooltip label="Refresh documents only re-reads Markdown into the lexical index without building embeddings. Build embeddings only creates missing semantic embeddings for documents already in the index. Use these when search looks stale, status says embeddings are needed, or you want to debug one index phase without running a full sync." />
-                    </summary>
-                    <div className="dialog-card__actions dialog-card__actions--split">
-                      <button
-                        className="toolbar-button"
-                        data-testid="workspace-settings-update-index"
-                        disabled={indexBusy !== null || !indexStatus?.enabled || indexStatus.indexedRoots.length === 0}
-                        onClick={() => void runIndexUpdate("updating")}
-                        type="button"
-                      >
-                        {indexBusy === "updating" ? "Refreshing…" : "Refresh documents only"}
-                      </button>
-                      <button
-                        className="toolbar-button"
-                        data-testid="workspace-settings-embed-index"
-                        disabled={indexBusy !== null || !indexStatus?.enabled || indexStatus.mode === "lexical" || indexStatus.indexedRoots.length === 0}
-                        onClick={() => void runIndexUpdate("embedding")}
-                        type="button"
-                      >
-                        {indexBusy === "embedding" ? "Embedding…" : "Build embeddings only"}
-                      </button>
-                    </div>
-                  </details>
-                </>
-              ) : null}
-              {workspaceSettingsDialog.section === "agents" ? (
-                <div className="agent-context-summary" data-testid="agent-context-settings">
-                  <div className="agent-context-summary__header">
-                    <div>
-                      <div className="dialog-field__label">Agent config</div>
-                      <div className="agent-context-summary__copy">
-                        Keep Codex AGENTS.md and Claude CLAUDE.md aligned for global and notes instructions.
-                      </div>
-                    </div>
-                    <button
-                      className="toolbar-button"
-                      data-testid="agent-context-open-manager"
-                      onClick={() => void openAgentContextManager()}
-                      type="button"
-                    >
-                      Open editor
-                    </button>
-                  </div>
-                  <div className="agent-context-summary__grid">
-                    <div className="agent-context-summary__metric">
-                      <span>Global</span>
-                      <strong>{agentInstructionStatusLabel(agentInstructionEditor.state.config?.scopes.find((scope) => scope.id === "global") ?? null)}</strong>
-                      <small>~/.codex/AGENTS.md and ~/.claude/CLAUDE.md</small>
-                    </div>
-                    <div className="agent-context-summary__metric">
-                      <span>Exocortex</span>
-                      <strong>{agentInstructionStatusLabel(agentInstructionEditor.state.config?.scopes.find((scope) => scope.id === "exocortex") ?? null)}</strong>
-                      <small>{agentInstructionEditor.state.config?.scopes.find((scope) => scope.id === "exocortex")?.rootPath ?? "No notes folder selected."}</small>
-                    </div>
-                    <div className="agent-context-summary__metric">
-                      <span>Outputs</span>
-                      <strong>2</strong>
-                      <small>AGENTS.md and CLAUDE.md only.</small>
-                    </div>
-                  </div>
-                  <div className="agent-context-summary__footer">
-                    <span>Exo writes only the selected layer and leaves arbitrary project agent files alone.</span>
-                  </div>
-                </div>
-              ) : null}
-              {workspaceSettingsDialog.section === "appearance" ? (
-                <>
-                  <label className="dialog-field">
-                    <span className="dialog-field__label">Appearance</span>
-                    <select
-                      className="dialog-card__input"
-                      data-testid="workspace-settings-appearance"
-                      value={workspaceSettingsDialog.appearanceMode}
-                      onChange={(event) =>
-                        setWorkspaceSettingsDialog((current) =>
-                          current
-                            ? {
-                                ...current,
-                                appearanceMode: event.target.value as AppearanceMode,
-                                saveStatus: "idle",
-                                errorMessage: null,
-                              }
-                            : current,
-                        )
-                      }
-                    >
-                      <option value="system">System</option>
-                      <option value="light">Light</option>
-                      <option value="dark">Dark</option>
-                    </select>
-                  </label>
-                </>
-              ) : null}
-              {workspaceSettingsDialog.section === "appearance" || workspaceSettingsDialog.section === "terminal" ? (
-                <div className="dialog-form__grid">
-                  {workspaceSettingsDialog.section === "appearance" ? (
-                    <label className="dialog-field">
-                      <span className="dialog-field__label">Editor font</span>
-                      <input
-                        className="dialog-card__input"
-                        data-testid="workspace-settings-editor-font-size"
-                        type="number"
-                        min={11}
-                        max={24}
-                        value={workspaceSettingsDialog.editorFontSize}
-                        onChange={(event) =>
-                          setWorkspaceSettingsDialog((current) =>
-                            current
-                              ? {
-                                  ...current,
-                                  editorFontSize: event.target.value,
-                                  saveStatus: "idle",
-                                  errorMessage: null,
-                                }
-                              : current,
-                          )
-                        }
-                      />
-                    </label>
-                  ) : null}
-                  {workspaceSettingsDialog.section === "terminal" ? (
-                    <>
-                      <label className="dialog-field">
-                        <span className="dialog-field__label">Terminal font</span>
-                        <input
-                          className="dialog-card__input"
-                          data-testid="workspace-settings-terminal-font-size"
-                          type="number"
-                          min={10}
-                          max={22}
-                          value={workspaceSettingsDialog.terminalFontSize}
-                          onChange={(event) =>
-                            setWorkspaceSettingsDialog((current) =>
-                              current
-                                ? {
-                                    ...current,
-                                    terminalFontSize: event.target.value,
-                                    saveStatus: "idle",
-                                    errorMessage: null,
-                                  }
-                                : current,
-                            )
-                          }
-                        />
-                      </label>
-                      <label className="dialog-field">
-                        <span className="dialog-field__label">
-                          Live terminal scrollback
-                          <HelpTooltip label="Controls how many terminal output lines Exo keeps in the live interface. Terminal transcripts are controlled separately." />
-                        </span>
-                        <select
-                          className="dialog-card__input"
-                          data-testid="workspace-settings-terminal-history-mode"
-                          value={workspaceSettingsDialog.terminalHistoryMode}
-                          onChange={(event) =>
-                            setWorkspaceSettingsDialog((current) =>
-                              current
-                                ? {
-                                    ...current,
-                                    terminalHistoryMode: event.target.value as WorkspaceSettings["terminalHistoryMode"],
-                                    saveStatus: "idle",
-                                    errorMessage: null,
-                                  }
-                                : current,
-                            )
-                          }
-                        >
-                          <option value="full">Maximum</option>
-                          <option value="custom">Custom</option>
-                        </select>
-                      </label>
-                      {workspaceSettingsDialog.terminalHistoryMode === "custom" ? (
-                        <label className="dialog-field">
-                          <span className="dialog-field__label">Scrollback lines</span>
-                          <input
-                            className="dialog-card__input"
-                            data-testid="workspace-settings-terminal-history-lines"
-                            type="number"
-                            min={500}
-                            max={1000000}
-                            step={500}
-                            value={workspaceSettingsDialog.terminalHistoryLines}
-                            onChange={(event) =>
-                              setWorkspaceSettingsDialog((current) =>
-                                current
-                                  ? {
-                                      ...current,
-                                      terminalHistoryLines: event.target.value,
-                                      saveStatus: "idle",
-                                      errorMessage: null,
-                                    }
-                                  : current,
-                              )
-                            }
-                          />
-                        </label>
-                      ) : null}
-                      <label className="dialog-field">
-                        <span className="dialog-field__label">Transcript retention</span>
-                        <select
-                          className="dialog-card__input"
-                          data-testid="workspace-settings-terminal-transcript-retention"
-                          value={workspaceSettingsDialog.terminalTranscriptRetention}
-                          onChange={(event) =>
-                            setWorkspaceSettingsDialog((current) =>
-                              current
-                                ? {
-                                    ...current,
-                                    terminalTranscriptRetention: event.target.value as WorkspaceSettings["terminalTranscriptRetention"],
-                                    saveStatus: "idle",
-                                    errorMessage: null,
-                                  }
-                                : current,
-                            )
-                          }
-                        >
-                          <option value="forever">Forever</option>
-                          <option value="days">Days</option>
-                        </select>
-                      </label>
-                      {workspaceSettingsDialog.terminalTranscriptRetention === "days" ? (
-                        <label className="dialog-field">
-                          <span className="dialog-field__label">Retention days</span>
-                          <input
-                            className="dialog-card__input"
-                            data-testid="workspace-settings-terminal-transcript-days"
-                            type="number"
-                            min={1}
-                            max={3650}
-                            step={1}
-                            value={workspaceSettingsDialog.terminalTranscriptRetentionDays}
-                            onChange={(event) =>
-                              setWorkspaceSettingsDialog((current) =>
-                                current
-                                  ? {
-                                      ...current,
-                                      terminalTranscriptRetentionDays: event.target.value,
-                                      saveStatus: "idle",
-                                      errorMessage: null,
-                                    }
-                                  : current,
-                              )
-                            }
-                          />
-                        </label>
-                      ) : null}
-                    </>
-                  ) : null}
-                  {workspaceSettingsDialog.section === "appearance" ? (
-                    <label className="dialog-field">
-                      <span className="dialog-field__label">Explorer scale</span>
-                      <input
-                        className="dialog-card__input"
-                        data-testid="workspace-settings-explorer-scale"
-                        type="number"
-                        min={0.82}
-                        max={1.35}
-                        step={0.01}
-                        value={workspaceSettingsDialog.explorerScale}
-                        onChange={(event) =>
-                          setWorkspaceSettingsDialog((current) =>
-                            current
-                              ? {
-                                  ...current,
-                                  explorerScale: event.target.value,
-                                  saveStatus: "idle",
-                                  errorMessage: null,
-                                }
-                              : current,
-                          )
-                        }
-                      />
-                    </label>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
-            {workspaceSettingsStructuralDraftKey(workspaceSettingsDialog) !== workspaceSettingsDialog.appliedWorkspaceKey ? (
-              <div className="dialog-card__apply-row">
-                <div className="dialog-card__status">
-                  Workspace paths and index settings apply immediately.
-                </div>
-                <button
-                  className="toolbar-button"
-                  data-testid="workspace-settings-apply"
-                  disabled={workspaceSettingsDialog.applyStatus === "applying"}
-                  onClick={() => void saveWorkspaceSettingsDialog(workspaceSettingsDialog, { includeStructural: true })}
-                  type="button"
-                >
-                  {workspaceSettingsDialog.applyStatus === "applying" ? "Applying…" : "Apply"}
-                </button>
-              </div>
-            ) : null}
-            {workspaceSettingsDialog.applyStatus === "applied" ? (
-              <div className="dialog-card__status" data-testid="workspace-settings-apply-status">
-                Applied. Workspace paths are active.
-              </div>
-            ) : null}
-            {workspaceSettingsDialog.applyStatus === "error" && workspaceSettingsDialog.applyErrorMessage ? (
-              <div className="dialog-card__status dialog-card__status--error">{workspaceSettingsDialog.applyErrorMessage}</div>
-            ) : null}
-            {workspaceSettingsDialog.saveStatus === "saving" ? (
-              <div className="dialog-card__status" data-testid="workspace-settings-status">
-                Saving…
-              </div>
-            ) : null}
-            {workspaceSettingsDialog.saveStatus === "saved" ? (
-              <div className="dialog-card__status" data-testid="workspace-settings-status">
-                Saved automatically.
-              </div>
-            ) : null}
-            {workspaceSettingsDialog.saveStatus === "error" && workspaceSettingsDialog.errorMessage ? (
-              <div className="dialog-card__status dialog-card__status--error">{workspaceSettingsDialog.errorMessage}</div>
-            ) : null}
-          </div>
-        </div>
+        <WorkspaceSettingsDialog
+          agentInstructionEditor={agentInstructionEditor}
+          indexBusy={indexBusy}
+          indexStatus={indexStatus}
+          partialErrors={workspaceSettingsPartialErrors}
+          settings={workspaceSettingsDialog}
+          setSettings={setWorkspaceSettingsDialog}
+          structuralDraftKey={workspaceSettingsStructuralDraftKey}
+          onChooseFolder={(target) => void chooseFolderForSettings(target)}
+          onClose={closeWorkspaceSettingsDialog}
+          onOpenAgentConfigEditor={() => void openAgentContextManager()}
+          onOpenWorkspaceSwitcher={() => void openWorkspaceSwitcher()}
+          onRunIndexUpdate={(kind) => void runIndexUpdate(kind)}
+          onSave={(settingsDialog, options) => void saveWorkspaceSettingsDialog(settingsDialog, options)}
+        />
       ) : null}
       {agentContextManagerOpen ? (
         <AgentConfigEditorDialog
@@ -3609,27 +2958,6 @@ function formatIndexStatus(status: IndexStatus): string {
     pieces.push(`${status.pendingEmbeddings} pending embeddings`);
   }
   return pieces.join(" | ");
-}
-
-function formatDuration(durationMs: number): string {
-  if (durationMs < 1000) {
-    return `${durationMs}ms`;
-  }
-  return `${(durationMs / 1000).toFixed(durationMs < 10_000 ? 1 : 0)}s`;
-}
-
-function formatRelativeTime(value: string): string {
-  const elapsedMs = Date.now() - new Date(value).getTime();
-  if (!Number.isFinite(elapsedMs) || elapsedMs < 0) {
-    return "just now";
-  }
-  if (elapsedMs < 60_000) {
-    return `${Math.max(1, Math.round(elapsedMs / 1000))}s ago`;
-  }
-  if (elapsedMs < 3_600_000) {
-    return `${Math.round(elapsedMs / 60_000)}m ago`;
-  }
-  return `${Math.round(elapsedMs / 3_600_000)}h ago`;
 }
 
 function summarizeIndexStatus(status: IndexStatus | null, busy: IndexBusyState): {

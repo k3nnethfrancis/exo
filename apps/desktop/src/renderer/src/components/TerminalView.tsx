@@ -4,7 +4,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "xterm";
 
 import type { TerminalSessionInfo } from "../../../shared/api";
-import type { ResolvedAppearance } from "../App";
+import type { ResolvedAppearance } from "../appearance";
 import { appendRendererTerminalBuffer } from "../terminalBuffer";
 import { isTerminalGeneratedResponse } from "./terminalInputFilters";
 import { registerTerminal, unregisterTerminal } from "./terminalRegistry";

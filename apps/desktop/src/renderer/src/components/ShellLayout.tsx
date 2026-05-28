@@ -6,7 +6,7 @@ import { PaneTree } from "./PaneTree";
 import type { PaneLeaf, PaneNodeId, PaneTreeActions, PaneNode } from "../hooks/usePaneTree";
 import type { DragManager, DragPayload } from "../hooks/useDragManager";
 import type { WorkspaceSearchResultMode } from "../hooks/useWorkspaceSearch";
-import type { AppearanceMode, ResolvedAppearance } from "../App";
+import type { AppearanceMode, ResolvedAppearance } from "../appearance";
 import type { TreeNode, WorkspaceSearchResults } from "@exo/core";
 import type { WorkspaceGitChange } from "../../../shared/api";
 
