@@ -20,6 +20,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Extract agent instruction provider-file alignment and runtime overlay listing into `apps/desktop/src/main/agent-instructions-service.ts`.
 - [x] Extract workspace settings/application orchestration into `apps/desktop/src/main/workspace-settings-service.ts`.
 - [x] Add a typed desktop IPC contract so preload, main IPC handlers, and renderer APIs cannot drift.
+- [x] Extract renderer workspace-settings model helpers into `apps/desktop/src/renderer/src/workspaceSettingsModel.ts`.
 - [x] Choose and add an open-source license.
 - [x] Remove or resolve any accidental local edits before commit, including the stray `SECURITY.md` line if it reappears.
 - [x] Confirm README, AGENTS, CLAUDE, architecture, roadmap, tasks, ledger, and MCP docs agree on the current Exo identity.

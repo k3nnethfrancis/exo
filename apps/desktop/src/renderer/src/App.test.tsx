@@ -13,6 +13,13 @@ import {
 import { buildProjectReviewChanges, uniqueCwdMatchedSession } from "./changedFileReview";
 import { isTerminalGeneratedResponse } from "./components/terminalInputFilters";
 import { terminalSessionsEqual } from "./terminalSessions";
+import {
+  FULL_TERMINAL_SCROLLBACK_LINES,
+  clampNumber,
+  resolveSettingsTerminalRuntime,
+  workspaceSettingsStructuralDraftKey,
+  workspaceSettingsStructuralKeyFromSettings,
+} from "./workspaceSettingsModel";
 
 describe("desktop shell", () => {
   it("keeps a renderer test surface in place", () => {
@@ -69,6 +76,73 @@ describe("workspace terminal settings", () => {
       bufferLineLimit: 24_000,
       transcriptRetentionDays: 30,
     });
+  });
+});
+
+describe("workspace settings renderer model", () => {
+  it("keeps structural draft keys aligned with saved settings keys", () => {
+    const store = new WorkspaceSettingsStore({ userDataPath: "/tmp/exo-test", env: {} });
+    const settings = store.normalize({
+      workspaceRoot: "/workspace",
+      defaultTerminalCwd: "/workspace/project",
+      noteRoots: ["/workspace/notes"],
+      projectRoots: ["/workspace/project"],
+      indexedRoots: [{
+        id: "index-notes",
+        label: "notes",
+        path: "/workspace/notes",
+        kind: "notes",
+        pattern: "**/*.md",
+        ignore: [],
+        backend: "qmd",
+      }],
+      indexing: { enabled: true, mode: "lexical", backend: "qmd" },
+    });
+
+    expect(settings).not.toBeNull();
+    expect(workspaceSettingsStructuralDraftKey({
+      section: "workspace",
+      workspaceRoot: "/workspace",
+      defaultTerminalCwd: "/workspace/project",
+      noteRoots: ["/workspace/notes"],
+      projectRoots: ["/workspace/project"],
+      indexedRoots: ["/workspace/notes"],
+      indexMode: "lexical",
+      appearanceMode: "system",
+      editorFontSize: "15",
+      terminalFontSize: "13",
+      terminalHistoryMode: "full",
+      terminalHistoryLines: "1000000",
+      terminalTranscriptRetention: "forever",
+      terminalTranscriptRetentionDays: "14",
+      explorerScale: "1",
+      exploreIndexSearchOnEnter: true,
+      indexUpdateStrategy: "on-save",
+      saveStatus: "idle",
+      errorMessage: null,
+      appliedWorkspaceKey: "",
+      applyStatus: "idle",
+      applyErrorMessage: null,
+      partialErrorMessages: [],
+    })).toBe(workspaceSettingsStructuralKeyFromSettings(settings!));
+  });
+
+  it("resolves full scrollback and clamps invalid numeric settings", () => {
+    const store = new WorkspaceSettingsStore({ userDataPath: "/tmp/exo-test", env: {} });
+    const settings = store.normalize({
+      workspaceRoot: "/workspace",
+      defaultTerminalCwd: "/workspace",
+      noteRoots: ["/workspace/notes"],
+      projectRoots: [],
+      indexedRoots: [],
+      indexing: { enabled: false, mode: "off", backend: "qmd" },
+      terminalHistoryMode: "full",
+    });
+
+    expect(settings ? resolveSettingsTerminalRuntime(settings).scrollbackLines : null).toBe(FULL_TERMINAL_SCROLLBACK_LINES);
+    expect(clampNumber(Number.NaN, 10, 20)).toBe(10);
+    expect(clampNumber(25, 10, 20)).toBe(20);
+    expect(clampNumber(15, 10, 20)).toBe(15);
   });
 });
 

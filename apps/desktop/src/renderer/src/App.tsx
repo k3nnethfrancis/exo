@@ -45,6 +45,17 @@ import {
 } from "./paneTreeSelectors";
 import { terminalSessionsEqual } from "./terminalSessions";
 import {
+  clampNumber,
+  DEFAULT_EDITOR_FONT_SIZE,
+  DEFAULT_EXPLORER_SCALE,
+  DEFAULT_TERMINAL_FONT_SIZE,
+  FULL_TERMINAL_SCROLLBACK_LINES,
+  resolveSettingsTerminalRuntime,
+  workspaceSettingsImmediateDraftKey,
+  workspaceSettingsStructuralDraftKey,
+  workspaceSettingsStructuralKeyFromSettings,
+} from "./workspaceSettingsModel";
+import {
   directoryOf,
   pathLabel,
   pickInitialNote,
@@ -121,12 +132,8 @@ interface OnboardingState {
 
 type ZoomSurface = "editor" | "terminal" | "explorer";
 
-const FULL_TERMINAL_SCROLLBACK_LINES = 1_000_000;
 const NOTE_TREE_MAX_DEPTH = 3;
 const PROJECT_TREE_MAX_DEPTH = 3;
-const DEFAULT_EDITOR_FONT_SIZE = 15;
-const DEFAULT_TERMINAL_FONT_SIZE = 13;
-const DEFAULT_EXPLORER_SCALE = 1;
 
 export function App() {
   const [workspaceModel, setWorkspaceModel] = useState<WorkspaceModel | null>(null);
@@ -2968,59 +2975,4 @@ function getEditorScrollerForPath(filePath: string): HTMLElement | null {
     return title.closest(".editor-pane")?.querySelector<HTMLElement>(".editor-surface .cm-scroller") ?? null;
   }
   return null;
-}
-
-function workspaceSettingsImmediateDraftKey(settings: WorkspaceSettingsDialogState): string {
-  return JSON.stringify({
-    appearanceMode: settings.appearanceMode,
-    editorFontSize: settings.editorFontSize,
-    terminalFontSize: settings.terminalFontSize,
-    terminalHistoryMode: settings.terminalHistoryMode,
-    terminalHistoryLines: settings.terminalHistoryLines,
-    terminalTranscriptRetention: settings.terminalTranscriptRetention,
-    terminalTranscriptRetentionDays: settings.terminalTranscriptRetentionDays,
-    explorerScale: settings.explorerScale,
-    exploreIndexSearchOnEnter: settings.exploreIndexSearchOnEnter,
-    indexUpdateStrategy: settings.indexUpdateStrategy,
-  });
-}
-
-function workspaceSettingsStructuralDraftKey(settings: WorkspaceSettingsDialogState): string {
-  return JSON.stringify({
-    workspaceRoot: settings.workspaceRoot,
-    defaultTerminalCwd: settings.defaultTerminalCwd,
-    noteRoots: settings.noteRoots,
-    projectRoots: settings.projectRoots,
-    indexedRoots: settings.indexedRoots,
-    indexMode: settings.indexMode,
-  });
-}
-
-function workspaceSettingsStructuralKeyFromSettings(settings: WorkspaceSettings): string {
-  return JSON.stringify({
-    workspaceRoot: settings.workspaceRoot,
-    defaultTerminalCwd: settings.defaultTerminalCwd,
-    noteRoots: settings.noteRoots,
-    projectRoots: settings.projectRoots,
-    indexedRoots: settings.indexedRoots.map((root) => root.path),
-    indexMode: settings.indexing.mode,
-  });
-}
-
-function resolveSettingsTerminalRuntime(settings: WorkspaceSettings): { scrollbackLines: number } {
-  if (settings.terminalHistoryMode === "full") {
-    return {
-      scrollbackLines: FULL_TERMINAL_SCROLLBACK_LINES,
-    };
-  }
-  return {
-    scrollbackLines: settings.terminalHistoryLines,
-  };
-}
-
-function clampNumber(value: number, min: number, max: number): number {
-  if (!Number.isFinite(value)) {
-    return min;
-  }
-  return Math.min(max, Math.max(min, value));
 }
