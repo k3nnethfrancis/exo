@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, nativeImage, nativeTheme, Tray } from "electron";
+import { app, BrowserWindow, dialog, Menu, nativeImage, nativeTheme, Tray } from "electron";
 import { existsSync } from "node:fs";
 import path from "node:path";
 
@@ -146,7 +146,7 @@ export class AppLifecycleController {
         click: () => this.showMainWindow(),
       },
       { type: "separator" },
-      { label: "Quit", click: () => this.requestQuit() },
+      { label: "Quit", click: () => void this.requestQuit() },
     ]);
 
     this.tray.setContextMenu(contextMenu);
@@ -189,7 +189,10 @@ export class AppLifecycleController {
     this.quitRequested = true;
   }
 
-  requestQuit() {
+  async requestQuit() {
+    if (!(await this.confirmQuit())) {
+      return;
+    }
     this.prepareToQuit();
     app.quit();
   }
@@ -238,6 +241,28 @@ export class AppLifecycleController {
 
   private shouldDestroyWindowOnClose(): boolean {
     return this.quitRequested || process.env.EXO_TEST === "1";
+  }
+
+  private async confirmQuit(): Promise<boolean> {
+    const runningTerminals = this.options.getTerminalDiagnostics().filter((terminal) => terminal.status === "running");
+    if (runningTerminals.length === 0) {
+      return true;
+    }
+
+    const message = runningTerminals.length === 1 ? "Quit Exo and stop 1 live terminal?" : `Quit Exo and stop ${runningTerminals.length} live terminals?`;
+    const detail = "Closing the window keeps Exo running in the background. Quitting Exo stops live terminal and agent processes.";
+    const options = {
+      type: "warning" as const,
+      buttons: ["Cancel", "Quit Exo"],
+      defaultId: 0,
+      cancelId: 0,
+      message,
+      detail,
+    };
+    const result = this.mainWindow && !this.mainWindow.isDestroyed()
+      ? await dialog.showMessageBox(this.mainWindow, options)
+      : await dialog.showMessageBox(options);
+    return result.response === 1;
   }
 
   private resolveWindowIconPath(): string | undefined {

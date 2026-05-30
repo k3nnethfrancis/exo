@@ -31,7 +31,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Keep the Exo process, command server, MCP bridge, watchers, transcripts, and supervised pty agents alive when the main window is closed.
 - [ ] Add a macOS menu bar resident mode with actions for Show Exo, Settings, agent/session status, restart command server, and Quit Exo.
 - [x] Make close-window hide the workspace window instead of quitting.
-- [ ] Make explicit Quit warn that live terminals/agents will stop.
+- [x] Make explicit Quit warn that live terminals/agents will stop.
 - [ ] Ensure CLI/MCP live commands work while the Exo window is hidden and fail clearly when the Exo process is not running.
 - [x] Add app lifecycle tests for close/hide/show/quit behavior.
 - [ ] Add app lifecycle coverage for command-server availability while hidden.

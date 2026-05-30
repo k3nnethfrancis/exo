@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const electronMock = vi.hoisted(() => ({
   appQuit: vi.fn(),
+  dialogResponse: 1,
+  showMessageBox: vi.fn(),
   windows: [] as Array<any>,
   menuTemplate: [] as Array<Record<string, unknown>>,
 }));
@@ -10,6 +12,9 @@ const electronMock = vi.hoisted(() => ({
 vi.mock("electron", () => ({
   app: {
     quit: electronMock.appQuit,
+  },
+  dialog: {
+    showMessageBox: electronMock.showMessageBox,
   },
   BrowserWindow: class MockBrowserWindow extends EventEmitter {
     static getAllWindows() {
@@ -94,6 +99,9 @@ describe("AppLifecycleController", () => {
     delete process.env.ELECTRON_RENDERER_URL;
     delete process.env.VITE_DEV_SERVER_URL;
     electronMock.appQuit.mockClear();
+    electronMock.dialogResponse = 1;
+    electronMock.showMessageBox.mockReset();
+    electronMock.showMessageBox.mockImplementation(async () => ({ response: electronMock.dialogResponse }));
     electronMock.windows.length = 0;
     electronMock.menuTemplate = [];
   });
@@ -111,16 +119,26 @@ describe("AppLifecycleController", () => {
     expect(controller.getMainWindow()).toBe(window);
   });
 
-  it("destroys windows during explicit quit", () => {
+  it("destroys windows during explicit quit", async () => {
     const controller = appLifecycleController();
     const window = controller.createWindow() as any;
     const event = { preventDefault: vi.fn() };
 
-    controller.requestQuit();
+    await controller.requestQuit();
     window.emit("close", event);
 
     expect(electronMock.appQuit).toHaveBeenCalledOnce();
     expect(event.preventDefault).not.toHaveBeenCalled();
+  });
+
+  it("warns before quitting with live terminals", async () => {
+    electronMock.dialogResponse = 0;
+    const controller = appLifecycleController([{ id: "term-1", status: "running" }]);
+
+    await controller.requestQuit();
+
+    expect(electronMock.showMessageBox).toHaveBeenCalledOnce();
+    expect(electronMock.appQuit).not.toHaveBeenCalled();
   });
 
   it("restores a hidden window from the tray show path", () => {
@@ -135,10 +153,10 @@ describe("AppLifecycleController", () => {
   });
 });
 
-function appLifecycleController() {
+function appLifecycleController(terminals: Array<{ id: string; status: string }> = []) {
   return new AppLifecycleController({
     currentDirectory: "/workspace/apps/desktop/src/main",
-    getTerminalDiagnostics: () => [],
+    getTerminalDiagnostics: () => terminals as any,
     logMain: () => {},
   });
 }
