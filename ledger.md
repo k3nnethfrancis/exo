@@ -1,6 +1,6 @@
 # Exo Ledger
 
-Last updated: 2026-05-25
+Last updated: 2026-05-30
 
 This is the fastest current-state handoff for Exo. It records what exists now, what changed recently, and what is next. Active tasks live in `docs/tasks.md`; future systems live in `docs/roadmap.md`; product/system strategy lives in `docs/strategy.md`.
 
@@ -24,8 +24,8 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Index status pill in the footer and Index settings panel with `Sync index`.
 - CLI and MCP notes-index routes for status, search, read, sync, update, and embed flows through the running Exo command server.
 - Claude, Codex, and shell terminal launchers.
-- Tmux-backed Claude/Codex sessions supervised by Exo.
-- Terminal reload hydration from main-process buffers.
+- Direct pty Claude/Codex/shell sessions supervised by Exo.
+- Terminal reload hydration from bounded main-process tails.
 - Disk-backed terminal transcripts with retention policy.
 - Terminal scroll hardening and file-drop path handling.
 - Runtime command server discovered through `${workspace_root}/.exo/server.json`.
@@ -64,7 +64,7 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Added Exo-managed QMD indexing UX: footer status, Settings Index panel, sync/apply flows, Explore lexical-on-Enter, CLI/MCP parity, and conservative save-triggered refreshes.
 - Added `docs/qmd-integration-notes.md` to track the QMD adapter boundary, current workarounds, and upstream upgrade checklist.
 - Merged the fresh-setup/QMD integration PR as `0.1.0-alpha.1`, including QMD docid read safety, multi-root hybrid search, long-running index command timeouts, workspace-root command-server refresh, and an active root `postinstall` script.
-- Simplified terminal history controls around explicit `full` and `custom` modes: `full` uses Exo's maximum configured live scrollback line window, transcripts default to forever, and restored tmux-backed agents seed visible scrollback once before returning to live PTY streaming.
+- Simplified terminal history controls around explicit `full` and `custom` modes: `full` uses Exo's maximum configured live scrollback line window, transcripts default to forever, and direct pty sessions keep durable history in disk-backed transcripts.
 - Removed hidden terminal transcript byte caps and hidden character-based buffer trimming; live terminal buffers follow workspace settings.
 - Hardened terminal rendering against xterm device-response input leaks and avoided recurring tmux snapshot replay into visible terminals.
 - Made Markdown task checkboxes clickable in live preview by toggling the underlying `- [ ]` / `- [x]` source text.
@@ -91,7 +91,7 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Added agent context history under `.exo/agent-context-history/`: second and later changes record previous/current unified bodies, Settings can show a simple diff, and Restore previous writes the prior body back through all provider-compatible files for the scope.
 - Moved agent context provider outputs behind a file-adapter registry: `AGENTS.md` and `CLAUDE.md` are defaults, and tests inject a `soul.md` adapter to prove future provider instruction files use the same compose/save/history path.
 - Added generated Exo runtime overlays under `.exo/instructions/` for global, notes, and project scopes, with read-only Settings preview and e2e coverage that provider context files stay free of dynamic workspace facts.
-- Added the runtime overlay launcher bridge: Claude/Codex terminal launches now regenerate overlays, select the most-specific overlay for the launch cwd, expose it via `EXO_INSTRUCTIONS`, and set the same env inside tmux-backed sessions.
+- Added the runtime overlay launcher bridge: Claude/Codex terminal launches now regenerate overlays, select the most-specific overlay for the launch cwd, and expose it via `EXO_INSTRUCTIONS`.
 - Split the agent context UX so Workspace Settings now shows a compact status/entry summary while the full composer, provider-file editor, runtime overlay preview, and history controls live in a dedicated Agent Context Manager.
 - Added user-facing instruction output settings in the Agent Context Manager: users can enable/disable provider files and add workspace-scoped outputs such as `soul.md`, with the unified composer writing only enabled outputs.
 - Upgraded agent context history browsing from latest-only restore to a per-scope version list with selectable diffs and restore of the selected version.
@@ -100,17 +100,20 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Fixed EXO-ISSUE-004 by adding Codex readiness/queue semantics around Exo agent sends, including regression coverage for trust prompts, startup grace flushing, and raw interstitial input.
 - Fixed EXO-ISSUE-009 by handling `exo agents create --help` and `exo agents create <provider> --help` before app connection or terminal creation, plus rejecting option-shaped create cwd values.
 - Fixed EXO-ISSUE-010 by changing the Exo MCP launcher to import a bundled CommonJS runtime artifact, avoid rebuilding when `dist/index.cjs` already exists, and fall back with Corepack project-spec disabled; added a stdio launcher handshake regression and live Codex smoke.
-- Fixed EXO-ISSUE-011 by splitting queued Codex submitted messages into body plus delayed Enter so tmux-backed Codex prompts execute without a second raw submit.
+- Fixed EXO-ISSUE-011 by splitting queued Codex submitted messages into body plus delayed Enter so Codex startup prompts execute without a second raw submit.
 - Fixed EXO-ISSUE-012 by applying user-configured live terminal scrollback to renderer/main buffers while preserving complete transcript writes for reattached or actively streaming Codex sessions.
+- Removed tmux from the core terminal runtime, standardized live terminal reads around bounded tails plus disk transcripts, and documented the direct-pty runtime decision.
+- Added the resident-runtime roadmap: Exo should keep process-owned services alive while the window is hidden, with menu bar controls as the next feature phase.
+- Began current-package domain-module cleanup by extracting Electron window/tray/renderer-recovery ownership from `apps/desktop/src/main/index.ts` into `app-lifecycle.ts`.
 
 ## Next Priorities
 
 1. Push `0.1.0-alpha.2` tester-readiness fixes to main.
-2. Authorship/provenance: promote observed write candidates into explicit human vs agent review states only when Exo controls the write path or receives a trusted session event.
-3. QMD notes index: improve performance, add true incremental file-level updates when QMD exposes them, and refine triggers/profiles.
-4. Multi-agent coordination: roster, objectives, direct messages, file+SQLite transport, CLI/MCP access.
-5. Graph/memory view: backlinks plus QMD-derived relationships and agent/session context.
-6. Plugin architecture: optional workflows and shareable extensions without growing core by default.
+2. Continue current-package domain-module cleanup: indexing service, agent-instructions service, workspace notes/search service, and renderer state-machine hooks.
+3. Runtime lifecycle/menu bar: separate running process from visible window so CLI/MCP agent workflows can continue while Exo is hidden.
+4. Authorship/provenance: promote observed write candidates into explicit human vs agent review states only when Exo controls the write path or receives a trusted session event.
+5. Multi-agent coordination: roster, objectives, direct messages, file+SQLite transport, CLI/MCP access.
+6. QMD notes index: improve performance, add true incremental file-level updates when QMD exposes them, and refine triggers/profiles.
 
 ## Operating Rules
 

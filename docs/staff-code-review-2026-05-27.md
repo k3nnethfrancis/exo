@@ -105,6 +105,8 @@ Highest-priority cleanup should focus on main-process service boundaries, render
 
 ## Recommended Cleanup Roadmap
 
+Phase rule: first extract current-package domain modules, then build resident runtime and multi-agent features, then promote stable runtime services into a dedicated runtime package, and only then expose plugin registries.
+
 1. Extract runtime lifecycle/window/menu-bar ownership from `main/index.ts`, with tests for hidden-window command-server availability.
 2. Extract `indexing-service.ts` and `agent-instructions-service.ts` from `main/index.ts`, with pure unit tests.
 3. Add a typed desktop IPC contract and compile-time handler/preload conformance checks.

@@ -23,6 +23,18 @@ Memory, workcells, datasets, evals, and training are still future layers. The cu
 
 Renderer code never touches the filesystem or processes directly. It goes through preload APIs backed by main-process services.
 
+## Refactor Direction
+
+The immediate architecture is current-package domain modules, not a new runtime package yet. The cleanup target is:
+
+- keep `apps/desktop` as the Electron host while extracting main-process services from `src/main/index.ts`
+- keep `packages/core` as portable models, pure transforms, runtime config, and shared protocols
+- keep `packages/cli` and `packages/mcp` as command-server clients
+- move to a `packages/runtime` only after resident lifecycle and multi-agent coordination produce stable process-owned service contracts
+- delay plugin registries until core runtime primitives are stable enough to expose
+
+This staged approach lets Exo ship resident runtime features without prematurely freezing plugin or runtime APIs.
+
 ## Runtime Command Server
 
 The desktop main process starts a local HTTP command server and writes its discovery file to:

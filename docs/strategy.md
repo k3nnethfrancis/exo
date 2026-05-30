@@ -27,6 +27,8 @@ Exo is organized around:
 - `workcells[]` - future bounded development/research loops with artifacts, metrics, and replay.
 - `plugins[]` - future local-first extension packages that can add agent launchers, commands, panels, WebView apps, search providers, eval runners, trace collectors, and workflows through permissioned APIs.
 
+Architecture should evolve in phases: first current-package domain modules, then resident runtime and multi-agent features, then a dedicated runtime package once service contracts are proven, then plugin registries after the core primitives are stable.
+
 Portable source defaults:
 
 - `workspace_root = process.cwd()`

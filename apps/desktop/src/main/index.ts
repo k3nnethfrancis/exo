@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, nativeImage, nativeTheme, Tray } from "electron";
+import { app, nativeTheme } from "electron";
 import { execFile } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
@@ -39,6 +39,7 @@ import {
   type WorkspaceSettings,
 } from "@exo/core";
 
+import { AppLifecycleController } from "./app-lifecycle";
 import { CommandServer } from "./command-server";
 import { writeAgentInstructionOverlays } from "./agent-instruction-overlays";
 import {
@@ -77,9 +78,7 @@ process.on("unhandledRejection", (reason) => {
 
 const singleInstanceLock = app.requestSingleInstanceLock(resolveSingleInstanceData());
 
-let mainWindow: BrowserWindow | null = null;
-let rendererReady = false;
-let tray: Tray | null = null;
+let appLifecycle: AppLifecycleController;
 let commandServer: CommandServer | null = null;
 let workspaceModel: WorkspaceModel;
 let workspaceSettings: WorkspaceSettings | null = null;
@@ -95,7 +94,6 @@ let indexRefreshPromise: Promise<IndexSyncResult> | null = null;
 const pendingIndexRefreshRootIds = new Set<string>();
 let indexJobSequence = 0;
 const indexJobMetrics: IndexJobMetric[] = [];
-const rendererRecoveryTimestamps: number[] = [];
 
 if (!singleInstanceLock) {
   console.error(
@@ -104,54 +102,13 @@ if (!singleInstanceLock) {
   app.quit();
 }
 
-function setupTray() {
-  // 16x16 template image for macOS menu bar (white circle, rendered as dark in light mode)
-  const icon = nativeImage.createFromDataURL(
-    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAaklEQVQ4T2NkoBAwUqifgWoGzP7/n+E/AwMDIyMjw+z//xkYGBgZGGb9/8/AABJjZGRkmMXIwMAAEmNiYmKYxcDAwACyAcQGsUFiIHVMTEyzGEBOALsBpA/mBJAbQOEACweKkgHVkgEA+XIjEZSfLzQAAAAASUVORK5CYII=",
-  );
-  icon.setTemplateImage(true);
-
-  tray = new Tray(icon);
-  tray.setToolTip("Exo");
-
-  const contextMenu = Menu.buildFromTemplate([
-    {
-      label: "Show Exo",
-      click: () => {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          if (mainWindow.isMinimized()) mainWindow.restore();
-          if (!mainWindow.isVisible()) mainWindow.show();
-          mainWindow.focus();
-        } else {
-          createWindow();
-        }
-      },
-    },
-    { type: "separator" },
-    { label: "Quit", click: () => app.quit() },
-  ]);
-
-  tray.setContextMenu(contextMenu);
-
-  // Click tray icon to show/focus
-  tray.on("click", () => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      if (!mainWindow.isVisible()) mainWindow.show();
-      mainWindow.focus();
-    } else {
-      createWindow();
-    }
-  });
-}
-
 function startCommandServer() {
   const runtimeConfig = resolveRuntimeConfig();
 
   commandServer?.stop();
   const nextCommandServer = new CommandServer({
     runtimeRoot: runtimeConfig.runtimeRoot,
-    onShowWindow: () => showMainWindow(),
+    onShowWindow: () => appLifecycle.showMainWindow(),
     onOpenFile: (filePath: string) => {
       sendToRenderer("command:open-file", filePath);
     },
@@ -230,170 +187,6 @@ function extractRuntimeRoot(value: unknown): string | undefined {
   return typeof runtimeRoot === "string" ? runtimeRoot : undefined;
 }
 
-function createWindow() {
-  const preloadPath = resolvePreloadPath();
-  const isTestWindow = process.env.EXO_TEST === "1";
-  const window = new BrowserWindow({
-    width: 1680,
-    height: 1060,
-    minWidth: 640,
-    minHeight: 480,
-    show: false,
-    title: "Exo",
-    backgroundColor: nativeTheme.shouldUseDarkColors ? "#111318" : "#f6ecda",
-    icon: resolveWindowIconPath(),
-    titleBarStyle: "hiddenInset",
-    trafficLightPosition: {
-      x: 16,
-      y: 14,
-    },
-    webPreferences: {
-      preload: preloadPath,
-      webviewTag: true,
-    },
-  });
-
-  loadRenderer(window);
-
-  window.webContents.on("did-start-loading", () => {
-    if (mainWindow === window) {
-      rendererReady = false;
-    }
-  });
-
-  // Safety timeout: force-show if renderer takes too long (e.g., slow Vite HMR)
-  const showTimeout = isTestWindow
-    ? null
-    : setTimeout(() => {
-        if (!window.isDestroyed() && !window.isVisible()) {
-          window.show();
-        }
-      }, 5000);
-
-  window.once("ready-to-show", () => {
-    if (showTimeout) clearTimeout(showTimeout);
-    if (isTestWindow) {
-      return;
-    }
-    window.show();
-  });
-
-  window.webContents.on("did-finish-load", () => {
-    if (showTimeout) clearTimeout(showTimeout);
-    if (window.isDestroyed()) {
-      return;
-    }
-    if (mainWindow === window) {
-      rendererReady = true;
-    }
-    if (isTestWindow) {
-      return;
-    }
-    if (!window.isVisible()) {
-      window.show();
-    }
-  });
-
-  window.webContents.on("render-process-gone", (_event, details) => {
-    if (mainWindow === window) {
-      rendererReady = false;
-    }
-    const diagnostics = {
-      ...details,
-      gpuDisabled: process.env.EXO_ENABLE_GPU !== "1",
-      terminals: terminalManager?.diagnostics() ?? [],
-    };
-    console.error("[main] renderer process gone", diagnostics);
-    logMain("renderer process gone", diagnostics);
-    scheduleRendererRecovery(window, details.reason);
-  });
-
-  window.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL) => {
-    const details = { errorCode, errorDescription, validatedURL };
-    console.error("[main] renderer failed to load", details);
-    logMain("renderer failed to load", details);
-  });
-
-  mainWindow = window;
-
-  window.on("closed", () => {
-    if (mainWindow === window) {
-      mainWindow = null;
-      rendererReady = false;
-    }
-  });
-}
-
-function resolveWindowIconPath(): string | undefined {
-  const iconPath = path.join(currentDirectory, "../../build/icon.png");
-  return existsSync(iconPath) ? iconPath : undefined;
-}
-
-function showMainWindow() {
-  if (!mainWindow || mainWindow.isDestroyed()) {
-    createWindow();
-    return;
-  }
-
-  if (mainWindow.isMinimized()) {
-    mainWindow.restore();
-  }
-
-  if (!mainWindow.isVisible()) {
-    mainWindow.show();
-  }
-
-  mainWindow.focus();
-}
-
-function loadRenderer(window: BrowserWindow) {
-  const devServerUrl = process.env.ELECTRON_RENDERER_URL ?? process.env.VITE_DEV_SERVER_URL;
-  if (devServerUrl) {
-    void window.loadURL(devServerUrl);
-  } else {
-    void window.loadFile(path.join(currentDirectory, "../renderer/index.html"));
-  }
-}
-
-function scheduleRendererRecovery(window: BrowserWindow, reason: string) {
-  if (process.env.EXO_AUTO_RECOVER_RENDERER === "0") {
-    return;
-  }
-  if (reason !== "crashed" && reason !== "oom") {
-    return;
-  }
-
-  const now = Date.now();
-  while (rendererRecoveryTimestamps.length > 0 && now - rendererRecoveryTimestamps[0] > 60_000) {
-    rendererRecoveryTimestamps.shift();
-  }
-  if (rendererRecoveryTimestamps.length >= 3) {
-    logMain("renderer auto recovery suppressed", {
-      reason,
-      recentRecoveries: rendererRecoveryTimestamps.length,
-    });
-    return;
-  }
-  rendererRecoveryTimestamps.push(now);
-
-  setTimeout(() => {
-    if (window.isDestroyed() || mainWindow !== window) {
-      return;
-    }
-    logMain("renderer auto recovery reload", { reason });
-    loadRenderer(window);
-    if (!window.isVisible()) {
-      window.show();
-    }
-  }, 750);
-}
-
-function resolvePreloadPath(): string {
-  const candidatePaths = [path.join(currentDirectory, "../preload/index.js"), path.join(currentDirectory, "../preload/index.mjs")];
-  const existing = candidatePaths.find((candidate) => existsSync(candidate));
-  return existing ?? candidatePaths[0];
-}
-
 function logWorkspaceStartup(model: WorkspaceModel) {
   if (process.env.NODE_ENV === "production") {
     return;
@@ -425,7 +218,8 @@ function broadcastTerminalData() {
 }
 
 function sendToRenderer(channel: string, payload: unknown) {
-  if (!rendererReady || !mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) {
+  const mainWindow = appLifecycle.getMainWindow();
+  if (!appLifecycle.isRendererReady() || !mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) {
     return;
   }
 
@@ -489,7 +283,7 @@ function registerIpcHandlers() {
     getGitStatus,
     getIndexStatus: getMeasuredIndexStatus,
     getKnowledge: (filePath) => getNoteKnowledge(filePath, workspaceModel.noteRoots.map((root) => root.path)),
-    getMainWindow: () => mainWindow,
+    getMainWindow: () => appLifecycle.getMainWindow(),
     getModel: () => workspaceModel,
     getRuntimeStatus: () => terminalManager.getRuntimeConfig(),
     getSettings: currentWorkspaceSettings,
@@ -1219,28 +1013,25 @@ app.whenReady().then(async () => {
     terminalPolicy.bufferLineLimit,
     terminalPolicy.transcriptRetentionDays,
   );
+  appLifecycle = new AppLifecycleController({
+    currentDirectory,
+    getTerminalDiagnostics: () => terminalManager?.diagnostics() ?? [],
+    logMain,
+  });
   registerIpcHandlers();
   broadcastTerminalData();
   workspaceWatcherService.start(workspaceModel);
   await terminalManager.syncRuntimeContext();
-  createWindow();
-  setupTray();
+  appLifecycle.createWindow();
+  appLifecycle.setupTray();
   startCommandServer();
 
   nativeTheme.on("updated", () => {
-    if (!mainWindow || mainWindow.isDestroyed()) {
-      return;
-    }
-
-    mainWindow.setBackgroundColor(nativeTheme.shouldUseDarkColors ? "#111318" : "#f6ecda");
+    appLifecycle.updateBackgroundForTheme();
   });
 
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
-      return;
-    }
-    showMainWindow();
+    appLifecycle.activate();
   });
 
   app.on("second-instance", (_event, _commandLine, workingDirectory, additionalData) => {
@@ -1249,7 +1040,7 @@ app.whenReady().then(async () => {
       requestedRuntimeRoot: extractRuntimeRoot(additionalData),
     });
     void refreshCommandServerDiscovery("second-instance");
-    showMainWindow();
+    appLifecycle.showMainWindow();
   });
 });
 

@@ -16,6 +16,15 @@ That means:
 - Humans can review what agents are doing and what they changed without bouncing between editors.
 - Memory, graph views, workcells, evals, and training grow from the shared exocortex instead of becoming separate products.
 
+## Architecture Sequence
+
+Exo should evolve through refactor and feature phases instead of jumping straight to a large new platform shape.
+
+1. Current-package domain modules: keep `apps/desktop`, `packages/core`, `packages/cli`, and `packages/mcp`, but extract stable services and renderer state machines so new work stops accumulating in `main/index.ts` and `App.tsx`.
+2. Resident runtime features: implement menu bar/runtime lifecycle, then multi-agent roster and communication on top of the cleaned service boundaries.
+3. Runtime package extraction: once resident runtime and agent coordination have real pressure, move stable process-owned services into a dedicated runtime package.
+4. Plugin registries: after runtime/domain primitives are stable, expose extension points for agents, panes, commands, search providers, evals, and workflows.
+
 ## 1. Workspace Surface
 
 The workspace should support files and terminals as equal pane types.

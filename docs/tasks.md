@@ -10,6 +10,10 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [ ] Run one final clean-state QA pass after cleanup: `pnpm typecheck`, `pnpm test`, `pnpm build`, focused Playwright, and live Exo smoke.
 - [ ] Verify fresh-clone/setup docs against current pnpm/Corepack/Electron/MCP behavior.
 - [ ] Push the reviewed branch and open the review/PR surface.
+- [ ] Refactor toward current-package domain modules before adding the next feature phase; do not introduce `packages/runtime` or plugin registries until runtime features create stable seams.
+- [ ] Extract main-process services from `apps/desktop/src/main/index.ts`: lifecycle/window/menu bar, indexing, agent instructions, workspace notes/search, and workspace mutations.
+- [ ] Extract renderer state machines from `App.tsx`: workspace bootstrap, open documents, terminal sessions, workspace settings controller, and pane/drop orchestration.
+- [x] Extract Electron window/tray/renderer-recovery ownership into `apps/desktop/src/main/app-lifecycle.ts` as the first main-process service boundary.
 - [x] Choose and add an open-source license.
 - [x] Remove or resolve any accidental local edits before commit, including the stray `SECURITY.md` line if it reappears.
 - [x] Confirm README, AGENTS, CLAUDE, architecture, roadmap, tasks, ledger, and MCP docs agree on the current Exo identity.
