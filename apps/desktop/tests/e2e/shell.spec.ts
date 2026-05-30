@@ -22,6 +22,8 @@ async function cycleAppearanceTo(page: import("@playwright/test").Page, targetMo
   throw new Error(`Unable to reach appearance mode ${targetMode}.`);
 }
 
+test.describe.configure({ mode: "parallel" });
+
 test("boots the shell, opens notes, and manages terminal tabs", async () => {
   const { page, cleanup } = await launchExoFixture();
 
