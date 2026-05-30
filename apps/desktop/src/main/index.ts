@@ -2,8 +2,8 @@ import { app, nativeTheme } from "electron";
 import { execFile } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
-import { access, appendFile, mkdir, readFile, stat, writeFile } from "node:fs/promises";
-import { constants, existsSync } from "node:fs";
+import { appendFile, mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
@@ -12,9 +12,6 @@ import {
   createWorkspaceFile,
   createBranchFile,
   deleteWorkspacePath,
-  getBranchFamily,
-  getNoteKnowledge,
-  listMarkdownFiles,
   listRootTree,
   readIndexDocument,
   readWorkspaceDocument,
@@ -25,7 +22,6 @@ import {
   searchIndex,
   searchNotes,
   searchWorkspace,
-  type SearchResult,
   type WorkspaceModel,
   type WorkspaceSettings,
 } from "@exo/core";
@@ -44,6 +40,7 @@ import {
 import { registerTerminalIpcHandlers } from "./terminal-ipc";
 import { TerminalManager } from "./terminal-manager";
 import { registerWorkspaceIpcHandlers } from "./workspace-ipc";
+import { WorkspaceNotesService } from "./workspace-notes-service";
 import { WorkspaceWatcherService } from "./workspace-watchers";
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -79,6 +76,7 @@ let workspaceSetupComplete = false;
 let terminalManager: TerminalManager;
 let workspaceWatcherService: WorkspaceWatcherService;
 let indexingService: IndexingService;
+let workspaceNotesService: WorkspaceNotesService;
 
 if (!singleInstanceLock) {
   console.error(
@@ -262,12 +260,12 @@ function registerIpcHandlers() {
     createFile: createWorkspaceFile,
     deletePath: deleteWorkspacePath,
     embedIndex: () => indexingService.embed("settings"),
-    ensureTarget: ensureNoteTarget,
+    ensureTarget: (sourceFilePath, target) => workspaceNotesService.ensureTarget(sourceFilePath, target),
     getAgentInstructionConfig,
-    getBranchFamily: (filePath) => getBranchFamily(filePath, workspaceModel.noteRoots.map((root) => root.path)),
+    getBranchFamily: (filePath) => workspaceNotesService.getBranchFamily(filePath),
     getGitStatus,
     getIndexStatus: () => indexingService.getMeasuredStatus(),
-    getKnowledge: (filePath) => getNoteKnowledge(filePath, workspaceModel.noteRoots.map((root) => root.path)),
+    getKnowledge: (filePath) => workspaceNotesService.getKnowledge(filePath),
     getMainWindow: () => appLifecycle.getMainWindow(),
     getModel: () => workspaceModel,
     getRuntimeStatus: () => terminalManager.getRuntimeConfig(),
@@ -281,7 +279,7 @@ function registerIpcHandlers() {
     listWorkspaces: () => workspaceSettingsStore.listWorkspaces(workspaceSettings),
     readNote: readWorkspaceDocument,
     renamePath: renameWorkspacePath,
-    resolveTarget: resolveNoteTarget,
+    resolveTarget: (sourceFilePath, target) => workspaceNotesService.resolveTarget(sourceFilePath, target),
     saveAgentInstructionConfig,
     saveNote: async (filePath, frontmatter, body) => {
       await saveWorkspaceDocument(filePath, frontmatter, body);
@@ -290,7 +288,7 @@ function registerIpcHandlers() {
     saveSettings: saveWorkspaceSettings,
     searchIndex: (query, options) => searchIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot, query, options),
     searchNotes: (query) => searchNotes(workspaceModel, query),
-    searchTag,
+    searchTag: (tag) => workspaceNotesService.searchTag(tag),
     searchWorkspace: (query) => searchWorkspace(workspaceModel, query),
     statNote: async (filePath) => {
       try {
@@ -300,116 +298,12 @@ function registerIpcHandlers() {
         return null;
       }
     },
-    suggestTargets: suggestNoteTargets,
+    suggestTargets: (sourceFilePath, query) => workspaceNotesService.suggestTargets(sourceFilePath, query),
     syncIndex: () => indexingService.runSync("settings"),
     syncRuntime: () => terminalManager.syncRuntimeContext(),
     updateIndex: () => indexingService.update("settings"),
   });
   registerTerminalIpcHandlers(terminalManager);
-}
-
-async function searchTag(tag: string): Promise<SearchResult[]> {
-  const normalized = tag.replace(/^#/, "");
-  const files = await listMarkdownFiles(workspaceModel.noteRoots.map((root) => root.path));
-  const results: Array<SearchResult | null> = await Promise.all(
-    files.map(async (filePath) => {
-      const document = await readWorkspaceDocument(filePath);
-      const rawTags = Array.isArray(document.frontmatter.tags)
-        ? document.frontmatter.tags.filter((entry): entry is string => typeof entry === "string")
-        : typeof document.frontmatter.tags === "string"
-          ? document.frontmatter.tags.split(/[,\s]+/)
-          : [];
-      const bodyIncludes = document.body.toLowerCase().includes(`#${normalized.toLowerCase()}`);
-      const frontmatterIncludes = rawTags.some((entry) => entry.replace(/^#/, "").toLowerCase() === normalized.toLowerCase());
-      if (!bodyIncludes && !frontmatterIncludes) {
-        return null;
-      }
-
-      return {
-        filePath,
-        title: document.title,
-        snippet: `#${normalized}`,
-        kind: "tag" as const,
-      };
-    }),
-  );
-
-  return results.filter((entry): entry is SearchResult => entry !== null);
-}
-
-async function resolveNoteTarget(sourceFilePath: string, target: string): Promise<string | null> {
-  if (/^https?:\/\//.test(target)) {
-    return null;
-  }
-
-  const relativeCandidate = target.endsWith(".md")
-    ? path.resolve(path.dirname(sourceFilePath), target)
-    : path.resolve(path.dirname(sourceFilePath), `${target}.md`);
-
-  if (await fileExists(relativeCandidate)) {
-    return relativeCandidate;
-  }
-
-  const normalizedTarget = path.basename(target, ".md").toLowerCase();
-  const noteFiles = await listMarkdownFiles(workspaceModel.noteRoots.map((root) => root.path));
-  return noteFiles.find((filePath) => path.basename(filePath, ".md").toLowerCase() === normalizedTarget) ?? null;
-}
-
-async function ensureNoteTarget(sourceFilePath: string, target: string): Promise<string> {
-  const resolved = await resolveNoteTarget(sourceFilePath, target);
-  if (resolved) {
-    return resolved;
-  }
-
-  const noteRoot = workspaceModel.noteRoots.find((root) => isPathWithin(root.path, sourceFilePath));
-  const normalizedTarget = target.replace(/^\/+/, "").replace(/\.md$/i, "");
-  const nextPath = normalizedTarget.includes("/")
-    ? path.join(noteRoot?.path ?? path.dirname(sourceFilePath), `${normalizedTarget}.md`)
-    : path.join(path.dirname(sourceFilePath), `${normalizedTarget}.md`);
-
-  await createWorkspaceFile(nextPath, "");
-  return nextPath;
-}
-
-async function suggestNoteTargets(sourceFilePath: string, query: string) {
-  const trimmedQuery = query.trim().toLowerCase();
-  if (!trimmedQuery) {
-    return [];
-  }
-
-  const sourceRoot = workspaceModel.noteRoots.find((root) => isPathWithin(root.path, sourceFilePath));
-  const noteFiles = await listMarkdownFiles(workspaceModel.noteRoots.map((root) => root.path));
-  const suggestions = noteFiles
-    .map((filePath) => {
-      const rootPath = workspaceModel.noteRoots.find((root) => isPathWithin(root.path, filePath))?.path ?? sourceRoot?.path;
-      const relativePath = rootPath ? path.relative(rootPath, filePath) : path.basename(filePath);
-      const relativeWithoutExtension = relativePath.replace(/\.md$/i, "");
-      const title = path.basename(filePath, ".md");
-      const haystack = `${title}\n${relativeWithoutExtension}`.toLowerCase();
-      if (!haystack.includes(trimmedQuery)) {
-        return null;
-      }
-
-      return {
-        filePath,
-        title,
-        target: relativeWithoutExtension,
-        snippet: relativeWithoutExtension,
-      };
-    })
-    .filter((entry): entry is { filePath: string; title: string; target: string; snippet: string } => entry !== null)
-    .slice(0, 20);
-
-  suggestions.sort((left, right) => {
-    const leftExact = left.title.toLowerCase() === trimmedQuery || left.target.toLowerCase() === trimmedQuery;
-    const rightExact = right.title.toLowerCase() === trimmedQuery || right.target.toLowerCase() === trimmedQuery;
-    if (leftExact !== rightExact) {
-      return leftExact ? -1 : 1;
-    }
-    return left.target.localeCompare(right.target);
-  });
-
-  return suggestions;
 }
 
 async function getGitStatus(rootPath: string) {
@@ -626,18 +520,6 @@ function exoAgentInstructionStarterTemplate() {
   ].join("\n");
 }
 
-async function fileExists(targetPath: string): Promise<boolean> {
-  return access(targetPath, constants.F_OK).then(
-    () => true,
-    () => false,
-  );
-}
-
-function isPathWithin(parentPath: string, candidatePath: string): boolean {
-  const relativePath = path.relative(parentPath, candidatePath);
-  return relativePath === "" || (!relativePath.startsWith("..") && !path.isAbsolute(relativePath));
-}
-
 function currentWorkspaceSettings(): WorkspaceSettings {
   return workspaceSettings ?? workspaceSettingsStore.fromModel(workspaceModel);
 }
@@ -744,6 +626,9 @@ app.whenReady().then(async () => {
     saveWorkspaceSettings,
     sendState: (event) => sendToRenderer("workspace:index-sync-state", event),
     errorMessage,
+  });
+  workspaceNotesService = new WorkspaceNotesService({
+    getWorkspaceModel: () => workspaceModel,
   });
   appLifecycle = new AppLifecycleController({
     currentDirectory,
