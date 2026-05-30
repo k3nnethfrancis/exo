@@ -8,7 +8,7 @@ Update 2026-05-28: the terminal runtime findings from the original review were r
 
 The modularization moved real pieces out of the largest files (`terminal-ipc`, `workspace-ipc`, `settings-store`, watcher/transcript helpers, pane/tree helpers), but the repo is not yet at a stable modular boundary. `App.tsx` and `main/index.ts` still act as service locators plus business-logic hosts. That is now the main contributor-risk surface: future agents will naturally append behavior to these files because all state and examples are there.
 
-Highest-priority cleanup should focus on main-process service boundaries, renderer state-machine extraction, IPC contract typing, and settings write races. Terminal work should preserve the current architecture: direct pty, xterm-owned live rendering, bounded hydration tails, and disk-backed transcripts for durable history.
+Highest-priority cleanup should focus on main-process service boundaries, renderer state-machine extraction, IPC contract typing, settings write races, and app lifecycle boundaries. Terminal work should preserve the current architecture: direct pty, xterm-owned live rendering, bounded hydration tails, and disk-backed transcripts for durable history.
 
 ## Resolved Since Review
 
@@ -32,6 +32,13 @@ Highest-priority cleanup should focus on main-process service boundaries, render
   3. `agent-instruction-config-service.ts` for provider file read/write and scope status.
   4. `app-lifecycle.ts` or `window-manager.ts` for tray/window/recovery.
 - Tests needed: pure unit tests for git diff parsing, note target resolution, agent instruction status resolution, and indexing queue behavior.
+
+### P0 - App Runtime Lifecycle Is Not Yet A First-Class Boundary
+
+- Files: `apps/desktop/src/main/index.ts`
+- Risk: Exo needs to behave as a resident runtime that can keep MCP, the command server, watchers, transcripts, and supervised pty agents alive while the workspace window is hidden. If window lifecycle and runtime lifecycle stay tangled in `main/index.ts`, future multi-agent workflows will either require the app window to remain open or accidentally kill live agents on close.
+- Recommended refactor: extract `app-lifecycle.ts` or `window-manager.ts` around process/window/menu-bar ownership. Make close-window hide, explicit quit stop live agents, and menu bar actions restore the window or quit. Keep runtime services owned by the process composition root, not React.
+- Tests needed: main-process tests for close/hide/show/quit intent, command-server availability while hidden, and explicit quit warnings for live terminal sessions.
 
 ### P1 - `App.tsx` Is Still A Large State Machine
 
@@ -98,8 +105,9 @@ Highest-priority cleanup should focus on main-process service boundaries, render
 
 ## Recommended Cleanup Roadmap
 
-1. Extract `indexing-service.ts` and `agent-instructions-service.ts` from `main/index.ts`, with pure unit tests.
-2. Add a typed desktop IPC contract and compile-time handler/preload conformance checks.
-3. Extract `useTerminalSessions`, `useOpenDocuments`, and `useWorkspaceSettingsController` from `App.tsx`; test the state-machine races before moving more JSX.
-4. Add deterministic lint/format/import-boundary checks so modularity rules are enforced before review.
-5. Revisit line-count cleanup in `App.tsx` and `main/index.ts` only after those boundaries are stable.
+1. Extract runtime lifecycle/window/menu-bar ownership from `main/index.ts`, with tests for hidden-window command-server availability.
+2. Extract `indexing-service.ts` and `agent-instructions-service.ts` from `main/index.ts`, with pure unit tests.
+3. Add a typed desktop IPC contract and compile-time handler/preload conformance checks.
+4. Extract `useTerminalSessions`, `useOpenDocuments`, and `useWorkspaceSettingsController` from `App.tsx`; test the state-machine races before moving more JSX.
+5. Add deterministic lint/format/import-boundary checks so modularity rules are enforced before review.
+6. Revisit line-count cleanup in `App.tsx` and `main/index.ts` only after those boundaries are stable.

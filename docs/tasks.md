@@ -1,6 +1,6 @@
 # Exo Tasks
 
-Last updated: 2026-05-25
+Last updated: 2026-05-30
 
 This is the active task tracker for Exo. It is intentionally not a history file; completed implementation history belongs in `ledger.md`. Tasks here should be concrete, current, and ordered by practical priority.
 
@@ -19,6 +19,16 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Run focused desktop e2e for shell/search/terminal flows.
 - [x] Harden fresh-clone setup for pnpm 11, blocked dependency builds, patched Vite/picomatch installs, and secured-network Electron downloads.
 - [x] Fix QA issues tracked in `docs/issues.md` through `EXO-ISSUE-012`; no open issues are currently tracked there.
+
+## Next: Runtime Lifecycle And Menu Bar
+
+- [ ] Separate "Exo is running" from "Exo window is visible" in the product and architecture model.
+- [ ] Keep the Exo process, command server, MCP bridge, watchers, transcripts, and supervised pty agents alive when the main window is closed.
+- [ ] Add a macOS menu bar resident mode with actions for Show Exo, Settings, agent/session status, restart command server, and Quit Exo.
+- [ ] Make close-window hide the workspace window instead of quitting; make explicit Quit warn that live terminals/agents will stop.
+- [ ] Ensure CLI/MCP live commands work while the Exo window is hidden and fail clearly when the Exo process is not running.
+- [ ] Add app lifecycle tests for close/hide/show/quit behavior and command-server availability while hidden.
+- [ ] Do app QA for hidden-window agent workflows: create an agent through MCP/CLI, hide Exo, read/send messages, reopen Exo, and verify transcripts/session state.
 
 ## Next: Workspace Surface
 

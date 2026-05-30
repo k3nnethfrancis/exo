@@ -1,6 +1,6 @@
 # Exo Strategy
 
-Last updated: 2026-05-20
+Last updated: 2026-05-30
 
 This is the strategy document for Exo. `README.md` explains the product publicly, `docs/roadmap.md` describes future systems, `docs/tasks.md` tracks concrete work, and `ledger.md` records shipped history.
 
@@ -20,6 +20,7 @@ Exo is organized around:
 - `note_roots[]` - Markdown knowledge roots selected by the user.
 - `project_roots[]` - explicitly attached project/code roots.
 - `terminal_sessions[]` - shell, Claude, Codex, and future local/open-source terminal agents.
+- `runtime_process` - the resident Exo process that owns the command server, MCP bridge, watchers, transcripts, and supervised pty agents independent of whether the workspace window is visible.
 - `agent_context_files[]` - global and local `AGENTS.md` / `CLAUDE.md` files.
 - `notes_index` - Exo-managed QMD-backed index for optional notes search and future memory.
 - `agent_communication` - future inspectable message transport for multi-agent coordination.
@@ -43,6 +44,7 @@ Local/private paths belong in settings or environment examples, not source defau
 - Notebook mode is a projection over Markdown, not a separate data model.
 - Project roots are explicit attachments.
 - Terminal agents run inside Exo; Exo does not treat them as detached side channels.
+- Exo running and Exo visible are separate states; hiding the window should not kill the local runtime or live agents.
 - CLI and MCP are first-class control surfaces.
 - Humans and agents should share the same notes index through explicit, observable search modes.
 - Provenance should come from observed workflows, not AI-detector inference.
@@ -60,7 +62,7 @@ Already shipped:
 - Fast note filename/path search in explorer search mode.
 - Optional QMD-backed lexical, semantic, and hybrid notes index.
 - Claude, Codex, and shell terminals.
-- Tmux-backed Claude/Codex persistence and cleanup.
+- Direct pty terminal supervision with disk-backed transcripts for recovery context.
 - Runtime command server and `bin/exo` CLI.
 - Exo MCP tools for live terminal agents.
 - MCP autostart and integration installer/doctor for Codex and Claude Code.
@@ -81,6 +83,10 @@ Current intentional limits:
 ### Workspace Surface
 
 Files and terminals should become equal pane types. The next major UI shift is letting terminal panes move into the editor canvas, persist across restarts, and support multi-pane agent work without forcing everything into one terminal dock.
+
+### Runtime Lifecycle And Menu Bar
+
+Exo should become a resident local runtime. The process should keep MCP, the command server, watchers, transcripts, and supervised pty agents alive when the workspace window is hidden. A macOS menu bar controller should expose Show Exo, Settings, status, recovery actions, and explicit Quit. This supports Exo-on-Exo multi-agent workflows without reintroducing tmux as a hidden persistence layer.
 
 ### Project Roots And Code Review
 

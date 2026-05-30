@@ -1,6 +1,6 @@
 # Exo Roadmap
 
-Last updated: 2026-05-20
+Last updated: 2026-05-30
 
 Exo is a local-first agentic development environment built around a shared exocortex for humans and terminal agents. This roadmap names the major product systems we intend to build. `docs/tasks.md` is the active execution list; `ledger.md` records shipped history.
 
@@ -27,7 +27,21 @@ The workspace should support files and terminals as equal pane types.
 - Tabs and borders stay visually aligned across all pane positions.
 - Terminal rendering, scroll, reload hydration, and pane splits have regression coverage.
 
-## 2. Project Roots And Code Review
+## 2. Runtime Lifecycle And Menu Bar
+
+Exo should be a resident local runtime, not only a visible desktop window.
+
+- The Exo process can keep running while the workspace window is hidden.
+- The command server, MCP bridge, watchers, transcripts, and supervised pty agents remain available while the process is running.
+- Closing the window hides it by default; quitting from the menu bar explicitly stops live agents.
+- A macOS menu bar icon exposes Show Exo, Settings, session/status indicators, command-server recovery, and Quit.
+- CLI and MCP commands should work whenever Exo is running, even if no window is visible.
+- If Exo is not running, CLI/MCP errors should clearly say that live agent control requires starting Exo.
+- Relaunch should show prior transcripts/session history without pretending dead pty processes survived.
+
+This is the next major product-system step after cleanup because it makes Exo a reliable supervisor for visible, user-controllable multi-agent workflows without reintroducing tmux as a hidden process-survival layer.
+
+## 3. Project Roots And Code Review
 
 Projects are explicit attachments, not every folder on disk.
 
@@ -37,7 +51,7 @@ Projects are explicit attachments, not every folder on disk.
 - Agent sessions/messages can link to files and lines they changed when Exo can observe that relationship.
 - The code viewer supports review workflows without requiring a separate editor for basic inspection.
 
-## 3. Agent Context And Config
+## 4. Agent Context And Config
 
 Exo should help users manage the instruction context their agents see.
 
@@ -47,7 +61,7 @@ Exo should help users manage the instruction context their agents see.
 - Exo can install recommended snippets explaining Exo CLI/MCP tools.
 - Exo-generated runtime overlays remain separate from user-authored context files.
 
-## 4. Authorship And Provenance
+## 5. Authorship And Provenance
 
 Exo should track authorship from observed workflows, not guess using AI detectors.
 
@@ -56,7 +70,7 @@ Exo should track authorship from observed workflows, not guess using AI detector
 - Provenance can later become block-level or line-level where the data is reliable.
 - Provenance should support review, audit, and coordination, not punitive authorship scoring.
 
-## 5. QMD, Notes Index, And Shared Search
+## 6. QMD, Notes Index, And Shared Search
 
 The notes graph is the substrate for memory and retrieval.
 
@@ -67,7 +81,7 @@ The notes graph is the substrate for memory and retrieval.
 - Humans and agents should eventually search the same index through UI, CLI, and MCP.
 - Low-compute machines should have fallback search modes.
 
-## 6. Multi-Agent Coordination
+## 7. Multi-Agent Coordination
 
 Exo should make terminal-agent swarms legible and steerable.
 
@@ -78,7 +92,7 @@ Exo should make terminal-agent swarms legible and steerable.
 - The UI shows communication logs and audit trails.
 - Richer local transports can come after the inspectable file/SQLite path works.
 
-## 7. Graph And Memory Views
+## 8. Graph And Memory Views
 
 Exo should make the shared exocortex visible.
 
@@ -87,7 +101,7 @@ Exo should make the shared exocortex visible.
 - Memory view separates durable memory, trace archive, retrieval/index, and working-memory assembly.
 - Agent sessions, messages, changed files, search results, and future workcells can become graph nodes.
 
-## 8. Workcells, Evals, And Training
+## 9. Workcells, Evals, And Training
 
 These are later systems built on top of the shared workspace.
 
@@ -98,7 +112,7 @@ These are later systems built on top of the shared workspace.
 - Local/open-source agents and training workflows come after stable memory, workcells, and evals.
 - Tracing, evaluation, and training should exercise the plugin boundary without becoming merely a hosted web app: core owns run/artifact/provenance primitives, while plugins can provide collectors, runners, scorers, dashboards, and provider-specific training/export flows.
 
-## 9. Plugin Architecture
+## 10. Plugin Architecture
 
 Exo should be extensible without making every personal or domain-specific workflow part of core.
 
@@ -111,7 +125,7 @@ Exo should be extensible without making every personal or domain-specific workfl
 - Plugins should compose through stable registries instead of monkey-patching core internals: command registry, settings registry, pane/view registry, agent launcher registry, search provider registry, MCP/CLI registry, and workflow/eval registries.
 - Capability permissions must be explicit for filesystem scopes, process/terminal access, network access, git write/PR rights, secrets, and MCP exposure.
 
-## 10. Self-Modifying Exo
+## 11. Self-Modifying Exo
 
 Exo should eventually help maintain and improve itself, but only through reviewable, policy-controlled workflows.
 
@@ -121,7 +135,7 @@ Exo should eventually help maintain and improve itself, but only through reviewa
 - Plugins can provide concrete maintenance agents, workflow recipes, provider integrations, eval suites, and dashboards.
 - Self-modification should build on the same plugin, workcell, provenance, and harness primitives rather than becoming a separate hidden automation system.
 
-## 11. Developer Harness
+## 12. Developer Harness
 
 The repo should remain easy for humans and agents to modify.
 

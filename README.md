@@ -31,7 +31,7 @@ Exo is for people who want terminal agents to participate in their actual workin
 - Editor and terminal panes with flat tabs, split behavior, and no-empty-leaves pruning.
 - xterm/node-pty terminals rooted in the workspace by default.
 - Claude and Codex terminal launchers backed by Exo runtime launch plans.
-- Tmux-backed Claude/Codex recovery across Exo restarts.
+- Direct pty terminal supervision with disk-backed transcripts for recovery context.
 - CLI and MCP control of live Exo terminal agents.
 - Integration helpers for installing Exo MCP into Codex and Claude Code.
 
@@ -40,6 +40,7 @@ Exo is for people who want terminal agents to participate in their actual workin
 Exo is early, and the long-term system is larger than the current shell. Near-term priorities:
 
 - Drag terminal panes into the editor canvas so files and terminal agents can share one arbitrary split-pane graph.
+- Make Exo a resident background runtime with a menu bar controller so CLI/MCP agent workflows continue while the workspace window is hidden.
 - Improve QMD indexing performance with true file-level incremental updates when upstream APIs support it.
 - Detect existing QMD setups, refine Exo-owned QMD setup, and configure richer reindex triggers.
 - Let humans and agents search the same knowledge graph with explicit tiers, cancellation, progress, and result caps.
@@ -216,7 +217,6 @@ Runtime files live under `.exo/` inside the workspace root:
 - `.exo/server.json` - command server discovery
 - `.exo/instructions/AGENTS.md` - Exo-generated generic runtime contract
 - `.exo/instructions/CLAUDE.md` - Exo-generated Claude overlay
-- `.exo/terminal-state.json` - persisted tmux-backed agent terminal state
 - `.exo/terminal-transcripts/` - disk-backed terminal transcripts
 - `.exo/qmd/index.sqlite` - Exo-managed QMD notes index when indexing is enabled
 

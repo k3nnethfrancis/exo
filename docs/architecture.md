@@ -1,6 +1,6 @@
 # Exo Architecture
 
-Last updated: 2026-05-12
+Last updated: 2026-05-30
 
 Exo is a local-first agentic development environment built around a shared exocortex for humans and terminal agents. The current system is still shell-first, but it now has three live control surfaces over the same workspace runtime:
 
@@ -44,6 +44,19 @@ Current endpoints in `apps/desktop/src/main/command-server.ts`:
 - `DELETE /terminals/:id`
 
 `packages/core/src/command-protocol.ts` owns the shared route constants and command payload shapes. The desktop command server, CLI app client, and MCP client should consume that shared contract rather than duplicating routes.
+
+## App Lifecycle Model
+
+Exo has two separate lifecycle states:
+
+- the Exo process is running
+- the workspace window is visible
+
+The command server, MCP bridge, file watchers, transcript writers, and supervised pty agents belong to the running process, not to the visible window. Closing the main window should eventually hide the workspace UI while leaving those runtime services alive. Explicit app quit should be the operation that stops live pty agents.
+
+This distinction is central to multi-agent workflows: an external Codex or Claude agent can use Exo MCP to create, read, and message Exo-managed agents while the user keeps the Exo window hidden, then the user can reopen the window to monitor or take over those sessions.
+
+Until resident menu bar mode is implemented, live app commands require the desktop app process to be running and available through `.exo/server.json`.
 
 ## Terminal And Agent Model
 
