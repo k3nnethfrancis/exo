@@ -1,10 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Plus, X } from "lucide-react";
 import type {
-  BranchFamily,
   IndexStatus,
-  NoteDocument,
-  NoteKnowledge,
   SearchResult,
   WorkspaceLayoutSettings,
   WorkspaceModel,
@@ -12,7 +9,6 @@ import type {
 } from "@exo/core";
 
 import type { TerminalSessionInfo, WorkspaceRegistryEntry } from "../../shared/api";
-import type { FileStatInfo } from "../../shared/api";
 
 import type { AppearanceMode, ResolvedAppearance } from "./appearance";
 import { AgentConfigEditorDialog } from "./components/AgentConfigEditorDialog";
@@ -25,6 +21,7 @@ import { TerminalDock } from "./components/TerminalDock";
 import { WorkspaceSettingsDialog } from "./components/WorkspaceSettingsDialog";
 import { writeTerminalData } from "./components/terminalRegistry";
 import { useAgentInstructionEditor } from "./hooks/useAgentInstructionEditor";
+import { useOpenDocuments } from "./hooks/useOpenDocuments";
 import { useProjectReviewState } from "./hooks/useProjectReviewState";
 import { useShellLayout } from "./hooks/useShellLayout";
 import { loadInitialTrees, useWorkspaceTrees } from "./hooks/useWorkspaceTrees";
@@ -62,11 +59,6 @@ import {
   uniquePaths,
 } from "./workspaceTree";
 import type { IndexBusyState, WorkspaceSettingsDialogState, WorkspaceSettingsSection } from "./workspaceSettingsDialogTypes";
-
-interface OpenEditorDocument extends NoteDocument {
-  dirty: boolean;
-  diskVersion: FileStatInfo | null;
-}
 
 type WorkspaceDialogState =
   | {
@@ -138,17 +130,11 @@ export function App() {
   const { noteTrees, projectTrees } = workspaceTrees;
   const [exploreIndexSearchOnEnter, setExploreIndexSearchOnEnter] = useState(false);
   const workspaceSearch = useWorkspaceSearch({ indexedOnEnter: exploreIndexSearchOnEnter });
-  const [openDocuments, setOpenDocuments] = useState<Record<string, OpenEditorDocument>>({});
-  const [documentSaveStatuses, setDocumentSaveStatuses] = useState<Record<string, "idle" | "saving" | "saved" | "error">>({});
-  const [knowledgeByPath, setKnowledgeByPath] = useState<Record<string, NoteKnowledge>>({});
-  const [branchFamiliesByPath, setBranchFamiliesByPath] = useState<Record<string, BranchFamily>>({});
-  const [activeDocumentPath, setActiveDocumentPath] = useState<string | null>(null);
   const [propertiesCollapsed, setPropertiesCollapsed] = useState(true);
   const [tagResults, setTagResults] = useState<SearchResult[]>([]);
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [revealExplorerPathRequest, setRevealExplorerPathRequest] = useState<{ path: string; nonce: number } | null>(null);
   const [editorRevealLineRequest, setEditorRevealLineRequest] = useState<{ filePath: string; line: number; nonce: number } | null>(null);
-  const [editorScrollRestoreRequest, setEditorScrollRestoreRequest] = useState<{ filePath: string; scrollTop: number; nonce: number } | null>(null);
   const handleDropRef = useRef<(target: DragDropTarget, payload: DragPayload) => void>(() => {});
   const dragManager = useDragManager((target, payload) => handleDropRef.current(target, payload));
   const [terminalSessions, setTerminalSessions] = useState<TerminalSessionInfo[]>([]);
@@ -175,22 +161,35 @@ export function App() {
     window.matchMedia("(prefers-color-scheme: dark)").matches,
   );
   const bootstrapRunRef = useRef(0);
-  const editorScrollRestoreNonceRef = useRef(0);
   const terminalRuntimeScrollbackLinesRef = useRef(FULL_TERMINAL_SCROLLBACK_LINES);
   const terminalSessionsRef = useRef<TerminalSessionInfo[]>([]);
   const terminalKindByIdRef = useRef<Record<string, TerminalSessionInfo["kind"]>>({});
-  const openDocumentsRef = useRef(openDocuments);
-  const saveDocumentRef = useRef<(filePath: string) => Promise<void>>(async () => {});
-  const activeDocumentPathRef = useRef(activeDocumentPath);
-  const pendingDocumentRefreshesRef = useRef<Map<string, { timeoutId: number; diskVersion: FileStatInfo | null }>>(new Map());
   const workspaceSettingsRef = useRef<WorkspaceSettings | null>(null);
   const shellLayout = useShellLayout();
   const projectReviewState = useProjectReviewState(workspaceModel, terminalSessions);
 
-  const activeDocument = activeDocumentPath ? openDocuments[activeDocumentPath] ?? null : null;
-  const activeKnowledge = activeDocumentPath ? knowledgeByPath[activeDocumentPath] ?? null : null;
   const { tree: editorTree, focusedLeafId: editorFocusedLeafId, actions: editorActions } = shellLayout.editorPaneTree;
   const { tree: terminalTree, focusedLeafId: terminalFocusedLeafId, actions: terminalActions } = shellLayout.terminalPaneTree;
+  const openDocumentsState = useOpenDocuments({
+    workspaceModel,
+    getOpenEditorPaths: () => collectOpenEditorPaths(shellLayout.editorPaneTree.tree),
+    getEditorScrollTopForPath,
+  });
+  const {
+    openDocuments,
+    documentSaveStatuses,
+    branchFamiliesByPath,
+    activeDocumentPath,
+    activeDocument,
+    activeKnowledge,
+    scrollRestoreRequest: editorScrollRestoreRequest,
+    setActiveDocumentPath,
+    ensureDocumentLoaded,
+    scheduleRefresh: scheduleOpenDocumentRefresh,
+    updateBody,
+    updateFrontmatter,
+    saveDocument,
+  } = openDocumentsState;
   const compactEditorChrome = collectLeaves(editorTree).length > 1;
   const resolvedAppearance: ResolvedAppearance = appearanceMode === "system" ? (systemPrefersDark ? "dark" : "light") : appearanceMode;
 
@@ -214,23 +213,8 @@ export function App() {
   }
 
   useEffect(() => {
-    openDocumentsRef.current = openDocuments;
-  }, [openDocuments]);
-
-  useEffect(() => {
-    activeDocumentPathRef.current = activeDocumentPath;
-  }, [activeDocumentPath]);
-
-  useEffect(() => {
     const openPaths = collectOpenEditorPaths(editorTree);
-    setOpenDocuments((current) => {
-      const next = Object.fromEntries(
-        Object.entries(current).filter(([filePath, document]) => openPaths.has(filePath) || document.dirty),
-      );
-      return Object.keys(next).length === Object.keys(current).length ? current : next;
-    });
-    setKnowledgeByPath((current) => pruneRecordToKeys(current, openPaths));
-    setBranchFamiliesByPath((current) => pruneRecordToKeys(current, openPaths));
+    openDocumentsState.pruneToOpenPaths(openPaths);
   }, [editorTree]);
 
   useEffect(() => {
@@ -650,19 +634,6 @@ export function App() {
       return next;
     });
   }
-
-  // Auto-save dirty documents every 5 seconds without resetting on unrelated renders.
-  useEffect(() => {
-    const timer = setInterval(() => {
-      const dirtyPaths = Object.entries(openDocumentsRef.current)
-        .filter(([, doc]) => doc.dirty)
-        .map(([path]) => path);
-      for (const filePath of dirtyPaths) {
-        void saveDocumentRef.current(filePath);
-      }
-    }, 5000);
-    return () => clearInterval(timer);
-  }, []);
 
   const noteSections = useMemo(
     () =>
@@ -1255,117 +1226,6 @@ export function App() {
     }
   }
 
-  /** Load a document's content into state without touching the pane tree. */
-  async function ensureDocumentLoaded(filePath: string) {
-    const [document, diskVersion] = await Promise.all([window.exo.notes.read(filePath), window.exo.notes.stat(filePath)]);
-    const isAttachedNote = workspaceModel
-      ? isInsideAttachedRoot(filePath, workspaceModel.noteRoots.map((root) => root.path))
-      : true;
-    const [knowledge, branchFamily] =
-      document.kind === "markdown" && isAttachedNote
-        ? await Promise.all([window.exo.notes.getKnowledge(filePath), window.exo.notes.getBranchFamily(filePath)])
-        : [null, null];
-
-    setOpenDocuments((current) => ({
-      ...current,
-      [filePath]: {
-        ...document,
-        dirty: current[filePath]?.dirty ?? false,
-        diskVersion: current[filePath]?.dirty ? current[filePath].diskVersion : diskVersion,
-        frontmatter: current[filePath]?.dirty ? current[filePath].frontmatter : document.frontmatter,
-        body: current[filePath]?.dirty ? current[filePath].body : document.body,
-      },
-    }));
-    setKnowledgeByPath((current) => ({
-      ...current,
-      ...(knowledge ? { [filePath]: knowledge } : {}),
-    }));
-    setBranchFamiliesByPath((current) => ({
-      ...current,
-      ...(branchFamily ? { [filePath]: branchFamily } : {}),
-    }));
-  }
-
-  function scheduleOpenDocumentRefresh(filePath: string, diskVersion?: FileStatInfo | null) {
-    const currentDocument = openDocumentsRef.current[filePath];
-    if (!currentDocument || currentDocument.dirty) {
-      return;
-    }
-
-    const pending = pendingDocumentRefreshesRef.current.get(filePath);
-    if (pending) {
-      window.clearTimeout(pending.timeoutId);
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      pendingDocumentRefreshesRef.current.delete(filePath);
-      void refreshOpenDocumentFromDisk(filePath, diskVersion);
-    }, 250);
-    pendingDocumentRefreshesRef.current.set(filePath, { timeoutId, diskVersion: diskVersion ?? null });
-  }
-
-  async function refreshOpenDocumentFromDisk(filePath: string, knownVersion?: FileStatInfo | null) {
-    const currentDocument = openDocumentsRef.current[filePath];
-    if (!currentDocument || currentDocument.dirty) {
-      return;
-    }
-
-    const scrollTop = filePath === activeDocumentPathRef.current ? getEditorScrollTopForPath(filePath) : null;
-    const [document, diskVersion] = await Promise.all([
-      window.exo.notes.read(filePath),
-      knownVersion === undefined ? window.exo.notes.stat(filePath) : Promise.resolve(knownVersion),
-    ]);
-    const isAttachedNote = workspaceModel
-      ? isInsideAttachedRoot(filePath, workspaceModel.noteRoots.map((root) => root.path))
-      : true;
-    const [knowledge, branchFamily] =
-      document.kind === "markdown" && isAttachedNote
-        ? await Promise.all([window.exo.notes.getKnowledge(filePath), window.exo.notes.getBranchFamily(filePath)])
-        : [null, null];
-
-    setOpenDocuments((current) => {
-      const currentDocument = current[filePath];
-      if (!currentDocument || currentDocument.dirty) {
-        return current;
-      }
-
-      if (
-        currentDocument.body === document.body &&
-        JSON.stringify(currentDocument.frontmatter) === JSON.stringify(document.frontmatter)
-      ) {
-        return {
-          ...current,
-          [filePath]: {
-            ...currentDocument,
-            diskVersion,
-          },
-        };
-      }
-
-      return {
-        ...current,
-        [filePath]: {
-          ...document,
-          dirty: false,
-          diskVersion,
-        },
-      };
-    });
-    setKnowledgeByPath((current) => ({
-      ...current,
-      ...(knowledge ? { [filePath]: knowledge } : {}),
-    }));
-    setBranchFamiliesByPath((current) => ({
-      ...current,
-      ...(branchFamily ? { [filePath]: branchFamily } : {}),
-    }));
-
-    if (scrollTop !== null) {
-      editorScrollRestoreNonceRef.current += 1;
-      setEditorScrollRestoreRequest({ filePath, scrollTop, nonce: editorScrollRestoreNonceRef.current });
-    }
-  }
-
   async function openFile(filePath: string, leafId?: PaneNodeId, options?: { line?: number | null }) {
     const targetLeafId = leafId ?? editorFocusedLeafId;
     await ensureDocumentLoaded(filePath);
@@ -1391,99 +1251,6 @@ export function App() {
       setEditorRevealLineRequest({ filePath, line: options.line, nonce: Date.now() });
     }
   }
-
-  function updateBody(body: string) {
-    if (!activeDocumentPath) {
-      return;
-    }
-
-    setOpenDocuments((current) => ({
-      ...current,
-      [activeDocumentPath]: {
-        ...current[activeDocumentPath],
-        body,
-        dirty: true,
-      },
-    }));
-    setDocumentSaveStatuses((current) => ({ ...current, [activeDocumentPath]: "idle" }));
-  }
-
-  function updateFrontmatter(key: string, value: unknown) {
-    if (!activeDocumentPath) {
-      return;
-    }
-
-    setOpenDocuments((current) => ({
-      ...current,
-      [activeDocumentPath]: {
-        ...current[activeDocumentPath],
-        frontmatter: {
-          ...current[activeDocumentPath].frontmatter,
-          [key]: value,
-        },
-        dirty: true,
-      },
-    }));
-    setDocumentSaveStatuses((current) => ({ ...current, [activeDocumentPath]: "idle" }));
-  }
-
-  async function saveDocument(filePath: string) {
-    const document = openDocumentsRef.current[filePath];
-    if (!document) {
-      return;
-    }
-
-    setDocumentSaveStatuses((current) => ({ ...current, [filePath]: "saving" }));
-    try {
-      await window.exo.notes.save(filePath, document.frontmatter, document.body);
-      const diskVersion = await window.exo.notes.stat(filePath);
-      const remainsOpen = collectOpenEditorPaths(editorTree).has(filePath);
-      const isAttachedNote = workspaceModel
-        ? isInsideAttachedRoot(filePath, workspaceModel.noteRoots.map((root) => root.path))
-        : true;
-      if (document.kind === "markdown" && remainsOpen && isAttachedNote) {
-        const [knowledge, branchFamily] = await Promise.all([
-          window.exo.notes.getKnowledge(filePath),
-          window.exo.notes.getBranchFamily(filePath),
-        ]);
-        setKnowledgeByPath((current) => ({
-          ...current,
-          [filePath]: knowledge,
-        }));
-        setBranchFamiliesByPath((current) => ({
-          ...current,
-          [filePath]: branchFamily,
-        }));
-      }
-      setOpenDocuments((current) => {
-        if (!current[filePath]) {
-          return current;
-        }
-        if (!remainsOpen) {
-          const next = { ...current };
-          delete next[filePath];
-          return next;
-        }
-        return {
-          ...current,
-          [filePath]: {
-            ...current[filePath],
-            dirty: false,
-            diskVersion,
-          },
-        };
-      });
-      setDocumentSaveStatuses((current) => ({ ...current, [filePath]: "saved" }));
-      window.setTimeout(() => {
-        setDocumentSaveStatuses((current) => current[filePath] === "saved" ? { ...current, [filePath]: "idle" } : current);
-      }, 1600);
-    } catch (error) {
-      console.error("[exo] failed to save document", { filePath, error });
-      setDocumentSaveStatuses((current) => ({ ...current, [filePath]: "error" }));
-      throw error;
-    }
-  }
-  saveDocumentRef.current = saveDocument;
 
   async function openKnowledgeTarget(target: string) {
     if (!activeDocumentPath) {
@@ -1705,21 +1472,10 @@ export function App() {
   }
 
   async function createBranchFromActiveDocument() {
-    if (!activeDocumentPath) {
+    const result = await openDocumentsState.createBranchFromActiveDocument();
+    if (!result) {
       return;
     }
-
-    const document = openDocuments[activeDocumentPath];
-    if (!document || document.kind !== "markdown") {
-      return;
-    }
-
-    const result = await window.exo.notes.createBranch(activeDocumentPath, document.frontmatter, document.body);
-    setBranchFamiliesByPath((current) => ({
-      ...current,
-      [activeDocumentPath]: result.family,
-      [result.branchFilePath]: result.family,
-    }));
     await reloadTrees();
     await openFile(result.branchFilePath, editorFocusedLeafId);
   }
@@ -1809,7 +1565,7 @@ export function App() {
     const nextPath = joinPath(directoryOf(sourcePath), nextName);
     const previousPath = sourcePath;
     await window.exo.workspace.renamePath(sourcePath, nextPath);
-    remapOpenPaths(previousPath, nextPath);
+    remapOpenPathsInEditor(previousPath, nextPath);
     await reloadTrees();
     if (previousPath === activeDocumentPath) {
       await openFile(nextPath, editorFocusedLeafId);
@@ -1844,7 +1600,7 @@ export function App() {
       }
       throw error;
     }
-    remapOpenPaths(sourcePath, nextPath);
+    remapOpenPathsInEditor(sourcePath, nextPath);
     await reloadTrees();
     setRevealExplorerPathRequest({ path: targetDirectoryPath, nonce: Date.now() });
     if (sourcePath === activeDocumentPath) {
@@ -1864,15 +1620,7 @@ export function App() {
 
   async function commitDeleteWorkspacePath(targetPath: string) {
     await window.exo.workspace.deletePath(targetPath);
-    setOpenDocuments((current) =>
-      Object.fromEntries(Object.entries(current).filter(([filePath]) => !isPathWithin(targetPath, filePath))),
-    );
-    setKnowledgeByPath((current) =>
-      Object.fromEntries(Object.entries(current).filter(([filePath]) => !isPathWithin(targetPath, filePath))),
-    );
-    setBranchFamiliesByPath((current) =>
-      Object.fromEntries(Object.entries(current).filter(([filePath]) => !isPathWithin(targetPath, filePath))),
-    );
+    openDocumentsState.deletePathsWithin(targetPath);
     // Remove deleted paths from all editor leaves
     editorActions.setTree(mapLeaves(editorTree, (leaf) => {
       if (leaf.content.kind !== "editor") return leaf;
@@ -1934,31 +1682,8 @@ export function App() {
     setWorkspaceDialog(null);
   }
 
-  function remapOpenPaths(sourcePath: string, nextPath: string) {
-    const remapRecord = <T,>(record: Record<string, T>): Record<string, T> =>
-      Object.fromEntries(
-        Object.entries(record).map(([filePath, value]) => [
-          isPathWithin(sourcePath, filePath) ? filePath.replace(sourcePath, nextPath) : filePath,
-          value,
-        ]),
-      );
-
-    setOpenDocuments((current) =>
-      Object.fromEntries(
-        Object.entries(current).map(([filePath, value]) => {
-          const remappedPath = isPathWithin(sourcePath, filePath) ? filePath.replace(sourcePath, nextPath) : filePath;
-          return [
-            remappedPath,
-            {
-              ...value,
-              filePath: remappedPath,
-            },
-          ];
-        }),
-      ),
-    );
-    setKnowledgeByPath((current) => remapRecord(current));
-    setBranchFamiliesByPath((current) => remapRecord(current));
+  function remapOpenPathsInEditor(sourcePath: string, nextPath: string) {
+    openDocumentsState.remapOpenPaths(sourcePath, nextPath);
     editorActions.setTree(mapLeaves(editorTree, (leaf) => {
       if (leaf.content.kind !== "editor") return leaf;
       return {
