@@ -38,6 +38,7 @@ import { TerminalManager } from "./terminal-manager";
 import { registerWorkspaceIpcHandlers } from "./workspace-ipc";
 import { ProjectReviewService } from "./project-review-service";
 import { WorkspaceNotesService } from "./workspace-notes-service";
+import { WorkspaceSettingsService } from "./workspace-settings-service";
 import { WorkspaceWatcherService } from "./workspace-watchers";
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -75,6 +76,7 @@ let indexingService: IndexingService;
 let workspaceNotesService: WorkspaceNotesService;
 let projectReviewService: ProjectReviewService;
 let agentInstructionsService: AgentInstructionsService;
+let workspaceSettingsService: WorkspaceSettingsService;
 
 if (!singleInstanceLock) {
   console.error(
@@ -102,9 +104,9 @@ function startCommandServer() {
     onIndexSync: () => indexingService.runSync("command"),
     onIndexUpdate: () => indexingService.update("command"),
     onIndexEmbed: () => indexingService.embed("command"),
-    onListProjectRoots: () => currentWorkspaceSettings().projectRoots,
-    onAddProjectRoot: (input) => addProjectRoot(input.path),
-    onRemoveProjectRoot: (target) => removeProjectRoot(target),
+    onListProjectRoots: () => workspaceSettingsService.currentSettings().projectRoots,
+    onAddProjectRoot: (input) => workspaceSettingsService.addProjectRoot(input.path),
+    onRemoveProjectRoot: (target) => workspaceSettingsService.removeProjectRoot(target),
     onListTerminals: () => terminalManager.list(),
     onTerminalDiagnostics: () => terminalManager.diagnostics(),
     onCreateTerminal: (kind: string, cwd?: string) =>
@@ -114,7 +116,7 @@ function startCommandServer() {
     onWriteTerminal: (id: string, data: string) => terminalManager.write(id, data),
     onSendTerminalMessage: (id: string, message: string, submit: boolean) => terminalManager.sendMessage(id, message, submit),
     onKillTerminal: (id: string) => terminalManager.kill(id),
-    onGetSettings: () => currentWorkspaceSettings(),
+    onGetSettings: () => workspaceSettingsService.currentSettings(),
     onGetStatus: () => ({
       workspace: workspaceModel,
       terminals: terminalManager.list(),
@@ -240,7 +242,7 @@ function registerIpcHandlers() {
       if (!entry) {
         throw new Error("Workspace not found.");
       }
-      return saveWorkspaceSettings(entry.settings);
+      return workspaceSettingsService.saveSettings(entry.settings);
     },
     createBranch: (filePath, frontmatter, body) =>
       createBranchFile(
@@ -267,7 +269,7 @@ function registerIpcHandlers() {
     getMainWindow: () => appLifecycle.getMainWindow(),
     getModel: () => workspaceModel,
     getRuntimeStatus: () => terminalManager.getRuntimeConfig(),
-    getSettings: currentWorkspaceSettings,
+    getSettings: () => workspaceSettingsService.currentSettings(),
     getSetupState: () => ({
       complete: workspaceSetupComplete,
       settingsPath: workspaceSettingsStore.resolvePath(),
@@ -283,7 +285,7 @@ function registerIpcHandlers() {
       await saveWorkspaceDocument(filePath, frontmatter, body);
       indexingService.scheduleForFile(filePath, "note-save");
     },
-    saveSettings: saveWorkspaceSettings,
+    saveSettings: (settings) => workspaceSettingsService.saveSettings(settings),
     searchIndex: (query, options) => searchIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot, query, options),
     searchNotes: (query) => searchNotes(workspaceModel, query),
     searchTag: (tag) => workspaceNotesService.searchTag(tag),
@@ -302,69 +304,6 @@ function registerIpcHandlers() {
     updateIndex: () => indexingService.update("settings"),
   });
   registerTerminalIpcHandlers(terminalManager);
-}
-
-function currentWorkspaceSettings(): WorkspaceSettings {
-  return workspaceSettings ?? workspaceSettingsStore.fromModel(workspaceModel);
-}
-
-async function saveWorkspaceSettings(settings: WorkspaceSettings): Promise<WorkspaceSettings> {
-  const previousSettings = currentWorkspaceSettings();
-  const previousRuntimeRoot = resolveRuntimeConfig().runtimeRoot;
-  workspaceSettings = await workspaceSettingsStore.save(settings);
-  workspaceSetupComplete = true;
-  applyWorkspaceSettings(workspaceSettings);
-  workspaceModel = resolveWorkspaceModel();
-  const nextRuntimeConfig = resolveRuntimeConfig();
-  await ensureNoteRoots(workspaceModel);
-  workspaceWatcherService.start(workspaceModel);
-  const terminalPolicy = resolveTerminalRuntimePolicy(currentWorkspaceSettings());
-  terminalManager.setRuntimeConfig(nextRuntimeConfig);
-  terminalManager.setDefaultCwd(workspaceModel.defaultTerminalCwd);
-  terminalManager.setBufferLineLimit(terminalPolicy.bufferLineLimit);
-  terminalManager.setTranscriptRetentionDays(terminalPolicy.transcriptRetentionDays);
-  await terminalManager.syncRuntimeContext();
-  if (nextRuntimeConfig.runtimeRoot !== previousRuntimeRoot) {
-    startCommandServer();
-  }
-  if (indexingService.shouldSyncAfterSettingsApply(previousSettings, workspaceSettings)) {
-    indexingService.scheduleSync("settings-apply", 0);
-  }
-  return workspaceSettings;
-}
-
-async function addProjectRoot(targetPath?: string): Promise<WorkspaceSettings> {
-  if (!targetPath) {
-    throw new Error("Missing project root path.");
-  }
-  const settings = currentWorkspaceSettings();
-  const resolvedPath = path.resolve(targetPath);
-  const nextRoots = uniqueResolvedPaths([...settings.projectRoots, resolvedPath]);
-  return saveWorkspaceSettings({ ...settings, projectRoots: nextRoots });
-}
-
-async function removeProjectRoot(target: string): Promise<WorkspaceSettings> {
-  if (!target) {
-    throw new Error("Missing project root target.");
-  }
-  const settings = currentWorkspaceSettings();
-  const resolvedTarget = path.resolve(target);
-  const nextRoots = settings.projectRoots.filter((root) => path.resolve(root) !== resolvedTarget && root !== target);
-  return saveWorkspaceSettings({ ...settings, projectRoots: nextRoots });
-}
-
-function uniqueResolvedPaths(paths: string[]): string[] {
-  const seen = new Set<string>();
-  const result: string[] = [];
-  for (const entry of paths) {
-    const resolved = path.resolve(entry);
-    if (seen.has(resolved)) {
-      continue;
-    }
-    seen.add(resolved);
-    result.push(resolved);
-  }
-  return result;
 }
 
 function applyWorkspaceSettings(settings: WorkspaceSettings | null) {
@@ -394,10 +333,10 @@ app.whenReady().then(async () => {
   workspaceModel = resolveWorkspaceModel();
   if (workspaceSetupComplete) {
     await ensureNoteRoots(workspaceModel);
-    workspaceSettings = await workspaceSettingsStore.save(currentWorkspaceSettings());
+    workspaceSettings = await workspaceSettingsStore.save(workspaceSettings ?? workspaceSettingsStore.fromModel(workspaceModel));
   }
   logWorkspaceStartup(workspaceModel);
-  const terminalPolicy = resolveTerminalRuntimePolicy(currentWorkspaceSettings());
+  const terminalPolicy = resolveTerminalRuntimePolicy(workspaceSettings ?? workspaceSettingsStore.fromModel(workspaceModel));
   terminalManager = new TerminalManager(
     workspaceModel.defaultTerminalCwd,
     terminalPolicy.bufferLineLimit,
@@ -405,11 +344,35 @@ app.whenReady().then(async () => {
   );
   indexingService = new IndexingService({
     getWorkspaceModel: () => workspaceModel,
-    getCurrentSettings: currentWorkspaceSettings,
+    getCurrentSettings: () => workspaceSettingsService.currentSettings(),
     getRuntimeRoot: () => resolveRuntimeConfig().runtimeRoot,
-    saveWorkspaceSettings,
+    saveWorkspaceSettings: (settings) => workspaceSettingsService.saveSettings(settings),
     sendState: (event) => sendToRenderer("workspace:index-sync-state", event),
     errorMessage,
+  });
+  workspaceSettingsService = new WorkspaceSettingsService({
+    store: workspaceSettingsStore,
+    getWorkspaceModel: () => workspaceModel,
+    setWorkspaceModel: (model) => {
+      workspaceModel = model;
+    },
+    getWorkspaceSettings: () => workspaceSettings,
+    setWorkspaceSettings: (settings) => {
+      workspaceSettings = settings;
+    },
+    setWorkspaceSetupComplete: (complete) => {
+      workspaceSetupComplete = complete;
+    },
+    terminalManager,
+    workspaceWatcherService,
+    indexingService,
+    ensureNoteRoots,
+    restartCommandServer: startCommandServer,
+    applyAppearanceMode: (settings) => {
+      if (!isForcedTheme(process.env.EXO_FORCE_THEME)) {
+        nativeTheme.themeSource = settings?.appearanceMode ?? DEFAULT_APPEARANCE_MODE;
+      }
+    },
   });
   workspaceNotesService = new WorkspaceNotesService({
     getWorkspaceModel: () => workspaceModel,
