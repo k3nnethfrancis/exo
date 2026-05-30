@@ -6,13 +6,15 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 
 ## Now: Pre-Push Cleanup
 
-- [ ] Review and prepare the 52 local commits for push: decide whether to keep the stack or squash into coherent feature commits.
+- [ ] Review and prepare the local commit stack for push: decide whether to keep the stack or squash into coherent feature commits.
 - [ ] Run one final clean-state QA pass after cleanup: `pnpm typecheck`, `pnpm test`, `pnpm build`, focused Playwright, and live Exo smoke.
 - [ ] Verify fresh-clone/setup docs against current pnpm/Corepack/Electron/MCP behavior.
 - [ ] Push the reviewed branch and open the review/PR surface.
 - [ ] Refactor toward current-package domain modules before adding the next feature phase; do not introduce `packages/runtime` or plugin registries until runtime features create stable seams.
-- [ ] Extract main-process services from `apps/desktop/src/main/index.ts`: lifecycle/window/menu bar, indexing, agent instructions, workspace notes/search, and workspace mutations.
-- [ ] Extract renderer state machines from `App.tsx`: workspace bootstrap, open documents, terminal sessions, workspace settings controller, and pane/drop orchestration.
+- [ ] Extract remaining main-process services from `apps/desktop/src/main/index.ts`: workspace notes/search, project review, agent instructions, and workspace settings/application.
+- [ ] Add a typed desktop IPC contract so preload, main IPC handlers, and renderer APIs cannot drift.
+- [ ] Extract renderer state machines from `App.tsx`: workspace bootstrap, open documents, terminal sessions, workspace settings controller, workspace mutations, and pane/drop orchestration.
+- [ ] Repair the e2e launch harness tracked in `EXO-ISSUE-021`.
 - [x] Extract Electron window/tray/renderer-recovery ownership into `apps/desktop/src/main/app-lifecycle.ts` as the first main-process service boundary.
 - [x] Extract indexing timers, job metrics, sync/refresh scheduling, and indexed-root mutations into `apps/desktop/src/main/indexing-service.ts`.
 - [x] Choose and add an open-source license.
@@ -23,7 +25,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Run `pnpm ci:check`.
 - [x] Run focused desktop e2e for shell/search/terminal flows.
 - [x] Harden fresh-clone setup for pnpm 11, blocked dependency builds, patched Vite/picomatch installs, and secured-network Electron downloads.
-- [x] Fix QA issues tracked in `docs/issues.md` through `EXO-ISSUE-012`; no open issues are currently tracked there.
+- [x] Fix setup and QA issues tracked through `EXO-ISSUE-020`; `EXO-ISSUE-021` remains open for the e2e launch harness.
 
 ## Next: Runtime Lifecycle And Menu Bar
 

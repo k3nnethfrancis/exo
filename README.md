@@ -75,7 +75,6 @@ Prerequisites:
 
 - Node.js 22 or newer.
 - pnpm 11.2.2. With Homebrew pnpm, run `pnpm --version` and upgrade if needed.
-- tmux for persistent Claude/Codex terminal sessions.
 
 If Corepack fails before install with a package-manager signature or key error, either update Node/Corepack or use your installed pnpm directly:
 
@@ -210,7 +209,6 @@ Portable source defaults:
 - `terminalHistoryMode = full`
 - `terminalHistoryLines = 1000000`
 - `terminalTranscriptRetention = forever`
-- `terminalStreamingMode = visible`
 
 Runtime files live under `.exo/` inside the workspace root:
 
@@ -260,7 +258,7 @@ See `docs/harness.md` for work-chunk rules, validation evidence, and agent-frien
 
 - Electron, React, TypeScript, Vite
 - CodeMirror 6
-- xterm.js, node-pty, tmux
+- xterm.js, node-pty
 - pnpm workspaces
 - Vitest and Playwright
 - Model Context Protocol SDK

@@ -106,12 +106,14 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Added the resident-runtime roadmap: Exo should keep process-owned services alive while the window is hidden, with menu bar controls as the next feature phase.
 - Began current-package domain-module cleanup by extracting Electron window/tray/renderer-recovery ownership from `apps/desktop/src/main/index.ts` into `app-lifecycle.ts`.
 - Continued main-process cleanup by extracting indexing timers, job metrics, sync/refresh scheduling, and indexed-root mutations into `indexing-service.ts`.
+- Added the first resident runtime behavior: closing the workspace window hides it while process-owned services continue, `exo show` can reopen it, and explicit Quit warns before stopping live terminals.
+- Started cleanup-plan doc sync by removing stale tmux prerequisite language and documenting that current open QA includes the e2e launch harness and broader terminal bug-bash.
 
 ## Next Priorities
 
 1. Push `0.1.0-alpha.2` tester-readiness fixes to main.
-2. Continue current-package domain-module cleanup: indexing service, agent-instructions service, workspace notes/search service, and renderer state-machine hooks.
-3. Runtime lifecycle/menu bar: separate running process from visible window so CLI/MCP agent workflows can continue while Exo is hidden.
+2. Continue current-package domain-module cleanup: workspace notes/search service, project review service, agent-instructions service, workspace settings service, typed desktop IPC contract, and renderer state-machine hooks.
+3. Runtime lifecycle/menu bar: finish menu bar status/actions and hidden-window CLI/MCP QA on top of the cleaned service boundaries.
 4. Authorship/provenance: promote observed write candidates into explicit human vs agent review states only when Exo controls the write path or receives a trusted session event.
 5. Multi-agent coordination: roster, objectives, direct messages, file+SQLite transport, CLI/MCP access.
 6. QMD notes index: improve performance, add true incremental file-level updates when QMD exposes them, and refine triggers/profiles.
