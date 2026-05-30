@@ -6,7 +6,6 @@ import type {
   NoteDocument,
   NoteKnowledge,
   SearchResult,
-  TreeNode,
   WorkspaceLayoutSettings,
   WorkspaceModel,
   WorkspaceSettings,
@@ -27,6 +26,7 @@ import { WorkspaceSettingsDialog } from "./components/WorkspaceSettingsDialog";
 import { writeTerminalData } from "./components/terminalRegistry";
 import { useAgentInstructionEditor } from "./hooks/useAgentInstructionEditor";
 import { useShellLayout } from "./hooks/useShellLayout";
+import { loadInitialTrees, useWorkspaceTrees } from "./hooks/useWorkspaceTrees";
 import { useWorkspaceSearch } from "./hooks/useWorkspaceSearch";
 import { collectLeaves, findEditorLeaf, findNode, findTerminalLeaf, mapLeaves, paneId, pruneEmptyLeaves, removeNode, updateNode, type PaneLeaf, type PaneNode, type PaneNodeId, type BrowserPaneContent, type EditorPaneContent } from "./hooks/usePaneTree";
 import { useDragManager, type DragDropTarget, type DragPayload, type DropEdge } from "./hooks/useDragManager";
@@ -59,9 +59,6 @@ import {
   directoryOf,
   pathLabel,
   pickInitialNote,
-  replaceTreeChildrenInRoots,
-  treeDirectoryHasChildrenInRoots,
-  treeLoadKey,
   uniquePaths,
 } from "./workspaceTree";
 import type { IndexBusyState, WorkspaceSettingsDialogState, WorkspaceSettingsSection } from "./workspaceSettingsDialogTypes";
@@ -137,8 +134,8 @@ const PROJECT_TREE_MAX_DEPTH = 3;
 
 export function App() {
   const [workspaceModel, setWorkspaceModel] = useState<WorkspaceModel | null>(null);
-  const [noteTrees, setNoteTrees] = useState<Record<string, TreeNode[]>>({});
-  const [projectTrees, setProjectTrees] = useState<Record<string, TreeNode[]>>({});
+  const workspaceTrees = useWorkspaceTrees({ noteTreeMaxDepth: NOTE_TREE_MAX_DEPTH, projectTreeMaxDepth: PROJECT_TREE_MAX_DEPTH });
+  const { noteTrees, projectTrees } = workspaceTrees;
   const [exploreIndexSearchOnEnter, setExploreIndexSearchOnEnter] = useState(false);
   const workspaceSearch = useWorkspaceSearch({ indexedOnEnter: exploreIndexSearchOnEnter });
   const [openDocuments, setOpenDocuments] = useState<Record<string, OpenEditorDocument>>({});
@@ -189,7 +186,6 @@ export function App() {
   const saveDocumentRef = useRef<(filePath: string) => Promise<void>>(async () => {});
   const activeDocumentPathRef = useRef(activeDocumentPath);
   const pendingDocumentRefreshesRef = useRef<Map<string, { timeoutId: number; diskVersion: FileStatInfo | null }>>(new Map());
-  const loadedTreeDirectoriesRef = useRef<Set<string>>(new Set());
   const workspaceSettingsRef = useRef<WorkspaceSettings | null>(null);
   const shellLayout = useShellLayout();
 
@@ -352,25 +348,16 @@ export function App() {
       setOnboardingState(null);
       const status = await window.exo.workspace.getIndexStatus();
       setIndexStatus(status);
-      const [nextNoteTrees, nextProjectTrees] = await Promise.all([
-        Promise.all(
-          model.noteRoots.map(
-            async (root) =>
-              [root.path, await window.exo.workspace.listTree(root.path, { markdownOnly: true, maxDepth: NOTE_TREE_MAX_DEPTH, includeEmptyDirectories: true })] as const,
-          ),
-        ),
-        Promise.all(
-          model.projectRoots.map(
-            async (root) => [root.path, await window.exo.workspace.listTree(root.path, { maxDepth: PROJECT_TREE_MAX_DEPTH })] as const,
-          ),
-        ),
-      ]);
+      const [nextNoteTrees, nextProjectTrees] = await loadInitialTrees(model, {
+        noteTreeMaxDepth: NOTE_TREE_MAX_DEPTH,
+        projectTreeMaxDepth: PROJECT_TREE_MAX_DEPTH,
+      });
 
       if (cancelled) {
         return;
       }
 
-      const firstNote = pickInitialNote(nextNoteTrees);
+      const firstNote = pickInitialNote(Object.entries(nextNoteTrees));
       const defaultTerminal = await window.exo.terminals.ensureDefault();
       const sessions = await window.exo.terminals.list();
       const defaultTerminalSnapshot = await window.exo.terminals.read(defaultTerminal.id);
@@ -414,12 +401,7 @@ export function App() {
       }
 
       setWorkspaceModel(model);
-      setNoteTrees(Object.fromEntries(nextNoteTrees));
-      setProjectTrees(Object.fromEntries(nextProjectTrees));
-      loadedTreeDirectoriesRef.current = new Set([
-        ...model.noteRoots.map((root) => treeLoadKey("notes", root.path)),
-        ...model.projectRoots.map((root) => treeLoadKey("projects", root.path)),
-      ]);
+      workspaceTrees.replaceTreesForModel(model, nextNoteTrees, nextProjectTrees);
       setTerminalSessions(sessions);
       setActiveTerminalId(defaultTerminal.id);
       setTerminalHydrationSnapshot(defaultTerminal.id, defaultTerminalSnapshot);
@@ -851,26 +833,7 @@ export function App() {
   }
 
   async function reloadTreesForModel(model: WorkspaceModel) {
-    const [nextNoteTrees, nextProjectTrees] = await Promise.all([
-      Promise.all(
-        model.noteRoots.map(
-          async (root) =>
-            [root.path, await window.exo.workspace.listTree(root.path, { markdownOnly: true, maxDepth: NOTE_TREE_MAX_DEPTH, includeEmptyDirectories: true })] as const,
-        ),
-      ),
-      Promise.all(
-        model.projectRoots.map(
-          async (root) => [root.path, await window.exo.workspace.listTree(root.path, { maxDepth: PROJECT_TREE_MAX_DEPTH })] as const,
-        ),
-      ),
-    ]);
-
-    setNoteTrees(Object.fromEntries(nextNoteTrees));
-    setProjectTrees(Object.fromEntries(nextProjectTrees));
-    loadedTreeDirectoriesRef.current = new Set([
-      ...model.noteRoots.map((root) => treeLoadKey("notes", root.path)),
-      ...model.projectRoots.map((root) => treeLoadKey("projects", root.path)),
-    ]);
+    await workspaceTrees.reloadTreesForModel(model);
   }
 
   async function refreshWorkspaceModel() {
@@ -880,31 +843,6 @@ export function App() {
     ]);
     setWorkspaceModel(model);
     await reloadTreesForModel(model);
-  }
-
-  async function expandTreeDirectory(directoryPath: string, rootKind: "notes" | "projects") {
-    const loadKey = treeLoadKey(rootKind, directoryPath);
-    if (loadedTreeDirectoriesRef.current.has(loadKey)) {
-      return;
-    }
-    const currentTrees = rootKind === "notes" ? noteTrees : projectTrees;
-    if (treeDirectoryHasChildrenInRoots(currentTrees, directoryPath)) {
-      loadedTreeDirectoriesRef.current.add(loadKey);
-      return;
-    }
-    loadedTreeDirectoriesRef.current.add(loadKey);
-
-    const children = await window.exo.workspace.listTree(directoryPath, {
-      markdownOnly: rootKind === "notes",
-      maxDepth: 1,
-      includeEmptyDirectories: rootKind === "notes",
-    });
-
-    if (rootKind === "notes") {
-      setNoteTrees((current) => replaceTreeChildrenInRoots(current, directoryPath, children));
-    } else {
-      setProjectTrees((current) => replaceTreeChildrenInRoots(current, directoryPath, children));
-    }
   }
 
   async function refreshIndexStatus() {
@@ -2732,7 +2670,7 @@ export function App() {
       onOpenFile={(filePath, line) => void openFile(filePath, undefined, { line })}
       onOpenTerminalSession={(sessionId) => void focusTerminalSession(sessionId)}
       onOpenTag={(tag) => void openTag(tag)}
-      onExpandDirectory={(directoryPath, rootKind) => void expandTreeDirectory(directoryPath, rootKind)}
+      onExpandDirectory={(directoryPath, rootKind) => void workspaceTrees.expandTreeDirectory(directoryPath, rootKind)}
       explorerScale={explorerScale}
       onFocusExplorer={() => setZoomSurface("explorer")}
       dragManager={dragManager}
