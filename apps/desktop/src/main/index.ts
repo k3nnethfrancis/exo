@@ -781,11 +781,12 @@ async function ensureNoteRoots(model: WorkspaceModel): Promise<void> {
 }
 
 app.on("before-quit", () => {
+  appLifecycle?.prepareToQuit();
   commandServer?.stop();
+  workspaceWatcherService?.stop();
 });
 
 app.on("window-all-closed", () => {
-  workspaceWatcherService?.stop();
   if (process.platform !== "darwin") {
     app.quit();
   }

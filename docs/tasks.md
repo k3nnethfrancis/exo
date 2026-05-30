@@ -27,12 +27,14 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 
 ## Next: Runtime Lifecycle And Menu Bar
 
-- [ ] Separate "Exo is running" from "Exo window is visible" in the product and architecture model.
-- [ ] Keep the Exo process, command server, MCP bridge, watchers, transcripts, and supervised pty agents alive when the main window is closed.
+- [x] Separate "Exo is running" from "Exo window is visible" in the product and architecture model.
+- [x] Keep the Exo process, command server, MCP bridge, watchers, transcripts, and supervised pty agents alive when the main window is closed.
 - [ ] Add a macOS menu bar resident mode with actions for Show Exo, Settings, agent/session status, restart command server, and Quit Exo.
-- [ ] Make close-window hide the workspace window instead of quitting; make explicit Quit warn that live terminals/agents will stop.
+- [x] Make close-window hide the workspace window instead of quitting.
+- [ ] Make explicit Quit warn that live terminals/agents will stop.
 - [ ] Ensure CLI/MCP live commands work while the Exo window is hidden and fail clearly when the Exo process is not running.
-- [ ] Add app lifecycle tests for close/hide/show/quit behavior and command-server availability while hidden.
+- [x] Add app lifecycle tests for close/hide/show/quit behavior.
+- [ ] Add app lifecycle coverage for command-server availability while hidden.
 - [ ] Do app QA for hidden-window agent workflows: create an agent through MCP/CLI, hide Exo, read/send messages, reopen Exo, and verify transcripts/session state.
 
 ## Next: Workspace Surface

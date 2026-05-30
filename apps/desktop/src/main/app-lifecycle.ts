@@ -17,6 +17,7 @@ export class AppLifecycleController {
   private mainWindow: BrowserWindow | null = null;
   private rendererReady = false;
   private tray: Tray | null = null;
+  private quitRequested = false;
   private readonly rendererRecoveryTimestamps: number[] = [];
 
   constructor(private readonly options: AppLifecycleControllerOptions) {}
@@ -114,6 +115,14 @@ export class AppLifecycleController {
 
     this.mainWindow = window;
 
+    window.on("close", (event) => {
+      if (this.shouldDestroyWindowOnClose()) {
+        return;
+      }
+      event.preventDefault();
+      window.hide();
+    });
+
     window.on("closed", () => {
       if (this.mainWindow === window) {
         this.mainWindow = null;
@@ -137,7 +146,7 @@ export class AppLifecycleController {
         click: () => this.showMainWindow(),
       },
       { type: "separator" },
-      { label: "Quit", click: () => app.quit() },
+      { label: "Quit", click: () => this.requestQuit() },
     ]);
 
     this.tray.setContextMenu(contextMenu);
@@ -174,6 +183,15 @@ export class AppLifecycleController {
       return;
     }
     this.showMainWindow();
+  }
+
+  prepareToQuit() {
+    this.quitRequested = true;
+  }
+
+  requestQuit() {
+    this.prepareToQuit();
+    app.quit();
   }
 
   private loadRenderer(window: BrowserWindow) {
@@ -216,6 +234,10 @@ export class AppLifecycleController {
         window.show();
       }
     }, 750);
+  }
+
+  private shouldDestroyWindowOnClose(): boolean {
+    return this.quitRequested || process.env.EXO_TEST === "1";
   }
 
   private resolveWindowIconPath(): string | undefined {

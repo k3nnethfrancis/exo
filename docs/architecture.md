@@ -68,7 +68,7 @@ The command server, MCP bridge, file watchers, transcript writers, and supervise
 
 This distinction is central to multi-agent workflows: an external Codex or Claude agent can use Exo MCP to create, read, and message Exo-managed agents while the user keeps the Exo window hidden, then the user can reopen the window to monitor or take over those sessions.
 
-Until resident menu bar mode is implemented, live app commands require the desktop app process to be running and available through `.exo/server.json`.
+Exo now keeps the process resident when the workspace window closes. Live app commands require that resident desktop process to be running and available through `.exo/server.json`; they do not require the workspace window to be visible.
 
 ## Terminal And Agent Model
 
