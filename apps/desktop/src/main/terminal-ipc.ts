@@ -1,25 +1,23 @@
-import { ipcMain } from "electron";
-
-import type { TerminalCreateOptions } from "../shared/api";
 import type { TerminalManager } from "./terminal-manager";
+import { handleDesktopInvoke } from "./typed-ipc";
 
 export function registerTerminalIpcHandlers(
   terminalManager: TerminalManager,
 ): void {
-  ipcMain.handle("terminals:ensure-default", async () => terminalManager.ensureDefault());
-  ipcMain.handle("terminals:list", async () => terminalManager.list());
-  ipcMain.handle("terminals:diagnostics", async () => terminalManager.diagnostics());
-  ipcMain.handle("terminals:create", async (_event, options: TerminalCreateOptions) => terminalManager.create(options));
-  ipcMain.handle("terminals:read", async (_event, id: string) => terminalManager.readTail(id) ?? "");
-  ipcMain.handle("terminals:read-transcript", async (_event, id: string, tailChars?: number) =>
+  handleDesktopInvoke("terminals:ensure-default", async () => terminalManager.ensureDefault());
+  handleDesktopInvoke("terminals:list", async () => terminalManager.list());
+  handleDesktopInvoke("terminals:diagnostics", async () => terminalManager.diagnostics());
+  handleDesktopInvoke("terminals:create", async (_event, options) => terminalManager.create(options));
+  handleDesktopInvoke("terminals:read", async (_event, id) => terminalManager.readTail(id) ?? "");
+  handleDesktopInvoke("terminals:read-transcript", async (_event, id, tailChars) =>
     terminalManager.readTranscript(id, typeof tailChars === "number" ? tailChars : 0) ?? "",
   );
-  ipcMain.handle("terminals:write", async (_event, id: string, data: string) => terminalManager.write(id, data));
-  ipcMain.handle("terminals:send-message", async (_event, id: string, message: string, submit?: boolean) =>
+  handleDesktopInvoke("terminals:write", async (_event, id, data) => terminalManager.write(id, data));
+  handleDesktopInvoke("terminals:send-message", async (_event, id, message, submit) =>
     terminalManager.sendMessage(id, message, submit !== false),
   );
-  ipcMain.handle("terminals:resize", async (_event, id: string, cols: number, rows: number) =>
+  handleDesktopInvoke("terminals:resize", async (_event, id, cols, rows) =>
     terminalManager.resize(id, cols, rows),
   );
-  ipcMain.handle("terminals:kill", async (_event, id: string) => terminalManager.kill(id));
+  handleDesktopInvoke("terminals:kill", async (_event, id) => terminalManager.kill(id));
 }

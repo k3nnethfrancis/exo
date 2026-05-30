@@ -11,7 +11,6 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [ ] Verify fresh-clone/setup docs against current pnpm/Corepack/Electron/MCP behavior.
 - [ ] Push the reviewed branch and open the review/PR surface.
 - [ ] Refactor toward current-package domain modules before adding the next feature phase; do not introduce `packages/runtime` or plugin registries until runtime features create stable seams.
-- [ ] Add a typed desktop IPC contract so preload, main IPC handlers, and renderer APIs cannot drift.
 - [ ] Extract renderer state machines from `App.tsx`: workspace bootstrap, open documents, terminal sessions, workspace settings controller, workspace mutations, and pane/drop orchestration.
 - [ ] Repair the e2e launch harness tracked in `EXO-ISSUE-021`.
 - [x] Extract Electron window/tray/renderer-recovery ownership into `apps/desktop/src/main/app-lifecycle.ts` as the first main-process service boundary.
@@ -20,6 +19,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Extract project git status and changed-line parsing into `apps/desktop/src/main/project-review-service.ts`.
 - [x] Extract agent instruction provider-file alignment and runtime overlay listing into `apps/desktop/src/main/agent-instructions-service.ts`.
 - [x] Extract workspace settings/application orchestration into `apps/desktop/src/main/workspace-settings-service.ts`.
+- [x] Add a typed desktop IPC contract so preload, main IPC handlers, and renderer APIs cannot drift.
 - [x] Choose and add an open-source license.
 - [x] Remove or resolve any accidental local edits before commit, including the stray `SECURITY.md` line if it reappears.
 - [x] Confirm README, AGENTS, CLAUDE, architecture, roadmap, tasks, ledger, and MCP docs agree on the current Exo identity.

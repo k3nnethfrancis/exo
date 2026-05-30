@@ -22,6 +22,7 @@ import {
   type WorkspaceSettings,
 } from "@exo/core";
 
+import type { DesktopEventChannel, DesktopEventPayloads } from "../shared/desktop-ipc";
 import { AgentInstructionsService } from "./agent-instructions-service";
 import { AppLifecycleController } from "./app-lifecycle";
 import { CommandServer } from "./command-server";
@@ -200,7 +201,7 @@ function broadcastTerminalData() {
   });
 }
 
-function sendToRenderer(channel: string, payload: unknown) {
+function sendToRenderer<C extends DesktopEventChannel>(channel: C, payload: DesktopEventPayloads[C]) {
   const mainWindow = appLifecycle.getMainWindow();
   if (!appLifecycle.isRendererReady() || !mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) {
     return;

@@ -1,60 +1,64 @@
-import { BrowserWindow, dialog, ipcMain, shell, type OpenDialogOptions } from "electron";
+import { BrowserWindow, dialog, shell, type OpenDialogOptions } from "electron";
 import type { WorkspaceModel, WorkspaceSettings } from "@exo/core";
 
-import type { FileStatInfo, WorkspaceRegistryEntry } from "../shared/api";
+import type { DesktopApi, FileStatInfo, WorkspaceRegistryEntry } from "../shared/api";
+import { handleDesktopInvoke } from "./typed-ipc";
+
+type WorkspaceApi = DesktopApi["workspace"];
+type NotesApi = DesktopApi["notes"];
 
 export interface WorkspaceIpcHandlers {
-  activateWorkspace: (workspaceId: string) => Promise<WorkspaceSettings>;
-  createBranch: (filePath: string, frontmatter: Record<string, unknown>, body: string) => Promise<unknown>;
-  createDirectory: (targetPath: string) => Promise<unknown>;
-  createFile: (targetPath: string, content?: string) => Promise<unknown>;
-  deletePath: (targetPath: string) => Promise<void>;
-  embedIndex: () => Promise<unknown>;
-  ensureTarget: (sourceFilePath: string, target: string) => Promise<string>;
-  getAgentInstructionConfig: () => Promise<unknown>;
-  getBranchFamily: (filePath: string) => Promise<unknown>;
-  getGitStatus: (rootPath: string) => Promise<unknown>;
-  getIndexStatus: () => Promise<unknown>;
-  getKnowledge: (filePath: string) => Promise<unknown>;
+  activateWorkspace: WorkspaceApi["activateWorkspace"];
+  createBranch: NotesApi["createBranch"];
+  createDirectory: WorkspaceApi["createDirectory"];
+  createFile: WorkspaceApi["createFile"];
+  deletePath: WorkspaceApi["deletePath"];
+  embedIndex: WorkspaceApi["embedIndex"];
+  ensureTarget: NotesApi["ensureTarget"];
+  getAgentInstructionConfig: WorkspaceApi["getAgentInstructionConfig"];
+  getBranchFamily: NotesApi["getBranchFamily"];
+  getGitStatus: WorkspaceApi["getGitStatus"];
+  getIndexStatus: WorkspaceApi["getIndexStatus"];
+  getKnowledge: NotesApi["getKnowledge"];
   getMainWindow: () => BrowserWindow | null;
   getModel: () => WorkspaceModel;
   getRuntimeStatus: () => Promise<unknown> | unknown;
   getSettings: () => WorkspaceSettings;
   getSetupState: () => { complete: boolean; settingsPath: string };
-  listAgentInstructionOverlays: () => Promise<unknown>;
-  listTree: (rootPath: string, options?: { markdownOnly?: boolean; maxDepth?: number; includeEmptyDirectories?: boolean }) => Promise<unknown>;
+  listAgentInstructionOverlays: WorkspaceApi["listAgentInstructionOverlays"];
+  listTree: WorkspaceApi["listTree"];
   listWorkspaces: () => Promise<WorkspaceRegistryEntry[]>;
-  readNote: (filePath: string) => Promise<unknown>;
-  renamePath: (sourcePath: string, nextPath: string) => Promise<unknown>;
-  resolveTarget: (sourceFilePath: string, target: string) => Promise<string | null>;
-  saveAgentInstructionConfig: (input: { scopeId: "global" | "exocortex"; body: string }) => Promise<unknown>;
-  saveNote: (filePath: string, frontmatter: Record<string, unknown>, body: string) => Promise<void>;
-  saveSettings: (settings: WorkspaceSettings) => Promise<WorkspaceSettings>;
-  searchIndex: (query: string, options?: { limit?: number; forceMode?: "lexical" | "semantic" | "hybrid" }) => Promise<unknown>;
-  searchNotes: (query: string) => Promise<unknown>;
-  searchTag: (tag: string) => Promise<unknown>;
-  searchWorkspace: (query: string) => Promise<unknown>;
+  readNote: NotesApi["read"];
+  renamePath: WorkspaceApi["renamePath"];
+  resolveTarget: NotesApi["resolveTarget"];
+  saveAgentInstructionConfig: WorkspaceApi["saveAgentInstructionConfig"];
+  saveNote: NotesApi["save"];
+  saveSettings: WorkspaceApi["saveSettings"];
+  searchIndex: WorkspaceApi["searchIndex"];
+  searchNotes: WorkspaceApi["searchNotes"];
+  searchTag: WorkspaceApi["searchTag"];
+  searchWorkspace: WorkspaceApi["searchWorkspace"];
   statNote: (filePath: string) => Promise<FileStatInfo | null>;
-  suggestTargets: (sourceFilePath: string, query: string) => Promise<unknown>;
-  syncIndex: () => Promise<unknown>;
+  suggestTargets: NotesApi["suggestTargets"];
+  syncIndex: WorkspaceApi["syncIndex"];
   syncRuntime: () => Promise<unknown>;
-  updateIndex: () => Promise<unknown>;
+  updateIndex: WorkspaceApi["updateIndex"];
 }
 
 export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
-  ipcMain.handle("workspace:get-model", async () => handlers.getModel());
-  ipcMain.handle("workspace:get-settings", async () => handlers.getSettings());
-  ipcMain.handle("workspace:get-setup-state", async () => handlers.getSetupState());
-  ipcMain.handle("workspace:list-workspaces", async () => handlers.listWorkspaces());
-  ipcMain.handle("workspace:activate-workspace", async (_event, workspaceId: string) => handlers.activateWorkspace(workspaceId));
-  ipcMain.handle("workspace:get-index-status", async () => handlers.getIndexStatus());
-  ipcMain.handle("workspace:index-sync", async () => handlers.syncIndex());
-  ipcMain.handle("workspace:index-update", async () => handlers.updateIndex());
-  ipcMain.handle("workspace:index-embed", async () => handlers.embedIndex());
-  ipcMain.handle("workspace:save-settings", async (_event, settings: WorkspaceSettings) => handlers.saveSettings(settings));
-  ipcMain.handle(
+  handleDesktopInvoke("workspace:get-model", async () => handlers.getModel());
+  handleDesktopInvoke("workspace:get-settings", async () => handlers.getSettings());
+  handleDesktopInvoke("workspace:get-setup-state", async () => handlers.getSetupState());
+  handleDesktopInvoke("workspace:list-workspaces", async () => handlers.listWorkspaces());
+  handleDesktopInvoke("workspace:activate-workspace", async (_event, workspaceId) => handlers.activateWorkspace(workspaceId));
+  handleDesktopInvoke("workspace:get-index-status", async () => handlers.getIndexStatus());
+  handleDesktopInvoke("workspace:index-sync", async () => handlers.syncIndex());
+  handleDesktopInvoke("workspace:index-update", async () => handlers.updateIndex());
+  handleDesktopInvoke("workspace:index-embed", async () => handlers.embedIndex());
+  handleDesktopInvoke("workspace:save-settings", async (_event, settings) => handlers.saveSettings(settings));
+  handleDesktopInvoke(
     "workspace:select-folder",
-    async (_event, options?: { title?: string; allowMultiple?: boolean; buttonLabel?: string }) => {
+    async (_event, options) => {
       const dialogOptions: OpenDialogOptions = {
         title: options?.title,
         buttonLabel: options?.buttonLabel,
@@ -71,43 +75,43 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
       return result.canceled ? [] : result.filePaths;
     },
   );
-  ipcMain.handle("runtime:get-status", async () => handlers.getRuntimeStatus());
-  ipcMain.handle("runtime:sync", async () => handlers.syncRuntime());
-  ipcMain.handle(
+  handleDesktopInvoke("runtime:get-status", async () => handlers.getRuntimeStatus());
+  handleDesktopInvoke("runtime:sync", async () => handlers.syncRuntime());
+  handleDesktopInvoke(
     "workspace:list-tree",
-    async (_event, rootPath: string, options?: { markdownOnly?: boolean; maxDepth?: number; includeEmptyDirectories?: boolean }) =>
+    async (_event, rootPath, options) =>
       handlers.listTree(rootPath, options),
   );
-  ipcMain.handle("workspace:search-notes", async (_event, query: string) => handlers.searchNotes(query));
-  ipcMain.handle("workspace:search-workspace", async (_event, query: string) => handlers.searchWorkspace(query));
-  ipcMain.handle(
+  handleDesktopInvoke("workspace:search-notes", async (_event, query) => handlers.searchNotes(query));
+  handleDesktopInvoke("workspace:search-workspace", async (_event, query) => handlers.searchWorkspace(query));
+  handleDesktopInvoke(
     "workspace:search-index",
-    async (_event, query: string, options?: { limit?: number; forceMode?: "lexical" | "semantic" | "hybrid" }) =>
+    async (_event, query, options) =>
       handlers.searchIndex(query, options),
   );
-  ipcMain.handle("workspace:get-git-status", async (_event, rootPath: string) => handlers.getGitStatus(rootPath));
-  ipcMain.handle("workspace:get-agent-instruction-config", async () => handlers.getAgentInstructionConfig());
-  ipcMain.handle("workspace:save-agent-instruction-config", async (_event, input: { scopeId: "global" | "exocortex"; body: string }) =>
+  handleDesktopInvoke("workspace:get-git-status", async (_event, rootPath) => handlers.getGitStatus(rootPath));
+  handleDesktopInvoke("workspace:get-agent-instruction-config", async () => handlers.getAgentInstructionConfig());
+  handleDesktopInvoke("workspace:save-agent-instruction-config", async (_event, input) =>
     handlers.saveAgentInstructionConfig(input),
   );
-  ipcMain.handle("workspace:list-agent-instruction-overlays", async () => handlers.listAgentInstructionOverlays());
-  ipcMain.handle("workspace:create-file", async (_event, targetPath: string, content?: string) => handlers.createFile(targetPath, content));
-  ipcMain.handle("workspace:create-directory", async (_event, targetPath: string) => handlers.createDirectory(targetPath));
-  ipcMain.handle("workspace:rename-path", async (_event, sourcePath: string, nextPath: string) => handlers.renamePath(sourcePath, nextPath));
-  ipcMain.handle("workspace:delete-path", async (_event, targetPath: string) => handlers.deletePath(targetPath));
-  ipcMain.handle("workspace:search-tag", async (_event, tag: string) => handlers.searchTag(tag));
-  ipcMain.handle("notes:read", async (_event, filePath: string) => handlers.readNote(filePath));
-  ipcMain.handle("notes:save", async (_event, filePath: string, frontmatter: Record<string, unknown>, body: string) =>
+  handleDesktopInvoke("workspace:list-agent-instruction-overlays", async () => handlers.listAgentInstructionOverlays());
+  handleDesktopInvoke("workspace:create-file", async (_event, targetPath, content) => handlers.createFile(targetPath, content));
+  handleDesktopInvoke("workspace:create-directory", async (_event, targetPath) => handlers.createDirectory(targetPath));
+  handleDesktopInvoke("workspace:rename-path", async (_event, sourcePath, nextPath) => handlers.renamePath(sourcePath, nextPath));
+  handleDesktopInvoke("workspace:delete-path", async (_event, targetPath) => handlers.deletePath(targetPath));
+  handleDesktopInvoke("workspace:search-tag", async (_event, tag) => handlers.searchTag(tag));
+  handleDesktopInvoke("notes:read", async (_event, filePath) => handlers.readNote(filePath));
+  handleDesktopInvoke("notes:save", async (_event, filePath, frontmatter, body) =>
     handlers.saveNote(filePath, frontmatter, body),
   );
-  ipcMain.handle("notes:stat", async (_event, filePath: string) => handlers.statNote(filePath));
-  ipcMain.handle("notes:get-knowledge", async (_event, filePath: string) => handlers.getKnowledge(filePath));
-  ipcMain.handle("notes:resolve-target", async (_event, sourceFilePath: string, target: string) => handlers.resolveTarget(sourceFilePath, target));
-  ipcMain.handle("notes:ensure-target", async (_event, sourceFilePath: string, target: string) => handlers.ensureTarget(sourceFilePath, target));
-  ipcMain.handle("notes:suggest-targets", async (_event, sourceFilePath: string, query: string) => handlers.suggestTargets(sourceFilePath, query));
-  ipcMain.handle("notes:get-branch-family", async (_event, filePath: string) => handlers.getBranchFamily(filePath));
-  ipcMain.handle("notes:create-branch", async (_event, filePath: string, frontmatter: Record<string, unknown>, body: string) =>
+  handleDesktopInvoke("notes:stat", async (_event, filePath) => handlers.statNote(filePath));
+  handleDesktopInvoke("notes:get-knowledge", async (_event, filePath) => handlers.getKnowledge(filePath));
+  handleDesktopInvoke("notes:resolve-target", async (_event, sourceFilePath, target) => handlers.resolveTarget(sourceFilePath, target));
+  handleDesktopInvoke("notes:ensure-target", async (_event, sourceFilePath, target) => handlers.ensureTarget(sourceFilePath, target));
+  handleDesktopInvoke("notes:suggest-targets", async (_event, sourceFilePath, query) => handlers.suggestTargets(sourceFilePath, query));
+  handleDesktopInvoke("notes:get-branch-family", async (_event, filePath) => handlers.getBranchFamily(filePath));
+  handleDesktopInvoke("notes:create-branch", async (_event, filePath, frontmatter, body) =>
     handlers.createBranch(filePath, frontmatter, body),
   );
-  ipcMain.handle("shell:open-external", async (_event, target: string) => shell.openExternal(target));
+  handleDesktopInvoke("shell:open-external", async (_event, target) => shell.openExternal(target));
 }

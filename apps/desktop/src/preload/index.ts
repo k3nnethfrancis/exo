@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 
 import type { DesktopApi } from "../shared/api";
+import { invokeDesktop } from "./typed-ipc";
 
 const droppedFilePathsByKey = new Map<string, string>();
 
@@ -26,30 +27,30 @@ window.addEventListener(
 
 const api: DesktopApi = {
   workspace: {
-    getModel: () => ipcRenderer.invoke("workspace:get-model"),
-    getSettings: () => ipcRenderer.invoke("workspace:get-settings"),
-    getSetupState: () => ipcRenderer.invoke("workspace:get-setup-state"),
-    listWorkspaces: () => ipcRenderer.invoke("workspace:list-workspaces"),
-    activateWorkspace: (workspaceId) => ipcRenderer.invoke("workspace:activate-workspace", workspaceId),
-    saveSettings: (settings) => ipcRenderer.invoke("workspace:save-settings", settings),
-    selectFolder: (options) => ipcRenderer.invoke("workspace:select-folder", options),
-    getIndexStatus: () => ipcRenderer.invoke("workspace:get-index-status"),
-    syncIndex: () => ipcRenderer.invoke("workspace:index-sync"),
-    updateIndex: () => ipcRenderer.invoke("workspace:index-update"),
-    embedIndex: () => ipcRenderer.invoke("workspace:index-embed"),
-    listTree: (rootPath, options) => ipcRenderer.invoke("workspace:list-tree", rootPath, options),
-    searchNotes: (query) => ipcRenderer.invoke("workspace:search-notes", query),
-    searchWorkspace: (query) => ipcRenderer.invoke("workspace:search-workspace", query),
-    searchIndex: (query, options) => ipcRenderer.invoke("workspace:search-index", query, options),
-    searchTag: (tag) => ipcRenderer.invoke("workspace:search-tag", tag),
-    getGitStatus: (rootPath) => ipcRenderer.invoke("workspace:get-git-status", rootPath),
-    getAgentInstructionConfig: () => ipcRenderer.invoke("workspace:get-agent-instruction-config"),
-    saveAgentInstructionConfig: (input) => ipcRenderer.invoke("workspace:save-agent-instruction-config", input),
-    listAgentInstructionOverlays: () => ipcRenderer.invoke("workspace:list-agent-instruction-overlays"),
-    createFile: (targetPath, content) => ipcRenderer.invoke("workspace:create-file", targetPath, content),
-    createDirectory: (targetPath) => ipcRenderer.invoke("workspace:create-directory", targetPath),
-    renamePath: (sourcePath, nextPath) => ipcRenderer.invoke("workspace:rename-path", sourcePath, nextPath),
-    deletePath: (targetPath) => ipcRenderer.invoke("workspace:delete-path", targetPath),
+    getModel: () => invokeDesktop("workspace:get-model"),
+    getSettings: () => invokeDesktop("workspace:get-settings"),
+    getSetupState: () => invokeDesktop("workspace:get-setup-state"),
+    listWorkspaces: () => invokeDesktop("workspace:list-workspaces"),
+    activateWorkspace: (workspaceId) => invokeDesktop("workspace:activate-workspace", workspaceId),
+    saveSettings: (settings) => invokeDesktop("workspace:save-settings", settings),
+    selectFolder: (options) => invokeDesktop("workspace:select-folder", options),
+    getIndexStatus: () => invokeDesktop("workspace:get-index-status"),
+    syncIndex: () => invokeDesktop("workspace:index-sync"),
+    updateIndex: () => invokeDesktop("workspace:index-update"),
+    embedIndex: () => invokeDesktop("workspace:index-embed"),
+    listTree: (rootPath, options) => invokeDesktop("workspace:list-tree", rootPath, options),
+    searchNotes: (query) => invokeDesktop("workspace:search-notes", query),
+    searchWorkspace: (query) => invokeDesktop("workspace:search-workspace", query),
+    searchIndex: (query, options) => invokeDesktop("workspace:search-index", query, options),
+    searchTag: (tag) => invokeDesktop("workspace:search-tag", tag),
+    getGitStatus: (rootPath) => invokeDesktop("workspace:get-git-status", rootPath),
+    getAgentInstructionConfig: () => invokeDesktop("workspace:get-agent-instruction-config"),
+    saveAgentInstructionConfig: (input) => invokeDesktop("workspace:save-agent-instruction-config", input),
+    listAgentInstructionOverlays: () => invokeDesktop("workspace:list-agent-instruction-overlays"),
+    createFile: (targetPath, content) => invokeDesktop("workspace:create-file", targetPath, content),
+    createDirectory: (targetPath) => invokeDesktop("workspace:create-directory", targetPath),
+    renamePath: (sourcePath, nextPath) => invokeDesktop("workspace:rename-path", sourcePath, nextPath),
+    deletePath: (targetPath) => invokeDesktop("workspace:delete-path", targetPath),
     onDidChange: (callback) => {
       const listener = (_event: unknown, payload: { rootPath: string; eventType: string; filePath: string | null }) =>
         callback(payload);
@@ -68,27 +69,27 @@ const api: DesktopApi = {
     },
   },
   notes: {
-    read: (filePath) => ipcRenderer.invoke("notes:read", filePath),
-    save: (filePath, frontmatter, body) => ipcRenderer.invoke("notes:save", filePath, frontmatter, body),
-    stat: (filePath) => ipcRenderer.invoke("notes:stat", filePath),
-    getKnowledge: (filePath) => ipcRenderer.invoke("notes:get-knowledge", filePath),
-    resolveTarget: (sourceFilePath, target) => ipcRenderer.invoke("notes:resolve-target", sourceFilePath, target),
-    ensureTarget: (sourceFilePath, target) => ipcRenderer.invoke("notes:ensure-target", sourceFilePath, target),
-    suggestTargets: (sourceFilePath, query) => ipcRenderer.invoke("notes:suggest-targets", sourceFilePath, query),
-    getBranchFamily: (filePath) => ipcRenderer.invoke("notes:get-branch-family", filePath),
-    createBranch: (filePath, frontmatter, body) => ipcRenderer.invoke("notes:create-branch", filePath, frontmatter, body),
+    read: (filePath) => invokeDesktop("notes:read", filePath),
+    save: (filePath, frontmatter, body) => invokeDesktop("notes:save", filePath, frontmatter, body),
+    stat: (filePath) => invokeDesktop("notes:stat", filePath),
+    getKnowledge: (filePath) => invokeDesktop("notes:get-knowledge", filePath),
+    resolveTarget: (sourceFilePath, target) => invokeDesktop("notes:resolve-target", sourceFilePath, target),
+    ensureTarget: (sourceFilePath, target) => invokeDesktop("notes:ensure-target", sourceFilePath, target),
+    suggestTargets: (sourceFilePath, query) => invokeDesktop("notes:suggest-targets", sourceFilePath, query),
+    getBranchFamily: (filePath) => invokeDesktop("notes:get-branch-family", filePath),
+    createBranch: (filePath, frontmatter, body) => invokeDesktop("notes:create-branch", filePath, frontmatter, body),
   },
   terminals: {
-    ensureDefault: () => ipcRenderer.invoke("terminals:ensure-default"),
-    list: () => ipcRenderer.invoke("terminals:list"),
-    diagnostics: () => ipcRenderer.invoke("terminals:diagnostics"),
-    create: (options) => ipcRenderer.invoke("terminals:create", options),
-    read: (id) => ipcRenderer.invoke("terminals:read", id),
-    readTranscript: (id, tailChars) => ipcRenderer.invoke("terminals:read-transcript", id, tailChars),
-    write: (id, data) => ipcRenderer.invoke("terminals:write", id, data),
-    sendMessage: (id, message, submit) => ipcRenderer.invoke("terminals:send-message", id, message, submit),
-    resize: (id, cols, rows) => ipcRenderer.invoke("terminals:resize", id, cols, rows),
-    kill: (id) => ipcRenderer.invoke("terminals:kill", id),
+    ensureDefault: () => invokeDesktop("terminals:ensure-default"),
+    list: () => invokeDesktop("terminals:list"),
+    diagnostics: () => invokeDesktop("terminals:diagnostics"),
+    create: (options) => invokeDesktop("terminals:create", options),
+    read: (id) => invokeDesktop("terminals:read", id),
+    readTranscript: (id, tailChars) => invokeDesktop("terminals:read-transcript", id, tailChars),
+    write: (id, data) => invokeDesktop("terminals:write", id, data),
+    sendMessage: (id, message, submit) => invokeDesktop("terminals:send-message", id, message, submit),
+    resize: (id, cols, rows) => invokeDesktop("terminals:resize", id, cols, rows),
+    kill: (id) => invokeDesktop("terminals:kill", id),
     resolveDroppedFilePaths: (files) =>
       files
         .map((file) => webUtils.getPathForFile(file) || droppedFilePathsByKey.get(fileKey(file)) || "")
@@ -111,7 +112,7 @@ const api: DesktopApi = {
     },
   },
   shell: {
-    openExternal: (target) => ipcRenderer.invoke("shell:open-external", target),
+    openExternal: (target) => invokeDesktop("shell:open-external", target),
   },
 };
 
