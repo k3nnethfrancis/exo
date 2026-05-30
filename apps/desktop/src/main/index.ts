@@ -1,8 +1,6 @@
 import { app, nativeTheme } from "electron";
-import os from "node:os";
 import path from "node:path";
-import { appendFile, mkdir, readFile, stat, writeFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { appendFile, mkdir, stat } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -24,10 +22,10 @@ import {
   type WorkspaceSettings,
 } from "@exo/core";
 
+import { AgentInstructionsService } from "./agent-instructions-service";
 import { AppLifecycleController } from "./app-lifecycle";
 import { CommandServer } from "./command-server";
 import { IndexingService } from "./indexing-service";
-import { writeAgentInstructionOverlays } from "./agent-instruction-overlays";
 import {
   applyWorkspaceSettingsToEnv,
   DEFAULT_APPEARANCE_MODE,
@@ -76,6 +74,7 @@ let workspaceWatcherService: WorkspaceWatcherService;
 let indexingService: IndexingService;
 let workspaceNotesService: WorkspaceNotesService;
 let projectReviewService: ProjectReviewService;
+let agentInstructionsService: AgentInstructionsService;
 
 if (!singleInstanceLock) {
   console.error(
@@ -260,7 +259,7 @@ function registerIpcHandlers() {
     deletePath: deleteWorkspacePath,
     embedIndex: () => indexingService.embed("settings"),
     ensureTarget: (sourceFilePath, target) => workspaceNotesService.ensureTarget(sourceFilePath, target),
-    getAgentInstructionConfig,
+    getAgentInstructionConfig: () => agentInstructionsService.getConfig(),
     getBranchFamily: (filePath) => workspaceNotesService.getBranchFamily(filePath),
     getGitStatus: (rootPath) => projectReviewService.getGitStatus(rootPath),
     getIndexStatus: () => indexingService.getMeasuredStatus(),
@@ -273,13 +272,13 @@ function registerIpcHandlers() {
       complete: workspaceSetupComplete,
       settingsPath: workspaceSettingsStore.resolvePath(),
     }),
-    listAgentInstructionOverlays,
+    listAgentInstructionOverlays: () => agentInstructionsService.listOverlays(),
     listTree: listRootTree,
     listWorkspaces: () => workspaceSettingsStore.listWorkspaces(workspaceSettings),
     readNote: readWorkspaceDocument,
     renamePath: renameWorkspacePath,
     resolveTarget: (sourceFilePath, target) => workspaceNotesService.resolveTarget(sourceFilePath, target),
-    saveAgentInstructionConfig,
+    saveAgentInstructionConfig: (input) => agentInstructionsService.saveConfig(input),
     saveNote: async (filePath, frontmatter, body) => {
       await saveWorkspaceDocument(filePath, frontmatter, body);
       indexingService.scheduleForFile(filePath, "note-save");
@@ -303,155 +302,6 @@ function registerIpcHandlers() {
     updateIndex: () => indexingService.update("settings"),
   });
   registerTerminalIpcHandlers(terminalManager);
-}
-
-async function listAgentInstructionOverlays() {
-  return writeAgentInstructionOverlays(workspaceModel);
-}
-
-async function getAgentInstructionConfig() {
-  return {
-    scopes: await Promise.all(agentInstructionScopeCandidates().map(readAgentInstructionScope)),
-    starterTemplate: exoAgentInstructionStarterTemplate(),
-  };
-}
-
-async function saveAgentInstructionConfig(input: { scopeId: "global" | "exocortex"; body: string }) {
-  const scope = agentInstructionScopeCandidates().find((candidate) => candidate.id === input.scopeId);
-  if (!scope) {
-    throw new Error("Agent instruction scope is unavailable for the active workspace.");
-  }
-  await Promise.all(Object.values(scope.files).map(async (file) => {
-    await mkdir(path.dirname(file.path), { recursive: true });
-    await writeFile(file.path, normalizeInstructionFileBody(input.body), "utf8");
-  }));
-  return getAgentInstructionConfig();
-}
-
-function agentInstructionScopeCandidates() {
-  const notesRoot = workspaceModel.noteRoots[0];
-  return [
-    {
-      id: "global" as const,
-      label: "Global",
-      description: "Personal instructions loaded by supported terminal agents across workspaces.",
-      rootPath: os.homedir(),
-      files: {
-        agents: {
-          id: "agents" as const,
-          label: "Codex AGENTS.md",
-          path: path.join(os.homedir(), ".codex", "AGENTS.md"),
-        },
-        claude: {
-          id: "claude" as const,
-          label: "Claude CLAUDE.md",
-          path: path.join(os.homedir(), ".claude", "CLAUDE.md"),
-        },
-      },
-    },
-    ...(notesRoot ? [{
-      id: "exocortex" as const,
-      label: "Exocortex",
-      description: "Instructions stored in the active notes folder for agents working with your Exo context.",
-      rootPath: notesRoot.path,
-      files: {
-        agents: {
-          id: "agents" as const,
-          label: "Notes AGENTS.md",
-          path: path.join(notesRoot.path, "AGENTS.md"),
-        },
-        claude: {
-          id: "claude" as const,
-          label: "Notes CLAUDE.md",
-          path: path.join(notesRoot.path, "CLAUDE.md"),
-        },
-      },
-    }] : []),
-  ];
-}
-
-async function readAgentInstructionScope(scope: ReturnType<typeof agentInstructionScopeCandidates>[number]) {
-  const [agents, claude] = await Promise.all([
-    readAgentInstructionProviderFile(scope.files.agents),
-    readAgentInstructionProviderFile(scope.files.claude),
-  ]);
-  const errorMessages = [agents, claude].flatMap((file) => file.errorMessage ? [`${file.label}: ${file.errorMessage}`] : []);
-  const agentsHasBody = agents.body.trim().length > 0;
-  const claudeHasBody = claude.body.trim().length > 0;
-  const bodiesMatch = normalizeInstructionComparisonBody(agents.body) === normalizeInstructionComparisonBody(claude.body);
-  const status = errorMessages.length > 0
-    ? "error"
-    : !agents.exists && !claude.exists
-      ? "missing-both"
-      : agents.exists && !claude.exists
-        ? "missing-claude"
-        : !agents.exists && claude.exists
-          ? "missing-agents"
-          : bodiesMatch
-            ? "aligned"
-            : "different";
-  const source = status === "different" || status === "error"
-    ? "unresolved"
-    : agentsHasBody
-      ? "agents"
-      : claudeHasBody
-        ? "claude"
-        : "empty";
-  const body = source === "agents" ? agents.body : source === "claude" ? claude.body : "";
-  return {
-    id: scope.id,
-    label: scope.label,
-    description: scope.description,
-    rootPath: scope.rootPath,
-    files: { agents, claude },
-    status,
-    body,
-    source,
-    errorMessages,
-  };
-}
-
-async function readAgentInstructionProviderFile(file: { id: "agents" | "claude"; label: string; path: string }) {
-  try {
-    const body = await readFile(file.path, "utf8").catch((error: NodeJS.ErrnoException) => {
-      if (error.code === "ENOENT") {
-        return "";
-      }
-      throw error;
-    });
-    return {
-      ...file,
-      exists: body.length > 0 || existsSync(file.path),
-      body,
-      errorMessage: null,
-    };
-  } catch (error) {
-    return {
-      ...file,
-      exists: existsSync(file.path),
-      body: "",
-      errorMessage: errorMessage(error),
-    };
-  }
-}
-
-function normalizeInstructionFileBody(body: string) {
-  return `${body.trimEnd()}\n`;
-}
-
-function normalizeInstructionComparisonBody(body: string) {
-  return body.replace(/\r\n/g, "\n").trimEnd();
-}
-
-function exoAgentInstructionStarterTemplate() {
-  return [
-    "# Exo Agent Instructions",
-    "",
-    "- Exo is the local workspace app for navigating the user's notes, projects, terminals, and indexed context.",
-    "- Use Exo MCP or CLI tools to inspect attached project roots and indexed notes before guessing where context lives.",
-    "- Treat notes as user-authored working context. Preserve organization, links, and private drafts unless asked to change them.",
-    "- Prefer explicit attached roots over broad filesystem searches.",
-  ].join("\n");
 }
 
 function currentWorkspaceSettings(): WorkspaceSettings {
@@ -565,6 +415,10 @@ app.whenReady().then(async () => {
     getWorkspaceModel: () => workspaceModel,
   });
   projectReviewService = new ProjectReviewService();
+  agentInstructionsService = new AgentInstructionsService({
+    getWorkspaceModel: () => workspaceModel,
+    errorMessage,
+  });
   appLifecycle = new AppLifecycleController({
     currentDirectory,
     getTerminalDiagnostics: () => terminalManager?.diagnostics() ?? [],
