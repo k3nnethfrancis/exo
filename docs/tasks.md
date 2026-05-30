@@ -7,7 +7,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 ## Now: Pre-Push Cleanup
 
 - [ ] Review and prepare the local commit stack for push: decide whether to keep the stack or squash into coherent feature commits.
-- [ ] Run one final clean-state QA pass after cleanup: `pnpm typecheck`, `pnpm test`, `pnpm build`, focused Playwright, and live Exo smoke.
+- [x] Run one final clean-state QA pass after cleanup: `pnpm check:repo`, `pnpm typecheck`, `pnpm test`, `pnpm build`, focused Playwright, and full desktop e2e app QA.
 - [ ] Verify fresh-clone/setup docs against current pnpm/Corepack/Electron/MCP behavior.
 - [ ] Push the reviewed branch and open the review/PR surface.
 - [ ] Refactor toward current-package domain modules before adding the next feature phase; do not introduce `packages/runtime` or plugin registries until runtime features create stable seams.

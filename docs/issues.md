@@ -54,6 +54,30 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 
 ## Resolved
 
+### EXO-ISSUE-023: External file refresh can reset editor scroll
+
+- Status: resolved
+- Severity: medium
+- Area: editor refresh, external file watcher, CodeMirror scroll restoration
+- Observed:
+  - Full e2e QA on 2026-05-30 found that a clean open document refreshed from disk could jump back near the top instead of preserving the user's scroll position.
+- Resolution:
+  - Explicit scroll restoration now retries through the CodeMirror refresh window instead of setting `scrollTop` only once.
+- QA coverage:
+  - `apps/desktop/tests/e2e/external-file-changes.spec.ts` preserves editor scroll when an open document refreshes from disk.
+
+### EXO-ISSUE-022: Terminal pane headers can be taller than editor tab strips in shared pane graphs
+
+- Status: resolved
+- Severity: low
+- Area: pane graph, terminal tab chrome, editor/terminal visual alignment
+- Observed:
+  - Full e2e QA on 2026-05-30 found a 4px height mismatch after dragging a terminal tab into the editor canvas.
+- Resolution:
+  - Editor tab strips and terminal headers now share an explicit 40px height.
+- QA coverage:
+  - `apps/desktop/tests/e2e/drag-zones.spec.ts` verifies a terminal pane created in the editor canvas aligns with editor tab chrome and survives layout persistence.
+
 ### EXO-ISSUE-010: Codex agent sessions report Exo MCP startup handshake failure
 
 - Status: resolved

@@ -88,6 +88,7 @@
   background: transparent;
   justify-content: space-between;
   min-height: 40px;
+  height: 40px;
   grid-column: 1;
   grid-row: 1;
   min-width: 0;

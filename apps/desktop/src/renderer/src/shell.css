@@ -1117,6 +1117,7 @@ body.pane-resize-active .browser-pane__webview {
 .tab-strip {
   overflow-x: auto;
   min-height: 40px;
+  height: 40px;
   padding-right: 8px;
 }
 

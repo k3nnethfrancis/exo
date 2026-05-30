@@ -248,12 +248,21 @@ export function NoteEditor(props: NoteEditorProps) {
 
     processedScrollRestoreNonceRef.current = scrollRestoreRequest.nonce;
     restoringScrollRef.current = true;
-    scroller.scrollTop = scrollRestoreRequest.scrollTop;
-    const frame = window.requestAnimationFrame(() => {
+    const restore = () => {
+      scroller.scrollTop = scrollRestoreRequest.scrollTop;
+    };
+    restore();
+    const frame = window.requestAnimationFrame(restore);
+    const interval = window.setInterval(restore, 50);
+    const timeout = window.setTimeout(() => {
+      restore();
+      window.clearInterval(interval);
       restoringScrollRef.current = false;
-    });
+    }, 650);
     return () => {
       window.cancelAnimationFrame(frame);
+      window.clearInterval(interval);
+      window.clearTimeout(timeout);
     };
   }, [document, documentPath, scrollRestoreRequest]);
 
