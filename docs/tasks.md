@@ -14,6 +14,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [ ] Extract main-process services from `apps/desktop/src/main/index.ts`: lifecycle/window/menu bar, indexing, agent instructions, workspace notes/search, and workspace mutations.
 - [ ] Extract renderer state machines from `App.tsx`: workspace bootstrap, open documents, terminal sessions, workspace settings controller, and pane/drop orchestration.
 - [x] Extract Electron window/tray/renderer-recovery ownership into `apps/desktop/src/main/app-lifecycle.ts` as the first main-process service boundary.
+- [x] Extract indexing timers, job metrics, sync/refresh scheduling, and indexed-root mutations into `apps/desktop/src/main/indexing-service.ts`.
 - [x] Choose and add an open-source license.
 - [x] Remove or resolve any accidental local edits before commit, including the stray `SECURITY.md` line if it reappears.
 - [x] Confirm README, AGENTS, CLAUDE, architecture, roadmap, tasks, ledger, and MCP docs agree on the current Exo identity.

@@ -105,6 +105,7 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Removed tmux from the core terminal runtime, standardized live terminal reads around bounded tails plus disk transcripts, and documented the direct-pty runtime decision.
 - Added the resident-runtime roadmap: Exo should keep process-owned services alive while the window is hidden, with menu bar controls as the next feature phase.
 - Began current-package domain-module cleanup by extracting Electron window/tray/renderer-recovery ownership from `apps/desktop/src/main/index.ts` into `app-lifecycle.ts`.
+- Continued main-process cleanup by extracting indexing timers, job metrics, sync/refresh scheduling, and indexed-root mutations into `indexing-service.ts`.
 
 ## Next Priorities
 

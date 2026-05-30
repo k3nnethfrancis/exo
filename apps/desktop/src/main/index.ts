@@ -10,12 +10,9 @@ import { promisify } from "node:util";
 import {
   createWorkspaceDirectory,
   createWorkspaceFile,
-  createIndexedRoot,
   createBranchFile,
   deleteWorkspacePath,
-  embedIndex,
   getBranchFamily,
-  getIndexStatus,
   getNoteKnowledge,
   listMarkdownFiles,
   listRootTree,
@@ -28,12 +25,6 @@ import {
   searchIndex,
   searchNotes,
   searchWorkspace,
-  syncIndex,
-  updateIndex,
-  type IndexedRoot,
-  type IndexJobMetric,
-  type IndexStatus,
-  type IndexSyncResult,
   type SearchResult,
   type WorkspaceModel,
   type WorkspaceSettings,
@@ -41,6 +32,7 @@ import {
 
 import { AppLifecycleController } from "./app-lifecycle";
 import { CommandServer } from "./command-server";
+import { IndexingService } from "./indexing-service";
 import { writeAgentInstructionOverlays } from "./agent-instruction-overlays";
 import {
   applyWorkspaceSettingsToEnv,
@@ -86,14 +78,7 @@ let workspaceSettingsStore: WorkspaceSettingsStore;
 let workspaceSetupComplete = false;
 let terminalManager: TerminalManager;
 let workspaceWatcherService: WorkspaceWatcherService;
-let indexSyncTimer: NodeJS.Timeout | null = null;
-let indexSyncPromise: Promise<IndexSyncResult> | null = null;
-let indexSyncQueued = false;
-let indexRefreshTimer: NodeJS.Timeout | null = null;
-let indexRefreshPromise: Promise<IndexSyncResult> | null = null;
-const pendingIndexRefreshRootIds = new Set<string>();
-let indexJobSequence = 0;
-const indexJobMetrics: IndexJobMetric[] = [];
+let indexingService: IndexingService;
 
 if (!singleInstanceLock) {
   console.error(
@@ -115,12 +100,12 @@ function startCommandServer() {
     onSearch: (query: string) => searchWorkspace(workspaceModel, query),
     onIndexSearch: (query, options) => searchIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot, query, options),
     onReadDocument: (target, options) => readIndexDocument(workspaceModel, resolveRuntimeConfig().runtimeRoot, target, options),
-    onIndexStatus: () => getMeasuredIndexStatus(),
-    onIndexAddRoot: (input) => addIndexedRoot(input),
-    onIndexRemoveRoot: (target) => removeIndexedRoot(target),
-    onIndexSync: () => runIndexSync("command"),
-    onIndexUpdate: () => runMeasuredIndexStatusJob("update", "command", () => updateIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot)),
-    onIndexEmbed: () => runMeasuredIndexStatusJob("embed", "command", () => embedIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot)),
+    onIndexStatus: () => indexingService.getMeasuredStatus(),
+    onIndexAddRoot: (input) => indexingService.addRoot(input),
+    onIndexRemoveRoot: (target) => indexingService.removeRoot(target),
+    onIndexSync: () => indexingService.runSync("command"),
+    onIndexUpdate: () => indexingService.update("command"),
+    onIndexEmbed: () => indexingService.embed("command"),
     onListProjectRoots: () => currentWorkspaceSettings().projectRoots,
     onAddProjectRoot: (input) => addProjectRoot(input.path),
     onRemoveProjectRoot: (target) => removeProjectRoot(target),
@@ -276,12 +261,12 @@ function registerIpcHandlers() {
     createDirectory: createWorkspaceDirectory,
     createFile: createWorkspaceFile,
     deletePath: deleteWorkspacePath,
-    embedIndex: () => runMeasuredIndexStatusJob("embed", "settings", () => embedIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot)),
+    embedIndex: () => indexingService.embed("settings"),
     ensureTarget: ensureNoteTarget,
     getAgentInstructionConfig,
     getBranchFamily: (filePath) => getBranchFamily(filePath, workspaceModel.noteRoots.map((root) => root.path)),
     getGitStatus,
-    getIndexStatus: getMeasuredIndexStatus,
+    getIndexStatus: () => indexingService.getMeasuredStatus(),
     getKnowledge: (filePath) => getNoteKnowledge(filePath, workspaceModel.noteRoots.map((root) => root.path)),
     getMainWindow: () => appLifecycle.getMainWindow(),
     getModel: () => workspaceModel,
@@ -300,7 +285,7 @@ function registerIpcHandlers() {
     saveAgentInstructionConfig,
     saveNote: async (filePath, frontmatter, body) => {
       await saveWorkspaceDocument(filePath, frontmatter, body);
-      scheduleIndexSyncForFile(filePath, "note-save");
+      indexingService.scheduleForFile(filePath, "note-save");
     },
     saveSettings: saveWorkspaceSettings,
     searchIndex: (query, options) => searchIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot, query, options),
@@ -316,9 +301,9 @@ function registerIpcHandlers() {
       }
     },
     suggestTargets: suggestNoteTargets,
-    syncIndex: () => runIndexSync("settings"),
+    syncIndex: () => indexingService.runSync("settings"),
     syncRuntime: () => terminalManager.syncRuntimeContext(),
-    updateIndex: () => runMeasuredIndexStatusJob("update", "settings", () => updateIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot)),
+    updateIndex: () => indexingService.update("settings"),
   });
   registerTerminalIpcHandlers(terminalManager);
 }
@@ -676,50 +661,10 @@ async function saveWorkspaceSettings(settings: WorkspaceSettings): Promise<Works
   if (nextRuntimeConfig.runtimeRoot !== previousRuntimeRoot) {
     startCommandServer();
   }
-  if (shouldSyncAfterSettingsApply(previousSettings, workspaceSettings)) {
-    scheduleIndexSync("settings-apply", 0);
+  if (indexingService.shouldSyncAfterSettingsApply(previousSettings, workspaceSettings)) {
+    indexingService.scheduleSync("settings-apply", 0);
   }
   return workspaceSettings;
-}
-
-async function addIndexedRoot(input: { path?: string; name?: string; kind?: string; pattern?: string; ignore?: string[]; force?: boolean }): Promise<WorkspaceSettings> {
-  if (!input.path) {
-    throw new Error("Missing indexed root path.");
-  }
-  const settings = currentWorkspaceSettings();
-  const root = createIndexedRoot(input.path, {
-    id: input.name ? `index-${input.name}` : undefined,
-    label: input.name,
-    kind: parseIndexedRootKind(input.kind),
-    pattern: input.pattern,
-    ignore: input.ignore,
-  });
-  if (!input.force && isBroadIndexedRoot(root.path)) {
-    throw new Error("Refusing to index a broad home, Desktop, or Documents root directly. Choose a more specific folder.");
-  }
-  const nextRoots = [
-    ...settings.indexedRoots.filter((existing) => existing.id !== root.id && path.resolve(existing.path) !== path.resolve(root.path)),
-    root,
-  ];
-  return saveWorkspaceSettings({
-    ...settings,
-    indexedRoots: nextRoots,
-    indexing: settings.indexing.mode === "off"
-      ? { enabled: true, mode: "lexical", backend: "qmd" }
-      : { ...settings.indexing, enabled: true },
-  });
-}
-
-async function removeIndexedRoot(target: string): Promise<WorkspaceSettings> {
-  const settings = currentWorkspaceSettings();
-  const nextRoots = settings.indexedRoots.filter(
-    (root) => root.id !== target && root.label !== target && path.resolve(root.path) !== path.resolve(target),
-  );
-  return saveWorkspaceSettings({
-    ...settings,
-    indexedRoots: nextRoots,
-    indexing: nextRoots.length === 0 ? { enabled: false, mode: "off", backend: "qmd" } : settings.indexing,
-  });
 }
 
 async function addProjectRoot(targetPath?: string): Promise<WorkspaceSettings> {
@@ -756,232 +701,11 @@ function uniqueResolvedPaths(paths: string[]): string[] {
   return result;
 }
 
-function shouldUseIndex(model = workspaceModel): boolean {
-  return model.indexing.enabled && model.indexing.mode !== "off" && model.indexedRoots.length > 0;
-}
-
-async function getMeasuredIndexStatus(): Promise<IndexStatus> {
-  const status = await getIndexStatus(workspaceModel, resolveRuntimeConfig().runtimeRoot);
-  return attachIndexJobMetrics(status);
-}
-
-function attachIndexJobMetrics(status: IndexStatus): IndexStatus {
-  return { ...status, recentJobs: indexJobMetrics.slice(0, 8) };
-}
-
-function recordIndexJob(
-  kind: IndexJobMetric["kind"],
-  reason: string,
-  startedAtMs: number,
-  status: "completed" | "failed",
-  resultStatus?: IndexStatus,
-  warnings: string[] = [],
-  error?: unknown,
-) {
-  const completedAtMs = Date.now();
-  const metric: IndexJobMetric = {
-    id: `index-job-${++indexJobSequence}`,
-    kind,
-    reason,
-    status,
-    startedAt: new Date(startedAtMs).toISOString(),
-    completedAt: new Date(completedAtMs).toISOString(),
-    durationMs: completedAtMs - startedAtMs,
-    documentCount: resultStatus?.documentCount,
-    pendingEmbeddings: resultStatus?.pendingEmbeddings,
-    warnings: [...(resultStatus?.warnings ?? []), ...warnings],
-    error: error ? errorMessage(error) : undefined,
-  };
-  indexJobMetrics.unshift(metric);
-  indexJobMetrics.splice(20);
-}
-
-async function runMeasuredIndexStatusJob(
-  kind: IndexJobMetric["kind"],
-  reason: string,
-  run: () => Promise<IndexStatus>,
-): Promise<IndexStatus> {
-  const startedAtMs = Date.now();
-  try {
-    const status = await run();
-    recordIndexJob(kind, reason, startedAtMs, "completed", status);
-    return attachIndexJobMetrics(status);
-  } catch (error) {
-    recordIndexJob(kind, reason, startedAtMs, "failed", undefined, [], error);
-    throw error;
-  }
-}
-
-function scheduleIndexSyncForFile(filePath: string, reason: string) {
-  const settings = currentWorkspaceSettings();
-  if (settings.indexUpdateStrategy !== "on-save" || !shouldUseIndex()) {
-    return;
-  }
-  const matchingRootIds = workspaceModel.indexedRoots
-    .filter((root) => isPathWithin(root.path, filePath))
-    .map((root) => root.id);
-  if (matchingRootIds.length === 0) {
-    return;
-  }
-
-  if (workspaceModel.indexing.mode === "lexical") {
-    scheduleIndexRefresh(reason, matchingRootIds);
-    return;
-  }
-
-  scheduleIndexSync(reason);
-}
-
-function shouldSyncAfterSettingsApply(previous: WorkspaceSettings, next: WorkspaceSettings): boolean {
-  if (!next.indexing.enabled || next.indexing.mode === "off" || next.indexedRoots.length === 0) {
-    return false;
-  }
-  return (
-    !previous.indexing.enabled ||
-    previous.indexing.mode !== next.indexing.mode ||
-    JSON.stringify(previous.indexedRoots.map((root) => root.path).sort()) !== JSON.stringify(next.indexedRoots.map((root) => root.path).sort())
-  );
-}
-
-function scheduleIndexSync(reason: string, delayMs = 15_000) {
-  if (indexSyncTimer) {
-    clearTimeout(indexSyncTimer);
-  }
-  indexSyncTimer = setTimeout(() => {
-    indexSyncTimer = null;
-    runIndexSync(reason).catch((error) => {
-      console.warn("[exo] index sync failed", error);
-    });
-  }, delayMs);
-}
-
-async function runIndexSync(reason: string): Promise<IndexSyncResult> {
-  if (!shouldUseIndex()) {
-    throw new Error("Indexing is disabled or has no indexed roots.");
-  }
-  if (indexSyncPromise) {
-    indexSyncQueued = true;
-    return indexSyncPromise;
-  }
-
-  const startedAtMs = Date.now();
-  sendToRenderer("workspace:index-sync-state", { state: "running", reason });
-  indexSyncPromise = syncIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot)
-    .then((result) => {
-      recordIndexJob("sync", reason, startedAtMs, "completed", result.status, result.warnings);
-      const measuredResult = { ...result, status: attachIndexJobMetrics(result.status) };
-      sendToRenderer("workspace:index-sync-state", { state: "idle", reason, result: measuredResult });
-      return measuredResult;
-    })
-    .catch((error) => {
-      recordIndexJob("sync", reason, startedAtMs, "failed", undefined, [], error);
-      sendToRenderer("workspace:index-sync-state", {
-        state: "error",
-        reason,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    })
-    .finally(() => {
-      indexSyncPromise = null;
-      if (indexSyncQueued) {
-        indexSyncQueued = false;
-        runIndexSync("queued").catch((error) => {
-          console.warn("[exo] queued index sync failed", error);
-        });
-      }
-    });
-
-  return indexSyncPromise;
-}
-
-function scheduleIndexRefresh(reason: string, rootIds: string[], delayMs = 15_000) {
-  for (const rootId of rootIds) {
-    pendingIndexRefreshRootIds.add(rootId);
-  }
-  if (indexRefreshTimer) {
-    clearTimeout(indexRefreshTimer);
-  }
-  indexRefreshTimer = setTimeout(() => {
-    indexRefreshTimer = null;
-    const refreshRootIds = Array.from(pendingIndexRefreshRootIds);
-    pendingIndexRefreshRootIds.clear();
-    runIndexRefresh(reason, refreshRootIds).catch((error) => {
-      console.warn("[exo] index refresh failed", error);
-    });
-  }, delayMs);
-}
-
-async function runIndexRefresh(reason: string, rootIds: string[]): Promise<IndexSyncResult> {
-  if (!shouldUseIndex()) {
-    throw new Error("Indexing is disabled or has no indexed roots.");
-  }
-  if (indexSyncPromise) {
-    return indexSyncPromise;
-  }
-  if (indexRefreshPromise) {
-    return indexRefreshPromise;
-  }
-
-  const startedAtMs = Date.now();
-  sendToRenderer("workspace:index-sync-state", { state: "running", reason });
-  indexRefreshPromise = updateIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot, { rootIds })
-    .then((status) => {
-      const result: IndexSyncResult = {
-        status,
-        phases: [
-          {
-            name: "update",
-            status: "completed",
-            message: "Indexed documents refreshed for changed root.",
-          },
-          {
-            name: "embed",
-            status: "skipped",
-            message: "Embeddings are deferred on save; use Sync index to rebuild them.",
-          },
-        ],
-        warnings:
-          workspaceModel.indexing.mode === "lexical"
-            ? []
-            : ["Save-triggered indexing refreshed documents only; embeddings remain available from the previous sync until rebuilt."],
-      };
-      recordIndexJob("update", reason, startedAtMs, "completed", status, result.warnings);
-      const measuredResult = { ...result, status: attachIndexJobMetrics(status) };
-      sendToRenderer("workspace:index-sync-state", { state: "idle", reason, result: measuredResult });
-      return measuredResult;
-    })
-    .catch((error) => {
-      recordIndexJob("update", reason, startedAtMs, "failed", undefined, [], error);
-      sendToRenderer("workspace:index-sync-state", {
-        state: "error",
-        reason,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    })
-    .finally(() => {
-      indexRefreshPromise = null;
-    });
-
-  return indexRefreshPromise;
-}
-
 function applyWorkspaceSettings(settings: WorkspaceSettings | null) {
   applyWorkspaceSettingsToEnv(settings);
   if (!isForcedTheme(process.env.EXO_FORCE_THEME)) {
     nativeTheme.themeSource = settings?.appearanceMode ?? DEFAULT_APPEARANCE_MODE;
   }
-}
-
-function parseIndexedRootKind(value: string | undefined): IndexedRoot["kind"] {
-  return value === "notes" || value === "docs" || value === "code" || value === "mixed" ? value : "mixed";
-}
-
-function isBroadIndexedRoot(targetPath: string): boolean {
-  const resolvedPath = path.resolve(targetPath);
-  return [app.getPath("home"), app.getPath("desktop"), app.getPath("documents")]
-    .some((candidate) => path.resolve(candidate) === resolvedPath);
 }
 
 app.whenReady().then(async () => {
@@ -1013,6 +737,14 @@ app.whenReady().then(async () => {
     terminalPolicy.bufferLineLimit,
     terminalPolicy.transcriptRetentionDays,
   );
+  indexingService = new IndexingService({
+    getWorkspaceModel: () => workspaceModel,
+    getCurrentSettings: currentWorkspaceSettings,
+    getRuntimeRoot: () => resolveRuntimeConfig().runtimeRoot,
+    saveWorkspaceSettings,
+    sendState: (event) => sendToRenderer("workspace:index-sync-state", event),
+    errorMessage,
+  });
   appLifecycle = new AppLifecycleController({
     currentDirectory,
     getTerminalDiagnostics: () => terminalManager?.diagnostics() ?? [],
