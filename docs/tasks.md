@@ -11,13 +11,14 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [ ] Verify fresh-clone/setup docs against current pnpm/Corepack/Electron/MCP behavior.
 - [ ] Push the reviewed branch and open the review/PR surface.
 - [ ] Refactor toward current-package domain modules before adding the next feature phase; do not introduce `packages/runtime` or plugin registries until runtime features create stable seams.
-- [ ] Extract remaining main-process services from `apps/desktop/src/main/index.ts`: project review, agent instructions, and workspace settings/application.
+- [ ] Extract remaining main-process services from `apps/desktop/src/main/index.ts`: agent instructions and workspace settings/application.
 - [ ] Add a typed desktop IPC contract so preload, main IPC handlers, and renderer APIs cannot drift.
 - [ ] Extract renderer state machines from `App.tsx`: workspace bootstrap, open documents, terminal sessions, workspace settings controller, workspace mutations, and pane/drop orchestration.
 - [ ] Repair the e2e launch harness tracked in `EXO-ISSUE-021`.
 - [x] Extract Electron window/tray/renderer-recovery ownership into `apps/desktop/src/main/app-lifecycle.ts` as the first main-process service boundary.
 - [x] Extract indexing timers, job metrics, sync/refresh scheduling, and indexed-root mutations into `apps/desktop/src/main/indexing-service.ts`.
 - [x] Extract workspace note search, target resolution, target creation, suggestions, branch-family, and knowledge wrappers into `apps/desktop/src/main/workspace-notes-service.ts`.
+- [x] Extract project git status and changed-line parsing into `apps/desktop/src/main/project-review-service.ts`.
 - [x] Choose and add an open-source license.
 - [x] Remove or resolve any accidental local edits before commit, including the stray `SECURITY.md` line if it reappears.
 - [x] Confirm README, AGENTS, CLAUDE, architecture, roadmap, tasks, ledger, and MCP docs agree on the current Exo identity.

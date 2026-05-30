@@ -1,11 +1,9 @@
 import { app, nativeTheme } from "electron";
-import { execFile } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { appendFile, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { promisify } from "node:util";
 
 import {
   createWorkspaceDirectory,
@@ -40,11 +38,11 @@ import {
 import { registerTerminalIpcHandlers } from "./terminal-ipc";
 import { TerminalManager } from "./terminal-manager";
 import { registerWorkspaceIpcHandlers } from "./workspace-ipc";
+import { ProjectReviewService } from "./project-review-service";
 import { WorkspaceNotesService } from "./workspace-notes-service";
 import { WorkspaceWatcherService } from "./workspace-watchers";
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
-const execFileAsync = promisify(execFile);
 
 if (process.env.EXO_ENABLE_GPU !== "1") {
   app.disableHardwareAcceleration();
@@ -77,6 +75,7 @@ let terminalManager: TerminalManager;
 let workspaceWatcherService: WorkspaceWatcherService;
 let indexingService: IndexingService;
 let workspaceNotesService: WorkspaceNotesService;
+let projectReviewService: ProjectReviewService;
 
 if (!singleInstanceLock) {
   console.error(
@@ -263,7 +262,7 @@ function registerIpcHandlers() {
     ensureTarget: (sourceFilePath, target) => workspaceNotesService.ensureTarget(sourceFilePath, target),
     getAgentInstructionConfig,
     getBranchFamily: (filePath) => workspaceNotesService.getBranchFamily(filePath),
-    getGitStatus,
+    getGitStatus: (rootPath) => projectReviewService.getGitStatus(rootPath),
     getIndexStatus: () => indexingService.getMeasuredStatus(),
     getKnowledge: (filePath) => workspaceNotesService.getKnowledge(filePath),
     getMainWindow: () => appLifecycle.getMainWindow(),
@@ -304,71 +303,6 @@ function registerIpcHandlers() {
     updateIndex: () => indexingService.update("settings"),
   });
   registerTerminalIpcHandlers(terminalManager);
-}
-
-async function getGitStatus(rootPath: string) {
-  try {
-    const [{ stdout: branchStdout }, { stdout: statusStdout }, { stdout: diffStdout }] = await Promise.all([
-      execFileAsync("git", ["-C", rootPath, "branch", "--show-current"]),
-      execFileAsync("git", ["-C", rootPath, "status", "--porcelain", "--", "."]),
-      execFileAsync("git", ["-C", rootPath, "diff", "--unified=0", "HEAD", "--", "."]).catch(() => ({ stdout: "" })),
-    ]);
-    const firstChangedLines = parseGitDiffFirstChangedLines(diffStdout);
-
-    return {
-      rootPath,
-      branch: branchStdout.trim() || null,
-      dirty: statusStdout.trim().length > 0,
-      changes: parseGitStatusChanges(rootPath, statusStdout, firstChangedLines),
-    };
-  } catch {
-    return null;
-  }
-}
-
-function parseGitStatusChanges(rootPath: string, output: string, firstChangedLines: Map<string, number>) {
-  return output
-    .split(/\r?\n/)
-    .map((line) => line.trimEnd())
-    .filter(Boolean)
-    .map((line) => {
-      const status = line.slice(0, 2).trim() || "??";
-      const rawPath = line.slice(3).trim();
-      const filePath = rawPath.includes(" -> ") ? rawPath.split(" -> ").at(-1) ?? rawPath : rawPath;
-      return {
-        path: filePath,
-        absolutePath: path.resolve(rootPath, filePath),
-        status,
-        firstChangedLine: firstChangedLines.get(filePath) ?? (status === "??" ? 1 : null),
-      };
-    });
-}
-
-function parseGitDiffFirstChangedLines(output: string): Map<string, number> {
-  const linesByPath = new Map<string, number>();
-  let currentPath: string | null = null;
-
-  for (const line of output.split(/\r?\n/)) {
-    if (line.startsWith("+++ b/")) {
-      currentPath = line.slice("+++ b/".length);
-      continue;
-    }
-    if (!currentPath || !line.startsWith("@@")) {
-      continue;
-    }
-    const match = /\+(\d+)(?:,(\d+))?/.exec(line);
-    if (!match) {
-      continue;
-    }
-    const startLine = Number(match[1]);
-    const lineCount = match[2] === undefined ? 1 : Number(match[2]);
-    if (lineCount <= 0 || linesByPath.has(currentPath)) {
-      continue;
-    }
-    linesByPath.set(currentPath, startLine);
-  }
-
-  return linesByPath;
 }
 
 async function listAgentInstructionOverlays() {
@@ -630,6 +564,7 @@ app.whenReady().then(async () => {
   workspaceNotesService = new WorkspaceNotesService({
     getWorkspaceModel: () => workspaceModel,
   });
+  projectReviewService = new ProjectReviewService();
   appLifecycle = new AppLifecycleController({
     currentDirectory,
     getTerminalDiagnostics: () => terminalManager?.diagnostics() ?? [],
