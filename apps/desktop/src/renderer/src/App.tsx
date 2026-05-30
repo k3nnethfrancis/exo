@@ -11,7 +11,7 @@ import type {
   WorkspaceSettings,
 } from "@exo/core";
 
-import type { TerminalSessionInfo, WorkspaceGitChange, WorkspaceGitStatus, WorkspaceRegistryEntry } from "../../shared/api";
+import type { TerminalSessionInfo, WorkspaceRegistryEntry } from "../../shared/api";
 import type { FileStatInfo } from "../../shared/api";
 
 import type { AppearanceMode, ResolvedAppearance } from "./appearance";
@@ -25,12 +25,12 @@ import { TerminalDock } from "./components/TerminalDock";
 import { WorkspaceSettingsDialog } from "./components/WorkspaceSettingsDialog";
 import { writeTerminalData } from "./components/terminalRegistry";
 import { useAgentInstructionEditor } from "./hooks/useAgentInstructionEditor";
+import { useProjectReviewState } from "./hooks/useProjectReviewState";
 import { useShellLayout } from "./hooks/useShellLayout";
 import { loadInitialTrees, useWorkspaceTrees } from "./hooks/useWorkspaceTrees";
 import { useWorkspaceSearch } from "./hooks/useWorkspaceSearch";
 import { collectLeaves, findEditorLeaf, findNode, findTerminalLeaf, mapLeaves, paneId, pruneEmptyLeaves, removeNode, updateNode, type PaneLeaf, type PaneNode, type PaneNodeId, type BrowserPaneContent, type EditorPaneContent } from "./hooks/usePaneTree";
 import { useDragManager, type DragDropTarget, type DragPayload, type DropEdge } from "./hooks/useDragManager";
-import { buildProjectReviewChanges, uniqueCwdMatchedSession, type ObservedWorkspaceWrite } from "./changedFileReview";
 import {
   addTerminalSessionToFirstLeaf,
   addTerminalSessionToTargetLeaf,
@@ -143,9 +143,6 @@ export function App() {
   const [knowledgeByPath, setKnowledgeByPath] = useState<Record<string, NoteKnowledge>>({});
   const [branchFamiliesByPath, setBranchFamiliesByPath] = useState<Record<string, BranchFamily>>({});
   const [activeDocumentPath, setActiveDocumentPath] = useState<string | null>(null);
-  const [workspaceGitStatus, setWorkspaceGitStatus] = useState<WorkspaceGitStatus | null>(null);
-  const [projectGitChanges, setProjectGitChanges] = useState<Array<WorkspaceGitChange & { rootPath: string; rootLabel: string }>>([]);
-  const [observedWorkspaceWrites, setObservedWorkspaceWrites] = useState<ObservedWorkspaceWrite[]>([]);
   const [propertiesCollapsed, setPropertiesCollapsed] = useState(true);
   const [tagResults, setTagResults] = useState<SearchResult[]>([]);
   const [activeTag, setActiveTag] = useState<string | null>(null);
@@ -188,6 +185,7 @@ export function App() {
   const pendingDocumentRefreshesRef = useRef<Map<string, { timeoutId: number; diskVersion: FileStatInfo | null }>>(new Map());
   const workspaceSettingsRef = useRef<WorkspaceSettings | null>(null);
   const shellLayout = useShellLayout();
+  const projectReviewState = useProjectReviewState(workspaceModel, terminalSessions);
 
   const activeDocument = activeDocumentPath ? openDocuments[activeDocumentPath] ?? null : null;
   const activeKnowledge = activeDocumentPath ? knowledgeByPath[activeDocumentPath] ?? null : null;
@@ -222,40 +220,6 @@ export function App() {
   useEffect(() => {
     activeDocumentPathRef.current = activeDocumentPath;
   }, [activeDocumentPath]);
-
-  useEffect(() => {
-    const projectRoots = workspaceModel?.projectRoots ?? [];
-    if (projectRoots.length === 0) {
-      setWorkspaceGitStatus(null);
-      setProjectGitChanges([]);
-      return;
-    }
-
-    let cancelled = false;
-    void loadProjectGitChanges(projectRoots).then((results) => {
-      if (!cancelled) {
-        setWorkspaceGitStatus(results[0]?.status ?? null);
-        setProjectGitChanges(
-          results.flatMap(({ root, status }) =>
-            (status?.changes ?? []).map((change) => ({
-              ...change,
-              rootPath: root.path,
-              rootLabel: root.label,
-            })),
-          ),
-        );
-      }
-    }).catch(() => {
-      if (!cancelled) {
-        setWorkspaceGitStatus(null);
-        setProjectGitChanges([]);
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [workspaceModel]);
 
   useEffect(() => {
     const openPaths = collectOpenEditorPaths(editorTree);
@@ -580,9 +544,9 @@ export function App() {
       if (event.filePath) {
         const filePath = event.filePath;
         scheduleOpenDocumentRefresh(filePath);
-        recordObservedWorkspaceWrite(event.rootPath, filePath);
+        projectReviewState.recordObservedWorkspaceWrite(event.rootPath, filePath);
         if (workspaceModel?.projectRoots.some((root) => isPathWithin(root.path, filePath))) {
-          void refreshProjectGitStatus(workspaceModel);
+          void projectReviewState.refreshProjectGitStatus(workspaceModel);
         }
       }
     });
@@ -718,10 +682,7 @@ export function App() {
       })) ?? [],
     [projectTrees, workspaceModel],
   );
-  const projectReviewChanges = useMemo(
-    () => buildProjectReviewChanges(projectGitChanges, observedWorkspaceWrites, terminalSessions),
-    [observedWorkspaceWrites, projectGitChanges, terminalSessions],
-  );
+  const projectReviewChanges = projectReviewState.projectReviewChanges;
   const workspaceSettingsPartialErrors = useMemo(
     () =>
       workspaceSettingsDialog
@@ -736,26 +697,6 @@ export function App() {
     }
 
     await reloadTreesForModel(workspaceModel);
-  }
-
-  async function refreshProjectGitStatus(model = workspaceModel) {
-    const projectRoots = model?.projectRoots ?? [];
-    if (projectRoots.length === 0) {
-      setWorkspaceGitStatus(null);
-      setProjectGitChanges([]);
-      return;
-    }
-    const results = await loadProjectGitChanges(projectRoots);
-    setWorkspaceGitStatus(results[0]?.status ?? null);
-    setProjectGitChanges(
-      results.flatMap(({ root, status }) =>
-        (status?.changes ?? []).map((change) => ({
-          ...change,
-          rootPath: root.path,
-          rootLabel: root.label,
-        })),
-      ),
-    );
   }
 
   async function openProjectChangesFromStatus() {
@@ -807,29 +748,6 @@ export function App() {
         nonce: Date.now(),
       });
     }
-  }
-
-  function recordObservedWorkspaceWrite(rootPath: string, filePath: string) {
-    const matchingSession = uniqueCwdMatchedSession(terminalSessionsRef.current, filePath);
-    if (!matchingSession) {
-      return;
-    }
-    const observedAt = Date.now();
-    setObservedWorkspaceWrites((current) => {
-      const withoutDuplicate = current.filter(
-        (write) => !(write.filePath === filePath && write.sessionId === matchingSession.id),
-      );
-      return [
-        {
-          filePath,
-          rootPath,
-          sessionId: matchingSession.id,
-          observedAt,
-          association: "unique-cwd-match" as const,
-        },
-        ...withoutDuplicate,
-      ].slice(0, 200);
-    });
   }
 
   async function reloadTreesForModel(model: WorkspaceModel) {
@@ -2511,8 +2429,8 @@ export function App() {
       statusLine={{
         workspaceLabel: workspaceModel ? pathLabel(workspaceModel.workspaceRoot) : "workspace",
         projectLabel: workspaceModel?.projectRoots[0] ? pathLabel(workspaceModel.projectRoots[0].path) : null,
-        gitBranch: workspaceGitStatus?.branch ?? null,
-        gitDirty: workspaceGitStatus?.dirty ?? false,
+        gitBranch: projectReviewState.workspaceGitStatus?.branch ?? null,
+        gitDirty: projectReviewState.workspaceGitStatus?.dirty ?? false,
         changedFiles: projectReviewChanges.length,
         index: indexStatusLine,
       }}
@@ -2794,15 +2712,6 @@ function resolveZoomSurface(event: KeyboardEvent): ZoomSurface {
     return "explorer";
   }
   return "editor";
-}
-
-async function loadProjectGitChanges(projectRoots: WorkspaceModel["projectRoots"]) {
-  return Promise.all(
-    projectRoots.map(async (root) => ({
-      root,
-      status: await window.exo.workspace.getGitStatus(root.path).catch(() => null),
-    })),
-  );
 }
 
 function uniqueMessages(messages: string[]): string[] {
