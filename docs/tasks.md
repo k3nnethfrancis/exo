@@ -31,6 +31,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Extract renderer terminal pane placement, focus, create, attach, and close orchestration into `apps/desktop/src/renderer/src/hooks/useTerminalPaneController.ts`.
 - [x] Extract renderer command-server workspace listeners and global keybindings into focused hooks.
 - [x] Extract renderer workspace layout persistence into `apps/desktop/src/renderer/src/hooks/useWorkspaceLayoutPersistence.ts`.
+- [x] Prune MCP to the narrow agent work plane and clarify CLI as the operator/admin/debug surface.
 - [x] Repair the e2e launch harness path for `EXO-ISSUE-021` by parallelizing the large shell file and capping e2e workers.
 - [x] Verify the e2e launch harness repair tracked in `EXO-ISSUE-021` with a full shell e2e rerun.
 - [x] Choose and add an open-source license.

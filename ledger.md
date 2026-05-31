@@ -122,6 +122,7 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Added the first resident runtime behavior: closing the workspace window hides it while process-owned services continue, `exo show` can reopen it, and explicit Quit warns before stopping live terminals.
 - Added the macOS menu bar runtime controller with Show Exo, Settings, command-server status/restart, live terminal count, and explicit Quit.
 - Added hidden-window CLI/MCP app QA coverage: with the workspace window hidden, `bin/exo` can status/list/create/send/read live agents and MCP stdio tools can list/create/send/read the same running Exo agent surface.
+- Pruned MCP from 14 tools to the narrow 9-tool agent work plane, moved index/project-root administration to CLI/UI only, and deprecated `exo agents message/tell` in favor of `exo agents send`.
 - Started cleanup-plan doc sync by removing stale tmux prerequisite language and documenting that current open QA includes the e2e launch harness and broader terminal bug-bash.
 
 ## Next Priorities

@@ -124,8 +124,11 @@ Avoid `NODE_TLS_REJECT_UNAUTHORIZED=0` except as a temporary local diagnostic; i
 
 ## Agent Integrations
 
-Exo can expose its live terminal agents through MCP and through a CLI mirror. The MCP server currently supports:
+Exo exposes a narrow MCP work plane for agents and a broader CLI control plane for humans, scripts, setup, diagnostics, and debugging. The MCP server currently supports:
 
+- `workspace_status`
+- `search`
+- `read_document`
 - `list_agents`
 - `create_agent`
 - `read_agent`
@@ -151,6 +154,8 @@ Preview without modifying local agent config:
 Already-running agent sessions may need restart or MCP refresh before they see newly installed tools. The CLI mirror remains available when MCP is unavailable.
 
 ## CLI
+
+The CLI is the operator/admin/debug surface. It intentionally includes setup, workspace configuration, index maintenance, and low-level terminal controls that are not exposed as MCP tools.
 
 Standalone workspace/runtime commands:
 
@@ -181,7 +186,7 @@ Commands that drive a running Exo app:
 ./bin/exo terminals kill term-4
 ```
 
-Agent-oriented aliases mirror the MCP tools:
+`exo terminals` is the lower-level debug/raw terminal surface. Prefer `exo agents` for normal agent sessions:
 
 ```bash
 ./bin/exo agents list

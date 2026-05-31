@@ -110,7 +110,7 @@ Workspace resolution is shared with the desktop app. Explicit workspace env vars
 - `exo workspace list`
 - `exo workspace use <workspace-id-or-notes-path>`
 
-Current live terminal commands:
+Current live app operator/debug commands:
 
 - `exo project-roots list`
 - `exo project-roots add <path>`
@@ -123,18 +123,17 @@ Current live terminal commands:
 - `exo terminals send <id> <text>`
 - `exo terminals kill <id>`
 
-Agent-oriented aliases mirror the MCP tools for already-running local agent sessions:
+`exo terminals` is the low-level terminal debug surface. `exo agents` is the primary human/agent session surface and mirrors the MCP work-plane tools for already-running local agent sessions:
 
 - `exo agents list`
 - `exo agents create <shell|claude|codex> [cwd]`
 - `exo agents read <id> [--tail n] [--raw]`
 - `exo agents send <id> <text>` sends the message and presses Enter by default; Codex startup sends may be queued until normal chat input is ready
-- `exo agents message <id> <text>` / `exo agents tell <id> <text>` alias `agents send`
 - `exo agents send <id> <text> --raw` writes without pressing Enter
 - `exo agents interrupt <id> [escape|ctrl-c]`
 - `exo agents terminate <id>`
 
-The CLI remains the canonical operator surface. MCP wraps Exo capabilities for agent access; it should not become a separate runtime model.
+The CLI remains the canonical operator/admin/debug surface. MCP is the narrower agent work plane; it should not expose every setup, repair, index-maintenance, or raw terminal control.
 
 Integration setup commands:
 
@@ -145,8 +144,11 @@ Integration setup commands:
 
 ## MCP Contract
 
-`packages/mcp` exposes Exo terminal agents as MCP tools:
+`packages/mcp` exposes a narrow Exo agent work plane:
 
+- `workspace_status`
+- `search`
+- `read_document`
 - `list_agents`
 - `create_agent`
 - `read_agent`

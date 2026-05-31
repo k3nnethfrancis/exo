@@ -59,22 +59,17 @@ Without autostart, Exo must already be running so the MCP server can discover `.
 
 ## Tools
 
+- `workspace_status` — inspect the active Exo workspace model, live agents, and notes-index summary.
+- `search` — search notes through QMD when enabled, with filesystem fallback when indexing is off or unavailable.
+- `read_document` — read an indexed or filesystem note/document target.
 - `list_agents` — list live Exo terminal agents.
 - `create_agent` — create a new shell, Claude, or Codex terminal.
 - `read_agent` — read bounded live terminal tail output. ANSI cleanup is enabled by default.
 - `send_agent_message` — send text to a live agent. `submit` defaults to `true`, so the message is submitted with Enter unless explicitly disabled. Codex startup sends may be queued until normal chat input is ready.
 - `interrupt_agent` — send Escape or Ctrl-C to a live agent.
 - `terminate_agent` — terminate an Exo terminal and its supervised pty process.
-- `workspace_status` — inspect the active Exo workspace model.
-- `list_project_roots` — list attached project folders.
-- `add_project_root` — attach an explicit project folder to the running Exo workspace.
-- `remove_project_root` — detach a project folder from Exo workspace settings without deleting files.
-- `index_status` — inspect QMD notes-index status, pending embeddings, and fallback warnings.
-- `sync_index` — refresh indexed documents and build embeddings for semantic/hybrid modes.
-- `update_index` — advanced document-refresh phase only.
-- `build_embeddings` — advanced embedding phase only.
-- `search` — search notes through QMD when enabled, with filesystem fallback when indexing is off or unavailable.
-- `read` — read an indexed or filesystem note/document target.
+
+MCP is intentionally narrower than the CLI. Use `bin/exo index ...`, `bin/exo project-roots ...`, and `bin/exo terminals ...` for operator/admin/debug workflows.
 
 ## CLI Mirror
 
@@ -88,11 +83,6 @@ bin/exo agents send term-4 "message"
 bin/exo agents send term-4 "raw input without Enter" --raw
 bin/exo agents interrupt term-4 ctrl-c
 bin/exo agents terminate term-4
-bin/exo index status
-bin/exo index sync
-bin/exo project-roots list
-bin/exo project-roots add /path/to/project
-bin/exo project-roots remove /path/to/project
 bin/exo search "query"
 bin/exo read /path/or/qmd-target
 ```

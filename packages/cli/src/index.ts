@@ -502,6 +502,9 @@ export async function runCli(
       if (!id || !message) {
         throw new Error(`Usage: exo agents ${subcommand} <agent-id> <message> [--raw|--no-submit]`);
       }
+      if (subcommand === "message" || subcommand === "tell") {
+        stderr.write("Deprecated: use exo agents send <id> <message> instead.\n");
+      }
       const result = raw ? await client.writeTerminal(id, message) : await client.sendTerminalMessage(id, message, submit);
       if (result.delivery === "queued") {
         stdout.write(`Queued message for ${id} until the agent is ready (${result.queuedInputCount ?? 1} pending).\n`);
@@ -532,7 +535,7 @@ export async function runCli(
       return 0;
     }
 
-    stderr.write("Usage: exo agents [list | create <shell|claude|codex> [cwd] | read <id> [--tail chars] [--raw] | send <id> <text> [--raw|--no-submit] | message <id> <text> | tell <id> <text> | interrupt <id> [escape|ctrl-c] | terminate <id>]\n");
+    stderr.write("Usage: exo agents [list | create <shell|claude|codex> [cwd] | read <id> [--tail chars] [--raw] | send <id> <text> [--raw|--no-submit] | interrupt <id> [escape|ctrl-c] | terminate <id>]\n");
     return 1;
   }
 
@@ -743,8 +746,6 @@ export async function runCli(
       "  exo agents create <shell|claude|codex>     Create Exo agent (app)",
       "  exo agents read <id> [--tail n] [--raw]    Read agent transcript (app)",
       "  exo agents send <id> <text> [--raw|--no-submit] Send message to agent (app)",
-      "  exo agents message <id> <text>             Alias for agents send (app)",
-      "  exo agents tell <id> <text>                Alias for agents send (app)",
       "  exo agents interrupt <id> [escape|ctrl-c]  Interrupt agent (app)",
       "  exo agents terminate <id>                  Terminate agent (app)",
       "  exo launch <shell|claude|codex> [cwd]",
@@ -854,7 +855,7 @@ function isHelpFlag(value: string | undefined): boolean {
 
 function formatAgentsHelp(): string {
   return [
-    "Usage: exo agents [list | create <shell|claude|codex> [cwd] | read <id> [--tail chars] [--raw] | send <id> <text> [--raw|--no-submit] | message <id> <text> | tell <id> <text> | interrupt <id> [escape|ctrl-c] | terminate <id>]",
+    "Usage: exo agents [list | create <shell|claude|codex> [cwd] | read <id> [--tail chars] [--raw] | send <id> <text> [--raw|--no-submit] | interrupt <id> [escape|ctrl-c] | terminate <id>]",
     "",
     "Commands:",
     "  list                                      List live Exo agents",

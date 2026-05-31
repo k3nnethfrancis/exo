@@ -25,51 +25,16 @@ server.registerTool(
   async () => {
     const client = await ExoCommandClient.connect();
     const status = await client.getStatus();
-    return {
-      content: [{ type: "text", text: JSON.stringify(status, null, 2) }],
-      structuredContent: status,
+    const indexStatus = await client.getIndexStatus();
+    const terminals = (status as { terminals?: unknown }).terminals;
+    const workspaceStatus = {
+      ...status,
+      agents: Array.isArray(terminals) ? terminals : [],
+      indexStatus,
     };
-  },
-);
-
-server.registerTool(
-  "index_status",
-  {
-    title: "Index Status",
-    description: "Show Exo's QMD-backed knowledge index status. pendingEmbeddings > 0 means semantic/hybrid search may use lexical fallback until sync_index completes.",
-    annotations: {
-      readOnlyHint: true,
-      destructiveHint: false,
-      idempotentHint: true,
-    },
-  },
-  async () => {
-    const client = await ExoCommandClient.connect();
-    const status = await client.getIndexStatus();
     return {
-      content: [{ type: "text", text: JSON.stringify(status, null, 2) }],
-      structuredContent: status,
-    };
-  },
-);
-
-server.registerTool(
-  "sync_index",
-  {
-    title: "Sync Index",
-    description: "Synchronize Exo's configured knowledge index. Refreshes documents and, for semantic/hybrid modes, builds embeddings. Search remains safe to call during sync and reports fallback warnings.",
-    annotations: {
-      readOnlyHint: false,
-      destructiveHint: false,
-      idempotentHint: true,
-    },
-  },
-  async () => {
-    const client = await ExoCommandClient.connect();
-    const result = await client.syncIndex();
-    return {
-      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-      structuredContent: result,
+      content: [{ type: "text", text: JSON.stringify(workspaceStatus, null, 2) }],
+      structuredContent: workspaceStatus,
     };
   },
 );
@@ -124,75 +89,6 @@ server.registerTool(
     return {
       content: [{ type: "text", text: JSON.stringify(document, null, 2) }],
       structuredContent: document,
-    };
-  },
-);
-
-server.registerTool(
-  "list_project_roots",
-  {
-    title: "List Project Roots",
-    description: "List project folders currently attached to the running Exo workspace.",
-    annotations: {
-      readOnlyHint: true,
-      destructiveHint: false,
-      idempotentHint: true,
-    },
-  },
-  async () => {
-    const client = await ExoCommandClient.connect();
-    const projectRoots = await client.listProjectRoots();
-    return {
-      content: [{ type: "text", text: JSON.stringify({ projectRoots }, null, 2) }],
-      structuredContent: { projectRoots },
-    };
-  },
-);
-
-server.registerTool(
-  "add_project_root",
-  {
-    title: "Add Project Root",
-    description: "Attach a project folder to the running Exo workspace. Use explicit, narrow project folders rather than broad parent directories.",
-    inputSchema: {
-      path: z.string().min(1).describe("Absolute project folder path to attach."),
-    },
-    annotations: {
-      readOnlyHint: false,
-      destructiveHint: false,
-      idempotentHint: true,
-    },
-  },
-  async ({ path }) => {
-    const client = await ExoCommandClient.connect();
-    const settings = await client.addProjectRoot(path);
-    return {
-      content: [{ type: "text", text: JSON.stringify(settings, null, 2) }],
-      structuredContent: settings,
-    };
-  },
-);
-
-server.registerTool(
-  "remove_project_root",
-  {
-    title: "Remove Project Root",
-    description: "Detach a project folder from the running Exo workspace. This only changes Exo workspace settings; it does not delete files.",
-    inputSchema: {
-      path: z.string().min(1).describe("Project folder path to detach."),
-    },
-    annotations: {
-      readOnlyHint: false,
-      destructiveHint: false,
-      idempotentHint: true,
-    },
-  },
-  async ({ path }) => {
-    const client = await ExoCommandClient.connect();
-    const settings = await client.removeProjectRoot(path);
-    return {
-      content: [{ type: "text", text: JSON.stringify(settings, null, 2) }],
-      structuredContent: settings,
     };
   },
 );

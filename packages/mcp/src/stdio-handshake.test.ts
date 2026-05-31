@@ -33,6 +33,12 @@ describe("exo-mcp stdio launcher", () => {
   });
 
   it("responds to MCP initialize through the packaged launcher", async () => {
+    const buildResult = spawnSync("pnpm", ["--dir", packageRoot, "build"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    expect(buildResult.status, buildResult.stderr || buildResult.stdout).toBe(0);
+
     const client = new Client({ name: "exo-mcp-handshake-test", version: "0.0.0" });
     const transport = new StdioClientTransport({
       command: process.execPath,
@@ -50,7 +56,17 @@ describe("exo-mcp stdio launcher", () => {
 
       expect(client.getServerVersion()).toMatchObject({ name: "exo" });
       const tools = await client.listTools();
-      expect(tools.tools.map((tool) => tool.name)).toContain("workspace_status");
+      expect(tools.tools.map((tool) => tool.name).sort()).toEqual([
+        "create_agent",
+        "interrupt_agent",
+        "list_agents",
+        "read_agent",
+        "read_document",
+        "search",
+        "send_agent_message",
+        "terminate_agent",
+        "workspace_status",
+      ]);
     } catch (error) {
       throw new Error(`${error instanceof Error ? error.message : String(error)}\nMCP stderr:\n${stderr}`);
     } finally {

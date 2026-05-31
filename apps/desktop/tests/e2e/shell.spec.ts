@@ -654,6 +654,20 @@ test("supports CLI and MCP agent control while the window is hidden", async () =
     const mcpClient = await createMcpJsonRpcClient(cliEnv);
 
     try {
+      await expect(mcpClient.listTools()).resolves.toEqual([
+        "create_agent",
+        "interrupt_agent",
+        "list_agents",
+        "read_agent",
+        "read_document",
+        "search",
+        "send_agent_message",
+        "terminate_agent",
+        "workspace_status",
+      ]);
+      const workspaceStatus = await mcpClient.callTool("workspace_status", {});
+      expect(JSON.stringify(workspaceStatus.structuredContent)).toContain("\"indexStatus\"");
+
       const mcpAgents = await mcpClient.callTool("list_agents", {});
       expect(JSON.stringify(mcpAgents.structuredContent)).toContain(shellId!);
 
@@ -776,6 +790,11 @@ async function createMcpJsonRpcClient(env: Record<string, string>) {
   child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized", params: {} })}\n`);
 
   return {
+    listTools: async () => {
+      const result = await request("tools/list", {});
+      const tools = (result as { tools?: Array<{ name?: string }> }).tools ?? [];
+      return tools.map((tool) => String(tool.name)).sort();
+    },
     callTool: (name: string, args: Record<string, unknown>) => request("tools/call", { name, arguments: args }),
     close: () => {
       child.kill();

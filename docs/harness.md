@@ -127,6 +127,8 @@ Exo's agent bridge is itself part of the harness:
 
 Already-running Codex/Claude sessions may not see newly installed MCP tools until restart or refresh. The CLI mirror remains the fallback control path.
 
+Keep the split clear when adding harness coverage: CLI is the operator/admin/debug surface; MCP is the narrower agent work plane.
+
 ## Release Hygiene
 
 Before an open-source push or release candidate:

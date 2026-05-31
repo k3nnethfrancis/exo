@@ -240,6 +240,35 @@ describe("cli package", () => {
     expect(stdout).toContain("Queued message for term-1");
   });
 
+  it("keeps deprecated agent message aliases working with warnings", async () => {
+    const calls: string[] = [];
+    let stderr = "";
+    const client = fakeAppClient({
+      sendTerminalMessage: async (_id, message) => {
+        calls.push(message);
+        return { ok: true as const, delivery: "sent" as const };
+      },
+    });
+
+    const messageExitCode = await runCli(["node", "exo-cli", "agents", "message", "term-1", "hello"], {
+      env: testRuntimeEnv(),
+      stdout: { write: () => {} },
+      stderr: { write: (text) => { stderr += text; } },
+      connectAppClient: async () => client,
+    });
+    const tellExitCode = await runCli(["node", "exo-cli", "agents", "tell", "term-1", "again"], {
+      env: testRuntimeEnv(),
+      stdout: { write: () => {} },
+      stderr: { write: (text) => { stderr += text; } },
+      connectAppClient: async () => client,
+    });
+
+    expect(messageExitCode).toBe(0);
+    expect(tellExitCode).toBe(0);
+    expect(calls).toEqual(["hello", "again"]);
+    expect(stderr.match(/Deprecated: use exo agents send <id> <message> instead\./g)).toHaveLength(2);
+  });
+
   it("prints agents create help without connecting to the app", async () => {
     let stdout = "";
     let connected = false;
@@ -414,6 +443,36 @@ describe("cli package", () => {
       ["add", "/tmp/exo-test-workspace/projects/new-root"],
       ["remove", "/tmp/exo-test-workspace/projects/new-root"],
     ]);
+  });
+
+  it("keeps terminals commands available for operator debugging", async () => {
+    const calls: string[] = [];
+    let stdout = "";
+    const client = fakeAppClient({
+      terminalDiagnostics: async () => [{ id: "term-1", health: "healthy" }],
+      writeTerminal: async (_id, data) => {
+        calls.push(data);
+        return { ok: true as const, delivery: "sent" as const };
+      },
+    });
+
+    const diagnosticsExitCode = await runCli(["node", "exo-cli", "terminals", "diagnostics"], {
+      env: testRuntimeEnv(),
+      stdout: { write: (text) => { stdout += text; } },
+      stderr: { write: () => {} },
+      connectAppClient: async () => client,
+    });
+    const sendExitCode = await runCli(["node", "exo-cli", "terminals", "send", "term-1", "raw command"], {
+      env: testRuntimeEnv(),
+      stdout: { write: () => {} },
+      stderr: { write: () => {} },
+      connectAppClient: async () => client,
+    });
+
+    expect(diagnosticsExitCode).toBe(0);
+    expect(sendExitCode).toBe(0);
+    expect(stdout).toContain('"health": "healthy"');
+    expect(calls).toEqual(["raw command\n"]);
   });
 
   it("prints Codex integration config", async () => {
