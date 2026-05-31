@@ -28,6 +28,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Extract renderer workspace settings dialog, autosave, Apply, folder-picking, and index actions into `apps/desktop/src/renderer/src/hooks/useWorkspaceSettingsController.ts`.
 - [x] Extract renderer workspace path mutation dialogs and create/rename/delete/move operations into `apps/desktop/src/renderer/src/hooks/useWorkspaceMutations.ts`.
 - [x] Extract renderer pane drop orchestration into `apps/desktop/src/renderer/src/hooks/usePaneDropOrchestration.ts`.
+- [x] Extract renderer terminal pane placement, focus, create, attach, and close orchestration into `apps/desktop/src/renderer/src/hooks/useTerminalPaneController.ts`.
 - [x] Repair the e2e launch harness path for `EXO-ISSUE-021` by parallelizing the large shell file and capping e2e workers.
 - [x] Verify the e2e launch harness repair tracked in `EXO-ISSUE-021` with a full shell e2e rerun.
 - [x] Choose and add an open-source license.

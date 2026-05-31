@@ -58,6 +58,7 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Extracted workspace settings controller state from `App.tsx` into `useWorkspaceSettingsController`, covering settings dialog drafts, autosave, structural Apply, folder picking, index jobs, and index-sync UI state.
 - Extracted workspace path mutation state from `App.tsx` into `useWorkspaceMutations`, covering create/rename/delete/move dialogs and filesystem mutations while keeping editor pane remap/delete callbacks in the shell.
 - Extracted pane drop orchestration from `App.tsx` into `usePaneDropOrchestration`, covering explorer drops plus document, terminal, and browser pane moves/splits through the existing drag manager.
+- Extracted terminal pane orchestration from `App.tsx` into `useTerminalPaneController`, covering terminal create/attach/focus/close behavior while keeping terminal process state in `useTerminalSessions`.
 - Added a typed desktop IPC contract shared by main, preload, and renderer-facing API code so channel names, argument lists, and return types cannot silently drift.
 - Repaired the Electron e2e launch harness by running the large shell spec in parallel under a capped worker count, then verified the full desktop e2e suite passes.
 - Fixed two QA findings from the full e2e pass: external clean-file refresh now preserves editor scroll through CodeMirror refresh timing, and editor/terminal tab strips share a stable 40px chrome height in mixed pane graphs.
