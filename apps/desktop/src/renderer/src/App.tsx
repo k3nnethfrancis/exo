@@ -25,6 +25,7 @@ import { useProjectReviewState } from "./hooks/useProjectReviewState";
 import { useShellLayout } from "./hooks/useShellLayout";
 import { useTerminalSessions } from "./hooks/useTerminalSessions";
 import { useWorkspaceBootstrap } from "./hooks/useWorkspaceBootstrap";
+import { useWorkspaceSettingsController } from "./hooks/useWorkspaceSettingsController";
 import { useWorkspaceTrees } from "./hooks/useWorkspaceTrees";
 import { useWorkspaceSearch } from "./hooks/useWorkspaceSearch";
 import { collectLeaves, findEditorLeaf, findNode, findTerminalLeaf, mapLeaves, paneId, pruneEmptyLeaves, removeNode, updateNode, type PaneLeaf, type PaneNode, type PaneNodeId, type BrowserPaneContent, type EditorPaneContent } from "./hooks/usePaneTree";
@@ -48,16 +49,14 @@ import {
   DEFAULT_TERMINAL_FONT_SIZE,
   FULL_TERMINAL_SCROLLBACK_LINES,
   resolveSettingsTerminalRuntime,
-  workspaceSettingsImmediateDraftKey,
   workspaceSettingsStructuralDraftKey,
-  workspaceSettingsStructuralKeyFromSettings,
 } from "./workspaceSettingsModel";
 import {
   directoryOf,
   pathLabel,
   uniquePaths,
 } from "./workspaceTree";
-import type { IndexBusyState, WorkspaceSettingsDialogState, WorkspaceSettingsSection } from "./workspaceSettingsDialogTypes";
+import type { IndexBusyState } from "./workspaceSettingsDialogTypes";
 
 type WorkspaceDialogState =
   | {
@@ -121,11 +120,9 @@ export function App() {
   const handleDropRef = useRef<(target: DragDropTarget, payload: DragPayload) => void>(() => {});
   const dragManager = useDragManager((target, payload) => handleDropRef.current(target, payload));
   const [workspaceDialog, setWorkspaceDialog] = useState<WorkspaceDialogState | null>(null);
-  const [workspaceSettingsDialog, setWorkspaceSettingsDialog] = useState<WorkspaceSettingsDialogState | null>(null);
   const [agentContextManagerOpen, setAgentContextManagerOpen] = useState(false);
   const agentInstructionEditor = useAgentInstructionEditor();
   const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null);
-  const [indexBusy, setIndexBusy] = useState<IndexBusyState>(null);
   const [appearanceMode, setAppearanceMode] = useState<AppearanceMode>("system");
   const [zoomSurface, setZoomSurface] = useState<ZoomSurface>("editor");
   const [editorFontSize, setEditorFontSize] = useState(DEFAULT_EDITOR_FONT_SIZE);
@@ -169,6 +166,19 @@ export function App() {
     setLayoutPersistenceReady,
     workspaceSettingsRef,
   } = workspaceBootstrap;
+  const workspaceSettingsController = useWorkspaceSettingsController({
+    workspaceSettingsRef,
+    applyWorkspaceSettings,
+    refreshWorkspaceModel,
+    setIndexStatus,
+    resetAgentInstructionLoadErrors: agentInstructionEditor.resetLoadErrors,
+    loadAgentInstructions: agentInstructionEditor.load,
+  });
+  const {
+    dialog: workspaceSettingsDialog,
+    setDialog: setWorkspaceSettingsDialog,
+    indexBusy,
+  } = workspaceSettingsController;
   const projectReviewState = useProjectReviewState(workspaceModel, terminalSessions);
   const openDocumentsState = useOpenDocuments({
     workspaceModel,
@@ -309,37 +319,6 @@ export function App() {
   }, [workspaceModel]);
 
   useEffect(() => {
-    return window.exo.workspace.onIndexSyncState((event) => {
-      if (event.state === "running") {
-        setIndexBusy("syncing");
-        return;
-      }
-      setIndexBusy(null);
-      if (event.result?.status) {
-        setIndexStatus(event.result.status);
-        setWorkspaceSettingsDialog((current) =>
-          current
-            ? {
-                ...current,
-          }
-        : current,
-        );
-      }
-      if (event.state === "error") {
-        setWorkspaceSettingsDialog((current) =>
-          current
-            ? {
-                ...current,
-                applyStatus: "error",
-                applyErrorMessage: event.error ?? "Index sync failed.",
-              }
-            : current,
-        );
-      }
-    });
-  }, []);
-
-  useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       const mod = event.metaKey || event.ctrlKey;
       if (mod && !event.altKey && isZoomKey(event.key)) {
@@ -362,17 +341,6 @@ export function App() {
     window.addEventListener("keydown", onKeyDown, { capture: true });
     return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
   }, [activeDocument, workspaceModel, editorFocusedLeafId, zoomSurface]);
-
-  async function saveSettingsPatch(patch: Partial<WorkspaceSettings>) {
-    const base = workspaceSettingsRef.current ?? await window.exo.workspace.getSettings();
-    const nextSettings: WorkspaceSettings = {
-      ...base,
-      ...patch,
-    };
-    workspaceSettingsRef.current = nextSettings;
-    const saved = await window.exo.workspace.saveSettings(nextSettings);
-    workspaceSettingsRef.current = saved;
-  }
 
   function applyWorkspaceSettings(settings: WorkspaceSettings) {
     const terminalPolicy = resolveSettingsTerminalRuntime(settings);
@@ -443,14 +411,14 @@ export function App() {
 
   function updateAppearanceMode(nextMode: AppearanceMode) {
     setAppearanceMode(nextMode);
-    void saveSettingsPatch({ appearanceMode: nextMode });
+    void workspaceSettingsController.saveSettingsPatch({ appearanceMode: nextMode });
   }
 
   function updateFocusedSurfaceZoom(direction: -1 | 0 | 1, surface = zoomSurface) {
     if (surface === "terminal") {
       setTerminalFontSize((current) => {
         const next = direction === 0 ? DEFAULT_TERMINAL_FONT_SIZE : clampNumber(current + direction, 10, 22);
-        void saveSettingsPatch({ terminalFontSize: next });
+        void workspaceSettingsController.saveSettingsPatch({ terminalFontSize: next });
         return next;
       });
       return;
@@ -458,14 +426,14 @@ export function App() {
     if (surface === "explorer") {
       setExplorerScale((current) => {
         const next = direction === 0 ? DEFAULT_EXPLORER_SCALE : clampNumber(Number((current + direction * 0.06).toFixed(2)), 0.82, 1.35);
-        void saveSettingsPatch({ explorerScale: next });
+        void workspaceSettingsController.saveSettingsPatch({ explorerScale: next });
         return next;
       });
       return;
     }
     setEditorFontSize((current) => {
       const next = direction === 0 ? DEFAULT_EDITOR_FONT_SIZE : clampNumber(current + direction, 11, 24);
-      void saveSettingsPatch({ editorFontSize: next });
+      void workspaceSettingsController.saveSettingsPatch({ editorFontSize: next });
       return next;
     });
   }
@@ -579,262 +547,6 @@ export function App() {
     setWorkspaceSettingsDialog(null);
     setAgentContextManagerOpen(true);
     void agentInstructionEditor.load();
-  }
-
-  async function openWorkspaceSettingsDialog(section: WorkspaceSettingsSection = "workspace") {
-    const settings = await window.exo.workspace.getSettings();
-    const appliedWorkspaceKey = workspaceSettingsStructuralKeyFromSettings(settings);
-    agentInstructionEditor.resetLoadErrors();
-    setWorkspaceSettingsDialog({
-      section,
-      workspaceRoot: settings.workspaceRoot,
-      defaultTerminalCwd: settings.defaultTerminalCwd,
-      noteRoots: settings.noteRoots,
-      projectRoots: settings.projectRoots,
-      indexedRoots: settings.indexedRoots.map((root) => root.path),
-      indexMode: settings.indexing.mode,
-      appearanceMode: settings.appearanceMode,
-      editorFontSize: String(settings.editorFontSize),
-      terminalFontSize: String(settings.terminalFontSize),
-      terminalHistoryMode: settings.terminalHistoryMode,
-      terminalHistoryLines: String(settings.terminalHistoryLines),
-      terminalTranscriptRetention: settings.terminalTranscriptRetention,
-      terminalTranscriptRetentionDays: String(settings.terminalTranscriptRetentionDays),
-      explorerScale: String(settings.explorerScale),
-      exploreIndexSearchOnEnter: settings.exploreIndexSearchOnEnter,
-      indexUpdateStrategy: settings.indexUpdateStrategy,
-      saveStatus: "idle",
-      errorMessage: null,
-      appliedWorkspaceKey,
-      applyStatus: "idle",
-      applyErrorMessage: null,
-      partialErrorMessages: [],
-    });
-    void window.exo.workspace.getIndexStatus().then(setIndexStatus).catch((error) => {
-      console.warn("[exo] failed to load index status", error);
-      setIndexStatus(null);
-    });
-    void agentInstructionEditor.load().then((partialErrorMessages) => {
-      setWorkspaceSettingsDialog((current) => current ? { ...current, partialErrorMessages } : current);
-    });
-  }
-
-  async function chooseFolderForSettings(target: "workspaceRoot" | "defaultTerminalCwd" | "noteRoot" | "projectRoot") {
-    const folders = await window.exo.workspace.selectFolder({
-      title:
-        target === "noteRoot"
-          ? "Choose notes folder"
-          : target === "projectRoot"
-            ? "Add project folder"
-            : "Choose folder",
-      buttonLabel: target === "projectRoot" ? "Add Folder" : "Use Folder",
-      allowMultiple: target === "projectRoot",
-    });
-    if (folders.length === 0) {
-      return;
-    }
-    setWorkspaceSettingsDialog((current) => {
-      if (!current) {
-        return current;
-      }
-      if (target === "workspaceRoot") {
-        return { ...current, workspaceRoot: folders[0], applyStatus: "idle", applyErrorMessage: null };
-      }
-      if (target === "defaultTerminalCwd") {
-        return { ...current, defaultTerminalCwd: folders[0], applyStatus: "idle", applyErrorMessage: null };
-      }
-      if (target === "noteRoot") {
-        return { ...current, noteRoots: [folders[0]], applyStatus: "idle", applyErrorMessage: null };
-      }
-      if (target === "projectRoot") {
-        return { ...current, projectRoots: uniquePaths([...current.projectRoots, ...folders]), applyStatus: "idle", applyErrorMessage: null };
-      }
-      return current;
-    });
-  }
-
-  async function runIndexUpdate(action: Exclude<IndexBusyState, null>) {
-    setIndexBusy(action);
-    setWorkspaceSettingsDialog((current) =>
-      current
-        ? {
-            ...current,
-            applyStatus: "idle",
-            applyErrorMessage: null,
-          }
-        : current,
-    );
-
-    try {
-      const status = action === "syncing"
-        ? (await window.exo.workspace.syncIndex()).status
-        : action === "embedding"
-          ? await window.exo.workspace.embedIndex()
-          : await window.exo.workspace.updateIndex();
-      setIndexStatus(status);
-    } catch (error) {
-      setWorkspaceSettingsDialog((current) =>
-        current
-          ? {
-              ...current,
-              applyStatus: "error",
-              applyErrorMessage: error instanceof Error ? error.message : "Unable to update the index.",
-            }
-          : current,
-      );
-    } finally {
-      setIndexBusy(null);
-    }
-  }
-
-  function workspaceSettingsFromDialog(settingsDialog: WorkspaceSettingsDialogState, options: { includeStructural: boolean }): WorkspaceSettings {
-    const currentSettings = workspaceSettingsRef.current;
-    const fallbackStructural = {
-      workspaceRoot: settingsDialog.workspaceRoot.trim(),
-      defaultTerminalCwd: settingsDialog.defaultTerminalCwd.trim(),
-      noteRoots: settingsDialog.noteRoots
-        .map((entry) => entry.trim())
-        .filter(Boolean),
-      projectRoots: settingsDialog.projectRoots
-        .map((entry) => entry.trim())
-        .filter(Boolean),
-      indexedRoots: settingsDialog.indexedRoots
-        .map((entry, index) => ({ entry, index }))
-        .filter(({ entry }) => entry.trim())
-        .map(({ entry, index }) => ({
-          id: `index-root-${index + 1}`,
-          label: pathLabel(entry.trim()),
-          path: entry.trim(),
-          kind: "mixed" as const,
-          pattern: "**/*.md",
-          ignore: [],
-          backend: "qmd" as const,
-        })),
-      indexing: {
-        enabled: settingsDialog.indexMode !== "off",
-        mode: settingsDialog.indexMode,
-        backend: "qmd" as const,
-      },
-    };
-    const terminalHistoryLines = clampNumber(Number(settingsDialog.terminalHistoryLines), 500, FULL_TERMINAL_SCROLLBACK_LINES);
-    const nextSettings: WorkspaceSettings = {
-      workspaceRoot: options.includeStructural ? fallbackStructural.workspaceRoot : currentSettings?.workspaceRoot ?? fallbackStructural.workspaceRoot,
-      defaultTerminalCwd: options.includeStructural ? fallbackStructural.defaultTerminalCwd : currentSettings?.defaultTerminalCwd ?? fallbackStructural.defaultTerminalCwd,
-      noteRoots: options.includeStructural
-        ? fallbackStructural.noteRoots
-        : currentSettings?.noteRoots ?? fallbackStructural.noteRoots,
-      projectRoots: options.includeStructural
-        ? fallbackStructural.projectRoots
-        : currentSettings?.projectRoots ?? fallbackStructural.projectRoots,
-      indexedRoots: options.includeStructural
-        ? fallbackStructural.indexedRoots
-        : currentSettings?.indexedRoots ?? fallbackStructural.indexedRoots,
-      indexing: options.includeStructural
-        ? fallbackStructural.indexing
-        : currentSettings?.indexing ?? fallbackStructural.indexing,
-      appearanceMode: settingsDialog.appearanceMode,
-      editorFontSize: clampNumber(Number(settingsDialog.editorFontSize), 11, 24),
-      terminalFontSize: clampNumber(Number(settingsDialog.terminalFontSize), 10, 22),
-      terminalHistoryMode: settingsDialog.terminalHistoryMode,
-      terminalHistoryLines,
-      terminalTranscriptRetention: settingsDialog.terminalTranscriptRetention,
-      terminalTranscriptRetentionDays: clampNumber(Number(settingsDialog.terminalTranscriptRetentionDays), 1, 3650),
-      explorerScale: clampNumber(Number(settingsDialog.explorerScale), 0.82, 1.35),
-      exploreIndexSearchOnEnter: settingsDialog.exploreIndexSearchOnEnter,
-      indexUpdateStrategy: settingsDialog.indexUpdateStrategy,
-    };
-
-    return nextSettings;
-  }
-
-  async function saveWorkspaceSettingsDialog(settingsDialog = workspaceSettingsDialog, options = { includeStructural: false }) {
-    if (!settingsDialog) {
-      return;
-    }
-
-    const nextSettings = workspaceSettingsFromDialog(settingsDialog, options);
-    const snapshotKey = options.includeStructural ? workspaceSettingsStructuralDraftKey(settingsDialog) : workspaceSettingsImmediateDraftKey(settingsDialog);
-
-    setWorkspaceSettingsDialog((current) =>
-      current && (options.includeStructural ? workspaceSettingsStructuralDraftKey(current) : workspaceSettingsImmediateDraftKey(current)) === snapshotKey
-        ? {
-            ...current,
-            ...(options.includeStructural
-              ? { applyStatus: "applying" as const, applyErrorMessage: null }
-              : { saveStatus: "saving" as const, errorMessage: null }),
-          }
-        : current,
-    );
-
-    try {
-      const saved = await window.exo.workspace.saveSettings(nextSettings);
-      workspaceSettingsRef.current = saved;
-      setAppearanceMode(saved.appearanceMode);
-      setEditorFontSize(saved.editorFontSize);
-      setTerminalFontSize(saved.terminalFontSize);
-      const savedTerminalPolicy = resolveSettingsTerminalRuntime(saved);
-      setTerminalRuntimeScrollbackLines(savedTerminalPolicy.scrollbackLines);
-      setExplorerScale(saved.explorerScale);
-      setExploreIndexSearchOnEnter(saved.exploreIndexSearchOnEnter);
-      setWorkspaceSettingsDialog((current) =>
-        current && (options.includeStructural ? workspaceSettingsStructuralDraftKey(current) : workspaceSettingsImmediateDraftKey(current)) === snapshotKey
-          ? {
-              ...current,
-              ...(options.includeStructural
-                ? {
-                    appliedWorkspaceKey: workspaceSettingsStructuralKeyFromSettings(saved),
-                    applyStatus: "applied" as const,
-                    applyErrorMessage: null,
-                  }
-                : {
-                    saveStatus: "saved" as const,
-                    errorMessage: null,
-                  }),
-          }
-          : current,
-      );
-      if (options.includeStructural) {
-        void refreshWorkspaceModel();
-      }
-    } catch (error) {
-      setWorkspaceSettingsDialog((current) =>
-        current && (options.includeStructural ? workspaceSettingsStructuralDraftKey(current) : workspaceSettingsImmediateDraftKey(current)) === snapshotKey
-          ? {
-              ...current,
-              ...(options.includeStructural
-                ? {
-                    applyStatus: "error" as const,
-                    applyErrorMessage: error instanceof Error ? error.message : "Unable to apply workspace settings.",
-                  }
-                : {
-                    saveStatus: "error" as const,
-                    errorMessage: error instanceof Error ? error.message : "Unable to save workspace settings.",
-                  }),
-            }
-          : current,
-      );
-    }
-  }
-
-  useEffect(() => {
-    if (!workspaceSettingsDialog || workspaceSettingsDialog.saveStatus !== "idle") {
-      return;
-    }
-
-    const snapshot = workspaceSettingsDialog;
-    const timeout = window.setTimeout(() => {
-      void saveWorkspaceSettingsDialog(snapshot);
-    }, 650);
-
-    return () => window.clearTimeout(timeout);
-  }, [workspaceSettingsDialog]);
-
-  function closeWorkspaceSettingsDialog() {
-    const snapshot = workspaceSettingsDialog;
-    if (snapshot && snapshot.saveStatus !== "saved" && snapshot.saveStatus !== "saving") {
-      void saveWorkspaceSettingsDialog(snapshot, { includeStructural: false });
-    }
-    setWorkspaceSettingsDialog(null);
   }
 
   function focusEditorPane(leafId: PaneNodeId) {
@@ -1271,7 +983,7 @@ export function App() {
 
     if (workspaceDialog.kind === "attach-project") {
       setWorkspaceDialog(null);
-      await openWorkspaceSettingsDialog("workspace");
+      await workspaceSettingsController.openDialog("workspace");
       return;
     }
 
@@ -1916,8 +1628,8 @@ export function App() {
         );
       }}
       onAppearanceModeChange={updateAppearanceMode}
-      onOpenWorkspaceSettings={() => void openWorkspaceSettingsDialog()}
-      onOpenIndexSettings={() => void openWorkspaceSettingsDialog("index")}
+      onOpenWorkspaceSettings={() => void workspaceSettingsController.openDialog()}
+      onOpenIndexSettings={() => void workspaceSettingsController.openDialog("index")}
       onOpenProjectChanges={() => void openProjectChangesFromStatus()}
       onSearchQueryChange={(value) => {
         workspaceSearch.setQuery(value);
@@ -1992,15 +1704,15 @@ export function App() {
           settings={workspaceSettingsDialog}
           setSettings={setWorkspaceSettingsDialog}
           structuralDraftKey={workspaceSettingsStructuralDraftKey}
-          onChooseFolder={(target) => void chooseFolderForSettings(target)}
-          onClose={closeWorkspaceSettingsDialog}
+          onChooseFolder={(target) => void workspaceSettingsController.chooseFolder(target)}
+          onClose={workspaceSettingsController.closeDialog}
           onOpenAgentConfigEditor={() => void openAgentContextManager()}
           onOpenWorkspaceSwitcher={() => {
             setWorkspaceSettingsDialog(null);
             void workspaceBootstrap.openWorkspaceSwitcher();
           }}
-          onRunIndexUpdate={(kind) => void runIndexUpdate(kind)}
-          onSave={(settingsDialog, options) => void saveWorkspaceSettingsDialog(settingsDialog, options)}
+          onRunIndexUpdate={(kind) => void workspaceSettingsController.runIndexUpdate(kind)}
+          onSave={(settingsDialog, options) => void workspaceSettingsController.saveDialog(settingsDialog, options)}
         />
       ) : null}
       {agentContextManagerOpen ? (

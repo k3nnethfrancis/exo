@@ -55,6 +55,7 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Extracted open-document/editor state from `App.tsx` into `useOpenDocuments`, covering document cache, dirty/save status, external refresh, scroll restore, knowledge/branch-family caches, branch creation, and path remapping.
 - Extracted terminal renderer session state from `App.tsx` into `useTerminalSessions`, covering active terminal selection, hydration snapshots, created/data/exit listeners, polling sync, agent annotations, and kill/create session bookkeeping.
 - Extracted workspace bootstrap and onboarding state from `App.tsx` into `useWorkspaceBootstrap`, keeping app-layout restore callbacks in the shell while moving setup, workspace switching, and initial model/tree/terminal loading into a focused hook.
+- Extracted workspace settings controller state from `App.tsx` into `useWorkspaceSettingsController`, covering settings dialog drafts, autosave, structural Apply, folder picking, index jobs, and index-sync UI state.
 - Added a typed desktop IPC contract shared by main, preload, and renderer-facing API code so channel names, argument lists, and return types cannot silently drift.
 - Repaired the Electron e2e launch harness by running the large shell spec in parallel under a capped worker count, then verified the full desktop e2e suite passes.
 - Fixed two QA findings from the full e2e pass: external clean-file refresh now preserves editor scroll through CodeMirror refresh timing, and editor/terminal tab strips share a stable 40px chrome height in mixed pane graphs.
