@@ -23,7 +23,8 @@ Exo should evolve through refactor and feature phases instead of jumping straigh
 1. Current-package domain modules: keep `apps/desktop`, `packages/core`, `packages/cli`, and `packages/mcp`, but extract stable services and renderer state machines so new work stops accumulating in `main/index.ts` and `App.tsx`.
 2. Resident runtime features: implement menu bar/runtime lifecycle, then multi-agent roster and communication on top of the cleaned service boundaries.
 3. Runtime package extraction: once resident runtime and agent coordination have real pressure, move stable process-owned services into a dedicated runtime package.
-4. Plugin registries: after runtime/domain primitives are stable, expose extension points for agents, panes, commands, search providers, evals, and workflows.
+4. Capability/provider boundaries: make search/retrieval, graph inspection, note maintenance, and agent communication stable capabilities before exposing broad plugins.
+5. Plugin registries: after runtime/domain primitives are stable, expose extension points for agents, panes, commands, search providers, evals, and workflows.
 
 ## 1. Workspace Surface
 
@@ -48,14 +49,14 @@ Exo should be a resident local runtime, not only a visible desktop window.
 - If Exo is not running, CLI/MCP errors should clearly say that live agent control requires starting Exo.
 - Relaunch should show prior transcripts/session history without pretending dead pty processes survived.
 
-The first version is in place: closing the window hides Exo, explicit Quit warns before stopping live terminals, and the menu bar exposes runtime status plus recovery actions. The remaining work is hidden-window CLI/MCP QA across agent create/read/send/reopen workflows.
+The first version is in place: closing the window hides Exo, explicit Quit warns before stopping live terminals, the menu bar exposes runtime status plus recovery actions, and hidden-window CLI/MCP agent workflows have focused QA coverage.
 
 ## 3. Project Roots And Code Review
 
 Projects are explicit attachments, not every folder on disk.
 
 - Users can add/remove project roots from the UI.
-- Agents can list/add/remove project roots through Exo CLI/MCP.
+- Agents can inspect attached project roots through MCP workspace status. Humans, scripts, and supervised operators can add/remove roots through Exo CLI/UI.
 - Exo exposes a changed-files view for agent-authored edits.
 - Agent sessions/messages can link to files and lines they changed when Exo can observe that relationship.
 - The code viewer supports review workflows without requiring a separate editor for basic inspection.
@@ -83,14 +84,28 @@ Exo should track authorship from observed workflows, not guess using AI detector
 
 The notes graph is the substrate for memory and retrieval.
 
-- Exo should manage the QMD setup it needs for the full experience.
+- Exo should manage the QMD setup it needs for the default local search experience.
 - Existing QMD setups should be detected and reused when they already index selected notes.
 - QMD should index selected note roots, not project roots by default.
 - Reindex triggers, frequency, and compute profiles should be configurable from Exo.
 - Humans and agents should eventually search the same index through UI, CLI, and MCP.
 - Low-compute machines should have fallback search modes.
+- Search should sit behind a provider contract. QMD is the default provider, but users should later be able to swap or extend retrieval without changing Exo's note, graph, CLI, or MCP contracts.
+- MCP should expose search as an agent work primitive, not expose provider maintenance/admin controls.
+- CLI should expose provider status, sync, diagnostics, and maintenance controls.
 
-## 7. Multi-Agent Coordination
+## 7. LM Wiki, Note Traversal, And Graph Maintenance
+
+Exo should help agents maintain a useful Markdown wiki, not only retrieve from one.
+
+- Selected note roots are the editable knowledge boundary; project roots are code/review context unless explicitly added to memory later.
+- Exo should understand source/raw material, synthesized wiki pages, index/catalog files, logs, and durable agent instructions without hard-coding one person's directory layout.
+- CLI should offer broad note operations inspired by mature local knowledge tools: list files/folders, inspect file metadata, read, create, append, guarded patch, move/rename, backlinks, outgoing links, unresolved links, orphans, headings/outline, tags/properties, and maintenance/lint reports.
+- MCP should keep the smaller agent work plane: orient to the workspace, search, read, inspect document context/graph, create/append/guarded-patch notes in allowed note roots, and coordinate agents.
+- Write operations must be scoped, reviewable, and observable. Prefer create/append/patch-with-expected-content over generic overwrite.
+- Wiki health checks should report stale pages, orphan pages, missing cross-links, unresolved links, contradiction candidates, and missing source questions.
+
+## 8. Multi-Agent Coordination
 
 Exo should make terminal-agent swarms legible and steerable.
 
@@ -101,7 +116,7 @@ Exo should make terminal-agent swarms legible and steerable.
 - The UI shows communication logs and audit trails.
 - Richer local transports can come after the inspectable file/SQLite path works.
 
-## 8. Graph And Memory Views
+## 9. Graph And Memory Views
 
 Exo should make the shared exocortex visible.
 
@@ -110,7 +125,7 @@ Exo should make the shared exocortex visible.
 - Memory view separates durable memory, trace archive, retrieval/index, and working-memory assembly.
 - Agent sessions, messages, changed files, search results, and future workcells can become graph nodes.
 
-## 9. Workcells, Evals, And Training
+## 10. Workcells, Evals, And Training
 
 These are later systems built on top of the shared workspace.
 
@@ -121,7 +136,7 @@ These are later systems built on top of the shared workspace.
 - Local/open-source agents and training workflows come after stable memory, workcells, and evals.
 - Tracing, evaluation, and training should exercise the plugin boundary without becoming merely a hosted web app: core owns run/artifact/provenance primitives, while plugins can provide collectors, runners, scorers, dashboards, and provider-specific training/export flows.
 
-## 10. Plugin Architecture
+## 11. Plugin Architecture
 
 Exo should be extensible without making every personal or domain-specific workflow part of core.
 
@@ -134,7 +149,7 @@ Exo should be extensible without making every personal or domain-specific workfl
 - Plugins should compose through stable registries instead of monkey-patching core internals: command registry, settings registry, pane/view registry, agent launcher registry, search provider registry, MCP/CLI registry, and workflow/eval registries.
 - Capability permissions must be explicit for filesystem scopes, process/terminal access, network access, git write/PR rights, secrets, and MCP exposure.
 
-## 11. Self-Modifying Exo
+## 12. Self-Modifying Exo
 
 Exo should eventually help maintain and improve itself, but only through reviewable, policy-controlled workflows.
 
@@ -144,7 +159,7 @@ Exo should eventually help maintain and improve itself, but only through reviewa
 - Plugins can provide concrete maintenance agents, workflow recipes, provider integrations, eval suites, and dashboards.
 - Self-modification should build on the same plugin, workcell, provenance, and harness primitives rather than becoming a separate hidden automation system.
 
-## 12. Developer Harness
+## 13. Developer Harness
 
 The repo should remain easy for humans and agents to modify.
 

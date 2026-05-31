@@ -133,7 +133,9 @@ Current live app operator/debug commands:
 - `exo agents interrupt <id> [escape|ctrl-c]`
 - `exo agents terminate <id>`
 
-The CLI remains the canonical operator/admin/debug surface. MCP is the narrower agent work plane; it should not expose every setup, repair, index-maintenance, or raw terminal control.
+The CLI remains the canonical operator/admin/debug surface. It may grow broad note, graph, search-provider, maintenance, and developer commands because it is the place for humans, scripts, setup, diagnostics, and supervised administration.
+
+MCP is the narrower agent work plane. It should expose enough for agents to orient, search, read, maintain allowed notes, and communicate, but it should not expose every setup, repair, index-maintenance, raw terminal, provider-admin, or workspace-mutation control.
 
 Integration setup commands:
 
@@ -155,6 +157,8 @@ Integration setup commands:
 - `send_agent_message`
 - `interrupt_agent`
 - `terminate_agent`
+
+Future MCP additions should be tested against this rule: can an agent use this tool to do useful work in the current workspace without gaining broad admin/debug power? Good candidates are scoped document graph/context inspection, allowed note creation/append/guarded patch, and agent communication. Bad candidates are provider installation, index maintenance, project-root mutation, raw terminal writes, and app repair.
 
 By default, the MCP server needs Exo already running so it can read `.exo/server.json`. With `EXO_MCP_AUTOSTART=1`, it can start Exo through `EXO_MCP_START_COMMAND` and wait for the command server. If `EXO_RUNTIME_ROOT` or explicit workspace env vars are not set, MCP uses the same active desktop workspace registry as the CLI to find the runtime root.
 
@@ -215,7 +219,22 @@ Search currently returns:
 
 Search lives in the explorer search pane and keeps live typing fast. QMD-backed indexed search is explicit so heavy retrieval does not block the renderer.
 
-QMD integration lives behind `packages/core/src/qmd.ts`. The desktop command server exposes status, search, read, sync, update, and embed routes; CLI and MCP call those routes rather than instantiating their own QMD stores. See `qmd-integration-notes.md` for the dependency boundary and upgrade checklist.
+QMD integration lives behind `packages/core/src/qmd.ts`. The desktop command server exposes status, search, read, sync, update, and embed routes. CLI can use the full notes-index route set; MCP uses search/read and summarizes index status through `workspace_status` rather than instantiating its own QMD store. See `qmd-integration-notes.md` for the dependency boundary and upgrade checklist.
+
+Longer term, QMD should be the default implementation of a search-provider contract, not the only possible retrieval architecture. The provider contract should cover capability discovery, status/health, search, read/resolve target, optional graph hints, sync/update, cancellation, and diagnostics. MCP should receive the stable search/document operations; CLI/UI should own provider setup, sync, repair, and diagnostics.
+
+## Note Graph And Wiki Maintenance
+
+Exo's note graph contract should support LM Wiki-style maintenance over Markdown on disk:
+
+- selected note roots define the writable wiki boundary
+- project roots remain explicit code/review context unless later added to memory intentionally
+- file identity should support exact paths and friendly note/link resolution
+- document context should combine metadata, headings, outgoing links, backlinks, unresolved links, tags/properties, and related search hits
+- write operations should be scoped and reviewable: create, append, and guarded patch before broad overwrite
+- maintenance reports should surface orphans, dead ends, unresolved links, stale pages, contradiction candidates, and missing cross-links
+
+This is also the practical split between CLI and MCP for notes. CLI can mirror mature knowledge-app surfaces broadly. MCP should expose a compact set of agent-safe wiki operations so agents can maintain the knowledge graph without becoming a full filesystem/admin client.
 
 ## Refactor Boundaries
 

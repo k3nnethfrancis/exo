@@ -41,15 +41,16 @@ Exo is early, and the long-term system is larger than the current shell. Near-te
 
 - Drag terminal panes into the editor canvas so files and terminal agents can share one arbitrary split-pane graph.
 - Make Exo a resident background runtime with a menu bar controller so CLI/MCP agent workflows continue while the workspace window is hidden.
-- Improve QMD indexing performance with true file-level incremental updates when upstream APIs support it.
-- Detect existing QMD setups, refine Exo-owned QMD setup, and configure richer reindex triggers.
+- Improve the default QMD search provider with true file-level incremental updates when upstream APIs support it.
+- Detect existing QMD setups, refine Exo-owned QMD setup, configure richer reindex triggers, and keep search provider-neutral at Exo's product boundary.
 - Let humans and agents search the same knowledge graph with explicit tiers, cancellation, progress, and result caps.
+- Add note traversal, graph context, and LM Wiki-style maintenance reports for headings, backlinks, unresolved links, orphans, stale pages, and missing cross-links.
 - Manage global and project-local `AGENTS.md` / `CLAUDE.md` files from Exo.
 - Compare global and local agent context files, surface conflicts, and install Exo-recommended snippets.
 - Track authorship and provenance so human-written and agent-written changes are distinguishable by source, session, and task.
 - Link agent sessions and messages to the files they changed so code review stays inside the workspace.
 - Add graph and memory views that combine backlinks, notes, project context, and indexed relationships.
-- Let agents add, remove, and inspect attached project roots through Exo-controlled CLI/MCP commands.
+- Let agents inspect attached project roots through Exo workspace status while humans and supervised scripts add/remove roots through CLI/UI.
 - Add multi-agent communication protocols over files, SQLite, MCP, and later richer local transports.
 - Add an agent roster with names, roles, objectives, message routing, and communication logs.
 - Add a plugin architecture for optional workflows and shareable extensions without bloating core.
@@ -223,7 +224,7 @@ Runtime files live under `.exo/` inside the workspace root:
 - `.exo/terminal-transcripts/` - disk-backed terminal transcripts
 - `.exo/qmd/index.sqlite` - Exo-managed QMD notes index when indexing is enabled
 
-QMD is the active indexing substrate for optional Exo-managed notes search. Live Explore typing remains fast filename/path search; indexed search is explicit through Enter in Explore when enabled and through CLI/MCP index/search tools. See `docs/qmd-integration-notes.md` for the adapter contract and upgrade notes.
+QMD is the default indexing provider for optional Exo-managed notes search. Live Explore typing remains fast filename/path search; indexed search is explicit through Enter in Explore when enabled, through CLI index/search tools, and through the MCP `search` work-plane tool. See `docs/qmd-integration-notes.md` for the adapter contract and upgrade notes.
 
 ## Development Harness
 

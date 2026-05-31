@@ -75,8 +75,8 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 ## Next: Project Roots And Code Review
 
 - [ ] Keep project imports explicit; do not auto-load every workspace project folder.
-- [x] Add CLI/MCP commands to list attached project roots.
-- [x] Add CLI/MCP commands to add and remove attached project roots.
+- [x] Add CLI and workspace-status visibility for attached project roots.
+- [x] Add CLI/UI commands to add and remove attached project roots.
 - [x] Add a changed-files view for agent-authored project edits.
 - [x] Link changed files to observable terminal sessions by project cwd.
 - [ ] Link terminal-agent messages to files they changed only when Exo can observe the relationship reliably; keep ambiguous changes in neutral workspace/status surfaces.
@@ -122,7 +122,14 @@ This is the active task tracker for Exo. It is intentionally not a history file;
   - medium: local semantic index with conservative caps
   - large: richer semantic retrieval and reranking
 - [ ] Refine shared human/agent search semantics across Explore, CLI, and MCP.
+- [x] Reframe QMD as the default search provider behind an Exo search-provider contract, not a permanent hard dependency at the product boundary.
+- [x] Decide the CLI/MCP philosophy for note and graph tools: CLI is broad operator/admin/debug; MCP is the narrow agent work plane.
 - [ ] Keep project files out of the notes memory index unless explicitly added later.
+- [ ] Design the search-provider interface for capability discovery, status, search, read/resolve, graph hints, sync/update, cancellation, and diagnostics.
+- [ ] Add note traversal and graph context primitives: files/folders, document metadata, headings/outline, outgoing links, backlinks, unresolved links, orphans, and related documents.
+- [ ] Add scoped note write primitives after graph/read primitives are stable: create, append, and guarded patch within selected note roots.
+- [ ] Add LM Wiki maintenance reports for stale pages, orphan pages, unresolved links, missing cross-links, contradiction candidates, and missing source questions.
+- [ ] Decide which note/graph primitives belong in MCP as a compact agent-safe set versus CLI-only operator commands.
 
 ## Next: Multi-Agent Coordination
 

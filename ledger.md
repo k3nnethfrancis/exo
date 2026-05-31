@@ -22,7 +22,7 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Explorer search mode with fast note filename/path results, snippets, and hover previews.
 - Optional QMD-backed notes index with lexical, semantic, and hybrid modes.
 - Index status pill in the footer and Index settings panel with `Sync index`.
-- CLI and MCP notes-index routes for status, search, read, sync, update, and embed flows through the running Exo command server.
+- CLI notes-index routes for status, search, read, sync, update, and embed flows through the running Exo command server. MCP exposes the narrower agent-facing search/read primitives plus index summary in `workspace_status`.
 - Claude, Codex, and shell terminal launchers.
 - Direct pty Claude/Codex/shell sessions supervised by Exo.
 - Terminal reload hydration from bounded main-process tails.
@@ -123,6 +123,7 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Added the macOS menu bar runtime controller with Show Exo, Settings, command-server status/restart, live terminal count, and explicit Quit.
 - Added hidden-window CLI/MCP app QA coverage: with the workspace window hidden, `bin/exo` can status/list/create/send/read live agents and MCP stdio tools can list/create/send/read the same running Exo agent surface.
 - Pruned MCP from 14 tools to the narrow 9-tool agent work plane, moved index/project-root administration to CLI/UI only, and deprecated `exo agents message/tell` in favor of `exo agents send`.
+- Updated the roadmap around Obsidian CLI and LM Wiki lessons: CLI stays broad for operator/admin/debug and future note/graph maintenance; MCP stays compact for agent work; QMD remains the default local search provider behind a future provider-neutral search contract.
 - Started cleanup-plan doc sync by removing stale tmux prerequisite language and documenting that current open QA includes the e2e launch harness and broader terminal bug-bash.
 
 ## Next Priorities
@@ -130,7 +131,7 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 1. Review the local commit stack, push `0.1.0-alpha.2` tester-readiness fixes, and open the review surface.
 2. Authorship/provenance: promote observed write candidates into explicit human vs agent review states only when Exo controls the write path or receives a trusted session event.
 3. Multi-agent coordination: roster, objectives, direct messages, file+SQLite transport, CLI/MCP access.
-4. QMD notes index: improve performance, add true incremental file-level updates when QMD exposes them, and refine triggers/profiles.
+4. Search and wiki graph: design the search-provider contract, add note traversal/graph context primitives, then add scoped create/append/guarded-patch note writes.
 
 ## Operating Rules
 
@@ -140,7 +141,8 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Do not infer provenance with AI detection; track it through observable workflows.
 - Keep QMD focused on notes unless project indexing is explicitly designed later.
 - Keep QMD integration behind `packages/core/src/qmd.ts`; document workarounds in `docs/qmd-integration-notes.md`.
-- Use CLI/MCP as canonical agent-facing control surfaces.
+- Keep search provider-neutral at the product/API boundary: QMD is the default local provider, not the only possible retrieval backend.
+- Keep CLI broad for operator/admin/debug workflows and MCP narrow for agent work-plane tools.
 
 ## Validation
 

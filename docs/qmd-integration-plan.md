@@ -102,6 +102,8 @@ Expose explicit index commands rather than overloading fast search:
 
 Live Explore typing remains fast filename/path search. Indexed retrieval is explicit through Enter in Explore when enabled, through CLI index/search commands, and through MCP `search`.
 
+QMD is the default local provider for these commands, not the permanent product boundary. Exo's longer-term search contract should be provider-shaped so custom QMD forks, simpler local indexes, or remote retrieval systems can satisfy the same UI/CLI/MCP search and read semantics.
+
 ## MCP
 
 Current MCP exposes only the agent-facing QMD primitives:
@@ -111,7 +113,7 @@ Current MCP exposes only the agent-facing QMD primitives:
 
 Index status is summarized in `workspace_status`. Index maintenance stays in CLI/UI. MCP tools should call Exo's command server, not instantiate their own QMD store. That keeps all agents pointed at the same desktop-managed index and lets the desktop enforce cancellation, caps, status, and settings.
 
-Agent-facing search responses should report fallback/warning state when embeddings are not ready or QMD is disabled. Continue to credit QMD in documentation and settings.
+Agent-facing search responses should report fallback/warning state when embeddings are not ready or QMD is disabled. Continue to credit QMD in documentation and settings, while keeping the MCP surface provider-neutral.
 
 ## UI
 
@@ -143,7 +145,7 @@ Live search should remain snappy. Heavy semantic retrieval should stay explicit,
 
 1. Dependency spike: add `@tobilu/qmd` behind a small `@exo/core` adapter and prove lexical update/search against test fixtures.
 2. Exo-managed storage: create `.exo/qmd`, derive collections from selected note roots, and expose status/update routes on the command server.
-3. CLI and MCP: add notes-index commands and MCP tools backed by command-server routes. Completed with CLI status/search/read/sync/update/embed and narrow MCP search/read.
+3. CLI and MCP: add notes-index commands and MCP tools backed by command-server routes. Completed with CLI status/search/read/sync/update/embed, MCP `search`/`read_document`, and index summary in `workspace_status`.
 4. Settings UI: add indexing tier, root list, status, update button, and attribution. Completed for the current Index panel.
 5. Semantic tier: add embed controls, model status, and guarded query/rerank paths. Partially complete; improve progress/cancellation and performance.
 6. Watch/reindex policy: wire debounced note-root watcher events after manual update is reliable. Partially complete with collection-scoped save refreshes; true file-level updates need upstream QMD support.

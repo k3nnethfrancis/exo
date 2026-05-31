@@ -1,6 +1,6 @@
 # Exo Strategy
 
-Last updated: 2026-05-30
+Last updated: 2026-05-31
 
 This is the strategy document for Exo. `README.md` explains the product publicly, `docs/roadmap.md` describes future systems, `docs/tasks.md` tracks concrete work, and `ledger.md` records shipped history.
 
@@ -23,6 +23,7 @@ Exo is organized around:
 - `runtime_process` - the resident Exo process that owns the command server, MCP bridge, watchers, transcripts, and supervised pty agents independent of whether the workspace window is visible.
 - `agent_context_files[]` - global and local `AGENTS.md` / `CLAUDE.md` files.
 - `notes_index` - Exo-managed QMD-backed index for optional notes search and future memory.
+- `search_providers[]` - the provider-backed retrieval layer behind Exo search. QMD is the default local provider, but the Exo contract should allow alternate local, custom, or remote retrieval implementations later.
 - `agent_communication` - future inspectable message transport for multi-agent coordination.
 - `workcells[]` - future bounded development/research loops with artifacts, metrics, and replay.
 - `plugins[]` - future local-first extension packages that can add agent launchers, commands, panels, WebView apps, search providers, eval runners, trace collectors, and workflows through permissioned APIs.
@@ -48,7 +49,9 @@ Local/private paths belong in settings or environment examples, not source defau
 - Terminal agents run inside Exo; Exo does not treat them as detached side channels.
 - Exo running and Exo visible are separate states; hiding the window should not kill the local runtime or live agents.
 - CLI and MCP are first-class control surfaces.
+- CLI is the operator/admin/debug control plane; MCP is the narrower agent work plane.
 - Humans and agents should share the same notes index through explicit, observable search modes.
+- Search is a capability boundary, not a permanent commitment to one indexing implementation.
 - Provenance should come from observed workflows, not AI-detector inference.
 - Training data is never ambient; it must be explicitly scoped.
 - Core primitives should stay stable and small; plugins should extend Exo through registries instead of patching internals.
@@ -104,7 +107,18 @@ Exo should distinguish human-written and agent-written work where it can observe
 
 ### QMD, Notes Index, And Search
 
-QMD is now the Exo-managed notes-index substrate. Exo should improve performance, detect existing QMD setups, expose compute profiles, add richer trigger controls, and serve the same index to humans and agents through UI, CLI, and MCP.
+QMD is now the default Exo-managed notes-index substrate. Exo should improve performance, detect existing QMD setups, expose compute profiles, add richer trigger controls, and serve the same search contract to humans and agents through UI, CLI, and MCP. The long-term interface should be a search-provider boundary so users can keep QMD as the default path, modify it, or swap in another local or remote retrieval implementation without changing Exo's note, graph, CLI, or MCP contracts.
+
+### LM Wiki And Knowledge Maintenance
+
+Exo should support the LM Wiki pattern: Markdown on disk as a maintained knowledge graph, raw/source material separated from synthesized wiki pages, durable `AGENTS.md` / `CLAUDE.md` conventions, an index/catalog for navigation, an append-only log of maintenance work, and periodic lint/health checks for stale claims, orphan pages, missing cross-links, contradictions, and useful new source questions.
+
+This should shape Exo's surfaces:
+
+- CLI may expose broad note and graph operations for humans, scripts, and debugging.
+- MCP should expose the small set of operations agents need to orient, search, read, maintain, and coordinate.
+- Write tools should be deliberate, scoped to selected note roots, and biased toward create/append/patch-with-guard flows over broad arbitrary filesystem writes.
+- Graph tools should make paths, backlinks, outgoing links, headings, orphans, unresolved links, and maintenance gaps easy to inspect without forcing the agent to read the whole vault.
 
 ### Multi-Agent Coordination
 
@@ -168,3 +182,7 @@ QMD remained in core as notes index/retrieval infrastructure. It was not the cur
 ### 2026-05-16 — QMD Is Active Optional Index Infrastructure
 
 QMD now backs optional lexical, semantic, and hybrid notes indexing through Exo settings, CLI, and MCP. Live Explore typing remains filename/path based for responsiveness; indexed Explore search is explicit on Enter. Save-triggered indexing refreshes the matching indexed root only and defers embeddings.
+
+### 2026-05-31 — CLI/MCP Split And Search Provider Direction
+
+The CLI is the broad operator/admin/debug surface, similar in spirit to Obsidian CLI's broad app-control model. MCP remains the narrow agent work plane. Exo should add note traversal, graph, and maintenance operations carefully, and should avoid turning MCP into a full admin surface. QMD remains the default local search provider, but Exo search should be designed around a provider contract so alternate retrieval backends can plug in later.

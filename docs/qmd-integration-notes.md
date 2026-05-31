@@ -39,7 +39,8 @@ The QMD database lives at `<workspaceRoot>/.exo/qmd/index.sqlite`.
 - Applying changed index configuration triggers a full sync.
 - The default save trigger is conservative: note saves refresh only the matching indexed root and defer embeddings.
 - Live Explore typing remains filename/path search; pressing Enter can run QMD lexical search when enabled.
-- CLI and MCP expose status, search, read, sync, update, and embed flows through the running Exo command server.
+- CLI exposes status, search, read, sync, update, and embed flows through the running Exo command server. MCP exposes the narrower agent-facing search/read primitives, with index status summarized in `workspace_status`.
+- QMD remains the default local provider. New product docs should describe Exo search in provider-neutral terms unless they are specifically documenting the QMD adapter.
 
 ## Known QMD Gaps And Exo Workarounds
 
@@ -63,7 +64,7 @@ When updating QMD:
 
 1. Read QMD release notes for SDK shape, native dependency, and model/runtime changes.
 2. Re-run adapter tests in `packages/core/src/__tests__/qmd.test.ts`.
-3. Re-run MCP/CLI tests for status, search, sync, update, and embed command-server routes.
+3. Re-run CLI tests for status, search, sync, update, and embed command-server routes plus MCP tests for `workspace_status`, `search`, and `read_document`.
 4. Smoke-test desktop Settings Index panel and footer status.
 5. Confirm `.exo/qmd/` storage remains workspace-local and ignored.
 6. Update this file if Exo removes a workaround or relies on a new QMD API.
