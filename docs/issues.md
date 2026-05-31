@@ -8,7 +8,7 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 
 ### EXO-ISSUE-024: Installed Exo menu bar icon is not visible enough for daily resident use
 
-- Status: fixed pending installed-app QA
+- Status: resolved
 - Severity: high
 - Area: macOS packaging, resident runtime, menu bar control surface, Exo-on-Exo workflow
 - Observed:
@@ -22,9 +22,11 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
   - Replaced the previous tiny tray asset with a higher-contrast monochrome Exo graph icon and kept it as a template image so macOS can tint it correctly.
   - Added `scripts/install-mac-app` and `pnpm install:mac-app` to build and install the local unsigned `Exo.app`.
   - Added `pnpm dev:qa` so source QA runs use `.exo-dev/` runtime and user-data paths instead of fighting the stable installed runtime.
-- Remaining QA:
-  - Install the packaged app, launch `/Applications/Exo.app`, and visually confirm the menu bar icon appears.
-  - Confirm the installed stable app and `pnpm dev:qa` can run side-by-side without clobbering each other's command-server discovery.
+- QA:
+  - Installed the packaged app to `/Applications/Exo.app` on 2026-05-31.
+  - Launched the installed app and confirmed the Exo menu bar icon is visible in the macOS system bar.
+  - Verified `exo status` reaches the installed runtime while the workspace window is visible/hidden.
+  - Verified `pnpm dev:qa` can run at the same time using `.exo-dev/server.json` while normal `exo status` still resolves to the stable installed runtime under `/Users/kenneth/Desktop/lab/.exo/server.json`.
 
 ## Live Bug-Bash Watchlist
 

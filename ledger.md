@@ -53,6 +53,7 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 
 ## Recent Completed Work
 
+- Verified the pure local install workflow on 2026-05-31: `/Applications/Exo.app` launches as the stable resident runtime, the menu bar icon is visible, normal `exo status` resolves to the installed runtime, and `pnpm dev:qa` can run concurrently against `.exo-dev/` without clobbering stable command-server discovery.
 - Added `docs/usability-readiness.md` as the near-term gate for installed daily use, commit cleanup/push, live bug bash, and the later roadmap handoff.
 - Added the first local macOS installed-app path for Exo-on-Exo use: `scripts/install-mac-app` / `pnpm install:mac-app` builds and installs unsigned `Exo.app`, while `pnpm dev:qa` runs source QA against isolated `.exo-dev/` runtime and user-data paths.
 - Completed the first cleanup/refactor pass toward a more modular desktop architecture: main-process domain services now own app lifecycle, indexing, workspace notes, project review, agent instructions, and workspace settings orchestration; renderer tree/project-review/settings helpers have first-class modules and hooks.
