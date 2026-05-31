@@ -7,8 +7,10 @@
   "packageManager": "pnpm@11.2.2",
   "scripts": {
     "dev": "EXO_WORKSPACE_ROOT=${EXO_WORKSPACE_ROOT:-$PWD} EXO_DEFAULT_TERMINAL_CWD=${EXO_DEFAULT_TERMINAL_CWD:-$PWD} pnpm --filter @exo/desktop dev",
+    "dev:qa": "EXO_WORKSPACE_ROOT=${EXO_WORKSPACE_ROOT:-$PWD} EXO_RUNTIME_ROOT=${EXO_RUNTIME_ROOT:-$PWD/.exo-dev} EXO_USER_DATA_PATH=${EXO_USER_DATA_PATH:-$PWD/.exo-dev/user-data} EXO_DEFAULT_TERMINAL_CWD=${EXO_DEFAULT_TERMINAL_CWD:-$PWD} pnpm --filter @exo/desktop dev",
     "exo": "tsx packages/cli/src/index.ts",
     "install:local": "scripts/install-local",
+    "install:mac-app": "scripts/install-mac-app",
     "check:repo": "node scripts/check-repo.mjs",
     "ci:check": "pnpm check:repo && pnpm check && ./scripts/install-local --dry-run --skip-install --skip-build",
     "app": "pnpm build && node scripts/run-built-app.mjs",

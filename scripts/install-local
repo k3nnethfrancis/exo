@@ -179,5 +179,6 @@ cat <<'EOF'
 
 Note:
   This is a repo-backed local install. Keep this checkout in place.
-  Packaged .app installation and no-arg 'exo' app launch are separate follow-up work.
+  Use scripts/install-mac-app when you want the packaged macOS app installed.
+  A standalone packaged CLI is separate follow-up work.
 EOF

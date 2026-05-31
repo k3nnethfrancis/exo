@@ -70,6 +70,7 @@ Exo should be a resident local runtime, not only a visible desktop window.
 - The command server, MCP bridge, watchers, transcripts, and supervised pty agents remain available while the process is running.
 - Closing the window hides it by default; quitting from the menu bar explicitly stops live agents.
 - A macOS menu bar icon exposes Show Exo, Settings, session/status indicators, command-server recovery, and Quit.
+- The installed macOS app is the stable daily runtime; source builds use an isolated QA runtime when testing changes side-by-side.
 - CLI and MCP commands should work whenever Exo is running, even if no window is visible.
 - If Exo is not running, CLI/MCP errors should clearly say that live agent control requires starting Exo.
 - Relaunch should show prior transcripts/session history without pretending dead pty processes survived.

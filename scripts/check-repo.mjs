@@ -63,6 +63,7 @@ const requiredFiles = [
   '.github/workflows/ci.yml',
   '.github/workflows/package-macos.yml',
   'scripts/install-local',
+  'scripts/install-mac-app',
 ];
 for (const file of requiredFiles) {
   assertFile(file);
@@ -74,7 +75,7 @@ const packageJson = JSON.parse(read('package.json'));
 if (packageJson.packageManager !== 'pnpm@11.2.2') {
   fail('package.json packageManager must stay pinned to pnpm@11.2.2');
 }
-for (const scriptName of ['ci:check', 'check:repo', 'check', 'build', 'test', 'typecheck', 'install:local']) {
+for (const scriptName of ['ci:check', 'check:repo', 'check', 'build', 'test', 'typecheck', 'dev:qa', 'install:local', 'install:mac-app']) {
   if (!packageJson.scripts?.[scriptName]) {
     fail(`package.json missing script: ${scriptName}`);
   }
@@ -99,6 +100,8 @@ assertContains('docs/harness.md', 'Tests must be hermetic');
 assertContains('docs/harness.md', 'CI runs `pnpm ci:check`');
 assertContains('AGENTS.md', '`CLAUDE.md` is a compatibility symlink to `AGENTS.md`');
 assertContains('README.md', './scripts/install-local');
+assertContains('README.md', './scripts/install-mac-app');
+assertContains('README.md', 'pnpm dev:qa');
 
 if (failures.length > 0) {
   console.error('Repo checks failed:');

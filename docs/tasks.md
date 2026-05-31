@@ -10,7 +10,11 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Run one final clean-state QA pass after cleanup: `pnpm check:repo`, `pnpm typecheck`, `pnpm test`, `pnpm build`, focused Playwright, and full desktop e2e app QA.
 - [x] Verify fresh-clone/setup docs against current pnpm/Corepack/Electron/MCP behavior.
 - [ ] Push the reviewed branch and open the review/PR surface.
-- [ ] Use Exo as the default environment for the next bounded Exo implementation/review task.
+- [ ] Install the packaged macOS app as the stable resident Exo runtime and use it as the default environment for the next bounded Exo implementation/review task.
+- [ ] Use `pnpm dev:qa` for source-build QA while the installed stable Exo app remains available for monitoring and agent coordination.
+- [ ] Verify `/Applications/Exo.app` shows the Exo menu bar icon, survives window close, and keeps CLI/MCP commands available while hidden.
+- [ ] Add launch-at-login support for the installed app after the resident runtime passes daily-use QA.
+- [ ] Design a packaged CLI/helper story so installed Exo does not depend on the repo-backed `bin/exo` long term.
 - [ ] Spawn one Exo-managed agent for a narrow Exo task, inspect transcript/diff through Exo/CLI, and record every friction point as product work.
 - [ ] Add an explicit issue/log path for Exo-on-Exo bugs found during real use.
 - [ ] Keep terminal responsiveness, agent send/read, changed-file review, settings, and hidden-window runtime bugs above new platform features until the loop is reliable.
@@ -53,6 +57,8 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Separate "Exo is running" from "Exo window is visible" in the product and architecture model.
 - [x] Keep the Exo process, command server, MCP bridge, watchers, transcripts, and supervised pty agents alive when the main window is closed.
 - [x] Add a macOS menu bar resident mode with actions for Show Exo, Settings, agent/session status, restart command server, and Quit Exo.
+- [x] Add a first-class local macOS app install script for the resident runtime.
+- [x] Add an isolated `pnpm dev:qa` source-build profile so stable installed Exo and dev Exo do not share runtime state.
 - [x] Make close-window hide the workspace window instead of quitting.
 - [x] Make explicit Quit warn that live terminals/agents will stop.
 - [x] Ensure CLI/MCP live commands work while the Exo window is hidden and fail clearly when the Exo process is not running.

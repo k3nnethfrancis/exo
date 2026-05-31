@@ -72,6 +72,8 @@ Exo now keeps the process resident when the workspace window closes. Live app co
 
 The macOS menu bar controller is the visible runtime control surface when the workspace window is hidden. It exposes Show Exo, Settings, command-server status and restart, live terminal count, and explicit Quit.
 
+For Exo-on-Exo development, the installed app is the stable resident runtime. Source QA should use `pnpm dev:qa`, which sets separate `.exo-dev/` runtime and user-data paths so the dev process does not overwrite the stable app's `server.json`, settings, or command-server discovery.
+
 ## Terminal And Agent Model
 
 Terminals are the first agent interface.

@@ -20,6 +20,12 @@ Local unsigned macOS app bundle:
 pnpm pack:mac
 ```
 
+Local install of the unsigned app bundle:
+
+```bash
+./scripts/install-mac-app
+```
+
 Unsigned macOS DMG and ZIP for the current build machine architecture:
 
 ```bash
@@ -29,6 +35,8 @@ pnpm dist:mac
 Artifacts are written to `release/`.
 
 Unsigned builds are useful for early testers, but macOS will warn users. Public binary releases should eventually be signed and notarized with an Apple Developer account. Intel or universal macOS artifacts should be added as a separate tested release slice.
+
+Developer machines should treat the installed app as the stable resident runtime and run source QA with `pnpm dev:qa`, which uses isolated `.exo-dev/` runtime and user-data paths.
 
 ## Public Repo Hygiene
 

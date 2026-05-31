@@ -1,10 +1,30 @@
 # Exo Issues
 
-Last updated: 2026-05-30
+Last updated: 2026-05-31
 
 This is the active bug/QA tracker. It captures user-observed issues that need investigation before the next push/release pass.
 
 ## Open
+
+### EXO-ISSUE-024: Installed Exo menu bar icon is not visible enough for daily resident use
+
+- Status: fixed pending installed-app QA
+- Severity: high
+- Area: macOS packaging, resident runtime, menu bar control surface, Exo-on-Exo workflow
+- Observed:
+  - User did not see the expected Exo icon in the macOS top-right menu bar while trying to run Exo as a background/resident app.
+  - The source/dev launch path made it unclear whether Exo should be treated as a deployed app, a repo dev process, or both.
+- Expected:
+  - The installed macOS app is the stable resident Exo runtime for daily notes, agent coordination, MCP, command server, transcripts, and hidden-window operation.
+  - Source dev runs are isolated QA targets that do not overwrite the stable runtime's command-server discovery or settings.
+  - The menu bar icon is visible and exposes Show Exo, Settings, runtime status, command-server recovery, and Quit.
+- Fix:
+  - Replaced the previous tiny tray asset with a higher-contrast monochrome Exo graph icon and kept it as a template image so macOS can tint it correctly.
+  - Added `scripts/install-mac-app` and `pnpm install:mac-app` to build and install the local unsigned `Exo.app`.
+  - Added `pnpm dev:qa` so source QA runs use `.exo-dev/` runtime and user-data paths instead of fighting the stable installed runtime.
+- Remaining QA:
+  - Install the packaged app, launch `/Applications/Exo.app`, and visually confirm the menu bar icon appears.
+  - Confirm the installed stable app and `pnpm dev:qa` can run side-by-side without clobbering each other's command-server discovery.
 
 ### EXO-ISSUE-021: Full shell e2e file can exhaust Electron launch reliability after many serial app launches
 

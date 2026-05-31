@@ -102,6 +102,11 @@ Files and terminals should become equal pane types. The next major UI shift is l
 
 Exo should become a resident local runtime. The process should keep MCP, the command server, watchers, transcripts, and supervised pty agents alive when the workspace window is hidden. A macOS menu bar controller should expose Show Exo, Settings, status, recovery actions, and explicit Quit. This supports Exo-on-Exo multi-agent workflows without reintroducing tmux as a hidden persistence layer.
 
+For day-to-day Exo-on-Exo development, the installed macOS app should be the stable resident runtime. Source builds should be isolated QA targets, not the same runtime the user relies on for monitoring, notes, and agent coordination. The practical split is:
+
+- Stable installed Exo owns the real workspace, menu bar, command server, MCP bridge, transcripts, and long-running supervised agents.
+- Dev/QA Exo runs with separate `.exo-dev/` runtime and user-data paths so it can be tested without clobbering stable command-server discovery or settings.
+
 ### Project Roots And Code Review
 
 Exo should let users and agents explicitly attach project roots. It should also make agent-authored code changes reviewable from inside Exo: changed-file views, transcript-to-file links, and jump-to-line review flows.

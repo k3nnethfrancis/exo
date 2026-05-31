@@ -52,6 +52,7 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 
 ## Recent Completed Work
 
+- Added the first local macOS installed-app path for Exo-on-Exo use: `scripts/install-mac-app` / `pnpm install:mac-app` builds and installs unsigned `Exo.app`, while `pnpm dev:qa` runs source QA against isolated `.exo-dev/` runtime and user-data paths.
 - Completed the first cleanup/refactor pass toward a more modular desktop architecture: main-process domain services now own app lifecycle, indexing, workspace notes, project review, agent instructions, and workspace settings orchestration; renderer tree/project-review/settings helpers have first-class modules and hooks.
 - Extracted open-document/editor state from `App.tsx` into `useOpenDocuments`, covering document cache, dirty/save status, external refresh, scroll restore, knowledge/branch-family caches, branch creation, and path remapping.
 - Extracted terminal renderer session state from `App.tsx` into `useTerminalSessions`, covering active terminal selection, hydration snapshots, created/data/exit listeners, polling sync, agent annotations, and kill/create session bookkeeping.

@@ -14,7 +14,7 @@ export interface AppLifecycleControllerOptions {
 }
 
 const MENU_BAR_ICON_DATA_URL =
-  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAaklEQVQ4T2NkoBAwUqifgWoGzP7/n+E/AwMDIyMjw+z//xkYGBgZGGb9/8/AABJjZGRkmMXIwMAAEmNiYmKYxcDAwACyAcQGsUFiIHVMTEyzGEBOALsBpA/mBJAbQOEACweKkgHVkgEA+XIjEZSfLzQAAAAASUVORK5CYII=";
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABIAAAASCAYAAABWzo5XAAAARUlEQVR4nGNgGHHgP4XycEUwTI48hiJiMVGG3SHXReiK8RlEEkA3DJfh9DMIWTNFhsAMwhdmZBlEFUOoahjFgCqG0BcAAGWcO4nvN6GIAAAAAElFTkSuQmCC";
 
 export class AppLifecycleController {
   private mainWindow: BrowserWindow | null = null;

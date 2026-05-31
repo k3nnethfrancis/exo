@@ -102,6 +102,22 @@ Install a repo-backed local `exo` command:
 
 That script installs dependencies, builds Exo, and symlinks `bin/exo` into `~/.local/bin/exo` by default. Use `./scripts/install-local --with-mcp` to also configure supported MCP clients, or `./scripts/install-local --dry-run` to preview actions.
 
+Install the local macOS app bundle:
+
+```bash
+./scripts/install-mac-app
+```
+
+This builds the unsigned `Exo.app` bundle and copies it into `/Applications` by default. Launch that installed app for the stable resident Exo runtime: it owns the menu bar icon, hidden-window command server, MCP bridge, transcripts, watchers, and supervised agent terminals. Use `./scripts/install-mac-app --with-cli --with-mcp` when you also want the repo-backed CLI and MCP integrations installed.
+
+When developing Exo while the installed app remains your daily workspace, use the isolated QA profile:
+
+```bash
+pnpm dev:qa
+```
+
+`pnpm dev:qa` runs the source app with `.exo-dev/` runtime and user-data paths so it does not overwrite the installed runtime's command-server discovery or settings.
+
 Run with remote debugging when inspecting the real Electron renderer:
 
 ```bash
@@ -293,6 +309,12 @@ Unsigned macOS app bundle:
 
 ```bash
 pnpm pack:mac
+```
+
+Install that local bundle into `/Applications`:
+
+```bash
+./scripts/install-mac-app
 ```
 
 Unsigned macOS DMG and ZIP:

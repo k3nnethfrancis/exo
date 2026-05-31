@@ -1,0 +1,168 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+export COREPACK_ENABLE_PROJECT_SPEC="${COREPACK_ENABLE_PROJECT_SPEC:-0}"
+
+APP_DIR="${EXO_MAC_APP_DIR:-/Applications}"
+RUN_BUILD=1
+DRY_RUN=0
+INSTALL_CLI=0
+INSTALL_MCP=0
+
+usage() {
+  cat <<'EOF'
+Usage: scripts/install-mac-app [options]
+
+Builds Exo and installs the packaged macOS app bundle.
+
+Options:
+  --app-dir <path>      Install Exo.app into this directory. Default: /Applications
+  --skip-build          Reuse the existing release/mac-*/Exo.app bundle.
+  --with-cli            Also install the repo-backed exo CLI shim.
+  --with-mcp            Configure Exo MCP integrations after CLI install.
+  --dry-run             Print actions without changing files.
+  -h, --help            Show this help.
+
+Examples:
+  ./scripts/install-mac-app
+  ./scripts/install-mac-app --app-dir "$HOME/Applications"
+  ./scripts/install-mac-app --with-cli --with-mcp
+EOF
+}
+
+log() {
+  printf '[exo app install] %s\n' "$*"
+}
+
+run() {
+  if [ "$DRY_RUN" -eq 1 ]; then
+    printf '[dry-run] %q' "$1"
+    shift || true
+    for arg in "$@"; do
+      printf ' %q' "$arg"
+    done
+    printf '\n'
+    return 0
+  fi
+  "$@"
+}
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --app-dir)
+      APP_DIR="${2:-}"
+      if [ -z "$APP_DIR" ]; then
+        echo "Missing value for --app-dir" >&2
+        exit 1
+      fi
+      shift 2
+      ;;
+    --skip-build)
+      RUN_BUILD=0
+      shift
+      ;;
+    --with-cli)
+      INSTALL_CLI=1
+      shift
+      ;;
+    --with-mcp)
+      INSTALL_CLI=1
+      INSTALL_MCP=1
+      shift
+      ;;
+    --dry-run)
+      DRY_RUN=1
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
+if [ "$(uname -s)" != "Darwin" ]; then
+  echo "scripts/install-mac-app only supports macOS." >&2
+  exit 1
+fi
+
+if ! command -v pnpm >/dev/null 2>&1; then
+  echo "pnpm is required. Install it first, then rerun scripts/install-mac-app." >&2
+  exit 1
+fi
+
+if [ "$RUN_BUILD" -eq 1 ]; then
+  log "building packaged app bundle"
+  run pnpm --dir "$REPO_ROOT" pack:mac
+fi
+
+case "$(uname -m)" in
+  arm64)
+    RELEASE_ARCH="mac-arm64"
+    ;;
+  x86_64)
+    RELEASE_ARCH="mac-x64"
+    ;;
+  *)
+    RELEASE_ARCH="mac-$(uname -m)"
+    ;;
+esac
+
+APP_SOURCE="$(find "$REPO_ROOT/release" -maxdepth 3 -path '*/Exo.app' -type d | sort | head -n 1)"
+if [ -z "$APP_SOURCE" ]; then
+  if [ "$DRY_RUN" -eq 1 ]; then
+    APP_SOURCE="$REPO_ROOT/release/$RELEASE_ARCH/Exo.app"
+  else
+    echo "No packaged Exo.app found under $REPO_ROOT/release. Run pnpm pack:mac first." >&2
+    exit 1
+  fi
+fi
+
+APP_TARGET="$APP_DIR/Exo.app"
+
+log "installing app"
+log "source: $APP_SOURCE"
+log "target: $APP_TARGET"
+
+run mkdir -p "$APP_DIR"
+if [ -e "$APP_TARGET" ]; then
+  run rm -rf "$APP_TARGET"
+fi
+run cp -R "$APP_SOURCE" "$APP_TARGET"
+
+if [ "$INSTALL_CLI" -eq 1 ]; then
+  if [ "$INSTALL_MCP" -eq 1 ]; then
+    run "$REPO_ROOT/scripts/install-local" --with-mcp --skip-install --skip-build
+  else
+    run "$REPO_ROOT/scripts/install-local" --skip-install --skip-build
+  fi
+fi
+
+cat <<EOF
+
+Exo macOS app install complete.
+
+App:
+  $APP_TARGET
+
+Launch:
+  open "$APP_TARGET"
+
+After launch, Exo should stay resident in the macOS menu bar until you choose Quit Exo.
+EOF
+
+if [ "$INSTALL_CLI" -eq 0 ]; then
+  cat <<'EOF'
+
+Note:
+  Use --with-cli if you also want the repo-backed `exo` command installed.
+  A fully packaged standalone CLI is separate follow-up work.
+EOF
+fi

@@ -8,6 +8,8 @@ const electronMock = vi.hoisted(() => ({
   openSettings: vi.fn(),
   restartCommandServer: vi.fn(),
   showMessageBox: vi.fn(),
+  trayImageSetTemplateImage: vi.fn(),
+  trayInstances: [] as Array<any>,
   windows: [] as Array<any>,
   menuTemplate: [] as Array<Record<string, unknown>>,
 }));
@@ -82,7 +84,7 @@ vi.mock("electron", () => ({
   },
   nativeImage: {
     createFromDataURL: () => ({
-      setTemplateImage: vi.fn(),
+      setTemplateImage: electronMock.trayImageSetTemplateImage,
     }),
   },
   nativeTheme: {
@@ -91,6 +93,11 @@ vi.mock("electron", () => ({
   Tray: class MockTray extends EventEmitter {
     setToolTip = vi.fn();
     setContextMenu = vi.fn();
+
+    constructor(readonly image: unknown) {
+      super();
+      electronMock.trayInstances.push(this);
+    }
   },
 }));
 
@@ -108,6 +115,8 @@ describe("AppLifecycleController", () => {
     electronMock.restartCommandServer.mockClear();
     electronMock.showMessageBox.mockReset();
     electronMock.showMessageBox.mockImplementation(async () => ({ response: electronMock.dialogResponse }));
+    electronMock.trayImageSetTemplateImage.mockClear();
+    electronMock.trayInstances.length = 0;
     electronMock.windows.length = 0;
     electronMock.menuTemplate = [];
   });
@@ -167,6 +176,9 @@ describe("AppLifecycleController", () => {
     controller.createWindow();
     controller.setupTray();
 
+    expect(electronMock.trayImageSetTemplateImage).toHaveBeenCalledWith(true);
+    expect(electronMock.trayInstances).toHaveLength(1);
+    expect(electronMock.trayInstances[0].setToolTip).toHaveBeenCalledWith("Exo");
     expect(menuLabels()).toContain("Show Exo");
     expect(menuLabels()).toContain("Settings...");
     expect(menuLabels()).toContain("Exo is Running");
