@@ -6,16 +6,17 @@ This directory contains committed, public-facing project context. It should be u
 
 1. `../README.md` - product overview, setup, current capabilities
 2. `../AGENTS.md` - concise map for coding agents
-3. `strategy.md` - product/system direction
-4. `usability-readiness.md` - near-term standard for installed daily use
-5. `tasks.md` - active priority backlog
-6. `harness.md` - validation gates and agent-friendly development workflow
-7. `architecture.md` - package boundaries and runtime contracts
-8. `roadmap.md` - future product systems
-9. `plugins.md` - plugin architecture direction
-10. `open-source.md` - release and platform support notes
-11. `terminal-runtime-decision.md` - pty/tmux decision and revisit criteria
-12. `qmd-integration-notes.md` - live QMD dependency boundary and upgrade checklist
+3. `../CHANGELOG.md` - release notes
+4. `strategy.md` - product/system direction
+5. `usability-readiness.md` - near-term standard for installed daily use
+6. `tasks.md` - active priority backlog
+7. `harness.md` - validation gates and agent-friendly development workflow
+8. `architecture.md` - package boundaries and runtime contracts
+9. `roadmap.md` - future product systems
+10. `plugins.md` - plugin architecture direction
+11. `open-source.md` - release and platform support notes
+12. `terminal-runtime-decision.md` - pty/tmux decision and revisit criteria
+13. `qmd-integration-notes.md` - live QMD dependency boundary and upgrade checklist
 
 ## File Roles
 

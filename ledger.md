@@ -134,8 +134,8 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 
 ## Next Priorities
 
-1. Use Exo as the default environment for the next bounded Exo implementation/review task and record every friction point.
-2. Review the local commit stack, push `0.1.0-alpha.2` tester-readiness fixes, and open the review surface.
+1. Use installed Exo as the default environment for daily work and record every friction point as live bug-bash input.
+2. Resolve `EXO-ISSUE-025` and other small harness/readiness issues found during installed-app use.
 3. Multi-agent coordination: roster, objectives, direct messages, changed-file/review links, file+SQLite transport, CLI/MCP access.
 4. Exograph architecture: write the profile/schema/proposal spec, add read-only graph/document context primitives, then add scoped maintainer writes.
 
