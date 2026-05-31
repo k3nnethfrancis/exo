@@ -1,6 +1,6 @@
 # Exo Ledger
 
-Last updated: 2026-05-30
+Last updated: 2026-05-31
 
 This is the fastest current-state handoff for Exo. It records what exists now, what changed recently, and what is next. Active tasks live in `docs/tasks.md`; future systems live in `docs/roadmap.md`; product/system strategy lives in `docs/strategy.md`.
 
@@ -116,20 +116,20 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Fixed EXO-ISSUE-011 by splitting queued Codex submitted messages into body plus delayed Enter so Codex startup prompts execute without a second raw submit.
 - Fixed EXO-ISSUE-012 by applying user-configured live terminal scrollback to renderer/main buffers while preserving complete transcript writes for reattached or actively streaming Codex sessions.
 - Removed tmux from the core terminal runtime, standardized live terminal reads around bounded tails plus disk transcripts, and documented the direct-pty runtime decision.
-- Added the resident-runtime roadmap: Exo should keep process-owned services alive while the window is hidden, with menu bar controls as the next feature phase.
+- Added the resident-runtime roadmap: Exo should keep process-owned services alive while the window is hidden, with menu bar controls as the first runtime control surface.
 - Began current-package domain-module cleanup by extracting Electron window/tray/renderer-recovery ownership from `apps/desktop/src/main/index.ts` into `app-lifecycle.ts`.
 - Continued main-process cleanup by extracting indexing timers, job metrics, sync/refresh scheduling, and indexed-root mutations into `indexing-service.ts`.
 - Added the first resident runtime behavior: closing the workspace window hides it while process-owned services continue, `exo show` can reopen it, and explicit Quit warns before stopping live terminals.
+- Added the macOS menu bar runtime controller with Show Exo, Settings, command-server status/restart, live terminal count, and explicit Quit.
 - Started cleanup-plan doc sync by removing stale tmux prerequisite language and documenting that current open QA includes the e2e launch harness and broader terminal bug-bash.
 
 ## Next Priorities
 
-1. Push `0.1.0-alpha.2` tester-readiness fixes to main.
-2. Continue current-package domain-module cleanup: workspace notes/search service, project review service, agent-instructions service, workspace settings service, typed desktop IPC contract, and renderer state-machine hooks.
-3. Runtime lifecycle/menu bar: finish menu bar status/actions and hidden-window CLI/MCP QA on top of the cleaned service boundaries.
-4. Authorship/provenance: promote observed write candidates into explicit human vs agent review states only when Exo controls the write path or receives a trusted session event.
-5. Multi-agent coordination: roster, objectives, direct messages, file+SQLite transport, CLI/MCP access.
-6. QMD notes index: improve performance, add true incremental file-level updates when QMD exposes them, and refine triggers/profiles.
+1. Review the local commit stack, push `0.1.0-alpha.2` tester-readiness fixes, and open the review surface.
+2. Runtime lifecycle: finish hidden-window CLI/MCP QA on top of the menu bar runtime controller.
+3. Authorship/provenance: promote observed write candidates into explicit human vs agent review states only when Exo controls the write path or receives a trusted session event.
+4. Multi-agent coordination: roster, objectives, direct messages, file+SQLite transport, CLI/MCP access.
+5. QMD notes index: improve performance, add true incremental file-level updates when QMD exposes them, and refine triggers/profiles.
 
 ## Operating Rules
 

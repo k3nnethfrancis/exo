@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, Menu, nativeImage, nativeTheme, Tray } from "electron";
+import { app, BrowserWindow, dialog, Menu, nativeImage, nativeTheme, Tray, type MenuItemConstructorOptions } from "electron";
 import { existsSync } from "node:fs";
 import path from "node:path";
 
@@ -7,6 +7,9 @@ import type { TerminalDiagnostics } from "../shared/api";
 export interface AppLifecycleControllerOptions {
   currentDirectory: string;
   getTerminalDiagnostics: () => TerminalDiagnostics[];
+  getCommandServerStatus: () => { listening: boolean; port: number | null };
+  openSettings: () => void;
+  restartCommandServer: () => void;
   logMain: (message: string, details?: unknown) => void;
 }
 
@@ -121,6 +124,7 @@ export class AppLifecycleController {
       }
       event.preventDefault();
       window.hide();
+      this.updateTrayMenu();
     });
 
     window.on("closed", () => {
@@ -128,28 +132,27 @@ export class AppLifecycleController {
         this.mainWindow = null;
         this.rendererReady = false;
       }
+      this.updateTrayMenu();
     });
+
+    window.on("show", () => this.updateTrayMenu());
+    window.on("hide", () => this.updateTrayMenu());
 
     return window;
   }
 
   setupTray() {
+    if (this.tray) {
+      this.updateTrayMenu();
+      return;
+    }
+
     const icon = nativeImage.createFromDataURL(MENU_BAR_ICON_DATA_URL);
     icon.setTemplateImage(true);
 
     this.tray = new Tray(icon);
     this.tray.setToolTip("Exo");
-
-    const contextMenu = Menu.buildFromTemplate([
-      {
-        label: "Show Exo",
-        click: () => this.showMainWindow(),
-      },
-      { type: "separator" },
-      { label: "Quit", click: () => void this.requestQuit() },
-    ]);
-
-    this.tray.setContextMenu(contextMenu);
+    this.updateTrayMenu();
     this.tray.on("click", () => this.showMainWindow());
   }
 
@@ -168,6 +171,13 @@ export class AppLifecycleController {
     }
 
     this.mainWindow.focus();
+    this.updateTrayMenu();
+  }
+
+  openSettings() {
+    this.showMainWindow();
+    this.options.openSettings();
+    this.updateTrayMenu();
   }
 
   updateBackgroundForTheme() {
@@ -195,6 +205,59 @@ export class AppLifecycleController {
     }
     this.prepareToQuit();
     app.quit();
+  }
+
+  updateTrayMenu() {
+    if (!this.tray) {
+      return;
+    }
+
+    const runningTerminalCount = this.options.getTerminalDiagnostics()
+      .filter((terminal) => terminal.status === "running").length;
+    const commandServerStatus = this.options.getCommandServerStatus();
+    const windowVisible = Boolean(this.mainWindow && !this.mainWindow.isDestroyed() && this.mainWindow.isVisible());
+
+    const template: MenuItemConstructorOptions[] = [
+      {
+        label: "Show Exo",
+        click: () => this.showMainWindow(),
+      },
+      {
+        label: "Settings...",
+        click: () => this.openSettings(),
+      },
+      { type: "separator" },
+      {
+        label: "Exo is Running",
+        enabled: false,
+      },
+      {
+        label: `Window: ${windowVisible ? "Visible" : "Hidden"}`,
+        enabled: false,
+      },
+      {
+        label: commandServerStatus.listening
+          ? `Command Server: Running${commandServerStatus.port ? `:${commandServerStatus.port}` : ""}`
+          : "Command Server: Stopped",
+        enabled: false,
+      },
+      {
+        label: `Live Terminals: ${runningTerminalCount}`,
+        enabled: false,
+      },
+      { type: "separator" },
+      {
+        label: "Restart Command Server",
+        click: () => {
+          this.options.restartCommandServer();
+          this.updateTrayMenu();
+        },
+      },
+      { type: "separator" },
+      { label: "Quit Exo", click: () => void this.requestQuit() },
+    ];
+
+    this.tray.setContextMenu(Menu.buildFromTemplate(template));
   }
 
   private loadRenderer(window: BrowserWindow) {

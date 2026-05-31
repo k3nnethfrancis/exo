@@ -1,6 +1,6 @@
 # Exo Architecture
 
-Last updated: 2026-05-30
+Last updated: 2026-05-31
 
 Exo is a local-first agentic development environment built around a shared exocortex for humans and terminal agents. The current system is still shell-first, but it now has three live control surfaces over the same workspace runtime:
 
@@ -64,11 +64,13 @@ Exo has two separate lifecycle states:
 - the Exo process is running
 - the workspace window is visible
 
-The command server, MCP bridge, file watchers, transcript writers, and supervised pty agents belong to the running process, not to the visible window. Closing the main window should eventually hide the workspace UI while leaving those runtime services alive. Explicit app quit should be the operation that stops live pty agents.
+The command server, MCP bridge, file watchers, transcript writers, and supervised pty agents belong to the running process, not to the visible window. Closing the main window hides the workspace UI while leaving those runtime services alive. Explicit app quit is the operation that stops live pty agents.
 
 This distinction is central to multi-agent workflows: an external Codex or Claude agent can use Exo MCP to create, read, and message Exo-managed agents while the user keeps the Exo window hidden, then the user can reopen the window to monitor or take over those sessions.
 
 Exo now keeps the process resident when the workspace window closes. Live app commands require that resident desktop process to be running and available through `.exo/server.json`; they do not require the workspace window to be visible.
+
+The macOS menu bar controller is the visible runtime control surface when the workspace window is hidden. It exposes Show Exo, Settings, command-server status and restart, live terminal count, and explicit Quit.
 
 ## Terminal And Agent Model
 

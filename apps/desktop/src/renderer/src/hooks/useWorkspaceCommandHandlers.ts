@@ -1,9 +1,11 @@
 import { useEffect } from "react";
 import type { WorkspaceModel } from "@exo/core";
+import type { WorkspaceSettingsSection } from "../../../shared/api";
 
 interface UseWorkspaceCommandHandlersOptions {
   workspaceModel: WorkspaceModel | null;
   openFile: (filePath: string) => Promise<void>;
+  openSettings: (section: WorkspaceSettingsSection) => Promise<void>;
   reloadTrees: () => Promise<void>;
   scheduleOpenDocumentRefresh: (filePath: string) => void;
   recordObservedWorkspaceWrite: (rootPath: string, filePath: string) => void;
@@ -16,6 +18,12 @@ export function useWorkspaceCommandHandlers(options: UseWorkspaceCommandHandlers
       void options.openFile(filePath);
     });
   }, [options.openFile]);
+
+  useEffect(() => {
+    return window.exo.workspace.onCommandOpenSettings((event) => {
+      void options.openSettings(event.section);
+    });
+  }, [options.openSettings]);
 
   useEffect(() => {
     const removeWorkspaceChangeListener = window.exo.workspace.onDidChange((event) => {

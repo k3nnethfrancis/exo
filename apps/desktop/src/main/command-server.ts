@@ -106,6 +106,10 @@ export class CommandServer {
     return Boolean(this.server?.listening && this.port > 0);
   }
 
+  getPort(): number | null {
+    return this.isListening() ? this.port : null;
+  }
+
   async ensureDiscoveryFile(): Promise<ExoCommandServerInfo & { path: string }> {
     if (!this.isListening()) {
       throw new Error("Command server is not listening.");

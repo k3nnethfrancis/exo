@@ -14,7 +14,15 @@ export async function launchExoFixture(options?: {
   prepareWorkspace?: (workspaceRoot: string) => Promise<void>;
   initialNoteLabel?: string | null;
   configured?: boolean;
-}): Promise<{ electronApp: ElectronApplication; page: Page; workspaceRoot: string; settingsPath: string; homeRoot: string; cleanup: () => Promise<void> }> {
+}): Promise<{
+  electronApp: ElectronApplication;
+  page: Page;
+  workspaceRoot: string;
+  settingsPath: string;
+  runtimeRoot: string;
+  homeRoot: string;
+  cleanup: () => Promise<void>;
+}> {
   let workspaceRoot = fixtureRoot;
   let tempRoot: string | null = null;
   const settingsRoot = await mkdtemp(path.join(os.tmpdir(), "exo-settings-"));
@@ -71,6 +79,7 @@ export async function launchExoFixture(options?: {
       page,
       workspaceRoot,
       settingsPath,
+      runtimeRoot,
       homeRoot,
       cleanup: async () => {
         await electronApp.close();
@@ -102,6 +111,7 @@ export async function launchExoFixture(options?: {
     page,
     workspaceRoot,
     settingsPath,
+    runtimeRoot,
     homeRoot,
     cleanup: async () => {
       await electronApp.close();

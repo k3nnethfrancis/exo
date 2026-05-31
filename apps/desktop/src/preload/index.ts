@@ -67,6 +67,11 @@ const api: DesktopApi = {
       ipcRenderer.on("command:open-file", listener);
       return () => ipcRenderer.removeListener("command:open-file", listener);
     },
+    onCommandOpenSettings: (callback) => {
+      const listener = (_event: unknown, payload: Parameters<typeof callback>[0]) => callback(payload);
+      ipcRenderer.on("command:open-settings", listener);
+      return () => ipcRenderer.removeListener("command:open-settings", listener);
+    },
   },
   notes: {
     read: (filePath) => invokeDesktop("notes:read", filePath),

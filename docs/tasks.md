@@ -1,6 +1,6 @@
 # Exo Tasks
 
-Last updated: 2026-05-30
+Last updated: 2026-05-31
 
 This is the active task tracker for Exo. It is intentionally not a history file; completed implementation history belongs in `ledger.md`. Tasks here should be concrete, current, and ordered by practical priority.
 
@@ -8,9 +8,9 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 
 - [ ] Review and prepare the local commit stack for push: decide whether to keep the stack or squash into coherent feature commits.
 - [x] Run one final clean-state QA pass after cleanup: `pnpm check:repo`, `pnpm typecheck`, `pnpm test`, `pnpm build`, focused Playwright, and full desktop e2e app QA.
-- [ ] Verify fresh-clone/setup docs against current pnpm/Corepack/Electron/MCP behavior.
+- [x] Verify fresh-clone/setup docs against current pnpm/Corepack/Electron/MCP behavior.
 - [ ] Push the reviewed branch and open the review/PR surface.
-- [ ] Refactor toward current-package domain modules before adding the next feature phase; do not introduce `packages/runtime` or plugin registries until runtime features create stable seams.
+- [x] Refactor toward current-package domain modules before adding the next feature phase; do not introduce `packages/runtime` or plugin registries until runtime features create stable seams.
 - [x] Extract remaining renderer state machines from `App.tsx`: pane/drop orchestration.
 - [x] Extract Electron window/tray/renderer-recovery ownership into `apps/desktop/src/main/app-lifecycle.ts` as the first main-process service boundary.
 - [x] Extract indexing timers, job metrics, sync/refresh scheduling, and indexed-root mutations into `apps/desktop/src/main/indexing-service.ts`.
@@ -47,12 +47,12 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 
 - [x] Separate "Exo is running" from "Exo window is visible" in the product and architecture model.
 - [x] Keep the Exo process, command server, MCP bridge, watchers, transcripts, and supervised pty agents alive when the main window is closed.
-- [ ] Add a macOS menu bar resident mode with actions for Show Exo, Settings, agent/session status, restart command server, and Quit Exo.
+- [x] Add a macOS menu bar resident mode with actions for Show Exo, Settings, agent/session status, restart command server, and Quit Exo.
 - [x] Make close-window hide the workspace window instead of quitting.
 - [x] Make explicit Quit warn that live terminals/agents will stop.
 - [ ] Ensure CLI/MCP live commands work while the Exo window is hidden and fail clearly when the Exo process is not running.
 - [x] Add app lifecycle tests for close/hide/show/quit behavior.
-- [ ] Add app lifecycle coverage for command-server availability while hidden.
+- [x] Add app lifecycle coverage for command-server availability while hidden.
 - [ ] Do app QA for hidden-window agent workflows: create an agent through MCP/CLI, hide Exo, read/send messages, reopen Exo, and verify transcripts/session state.
 
 ## Next: Workspace Surface

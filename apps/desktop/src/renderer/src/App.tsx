@@ -252,6 +252,7 @@ export function App() {
   useWorkspaceCommandHandlers({
     workspaceModel,
     openFile,
+    openSettings: workspaceSettingsController.openDialog,
     reloadTrees,
     scheduleOpenDocumentRefresh,
     recordObservedWorkspaceWrite: projectReviewState.recordObservedWorkspaceWrite,

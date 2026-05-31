@@ -1,8 +1,9 @@
 import type { WorkspaceSettings } from "@exo/core";
 
 import type { AppearanceMode } from "./appearance";
+import type { WorkspaceSettingsSection } from "../../shared/api";
 
-export type WorkspaceSettingsSection = "workspace" | "index" | "agents" | "appearance" | "terminal";
+export type { WorkspaceSettingsSection };
 
 export type IndexBusyState = "syncing" | "updating" | "embedding" | null;
 

@@ -1,6 +1,6 @@
 # Exo Roadmap
 
-Last updated: 2026-05-30
+Last updated: 2026-05-31
 
 Exo is a local-first agentic development environment built around a shared exocortex for humans and terminal agents. This roadmap names the major product systems we intend to build. `docs/tasks.md` is the active execution list; `ledger.md` records shipped history.
 
@@ -48,7 +48,7 @@ Exo should be a resident local runtime, not only a visible desktop window.
 - If Exo is not running, CLI/MCP errors should clearly say that live agent control requires starting Exo.
 - Relaunch should show prior transcripts/session history without pretending dead pty processes survived.
 
-This is the next major product-system step after cleanup because it makes Exo a reliable supervisor for visible, user-controllable multi-agent workflows without reintroducing tmux as a hidden process-survival layer.
+The first version is in place: closing the window hides Exo, explicit Quit warns before stopping live terminals, and the menu bar exposes runtime status plus recovery actions. The remaining work is hidden-window CLI/MCP QA across agent create/read/send/reopen workflows.
 
 ## 3. Project Roots And Code Review
 

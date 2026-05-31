@@ -15,6 +15,7 @@ import type {
 
 export type TerminalKind = "shell" | "claude" | "codex";
 export type TerminalHealthState = "healthy" | "idle" | "unhealthy" | "exited";
+export type WorkspaceSettingsSection = "workspace" | "index" | "agents" | "appearance" | "terminal";
 
 export interface TerminalSessionInfo {
   id: string;
@@ -186,6 +187,7 @@ export interface DesktopApi {
     onDidChange: (callback: (event: { rootPath: string; eventType: string; filePath: string | null }) => void) => () => void;
     onIndexSyncState: (callback: (event: IndexSyncStateEvent) => void) => () => void;
     onCommandOpenFile: (callback: (filePath: string) => void) => () => void;
+    onCommandOpenSettings: (callback: (event: { section: WorkspaceSettingsSection }) => void) => () => void;
   };
   notes: {
     read: (filePath: string) => Promise<NoteDocument>;

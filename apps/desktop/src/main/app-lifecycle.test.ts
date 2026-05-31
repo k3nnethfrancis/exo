@@ -3,7 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const electronMock = vi.hoisted(() => ({
   appQuit: vi.fn(),
+  commandServerStatus: { listening: true, port: 4317 as number | null },
   dialogResponse: 1,
+  openSettings: vi.fn(),
+  restartCommandServer: vi.fn(),
   showMessageBox: vi.fn(),
   windows: [] as Array<any>,
   menuTemplate: [] as Array<Record<string, unknown>>,
@@ -99,7 +102,10 @@ describe("AppLifecycleController", () => {
     delete process.env.ELECTRON_RENDERER_URL;
     delete process.env.VITE_DEV_SERVER_URL;
     electronMock.appQuit.mockClear();
+    electronMock.commandServerStatus = { listening: true, port: 4317 };
     electronMock.dialogResponse = 1;
+    electronMock.openSettings.mockClear();
+    electronMock.restartCommandServer.mockClear();
     electronMock.showMessageBox.mockReset();
     electronMock.showMessageBox.mockImplementation(async () => ({ response: electronMock.dialogResponse }));
     electronMock.windows.length = 0;
@@ -151,12 +157,69 @@ describe("AppLifecycleController", () => {
     expect(window.visible).toBe(true);
     expect(window.focused).toBe(true);
   });
+
+  it("builds a resident menu with status and recovery actions", () => {
+    const controller = appLifecycleController([
+      { id: "term-1", status: "running" },
+      { id: "term-2", status: "exited" },
+    ]);
+
+    controller.createWindow();
+    controller.setupTray();
+
+    expect(menuLabels()).toContain("Show Exo");
+    expect(menuLabels()).toContain("Settings...");
+    expect(menuLabels()).toContain("Exo is Running");
+    expect(menuLabels()).toContain("Window: Hidden");
+    expect(menuLabels()).toContain("Command Server: Running:4317");
+    expect(menuLabels()).toContain("Live Terminals: 1");
+    expect(menuLabels()).toContain("Restart Command Server");
+    expect(menuLabels()).toContain("Quit Exo");
+  });
+
+  it("opens settings from the resident menu without quitting the runtime", () => {
+    const controller = appLifecycleController();
+    controller.createWindow();
+    controller.setupTray();
+
+    clickMenuItem("Settings...");
+
+    expect(electronMock.openSettings).toHaveBeenCalledOnce();
+    expect(electronMock.appQuit).not.toHaveBeenCalled();
+  });
+
+  it("restarts command-server discovery from the resident menu", () => {
+    const controller = appLifecycleController();
+    controller.createWindow();
+    controller.setupTray();
+
+    clickMenuItem("Restart Command Server");
+
+    expect(electronMock.restartCommandServer).toHaveBeenCalledOnce();
+    expect(electronMock.appQuit).not.toHaveBeenCalled();
+  });
 });
 
 function appLifecycleController(terminals: Array<{ id: string; status: string }> = []) {
   return new AppLifecycleController({
     currentDirectory: "/workspace/apps/desktop/src/main",
     getTerminalDiagnostics: () => terminals as any,
+    getCommandServerStatus: () => electronMock.commandServerStatus,
+    openSettings: electronMock.openSettings,
+    restartCommandServer: electronMock.restartCommandServer,
     logMain: () => {},
   });
+}
+
+function menuLabels(): string[] {
+  return electronMock.menuTemplate
+    .map((item) => item.label)
+    .filter((label): label is string => typeof label === "string");
+}
+
+function clickMenuItem(label: string): void {
+  const item = electronMock.menuTemplate.find((entry) => entry.label === label);
+  expect(item).toBeTruthy();
+  expect(item?.click).toBeTypeOf("function");
+  (item!.click as () => void)();
 }

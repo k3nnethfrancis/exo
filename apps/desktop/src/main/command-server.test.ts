@@ -20,6 +20,7 @@ describe("CommandServer discovery", () => {
 
     try {
       const port = await server.start();
+      expect(server.getPort()).toBe(port);
       await rm(path.join(runtimeRoot, "server.json"), { force: true });
 
       await expect(server.ensureDiscoveryFile()).resolves.toMatchObject({

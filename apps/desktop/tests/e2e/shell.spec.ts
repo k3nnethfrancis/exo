@@ -551,6 +551,63 @@ test("opens workspace settings from the sidebar", async () => {
   await cleanup();
 });
 
+test("keeps the command server available while the window is hidden", async () => {
+  const { electronApp, page, runtimeRoot, cleanup } = await launchExoFixture({
+    env: {
+      EXO_SHELL: "/bin/cat",
+      EXO_SHELL_ARGS: "",
+    },
+  });
+
+  const hidden = await electronApp.evaluate(({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows()[0];
+    window.hide();
+    return !window.isVisible();
+  });
+  expect(hidden).toBe(true);
+
+  const serverInfo = JSON.parse(await readFile(path.join(runtimeRoot, "server.json"), "utf8")) as { port: number };
+  const statusResponse = await fetch(`http://127.0.0.1:${serverInfo.port}/status`);
+  expect(statusResponse.ok).toBe(true);
+  await expect(statusResponse.json()).resolves.toMatchObject({
+    workspace: expect.objectContaining({ workspaceRoot: expect.any(String) }),
+  });
+
+  const terminals = await fetch(`http://127.0.0.1:${serverInfo.port}/terminals`).then((response) => response.json()) as Array<{ id: string; kind: string }>;
+  const shell = terminals.find((terminal) => terminal.kind === "shell");
+  expect(shell).toBeTruthy();
+  const messageResponse = await fetch(`http://127.0.0.1:${serverInfo.port}/terminals/${shell!.id}/message`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message: "hidden window qa", submit: true }),
+  });
+  expect(messageResponse.ok).toBe(true);
+  await expect.poll(async () => {
+    const tailResponse = await fetch(`http://127.0.0.1:${serverInfo.port}/terminals/${shell!.id}/tail`);
+    const body = await tailResponse.json() as { tail?: string };
+    return body.tail ?? "";
+  }).toContain("hidden window qa");
+
+  const showResponse = await fetch(`http://127.0.0.1:${serverInfo.port}/show`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: "{}",
+  });
+  expect(showResponse.ok).toBe(true);
+  await expect.poll(async () =>
+    electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.isVisible() ?? false),
+  ).toBe(true);
+  await expect(page.getByTestId("sidebar")).toBeVisible();
+
+  await electronApp.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0]?.webContents.send("command:open-settings", { section: "terminal" });
+  });
+  await expect(page.getByTestId("workspace-settings-dialog")).toBeVisible();
+  await expect(page.getByTestId("workspace-settings-tab-terminal")).toHaveClass(/dialog-tabs__button--active/);
+
+  await cleanup();
+});
+
 test("opens workspace settings with partial agent instruction discovery errors", async () => {
   const { page, workspaceRoot, cleanup } = await launchExoFixture({
     env: {

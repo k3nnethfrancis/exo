@@ -386,6 +386,14 @@ app.whenReady().then(async () => {
   appLifecycle = new AppLifecycleController({
     currentDirectory,
     getTerminalDiagnostics: () => terminalManager?.diagnostics() ?? [],
+    getCommandServerStatus: () => ({
+      listening: commandServer?.isListening() ?? false,
+      port: commandServer?.getPort() ?? null,
+    }),
+    openSettings: () => {
+      sendToRenderer("command:open-settings", { section: "workspace" });
+    },
+    restartCommandServer: startCommandServer,
     logMain,
   });
   registerIpcHandlers();
