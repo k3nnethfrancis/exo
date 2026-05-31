@@ -25,6 +25,7 @@ import { useProjectReviewState } from "./hooks/useProjectReviewState";
 import { useShellLayout } from "./hooks/useShellLayout";
 import { useTerminalSessions } from "./hooks/useTerminalSessions";
 import { useWorkspaceBootstrap } from "./hooks/useWorkspaceBootstrap";
+import { useWorkspaceMutations } from "./hooks/useWorkspaceMutations";
 import { useWorkspaceSettingsController } from "./hooks/useWorkspaceSettingsController";
 import { useWorkspaceTrees } from "./hooks/useWorkspaceTrees";
 import { useWorkspaceSearch } from "./hooks/useWorkspaceSearch";
@@ -54,51 +55,8 @@ import {
 import {
   directoryOf,
   pathLabel,
-  uniquePaths,
 } from "./workspaceTree";
 import type { IndexBusyState } from "./workspaceSettingsDialogTypes";
-
-type WorkspaceDialogState =
-  | {
-      kind: "create-file";
-      targetPath: string;
-      value: string;
-      title: string;
-      confirmLabel: string;
-    }
-  | {
-      kind: "create-directory";
-      targetPath: string;
-      value: string;
-      title: string;
-      confirmLabel: string;
-    }
-  | {
-      kind: "rename";
-      targetPath: string;
-      value: string;
-      title: string;
-      confirmLabel: string;
-    }
-  | {
-      kind: "delete";
-      targetPath: string;
-      title: string;
-      message: string;
-      confirmLabel: string;
-    }
-  | {
-      kind: "move-conflict";
-      title: string;
-      message: string;
-      confirmLabel: string;
-    }
-  | {
-      kind: "attach-project";
-      title: string;
-      message: string;
-      confirmLabel: string;
-    };
 
 // DragState replaced by useDragManager — see DragPayload in hooks/useDragManager.ts
 
@@ -119,7 +77,6 @@ export function App() {
   const [editorRevealLineRequest, setEditorRevealLineRequest] = useState<{ filePath: string; line: number; nonce: number } | null>(null);
   const handleDropRef = useRef<(target: DragDropTarget, payload: DragPayload) => void>(() => {});
   const dragManager = useDragManager((target, payload) => handleDropRef.current(target, payload));
-  const [workspaceDialog, setWorkspaceDialog] = useState<WorkspaceDialogState | null>(null);
   const [agentContextManagerOpen, setAgentContextManagerOpen] = useState(false);
   const agentInstructionEditor = useAgentInstructionEditor();
   const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null);
@@ -200,6 +157,20 @@ export function App() {
     updateFrontmatter,
     saveDocument,
   } = openDocumentsState;
+  const workspaceMutations = useWorkspaceMutations({
+    workspaceModel,
+    activeDocumentPath,
+    editorFocusedLeafId,
+    reloadTrees,
+    openFile,
+    openWorkspaceSettings: () => workspaceSettingsController.openDialog("workspace"),
+    remapOpenPaths: remapOpenPathsInEditor,
+    removeDeletedPaths: removeDeletedPathsFromEditor,
+    setActiveDocumentPath,
+    resolveActiveEditorPathAfterDelete,
+    revealExplorerPath: (path) => setRevealExplorerPathRequest({ path, nonce: Date.now() }),
+  });
+  const { dialog: workspaceDialog, setDialog: setWorkspaceDialog } = workspaceMutations;
   const compactEditorChrome = collectLeaves(editorTree).length > 1;
   const resolvedAppearance: ResolvedAppearance = appearanceMode === "system" ? (systemPrefersDark ? "dark" : "light") : appearanceMode;
 
@@ -482,12 +453,7 @@ export function App() {
       attachedProjectRoots.some((rootPath) => isPathWithin(rootPath, change.absolutePath)),
     );
     if (attachedChanges.length === 0) {
-      setWorkspaceDialog({
-        kind: "attach-project",
-        title: "Attach project to review changes",
-        message: "Changed files belong to a folder that is not attached to this workspace. Attach or import the project before opening its changed files.",
-        confirmLabel: "Open Settings",
-      });
+      workspaceMutations.showAttachProjectDialog();
       return;
     }
 
@@ -807,35 +773,6 @@ export function App() {
     await openFile(result.branchFilePath, editorFocusedLeafId);
   }
 
-  function createFileInDirectory(directoryPath: string) {
-    if (!workspaceModel) {
-      return;
-    }
-
-    const noteRootPaths = workspaceModel.noteRoots.map((root) => root.path);
-    const suggested = isInsideAttachedRoot(directoryPath, noteRootPaths) ? "new-note.md" : "new-file.txt";
-    setWorkspaceDialog({
-      kind: "create-file",
-      targetPath: directoryPath,
-      value: suggested,
-      title: "Create file",
-      confirmLabel: "Create",
-    });
-  }
-
-  async function commitCreateFile(directoryPath: string, name: string) {
-    if (!workspaceModel) {
-      return;
-    }
-
-    const noteRootPaths = workspaceModel.noteRoots.map((root) => root.path);
-    const nextPath = await window.exo.workspace.createFile(
-      joinPath(directoryPath, ensureDefaultExtension(name, directoryPath, noteRootPaths)),
-    );
-    await reloadTrees();
-    await openFile(nextPath, editorFocusedLeafId);
-  }
-
   async function openOrCreateDailyNote() {
     if (!workspaceModel || workspaceModel.noteRoots.length === 0) {
       return;
@@ -856,157 +793,6 @@ export function App() {
     }
 
     await openFile(dailyPath, editorFocusedLeafId);
-  }
-
-  function createDirectoryInDirectory(directoryPath: string) {
-    setWorkspaceDialog({
-      kind: "create-directory",
-      targetPath: directoryPath,
-      value: "new-folder",
-      title: "Create folder",
-      confirmLabel: "Create",
-    });
-  }
-
-  async function commitCreateDirectory(directoryPath: string, name: string) {
-    await window.exo.workspace.createDirectory(joinPath(directoryPath, name));
-    await reloadTrees();
-  }
-
-  function renameWorkspacePath(sourcePath: string) {
-    const currentName = sourcePath.split("/").at(-1) ?? sourcePath;
-    setWorkspaceDialog({
-      kind: "rename",
-      targetPath: sourcePath,
-      value: currentName,
-      title: "Rename",
-      confirmLabel: "Rename",
-    });
-  }
-
-  async function commitRenameWorkspacePath(sourcePath: string, nextName: string) {
-    const currentName = sourcePath.split("/").at(-1) ?? sourcePath;
-    if (!nextName || nextName === currentName) {
-      return;
-    }
-    const nextPath = joinPath(directoryOf(sourcePath), nextName);
-    const previousPath = sourcePath;
-    await window.exo.workspace.renamePath(sourcePath, nextPath);
-    remapOpenPathsInEditor(previousPath, nextPath);
-    await reloadTrees();
-    if (previousPath === activeDocumentPath) {
-      await openFile(nextPath, editorFocusedLeafId);
-    }
-  }
-
-  async function moveWorkspacePathIntoDirectory(sourcePath: string, targetDirectoryPath: string) {
-    const sourceLabel = pathLabel(sourcePath);
-    const targetLabel = pathLabel(targetDirectoryPath);
-    if (sourcePath === targetDirectoryPath) {
-      return;
-    }
-    if (directoryOf(sourcePath) === targetDirectoryPath) {
-      return;
-    }
-    if (isPathWithin(sourcePath, targetDirectoryPath)) {
-      return;
-    }
-
-    const nextPath = joinPath(targetDirectoryPath, sourceLabel);
-    try {
-      await window.exo.workspace.renamePath(sourcePath, nextPath);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (message.includes("Destination already exists")) {
-        setWorkspaceDialog({
-          kind: "move-conflict",
-          title: "Destination already exists",
-          message: `${sourceLabel} cannot be moved into ${targetLabel} because ${pathLabel(nextPath)} already exists there. Exo will not merge or overwrite folders automatically.`,
-          confirmLabel: "OK",
-        });
-      }
-      throw error;
-    }
-    remapOpenPathsInEditor(sourcePath, nextPath);
-    await reloadTrees();
-    setRevealExplorerPathRequest({ path: targetDirectoryPath, nonce: Date.now() });
-    if (sourcePath === activeDocumentPath) {
-      await openFile(nextPath, editorFocusedLeafId);
-    }
-  }
-
-  function deleteWorkspacePath(targetPath: string) {
-    setWorkspaceDialog({
-      kind: "delete",
-      targetPath,
-      title: "Delete path",
-      message: `Delete ${targetPath.split("/").at(-1) ?? targetPath}?`,
-      confirmLabel: "Delete",
-    });
-  }
-
-  async function commitDeleteWorkspacePath(targetPath: string) {
-    await window.exo.workspace.deletePath(targetPath);
-    openDocumentsState.deletePathsWithin(targetPath);
-    // Remove deleted paths from all editor leaves
-    editorActions.setTree(mapLeaves(editorTree, (leaf) => {
-      if (leaf.content.kind !== "editor") return leaf;
-      const nextOpenPaths = leaf.content.openPaths.filter((fp) => !isPathWithin(targetPath, fp));
-      return {
-        ...leaf,
-        content: {
-          ...leaf.content,
-          openPaths: nextOpenPaths,
-          activePath: leaf.content.activePath && !isPathWithin(targetPath, leaf.content.activePath)
-            ? leaf.content.activePath
-            : nextOpenPaths.at(-1) ?? null,
-        },
-      };
-    }));
-    if (activeDocumentPath && isPathWithin(targetPath, activeDocumentPath)) {
-      const focused = findNode(editorTree, (n) => n.id === editorFocusedLeafId) as PaneLeaf | undefined;
-      const nextActivePath = focused?.content.kind === "editor" ? focused.content.activePath : null;
-      setActiveDocumentPath(nextActivePath);
-    }
-    await reloadTrees();
-  }
-
-  async function submitWorkspaceDialog() {
-    if (!workspaceDialog) {
-      return;
-    }
-
-    if (workspaceDialog.kind === "move-conflict") {
-      setWorkspaceDialog(null);
-      return;
-    }
-
-    if (workspaceDialog.kind === "attach-project") {
-      setWorkspaceDialog(null);
-      await workspaceSettingsController.openDialog("workspace");
-      return;
-    }
-
-    if (workspaceDialog.kind === "delete") {
-      await commitDeleteWorkspacePath(workspaceDialog.targetPath);
-      setWorkspaceDialog(null);
-      return;
-    }
-
-    const value = workspaceDialog.value.trim();
-    if (!value) {
-      return;
-    }
-
-    if (workspaceDialog.kind === "create-file") {
-      await commitCreateFile(workspaceDialog.targetPath, value);
-    } else if (workspaceDialog.kind === "create-directory") {
-      await commitCreateDirectory(workspaceDialog.targetPath, value);
-    } else {
-      await commitRenameWorkspacePath(workspaceDialog.targetPath, value);
-    }
-
-    setWorkspaceDialog(null);
   }
 
   function remapOpenPathsInEditor(sourcePath: string, nextPath: string) {
@@ -1031,12 +817,35 @@ export function App() {
     }
   }
 
+  function removeDeletedPathsFromEditor(targetPath: string) {
+    openDocumentsState.deletePathsWithin(targetPath);
+    editorActions.setTree(mapLeaves(editorTree, (leaf) => {
+      if (leaf.content.kind !== "editor") return leaf;
+      const nextOpenPaths = leaf.content.openPaths.filter((fp) => !isPathWithin(targetPath, fp));
+      return {
+        ...leaf,
+        content: {
+          ...leaf.content,
+          openPaths: nextOpenPaths,
+          activePath: leaf.content.activePath && !isPathWithin(targetPath, leaf.content.activePath)
+            ? leaf.content.activePath
+            : nextOpenPaths.at(-1) ?? null,
+        },
+      };
+    }));
+  }
+
+  function resolveActiveEditorPathAfterDelete(): string | null {
+    const focused = findNode(editorTree, (n) => n.id === editorFocusedLeafId) as PaneLeaf | undefined;
+    return focused?.content.kind === "editor" ? focused.content.activePath : null;
+  }
+
   // Assign the drop handler ref — called by useDragManager on mouseup over a drop zone
   handleDropRef.current = (target: DragDropTarget, payload: DragPayload) => {
     if (target.kind === "explorer") {
       if (payload.kind === "workspace-path") {
         const targetDirectoryPath = target.targetKind === "file" ? directoryOf(target.targetPath) : target.targetPath;
-        void moveWorkspacePathIntoDirectory(payload.path, targetDirectoryPath).catch((error) => {
+        void workspaceMutations.moveWorkspacePathIntoDirectory(payload.path, targetDirectoryPath).catch((error) => {
           console.error("[workspace] move failed", error);
         });
       }
@@ -1643,11 +1452,11 @@ export function App() {
       explorerScale={explorerScale}
       onFocusExplorer={() => setZoomSurface("explorer")}
       dragManager={dragManager}
-      onCreateFile={(directoryPath) => createFileInDirectory(directoryPath)}
-      onCreateDirectory={(directoryPath) => createDirectoryInDirectory(directoryPath)}
+      onCreateFile={(directoryPath) => workspaceMutations.createFileInDirectory(directoryPath)}
+      onCreateDirectory={(directoryPath) => workspaceMutations.createDirectoryInDirectory(directoryPath)}
       onCreateTerminalInDirectory={(directoryPath) => void createTerminal("shell", directoryPath)}
-      onRenamePath={(targetPath) => renameWorkspacePath(targetPath)}
-      onDeletePath={(targetPath) => deleteWorkspacePath(targetPath)}
+      onRenamePath={(targetPath) => workspaceMutations.renameWorkspacePath(targetPath)}
+      onDeletePath={(targetPath) => workspaceMutations.deleteWorkspacePath(targetPath)}
       onCreateTerminal={(kind) => void createTerminal(kind)}
       onCreateBrowserPane={() => createBrowserPane()}
       />
@@ -1669,7 +1478,7 @@ export function App() {
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {
                     event.preventDefault();
-                    void submitWorkspaceDialog();
+                    void workspaceMutations.submitDialog();
                   }
                   if (event.key === "Escape") {
                     event.preventDefault();
@@ -1685,7 +1494,7 @@ export function App() {
               <button
                 className={`toolbar-button ${workspaceDialog.kind === "delete" ? "toolbar-button--danger" : ""}`}
                 data-testid="workspace-dialog-confirm"
-                onClick={() => void submitWorkspaceDialog()}
+                onClick={() => void workspaceMutations.submitDialog()}
                 type="button"
               >
                 {workspaceDialog.confirmLabel}
@@ -1840,18 +1649,6 @@ function summarizeIndexStatus(status: IndexStatus | null, busy: IndexBusyState):
 
 function joinPath(parentPath: string, name: string): string {
   return `${parentPath.replace(/\/$/, "")}/${name.replace(/^\//, "")}`;
-}
-
-function isInsideAttachedRoot(targetPath: string, rootPaths: string[]): boolean {
-  return rootPaths.some((rootPath) => isPathWithin(rootPath, targetPath));
-}
-
-function ensureDefaultExtension(name: string, directoryPath: string, noteRootPaths: string[]): string {
-  if (name.includes(".")) {
-    return name;
-  }
-
-  return isInsideAttachedRoot(directoryPath, noteRootPaths) ? `${name}.md` : name;
 }
 
 function isPathWithin(parentPath: string, targetPath: string): boolean {

@@ -181,6 +181,35 @@ test("opens project files and creates note branches", async () => {
   await cleanup();
 });
 
+test("creates, renames, and deletes notes from the explorer", async () => {
+  const { page, workspaceRoot, cleanup } = await launchExoFixture({ mutable: true });
+  const notesRoot = path.join(workspaceRoot, "notes/test-notes");
+  const createdPath = path.join(notesRoot, "mutation-qa.md");
+  const renamedPath = path.join(notesRoot, "mutation-renamed.md");
+
+  await page.getByTestId("sidebar-new-note").click();
+  await expect(page.getByTestId("workspace-dialog")).toBeVisible();
+  await page.getByTestId("workspace-dialog-input").fill("mutation-qa.md");
+  await page.getByTestId("workspace-dialog-confirm").click();
+  await expect(page.getByTestId("editor-title")).toHaveText("mutation-qa");
+  await expect.poll(async () => readFile(createdPath, "utf8")).toBe("");
+
+  await page.getByTestId("sidebar").getByRole("button", { name: "mutation-qa" }).click({ button: "right" });
+  await page.getByText("Rename").click();
+  await page.getByTestId("workspace-dialog-input").fill("mutation-renamed.md");
+  await page.getByTestId("workspace-dialog-confirm").click();
+  await expect(page.getByTestId("editor-title")).toHaveText("mutation-renamed");
+  await expect.poll(async () => readFile(renamedPath, "utf8")).toBe("");
+  await expect(access(createdPath)).rejects.toThrow();
+
+  await page.getByTestId("sidebar").getByRole("button", { name: "mutation-renamed" }).click({ button: "right" });
+  await page.getByText("Delete").click();
+  await page.getByTestId("workspace-dialog-confirm").click();
+  await expect(access(renamedPath)).rejects.toThrow();
+
+  await cleanup();
+});
+
 test("shows changed project files in the project drawer", async () => {
   const { page, workspaceRoot, cleanup } = await launchExoFixture({
     mutable: true,
