@@ -210,6 +210,38 @@ test("creates, renames, and deletes notes from the explorer", async () => {
   await cleanup();
 });
 
+test("handles global save and daily-note keybindings", async () => {
+  const { page, workspaceRoot, cleanup } = await launchExoFixture({ mutable: true });
+  const modifier = process.platform === "darwin" ? "Meta" : "Control";
+  const focusNotePath = path.join(workspaceRoot, "notes/test-notes/focus-note.md");
+  const now = new Date();
+  const dailyName = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+
+  await page.evaluate(() => {
+    const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+    const view = content?.cmView?.view;
+    if (!view) {
+      throw new Error("Unable to resolve CodeMirror view");
+    }
+    view.dispatch({
+      changes: {
+        from: view.state.doc.length,
+        insert: "\n\nSaved with keybinding.",
+      },
+    });
+  });
+  await expect(page.getByTestId("editor-save-status")).toHaveText("Unsaved");
+  await page.keyboard.press(`${modifier}+S`);
+  await expect(page.getByTestId("editor-save-status")).toHaveText("Saved");
+  await expect.poll(async () => readFile(focusNotePath, "utf8")).toContain("Saved with keybinding.");
+
+  await page.keyboard.press(`${modifier}+N`);
+  await expect(page.getByTestId("editor-title")).toHaveText(dailyName);
+  await expect.poll(async () => readFile(path.join(workspaceRoot, "notes/test-notes", `${dailyName}.md`), "utf8")).toContain(`# ${dailyName}`);
+
+  await cleanup();
+});
+
 test("shows changed project files in the project drawer", async () => {
   const { page, workspaceRoot, cleanup } = await launchExoFixture({
     mutable: true,

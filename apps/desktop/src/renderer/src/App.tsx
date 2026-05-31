@@ -20,6 +20,7 @@ import { ShellLayout } from "./components/ShellLayout";
 import { TerminalDock } from "./components/TerminalDock";
 import { WorkspaceSettingsDialog } from "./components/WorkspaceSettingsDialog";
 import { useAgentInstructionEditor } from "./hooks/useAgentInstructionEditor";
+import { useAppKeybindings } from "./hooks/useAppKeybindings";
 import { useOpenDocuments } from "./hooks/useOpenDocuments";
 import { usePaneDropOrchestration } from "./hooks/usePaneDropOrchestration";
 import { useProjectReviewState } from "./hooks/useProjectReviewState";
@@ -27,6 +28,7 @@ import { useShellLayout } from "./hooks/useShellLayout";
 import { useTerminalPaneController, type TerminalPaneController } from "./hooks/useTerminalPaneController";
 import { useTerminalSessions } from "./hooks/useTerminalSessions";
 import { useWorkspaceBootstrap } from "./hooks/useWorkspaceBootstrap";
+import { useWorkspaceCommandHandlers } from "./hooks/useWorkspaceCommandHandlers";
 import { useWorkspaceMutations } from "./hooks/useWorkspaceMutations";
 import { useWorkspaceSettingsController } from "./hooks/useWorkspaceSettingsController";
 import { useWorkspaceTrees } from "./hooks/useWorkspaceTrees";
@@ -232,6 +234,23 @@ export function App() {
     document.documentElement.style.colorScheme = resolvedAppearance;
   }, [appearanceMode, resolvedAppearance]);
 
+  useWorkspaceCommandHandlers({
+    workspaceModel,
+    openFile,
+    reloadTrees,
+    scheduleOpenDocumentRefresh,
+    recordObservedWorkspaceWrite: projectReviewState.recordObservedWorkspaceWrite,
+    refreshProjectGitStatus: projectReviewState.refreshProjectGitStatus,
+  });
+
+  useAppKeybindings({
+    activeDocumentPath,
+    zoomSurface,
+    saveDocument,
+    openOrCreateDailyNote,
+    updateFocusedSurfaceZoom,
+  });
+
   useEffect(() => {
     if (!layoutPersistenceReady || onboardingState || !workspaceModel) {
       return;
@@ -278,57 +297,6 @@ export function App() {
     onboardingState,
     workspaceModel,
   ]);
-
-  // Command listener — agents can tell the app to open files via the command server
-  useEffect(() => {
-    return window.exo.workspace.onCommandOpenFile((filePath: string) => {
-      void openFile(filePath);
-    });
-  }, []);
-
-  useEffect(() => {
-    const removeWorkspaceChangeListener = window.exo.workspace.onDidChange((event) => {
-      if (event.eventType === "rename" || !event.filePath) {
-        void reloadTrees();
-      }
-      if (event.filePath) {
-        const filePath = event.filePath;
-        scheduleOpenDocumentRefresh(filePath);
-        projectReviewState.recordObservedWorkspaceWrite(event.rootPath, filePath);
-        if (workspaceModel?.projectRoots.some((root) => isPathWithin(root.path, filePath))) {
-          void projectReviewState.refreshProjectGitStatus(workspaceModel);
-        }
-      }
-    });
-
-    return () => {
-      removeWorkspaceChangeListener();
-    };
-  }, [workspaceModel]);
-
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      const mod = event.metaKey || event.ctrlKey;
-      if (mod && !event.altKey && isZoomKey(event.key)) {
-        event.preventDefault();
-        event.stopPropagation();
-        updateFocusedSurfaceZoom(zoomDirection(event.key), resolveZoomSurface(event));
-        return;
-      }
-      if (mod && event.key.toLowerCase() === "s" && activeDocument) {
-        event.preventDefault();
-        void saveDocument(activeDocument.filePath);
-        return;
-      }
-      if (mod && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "n") {
-        event.preventDefault();
-        void openOrCreateDailyNote();
-      }
-    }
-
-    window.addEventListener("keydown", onKeyDown, { capture: true });
-    return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
-  }, [activeDocument, workspaceModel, editorFocusedLeafId, zoomSurface]);
 
   function applyWorkspaceSettings(settings: WorkspaceSettings) {
     const terminalPolicy = resolveSettingsTerminalRuntime(settings);
@@ -1261,49 +1229,6 @@ export function App() {
       ) : null}
     </>
   );
-}
-
-function isZoomKey(key: string): boolean {
-  return key === "+" || key === "=" || key === "-" || key === "_" || key === "0";
-}
-
-function zoomDirection(key: string): -1 | 0 | 1 {
-  if (key === "-" || key === "_") {
-    return -1;
-  }
-  if (key === "0") {
-    return 0;
-  }
-  return 1;
-}
-
-function resolveZoomSurface(event: KeyboardEvent): ZoomSurface {
-  for (const entry of event.composedPath()) {
-    if (!(entry instanceof Element)) {
-      continue;
-    }
-    if (entry.closest(".terminal-dock, .terminal-surface")) {
-      return "terminal";
-    }
-    if (entry.closest(".editor-pane, .editor-panel, .cm-editor")) {
-      return "editor";
-    }
-    if (entry.closest(".sidebar")) {
-      return "explorer";
-    }
-  }
-
-  const activeElement = document.activeElement;
-  if (activeElement?.closest(".terminal-dock, .terminal-surface")) {
-    return "terminal";
-  }
-  if (activeElement?.closest(".editor-pane, .editor-panel, .cm-editor")) {
-    return "editor";
-  }
-  if (activeElement?.closest(".sidebar")) {
-    return "explorer";
-  }
-  return "editor";
 }
 
 function uniqueMessages(messages: string[]): string[] {
