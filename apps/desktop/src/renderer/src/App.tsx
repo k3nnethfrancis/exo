@@ -3,7 +3,6 @@ import { Plus, X } from "lucide-react";
 import type {
   IndexStatus,
   SearchResult,
-  WorkspaceLayoutSettings,
   WorkspaceModel,
   WorkspaceSettings,
 } from "@exo/core";
@@ -29,6 +28,7 @@ import { useTerminalPaneController, type TerminalPaneController } from "./hooks/
 import { useTerminalSessions } from "./hooks/useTerminalSessions";
 import { useWorkspaceBootstrap } from "./hooks/useWorkspaceBootstrap";
 import { useWorkspaceCommandHandlers } from "./hooks/useWorkspaceCommandHandlers";
+import { useWorkspaceLayoutPersistence } from "./hooks/useWorkspaceLayoutPersistence";
 import { useWorkspaceMutations } from "./hooks/useWorkspaceMutations";
 import { useWorkspaceSettingsController } from "./hooks/useWorkspaceSettingsController";
 import { useWorkspaceTrees } from "./hooks/useWorkspaceTrees";
@@ -234,6 +234,21 @@ export function App() {
     document.documentElement.style.colorScheme = resolvedAppearance;
   }, [appearanceMode, resolvedAppearance]);
 
+  useWorkspaceLayoutPersistence({
+    editorTree,
+    terminalTree,
+    terminalCollapsed: shellLayout.terminalCollapsed,
+    sidePanesFlipped: shellLayout.sidePanesFlipped,
+    zoneSplitRatio: shellLayout.zoneSplitRatio,
+    sidebarCollapsed: shellLayout.sidebarCollapsed,
+    sidebarWidth: shellLayout.sidebarWidth,
+    inspectorCollapsed: shellLayout.inspectorCollapsed,
+    layoutPersistenceReady,
+    onboardingActive: Boolean(onboardingState),
+    workspaceModel,
+    workspaceSettingsRef,
+  });
+
   useWorkspaceCommandHandlers({
     workspaceModel,
     openFile,
@@ -250,53 +265,6 @@ export function App() {
     openOrCreateDailyNote,
     updateFocusedSurfaceZoom,
   });
-
-  useEffect(() => {
-    if (!layoutPersistenceReady || onboardingState || !workspaceModel) {
-      return;
-    }
-
-    const timeout = window.setTimeout(() => {
-      const currentSettings = workspaceSettingsRef.current;
-      if (!currentSettings) {
-        return;
-      }
-
-      const layout = createWorkspaceLayoutSnapshot({
-        editorTree,
-        terminalTree,
-        terminalCollapsed: shellLayout.terminalCollapsed,
-        sidePanesFlipped: shellLayout.sidePanesFlipped,
-        zoneSplitRatio: shellLayout.zoneSplitRatio,
-        sidebarCollapsed: shellLayout.sidebarCollapsed,
-        sidebarWidth: shellLayout.sidebarWidth,
-        inspectorCollapsed: shellLayout.inspectorCollapsed,
-      });
-      if (stableJson(currentSettings.layout ?? null) === stableJson(layout)) {
-        return;
-      }
-
-      void window.exo.workspace.saveSettings({ ...currentSettings, layout }).then((saved) => {
-        workspaceSettingsRef.current = saved;
-      }).catch((error) => {
-        console.warn("[exo] failed to persist workspace layout", error);
-      });
-    }, 900);
-
-    return () => window.clearTimeout(timeout);
-  }, [
-    editorTree,
-    terminalTree,
-    shellLayout.terminalCollapsed,
-    shellLayout.sidePanesFlipped,
-    shellLayout.zoneSplitRatio,
-    shellLayout.sidebarCollapsed,
-    shellLayout.sidebarWidth,
-    shellLayout.inspectorCollapsed,
-    layoutPersistenceReady,
-    onboardingState,
-    workspaceModel,
-  ]);
 
   function applyWorkspaceSettings(settings: WorkspaceSettings) {
     const terminalPolicy = resolveSettingsTerminalRuntime(settings);
@@ -1233,27 +1201,6 @@ export function App() {
 
 function uniqueMessages(messages: string[]): string[] {
   return [...new Set(messages.map((message) => message.trim()).filter(Boolean))];
-}
-
-function createWorkspaceLayoutSnapshot(input: WorkspaceLayoutSettings): WorkspaceLayoutSettings {
-  return {
-    editorTree: input.editorTree,
-    terminalTree: input.terminalTree,
-    terminalCollapsed: input.terminalCollapsed,
-    sidePanesFlipped: input.sidePanesFlipped,
-    zoneSplitRatio: roundLayoutNumber(input.zoneSplitRatio),
-    sidebarCollapsed: input.sidebarCollapsed,
-    sidebarWidth: Math.round(input.sidebarWidth),
-    inspectorCollapsed: input.inspectorCollapsed,
-  };
-}
-
-function roundLayoutNumber(value: number): number {
-  return Math.round(value * 1000) / 1000;
-}
-
-function stableJson(value: unknown): string {
-  return JSON.stringify(value);
 }
 
 function formatIndexStatus(status: IndexStatus): string {
