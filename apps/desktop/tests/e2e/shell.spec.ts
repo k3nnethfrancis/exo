@@ -1,9 +1,11 @@
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { access, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { test, expect } from "@playwright/test";
 
 import { launchExoFixture } from "../helpers";
+
+const repoRoot = path.resolve(process.cwd());
 
 function boxesOverlap(a: { x: number; y: number; width: number; height: number }, b: { x: number; y: number; width: number; height: number }) {
   return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
@@ -607,6 +609,180 @@ test("keeps the command server available while the window is hidden", async () =
 
   await cleanup();
 });
+
+test("supports CLI and MCP agent control while the window is hidden", async () => {
+  const { electronApp, runtimeRoot, workspaceRoot, cleanup } = await launchExoFixture({
+    env: {
+      EXO_SHELL: "/bin/cat",
+      EXO_SHELL_ARGS: "",
+    },
+  });
+  const cliEnv: Record<string, string> = {
+    ...stringEnv(process.env),
+    COREPACK_ENABLE_PROJECT_SPEC: "0",
+    EXO_RUNTIME_ROOT: runtimeRoot,
+    EXO_WORKSPACE_ROOT: workspaceRoot,
+    EXO_NOTE_ROOTS: path.join(workspaceRoot, "notes/test-notes"),
+    EXO_PROJECT_ROOTS: path.join(workspaceRoot, "projects/sample-project"),
+  };
+
+  try {
+    const hidden = await electronApp.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0];
+      window.hide();
+      return !window.isVisible();
+    });
+    expect(hidden).toBe(true);
+
+    const status = runExoCli(["status"], cliEnv);
+    expect(status.status).toBe(0);
+    expect(status.stdout).toContain(workspaceRoot);
+
+    const agents = runExoCli(["agents", "list"], cliEnv);
+    expect(agents.status).toBe(0);
+
+    const createdAgent = runExoCli(["agents", "create", "shell", workspaceRoot], cliEnv);
+    expect(createdAgent.status).toBe(0);
+    const shellId = (JSON.parse(createdAgent.stdout) as { id: string }).id;
+    expect(shellId).toMatch(/^term-\d+$/);
+
+    const cliMessage = `hidden cli qa ${Date.now()}`;
+    const send = runExoCli(["agents", "send", shellId!, cliMessage], cliEnv);
+    expect(send.status).toBe(0);
+    await expect.poll(() => runExoCli(["agents", "read", shellId!, "--tail", "2000"], cliEnv).stdout).toContain(cliMessage);
+
+    const mcpClient = await createMcpJsonRpcClient(cliEnv);
+
+    try {
+      const mcpAgents = await mcpClient.callTool("list_agents", {});
+      expect(JSON.stringify(mcpAgents.structuredContent)).toContain(shellId!);
+
+      const mcpMessage = `hidden mcp qa ${Date.now()}`;
+      const mcpCreated = await mcpClient.callTool("create_agent", { kind: "shell", cwd: workspaceRoot });
+      const mcpShellId = ((mcpCreated.structuredContent as { agent?: { id?: string } }).agent?.id);
+      expect(mcpShellId).toMatch(/^term-\d+$/);
+
+      const mcpSend = await mcpClient.callTool("send_agent_message", { agentId: mcpShellId, message: mcpMessage, submit: true });
+      expect(JSON.stringify(mcpSend.structuredContent)).toContain("\"delivery\":\"sent\"");
+
+      await expect.poll(async () => {
+        const read = await mcpClient.callTool("read_agent", { agentId: shellId, tailChars: 2000, clean: true });
+        return JSON.stringify(read.structuredContent);
+      }).toContain(cliMessage);
+      await expect.poll(async () => {
+        const read = await mcpClient.callTool("read_agent", { agentId: mcpShellId, tailChars: 2000, clean: true });
+        return JSON.stringify(read.structuredContent);
+      }).toContain(mcpMessage);
+    } catch (error) {
+      throw new Error(`${error instanceof Error ? error.message : String(error)}\nMCP stderr:\n${mcpClient.stderr()}`);
+    } finally {
+      mcpClient.close();
+    }
+  } finally {
+    await cleanup();
+  }
+});
+
+function runExoCli(args: string[], env: NodeJS.ProcessEnv) {
+  return spawnSync(path.join(repoRoot, "bin/exo"), args, {
+    cwd: repoRoot,
+    env,
+    encoding: "utf8",
+  });
+}
+
+function stringEnv(env: NodeJS.ProcessEnv): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(env).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+  );
+}
+
+async function createMcpJsonRpcClient(env: Record<string, string>) {
+  const child = spawn("pnpm", ["exec", "tsx", "packages/mcp/src/index.ts"], {
+    cwd: repoRoot,
+    env,
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  const pending = new Map<number, { resolve: (value: any) => void; reject: (error: Error) => void }>();
+  let nextId = 1;
+  let stdout = "";
+  let stderr = "";
+
+  child.stdout.on("data", (chunk: Buffer) => {
+    stdout += chunk.toString("utf8");
+    let newlineIndex = stdout.indexOf("\n");
+    while (newlineIndex >= 0) {
+      const line = stdout.slice(0, newlineIndex).trim();
+      stdout = stdout.slice(newlineIndex + 1);
+      newlineIndex = stdout.indexOf("\n");
+      if (!line) {
+        continue;
+      }
+      const message = JSON.parse(line) as { id?: number; result?: unknown; error?: { message?: string } };
+      if (typeof message.id !== "number") {
+        continue;
+      }
+      const request = pending.get(message.id);
+      if (!request) {
+        continue;
+      }
+      pending.delete(message.id);
+      if (message.error) {
+        request.reject(new Error(message.error.message ?? JSON.stringify(message.error)));
+      } else {
+        request.resolve(message.result);
+      }
+    }
+  });
+  child.stderr.on("data", (chunk: Buffer) => {
+    stderr += chunk.toString("utf8");
+  });
+  child.on("exit", (code, signal) => {
+    const error = new Error(`MCP process exited with code ${code ?? "null"} signal ${signal ?? "null"}.\n${stderr}`);
+    for (const request of pending.values()) {
+      request.reject(error);
+    }
+    pending.clear();
+  });
+
+  function request(method: string, params: Record<string, unknown> = {}): Promise<any> {
+    const id = nextId;
+    nextId += 1;
+    const promise = new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        pending.delete(id);
+        reject(new Error(`MCP ${method} timed out.\n${stderr}`));
+      }, 15_000);
+      pending.set(id, {
+        resolve: (value) => {
+          clearTimeout(timeout);
+          resolve(value);
+        },
+        reject: (error) => {
+          clearTimeout(timeout);
+          reject(error);
+        },
+      });
+    });
+    child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id, method, params })}\n`);
+    return promise;
+  }
+
+  await request("initialize", {
+    protocolVersion: "2025-06-18",
+    capabilities: {},
+    clientInfo: { name: "exo-hidden-window-e2e", version: "0.0.0" },
+  });
+  child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized", params: {} })}\n`);
+
+  return {
+    callTool: (name: string, args: Record<string, unknown>) => request("tools/call", { name, arguments: args }),
+    close: () => {
+      child.kill();
+    },
+    stderr: () => stderr,
+  };
+}
 
 test("opens workspace settings with partial agent instruction discovery errors", async () => {
   const { page, workspaceRoot, cleanup } = await launchExoFixture({

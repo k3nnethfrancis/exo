@@ -121,15 +121,15 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Continued main-process cleanup by extracting indexing timers, job metrics, sync/refresh scheduling, and indexed-root mutations into `indexing-service.ts`.
 - Added the first resident runtime behavior: closing the workspace window hides it while process-owned services continue, `exo show` can reopen it, and explicit Quit warns before stopping live terminals.
 - Added the macOS menu bar runtime controller with Show Exo, Settings, command-server status/restart, live terminal count, and explicit Quit.
+- Added hidden-window CLI/MCP app QA coverage: with the workspace window hidden, `bin/exo` can status/list/create/send/read live agents and MCP stdio tools can list/create/send/read the same running Exo agent surface.
 - Started cleanup-plan doc sync by removing stale tmux prerequisite language and documenting that current open QA includes the e2e launch harness and broader terminal bug-bash.
 
 ## Next Priorities
 
 1. Review the local commit stack, push `0.1.0-alpha.2` tester-readiness fixes, and open the review surface.
-2. Runtime lifecycle: finish hidden-window CLI/MCP QA on top of the menu bar runtime controller.
-3. Authorship/provenance: promote observed write candidates into explicit human vs agent review states only when Exo controls the write path or receives a trusted session event.
-4. Multi-agent coordination: roster, objectives, direct messages, file+SQLite transport, CLI/MCP access.
-5. QMD notes index: improve performance, add true incremental file-level updates when QMD exposes them, and refine triggers/profiles.
+2. Authorship/provenance: promote observed write candidates into explicit human vs agent review states only when Exo controls the write path or receives a trusted session event.
+3. Multi-agent coordination: roster, objectives, direct messages, file+SQLite transport, CLI/MCP access.
+4. QMD notes index: improve performance, add true incremental file-level updates when QMD exposes them, and refine triggers/profiles.
 
 ## Operating Rules
 
