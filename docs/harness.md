@@ -1,6 +1,6 @@
 # Exo Harness
 
-Last updated: 2026-05-17
+Last updated: 2026-05-31
 
 Exo's harness is the set of commands, docs, and evidence habits that keep fast agent-driven development from turning into drift. The near-term goal is practical: make it easy for humans, Codex, Claude Code, and Exo-hosted agents to contribute safely.
 
@@ -54,7 +54,11 @@ Desktop e2e/visual gates build the desktop app before running Playwright.
 
 ## Current Harness Coverage
 
-- Formatting/lint: not yet a dedicated gate.
+- Identity/context: `AGENTS.md`, `docs/strategy.md`, `docs/roadmap.md`, `docs/tasks.md`, and `ledger.md` describe the current exograph and Exo-on-Exo operating model.
+- Coordination: `docs/harness.md`, work-chunk rules, app-QA expectations, and Exo CLI/MCP agent commands give agents a shared development loop.
+- Control: `pnpm ci:check` is the canonical CI/local gate, but mechanical architecture controls are still incomplete.
+- Audit: issue tracking and manual review catch drift today; automated entropy scans are not yet implemented.
+- Intelligence: Playwright, CLI/MCP smoke tests, terminal health, logs, and app QA provide runtime signals, but not yet a unified dashboard.
 - Type safety: `pnpm typecheck`.
 - Unit/integration behavior: `pnpm test`.
 - Desktop build behavior: `pnpm build`.
@@ -66,13 +70,17 @@ Desktop e2e/visual gates build the desktop app before running Playwright.
 
 ## Missing Harness Layers
 
-These are useful but not required before the next push:
+These are now part of the Exo-on-Exo readiness backlog:
 
 - Add ESLint or Biome for deterministic formatting/lint.
 - Add structural rules for high-risk patterns, likely through ast-grep or a TypeScript import-boundary test.
-- Add docs link/path checks so `AGENTS.md` and README links cannot rot silently.
+- Expand docs link/path checks so roadmap/tasks/ledger/MCP docs cannot drift silently.
 - Add renderer crash regression probes for blank-window failures.
 - Add golden/snapshot coverage for markdown rendering, terminal hydration, and search results where stable.
+- Add a test-quality review workflow that checks whether tests assert behavior, isolate external state, fail for the right reason, and cover the risk being changed.
+- Add an app-QA workflow that forces real Electron validation for UI/runtime changes, including screenshots or concise walkthrough evidence.
+- Add entropy scans for repeated anti-patterns: bloated shell files, direct filesystem access in renderer, duplicate IPC route types, hidden caps/settings, stale docs, and MCP/CLI contract drift.
+- Add Exo-on-Exo coordination checks: agent creation/read/send reliability, changed-file attribution, transcript review, worktree state, and recovery after app hide/reopen.
 
 ## Work Chunks
 

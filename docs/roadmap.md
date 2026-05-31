@@ -201,8 +201,11 @@ Exo should eventually help maintain and improve itself, but only through reviewa
 The repo should remain easy for humans and agents to modify.
 
 - `pnpm check` remains the canonical local and CI gate.
-- Add formatting/lint.
-- Add structural rules for renderer/main/core boundaries.
-- Add docs link/path checks.
-- Add renderer crash regression probes.
+- `pnpm ci:check` remains the canonical broad local/CI gate.
+- Add deterministic formatting/lint and make it part of CI.
+- Add mechanical architecture rules for renderer/main/core boundaries, command-server/CLI/MCP contract drift, hidden runtime caps, and direct filesystem/process access in renderer code.
+- Expand docs link/path checks across README, AGENTS, architecture, tasks, roadmap, ledger, harness, and MCP docs.
+- Add renderer crash regression probes for blank-window failures.
 - Add stable goldens/snapshots where they catch real regressions.
+- Add test-quality and app-QA skills/checklists so Exo-hosted agents know how to design tests, review tests, and manually validate Electron UI/runtime changes.
+- Add entropy scans for bloated shell files, duplicated contracts, stale docs, and patterns that make Exo harder for agents to safely extend.

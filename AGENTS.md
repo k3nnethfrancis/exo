@@ -100,6 +100,7 @@ CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build 
 - Optional or personal workflows should go through the plugin architecture rather than becoming core by default.
 - CLI-first operator surfaces come before deep UI.
 - Every fragile UI/runtime behavior needs an automated harness or a documented manual evidence path.
+- Harness engineering is not complete until important architecture rules are mechanical. Prefer lint/structural checks with remediation messages over prose-only guidance for constraints agents repeatedly violate.
 - Expose user outcomes, not implementation toggles. Prefer one solid default over user-facing switches like transport modes, streaming modes, or provider-specific branches unless there is a clear workflow that needs the choice.
 - Agent-facing configuration is provider-agnostic at the product layer. `AGENTS.md` and `CLAUDE.md` are compatibility outputs, not separate product concepts; do not add Claude-only or Codex-only repo guidance here.
 - Settings surfaces should stay compact and task-oriented. When a control affects hidden files, runtime behavior, or indexing, label the outcome and provide just enough tooltip/help text to explain the consequence.
@@ -112,5 +113,6 @@ CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build 
 - Do not include local secrets, private paths as source defaults, transcripts, logs, or `.exo/` runtime files.
 - Preserve unrelated local edits. Before staging, inspect `git status` and include only files that belong to the current task.
 - UI and terminal changes require app QA in the real Electron app, not only browser or unit tests. Use focused automated tests first, then manually exercise the affected workflow.
+- Review tests for quality before accepting them: they should assert user-visible behavior or stable contracts, isolate live Exo state, fail for the intended regression, and avoid only snapshotting implementation details.
 - Prefer extracting pure helpers or focused hooks over expanding `App.tsx` or `main/index.ts`. Keep IPC types in `@exo/core` when shared across CLI/MCP/desktop and avoid duplicate type definitions in preload-only files.
 - For simplification work, preserve behavior first. Run targeted tests for the moved surface, then full `pnpm ci:check` before handoff. Report line-count movement separately from architecture improvement because extraction can increase net LOC while reducing cognitive load.

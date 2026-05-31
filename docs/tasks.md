@@ -195,9 +195,17 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 ## Developer Harness
 
 - [ ] Add deterministic formatting/lint.
+- [ ] Add deterministic formatting/lint to `pnpm ci:check` and CI.
 - [ ] Add structural rules for renderer/main/core boundaries.
+- [ ] Add command-server/CLI/MCP contract drift checks.
+- [ ] Add hidden-cap/settings checks for terminal/search/runtime behavior that would hide user-controllable data.
 - [x] Add docs link/path checks for README, AGENTS, and docs indexes.
+- [ ] Expand docs link/path checks across roadmap, tasks, ledger, harness, architecture, MCP docs, and package README files.
 - [ ] Add renderer crash regression probes for blank-window failures.
 - [x] Apply user-configured live terminal scrollback to renderer/main buffers while preserving transcripts for reattached or actively streaming long-running agents.
 - [ ] Add golden/snapshot coverage for stable Markdown rendering, terminal hydration, and search output.
+- [ ] Add a test-quality review skill/checklist and use it before accepting Exo-hosted agent branches.
+- [ ] Add an app-QA skill/checklist for real Electron validation of UI/runtime changes.
+- [ ] Add entropy scans for bloated shell files, duplicated IPC/command types, direct renderer filesystem/process access, stale docs, and repeated anti-patterns.
+- [ ] Add Exo-on-Exo harness coverage for agent create/read/send, transcript review, changed-file attribution, worktree cleanliness, and hidden-window recovery.
 - [x] Keep CLI app-route tests isolated from live Exo command-server state.
