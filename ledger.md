@@ -53,6 +53,7 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 
 - Completed the first cleanup/refactor pass toward a more modular desktop architecture: main-process domain services now own app lifecycle, indexing, workspace notes, project review, agent instructions, and workspace settings orchestration; renderer tree/project-review/settings helpers have first-class modules and hooks.
 - Extracted open-document/editor state from `App.tsx` into `useOpenDocuments`, covering document cache, dirty/save status, external refresh, scroll restore, knowledge/branch-family caches, branch creation, and path remapping.
+- Extracted terminal renderer session state from `App.tsx` into `useTerminalSessions`, covering active terminal selection, hydration snapshots, created/data/exit listeners, polling sync, agent annotations, and kill/create session bookkeeping.
 - Added a typed desktop IPC contract shared by main, preload, and renderer-facing API code so channel names, argument lists, and return types cannot silently drift.
 - Repaired the Electron e2e launch harness by running the large shell spec in parallel under a capped worker count, then verified the full desktop e2e suite passes.
 - Fixed two QA findings from the full e2e pass: external clean-file refresh now preserves editor scroll through CodeMirror refresh timing, and editor/terminal tab strips share a stable 40px chrome height in mixed pane graphs.

@@ -19,11 +19,11 @@ import { PathList } from "./components/PathList";
 import { ShellLayout } from "./components/ShellLayout";
 import { TerminalDock } from "./components/TerminalDock";
 import { WorkspaceSettingsDialog } from "./components/WorkspaceSettingsDialog";
-import { writeTerminalData } from "./components/terminalRegistry";
 import { useAgentInstructionEditor } from "./hooks/useAgentInstructionEditor";
 import { useOpenDocuments } from "./hooks/useOpenDocuments";
 import { useProjectReviewState } from "./hooks/useProjectReviewState";
 import { useShellLayout } from "./hooks/useShellLayout";
+import { useTerminalSessions } from "./hooks/useTerminalSessions";
 import { loadInitialTrees, useWorkspaceTrees } from "./hooks/useWorkspaceTrees";
 import { useWorkspaceSearch } from "./hooks/useWorkspaceSearch";
 import { collectLeaves, findEditorLeaf, findNode, findTerminalLeaf, mapLeaves, paneId, pruneEmptyLeaves, removeNode, updateNode, type PaneLeaf, type PaneNode, type PaneNodeId, type BrowserPaneContent, type EditorPaneContent } from "./hooks/usePaneTree";
@@ -40,7 +40,6 @@ import {
   pruneStaleTerminalSessions,
   treeContainsTerminalSession,
 } from "./paneTreeSelectors";
-import { terminalSessionsEqual } from "./terminalSessions";
 import {
   clampNumber,
   DEFAULT_EDITOR_FONT_SIZE,
@@ -137,11 +136,6 @@ export function App() {
   const [editorRevealLineRequest, setEditorRevealLineRequest] = useState<{ filePath: string; line: number; nonce: number } | null>(null);
   const handleDropRef = useRef<(target: DragDropTarget, payload: DragPayload) => void>(() => {});
   const dragManager = useDragManager((target, payload) => handleDropRef.current(target, payload));
-  const [terminalSessions, setTerminalSessions] = useState<TerminalSessionInfo[]>([]);
-  const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null);
-  const [terminalHydrationSnapshots, setTerminalHydrationSnapshots] = useState<Record<string, string>>({});
-  const [terminalHydrationVersions, setTerminalHydrationVersions] = useState<Record<string, number>>({});
-  const [, setAgentAnnotations] = useState<Record<string, { runLabel: string; parentId: string | null }>>({});
   const [workspaceDialog, setWorkspaceDialog] = useState<WorkspaceDialogState | null>(null);
   const [workspaceSettingsDialog, setWorkspaceSettingsDialog] = useState<WorkspaceSettingsDialogState | null>(null);
   const [agentContextManagerOpen, setAgentContextManagerOpen] = useState(false);
@@ -162,14 +156,21 @@ export function App() {
   );
   const bootstrapRunRef = useRef(0);
   const terminalRuntimeScrollbackLinesRef = useRef(FULL_TERMINAL_SCROLLBACK_LINES);
-  const terminalSessionsRef = useRef<TerminalSessionInfo[]>([]);
-  const terminalKindByIdRef = useRef<Record<string, TerminalSessionInfo["kind"]>>({});
   const workspaceSettingsRef = useRef<WorkspaceSettings | null>(null);
   const shellLayout = useShellLayout();
-  const projectReviewState = useProjectReviewState(workspaceModel, terminalSessions);
 
   const { tree: editorTree, focusedLeafId: editorFocusedLeafId, actions: editorActions } = shellLayout.editorPaneTree;
   const { tree: terminalTree, focusedLeafId: terminalFocusedLeafId, actions: terminalActions } = shellLayout.terminalPaneTree;
+  const terminalState = useTerminalSessions({
+    onExternalSessions: attachExternalTerminalSessions,
+  });
+  const {
+    sessions: terminalSessions,
+    activeTerminalId,
+    hydrationSnapshots: terminalHydrationSnapshots,
+    hydrationVersions: terminalHydrationVersions,
+  } = terminalState;
+  const projectReviewState = useProjectReviewState(workspaceModel, terminalSessions);
   const openDocumentsState = useOpenDocuments({
     workspaceModel,
     getOpenEditorPaths: () => collectOpenEditorPaths(shellLayout.editorPaneTree.tree),
@@ -194,23 +195,8 @@ export function App() {
   const resolvedAppearance: ResolvedAppearance = appearanceMode === "system" ? (systemPrefersDark ? "dark" : "light") : appearanceMode;
 
   useEffect(() => {
-    terminalSessionsRef.current = terminalSessions;
-    terminalKindByIdRef.current = Object.fromEntries(terminalSessions.map((session) => [session.id, session.kind]));
-  }, [terminalSessions]);
-
-  useEffect(() => {
     terminalRuntimeScrollbackLinesRef.current = terminalRuntimeScrollbackLines;
   }, [terminalRuntimeScrollbackLines]);
-
-  function setTerminalHydrationSnapshot(id: string, snapshot: string) {
-    setTerminalHydrationSnapshots((current) => ({ ...current, [id]: snapshot }));
-    setTerminalHydrationVersions((current) => ({ ...current, [id]: (current[id] ?? 0) + 1 }));
-  }
-
-  async function hydrateTerminal(id: string) {
-    const snapshot = await window.exo.terminals.read(id);
-    setTerminalHydrationSnapshot(id, snapshot);
-  }
 
   useEffect(() => {
     const openPaths = collectOpenEditorPaths(editorTree);
@@ -225,8 +211,7 @@ export function App() {
     if (activeTerminalId) {
       activeTerminalIds.add(activeTerminalId);
     }
-    setTerminalHydrationSnapshots((current) => pruneRecordToKeys(current, activeTerminalIds));
-    setTerminalHydrationVersions((current) => pruneRecordToKeys(current, activeTerminalIds));
+    terminalState.pruneHydration(activeTerminalIds);
   }, [activeTerminalId, editorTree, terminalTree]);
   useEffect(() => {
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
@@ -350,9 +335,7 @@ export function App() {
 
       setWorkspaceModel(model);
       workspaceTrees.replaceTreesForModel(model, nextNoteTrees, nextProjectTrees);
-      setTerminalSessions(sessions);
-      setActiveTerminalId(defaultTerminal.id);
-      setTerminalHydrationSnapshot(defaultTerminal.id, defaultTerminalSnapshot);
+      terminalState.initialize(sessions, defaultTerminal.id, defaultTerminalSnapshot);
 
       const sessionIds = sessions.map((session) => session.id);
       const restoreTerminalsInEditor = Boolean(settings.layout?.terminalCollapsed && settings.layout.editorTree);
@@ -384,61 +367,10 @@ export function App() {
       }
     });
 
-    const removeDataListener = window.exo.terminals.onData(({ id, data }) => {
-      writeTerminalData(id, data);
-    });
-
-    const removeExitListener = window.exo.terminals.onExit(({ id, exitCode }) => {
-      setTerminalSessions((current) =>
-        current.map((session) => (session.id === id ? { ...session, status: "exited", exitCode } : session)),
-      );
-    });
-    const removeCreatedListener = window.exo.terminals.onCreated((session) => {
-      adoptExternalTerminalSessions([session], { activateLatest: true });
-    });
-    const syncTerminalSessionsInterval = window.setInterval(() => {
-      void window.exo.terminals.list().then((sessions) => {
-        const knownIds = new Set(terminalSessionsRef.current.map((session) => session.id));
-        const unseenSessions = sessions.filter((session) => !knownIds.has(session.id));
-        setTerminalSessions((current) => (terminalSessionsEqual(current, sessions) ? current : sessions));
-        if (unseenSessions.length > 0) {
-          adoptExternalTerminalSessions(unseenSessions, { activateLatest: true });
-        }
-      });
-    }, 1500);
-
     return () => {
       cancelled = true;
-      removeDataListener();
-      removeExitListener();
-      removeCreatedListener();
-      window.clearInterval(syncTerminalSessionsInterval);
     };
   }, []);
-
-  useEffect(() => {
-    if (!activeTerminalId || terminalKindByIdRef.current[activeTerminalId] === "shell") {
-      return;
-    }
-
-    let cancelled = false;
-    async function refreshActiveAgentBuffer() {
-      if (!activeTerminalId) {
-        return;
-      }
-      const snapshot = await window.exo.terminals.read(activeTerminalId);
-      if (cancelled) {
-        return;
-      }
-      setTerminalHydrationSnapshot(activeTerminalId, snapshot);
-    }
-
-    void refreshActiveAgentBuffer();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [activeTerminalId, terminalSessions]);
 
   useEffect(() => {
     if (!layoutPersistenceReady || onboardingState || !workspaceModel) {
@@ -486,32 +418,6 @@ export function App() {
     onboardingState,
     workspaceModel,
   ]);
-
-  useEffect(() => {
-    setAgentAnnotations((current) => {
-      const next = { ...current };
-      const activeIds = new Set(terminalSessions.map((session) => session.id));
-
-      for (const session of terminalSessions) {
-        if (!next[session.id]) {
-          next[session.id] = {
-            runLabel: "",
-            parentId: null,
-          };
-        }
-      }
-
-      for (const agentId of Object.keys(next)) {
-        if (!activeIds.has(agentId)) {
-          delete next[agentId];
-        } else if (next[agentId]?.parentId && !activeIds.has(next[agentId].parentId!)) {
-          next[agentId] = { ...next[agentId], parentId: null };
-        }
-      }
-
-      return next;
-    });
-  }, [terminalSessions]);
 
   // Command listener — agents can tell the app to open files via the command server
   useEffect(() => {
@@ -1299,11 +1205,8 @@ export function App() {
   }
 
   async function createTerminal(kind: "shell" | "claude" | "codex", cwd?: string, activate = true) {
-    const session = await window.exo.terminals.create({ kind, cwd });
+    const session = await terminalState.createTerminal(kind, cwd);
     shellLayout.setTerminalCollapsed(false);
-    setTerminalSessions((current) =>
-      current.some((existing) => existing.id === session.id) ? current : [...current, session],
-    );
 
     // Add to the focused terminal leaf, or find any terminal leaf
     const focusedLeaf = findNode(terminalTree, (n) => n.id === terminalFocusedLeafId) as PaneLeaf | undefined;
@@ -1322,12 +1225,12 @@ export function App() {
       });
     }
     if (activate) {
-      setActiveTerminalId(session.id);
+      terminalState.setActiveTerminalId(session.id);
     }
     return session;
   }
 
-  function adoptExternalTerminalSessions(
+  function attachExternalTerminalSessions(
     sessions: TerminalSessionInfo[],
     options: { activateLatest: boolean },
   ) {
@@ -1336,32 +1239,9 @@ export function App() {
     }
     shellLayout.setTerminalCollapsed(false);
 
-    setTerminalSessions((current) => {
-      const seen = new Set(current.map((session) => session.id));
-      const next = [...current];
-      for (const session of sessions) {
-        if (!seen.has(session.id)) {
-          next.push(session);
-        }
-      }
-      return next;
-    });
-
     terminalActions.setTree((currentTree) =>
       sessions.reduce((nextTree, session) => addTerminalSessionToFirstLeaf(nextTree, session.id), currentTree),
     );
-
-    if (!options.activateLatest) {
-      return;
-    }
-
-    const latest = sessions.at(-1);
-    if (!latest) {
-      return;
-    }
-
-    setActiveTerminalId(latest.id);
-    void hydrateTerminal(latest.id);
   }
 
   async function activateTerminal(leafId: PaneNodeId, id: string) {
@@ -1369,8 +1249,7 @@ export function App() {
       if (content.kind !== "terminal") return content;
       return { ...content, activeTerminalId: id };
     });
-    setActiveTerminalId(id);
-    await hydrateTerminal(id);
+    await terminalState.activateTerminal(id);
   }
 
   async function focusTerminalSession(id: string) {
@@ -1383,8 +1262,7 @@ export function App() {
         content.kind === "terminal" ? { ...content, activeTerminalId: id } : content,
       );
       setZoomSurface("terminal");
-      setActiveTerminalId(id);
-      await hydrateTerminal(id);
+      await terminalState.activateTerminal(id);
       return;
     }
 
@@ -1426,30 +1304,7 @@ export function App() {
   }
 
   async function closeTerminal(id: string) {
-    await window.exo.terminals.kill(id);
-    setTerminalSessions((current) => current.filter((session) => session.id !== id));
-    setTerminalHydrationSnapshots((current) => {
-      const next = { ...current };
-      delete next[id];
-      return next;
-    });
-    setTerminalHydrationVersions((current) => {
-      const next = { ...current };
-      delete next[id];
-      return next;
-    });
-    setAgentAnnotations((current) => {
-      const next = { ...current };
-      delete next[id];
-      for (const key of Object.keys(next)) {
-        if (next[key]?.parentId === id) {
-          next[key] = { ...next[key], parentId: null };
-        }
-      }
-      return next;
-    });
-
-    const remainingSessions = terminalSessions.filter((session) => session.id !== id);
+    const remainingSessions = await terminalState.killTerminal(id);
 
     // Remove the session from whichever leaves hold it, then prune any leaf left empty.
     editorActions.setTree((prev) =>
@@ -1462,10 +1317,6 @@ export function App() {
       return pruneEmptyLeaves(next, (leaf) => leaf.content.kind === "terminal" && leaf.content.terminalIds.length === 0);
     });
 
-    if (activeTerminalId === id) {
-      const fallback = remainingSessions.at(-1);
-      setActiveTerminalId(fallback?.id ?? null);
-    }
     if (remainingSessions.length === 0) {
       shellLayout.setTerminalCollapsed(true);
     }
@@ -1846,7 +1697,7 @@ export function App() {
       shellLayout.setTerminalCollapsed(false);
       terminalActions.focusLeaf(leafId);
     }
-    setActiveTerminalId(sessionId);
+    terminalState.setActiveTerminalId(sessionId);
   }
 
   function handleBrowserDrop(leafId: PaneNodeId, edge: DropEdge, url: string, sourceLeafId: string) {
@@ -2206,8 +2057,7 @@ export function App() {
                 editorActions.updateLeafContent(leaf.id, (content) =>
                   content.kind === "terminal" ? { ...content, activeTerminalId: id } : content,
                 );
-                setActiveTerminalId(id);
-                void hydrateTerminal(id);
+                void terminalState.activateTerminal(id);
               }}
               onWrite={(id, data) => void window.exo.terminals.write(id, data)}
               onResize={(id, cols, rows) => void window.exo.terminals.resize(id, cols, rows)}
@@ -2462,11 +2312,6 @@ function roundLayoutNumber(value: number): number {
 
 function stableJson(value: unknown): string {
   return JSON.stringify(value);
-}
-
-function pruneRecordToKeys<T>(record: Record<string, T>, keys: Set<string>): Record<string, T> {
-  const entries = Object.entries(record).filter(([key]) => keys.has(key));
-  return entries.length === Object.keys(record).length ? record : Object.fromEntries(entries);
 }
 
 function formatIndexStatus(status: IndexStatus): string {
