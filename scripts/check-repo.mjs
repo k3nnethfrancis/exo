@@ -59,6 +59,7 @@ const requiredFiles = [
   'docs/harness.md',
   'docs/qmd-integration-notes.md',
   'docs/tasks.md',
+  'docs/usability-readiness.md',
   'packages/mcp/README.md',
   '.github/workflows/ci.yml',
   '.github/workflows/package-macos.yml',
@@ -98,7 +99,9 @@ assertContains('.github/workflows/package-macos.yml', 'if-no-files-found: error'
 assertContains('docs/harness.md', 'One canonical broad gate');
 assertContains('docs/harness.md', 'Tests must be hermetic');
 assertContains('docs/harness.md', 'CI runs `pnpm ci:check`');
+assertContains('docs/usability-readiness.md', 'Installed `Exo.app` is the stable daily runtime');
 assertContains('AGENTS.md', '`CLAUDE.md` is a compatibility symlink to `AGENTS.md`');
+assertContains('AGENTS.md', 'docs/usability-readiness.md');
 assertContains('README.md', './scripts/install-local');
 assertContains('README.md', './scripts/install-mac-app');
 assertContains('README.md', 'pnpm dev:qa');

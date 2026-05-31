@@ -26,9 +26,13 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
   - Install the packaged app, launch `/Applications/Exo.app`, and visually confirm the menu bar icon appears.
   - Confirm the installed stable app and `pnpm dev:qa` can run side-by-side without clobbering each other's command-server discovery.
 
+## Live Bug-Bash Watchlist
+
+These issues have fixes and coverage, but remain worth exercising during daily installed-app use because they affected core Exo-on-Exo workflows.
+
 ### EXO-ISSUE-021: Full shell e2e file can exhaust Electron launch reliability after many serial app launches
 
-- Status: fixed
+- Status: resolved; watch during broader e2e/app QA
 - Severity: medium
 - Area: test harness, Electron Playwright QA, terminal regression coverage
 - Observed:
@@ -45,7 +49,7 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 
 ### EXO-ISSUE-017: Terminal tabs can become blank, show stale `[exited]`, or lag while typing
 
-- Status: fixed pending broader bug-bash
+- Status: fixed; watch during live agent bug bash
 - Severity: critical
 - Area: terminal renderer, terminal session switching, xterm performance, direct pty agent terminals
 - Observed:

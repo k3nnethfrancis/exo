@@ -2,7 +2,7 @@
 
 Exo is a local-first exograph workspace for humans and terminal agents. Treat this file as the concise map; use the linked docs for detail.
 
-The immediate product proving loop is Exo-on-Exo: use Exo-managed agents to build and QA Exo, then treat friction in that workflow as product signal.
+The immediate product proving loop is Exo-on-Exo: finish usability/harness readiness, install Exo as the stable resident app, use Exo-managed agents to build and QA Exo, then treat friction in that workflow as product signal.
 
 ## Start Here
 
@@ -13,11 +13,12 @@ The immediate product proving loop is Exo-on-Exo: use Exo-managed agents to buil
 5. `docs/architecture.md` - runtime and package boundaries
 6. `docs/harness.md` - gates, work chunks, agent workflow
 7. `docs/tasks.md` - active execution tracker
-8. `docs/terminal-runtime-decision.md` - terminal pty/tmux decision and revisit criteria
-9. `docs/qmd-integration-notes.md` - current QMD adapter contract and upgrade notes
-10. `docs/roadmap.md` - future plans
-11. `docs/plugins.md` - future extension model
-12. `packages/mcp/README.md` - MCP setup and tool contract
+8. `docs/usability-readiness.md` - near-term standard before installed daily use
+9. `docs/terminal-runtime-decision.md` - terminal pty/tmux decision and revisit criteria
+10. `docs/qmd-integration-notes.md` - current QMD adapter contract and upgrade notes
+11. `docs/roadmap.md` - future plans
+12. `docs/plugins.md` - future extension model
+13. `packages/mcp/README.md` - MCP setup and tool contract
 
 ## Repository Map
 
@@ -55,8 +56,11 @@ CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build 
 
 ## Dev Loop
 
-- Start Exo with `pnpm dev`.
+- Use installed `Exo.app` as the stable daily runtime once the usability-readiness gate is complete.
+- Use `pnpm dev:qa` for source-build QA while installed Exo remains available for notes, monitoring, and agent coordination.
+- Use `pnpm dev` only when intentionally running source Exo as the primary runtime.
 - Install a repo-backed local CLI with `./scripts/install-local`.
+- Install the local packaged macOS app with `./scripts/install-mac-app`.
 - Use `pnpm --filter @exo/desktop dev -- --remote-debugging-port=9222` for renderer inspection.
 - Restart Exo after touching Electron main, preload, native terminal handling, runtime config, package dependencies, or settings bootstrap.
 - HMR is usually enough only for pure renderer changes.

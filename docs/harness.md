@@ -145,6 +145,7 @@ Before an open-source push or release candidate:
 
 - run `pnpm ci:check`
 - run focused Playwright tests for touched UI flows
+- check `docs/usability-readiness.md` for the installed-app readiness gate before switching daily work to packaged Exo
 - confirm `.exo/`, logs, transcripts, and release artifacts are ignored
 - verify README, AGENTS, architecture, tasks, roadmap, and MCP docs agree
 - keep local/private paths out of source defaults

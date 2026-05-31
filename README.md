@@ -61,6 +61,8 @@ Exo is early. The immediate product test is whether Kenneth can use Exo to build
 
 See `docs/roadmap.md` and `docs/tasks.md` for the active plan.
 
+The immediate readiness gate is captured in `docs/usability-readiness.md`: finish the daily-use and harness standard, clean up the commit stack, push, install the packaged macOS app as the stable runtime, then bug bash from real use before starting larger roadmap phases.
+
 ## Current Status
 
 Exo is under active development and not yet a polished public binary release.
@@ -297,6 +299,7 @@ See `docs/harness.md` for work-chunk rules, validation evidence, and agent-frien
 - `docs/architecture.md` - package and runtime architecture.
 - `docs/strategy.md` - product direction and system model.
 - `docs/harness.md` - developer harness, gates, and agent workflow.
+- `docs/usability-readiness.md` - near-term standard for installed daily use.
 - `docs/plugins.md` - future extension model.
 - `docs/tasks.md` - active execution tracker.
 - `docs/roadmap.md` - future work and sequencing.
@@ -348,7 +351,8 @@ ls "$HOME/Library/Logs/DiagnosticReports"/Electron-*.ips
 5. `ledger.md` - current state and recent completed slices
 6. `docs/architecture.md` - runtime and package architecture
 7. `docs/harness.md` - contribution harness and validation gates
-8. `docs/tasks.md` - active execution tracker
-9. `docs/roadmap.md` - future plans
-10. `docs/plugins.md` - future extension model
-11. `packages/mcp/README.md` - MCP setup and tools
+8. `docs/usability-readiness.md` - installed-app readiness standard
+9. `docs/tasks.md` - active execution tracker
+10. `docs/roadmap.md` - future plans
+11. `docs/plugins.md` - future extension model
+12. `packages/mcp/README.md` - MCP setup and tools
