@@ -11,7 +11,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [ ] Verify fresh-clone/setup docs against current pnpm/Corepack/Electron/MCP behavior.
 - [ ] Push the reviewed branch and open the review/PR surface.
 - [ ] Refactor toward current-package domain modules before adding the next feature phase; do not introduce `packages/runtime` or plugin registries until runtime features create stable seams.
-- [ ] Extract renderer state machines from `App.tsx`: workspace bootstrap, workspace settings controller, workspace mutations, and pane/drop orchestration.
+- [ ] Extract remaining renderer state machines from `App.tsx`: workspace settings controller, workspace mutations, and pane/drop orchestration.
 - [x] Extract Electron window/tray/renderer-recovery ownership into `apps/desktop/src/main/app-lifecycle.ts` as the first main-process service boundary.
 - [x] Extract indexing timers, job metrics, sync/refresh scheduling, and indexed-root mutations into `apps/desktop/src/main/indexing-service.ts`.
 - [x] Extract workspace note search, target resolution, target creation, suggestions, branch-family, and knowledge wrappers into `apps/desktop/src/main/workspace-notes-service.ts`.
@@ -24,6 +24,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Extract renderer project review status and changed-file observation into `apps/desktop/src/renderer/src/hooks/useProjectReviewState.ts`.
 - [x] Extract renderer open-document/editor state into `apps/desktop/src/renderer/src/hooks/useOpenDocuments.ts`.
 - [x] Extract renderer terminal session state, hydration, event listeners, and polling into `apps/desktop/src/renderer/src/hooks/useTerminalSessions.ts`.
+- [x] Extract renderer workspace bootstrap/onboarding state into `apps/desktop/src/renderer/src/hooks/useWorkspaceBootstrap.ts`.
 - [x] Repair the e2e launch harness path for `EXO-ISSUE-021` by parallelizing the large shell file and capping e2e workers.
 - [x] Verify the e2e launch harness repair tracked in `EXO-ISSUE-021` with a full shell e2e rerun.
 - [x] Choose and add an open-source license.

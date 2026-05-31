@@ -8,7 +8,7 @@ import type {
   WorkspaceSettings,
 } from "@exo/core";
 
-import type { TerminalSessionInfo, WorkspaceRegistryEntry } from "../../shared/api";
+import type { TerminalSessionInfo } from "../../shared/api";
 
 import type { AppearanceMode, ResolvedAppearance } from "./appearance";
 import { AgentConfigEditorDialog } from "./components/AgentConfigEditorDialog";
@@ -24,7 +24,8 @@ import { useOpenDocuments } from "./hooks/useOpenDocuments";
 import { useProjectReviewState } from "./hooks/useProjectReviewState";
 import { useShellLayout } from "./hooks/useShellLayout";
 import { useTerminalSessions } from "./hooks/useTerminalSessions";
-import { loadInitialTrees, useWorkspaceTrees } from "./hooks/useWorkspaceTrees";
+import { useWorkspaceBootstrap } from "./hooks/useWorkspaceBootstrap";
+import { useWorkspaceTrees } from "./hooks/useWorkspaceTrees";
 import { useWorkspaceSearch } from "./hooks/useWorkspaceSearch";
 import { collectLeaves, findEditorLeaf, findNode, findTerminalLeaf, mapLeaves, paneId, pruneEmptyLeaves, removeNode, updateNode, type PaneLeaf, type PaneNode, type PaneNodeId, type BrowserPaneContent, type EditorPaneContent } from "./hooks/usePaneTree";
 import { useDragManager, type DragDropTarget, type DragPayload, type DropEdge } from "./hooks/useDragManager";
@@ -54,7 +55,6 @@ import {
 import {
   directoryOf,
   pathLabel,
-  pickInitialNote,
   uniquePaths,
 } from "./workspaceTree";
 import type { IndexBusyState, WorkspaceSettingsDialogState, WorkspaceSettingsSection } from "./workspaceSettingsDialogTypes";
@@ -101,21 +101,6 @@ type WorkspaceDialogState =
       confirmLabel: string;
     };
 
-interface OnboardingState {
-  mode: "first-run" | "switch";
-  step: "select" | "configure";
-  workspaces: WorkspaceRegistryEntry[];
-  selectedWorkspaceId: string | null;
-  notesFolder: string;
-  projectFolders: string[];
-  defaultTerminalCwd: string;
-  indexMode: WorkspaceSettings["indexing"]["mode"];
-  exploreIndexSearchOnEnter: boolean;
-  indexUpdateStrategy: WorkspaceSettings["indexUpdateStrategy"];
-  status: "idle" | "saving" | "error";
-  errorMessage: string | null;
-}
-
 // DragState replaced by useDragManager — see DragPayload in hooks/useDragManager.ts
 
 type ZoomSurface = "editor" | "terminal" | "explorer";
@@ -124,7 +109,6 @@ const NOTE_TREE_MAX_DEPTH = 3;
 const PROJECT_TREE_MAX_DEPTH = 3;
 
 export function App() {
-  const [workspaceModel, setWorkspaceModel] = useState<WorkspaceModel | null>(null);
   const workspaceTrees = useWorkspaceTrees({ noteTreeMaxDepth: NOTE_TREE_MAX_DEPTH, projectTreeMaxDepth: PROJECT_TREE_MAX_DEPTH });
   const { noteTrees, projectTrees } = workspaceTrees;
   const [exploreIndexSearchOnEnter, setExploreIndexSearchOnEnter] = useState(false);
@@ -140,8 +124,6 @@ export function App() {
   const [workspaceSettingsDialog, setWorkspaceSettingsDialog] = useState<WorkspaceSettingsDialogState | null>(null);
   const [agentContextManagerOpen, setAgentContextManagerOpen] = useState(false);
   const agentInstructionEditor = useAgentInstructionEditor();
-  const [onboardingState, setOnboardingState] = useState<OnboardingState | null>(null);
-  const [bootstrapError, setBootstrapError] = useState<string | null>(null);
   const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null);
   const [indexBusy, setIndexBusy] = useState<IndexBusyState>(null);
   const [appearanceMode, setAppearanceMode] = useState<AppearanceMode>("system");
@@ -150,13 +132,10 @@ export function App() {
   const [terminalFontSize, setTerminalFontSize] = useState(DEFAULT_TERMINAL_FONT_SIZE);
   const [terminalRuntimeScrollbackLines, setTerminalRuntimeScrollbackLines] = useState(FULL_TERMINAL_SCROLLBACK_LINES);
   const [explorerScale, setExplorerScale] = useState(DEFAULT_EXPLORER_SCALE);
-  const [layoutPersistenceReady, setLayoutPersistenceReady] = useState(false);
   const [systemPrefersDark, setSystemPrefersDark] = useState(() =>
     window.matchMedia("(prefers-color-scheme: dark)").matches,
   );
-  const bootstrapRunRef = useRef(0);
   const terminalRuntimeScrollbackLinesRef = useRef(FULL_TERMINAL_SCROLLBACK_LINES);
-  const workspaceSettingsRef = useRef<WorkspaceSettings | null>(null);
   const shellLayout = useShellLayout();
 
   const { tree: editorTree, focusedLeafId: editorFocusedLeafId, actions: editorActions } = shellLayout.editorPaneTree;
@@ -170,6 +149,26 @@ export function App() {
     hydrationSnapshots: terminalHydrationSnapshots,
     hydrationVersions: terminalHydrationVersions,
   } = terminalState;
+  const workspaceBootstrap = useWorkspaceBootstrap({
+    noteTreeMaxDepth: NOTE_TREE_MAX_DEPTH,
+    projectTreeMaxDepth: PROJECT_TREE_MAX_DEPTH,
+    applyWorkspaceSettings,
+    applyPersistedLayout: shellLayout.applyPersistedLayout,
+    setIndexStatus,
+    replaceTreesForModel: workspaceTrees.replaceTreesForModel,
+    restoreInitialDocuments,
+    restoreTerminals,
+  });
+  const {
+    workspaceModel,
+    setWorkspaceModel,
+    onboardingState,
+    setOnboardingState,
+    bootstrapError,
+    layoutPersistenceReady,
+    setLayoutPersistenceReady,
+    workspaceSettingsRef,
+  } = workspaceBootstrap;
   const projectReviewState = useProjectReviewState(workspaceModel, terminalSessions);
   const openDocumentsState = useOpenDocuments({
     workspaceModel,
@@ -234,143 +233,6 @@ export function App() {
     document.documentElement.dataset.theme = resolvedAppearance;
     document.documentElement.style.colorScheme = resolvedAppearance;
   }, [appearanceMode, resolvedAppearance]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function bootstrap() {
-      const bootstrapRun = ++bootstrapRunRef.current;
-      const workspaceListPromise = window.exo.workspace.listWorkspaces().catch(() => []);
-      const [setupState, model, settings, workspaces] = await Promise.all([
-        window.exo.workspace.getSetupState(),
-        window.exo.workspace.getModel(),
-        window.exo.workspace.getSettings(),
-        workspaceListPromise,
-      ]);
-      setBootstrapError(null);
-      workspaceSettingsRef.current = settings;
-      setLayoutPersistenceReady(false);
-      const terminalPolicy = resolveSettingsTerminalRuntime(settings);
-      setAppearanceMode(settings.appearanceMode);
-      setEditorFontSize(settings.editorFontSize);
-      setTerminalFontSize(settings.terminalFontSize);
-      setTerminalRuntimeScrollbackLines(terminalPolicy.scrollbackLines);
-      setExplorerScale(settings.explorerScale);
-      setExploreIndexSearchOnEnter(settings.exploreIndexSearchOnEnter);
-      shellLayout.applyPersistedLayout(settings.layout);
-
-      if (!setupState.complete) {
-        setWorkspaceModel(model);
-        setOnboardingState({
-          mode: "first-run",
-          step: "select",
-          workspaces,
-          selectedWorkspaceId: workspaces[0]?.id ?? null,
-          notesFolder: "",
-          projectFolders: settings.projectRoots,
-          defaultTerminalCwd: "",
-          indexMode: settings.indexing.mode,
-            exploreIndexSearchOnEnter: false,
-          indexUpdateStrategy: settings.indexUpdateStrategy,
-          status: "idle",
-          errorMessage: null,
-        });
-        return;
-      }
-
-      setOnboardingState(null);
-      const status = await window.exo.workspace.getIndexStatus();
-      setIndexStatus(status);
-      const [nextNoteTrees, nextProjectTrees] = await loadInitialTrees(model, {
-        noteTreeMaxDepth: NOTE_TREE_MAX_DEPTH,
-        projectTreeMaxDepth: PROJECT_TREE_MAX_DEPTH,
-      });
-
-      if (cancelled) {
-        return;
-      }
-
-      const firstNote = pickInitialNote(Object.entries(nextNoteTrees));
-      const defaultTerminal = await window.exo.terminals.ensureDefault();
-      const sessions = await window.exo.terminals.list();
-      const defaultTerminalSnapshot = await window.exo.terminals.read(defaultTerminal.id);
-
-      if (cancelled || bootstrapRun !== bootstrapRunRef.current) {
-        return;
-      }
-
-      if (import.meta.env.DEV) {
-        console.info("[exo] renderer bootstrap", {
-          workspaceRoot: model.workspaceRoot,
-          defaultTerminalCwd: model.defaultTerminalCwd,
-          noteRoots: model.noteRoots.map((root) => root.path),
-          projectRoots: model.projectRoots.map((root) => root.path),
-          initialNotePath: firstNote?.path ?? null,
-          defaultTerminalId: defaultTerminal.id,
-          defaultTerminalSessionCwd: defaultTerminal.cwd,
-          sessionCount: sessions.length,
-        });
-      }
-
-      if (firstNote) {
-        const restoredPaths = settings.layout ? collectOpenEditorPaths(settings.layout.editorTree as PaneNode) : new Set<string>();
-        if (restoredPaths.size > 0) {
-          await Promise.all(
-            Array.from(restoredPaths).map((filePath) =>
-              ensureDocumentLoaded(filePath).catch((error) => {
-                console.warn("[exo] failed to restore open document", { filePath, error });
-              }),
-            ),
-          );
-          const restoredActivePath = findActiveEditorPath(settings.layout?.editorTree as PaneNode | undefined);
-          setActiveDocumentPath(restoredActivePath ?? restoredPaths.values().next().value ?? firstNote.path);
-        } else {
-          await openFile(firstNote.path, editorFocusedLeafId);
-        }
-      }
-
-      if (cancelled || bootstrapRun !== bootstrapRunRef.current) {
-        return;
-      }
-
-      setWorkspaceModel(model);
-      workspaceTrees.replaceTreesForModel(model, nextNoteTrees, nextProjectTrees);
-      terminalState.initialize(sessions, defaultTerminal.id, defaultTerminalSnapshot);
-
-      const sessionIds = sessions.map((session) => session.id);
-      const restoreTerminalsInEditor = Boolean(settings.layout?.terminalCollapsed && settings.layout.editorTree);
-      const persistedEditorTerminalIds = settings.layout
-        ? collectTerminalSessionIds(settings.layout.editorTree as PaneNode)
-        : new Set<string>();
-      const terminalTreeSessionIds = restoreTerminalsInEditor
-        ? []
-        : sessionIds.filter((sessionId) => !persistedEditorTerminalIds.has(sessionId));
-      editorActions.setTree((currentTree) => {
-        const pruned = pruneStaleTerminalSessions(currentTree, new Set(sessionIds));
-        return restoreTerminalsInEditor
-          ? sessionIds.reduce((nextTree, sessionId) => addTerminalSessionToFirstLeaf(nextTree, sessionId), pruned)
-          : pruned;
-      });
-      terminalActions.setTree((currentTree) => {
-        const pruned = pruneStaleTerminalSessions(currentTree, new Set(sessionIds));
-        return restoreTerminalsInEditor
-          ? pruned
-          : terminalTreeSessionIds.reduce((nextTree, sessionId) => addTerminalSessionToFirstLeaf(nextTree, sessionId), pruned);
-      });
-      setLayoutPersistenceReady(true);
-    }
-
-    void bootstrap().catch((error) => {
-      console.error("[exo] renderer bootstrap failed", error);
-      if (!cancelled) {
-        setBootstrapError(error instanceof Error ? error.message : String(error));
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     if (!layoutPersistenceReady || onboardingState || !workspaceModel) {
@@ -510,6 +372,73 @@ export function App() {
     workspaceSettingsRef.current = nextSettings;
     const saved = await window.exo.workspace.saveSettings(nextSettings);
     workspaceSettingsRef.current = saved;
+  }
+
+  function applyWorkspaceSettings(settings: WorkspaceSettings) {
+    const terminalPolicy = resolveSettingsTerminalRuntime(settings);
+    setAppearanceMode(settings.appearanceMode);
+    setEditorFontSize(settings.editorFontSize);
+    setTerminalFontSize(settings.terminalFontSize);
+    setTerminalRuntimeScrollbackLines(terminalPolicy.scrollbackLines);
+    setExplorerScale(settings.explorerScale);
+    setExploreIndexSearchOnEnter(settings.exploreIndexSearchOnEnter);
+  }
+
+  async function restoreInitialDocuments(input: {
+    settings: WorkspaceSettings;
+    firstNotePath: string | null;
+  }) {
+    if (!input.firstNotePath) {
+      return;
+    }
+
+    const restoredPaths = input.settings.layout
+      ? collectOpenEditorPaths(input.settings.layout.editorTree as PaneNode)
+      : new Set<string>();
+    if (restoredPaths.size > 0) {
+      await Promise.all(
+        Array.from(restoredPaths).map((filePath) =>
+          ensureDocumentLoaded(filePath).catch((error) => {
+            console.warn("[exo] failed to restore open document", { filePath, error });
+          }),
+        ),
+      );
+      const restoredActivePath = findActiveEditorPath(input.settings.layout?.editorTree as PaneNode | undefined);
+      setActiveDocumentPath(restoredActivePath ?? restoredPaths.values().next().value ?? input.firstNotePath);
+      return;
+    }
+
+    await openFile(input.firstNotePath, editorFocusedLeafId);
+  }
+
+  function restoreTerminals(input: {
+    settings: WorkspaceSettings;
+    sessions: TerminalSessionInfo[];
+    defaultTerminalId: string;
+    defaultTerminalSnapshot: string;
+  }) {
+    terminalState.initialize(input.sessions, input.defaultTerminalId, input.defaultTerminalSnapshot);
+
+    const sessionIds = input.sessions.map((session) => session.id);
+    const restoreTerminalsInEditor = Boolean(input.settings.layout?.terminalCollapsed && input.settings.layout.editorTree);
+    const persistedEditorTerminalIds = input.settings.layout
+      ? collectTerminalSessionIds(input.settings.layout.editorTree as PaneNode)
+      : new Set<string>();
+    const terminalTreeSessionIds = restoreTerminalsInEditor
+      ? []
+      : sessionIds.filter((sessionId) => !persistedEditorTerminalIds.has(sessionId));
+    editorActions.setTree((currentTree) => {
+      const pruned = pruneStaleTerminalSessions(currentTree, new Set(sessionIds));
+      return restoreTerminalsInEditor
+        ? sessionIds.reduce((nextTree, sessionId) => addTerminalSessionToFirstLeaf(nextTree, sessionId), pruned)
+        : pruned;
+    });
+    terminalActions.setTree((currentTree) => {
+      const pruned = pruneStaleTerminalSessions(currentTree, new Set(sessionIds));
+      return restoreTerminalsInEditor
+        ? pruned
+        : terminalTreeSessionIds.reduce((nextTree, sessionId) => addTerminalSessionToFirstLeaf(nextTree, sessionId), pruned);
+    });
   }
 
   function updateAppearanceMode(nextMode: AppearanceMode) {
@@ -690,125 +619,6 @@ export function App() {
     });
   }
 
-  async function selectNotesFolderForOnboarding() {
-    const folders = await window.exo.workspace.selectFolder({
-      title: "Choose your notes folder",
-      buttonLabel: "Use Notes Folder",
-    });
-    if (folders[0]) {
-      setOnboardingState((current) =>
-        current
-          ? {
-              ...current,
-              notesFolder: folders[0],
-              errorMessage: null,
-              status: "idle",
-            }
-          : current,
-      );
-    }
-  }
-
-  async function addProjectFoldersForOnboarding() {
-    const folders = await window.exo.workspace.selectFolder({
-      title: "Add project folders",
-      buttonLabel: "Add Projects",
-      allowMultiple: true,
-    });
-    if (folders.length > 0) {
-      setOnboardingState((current) =>
-        current
-          ? {
-              ...current,
-              projectFolders: uniquePaths([...current.projectFolders, ...folders]),
-              errorMessage: null,
-              status: "idle",
-            }
-          : current,
-      );
-    }
-  }
-
-  async function selectDefaultTerminalForOnboarding() {
-    const folders = await window.exo.workspace.selectFolder({
-      title: "Choose default terminal folder",
-      buttonLabel: "Use Terminal Folder",
-    });
-    if (folders[0]) {
-      setOnboardingState((current) =>
-        current
-          ? {
-              ...current,
-              defaultTerminalCwd: folders[0],
-              errorMessage: null,
-              status: "idle",
-            }
-          : current,
-      );
-    }
-  }
-
-  async function openWorkspaceSwitcher() {
-    const current = workspaceSettingsRef.current;
-    const workspaces = await window.exo.workspace.listWorkspaces();
-    setWorkspaceSettingsDialog(null);
-    setOnboardingState({
-      mode: "switch",
-      step: "select",
-      workspaces,
-      selectedWorkspaceId: workspaces.find((workspace) => workspace.notesFolder === current?.noteRoots[0])?.id ?? workspaces[0]?.id ?? null,
-      notesFolder: current?.noteRoots[0] ?? "",
-      projectFolders: current?.projectRoots ?? [],
-      defaultTerminalCwd: current?.defaultTerminalCwd ?? current?.noteRoots[0] ?? "",
-      indexMode: current?.indexing.mode ?? "off",
-      exploreIndexSearchOnEnter: current?.exploreIndexSearchOnEnter ?? false,
-      indexUpdateStrategy: current?.indexUpdateStrategy ?? "on-save",
-      status: "idle",
-      errorMessage: null,
-    });
-  }
-
-  function startNewWorkspaceSetup() {
-    setOnboardingState((current) =>
-      current
-        ? {
-            ...current,
-            step: "configure",
-            selectedWorkspaceId: null,
-            notesFolder: "",
-            projectFolders: [],
-            defaultTerminalCwd: "",
-            indexMode: "hybrid",
-            exploreIndexSearchOnEnter: true,
-            indexUpdateStrategy: "on-save",
-            status: "idle",
-            errorMessage: null,
-          }
-        : current,
-    );
-  }
-
-  async function activateSelectedWorkspace() {
-    if (!onboardingState?.selectedWorkspaceId) {
-      setOnboardingState((current) =>
-        current ? { ...current, status: "error", errorMessage: "Select a workspace to continue." } : current,
-      );
-      return;
-    }
-    setOnboardingState({ ...onboardingState, status: "saving", errorMessage: null });
-    try {
-      const saved = await window.exo.workspace.activateWorkspace(onboardingState.selectedWorkspaceId);
-      workspaceSettingsRef.current = saved;
-      window.location.reload();
-    } catch (error) {
-      setOnboardingState({
-        ...onboardingState,
-        status: "error",
-        errorMessage: error instanceof Error ? error.message : "Unable to open workspace.",
-      });
-    }
-  }
-
   async function chooseFolderForSettings(target: "workspaceRoot" | "defaultTerminalCwd" | "noteRoot" | "projectRoot") {
     const folders = await window.exo.workspace.selectFolder({
       title:
@@ -841,52 +651,6 @@ export function App() {
       }
       return current;
     });
-  }
-
-  async function completeOnboarding() {
-    if (!onboardingState) {
-      return;
-    }
-    const notesFolder = onboardingState.notesFolder.trim();
-    if (!notesFolder) {
-      setOnboardingState({ ...onboardingState, status: "error", errorMessage: "Choose or create a notes folder to continue." });
-      return;
-    }
-
-    setOnboardingState({ ...onboardingState, status: "saving", errorMessage: null });
-    try {
-      const base = workspaceSettingsRef.current ?? await window.exo.workspace.getSettings();
-      const indexMode = onboardingState.indexMode;
-      const indexedRootPaths = indexMode === "off" ? [] : [notesFolder];
-      const nextSettings: WorkspaceSettings = {
-        ...base,
-        workspaceRoot: notesFolder,
-        defaultTerminalCwd: onboardingState.defaultTerminalCwd.trim() || onboardingState.projectFolders[0] || notesFolder,
-        noteRoots: [notesFolder],
-        projectRoots: onboardingState.projectFolders,
-        indexedRoots: indexedRootPaths.map((rootPath, index) => ({
-          id: `index-root-${index + 1}`,
-          label: pathLabel(rootPath),
-          path: rootPath,
-          kind: "notes",
-          pattern: "**/*.md",
-          ignore: [],
-          backend: "qmd",
-        })),
-        indexing: { enabled: indexMode !== "off" && indexedRootPaths.length > 0, mode: indexMode, backend: "qmd" },
-        exploreIndexSearchOnEnter: indexMode !== "off" && onboardingState.exploreIndexSearchOnEnter,
-        indexUpdateStrategy: onboardingState.indexUpdateStrategy,
-      };
-      const saved = await window.exo.workspace.saveSettings(nextSettings);
-      workspaceSettingsRef.current = saved;
-      window.location.reload();
-    } catch (error) {
-      setOnboardingState({
-        ...onboardingState,
-        status: "error",
-        errorMessage: error instanceof Error ? error.message : "Unable to save setup.",
-      });
-    }
   }
 
   async function runIndexUpdate(action: Exclude<IndexBusyState, null>) {
@@ -1814,14 +1578,14 @@ export function App() {
                     Cancel
                   </button>
                 ) : null}
-                <button className="toolbar-button" data-testid="workspace-picker-new" onClick={startNewWorkspaceSetup} type="button">
+                <button className="toolbar-button" data-testid="workspace-picker-new" onClick={workspaceBootstrap.startNewWorkspaceSetup} type="button">
                   New workspace
                 </button>
                 <button
                   className="toolbar-button toolbar-button--primary"
                   data-testid="workspace-picker-open"
                   disabled={!onboardingState.selectedWorkspaceId || onboardingState.status === "saving"}
-                  onClick={() => void activateSelectedWorkspace()}
+                  onClick={() => void workspaceBootstrap.activateSelectedWorkspace()}
                   type="button"
                 >
                   {onboardingState.status === "saving" ? "Opening…" : "Open workspace"}
@@ -1841,7 +1605,7 @@ export function App() {
                       <div className="dialog-field__label">Notes folder</div>
                       <div className="onboarding-section__hint">Required. This Markdown folder identifies the workspace.</div>
                     </div>
-                    <button className="toolbar-button" data-testid="onboarding-choose-notes" onClick={() => void selectNotesFolderForOnboarding()} type="button">
+                    <button className="toolbar-button" data-testid="onboarding-choose-notes" onClick={() => void workspaceBootstrap.selectNotesFolderForOnboarding()} type="button">
                       Select
                     </button>
                   </div>
@@ -1862,7 +1626,7 @@ export function App() {
                       <div className="dialog-field__label">Project folders</div>
                       <div className="onboarding-section__hint">Optional code folders for terminals, review, and agents.</div>
                     </div>
-                    <button className="toolbar-button toolbar-button--icon" data-testid="onboarding-add-project" onClick={() => void addProjectFoldersForOnboarding()} type="button">
+                    <button className="toolbar-button toolbar-button--icon" data-testid="onboarding-add-project" onClick={() => void workspaceBootstrap.addProjectFoldersForOnboarding()} type="button">
                       <Plus size={15} />
                     </button>
                   </div>
@@ -1890,7 +1654,7 @@ export function App() {
                       <div className="dialog-field__label">Default terminal</div>
                       <div className="onboarding-section__hint">Where new shell, Claude, and Codex sessions start.</div>
                     </div>
-                    <button className="toolbar-button" data-testid="onboarding-choose-terminal" onClick={() => void selectDefaultTerminalForOnboarding()} type="button">
+                    <button className="toolbar-button" data-testid="onboarding-choose-terminal" onClick={() => void workspaceBootstrap.selectDefaultTerminalForOnboarding()} type="button">
                       Select
                     </button>
                   </div>
@@ -1971,7 +1735,7 @@ export function App() {
                   className="toolbar-button toolbar-button--primary"
                   data-testid="onboarding-continue"
                   disabled={!onboardingState.notesFolder.trim() || onboardingState.status === "saving"}
-                  onClick={() => void completeOnboarding()}
+                  onClick={() => void workspaceBootstrap.completeOnboarding()}
                   type="button"
                 >
                   {onboardingState.status === "saving" ? "Setting up…" : "Create workspace"}
@@ -2231,7 +1995,10 @@ export function App() {
           onChooseFolder={(target) => void chooseFolderForSettings(target)}
           onClose={closeWorkspaceSettingsDialog}
           onOpenAgentConfigEditor={() => void openAgentContextManager()}
-          onOpenWorkspaceSwitcher={() => void openWorkspaceSwitcher()}
+          onOpenWorkspaceSwitcher={() => {
+            setWorkspaceSettingsDialog(null);
+            void workspaceBootstrap.openWorkspaceSwitcher();
+          }}
           onRunIndexUpdate={(kind) => void runIndexUpdate(kind)}
           onSave={(settingsDialog, options) => void saveWorkspaceSettingsDialog(settingsDialog, options)}
         />
