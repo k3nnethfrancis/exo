@@ -21,6 +21,7 @@ import { TerminalDock } from "./components/TerminalDock";
 import { WorkspaceSettingsDialog } from "./components/WorkspaceSettingsDialog";
 import { useAgentInstructionEditor } from "./hooks/useAgentInstructionEditor";
 import { useOpenDocuments } from "./hooks/useOpenDocuments";
+import { usePaneDropOrchestration } from "./hooks/usePaneDropOrchestration";
 import { useProjectReviewState } from "./hooks/useProjectReviewState";
 import { useShellLayout } from "./hooks/useShellLayout";
 import { useTerminalSessions } from "./hooks/useTerminalSessions";
@@ -29,19 +30,15 @@ import { useWorkspaceMutations } from "./hooks/useWorkspaceMutations";
 import { useWorkspaceSettingsController } from "./hooks/useWorkspaceSettingsController";
 import { useWorkspaceTrees } from "./hooks/useWorkspaceTrees";
 import { useWorkspaceSearch } from "./hooks/useWorkspaceSearch";
-import { collectLeaves, findEditorLeaf, findNode, findTerminalLeaf, mapLeaves, paneId, pruneEmptyLeaves, removeNode, updateNode, type PaneLeaf, type PaneNode, type PaneNodeId, type BrowserPaneContent, type EditorPaneContent } from "./hooks/usePaneTree";
-import { useDragManager, type DragDropTarget, type DragPayload, type DropEdge } from "./hooks/useDragManager";
+import { collectLeaves, findEditorLeaf, findNode, findTerminalLeaf, mapLeaves, paneId, pruneEmptyLeaves, updateNode, type PaneLeaf, type PaneNode, type PaneNodeId, type BrowserPaneContent } from "./hooks/usePaneTree";
 import {
   addTerminalSessionToFirstLeaf,
-  addTerminalSessionToTargetLeaf,
   collectActiveTerminalIds,
   collectOpenEditorPaths,
   collectTerminalSessionIds,
-  countTerminalSessions,
   findActiveEditorPath,
   removeTerminalSessionFromTree,
   pruneStaleTerminalSessions,
-  treeContainsTerminalSession,
 } from "./paneTreeSelectors";
 import {
   clampNumber,
@@ -52,13 +49,8 @@ import {
   resolveSettingsTerminalRuntime,
   workspaceSettingsStructuralDraftKey,
 } from "./workspaceSettingsModel";
-import {
-  directoryOf,
-  pathLabel,
-} from "./workspaceTree";
+import { pathLabel } from "./workspaceTree";
 import type { IndexBusyState } from "./workspaceSettingsDialogTypes";
-
-// DragState replaced by useDragManager — see DragPayload in hooks/useDragManager.ts
 
 type ZoomSurface = "editor" | "terminal" | "explorer";
 
@@ -75,8 +67,6 @@ export function App() {
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [revealExplorerPathRequest, setRevealExplorerPathRequest] = useState<{ path: string; nonce: number } | null>(null);
   const [editorRevealLineRequest, setEditorRevealLineRequest] = useState<{ filePath: string; line: number; nonce: number } | null>(null);
-  const handleDropRef = useRef<(target: DragDropTarget, payload: DragPayload) => void>(() => {});
-  const dragManager = useDragManager((target, payload) => handleDropRef.current(target, payload));
   const [agentContextManagerOpen, setAgentContextManagerOpen] = useState(false);
   const agentInstructionEditor = useAgentInstructionEditor();
   const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null);
@@ -171,6 +161,18 @@ export function App() {
     revealExplorerPath: (path) => setRevealExplorerPathRequest({ path, nonce: Date.now() }),
   });
   const { dialog: workspaceDialog, setDialog: setWorkspaceDialog } = workspaceMutations;
+  const dragManager = usePaneDropOrchestration({
+    editorTree,
+    terminalTree,
+    editorActions,
+    terminalActions,
+    setTerminalCollapsed: shellLayout.setTerminalCollapsed,
+    setActiveTerminalId: terminalState.setActiveTerminalId,
+    setActiveDocumentPath,
+    setZoomSurface,
+    ensureDocumentLoaded,
+    moveWorkspacePathIntoDirectory: workspaceMutations.moveWorkspacePathIntoDirectory,
+  });
   const compactEditorChrome = collectLeaves(editorTree).length > 1;
   const resolvedAppearance: ResolvedAppearance = appearanceMode === "system" ? (systemPrefersDark ? "dark" : "light") : appearanceMode;
 
@@ -838,201 +840,6 @@ export function App() {
   function resolveActiveEditorPathAfterDelete(): string | null {
     const focused = findNode(editorTree, (n) => n.id === editorFocusedLeafId) as PaneLeaf | undefined;
     return focused?.content.kind === "editor" ? focused.content.activePath : null;
-  }
-
-  // Assign the drop handler ref — called by useDragManager on mouseup over a drop zone
-  handleDropRef.current = (target: DragDropTarget, payload: DragPayload) => {
-    if (target.kind === "explorer") {
-      if (payload.kind === "workspace-path") {
-        const targetDirectoryPath = target.targetKind === "file" ? directoryOf(target.targetPath) : target.targetPath;
-        void workspaceMutations.moveWorkspacePathIntoDirectory(payload.path, targetDirectoryPath).catch((error) => {
-          console.error("[workspace] move failed", error);
-        });
-      }
-      return;
-    }
-
-    if (payload.kind === "document") {
-      handleDocumentDrop(target.leafId, target.edge, payload.filePath, payload.sourcePaneId);
-    } else if (payload.kind === "workspace-path" && payload.nodeKind === "file") {
-      handleDocumentDrop(target.leafId, target.edge, payload.path);
-    } else if (payload.kind === "terminal") {
-      handleTerminalDrop(target.leafId, target.edge, payload.sessionId);
-    } else if (payload.kind === "browser") {
-      handleBrowserDrop(target.leafId, target.edge, payload.url, payload.sourcePaneId);
-    }
-  };
-
-  function handleDocumentDrop(leafId: PaneNodeId, edge: DropEdge, filePath: string, sourceLeafId?: string) {
-    // Ensure the document content is loaded (may be a new file dragged from explorer)
-    void ensureDocumentLoaded(filePath);
-    const targetLeaf = findNode(editorTree, (n) => n.id === leafId && n.kind === "leaf") as PaneLeaf | undefined;
-    const dropEdge = targetLeaf?.content.kind !== "editor" && edge === "center" ? "right" : edge;
-
-    // All operations are within the editor tree only.
-    const isEmptyEditor = (leaf: PaneLeaf) =>
-      leaf.content.kind === "editor" && leaf.content.openPaths.length === 0;
-
-    if (dropEdge === "center") {
-      editorActions.setTree((prev) => {
-        let tree = mapLeaves(prev, (leaf) => {
-          if (leaf.content.kind !== "editor") return leaf;
-          if (sourceLeafId && leaf.id === sourceLeafId && leaf.id !== leafId) {
-            const remaining = leaf.content.openPaths.filter((p) => p !== filePath);
-            return {
-              ...leaf,
-              content: {
-                ...leaf.content,
-                openPaths: remaining,
-                activePath: leaf.content.activePath === filePath ? (remaining.at(-1) ?? null) : leaf.content.activePath,
-              },
-            };
-          }
-          if (leaf.id === leafId) {
-            return {
-              ...leaf,
-              content: {
-                ...leaf.content,
-                activePath: filePath,
-                openPaths: leaf.content.openPaths.includes(filePath) ? leaf.content.openPaths : [...leaf.content.openPaths, filePath],
-              },
-            };
-          }
-          return leaf;
-        });
-        tree = pruneEmptyLeaves(tree, isEmptyEditor);
-        return tree;
-      });
-      editorActions.focusLeaf(leafId);
-      setActiveDocumentPath(filePath);
-    } else {
-      // Edge-drop within the source pane with only this doc would orphan one half — skip.
-      if (sourceLeafId && sourceLeafId === leafId) {
-        const src = findNode(editorTree, (n) => n.id === sourceLeafId) as PaneLeaf | undefined;
-        if (src?.content.kind === "editor" && src.content.openPaths.length <= 1) {
-          setActiveDocumentPath(filePath);
-          return;
-        }
-      }
-
-      const direction: "horizontal" | "vertical" = (dropEdge === "left" || dropEdge === "right") ? "horizontal" : "vertical";
-      const position: "before" | "after" = (dropEdge === "left" || dropEdge === "top") ? "before" : "after";
-      const newLeafId = `pane-${Date.now().toString(36)}`;
-      const newContent: EditorPaneContent = { kind: "editor", openPaths: [filePath], activePath: filePath };
-
-      editorActions.setTree((prev) => {
-        const newLeaf: PaneLeaf = { kind: "leaf", id: newLeafId, content: newContent };
-        let tree = updateNode(prev, leafId, (node) => ({
-          kind: "split" as const,
-          id: `split-${Date.now().toString(36)}`,
-          direction,
-          ratio: 0.5,
-          children: (position === "before" ? [newLeaf, node as PaneLeaf] : [node as PaneLeaf, newLeaf]) as [PaneNode, PaneNode],
-        }));
-        if (sourceLeafId) {
-          tree = mapLeaves(tree, (leaf) => {
-            if (leaf.id !== sourceLeafId || leaf.content.kind !== "editor") return leaf;
-            const remaining = leaf.content.openPaths.filter((p) => p !== filePath);
-            return {
-              ...leaf,
-              content: {
-                ...leaf.content,
-                openPaths: remaining,
-                activePath: leaf.content.activePath === filePath ? (remaining.at(-1) ?? null) : leaf.content.activePath,
-              },
-            };
-          });
-        }
-        return pruneEmptyLeaves(tree, isEmptyEditor);
-      });
-      editorActions.focusLeaf(newLeafId);
-      setActiveDocumentPath(filePath);
-    }
-  }
-
-  function handleTerminalDrop(leafId: PaneNodeId, edge: DropEdge, sessionId: string) {
-    const targetInEditorTree = findNode(editorTree, (node) => node.id === leafId);
-    const targetInTerminalTree = findNode(terminalTree, (node) => node.id === leafId);
-    if (!targetInEditorTree && !targetInTerminalTree) {
-      return;
-    }
-
-    editorActions.setTree((prev) => {
-      const withoutSession = removeTerminalSessionFromTree(prev, sessionId);
-      const moved = targetInEditorTree
-        ? addTerminalSessionToTargetLeaf(withoutSession, leafId, edge, sessionId)
-        : withoutSession;
-      return pruneEmptyLeaves(moved, (leaf) => leaf.content.kind === "terminal" && leaf.content.terminalIds.length === 0);
-    });
-
-    terminalActions.setTree((prev) => {
-      const withoutSession = removeTerminalSessionFromTree(prev, sessionId);
-      const moved = targetInTerminalTree
-        ? addTerminalSessionToTargetLeaf(withoutSession, leafId, edge, sessionId)
-        : withoutSession;
-      return pruneEmptyLeaves(moved, (leaf) => leaf.content.kind === "terminal" && leaf.content.terminalIds.length === 0);
-    });
-
-    if (targetInEditorTree) {
-      editorActions.focusLeaf(leafId);
-      if (treeContainsTerminalSession(terminalTree, sessionId) && countTerminalSessions(terminalTree) <= 1) {
-        shellLayout.setTerminalCollapsed(true);
-      }
-    } else {
-      shellLayout.setTerminalCollapsed(false);
-      terminalActions.focusLeaf(leafId);
-    }
-    terminalState.setActiveTerminalId(sessionId);
-  }
-
-  function handleBrowserDrop(leafId: PaneNodeId, edge: DropEdge, url: string, sourceLeafId: string) {
-    const targetLeaf = findNode(editorTree, (node) => node.id === leafId && node.kind === "leaf") as PaneLeaf | undefined;
-    if (!targetLeaf) {
-      return;
-    }
-    if (sourceLeafId === leafId) {
-      editorActions.focusLeaf(leafId);
-      setZoomSurface("editor");
-      return;
-    }
-
-    const browserContent: BrowserPaneContent = { kind: "browser", url };
-    const dropEdge = targetLeaf.content.kind === "browser" ? edge : (edge === "center" ? "right" : edge);
-
-    if (dropEdge === "center") {
-      editorActions.setTree((prev) => {
-        let tree = mapLeaves(prev, (leaf) =>
-          leaf.id === leafId && leaf.content.kind === "browser"
-            ? { ...leaf, content: browserContent }
-            : leaf,
-        );
-        const withoutSource = removeNode(tree, sourceLeafId);
-        tree = withoutSource ?? tree;
-        return tree;
-      });
-      editorActions.focusLeaf(leafId);
-      setZoomSurface("editor");
-      return;
-    }
-
-    const direction: "horizontal" | "vertical" = (dropEdge === "left" || dropEdge === "right") ? "horizontal" : "vertical";
-    const position: "before" | "after" = (dropEdge === "left" || dropEdge === "top") ? "before" : "after";
-    const newLeafId = paneId();
-    const newLeaf: PaneLeaf = { kind: "leaf", id: newLeafId, content: browserContent };
-
-    editorActions.setTree((prev) => {
-      let tree = updateNode(prev, leafId, (node) => ({
-        kind: "split" as const,
-        id: paneId(),
-        direction,
-        ratio: 0.5,
-        children: (position === "before" ? [newLeaf, node as PaneLeaf] : [node as PaneLeaf, newLeaf]) as [PaneNode, PaneNode],
-      }));
-      const withoutSource = removeNode(tree, sourceLeafId);
-      return withoutSource ?? tree;
-    });
-    editorActions.focusLeaf(newLeafId);
-    setZoomSurface("editor");
   }
 
   if (!workspaceModel) {
