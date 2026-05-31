@@ -2,7 +2,7 @@
 
 Last updated: 2026-05-20
 
-Exo should support a plugin path so users can extend the shared exocortex without requiring every feature to land in core.
+Exo should support a plugin path so users can extend their exograph without requiring every feature to land in core.
 
 ## Why Plugins Matter
 

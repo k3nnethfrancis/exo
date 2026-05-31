@@ -6,11 +6,11 @@ This is the fastest current-state handoff for Exo. It records what exists now, w
 
 ## Product Thesis
 
-Exo is a local-first agentic development environment built around a shared exocortex for humans and terminal agents.
+Exo is a local-first exograph workspace for humans and terminal agents.
 
-The shared exocortex is grounded in Markdown notes and project context. Humans and agents should be able to read, write, search, coordinate, and develop from the same knowledge graph.
+The exograph is a user-defined knowledge/work graph grounded in Markdown notes, project context, terminal sessions, agent messages, changed files, artifacts, workflow runs, and provenance. Humans and agents should be able to read, write, search, coordinate, and develop from that graph.
 
-Research IDE, note-taking system, agent control room, code-review surface, and training workspace are all valid Exo use cases. They are not the category. The category is shared exocortex for agentic development.
+Research IDE, note-taking system, agent control room, code-review surface, and training workspace are all valid Exo use cases. They are not the category. The category is the exograph workspace.
 
 ## Current Shipped Surface
 
@@ -48,6 +48,7 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Exo runtime overlays are generated under `.exo/instructions/` and previewed in Settings; they are not inserted into user-authored provider context files.
 - Exo-launched terminal agents receive the matching overlay path through `EXO_INSTRUCTIONS` plus scope/label env vars.
 - Codex startup sends are readiness-gated: submitted task text queues during startup/trust interstitials and flushes only after normal chat input is ready, while raw input remains available for answering prompts.
+- The immediate proving loop is Exo-on-Exo: use Exo-managed agents for bounded Exo work, then prioritize the reliability, coordination, review, and graph primitives that make that loop usable.
 
 ## Recent Completed Work
 
@@ -124,14 +125,15 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Added hidden-window CLI/MCP app QA coverage: with the workspace window hidden, `bin/exo` can status/list/create/send/read live agents and MCP stdio tools can list/create/send/read the same running Exo agent surface.
 - Pruned MCP from 14 tools to the narrow 9-tool agent work plane, moved index/project-root administration to CLI/UI only, and deprecated `exo agents message/tell` in favor of `exo agents send`.
 - Updated the roadmap around Obsidian CLI and LM Wiki lessons: CLI stays broad for operator/admin/debug and future note/graph maintenance; MCP stays compact for agent work; QMD remains the default local search provider behind a future provider-neutral search contract.
+- Recentered roadmap/context around Exo as an exograph workspace and around Exo-on-Exo useability before broad platform expansion.
 - Started cleanup-plan doc sync by removing stale tmux prerequisite language and documenting that current open QA includes the e2e launch harness and broader terminal bug-bash.
 
 ## Next Priorities
 
-1. Review the local commit stack, push `0.1.0-alpha.2` tester-readiness fixes, and open the review surface.
-2. Authorship/provenance: promote observed write candidates into explicit human vs agent review states only when Exo controls the write path or receives a trusted session event.
-3. Multi-agent coordination: roster, objectives, direct messages, file+SQLite transport, CLI/MCP access.
-4. Search and wiki graph: design the search-provider contract, add note traversal/graph context primitives, then add scoped create/append/guarded-patch note writes.
+1. Use Exo as the default environment for the next bounded Exo implementation/review task and record every friction point.
+2. Review the local commit stack, push `0.1.0-alpha.2` tester-readiness fixes, and open the review surface.
+3. Multi-agent coordination: roster, objectives, direct messages, changed-file/review links, file+SQLite transport, CLI/MCP access.
+4. Exograph architecture: write the profile/schema/proposal spec, add read-only graph/document context primitives, then add scoped maintainer writes.
 
 ## Operating Rules
 
@@ -143,6 +145,7 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Keep QMD integration behind `packages/core/src/qmd.ts`; document workarounds in `docs/qmd-integration-notes.md`.
 - Keep search provider-neutral at the product/API boundary: QMD is the default local provider, not the only possible retrieval backend.
 - Keep CLI broad for operator/admin/debug workflows and MCP narrow for agent work-plane tools.
+- Keep Exo-on-Exo as the default proving loop; do not add broad platform features if notes, terminals, agent coordination, or review surfaces are blocking real use.
 
 ## Validation
 

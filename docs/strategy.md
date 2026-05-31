@@ -6,11 +6,11 @@ This is the strategy document for Exo. `README.md` explains the product publicly
 
 ## Product Direction
 
-Exo is a local-first agentic development environment built around a shared exocortex for humans and terminal agents.
+Exo is a local-first exograph workspace for humans and terminal agents.
 
-The core idea is simple: your Markdown notes and project context become shared ground truth. You can write and organize your own knowledge, while terminal agents can read, write, search, and coordinate through the same knowledge graph using Exo-controlled tools.
+The core idea is simple: your Markdown notes, project context, terminal sessions, agent messages, changed files, artifacts, and workflow runs become a user-defined knowledge/work graph. You can write and organize your own knowledge, while terminal agents can read, write, search, and coordinate through the same exograph using Exo-controlled tools.
 
-Exo should be flexible enough to support many workflows. A person might use it as a research IDE, a note-taking system, an agent control room, a code-review surface, or an evaluation/training workspace. The product identity is broader than any one of those use cases: Exo is a shared exocortex.
+Exo should be flexible enough to support many workflows. A person might use it as a research IDE, a note-taking system, an agent control room, a code-review surface, or an evaluation/training workspace. The product identity is broader than any one of those use cases: Exo is an exograph environment.
 
 ## System Model
 
@@ -22,13 +22,15 @@ Exo is organized around:
 - `terminal_sessions[]` - shell, Claude, Codex, and future local/open-source terminal agents.
 - `runtime_process` - the resident Exo process that owns the command server, MCP bridge, watchers, transcripts, and supervised pty agents independent of whether the workspace window is visible.
 - `agent_context_files[]` - global and local `AGENTS.md` / `CLAUDE.md` files.
+- `exograph_profile` - user-defined schema/profile for interpreting files, properties, links, paths, sessions, and artifacts as graph nodes and relations.
+- `exograph_proposals[]` - inferred schema/graph/file changes that remain reviewable until accepted.
 - `notes_index` - Exo-managed QMD-backed index for optional notes search and future memory.
 - `search_providers[]` - the provider-backed retrieval layer behind Exo search. QMD is the default local provider, but the Exo contract should allow alternate local, custom, or remote retrieval implementations later.
 - `agent_communication` - future inspectable message transport for multi-agent coordination.
 - `workcells[]` - future bounded development/research loops with artifacts, metrics, and replay.
 - `plugins[]` - future local-first extension packages that can add agent launchers, commands, panels, WebView apps, search providers, eval runners, trace collectors, and workflows through permissioned APIs.
 
-Architecture should evolve in phases: first current-package domain modules, then resident runtime and multi-agent features, then a dedicated runtime package once service contracts are proven, then plugin registries after the core primitives are stable.
+Architecture should evolve in phases: first stabilize the current app enough to use Exo for Exo work, then harden Exo-on-Exo agent coordination, then define exograph/profile/provider contracts where the actual workflow demands them, then extract runtime/plugin boundaries after the core primitives are proven.
 
 Portable source defaults:
 
@@ -42,6 +44,8 @@ Local/private paths belong in settings or environment examples, not source defau
 
 - Local-first by default.
 - Markdown-on-disk is canonical.
+- The exograph is user-defined; Exo may detect, recommend, and maintain structure, but should not impose one vault schema.
+- Durable approved graph facts live in user-owned files and properties. Inferred facts and workflow history stay in `.exo/` until accepted.
 - First-run setup and workspace switching use the same workspace create/select surface.
 - First-run setup requires an explicit notes folder choice before the app shell appears.
 - Notebook mode is a projection over Markdown, not a separate data model.
@@ -52,6 +56,7 @@ Local/private paths belong in settings or environment examples, not source defau
 - CLI is the operator/admin/debug control plane; MCP is the narrower agent work plane.
 - Humans and agents should share the same notes index through explicit, observable search modes.
 - Search is a capability boundary, not a permanent commitment to one indexing implementation.
+- Exo-on-Exo is the default product proving loop: use Exo-managed agents for bounded Exo tasks, then turn friction into product work.
 - Provenance should come from observed workflows, not AI-detector inference.
 - Training data is never ambient; it must be explicitly scoped.
 - Core primitives should stay stable and small; plugins should extend Exo through registries instead of patching internals.
@@ -78,12 +83,16 @@ Current intentional limits:
 - Live Explore typing is fast note filename/path search.
 - QMD-backed indexed search is explicit and should not block the renderer.
 - Project roots are not auto-loaded from every workspace project folder.
-- File/terminal panes do not yet share one arbitrary pane graph.
+- File/terminal panes share one arbitrary split-pane graph, but mixed file/terminal tab groups remain a future refinement.
 - Authorship/provenance is not yet tracked.
 - Agent-to-agent communication is not yet a durable Exo-native protocol.
 - Plugin APIs are not yet public; optional agent launchers, dashboards, eval runners, and workflow integrations should wait for a clear core/plugin boundary.
 
 ## Next Product Systems
+
+### Use Exo To Build Exo
+
+The immediate system goal is useability: Kenneth should be able to keep Exo running, use it for notes and terminals, spawn Exo-managed agents for bounded Exo tasks, inspect their transcripts and changed files, and review the result inside Exo. Work that improves this loop comes before broad platform expansion.
 
 ### Workspace Surface
 
@@ -105,13 +114,22 @@ Exo should manage the context files terminal agents rely on. Users should be abl
 
 Exo should distinguish human-written and agent-written work where it can observe the source. The first implementation should track writes made through Exo-managed agents by session/task/file. More granular block/line provenance can come later.
 
+### Exograph Architecture
+
+Exo should formalize the exograph without forcing a schema. Users can start with a flat notes folder, accept a starter profile such as LM Wiki, map an existing Shoshin-style vault, or define their own schema. Profiles define node types, edge types, path/property mappings, conventions, templates, maintenance rules, and review policy.
+
+The two user-facing exograph modes should be:
+
+- Analyze Exograph: read-only discovery, schema suggestions, and graph health diagnostics.
+- Maintain Exograph: reviewable file/profile changes after user approval.
+
 ### QMD, Notes Index, And Search
 
-QMD is now the default Exo-managed notes-index substrate. Exo should improve performance, detect existing QMD setups, expose compute profiles, add richer trigger controls, and serve the same search contract to humans and agents through UI, CLI, and MCP. The long-term interface should be a search-provider boundary so users can keep QMD as the default path, modify it, or swap in another local or remote retrieval implementation without changing Exo's note, graph, CLI, or MCP contracts.
+QMD is now the default Exo-managed notes-index substrate. Exo should improve performance, detect existing QMD setups, expose compute profiles, add richer trigger controls, and serve the same search contract to humans and agents through UI, CLI, and MCP. The long-term interface should be a search-provider boundary so users can keep QMD as the default path, modify it, or swap in another local or remote retrieval implementation without changing Exo's exograph, CLI, or MCP contracts.
 
 ### LM Wiki And Knowledge Maintenance
 
-Exo should support the LM Wiki pattern: Markdown on disk as a maintained knowledge graph, raw/source material separated from synthesized wiki pages, durable `AGENTS.md` / `CLAUDE.md` conventions, an index/catalog for navigation, an append-only log of maintenance work, and periodic lint/health checks for stale claims, orphan pages, missing cross-links, contradictions, and useful new source questions.
+Exo should support the LM Wiki pattern as one exograph profile: Markdown on disk as a maintained knowledge graph, raw/source material separated from synthesized wiki pages, durable `AGENTS.md` / `CLAUDE.md` conventions, an index/catalog for navigation, an append-only log of maintenance work, and periodic lint/health checks for stale claims, orphan pages, missing cross-links, contradictions, and useful new source questions.
 
 This should shape Exo's surfaces:
 
@@ -126,7 +144,7 @@ Exo should make terminal-agent swarms legible. Agents need names, objectives, st
 
 ### Graph And Memory Views
 
-The shared exocortex should be visible. Graph and memory views should combine backlinks, Markdown links, note structure, QMD-derived relationships, agent sessions, messages, changed files, and future workcells.
+The exograph should be visible. Graph and memory views should combine backlinks, Markdown links, note structure, QMD-derived relationships, agent sessions, messages, changed files, and future workcells.
 
 ### Workcells, Evals, And Training
 
@@ -167,6 +185,8 @@ Every significant change should update docs and tasks when it changes product be
 
 Exo is now documented as a local-first agentic development environment built around a shared exocortex. Individual users can shape it into a research IDE, note system, agent control room, code-review surface, or training workspace, but the category is the shared exocortex.
 
+This was superseded by the 2026-05-31 exograph framing.
+
 ### 2026-05-12 — Tasks Are Active Backlog, Not History
 
 `docs/tasks.md` now tracks current work by priority and product system. Completed historical phase lists moved out of task tracking; `ledger.md` is the handoff/history file.
@@ -186,3 +206,7 @@ QMD now backs optional lexical, semantic, and hybrid notes indexing through Exo 
 ### 2026-05-31 — CLI/MCP Split And Search Provider Direction
 
 The CLI is the broad operator/admin/debug surface, similar in spirit to Obsidian CLI's broad app-control model. MCP remains the narrow agent work plane. Exo should add note traversal, graph, and maintenance operations carefully, and should avoid turning MCP into a full admin surface. QMD remains the default local search provider, but Exo search should be designed around a provider contract so alternate retrieval backends can plug in later.
+
+### 2026-05-31 — Exograph And Exo-On-Exo Direction
+
+Exo's core concept is the exograph: a user-defined knowledge/work graph with growable relational ontologies. The immediate product proving loop is Exo-on-Exo: use Exo-managed agents to build Exo, then prioritize the reliability, coordination, review, and graph primitives that make that loop work in practice.

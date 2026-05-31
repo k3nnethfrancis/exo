@@ -4,12 +4,16 @@ Last updated: 2026-05-31
 
 This is the active task tracker for Exo. It is intentionally not a history file; completed implementation history belongs in `ledger.md`. Tasks here should be concrete, current, and ordered by practical priority.
 
-## Now: Pre-Push Cleanup
+## Now: Useability And Exo-On-Exo Readiness
 
 - [ ] Review and prepare the local commit stack for push: decide whether to keep the stack or squash into coherent feature commits.
 - [x] Run one final clean-state QA pass after cleanup: `pnpm check:repo`, `pnpm typecheck`, `pnpm test`, `pnpm build`, focused Playwright, and full desktop e2e app QA.
 - [x] Verify fresh-clone/setup docs against current pnpm/Corepack/Electron/MCP behavior.
 - [ ] Push the reviewed branch and open the review/PR surface.
+- [ ] Use Exo as the default environment for the next bounded Exo implementation/review task.
+- [ ] Spawn one Exo-managed agent for a narrow Exo task, inspect transcript/diff through Exo/CLI, and record every friction point as product work.
+- [ ] Add an explicit issue/log path for Exo-on-Exo bugs found during real use.
+- [ ] Keep terminal responsiveness, agent send/read, changed-file review, settings, and hidden-window runtime bugs above new platform features until the loop is reliable.
 - [x] Refactor toward current-package domain modules before adding the next feature phase; do not introduce `packages/runtime` or plugin registries until runtime features create stable seams.
 - [x] Extract remaining renderer state machines from `App.tsx`: pane/drop orchestration.
 - [x] Extract Electron window/tray/renderer-recovery ownership into `apps/desktop/src/main/app-lifecycle.ts` as the first main-process service boundary.
@@ -109,7 +113,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Keep live Explore typing as fast filename/path search while making indexed search explicit.
 - [x] Add Exo-managed QMD setup for selected note roots only.
 - [x] Configure indexed note roots and the first reindex trigger from Exo settings.
-- [x] Expose QMD-backed status/search/read/sync/update/embed through Exo CLI and MCP.
+- [x] Expose QMD-backed status/search/read/sync/update/embed through Exo CLI, plus MCP `search`/`read_document` and index summary in `workspace_status`.
 - [x] Replace the 2s CLI/MCP search timeout with search-appropriate behavior and regression coverage.
 - [ ] Keep embedding/search off the Electron desktop critical path and add regression coverage for cold, broad, and in-progress index queries.
 - [ ] Package the QMD setup Exo needs so first-time users do not have to understand QMD separately.
@@ -130,6 +134,15 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [ ] Add scoped note write primitives after graph/read primitives are stable: create, append, and guarded patch within selected note roots.
 - [ ] Add LM Wiki maintenance reports for stale pages, orphan pages, unresolved links, missing cross-links, contradiction candidates, and missing source questions.
 - [ ] Decide which note/graph primitives belong in MCP as a compact agent-safe set versus CLI-only operator commands.
+
+## Next: Exograph Architecture
+
+- [ ] Write the exograph architecture spec: files/properties as approved facts, profile/config as interpretation rules, `.exo/` as derived state/proposals/runs/provenance.
+- [ ] Define the exograph profile model: node types, edge types, path/property mappings, conventions, templates, maintenance rules, and review policy.
+- [ ] Define proposal storage for inferred schema, graph, and file changes before any new maintainer write workflows are added.
+- [ ] Define the two user-facing exograph modes: Analyze Exograph and Maintain Exograph.
+- [ ] Add schema-neutral read-only graph extraction for Markdown links, backlinks, headings, tags, frontmatter/properties, paths, and file metadata.
+- [ ] Keep LM Wiki and Shoshin as optional starter profiles, not built-in mandatory folder structures.
 
 ## Next: Multi-Agent Coordination
 

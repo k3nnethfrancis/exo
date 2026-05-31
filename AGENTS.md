@@ -1,6 +1,8 @@
 # Exo Agent Map
 
-Exo is a local-first agentic development environment built around a shared exocortex for humans and terminal agents. Treat this file as the concise map; use the linked docs for detail.
+Exo is a local-first exograph workspace for humans and terminal agents. Treat this file as the concise map; use the linked docs for detail.
+
+The immediate product proving loop is Exo-on-Exo: use Exo-managed agents to build and QA Exo, then treat friction in that workflow as product signal.
 
 ## Start Here
 
@@ -87,10 +89,14 @@ CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build 
 - Markdown-on-disk is canonical; notebook mode is a projection.
 - Project roots are imported folders, not every folder under workspace `projects/`.
 - Live Explore typing stays fast filename/path search; optional indexed search is explicit and should not block the renderer.
-- QMD is the active notes-index substrate behind Exo-managed lexical/semantic/hybrid search, CLI, and MCP tools.
+- Exo's core object is the exograph: a user-defined graph over notes, projects, agents, sessions, files, artifacts, and workflow runs with growable relational ontologies.
+- Durable approved graph facts should live in user-owned Markdown/frontmatter/properties, links, tags, and files. Derived indexes, inferred facts, proposals, workflow runs, and provenance belong under `.exo/` until accepted.
+- Exo should not impose one vault schema. It may detect, recommend, and maintain structures such as Shoshin or LM Wiki profiles, but users own the schema.
+- QMD is the default notes-index/search provider behind Exo-managed lexical/semantic/hybrid search, CLI, and MCP tools, not the permanent product boundary.
 - Keep QMD calls behind `packages/core/src/qmd.ts`; do not patch `node_modules` or fork QMD casually.
 - Future provenance work should track human vs agent-authored changes by source, session, and task.
-- Future project-root control should be exposed through CLI/MCP, not hidden renderer-only state.
+- Project-root mutation belongs in UI/CLI operator surfaces; MCP may inspect attached roots through workspace status but should stay a narrow agent work plane.
+- Workcells/evals/training/search-optimization harnesses should probably be plugin sets unless they become necessary for the default Exo-on-Exo loop.
 - Optional or personal workflows should go through the plugin architecture rather than becoming core by default.
 - CLI-first operator surfaces come before deep UI.
 - Every fragile UI/runtime behavior needs an automated harness or a documented manual evidence path.

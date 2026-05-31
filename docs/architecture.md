@@ -2,13 +2,13 @@
 
 Last updated: 2026-05-31
 
-Exo is a local-first agentic development environment built around a shared exocortex for humans and terminal agents. The current system is still shell-first, but it now has three live control surfaces over the same workspace runtime:
+Exo is a local-first exograph workspace for humans and terminal agents. The current system is still shell-first, but it now has three live control surfaces over the same workspace runtime:
 
 - desktop app
 - `bin/exo` CLI
 - `@exo/mcp` bridge
 
-Memory, workcells, datasets, evals, and training are still future layers. The current runtime work is about making Markdown notes, code files, terminals, and terminal agents legible and controllable inside one local workspace.
+The exograph is the product object: a user-defined graph over notes, projects, agents, sessions, files, artifacts, and workflow runs with growable relational ontologies. Memory, workcells, datasets, evals, and training are still future layers. The current runtime work is about making Markdown notes, code files, terminals, and terminal agents legible and controllable inside one local workspace.
 
 ## Package Boundaries
 
@@ -235,6 +235,34 @@ Exo's note graph contract should support LM Wiki-style maintenance over Markdown
 - maintenance reports should surface orphans, dead ends, unresolved links, stale pages, contradiction candidates, and missing cross-links
 
 This is also the practical split between CLI and MCP for notes. CLI can mirror mature knowledge-app surfaces broadly. MCP should expose a compact set of agent-safe wiki operations so agents can maintain the knowledge graph without becoming a full filesystem/admin client.
+
+## Exograph Model
+
+Exo should treat Markdown/files as the canonical user-owned substrate and `.exo/` as derived runtime state.
+
+Canonical user-owned data:
+
+- Markdown body content, headings, links, tags, and citations
+- frontmatter/properties for approved durable node and relation facts
+- folders and path conventions selected by the user
+- project files, code diffs, and artifacts when explicitly attached
+
+Exo-owned derived data:
+
+- graph/search indexes and caches
+- inferred candidate nodes/edges
+- schema/profile proposals
+- workflow run logs
+- provenance and review metadata
+
+The initial exograph profile should be configuration, not code: node types, edge types, path/property mappings, conventions, templates, maintenance rules, and review policy. Exo may ship starter profiles such as a minimal flat-notes profile, Shoshin, and LM Wiki, but no starter profile should be mandatory.
+
+The two user-facing exograph modes are:
+
+- Analyze Exograph: read-only discovery, schema suggestions, and health diagnostics.
+- Maintain Exograph: reviewable file/profile changes after user approval.
+
+Do not add write-capable maintainer workflows before read-only graph extraction, proposal storage, and review semantics are defined.
 
 ## Refactor Boundaries
 

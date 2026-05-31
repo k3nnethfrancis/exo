@@ -1,10 +1,10 @@
 # Exo
 
-**Shared Exocortex for Humans and Agents.**
+**A Local Exograph Workspace for Humans and Agents.**
 
-Exo is a local-first agentic development environment built around a shared exocortex for you and your terminal agents.
+Exo is a local-first workspace for building and maintaining an exograph: a user-defined knowledge/work graph shared by you and your terminal agents.
 
-It gives agents a common knowledge graph they can read from, write to, and coordinate through, while giving you one surface for keeping their work aligned. That graph is grounded in your Markdown notes and project context, turning the material you already think with into shared ground truth for multi-agent development. You can take notes, run agents, and inspect the code they write without bouncing between editors.
+It gives agents a common graph they can read from, write to, and coordinate through, while giving you one surface for keeping their work aligned. That graph is grounded in your Markdown notes, project context, terminals, sessions, artifacts, and review history. You can take notes, run agents, and inspect the code they write without bouncing between editors.
 
 ## Why Exo Exists
 
@@ -14,7 +14,8 @@ Exo is for people who want terminal agents to participate in their actual workin
 
 ## What Exo Is
 
-- A Markdown knowledge environment for notes, tasks, drafts, logs, and project context.
+- An exograph workspace over notes, tasks, drafts, logs, projects, agents, sessions, and artifacts.
+- A Markdown knowledge environment where files remain the durable source of truth.
 - A terminal-agent workspace for running Claude, Codex, shell sessions, and future local agents.
 - A project/code viewer for inspecting what agents are changing.
 - A shared command surface through the Exo CLI and MCP server.
@@ -37,13 +38,16 @@ Exo is for people who want terminal agents to participate in their actual workin
 
 ## Roadmap
 
-Exo is early, and the long-term system is larger than the current shell. Near-term priorities:
+Exo is early. The immediate product test is whether Kenneth can use Exo to build Exo by default. Near-term priorities:
 
-- Drag terminal panes into the editor canvas so files and terminal agents can share one arbitrary split-pane graph.
-- Make Exo a resident background runtime with a menu bar controller so CLI/MCP agent workflows continue while the workspace window is hidden.
+- Keep the current app stable enough for daily notes, terminals, agent sessions, code review, and Exo-on-Exo development.
+- Use Exo-managed agents for bounded Exo implementation/review tasks, then treat every friction point in that loop as product input.
+- Make the multi-agent development loop legible: agent roster, objectives, messages, transcripts, changed files, and review links.
+- Define the exograph model: user-owned Markdown/frontmatter/links as approved graph facts; Exo profile/config as interpretation rules; `.exo/` as derived indexes, proposals, runs, and provenance.
+- Add read-only exograph inspection before adding new writes: document context, headings, links, backlinks, tags/properties, orphan/unresolved-link diagnostics, and graph health.
 - Improve the default QMD search provider with true file-level incremental updates when upstream APIs support it.
 - Detect existing QMD setups, refine Exo-owned QMD setup, configure richer reindex triggers, and keep search provider-neutral at Exo's product boundary.
-- Let humans and agents search the same knowledge graph with explicit tiers, cancellation, progress, and result caps.
+- Let humans and agents search the same exograph with explicit tiers, cancellation, progress, and result caps.
 - Add note traversal, graph context, and LM Wiki-style maintenance reports for headings, backlinks, unresolved links, orphans, stale pages, and missing cross-links.
 - Manage global and project-local `AGENTS.md` / `CLAUDE.md` files from Exo.
 - Compare global and local agent context files, surface conflicts, and install Exo-recommended snippets.
@@ -53,8 +57,7 @@ Exo is early, and the long-term system is larger than the current shell. Near-te
 - Let agents inspect attached project roots through Exo workspace status while humans and supervised scripts add/remove roots through CLI/UI.
 - Add multi-agent communication protocols over files, SQLite, MCP, and later richer local transports.
 - Add an agent roster with names, roles, objectives, message routing, and communication logs.
-- Add a plugin architecture for optional workflows and shareable extensions without bloating core.
-- Add workcells, evals, datasets, and training loops for improving agent behavior.
+- Add a plugin architecture for optional workflows, search providers, graph analyzers, eval/training harnesses, and shareable extensions without bloating core.
 
 See `docs/roadmap.md` and `docs/tasks.md` for the active plan.
 
