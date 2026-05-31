@@ -6,6 +6,19 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 
 ## Open
 
+### EXO-ISSUE-025: GitHub Actions JavaScript actions emit Node 20 deprecation warning
+
+- Status: open
+- Severity: low
+- Area: CI, GitHub Actions, harness readiness
+- Observed:
+  - The push CI for `270c5ca` passed on 2026-05-31, but GitHub emitted a warning that `actions/checkout@v4`, `actions/setup-node@v4`, and `pnpm/action-setup@v4` are running on Node.js 20.
+  - The warning says GitHub Actions will force JavaScript actions to Node 24 by default starting 2026-06-16 and remove Node 20 from the runner on 2026-09-16.
+- Expected:
+  - CI should stay ahead of runner/runtime deprecations so the Exo harness does not break unexpectedly.
+- Next:
+  - Check whether newer action versions or `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` should be used in `.github/workflows/ci.yml` and `.github/workflows/package-macos.yml`.
+
 ### EXO-ISSUE-024: Installed Exo menu bar icon is not visible enough for daily resident use
 
 - Status: resolved
