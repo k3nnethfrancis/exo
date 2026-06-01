@@ -9,6 +9,28 @@ export interface WorkspaceChangeEvent {
   filePath: string | null;
 }
 
+const IGNORED_WORKSPACE_PATH_SEGMENTS = new Set([
+  ".DS_Store",
+  ".cache",
+  ".exo",
+  ".exo-dev",
+  ".git",
+  ".next",
+  ".nuxt",
+  ".parcel-cache",
+  ".pytest_cache",
+  ".turbo",
+  ".venv",
+  ".vite",
+  "build",
+  "coverage",
+  "dist",
+  "node_modules",
+  "out",
+  "target",
+  "tmp",
+]);
+
 export class WorkspaceWatcherService {
   private watchers: FSWatcher[] = [];
   private pendingEvents = new Map<string, WorkspaceChangeEvent>();
@@ -29,10 +51,15 @@ export class WorkspaceWatcherService {
 
       try {
         const watcher = watch(rootPath, { recursive: true }, (eventType, filename) => {
+          const filePath = typeof filename === "string" && filename.length > 0 ? path.join(rootPath, filename) : null;
+          if (shouldIgnoreWorkspaceChange(rootPath, filePath)) {
+            return;
+          }
+
           this.queue({
             rootPath,
             eventType,
-            filePath: typeof filename === "string" && filename.length > 0 ? path.join(rootPath, filename) : null,
+            filePath,
           });
         });
 
@@ -84,4 +111,19 @@ export class WorkspaceWatcherService {
       }
     }, 120);
   }
+}
+
+export function shouldIgnoreWorkspaceChange(rootPath: string, filePath: string | null): boolean {
+  if (!filePath) {
+    return false;
+  }
+
+  const relativePath = path.relative(rootPath, filePath);
+  if (!relativePath || relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
+    return false;
+  }
+
+  return relativePath
+    .split(path.sep)
+    .some((segment) => IGNORED_WORKSPACE_PATH_SEGMENTS.has(segment));
 }

@@ -6,6 +6,32 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 
 ## Open
 
+### EXO-ISSUE-026: Installed app renderer can run away while the workspace is idle
+
+- Status: mitigated; watch during installed-app QA
+- Severity: critical
+- Area: installed app, renderer performance, note/editor/layout runtime, renderer recovery
+- Observed:
+  - On 2026-05-31, the installed `/Applications/Exo.app` became extremely laggy during normal daily use.
+  - Renderer PID `57653` was pegged near 99% CPU with roughly 5 GB RSS after about 11 hours of uptime.
+  - The main process and command server were responsive: `exo status` returned quickly and `exo terminals diagnostics` showed only one idle shell terminal with a tiny live buffer.
+  - The active workspace had `tasks.md`, `2026-05-31.md`, and `field-note-01.md` open, with `field-note-01.md` active; none of those files were large.
+  - The UI status area showed index work pending (`Embeddings needed`), but no separate QMD/index process was hot.
+  - A macOS renderer sample was captured at `/tmp/exo-renderer-lag.sample.txt`; UI screenshot captured at `/tmp/exo-lag-ui.png`.
+- Recovery finding:
+  - Killing the runaway renderer relieved CPU pressure, but the resident main process did not recreate a usable window when asked to show Exo.
+  - A full app restart restored the UI, which means renderer recovery needs to handle killed or unresponsive renderer processes more aggressively.
+- Suspected:
+  - Renderer-side loop or leak in note/editor rendering, layout persistence, workspace/index status polling, or file-watch refresh paths.
+  - Not caused by terminal scrollback or pty streaming in the observed session.
+- Next:
+  - Continue daily-use QA from the same persisted layout/open documents state and watch renderer CPU/RSS after long idle sessions.
+  - Add deeper renderer performance diagnostics/watchdog coverage if the runaway recurs after watcher filtering.
+  - Add app QA that idles the installed/dev app with the same workspace state and verifies renderer CPU/memory stay bounded.
+- Mitigation:
+  - Renderer recovery now reloads after Electron reports `killed`, `abnormal-exit`, or `launch-failed` renderer exits, not only `crashed`/`oom`.
+  - Workspace watcher events now filter noisy generated/runtime/vendor folders such as `.git`, `.exo`, `.exo-dev`, `node_modules`, `dist`, `build`, and `coverage` before notifying the renderer.
+
 ### EXO-ISSUE-025: GitHub Actions JavaScript actions emit Node 20 deprecation warning
 
 - Status: open

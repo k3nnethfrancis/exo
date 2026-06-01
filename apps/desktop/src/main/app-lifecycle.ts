@@ -273,7 +273,7 @@ export class AppLifecycleController {
     if (process.env.EXO_AUTO_RECOVER_RENDERER === "0") {
       return;
     }
-    if (reason !== "crashed" && reason !== "oom") {
+    if (!shouldRecoverRenderer(reason)) {
       return;
     }
 
@@ -341,4 +341,8 @@ export class AppLifecycleController {
     const existing = candidatePaths.find((candidate) => existsSync(candidate));
     return existing ?? candidatePaths[0];
   }
+}
+
+function shouldRecoverRenderer(reason: string): boolean {
+  return reason === "crashed" || reason === "oom" || reason === "killed" || reason === "abnormal-exit" || reason === "launch-failed";
 }

@@ -210,6 +210,22 @@ describe("AppLifecycleController", () => {
     expect(electronMock.restartCommandServer).toHaveBeenCalledOnce();
     expect(electronMock.appQuit).not.toHaveBeenCalled();
   });
+
+  it("reloads the renderer when Electron reports a killed renderer process", () => {
+    vi.useFakeTimers();
+    try {
+      const controller = appLifecycleController();
+      const window = controller.createWindow() as any;
+
+      window.webContents.emit("render-process-gone", {}, { reason: "killed", exitCode: 15 });
+      vi.advanceTimersByTime(750);
+
+      expect(window.loadFile).toHaveBeenCalledTimes(2);
+      expect(window.visible).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 function appLifecycleController(terminals: Array<{ id: string; status: string }> = []) {

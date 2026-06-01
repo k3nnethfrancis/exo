@@ -6,6 +6,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 
 ## Now: Useability And Exo-On-Exo Readiness
 
+- [x] Mitigate `EXO-ISSUE-026`: installed app renderer runaway CPU/RSS during idle workspace use and missing renderer recovery after forced renderer death.
 - [x] Capture the current phased approach in `docs/usability-readiness.md`: readiness first, commit cleanup/push, installed-app daily use, live bug bash, then larger roadmap phases.
 - [ ] Review and prepare the local commit stack for push: decide whether to keep the stack or squash into coherent feature commits.
 - [x] Run one final clean-state QA pass after cleanup: `pnpm check:repo`, `pnpm typecheck`, `pnpm test`, `pnpm build`, focused Playwright, and full desktop e2e app QA.
