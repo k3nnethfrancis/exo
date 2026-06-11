@@ -6,6 +6,7 @@ import type { ResolvedAppearance } from "../appearance";
 import type { DragManager } from "../hooks/useDragManager";
 import { AgentIcon } from "./AgentIcon";
 import { ChromeTab } from "./Chrome";
+import { focusTerminal } from "./terminalRegistry";
 import { TerminalView } from "./TerminalView";
 
 interface TerminalDockProps {
@@ -60,11 +61,24 @@ export function TerminalDock(props: TerminalDockProps) {
   } = props;
   const activeSession = sessions.find((session) => session.id === activeTerminalId) ?? null;
 
+  function focusTerminalAfterPaneActivation(sessionId: string | null) {
+    if (!sessionId) {
+      return;
+    }
+    window.requestAnimationFrame(() => {
+      focusTerminal(sessionId);
+      window.setTimeout(() => focusTerminal(sessionId), 0);
+    });
+  }
+
   return (
     <section
       className={`terminal-dock terminal-dock--${placement} ${compact ? "terminal-dock--compact" : ""} ${empty ? "terminal-dock--empty" : ""}`}
       data-testid="terminal-dock"
-      onMouseDown={onFocus}
+      onMouseDown={() => {
+        onFocus();
+        focusTerminalAfterPaneActivation(activeTerminalId);
+      }}
       style={style}
     >
       <div ref={ref} className="terminal-dock__main">
@@ -79,7 +93,10 @@ export function TerminalDock(props: TerminalDockProps) {
                   testId={`terminal-tab-${session.kind}`}
                   dropPaneId={paneId}
                   dropKind="terminal"
-                  onClick={() => onSetActiveTerminal(session.id)}
+                  onClick={() => {
+                    onSetActiveTerminal(session.id);
+                    focusTerminalAfterPaneActivation(session.id);
+                  }}
                   onDoubleClick={() => onTogglePlacement()}
                   onMouseDown={(event) => {
                     dragManager.startDrag(event, {

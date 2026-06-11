@@ -426,6 +426,11 @@ test("accepts terminal keyboard input", async () => {
   await page.keyboard.type("hello exo");
   await expect(page.getByTestId("terminal-surface")).toContainText("hello exo");
 
+  await page.getByTestId("editor-panel").click();
+  await page.getByTestId("terminal-surface").click();
+  await page.keyboard.type(" after editor");
+  await expect(page.getByTestId("terminal-surface")).toContainText("hello exo after editor");
+
   await cleanup();
 });
 

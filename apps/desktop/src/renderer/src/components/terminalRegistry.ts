@@ -17,6 +17,13 @@ export function writeTerminalData(sessionId: string, data: string): boolean {
   return true;
 }
 
+export function focusTerminal(sessionId: string): boolean {
+  const entry = terminalRegistry.get(sessionId);
+  if (!entry) return false;
+  entry.terminal.focus();
+  return true;
+}
+
 export function getRenderedTerminalContent(sessionId: string): string {
   const entry = terminalRegistry.get(sessionId);
   if (!entry) return "";

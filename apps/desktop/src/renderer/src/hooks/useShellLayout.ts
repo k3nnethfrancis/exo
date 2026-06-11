@@ -27,7 +27,7 @@ const MIN_ZONE_RATIO = 0.15;
 const MAX_ZONE_RATIO = 0.85;
 const RESIZE_BODY_CLASS = "pane-resize-active";
 
-const SIDEBAR_DEFAULT_WIDTH = 140;
+const SIDEBAR_DEFAULT_WIDTH = 175;
 const SIDEBAR_MIN_WIDTH = 140;
 const SIDEBAR_MAX_WIDTH = 800;
 

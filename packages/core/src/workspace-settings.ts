@@ -258,13 +258,14 @@ function clampSettingsNumber(value: unknown, fallback: number, min: number, max:
   return Number.isFinite(parsed) ? Math.max(min, Math.min(max, parsed)) : fallback;
 }
 
-const DEFAULT_SIDEBAR_WIDTH = 140;
+const DEFAULT_SIDEBAR_WIDTH = 175;
+const PREVIOUS_DEFAULT_SIDEBAR_WIDTH = 140;
 const OLD_DEFAULT_SIDEBAR_WIDTH = 260;
 const MIN_SIDEBAR_WIDTH = 140;
 const MAX_SIDEBAR_WIDTH = 800;
 
 function normalizeSidebarWidth(value: unknown): number {
-  if (value === OLD_DEFAULT_SIDEBAR_WIDTH) {
+  if (value === OLD_DEFAULT_SIDEBAR_WIDTH || value === PREVIOUS_DEFAULT_SIDEBAR_WIDTH) {
     return DEFAULT_SIDEBAR_WIDTH;
   }
   return clampSettingsNumber(value, DEFAULT_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH);

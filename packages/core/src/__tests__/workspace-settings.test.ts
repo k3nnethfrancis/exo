@@ -78,7 +78,7 @@ describe("workspace settings registry", () => {
     }
   });
 
-  it("uses the narrower explorer width for new and old-default layouts", async () => {
+  it("uses the current explorer width for new and old-default layouts", async () => {
     const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-sidebar-width-"));
 
     try {
@@ -101,7 +101,7 @@ describe("workspace settings registry", () => {
         },
       }, { EXO_USER_DATA_PATH: userDataPath });
 
-      expect(saved.layout?.sidebarWidth).toBe(140);
+      expect(saved.layout?.sidebarWidth).toBe(175);
     } finally {
       await rm(userDataPath, { recursive: true, force: true });
     }
