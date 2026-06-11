@@ -77,6 +77,13 @@ Before broad public binary release, Exo still needs signed/notarized macOS packa
 
 ## Quick Start
 
+There are two setup paths today:
+
+- Daily/user runtime: build the unsigned macOS app locally, install it into your user Applications folder, launch it, then point Exo at your notes folder.
+- Developer runtime: clone the repo, install dependencies, and run `pnpm dev` or `pnpm dev:qa` while changing source.
+
+The polished end-user path should eventually be a signed download or package-manager install. Until then, the local app install is the closest path to "install an app and choose my notes folder."
+
 Prerequisites:
 
 - Node.js 22 or newer.
@@ -110,7 +117,7 @@ Install the local macOS app bundle:
 ./scripts/install-mac-app
 ```
 
-This builds the unsigned `Exo.app` bundle and copies it into `/Applications` by default. Launch that installed app for the stable resident Exo runtime: it owns the menu bar icon, hidden-window command server, MCP bridge, transcripts, watchers, and supervised agent terminals. Use `./scripts/install-mac-app --with-cli --with-mcp` when you also want the repo-backed CLI and MCP integrations installed.
+This builds the unsigned `Exo.app` bundle and copies it into `~/Applications` by default so install does not require admin permissions. Launch that installed app for the stable resident Exo runtime: it owns the menu bar icon, hidden-window command server, MCP bridge, transcripts, watchers, and supervised agent terminals. Use `./scripts/install-mac-app --system-app-dir` to install into `/Applications`, or `./scripts/install-mac-app --with-cli --with-mcp` when you also want the repo-backed CLI and MCP integrations installed.
 
 When developing Exo while the installed app remains your daily workspace, use the isolated QA profile:
 
@@ -314,7 +321,7 @@ Unsigned macOS app bundle:
 pnpm pack:mac
 ```
 
-Install that local bundle into `/Applications`:
+Install that local bundle into `~/Applications`:
 
 ```bash
 ./scripts/install-mac-app

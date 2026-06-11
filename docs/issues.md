@@ -1,10 +1,107 @@
 # Exo Issues
 
-Last updated: 2026-05-31
+Last updated: 2026-06-11
 
 This is the active bug/QA tracker. It captures user-observed issues that need investigation before the next push/release pass.
 
 ## Open
+
+### EXO-ISSUE-031: Packaged app can silently exit on first launch after local install
+
+- Status: open
+- Severity: high
+- Area: macOS packaging, first launch diagnostics, unsigned app UX
+- Observed:
+  - Fresh setup field report from 2026-06-02 found that a locally installed unsigned `Exo.app` briefly showed the menu bar icon but no window, then exited silently.
+  - Running from source worked afterward, so this may involve packaged app initialization, unsigned app/Gatekeeper behavior, first-run settings, or missing diagnostics.
+- Expected:
+  - A packaged first launch should either open onboarding or show an actionable error.
+  - Silent exit should leave an obvious diagnostic trail and recovery instruction.
+- Next:
+  - Reproduce from a clean user-data directory with `~/Applications/Exo.app`.
+  - Add a first-launch diagnostics surface or clear log path in installer output.
+  - Verify menu bar resident startup and onboarding window creation for unsigned local installs.
+
+### EXO-ISSUE-030: Direct pty terminals can break after macOS sleep and need better recovery or a revisited persistence model
+
+- Status: open
+- Severity: critical
+- Area: terminal runtime, macOS sleep/wake, agent session reliability
+- Observed:
+  - Fresh setup field report from 2026-06-02 found Exo terminals becoming non-functional after macOS sleep/wake.
+  - The user saw a security/violation-style error on resume and had to restart terminals.
+  - This affects long-running Claude/Codex agent sessions and builds, where losing the live process after laptop sleep is a dealbreaker.
+- Current context:
+  - Exo intentionally simplified core terminals to direct `node-pty`; see `docs/terminal-runtime-decision.md`.
+  - Real-world sleep/wake behavior is now evidence that the direct-pty-only decision needs a recovery pass and possibly a persistence-model revisit.
+- Next:
+  - Reproduce sleep/wake with shell, Claude, and Codex terminals.
+  - Add wake/resume diagnostics for pty process status, fd/write failures, and renderer stream state.
+  - Implement graceful unhealthy-state UI with restart/reopen transcript actions.
+  - Revisit whether tmux should return as an explicit persistence backend, an optional plugin, or whether Exo-native process revival is enough.
+
+### EXO-ISSUE-029: `pnpm dev` can spawn a stray default Electron app window
+
+- Status: open
+- Severity: high
+- Area: dev runtime, Electron/Vite harness
+- Observed:
+  - Fresh setup field report from 2026-06-02 saw two Electron instances for `pnpm dev`: the Exo app and a default `default_app.asar` Electron welcome window.
+  - The user sees two Electron dock icons and must distinguish the real Exo app from the stray one.
+- Expected:
+  - `pnpm dev` should launch exactly one Exo Electron app process.
+- Next:
+  - Reproduce from a clean shell with no installed Exo instance running.
+  - Inspect `electron-vite dev`, package `main`, and any script/env interaction that can invoke Electron without an app path.
+  - Add a dev-harness smoke check that fails if a default Electron app process is spawned.
+- Local check:
+  - On 2026-06-11, `pnpm dev:qa` on the main development machine launched one Electron app process plus normal helper processes; no `default_app.asar` process was observed.
+
+### EXO-ISSUE-028: First-run onboarding still reads as developer/setup flow instead of open-notes flow
+
+- Status: fixed; watch during fresh setup QA
+- Severity: high
+- Area: onboarding UX, first-run workspace setup
+- Observed:
+  - Fresh setup field report from 2026-06-02 found the first-run flow confusing for an end user who just wants to open an existing notes folder.
+  - The user expected "install app, point at notes folder"; Exo labels implied "create new vault/workspace."
+  - After notes folder selection, the app could appear blank or give no obvious next step.
+  - Default terminal cwd could land in an auto-detected nested project folder rather than the workspace area above notes.
+  - Workspace settings copy said "Saved automatically" while workspace path/index changes still required Apply.
+- Fix in progress:
+  - README now separates daily/user runtime from developer runtime.
+  - First-run labels now use "Add notes folder", "Choose notes folder", and "Open workspace" instead of "New/Create workspace" for the existing-folder path.
+  - Default terminal cwd for a selected notes folder now defaults to the notes folder's parent unless the user explicitly chooses another terminal folder.
+  - Settings copy now distinguishes immediately saved preferences from workspace path/index changes that require Apply.
+- Next:
+  - Watch a true fresh laptop setup for any remaining blank shell or explorer sizing issue after selecting an existing notes folder.
+- Verified:
+  - Focused Electron e2e covers selecting an existing notes folder, deriving default terminal cwd from the notes folder parent, completing setup, and landing in the app shell.
+  - Focused Electron e2e covers first-run setup visibility and workspace settings opening.
+
+### EXO-ISSUE-027: Fresh setup install blockers from broad dependency override and system Applications default
+
+- Status: fixed; needs fresh-clone confirmation
+- Severity: high
+- Area: setup, dependencies, macOS packaging
+- Observed:
+  - Fresh setup field report from 2026-06-02 found Socket Firewall blocking `fast-uri@3.1.0` via `@tobilu/qmd -> @modelcontextprotocol/sdk -> ajv`.
+  - The existing broad `picomatch: 4.0.4` override forced all consumers to picomatch 4.x and broke electron-builder packaging for `micromatch` consumers expecting picomatch 2.x.
+  - `scripts/install-mac-app` defaulted to `/Applications`, causing permission denied for non-admin user installs.
+- Fixed:
+  - Replaced the broad picomatch override with a targeted `fast-uri: 3.1.2` override.
+  - Re-resolved the lockfile so picomatch 2.3.2 and 4.0.4 coexist where required.
+  - `scripts/install-mac-app` now defaults to `~/Applications`, keeps `/Applications` behind `--system-app-dir`, and prints a clearer permission hint when system install copy fails.
+  - README now documents the user-runtime versus developer-runtime setup paths.
+- Verified:
+  - `pnpm install` succeeds locally with pnpm 11.2.2.
+  - `pnpm why fast-uri picomatch` shows `fast-uri@3.1.2`, `picomatch@2.3.2`, and `picomatch@4.0.4`.
+  - `pnpm install --frozen-lockfile --offline` succeeds locally.
+  - `pnpm pack:mac` succeeds and passes electron-builder's dependency traversal.
+  - `./scripts/install-mac-app --skip-build --dry-run` targets `~/Applications/Exo.app`.
+  - `./scripts/install-mac-app --skip-build` installs the packaged app to `~/Applications/Exo.app` without elevated permissions.
+- Next:
+  - Confirm `pnpm install --frozen-lockfile` and actual `./scripts/install-mac-app` on a clean clone.
 
 ### EXO-ISSUE-026: Installed app renderer can run away while the workspace is idle
 
@@ -90,7 +187,7 @@ These issues have fixes and coverage, but remain worth exercising during daily i
 
 ### EXO-ISSUE-017: Terminal tabs can become blank, show stale `[exited]`, or lag while typing
 
-- Status: fixed; watch during live agent bug bash
+- Status: fixed; reopened watch item for tab-switch rendering corruption
 - Severity: critical
 - Area: terminal renderer, terminal session switching, xterm performance, direct pty agent terminals
 - Observed:
@@ -98,6 +195,7 @@ These issues have fixes and coverage, but remain worth exercising during daily i
   - Switching between terminals can show a blank surface or stale `[exited]` message, then recover after switching again.
   - Typing into terminals can lag enough to become unusable.
   - A tmux-backed Claude agent launched from `lab` completed an organization-protocol run and asked follow-up questions, but the terminal then became unresponsive and the user could not type a reply.
+  - Fresh setup field report from 2026-06-02 found terminal display corruption, garbled output, misaligned text, or blank regions after refreshing or switching terminal tabs. The terminal remained functional and often self-corrected after later output.
 - Suspected reliability risks:
   - Historical tmux-backed sessions added a second terminal layer that could hide dead, blocked, or detached panes behind a still-running attach process. The runtime direction is direct pty only; see `terminal-runtime-decision.md`.
   - Historical terminal activation/switching forced full-output reads and xterm replay, which made the renderer busy exactly when the user tried to type.
@@ -106,6 +204,7 @@ These issues have fixes and coverage, but remain worth exercising during daily i
   - Resize events are sent through the terminal path frequently during pane/layout changes and need coalescing.
   - Exo currently lacks enough terminal health and latency instrumentation, so unresponsive terminals are hard to distinguish from slow rendering, dropped input, blocked prompts, or exited agent processes.
 - Next:
+  - Reproduce terminal tab-switch/refresh rendering corruption and verify xterm `fit()`/refresh behavior when a terminal becomes visible.
   - Continue broader bug-bash QA with long-running real Claude/Codex sessions.
 - Fixed:
   - Removed stale tmux runtime compatibility code, diagnostics, restore state, and transport UI/API fields from the core terminal path.

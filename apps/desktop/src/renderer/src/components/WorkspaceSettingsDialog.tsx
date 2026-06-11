@@ -57,7 +57,7 @@ export function WorkspaceSettingsDialog({
             <X size={16} />
           </button>
         </div>
-        <div className="dialog-card__message">Workspace paths and index settings apply when you press Apply.</div>
+        <div className="dialog-card__message">Appearance and terminal preferences save immediately. Workspace paths and index settings take effect when you press Apply.</div>
         {partialErrors.length > 0 ? (
           <div className="dialog-card__status dialog-card__status--error" data-testid="agent-context-partial-errors">
             <div>Some agent instruction data could not be loaded.</div>
@@ -95,7 +95,7 @@ export function WorkspaceSettingsDialog({
         </div>
         {structuralDraftKey(settings) !== settings.appliedWorkspaceKey ? (
           <div className="dialog-card__apply-row">
-            <div className="dialog-card__status">Workspace paths and index settings apply immediately.</div>
+            <div className="dialog-card__status">Workspace path and index changes are ready to apply.</div>
             <button
               className="toolbar-button"
               data-testid="workspace-settings-apply"
@@ -122,7 +122,7 @@ export function WorkspaceSettingsDialog({
         ) : null}
         {settings.saveStatus === "saved" ? (
           <div className="dialog-card__status" data-testid="workspace-settings-status">
-            Saved automatically.
+            Draft saved. Press Apply for workspace path or index changes.
           </div>
         ) : null}
         {settings.saveStatus === "error" && settings.errorMessage ? (

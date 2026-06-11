@@ -12,6 +12,7 @@ import {
 } from "../../main/settings-store";
 import { buildProjectReviewChanges, uniqueCwdMatchedSession } from "./changedFileReview";
 import { isTerminalGeneratedResponse } from "./components/terminalInputFilters";
+import { defaultTerminalCwdForNotesFolder } from "./hooks/useWorkspaceBootstrap";
 import { terminalSessionsEqual } from "./terminalSessions";
 import {
   FULL_TERMINAL_SCROLLBACK_LINES,
@@ -183,6 +184,14 @@ describe("workspace registry", () => {
     } finally {
       await rm(userDataPath, { recursive: true, force: true });
     }
+  });
+});
+
+describe("workspace onboarding model", () => {
+  it("defaults terminal cwd to the parent of the selected notes folder", () => {
+    expect(defaultTerminalCwdForNotesFolder("/Users/tester/lab/notes")).toBe("/Users/tester/lab");
+    expect(defaultTerminalCwdForNotesFolder("/Users/tester/lab/notes/")).toBe("/Users/tester/lab");
+    expect(defaultTerminalCwdForNotesFolder("/notes")).toBe("/notes");
   });
 });
 

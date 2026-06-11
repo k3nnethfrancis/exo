@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 export COREPACK_ENABLE_PROJECT_SPEC="${COREPACK_ENABLE_PROJECT_SPEC:-0}"
 
-APP_DIR="${EXO_MAC_APP_DIR:-/Applications}"
+APP_DIR="${EXO_MAC_APP_DIR:-$HOME/Applications}"
 RUN_BUILD=1
 DRY_RUN=0
 INSTALL_CLI=0
@@ -18,7 +18,8 @@ Usage: scripts/install-mac-app [options]
 Builds Exo and installs the packaged macOS app bundle.
 
 Options:
-  --app-dir <path>      Install Exo.app into this directory. Default: /Applications
+  --app-dir <path>      Install Exo.app into this directory. Default: ~/Applications
+  --system-app-dir      Install into /Applications.
   --skip-build          Reuse the existing release/mac-*/Exo.app bundle.
   --with-cli            Also install the repo-backed exo CLI shim.
   --with-mcp            Configure Exo MCP integrations after CLI install.
@@ -28,6 +29,7 @@ Options:
 Examples:
   ./scripts/install-mac-app
   ./scripts/install-mac-app --app-dir "$HOME/Applications"
+  ./scripts/install-mac-app --system-app-dir
   ./scripts/install-mac-app --with-cli --with-mcp
 EOF
 }
@@ -58,6 +60,10 @@ while [ "$#" -gt 0 ]; do
         exit 1
       fi
       shift 2
+      ;;
+    --system-app-dir)
+      APP_DIR="/Applications"
+      shift
       ;;
     --skip-build)
       RUN_BUILD=0
@@ -135,7 +141,20 @@ run mkdir -p "$APP_DIR"
 if [ -e "$APP_TARGET" ]; then
   run rm -rf "$APP_TARGET"
 fi
-run cp -R "$APP_SOURCE" "$APP_TARGET"
+if ! run cp -R "$APP_SOURCE" "$APP_TARGET"; then
+  if [ "$APP_DIR" = "/Applications" ]; then
+    cat >&2 <<'EOF'
+
+Unable to copy Exo.app into /Applications.
+
+Install without elevated permissions instead:
+  ./scripts/install-mac-app --app-dir "$HOME/Applications"
+
+Or rerun with the permissions your machine requires for /Applications.
+EOF
+  fi
+  exit 1
+fi
 
 if [ "$INSTALL_CLI" -eq 1 ]; then
   if [ "$INSTALL_MCP" -eq 1 ]; then

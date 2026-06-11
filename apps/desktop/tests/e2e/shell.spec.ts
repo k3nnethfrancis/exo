@@ -936,7 +936,7 @@ test("switch workspace opens the workspace picker", async () => {
   await expect(page.getByTestId("workspace-picker-item").first()).toContainText("test-notes");
   await expect(page.getByTestId("workspace-picker-open")).toBeEnabled();
   await page.getByTestId("workspace-picker-new").click();
-  await expect(page.getByTestId("onboarding")).toContainText("New workspace");
+  await expect(page.getByTestId("onboarding")).toContainText("Choose notes folder");
   await expect(page.getByTestId("onboarding-choose-notes")).toBeVisible();
 
   await cleanup();
@@ -950,12 +950,41 @@ test("shows first-run notes setup before the app shell", async () => {
   await expect(page.getByTestId("workspace-picker-new")).toBeVisible();
   await expect(page.getByTestId("workspace-picker-open")).toBeDisabled();
   await page.getByTestId("workspace-picker-new").click();
-  await expect(page.getByTestId("onboarding")).toContainText("New workspace");
+  await expect(page.getByTestId("onboarding")).toContainText("Choose notes folder");
   await expect(page.getByTestId("onboarding")).toContainText("Default terminal");
   await expect(page.getByTestId("onboarding")).toContainText("Knowledge index");
   await expect(page.getByTestId("onboarding-notes-folder")).toContainText("No notes folder selected.");
   await expect(page.getByTestId("onboarding-continue")).toBeDisabled();
   await expect(page.getByTestId("sidebar")).toHaveCount(0);
+
+  await cleanup();
+});
+
+test("opens an existing notes folder from first-run setup", async () => {
+  const fixtureWorkspaceRoot = path.join(repoRoot, "fixtures/test-workspace");
+  const notesFolder = path.join(fixtureWorkspaceRoot, "notes/test-notes");
+  const { page, cleanup, workspaceRoot } = await launchExoFixture({
+    configured: false,
+    env: {
+      EXO_TEST_SELECT_FOLDER_PATH: notesFolder,
+    },
+  });
+  const expectedTerminalCwd = path.join(workspaceRoot, "notes");
+
+  await page.getByTestId("workspace-picker-new").click();
+  await page.getByTestId("onboarding-choose-notes").click();
+  await expect(page.getByTestId("onboarding-notes-folder")).toContainText(notesFolder);
+  await expect(page.getByTestId("onboarding-terminal-folder")).toContainText(expectedTerminalCwd);
+
+  await page.getByTestId("onboarding-continue").click();
+  await expect(page.getByTestId("sidebar")).toBeVisible();
+  await expect(page.getByTestId("editor-panel")).toBeVisible();
+  await expect(page.getByTestId("terminal-rail")).toBeVisible();
+  await expect.poll(async () => page.evaluate(() => window.exo.workspace.getSettings()))
+    .toMatchObject({
+      noteRoots: [notesFolder],
+      defaultTerminalCwd: expectedTerminalCwd,
+    });
 
   await cleanup();
 });

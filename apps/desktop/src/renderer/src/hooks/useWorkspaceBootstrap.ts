@@ -168,6 +168,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
           ? {
               ...current,
               notesFolder: folders[0],
+              defaultTerminalCwd: current.defaultTerminalCwd || defaultTerminalCwdForNotesFolder(folders[0]),
               errorMessage: null,
               status: "idle",
             }
@@ -295,7 +296,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
       const nextSettings: WorkspaceSettings = {
         ...base,
         workspaceRoot: notesFolder,
-        defaultTerminalCwd: current.defaultTerminalCwd.trim() || current.projectFolders[0] || notesFolder,
+        defaultTerminalCwd: current.defaultTerminalCwd.trim() || defaultTerminalCwdForNotesFolder(notesFolder),
         noteRoots: [notesFolder],
         projectRoots: current.projectFolders,
         indexedRoots: indexedRootPaths.map((rootPath, index) => ({
@@ -340,4 +341,13 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
     activateSelectedWorkspace,
     completeOnboarding,
   };
+}
+
+export function defaultTerminalCwdForNotesFolder(notesFolder: string): string {
+  const normalized = notesFolder.trim().replace(/\/+$/, "");
+  if (!normalized || normalized === "/") {
+    return normalized || notesFolder;
+  }
+  const slashIndex = normalized.lastIndexOf("/");
+  return slashIndex > 0 ? normalized.slice(0, slashIndex) : normalized;
 }

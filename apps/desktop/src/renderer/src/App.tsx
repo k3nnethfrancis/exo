@@ -766,7 +766,7 @@ export function App() {
                   </button>
                 ) : null}
                 <button className="toolbar-button" data-testid="workspace-picker-new" onClick={workspaceBootstrap.startNewWorkspaceSetup} type="button">
-                  New workspace
+                  Add notes folder
                 </button>
                 <button
                   className="toolbar-button toolbar-button--primary"
@@ -781,9 +781,9 @@ export function App() {
             </>
           ) : (
             <>
-              <h1 className="onboarding-card__title">New workspace</h1>
+              <h1 className="onboarding-card__title">Choose notes folder</h1>
               <p className="onboarding-card__copy">
-                Choose a notes folder first, then confirm the default terminal, projects, and local index mode.
+                Select an existing Markdown folder or create one, then confirm the default terminal, projects, and local index mode.
               </p>
               <div className="onboarding-grid">
                 <div className="onboarding-section onboarding-section--primary">
@@ -846,7 +846,7 @@ export function App() {
                     </button>
                   </div>
                   <PathList
-                    emptyLabel={onboardingState.projectFolders[0] || onboardingState.notesFolder || "Defaults to your notes folder."}
+                    emptyLabel={onboardingState.notesFolder ? "Defaults to the parent of your notes folder." : "Defaults after you choose notes."}
                     paths={onboardingState.defaultTerminalCwd ? [onboardingState.defaultTerminalCwd] : []}
                     testId="onboarding-terminal-folder"
                     onRemove={() =>
@@ -925,7 +925,7 @@ export function App() {
                   onClick={() => void workspaceBootstrap.completeOnboarding()}
                   type="button"
                 >
-                  {onboardingState.status === "saving" ? "Setting up…" : "Create workspace"}
+                  {onboardingState.status === "saving" ? "Opening…" : "Open workspace"}
                 </button>
               </div>
             </>
