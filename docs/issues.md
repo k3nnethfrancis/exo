@@ -22,23 +22,25 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
   - Add a first-launch diagnostics surface or clear log path in installer output.
   - Verify menu bar resident startup and onboarding window creation for unsigned local installs.
 
-### EXO-ISSUE-030: Direct pty terminals can break after macOS sleep and need better recovery or a revisited persistence model
+### EXO-ISSUE-030: Direct pty terminals can break after macOS sleep and may need tmux-backed persistence
 
 - Status: open
 - Severity: critical
-- Area: terminal runtime, macOS sleep/wake, agent session reliability
+- Area: terminal runtime, macOS sleep/wake, process persistence, agent session reliability
 - Observed:
   - Fresh setup field report from 2026-06-02 found Exo terminals becoming non-functional after macOS sleep/wake.
   - The user saw a security/violation-style error on resume and had to restart terminals.
   - This affects long-running Claude/Codex agent sessions and builds, where losing the live process after laptop sleep is a dealbreaker.
+  - Transcript-based recovery is not equivalent because it preserves history but not the running build, CLI process, or agent session.
 - Current context:
-  - Exo intentionally simplified core terminals to direct `node-pty`; see `docs/terminal-runtime-decision.md`.
-  - Real-world sleep/wake behavior is now evidence that the direct-pty-only decision needs a recovery pass and possibly a persistence-model revisit.
+  - Exo intentionally simplified core terminals to direct `node-pty` on 2026-05-28 to remove stale mixed tmux/direct code.
+  - Real-world sleep/wake behavior is now evidence that the direct-pty-only decision needs to be revisited; see `docs/terminal-runtime-decision.md`.
+  - Tmux-backed sessions are now a serious candidate for core daily-use terminals because process survival may matter more than marginal direct-pty latency.
 - Next:
   - Reproduce sleep/wake with shell, Claude, and Codex terminals.
   - Add wake/resume diagnostics for pty process status, fd/write failures, and renderer stream state.
-  - Implement graceful unhealthy-state UI with restart/reopen transcript actions.
-  - Revisit whether tmux should return as an explicit persistence backend, an optional plugin, or whether Exo-native process revival is enough.
+  - Design the next terminal runtime path: tmux-backed core terminals, direct pty plus explicit resume recovery, or a visibly bounded hybrid.
+  - If tmux returns, define the tmux control/session model, metadata mapping, health diagnostics, missing-binary behavior, and app QA before implementation.
 
 ### EXO-ISSUE-029: `pnpm dev` can spawn a stray default Electron app window
 

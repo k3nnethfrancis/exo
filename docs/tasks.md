@@ -9,7 +9,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [ ] Complete fresh-clone setup QA for `EXO-ISSUE-027`: frozen install, package build, user Applications install, and first launch logging.
 - [x] Complete first-run onboarding QA for `EXO-ISSUE-028`: existing notes folder selection, post-selection shell state, terminal cwd default, and settings Apply copy.
 - [ ] Reproduce and fix `EXO-ISSUE-029`: stray default Electron app window during `pnpm dev`.
-- [ ] Reproduce and fix `EXO-ISSUE-030`: terminal sleep/wake breakage and persistence/recovery model.
+- [ ] Reproduce and fix `EXO-ISSUE-030`: terminal sleep/wake breakage and decide whether tmux-backed persistence should become the core terminal runtime.
 - [ ] Reproduce and fix `EXO-ISSUE-031`: packaged app silently exits on first launch after local install.
 - [x] Mitigate `EXO-ISSUE-026`: installed app renderer runaway CPU/RSS during idle workspace use and missing renderer recovery after forced renderer death.
 - [x] Capture the current phased approach in `docs/usability-readiness.md`: readiness first, commit cleanup/push, installed-app daily use, live bug bash, then larger roadmap phases.
