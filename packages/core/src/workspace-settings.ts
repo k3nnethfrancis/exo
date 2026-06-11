@@ -258,6 +258,18 @@ function clampSettingsNumber(value: unknown, fallback: number, min: number, max:
   return Number.isFinite(parsed) ? Math.max(min, Math.min(max, parsed)) : fallback;
 }
 
+const DEFAULT_SIDEBAR_WIDTH = 140;
+const OLD_DEFAULT_SIDEBAR_WIDTH = 260;
+const MIN_SIDEBAR_WIDTH = 140;
+const MAX_SIDEBAR_WIDTH = 800;
+
+function normalizeSidebarWidth(value: unknown): number {
+  if (value === OLD_DEFAULT_SIDEBAR_WIDTH) {
+    return DEFAULT_SIDEBAR_WIDTH;
+  }
+  return clampSettingsNumber(value, DEFAULT_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH);
+}
+
 function normalizeWorkspaceLayout(input: unknown): WorkspaceLayoutSettings | undefined {
   if (!input || typeof input !== "object") {
     return undefined;
@@ -275,7 +287,7 @@ function normalizeWorkspaceLayout(input: unknown): WorkspaceLayoutSettings | und
     sidePanesFlipped: Boolean(candidate.sidePanesFlipped),
     zoneSplitRatio: clampSettingsNumber(candidate.zoneSplitRatio, 0.6, 0.15, 0.85),
     sidebarCollapsed: Boolean(candidate.sidebarCollapsed),
-    sidebarWidth: clampSettingsNumber(candidate.sidebarWidth, 260, 260, 800),
+    sidebarWidth: normalizeSidebarWidth(candidate.sidebarWidth),
     inspectorCollapsed: typeof candidate.inspectorCollapsed === "boolean" ? candidate.inspectorCollapsed : true,
   };
 }

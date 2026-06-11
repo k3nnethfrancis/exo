@@ -78,6 +78,35 @@ describe("workspace settings registry", () => {
     }
   });
 
+  it("uses the narrower explorer width for new and old-default layouts", async () => {
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-sidebar-width-"));
+
+    try {
+      const saved = await saveWorkspaceSettings({
+        workspaceRoot: "/tmp/exo-layout/notes",
+        defaultTerminalCwd: "/tmp/exo-layout/project",
+        noteRoots: ["/tmp/exo-layout/notes"],
+        projectRoots: ["/tmp/exo-layout/project"],
+        indexedRoots: [],
+        indexing: { enabled: false, mode: "off", backend: "qmd" },
+        layout: {
+          editorTree: { kind: "leaf", id: "editor-a", content: { kind: "editor", openPaths: [], activePath: null } },
+          terminalTree: { kind: "leaf", id: "terminal-a", content: { kind: "terminal", terminalIds: [], activeTerminalId: null } },
+          terminalCollapsed: false,
+          sidePanesFlipped: false,
+          zoneSplitRatio: 0.6,
+          sidebarCollapsed: false,
+          sidebarWidth: 260,
+          inspectorCollapsed: true,
+        },
+      }, { EXO_USER_DATA_PATH: userDataPath });
+
+      expect(saved.layout?.sidebarWidth).toBe(140);
+    } finally {
+      await rm(userDataPath, { recursive: true, force: true });
+    }
+  });
+
   it("persists and reloads the active desktop workspace", async () => {
     const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-workspace-registry-"));
     const env = { EXO_USER_DATA_PATH: userDataPath };
