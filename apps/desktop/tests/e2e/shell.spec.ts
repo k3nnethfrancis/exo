@@ -1,11 +1,12 @@
 import { spawn, spawnSync } from "node:child_process";
 import { access, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { test, expect } from "@playwright/test";
 
 import { launchExoFixture } from "../helpers";
 
-const repoRoot = path.resolve(process.cwd());
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 
 function boxesOverlap(a: { x: number; y: number; width: number; height: number }, b: { x: number; y: number; width: number; height: number }) {
   return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
@@ -956,6 +957,21 @@ test("shows first-run notes setup before the app shell", async () => {
   await expect(page.getByTestId("onboarding-notes-folder")).toContainText("No notes folder selected.");
   await expect(page.getByTestId("onboarding-continue")).toBeDisabled();
   await expect(page.getByTestId("sidebar")).toHaveCount(0);
+
+  await cleanup();
+});
+
+test("shows first-run setup from a packaged-style launch without workspace env", async () => {
+  const { page, cleanup } = await launchExoFixture({
+    configured: false,
+    cwd: "/",
+    workspaceRootEnv: false,
+    runtimeRootEnv: false,
+  });
+
+  await expect(page.getByTestId("onboarding")).toContainText("Select workspace");
+  const model = await page.evaluate(() => window.exo.workspace.getModel());
+  expect(model.workspaceRoot).not.toBe("/");
 
   await cleanup();
 });

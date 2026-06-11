@@ -11,9 +11,12 @@ const fixtureRoot = path.join(repoRoot, "fixtures/test-workspace");
 export async function launchExoFixture(options?: {
   mutable?: boolean;
   env?: Record<string, string>;
+  cwd?: string;
   prepareWorkspace?: (workspaceRoot: string) => Promise<void>;
   initialNoteLabel?: string | null;
   configured?: boolean;
+  workspaceRootEnv?: boolean;
+  runtimeRootEnv?: boolean;
 }): Promise<{
   electronApp: ElectronApplication;
   page: Page;
@@ -48,28 +51,40 @@ export async function launchExoFixture(options?: {
       }
     : {};
 
+  const launchEnv: NodeJS.ProcessEnv = {
+    ...process.env,
+    EXO_TEST: "1",
+    EXO_WORKSPACE_ROOT: workspaceRoot,
+    EXO_DEFAULT_TERMINAL_CWD: workspaceRoot,
+    EXO_SETTINGS_PATH: settingsPath,
+    EXO_USER_DATA_PATH: userDataRoot,
+    EXO_RUNTIME_ROOT: runtimeRoot,
+    EXO_FORCE_THEME: "dark",
+    HOME: homeRoot,
+    EXO_SHELL: "/bin/echo",
+    EXO_SHELL_ARGS: "shell ready",
+    EXO_CLAUDE_COMMAND: "/bin/echo",
+    EXO_CLAUDE_ARGS: "claude ready",
+    EXO_CODEX_COMMAND: "/bin/echo",
+    EXO_CODEX_ARGS: "codex ready",
+    ...workspaceEnv,
+    ...options?.env,
+  };
+
+  if (options?.workspaceRootEnv === false) {
+    delete launchEnv.EXO_WORKSPACE_ROOT;
+    delete launchEnv.EXO_DEFAULT_TERMINAL_CWD;
+    delete launchEnv.EXO_NOTE_ROOTS;
+    delete launchEnv.EXO_PROJECT_ROOTS;
+  }
+  if (options?.runtimeRootEnv === false) {
+    delete launchEnv.EXO_RUNTIME_ROOT;
+  }
+
   const electronApp = await electron.launch({
     args: [path.join(repoRoot, "apps/desktop/dist/main/index.js")],
-    cwd: repoRoot,
-    env: {
-      ...process.env,
-      EXO_TEST: "1",
-      EXO_WORKSPACE_ROOT: workspaceRoot,
-      EXO_DEFAULT_TERMINAL_CWD: workspaceRoot,
-      EXO_SETTINGS_PATH: settingsPath,
-      EXO_USER_DATA_PATH: userDataRoot,
-      EXO_RUNTIME_ROOT: runtimeRoot,
-      EXO_FORCE_THEME: "dark",
-      HOME: homeRoot,
-      EXO_SHELL: "/bin/echo",
-      EXO_SHELL_ARGS: "shell ready",
-      EXO_CLAUDE_COMMAND: "/bin/echo",
-      EXO_CLAUDE_ARGS: "claude ready",
-      EXO_CODEX_COMMAND: "/bin/echo",
-      EXO_CODEX_ARGS: "codex ready",
-      ...workspaceEnv,
-      ...options?.env,
-    },
+    cwd: options?.cwd ?? repoRoot,
+    env: launchEnv,
   });
   const page = electronApp.windows()[0] ?? await electronApp.firstWindow();
   if (!configured) {

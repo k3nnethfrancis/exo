@@ -189,6 +189,33 @@ function logWorkspaceStartup(model: WorkspaceModel) {
   logMain("workspace startup", details);
 }
 
+function createFirstRunWorkspaceModel(): WorkspaceModel {
+  const userDataRoot = app.getPath("userData");
+  const homeRoot = app.getPath("home");
+  const notesRoot = path.join(userDataRoot, "onboarding-notes");
+
+  return {
+    workspaceRoot: userDataRoot,
+    defaultTerminalCwd: homeRoot,
+    noteRoots: [
+      {
+        id: "note-root-1",
+        label: "onboarding-notes",
+        path: notesRoot,
+        kind: "notes",
+      },
+    ],
+    projectRoots: [],
+    indexedRoots: [],
+    indexing: {
+      enabled: false,
+      mode: "off",
+      backend: "qmd",
+    },
+    attachedWorkcells: [],
+  };
+}
+
 function broadcastTerminalData() {
   terminalManager.on("created", (session) => {
     sendToRenderer("terminal:created", session);
@@ -327,11 +354,12 @@ app.whenReady().then(async () => {
 
   workspaceSettings = await workspaceSettingsStore.load();
   workspaceSetupComplete = workspaceSettings !== null || Boolean(process.env.EXO_NOTE_ROOTS);
-  applyWorkspaceSettings(workspaceSettings);
+  workspaceModel = workspaceSetupComplete ? resolveWorkspaceModel() : createFirstRunWorkspaceModel();
+  const effectiveWorkspaceSettings = workspaceSettings ?? workspaceSettingsStore.fromModel(workspaceModel);
+  applyWorkspaceSettings(effectiveWorkspaceSettings);
   if (workspaceSettings && !isForcedTheme(forcedTheme)) {
     nativeTheme.themeSource = workspaceSettings.appearanceMode;
   }
-  workspaceModel = resolveWorkspaceModel();
   if (workspaceSetupComplete) {
     await ensureNoteRoots(workspaceModel);
     workspaceSettings = await workspaceSettingsStore.save(workspaceSettings ?? workspaceSettingsStore.fromModel(workspaceModel));
