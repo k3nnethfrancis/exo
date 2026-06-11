@@ -25,7 +25,8 @@ interface TerminalViewProps {
 
 export function TerminalView(props: TerminalViewProps) {
   const { appearance, session, hydrationSnapshot, hydrationVersion, fontSize, scrollbackLines, onFocus, onInput, onResize } = props;
-  const hostRef = useRef<HTMLDivElement | null>(null);
+  const surfaceRef = useRef<HTMLDivElement | null>(null);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const hydrationVersionRef = useRef(-1);
@@ -58,11 +59,11 @@ export function TerminalView(props: TerminalViewProps) {
     const fitAddon = new FitAddon();
     disposedRef.current = false;
     terminal.loadAddon(fitAddon);
-    terminal.open(hostRef.current!);
+    terminal.open(viewportRef.current!);
     programmaticInputGuardUntilRef.current = Date.now() + PROGRAMMATIC_INPUT_GUARD_MS;
     terminal.write("\x1b[?1049l\x1b[?1047l\x1b[?47l");
     requestAnimationFrame(() => {
-      safeFit(hostRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef);
+      safeFit(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef);
       terminal.focus();
     });
 
@@ -77,9 +78,9 @@ export function TerminalView(props: TerminalViewProps) {
     });
 
     const observer = new ResizeObserver(() => {
-      safeFit(hostRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef);
+      safeFit(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef);
     });
-    observer.observe(hostRef.current!);
+    observer.observe(viewportRef.current!);
 
     function focusTerminal(event?: MouseEvent) {
       event?.preventDefault();
@@ -118,10 +119,10 @@ export function TerminalView(props: TerminalViewProps) {
       terminal.focus();
     }
 
-    hostRef.current!.addEventListener("mousedown", focusTerminal);
-    hostRef.current!.addEventListener("wheel", guardWheelGeneratedInput, { capture: true, passive: false });
-    hostRef.current!.addEventListener("dragover", handleDragOver, { capture: true });
-    hostRef.current!.addEventListener("drop", handleDrop, { capture: true });
+    surfaceRef.current!.addEventListener("mousedown", focusTerminal);
+    surfaceRef.current!.addEventListener("wheel", guardWheelGeneratedInput, { capture: true, passive: false });
+    surfaceRef.current!.addEventListener("dragover", handleDragOver, { capture: true });
+    surfaceRef.current!.addEventListener("drop", handleDrop, { capture: true });
 
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
@@ -137,10 +138,10 @@ export function TerminalView(props: TerminalViewProps) {
       writingRef.current = false;
       disposeData.dispose();
       observer.disconnect();
-      hostRef.current?.removeEventListener("mousedown", focusTerminal);
-      hostRef.current?.removeEventListener("wheel", guardWheelGeneratedInput, { capture: true });
-      hostRef.current?.removeEventListener("dragover", handleDragOver, { capture: true });
-      hostRef.current?.removeEventListener("drop", handleDrop, { capture: true });
+      surfaceRef.current?.removeEventListener("mousedown", focusTerminal);
+      surfaceRef.current?.removeEventListener("wheel", guardWheelGeneratedInput, { capture: true });
+      surfaceRef.current?.removeEventListener("dragover", handleDragOver, { capture: true });
+      surfaceRef.current?.removeEventListener("drop", handleDrop, { capture: true });
       terminal.dispose();
       if (sizeRef.current.resizeTimer) {
         window.clearTimeout(sizeRef.current.resizeTimer);
@@ -166,7 +167,7 @@ export function TerminalView(props: TerminalViewProps) {
 
     terminal.options.fontSize = fontSize;
     requestAnimationFrame(() => {
-      safeFit(hostRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef);
+      safeFit(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef);
     });
   }, [fontSize, session.id]);
 
@@ -204,11 +205,13 @@ export function TerminalView(props: TerminalViewProps) {
 
   return (
     <div
-      ref={hostRef}
+      ref={surfaceRef}
       className="terminal-surface"
       data-testid="terminal-surface"
       tabIndex={0}
-    />
+    >
+      <div ref={viewportRef} className="terminal-surface__viewport" />
+    </div>
   );
 }
 

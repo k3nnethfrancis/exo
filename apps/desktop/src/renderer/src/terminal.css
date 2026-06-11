@@ -163,8 +163,17 @@
   grid-row: 3;
   min-width: 0;
   min-height: 0;
-  padding: 6px 8px 18px;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  box-sizing: border-box;
+  padding: 6px 8px 26px;
   background: var(--terminal-bg);
+  overflow: hidden;
+}
+
+.terminal-surface__viewport {
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
 }
 
