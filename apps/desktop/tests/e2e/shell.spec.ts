@@ -946,12 +946,9 @@ test("switch workspace opens the workspace picker", async () => {
 test("shows first-run notes setup before the app shell", async () => {
   const { page, cleanup } = await launchExoFixture({ configured: false });
 
-  await expect(page.getByTestId("onboarding")).toContainText("Select workspace");
-  await expect(page.getByTestId("workspace-picker-empty")).toContainText("No workspaces yet.");
-  await expect(page.getByTestId("workspace-picker-new")).toBeVisible();
-  await expect(page.getByTestId("workspace-picker-open")).toBeDisabled();
-  await page.getByTestId("workspace-picker-new").click();
-  await expect(page.getByTestId("onboarding")).toContainText("Choose notes folder");
+  await expect(page.getByTestId("onboarding")).toContainText("Open notes folder");
+  await expect(page.getByTestId("workspace-picker")).toHaveCount(0);
+  await expect(page.getByTestId("workspace-picker-open")).toHaveCount(0);
   await expect(page.getByTestId("onboarding")).toContainText("Default terminal");
   await expect(page.getByTestId("onboarding")).toContainText("Knowledge index");
   await expect(page.getByTestId("onboarding-notes-folder")).toContainText("No notes folder selected.");
@@ -969,7 +966,8 @@ test("shows first-run setup from a packaged-style launch without workspace env",
     runtimeRootEnv: false,
   });
 
-  await expect(page.getByTestId("onboarding")).toContainText("Select workspace");
+  await expect(page.getByTestId("onboarding")).toContainText("Open notes folder");
+  await expect(page.getByTestId("workspace-picker-open")).toHaveCount(0);
   const model = await page.evaluate(() => window.exo.workspace.getModel());
   expect(model.workspaceRoot).not.toBe("/");
 
@@ -987,7 +985,6 @@ test("opens an existing notes folder from first-run setup", async () => {
   });
   const expectedTerminalCwd = path.join(workspaceRoot, "notes");
 
-  await page.getByTestId("workspace-picker-new").click();
   await page.getByTestId("onboarding-choose-notes").click();
   await expect(page.getByTestId("onboarding-notes-folder")).toContainText(notesFolder);
   await expect(page.getByTestId("onboarding-terminal-folder")).toContainText(expectedTerminalCwd);

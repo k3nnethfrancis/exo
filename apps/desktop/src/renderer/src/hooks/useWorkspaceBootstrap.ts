@@ -79,7 +79,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
         setWorkspaceModel(model);
         setOnboardingState({
           mode: "first-run",
-          step: "select",
+          step: workspaces.length > 0 ? "select" : "configure",
           workspaces,
           selectedWorkspaceId: workspaces[0]?.id ?? null,
           notesFolder: "",

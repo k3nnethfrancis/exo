@@ -781,7 +781,9 @@ export function App() {
             </>
           ) : (
             <>
-              <h1 className="onboarding-card__title">Choose notes folder</h1>
+              <h1 className="onboarding-card__title">
+                {onboardingState.mode === "first-run" ? "Open notes folder" : "Choose notes folder"}
+              </h1>
               <p className="onboarding-card__copy">
                 Select an existing Markdown folder or create one, then confirm the default terminal, projects, and local index mode.
               </p>
