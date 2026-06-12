@@ -164,7 +164,9 @@ Future MCP additions should be tested against this rule: can an agent use this t
 
 By default, the MCP server needs Exo already running so it can read `.exo/server.json`. With `EXO_MCP_AUTOSTART=1`, it can start Exo through `EXO_MCP_START_COMMAND` and wait for the command server. If `EXO_RUNTIME_ROOT` or explicit workspace env vars are not set, MCP uses the same active desktop workspace registry as the CLI to find the runtime root.
 
-`bin/exo integrations doctor|config|install|test` is the setup surface for external agent clients. It installs the same stdio MCP server into Codex and Claude Code through their native MCP CLIs, while the MCP server itself continues to speak to Exo through the shared command-server contract.
+`bin/exo integrations doctor|config|install|test` is the setup surface for external agent clients. It installs the default stdio MCP server into Codex and Claude Code through their native MCP CLIs, while the MCP server itself continues to speak to Exo through the shared command-server contract.
+
+Remote-only MCP hosts such as Glean can use the opt-in Streamable HTTP transport: `exo-mcp --transport http --host 127.0.0.1 --port 3333`. It is not a replacement for stdio. HTTP binds to localhost by default, should sit behind internal proxy/auth before wider exposure, and reuses the exact same narrow MCP tool registration so the transport does not create a second product surface.
 
 ## Editor Model
 

@@ -25,7 +25,7 @@ The immediate product proving loop is Exo-on-Exo: finish usability/harness readi
 - `apps/desktop` - Electron main/preload/renderer, settings, terminal supervision, command server.
 - `packages/core` - workspace model, notes/projects, runtime launch plans, shared command protocol, QMD adapter, integrations.
 - `packages/cli` - `bin/exo` CLI.
-- `packages/mcp` - stdio MCP server for local agents.
+- `packages/mcp` - MCP server for local agents; stdio by default, Streamable HTTP when explicitly requested.
 - `scripts` - launch/build helpers.
 - `.github/workflows` - CI and macOS packaging workflows.
 - `CLAUDE.md` is a compatibility symlink to `AGENTS.md`; do not add Claude-only repo instructions.

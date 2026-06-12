@@ -1,4 +1,5 @@
 import { EditorSelection, EditorState, Prec, Transaction, type Extension, RangeSetBuilder, StateEffect, StateField } from "@codemirror/state";
+import { indentLess } from "@codemirror/commands";
 import { Decoration, EditorView, ViewPlugin, WidgetType, keymap, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 import { LIST_GEOMETRY, listGeometryStyleVariables } from "./listGeometry";
 
@@ -85,6 +86,7 @@ export function markdownLivePreview(options: MarkdownLivePreviewOptions): Extens
     listPrefixAtomicRanges,
     listPrefixSelectionFilter,
     plugin,
+    listContinuationOutdentKeymap,
     listPrefixNavigationKeymap,
     EditorView.domEventHandlers({
       mousedown(event, view) {
@@ -224,6 +226,21 @@ const listPrefixNavigationKeymap = Prec.highest(keymap.of([
   },
 ]));
 
+const listContinuationOutdentKeymap = Prec.highest(keymap.of([
+  {
+    key: "Enter",
+    run: outdentBlankListContinuation,
+  },
+  {
+    key: "Shift-Tab",
+    run: outdentBlankListContinuation,
+  },
+  {
+    key: "Mod-[",
+    run: (view) => outdentBlankListContinuation(view) || indentLess(view),
+  },
+]));
+
 const listPrefixSelectionFilter = EditorState.transactionFilter.of((tr) => {
   if (!tr.selection || !tr.changes.empty) {
     return tr;
@@ -292,6 +309,43 @@ function moveListPrefixSelection(view: EditorView, direction: "left" | "right"):
     userEvent: "select",
   });
   return true;
+}
+
+function outdentBlankListContinuation(view: EditorView): boolean {
+  const range = view.state.selection.main;
+  if (!range.empty) {
+    return false;
+  }
+
+  const line = view.state.doc.lineAt(range.head);
+  if (!isBlankListContinuationLine(view.state, line.number)) {
+    return false;
+  }
+
+  view.dispatch({
+    changes: { from: line.from, to: line.to, insert: "" },
+    selection: EditorSelection.cursor(line.from),
+    scrollIntoView: true,
+    userEvent: "delete.dedent",
+  });
+  return true;
+}
+
+function isBlankListContinuationLine(state: EditorState, lineNumber: number): boolean {
+  const line = state.doc.line(lineNumber);
+  if (line.text.length === 0 || line.text.trim().length > 0) {
+    return false;
+  }
+
+  const contexts = collectListMetadata(state.doc);
+  for (let previousLine = lineNumber - 1; previousLine >= 1; previousLine -= 1) {
+    const text = state.doc.line(previousLine).text;
+    if (text.trim().length === 0) {
+      continue;
+    }
+    return contexts.has(previousLine);
+  }
+  return false;
 }
 
 interface ListPrefixPositions {
@@ -863,6 +917,11 @@ function collectListMetadata(doc: EditorView["state"]["doc"]) {
     const leadingWhitespace = text.match(leadingWhitespacePattern);
     const indent = indentationColumns(leadingWhitespace ? leadingWhitespace[1] : "");
     const match = text.match(listPrefixPattern);
+
+    if (isBlank) {
+      stack.length = 0;
+      continue;
+    }
 
     if (match) {
       while (stack.length > 0 && indent < stack[stack.length - 1].indent) {

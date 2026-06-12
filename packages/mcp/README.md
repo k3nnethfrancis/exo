@@ -2,6 +2,8 @@
 
 Exposes the running Exo app as an MCP server.
 
+Stdio is the default transport for local MCP hosts such as Claude Code and Codex. Exo also supports an explicit Streamable HTTP transport for remote-only MCP hosts such as Glean that cannot launch local stdio servers. HTTP binds to `127.0.0.1` by default; use an internal authenticated proxy if you expose it beyond localhost.
+
 The stdio launcher expects `packages/mcp/dist/index.cjs` to exist. Build the package before configuring or starting MCP:
 
 ```bash
@@ -56,6 +58,29 @@ Optional environment:
 - `EXO_MCP_MAINTENANCE_TIMEOUT_MS` — long-running index maintenance timeout. Defaults to `1800000`.
 
 Without autostart, Exo must already be running so the MCP server can discover `.exo/server.json` and talk to the local command server.
+
+## HTTP Transport
+
+Run the same narrow MCP tool surface over Streamable HTTP:
+
+```bash
+node packages/mcp/bin/exo-mcp.mjs --transport http --host 127.0.0.1 --port 3333
+```
+
+The default endpoint is:
+
+```text
+http://127.0.0.1:3333/mcp
+```
+
+Options:
+
+- `--transport http` or `--http` — start the Streamable HTTP server.
+- `--host <host>` — bind host. Defaults to `127.0.0.1`.
+- `--port <port>` — bind port. Defaults to `3333`; use `0` to choose a free port.
+- `--path <path>` — MCP endpoint path. Defaults to `/mcp`.
+
+Equivalent env vars are `EXO_MCP_HTTP_HOST`, `EXO_MCP_HTTP_PORT`, and `EXO_MCP_HTTP_PATH`.
 
 ## Tools
 

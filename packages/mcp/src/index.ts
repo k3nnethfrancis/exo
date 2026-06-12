@@ -1,17 +1,47 @@
 #!/usr/bin/env node
 
+import { randomUUID } from "node:crypto";
+import { createServer, type IncomingMessage, type Server as HttpServer, type ServerResponse } from "node:http";
+import { once } from "node:events";
+
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import * as z from "zod/v4";
 
 import { ExoCommandClient, formatAgents, stripAnsi } from "./exo-client";
 
-const server = new McpServer({
-  name: "exo",
-  version: "0.1.0",
-});
+const DEFAULT_HTTP_HOST = "127.0.0.1";
+const DEFAULT_HTTP_PORT = 3333;
+const DEFAULT_HTTP_PATH = "/mcp";
 
-server.registerTool(
+type HttpServerOptions = {
+  host?: string;
+  port?: number;
+  path?: string;
+};
+
+type RunningHttpServer = {
+  close: () => Promise<void>;
+  endpoint: string;
+  host: string;
+  port: number;
+  server: HttpServer;
+  url: string;
+};
+
+export function createExoMcpServer(): McpServer {
+  const server = new McpServer({
+    name: "exo",
+    version: "0.1.0",
+  });
+  registerExoTools(server);
+  return server;
+}
+
+function registerExoTools(server: McpServer) {
+  server.registerTool(
   "workspace_status",
   {
     title: "Workspace Status",
@@ -246,14 +276,201 @@ server.registerTool(
     };
   },
 );
+}
 
 export async function runServer() {
+  const server = createExoMcpServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }
 
+export async function runHttpServer(options: HttpServerOptions = {}): Promise<RunningHttpServer> {
+  const host = options.host ?? process.env.EXO_MCP_HTTP_HOST ?? DEFAULT_HTTP_HOST;
+  const port = options.port ?? Number(process.env.EXO_MCP_HTTP_PORT ?? DEFAULT_HTTP_PORT);
+  const endpoint = normalizeHttpPath(options.path ?? process.env.EXO_MCP_HTTP_PATH ?? DEFAULT_HTTP_PATH);
+  const transports = new Map<string, StreamableHTTPServerTransport>();
+
+  const server = createServer(async (req, res) => {
+    try {
+      if (!matchesEndpoint(req.url, endpoint)) {
+        sendJsonRpcError(res, 404, "Not found");
+        return;
+      }
+
+      if (req.method === "POST") {
+        const body = await readJsonBody(req);
+        await handleHttpPost(req, res, body, transports);
+        return;
+      }
+
+      if (req.method === "GET" || req.method === "DELETE") {
+        const transport = findSessionTransport(req, transports);
+        if (!transport) {
+          sendJsonRpcError(res, 400, "Invalid or missing MCP session id");
+          return;
+        }
+        await transport.handleRequest(req, res);
+        return;
+      }
+
+      sendJsonRpcError(res, 405, `Method ${req.method ?? "UNKNOWN"} is not supported`);
+    } catch (error) {
+      console.error("[exo-mcp] HTTP transport error", error instanceof Error ? error.stack ?? error.message : String(error));
+      if (!res.headersSent) {
+        sendJsonRpcError(res, 500, "Internal server error");
+      }
+    }
+  });
+
+  server.listen(port, host);
+  await once(server, "listening");
+
+  const address = server.address();
+  const resolvedPort = typeof address === "object" && address ? address.port : port;
+  const url = `http://${host}:${resolvedPort}${endpoint}`;
+  console.log(`[exo-mcp] streamable http listening on ${url}`);
+
+  return {
+    close: async () => {
+      await Promise.all(Array.from(transports.values(), (transport) => transport.close().catch(() => undefined)));
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+          resolve();
+        });
+      });
+    },
+    endpoint,
+    host,
+    port: resolvedPort,
+    server,
+    url,
+  };
+}
+
+async function handleHttpPost(
+  req: IncomingMessage,
+  res: ServerResponse,
+  body: unknown,
+  transports: Map<string, StreamableHTTPServerTransport>,
+) {
+  const existingTransport = findSessionTransport(req, transports);
+  if (existingTransport) {
+    await existingTransport.handleRequest(req, res, body);
+    return;
+  }
+
+  if (!getMcpSessionId(req) && isInitializeRequest(body)) {
+    let transport: StreamableHTTPServerTransport;
+    transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: () => randomUUID(),
+      onsessioninitialized: (sessionId) => {
+        transports.set(sessionId, transport);
+      },
+    });
+    transport.onclose = () => {
+      const sessionId = transport.sessionId;
+      if (sessionId) {
+        transports.delete(sessionId);
+      }
+    };
+
+    const mcpServer = createExoMcpServer();
+    await mcpServer.connect(transport);
+    await transport.handleRequest(req, res, body);
+    return;
+  }
+
+  sendJsonRpcError(res, 400, "Bad request: no valid MCP session id or initialize request");
+}
+
+function findSessionTransport(req: IncomingMessage, transports: Map<string, StreamableHTTPServerTransport>) {
+  const sessionId = getMcpSessionId(req);
+  return sessionId ? transports.get(sessionId) : undefined;
+}
+
+function getMcpSessionId(req: IncomingMessage): string | undefined {
+  const header = req.headers["mcp-session-id"];
+  return Array.isArray(header) ? header[0] : header;
+}
+
+async function readJsonBody(req: IncomingMessage): Promise<unknown> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  const rawBody = Buffer.concat(chunks).toString("utf8").trim();
+  if (!rawBody) {
+    return undefined;
+  }
+  return JSON.parse(rawBody);
+}
+
+function matchesEndpoint(url: string | undefined, endpoint: string): boolean {
+  if (!url) {
+    return false;
+  }
+  const pathname = new URL(url, "http://localhost").pathname;
+  return pathname === endpoint;
+}
+
+function normalizeHttpPath(path: string): string {
+  const trimmed = path.trim() || DEFAULT_HTTP_PATH;
+  return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+}
+
+function sendJsonRpcError(res: ServerResponse, status: number, message: string) {
+  res.statusCode = status;
+  res.setHeader("content-type", "application/json");
+  res.end(JSON.stringify({ jsonrpc: "2.0", error: { code: -32000, message }, id: null }));
+}
+
+export async function runCli(argv = process.argv) {
+  const args = argv.slice(2);
+  const transport = readArgValue(args, "--transport") ?? (args.includes("--http") ? "http" : "stdio");
+  if (transport === "http" || transport === "streamable-http") {
+    await runHttpServer({
+      host: readArgValue(args, "--host"),
+      port: readNumberArgValue(args, "--port"),
+      path: readArgValue(args, "--path"),
+    });
+    return;
+  }
+
+  if (transport !== "stdio") {
+    throw new Error(`Unsupported Exo MCP transport "${transport}". Use "stdio" or "http".`);
+  }
+
+  await runServer();
+}
+
+function readArgValue(args: string[], name: string): string | undefined {
+  const equalsPrefix = `${name}=`;
+  const inline = args.find((arg) => arg.startsWith(equalsPrefix));
+  if (inline) {
+    return inline.slice(equalsPrefix.length);
+  }
+  const index = args.indexOf(name);
+  return index >= 0 ? args[index + 1] : undefined;
+}
+
+function readNumberArgValue(args: string[], name: string): number | undefined {
+  const value = readArgValue(args, name);
+  if (!value) {
+    return undefined;
+  }
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0 || parsed > 65_535) {
+    throw new Error(`${name} must be an integer port between 0 and 65535.`);
+  }
+  return parsed;
+}
+
 if (process.argv[1] && import.meta.url === new URL(process.argv[1], "file:").href) {
-  runServer().catch((error) => {
+  runCli(process.argv).catch((error) => {
     console.error(error instanceof Error ? error.stack ?? error.message : String(error));
     process.exitCode = 1;
   });

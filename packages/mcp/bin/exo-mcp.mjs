@@ -12,5 +12,5 @@ if (!existsSync(builtEntry)) {
   process.exit(1);
 }
 
-const { runServer } = await import(builtEntry);
-await runServer();
+const { runCli, runServer } = await import(builtEntry);
+await (runCli ?? runServer)(process.argv);

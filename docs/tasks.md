@@ -22,6 +22,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Verify `/Applications/Exo.app` shows the Exo menu bar icon, survives window close, and keeps CLI/MCP commands available while hidden.
 - [ ] Add launch-at-login support for the installed app after the resident runtime passes daily-use QA.
 - [ ] Design a packaged CLI/helper story so installed Exo does not depend on the repo-backed `bin/exo` long term.
+- [x] Scope and implement `EXO-ISSUE-033`: optional Streamable HTTP MCP transport for remote-only MCP hosts such as Glean, keeping stdio as the default local transport.
 - [ ] Resolve `EXO-ISSUE-025` before June 2026 GitHub Actions Node 24 enforcement affects CI.
 - [ ] Spawn one Exo-managed agent for a narrow Exo task, inspect transcript/diff through Exo/CLI, and record every friction point as product work.
 - [ ] Add an explicit issue/log path for Exo-on-Exo bugs found during real use.

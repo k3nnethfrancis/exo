@@ -182,6 +182,14 @@ Preview without modifying local agent config:
 
 Already-running agent sessions may need restart or MCP refresh before they see newly installed tools. The CLI mirror remains available when MCP is unavailable.
 
+Stdio is the default MCP transport for local hosts. Remote-only MCP hosts can use the same 9-tool surface over Streamable HTTP:
+
+```bash
+node packages/mcp/bin/exo-mcp.mjs --transport http --host 127.0.0.1 --port 3333
+```
+
+Keep the HTTP transport bound to localhost unless it is protected by an internal authenticated proxy.
+
 ## CLI
 
 The CLI is the operator/admin/debug surface. It intentionally includes setup, workspace configuration, index maintenance, and low-level terminal controls that are not exposed as MCP tools.
@@ -302,7 +310,7 @@ See `docs/harness.md` for work-chunk rules, validation evidence, and agent-frien
 - `apps/desktop` - Electron main/preload/renderer, settings, terminal supervision, and the local command server.
 - `packages/core` - workspace model, note/project discovery, runtime config, launch plans, QMD adapter, shared command protocol, integration helpers.
 - `packages/cli` - `bin/exo` command surface.
-- `packages/mcp` - stdio MCP server that wraps the running Exo app for local agents.
+- `packages/mcp` - MCP server that wraps the running Exo app for local agents; stdio by default, Streamable HTTP when explicitly requested.
 - `docs/architecture.md` - package and runtime architecture.
 - `docs/strategy.md` - product direction and system model.
 - `docs/harness.md` - developer harness, gates, and agent workflow.

@@ -1,10 +1,50 @@
 # Exo Issues
 
-Last updated: 2026-06-11
+Last updated: 2026-06-12
 
 This is the active bug/QA tracker. It captures user-observed issues that need investigation before the next push/release pass.
 
 ## Open
+
+### EXO-ISSUE-034: Live-preview bullet continuation traps cursor at stale indentation
+
+- Status: fixed
+- Severity: medium
+- Area: markdown editor, live preview list editing
+- Observed:
+  - In live preview, pressing Enter after a bullet correctly creates the next bullet, but pressing Enter again can remove the bullet while leaving the cursor visually trapped at the previous indentation.
+  - Blank continuation lines can keep list guide styling even after the user intends to exit the list.
+  - The user cannot place the cursor back at the left edge where the surrounding parent text begins.
+- Expected:
+  - A blank whitespace-only list continuation line should not keep list-continuation guide styling.
+  - Pressing Enter, Shift-Tab, or the outdent shortcut on that blank continuation line should clear the indentation and move the cursor to column zero.
+- Resolution:
+  - Added a high-priority CodeMirror keymap for blank list-continuation outdent behavior.
+  - Stopped assigning list-continuation metadata to whitespace-only blank lines.
+  - Added focused Electron/Playwright coverage for the trapped-indentation case.
+
+### EXO-ISSUE-033: Exo MCP needs optional HTTP/SSE transport for remote-only MCP hosts
+
+- Status: fixed; needs Glean-host QA
+- Severity: medium
+- Area: MCP server integration, external MCP hosts, Glean Assistant compatibility
+- Observed:
+  - Exo MCP previously exposed a stdio transport only.
+  - Claude Code and other local MCP hosts can use stdio, but Glean Assistant as an MCP host requires Remote HTTP / SSE and does not support local stdio servers directly.
+  - Configuring Exo's stdio MCP server in Glean can fail with `MCP error -32000: Connection closed`.
+- Expected:
+  - Stdio remains the default for local CLI-backed hosts such as Claude Code and Codex.
+  - Exo should offer an explicit HTTP/SSE or Streamable HTTP mode that can serve the same narrow MCP tool plane over a local port.
+  - The network transport must make exposure boundaries clear: default localhost binding, documented port/env configuration, and authentication or proxy guidance before non-localhost use.
+- Scope:
+  - Reuse the existing MCP tool registration and `ExoCommandClient`; do not fork the tool surface.
+  - Add launcher/config docs for remote-only hosts, including Glean.
+  - Add transport smoke tests that list the same 9 tools over stdio and HTTP/SSE.
+- Resolution:
+  - Added a shared MCP server factory so stdio and HTTP use the same 9-tool registration.
+  - Added an opt-in Streamable HTTP launcher: `exo-mcp --transport http --host 127.0.0.1 --port 3333`.
+  - Kept stdio as the default local transport and documented localhost/proxy guidance.
+  - Added stdio and HTTP SDK handshake coverage that verifies the same 9 tools.
 
 ### EXO-ISSUE-031: Packaged app can silently exit on first launch after local install
 

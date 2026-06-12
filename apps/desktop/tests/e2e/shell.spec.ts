@@ -1393,6 +1393,73 @@ test("keeps list text aligned when editing a bullet marker", async () => {
   await cleanup();
 });
 
+test("outdents blank list continuation lines in live preview", async () => {
+  const { page, cleanup } = await launchExoFixture({
+    prepareWorkspace: async (workspaceRoot) => {
+      const notePath = path.join(workspaceRoot, "notes/test-notes/focus-note.md");
+      await writeFile(
+        notePath,
+        `---\ntitle: Focus Note\n---\n\n# Probe\n\n- working on\n  - transformation workshop\n  - evals deck/blog post\n  \nnotes\n`,
+      );
+    },
+  });
+
+  async function setCursorOnExactLine(text: string, offset: number) {
+    await page.evaluate(({ lineText, nextOffset }) => {
+      const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+      const view = content?.cmView?.view;
+      if (!view) {
+        throw new Error("Unable to resolve CodeMirror view");
+      }
+      for (let lineNumber = 1; lineNumber <= view.state.doc.lines; lineNumber += 1) {
+        const line = view.state.doc.line(lineNumber);
+        if (line.text === lineText) {
+          view.dispatch({ selection: { anchor: line.from + nextOffset }, scrollIntoView: true });
+          view.focus();
+          return;
+        }
+      }
+      throw new Error(`Unable to find exact line ${JSON.stringify(lineText)}`);
+    }, { lineText: text, nextOffset: offset });
+  }
+
+  async function cursorLocation() {
+    return page.evaluate(() => {
+      const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+      const view = content?.cmView?.view;
+      if (!view) {
+        throw new Error("Unable to resolve CodeMirror view");
+      }
+      const pos = view.state.selection.main.head;
+      const line = view.state.doc.lineAt(pos);
+      return {
+        lineText: line.text,
+        offset: pos - line.from,
+      };
+    });
+  }
+
+  await setCursorOnExactLine("  ", 2);
+  const blankLineClassList = await page.evaluate(() => {
+    const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+    const view = content?.cmView?.view;
+    if (!view) {
+      throw new Error("Unable to resolve CodeMirror view");
+    }
+    const pos = view.state.selection.main.head;
+    const line = view.state.doc.lineAt(pos);
+    const lineIndex = line.number - 1;
+    const element = document.querySelectorAll<HTMLElement>(".cm-line")[lineIndex];
+    return Array.from(element?.classList ?? []);
+  });
+  expect(blankLineClassList).not.toContain("exo-md-line--list-continuation");
+
+  await page.keyboard.press("Enter");
+  await expect.poll(cursorLocation).toEqual({ lineText: "", offset: 0 });
+
+  await cleanup();
+});
+
 test("keeps the inspector pinned while long notes scroll", async () => {
   const longDocument = Array.from({ length: 120 }, (_, index) => `- line ${index + 1}`).join("\n");
   const longFixture = await launchExoFixture({
