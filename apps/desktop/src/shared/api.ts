@@ -60,6 +60,9 @@ export interface TerminalDiagnostics {
   status: TerminalSessionInfo["status"];
   health: TerminalHealthState;
   healthDetail: string;
+  runtime: "tmux";
+  tmuxSessionName: string;
+  bridgeStatus: "attached" | "detached";
   cwd: string;
   title: string;
   command: string;

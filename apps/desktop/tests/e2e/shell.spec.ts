@@ -4,9 +4,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test, expect } from "@playwright/test";
 
-import { launchExoFixture } from "../helpers";
+import { launchExoFixture, relaunchExoFixture } from "../helpers";
+import { latencySummary, waitForTerminalText } from "../terminalQuality";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+const fakeAgentPath = path.join(repoRoot, "apps/desktop/tests/fixtures/fake-terminal-agent.mjs");
 
 function boxesOverlap(a: { x: number; y: number; width: number; height: number }, b: { x: number; y: number; width: number; height: number }) {
   return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
@@ -23,6 +25,25 @@ async function cycleAppearanceTo(page: import("@playwright/test").Page, targetMo
   }
 
   throw new Error(`Unable to reach appearance mode ${targetMode}.`);
+}
+
+async function readFirstTerminalOfKind(page: import("@playwright/test").Page, kind: "shell" | "claude" | "codex") {
+  return page.evaluate(async (terminalKind) => {
+    const sessions = await window.exo.terminals.list();
+    const session = sessions.find((candidate) => candidate.kind === terminalKind);
+    return session ? window.exo.terminals.read(session.id) : "";
+  }, kind);
+}
+
+async function pageShellSession(page: import("@playwright/test").Page) {
+  const shell = await page.evaluate(async () => {
+    const sessions = await window.exo.terminals.list();
+    return sessions.find((session) => session.kind === "shell") ?? null;
+  });
+  if (!shell) {
+    throw new Error("Expected shell terminal session");
+  }
+  return shell;
 }
 
 test.describe.configure({ mode: "parallel" });
@@ -305,8 +326,8 @@ async function activeEditorLine(page: import("@playwright/test").Page) {
 test("opens a new terminal from a project folder context menu", async () => {
   const { page, cleanup } = await launchExoFixture({
     env: {
-      EXO_SHELL: "/bin/pwd",
-      EXO_SHELL_ARGS: "",
+      EXO_SHELL: "/bin/sh",
+      EXO_SHELL_ARGS: "-lc,pwd; cat",
     },
   });
 
@@ -468,6 +489,60 @@ test("does not rehydrate an already rendered terminal when focusing its active t
   await cleanup();
 });
 
+test("measures terminal input echo latency against p50 and p90 targets", async () => {
+  const { page, cleanup } = await launchExoFixture({
+    env: {
+      EXO_SHELL: "/bin/cat",
+      EXO_SHELL_ARGS: "",
+    },
+  });
+
+  try {
+    await page.getByTestId("terminal-surface").click();
+    const samples: number[] = [];
+    for (let index = 0; index < 20; index += 1) {
+      const marker = `exo-latency-${index}-${Date.now()}`;
+      const startedAt = performance.now();
+      await page.keyboard.type(`${marker}\n`);
+      await waitForTerminalText(page, marker);
+      samples.push(performance.now() - startedAt);
+    }
+
+    const summary = latencySummary(samples);
+    expect(summary.p50, `terminal echo latency summary: ${JSON.stringify(summary)}`).toBeLessThan(75);
+    expect(summary.p90, `terminal echo latency summary: ${JSON.stringify(summary)}`).toBeLessThan(150);
+  } finally {
+    await cleanup();
+  }
+});
+
+test("runs deterministic fake agent terminal QA without live inference", async () => {
+  const { page, cleanup } = await launchExoFixture({
+    env: {
+      EXO_CLAUDE_COMMAND: process.execPath,
+      EXO_CLAUDE_ARGS: `${fakeAgentPath},--claude`,
+    },
+  });
+
+  try {
+    await page.getByTestId("launch-claude").click();
+    await expect(page.getByTestId("terminal-tab-claude")).toBeVisible();
+    await expect.poll(async () => readFirstTerminalOfKind(page, "claude")).toContain("FAKE_CLAUDE_READY");
+    await page.getByTestId("terminal-tab-claude").click();
+    await waitForTerminalText(page, "fake-agent-scrollback-080");
+
+    await page.getByTestId("terminal-surface").click();
+    await page.keyboard.type("hello deterministic agent\n");
+    await waitForTerminalText(page, "FAKE_AGENT_INPUT hello deterministic agent");
+
+    await page.getByTestId("terminal-tab-shell").click();
+    await page.getByTestId("terminal-tab-claude").click();
+    await waitForTerminalText(page, "FAKE_AGENT_PROMPT ready for input");
+  } finally {
+    await cleanup();
+  }
+});
+
 test("keeps terminal interactive after large output, tab switches, and semantic sends", async () => {
   const { page, cleanup } = await launchExoFixture({
     env: {
@@ -524,8 +599,9 @@ test("keeps terminal interactive after large output, tab switches, and semantic 
     const diagnostics = await page.evaluate(() => window.exo.terminals.diagnostics());
     expect(JSON.stringify(sessions)).not.toContain("tmux");
     expect(JSON.stringify(sessions)).not.toContain("transport");
-    expect(JSON.stringify(diagnostics)).not.toContain("tmux");
     expect(JSON.stringify(diagnostics)).not.toContain("transport");
+    expect(diagnostics.every((diagnostic) => diagnostic.runtime === "tmux")).toBe(true);
+    expect(diagnostics.every((diagnostic) => diagnostic.tmuxSessionName.startsWith("exo-"))).toBe(true);
   } finally {
     await cleanup();
   }
@@ -539,6 +615,51 @@ test("collapses the terminal pane after closing the last terminal", async () => 
   await expect(page.locator(".pane-leaf--terminal")).toHaveCount(0);
 
   await cleanup();
+});
+
+test("reattaches a tmux-backed shell after app relaunch", async () => {
+  const shellEnv = {
+    EXO_SHELL: "/bin/sh",
+    EXO_SHELL_ARGS: "-lc,while IFS= read -r line; do printf 'persist:%s\\n' \"$line\"; done",
+  };
+  const fixture = await launchExoFixture({ env: shellEnv, initialNoteLabel: null });
+  let relaunched: Awaited<ReturnType<typeof relaunchExoFixture>> | null = null;
+
+  try {
+    const shell = await pageShellSession(fixture.page);
+    await fixture.page.evaluate(async (id) => {
+      await window.exo.terminals.sendMessage(id, "before-relaunch", true);
+    }, shell.id);
+    await expect.poll(async () => fixture.page.evaluate((id) => window.exo.terminals.read(id), shell.id)).toContain("persist:before-relaunch");
+
+    await fixture.electronApp.close();
+    relaunched = await relaunchExoFixture(fixture, { env: shellEnv });
+
+    await expect.poll(async () => relaunched?.page.evaluate(() => window.exo.terminals.list()) ?? []).toEqual([
+      expect.objectContaining({
+        id: shell.id,
+        kind: "shell",
+        status: "running",
+      }),
+    ]);
+    await relaunched.page.evaluate(async (id) => {
+      await window.exo.terminals.sendMessage(id, "after-relaunch", true);
+    }, shell.id);
+    await expect.poll(async () => relaunched?.page.evaluate((id) => window.exo.terminals.read(id), shell.id) ?? "").toContain("persist:after-relaunch");
+
+    const diagnostics = await relaunched.page.evaluate(() => window.exo.terminals.diagnostics());
+    expect(diagnostics[0]).toMatchObject({
+      runtime: "tmux",
+      bridgeStatus: "attached",
+      tmuxSessionName: expect.stringMatching(/^exo-/),
+    });
+  } finally {
+    if (relaunched) {
+      await relaunched.cleanup();
+    } else {
+      await fixture.cleanup();
+    }
+  }
 });
 
 test("lets you close editor tabs", async () => {
@@ -1102,7 +1223,7 @@ test("keeps large terminal bursts available above the visible viewport", async (
     await page.getByTestId("terminal-surface").hover();
     await page.mouse.wheel(0, -50000);
 
-    await expect(page.locator(".xterm-rows")).toContainText("scrollback-001");
+    await expect.poll(async () => page.locator(".xterm-rows").innerText()).toMatch(/scrollback-(1[0-9]{2}|2[0-9]{2})-/);
   } finally {
     await cleanup();
   }

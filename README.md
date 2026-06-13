@@ -30,7 +30,7 @@ Exo is for people who want terminal agents to participate in their actual workin
 - Optional QMD-backed notes indexing with lexical, semantic, and hybrid modes.
 - Index status, sync, and settings controls for selected note roots.
 - Editor and terminal panes with flat tabs, split behavior, and no-empty-leaves pruning.
-- xterm/node-pty terminals rooted in the workspace by default today; tmux-backed persistence is the planned terminal runtime refactor.
+- tmux-backed terminals rooted in the workspace, with node-pty used as the live attach bridge.
 - Claude and Codex terminal launchers backed by Exo runtime launch plans.
 - Disk-backed terminal transcripts for recovery context.
 - CLI and MCP control of live Exo terminal agents.

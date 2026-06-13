@@ -73,7 +73,7 @@ describe("CommandServer terminal routes", () => {
     }
   });
 
-  it("exposes terminal sessions and diagnostics without transport or tmux fields", async () => {
+  it("exposes terminal sessions without transport fields and diagnostics with tmux runtime state", async () => {
     const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-command-server-"));
     tempPaths.push(runtimeRoot);
     const server = new CommandServer({
@@ -98,6 +98,9 @@ describe("CommandServer terminal routes", () => {
           status: "running",
           health: "healthy",
           healthDetail: "Recent terminal input/output observed.",
+          runtime: "tmux",
+          tmuxSessionName: "exo-test-term-1",
+          bridgeStatus: "attached",
           bufferedLines: 1,
           bufferedChars: 12,
           transcriptPath: path.join(runtimeRoot, "terminal-transcripts", "term-1-codex.ansi.log"),
@@ -117,8 +120,11 @@ describe("CommandServer terminal routes", () => {
       expect(terminals[0]).not.toHaveProperty("transport");
       expect(terminals[0]).not.toHaveProperty("tmuxSession");
       expect(diagnostics[0]).not.toHaveProperty("transport");
-      expect(diagnostics[0]).not.toHaveProperty("tmux");
-      expect(diagnostics[0]).not.toHaveProperty("tmuxSession");
+      expect(diagnostics[0]).toMatchObject({
+        runtime: "tmux",
+        tmuxSessionName: "exo-test-term-1",
+        bridgeStatus: "attached",
+      });
     } finally {
       server.stop();
     }

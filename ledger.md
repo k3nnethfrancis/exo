@@ -1,6 +1,6 @@
 # Exo Ledger
 
-Last updated: 2026-05-31
+Last updated: 2026-06-13
 
 This is the fastest current-state handoff for Exo. It records what exists now, what changed recently, and what is next. Active tasks live in `docs/tasks.md`; future systems live in `docs/roadmap.md`; product/system strategy lives in `docs/strategy.md`.
 
@@ -24,8 +24,8 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Index status pill in the footer and Index settings panel with `Sync index`.
 - CLI notes-index routes for status, search, read, sync, update, and embed flows through the running Exo command server. MCP exposes the narrower agent-facing search/read primitives plus index summary in `workspace_status`.
 - Claude, Codex, and shell terminal launchers.
-- Direct pty Claude/Codex/shell sessions supervised by Exo.
-- Terminal reload hydration from bounded main-process tails.
+- Tmux-backed Claude/Codex/shell sessions supervised by Exo, with node-pty used as the live attach bridge.
+- Terminal reload hydration from bounded main-process tails plus startup reattach for persisted tmux sessions.
 - Disk-backed terminal transcripts with retention policy.
 - Terminal scroll hardening and file-drop path handling.
 - Runtime command server discovered through `${workspace_root}/.exo/server.json`.
@@ -53,6 +53,9 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 
 ## Recent Completed Work
 
+- Began the terminal runtime refactor for `EXO-ISSUE-030`: terminal creation now launches durable shell/agent commands inside Exo-owned tmux sessions, node-pty attaches to tmux for live rendering/input, terminal kill explicitly terminates tmux, and diagnostics expose tmux runtime/session/bridge state without adding a user-facing transport switch.
+- Added `.exo/terminal-sessions.json` as the initial Exo-to-tmux registry and startup reattach path for live tmux panes, with focused unit coverage and Electron relaunch QA proving a shell accepts input after Exo closes and relaunches.
+- Added deterministic terminal-quality QA: fake agent fixture, p50/p90 shell input latency measurement, no-live-inference fake-agent e2e, and fixture cleanup for tmux-backed Electron tests.
 - Verified the pure local install workflow on 2026-05-31: `/Applications/Exo.app` launches as the stable resident runtime, the menu bar icon is visible, normal `exo status` resolves to the installed runtime, and `pnpm dev:qa` can run concurrently against `.exo-dev/` without clobbering stable command-server discovery.
 - Added `docs/usability-readiness.md` as the near-term gate for installed daily use, commit cleanup/push, live bug bash, and the later roadmap handoff.
 - Added the first local macOS installed-app path for Exo-on-Exo use: `scripts/install-mac-app` / `pnpm install:mac-app` builds and installs unsigned `Exo.app`, while `pnpm dev:qa` runs source QA against isolated `.exo-dev/` runtime and user-data paths.

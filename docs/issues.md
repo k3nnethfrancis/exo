@@ -96,6 +96,14 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
   - Implement `docs/terminal-refactor-plan.md`.
   - Add deterministic fake-agent terminal tests; do not use live Claude/Codex inference in automated QA.
   - Validate against `docs/terminal-quality-standard.md`, including latency, corruption, scrollback, reattach, sleep/wake, and recovery behavior.
+- Progress:
+  - Added tmux runtime primitives, structured missing-tmux errors, and Exo-owned tmux session naming.
+  - Terminal creation now launches the durable command inside tmux and uses node-pty only to attach Exo to the tmux session.
+  - Terminal kill now explicitly terminates the tmux session.
+  - Added `.exo/terminal-sessions.json` persistence and startup reattach for live tmux panes.
+  - Added deterministic fake-agent Electron QA, p50/p90 shell input latency measurement, and app relaunch reattach coverage without live Claude/Codex inference.
+  - Diagnostics now expose tmux runtime, tmux session name, and attach bridge status.
+  - Still open for sleep/wake recovery, dead-pane recovery actions, broader rendering/scrollback stress, and manual installed-app QA.
 
 ### EXO-ISSUE-029: `pnpm dev` can spawn a stray default Electron app window
 

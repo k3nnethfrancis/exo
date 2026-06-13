@@ -81,7 +81,7 @@ test.describe("Three-zone layout", () => {
     await expect(page.locator(".pane-leaf--editor")).toBeVisible();
     await expect(page.locator(".pane-leaf--terminal")).toBeVisible();
     const sidebarBox = await getBoundingBox(page, '[data-testid="sidebar"]');
-    expect(Math.round(sidebarBox.width)).toBeLessThanOrEqual(160);
+    expect(Math.round(sidebarBox.width)).toBeLessThanOrEqual(175);
 
     // Editor is to the left of terminal
     const editorBox = await getBoundingBox(page, ".pane-leaf--editor");

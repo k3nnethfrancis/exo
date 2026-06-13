@@ -43,6 +43,9 @@ export interface ExoCommandTerminalInfo {
 }
 
 export interface ExoCommandTerminalDiagnostics extends ExoCommandTerminalInfo {
+  runtime?: "tmux";
+  tmuxSessionName?: string;
+  bridgeStatus?: "attached" | "detached";
   bufferedLines: number;
   bufferedChars: number;
   transcriptPath: string;

@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import pty, { type IPty } from "node-pty";
@@ -14,10 +14,21 @@ import {
 import type { TerminalCreateOptions, TerminalDiagnostics, TerminalHealthState, TerminalSessionInfo, TerminalKind, TerminalWriteResult } from "../shared/api";
 import { agentInstructionOverlayEnv, writeAgentInstructionOverlaysSync } from "./agent-instruction-overlays";
 import { sanitizeTranscriptName, TerminalTranscriptStore } from "./terminal-transcripts";
+import {
+  detectTmux,
+  exoTmuxSessionName,
+  parseTmuxPaneList,
+  shellCommand,
+  TmuxCommandRunner,
+  tmuxEnvironmentArgs,
+  type TmuxAvailable,
+} from "./terminal-tmux";
 
 interface TerminalRecord {
   info: TerminalSessionInfo;
   process: IPty;
+  tmuxSessionName: string;
+  createdAt: string;
   buffer: TerminalLineBuffer;
   transcriptPath: string;
   pendingWrites: PendingTerminalWrite[];
@@ -26,11 +37,27 @@ interface TerminalRecord {
   lastOutputAt?: number;
   lastWriteId: number;
   lastWriteLatencyMs?: number;
+  bridgeDetached?: boolean;
+  terminating?: boolean;
 }
 
 interface PendingTerminalWrite {
   data: string;
   delayedSubmit: boolean;
+}
+
+interface PersistedTerminalSession {
+  id: string;
+  title: string;
+  cwd: string;
+  kind: TerminalKind;
+  command: string;
+  instructionOverlayPath?: string | null;
+  tmuxSessionName: string;
+  transcriptPath: string;
+  createdAt: string;
+  lastAttachedAt: string | null;
+  status: "running" | "exited" | "missing" | "unhealthy";
 }
 
 const DEFAULT_LIVE_SCROLLBACK_LINES = 1_000_000;
@@ -48,6 +75,7 @@ export class TerminalManager extends EventEmitter {
   private runtimeConfig = resolveRuntimeConfig();
   private transcripts: TerminalTranscriptStore;
   private nextWriteId = 1;
+  private sessionRegistryPath = this.makeSessionRegistryPath();
 
   constructor(
     private defaultCwd: string,
@@ -58,6 +86,7 @@ export class TerminalManager extends EventEmitter {
     this.bufferLineLimit = normalizeBufferLineLimit(bufferLineLimit);
     this.transcriptRetentionDays = normalizeTranscriptRetentionDays(transcriptRetentionDays);
     this.transcripts = this.createTranscriptStore();
+    this.restorePersistedSessions();
   }
 
   list(): TerminalSessionInfo[] {
@@ -80,6 +109,9 @@ export class TerminalManager extends EventEmitter {
         status: record.info.status,
         health: terminalHealth(record, now),
         healthDetail: terminalHealthDetail(record, now),
+        runtime: "tmux",
+        tmuxSessionName: record.tmuxSessionName,
+        bridgeStatus: record.bridgeDetached ? "detached" : "attached",
         cwd: record.info.cwd,
         title: record.info.title,
         command: record.info.command,
@@ -114,12 +146,14 @@ export class TerminalManager extends EventEmitter {
   setRuntimeConfig(runtimeConfig: RuntimeConfig = resolveRuntimeConfig()) {
     const previousRuntimeRoot = this.runtimeConfig.runtimeRoot;
     this.runtimeConfig = runtimeConfig;
+    this.sessionRegistryPath = this.makeSessionRegistryPath();
     if (runtimeConfig.runtimeRoot === previousRuntimeRoot) {
       return;
     }
 
     this.flushAllTranscripts();
     this.transcripts = this.createTranscriptStore();
+    this.restorePersistedSessions();
   }
 
   setDefaultCwd(cwd: string) {
@@ -146,6 +180,7 @@ export class TerminalManager extends EventEmitter {
   async create(options: TerminalCreateOptions): Promise<TerminalSessionInfo> {
     const cwd = options.cwd ?? this.defaultCwd;
     await this.syncRuntimeContext();
+    const id = `term-${this.nextId++}`;
     const launch = resolveAgentLaunchPlan(this.runtimeConfig, options.kind, cwd);
     const isAgent = options.kind === "claude" || options.kind === "codex";
     const overlayEnv = isAgent ? agentInstructionOverlayEnv(this.runtimeConfig.workspace, launch.cwd) : {};
@@ -162,7 +197,26 @@ export class TerminalManager extends EventEmitter {
     };
 
     const spawnArgs = options.kind === "codex" ? withCodexMcpOverrides(launch.args, this.runtimeConfig, launch.cwd) : launch.args;
-    const processHandle = pty.spawn(launch.command, spawnArgs, {
+    const tmux = this.requireTmuxRuntime();
+    const tmuxSessionName = exoTmuxSessionName(id, this.runtimeConfig.workspace.workspaceRoot);
+    tmux.runner.run(
+      [
+        "new-session",
+        "-d",
+        "-s",
+        tmuxSessionName,
+        "-c",
+        launch.cwd,
+        ...tmuxEnvironmentArgs(env),
+        shellCommand(launch.command, spawnArgs),
+      ],
+      {
+        cwd: launch.cwd,
+        env,
+      },
+    );
+
+    const processHandle = pty.spawn(tmux.availability.path, ["attach-session", "-t", tmuxSessionName], {
       cols: 120,
       rows: 32,
       cwd: launch.cwd,
@@ -170,7 +224,6 @@ export class TerminalManager extends EventEmitter {
       name: "xterm-256color",
     });
 
-    const id = `term-${this.nextId++}`;
     const transcriptPath = this.makeTranscriptPath(id, options.kind);
     const info: TerminalSessionInfo = {
       id,
@@ -188,6 +241,8 @@ export class TerminalManager extends EventEmitter {
     const record: TerminalRecord = {
       info,
       process: processHandle,
+      tmuxSessionName,
+      createdAt: new Date().toISOString(),
       buffer: new TerminalLineBuffer(this.bufferLineLimit),
       transcriptPath,
       pendingWrites: [],
@@ -208,6 +263,7 @@ export class TerminalManager extends EventEmitter {
 
     this.appendTranscript(id, this.transcriptHeader(info));
     this.wireProcess(id, processHandle);
+    this.persistSessions();
 
     this.emit("created", info);
     return info;
@@ -269,8 +325,20 @@ export class TerminalManager extends EventEmitter {
 
     this.flushTranscript(id);
     this.clearReadinessTimer(record);
+    record.terminating = true;
+    try {
+      const tmux = this.requireTmuxRuntime();
+      tmux.runner.run(["kill-session", "-t", record.tmuxSessionName]);
+    } catch (error) {
+      console.warn("[exo] failed to kill tmux terminal session", {
+        id,
+        tmuxSessionName: record.tmuxSessionName,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
     record.process.kill();
     this.sessions.delete(id);
+    this.persistSessions();
   }
 
   // --- internals ---
@@ -326,6 +394,13 @@ export class TerminalManager extends EventEmitter {
         return;
       }
 
+      if (record.tmuxSessionName && !record.terminating) {
+        record.info.health = "unhealthy";
+        record.info.healthDetail = `Tmux attach bridge exited with code ${exitCode ?? "unknown"}; session may still be running.`;
+        record.bridgeDetached = true;
+        return;
+      }
+
       record.info.status = "exited";
       record.info.health = "exited";
       record.info.healthDetail = `Process exited with code ${exitCode}.`;
@@ -341,6 +416,7 @@ export class TerminalManager extends EventEmitter {
   }
 
   private transcriptHeader(info: TerminalSessionInfo): string {
+    const record = this.sessions.get(info.id);
     return [
       "",
       `\n===== Exo terminal transcript started ${new Date().toISOString()} =====`,
@@ -348,6 +424,7 @@ export class TerminalManager extends EventEmitter {
       `kind: ${info.kind}`,
       `cwd: ${info.cwd}`,
       `command: ${info.command}`,
+      record?.tmuxSessionName ? `tmux_session: ${record.tmuxSessionName}` : null,
       "============================================================",
       "",
     ].filter((line): line is string => line !== null).join("\n");
@@ -379,6 +456,10 @@ export class TerminalManager extends EventEmitter {
     return new TerminalTranscriptStore(path.join(this.runtimeConfig.runtimeRoot, "terminal-transcripts"), {
       retentionDays: this.transcriptRetentionDays,
     });
+  }
+
+  private makeSessionRegistryPath(): string {
+    return path.join(this.runtimeConfig.runtimeRoot, "terminal-sessions.json");
   }
 
   private updateAgentReadiness(record: TerminalRecord): void {
@@ -437,6 +518,148 @@ export class TerminalManager extends EventEmitter {
       clearTimeout(record.readinessTimer);
       record.readinessTimer = undefined;
     }
+  }
+
+  private requireTmuxRuntime(): { availability: TmuxAvailable; runner: TmuxCommandRunner } {
+    const availability = detectTmux();
+    if (!availability.available) {
+      throw new Error(availability.reason);
+    }
+    return {
+      availability,
+      runner: new TmuxCommandRunner(availability.path),
+    };
+  }
+
+  private restorePersistedSessions(): void {
+    const persisted = this.readPersistedSessions();
+    if (persisted.length === 0) {
+      return;
+    }
+
+    const availability = detectTmux();
+    if (!availability.available) {
+      console.warn("[exo] unable to restore terminal sessions because tmux is unavailable", {
+        reason: availability.reason,
+        attempted: availability.attempted,
+      });
+      return;
+    }
+
+    const runner = new TmuxCommandRunner(availability.path);
+    const liveSessions = new Set(this.listTmuxSessionNames(runner));
+    let restored = 0;
+    for (const session of persisted) {
+      if (session.status !== "running" || !liveSessions.has(session.tmuxSessionName) || this.sessions.has(session.id)) {
+        continue;
+      }
+
+      try {
+        const env = {
+          ...process.env,
+          TERM: "xterm-256color",
+          COLORTERM: "truecolor",
+          SHELL_SESSIONS_DISABLE: "1",
+        };
+        const processHandle = pty.spawn(availability.path, ["attach-session", "-t", session.tmuxSessionName], {
+          cols: 120,
+          rows: 32,
+          cwd: session.cwd,
+          env,
+          name: "xterm-256color",
+        });
+        const record: TerminalRecord = {
+          info: {
+            id: session.id,
+            title: session.title,
+            cwd: session.cwd,
+            kind: session.kind,
+            command: session.command,
+            instructionOverlayPath: session.instructionOverlayPath ?? null,
+            status: "running",
+            readiness: "ready",
+            queuedInputCount: 0,
+          },
+          process: processHandle,
+          tmuxSessionName: session.tmuxSessionName,
+          createdAt: session.createdAt,
+          buffer: new TerminalLineBuffer(this.bufferLineLimit),
+          transcriptPath: session.transcriptPath,
+          pendingWrites: [],
+          lastWriteId: 0,
+        };
+        this.sessions.set(session.id, record);
+        this.wireProcess(session.id, processHandle);
+        this.nextId = Math.max(this.nextId, terminalNumericId(session.id) + 1);
+        restored += 1;
+      } catch (error) {
+        console.warn("[exo] failed to restore tmux terminal session", {
+          id: session.id,
+          tmuxSessionName: session.tmuxSessionName,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    if (restored > 0) {
+      this.persistSessions();
+    }
+  }
+
+  private listTmuxSessionNames(runner: TmuxCommandRunner): string[] {
+    try {
+      const raw = runner.run([
+        "list-panes",
+        "-a",
+        "-F",
+        "#{session_name}\t#{window_id}\t#{pane_id}\t#{pane_dead}\t#{pane_current_command}\t#{pane_current_path}",
+      ]);
+      return parseTmuxPaneList(raw)
+        .filter((pane) => !pane.dead)
+        .map((pane) => pane.sessionName);
+    } catch (error) {
+      console.warn("[exo] failed to list tmux panes during terminal restore", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return [];
+    }
+  }
+
+  private readPersistedSessions(): PersistedTerminalSession[] {
+    if (!existsSync(this.sessionRegistryPath)) {
+      return [];
+    }
+    try {
+      const parsed = JSON.parse(readFileSync(this.sessionRegistryPath, "utf8")) as { sessions?: unknown };
+      if (!Array.isArray(parsed.sessions)) {
+        return [];
+      }
+      return parsed.sessions.filter(isPersistedTerminalSession);
+    } catch (error) {
+      console.warn("[exo] failed to read terminal session registry", {
+        path: this.sessionRegistryPath,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return [];
+    }
+  }
+
+  private persistSessions(): void {
+    const sessions: PersistedTerminalSession[] = Array.from(this.sessions.values()).map((record) => ({
+      id: record.info.id,
+      title: record.info.title,
+      cwd: record.info.cwd,
+      kind: record.info.kind,
+      command: record.info.command,
+      instructionOverlayPath: record.info.instructionOverlayPath ?? null,
+      tmuxSessionName: record.tmuxSessionName,
+      transcriptPath: record.transcriptPath,
+      createdAt: record.createdAt,
+      lastAttachedAt: new Date().toISOString(),
+      status: record.info.status === "running" ? "running" : "exited",
+    }));
+    mkdirSync(path.dirname(this.sessionRegistryPath), { recursive: true });
+    writeFileSync(this.sessionRegistryPath, JSON.stringify({ version: 1, sessions }, null, 2));
   }
 }
 
@@ -603,6 +826,28 @@ function normalizeTranscriptRetentionDays(value: number): number {
     return 0;
   }
   return Math.max(0, Math.min(3650, Math.floor(value)));
+}
+
+function terminalNumericId(id: string): number {
+  const match = /^term-(\d+)$/.exec(id);
+  return match ? Number(match[1]) : 0;
+}
+
+function isPersistedTerminalSession(value: unknown): value is PersistedTerminalSession {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  const session = value as Partial<PersistedTerminalSession>;
+  return (
+    typeof session.id === "string" &&
+    typeof session.title === "string" &&
+    typeof session.cwd === "string" &&
+    (session.kind === "shell" || session.kind === "claude" || session.kind === "codex") &&
+    typeof session.command === "string" &&
+    typeof session.tmuxSessionName === "string" &&
+    typeof session.transcriptPath === "string" &&
+    (session.status === "running" || session.status === "exited" || session.status === "missing" || session.status === "unhealthy")
+  );
 }
 
 function withCodexMcpOverrides(args: string[], config: RuntimeConfig, cwd: string): string[] {

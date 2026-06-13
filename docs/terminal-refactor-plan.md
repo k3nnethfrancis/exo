@@ -224,12 +224,18 @@ Medium term:
 
 ## Implementation Phases
 
+Each phase should land as a reviewable work chunk. Do not merge a later phase by hiding incomplete behavior behind a fallback path. If the tmux path is not ready, the phase remains incomplete rather than silently dropping to direct pty.
+
 ### Phase 0: Plan And Standards
 
 - Add `docs/terminal-quality-standard.md`.
 - Update `docs/terminal-runtime-decision.md` with the tmux-backed direction.
 - Add this refactor plan.
 - Update `docs/tasks.md`, `docs/issues.md`, `AGENTS.md`, README, architecture, and roadmap references away from direct-pty as the future standard.
+
+Exit gate:
+
+- The docs explain the single-runtime decision, the no-live-inference test rule, latency targets, scrollback/transcript ownership, and the app QA checklist.
 
 ### Phase 1: Deterministic Terminal Test Harness
 
@@ -242,6 +248,12 @@ Medium term:
 
 No automated test should call live Claude/Codex inference.
 
+Exit gate:
+
+- Focused Electron tests can exercise shell and fake-agent terminals without network/model dependency.
+- Input latency reports p50 and p90, not only max.
+- Tests cover wrapped lines, ANSI output, carriage-return updates, long scrollback, tab switching, and pane resize.
+
 ### Phase 2: Tmux Runtime Boundary
 
 - Add tmux command wrapper with structured errors and timeouts.
@@ -250,6 +262,12 @@ No automated test should call live Claude/Codex inference.
 - Add unit tests for command construction, parsing, and missing-binary behavior.
 - Keep current public TerminalManager API stable while replacing internals behind a runtime boundary.
 
+Exit gate:
+
+- No tmux command strings are assembled ad hoc outside the runtime boundary.
+- Missing tmux produces a clear structured error, not a silent direct-pty fallback.
+- Unit tests verify tmux detection, session naming, pane parsing, and command failure reporting.
+
 ### Phase 3: Create/Attach/Terminate
 
 - Create shell/fake-agent tmux sessions.
@@ -257,6 +275,13 @@ No automated test should call live Claude/Codex inference.
 - Stream output to renderer and transcript.
 - Terminate tmux sessions explicitly.
 - Preserve current CLI/MCP terminal/agent APIs.
+
+Exit gate:
+
+- New shell, fake Claude, and fake Codex sessions run inside tmux.
+- `node-pty` only attaches to tmux; it does not own the durable shell or agent process.
+- Terminal close/kill terminates the tmux session intentionally.
+- CLI, MCP, renderer IPC, and app UI can create/read/send/terminate sessions through the same public contracts as before.
 
 ### Phase 4: Relaunch/Reattach
 
@@ -267,6 +292,13 @@ No automated test should call live Claude/Codex inference.
 - Hydrate from bounded tmux pane capture without resetting mounted xterm instances.
 - Verify app relaunch preserves live processes.
 
+Exit gate:
+
+- Closing the window detaches the UI while tmux processes continue.
+- Relaunching Exo reconciles persisted session metadata with actual tmux pane state.
+- Reattached terminals accept input and continue producing output.
+- Dead/missing tmux panes show an honest state instead of stale live output.
+
 ### Phase 5: Sleep/Wake Recovery
 
 - Add app lifecycle wake detection.
@@ -275,6 +307,12 @@ No automated test should call live Claude/Codex inference.
 - Surface health state and recovery actions.
 - Manual sleep/wake QA with shell and fake-agent sessions.
 
+Exit gate:
+
+- After macOS sleep/wake, Exo detects stale attach bridges and reattaches to live tmux panes.
+- If the pane died, Exo shows recovery actions and keeps the transcript available.
+- Manual sleep/wake QA passes for shell and fake-agent sessions before using real Claude/Codex dogfooding as evidence.
+
 ### Phase 6: UX Polish And Docs
 
 - Update terminal settings copy.
@@ -282,6 +320,64 @@ No automated test should call live Claude/Codex inference.
 - Add terminal health affordance in tab/header tooltip.
 - Update install docs and setup QA.
 - Run full terminal quality checklist.
+
+Exit gate:
+
+- The UI exposes terminal health without requiring log inspection.
+- Settings distinguish live scrollback from durable transcripts.
+- Install/setup docs explain tmux dependency behavior for both developer and installed-app paths.
+- No direct-pty/tmux product toggle appears in settings.
+
+## Work Breakdown
+
+Recommended implementation chunks:
+
+1. Harness first: fake agents, latency helper, no-live-hydration regression, and scrollback/render fixtures.
+2. Runtime primitives: tmux detection, command runner, session naming, pane parsing, and structured errors.
+3. Runtime swap: create tmux sessions and attach through node-pty while keeping current IPC/CLI/MCP contracts stable.
+4. Registry and reattach: persist Exo-to-tmux mappings, reconcile on startup, and hydrate from bounded tmux capture.
+5. Health and recovery: bridge health, stale bridge reattach, dead pane handling, transcript diagnostics, and UI actions.
+6. Install/docs polish: dependency checks, setup messaging, QA docs, and stale direct-pty references.
+
+Each chunk should include focused tests and one short app QA note before commit.
+
+## Risk Register
+
+- Tmux adds latency or redraw artifacts.
+  - Mitigation: keep strict p50/p90 latency gates and rendering-corruption tests; optimize the attach path before adding UI options.
+- Attach bridge exit is confused with user process exit.
+  - Mitigation: model bridge status separately from tmux pane status in diagnostics and UI.
+- Exo accidentally duplicates tmux's pane model.
+  - Mitigation: Exo owns app layout; tmux owns only durable process/session state.
+- Reattach hydrates stale history over live output.
+  - Mitigation: only hydrate on initial attach or explicit reattach; never reset mounted xterm during normal focus/tab changes.
+- Missing tmux breaks first-run experience.
+  - Mitigation: detect early, explain the dependency, and keep non-terminal notes/editor surfaces usable.
+- Tests become flaky by depending on real agent inference.
+  - Mitigation: automated tests use fake agents only; live Claude/Codex remains manual dogfooding.
+
+## Definition Of Done
+
+The terminal refactor is complete only when:
+
+- Current direct-pty-owned durable sessions are replaced by tmux-backed durable sessions.
+- No hidden direct-pty fallback or runtime preference remains in core product code.
+- Shell, Claude, Codex, CLI, MCP, and renderer workflows use the same TerminalManager-facing contracts.
+- Mounted terminals stream append-only output and are not reset during normal tab/focus changes.
+- Live scrollback is bounded by user-visible configuration; full history is available through transcripts.
+- App relaunch and sleep/wake preserve or honestly recover long-running sessions.
+- Missing tmux, dead panes, stale bridges, and transcript errors show actionable diagnostics.
+- The automated terminal suite passes without live inference.
+- Manual app QA covers shell, fake agent, tab switching, pane resize, window hide/show, relaunch, sleep/wake, and transcript recovery.
+
+## Rollout Order
+
+1. Land harness and runtime-boundary commits on `main`.
+2. Land tmux create/attach/terminate behind the existing terminal APIs.
+3. Dogfood with fake agents and shell sessions before real Claude/Codex.
+4. Add reattach and sleep/wake recovery.
+5. Use Exo for a bounded Exo-on-Exo task and record every terminal friction point in `docs/issues.md`.
+6. Only then treat the terminal runtime as ready for the broader installed-app QA pass.
 
 ## Test Plan
 

@@ -73,7 +73,7 @@ CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build 
 - Renderer code must not touch filesystem or processes directly; use preload APIs backed by main-process services.
 - CLI and MCP are peer clients of the local command server discovered through `${workspace_root}/.exo/server.json`.
 - `packages/core/src/command-protocol.ts` owns shared command routes and payload shapes.
-- Current shell, Claude, and Codex terminals still use direct `node-pty`, but the decided next runtime is tmux-backed core terminals with `node-pty` as the attach bridge. Follow `docs/terminal-runtime-decision.md`, `docs/terminal-refactor-plan.md`, and `docs/terminal-quality-standard.md`; do not add hidden direct-pty/tmux fallbacks or user-facing transport switches.
+- Shell, Claude, and Codex terminals use tmux-backed core sessions with `node-pty` as the live attach bridge. Follow `docs/terminal-runtime-decision.md`, `docs/terminal-refactor-plan.md`, and `docs/terminal-quality-standard.md`; do not add hidden direct-pty/tmux fallbacks or user-facing transport switches.
 - Terminal output must stream into xterm imperatively. React state may keep bounded metadata/tail state for restore, tabs, diagnostics, and tests, but must not be the live rendering source for high-volume terminal output.
 - Terminal live scrollback is user-facing configuration. Avoid hidden hard caps or internal truncation that users cannot discover or change; if a guard is necessary, expose the behavior in settings/docs and keep durable transcripts independent.
 - Full transcripts live under `.exo/terminal-transcripts/` with retention.

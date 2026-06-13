@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -15,10 +15,12 @@ const ptyState = vi.hoisted(() => ({
   }>,
 }));
 
-vi.mock("node:child_process", () => ({
-  spawnSync: vi.fn(() => ({ status: 1 })),
-  execFileSync: vi.fn(() => ""),
+const childProcess = vi.hoisted(() => ({
+  spawnSync: vi.fn(() => ({ status: 0, stdout: "tmux 3.5a\n", stderr: "" })),
+  execFileSync: vi.fn((_command: string, _args: string[]) => ""),
 }));
+
+vi.mock("node:child_process", () => childProcess);
 
 vi.mock("node-pty", () => {
   class FakePty {
@@ -88,6 +90,8 @@ afterEach(async () => {
   vi.unstubAllEnvs();
   warnSpy.mockRestore();
   vi.clearAllMocks();
+  childProcess.spawnSync.mockReturnValue({ status: 0, stdout: "tmux 3.5a\n", stderr: "" });
+  childProcess.execFileSync.mockReturnValue("");
   ptyState.spawned.splice(0);
   await Promise.all(tempPaths.splice(0).map((target) => rm(target, { recursive: true, force: true })));
 });
@@ -229,7 +233,101 @@ describe("TerminalManager Codex readiness", () => {
     expect(manager.readTranscript(terminal.id)).toContain("line-1");
   });
 
-  it("reports process diagnostics without transport or tmux state", async () => {
+  it("fails terminal creation clearly when tmux is unavailable", async () => {
+    childProcess.spawnSync.mockReturnValue({ status: 1, stdout: "", stderr: "" });
+    const workspaceRoot = await workspaceFixture();
+    const manager = managerForWorkspace(workspaceRoot);
+
+    await expect(manager.create({ kind: "shell", cwd: workspaceRoot })).rejects.toThrow("tmux was not found");
+    expect(ptyState.spawned).toEqual([]);
+  });
+
+  it("terminates the tmux session when killing a terminal", async () => {
+    const workspaceRoot = await workspaceFixture();
+    const manager = managerForWorkspace(workspaceRoot);
+
+    const terminal = await manager.create({ kind: "shell", cwd: workspaceRoot });
+    await manager.kill(terminal.id);
+
+    const killCommand = childProcess.execFileSync.mock.calls
+      .map((call) => call as unknown as [string, string[]])
+      .find(([, args]) => args.includes("kill-session"))?.[1];
+    if (!killCommand) {
+      throw new Error("Expected tmux kill-session command");
+    }
+    expect(killCommand).toEqual(["kill-session", "-t", expect.stringMatching(/^exo-[a-f0-9]{10}-term-1$/)]);
+    expect(manager.list()).toEqual([]);
+  });
+
+  it("persists Exo-to-tmux session mappings when creating terminals", async () => {
+    const workspaceRoot = await workspaceFixture();
+    const manager = managerForWorkspace(workspaceRoot);
+
+    const terminal = await manager.create({ kind: "shell", cwd: workspaceRoot });
+    const registryPath = path.join(workspaceRoot, ".exo", "terminal-sessions.json");
+    const registry = JSON.parse(await readFile(registryPath, "utf8")) as { sessions: Array<Record<string, unknown>> };
+
+    expect(registry.sessions).toEqual([
+      expect.objectContaining({
+        id: terminal.id,
+        kind: "shell",
+        cwd: workspaceRoot,
+        tmuxSessionName: expect.stringMatching(/^exo-[a-f0-9]{10}-term-1$/),
+        transcriptPath: expect.stringContaining("terminal-transcripts"),
+        status: "running",
+      }),
+    ]);
+  });
+
+  it("reattaches persisted running sessions when tmux still has the pane", async () => {
+    const workspaceRoot = await workspaceFixture();
+    const runtimeRoot = path.join(workspaceRoot, ".exo");
+    const tmuxSessionName = "exo-abc1234567-term-7";
+    await mkdir(runtimeRoot, { recursive: true });
+    await writeFile(
+      path.join(runtimeRoot, "terminal-sessions.json"),
+      JSON.stringify({
+        version: 1,
+        sessions: [
+          {
+            id: "term-7",
+            title: "Shell",
+            cwd: workspaceRoot,
+            kind: "shell",
+            command: "/bin/zsh",
+            tmuxSessionName,
+            transcriptPath: path.join(runtimeRoot, "terminal-transcripts", "term-7-shell.ansi.log"),
+            createdAt: new Date().toISOString(),
+            lastAttachedAt: null,
+            status: "running",
+          },
+        ],
+      }),
+    );
+    childProcess.execFileSync.mockImplementation((_command: string, args: string[]) => {
+      if (args.includes("list-panes")) {
+        return `${tmuxSessionName}\t@1\t%2\t0\tzsh\t${workspaceRoot}\n`;
+      }
+      return "";
+    });
+
+    const manager = managerForWorkspace(workspaceRoot);
+
+    expect(manager.list()).toEqual([
+      expect.objectContaining({
+        id: "term-7",
+        kind: "shell",
+        status: "running",
+      }),
+    ]);
+    expect(ptyState.spawned[0]?.command).toBe("tmux");
+    expect(ptyState.spawned[0]?.args).toEqual(["attach-session", "-t", tmuxSessionName]);
+
+    await manager.create({ kind: "shell", cwd: workspaceRoot });
+    expect(manager.list().map((session) => session.id)).toContain("term-8");
+  });
+
+  it("reports process diagnostics without exposing legacy transport fields", async () => {
     const workspaceRoot = await workspaceFixture();
     const manager = managerForWorkspace(workspaceRoot);
 
@@ -239,12 +337,13 @@ describe("TerminalManager Codex readiness", () => {
     expect(diagnostic).toMatchObject({
       kind: "shell",
       status: "running",
+      runtime: "tmux",
+      tmuxSessionName: expect.stringMatching(/^exo-[a-f0-9]{10}-term-1$/),
+      bridgeStatus: "attached",
       command: expect.any(String),
       transcriptPath: expect.stringContaining("terminal-transcripts"),
     });
     expect(diagnostic).not.toHaveProperty("transport");
-    expect(diagnostic).not.toHaveProperty("tmux");
-    expect(diagnostic).not.toHaveProperty("tmuxSession");
   });
 
   it("ignores legacy persisted terminal-state files", async () => {
@@ -279,14 +378,22 @@ describe("TerminalManager Codex readiness", () => {
 
     await manager.create({ kind: "codex", cwd: workspaceRoot });
 
-    const pty = ptyState.spawned[0];
     const exoRoot = path.resolve(process.cwd(), "../..");
-    expect(pty.command).toBe("codex");
-    expect(pty.args).toContain("-c");
-    expect(pty.args).toContain(`mcp_servers.exo.command="node"`);
-    expect(pty.args).toContain(`mcp_servers.exo.args=["${exoRoot}/packages/mcp/bin/exo-mcp.mjs"]`);
-    expect(pty.args).toContain(
-      `mcp_servers.exo.env={EXO_MCP_AUTOSTART="1", EXO_MCP_SEARCH_TIMEOUT_MS="30000", EXO_MCP_START_COMMAND="${exoRoot}/bin/exo dev"}`,
+    const tmuxCommand = childProcess.execFileSync.mock.calls
+      .map((call) => call as unknown as [string, string[]])
+      .find(([, args]) => args.includes("new-session"))?.[1];
+    if (!tmuxCommand) {
+      throw new Error("Expected tmux new-session command");
+    }
+    const shellLaunch = tmuxCommand.at(-1) ?? "";
+    expect(ptyState.spawned[0]?.command).toBe("tmux");
+    expect(ptyState.spawned[0]?.args).toEqual(["attach-session", "-t", expect.stringMatching(/^exo-[a-f0-9]{10}-term-1$/)]);
+    expect(shellLaunch).toContain("'codex'");
+    expect(shellLaunch).toContain("'-c'");
+    expect(shellLaunch).toContain(`'mcp_servers.exo.command=\"node\"'`);
+    expect(shellLaunch).toContain(`'mcp_servers.exo.args=[\"${exoRoot}/packages/mcp/bin/exo-mcp.mjs\"]'`);
+    expect(shellLaunch).toContain(
+      `'mcp_servers.exo.env={EXO_MCP_AUTOSTART=\"1\", EXO_MCP_SEARCH_TIMEOUT_MS=\"30000\", EXO_MCP_START_COMMAND=\"${exoRoot}/bin/exo dev\"}'`,
     );
   });
 });

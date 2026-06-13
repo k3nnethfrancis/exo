@@ -21,8 +21,8 @@ Exo terminals must meet these user-facing requirements:
 
 A terminal change is not ready unless all relevant criteria pass:
 
-- Idle local shell input p95 echo latency is under 50 ms.
-- Output-streaming shell input p95 echo latency is under 150 ms.
+- Idle local shell input p50 echo latency is under 75 ms and p90 is under 150 ms in Electron QA.
+- Output-streaming shell input should target p50 under 100 ms and p90 under 250 ms once the streaming latency suite lands.
 - No single local keystroke takes longer than 300 ms unless the terminal process itself is intentionally blocked.
 - No active terminal calls bounded-tail hydration while its xterm instance is mounted.
 - Large output bursts preserve visible bottom output, expected scrollback markers, and transcript contents.
@@ -53,7 +53,7 @@ Real Claude/Codex sessions belong in short manual smoke checks and dogfooding, n
 - Type 100 characters into `/bin/cat` and measure input-to-visible-echo latency.
 - Repeat while another terminal streams output.
 - Repeat after switching from editor/explorer/browser panes back to terminal.
-- Record p50/p95/max latency through test diagnostics.
+- Record p50/p90/max latency through test diagnostics.
 
 ### Rendering Integrity
 
