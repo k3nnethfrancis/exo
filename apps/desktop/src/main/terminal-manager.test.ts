@@ -77,6 +77,7 @@ vi.mock("node-pty", () => {
 });
 
 import { TerminalManager } from "./terminal-manager";
+import { exoTmuxSessionName } from "./terminal-tmux";
 
 const tempPaths: string[] = [];
 let warnSpy: ReturnType<typeof vi.spyOn>;
@@ -332,6 +333,7 @@ describe("TerminalManager Codex readiness", () => {
     const manager = managerForWorkspace(workspaceRoot);
 
     await manager.create({ kind: "shell", cwd: workspaceRoot });
+    mockLiveTmuxPanes(workspaceRoot, ["term-1"]);
 
     const [diagnostic] = manager.diagnostics();
     expect(diagnostic).toMatchObject({
@@ -340,10 +342,74 @@ describe("TerminalManager Codex readiness", () => {
       runtime: "tmux",
       tmuxSessionName: expect.stringMatching(/^exo-[a-f0-9]{10}-term-1$/),
       bridgeStatus: "attached",
+      paneStatus: "alive",
       command: expect.any(String),
       transcriptPath: expect.stringContaining("terminal-transcripts"),
     });
     expect(diagnostic).not.toHaveProperty("transport");
+  });
+
+  it("marks missing tmux sessions as unhealthy in diagnostics", async () => {
+    const workspaceRoot = await workspaceFixture();
+    const manager = managerForWorkspace(workspaceRoot);
+
+    await manager.create({ kind: "shell", cwd: workspaceRoot });
+    childProcess.execFileSync.mockImplementation((_command: string, args: string[]) => {
+      if (args.includes("list-panes")) {
+        return "";
+      }
+      return "";
+    });
+
+    expect(manager.diagnostics()[0]).toMatchObject({
+      health: "unhealthy",
+      paneStatus: "missing",
+      healthDetail: "Tmux session is missing; transcript remains available.",
+    });
+  });
+
+  it("reconnects a detached bridge when the tmux pane is still alive", async () => {
+    const workspaceRoot = await workspaceFixture();
+    const manager = managerForWorkspace(workspaceRoot);
+
+    const terminal = await manager.create({ kind: "shell", cwd: workspaceRoot });
+    mockLiveTmuxPanes(workspaceRoot, ["term-1"]);
+    ptyState.spawned[0].emitExit(1);
+
+    expect(manager.diagnostics()[0]).toMatchObject({
+      health: "unhealthy",
+      bridgeStatus: "detached",
+      paneStatus: "alive",
+    });
+
+    await expect(manager.reconnect(terminal.id)).resolves.toMatchObject({
+      id: terminal.id,
+      status: "running",
+    });
+    expect(ptyState.spawned).toHaveLength(2);
+    expect(ptyState.spawned[1].args).toEqual(["attach-session", "-t", expect.stringMatching(/^exo-[a-f0-9]{10}-term-1$/)]);
+    expect(manager.diagnostics()[0]).toMatchObject({
+      bridgeStatus: "attached",
+      paneStatus: "alive",
+    });
+  });
+
+  it("reattaches live bridges during resume recovery even before they report detached", async () => {
+    const workspaceRoot = await workspaceFixture();
+    const manager = managerForWorkspace(workspaceRoot);
+
+    await manager.create({ kind: "shell", cwd: workspaceRoot });
+    mockLiveTmuxPanes(workspaceRoot, ["term-1"]);
+
+    manager.reconnectRecoverableTerminals();
+
+    expect(ptyState.spawned).toHaveLength(2);
+    expect(ptyState.spawned[1].args).toEqual(["attach-session", "-t", expect.stringMatching(/^exo-[a-f0-9]{10}-term-1$/)]);
+    expect(manager.diagnostics()[0]).toMatchObject({
+      bridgeStatus: "attached",
+      paneStatus: "alive",
+      health: "idle",
+    });
   });
 
   it("ignores legacy persisted terminal-state files", async () => {
@@ -416,4 +482,15 @@ function managerForWorkspace(workspaceRoot: string): TerminalManager {
 
 function bracketedPaste(data: string): string {
   return `\x1b[200~${data}\x1b[201~`;
+}
+
+function mockLiveTmuxPanes(workspaceRoot: string, terminalIds: string[]) {
+  childProcess.execFileSync.mockImplementation((_command: string, args: string[]) => {
+    if (!args.includes("list-panes")) {
+      return "";
+    }
+    return terminalIds
+      .map((id) => `${exoTmuxSessionName(id, workspaceRoot)}\t@1\t%2\t0\tzsh\t${workspaceRoot}`)
+      .join("\n");
+  });
 }

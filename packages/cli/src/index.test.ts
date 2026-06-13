@@ -454,6 +454,10 @@ describe("cli package", () => {
         calls.push(data);
         return { ok: true as const, delivery: "sent" as const };
       },
+      reconnectTerminal: async (id) => {
+        calls.push(`reconnect:${id}`);
+        return { ok: true, terminal: { id, status: "running" } };
+      },
     });
 
     const diagnosticsExitCode = await runCli(["node", "exo-cli", "terminals", "diagnostics"], {
@@ -468,11 +472,18 @@ describe("cli package", () => {
       stderr: { write: () => {} },
       connectAppClient: async () => client,
     });
+    const reconnectExitCode = await runCli(["node", "exo-cli", "terminals", "reconnect", "term-1"], {
+      env: testRuntimeEnv(),
+      stdout: { write: () => {} },
+      stderr: { write: () => {} },
+      connectAppClient: async () => client,
+    });
 
     expect(diagnosticsExitCode).toBe(0);
     expect(sendExitCode).toBe(0);
+    expect(reconnectExitCode).toBe(0);
     expect(stdout).toContain('"health": "healthy"');
-    expect(calls).toEqual(["raw command\n"]);
+    expect(calls).toEqual(["raw command\n", "reconnect:term-1"]);
   });
 
   it("prints Codex integration config", async () => {
@@ -624,6 +635,7 @@ function fakeAppClient(overrides: Partial<{
   readTerminalTranscript: (id: string, tailChars?: number) => Promise<string>;
   writeTerminal: (id: string, data: string) => Promise<{ ok: true; delivery: "sent" | "queued" | "not-found"; queuedInputCount?: number }>;
   sendTerminalMessage: (id: string, message: string, submit?: boolean) => Promise<{ ok: true; delivery: "sent" | "queued" | "not-found"; queuedInputCount?: number }>;
+  reconnectTerminal: (id: string) => Promise<Record<string, unknown>>;
   killTerminal: (id: string) => Promise<void>;
 }> = {}) {
   const missing = async (..._args: unknown[]) => {
@@ -658,6 +670,7 @@ function fakeAppClient(overrides: Partial<{
       await missing(...args);
       return { ok: true as const, delivery: "not-found" as const };
     },
+    reconnectTerminal: missing,
     killTerminal: missing,
     ...overrides,
   };

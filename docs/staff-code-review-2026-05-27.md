@@ -10,14 +10,14 @@ Update 2026-06-13: the direct-pty terminal guidance in this historical review is
 
 The modularization moved real pieces out of the largest files (`terminal-ipc`, `workspace-ipc`, `settings-store`, watcher/transcript helpers, pane/tree helpers), but the repo is not yet at a stable modular boundary. `App.tsx` and `main/index.ts` still act as service locators plus business-logic hosts. That is now the main contributor-risk surface: future agents will naturally append behavior to these files because all state and examples are there.
 
-Highest-priority cleanup should focus on main-process service boundaries, renderer state-machine extraction, IPC contract typing, settings write races, and app lifecycle boundaries. Terminal work should preserve xterm-owned live rendering, bounded hydration tails, disk-backed transcripts, and the quality standard while moving process persistence behind the planned tmux-backed runtime boundary.
+Highest-priority cleanup should focus on main-process service boundaries, renderer state-machine extraction, IPC contract typing, settings write races, and app lifecycle boundaries. Terminal work should preserve xterm-owned live rendering, bounded hydration tails, disk-backed transcripts, and the quality standard while hardening the tmux-backed runtime boundary.
 
 ## Resolved Since Review
 
 ### Terminal Runtime And Rendering Ownership
 
-- Resolved at the time by the direct-pty terminal cleanup; superseded for future runtime work by the 2026-06-13 tmux-backed decision.
-- New shell, Claude, and Codex sessions still use direct `node-pty` today; tmux-backed persistence is the planned next runtime.
+- Resolved at the time by the direct-pty terminal cleanup; superseded by the 2026-06-13 tmux-backed runtime decision.
+- New shell, Claude, and Codex sessions use tmux-backed sessions with `node-pty` as the attach bridge.
 - Renderer terminal rendering is append-driven into xterm. React state is not the live output owner.
 - Hydration reads a bounded live tail. Full history is available through transcripts.
 - Remaining risk: `EXO-ISSUE-021` tracks the Electron/Playwright harness timeout after many serial app launches; affected terminal behavior passes focused tests.

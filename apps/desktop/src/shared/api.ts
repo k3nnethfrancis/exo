@@ -63,6 +63,7 @@ export interface TerminalDiagnostics {
   runtime: "tmux";
   tmuxSessionName: string;
   bridgeStatus: "attached" | "detached";
+  paneStatus: "alive" | "dead" | "missing" | "unknown";
   cwd: string;
   title: string;
   command: string;
@@ -215,6 +216,7 @@ export interface DesktopApi {
     readTranscript: (id: string, tailChars?: number) => Promise<string>;
     write: (id: string, data: string) => Promise<TerminalWriteResult>;
     sendMessage: (id: string, message: string, submit?: boolean) => Promise<TerminalMessageResult>;
+    reconnect: (id: string) => Promise<TerminalSessionInfo | null>;
     resize: (id: string, cols: number, rows: number) => Promise<void>;
     kill: (id: string) => Promise<void>;
     resolveDroppedFilePaths: (files: File[]) => string[];

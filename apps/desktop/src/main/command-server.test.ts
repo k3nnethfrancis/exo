@@ -101,6 +101,7 @@ describe("CommandServer terminal routes", () => {
           runtime: "tmux",
           tmuxSessionName: "exo-test-term-1",
           bridgeStatus: "attached",
+          paneStatus: "alive",
           bufferedLines: 1,
           bufferedChars: 12,
           transcriptPath: path.join(runtimeRoot, "terminal-transcripts", "term-1-codex.ansi.log"),
@@ -124,7 +125,43 @@ describe("CommandServer terminal routes", () => {
         runtime: "tmux",
         tmuxSessionName: "exo-test-term-1",
         bridgeStatus: "attached",
+        paneStatus: "alive",
       });
+    } finally {
+      server.stop();
+    }
+  });
+
+  it("reconnects terminal bridges over HTTP", async () => {
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-command-server-"));
+    tempPaths.push(runtimeRoot);
+    let receivedId = "";
+    const server = new CommandServer({
+      ...commandServerOptions(runtimeRoot),
+      onReconnectTerminal: async (id) => {
+        receivedId = id;
+        return {
+          id,
+          kind: "shell",
+          title: "Terminal",
+          cwd: runtimeRoot,
+          command: "zsh",
+          status: "running",
+        };
+      },
+    });
+
+    try {
+      const port = await server.start();
+      const response = await fetch(`http://127.0.0.1:${port}/terminals/term-1/reconnect`, {
+        method: "POST",
+      });
+
+      await expect(response.json()).resolves.toMatchObject({
+        ok: true,
+        terminal: { id: "term-1", status: "running" },
+      });
+      expect(receivedId).toBe("term-1");
     } finally {
       server.stop();
     }
@@ -176,6 +213,7 @@ function commandServerOptions(runtimeRoot: string): CommandServerOptions {
     onReadTerminalTranscript: () => "",
     onWriteTerminal: async () => ({ ok: true, delivery: "sent" }),
     onSendTerminalMessage: async () => ({ ok: true, delivery: "sent" }),
+    onReconnectTerminal: async () => null,
     onKillTerminal: async () => {},
     onGetSettings: () => workspaceSettings(),
     onGetStatus: () => ({ ok: true }),

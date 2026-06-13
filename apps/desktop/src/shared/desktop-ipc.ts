@@ -49,6 +49,7 @@ export interface DesktopInvokeHandlers {
   "terminals:read-transcript": TerminalsApi["readTranscript"];
   "terminals:write": TerminalsApi["write"];
   "terminals:send-message": TerminalsApi["sendMessage"];
+  "terminals:reconnect": TerminalsApi["reconnect"];
   "terminals:resize": TerminalsApi["resize"];
   "terminals:kill": TerminalsApi["kill"];
   "shell:open-external": ShellApi["openExternal"];

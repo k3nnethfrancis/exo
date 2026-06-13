@@ -6,6 +6,7 @@ import {
   EXO_COMMAND_ROUTES,
   type ExoCommandServerInfo,
   type ExoCommandTerminalDiagnostics,
+  type ExoReconnectTerminalResponse,
   type ExoIndexRootRequest,
   type ExoCommandTerminalInfo,
   type ExoCreateTerminalRequest,
@@ -46,6 +47,7 @@ export interface CommandServerOptions {
   onReadTerminalTranscript: (id: string, tailChars: number) => string | null;
   onWriteTerminal: (id: string, data: string) => Promise<ExoWriteTerminalResponse>;
   onSendTerminalMessage: (id: string, message: string, submit: boolean) => Promise<ExoWriteTerminalResponse>;
+  onReconnectTerminal: (id: string) => Promise<ExoCommandTerminalInfo | null>;
   onKillTerminal: (id: string) => Promise<void>;
   onGetSettings: () => WorkspaceSettings;
   onGetStatus: () => object;
@@ -324,6 +326,13 @@ export class CommandServer {
           return;
         }
         json(res, await this.options.onSendTerminalMessage(decodeURIComponent(terminalMessageMatch[1]), message, submit !== false));
+        return;
+      }
+
+      const terminalReconnectMatch = pathname.match(/^\/terminals\/([^/]+)\/reconnect$/);
+      if (method === "POST" && terminalReconnectMatch) {
+        const terminal = await this.options.onReconnectTerminal(decodeURIComponent(terminalReconnectMatch[1]));
+        json(res, { ok: true, terminal } satisfies ExoReconnectTerminalResponse);
         return;
       }
 

@@ -22,6 +22,7 @@ import {
   TmuxCommandRunner,
   tmuxEnvironmentArgs,
   type TmuxAvailable,
+  type TmuxPaneInfo,
 } from "./terminal-tmux";
 
 interface TerminalRecord {
@@ -38,6 +39,8 @@ interface TerminalRecord {
   lastWriteId: number;
   lastWriteLatencyMs?: number;
   bridgeDetached?: boolean;
+  paneStatus?: "alive" | "dead" | "missing" | "unknown";
+  reconnecting?: boolean;
   terminating?: boolean;
 }
 
@@ -102,6 +105,7 @@ export class TerminalManager extends EventEmitter {
 
   diagnostics() {
     const now = Date.now();
+    this.reconcileTmuxState();
     return Array.from(this.sessions.values())
       .map((record): TerminalDiagnostics => ({
         id: record.info.id,
@@ -112,6 +116,7 @@ export class TerminalManager extends EventEmitter {
         runtime: "tmux",
         tmuxSessionName: record.tmuxSessionName,
         bridgeStatus: record.bridgeDetached ? "detached" : "attached",
+        paneStatus: record.paneStatus ?? "unknown",
         cwd: record.info.cwd,
         title: record.info.title,
         command: record.info.command,
@@ -291,6 +296,62 @@ export class TerminalManager extends EventEmitter {
     return this.writeToRecord(record, pendingWrite, submit && shouldQueueSubmittedAgentMessage(record));
   }
 
+  async reconnect(id: string): Promise<TerminalSessionInfo | null> {
+    const record = this.sessions.get(id);
+    if (!record || record.info.status === "exited") {
+      return null;
+    }
+
+    this.reconcileTmuxState();
+    if (record.paneStatus !== "alive") {
+      record.info.health = "unhealthy";
+      record.info.healthDetail = terminalHealthDetail(record, Date.now());
+      return record.info;
+    }
+
+    const tmux = this.requireTmuxRuntime();
+    record.reconnecting = true;
+    try {
+      record.process.kill();
+    } catch {
+      // The old bridge may already be gone after app sleep, crash, or detach.
+    }
+    let processHandle: IPty;
+    try {
+      processHandle = this.attachTmuxSession(tmux.availability, record.tmuxSessionName, record.info.cwd);
+    } catch (error) {
+      record.reconnecting = false;
+      record.bridgeDetached = true;
+      record.info.health = "unhealthy";
+      record.info.healthDetail = error instanceof Error ? error.message : String(error);
+      return record.info;
+    }
+    record.process = processHandle;
+    record.reconnecting = false;
+    record.bridgeDetached = false;
+    record.paneStatus = "alive";
+    record.info.health = terminalHealth(record, Date.now());
+    record.info.healthDetail = "Reattached to live tmux session.";
+    this.wireProcess(id, processHandle);
+    this.persistSessions();
+    return record.info;
+  }
+
+  reconnectRecoverableTerminals(): void {
+    this.reconcileTmuxState();
+    for (const record of this.sessions.values()) {
+      if (record.info.status !== "running" || record.paneStatus !== "alive" || record.reconnecting) {
+        continue;
+      }
+      void this.reconnect(record.info.id).catch((error) => {
+        console.warn("[exo] failed to reconnect detached terminal", {
+          id: record.info.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+    }
+  }
+
   readTail(id: string): string | null {
     const record = this.sessions.get(id);
     if (!record) {
@@ -375,6 +436,7 @@ export class TerminalManager extends EventEmitter {
       const record = this.sessions.get(id);
       const sanitizedData = stripMouseTrackingModes(data);
       if (record) {
+        record.bridgeDetached = false;
         this.appendTranscript(id, sanitizedData);
         record.lastOutputAt = Date.now();
         if (record.lastInputAt) {
@@ -395,9 +457,13 @@ export class TerminalManager extends EventEmitter {
       }
 
       if (record.tmuxSessionName && !record.terminating) {
+        if (record.reconnecting) {
+          return;
+        }
         record.info.health = "unhealthy";
         record.info.healthDetail = `Tmux attach bridge exited with code ${exitCode ?? "unknown"}; session may still be running.`;
         record.bridgeDetached = true;
+        this.reconcileTmuxState();
         return;
       }
 
@@ -531,6 +597,54 @@ export class TerminalManager extends EventEmitter {
     };
   }
 
+  private attachTmuxSession(availability: TmuxAvailable, tmuxSessionName: string, cwd: string): IPty {
+    return pty.spawn(availability.path, ["attach-session", "-t", tmuxSessionName], {
+      cols: 120,
+      rows: 32,
+      cwd,
+      env: {
+        ...process.env,
+        TERM: "xterm-256color",
+        COLORTERM: "truecolor",
+        SHELL_SESSIONS_DISABLE: "1",
+      },
+      name: "xterm-256color",
+    });
+  }
+
+  reconcileTmuxState(): void {
+    if (this.sessions.size === 0) {
+      return;
+    }
+    const availability = detectTmux();
+    if (!availability.available) {
+      for (const record of this.sessions.values()) {
+        record.paneStatus = "unknown";
+        record.info.health = "unhealthy";
+        record.info.healthDetail = availability.reason;
+      }
+      return;
+    }
+    const runner = new TmuxCommandRunner(availability.path);
+    const panes = new Map(this.listTmuxPanes(runner).map((pane) => [pane.sessionName, pane]));
+    for (const record of this.sessions.values()) {
+      const pane = panes.get(record.tmuxSessionName);
+      if (!pane) {
+        record.paneStatus = "missing";
+        record.info.health = "unhealthy";
+        record.info.healthDetail = "Tmux session is missing; transcript remains available.";
+        continue;
+      }
+      if (pane.dead) {
+        record.paneStatus = "dead";
+        record.info.health = "unhealthy";
+        record.info.healthDetail = "Tmux pane is dead; restart or open transcript.";
+        continue;
+      }
+      record.paneStatus = "alive";
+    }
+  }
+
   private restorePersistedSessions(): void {
     const persisted = this.readPersistedSessions();
     if (persisted.length === 0) {
@@ -547,7 +661,7 @@ export class TerminalManager extends EventEmitter {
     }
 
     const runner = new TmuxCommandRunner(availability.path);
-    const liveSessions = new Set(this.listTmuxSessionNames(runner));
+    const liveSessions = new Set(this.listTmuxPanes(runner).filter((pane) => !pane.dead).map((pane) => pane.sessionName));
     let restored = 0;
     for (const session of persisted) {
       if (session.status !== "running" || !liveSessions.has(session.tmuxSessionName) || this.sessions.has(session.id)) {
@@ -555,19 +669,7 @@ export class TerminalManager extends EventEmitter {
       }
 
       try {
-        const env = {
-          ...process.env,
-          TERM: "xterm-256color",
-          COLORTERM: "truecolor",
-          SHELL_SESSIONS_DISABLE: "1",
-        };
-        const processHandle = pty.spawn(availability.path, ["attach-session", "-t", session.tmuxSessionName], {
-          cols: 120,
-          rows: 32,
-          cwd: session.cwd,
-          env,
-          name: "xterm-256color",
-        });
+        const processHandle = this.attachTmuxSession(availability, session.tmuxSessionName, session.cwd);
         const record: TerminalRecord = {
           info: {
             id: session.id,
@@ -583,6 +685,7 @@ export class TerminalManager extends EventEmitter {
           process: processHandle,
           tmuxSessionName: session.tmuxSessionName,
           createdAt: session.createdAt,
+          paneStatus: "alive",
           buffer: new TerminalLineBuffer(this.bufferLineLimit),
           transcriptPath: session.transcriptPath,
           pendingWrites: [],
@@ -606,7 +709,7 @@ export class TerminalManager extends EventEmitter {
     }
   }
 
-  private listTmuxSessionNames(runner: TmuxCommandRunner): string[] {
+  private listTmuxPanes(runner: TmuxCommandRunner): TmuxPaneInfo[] {
     try {
       const raw = runner.run([
         "list-panes",
@@ -614,9 +717,7 @@ export class TerminalManager extends EventEmitter {
         "-F",
         "#{session_name}\t#{window_id}\t#{pane_id}\t#{pane_dead}\t#{pane_current_command}\t#{pane_current_path}",
       ]);
-      return parseTmuxPaneList(raw)
-        .filter((pane) => !pane.dead)
-        .map((pane) => pane.sessionName);
+      return parseTmuxPaneList(raw);
     } catch (error) {
       console.warn("[exo] failed to list tmux panes during terminal restore", {
         error: error instanceof Error ? error.message : String(error),
@@ -788,6 +889,9 @@ function terminalHealth(record: TerminalRecord, now = Date.now()): TerminalHealt
   if (record.info.status === "exited") {
     return "exited";
   }
+  if (record.paneStatus === "missing" || record.paneStatus === "dead" || record.bridgeDetached) {
+    return "unhealthy";
+  }
   if (record.lastInputAt && (!record.lastOutputAt || record.lastOutputAt < record.lastInputAt) && now - record.lastInputAt > 10_000) {
     return "unhealthy";
   }
@@ -801,6 +905,15 @@ function terminalHealthDetail(record: TerminalRecord, now = Date.now()): string 
   const health = terminalHealth(record, now);
   if (health === "exited") {
     return record.info.exitCode === undefined ? "Process exited." : `Process exited with code ${record.info.exitCode}.`;
+  }
+  if (record.paneStatus === "missing") {
+    return "Tmux session is missing; transcript remains available.";
+  }
+  if (record.paneStatus === "dead") {
+    return "Tmux pane is dead; restart or open transcript.";
+  }
+  if (record.bridgeDetached) {
+    return "Tmux session is alive but Exo's attach bridge is detached; reconnect the terminal.";
   }
   if (health === "unhealthy") {
     return "Input was sent but no terminal output has been observed for more than 10 seconds.";

@@ -93,6 +93,7 @@ const api: DesktopApi = {
     readTranscript: (id, tailChars) => invokeDesktop("terminals:read-transcript", id, tailChars),
     write: (id, data) => invokeDesktop("terminals:write", id, data),
     sendMessage: (id, message, submit) => invokeDesktop("terminals:send-message", id, message, submit),
+    reconnect: (id) => invokeDesktop("terminals:reconnect", id),
     resize: (id, cols, rows) => invokeDesktop("terminals:resize", id, cols, rows),
     kill: (id) => invokeDesktop("terminals:kill", id),
     resolveDroppedFilePaths: (files) =>

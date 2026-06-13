@@ -1,4 +1,4 @@
-import { app, nativeTheme } from "electron";
+import { app, nativeTheme, powerMonitor } from "electron";
 import path from "node:path";
 import { appendFile, mkdir, stat } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -116,6 +116,7 @@ function startCommandServer() {
     onReadTerminalTranscript: (id: string, tailChars: number) => terminalManager.readTranscript(id, tailChars),
     onWriteTerminal: (id: string, data: string) => terminalManager.write(id, data),
     onSendTerminalMessage: (id: string, message: string, submit: boolean) => terminalManager.sendMessage(id, message, submit),
+    onReconnectTerminal: (id: string) => terminalManager.reconnect(id),
     onKillTerminal: (id: string) => terminalManager.kill(id),
     onGetSettings: () => workspaceSettingsService.currentSettings(),
     onGetStatus: () => ({
@@ -434,6 +435,11 @@ app.whenReady().then(async () => {
 
   nativeTheme.on("updated", () => {
     appLifecycle.updateBackgroundForTheme();
+  });
+
+  powerMonitor.on("resume", () => {
+    logMain("power resume detected; reconciling terminal sessions");
+    terminalManager.reconnectRecoverableTerminals();
   });
 
   app.on("activate", () => {

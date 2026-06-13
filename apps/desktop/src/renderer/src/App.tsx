@@ -1015,6 +1015,7 @@ export function App() {
               onWrite={(id, data) => void window.exo.terminals.write(id, data)}
               onResize={(id, cols, rows) => void window.exo.terminals.resize(id, cols, rows)}
               onKill={(id) => void terminalPaneController.closeTerminal(id)}
+              onReconnect={(id) => void terminalState.reconnectTerminal(id)}
               dragManager={dragManager}
               onTogglePlacement={() => {}}
               headerActions={null}
@@ -1098,6 +1099,7 @@ export function App() {
             onWrite={(id, data) => void window.exo.terminals.write(id, data)}
             onResize={(id, cols, rows) => void window.exo.terminals.resize(id, cols, rows)}
             onKill={(id) => void terminalPaneController.closeTerminal(id)}
+            onReconnect={(id) => void terminalState.reconnectTerminal(id)}
             dragManager={dragManager}
             onTogglePlacement={() => {}}
             headerActions={null}

@@ -103,7 +103,11 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
   - Added `.exo/terminal-sessions.json` persistence and startup reattach for live tmux panes.
   - Added deterministic fake-agent Electron QA, p50/p90 shell input latency measurement, and app relaunch reattach coverage without live Claude/Codex inference.
   - Diagnostics now expose tmux runtime, tmux session name, and attach bridge status.
-  - Still open for sleep/wake recovery, dead-pane recovery actions, broader rendering/scrollback stress, and manual installed-app QA.
+  - Diagnostics now distinguish tmux pane alive/dead/missing state from the Exo attach bridge state.
+  - Added terminal reconnect APIs across IPC, command-server, and CLI.
+  - Added resume-triggered reattachment for running terminals whose tmux panes are still alive.
+  - Added a terminal-header Reconnect action for unhealthy active terminals.
+  - Still open for manual macOS sleep/wake installed-app QA, broader rendering/scrollback stress, and final dogfooding with real Claude/Codex sessions.
 
 ### EXO-ISSUE-029: `pnpm dev` can spawn a stray default Electron app window
 
@@ -275,7 +279,7 @@ These issues have fixes and coverage, but remain worth exercising during daily i
   - Removed stale tmux runtime compatibility code, diagnostics, restore state, and transport UI/API fields from the core terminal path.
   - Reduced terminal typing/output lag by appending streamed chunks through an append-specific live stream path instead of trimming and comparing whole terminal output on every frame.
   - Explicit terminal reads now hydrate from bounded live tails so switching/restoring terminals still refreshes the xterm surface without pretending the live tail is durable history.
-  - Claude and Codex terminals currently use direct pty only; `EXO-ISSUE-030` tracks the planned tmux-backed persistence refactor.
+  - Claude and Codex terminals now use tmux-backed sessions with `node-pty` as the attach bridge; `EXO-ISSUE-030` tracks the remaining persistence/recovery QA.
   - Added terminal health, latency, transcript, and live-tail diagnostics in app IPC, command server, and `exo terminals diagnostics`.
   - Replaced main-process live terminal storage with a bounded line tail and bounded renderer-side terminal tracking.
   - Live active terminal output now streams directly into xterm through the terminal registry, avoiding React-owned full-output state as the primary render path.
@@ -337,7 +341,7 @@ These issues have fixes and coverage, but remain worth exercising during daily i
 
 - Status: resolved
 - Severity: critical
-- Area: agent terminal write path, CLI `exo agents send`, direct pty transport, Codex provider integration
+- Area: agent terminal write path, CLI `exo agents send`, terminal input transport, Codex provider integration
 - Observed:
   - During an Exo-on-Exo staff-review stress test on 2026-05-28, `exo agents send term-3 "<long review prompt>"` reported successful delivery.
   - The Codex transcript showed the submitted prompt with spaces removed, e.g. `Pleaseperformaread-onlystaffsoftwareengineer...`, making the request effectively unusable.
@@ -439,7 +443,7 @@ These issues have fixes and coverage, but remain worth exercising during daily i
 
 - Status: fixed
 - Severity: high
-- Area: agent terminal write path, Codex provider integration, direct pty orchestration
+- Area: agent terminal write path, Codex provider integration, terminal input orchestration
 - Observed: `exo agents send <id> <brief>` reported queued delivery and the brief appeared at the Codex prompt, but Codex did not start processing until `exo agents send <id> $'\r' --raw` was sent afterward.
 - Fixed:
   - Queued Codex submitted messages now flush as message body followed by a short delayed Enter, so Codex has time to finish activating the prompt before submit.

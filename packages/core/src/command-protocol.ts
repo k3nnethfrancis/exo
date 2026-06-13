@@ -19,6 +19,7 @@ export const EXO_COMMAND_ROUTES = {
     `/terminals/${encodeURIComponent(id)}/transcript?tailChars=${encodeURIComponent(String(tailChars))}`,
   terminalWrite: (id: string) => `/terminals/${encodeURIComponent(id)}/write`,
   terminalMessage: (id: string) => `/terminals/${encodeURIComponent(id)}/message`,
+  terminalReconnect: (id: string) => `/terminals/${encodeURIComponent(id)}/reconnect`,
   terminal: (id: string) => `/terminals/${encodeURIComponent(id)}`,
 } as const;
 
@@ -46,6 +47,7 @@ export interface ExoCommandTerminalDiagnostics extends ExoCommandTerminalInfo {
   runtime?: "tmux";
   tmuxSessionName?: string;
   bridgeStatus?: "attached" | "detached";
+  paneStatus?: "alive" | "dead" | "missing" | "unknown";
   bufferedLines: number;
   bufferedChars: number;
   transcriptPath: string;
@@ -80,6 +82,11 @@ export interface ExoWriteTerminalResponse {
   queuedInputCount?: number;
   readiness?: ExoCommandTerminalInfo["readiness"];
   readinessDetail?: string;
+}
+
+export interface ExoReconnectTerminalResponse {
+  ok: true;
+  terminal: ExoCommandTerminalInfo | null;
 }
 
 export interface ExoIndexRootRequest {

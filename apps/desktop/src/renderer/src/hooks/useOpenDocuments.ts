@@ -152,38 +152,44 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
   }
 
   function updateBody(body: string) {
-    if (!activeDocumentPath) {
+    const filePath = activeDocumentPathRef.current;
+    if (!filePath || !openDocumentsRef.current[filePath]) {
       return;
     }
 
-    setOpenDocuments((current) => ({
-      ...current,
-      [activeDocumentPath]: {
-        ...current[activeDocumentPath],
+    const nextDocuments = {
+      ...openDocumentsRef.current,
+      [filePath]: {
+        ...openDocumentsRef.current[filePath],
         body,
         dirty: true,
       },
-    }));
-    setDocumentSaveStatuses((current) => ({ ...current, [activeDocumentPath]: "idle" }));
+    };
+    openDocumentsRef.current = nextDocuments;
+    setOpenDocuments(nextDocuments);
+    setDocumentSaveStatuses((current) => ({ ...current, [filePath]: "idle" }));
   }
 
   function updateFrontmatter(key: string, value: unknown) {
-    if (!activeDocumentPath) {
+    const filePath = activeDocumentPathRef.current;
+    if (!filePath || !openDocumentsRef.current[filePath]) {
       return;
     }
 
-    setOpenDocuments((current) => ({
-      ...current,
-      [activeDocumentPath]: {
-        ...current[activeDocumentPath],
+    const nextDocuments = {
+      ...openDocumentsRef.current,
+      [filePath]: {
+        ...openDocumentsRef.current[filePath],
         frontmatter: {
-          ...current[activeDocumentPath].frontmatter,
+          ...openDocumentsRef.current[filePath].frontmatter,
           [key]: value,
         },
         dirty: true,
       },
-    }));
-    setDocumentSaveStatuses((current) => ({ ...current, [activeDocumentPath]: "idle" }));
+    };
+    openDocumentsRef.current = nextDocuments;
+    setOpenDocuments(nextDocuments);
+    setDocumentSaveStatuses((current) => ({ ...current, [filePath]: "idle" }));
   }
 
   async function saveDocument(filePath: string) {
@@ -217,7 +223,9 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
           ...current,
           [filePath]: {
             ...current[filePath],
-            dirty: false,
+            dirty:
+              current[filePath].body !== document.body ||
+              JSON.stringify(current[filePath].frontmatter) !== JSON.stringify(document.frontmatter),
             diskVersion,
           },
         };

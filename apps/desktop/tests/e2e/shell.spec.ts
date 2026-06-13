@@ -516,6 +516,59 @@ test("measures terminal input echo latency against p50 and p90 targets", async (
   }
 });
 
+test("keeps terminal input latency within targets while another terminal streams output", async () => {
+  const { page, cleanup } = await launchExoFixture({
+    env: {
+      EXO_SHELL: "/bin/sh",
+      EXO_SHELL_ARGS: "",
+    },
+  });
+
+  try {
+    const activeShellId = await page.evaluate(async () => {
+      const shell = (await window.exo.terminals.list()).find((session) => session.kind === "shell");
+      if (!shell) {
+        throw new Error("No shell terminal found");
+      }
+      return shell.id;
+    });
+
+    await page.getByTestId("terminal-surface").click();
+    await page.keyboard.type("cat\n");
+    await page.evaluate(async () => {
+      const streamingShell = await window.exo.terminals.create({ kind: "shell" });
+      await window.exo.terminals.write(
+        streamingShell.id,
+        "i=1; while [ $i -le 260 ]; do printf 'stream-latency-%03d\\n' \"$i\"; i=$((i+1)); sleep 0.01; done\n",
+      );
+    });
+    await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(2);
+    await expect.poll(async () => {
+      const sessions = await page.evaluate(() => window.exo.terminals.list());
+      const streamingShell = sessions.find((session) => session.kind === "shell" && session.id !== activeShellId);
+      return streamingShell ? page.evaluate((id) => window.exo.terminals.read(id), streamingShell.id) : "";
+    }).toContain("stream-latency-010");
+
+    await page.getByTestId("terminal-tab-shell").first().click();
+    await waitForTerminalText(page, "cat");
+
+    const samples: number[] = [];
+    for (let index = 0; index < 20; index += 1) {
+      const marker = `exo-stream-latency-${index}-${Date.now()}`;
+      const startedAt = performance.now();
+      await page.keyboard.type(`${marker}\n`);
+      await waitForTerminalText(page, marker);
+      samples.push(performance.now() - startedAt);
+    }
+
+    const summary = latencySummary(samples);
+    expect(summary.p50, `streaming terminal latency summary: ${JSON.stringify(summary)}`).toBeLessThan(100);
+    expect(summary.p90, `streaming terminal latency summary: ${JSON.stringify(summary)}`).toBeLessThan(250);
+  } finally {
+    await cleanup();
+  }
+});
+
 test("runs deterministic fake agent terminal QA without live inference", async () => {
   const { page, cleanup } = await launchExoFixture({
     env: {

@@ -147,6 +147,18 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
     await hydrateTerminal(id);
   }
 
+  async function reconnectTerminal(id: string): Promise<TerminalSessionInfo | null> {
+    const session = await window.exo.terminals.reconnect(id);
+    if (!session) {
+      return null;
+    }
+    setSessions((current) =>
+      current.map((existing) => (existing.id === session.id ? session : existing)),
+    );
+    await hydrateTerminal(id);
+    return session;
+  }
+
   async function killTerminal(id: string): Promise<TerminalSessionInfo[]> {
     await window.exo.terminals.kill(id);
     const remainingSessions = sessionsRef.current.filter((session) => session.id !== id);
@@ -189,6 +201,7 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
     createTerminal,
     adoptExternalSessions,
     activateTerminal,
+    reconnectTerminal,
     hydrateTerminal,
     killTerminal,
     setActiveTerminalId: setActiveTerminalIdState,

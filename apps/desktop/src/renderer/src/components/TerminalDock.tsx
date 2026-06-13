@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode, Ref } from "react";
-import { GripVertical, SquareTerminal, X } from "lucide-react";
+import { GripVertical, RefreshCw, SquareTerminal, X } from "lucide-react";
 
 import type { TerminalSessionInfo } from "../../../shared/api";
 import type { ResolvedAppearance } from "../appearance";
@@ -26,6 +26,7 @@ interface TerminalDockProps {
   onWrite: (id: string, data: string) => void;
   onResize: (id: string, cols: number, rows: number) => void;
   onKill: (id: string) => void;
+  onReconnect?: (id: string) => void;
   dragManager: DragManager;
   onTogglePlacement: () => void;
   ref?: Ref<HTMLDivElement>;
@@ -52,6 +53,7 @@ export function TerminalDock(props: TerminalDockProps) {
     onWrite,
     onResize,
     onKill,
+    onReconnect,
     dragManager,
     onTogglePlacement,
     ref,
@@ -60,6 +62,7 @@ export function TerminalDock(props: TerminalDockProps) {
     style,
   } = props;
   const activeSession = sessions.find((session) => session.id === activeTerminalId) ?? null;
+  const canReconnect = Boolean(activeSession && activeSession.health === "unhealthy" && onReconnect);
 
   function focusTerminalAfterPaneActivation(sessionId: string | null) {
     if (!sessionId) {
@@ -120,7 +123,23 @@ export function TerminalDock(props: TerminalDockProps) {
                 </ChromeTab>
               ))}
             </div>
-            {headerActions ? <div className="terminal-dock__actions">{headerActions}</div> : null}
+            {headerActions || canReconnect ? (
+              <div className="terminal-dock__actions">
+                {canReconnect && activeSession ? (
+                  <button
+                    type="button"
+                    className="terminal-dock__header-button terminal-dock__reconnect"
+                    data-testid="terminal-reconnect"
+                    title={activeSession.healthDetail ? `Reconnect terminal · ${activeSession.healthDetail}` : "Reconnect terminal"}
+                    onClick={() => onReconnect?.(activeSession.id)}
+                  >
+                    <RefreshCw size={13} />
+                    <span>Reconnect</span>
+                  </button>
+                ) : null}
+                {headerActions}
+              </div>
+            ) : null}
           </div>
 
           {activeSession ? (

@@ -92,7 +92,7 @@ Equivalent env vars are `EXO_MCP_HTTP_HOST`, `EXO_MCP_HTTP_PORT`, and `EXO_MCP_H
 - `read_agent` — read bounded live terminal tail output. ANSI cleanup is enabled by default.
 - `send_agent_message` — send text to a live agent. `submit` defaults to `true`, so the message is submitted with Enter unless explicitly disabled. Codex startup sends may be queued until normal chat input is ready.
 - `interrupt_agent` — send Escape or Ctrl-C to a live agent.
-- `terminate_agent` — terminate an Exo terminal and its supervised pty process.
+- `terminate_agent` — terminate an Exo terminal and its tmux-backed session.
 
 MCP is intentionally narrower than the CLI. Use `bin/exo index ...`, `bin/exo project-roots ...`, and `bin/exo terminals ...` for operator/admin/debug workflows.
 

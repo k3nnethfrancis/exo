@@ -53,6 +53,8 @@ Current endpoints in `apps/desktop/src/main/command-server.ts`:
 - `GET /terminals/:id/tail`
 - `GET /terminals/:id/transcript`
 - `POST /terminals/:id/write`
+- `POST /terminals/:id/message`
+- `POST /terminals/:id/reconnect`
 - `DELETE /terminals/:id`
 
 `packages/core/src/command-protocol.ts` owns the shared route constants and command payload shapes. The desktop command server, CLI app client, and MCP client should consume that shared contract rather than duplicating routes.
@@ -78,14 +80,14 @@ For Exo-on-Exo development, the installed app is the stable resident runtime. So
 
 Terminals are the first agent interface.
 
-- shell, Claude, and Codex terminals currently use direct `node-pty` sessions; the planned refactor moves durable processes into tmux with `node-pty` as the attach bridge
+- shell, Claude, and Codex terminals use tmux-backed sessions for durable processes, with `node-pty` used only as Exo's live attach bridge
 - Exo session ids are local app ids such as `term-13`
 - terminal history policy is configured through workspace settings
 - `full` terminal history keeps Exo's live terminal tail at the configured full xterm line window
 - `custom` terminal history trims Exo's in-memory tail by the configured line count
 - terminal transcripts are persisted under `.exo/terminal-transcripts/`
 - transcript retention defaults to `forever`; optional day-based retention is explicit in settings
-- closing or killing a terminal currently terminates the supervised process; the tmux refactor must make terminate versus detach explicit
+- closing or killing a terminal intentionally terminates the tmux-backed session; window close/hide detaches the UI while the runtime remains available
 
 See `terminal-runtime-decision.md`, `terminal-refactor-plan.md`, and `terminal-quality-standard.md` for the tmux-backed runtime direction and QA bar.
 
@@ -123,6 +125,7 @@ Current live app operator/debug commands:
 - `exo terminals transcript <id> [--tail n] [--full]`
 - `exo terminals write <id> <text>`
 - `exo terminals send <id> <text>`
+- `exo terminals reconnect <id>`
 - `exo terminals kill <id>`
 
 `exo terminals` is the low-level terminal debug surface. `exo agents` is the primary human/agent session surface and mirrors the MCP work-plane tools for already-running local agent sessions:

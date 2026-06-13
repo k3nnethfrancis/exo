@@ -220,6 +220,7 @@ Commands that drive a running Exo app:
 ./bin/exo terminals read term-4
 ./bin/exo terminals transcript term-4 --tail 200000
 ./bin/exo terminals send term-4 "message plus Enter"
+./bin/exo terminals reconnect term-4
 ./bin/exo terminals kill term-4
 ```
 
@@ -300,7 +301,7 @@ See `docs/harness.md` for work-chunk rules, validation evidence, and agent-frien
 
 - Electron, React, TypeScript, Vite
 - CodeMirror 6
-- xterm.js, node-pty, planned tmux-backed terminal persistence
+- xterm.js, tmux-backed terminal persistence, and node-pty as the live attach bridge
 - pnpm workspaces
 - Vitest and Playwright
 - Model Context Protocol SDK
