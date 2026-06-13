@@ -62,7 +62,7 @@ export function TerminalDock(props: TerminalDockProps) {
     style,
   } = props;
   const activeSession = sessions.find((session) => session.id === activeTerminalId) ?? null;
-  const canReconnect = Boolean(activeSession && activeSession.health === "unhealthy" && onReconnect);
+  const canReconnect = Boolean(activeSession && isReconnectableSession(activeSession) && onReconnect);
 
   function focusTerminalAfterPaneActivation(sessionId: string | null) {
     if (!sessionId) {
@@ -162,4 +162,8 @@ export function TerminalDock(props: TerminalDockProps) {
       </div>
     </section>
   );
+}
+
+function isReconnectableSession(session: TerminalSessionInfo): boolean {
+  return session.health === "unhealthy" && (session.healthDetail?.toLowerCase().includes("attach bridge") ?? false);
 }
