@@ -434,6 +434,40 @@ test("accepts terminal keyboard input", async () => {
   await cleanup();
 });
 
+test("does not rehydrate an already rendered terminal when focusing its active tab", async () => {
+  const { page, cleanup } = await launchExoFixture({
+    env: {
+      EXO_SHELL: "/bin/cat",
+      EXO_SHELL_ARGS: "",
+    },
+  });
+
+  await page.getByTestId("terminal-surface").click();
+  await page.keyboard.type("stable terminal viewport");
+  await expect(page.locator(".xterm-rows")).toContainText("stable terminal viewport");
+
+  await page.evaluate(() => {
+    const originalRead = window.exo.terminals.read;
+    let readCount = 0;
+    window.exo.terminals.read = ((...args: Parameters<typeof originalRead>) => {
+      readCount += 1;
+      return originalRead(...args);
+    }) as typeof originalRead;
+    Object.defineProperty(window, "__exoTerminalReadCount", {
+      configurable: true,
+      value: () => readCount,
+    });
+  });
+
+  await page.getByTestId("terminal-tab-shell").click();
+  await page.waitForTimeout(150);
+
+  const readCount = await page.evaluate(() => (window as unknown as { __exoTerminalReadCount: () => number }).__exoTerminalReadCount());
+  expect(readCount).toBe(0);
+
+  await cleanup();
+});
+
 test("keeps terminal interactive after large output, tab switches, and semantic sends", async () => {
   const { page, cleanup } = await launchExoFixture({
     env: {

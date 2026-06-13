@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { TerminalSessionInfo } from "../../../shared/api";
-import { writeTerminalData } from "../components/terminalRegistry";
+import { hasRegisteredTerminal, writeTerminalData } from "../components/terminalRegistry";
 import { terminalSessionsEqual } from "../terminalSessions";
 
 export interface UseTerminalSessionsOptions {
@@ -15,7 +15,6 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
   const [hydrationVersions, setHydrationVersions] = useState<Record<string, number>>({});
   const [, setAgentAnnotations] = useState<Record<string, { runLabel: string; parentId: string | null }>>({});
   const sessionsRef = useRef<TerminalSessionInfo[]>([]);
-  const kindByIdRef = useRef<Record<string, TerminalSessionInfo["kind"]>>({});
   const activeTerminalIdRef = useRef<string | null>(null);
   const optionsRef = useRef(options);
 
@@ -25,7 +24,6 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
 
   useEffect(() => {
     sessionsRef.current = sessions;
-    kindByIdRef.current = Object.fromEntries(sessions.map((session) => [session.id, session.kind]));
   }, [sessions]);
 
   useEffect(() => {
@@ -90,28 +88,6 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
     };
   }, []);
 
-  useEffect(() => {
-    const activeId = activeTerminalId;
-    if (!activeId || kindByIdRef.current[activeId] === "shell") {
-      return;
-    }
-    const terminalId = activeId;
-
-    let cancelled = false;
-    async function refreshActiveAgentBuffer() {
-      const snapshot = await window.exo.terminals.read(terminalId);
-      if (!cancelled) {
-        setHydrationSnapshot(terminalId, snapshot);
-      }
-    }
-
-    void refreshActiveAgentBuffer();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [activeTerminalId, sessions]);
-
   function initialize(nextSessions: TerminalSessionInfo[], activeId: string | null, activeSnapshot?: string): void {
     setSessions(nextSessions);
     setActiveTerminalIdState(activeId);
@@ -126,6 +102,9 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
   }
 
   async function hydrateTerminal(id: string) {
+    if (hasRegisteredTerminal(id)) {
+      return;
+    }
     const snapshot = await window.exo.terminals.read(id);
     setHydrationSnapshot(id, snapshot);
   }

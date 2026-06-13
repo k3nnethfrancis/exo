@@ -6,6 +6,22 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 
 ## Open
 
+### EXO-ISSUE-035: Active terminal viewport can replay stale scrollback over current agent output
+
+- Status: fixed; watch in daily Claude/Codex use
+- Severity: high
+- Area: terminal renderer, xterm hydration, agent scrollback
+- Observed:
+  - In a Claude Code terminal, scrolling near the current bottom could show older conversation output pasted across the upper part of the active viewport.
+  - The active conversation continued below, so the process was still alive but the rendered terminal state was corrupt/confusing.
+- Expected:
+  - Active terminals should receive live append events only.
+  - Reading bounded terminal tails should be used for initial mount/restore, not for rehydrating and resetting an already rendered xterm instance.
+- Resolution:
+  - Removed the active-agent buffer refresh effect that could call `terminals.read()` and force xterm reset/replay while the terminal was already live.
+  - Made renderer hydration a no-op when a terminal instance is already registered.
+  - Added Electron/Playwright coverage that clicking an already rendered active terminal tab does not call `terminals.read()`.
+
 ### EXO-ISSUE-034: Live-preview bullet continuation traps cursor at stale indentation
 
 - Status: fixed
