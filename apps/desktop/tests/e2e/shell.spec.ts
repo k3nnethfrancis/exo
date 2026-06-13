@@ -46,6 +46,31 @@ async function pageShellSession(page: import("@playwright/test").Page) {
   return shell;
 }
 
+function killTmuxAttachClients(tmuxSessionName: string): number {
+  const processList = spawnSync("ps", ["-ax", "-o", "pid=,command="], { encoding: "utf8" });
+  if (processList.status !== 0) {
+    throw new Error(processList.stderr || "Failed to list processes.");
+  }
+  const escapedSessionName = tmuxSessionName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const attachPattern = new RegExp(`\\btmux\\s+attach-session\\s+-t\\s+${escapedSessionName}\\b`);
+  const pids = processList.stdout
+    .split("\n")
+    .map((line) => {
+      const match = line.trim().match(/^(\d+)\s+(.+)$/);
+      return match && attachPattern.test(match[2]) ? Number(match[1]) : null;
+    })
+    .filter((pid): pid is number => pid !== null && pid !== process.pid);
+
+  for (const pid of pids) {
+    try {
+      process.kill(pid, "SIGTERM");
+    } catch {
+      // The attach client may have exited between process listing and termination.
+    }
+  }
+  return pids.length;
+}
+
 test.describe.configure({ mode: "parallel" });
 
 test("boots the shell, opens notes, and manages terminal tabs", async () => {
@@ -712,6 +737,50 @@ test("reattaches a tmux-backed shell after app relaunch", async () => {
     } else {
       await fixture.cleanup();
     }
+  }
+});
+
+test("shows a reconnect action when the tmux attach bridge exits", async () => {
+  const { page, cleanup } = await launchExoFixture({
+    env: {
+      EXO_SHELL: "/bin/sh",
+      EXO_SHELL_ARGS: "",
+    },
+    initialNoteLabel: null,
+  });
+
+  try {
+    const shell = await pageShellSession(page);
+    const diagnostic = await page.evaluate(async (id) => {
+      const diagnostics = await window.exo.terminals.diagnostics();
+      return diagnostics.find((candidate) => candidate.id === id) ?? null;
+    }, shell.id);
+    if (!diagnostic?.tmuxSessionName) {
+      throw new Error("Expected shell terminal to expose a tmux session name in diagnostics.");
+    }
+
+    const killed = killTmuxAttachClients(diagnostic.tmuxSessionName);
+    expect(killed, `Expected to kill tmux attach client for ${diagnostic.tmuxSessionName}`).toBeGreaterThan(0);
+    await expect.poll(async () => page.evaluate(async (id) => {
+      const diagnostics = await window.exo.terminals.diagnostics();
+      const current = diagnostics.find((candidate) => candidate.id === id);
+      return current ? `${current.bridgeStatus}:${current.health}` : "";
+    }, shell.id)).toBe("detached:unhealthy");
+
+    await expect(page.getByTestId("terminal-reconnect")).toBeVisible();
+    await page.getByTestId("terminal-reconnect").click();
+    await expect.poll(async () => page.evaluate(async (id) => {
+      const diagnostics = await window.exo.terminals.diagnostics();
+      const current = diagnostics.find((candidate) => candidate.id === id);
+      return current ? `${current.bridgeStatus}:${current.paneStatus}` : "";
+    }, shell.id)).toBe("attached:alive");
+
+    await page.evaluate(async (id) => {
+      await window.exo.terminals.write(id, "printf 'after-reconnect-ui\\n'\n");
+    }, shell.id);
+    await expect.poll(async () => page.evaluate((id) => window.exo.terminals.read(id), shell.id)).toContain("after-reconnect-ui");
+  } finally {
+    await cleanup();
   }
 });
 
