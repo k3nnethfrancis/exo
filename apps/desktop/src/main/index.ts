@@ -36,6 +36,7 @@ import {
 } from "./settings-store";
 import { registerTerminalIpcHandlers } from "./terminal-ipc";
 import { TerminalManager } from "./terminal-manager";
+import { registerTerminalRecoveryService } from "./terminal-recovery-service";
 import { registerWorkspaceIpcHandlers } from "./workspace-ipc";
 import { ProjectReviewService } from "./project-review-service";
 import { WorkspaceNotesService } from "./workspace-notes-service";
@@ -437,10 +438,7 @@ app.whenReady().then(async () => {
     appLifecycle.updateBackgroundForTheme();
   });
 
-  powerMonitor.on("resume", () => {
-    logMain("power resume detected; reconciling terminal sessions");
-    terminalManager.reconnectRecoverableTerminals();
-  });
+  registerTerminalRecoveryService({ powerMonitor, terminalManager, logMain });
 
   app.on("activate", () => {
     appLifecycle.activate();
