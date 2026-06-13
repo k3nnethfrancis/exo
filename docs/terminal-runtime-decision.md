@@ -1,131 +1,108 @@
 # Terminal Runtime Decision
 
-Last updated: 2026-06-11
+Last updated: 2026-06-13
 
-## Current Status
+## Decision
 
-This decision is reopened.
+Exo should move to a tmux-backed core terminal runtime.
 
-On 2026-05-28, Exo simplified core terminals to direct `node-pty` only. That was the right cleanup move at the time: the previous tmux path was partially integrated, added hidden fallback behavior, and made terminal bugs harder to isolate.
-
-Fresh setup and daily-use reports on 2026-06-02 changed the product evidence. Direct pty terminals can break after macOS sleep/wake, and long-running Claude/Codex sessions or builds cannot be trusted if sleep can kill or corrupt the live process. Transcript recovery is useful but is not equivalent to process survival.
-
-The active question is no longer "keep stale tmux compatibility code or direct pty only." The active question is:
+The target architecture is:
 
 ```text
-What terminal runtime gives Exo real-terminal reliability for daily agent work while keeping the codebase understandable?
+xterm.js renderer
+  <-> Exo terminal renderer bridge
+  <-> node-pty attach process
+  <-> tmux session/window/pane
+  <-> shell / Claude / Codex / future terminal agent
 ```
 
-Tmux-backed terminals are now a serious candidate for core daily-use terminals, not merely a hypothetical plugin.
+`node-pty` remains part of the implementation, but only as the local bridge that attaches Exo to tmux. The durable user process should live inside tmux.
 
-## Previous Decision
+There should be one standard terminal runtime path for daily Exo use. Do not expose a direct-pty versus tmux preference, do not keep direct pty as a hidden fallback, and do not reintroduce mixed terminal transports inside `TerminalManager`.
 
-Tmux should not be kept as a hidden fallback, partial compatibility path, or mixed-in recovery mechanism inside the default terminal manager. If Exo supports tmux later, it should be a deliberate adapter or plugin with a clear user workflow, explicit UI, and tests that validate the full tmux integration model.
+If tmux is unavailable, Exo should show a clear dependency/setup error and disable terminal creation until fixed.
 
-## Why
+## Why This Changed
 
-Exo needs terminal responsiveness, reliable input delivery, clear health diagnostics, and a codebase that future agents can modify safely. A direct pty path keeps the control loop simple:
+On 2026-05-28, Exo simplified core terminals to direct `node-pty` only. That was the right cleanup at the time because the previous tmux path was partially integrated, stale, and made terminal bugs harder to isolate.
 
-```text
-Exo app <-> node-pty <-> shell / Claude / Codex
-```
+Fresh setup and daily-use reports changed the product evidence:
 
-The previous tmux path added another layer:
+- Direct pty terminals can break after macOS sleep/wake.
+- Long-running shell commands, builds, Claude sessions, and Codex sessions need process survival.
+- Transcript recovery is useful but is not equivalent to preserving a running process.
+- Exo terminals are central to the product, second only to the editor.
 
-```text
-Exo app <-> node-pty <-> tmux attach <-> tmux session <-> shell / Claude / Codex
-```
+The current product priority is useability and trust. If Exo terminals lag, corrupt output, lose scrollback, or kill long-running sessions in situations where a user expects a normal terminal to survive, the terminal system fails.
 
-That extra layer can provide process survival, but it also duplicates responsibilities that Exo already owns or should own directly: panes, tabs, scrollback, transcripts, health, resize, and session lifecycle. Keeping both paths in core makes bugs harder to isolate and encourages fallback code instead of a strong product model.
-
-## Tradeoffs
+## Tradeoff Assessment
 
 Direct pty advantages:
 
-- Lowest-latency input and output path.
-- Fewer moving parts during resize, tab switching, and long output streams.
-- Easier health model: Exo supervises the actual child process.
-- Better fit for Exo-owned panes, tabs, transcripts, settings, and diagnostics.
-- Smaller code surface for terminal management and future agent contributions.
+- Lowest-latency and simplest direct process path.
+- Fewer layers during write, resize, and output streaming.
+- Simpler child-process diagnostics.
+- Smaller implementation surface.
 
 Direct pty costs:
 
-- Terminal processes normally do not survive an Exo app crash or full quit.
-- Persistence needs to come from transcripts, provider resume commands, or a future Exo-native session model.
-- Users cannot attach to the same live terminal from an external terminal window by default.
+- Does not preserve the running process across app crash/relaunch.
+- Has shown real-world sleep/wake reliability risk.
+- Cannot be externally attached by advanced users.
+- Requires provider resume or transcript reconstruction instead of true process persistence.
 
 Tmux advantages:
 
-- Processes can survive UI crashes, disconnects, and app restarts.
-- Advanced users can attach from another terminal.
-- Tmux has its own scrollback and session/window model.
+- Preserves running processes across UI disconnects and app relaunch.
+- Provides a durable session primitive that fits long-running terminal agents.
+- Supports external attach for advanced debugging.
+- Gives Exo a concrete reattach target after renderer/main-process recovery.
 
 Tmux costs:
 
-- More latency and more failure modes in the default path.
-- Input delivery becomes harder to reason about because Exo writes to a tmux attach process, not directly to the agent process.
-- Diagnostics must account for attach process state, pane state, session state, dead panes, readonly clients, current commands, and detached clients.
-- Exo and tmux both try to own panes, tabs, history, lifecycle, and persistence.
-- Cross-platform behavior becomes harder to support.
+- Adds a layer that can introduce latency or failure modes if poorly integrated.
+- Requires explicit diagnostics for tmux session, pane, attach bridge, and transcript state.
+- Requires dependency handling in install and packaged app flows.
+- Exo must avoid duplicating tmux's pane/window model in the UI; Exo owns UI layout, tmux owns process/session persistence.
 
-## Current Product Direction Until Reimplementation
+Given Exo's intended use, process persistence and sleep/relaunch resilience are higher-priority than the marginal latency advantage of direct pty. The implementation must still meet strict latency and rendering standards; tmux is not acceptable if it creates user-visible lag or corruption.
 
-Use direct pty for shell, Claude, and Codex terminals.
+## Required Standards
 
-Use durable transcripts for history and recovery context. A terminal transcript is the durable record; live scrollback is a user-facing performance/history setting for the active UI.
+The terminal refactor must satisfy `docs/terminal-quality-standard.md`.
 
-Use provider-native resume flows or future Exo-native session persistence for agent recovery. Do not reintroduce tmux as an implicit hidden fallback.
+In particular:
 
-This is not sufficient as a final daily-use terminal model if sleep/wake reliably breaks live sessions.
-
-## New Evidence
-
-The 2026-06-02 setup report found:
-
-- Terminals became non-functional after macOS sleep/wake.
-- The user saw a security/violation-style error on resume.
-- The issue affects both source and packaged app paths because both use direct `node-pty`.
-- Long-running builds and agent sessions need the process to keep running, not just the transcript to remain readable.
-
-This matters because Exo is meant to replace or centralize real terminal-agent workflows. Users expect a terminal session running a build or agent task to survive ordinary laptop sleep. If Exo cannot provide that, terminal trust is compromised.
-
-## Updated Tradeoff Assessment
-
-Direct pty remains the simplest and lowest-latency path. It is still attractive for clean supervision, diagnostics, and code simplicity.
-
-However, sleep resilience and process persistence are now higher-priority product requirements than marginal keystroke latency. If tmux adds a few milliseconds of input latency but preserves live builds and agent sessions across sleep, that may be the better default for Exo's actual use case.
-
-Transcript-based restore is not enough for this class of failure. It preserves history, but it does not preserve a running build, a Claude/Codex task in progress, or an interactive process waiting for an answer.
-
-## Revisit Criteria
-
-The revisit criteria have been met for macOS sleep/wake and long-running agent sessions.
-
-Before adding tmux back, write and review a short design that answers:
-
-- Is this core behavior or a plugin/adapter?
-- Should tmux be the default for all terminals, only agent terminals, or a workspace setting?
-- Does it use tmux control mode or another explicit integration contract?
-- How are panes, windows, tabs, and Exo terminal ids mapped?
-- Who owns scrollback: Exo, tmux, or both?
-- How does input delivery preserve exact whitespace and multiline prompts?
-- How are resize events coalesced?
-- What health states are exposed to users?
-- What happens on Exo quit, crash, app restart, terminal close, process exit, and macOS sleep/wake?
-- What automated and in-app QA proves it works?
-- How does a packaged app find and manage the tmux binary on machines where tmux is absent?
-- What is the user-facing recovery path when a tmux session is dead, detached, or out of sync with Exo metadata?
+- typing must feel immediate
+- mounted terminals must receive live append events only
+- xterm must not reset/replay during normal focus or tab switching
+- scrollback must be predictable and configurable
+- full transcripts must remain durable
+- no automated test should depend on live Claude/Codex inference
+- fake provider commands should cover agent-like terminal behavior deterministically
 
 ## Implementation Rule
 
-Do not add a second terminal transport, hidden fallback, or compatibility branch to the core terminal manager as an unreviewed hedge.
+Implement tmux behind one explicit terminal runtime boundary.
 
-If tmux comes back, it should replace the current default terminal runtime intentionally or live behind one explicit, tested runtime boundary. It should not be layered in as scattered fallback code.
+Allowed:
 
-Next implementation planning should compare these paths:
+- `TerminalManager` delegates lifecycle to a tmux-backed runtime.
+- `node-pty` attaches Exo to tmux for live rendering/input.
+- Exo persists its own session registry mapping Exo terminal ids to tmux sessions/panes.
+- Exo exposes clear health and recovery actions.
 
-1. Tmux-backed core terminals for process persistence.
-2. Direct pty plus explicit sleep/wake detection, unhealthy-state recovery, and provider resume.
-3. A hybrid model only if the boundary is simple, visible, and tested.
+Not allowed:
 
-Given current evidence, path 1 deserves first-class design consideration.
+- direct pty as a hidden fallback
+- user-facing runtime transport preference
+- scattered tmux command construction inside unrelated code
+- using React state as the live terminal output source
+- routine `terminals.read()` hydration for mounted/live terminals
+- automated tests that call real Claude/Codex inference
+
+## Detailed Plan
+
+See `docs/terminal-refactor-plan.md`.
+
+-- Shoshin | 2026-06-13

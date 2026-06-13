@@ -1,6 +1,6 @@
 # Exo Issues
 
-Last updated: 2026-06-12
+Last updated: 2026-06-13
 
 This is the active bug/QA tracker. It captures user-observed issues that need investigation before the next push/release pass.
 
@@ -78,7 +78,7 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
   - Add a first-launch diagnostics surface or clear log path in installer output.
   - Verify menu bar resident startup and onboarding window creation for unsigned local installs.
 
-### EXO-ISSUE-030: Direct pty terminals can break after macOS sleep and may need tmux-backed persistence
+### EXO-ISSUE-030: Direct pty terminals can break after macOS sleep and need tmux-backed persistence
 
 - Status: open
 - Severity: critical
@@ -90,13 +90,12 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
   - Transcript-based recovery is not equivalent because it preserves history but not the running build, CLI process, or agent session.
 - Current context:
   - Exo intentionally simplified core terminals to direct `node-pty` on 2026-05-28 to remove stale mixed tmux/direct code.
-  - Real-world sleep/wake behavior is now evidence that the direct-pty-only decision needs to be revisited; see `docs/terminal-runtime-decision.md`.
-  - Tmux-backed sessions are now a serious candidate for core daily-use terminals because process survival may matter more than marginal direct-pty latency.
+  - Real-world sleep/wake behavior is now evidence that direct pty should not remain the durable terminal runtime.
+  - The runtime decision is now tmux-backed core terminals with `node-pty` as the attach bridge; see `docs/terminal-runtime-decision.md`.
 - Next:
-  - Reproduce sleep/wake with shell, Claude, and Codex terminals.
-  - Add wake/resume diagnostics for pty process status, fd/write failures, and renderer stream state.
-  - Design the next terminal runtime path: tmux-backed core terminals, direct pty plus explicit resume recovery, or a visibly bounded hybrid.
-  - If tmux returns, define the tmux control/session model, metadata mapping, health diagnostics, missing-binary behavior, and app QA before implementation.
+  - Implement `docs/terminal-refactor-plan.md`.
+  - Add deterministic fake-agent terminal tests; do not use live Claude/Codex inference in automated QA.
+  - Validate against `docs/terminal-quality-standard.md`, including latency, corruption, scrollback, reattach, sleep/wake, and recovery behavior.
 
 ### EXO-ISSUE-029: `pnpm dev` can spawn a stray default Electron app window
 
@@ -247,7 +246,7 @@ These issues have fixes and coverage, but remain worth exercising during daily i
 
 - Status: fixed; reopened watch item for tab-switch rendering corruption
 - Severity: critical
-- Area: terminal renderer, terminal session switching, xterm performance, direct pty agent terminals
+- Area: terminal renderer, terminal session switching, xterm performance, terminal-agent runtime
 - Observed:
   - New terminals sometimes do not fully load.
   - Switching between terminals can show a blank surface or stale `[exited]` message, then recover after switching again.
@@ -255,7 +254,7 @@ These issues have fixes and coverage, but remain worth exercising during daily i
   - A tmux-backed Claude agent launched from `lab` completed an organization-protocol run and asked follow-up questions, but the terminal then became unresponsive and the user could not type a reply.
   - Fresh setup field report from 2026-06-02 found terminal display corruption, garbled output, misaligned text, or blank regions after refreshing or switching terminal tabs. The terminal remained functional and often self-corrected after later output.
 - Suspected reliability risks:
-  - Historical tmux-backed sessions added a second terminal layer that could hide dead, blocked, or detached panes behind a still-running attach process. The runtime direction is direct pty only; see `terminal-runtime-decision.md`.
+  - Historical tmux-backed sessions added a second terminal layer that could hide dead, blocked, or detached panes behind a still-running attach process. The new tmux-backed runtime must avoid that old failure mode through one explicit runtime boundary, health diagnostics, and deterministic QA; see `terminal-runtime-decision.md`.
   - Historical terminal activation/switching forced full-output reads and xterm replay, which made the renderer busy exactly when the user tried to type.
   - Large live terminal tails and transcript handling can amplify long agent outputs into expensive string work if they are treated as full-history state.
   - Only-visible terminal streaming can leave inactive terminals stale, then require a tail hydration read when switching back.
@@ -268,7 +267,7 @@ These issues have fixes and coverage, but remain worth exercising during daily i
   - Removed stale tmux runtime compatibility code, diagnostics, restore state, and transport UI/API fields from the core terminal path.
   - Reduced terminal typing/output lag by appending streamed chunks through an append-specific live stream path instead of trimming and comparing whole terminal output on every frame.
   - Explicit terminal reads now hydrate from bounded live tails so switching/restoring terminals still refreshes the xterm surface without pretending the live tail is durable history.
-  - Claude and Codex terminals now use direct pty only.
+  - Claude and Codex terminals currently use direct pty only; `EXO-ISSUE-030` tracks the planned tmux-backed persistence refactor.
   - Added terminal health, latency, transcript, and live-tail diagnostics in app IPC, command server, and `exo terminals diagnostics`.
   - Replaced main-process live terminal storage with a bounded line tail and bounded renderer-side terminal tracking.
   - Live active terminal output now streams directly into xterm through the terminal registry, avoiding React-owned full-output state as the primary render path.

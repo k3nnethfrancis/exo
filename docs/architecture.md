@@ -64,7 +64,7 @@ Exo has two separate lifecycle states:
 - the Exo process is running
 - the workspace window is visible
 
-The command server, MCP bridge, file watchers, transcript writers, and supervised pty agents belong to the running process, not to the visible window. Closing the main window hides the workspace UI while leaving those runtime services alive. Explicit app quit is the operation that stops live pty agents.
+The command server, MCP bridge, file watchers, transcript writers, and terminal-agent sessions belong to the running process, not to the visible window. Closing the main window hides the workspace UI while leaving those runtime services alive. Explicit app quit is the operation that stops or detaches live terminal agents according to the terminal runtime model.
 
 This distinction is central to multi-agent workflows: an external Codex or Claude agent can use Exo MCP to create, read, and message Exo-managed agents while the user keeps the Exo window hidden, then the user can reopen the window to monitor or take over those sessions.
 
@@ -78,16 +78,16 @@ For Exo-on-Exo development, the installed app is the stable resident runtime. So
 
 Terminals are the first agent interface.
 
-- shell, Claude, and Codex terminals use direct `node-pty` sessions
+- shell, Claude, and Codex terminals currently use direct `node-pty` sessions; the planned refactor moves durable processes into tmux with `node-pty` as the attach bridge
 - Exo session ids are local app ids such as `term-13`
 - terminal history policy is configured through workspace settings
 - `full` terminal history keeps Exo's live terminal tail at the configured full xterm line window
 - `custom` terminal history trims Exo's in-memory tail by the configured line count
 - terminal transcripts are persisted under `.exo/terminal-transcripts/`
 - transcript retention defaults to `forever`; optional day-based retention is explicit in settings
-- closing or killing a terminal terminates the supervised pty process
+- closing or killing a terminal currently terminates the supervised process; the tmux refactor must make terminate versus detach explicit
 
-See `terminal-runtime-decision.md` for the direct pty decision, tmux tradeoffs, and revisit criteria.
+See `terminal-runtime-decision.md`, `terminal-refactor-plan.md`, and `terminal-quality-standard.md` for the tmux-backed runtime direction and QA bar.
 
 The renderer should treat terminal sessions as live views over supervised processes, not as durable state by itself.
 

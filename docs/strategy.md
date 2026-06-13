@@ -20,7 +20,7 @@ Exo is organized around:
 - `note_roots[]` - Markdown knowledge roots selected by the user.
 - `project_roots[]` - explicitly attached project/code roots.
 - `terminal_sessions[]` - shell, Claude, Codex, and future local/open-source terminal agents.
-- `runtime_process` - the resident Exo process that owns the command server, MCP bridge, watchers, transcripts, and supervised pty agents independent of whether the workspace window is visible.
+- `runtime_process` - the resident Exo process that owns the command server, MCP bridge, watchers, transcripts, and terminal-agent runtime independent of whether the workspace window is visible.
 - `agent_context_files[]` - global and local `AGENTS.md` / `CLAUDE.md` files.
 - `exograph_profile` - user-defined schema/profile for interpreting files, properties, links, paths, sessions, and artifacts as graph nodes and relations.
 - `exograph_proposals[]` - inferred schema/graph/file changes that remain reviewable until accepted.
@@ -72,7 +72,7 @@ Already shipped:
 - Fast note filename/path search in explorer search mode.
 - Optional QMD-backed lexical, semantic, and hybrid notes index.
 - Claude, Codex, and shell terminals.
-- Direct pty terminal supervision with disk-backed transcripts for recovery context.
+- Current direct-pty terminal supervision with disk-backed transcripts; planned tmux-backed runtime for durable terminal-agent persistence.
 - Runtime command server and `bin/exo` CLI.
 - Exo MCP tools for live terminal agents.
 - MCP autostart and integration installer/doctor for Codex and Claude Code.
@@ -100,7 +100,7 @@ Files and terminals should become equal pane types. The next major UI shift is l
 
 ### Runtime Lifecycle And Menu Bar
 
-Exo should become a resident local runtime. The process should keep MCP, the command server, watchers, transcripts, and supervised pty agents alive when the workspace window is hidden. A macOS menu bar controller should expose Show Exo, Settings, status, recovery actions, and explicit Quit. This supports Exo-on-Exo multi-agent workflows without reintroducing tmux as a hidden persistence layer.
+Exo should become a resident local runtime. The process should keep MCP, the command server, watchers, transcripts, and terminal-agent sessions available when the workspace window is hidden. A macOS menu bar controller should expose Show Exo, Settings, status, recovery actions, and explicit Quit. The terminal runtime should move to explicit tmux-backed persistence rather than hidden fallback behavior.
 
 For day-to-day Exo-on-Exo development, the installed macOS app should be the stable resident runtime. Source builds should be isolated QA targets, not the same runtime the user relies on for monitoring, notes, and agent coordination. The practical split is:
 

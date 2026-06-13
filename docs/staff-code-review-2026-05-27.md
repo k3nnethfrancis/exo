@@ -4,18 +4,20 @@ Scope: post-modularization review of `apps/desktop/src/renderer/src/App.tsx`, `a
 
 Update 2026-05-28: the terminal runtime findings from the original review were resolved by the direct-pty simplification pass. Core terminals are now direct `node-pty` only, tmux runtime paths were removed, live display ownership stays in xterm, renderer hydration uses bounded tail snapshots, and full history is transcript-only. Keep future work focused on the remaining modularity and contract risks below.
 
+Update 2026-06-13: the direct-pty terminal guidance in this historical review is superseded by `terminal-runtime-decision.md`, `terminal-refactor-plan.md`, and `terminal-quality-standard.md`. The current decision is to move daily Exo terminals to a tmux-backed runtime with `node-pty` as the attach bridge, while preserving append-driven xterm rendering and deterministic terminal QA.
+
 ## Executive Summary
 
 The modularization moved real pieces out of the largest files (`terminal-ipc`, `workspace-ipc`, `settings-store`, watcher/transcript helpers, pane/tree helpers), but the repo is not yet at a stable modular boundary. `App.tsx` and `main/index.ts` still act as service locators plus business-logic hosts. That is now the main contributor-risk surface: future agents will naturally append behavior to these files because all state and examples are there.
 
-Highest-priority cleanup should focus on main-process service boundaries, renderer state-machine extraction, IPC contract typing, settings write races, and app lifecycle boundaries. Terminal work should preserve the current architecture: direct pty, xterm-owned live rendering, bounded hydration tails, and disk-backed transcripts for durable history.
+Highest-priority cleanup should focus on main-process service boundaries, renderer state-machine extraction, IPC contract typing, settings write races, and app lifecycle boundaries. Terminal work should preserve xterm-owned live rendering, bounded hydration tails, disk-backed transcripts, and the quality standard while moving process persistence behind the planned tmux-backed runtime boundary.
 
 ## Resolved Since Review
 
 ### Terminal Runtime And Rendering Ownership
 
-- Resolved by `docs/terminal-runtime-decision.md` and the direct-pty terminal cleanup.
-- New shell, Claude, and Codex sessions use direct `node-pty`; tmux is not part of the core runtime.
+- Resolved at the time by the direct-pty terminal cleanup; superseded for future runtime work by the 2026-06-13 tmux-backed decision.
+- New shell, Claude, and Codex sessions still use direct `node-pty` today; tmux-backed persistence is the planned next runtime.
 - Renderer terminal rendering is append-driven into xterm. React state is not the live output owner.
 - Hydration reads a bounded live tail. Full history is available through transcripts.
 - Remaining risk: `EXO-ISSUE-021` tracks the Electron/Playwright harness timeout after many serial app launches; affected terminal behavior passes focused tests.
@@ -36,7 +38,7 @@ Highest-priority cleanup should focus on main-process service boundaries, render
 ### P0 - App Runtime Lifecycle Is Not Yet A First-Class Boundary
 
 - Files: `apps/desktop/src/main/index.ts`
-- Risk: Exo needs to behave as a resident runtime that can keep MCP, the command server, watchers, transcripts, and supervised pty agents alive while the workspace window is hidden. If window lifecycle and runtime lifecycle stay tangled in `main/index.ts`, future multi-agent workflows will either require the app window to remain open or accidentally kill live agents on close.
+- Risk: Exo needs to behave as a resident runtime that can keep MCP, the command server, watchers, transcripts, and terminal-agent sessions available while the workspace window is hidden. If window lifecycle and runtime lifecycle stay tangled in `main/index.ts`, future multi-agent workflows will either require the app window to remain open or accidentally kill live agents on close.
 - Recommended refactor: extract `app-lifecycle.ts` or `window-manager.ts` around process/window/menu-bar ownership. Make close-window hide, explicit quit stop live agents, and menu bar actions restore the window or quit. Keep runtime services owned by the process composition root, not React.
 - Tests needed: main-process tests for close/hide/show/quit intent, command-server availability while hidden, and explicit quit warnings for live terminal sessions.
 

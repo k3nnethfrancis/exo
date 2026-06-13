@@ -67,13 +67,13 @@ The workspace should support files and terminals as equal pane types.
 Exo should be a resident local runtime, not only a visible desktop window.
 
 - The Exo process can keep running while the workspace window is hidden.
-- The command server, MCP bridge, watchers, transcripts, and supervised pty agents remain available while the process is running.
+- The command server, MCP bridge, watchers, transcripts, and terminal-agent sessions remain available while the process is running.
 - Closing the window hides it by default; quitting from the menu bar explicitly stops live agents.
 - A macOS menu bar icon exposes Show Exo, Settings, session/status indicators, command-server recovery, and Quit.
 - The installed macOS app is the stable daily runtime; source builds use an isolated QA runtime when testing changes side-by-side.
 - CLI and MCP commands should work whenever Exo is running, even if no window is visible.
 - If Exo is not running, CLI/MCP errors should clearly say that live agent control requires starting Exo.
-- Relaunch should show prior transcripts/session history without pretending dead pty processes survived.
+- Relaunch should reattach to durable terminal sessions once the tmux-backed runtime lands; until then, it should show prior transcripts/session history without pretending dead pty processes survived.
 
 The first version is in place: closing the window hides Exo, explicit Quit warns before stopping live terminals, the menu bar exposes runtime status plus recovery actions, and hidden-window CLI/MCP agent workflows have focused QA coverage.
 

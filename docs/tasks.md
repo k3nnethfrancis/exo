@@ -1,6 +1,6 @@
 # Exo Tasks
 
-Last updated: 2026-06-11
+Last updated: 2026-06-13
 
 This is the active task tracker for Exo. It is intentionally not a history file; completed implementation history belongs in `ledger.md`. Tasks here should be concrete, current, and ordered by practical priority.
 
@@ -9,7 +9,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [ ] Complete fresh-clone setup QA for `EXO-ISSUE-027`: frozen install, package build, user Applications install, and first launch logging.
 - [x] Complete first-run onboarding QA for `EXO-ISSUE-028`: existing notes folder selection, post-selection shell state, terminal cwd default, and settings Apply copy.
 - [ ] Reproduce and fix `EXO-ISSUE-029`: stray default Electron app window during `pnpm dev`.
-- [ ] Reproduce and fix `EXO-ISSUE-030`: terminal sleep/wake breakage and decide whether tmux-backed persistence should become the core terminal runtime.
+- [ ] Implement `EXO-ISSUE-030`: tmux-backed core terminal runtime with deterministic terminal-quality tests and no live-inference automated QA.
 - [ ] Reproduce and fix `EXO-ISSUE-031`: packaged app silently exits on first launch after local install.
 - [x] Mitigate `EXO-ISSUE-026`: installed app renderer runaway CPU/RSS during idle workspace use and missing renderer recovery after forced renderer death.
 - [x] Capture the current phased approach in `docs/usability-readiness.md`: readiness first, commit cleanup/push, installed-app daily use, live bug bash, then larger roadmap phases.
@@ -65,7 +65,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 ## Next: Runtime Lifecycle And Menu Bar
 
 - [x] Separate "Exo is running" from "Exo window is visible" in the product and architecture model.
-- [x] Keep the Exo process, command server, MCP bridge, watchers, transcripts, and supervised pty agents alive when the main window is closed.
+- [x] Keep the Exo process, command server, MCP bridge, watchers, transcripts, and terminal-agent sessions available when the main window is closed.
 - [x] Add a macOS menu bar resident mode with actions for Show Exo, Settings, agent/session status, restart command server, and Quit Exo.
 - [x] Add a first-class local macOS app install script for the resident runtime.
 - [x] Add an isolated `pnpm dev:qa` source-build profile so stable installed Exo and dev Exo do not share runtime state.

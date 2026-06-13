@@ -30,9 +30,9 @@ Exo is for people who want terminal agents to participate in their actual workin
 - Optional QMD-backed notes indexing with lexical, semantic, and hybrid modes.
 - Index status, sync, and settings controls for selected note roots.
 - Editor and terminal panes with flat tabs, split behavior, and no-empty-leaves pruning.
-- xterm/node-pty terminals rooted in the workspace by default.
+- xterm/node-pty terminals rooted in the workspace by default today; tmux-backed persistence is the planned terminal runtime refactor.
 - Claude and Codex terminal launchers backed by Exo runtime launch plans.
-- Direct pty terminal supervision with disk-backed transcripts for recovery context.
+- Disk-backed terminal transcripts for recovery context.
 - CLI and MCP control of live Exo terminal agents.
 - Integration helpers for installing Exo MCP into Codex and Claude Code.
 
@@ -300,7 +300,7 @@ See `docs/harness.md` for work-chunk rules, validation evidence, and agent-frien
 
 - Electron, React, TypeScript, Vite
 - CodeMirror 6
-- xterm.js, node-pty
+- xterm.js, node-pty, planned tmux-backed terminal persistence
 - pnpm workspaces
 - Vitest and Playwright
 - Model Context Protocol SDK
