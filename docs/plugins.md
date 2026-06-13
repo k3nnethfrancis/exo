@@ -14,7 +14,9 @@ That keeps Exo from overbuilding while still moving toward the long-term shape:
 - Claude, Codex, shell, and future agents become agent-launcher adapters behind an agent-launcher registry.
 - MCP and CLI stay separate product surfaces, with plugin contributions admitted only through policy.
 - WebView/browser panes stay core, while plugin-hosted apps can target that primitive later.
-- Workcells, evals, graph analyzers, search optimization, LM Wiki/Shoshin profiles, and personal workflows can become plugin-shaped without being forced into core.
+- Guardian Angel harnesses, workcells, evals, graph analyzers, search optimization, LM Wiki/Shoshin profiles, and personal workflows can become plugin-shaped without being forced into core.
+
+Guardian Angel is the reference workload for this architecture. It needs Exo to host experimental harnesses for principal-data elicitation, trace capture, accept/reject/correction review, psychological-model hypotheses, dataset export, eval packets, and instrumented agent runtimes. Those workflows should pressure Exo's plugin boundary, but they should not all become Exo core.
 
 ## Non-Goals For The First Pass
 
@@ -108,6 +110,9 @@ Initial registry kinds:
 - `settingsSection`
 - `paneKind`
 - `exographAnalyzer`
+- `traceCollector`
+- `datasetExporter`
+- `evalRunner`
 - `workflow`
 
 Each registration should have:
@@ -172,6 +177,22 @@ MCP exposure should require an explicit permission entry and a reviewable tool c
 
 Output: policy docs, tests for rejected/accepted surface registrations, and no arbitrary plugin loading yet.
 
+### Phase 4.5: Guardian Angel Harness Contract
+
+Before public plugin manifests, use Guardian Angel as the first reference plugin-shaped workload.
+
+The contract should answer:
+
+- Which Exo events are available to a harness: terminal session lifecycle, agent messages, transcript segments, file changes, user review labels, accepted/rejected/corrected outputs, and artifact creation.
+- Which review states are first-class: proposed, accepted, rejected, corrected, superseded, exported.
+- Where plugin-owned trace data lives under `.exo/`.
+- How traces link back to notes, files, terminal sessions, agents, prompts, outputs, and user corrections.
+- How a harness can export local JSONL without mixing private data into public artifacts.
+- Which surfaces belong in Exo UI versus CLI/MCP.
+- Which permissions are required for trace reads, note writes, project reads, terminal observation, model/API calls, network, and dataset export.
+
+This does not require building the full Guardian Angel plugin first. It does require making sure the plugin contracts can support the smallest GA Harness V0: run an elicitation session, capture principal responses and corrections, review examples, and export JSONL.
+
 ### Phase 5: Local Plugin Manifests
 
 Only after the internal registries are stable, add local plugin manifests.
@@ -215,8 +236,9 @@ This should be an operator/admin surface, not a new default workflow screen.
 3. Extract the QMD implementation behind a `SearchProvider` interface.
 4. Register built-in agent launcher metadata for shell, Claude, and Codex without changing behavior.
 5. Extract launch planning behind an `AgentLauncher` interface.
-6. Add docs and harness checks so new hardwired provider/launcher branches are rejected unless they go through the registry.
-7. Only then design local plugin manifests and permissioned loading.
+6. Define the Guardian Angel Harness V0 contract as the first plugin-shaped reference workload.
+7. Add docs and harness checks so new hardwired provider/launcher/harness branches are rejected unless they go through the registry.
+8. Only then design local plugin manifests and permissioned loading.
 
 ## Agent Plugins
 
