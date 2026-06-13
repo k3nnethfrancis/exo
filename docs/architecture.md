@@ -31,9 +31,11 @@ The immediate architecture is current-package domain modules, not a new runtime 
 - keep `packages/core` as portable models, pure transforms, runtime config, and shared protocols
 - keep `packages/cli` and `packages/mcp` as command-server clients
 - move to a `packages/runtime` only after resident lifecycle and multi-agent coordination produce stable process-owned service contracts
-- delay plugin registries until core runtime primitives are stable enough to expose
+- introduce plugin-shaped internal registries only where core runtime primitives are stable enough to expose
 
 This staged approach lets Exo ship resident runtime features without prematurely freezing plugin or runtime APIs.
+
+The first plugin architecture pass should not load arbitrary third-party code. It should define typed internal registries for built-in capabilities, then migrate hardwired behavior onto those contracts. The first two practical seams are search providers and agent launchers because QMD and shell/Claude/Codex are already plugin-shaped but currently hardwired.
 
 ## Runtime Command Server
 
@@ -229,6 +231,8 @@ Search lives in the explorer search pane and keeps live typing fast. QMD-backed 
 QMD integration lives behind `packages/core/src/qmd.ts`. The desktop command server exposes status, search, read, sync, update, and embed routes. CLI can use the full notes-index route set; MCP uses search/read and summarizes index status through `workspace_status` rather than instantiating its own QMD store. See `qmd-integration-notes.md` for the dependency boundary and upgrade checklist.
 
 Longer term, QMD should be the default implementation of a search-provider contract, not the only possible retrieval architecture. The provider contract should cover capability discovery, status/health, search, read/resolve target, optional graph hints, sync/update, cancellation, and diagnostics. MCP should receive the stable search/document operations; CLI/UI should own provider setup, sync, repair, and diagnostics.
+
+The next architecture step is to make that provider contract real internally before adding public plugin loading. QMD remains the only built-in provider until there is a real second provider to test the boundary against.
 
 ## Note Graph And Wiki Maintenance
 

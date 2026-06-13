@@ -100,6 +100,7 @@ CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build 
 - Exo should not impose one vault schema. It may detect, recommend, and maintain structures such as Shoshin or LM Wiki profiles, but users own the schema.
 - QMD is the default notes-index/search provider behind Exo-managed lexical/semantic/hybrid search, CLI, and MCP tools, not the permanent product boundary.
 - Keep QMD calls behind `packages/core/src/qmd.ts`; do not patch `node_modules` or fork QMD casually.
+- Plugin architecture starts as typed internal capability registries, not arbitrary third-party code loading. Move built-in QMD/search and shell/Claude/Codex launcher seams behind registry contracts before adding manifests, package loading, or a Plugin Manager UI.
 - Future provenance work should track human vs agent-authored changes by source, session, and task.
 - Project-root mutation belongs in UI/CLI operator surfaces; MCP may inspect attached roots through workspace status but should stay a narrow agent work plane.
 - Workcells/evals/training/search-optimization harnesses should probably be plugin sets unless they become necessary for the default Exo-on-Exo loop.

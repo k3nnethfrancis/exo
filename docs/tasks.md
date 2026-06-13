@@ -147,6 +147,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Decide the CLI/MCP philosophy for note and graph tools: CLI is broad operator/admin/debug; MCP is the narrow agent work plane.
 - [ ] Keep project files out of the notes memory index unless explicitly added later.
 - [ ] Design the search-provider interface for capability discovery, status, search, read/resolve, graph hints, sync/update, cancellation, and diagnostics.
+- [ ] Move QMD behind the internal `SearchProvider` contract while preserving current UI/CLI/MCP behavior.
 - [ ] Add note traversal and graph context primitives: files/folders, document metadata, headings/outline, outgoing links, backlinks, unresolved links, orphans, and related documents.
 - [ ] Add scoped note write primitives after graph/read primitives are stable: create, append, and guarded patch within selected note roots.
 - [ ] Add LM Wiki maintenance reports for stale pages, orphan pages, unresolved links, missing cross-links, contradiction candidates, and missing source questions.
@@ -173,6 +174,18 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [ ] Add communication logs and audit trail UI.
 - [ ] Support routing messages through MCP and filesystem-backed channels.
 - [ ] Keep terminal agents as the first integration point; add richer direct transports later.
+
+## Next: Plugin Architecture Foundations
+
+- [x] Scope the plugin architecture as internal capability registries first, not arbitrary third-party code loading.
+- [ ] Add core capability contract types and a built-in registry with tests.
+- [ ] Register built-in QMD search-provider metadata without changing behavior.
+- [ ] Extract QMD behind a `SearchProvider` interface.
+- [ ] Register built-in shell, Claude, and Codex agent-launcher metadata without changing behavior.
+- [ ] Extract shell/Claude/Codex launch planning behind an `AgentLauncher` interface.
+- [ ] Define permissioned surface-contribution policy for desktop, CLI, MCP, and command-server exposure.
+- [ ] Add architecture/harness checks that discourage new hardwired provider or launcher conditionals outside the registry path.
+- [ ] Defer local plugin manifests, install locations, marketplace/package loading, and Plugin Manager UI until the internal registry contracts survive real use.
 
 ## Later: Graph, Memory, Workcells, Training
 

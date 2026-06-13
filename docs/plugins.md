@@ -1,8 +1,32 @@
 # Plugin Architecture
 
-Last updated: 2026-05-20
+Last updated: 2026-06-13
 
 Exo should support a plugin path so users can extend their exograph without requiring every feature to land in core.
+
+## Current Decision
+
+Plugin architecture is now the next platform workstream after terminal/runtime usability. The immediate goal is not public third-party plugin loading. The immediate goal is to turn the extension seams Exo already needs into typed internal registries, then migrate hardwired behavior onto those registries.
+
+That keeps Exo from overbuilding while still moving toward the long-term shape:
+
+- QMD becomes the default search provider behind a search-provider registry.
+- Claude, Codex, shell, and future agents become agent-launcher adapters behind an agent-launcher registry.
+- MCP and CLI stay separate product surfaces, with plugin contributions admitted only through policy.
+- WebView/browser panes stay core, while plugin-hosted apps can target that primitive later.
+- Workcells, evals, graph analyzers, search optimization, LM Wiki/Shoshin profiles, and personal workflows can become plugin-shaped without being forced into core.
+
+## Non-Goals For The First Pass
+
+- Do not load arbitrary user JavaScript or native code.
+- Do not allow plugins to bypass the existing main/preload/renderer security boundary.
+- Do not let plugins add MCP tools by default.
+- Do not add a plugin marketplace or package installer.
+- Do not make QMD optional in the UI before there is a real second provider.
+- Do not move unstable services into `packages/runtime` only to create a cleaner diagram.
+- Do not use plugins as a dumping ground for behavior that should be a stable Exo primitive.
+
+The first pass should produce the stable contracts that later plugin loading can use.
 
 ## Why Plugins Matter
 
@@ -27,7 +51,7 @@ Core should own:
 - editor, terminal, and WebView/browser pane system
 - Exo CLI and MCP contracts
 - terminal-agent lifecycle
-- command, settings, pane/view, agent launcher, search provider, and workflow registries
+- command, settings, pane/view, agent launcher, search provider, exograph analyzer, and workflow registries
 - settings and security boundaries
 - notes index integration points
 - provenance and communication primitives
@@ -57,6 +81,142 @@ Not every plugin has the same relationship to Exo. The plugin model should suppo
 - Workflow plugins: compose Exo primitives into a process. Examples: run eval, collect traces, score results, produce a report, and prepare a PR.
 
 The browser/WebView pane is a core primitive, not merely a plugin. Many unrelated workflows need a safe way to show local web apps, documentation previews, dashboards, and artifacts. Plugins can target that primitive with their own apps.
+
+## Implementation Phases
+
+### Phase 0: Contract Inventory
+
+Document every place where Exo already has plugin-shaped behavior but no registry:
+
+- `packages/core/src/qmd.ts` owns the only search/index provider implementation.
+- `packages/core/src/runtime.ts` owns shell/Claude/Codex launcher resolution.
+- `packages/mcp/src/index.ts` registers the current MCP tool surface directly.
+- `packages/cli/src/index.ts` owns CLI command routing directly.
+- `apps/desktop` owns pane kinds, settings sections, command-server routes, and renderer UI surfaces directly.
+
+Output: this document, current architecture notes, and concrete tasks before code movement.
+
+### Phase 1: Internal Capability Registry
+
+Create an internal registry model in `packages/core` for Exo-owned capabilities. This is not external plugin loading; it is how first-party modules declare what they provide.
+
+Initial registry kinds:
+
+- `searchProvider`
+- `agentLauncher`
+- `appCommand`
+- `settingsSection`
+- `paneKind`
+- `exographAnalyzer`
+- `workflow`
+
+Each registration should have:
+
+- stable id
+- human label and description
+- owning package/module
+- capability type
+- lifecycle state: built-in, experimental, disabled
+- required permissions
+- exported public surfaces: desktop, CLI, MCP, or internal-only
+
+Output: typed contracts and registry tests. No user-facing plugin UI yet.
+
+### Phase 2: Search Provider Boundary
+
+Move QMD behind a `SearchProvider` interface while keeping QMD as the only built-in provider.
+
+The provider contract should cover:
+
+- capability discovery
+- status/health
+- search
+- read/resolve target
+- optional graph hints
+- sync/update/embed where supported
+- cancellation/progress hooks
+- diagnostics
+
+CLI/UI may expose provider administration. MCP receives stable search/read/document-context operations only.
+
+Output: QMD adapter implements the interface, existing CLI/MCP/UI behavior preserved, tests prove no public behavior drift.
+
+### Phase 3: Agent Launcher Boundary
+
+Move shell, Claude, and Codex launch plans behind an `AgentLauncher` interface while preserving current defaults.
+
+The launcher contract should cover:
+
+- kind/id
+- title/icon metadata
+- command/args/env/cwd planning
+- readiness hints
+- instruction-overlay env contract
+- supported message submission semantics
+- provenance hooks
+
+Future Pi, Aider, Goose, OpenCode, and local/open-source agents should use this path instead of hardwired conditionals.
+
+Output: existing shell/Claude/Codex launches behave identically; tests prove launcher discovery, env rendering, and MCP/CLI `create_agent` compatibility.
+
+### Phase 4: Permissioned Surface Contributions
+
+Define how a registered capability may request exposure through each surface:
+
+- Desktop UI: panes, settings sections, commands, status widgets, editor decorations.
+- CLI: broad operator/admin/debug commands.
+- MCP: narrow agent work-plane tools only.
+- Command server: internal runtime routes, not direct public API by default.
+
+MCP exposure should require an explicit permission entry and a reviewable tool contract. Plugin-added MCP tools should be rare and agent-safe.
+
+Output: policy docs, tests for rejected/accepted surface registrations, and no arbitrary plugin loading yet.
+
+### Phase 5: Local Plugin Manifests
+
+Only after the internal registries are stable, add local plugin manifests.
+
+Likely manifest fields:
+
+- `id`, `name`, `version`, `exoApiVersion`
+- `entrypoints`
+- `capabilities`
+- `permissions`
+- `settingsSchema`
+- `surfaces`
+- `stateDirectory`
+- `trustedBy`
+
+Candidate locations:
+
+- user-level: `~/Library/Application Support/Exo/plugins/`
+- workspace-level: `${workspace_root}/.exo/plugins/`
+- repo/dev-level: `plugins/` for first-party development
+
+Workspace-level plugins should be disabled by default until trusted because they can arrive through cloned repos.
+
+### Phase 6: Plugin Manager UI
+
+Add a compact Settings surface after the manifest and permission model exist:
+
+- installed plugins
+- enabled/disabled state
+- permissions
+- state location
+- logs/errors
+- uninstall/remove state
+
+This should be an operator/admin surface, not a new default workflow screen.
+
+## First Work Chunks
+
+1. Add core capability contract types and a built-in registry with tests.
+2. Register built-in search provider metadata for QMD without changing behavior.
+3. Extract the QMD implementation behind a `SearchProvider` interface.
+4. Register built-in agent launcher metadata for shell, Claude, and Codex without changing behavior.
+5. Extract launch planning behind an `AgentLauncher` interface.
+6. Add docs and harness checks so new hardwired provider/launcher branches are rejected unless they go through the registry.
+7. Only then design local plugin manifests and permissioned loading.
 
 ## Agent Plugins
 

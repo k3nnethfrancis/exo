@@ -178,6 +178,7 @@ These are later systems built on top of the shared workspace. Core should own ru
 
 Exo should be extensible without making every personal or domain-specific workflow part of core.
 
+- The first plugin architecture phase is internal contracts, not public plugin loading. Exo should define registries for built-in capabilities, then migrate QMD search and shell/Claude/Codex launchers onto those contracts before loading external code.
 - Core owns stable primitives: notes, project roots, panes, WebView/browser panes, commands, agents, messages, exograph profiles, search, settings, runs, artifacts, provenance, proposals, and permission boundaries.
 - Plugins are packages of Exo extensions. A plugin may include backend capabilities, commands, MCP/CLI tools, UI panels, editor extensions, or a web app hosted inside an Exo WebView pane.
 - Web apps are one possible plugin surface, not the whole plugin model. Browser/WebView support belongs in core because local previews, docs, dashboards, and future plugin apps all need the same pane/runtime primitive.
@@ -186,6 +187,7 @@ Exo should be extensible without making every personal or domain-specific workfl
 - Plugin APIs should be versioned and documented before public plugin sharing is encouraged.
 - Plugins should compose through stable registries instead of monkey-patching core internals: command registry, settings registry, pane/view registry, agent launcher registry, search provider registry, exograph analyzer registry, MCP/CLI registry, and workflow/eval/training registries.
 - Capability permissions must be explicit for filesystem scopes, process/terminal access, network access, git write/PR rights, secrets, and MCP exposure.
+- Public manifests, install locations, package loading, and a Plugin Manager UI come after the internal registry contracts have been proven by current first-party capabilities.
 
 ## 14. Self-Modifying Exo
 
