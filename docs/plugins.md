@@ -11,10 +11,10 @@ Plugin architecture is now the next platform workstream after terminal/runtime u
 That keeps Exo from overbuilding while still moving toward the long-term shape:
 
 - QMD becomes the default search provider behind a search-provider registry.
-- Claude, Codex, shell, and future agents become agent-launcher adapters behind an agent-launcher registry.
+- Claude, Codex, shell, and future agents become agent-harness adapters behind an agent-harness registry.
 - MCP and CLI stay separate product surfaces, with plugin contributions admitted only through policy.
 - WebView/browser panes stay core, while plugin-hosted apps can target that primitive later.
-- Guardian Angel harnesses, workcells, evals, graph analyzers, search optimization, LM Wiki/Shoshin profiles, and personal workflows can become plugin-shaped without being forced into core.
+- Guardian Angel harnesses, workcells, evals, graph analyzers, search optimization, LM Wiki/Shoshin profiles, and personal routines can become plugin-shaped without being forced into core.
 
 Guardian Angel is the reference workload for this architecture. It needs Exo to host experimental harnesses for principal-data elicitation, trace capture, accept/reject/correction review, psychological-model hypotheses, dataset export, eval packets, and instrumented agent runtimes. Those workflows should pressure Exo's plugin boundary, but they should not all become Exo core.
 
@@ -40,7 +40,7 @@ Examples that likely belong in plugins:
 - custom note transforms
 - domain-specific graph panels
 - local research/workcell surfaces
-- extra agent launchers
+- extra agent harnesses
 - custom memory/index visualizations
 - project-specific panels or commands
 
@@ -53,7 +53,7 @@ Core should own:
 - editor, terminal, and WebView/browser pane system
 - Exo CLI and MCP contracts
 - terminal-agent lifecycle
-- command, settings, pane/view, agent launcher, search provider, exograph analyzer, and workflow registries
+- command, settings, pane/view, agent harness, search provider, exograph analyzer, exporter, eval, and routine-template registries
 - settings and security boundaries
 - notes index integration points
 - provenance and communication primitives
@@ -66,11 +66,11 @@ Plugins can add:
 - CLI commands and MCP tools where permissioned
 - file transforms
 - graph/memory views
-- agent launchers and helpers
+- agent harnesses and helpers
 - search/index providers
 - trace collectors, eval runners, scorers, dashboards, and training/export flows
 - web apps hosted in Exo WebView panes
-- project-specific workflows
+- project-specific routines and routine templates
 - integrations with external tools
 
 ## Plugin Depths
@@ -79,8 +79,8 @@ Not every plugin has the same relationship to Exo. The plugin model should suppo
 
 - App plugins: mostly run as an app inside an Exo WebView pane. Examples: local web-app previews, eval dashboards, graph dashboards, custom notebook tools.
 - Surface plugins: add Exo-native UI surfaces. Examples: side panels, status widgets, editor decorations, command palette actions.
-- Capability plugins: add backend abilities. Examples: agent launchers, MCP tools, CLI commands, search providers, trace collectors, eval runners.
-- Workflow plugins: compose Exo primitives into a process. Examples: run eval, collect traces, score results, produce a report, and prepare a PR.
+- Capability plugins: add backend abilities. Examples: agent harnesses, MCP tools, CLI commands, search providers, trace collectors, eval runners.
+- Routine/template plugins: ship prompts, templates, default schedules, and review/output policies that Exo can run through a selected harness. Examples: run eval, collect traces, score results, produce a report, and prepare a PR.
 
 The browser/WebView pane is a core primitive, not merely a plugin. Many unrelated workflows need a safe way to show local web apps, documentation previews, dashboards, and artifacts. Plugins can target that primitive with their own apps.
 
@@ -105,7 +105,7 @@ Create an internal registry model in `packages/core` for Exo-owned capabilities.
 Initial registry kinds:
 
 - `searchProvider`
-- `agentLauncher`
+- `agentHarness`
 - `appCommand`
 - `settingsSection`
 - `paneKind`
@@ -113,7 +113,7 @@ Initial registry kinds:
 - `traceCollector`
 - `datasetExporter`
 - `evalRunner`
-- `workflow`
+- `routineTemplate`
 
 Each registration should have:
 
@@ -146,9 +146,9 @@ CLI/UI may expose provider administration. MCP receives stable search/read/docum
 
 Output: QMD adapter implements the interface, existing CLI/MCP/UI behavior preserved, tests prove no public behavior drift.
 
-### Phase 3: Agent Launcher Boundary
+### Phase 3: Agent Harness Boundary
 
-Move shell, Claude, and Codex launch plans behind an `AgentLauncher` interface while preserving current defaults.
+Move shell, Claude, and Codex launch plans behind an `AgentHarness` interface while preserving current defaults.
 
 The launcher contract should cover:
 
@@ -163,6 +163,32 @@ The launcher contract should cover:
 Future Pi, Aider, Goose, OpenCode, and local/open-source agents should use this path instead of hardwired conditionals.
 
 Output: existing shell/Claude/Codex launches behave identically; tests prove launcher discovery, env rendering, and MCP/CLI `create_agent` compatibility.
+
+### Phase 3.5: Routine And Harness Skill Inventory Contract
+
+Do not model workflow as an executable plugin kind. The product concept is a Routine.
+
+A Routine is:
+
+- prompt
+- selected harness
+- optional required harness skills
+- manual trigger or schedule
+- scope
+- permissions
+- output policy
+
+Each execution is a Run with status, logs, transcripts, artifacts, proposed changes, errors, and review state.
+
+Skills are capabilities available inside a harness. A prompt may ask the harness to use a skill, but Exo must be able to detect and warn when the selected harness does not expose that skill. Later, Exo should manage skills across harnesses in the same spirit as agent config management:
+
+- which skills are installed
+- which harnesses can use them
+- where the skill/config files live
+- compatibility warnings
+- sync/copy/install actions across supported harnesses
+
+The first implementation can be metadata-only. Full cross-provider skill management comes later.
 
 ### Phase 4: Permissioned Surface Contributions
 
@@ -234,15 +260,16 @@ This should be an operator/admin surface, not a new default workflow screen.
 1. Add core capability contract types and a built-in registry with tests.
 2. Register built-in search provider metadata for QMD without changing behavior.
 3. Extract the QMD implementation behind a `SearchProvider` interface.
-4. Register built-in agent launcher metadata for shell, Claude, and Codex without changing behavior.
-5. Extract launch planning behind an `AgentLauncher` interface.
-6. Define the Guardian Angel Harness V0 contract as the first plugin-shaped reference workload.
-7. Add docs and harness checks so new hardwired provider/launcher/harness branches are rejected unless they go through the registry.
-8. Only then design local plugin manifests and permissioned loading.
+4. Register built-in agent harness metadata for shell, Claude, and Codex without changing behavior.
+5. Extract launch planning behind an `AgentHarness` interface.
+6. Define Routine and harness skill inventory contracts.
+7. Define the Guardian Angel Harness V0 contract as the first plugin-shaped reference workload.
+8. Add docs and harness checks so new hardwired provider/harness branches are rejected unless they go through the registry.
+9. Only then design local plugin manifests and permissioned loading.
 
 ## Agent Plugins
 
-Specific coding agents should be adapter-shaped where possible. Exo core defines the contract:
+Specific coding agents should be adapter-shaped where possible. Exo core defines the harness contract:
 
 - launch command, cwd, environment, and arguments
 - terminal/session adapters
@@ -250,6 +277,7 @@ Specific coding agents should be adapter-shaped where possible. Exo core defines
 - MCP/CLI tools exposed to the agent
 - optional metadata such as model, provider, objective, and capabilities
 - optional hooks for provenance, code review, and PR workflows
+- optional harness skill inventory
 
 Claude, Codex, Pi, Aider, Goose, OpenCode, and local/open-source agents can then be first-party or community plugins. A custom Pi fork can be an official/reference plugin without requiring Pi-specific behavior to be hardwired into core.
 
@@ -275,7 +303,7 @@ Plugins can own concrete behavior:
 - provider integrations
 - dashboards
 - training-data exports
-- workflow recipes
+- routine templates and prompts
 
 An eval system may include a web dashboard, but it should not be only a hosted web app. It needs privileged, permissioned access to Exo's agent sessions, terminal logs, files, search, git state, and artifacts through stable APIs.
 
@@ -299,7 +327,7 @@ An eval system may include a web dashboard, but it should not be only a hosted w
 - How are plugin settings stored and exported?
 - How should WebView apps receive data from backend plugin capabilities?
 - Which run/artifact/provenance primitives must exist before eval/tracing plugins are useful?
-- What minimum API is needed before building personal note-branching or versioning workflows?
+- What minimum API is needed before building personal note-branching, versioning, or scheduled Routine templates?
 
 ## Initial Task Direction
 
@@ -310,7 +338,8 @@ Before building personal extension features into core, define:
 - safe renderer panel and WebView app APIs
 - command registration API
 - settings API
-- agent launcher API
+- agent harness API
+- Routine and harness skill inventory contracts
 - MCP/CLI registration policy
 - capability permission model
 - compatibility/version policy

@@ -126,12 +126,12 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [ ] Explore block-level or line-level provenance only where Exo can track it reliably.
 - [ ] Avoid AI-detector-style inference; provenance should come from observed writes and controlled workflows.
 
-## Next: Feed, Scheduler, And Workflow Runs
+## Next: Feed, Scheduler, And Routine Runs
 
 - [ ] Define the feed/event item model for incoming and generated context: quick capture, RSS/bookmark/web clip, voice transcript, file change, terminal-agent output, MCP message, workflow result, git event, Guardian Angel elicitation response, eval result, and training artifact.
 - [ ] Define feed item review/promote/archive semantics without requiring an `/inbox/` folder.
-- [ ] Define the core scheduler model: schedule, selected harness, selected skill/workflow, scope, permissions, output policy, logs, traces, artifacts, review state, and recovery.
-- [ ] Define how skills/workflows are represented as run instructions executed by a selected harness, not as independent worker runtimes.
+- [ ] Define the core Routine model: prompt, selected harness, optional required harness skills, manual trigger or schedule, scope, permissions, output policy, logs, traces, artifacts, review state, and recovery.
+- [ ] Define how harness skill inventory is represented so Exo can warn when a Routine prompt references a skill the selected harness does not expose.
 - [ ] Add first scheduler candidate use cases: update entities, graph health, organize wiki, Guardian Angel elicitation, training export, eval run, and Exo-on-Exo maintenance.
 - [ ] Decide initial implementation target for scheduled runs: CLI-only MVP, resident app scheduler, or both with one shared run store.
 
@@ -194,8 +194,9 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [ ] Add core capability contract types and a built-in registry with tests.
 - [ ] Register built-in QMD search-provider metadata without changing behavior.
 - [ ] Extract QMD behind a `SearchProvider` interface.
-- [ ] Register built-in shell, Claude, and Codex agent-launcher metadata without changing behavior.
-- [ ] Extract shell/Claude/Codex launch planning behind an `AgentLauncher` interface.
+- [ ] Register built-in shell, Claude, and Codex agent-harness metadata without changing behavior.
+- [ ] Extract shell/Claude/Codex launch planning behind an `AgentHarness` interface.
+- [ ] Define Routine and harness skill inventory contracts before implementing scheduler UI.
 - [ ] Use Guardian Angel as the first reference workload for plugin contracts: trace collection, review labels, dataset export, eval packets, and instrumented agent runtimes.
 - [ ] Define a Guardian Angel Harness V0 contract before public plugin manifests.
 - [ ] Make Guardian Angel plugin requirements OKF-aware: curated knowledge as OKF concept documents; raw traces, labels, eval packets, and training exports as linked local artifacts.
@@ -220,14 +221,14 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 
 - [ ] Define plugin manifest shape and version policy.
 - [ ] Define plugin install/load locations.
-- [ ] Define plugin extension depths: app plugins, surface plugins, capability plugins, and workflow plugins.
+- [ ] Define plugin extension depths: app plugins, surface plugins, capability plugins, and routine/template plugins.
 - [ ] Define safe renderer panel and WebView app extension points.
 - [ ] Define command registration API.
 - [ ] Define settings API for plugin-owned state.
-- [ ] Define agent launcher adapter API for Claude, Codex, Pi, Aider, Goose, OpenCode, and local/open-source agents.
+- [ ] Define agent harness adapter API for Claude, Codex, Pi, Aider, Goose, OpenCode, and local/open-source agents.
 - [ ] Decide how plugins can add MCP tools or CLI commands under explicit permissions.
 - [ ] Define capability permissions for filesystem scopes, process/terminal access, network access, git write/PR rights, secrets, and MCP exposure.
-- [ ] Define search provider, trace collector, eval runner, and workflow extension points.
+- [ ] Define search provider, trace collector, eval runner, exporter, and routine-template extension points.
 - [ ] Decide whether the current branch-family file convention remains core or moves behind a plugin boundary.
 - [ ] Keep optional personal/domain workflows out of core until the plugin boundary exists.
 
