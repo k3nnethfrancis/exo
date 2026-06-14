@@ -53,6 +53,7 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 
 ## Recent Completed Work
 
+- Added the first Routine/Run contracts in `@exo/core`: Routine definitions now model prompt, harness, required skills, trigger, scope, permissions, and output policy; Run records model status, review state, transcripts/logs, artifacts, proposed changes, and errors; harnesses expose skill inventories with a helper for missing required skills.
 - Moved shell, Claude, and Codex launch planning behind the first `AgentHarness` contract in `@exo/core`: built-in harnesses now expose capability metadata and resolve launcher configs while `runtime.ts` remains the compatibility facade used by terminal manager, CLI, and MCP.
 - Moved QMD behind the first `SearchProvider` contract in `@exo/core`: the QMD implementation now lives as a provider with capability metadata while `qmd.ts` remains a compatibility facade for existing desktop, CLI, MCP, and command-server callers.
 - Added the first internal plugin-architecture primitive in `@exo/core`: typed capability metadata, a duplicate-safe registry, built-in QMD search-provider metadata, built-in shell/Claude/Codex agent-harness metadata, and focused registry tests without changing runtime behavior.

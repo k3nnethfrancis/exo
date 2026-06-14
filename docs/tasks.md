@@ -130,8 +130,8 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 
 - [ ] Define the feed/event item model for incoming and generated context: quick capture, RSS/bookmark/web clip, voice transcript, file change, terminal-agent output, MCP message, workflow result, git event, Guardian Angel elicitation response, eval result, and training artifact.
 - [ ] Define feed item review/promote/archive semantics without requiring an `/inbox/` folder.
-- [ ] Define the core Routine model: prompt, selected harness, optional required harness skills, manual trigger or schedule, scope, permissions, output policy, logs, traces, artifacts, review state, and recovery.
-- [ ] Define how harness skill inventory is represented so Exo can warn when a Routine prompt references a skill the selected harness does not expose.
+- [x] Define the core Routine model: prompt, selected harness, optional required harness skills, manual trigger or schedule, scope, permissions, output policy, logs, traces, artifacts, review state, and recovery.
+- [x] Define how harness skill inventory is represented so Exo can warn when a Routine prompt references a skill the selected harness does not expose.
 - [ ] Add first scheduler candidate use cases: update entities, graph health, organize wiki, Guardian Angel elicitation, training export, eval run, and Exo-on-Exo maintenance.
 - [ ] Decide initial implementation target for scheduled runs: CLI-only MVP, resident app scheduler, or both with one shared run store.
 
@@ -197,7 +197,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Extract QMD behind a `SearchProvider` interface.
 - [x] Register built-in shell, Claude, and Codex agent-harness metadata without changing behavior.
 - [x] Extract shell/Claude/Codex launch planning behind an `AgentHarness` interface.
-- [ ] Define Routine and harness skill inventory contracts before implementing scheduler UI.
+- [x] Define Routine and harness skill inventory contracts before implementing scheduler UI.
 - [ ] Use Guardian Angel as the first reference workload for plugin contracts: trace collection, review labels, dataset export, eval packets, and instrumented agent runtimes.
 - [ ] Define a Guardian Angel Harness V0 contract before public plugin manifests.
 - [ ] Make Guardian Angel plugin requirements OKF-aware: curated knowledge as OKF concept documents; raw traces, labels, eval packets, and training exports as linked local artifacts.

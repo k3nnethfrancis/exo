@@ -58,6 +58,7 @@ class ShellAgentHarness implements AgentHarness {
   readonly kind = "shell";
   readonly title = "Terminal";
   readonly metadata = resolveCapabilityMetadata(this.kind);
+  readonly skills = [];
 
   resolveLauncher(env: NodeJS.ProcessEnv): AgentLauncherConfig {
     const command = env.EXO_SHELL ?? env.SHELL ?? "/bin/zsh";
@@ -76,6 +77,7 @@ class ClaudeAgentHarness implements AgentHarness {
   readonly kind = "claude";
   readonly title = "Claude";
   readonly metadata = resolveCapabilityMetadata(this.kind);
+  readonly skills = [];
 
   resolveLauncher(env: NodeJS.ProcessEnv): AgentLauncherConfig {
     return {
@@ -91,6 +93,7 @@ class CodexAgentHarness implements AgentHarness {
   readonly kind = "codex";
   readonly title = "Codex";
   readonly metadata = resolveCapabilityMetadata(this.kind);
+  readonly skills = [];
 
   resolveLauncher(env: NodeJS.ProcessEnv): AgentLauncherConfig {
     return {
