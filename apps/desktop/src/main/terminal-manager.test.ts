@@ -297,6 +297,27 @@ describe("TerminalManager Codex readiness", () => {
     expect(manager.readTranscript(terminal.id)).toContain("line-1");
   });
 
+  it("applies configured live scrollback to tmux history", async () => {
+    const workspaceRoot = await workspaceFixture();
+    const manager = new TerminalManager(workspaceRoot, 24_000);
+
+    await manager.create({ kind: "shell", cwd: workspaceRoot });
+
+    expect(childProcess.execFileSync.mock.calls).toContainEqual([
+      "tmux",
+      ["set-option", "-t", spawnedTmuxSessionName(0), "history-limit", "24000"],
+      expect.any(Object),
+    ]);
+
+    manager.setBufferLineLimit(500);
+
+    expect(childProcess.execFileSync.mock.calls).toContainEqual([
+      "tmux",
+      ["set-option", "-t", spawnedTmuxSessionName(0), "history-limit", "500"],
+      expect.any(Object),
+    ]);
+  });
+
   it("fails terminal creation clearly when tmux is unavailable", async () => {
     childProcess.spawnSync.mockReturnValue({ status: 1, stdout: "", stderr: "" });
     const workspaceRoot = await workspaceFixture();

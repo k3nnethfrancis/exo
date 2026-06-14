@@ -170,6 +170,7 @@ export class TerminalManager extends EventEmitter {
     this.bufferLineLimit = normalizeBufferLineLimit(bufferLineLimit);
     for (const record of this.sessions.values()) {
       record.buffer.setLineLimit(this.bufferLineLimit);
+      this.applyTmuxHistoryLimit(record);
     }
   }
 
@@ -223,6 +224,7 @@ export class TerminalManager extends EventEmitter {
         env,
       },
     );
+    this.applyTmuxHistoryLimitByName(tmux.runner, tmuxSessionName);
 
     const processHandle = pty.spawn(tmux.availability.path, ["attach-session", "-t", tmuxSessionName], {
       cols: 120,
@@ -729,6 +731,7 @@ export class TerminalManager extends EventEmitter {
           lastWriteId: 0,
         };
         this.sessions.set(session.id, record);
+        this.applyTmuxHistoryLimit(record);
         this.wireProcess(session.id, processHandle);
         this.nextId = Math.max(this.nextId, terminalNumericId(session.id) + 1);
         restored += 1;
@@ -761,6 +764,33 @@ export class TerminalManager extends EventEmitter {
       });
       return [];
     }
+  }
+
+  private applyTmuxHistoryLimit(record: TerminalRecord): void {
+    const availability = detectTmux();
+    if (!availability.available) {
+      return;
+    }
+    this.applyTmuxHistoryLimitByName(new TmuxCommandRunner(availability.path), record.tmuxSessionName, record);
+  }
+
+  private applyTmuxHistoryLimitByName(runner: TmuxCommandRunner, tmuxSessionName: string, record?: TerminalRecord): void {
+    try {
+      runner.run(["set-option", "-t", tmuxSessionName, "history-limit", String(this.tmuxHistoryLimit())]);
+    } catch (error) {
+      if (record) {
+        record.info.health = "unhealthy";
+        record.info.healthDetail = error instanceof Error ? `Failed to set tmux history limit: ${error.message}` : "Failed to set tmux history limit.";
+      }
+      console.warn("[exo] failed to set tmux history limit", {
+        tmuxSessionName,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  private tmuxHistoryLimit(): number {
+    return this.bufferLineLimit ?? DEFAULT_LIVE_SCROLLBACK_LINES;
   }
 
   private readPersistedSessions(): PersistedTerminalSession[] {
