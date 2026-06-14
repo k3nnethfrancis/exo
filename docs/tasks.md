@@ -196,7 +196,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Register built-in QMD search-provider metadata without changing behavior.
 - [x] Extract QMD behind a `SearchProvider` interface.
 - [x] Register built-in shell, Claude, and Codex agent-harness metadata without changing behavior.
-- [ ] Extract shell/Claude/Codex launch planning behind an `AgentHarness` interface.
+- [x] Extract shell/Claude/Codex launch planning behind an `AgentHarness` interface.
 - [ ] Define Routine and harness skill inventory contracts before implementing scheduler UI.
 - [ ] Use Guardian Angel as the first reference workload for plugin contracts: trace collection, review labels, dataset export, eval packets, and instrumented agent runtimes.
 - [ ] Define a Guardian Angel Harness V0 contract before public plugin manifests.

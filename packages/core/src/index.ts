@@ -4,6 +4,7 @@ export * from "./workspace-settings";
 export * from "./notes";
 export * from "./branches";
 export * from "./runtime";
+export * from "./agent-harness";
 export * from "./qmd";
 export * from "./capabilities";
 export * from "./capability-registry";

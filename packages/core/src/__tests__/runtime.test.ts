@@ -4,6 +4,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { builtInAgentHarnesses } from "../agent-harnesses/builtins";
 import { resolveAgentLaunchPlan, resolveRuntimeConfig, syncRuntimeContextFiles } from "../runtime";
 
 const tempPaths: string[] = [];
@@ -13,6 +14,24 @@ afterEach(async () => {
 });
 
 describe("runtime", () => {
+  it("exposes built-in agent harness metadata", () => {
+    expect(builtInAgentHarnesses.shell.metadata).toMatchObject({
+      id: "shell",
+      kind: "agentHarness",
+      lifecycle: "built-in",
+    });
+    expect(builtInAgentHarnesses.claude.metadata).toMatchObject({
+      id: "claude",
+      kind: "agentHarness",
+      lifecycle: "built-in",
+    });
+    expect(builtInAgentHarnesses.codex.metadata).toMatchObject({
+      id: "codex",
+      kind: "agentHarness",
+      lifecycle: "built-in",
+    });
+  });
+
   it("resolves runtime config from workspace env", () => {
     const config = resolveRuntimeConfig({
       EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
@@ -42,6 +61,21 @@ describe("runtime", () => {
     expect(plan.env.EXO_RUNTIME_SECONDARY_INSTRUCTIONS).toBe("");
     expect(plan.env.EXO_AGENT_TRANSPORT).toBe("file-sqlite");
     expect(plan.secondaryInstructionsPath).toBeUndefined();
+  });
+
+  it("resolves shell launchers through the built-in shell harness", () => {
+    const config = resolveRuntimeConfig({
+      EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
+      EXO_NOTE_ROOTS: "/tmp/exo-test-workspace/notes",
+      EXO_PROJECT_ROOTS: "/tmp/exo-test-workspace/projects",
+      EXO_SHELL: "/bin/zsh",
+    });
+
+    const plan = resolveAgentLaunchPlan(config, "shell", "/tmp/exo-test-workspace");
+
+    expect(plan.title).toBe("Terminal");
+    expect(plan.command).toBe("/bin/zsh");
+    expect(plan.args).toEqual(["-l"]);
   });
 
   it("adds a supported Codex reasoning-effort override by default", () => {

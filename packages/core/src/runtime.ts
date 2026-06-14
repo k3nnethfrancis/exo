@@ -1,87 +1,13 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+import { resolveBuiltInAgentLauncher } from "./agent-harnesses/builtins";
 import type {
   AgentLaunchPlan,
-  AgentLauncherConfig,
   ManagedAgentKind,
   RuntimeConfig,
 } from "./types";
 import { resolveWorkspaceModel } from "./workspace";
-
-function splitEnvArgs(rawValue?: string): string[] {
-  if (!rawValue) {
-    return [];
-  }
-
-  return rawValue
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean);
-}
-
-function defaultShellLauncher(env: NodeJS.ProcessEnv): AgentLauncherConfig {
-  const command = env.EXO_SHELL ?? env.SHELL ?? "/bin/zsh";
-  const args = splitEnvArgs(env.EXO_SHELL_ARGS);
-
-  return {
-    kind: "shell",
-    title: "Terminal",
-    command,
-    args: args.length > 0 ? args : path.basename(command).includes("zsh") ? ["-l"] : [],
-  };
-}
-
-function toolLauncher(kind: "claude" | "codex", env: NodeJS.ProcessEnv): AgentLauncherConfig {
-  const prefix = kind === "claude" ? "EXO_CLAUDE" : "EXO_CODEX";
-  const fallbackCommand = kind === "claude" ? "claude" : "codex";
-  const args = splitEnvArgs(env[`${prefix}_ARGS`]);
-
-  return kind === "codex"
-    ? {
-        kind,
-        title: "Codex",
-        command: env[`${prefix}_COMMAND`] ?? fallbackCommand,
-        args: withCodexReasoningEffortOverride(args, env),
-      }
-    : {
-        kind,
-        title: "Claude",
-        command: env[`${prefix}_COMMAND`] ?? fallbackCommand,
-        args,
-      };
-}
-
-function withCodexReasoningEffortOverride(args: string[], env: NodeJS.ProcessEnv): string[] {
-  const configuredArgs = [...args];
-  const alreadyOverridesReasoningEffort = configuredArgs.some((arg, index) => {
-    if (arg.includes("model_reasoning_effort")) {
-      return true;
-    }
-
-    return arg === "-c" && typeof configuredArgs[index + 1] === "string" && configuredArgs[index + 1].includes("model_reasoning_effort");
-  });
-
-  if (alreadyOverridesReasoningEffort) {
-    return configuredArgs;
-  }
-
-  const effort = normalizeCodexReasoningEffort(env.EXO_CODEX_REASONING_EFFORT);
-  configuredArgs.push("-c", `model_reasoning_effort="${effort}"`);
-  return configuredArgs;
-}
-
-function normalizeCodexReasoningEffort(rawValue?: string): "minimal" | "low" | "medium" | "high" {
-  switch (rawValue) {
-    case "minimal":
-    case "low":
-    case "medium":
-    case "high":
-      return rawValue;
-    default:
-      return "high";
-  }
-}
 
 export function resolveRuntimeConfig(env: NodeJS.ProcessEnv = process.env): RuntimeConfig {
   const workspace = resolveWorkspaceModel(env);
@@ -106,9 +32,9 @@ export function resolveRuntimeConfig(env: NodeJS.ProcessEnv = process.env): Runt
       sqlitePath: env.EXO_AGENT_SQLITE_PATH ?? path.join(runtimeRoot, "agent-communication.sqlite"),
     },
     launchers: {
-      shell: defaultShellLauncher(env),
-      claude: toolLauncher("claude", env),
-      codex: toolLauncher("codex", env),
+      shell: resolveBuiltInAgentLauncher("shell", env),
+      claude: resolveBuiltInAgentLauncher("claude", env),
+      codex: resolveBuiltInAgentLauncher("codex", env),
     },
   };
 }
