@@ -78,6 +78,23 @@ The macOS menu bar controller is the visible runtime control surface when the wo
 
 For Exo-on-Exo development, the installed app is the stable resident runtime. Source QA should use `pnpm dev:qa`, which sets separate `.exo-dev/` runtime and user-data paths so the dev process does not overwrite the stable app's `server.json`, settings, or command-server discovery.
 
+## Feed, Scheduler, And Workflow Model
+
+Exo should eventually have a core feed/event stream and scheduler for local AI workbench workflows.
+
+The feed is the broader primitive behind an inbox. It is a stream of incoming or generated context items from quick capture, files, notes, terminal agents, MCP messages, RSS/bookmarks, voice transcripts, workflow results, git events, evals, and Guardian Angel elicitation sessions. Feed items are not automatically durable graph facts. They are reviewable inputs that can be linked, archived, promoted into notes/entities/tasks, or used as trace/artifact evidence.
+
+The scheduler is core because recurring local AI work should not depend on each plugin inventing cron. A scheduled run should specify:
+
+- selected harness or agent runtime
+- selected skill/workflow instructions
+- scope such as note root, project root, profile, feed query, entity set, or saved search
+- permissions for reads, writes, terminal access, network, model calls, and exports
+- output policy: direct write, proposed changes, artifacts only, or review required
+- logs, traces, artifacts, and recovery state
+
+Skills are workflow content or commands executed by an agent harness, not necessarily separate executable plugins. Harness plugins provide headless execution. Workflow/profile/plugin packages may ship skills, templates, schedules, and UI surfaces, but Exo core owns scheduling, permission checks, run records, artifacts, provenance, and review state.
+
 ## Terminal And Agent Model
 
 Terminals are the first agent interface.

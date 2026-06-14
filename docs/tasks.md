@@ -122,8 +122,18 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Track observed file changes near Exo-managed terminal sessions as provenance candidates.
 - [x] Record session id, timestamp, association method, and target file for observable write candidates.
 - [ ] Distinguish human-authored and agent-authored note/code changes in the UI.
+- [ ] Define the core authorship/mutability/role model: human-authored, agent-authored, mixed, unknown; immutable source, append-only log, editable synthesis, generated artifact; source, concept, entity, project, task, trace, profile, eval, dataset.
 - [ ] Explore block-level or line-level provenance only where Exo can track it reliably.
 - [ ] Avoid AI-detector-style inference; provenance should come from observed writes and controlled workflows.
+
+## Next: Feed, Scheduler, And Workflow Runs
+
+- [ ] Define the feed/event item model for incoming and generated context: quick capture, RSS/bookmark/web clip, voice transcript, file change, terminal-agent output, MCP message, workflow result, git event, Guardian Angel elicitation response, eval result, and training artifact.
+- [ ] Define feed item review/promote/archive semantics without requiring an `/inbox/` folder.
+- [ ] Define the core scheduler model: schedule, selected harness, selected skill/workflow, scope, permissions, output policy, logs, traces, artifacts, review state, and recovery.
+- [ ] Define how skills/workflows are represented as run instructions executed by a selected harness, not as independent worker runtimes.
+- [ ] Add first scheduler candidate use cases: update entities, graph health, organize wiki, Guardian Angel elicitation, training export, eval run, and Exo-on-Exo maintenance.
+- [ ] Decide initial implementation target for scheduled runs: CLI-only MVP, resident app scheduler, or both with one shared run store.
 
 ## Next: QMD, Notes Index, And Search
 
@@ -157,7 +167,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 
 - [ ] Write the exograph architecture spec: files/properties as approved facts, profile/config as interpretation rules, `.exo/` as derived state/proposals/runs/provenance.
 - [ ] Add OKF v0.1 compatibility requirements to the exograph spec as optional structure, not a Markdown gate: concept docs with `type` when present/requested, optional `title`/`description`/`resource`/`tags`/`timestamp`, Markdown links, optional `index.md`/`log.md`, permissive consumers, and unknown-field preservation.
-- [ ] Define the exograph profile model: node types, edge types, path/property mappings, conventions, templates, maintenance rules, and review policy.
+- [ ] Define the exograph profile model as mappings, not mandates: node types, edge types, path/property mappings, folder roles, authorship/mutability rules, feed promotion rules, conventions, templates, maintenance workflows, and review policy.
 - [ ] Add OKF-compatible structure detection and explicit conformance diagnostics for attached note roots without forcing users to restructure existing notes.
 - [ ] Add OKF export/import planning for Exo profiles and curated graph facts, including create-note/create-project templates that can emit OKF-compatible frontmatter when selected.
 - [ ] Define proposal storage for inferred schema, graph, and file changes before any new maintainer write workflows are added.

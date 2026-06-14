@@ -115,6 +115,18 @@ Exo should track authorship from observed workflows, not guess using AI detector
 - Human-authored and agent-authored changes can be distinguished in notes and project files.
 - Provenance can later become block-level or line-level where the data is reliable.
 - Provenance should support review, audit, and coordination, not punitive authorship scoring.
+- Exo should model authorship, mutability, and role separately from any specific folder name: source/evidence, editable synthesis, append-only log, generated artifact, trace, task, entity, project, eval, and dataset are roles/properties that profiles can map onto folders/frontmatter/conventions.
+
+## 7.5 Feed And Scheduler
+
+Exo should provide a core feed/event stream and scheduler for local AI workbench automation.
+
+- Feed items are incoming or generated context, not necessarily notes: quick captures, RSS/bookmarks, voice transcripts, file changes, terminal-agent outputs, MCP messages, workflow results, git events, Guardian Angel elicitation responses, eval results, and training artifacts.
+- The feed replaces a hardcoded inbox. Inbox-style workflows can be built on top, but Exo should not require an `/inbox/` folder or processing ritual.
+- Feed items can be linked, archived, promoted into notes/entities/tasks, used as source evidence, converted into trace records, or dismissed.
+- The scheduler is core. It launches selected harnesses in headless/background mode against selected skills/workflows, scopes, permissions, and output policies.
+- Scheduled runs should capture logs, traces, artifacts, proposed file changes, review state, and recovery status.
+- Skills are workflow instructions/commands run by a selected harness. They can be shipped by plugins or profiles, but they are not the same thing as harness plugins.
 
 ## 8. Exograph Architecture
 
@@ -129,6 +141,7 @@ Exo's core object is the exograph, not a fixed folder schema or one retrieval ba
 - Approved durable graph facts live in Markdown/frontmatter/properties, links, tags, and user files.
 - Inferred facts, schema suggestions, workflow runs, and provenance live in `.exo/` until accepted.
 - OKF compatibility should be read/write/export compatible when structure exists or is requested, but Exo runtime state, traces, proposals, plugin data, and training artifacts can remain richer `.exo/` state that links back to Markdown/OKF concepts.
+- Profiles are mappings, not mandates. They define how folders, frontmatter, links, feed items, author/mutability rules, templates, and maintenance workflows become graph semantics for a workspace.
 - User-facing exograph modes collapse to two surfaces:
   - Analyze Exograph: read-only discovery, schema suggestions, and health diagnostics.
   - Maintain Exograph: reviewable file/profile changes after user approval.
@@ -185,6 +198,7 @@ Exo should be extensible without making every personal or domain-specific workfl
 - The first plugin architecture phase is internal contracts, not public plugin loading. Exo should define registries for built-in capabilities, then migrate QMD search and shell/Claude/Codex launchers onto those contracts before loading external code.
 - Core owns stable primitives: notes, project roots, panes, WebView/browser panes, commands, agents, messages, exograph profiles, search, settings, runs, artifacts, provenance, proposals, and permission boundaries.
 - Plugins are packages of Exo extensions. A plugin may include backend capabilities, commands, MCP/CLI tools, UI panels, editor extensions, or a web app hosted inside an Exo WebView pane.
+- Harness plugins integrate agent runtimes. Skills/workflows are run content that a harness executes, often on a schedule; they may be shipped by a plugin or profile but are not themselves the worker runtime.
 - Guardian Angel is the first reference workload for the plugin boundary: elicitation harnesses, trace collectors, correction/review surfaces, psychological-model hypotheses, dataset exporters, eval runners, and instrumented agent runtimes should prove the contract without all becoming core.
 - Guardian Angel plugins should use OKF concept documents for curated principal/project knowledge where possible, while storing raw traces, review labels, eval packets, and training exports as local artifacts linked back to OKF concepts.
 - Web apps are one possible plugin surface, not the whole plugin model. Browser/WebView support belongs in core because local previews, docs, dashboards, and future plugin apps all need the same pane/runtime primitive.
