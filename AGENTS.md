@@ -20,7 +20,8 @@ The immediate product proving loop is Exo-on-Exo: finish usability/harness readi
 12. `docs/qmd-integration-notes.md` - current QMD adapter contract and upgrade notes
 13. `docs/roadmap.md` - future plans
 14. `docs/plugins.md` - future extension model
-15. `packages/mcp/README.md` - MCP setup and tool contract
+15. `docs/plugin-implementation-plan.md` - implementation sequence for capability registries, providers, harnesses, Routines, and Guardian Angel
+16. `packages/mcp/README.md` - MCP setup and tool contract
 
 ## Repository Map
 

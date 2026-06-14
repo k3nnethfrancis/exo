@@ -14,11 +14,12 @@ This directory contains committed, public-facing project context. It should be u
 8. `architecture.md` - package boundaries and runtime contracts
 9. `roadmap.md` - future product systems
 10. `plugins.md` - plugin architecture direction
-11. `open-source.md` - release and platform support notes
-12. `terminal-runtime-decision.md` - terminal runtime decision
-13. `terminal-refactor-plan.md` - tmux-backed terminal refactor plan
-14. `terminal-quality-standard.md` - terminal useability and QA standard
-15. `qmd-integration-notes.md` - live QMD dependency boundary and upgrade checklist
+11. `plugin-implementation-plan.md` - phased implementation plan for capability registries, search providers, agent harnesses, Routines, and Guardian Angel
+12. `open-source.md` - release and platform support notes
+13. `terminal-runtime-decision.md` - terminal runtime decision
+14. `terminal-refactor-plan.md` - tmux-backed terminal refactor plan
+15. `terminal-quality-standard.md` - terminal useability and QA standard
+16. `qmd-integration-notes.md` - live QMD dependency boundary and upgrade checklist
 
 ## File Roles
 
@@ -29,6 +30,7 @@ This directory contains committed, public-facing project context. It should be u
 - `tasks.md` tracks the next concrete work.
 - `harness.md` explains how changes should be validated.
 - `plugins.md` tracks the intended extension model.
+- `plugin-implementation-plan.md` tracks the concrete refactor/implementation order for the first plugin architecture phases.
 - `open-source.md` tracks public release hygiene.
 - `terminal-runtime-decision.md` records the tmux-backed terminal runtime decision.
 - `terminal-refactor-plan.md` breaks the terminal runtime refactor into implementation phases.

@@ -1,6 +1,6 @@
 # Exo Tasks
 
-Last updated: 2026-06-13
+Last updated: 2026-06-14
 
 This is the active task tracker for Exo. It is intentionally not a history file; completed implementation history belongs in `ledger.md`. Tasks here should be concrete, current, and ordered by practical priority.
 
@@ -191,6 +191,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 ## Next: Plugin Architecture Foundations
 
 - [x] Scope the plugin architecture as internal capability registries first, not arbitrary third-party code loading.
+- [x] Write the concrete implementation sequence in `docs/plugin-implementation-plan.md`.
 - [ ] Add core capability contract types and a built-in registry with tests.
 - [ ] Register built-in QMD search-provider metadata without changing behavior.
 - [ ] Extract QMD behind a `SearchProvider` interface.

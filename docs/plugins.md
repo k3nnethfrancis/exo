@@ -1,12 +1,14 @@
 # Plugin Architecture
 
-Last updated: 2026-06-13
+Last updated: 2026-06-14
 
 Exo should support a plugin path so users can extend their exograph without requiring every feature to land in core.
 
 ## Current Decision
 
 Plugin architecture is now the next platform workstream after terminal/runtime usability. The immediate goal is not public third-party plugin loading. The immediate goal is to turn the extension seams Exo already needs into typed internal registries, then migrate hardwired behavior onto those registries.
+
+The detailed implementation sequence lives in `plugin-implementation-plan.md`. This document names the product model and boundaries; the implementation plan is the source of truth for the next refactor phases.
 
 That keeps Exo from overbuilding while still moving toward the long-term shape:
 
