@@ -71,6 +71,7 @@ describe("capability registry", () => {
     expect(registry.listActive({ surface: "desktop" }).map((capability) => capability.id)).toEqual(["qmd", "shell", "claude", "codex"]);
     expect(registry.listActive({ surface: "cli" }).map((capability) => capability.id)).toEqual(["qmd", "shell", "claude", "codex"]);
     expect(registry.listActive({ surface: "mcp" }).map((capability) => capability.id)).toEqual(["qmd", "shell", "claude", "codex"]);
+    expect(registry.listActive({ surface: "commandServer" }).map((capability) => capability.id)).toEqual(["qmd", "shell", "claude", "codex"]);
     expect(registry.listActive({ surface: "internal" }).map((capability) => capability.id)).toEqual([
       "qmd",
       "shell",

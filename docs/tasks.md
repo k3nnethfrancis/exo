@@ -201,7 +201,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Use Guardian Angel as the first reference workload for plugin contracts: trace collection, review labels, dataset export, eval packets, and instrumented agent runtimes.
 - [x] Define a Guardian Angel Harness V0 contract before public plugin manifests.
 - [x] Make Guardian Angel plugin requirements OKF-aware: curated knowledge as OKF concept documents; raw traces, labels, eval packets, and training exports as linked local artifacts.
-- [ ] Define permissioned surface-contribution policy for desktop, CLI, MCP, and command-server exposure.
+- [x] Define permissioned surface-contribution policy for desktop, CLI, MCP, and command-server exposure.
 - [ ] Add architecture/harness checks that discourage new hardwired provider or launcher conditionals outside the registry path.
 - [ ] Defer local plugin manifests, install locations, marketplace/package loading, and Plugin Manager UI until the internal registry contracts survive real use.
 

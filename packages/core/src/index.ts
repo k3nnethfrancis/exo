@@ -10,6 +10,7 @@ export * from "./guardian-angel";
 export * from "./qmd";
 export * from "./capabilities";
 export * from "./capability-registry";
+export * from "./surface-policy";
 export * from "./search-provider";
 export * from "./command-protocol";
 export * from "./integrations";
