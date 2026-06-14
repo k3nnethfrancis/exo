@@ -53,6 +53,7 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 
 ## Recent Completed Work
 
+- Added the first Guardian Angel V0 contract in `@exo/core`: strategic-alignment Routine example, trace packets, evidence references, principal/candidate decision records, review labels, JSONL export artifacts, and OKF concept outputs now exist as typed reference workload primitives for future plugins.
 - Added the first Routine/Run contracts in `@exo/core`: Routine definitions now model prompt, harness, required skills, trigger, scope, permissions, and output policy; Run records model status, review state, transcripts/logs, artifacts, proposed changes, and errors; harnesses expose skill inventories with a helper for missing required skills.
 - Moved shell, Claude, and Codex launch planning behind the first `AgentHarness` contract in `@exo/core`: built-in harnesses now expose capability metadata and resolve launcher configs while `runtime.ts` remains the compatibility facade used by terminal manager, CLI, and MCP.
 - Moved QMD behind the first `SearchProvider` contract in `@exo/core`: the QMD implementation now lives as a provider with capability metadata while `qmd.ts` remains a compatibility facade for existing desktop, CLI, MCP, and command-server callers.
