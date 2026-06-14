@@ -192,10 +192,10 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 
 - [x] Scope the plugin architecture as internal capability registries first, not arbitrary third-party code loading.
 - [x] Write the concrete implementation sequence in `docs/plugin-implementation-plan.md`.
-- [ ] Add core capability contract types and a built-in registry with tests.
-- [ ] Register built-in QMD search-provider metadata without changing behavior.
+- [x] Add core capability contract types and a built-in registry with tests.
+- [x] Register built-in QMD search-provider metadata without changing behavior.
 - [ ] Extract QMD behind a `SearchProvider` interface.
-- [ ] Register built-in shell, Claude, and Codex agent-harness metadata without changing behavior.
+- [x] Register built-in shell, Claude, and Codex agent-harness metadata without changing behavior.
 - [ ] Extract shell/Claude/Codex launch planning behind an `AgentHarness` interface.
 - [ ] Define Routine and harness skill inventory contracts before implementing scheduler UI.
 - [ ] Use Guardian Angel as the first reference workload for plugin contracts: trace collection, review labels, dataset export, eval packets, and instrumented agent runtimes.

@@ -1,6 +1,6 @@
 # Exo Ledger
 
-Last updated: 2026-06-13
+Last updated: 2026-06-14
 
 This is the fastest current-state handoff for Exo. It records what exists now, what changed recently, and what is next. Active tasks live in `docs/tasks.md`; future systems live in `docs/roadmap.md`; product/system strategy lives in `docs/strategy.md`.
 
@@ -53,6 +53,7 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 
 ## Recent Completed Work
 
+- Added the first internal plugin-architecture primitive in `@exo/core`: typed capability metadata, a duplicate-safe registry, built-in QMD search-provider metadata, built-in shell/Claude/Codex agent-harness metadata, and focused registry tests without changing runtime behavior.
 - Began the terminal runtime refactor for `EXO-ISSUE-030`: terminal creation now launches durable shell/agent commands inside Exo-owned tmux sessions, node-pty attaches to tmux for live rendering/input, terminal kill explicitly terminates tmux, and diagnostics expose tmux runtime/session/bridge state without adding a user-facing transport switch.
 - Added `.exo/terminal-sessions.json` as the initial Exo-to-tmux registry and startup reattach path for live tmux panes, with focused unit coverage and Electron relaunch QA proving a shell accepts input after Exo closes and relaunches.
 - Added deterministic terminal-quality QA: fake agent fixture, p50/p90 shell input latency measurement, no-live-inference fake-agent e2e, and fixture cleanup for tmux-backed Electron tests.
