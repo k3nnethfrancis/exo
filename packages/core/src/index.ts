@@ -7,5 +7,6 @@ export * from "./runtime";
 export * from "./qmd";
 export * from "./capabilities";
 export * from "./capability-registry";
+export * from "./search-provider";
 export * from "./command-protocol";
 export * from "./integrations";

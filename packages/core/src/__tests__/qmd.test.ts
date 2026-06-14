@@ -5,6 +5,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { embedIndex, getIndexStatus, readIndexDocument, searchIndex, syncIndex, updateIndex } from "../qmd";
+import { qmdSearchProvider } from "../search-providers/qmd-provider";
 import { createIndexedRoot, resolveWorkspaceModel } from "../workspace";
 
 const stores: MockStore[] = [];
@@ -24,6 +25,14 @@ afterEach(async () => {
 });
 
 describe("QMD index adapter", () => {
+  it("exposes QMD search-provider metadata", () => {
+    expect(qmdSearchProvider.metadata).toMatchObject({
+      id: "qmd",
+      kind: "searchProvider",
+      lifecycle: "built-in",
+    });
+  });
+
   it("uses filesystem search when the index is off", async () => {
     const root = await fixtureRoot();
     const model = resolveWorkspaceModel({

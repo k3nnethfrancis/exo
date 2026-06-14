@@ -194,7 +194,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Write the concrete implementation sequence in `docs/plugin-implementation-plan.md`.
 - [x] Add core capability contract types and a built-in registry with tests.
 - [x] Register built-in QMD search-provider metadata without changing behavior.
-- [ ] Extract QMD behind a `SearchProvider` interface.
+- [x] Extract QMD behind a `SearchProvider` interface.
 - [x] Register built-in shell, Claude, and Codex agent-harness metadata without changing behavior.
 - [ ] Extract shell/Claude/Codex launch planning behind an `AgentHarness` interface.
 - [ ] Define Routine and harness skill inventory contracts before implementing scheduler UI.
