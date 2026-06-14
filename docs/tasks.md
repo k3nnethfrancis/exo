@@ -156,10 +156,10 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 ## Next: Exograph Architecture
 
 - [ ] Write the exograph architecture spec: files/properties as approved facts, profile/config as interpretation rules, `.exo/` as derived state/proposals/runs/provenance.
-- [ ] Add OKF v0.1 compatibility requirements to the exograph spec: Markdown concept docs, required `type`, optional `title`/`description`/`resource`/`tags`/`timestamp`, Markdown links, optional `index.md`/`log.md`, permissive consumers, and unknown-field preservation.
+- [ ] Add OKF v0.1 compatibility requirements to the exograph spec as optional structure, not a Markdown gate: concept docs with `type` when present/requested, optional `title`/`description`/`resource`/`tags`/`timestamp`, Markdown links, optional `index.md`/`log.md`, permissive consumers, and unknown-field preservation.
 - [ ] Define the exograph profile model: node types, edge types, path/property mappings, conventions, templates, maintenance rules, and review policy.
-- [ ] Add OKF bundle inspection/validation for attached note roots without forcing users to restructure existing notes.
-- [ ] Add OKF export/import planning for Exo profiles and curated graph facts.
+- [ ] Add OKF-compatible structure detection and explicit conformance diagnostics for attached note roots without forcing users to restructure existing notes.
+- [ ] Add OKF export/import planning for Exo profiles and curated graph facts, including create-note/create-project templates that can emit OKF-compatible frontmatter when selected.
 - [ ] Define proposal storage for inferred schema, graph, and file changes before any new maintainer write workflows are added.
 - [ ] Define the two user-facing exograph modes: Analyze Exograph and Maintain Exograph.
 - [ ] Add schema-neutral read-only graph extraction for Markdown links, backlinks, headings, tags, frontmatter/properties, paths, and file metadata.

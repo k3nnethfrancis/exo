@@ -270,19 +270,20 @@ The initial exograph profile should be configuration, not code: node types, edge
 
 ### OKF Compatibility
 
-Exo's exograph model should be compatible with the Open Knowledge Format (OKF) v0.1 draft. OKF represents knowledge as a directory of UTF-8 Markdown concept documents with YAML frontmatter, where every non-reserved `.md` concept has a required `type` field, optional fields such as `title`, `description`, `resource`, `tags`, and `timestamp`, normal Markdown links for relationships, optional `index.md` files for progressive disclosure, and optional `log.md` files for update history.
+Exo's exograph model should be compatible with the Open Knowledge Format (OKF) v0.1 draft without enforcing OKF on arbitrary user Markdown. OKF represents knowledge as a directory of UTF-8 Markdown concept documents with YAML frontmatter, where every non-reserved `.md` concept has a required `type` field, optional fields such as `title`, `description`, `resource`, `tags`, and `timestamp`, normal Markdown links for relationships, optional `index.md` files for progressive disclosure, and optional `log.md` files for update history.
 
-This matches Exo's direction and should become the default interoperability target:
+This matches Exo's direction and should become the default interoperability affordance:
 
-- Exo should be able to inspect and validate an attached note root as an OKF bundle without forcing the user to restructure it.
-- Exo starter profiles should be able to produce OKF-conformant bundles.
-- Exo should tolerate unknown frontmatter fields, unknown `type` values, missing optional fields, missing indexes, and broken links.
+- Exo should inspect attached note roots for OKF-compatible structure and use it when present without forcing the user to restructure files.
+- Exo commands such as create note, create project, create concept, or future profile setup may offer OKF-compatible templates as options.
+- Exo starter profiles should be able to produce OKF-compatible bundles.
+- Exo should treat missing `type`, unknown frontmatter fields, unknown `type` values, missing optional fields, missing indexes, and broken links as normal Markdown states unless the user explicitly asks for OKF conformance checks.
 - Exo should preserve unknown frontmatter when editing or round-tripping documents.
 - User-approved durable graph facts should live in Markdown/frontmatter/links in a way that can be exported as OKF.
 - `.exo/` remains the place for derived indexes, traces, proposals, workflow runs, provenance, plugin state, and dataset artifacts that are not themselves concept documents.
 - Plugin and Guardian Angel harness artifacts should reference OKF concepts where possible, and may emit OKF concept documents for curated knowledge plus JSONL or other artifacts for raw traces/training data.
 
-OKF is a document/bundle exchange standard, not Exo's runtime or plugin API. Exo can support richer local state and workflows, but the portable knowledge layer should speak OKF.
+OKF is a document/bundle exchange standard, not Exo's runtime or plugin API. Exo can support richer local state and workflows, and it should never make OKF conformance a prerequisite for using normal Markdown notes. The portable knowledge layer should speak OKF when the user opts into structure or imports an OKF-compatible graph.
 
 The two user-facing exograph modes are:
 

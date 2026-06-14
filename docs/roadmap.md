@@ -120,13 +120,15 @@ Exo should track authorship from observed workflows, not guess using AI detector
 
 Exo's core object is the exograph, not a fixed folder schema or one retrieval backend.
 
-- Exo should follow the Open Knowledge Format (OKF) v0.1 draft as its portable knowledge-bundle compatibility target: Markdown concept documents, YAML frontmatter with required `type`, normal Markdown links, optional `index.md`, optional `log.md`, and permissive consumers that preserve unknown fields.
+- Exo should opportunistically support the Open Knowledge Format (OKF) v0.1 draft as its portable knowledge-bundle compatibility target: Markdown concept documents, YAML frontmatter with `type` when present, normal Markdown links, optional `index.md`, optional `log.md`, and permissive consumers that preserve unknown fields.
 - Users can define or accept an exograph profile: node types, edge types, path/property mappings, conventions, templates, maintenance rules, and review policy.
 - Exo can recommend starter profiles, including a minimal flat-notes profile, a Shoshin-style organization profile, and an LM Wiki-style profile.
 - Exo should never require `entities/`, `sources/`, `index.md`, `log.md`, or any other structure by default. It may detect and map them when they exist, or propose them with review.
+- Exo should never require OKF frontmatter to use a file as Markdown. OKF checks are explicit diagnostics or export/import compatibility checks, not default editing gates.
+- Exo-created workflows such as create note, create project, create concept, and future profile setup may offer OKF-compatible templates as options.
 - Approved durable graph facts live in Markdown/frontmatter/properties, links, tags, and user files.
 - Inferred facts, schema suggestions, workflow runs, and provenance live in `.exo/` until accepted.
-- OKF compatibility should be read/write/export compatible, but Exo runtime state, traces, proposals, plugin data, and training artifacts can remain richer `.exo/` state that links back to OKF concepts.
+- OKF compatibility should be read/write/export compatible when structure exists or is requested, but Exo runtime state, traces, proposals, plugin data, and training artifacts can remain richer `.exo/` state that links back to Markdown/OKF concepts.
 - User-facing exograph modes collapse to two surfaces:
   - Analyze Exograph: read-only discovery, schema suggestions, and health diagnostics.
   - Maintain Exograph: reviewable file/profile changes after user approval.
