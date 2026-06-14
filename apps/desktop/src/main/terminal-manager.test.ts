@@ -77,7 +77,6 @@ vi.mock("node-pty", () => {
 });
 
 import { TerminalManager } from "./terminal-manager";
-import { exoTmuxSessionName } from "./terminal-tmux";
 
 const tempPaths: string[] = [];
 let warnSpy: ReturnType<typeof vi.spyOn>;
@@ -131,6 +130,70 @@ describe("TerminalManager Codex readiness", () => {
     vi.advanceTimersByTime(120);
 
     expect(pty.writes).toEqual([bracketedPaste("Fix the issue"), "\r"]);
+  });
+
+  it("blocks queued Codex task text across startup update prompts", async () => {
+    vi.useFakeTimers();
+    const workspaceRoot = await workspaceFixture();
+    const manager = managerForWorkspace(workspaceRoot);
+
+    const agent = await manager.create({ kind: "codex", cwd: workspaceRoot });
+    const pty = ptyState.spawned[0];
+
+    await expect(manager.sendMessage(agent.id, "Do useful work", true)).resolves.toMatchObject({
+      delivery: "queued",
+      queuedInputCount: 1,
+    });
+
+    pty.emitData("Update available! 0.134.0 -> 0.139.0\n1. Update now\n2. Skip\n3. Skip until next version");
+    vi.advanceTimersByTime(2_000);
+
+    expect(manager.getInfo(agent.id)).toMatchObject({
+      readiness: "blocked",
+      readinessDetail: "Codex startup update prompt is waiting for Skip, Skip until next version, or Update.",
+      queuedInputCount: 1,
+    });
+    expect(pty.writes).toEqual([]);
+
+    pty.emitData("\nOpenAI Codex\n› ");
+
+    expect(manager.getInfo(agent.id)).toMatchObject({
+      readiness: "ready",
+      queuedInputCount: 0,
+    });
+    expect(pty.writes).toEqual([bracketedPaste("Do useful work")]);
+  });
+
+  it("does not treat a Codex header as ready when a later startup update prompt is active", async () => {
+    vi.useFakeTimers();
+    const workspaceRoot = await workspaceFixture();
+    const manager = managerForWorkspace(workspaceRoot);
+
+    const agent = await manager.create({ kind: "codex", cwd: workspaceRoot });
+    const pty = ptyState.spawned[0];
+
+    await expect(manager.sendMessage(agent.id, "Wait for chat input", true)).resolves.toMatchObject({
+      delivery: "queued",
+      queuedInputCount: 1,
+    });
+
+    pty.emitData("OpenAI Codex\nUpdate available! 0.134.0 -> 0.139.0\n3. Skip until next version");
+    vi.advanceTimersByTime(2_000);
+
+    expect(manager.getInfo(agent.id)).toMatchObject({
+      readiness: "blocked",
+      readinessDetail: "Codex startup update prompt is waiting for Skip, Skip until next version, or Update.",
+      queuedInputCount: 1,
+    });
+    expect(pty.writes).toEqual([]);
+
+    pty.emitData("\nAsk Codex\n› ");
+
+    expect(manager.getInfo(agent.id)).toMatchObject({
+      readiness: "ready",
+      queuedInputCount: 0,
+    });
+    expect(pty.writes).toEqual([bracketedPaste("Wait for chat input")]);
   });
 
   it("flushes queued Codex text after the startup grace when no prompt appears", async () => {
@@ -256,7 +319,7 @@ describe("TerminalManager Codex readiness", () => {
     if (!killCommand) {
       throw new Error("Expected tmux kill-session command");
     }
-    expect(killCommand).toEqual(["kill-session", "-t", expect.stringMatching(/^exo-[a-f0-9]{10}-term-1$/)]);
+    expect(killCommand).toEqual(["kill-session", "-t", expect.stringMatching(/^exo-[a-f0-9]{10}-term-1-\d{4}-/i)]);
     expect(manager.list()).toEqual([]);
   });
 
@@ -273,11 +336,34 @@ describe("TerminalManager Codex readiness", () => {
         id: terminal.id,
         kind: "shell",
         cwd: workspaceRoot,
-        tmuxSessionName: expect.stringMatching(/^exo-[a-f0-9]{10}-term-1$/),
+        tmuxSessionName: expect.stringMatching(/^exo-[a-f0-9]{10}-term-1-\d{4}-/i),
         transcriptPath: expect.stringContaining("terminal-transcripts"),
         status: "running",
       }),
     ]);
+    expect(registry.sessions[0]?.transcriptPath).toMatch(/term-1-shell-\d{4}-/);
+  });
+
+  it("uses fresh runtime identities when terminal ids repeat across app launches", async () => {
+    const workspaceRoot = await workspaceFixture();
+    const firstManager = managerForWorkspace(workspaceRoot);
+
+    await firstManager.create({ kind: "shell", cwd: workspaceRoot });
+    const firstRegistry = JSON.parse(await readFile(path.join(workspaceRoot, ".exo", "terminal-sessions.json"), "utf8")) as {
+      sessions: Array<Record<string, string>>;
+    };
+    await rm(path.join(workspaceRoot, ".exo", "terminal-sessions.json"), { force: true });
+
+    const secondManager = managerForWorkspace(workspaceRoot);
+    await secondManager.create({ kind: "shell", cwd: workspaceRoot });
+    const secondRegistry = JSON.parse(await readFile(path.join(workspaceRoot, ".exo", "terminal-sessions.json"), "utf8")) as {
+      sessions: Array<Record<string, string>>;
+    };
+
+    expect(firstRegistry.sessions[0]?.id).toBe("term-1");
+    expect(secondRegistry.sessions[0]?.id).toBe("term-1");
+    expect(secondRegistry.sessions[0]?.tmuxSessionName).not.toBe(firstRegistry.sessions[0]?.tmuxSessionName);
+    expect(secondRegistry.sessions[0]?.transcriptPath).not.toBe(firstRegistry.sessions[0]?.transcriptPath);
   });
 
   it("reattaches persisted running sessions when tmux still has the pane", async () => {
@@ -333,14 +419,14 @@ describe("TerminalManager Codex readiness", () => {
     const manager = managerForWorkspace(workspaceRoot);
 
     await manager.create({ kind: "shell", cwd: workspaceRoot });
-    mockLiveTmuxPanes(workspaceRoot, ["term-1"]);
+    mockLiveTmuxPanes(workspaceRoot, [spawnedTmuxSessionName(0)]);
 
     const [diagnostic] = manager.diagnostics();
     expect(diagnostic).toMatchObject({
       kind: "shell",
       status: "running",
       runtime: "tmux",
-      tmuxSessionName: expect.stringMatching(/^exo-[a-f0-9]{10}-term-1$/),
+      tmuxSessionName: expect.stringMatching(/^exo-[a-f0-9]{10}-term-1-\d{4}-/i),
       bridgeStatus: "attached",
       paneStatus: "alive",
       command: expect.any(String),
@@ -368,12 +454,41 @@ describe("TerminalManager Codex readiness", () => {
     });
   });
 
+  it("retires agent sessions when the tmux pane exits", async () => {
+    const workspaceRoot = await workspaceFixture();
+    const manager = managerForWorkspace(workspaceRoot);
+    const exitEvents: Array<{ id: string; exitCode?: number }> = [];
+    manager.on("exit", (event) => exitEvents.push(event));
+
+    const agent = await manager.create({ kind: "codex", cwd: workspaceRoot });
+    ptyState.spawned[0].emitExit(0);
+
+    expect(manager.list().map((session) => session.id)).not.toContain(agent.id);
+    expect(exitEvents).toEqual([{ id: agent.id, exitCode: 0 }]);
+  });
+
+  it("handles stale pty resize failures without throwing through IPC", async () => {
+    const workspaceRoot = await workspaceFixture();
+    const manager = managerForWorkspace(workspaceRoot);
+
+    await manager.create({ kind: "shell", cwd: workspaceRoot });
+    (ptyState.spawned[0] as { resize: () => void }).resize = () => {
+      throw new Error("ioctl(2) failed, EBADF");
+    };
+
+    await expect(manager.resize("term-1", 120, 32)).resolves.toBeUndefined();
+    expect(manager.diagnostics()[0]).toMatchObject({
+      health: "unhealthy",
+      bridgeStatus: "detached",
+    });
+  });
+
   it("reconnects a detached bridge when the tmux pane is still alive", async () => {
     const workspaceRoot = await workspaceFixture();
     const manager = managerForWorkspace(workspaceRoot);
 
     const terminal = await manager.create({ kind: "shell", cwd: workspaceRoot });
-    mockLiveTmuxPanes(workspaceRoot, ["term-1"]);
+    mockLiveTmuxPanes(workspaceRoot, [spawnedTmuxSessionName(0)]);
     ptyState.spawned[0].emitExit(1);
 
     expect(manager.diagnostics()[0]).toMatchObject({
@@ -387,7 +502,7 @@ describe("TerminalManager Codex readiness", () => {
       status: "running",
     });
     expect(ptyState.spawned).toHaveLength(2);
-    expect(ptyState.spawned[1].args).toEqual(["attach-session", "-t", expect.stringMatching(/^exo-[a-f0-9]{10}-term-1$/)]);
+    expect(ptyState.spawned[1].args).toEqual(["attach-session", "-t", spawnedTmuxSessionName(0)]);
     expect(manager.diagnostics()[0]).toMatchObject({
       bridgeStatus: "attached",
       paneStatus: "alive",
@@ -399,12 +514,12 @@ describe("TerminalManager Codex readiness", () => {
     const manager = managerForWorkspace(workspaceRoot);
 
     await manager.create({ kind: "shell", cwd: workspaceRoot });
-    mockLiveTmuxPanes(workspaceRoot, ["term-1"]);
+    mockLiveTmuxPanes(workspaceRoot, [spawnedTmuxSessionName(0)]);
 
     manager.reconnectRecoverableTerminals();
 
     expect(ptyState.spawned).toHaveLength(2);
-    expect(ptyState.spawned[1].args).toEqual(["attach-session", "-t", expect.stringMatching(/^exo-[a-f0-9]{10}-term-1$/)]);
+    expect(ptyState.spawned[1].args).toEqual(["attach-session", "-t", spawnedTmuxSessionName(0)]);
     expect(manager.diagnostics()[0]).toMatchObject({
       bridgeStatus: "attached",
       paneStatus: "alive",
@@ -453,7 +568,7 @@ describe("TerminalManager Codex readiness", () => {
     }
     const shellLaunch = tmuxCommand.at(-1) ?? "";
     expect(ptyState.spawned[0]?.command).toBe("tmux");
-    expect(ptyState.spawned[0]?.args).toEqual(["attach-session", "-t", expect.stringMatching(/^exo-[a-f0-9]{10}-term-1$/)]);
+    expect(ptyState.spawned[0]?.args).toEqual(["attach-session", "-t", expect.stringMatching(/^exo-[a-f0-9]{10}-term-1-\d{4}-/i)]);
     expect(shellLaunch).toContain("'codex'");
     expect(shellLaunch).toContain("'-c'");
     expect(shellLaunch).toContain(`'mcp_servers.exo.command=\"node\"'`);
@@ -484,13 +599,21 @@ function bracketedPaste(data: string): string {
   return `\x1b[200~${data}\x1b[201~`;
 }
 
-function mockLiveTmuxPanes(workspaceRoot: string, terminalIds: string[]) {
+function spawnedTmuxSessionName(index: number): string {
+  const sessionName = ptyState.spawned[index]?.args[2];
+  if (!sessionName) {
+    throw new Error(`Expected spawned tmux session at index ${index}`);
+  }
+  return sessionName;
+}
+
+function mockLiveTmuxPanes(workspaceRoot: string, tmuxSessionNames: string[]) {
   childProcess.execFileSync.mockImplementation((_command: string, args: string[]) => {
     if (!args.includes("list-panes")) {
       return "";
     }
-    return terminalIds
-      .map((id) => `${exoTmuxSessionName(id, workspaceRoot)}\t@1\t%2\t0\tzsh\t${workspaceRoot}`)
+    return tmuxSessionNames
+      .map((sessionName) => `${sessionName}\t@1\t%2\t0\tzsh\t${workspaceRoot}`)
       .join("\n");
   });
 }

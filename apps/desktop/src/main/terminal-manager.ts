@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
@@ -202,8 +203,10 @@ export class TerminalManager extends EventEmitter {
     };
 
     const spawnArgs = options.kind === "codex" ? withCodexMcpOverrides(launch.args, this.runtimeConfig, launch.cwd) : launch.args;
+    const createdAt = new Date().toISOString();
+    const launchToken = `${id}-${createdAt}-${randomUUID().slice(0, 8)}`;
     const tmux = this.requireTmuxRuntime();
-    const tmuxSessionName = exoTmuxSessionName(id, this.runtimeConfig.workspace.workspaceRoot);
+    const tmuxSessionName = exoTmuxSessionName(launchToken, this.runtimeConfig.workspace.workspaceRoot);
     tmux.runner.run(
       [
         "new-session",
@@ -229,7 +232,7 @@ export class TerminalManager extends EventEmitter {
       name: "xterm-256color",
     });
 
-    const transcriptPath = this.makeTranscriptPath(id, options.kind);
+    const transcriptPath = this.makeTranscriptPath(id, options.kind, createdAt, launchToken);
     const info: TerminalSessionInfo = {
       id,
       title: launch.title,
@@ -247,7 +250,7 @@ export class TerminalManager extends EventEmitter {
       info,
       process: processHandle,
       tmuxSessionName,
-      createdAt: new Date().toISOString(),
+      createdAt,
       buffer: new TerminalLineBuffer(this.bufferLineLimit),
       transcriptPath,
       pendingWrites: [],
@@ -375,7 +378,17 @@ export class TerminalManager extends EventEmitter {
       return;
     }
 
-    record.process.resize(Math.max(20, cols), Math.max(8, rows));
+    try {
+      record.process.resize(Math.max(20, cols), Math.max(8, rows));
+    } catch (error) {
+      record.bridgeDetached = true;
+      record.info.health = "unhealthy";
+      record.info.healthDetail = error instanceof Error ? `Terminal resize failed: ${error.message}` : "Terminal resize failed.";
+      console.warn("[exo] terminal resize failed", {
+        id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   async kill(id: string): Promise<void> {
@@ -460,24 +473,41 @@ export class TerminalManager extends EventEmitter {
         if (record.reconnecting) {
           return;
         }
+        this.reconcileTmuxState();
+        if (isAgentTerminal(record) && (record.paneStatus === "missing" || record.paneStatus === "dead")) {
+          this.retireExitedTerminal(record, exitCode);
+          return;
+        }
         record.info.health = "unhealthy";
         record.info.healthDetail = `Tmux attach bridge exited with code ${exitCode ?? "unknown"}; session may still be running.`;
         record.bridgeDetached = true;
-        this.reconcileTmuxState();
         return;
       }
 
-      record.info.status = "exited";
-      record.info.health = "exited";
-      record.info.healthDetail = `Process exited with code ${exitCode}.`;
-      record.info.exitCode = exitCode;
-      this.clearReadinessTimer(record);
+      this.markExited(record, exitCode);
       this.emit("exit", { id, exitCode });
     });
   }
 
-  private makeTranscriptPath(id: string, kind: TerminalKind): string {
-    const name = sanitizeTranscriptName(`${id}-${kind}`);
+  private retireExitedTerminal(record: TerminalRecord, exitCode?: number): void {
+    this.flushTranscript(record.info.id);
+    this.markExited(record, exitCode);
+    this.sessions.delete(record.info.id);
+    this.persistSessions();
+    this.emit("exit", { id: record.info.id, exitCode });
+  }
+
+  private markExited(record: TerminalRecord, exitCode?: number): void {
+    record.info.status = "exited";
+    record.info.health = "exited";
+    record.info.healthDetail = `Process exited with code ${exitCode}.`;
+    record.info.exitCode = exitCode;
+    this.clearReadinessTimer(record);
+  }
+
+  private makeTranscriptPath(id: string, kind: TerminalKind, createdAt: string, launchToken: string): string {
+    const nonce = launchToken.slice(-8);
+    const name = sanitizeTranscriptName(`${id}-${kind}-${createdAt}-${nonce}`);
     return path.join(this.transcripts.directory, `${name}.ansi.log`);
   }
 
@@ -533,16 +563,23 @@ export class TerminalManager extends EventEmitter {
       return;
     }
 
-    const buffer = record.buffer.toString();
-    if (isCodexChatReady(buffer)) {
+    const startupState = getCodexStartupState(record.buffer.toString());
+    if (startupState === "ready") {
       this.markReady(record, "Codex chat input is ready.");
       return;
     }
 
-    if (isCodexStartupTrustPrompt(buffer)) {
+    if (startupState === "trust-blocked") {
       this.clearReadinessTimer(record);
       record.info.readiness = "blocked";
       record.info.readinessDetail = "Codex startup trust prompt is waiting for interactive confirmation.";
+      return;
+    }
+
+    if (startupState === "update-blocked") {
+      this.clearReadinessTimer(record);
+      record.info.readiness = "blocked";
+      record.info.readinessDetail = "Codex startup update prompt is waiting for Skip, Skip until next version, or Update.";
     }
   }
 
@@ -776,6 +813,10 @@ function shouldGateStartupInput(info: TerminalSessionInfo): boolean {
   return info.kind === "codex" && info.status === "running" && info.readiness === "starting";
 }
 
+function isAgentTerminal(record: TerminalRecord): boolean {
+  return record.info.kind === "claude" || record.info.kind === "codex";
+}
+
 function shouldQueueWrite(record: TerminalRecord, data: string): boolean {
   return (
     record.info.kind === "codex" &&
@@ -806,23 +847,32 @@ function bracketedPaste(data: string): string {
   return `\x1b[200~${data}\x1b[201~`;
 }
 
-function isCodexStartupTrustPrompt(buffer: string): boolean {
-  const text = normalizeTerminalText(buffer);
-  return (
-    /\bdo you trust\b/.test(text) ||
-    /\btrust (?:the )?(?:files|folder|directory|workspace|repo|repository)\b/.test(text) ||
-    /\b(?:folder|directory|workspace|repo|repository).{0,80}\btrust\b/.test(text)
-  );
-}
+type CodexStartupState = "ready" | "trust-blocked" | "update-blocked" | "unknown";
 
-function isCodexChatReady(buffer: string): boolean {
+function getCodexStartupState(buffer: string): CodexStartupState {
   const text = normalizeTerminalText(buffer);
-  return (
-    /\bask codex\b/.test(text) ||
-    /\btype (?:a )?message\b/.test(text) ||
-    /\bwhat can i help\b/.test(text) ||
-    /\bcodex is ready\b/.test(text)
-  );
+  const readyIndex = latestRegexIndex(text, [
+    /\bask codex\b/g,
+    /\bopenai codex\b/g,
+    /\btype (?:a )?message\b/g,
+    /\bwhat can i help\b/g,
+    /\bcodex is ready\b/g,
+  ]);
+  const trustIndex = latestRegexIndex(text, [
+    /\bdo you trust\b/g,
+    /\btrust (?:the )?(?:files|folder|directory|workspace|repo|repository)\b/g,
+    /\b(?:folder|directory|workspace|repo|repository).{0,80}\btrust\b/g,
+  ]);
+  const updateIndex =
+    /\bskip until next version\b/.test(text) ? latestRegexIndex(text, [/\bupdate available\b/g]) : -1;
+
+  if (trustIndex > readyIndex) {
+    return "trust-blocked";
+  }
+  if (updateIndex > readyIndex) {
+    return "update-blocked";
+  }
+  return readyIndex >= 0 ? "ready" : "unknown";
 }
 
 function normalizeTerminalText(buffer: string): string {
@@ -831,6 +881,21 @@ function normalizeTerminalText(buffer: string): string {
     .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, "")
     .replace(/\s+/g, " ")
     .toLowerCase();
+}
+
+function latestRegexIndex(text: string, patterns: RegExp[]): number {
+  let latest = -1;
+  for (const pattern of patterns) {
+    pattern.lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(text)) !== null) {
+      latest = Math.max(latest, match.index);
+      if (match[0].length === 0) {
+        pattern.lastIndex += 1;
+      }
+    }
+  }
+  return latest;
 }
 
 function stripMouseTrackingModes(data: string): string {

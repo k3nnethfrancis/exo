@@ -54,6 +54,7 @@ describe("terminal tmux runtime helpers", () => {
   it("creates stable sanitized Exo tmux session names", () => {
     expect(exoTmuxSessionName("term-12", "/Users/kenneth/Desktop/lab")).toMatch(/^exo-[a-f0-9]{10}-term-12$/);
     expect(exoTmuxSessionName("term weird/12", "/workspace")).not.toContain("/");
+    expect(exoTmuxSessionName("term-1-2026-06-14T20:58:49.167Z", "/workspace")).not.toContain(".");
     expect(exoTmuxSessionName("term-12", "/workspace")).toBe(exoTmuxSessionName("term-12", "/workspace"));
   });
 

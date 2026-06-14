@@ -121,7 +121,7 @@ export function shellQuote(value: string): string {
 }
 
 function sanitizeTmuxName(value: string): string {
-  return value.replace(/[^A-Za-z0-9_.-]/g, "-").slice(0, 80);
+  return value.replace(/[^A-Za-z0-9_-]/g, "-").slice(0, 80);
 }
 
 function unique(values: string[]): string[] {
