@@ -10,7 +10,7 @@ import {
   FULL_TERMINAL_SCROLLBACK_LINES,
   getWorkspaceRegistryEntry,
   listWorkspaceRegistryEntries,
-  loadWorkspaceSettings,
+  loadActiveWorkspaceSettings,
   normalizeWorkspaceSettings,
   resolveWorkspaceRegistryPath,
   resolveWorkspaceSettingsPath,
@@ -86,7 +86,7 @@ export class WorkspaceSettingsStore {
   }
 
   async load(): Promise<WorkspaceSettings | null> {
-    return loadWorkspaceSettings({ ...this.env, EXO_USER_DATA_PATH: this.options.userDataPath });
+    return loadActiveWorkspaceSettings({ ...this.env, EXO_USER_DATA_PATH: this.options.userDataPath });
   }
 
   async save(settings: WorkspaceSettings): Promise<WorkspaceSettings> {

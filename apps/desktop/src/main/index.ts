@@ -355,6 +355,9 @@ app.whenReady().then(async () => {
   }
 
   workspaceSettings = await workspaceSettingsStore.load();
+  if (workspaceSettings) {
+    applyWorkspaceSettings(workspaceSettings);
+  }
   workspaceSetupComplete = workspaceSettings !== null || Boolean(process.env.EXO_NOTE_ROOTS);
   workspaceModel = workspaceSetupComplete ? resolveWorkspaceModel() : createFirstRunWorkspaceModel();
   const effectiveWorkspaceSettings = workspaceSettings ?? workspaceSettingsStore.fromModel(workspaceModel);

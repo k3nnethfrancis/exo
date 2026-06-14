@@ -472,7 +472,7 @@ describe("TerminalManager Codex readiness", () => {
     const manager = managerForWorkspace(workspaceRoot);
 
     await manager.create({ kind: "shell", cwd: workspaceRoot });
-    (ptyState.spawned[0] as { resize: () => void }).resize = () => {
+    (ptyState.spawned[0] as unknown as { resize: () => void }).resize = () => {
       throw new Error("ioctl(2) failed, EBADF");
     };
 
