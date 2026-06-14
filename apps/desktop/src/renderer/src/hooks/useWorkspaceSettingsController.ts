@@ -4,7 +4,7 @@ import type { IndexStatus, WorkspaceSettings } from "@exo/core";
 import type { AppearanceMode } from "../appearance";
 import {
   clampNumber,
-  FULL_TERMINAL_SCROLLBACK_LINES,
+  MIN_TERMINAL_HISTORY_LINES,
   workspaceSettingsImmediateDraftKey,
   workspaceSettingsStructuralDraftKey,
   workspaceSettingsStructuralKeyFromSettings,
@@ -310,7 +310,10 @@ function workspaceSettingsFromDialog(
       backend: "qmd" as const,
     },
   };
-  const terminalHistoryLines = clampNumber(Number(settingsDialog.terminalHistoryLines), 500, FULL_TERMINAL_SCROLLBACK_LINES);
+  const parsedTerminalHistoryLines = Math.floor(Number(settingsDialog.terminalHistoryLines));
+  const terminalHistoryLines = Number.isFinite(parsedTerminalHistoryLines)
+    ? Math.max(MIN_TERMINAL_HISTORY_LINES, parsedTerminalHistoryLines)
+    : MIN_TERMINAL_HISTORY_LINES;
 
   return {
     workspaceRoot: options.includeStructural ? fallbackStructural.workspaceRoot : currentSettings?.workspaceRoot ?? fallbackStructural.workspaceRoot,
@@ -330,7 +333,7 @@ function workspaceSettingsFromDialog(
     appearanceMode: settingsDialog.appearanceMode,
     editorFontSize: clampNumber(Number(settingsDialog.editorFontSize), 11, 24),
     terminalFontSize: clampNumber(Number(settingsDialog.terminalFontSize), 10, 22),
-    terminalHistoryMode: settingsDialog.terminalHistoryMode,
+    terminalHistoryMode: "custom",
     terminalHistoryLines,
     terminalTranscriptRetention: settingsDialog.terminalTranscriptRetention,
     terminalTranscriptRetentionDays: clampNumber(Number(settingsDialog.terminalTranscriptRetentionDays), 1, 3650),

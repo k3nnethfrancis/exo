@@ -8,9 +8,9 @@ import { createIndexedRoot, DEFAULT_INDEXING } from "./workspace";
 export const DEFAULT_APPEARANCE_MODE: WorkspaceSettings["appearanceMode"] = "system";
 export const DEFAULT_EDITOR_FONT_SIZE = 15;
 export const DEFAULT_TERMINAL_FONT_SIZE = 13;
-export const DEFAULT_TERMINAL_HISTORY_MODE: WorkspaceSettings["terminalHistoryMode"] = "full";
-export const FULL_TERMINAL_SCROLLBACK_LINES = 1_000_000;
-export const DEFAULT_TERMINAL_HISTORY_LINES = FULL_TERMINAL_SCROLLBACK_LINES;
+export const DEFAULT_TERMINAL_HISTORY_MODE: WorkspaceSettings["terminalHistoryMode"] = "custom";
+export const DEFAULT_TERMINAL_HISTORY_LINES = 100_000;
+export const MIN_TERMINAL_HISTORY_LINES = 500;
 export const DEFAULT_TERMINAL_TRANSCRIPT_RETENTION: WorkspaceSettings["terminalTranscriptRetention"] = "forever";
 export const DEFAULT_TERMINAL_TRANSCRIPT_RETENTION_DAYS = 14;
 export const DEFAULT_EXPLORER_SCALE = 1;
@@ -176,8 +176,8 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
     appearanceMode: input.appearanceMode === "light" || input.appearanceMode === "dark" || input.appearanceMode === "system" ? input.appearanceMode : DEFAULT_APPEARANCE_MODE,
     editorFontSize: clampSettingsNumber(input.editorFontSize, DEFAULT_EDITOR_FONT_SIZE, 11, 24),
     terminalFontSize: clampSettingsNumber(input.terminalFontSize, DEFAULT_TERMINAL_FONT_SIZE, 10, 22),
-    terminalHistoryMode: input.terminalHistoryMode === "custom" ? "custom" : DEFAULT_TERMINAL_HISTORY_MODE,
-    terminalHistoryLines: input.terminalHistoryMode === "custom" ? clampSettingsNumber(input.terminalHistoryLines, DEFAULT_TERMINAL_HISTORY_LINES, 500, FULL_TERMINAL_SCROLLBACK_LINES) : DEFAULT_TERMINAL_HISTORY_LINES,
+    terminalHistoryMode: DEFAULT_TERMINAL_HISTORY_MODE,
+    terminalHistoryLines: normalizeTerminalHistoryLines(input.terminalHistoryLines),
     terminalTranscriptRetention: input.terminalTranscriptRetention === "days" ? "days" : DEFAULT_TERMINAL_TRANSCRIPT_RETENTION,
     terminalTranscriptRetentionDays: clampSettingsNumber(input.terminalTranscriptRetentionDays, DEFAULT_TERMINAL_TRANSCRIPT_RETENTION_DAYS, 1, 3650),
     explorerScale: clampSettingsNumber(input.explorerScale, DEFAULT_EXPLORER_SCALE, 0.82, 1.35),
@@ -256,6 +256,14 @@ function workspaceIdForNotesFolder(notesFolder: string): string {
 function clampSettingsNumber(value: unknown, fallback: number, min: number, max: number): number {
   const parsed = typeof value === "number" ? value : Number(value);
   return Number.isFinite(parsed) ? Math.max(min, Math.min(max, parsed)) : fallback;
+}
+
+function normalizeTerminalHistoryLines(value: unknown): number {
+  const parsed = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(parsed)) {
+    return DEFAULT_TERMINAL_HISTORY_LINES;
+  }
+  return Math.max(MIN_TERMINAL_HISTORY_LINES, Math.floor(parsed));
 }
 
 const DEFAULT_SIDEBAR_WIDTH = 175;

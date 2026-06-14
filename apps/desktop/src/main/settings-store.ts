@@ -7,7 +7,7 @@ import {
   DEFAULT_TERMINAL_HISTORY_MODE,
   DEFAULT_TERMINAL_TRANSCRIPT_RETENTION,
   DEFAULT_TERMINAL_TRANSCRIPT_RETENTION_DAYS,
-  FULL_TERMINAL_SCROLLBACK_LINES,
+  MIN_TERMINAL_HISTORY_LINES,
   getWorkspaceRegistryEntry,
   listWorkspaceRegistryEntries,
   loadActiveWorkspaceSettings,
@@ -30,7 +30,7 @@ export {
   DEFAULT_TERMINAL_HISTORY_MODE,
   DEFAULT_TERMINAL_TRANSCRIPT_RETENTION,
   DEFAULT_TERMINAL_TRANSCRIPT_RETENTION_DAYS,
-  FULL_TERMINAL_SCROLLBACK_LINES,
+  MIN_TERMINAL_HISTORY_LINES,
   type WorkspaceRegistryEntry,
 };
 
@@ -115,17 +115,17 @@ export function isForcedTheme(value: string | undefined): value is WorkspaceSett
 }
 
 export function resolveTerminalScrollbackLines(
-  mode: WorkspaceSettings["terminalHistoryMode"],
+  _mode: WorkspaceSettings["terminalHistoryMode"],
   lines: number,
 ): number {
-  return mode === "full" ? FULL_TERMINAL_SCROLLBACK_LINES : lines;
+  return Math.max(MIN_TERMINAL_HISTORY_LINES, Math.floor(lines));
 }
 
 export function resolveTerminalBufferLineLimit(
-  mode: WorkspaceSettings["terminalHistoryMode"],
+  _mode: WorkspaceSettings["terminalHistoryMode"],
   lines: number,
 ): number {
-  return mode === "full" ? FULL_TERMINAL_SCROLLBACK_LINES : lines;
+  return Math.max(MIN_TERMINAL_HISTORY_LINES, Math.floor(lines));
 }
 
 export function resolveTranscriptRetentionDays(settings: Pick<WorkspaceSettings, "terminalTranscriptRetention" | "terminalTranscriptRetentionDays">): number {

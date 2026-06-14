@@ -64,10 +64,9 @@ interface PersistedTerminalSession {
   status: "running" | "exited" | "missing" | "unhealthy";
 }
 
-const DEFAULT_LIVE_SCROLLBACK_LINES = 1_000_000;
+const DEFAULT_LIVE_SCROLLBACK_LINES = 100_000;
 const DEFAULT_BUFFER_LINE_LIMIT = DEFAULT_LIVE_SCROLLBACK_LINES;
 const MIN_LIVE_SCROLLBACK_LINES = 500;
-const MAX_LIVE_SCROLLBACK_LINES = 1_000_000;
 const CODEX_STARTUP_GRACE_MS = 1_500;
 const CODEX_QUEUED_SUBMIT_DELAY_MS = 120;
 
@@ -1026,7 +1025,7 @@ function normalizeBufferLineLimit(value: number | null | undefined): number | nu
   if (!Number.isFinite(value)) {
     return DEFAULT_BUFFER_LINE_LIMIT;
   }
-  return Math.max(MIN_LIVE_SCROLLBACK_LINES, Math.min(MAX_LIVE_SCROLLBACK_LINES, Math.floor(value)));
+  return Math.max(MIN_LIVE_SCROLLBACK_LINES, Math.floor(value));
 }
 
 function normalizeTranscriptRetentionDays(value: number): number {

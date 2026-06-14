@@ -2,7 +2,8 @@ import type { WorkspaceSettings } from "@exo/core";
 
 import type { WorkspaceSettingsDialogState } from "./workspaceSettingsDialogTypes";
 
-export const FULL_TERMINAL_SCROLLBACK_LINES = 1_000_000;
+export const DEFAULT_TERMINAL_HISTORY_LINES = 100_000;
+export const MIN_TERMINAL_HISTORY_LINES = 500;
 export const DEFAULT_EDITOR_FONT_SIZE = 15;
 export const DEFAULT_TERMINAL_FONT_SIZE = 13;
 export const DEFAULT_EXPLORER_SCALE = 1;
@@ -45,11 +46,6 @@ export function workspaceSettingsStructuralKeyFromSettings(settings: WorkspaceSe
 }
 
 export function resolveSettingsTerminalRuntime(settings: WorkspaceSettings): { scrollbackLines: number } {
-  if (settings.terminalHistoryMode === "full") {
-    return {
-      scrollbackLines: FULL_TERMINAL_SCROLLBACK_LINES,
-    };
-  }
   return {
     scrollbackLines: settings.terminalHistoryLines,
   };

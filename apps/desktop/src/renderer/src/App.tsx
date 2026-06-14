@@ -46,8 +46,8 @@ import {
   clampNumber,
   DEFAULT_EDITOR_FONT_SIZE,
   DEFAULT_EXPLORER_SCALE,
+  DEFAULT_TERMINAL_HISTORY_LINES,
   DEFAULT_TERMINAL_FONT_SIZE,
-  FULL_TERMINAL_SCROLLBACK_LINES,
   resolveSettingsTerminalRuntime,
   workspaceSettingsStructuralDraftKey,
 } from "./workspaceSettingsModel";
@@ -76,12 +76,12 @@ export function App() {
   const [zoomSurface, setZoomSurface] = useState<ZoomSurface>("editor");
   const [editorFontSize, setEditorFontSize] = useState(DEFAULT_EDITOR_FONT_SIZE);
   const [terminalFontSize, setTerminalFontSize] = useState(DEFAULT_TERMINAL_FONT_SIZE);
-  const [terminalRuntimeScrollbackLines, setTerminalRuntimeScrollbackLines] = useState(FULL_TERMINAL_SCROLLBACK_LINES);
+  const [terminalRuntimeScrollbackLines, setTerminalRuntimeScrollbackLines] = useState(DEFAULT_TERMINAL_HISTORY_LINES);
   const [explorerScale, setExplorerScale] = useState(DEFAULT_EXPLORER_SCALE);
   const [systemPrefersDark, setSystemPrefersDark] = useState(() =>
     window.matchMedia("(prefers-color-scheme: dark)").matches,
   );
-  const terminalRuntimeScrollbackLinesRef = useRef(FULL_TERMINAL_SCROLLBACK_LINES);
+  const terminalRuntimeScrollbackLinesRef = useRef(DEFAULT_TERMINAL_HISTORY_LINES);
   const terminalPaneControllerRef = useRef<TerminalPaneController | null>(null);
   const shellLayout = useShellLayout();
 

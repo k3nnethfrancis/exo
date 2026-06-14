@@ -484,38 +484,19 @@ function TerminalSection({
       </label>
       <label className="dialog-field">
         <span className="dialog-field__label">
-          Live terminal scrollback
-          <HelpTooltip label="Controls how many terminal output lines Exo keeps in the live interface. Terminal transcripts are controlled separately." />
+          Live terminal scrollback lines
+          <HelpTooltip label="Controls how many terminal output lines Exo keeps in the live terminal, tmux pane, and hydration buffer. Higher values use more memory. Durable transcripts are controlled separately." />
         </span>
-        <select
+        <input
           className="dialog-card__input"
-          data-testid="workspace-settings-terminal-history-mode"
-          value={settings.terminalHistoryMode}
-          onChange={(event) =>
-            setSettings((current) =>
-              current ? { ...current, terminalHistoryMode: event.target.value as WorkspaceSettings["terminalHistoryMode"], saveStatus: "idle", errorMessage: null } : current,
-            )
-          }
-        >
-          <option value="full">Maximum</option>
-          <option value="custom">Custom</option>
-        </select>
+          data-testid="workspace-settings-terminal-history-lines"
+          type="number"
+          min={500}
+          step={1000}
+          value={settings.terminalHistoryLines}
+          onChange={(event) => setSettings((current) => (current ? { ...current, terminalHistoryLines: event.target.value, saveStatus: "idle", errorMessage: null } : current))}
+        />
       </label>
-      {settings.terminalHistoryMode === "custom" ? (
-        <label className="dialog-field">
-          <span className="dialog-field__label">Scrollback lines</span>
-          <input
-            className="dialog-card__input"
-            data-testid="workspace-settings-terminal-history-lines"
-            type="number"
-            min={500}
-            max={1000000}
-            step={500}
-            value={settings.terminalHistoryLines}
-            onChange={(event) => setSettings((current) => (current ? { ...current, terminalHistoryLines: event.target.value, saveStatus: "idle", errorMessage: null } : current))}
-          />
-        </label>
-      ) : null}
       <label className="dialog-field">
         <span className="dialog-field__label">Transcript retention</span>
         <select

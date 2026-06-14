@@ -15,7 +15,7 @@ import { isTerminalGeneratedResponse } from "./components/terminalInputFilters";
 import { defaultTerminalCwdForNotesFolder } from "./hooks/useWorkspaceBootstrap";
 import { terminalSessionsEqual } from "./terminalSessions";
 import {
-  FULL_TERMINAL_SCROLLBACK_LINES,
+  DEFAULT_TERMINAL_HISTORY_LINES as RENDERER_DEFAULT_TERMINAL_HISTORY_LINES,
   clampNumber,
   resolveSettingsTerminalRuntime,
   workspaceSettingsStructuralDraftKey,
@@ -112,8 +112,8 @@ describe("workspace settings renderer model", () => {
       appearanceMode: "system",
       editorFontSize: "15",
       terminalFontSize: "13",
-      terminalHistoryMode: "full",
-      terminalHistoryLines: "1000000",
+      terminalHistoryMode: "custom",
+      terminalHistoryLines: String(RENDERER_DEFAULT_TERMINAL_HISTORY_LINES),
       terminalTranscriptRetention: "forever",
       terminalTranscriptRetentionDays: "14",
       explorerScale: "1",
@@ -128,7 +128,7 @@ describe("workspace settings renderer model", () => {
     })).toBe(workspaceSettingsStructuralKeyFromSettings(settings!));
   });
 
-  it("resolves full scrollback and clamps invalid numeric settings", () => {
+  it("resolves numeric scrollback and preserves old full-mode line counts", () => {
     const store = new WorkspaceSettingsStore({ userDataPath: "/tmp/exo-test", env: {} });
     const settings = store.normalize({
       workspaceRoot: "/workspace",
@@ -138,9 +138,11 @@ describe("workspace settings renderer model", () => {
       indexedRoots: [],
       indexing: { enabled: false, mode: "off", backend: "qmd" },
       terminalHistoryMode: "full",
+      terminalHistoryLines: 1_000_000,
     });
 
-    expect(settings ? resolveSettingsTerminalRuntime(settings).scrollbackLines : null).toBe(FULL_TERMINAL_SCROLLBACK_LINES);
+    expect(settings?.terminalHistoryMode).toBe("custom");
+    expect(settings ? resolveSettingsTerminalRuntime(settings).scrollbackLines : null).toBe(1_000_000);
     expect(clampNumber(Number.NaN, 10, 20)).toBe(10);
     expect(clampNumber(25, 10, 20)).toBe(20);
     expect(clampNumber(15, 10, 20)).toBe(15);
