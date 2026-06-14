@@ -156,7 +156,10 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 ## Next: Exograph Architecture
 
 - [ ] Write the exograph architecture spec: files/properties as approved facts, profile/config as interpretation rules, `.exo/` as derived state/proposals/runs/provenance.
+- [ ] Add OKF v0.1 compatibility requirements to the exograph spec: Markdown concept docs, required `type`, optional `title`/`description`/`resource`/`tags`/`timestamp`, Markdown links, optional `index.md`/`log.md`, permissive consumers, and unknown-field preservation.
 - [ ] Define the exograph profile model: node types, edge types, path/property mappings, conventions, templates, maintenance rules, and review policy.
+- [ ] Add OKF bundle inspection/validation for attached note roots without forcing users to restructure existing notes.
+- [ ] Add OKF export/import planning for Exo profiles and curated graph facts.
 - [ ] Define proposal storage for inferred schema, graph, and file changes before any new maintainer write workflows are added.
 - [ ] Define the two user-facing exograph modes: Analyze Exograph and Maintain Exograph.
 - [ ] Add schema-neutral read-only graph extraction for Markdown links, backlinks, headings, tags, frontmatter/properties, paths, and file metadata.
@@ -185,6 +188,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [ ] Extract shell/Claude/Codex launch planning behind an `AgentLauncher` interface.
 - [ ] Use Guardian Angel as the first reference workload for plugin contracts: trace collection, review labels, dataset export, eval packets, and instrumented agent runtimes.
 - [ ] Define a Guardian Angel Harness V0 contract before public plugin manifests.
+- [ ] Make Guardian Angel plugin requirements OKF-aware: curated knowledge as OKF concept documents; raw traces, labels, eval packets, and training exports as linked local artifacts.
 - [ ] Define permissioned surface-contribution policy for desktop, CLI, MCP, and command-server exposure.
 - [ ] Add architecture/harness checks that discourage new hardwired provider or launcher conditionals outside the registry path.
 - [ ] Defer local plugin manifests, install locations, marketplace/package loading, and Plugin Manager UI until the internal registry contracts survive real use.

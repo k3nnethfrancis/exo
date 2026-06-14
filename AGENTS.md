@@ -97,6 +97,7 @@ CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build 
 - Live Explore typing stays fast filename/path search; optional indexed search is explicit and should not block the renderer.
 - Exo's core object is the exograph: a user-defined graph over notes, projects, agents, sessions, files, artifacts, and workflow runs with growable relational ontologies.
 - Durable approved graph facts should live in user-owned Markdown/frontmatter/properties, links, tags, and files. Derived indexes, inferred facts, proposals, workflow runs, and provenance belong under `.exo/` until accepted.
+- Exo should follow Open Knowledge Format (OKF) compatibility for portable knowledge bundles: Markdown concept files, YAML frontmatter with required `type`, normal Markdown links, optional `index.md`/`log.md`, permissive consumption, and preservation of unknown fields. Runtime traces, plugin state, proposals, and datasets may be richer `.exo/` artifacts linked back to OKF concepts.
 - Exo should not impose one vault schema. It may detect, recommend, and maintain structures such as Shoshin or LM Wiki profiles, but users own the schema.
 - QMD is the default notes-index/search provider behind Exo-managed lexical/semantic/hybrid search, CLI, and MCP tools, not the permanent product boundary.
 - Keep QMD calls behind `packages/core/src/qmd.ts`; do not patch `node_modules` or fork QMD casually.

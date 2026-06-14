@@ -120,11 +120,13 @@ Exo should track authorship from observed workflows, not guess using AI detector
 
 Exo's core object is the exograph, not a fixed folder schema or one retrieval backend.
 
+- Exo should follow the Open Knowledge Format (OKF) v0.1 draft as its portable knowledge-bundle compatibility target: Markdown concept documents, YAML frontmatter with required `type`, normal Markdown links, optional `index.md`, optional `log.md`, and permissive consumers that preserve unknown fields.
 - Users can define or accept an exograph profile: node types, edge types, path/property mappings, conventions, templates, maintenance rules, and review policy.
 - Exo can recommend starter profiles, including a minimal flat-notes profile, a Shoshin-style organization profile, and an LM Wiki-style profile.
 - Exo should never require `entities/`, `sources/`, `index.md`, `log.md`, or any other structure by default. It may detect and map them when they exist, or propose them with review.
 - Approved durable graph facts live in Markdown/frontmatter/properties, links, tags, and user files.
 - Inferred facts, schema suggestions, workflow runs, and provenance live in `.exo/` until accepted.
+- OKF compatibility should be read/write/export compatible, but Exo runtime state, traces, proposals, plugin data, and training artifacts can remain richer `.exo/` state that links back to OKF concepts.
 - User-facing exograph modes collapse to two surfaces:
   - Analyze Exograph: read-only discovery, schema suggestions, and health diagnostics.
   - Maintain Exograph: reviewable file/profile changes after user approval.
@@ -182,6 +184,7 @@ Exo should be extensible without making every personal or domain-specific workfl
 - Core owns stable primitives: notes, project roots, panes, WebView/browser panes, commands, agents, messages, exograph profiles, search, settings, runs, artifacts, provenance, proposals, and permission boundaries.
 - Plugins are packages of Exo extensions. A plugin may include backend capabilities, commands, MCP/CLI tools, UI panels, editor extensions, or a web app hosted inside an Exo WebView pane.
 - Guardian Angel is the first reference workload for the plugin boundary: elicitation harnesses, trace collectors, correction/review surfaces, psychological-model hypotheses, dataset exporters, eval runners, and instrumented agent runtimes should prove the contract without all becoming core.
+- Guardian Angel plugins should use OKF concept documents for curated principal/project knowledge where possible, while storing raw traces, review labels, eval packets, and training exports as local artifacts linked back to OKF concepts.
 - Web apps are one possible plugin surface, not the whole plugin model. Browser/WebView support belongs in core because local previews, docs, dashboards, and future plugin apps all need the same pane/runtime primitive.
 - Agent integrations should use plugin-shaped adapter contracts where possible. Exo core should define how agents launch, expose capabilities, receive MCP/CLI tools, and report lifecycle state; specific agents such as Claude, Codex, Pi, Aider, Goose, or local/open-source agents can be first-party or community plugins.
 - Plugin state should be inspectable, removable, and local-first.
