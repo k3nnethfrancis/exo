@@ -1,5 +1,7 @@
 import type { RoutineDefinition } from "./routine";
-import type { RunEvidenceRef } from "./run";
+import { builtInCapabilities, type CapabilityMetadata } from "./capabilities";
+import type { RunEvidenceRef, RunTracePacket } from "./run";
+import type { TraceCollector, TraceCollectorContext } from "./trace-collector";
 
 export type GuardianAngelActor = "principal" | "harness" | "candidate" | "reviewer";
 export type GuardianAngelTraceKind =
@@ -121,6 +123,29 @@ export const guardianAngelStrategicAlignmentRoutineExample = {
   updatedAt: "2026-06-14T00:00:00.000Z",
 } satisfies RoutineDefinition;
 
+export const guardianAngelTraceCollectorMetadata = resolveGuardianAngelTraceCollectorMetadata();
+
+export class GuardianAngelTraceCollector implements TraceCollector {
+  readonly metadata = guardianAngelTraceCollectorMetadata;
+
+  async collect(packet: RunTracePacket, context: TraceCollectorContext): Promise<RunTracePacket> {
+    if (packet.runId !== context.runId) {
+      throw new Error(`Guardian Angel trace packet runId mismatch: ${packet.runId} !== ${context.runId}`);
+    }
+    return packet;
+  }
+}
+
+export const guardianAngelTraceCollector = new GuardianAngelTraceCollector();
+
 export function guardianAngelTraceHasEvidence(packet: Pick<GuardianAngelTracePacket, "evidence">): boolean {
   return packet.evidence.length > 0;
+}
+
+function resolveGuardianAngelTraceCollectorMetadata(): CapabilityMetadata {
+  const metadata = builtInCapabilities.find((capability) => capability.id === "guardian-angel-trace-collector");
+  if (!metadata) {
+    throw new Error("Guardian Angel trace collector capability metadata is not registered.");
+  }
+  return metadata;
 }

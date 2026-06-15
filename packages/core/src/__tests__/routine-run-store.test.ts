@@ -10,6 +10,7 @@ import {
   runArtifactPath,
   runLogPath,
   runRecordPath,
+  runTraceLogPath,
   runTranscriptPath,
   safeStoreFileName,
   safeStoreSegment,
@@ -32,6 +33,7 @@ describe("routine run store layout", () => {
     expect(runTranscriptPath(layout, "run-1")).toBe(path.join("/workspace/.exo", "runs", "run-1", "transcript.ansi.log"));
     expect(runLogPath(layout, "run-1")).toBe(path.join("/workspace/.exo", "runs", "run-1", "run.log"));
     expect(runArtifactPath(layout, "run-1", "report.md")).toBe(path.join("/workspace/.exo", "artifacts", "run-1", "report.md"));
+    expect(runTraceLogPath(layout, "run-1")).toBe(path.join("/workspace/.exo", "artifacts", "run-1", "trace.jsonl"));
   });
 
   it("sanitizes store ids without allowing empty or parent-directory identifiers", () => {
@@ -109,8 +111,114 @@ describe("routine run store layout", () => {
       await expect(store.readRoutine("missing")).resolves.toBeNull();
       await expect(store.readRun("missing")).resolves.toBeNull();
       await expect(store.listRoutines()).resolves.toEqual([]);
+      await expect(store.readTracePackets("missing")).resolves.toEqual([]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("writes artifacts and records them on the run", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-routine-run-store-"));
+    try {
+      const store = new RoutineRunStore(path.join(root, ".exo"));
+      await store.writeRun(baseRun("run-artifacts"));
+
+      const artifact = await store.writeArtifact(
+        "run-artifacts",
+        {
+          id: "alignment-report",
+          kind: "report",
+          title: "Alignment Report",
+          mimeType: "text/markdown",
+          createdAt: "2026-06-14T00:01:00.000Z",
+        },
+        "# Alignment Report\n",
+      );
+      const run = await store.readRun("run-artifacts");
+
+      expect(artifact.path).toBe(path.join(root, ".exo", "artifacts", "run-artifacts", "alignment-report.md"));
+      expect(await readFile(artifact.path, "utf8")).toBe("# Alignment Report\n");
+      expect(run?.artifacts).toEqual([artifact]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("appends trace packets to JSONL and mirrors them on the run record", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-routine-run-store-"));
+    try {
+      const store = new RoutineRunStore(path.join(root, ".exo"));
+      await store.writeRun(baseRun("run-trace"));
+
+      const packet = await store.appendTrace("run-trace", {
+        id: "trace-1",
+        kind: "decision",
+        timestamp: "2026-06-14T00:02:00.000Z",
+        actor: "guardian-angel",
+        private: true,
+        evidence: [
+          {
+            id: "evidence-1",
+            kind: "markdown",
+            path: "notes/projects/guardian-angel/protocol.md",
+          },
+        ],
+        payload: {
+          autonomyBoundary: "ask",
+        },
+      });
+
+      expect(packet.runId).toBe("run-trace");
+      expect(await store.readTracePackets("run-trace")).toEqual([packet]);
+      expect((await store.readRun("run-trace"))?.tracePackets).toEqual([packet]);
+      expect(await readFile(runTraceLogPath(store.layout, "run-trace"), "utf8")).toBe(`${JSON.stringify(packet)}\n`);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("fails clearly when writing artifacts or traces for missing runs", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-routine-run-store-"));
+    try {
+      const store = new RoutineRunStore(path.join(root, ".exo"));
+
+      await expect(
+        store.writeArtifact(
+          "missing",
+          {
+            id: "report",
+            kind: "report",
+            createdAt: "2026-06-14T00:00:00.000Z",
+          },
+          "report",
+        ),
+      ).rejects.toThrow("Run record not found: missing");
+      await expect(
+        store.appendTrace("missing", {
+          id: "trace-1",
+          kind: "event",
+          timestamp: "2026-06-14T00:00:00.000Z",
+          actor: "test",
+          private: false,
+          evidence: [],
+          payload: {},
+        }),
+      ).rejects.toThrow("Run record not found: missing");
     } finally {
       await rm(root, { recursive: true, force: true });
     }
   });
 });
+
+function baseRun(id: string): RunRecord {
+  return {
+    id,
+    routineId: "routine-1",
+    harnessId: "codex",
+    status: "queued",
+    reviewState: "notRequired",
+    artifacts: [],
+    proposedFileChanges: [],
+    errors: [],
+  };
+}

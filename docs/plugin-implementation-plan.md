@@ -187,7 +187,7 @@ pnpm check
 
 ## Phase 4: Routine And Run Model Spec
 
-Status: first-pass type contracts implemented in `packages/core/src/routine.ts` and `packages/core/src/run.ts`. Storage path helpers and a small JSON filesystem store are implemented in `packages/core/src/routine-run-store.ts`. Scheduler implementation remains future work. Do not build scheduler UI yet.
+Status: first-pass type contracts implemented in `packages/core/src/routine.ts` and `packages/core/src/run.ts`. Storage path helpers, a small JSON filesystem store, artifact writing, and trace JSONL append helpers are implemented in `packages/core/src/routine-run-store.ts`. Scheduler implementation remains future work. Do not build scheduler UI yet.
 
 Core concepts:
 
@@ -236,6 +236,8 @@ This phase may be docs and type definitions only.
 ## Phase 5: Guardian Angel Harness V0 Contract
 
 Use Guardian Angel as the first reference workload, but do not build the full plugin yet.
+
+Status: type contract and experimental internal trace collector capability are implemented. No Guardian Angel executor, JSONL exporter, eval runner, or review UI exists yet.
 
 The contract must support:
 

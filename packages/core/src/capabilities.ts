@@ -87,4 +87,17 @@ export const builtInCapabilities = [
       managedAgentKind: "codex",
     },
   },
+  {
+    id: "guardian-angel-trace-collector",
+    kind: "traceCollector",
+    label: "Guardian Angel Trace Collector",
+    description: "Experimental trace collector contract for Guardian Angel runs, review labels, and export artifacts.",
+    lifecycle: "experimental",
+    owner: "@exo/core/guardian-angel",
+    surfaces: ["internal"],
+    permissions: ["workspace:read", "notes:read", "artifacts:write"],
+    compatibility: {
+      routineFamily: "guardian-angel",
+    },
+  },
 ] satisfies CapabilityMetadata[];
