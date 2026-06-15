@@ -199,6 +199,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Extract shell/Claude/Codex launch planning behind an `AgentHarness` interface.
 - [x] Define Routine and harness skill inventory contracts before implementing scheduler UI.
 - [x] Define shared Run, artifact, trace, file-change proposal, and evaluation result primitives that plugins can build on.
+- [x] Define canonical `.exo/` storage paths for Routine definitions, Run records, transcripts, logs, and artifacts.
 - [x] Use Guardian Angel as the first reference workload for plugin contracts: trace collection, review labels, dataset export, eval packets, and instrumented agent runtimes.
 - [x] Define a Guardian Angel Harness V0 contract before public plugin manifests.
 - [x] Make Guardian Angel plugin requirements OKF-aware: curated knowledge as OKF concept documents; raw traces, labels, eval packets, and training exports as linked local artifacts.

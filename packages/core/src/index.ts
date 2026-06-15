@@ -7,6 +7,7 @@ export * from "./runtime";
 export * from "./agent-harness";
 export * from "./routine";
 export * from "./run";
+export * from "./routine-run-store";
 export * from "./guardian-angel";
 export * from "./qmd";
 export * from "./capabilities";

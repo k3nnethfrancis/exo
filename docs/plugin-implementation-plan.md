@@ -181,7 +181,7 @@ pnpm check
 
 ## Phase 4: Routine And Run Model Spec
 
-Status: first-pass type contracts implemented in `packages/core/src/routine.ts` and `packages/core/src/run.ts`. Storage and scheduler implementation remain future work. Do not build scheduler UI yet.
+Status: first-pass type contracts implemented in `packages/core/src/routine.ts` and `packages/core/src/run.ts`. Storage path helpers are implemented in `packages/core/src/routine-run-store.ts`. Actual read/write storage and scheduler implementation remain future work. Do not build scheduler UI yet.
 
 Core concepts:
 
@@ -218,6 +218,12 @@ Storage:
 - run records can live under `.exo/runs/`
 - artifacts can live under `.exo/artifacts/`
 - user-owned Markdown changes remain normal files and should be proposed/reviewed according to output policy
+- canonical first-pass paths:
+  - `.exo/routines/{routineId}.json`
+  - `.exo/runs/{runId}/run.json`
+  - `.exo/runs/{runId}/transcript.ansi.log`
+  - `.exo/runs/{runId}/run.log`
+  - `.exo/artifacts/{runId}/{artifactFileName}`
 
 This phase may be docs and type definitions only.
 
