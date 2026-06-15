@@ -205,6 +205,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Add a first JSON-backed core store for Routine definitions and Run records.
 - [x] Add artifact writing and trace JSONL append helpers to the Routine/Run store.
 - [x] Add a generic trace collector contract and an experimental Guardian Angel trace collector capability.
+- [x] Add a manual Routine executor substrate with injected host execution, artifact recording, trace recording, failure capture, and review status updates.
 - [x] Use Guardian Angel as the first reference workload for plugin contracts: trace collection, review labels, dataset export, eval packets, and instrumented agent runtimes.
 - [x] Define a Guardian Angel Harness V0 contract before public plugin manifests.
 - [x] Make Guardian Angel plugin requirements OKF-aware: curated knowledge as OKF concept documents; raw traces, labels, eval packets, and training exports as linked local artifacts.
