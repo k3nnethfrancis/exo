@@ -156,8 +156,8 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Reframe QMD as the default search provider behind an Exo search-provider contract, not a permanent hard dependency at the product boundary.
 - [x] Decide the CLI/MCP philosophy for note and graph tools: CLI is broad operator/admin/debug; MCP is the narrow agent work plane.
 - [ ] Keep project files out of the notes memory index unless explicitly added later.
-- [ ] Design the search-provider interface for capability discovery, status, search, read/resolve, graph hints, sync/update, cancellation, and diagnostics.
-- [ ] Move QMD behind the internal `SearchProvider` contract while preserving current UI/CLI/MCP behavior.
+- [x] Design the search-provider interface for capability discovery, status, search, read/resolve, sync/update, and future diagnostics.
+- [x] Move QMD behind the internal `SearchProvider` contract while preserving current UI/CLI/MCP behavior.
 - [ ] Add note traversal and graph context primitives: files/folders, document metadata, headings/outline, outgoing links, backlinks, unresolved links, orphans, and related documents.
 - [ ] Add scoped note write primitives after graph/read primitives are stable: create, append, and guarded patch within selected note roots.
 - [ ] Add LM Wiki maintenance reports for stale pages, orphan pages, unresolved links, missing cross-links, contradiction candidates, and missing source questions.
@@ -198,6 +198,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Register built-in shell, Claude, and Codex agent-harness metadata without changing behavior.
 - [x] Extract shell/Claude/Codex launch planning behind an `AgentHarness` interface.
 - [x] Define Routine and harness skill inventory contracts before implementing scheduler UI.
+- [x] Define shared Run, artifact, trace, file-change proposal, and evaluation result primitives that plugins can build on.
 - [x] Use Guardian Angel as the first reference workload for plugin contracts: trace collection, review labels, dataset export, eval packets, and instrumented agent runtimes.
 - [x] Define a Guardian Angel Harness V0 contract before public plugin manifests.
 - [x] Make Guardian Angel plugin requirements OKF-aware: curated knowledge as OKF concept documents; raw traces, labels, eval packets, and training exports as linked local artifacts.
@@ -212,7 +213,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [ ] Add durable memory, trace archive, retrieval/index, and working-memory assembly as separate layers.
 - [ ] Support adding non-Claude/non-Codex terminal agents, including local/open-source agents.
 - [ ] Add workcell model for bounded research/development loops.
-- [ ] Define run, artifact, trace, and evaluation result primitives that plugins can build on.
+- [x] Define run, artifact, trace, and evaluation result primitives that plugins can build on.
 - [ ] Add supervised run surfaces with artifacts, metrics, logs, and replay.
 - [ ] Add eval hooks for retrieval quality, memory usefulness, agent recovery, and operator acceptance.
 - [ ] Keep training data explicitly scoped by project, workcell, agent, artifact type, review status, and time window.

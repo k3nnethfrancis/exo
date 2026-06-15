@@ -1,4 +1,5 @@
 import type { RoutineDefinition } from "./routine";
+import type { RunEvidenceRef } from "./run";
 
 export type GuardianAngelActor = "principal" | "harness" | "candidate" | "reviewer";
 export type GuardianAngelTraceKind =
@@ -13,14 +14,7 @@ export type GuardianAngelTraceKind =
 
 export type GuardianAngelRedactionStatus = "privateOnly" | "redacted" | "publicOk";
 
-export interface GuardianAngelEvidenceRef {
-  id: string;
-  kind: "markdown" | "okfConcept" | "runArtifact" | "external";
-  path?: string;
-  uri?: string;
-  contentHash?: string;
-  note?: string;
-}
+export type GuardianAngelEvidenceRef = RunEvidenceRef;
 
 export interface GuardianAngelTracePacket {
   id: string;

@@ -1,5 +1,19 @@
 import type { CapabilityPermission } from "./capabilities";
 import type { AgentHarness, HarnessSkillMetadata } from "./agent-harness";
+export type {
+  RunArtifact,
+  RunArtifactKind,
+  RunError,
+  RunEvaluationMetric,
+  RunEvaluationResult,
+  RunEvidenceRef,
+  RunFileChangeProposal,
+  RunRecord,
+  RunReviewState,
+  RunStatus,
+  RunTraceKind,
+  RunTracePacket,
+} from "./run";
 
 export type RoutineTrigger =
   | { kind: "manual" }
@@ -41,42 +55,6 @@ export interface RoutineDefinition {
   enabled: boolean;
   createdAt: string;
   updatedAt: string;
-}
-
-export type RunStatus = "queued" | "running" | "succeeded" | "failed" | "cancelled" | "needsReview";
-export type RunReviewState = "notRequired" | "pending" | "accepted" | "rejected" | "corrected";
-export type RunArtifactKind = "transcript" | "log" | "fileChange" | "jsonl" | "report" | "trace" | "dataset" | "other";
-
-export interface RunArtifact {
-  id: string;
-  runId: string;
-  kind: RunArtifactKind;
-  path: string;
-  title?: string;
-  mimeType?: string;
-  createdAt: string;
-  metadata?: Record<string, unknown>;
-}
-
-export interface RunError {
-  message: string;
-  code?: string;
-  detail?: string;
-}
-
-export interface RunRecord {
-  id: string;
-  routineId: string;
-  harnessId: string;
-  status: RunStatus;
-  reviewState: RunReviewState;
-  startedAt?: string;
-  completedAt?: string;
-  transcriptPath?: string;
-  logPath?: string;
-  artifacts: RunArtifact[];
-  proposedFileChanges: string[];
-  errors: RunError[];
 }
 
 export function missingRequiredHarnessSkills(

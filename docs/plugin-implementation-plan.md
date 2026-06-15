@@ -181,7 +181,7 @@ pnpm check
 
 ## Phase 4: Routine And Run Model Spec
 
-Define types and storage plan before implementation. Do not build scheduler UI yet.
+Status: first-pass type contracts implemented in `packages/core/src/routine.ts` and `packages/core/src/run.ts`. Storage and scheduler implementation remain future work. Do not build scheduler UI yet.
 
 Core concepts:
 
@@ -193,6 +193,9 @@ Core concepts:
 - `HarnessSkillRequirement`
 - `RunRecord`
 - `RunArtifact`
+- `RunTracePacket`
+- `RunFileChangeProposal`
+- `RunEvaluationResult`
 
 Routine:
 
@@ -207,7 +210,7 @@ Routine:
 Run:
 
 - one execution of a Routine
-- status, timestamps, logs, transcripts, artifacts, proposed file changes, errors, review state, and recovery metadata
+- status, timestamps, logs, transcripts, artifacts, proposed file changes, trace packets, evaluation results, errors, review state, and recovery metadata
 
 Storage:
 
