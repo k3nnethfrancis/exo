@@ -151,6 +151,8 @@ assertNoDirectImplementationImports({
   allowedFiles: [
     'packages/core/src/qmd.ts',
     'packages/core/src/__tests__/qmd.test.ts',
+    'packages/core/src/__tests__/search-provider-registry.test.ts',
+    'packages/core/src/search-provider-registry.ts',
     'packages/core/src/search-providers/qmd-provider.ts',
     'scripts/check-repo.mjs',
   ],

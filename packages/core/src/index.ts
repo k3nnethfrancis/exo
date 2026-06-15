@@ -14,5 +14,6 @@ export * from "./capabilities";
 export * from "./capability-registry";
 export * from "./surface-policy";
 export * from "./search-provider";
+export * from "./search-provider-registry";
 export * from "./command-protocol";
 export * from "./integrations";

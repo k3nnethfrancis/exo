@@ -103,9 +103,12 @@ pnpm check:repo
 
 Move QMD behind a typed `SearchProvider` contract while preserving current public functions.
 
+Status: implemented. QMD is behind `QmdSearchProvider`, and the public QMD facade resolves the default provider through `SearchProviderRegistry`.
+
 Suggested files:
 
 - `packages/core/src/search-provider.ts`
+- `packages/core/src/search-provider-registry.ts`
 - `packages/core/src/search-providers/qmd-provider.ts`
 - keep `packages/core/src/qmd.ts` as a compatibility facade during migration
 
