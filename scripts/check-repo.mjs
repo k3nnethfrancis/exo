@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { lstatSync, readFileSync, readlinkSync } from 'node:fs';
+import { lstatSync, readFileSync, readdirSync, readlinkSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 
@@ -29,6 +29,45 @@ function assertContains(relativePath, expected) {
   const content = read(relativePath);
   if (!content.includes(expected)) {
     fail(`${relativePath} must contain: ${expected}`);
+  }
+}
+
+function listSourceFiles(relativeDirectory) {
+  const root = path.join(repoRoot, relativeDirectory);
+  const files = [];
+  const ignoredDirectories = new Set(['.git', 'dist', 'node_modules', 'release']);
+
+  function visit(directory) {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      if (entry.isDirectory()) {
+        if (!ignoredDirectories.has(entry.name)) {
+          visit(path.join(directory, entry.name));
+        }
+        continue;
+      }
+      if (!entry.isFile() || !/\.(ts|tsx|mts|cts|js|mjs)$/.test(entry.name)) {
+        continue;
+      }
+      files.push(path.relative(repoRoot, path.join(directory, entry.name)));
+    }
+  }
+
+  visit(root);
+  return files.sort();
+}
+
+function assertNoDirectImplementationImports({ label, blockedImportFragments, allowedFiles }) {
+  const allowed = new Set(allowedFiles);
+  for (const file of listSourceFiles('.')) {
+    if (allowed.has(file)) {
+      continue;
+    }
+    const content = read(file);
+    for (const fragment of blockedImportFragments) {
+      if (content.includes(fragment)) {
+        fail(`${file} must not import ${label} implementation modules directly; use the public core facade/contract instead`);
+      }
+    }
   }
 }
 
@@ -105,6 +144,28 @@ assertContains('AGENTS.md', 'docs/usability-readiness.md');
 assertContains('README.md', './scripts/install-local');
 assertContains('README.md', './scripts/install-mac-app');
 assertContains('README.md', 'pnpm dev:qa');
+
+assertNoDirectImplementationImports({
+  label: 'QMD search provider',
+  blockedImportFragments: ['search-providers/qmd-provider'],
+  allowedFiles: [
+    'packages/core/src/qmd.ts',
+    'packages/core/src/__tests__/qmd.test.ts',
+    'packages/core/src/search-providers/qmd-provider.ts',
+    'scripts/check-repo.mjs',
+  ],
+});
+
+assertNoDirectImplementationImports({
+  label: 'built-in agent harness',
+  blockedImportFragments: ['agent-harnesses/builtins'],
+  allowedFiles: [
+    'packages/core/src/runtime.ts',
+    'packages/core/src/__tests__/runtime.test.ts',
+    'packages/core/src/agent-harnesses/builtins.ts',
+    'scripts/check-repo.mjs',
+  ],
+});
 
 if (failures.length > 0) {
   console.error('Repo checks failed:');
