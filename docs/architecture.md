@@ -82,7 +82,7 @@ For Exo-on-Exo development, the installed app is the stable resident runtime. So
 
 Exo should eventually have a core feed/event stream and scheduler for local AI workbench routines.
 
-The feed is the broader primitive behind an inbox. It is a stream of incoming or generated context items from quick capture, files, notes, terminal agents, MCP messages, RSS/bookmarks, voice transcripts, workflow results, git events, evals, and Guardian Angel elicitation sessions. Feed items are not automatically durable graph facts. They are reviewable inputs that can be linked, archived, promoted into notes/entities/tasks, or used as trace/artifact evidence.
+The feed is the broader primitive behind an inbox. It is a stream of incoming or generated context items from quick capture, files, notes, terminal agents, MCP messages, RSS/bookmarks, voice transcripts, workflow results, git events, evals, and plugin-generated sessions. Feed items are not automatically durable graph facts. They are reviewable inputs that can be linked, archived, promoted into notes/entities/tasks, or used as trace/artifact evidence.
 
 The scheduler is core because recurring local AI work should not depend on each plugin inventing cron. A scheduled run should specify:
 
@@ -300,7 +300,7 @@ This matches Exo's direction and should become the default interoperability affo
 - Exo should preserve unknown frontmatter when editing or round-tripping documents.
 - User-approved durable graph facts should live in Markdown/frontmatter/links in a way that can be exported as OKF.
 - `.exo/` remains the place for derived indexes, traces, proposals, workflow runs, provenance, plugin state, and dataset artifacts that are not themselves concept documents.
-- Plugin and Guardian Angel harness artifacts should reference OKF concepts where possible, and may emit OKF concept documents for curated knowledge plus JSONL or other artifacts for raw traces/training data.
+- Plugin artifacts should reference OKF concepts where possible, and may emit OKF concept documents for curated knowledge plus JSONL or other artifacts for raw traces/training data.
 
 OKF is a document/bundle exchange standard, not Exo's runtime or plugin API. Exo can support richer local state and workflows, and it should never make OKF conformance a prerequisite for using normal Markdown notes. The portable knowledge layer should speak OKF when the user opts into structure or imports an OKF-compatible graph.
 

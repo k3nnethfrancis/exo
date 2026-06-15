@@ -20,7 +20,7 @@ Plugins and profiles own variation:
 
 - agent harnesses such as shell, Claude, Codex, Pi, Hermes, Aider, OpenCode, or local agents
 - search providers such as QMD, lexical search, graph search, local vector stores, or remote retrieval
-- exograph/profile packs such as OKF, Shoshin, LM Wiki, Guardian Angel, or project-specific mappings
+- exograph/profile packs such as OKF, Shoshin, LM Wiki, domain-specific workbenches, or project-specific mappings
 - analyzers, trace collectors, dataset exporters, eval runners, dashboards, and Routine templates
 
 ## Current Code Seams
@@ -233,29 +233,30 @@ Storage:
 
 This phase may be docs and type definitions only.
 
-## Phase 5: Guardian Angel Harness V0 Contract
+## Phase 5: External Reference Workload Contracts
 
-Use Guardian Angel as the first reference workload, but do not build the full plugin yet.
+Use downstream workloads to pressure-test the plugin boundary, but do not build workload-specific behavior into Exo core.
 
-Status: type contract and experimental internal trace collector capability are implemented. No Guardian Angel executor, JSONL exporter, eval runner, or review UI exists yet.
+Status: generic Exo primitives exist for Routines, Runs, artifacts, traces, injected execution hosts, provider registries, and harness registries. No workload-specific trace collector, exporter, eval runner, review UI, or schema should ship in core without explicit approval.
 
-The contract must support:
+The generic plugin contracts must support downstream workloads that need:
 
 - elicitation prompt runs
-- principal responses
+- operator or subject responses
 - accept/reject/correct labels
 - trace packets
 - evidence/provenance links
 - JSONL export artifacts
-- optional OKF concept outputs for curated principal/project knowledge
+- optional OKF concept outputs for curated project/domain knowledge
 - raw traces and labels as `.exo/` artifacts linked back to Markdown/OKF concepts
 
 This phase should produce:
 
-- concrete Routine examples
+- concrete generic Routine examples
 - trace schema draft
 - output policy examples
 - permission examples
+- guidance that domain-specific examples belong in plugin packages, private downstream repos, or clearly marked references, not `@exo/core`
 - test fixture expectations for future implementation
 
 ## Phase 6: Permissioned Surface Contributions
@@ -291,7 +292,7 @@ Future work:
 2. SearchProvider contract with QMD behind it.
 3. AgentHarness contract with shell/Claude/Codex behind it.
 4. Routine and Run type/storage spec.
-5. Guardian Angel Harness V0 contract.
+5. External reference workload contract requirements.
 6. Scheduler implementation.
 7. Feed/event model.
 8. Permissioned surface contributions.

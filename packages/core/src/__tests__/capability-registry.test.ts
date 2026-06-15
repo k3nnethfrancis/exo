@@ -43,7 +43,7 @@ describe("capability registry", () => {
 
     expect(registry.listActive({ kind: "searchProvider" }).map((capability) => capability.id)).toEqual(["qmd"]);
     expect(registry.listActive({ kind: "agentHarness" }).map((capability) => capability.id)).toEqual(["shell", "claude", "codex"]);
-    expect(registry.listActive({ kind: "traceCollector" }).map((capability) => capability.id)).toEqual(["guardian-angel-trace-collector"]);
+    expect(registry.listActive({ kind: "traceCollector" }).map((capability) => capability.id)).toEqual([]);
   });
 
   it("excludes disabled capabilities from active lists", () => {
@@ -78,7 +78,6 @@ describe("capability registry", () => {
       "shell",
       "claude",
       "codex",
-      "guardian-angel-trace-collector",
       "internal-only-test",
     ]);
   });

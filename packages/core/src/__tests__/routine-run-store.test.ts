@@ -37,7 +37,7 @@ describe("routine run store layout", () => {
   });
 
   it("sanitizes store ids without allowing empty or parent-directory identifiers", () => {
-    expect(safeStoreSegment(" Guardian Angel / V0 ")).toBe("Guardian-Angel---V0");
+    expect(safeStoreSegment(" Alignment Routine / V0 ")).toBe("Alignment-Routine---V0");
     expect(safeStoreSegment("../../run:1")).toBe("..-..-run-1");
     expect(() => safeStoreSegment("")).toThrow("non-empty identifier");
     expect(() => safeStoreSegment("..")).toThrow("non-empty identifier");
@@ -154,13 +154,13 @@ describe("routine run store layout", () => {
         id: "trace-1",
         kind: "decision",
         timestamp: "2026-06-14T00:02:00.000Z",
-        actor: "guardian-angel",
+        actor: "alignment-routine",
         private: true,
         evidence: [
           {
             id: "evidence-1",
             kind: "markdown",
-            path: "notes/projects/guardian-angel/protocol.md",
+            path: "notes/projects/alignment/protocol.md",
           },
         ],
         payload: {

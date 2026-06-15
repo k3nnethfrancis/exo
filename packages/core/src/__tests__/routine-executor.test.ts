@@ -8,9 +8,9 @@ import { RoutineRunStore } from "../routine-run-store";
 import type { RoutineDefinition } from "../routine";
 
 const routine: RoutineDefinition = {
-  id: "guardian-angel-smoke",
-  title: "Guardian Angel Smoke",
-  prompt: "Run a small GA smoke workflow.",
+  id: "alignment-smoke",
+  title: "Alignment Smoke",
+  prompt: "Run a small alignment smoke workflow.",
   harnessId: "codex",
   requiredSkills: [],
   trigger: { kind: "manual" },
@@ -45,11 +45,11 @@ describe("routine executor", () => {
               artifact: {
                 id: "report",
                 kind: "report",
-                title: "GA Report",
+                title: "Alignment Report",
                 mimeType: "text/markdown",
                 createdAt: "2026-06-14T00:01:00.000Z",
               },
-              contents: "# GA Report\n",
+              contents: "# Alignment Report\n",
             },
           ],
           tracePackets: [
@@ -57,7 +57,7 @@ describe("routine executor", () => {
               id: "trace-1",
               kind: "decision",
               timestamp: "2026-06-14T00:02:00.000Z",
-              actor: "guardian-angel",
+              actor: "alignment-routine",
               private: true,
               evidence: [],
               payload: { runId: run.id },
@@ -80,7 +80,7 @@ describe("routine executor", () => {
       });
       expect(run.artifacts).toHaveLength(1);
       expect(run.tracePackets).toHaveLength(1);
-      expect(await readFile(run.artifacts[0]!.path, "utf8")).toBe("# GA Report\n");
+      expect(await readFile(run.artifacts[0]!.path, "utf8")).toBe("# Alignment Report\n");
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -94,7 +94,7 @@ describe("routine executor", () => {
         store,
         {
           execute: async () => ({
-            proposedFileChanges: ["notes/projects/guardian-angel/proposal.md"],
+            proposedFileChanges: ["notes/projects/alignment/proposal.md"],
             needsReview: true,
           }),
         },
@@ -106,7 +106,7 @@ describe("routine executor", () => {
 
       expect(run.status).toBe("needsReview");
       expect(run.reviewState).toBe("pending");
-      expect(run.proposedFileChanges).toEqual(["notes/projects/guardian-angel/proposal.md"]);
+      expect(run.proposedFileChanges).toEqual(["notes/projects/alignment/proposal.md"]);
     } finally {
       await rm(root, { recursive: true, force: true });
     }

@@ -10,7 +10,6 @@ export * from "./routine";
 export * from "./routine-executor";
 export * from "./run";
 export * from "./routine-run-store";
-export * from "./guardian-angel";
 export * from "./trace-collector";
 export * from "./qmd";
 export * from "./capabilities";

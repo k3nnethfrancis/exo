@@ -20,7 +20,7 @@ The immediate product proving loop is Exo-on-Exo: finish usability/harness readi
 12. `docs/qmd-integration-notes.md` - current QMD adapter contract and upgrade notes
 13. `docs/roadmap.md` - future plans
 14. `docs/plugins.md` - future extension model
-15. `docs/plugin-implementation-plan.md` - implementation sequence for capability registries, providers, harnesses, Routines, and Guardian Angel
+15. `docs/plugin-implementation-plan.md` - implementation sequence for capability registries, providers, harnesses, Routines, artifacts, and tracing
 16. `packages/mcp/README.md` - MCP setup and tool contract
 
 ## Repository Map
@@ -100,7 +100,7 @@ CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build 
 - Durable approved graph facts should live in user-owned Markdown/frontmatter/properties, links, tags, and files. Derived indexes, inferred facts, proposals, workflow runs, and provenance belong under `.exo/` until accepted.
 - Exo should opportunistically support Open Knowledge Format (OKF) compatibility for portable knowledge bundles: Markdown concept files, YAML frontmatter with `type` when present, normal Markdown links, optional `index.md`/`log.md`, permissive consumption, and preservation of unknown fields. Do not enforce OKF on arbitrary user Markdown. Exo-created commands may offer OKF-compatible templates, and Exo should benefit when imported graphs already follow OKF. Runtime traces, plugin state, proposals, and datasets may be richer `.exo/` artifacts linked back to OKF concepts.
 - Exo should not impose one vault schema. It may detect, recommend, and maintain structures such as Shoshin or LM Wiki profiles, but users own the schema.
-- Exo should model feed/event streams rather than hardcoded inbox folders. Quick captures, web clips, voice transcripts, file changes, agent outputs, MCP messages, workflow results, git events, Guardian Angel responses, eval results, and training artifacts can flow through a reviewable feed before being linked, archived, promoted, or dismissed.
+- Exo should model feed/event streams rather than hardcoded inbox folders. Quick captures, web clips, voice transcripts, file changes, agent outputs, MCP messages, workflow results, git events, plugin responses, eval results, and training artifacts can flow through a reviewable feed before being linked, archived, promoted, or dismissed.
 - The scheduler is a core primitive for local AI workbench automation. It should run Routines through selected harnesses against explicit scopes, permissions, output policies, logs, artifacts, provenance, and review state.
 - A Routine is a saved/manual/scheduled run definition: prompt, selected harness, optional required harness skills, trigger/schedule, scope, permissions, and output policy. Each execution is a Run. Harnesses are integrations/plugins; skills are harness-visible capabilities referenced by prompts and managed later through harness skill inventory.
 - QMD is the default notes-index/search provider behind Exo-managed lexical/semantic/hybrid search, CLI, and MCP tools, not the permanent product boundary.

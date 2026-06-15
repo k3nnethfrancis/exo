@@ -121,7 +121,7 @@ Exo should track authorship from observed workflows, not guess using AI detector
 
 Exo should provide a core feed/event stream and scheduler for local AI workbench automation.
 
-- Feed items are incoming or generated context, not necessarily notes: quick captures, RSS/bookmarks, voice transcripts, file changes, terminal-agent outputs, MCP messages, workflow results, git events, Guardian Angel elicitation responses, eval results, and training artifacts.
+- Feed items are incoming or generated context, not necessarily notes: quick captures, RSS/bookmarks, voice transcripts, file changes, terminal-agent outputs, MCP messages, workflow results, git events, plugin responses, eval results, and training artifacts.
 - The feed replaces a hardcoded inbox. Inbox-style workflows can be built on top, but Exo should not require an `/inbox/` folder or processing ritual.
 - Feed items can be linked, archived, promoted into notes/entities/tasks, used as source evidence, converted into trace records, or dismissed.
 - The scheduler is core. It launches selected harnesses in headless/background mode against saved Routines.
@@ -201,8 +201,8 @@ Exo should be extensible without making every personal or domain-specific workfl
 - Core owns stable primitives: notes, project roots, panes, WebView/browser panes, commands, agents, messages, exograph profiles, search, settings, runs, artifacts, provenance, proposals, and permission boundaries.
 - Plugins are packages of Exo extensions. A plugin may include backend capabilities, commands, MCP/CLI tools, UI panels, editor extensions, or a web app hosted inside an Exo WebView pane.
 - Harness plugins integrate agent runtimes. Routines are prompt-centered run definitions executed by a harness, often on a schedule; they may be shipped by a plugin or profile but are not themselves the worker runtime.
-- Guardian Angel is the first reference workload for the plugin boundary: elicitation harnesses, trace collectors, correction/review surfaces, psychological-model hypotheses, dataset exporters, eval runners, and instrumented agent runtimes should prove the contract without all becoming core.
-- Guardian Angel plugins should use OKF concept documents for curated principal/project knowledge where possible, while storing raw traces, review labels, eval packets, and training exports as local artifacts linked back to OKF concepts.
+- Downstream workloads should prove the plugin boundary: elicitation harnesses, trace collectors, correction/review surfaces, domain-model hypotheses, dataset exporters, eval runners, and instrumented agent runtimes should use generic Exo primitives without all becoming core.
+- Workload-specific plugins can use OKF concept documents for curated project/domain knowledge where possible, while storing raw traces, review labels, eval packets, and training exports as local artifacts linked back to OKF concepts.
 - Web apps are one possible plugin surface, not the whole plugin model. Browser/WebView support belongs in core because local previews, docs, dashboards, and future plugin apps all need the same pane/runtime primitive.
 - Agent integrations should use plugin-shaped adapter contracts where possible. Exo core should define how agents launch, expose capabilities, receive MCP/CLI tools, and report lifecycle state; specific agents such as Claude, Codex, Pi, Aider, Goose, or local/open-source agents can be first-party or community plugins.
 - Plugin state should be inspectable, removable, and local-first.

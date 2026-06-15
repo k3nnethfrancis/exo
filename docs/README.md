@@ -14,7 +14,7 @@ This directory contains committed, public-facing project context. It should be u
 8. `architecture.md` - package boundaries and runtime contracts
 9. `roadmap.md` - future product systems
 10. `plugins.md` - plugin architecture direction
-11. `plugin-implementation-plan.md` - phased implementation plan for capability registries, search providers, agent harnesses, Routines, and Guardian Angel
+11. `plugin-implementation-plan.md` - phased implementation plan for capability registries, search providers, agent harnesses, Routines, artifacts, and tracing
 12. `open-source.md` - release and platform support notes
 13. `terminal-runtime-decision.md` - terminal runtime decision
 14. `terminal-refactor-plan.md` - tmux-backed terminal refactor plan

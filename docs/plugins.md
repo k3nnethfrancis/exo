@@ -16,9 +16,9 @@ That keeps Exo from overbuilding while still moving toward the long-term shape:
 - Claude, Codex, shell, and future agents become agent-harness adapters behind an agent-harness registry.
 - MCP and CLI stay separate product surfaces, with plugin contributions admitted only through policy.
 - WebView/browser panes stay core, while plugin-hosted apps can target that primitive later.
-- Guardian Angel harnesses, workcells, evals, graph analyzers, search optimization, LM Wiki/Shoshin profiles, and personal routines can become plugin-shaped without being forced into core.
+- Workload-specific harnesses, workcells, evals, graph analyzers, search optimization, LM Wiki/Shoshin profiles, and personal routines can become plugin-shaped without being forced into core.
 
-Guardian Angel is the reference workload for this architecture. It needs Exo to host experimental harnesses for principal-data elicitation, trace capture, accept/reject/correction review, psychological-model hypotheses, dataset export, eval packets, and instrumented agent runtimes. Those workflows should pressure Exo's plugin boundary, but they should not all become Exo core.
+Guardian Angel is an example downstream workload that can pressure-test this architecture outside core. Workflows like elicitation, trace capture, accept/reject/correction review, psychological-model hypotheses, dataset export, eval packets, and instrumented agent runtimes should use Exo's generic plugin primitives rather than becoming built-in Exo product code by default.
 
 ## Non-Goals For The First Pass
 
@@ -205,9 +205,9 @@ MCP exposure should require an explicit permission entry and a reviewable tool c
 
 Output: policy docs, tests for rejected/accepted surface registrations, and no arbitrary plugin loading yet.
 
-### Phase 4.5: Guardian Angel Harness Contract
+### Phase 4.5: Reference Workload Contract
 
-Before public plugin manifests, use Guardian Angel as the first reference plugin-shaped workload.
+Before public plugin manifests, use one or more downstream workloads as reference plugin-shaped workloads without adding their schemas or product surfaces to core.
 
 The contract should answer:
 
@@ -219,7 +219,7 @@ The contract should answer:
 - Which surfaces belong in Exo UI versus CLI/MCP.
 - Which permissions are required for trace reads, note writes, project reads, terminal observation, model/API calls, network, and dataset export.
 
-This does not require building the full Guardian Angel plugin first. It does require making sure the plugin contracts can support the smallest GA Harness V0: run an elicitation session, capture principal responses and corrections, review examples, and export JSONL.
+This does not require building a full downstream plugin first. It does require making sure the plugin contracts can support a smallest useful workload: run an elicitation or analysis session, capture responses and corrections, review examples, and export JSONL.
 
 ### Phase 5: Local Plugin Manifests
 
@@ -265,7 +265,7 @@ This should be an operator/admin surface, not a new default workflow screen.
 4. Register built-in agent harness metadata for shell, Claude, and Codex without changing behavior.
 5. Extract launch planning behind an `AgentHarness` interface.
 6. Define Routine and harness skill inventory contracts.
-7. Define the Guardian Angel Harness V0 contract as the first plugin-shaped reference workload.
+7. Define generic Run, artifact, trace, review, and executor contracts that downstream workload plugins can use.
 8. Add docs and harness checks so new hardwired provider/harness branches are rejected unless they go through the registry.
 9. Only then design local plugin manifests and permissioned loading.
 

@@ -128,11 +128,11 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 
 ## Next: Feed, Scheduler, And Routine Runs
 
-- [ ] Define the feed/event item model for incoming and generated context: quick capture, RSS/bookmark/web clip, voice transcript, file change, terminal-agent output, MCP message, workflow result, git event, Guardian Angel elicitation response, eval result, and training artifact.
+- [ ] Define the feed/event item model for incoming and generated context: quick capture, RSS/bookmark/web clip, voice transcript, file change, terminal-agent output, MCP message, workflow result, git event, plugin response, eval result, and training artifact.
 - [ ] Define feed item review/promote/archive semantics without requiring an `/inbox/` folder.
 - [x] Define the core Routine model: prompt, selected harness, optional required harness skills, manual trigger or schedule, scope, permissions, output policy, logs, traces, artifacts, review state, and recovery.
 - [x] Define how harness skill inventory is represented so Exo can warn when a Routine prompt references a skill the selected harness does not expose.
-- [ ] Add first scheduler candidate use cases: update entities, graph health, organize wiki, Guardian Angel elicitation, training export, eval run, and Exo-on-Exo maintenance.
+- [ ] Add first scheduler candidate use cases: update entities, graph health, organize wiki, plugin-hosted elicitation, training export, eval run, and Exo-on-Exo maintenance.
 - [ ] Decide initial implementation target for scheduled runs: CLI-only MVP, resident app scheduler, or both with one shared run store.
 
 ## Next: QMD, Notes Index, And Search
@@ -204,11 +204,11 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Define canonical `.exo/` storage paths for Routine definitions, Run records, transcripts, logs, and artifacts.
 - [x] Add a first JSON-backed core store for Routine definitions and Run records.
 - [x] Add artifact writing and trace JSONL append helpers to the Routine/Run store.
-- [x] Add a generic trace collector contract and an experimental Guardian Angel trace collector capability.
+- [x] Add a generic trace collector contract without registering workload-specific collectors in core.
 - [x] Add a manual Routine executor substrate with injected host execution, artifact recording, trace recording, failure capture, and review status updates.
-- [x] Use Guardian Angel as the first reference workload for plugin contracts: trace collection, review labels, dataset export, eval packets, and instrumented agent runtimes.
-- [x] Define a Guardian Angel Harness V0 contract before public plugin manifests.
-- [x] Make Guardian Angel plugin requirements OKF-aware: curated knowledge as OKF concept documents; raw traces, labels, eval packets, and training exports as linked local artifacts.
+- [x] Document that workload-specific systems such as Guardian Angel should be downstream plugins/reference workloads, not Exo core features.
+- [ ] Define external plugin contracts for workload-specific trace collection, review labels, dataset export, eval packets, and instrumented agent runtimes.
+- [ ] Define how downstream plugins can use OKF-compatible concept documents for curated knowledge while storing raw traces, labels, eval packets, and training exports as linked local artifacts.
 - [x] Define permissioned surface-contribution policy for desktop, CLI, MCP, and command-server exposure.
 - [x] Add architecture/harness checks that discourage direct implementation imports outside the provider/harness facade path.
 - [ ] Defer local plugin manifests, install locations, marketplace/package loading, and Plugin Manager UI until the internal registry contracts survive real use.

@@ -28,11 +28,11 @@ const baseRun: RunRecord = {
       runId: "run-1",
       kind: "report",
       path: ".exo/runs/run-1/report.md",
-      sourceCapabilityId: "guardian-angel",
+      sourceCapabilityId: "alignment-routine",
       createdAt: "2026-06-14T00:01:00.000Z",
     },
   ],
-  proposedFileChanges: ["notes/projects/guardian-angel/proposal.md"],
+  proposedFileChanges: ["notes/projects/alignment/proposal.md"],
   errors: [],
 };
 
@@ -53,13 +53,13 @@ describe("run primitives", () => {
       runId: "run-1",
       kind: "decision",
       timestamp: "2026-06-14T00:02:00.000Z",
-      actor: "guardian-angel",
+      actor: "alignment-routine",
       private: true,
       evidence: [
         {
           id: "evidence-1",
           kind: "markdown",
-          path: "notes/projects/guardian-angel/context.md",
+          path: "notes/projects/alignment/context.md",
           contentHash: "sha256:test",
         },
       ],
@@ -75,11 +75,11 @@ describe("run primitives", () => {
     const result: RunEvaluationResult = {
       id: "eval-1",
       runId: "run-1",
-      evaluatorId: "guardian-angel-alignment-v0",
+      evaluatorId: "alignment-evaluator-v0",
       status: "warning",
       metrics: [
         {
-          name: "principal_agreement",
+          name: "operator_agreement",
           value: 0.74,
           unit: "ratio",
           higherIsBetter: true,
@@ -87,10 +87,10 @@ describe("run primitives", () => {
       ],
       artifactIds: ["artifact-2"],
       createdAt: "2026-06-14T00:03:00.000Z",
-      summary: "Alignment is directionally correct but needs autonomy-boundary review.",
+      summary: "Alignment is directionally correct but needs boundary review.",
     };
 
-    expect(result.metrics[0]).toMatchObject({ name: "principal_agreement", value: 0.74 });
+    expect(result.metrics[0]).toMatchObject({ name: "operator_agreement", value: 0.74 });
     expect(result.artifactIds).toEqual(["artifact-2"]);
   });
 });
