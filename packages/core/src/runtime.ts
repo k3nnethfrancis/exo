@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { resolveBuiltInAgentLauncher } from "./agent-harnesses/builtins";
+import { resolveRegisteredAgentLauncher } from "./agent-harness-registry";
 import type {
   AgentLaunchPlan,
   ManagedAgentKind,
@@ -32,9 +32,9 @@ export function resolveRuntimeConfig(env: NodeJS.ProcessEnv = process.env): Runt
       sqlitePath: env.EXO_AGENT_SQLITE_PATH ?? path.join(runtimeRoot, "agent-communication.sqlite"),
     },
     launchers: {
-      shell: resolveBuiltInAgentLauncher("shell", env),
-      claude: resolveBuiltInAgentLauncher("claude", env),
-      codex: resolveBuiltInAgentLauncher("codex", env),
+      shell: resolveRegisteredAgentLauncher("shell", env),
+      claude: resolveRegisteredAgentLauncher("claude", env),
+      codex: resolveRegisteredAgentLauncher("codex", env),
     },
   };
 }

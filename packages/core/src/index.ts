@@ -5,6 +5,7 @@ export * from "./notes";
 export * from "./branches";
 export * from "./runtime";
 export * from "./agent-harness";
+export * from "./agent-harness-registry";
 export * from "./routine";
 export * from "./run";
 export * from "./routine-run-store";

@@ -163,6 +163,8 @@ assertNoDirectImplementationImports({
   blockedImportFragments: ['agent-harnesses/builtins'],
   allowedFiles: [
     'packages/core/src/runtime.ts',
+    'packages/core/src/agent-harness-registry.ts',
+    'packages/core/src/__tests__/agent-harness-registry.test.ts',
     'packages/core/src/__tests__/runtime.test.ts',
     'packages/core/src/agent-harnesses/builtins.ts',
     'scripts/check-repo.mjs',

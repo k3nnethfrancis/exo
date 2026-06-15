@@ -142,9 +142,12 @@ pnpm check
 
 Move shell/Claude/Codex launch planning behind a typed `AgentHarness` contract while preserving current launch plans.
 
+Status: implemented. Built-in shell/Claude/Codex harnesses implement `AgentHarness`, and runtime launcher resolution goes through `AgentHarnessRegistry`.
+
 Suggested files:
 
 - `packages/core/src/agent-harness.ts`
+- `packages/core/src/agent-harness-registry.ts`
 - `packages/core/src/agent-harnesses/builtins.ts`
 - keep `packages/core/src/runtime.ts` as the compatibility facade during migration
 
