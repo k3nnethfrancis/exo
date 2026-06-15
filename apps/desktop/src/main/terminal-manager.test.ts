@@ -318,6 +318,30 @@ describe("TerminalManager Codex readiness", () => {
     ]);
   });
 
+  it("configures embedded tmux sessions to behave like Exo-owned terminal panes", async () => {
+    const workspaceRoot = await workspaceFixture();
+    const manager = managerForWorkspace(workspaceRoot);
+
+    await manager.create({ kind: "shell", cwd: workspaceRoot });
+
+    const sessionName = spawnedTmuxSessionName(0);
+    expect(childProcess.execFileSync.mock.calls).toContainEqual([
+      "tmux",
+      ["set-option", "-t", sessionName, "status", "off"],
+      expect.any(Object),
+    ]);
+    expect(childProcess.execFileSync.mock.calls).toContainEqual([
+      "tmux",
+      ["set-option", "-t", sessionName, "mouse", "off"],
+      expect.any(Object),
+    ]);
+    expect(childProcess.execFileSync.mock.calls).toContainEqual([
+      "tmux",
+      ["set-option", "-t", sessionName, "alternate-screen", "off"],
+      expect.any(Object),
+    ]);
+  });
+
   it("fails terminal creation clearly when tmux is unavailable", async () => {
     childProcess.spawnSync.mockReturnValue({ status: 1, stdout: "", stderr: "" });
     const workspaceRoot = await workspaceFixture();

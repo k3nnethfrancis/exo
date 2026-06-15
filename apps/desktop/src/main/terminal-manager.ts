@@ -223,7 +223,7 @@ export class TerminalManager extends EventEmitter {
         env,
       },
     );
-    this.applyTmuxHistoryLimitByName(tmux.runner, tmuxSessionName);
+    this.applyTmuxSessionOptions(tmux.runner, tmuxSessionName);
 
     const processHandle = pty.spawn(tmux.availability.path, ["attach-session", "-t", tmuxSessionName], {
       cols: 120,
@@ -770,18 +770,26 @@ export class TerminalManager extends EventEmitter {
     if (!availability.available) {
       return;
     }
-    this.applyTmuxHistoryLimitByName(new TmuxCommandRunner(availability.path), record.tmuxSessionName, record);
+    this.applyTmuxSessionOptions(new TmuxCommandRunner(availability.path), record.tmuxSessionName, record);
   }
 
-  private applyTmuxHistoryLimitByName(runner: TmuxCommandRunner, tmuxSessionName: string, record?: TerminalRecord): void {
+  private applyTmuxSessionOptions(runner: TmuxCommandRunner, tmuxSessionName: string, record?: TerminalRecord): void {
+    const options: Array<[string, string]> = [
+      ["history-limit", String(this.tmuxHistoryLimit())],
+      ["status", "off"],
+      ["mouse", "off"],
+      ["alternate-screen", "off"],
+    ];
     try {
-      runner.run(["set-option", "-t", tmuxSessionName, "history-limit", String(this.tmuxHistoryLimit())]);
+      for (const [key, value] of options) {
+        runner.run(["set-option", "-t", tmuxSessionName, key, value]);
+      }
     } catch (error) {
       if (record) {
         record.info.health = "unhealthy";
-        record.info.healthDetail = error instanceof Error ? `Failed to set tmux history limit: ${error.message}` : "Failed to set tmux history limit.";
+        record.info.healthDetail = error instanceof Error ? `Failed to set tmux session options: ${error.message}` : "Failed to set tmux session options.";
       }
-      console.warn("[exo] failed to set tmux history limit", {
+      console.warn("[exo] failed to set tmux session options", {
         tmuxSessionName,
         error: error instanceof Error ? error.message : String(error),
       });

@@ -1,10 +1,27 @@
 # Exo Issues
 
-Last updated: 2026-06-13
+Last updated: 2026-06-14
 
 This is the active bug/QA tracker. It captures user-observed issues that need investigation before the next push/release pass.
 
 ## Open
+
+### EXO-ISSUE-036: Tmux-backed terminals expose nested tmux viewport instead of normal app scrollback
+
+- Status: fixed; needs real Claude resume QA
+- Severity: high
+- Area: terminal runtime, tmux attach bridge, scrollback
+- Observed:
+  - Opening Claude through an Exo terminal, running `/resume`, and selecting a long existing conversation showed only a short pane-sized slice of the conversation.
+  - The visible terminal included tmux status-line UI, making the embedded terminal behave like a nested tmux client rather than a normal terminal pane.
+  - The configured Exo live scrollback was `1000000`, and tmux `history-limit` was also `1000000`, so the symptom was not caused by the numeric scrollback setting.
+- Expected:
+  - Exo can use tmux for persistence, but the visible terminal should behave like an Exo-owned terminal pane.
+  - New sessions should not show nested tmux chrome or trap agent/TUI output outside normal scrollback.
+- Resolution:
+  - New/restored tmux sessions now apply Exo terminal pane policy: configured `history-limit`, `status off`, `mouse off`, and `alternate-screen off`.
+  - Added regression coverage that Exo applies the embedded tmux pane options when creating sessions.
+  - If real Claude resume still does not expose old conversation history, the next fix is a tmux control-mode bridge instead of rendering a full `tmux attach-session` client.
 
 ### EXO-ISSUE-035: Active terminal viewport can replay stale scrollback over current agent output
 
