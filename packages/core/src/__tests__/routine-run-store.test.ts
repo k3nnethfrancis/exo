@@ -1,9 +1,12 @@
 import path from "node:path";
+import os from "node:os";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 import {
   resolveRoutineRunStoreLayout,
   routineDefinitionPath,
+  RoutineRunStore,
   runArtifactPath,
   runLogPath,
   runRecordPath,
@@ -11,6 +14,8 @@ import {
   safeStoreFileName,
   safeStoreSegment,
 } from "../routine-run-store";
+import type { RoutineDefinition } from "../routine";
+import type { RunRecord } from "../run";
 
 describe("routine run store layout", () => {
   it("resolves canonical .exo routine, run, and artifact paths", () => {
@@ -40,5 +45,72 @@ describe("routine run store layout", () => {
     expect(safeStoreFileName("alignment-report.md")).toBe("alignment-report.md");
     expect(() => safeStoreFileName("../alignment-report.md")).toThrow("path separators");
     expect(() => safeStoreFileName("nested/report.md")).toThrow("path separators");
+  });
+
+  it("round-trips routine definitions and run records", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-routine-run-store-"));
+    try {
+      const store = new RoutineRunStore(path.join(root, ".exo"));
+      const routine: RoutineDefinition = {
+        id: "graph-health",
+        title: "Graph Health",
+        prompt: "Audit the graph.",
+        harnessId: "codex",
+        requiredSkills: [],
+        trigger: { kind: "manual" },
+        scope: {
+          workspaceRoot: root,
+          noteRootIds: ["notes"],
+          projectRootIds: [],
+          paths: ["notes"],
+        },
+        permissions: {
+          permissions: ["workspace:read", "notes:read", "artifacts:write"],
+        },
+        outputPolicy: {
+          fileChanges: "propose",
+          artifacts: "record",
+          allowedPaths: [path.join(root, ".exo", "artifacts")],
+        },
+        enabled: true,
+        createdAt: "2026-06-14T00:00:00.000Z",
+        updatedAt: "2026-06-14T00:00:00.000Z",
+      };
+      const run: RunRecord = {
+        id: "run-1",
+        routineId: routine.id,
+        harnessId: "codex",
+        status: "queued",
+        reviewState: "notRequired",
+        artifacts: [],
+        proposedFileChanges: [],
+        errors: [],
+      };
+
+      const routinePath = await store.writeRoutine(routine);
+      const runPath = await store.writeRun(run);
+
+      expect(routinePath).toBe(path.join(root, ".exo", "routines", "graph-health.json"));
+      expect(runPath).toBe(path.join(root, ".exo", "runs", "run-1", "run.json"));
+      expect(await store.readRoutine(routine.id)).toEqual(routine);
+      expect(await store.readRun(run.id)).toEqual(run);
+      expect(await store.listRoutines()).toEqual([routine]);
+      expect(await readFile(routinePath, "utf8")).toContain("\"title\": \"Graph Health\"");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("returns empty results for missing store files", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-routine-run-store-"));
+    try {
+      const store = new RoutineRunStore(path.join(root, ".exo"));
+
+      await expect(store.readRoutine("missing")).resolves.toBeNull();
+      await expect(store.readRun("missing")).resolves.toBeNull();
+      await expect(store.listRoutines()).resolves.toEqual([]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });

@@ -181,7 +181,7 @@ pnpm check
 
 ## Phase 4: Routine And Run Model Spec
 
-Status: first-pass type contracts implemented in `packages/core/src/routine.ts` and `packages/core/src/run.ts`. Storage path helpers are implemented in `packages/core/src/routine-run-store.ts`. Actual read/write storage and scheduler implementation remain future work. Do not build scheduler UI yet.
+Status: first-pass type contracts implemented in `packages/core/src/routine.ts` and `packages/core/src/run.ts`. Storage path helpers and a small JSON filesystem store are implemented in `packages/core/src/routine-run-store.ts`. Scheduler implementation remains future work. Do not build scheduler UI yet.
 
 Core concepts:
 
