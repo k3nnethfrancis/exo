@@ -1,6 +1,6 @@
 # Exo Ledger
 
-Last updated: 2026-06-14
+Last updated: 2026-06-15
 
 This is the fastest current-state handoff for Exo. It records what exists now, what changed recently, and what is next. Active tasks live in `docs/tasks.md`; future systems live in `docs/roadmap.md`; product/system strategy lives in `docs/strategy.md`.
 
@@ -53,6 +53,7 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 
 ## Recent Completed Work
 
+- Added metadata-only local plugin manifests in `@exo/core`: `exo.plugin.json` discovery, strict manifest validation, source/trust metadata, duplicate-safe plugin/capability registration, and tests. This does not execute plugin code or grant plugin permissions.
 - Added the first permissioned surface policy contract in `@exo/core`: capabilities now distinguish desktop, CLI, MCP, command-server, and internal exposure, with helpers that keep disabled capabilities hidden and make MCP reviewed/agent-facing while command-server exposure stays internal by default.
 - Added generic Routine/Run/artifact/trace contracts in `@exo/core`: Routine definitions now model prompt, harness, required skills, trigger, scope, permissions, and output policy; Run records model status, review state, transcripts/logs, artifacts, proposed changes, trace packets, eval results, and errors; harnesses expose skill inventories with a helper for missing required skills.
 - Kept Guardian Angel out of Exo core: GA remains a downstream/reference plugin workload that should use generic Exo primitives rather than shipping as built-in OSS product code without explicit approval.
@@ -91,7 +92,7 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Added Exo-managed QMD indexing UX: footer status, Settings Index panel, sync/apply flows, Explore lexical-on-Enter, CLI/MCP parity, and conservative save-triggered refreshes.
 - Added `docs/qmd-integration-notes.md` to track the QMD adapter boundary, current workarounds, and upstream upgrade checklist.
 - Merged the fresh-setup/QMD integration PR as `0.1.0-alpha.1`, including QMD docid read safety, multi-root hybrid search, long-running index command timeouts, workspace-root command-server refresh, and an active root `postinstall` script.
-- Simplified terminal history controls around explicit `full` and `custom` modes: `full` uses Exo's maximum configured live scrollback line window, transcripts default to forever, and direct pty sessions keep durable history in disk-backed transcripts.
+- Simplified terminal history controls around explicit live scrollback policies, then moved terminal scrollback to numeric line settings that also size tmux history; transcripts remain the durable full-history path.
 - Removed hidden terminal transcript byte caps and hidden character-based buffer trimming; live terminal buffers follow workspace settings.
 - Hardened terminal rendering against xterm device-response input leaks and avoided recurring tmux snapshot replay into visible terminals.
 - Made Markdown task checkboxes clickable in live preview by toggling the underlying `- [ ]` / `- [x]` source text.
@@ -129,7 +130,7 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Fixed EXO-ISSUE-010 by changing the Exo MCP launcher to import a bundled CommonJS runtime artifact, avoid rebuilding when `dist/index.cjs` already exists, and fall back with Corepack project-spec disabled; added a stdio launcher handshake regression and live Codex smoke.
 - Fixed EXO-ISSUE-011 by splitting queued Codex submitted messages into body plus delayed Enter so Codex startup prompts execute without a second raw submit.
 - Fixed EXO-ISSUE-012 by applying user-configured live terminal scrollback to renderer/main buffers while preserving complete transcript writes for reattached or actively streaming Codex sessions.
-- Removed tmux from the core terminal runtime, standardized live terminal reads around bounded tails plus disk transcripts, and documented the direct-pty runtime decision.
+- Revisited the direct-pty-only terminal decision after real-world sleep/relaunch failures and moved daily Exo terminals back to one tmux-backed product path with `node-pty` as the attach bridge.
 - Added the resident-runtime roadmap: Exo should keep process-owned services alive while the window is hidden, with menu bar controls as the first runtime control surface.
 - Began current-package domain-module cleanup by extracting Electron window/tray/renderer-recovery ownership from `apps/desktop/src/main/index.ts` into `app-lifecycle.ts`.
 - Continued main-process cleanup by extracting indexing timers, job metrics, sync/refresh scheduling, and indexed-root mutations into `indexing-service.ts`.

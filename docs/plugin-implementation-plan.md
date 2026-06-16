@@ -1,6 +1,6 @@
 # Plugin Architecture Implementation Plan
 
-Last updated: 2026-06-14
+Last updated: 2026-06-15
 
 This plan turns Exo's plugin architecture into code without prematurely loading arbitrary third-party code. The first goal is internal extensibility: Exo core should use typed registries and contracts for the capabilities that are already plugin-shaped.
 
@@ -272,16 +272,35 @@ Only after registry contracts survive built-in migrations, define how capabiliti
 
 MCP exposure must remain narrow and agent-safe. CLI remains the broad operator/admin/debug surface.
 
-## Phase 7: External Plugin Loading
+Status: implemented as a policy-level contract. Capabilities can describe intended surfaces and surface policies can validate desktop, CLI, MCP, command-server, and internal exposure. No public command/tool registration API exists yet.
 
-Defer until the internal model is proven.
+## Phase 7: Local Plugin Manifest V0
+
+Status: implemented as metadata-only discovery in `packages/core/src/plugin.ts`.
+
+The first manifest pass supports:
+
+- `exo.plugin.json` manifests in plugin directories
+- plugin id, name, version, Exo API version, optional description, optional entrypoints, settings schema, surfaces, permissions, and declared capabilities
+- strict validation for capability kinds, lifecycle states, surfaces, and permission strings
+- deterministic discovery from configured directories without loading or executing plugin code
+- source/trust metadata for built-in, dev, user, and workspace plugins
+- duplicate-safe plugin and capability registration
+- conservative defaults: built-in/dev plugins are trusted, user/workspace plugins are discovered as untrusted, and disabled plugins are hidden from normal lists
+
+This is intentionally not arbitrary plugin loading. A manifest can declare what a plugin would contribute, but Exo does not yet execute plugin entrypoints, grant permissions, add UI, add CLI commands, or add MCP tools from manifests.
+
+## Phase 8: External Plugin Loading
+
+Defer until the manifest model survives real use.
 
 Future work:
 
-- manifest format
 - user/workspace/repo plugin locations
 - trust prompts
 - permission grants
+- entrypoint loading and sandbox policy
+- command, settings, pane, WebView, CLI, and MCP registration APIs
 - logs/errors
 - Plugin Manager UI
 - uninstall and state cleanup
@@ -296,7 +315,8 @@ Future work:
 6. Scheduler implementation.
 7. Feed/event model.
 8. Permissioned surface contributions.
-9. External plugin loading.
+9. Local plugin manifest discovery and validation.
+10. External plugin loading.
 
 ## QA Standard
 
@@ -309,4 +329,4 @@ Minimum gates by scope:
 - harness migration: core runtime tests, desktop terminal-manager tests, CLI/MCP agent tests, focused app QA launching shell/Claude/Codex
 - scheduler/feed/runtime changes: focused unit tests, e2e hidden-window CLI/MCP tests, installed-app app QA
 
--- Exo | 2026-06-14
+-- Exo | 2026-06-15

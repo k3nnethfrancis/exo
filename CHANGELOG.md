@@ -1,5 +1,40 @@
 # Changelog
 
+## Unreleased
+
+Plugin architecture, tmux terminal persistence, packaged first-run hardening, and MCP transport compatibility.
+
+### Added
+
+- Adds metadata-only plugin manifests in `@exo/core`: `exo.plugin.json` discovery, strict validation, plugin source/trust metadata, duplicate-safe plugin/capability registration, and tests.
+- Adds internal plugin seams for built-in QMD search providers and shell/Claude/Codex agent harnesses, while preserving existing desktop, CLI, MCP, and command-server behavior.
+- Adds core Routine, Run, artifact, trace, evaluation-result, routine-store, and manual executor primitives that future routine/template, trace collector, eval runner, and exporter plugins can build on.
+- Adds a permissioned surface policy for desktop, CLI, MCP, command-server, and internal capability exposure.
+- Adds optional Streamable HTTP MCP transport for remote-only MCP hosts while keeping stdio as the default local transport.
+- Adds tmux-backed terminal persistence with Exo-owned tmux sessions, node-pty attach bridges, session registry reattach, power-resume recovery, reconnect affordances, tmux history sizing, and deterministic terminal QA coverage.
+
+### Changed
+
+- Reopens and supersedes the alpha.3 direct-pty-only terminal decision: Exo core terminals now use tmux for persistence and sleep/relaunch resilience, with node-pty retained as the live attach/render bridge.
+- Makes terminal scrollback a numeric setting and applies it to both renderer/live buffers and tmux history instead of coarse `full` / `custom` labels.
+- Stops live terminal hydration from resetting xterm and replaying stale scrollback over active agent output.
+- Keeps Guardian Angel out of Exo core. GA is treated as a downstream/reference plugin workload that should use generic Exo plugin primitives.
+- Reframes OKF, LM Wiki, Shoshin profiles, feed/scheduler concepts, and routines as optional exograph/plugin architecture directions rather than hardwired folder/schema requirements.
+
+### Fixed
+
+- Fixes fresh packaged startup when no workspace registry exists by loading the active workspace/onboarding path instead of falling back to `/`.
+- Simplifies first-run onboarding so the initial path is notes-folder selection instead of a confusing non-working workspace button.
+- Fixes dependency/setup friction from blocked `fast-uri` and package-wide `picomatch` overrides.
+- Narrows and then adjusts the default explorer pane width, improves pane-to-terminal focus behavior, and adds terminal bottom inset so terminal status lines are not clipped by the bottom bar.
+- Fixes stale/blank managed agent terminal starts and improves Claude/Codex terminal startup handling.
+- Fixes Markdown list outdent behavior in the editor.
+
+### Removed
+
+- Removes Guardian Angel-specific capability/code/docs from Exo core after the plugin boundary was clarified.
+- Keeps plugin entrypoint execution, Plugin Manager UI, plugin-owned CLI/MCP tools, marketplace/package loading, and permission grants out of this release until the manifest/trust model survives real use.
+
 ## 0.1.0-alpha.3 - 2026-05-31
 
 Installed-app readiness, direct-pty terminal reliability, Exo-on-Exo harness cleanup, and resident runtime support.

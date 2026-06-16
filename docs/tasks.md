@@ -1,6 +1,6 @@
 # Exo Tasks
 
-Last updated: 2026-06-14
+Last updated: 2026-06-15
 
 This is the active task tracker for Exo. It is intentionally not a history file; completed implementation history belongs in `ledger.md`. Tasks here should be concrete, current, and ordered by practical priority.
 
@@ -210,8 +210,15 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [ ] Define external plugin contracts for workload-specific trace collection, review labels, dataset export, eval packets, and instrumented agent runtimes.
 - [ ] Define how downstream plugins can use OKF-compatible concept documents for curated knowledge while storing raw traces, labels, eval packets, and training exports as linked local artifacts.
 - [x] Define permissioned surface-contribution policy for desktop, CLI, MCP, and command-server exposure.
+- [x] Define plugin manifest shape and first Exo API version policy.
+- [x] Add metadata-only local plugin manifest discovery and validation for `exo.plugin.json`.
+- [x] Add a duplicate-safe plugin registry for discovered plugin manifests and declared capabilities.
+- [x] Define initial plugin discovery sources and trust states: built-in, dev, user, workspace; trusted, untrusted, disabled.
+- [x] Keep first-pass plugin manifests non-executable: no entrypoint loading, permission grants, UI contributions, CLI commands, or MCP tools.
 - [x] Add architecture/harness checks that discourage direct implementation imports outside the provider/harness facade path.
-- [ ] Defer local plugin manifests, install locations, marketplace/package loading, and Plugin Manager UI until the internal registry contracts survive real use.
+- [ ] Define concrete install/load directories for built-in, dev, user, and workspace plugins in the desktop runtime.
+- [ ] Add trust prompts and permission grants before any plugin entrypoint execution.
+- [ ] Add Plugin Manager UI only after manifests, trust, and permissions survive real use.
 
 ## Later: Graph, Memory, Workcells, Training
 
@@ -228,16 +235,16 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 
 ## Later: Plugin Architecture
 
-- [ ] Define plugin manifest shape and version policy.
+- [x] Define plugin manifest shape and version policy.
 - [ ] Define plugin install/load locations.
-- [ ] Define plugin extension depths: app plugins, surface plugins, capability plugins, and routine/template plugins.
+- [x] Define plugin extension depths: app plugins, surface plugins, capability plugins, and routine/template plugins.
 - [ ] Define safe renderer panel and WebView app extension points.
 - [ ] Define command registration API.
 - [ ] Define settings API for plugin-owned state.
 - [ ] Define agent harness adapter API for Claude, Codex, Pi, Aider, Goose, OpenCode, and local/open-source agents.
 - [ ] Decide how plugins can add MCP tools or CLI commands under explicit permissions.
-- [ ] Define capability permissions for filesystem scopes, process/terminal access, network access, git write/PR rights, secrets, and MCP exposure.
-- [ ] Define search provider, trace collector, eval runner, exporter, and routine-template extension points.
+- [x] Define initial capability permissions for workspace/notes/project reads and writes, terminal/agent launch, network access, and artifact writes.
+- [x] Define search provider, trace collector, eval runner, exporter, and routine-template extension points.
 - [ ] Decide whether the current branch-family file convention remains core or moves behind a plugin boundary.
 - [ ] Keep optional personal/domain workflows out of core until the plugin boundary exists.
 

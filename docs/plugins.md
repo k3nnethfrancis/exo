@@ -1,6 +1,6 @@
 # Plugin Architecture
 
-Last updated: 2026-06-14
+Last updated: 2026-06-15
 
 Exo should support a plugin path so users can extend their exograph without requiring every feature to land in core.
 
@@ -17,6 +17,7 @@ That keeps Exo from overbuilding while still moving toward the long-term shape:
 - MCP and CLI stay separate product surfaces, with plugin contributions admitted only through policy.
 - WebView/browser panes stay core, while plugin-hosted apps can target that primitive later.
 - Workload-specific harnesses, workcells, evals, graph analyzers, search optimization, LM Wiki/Shoshin profiles, and personal routines can become plugin-shaped without being forced into core.
+- Local plugin manifests can now be discovered and validated as metadata, but Exo does not yet execute plugin code or grant plugin permissions.
 
 Guardian Angel is an example downstream workload that can pressure-test this architecture outside core. Workflows like elicitation, trace capture, accept/reject/correction review, psychological-model hypotheses, dataset export, eval packets, and instrumented agent runtimes should use Exo's generic plugin primitives rather than becoming built-in Exo product code by default.
 
@@ -26,6 +27,7 @@ Guardian Angel is an example downstream workload that can pressure-test this arc
 - Do not allow plugins to bypass the existing main/preload/renderer security boundary.
 - Do not let plugins add MCP tools by default.
 - Do not add a plugin marketplace or package installer.
+- Do not execute `exo.plugin.json` entrypoints until the trust, permission, and API contracts are implemented.
 - Do not make QMD optional in the UI before there is a real second provider.
 - Do not move unstable services into `packages/runtime` only to create a cleaner diagram.
 - Do not use plugins as a dumping ground for behavior that should be a stable Exo primitive.
@@ -108,10 +110,8 @@ Initial registry kinds:
 
 - `searchProvider`
 - `agentHarness`
-- `appCommand`
-- `settingsSection`
-- `paneKind`
-- `exographAnalyzer`
+- `profile`
+- `analyzer`
 - `traceCollector`
 - `datasetExporter`
 - `evalRunner`
@@ -128,6 +128,8 @@ Each registration should have:
 - exported public surfaces: desktop, CLI, MCP, or internal-only
 
 Output: typed contracts and registry tests. No user-facing plugin UI yet.
+
+Status: implemented in `@exo/core`.
 
 ### Phase 2: Search Provider Boundary
 
@@ -148,6 +150,8 @@ CLI/UI may expose provider administration. MCP receives stable search/read/docum
 
 Output: QMD adapter implements the interface, existing CLI/MCP/UI behavior preserved, tests prove no public behavior drift.
 
+Status: implemented.
+
 ### Phase 3: Agent Harness Boundary
 
 Move shell, Claude, and Codex launch plans behind an `AgentHarness` interface while preserving current defaults.
@@ -165,6 +169,8 @@ The launcher contract should cover:
 Future Pi, Aider, Goose, OpenCode, and local/open-source agents should use this path instead of hardwired conditionals.
 
 Output: existing shell/Claude/Codex launches behave identically; tests prove launcher discovery, env rendering, and MCP/CLI `create_agent` compatibility.
+
+Status: implemented.
 
 ### Phase 3.5: Routine And Harness Skill Inventory Contract
 
@@ -192,6 +198,8 @@ Skills are capabilities available inside a harness. A prompt may ask the harness
 
 The first implementation can be metadata-only. Full cross-provider skill management comes later.
 
+Status: first-pass Routine, Run, artifact, trace, store, and manual executor contracts are implemented in core. Scheduler, UI, and real harness execution hosts remain future work.
+
 ### Phase 4: Permissioned Surface Contributions
 
 Define how a registered capability may request exposure through each surface:
@@ -204,6 +212,8 @@ Define how a registered capability may request exposure through each surface:
 MCP exposure should require an explicit permission entry and a reviewable tool contract. Plugin-added MCP tools should be rare and agent-safe.
 
 Output: policy docs, tests for rejected/accepted surface registrations, and no arbitrary plugin loading yet.
+
+Status: policy-level contract implemented.
 
 ### Phase 4.5: Reference Workload Contract
 
@@ -223,26 +233,40 @@ This does not require building a full downstream plugin first. It does require m
 
 ### Phase 5: Local Plugin Manifests
 
-Only after the internal registries are stable, add local plugin manifests.
+Local plugin manifests are implemented as metadata-only declarations. Exo can discover and validate `exo.plugin.json` files without loading arbitrary plugin code.
 
-Likely manifest fields:
+Manifest fields:
 
 - `id`, `name`, `version`, `exoApiVersion`
-- `entrypoints`
+- optional `description`
+- optional `entrypoints`
 - `capabilities`
 - `permissions`
 - `settingsSchema`
 - `surfaces`
-- `stateDirectory`
-- `trustedBy`
 
-Candidate locations:
+Discovery sources:
 
-- user-level: `~/Library/Application Support/Exo/plugins/`
-- workspace-level: `${workspace_root}/.exo/plugins/`
-- repo/dev-level: `plugins/` for first-party development
+- built-in
+- dev
+- user
+- workspace
 
-Workspace-level plugins should be disabled by default until trusted because they can arrive through cloned repos.
+Workspace-level plugins should be discovered as untrusted because they can arrive through cloned repos. Untrusted manifest metadata can be inspected, but future entrypoint execution or permission grants must require an explicit trust step.
+
+Current trust defaults:
+
+- built-in and dev manifests are trusted
+- user and workspace manifests are untrusted
+- disabled manifests are hidden from normal lists and do not reserve capability ids
+
+Non-goals for this phase:
+
+- no entrypoint execution
+- no install/uninstall flow
+- no Plugin Manager UI
+- no plugin-owned CLI commands, MCP tools, desktop panes, or settings sections
+- no permission grants beyond manifest metadata
 
 ### Phase 6: Plugin Manager UI
 
@@ -267,7 +291,8 @@ This should be an operator/admin surface, not a new default workflow screen.
 6. Define Routine and harness skill inventory contracts.
 7. Define generic Run, artifact, trace, review, and executor contracts that downstream workload plugins can use.
 8. Add docs and harness checks so new hardwired provider/harness branches are rejected unless they go through the registry.
-9. Only then design local plugin manifests and permissioned loading.
+9. Use local plugin manifests as metadata-only declarations.
+10. Only then design permissioned loading.
 
 ## Agent Plugins
 
@@ -321,10 +346,9 @@ An eval system may include a web dashboard, but it should not be only a hosted w
 
 ## Open Questions
 
-- What is the plugin manifest format?
-- Are plugins loaded from a user directory, workspace directory, or both?
+- What exact directories should desktop runtime scan for built-in, dev, user, and workspace plugins?
 - Which APIs are available to renderer plugins versus main-process plugins?
-- How do plugin permissions work?
+- How are plugin permissions granted and revoked?
 - Can plugins add MCP tools or CLI commands?
 - How are plugin settings stored and exported?
 - How should WebView apps receive data from backend plugin capabilities?
@@ -335,8 +359,8 @@ An eval system may include a web dashboard, but it should not be only a hosted w
 
 Before building personal extension features into core, define:
 
-- plugin manifest shape
-- plugin install/load location
+- plugin install/load locations
+- plugin trust prompts and permission grants
 - safe renderer panel and WebView app APIs
 - command registration API
 - settings API

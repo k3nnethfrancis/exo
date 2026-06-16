@@ -3,6 +3,7 @@ export * from "./workspace";
 export * from "./workspace-settings";
 export * from "./notes";
 export * from "./branches";
+export * from "./plugin";
 export * from "./runtime";
 export * from "./agent-harness";
 export * from "./agent-harness-registry";
