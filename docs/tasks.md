@@ -8,6 +8,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 
 - [ ] Complete fresh-clone setup QA for `EXO-ISSUE-027`: frozen install, package build, user Applications install, and first launch logging.
 - [x] Complete first-run onboarding QA for `EXO-ISSUE-028`: existing notes folder selection, post-selection shell state, terminal cwd default, and settings Apply copy.
+- [x] Fix markdown editor cursor/list QoL: preserve cursor across refresh, continue bullets on Enter, exit empty bullets cleanly, and keep arrow navigation out of hidden list markers.
 - [ ] Reproduce and fix `EXO-ISSUE-029`: stray default Electron app window during `pnpm dev`.
 - [ ] Implement `EXO-ISSUE-030`: tmux-backed core terminal runtime with deterministic terminal-quality tests and no live-inference automated QA.
   - Progress: create/attach/terminate now runs through tmux with node-pty as the attach bridge; session registry, app relaunch reattach, stale bridge reconnect, power-resume recovery hook, UI reconnect affordance, attach-bridge kill/reconnect app QA, idle p50/p90 latency, and streaming-output p50/p90 latency have focused unit/Electron coverage. Remaining before close: manual macOS sleep/wake QA in the installed app, broader rendering/scrollback stress, and a final installed-app terminal dogfood pass.

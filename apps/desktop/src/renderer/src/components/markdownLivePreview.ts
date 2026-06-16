@@ -229,7 +229,7 @@ const listPrefixNavigationKeymap = Prec.highest(keymap.of([
 const listContinuationOutdentKeymap = Prec.highest(keymap.of([
   {
     key: "Enter",
-    run: outdentBlankListContinuation,
+    run: continueOrExitList,
   },
   {
     key: "Shift-Tab",
@@ -264,17 +264,7 @@ const listPrefixSelectionFilter = EditorState.transactionFilter.of((tr) => {
     return tr;
   }
 
-  const nextPos = hiddenLineStart
-    ? positions.markerStart
-    : hiddenBeforeMarker
-    ? positions.lineNumber > 1
-      ? tr.state.doc.line(positions.lineNumber - 1).to
-      : positions.lineFrom
-    : hiddenAfterMarker
-      ? positions.prefixEnd
-      : range.head <= positions.markerStart + Math.floor((positions.markerEnd - positions.markerStart) / 2)
-        ? positions.markerStart
-        : positions.markerEnd;
+  const nextPos = hiddenLineStart || hiddenBeforeMarker || hiddenAfterMarker || markerInterior ? positions.prefixEnd : range.head;
 
   return {
     selection: EditorSelection.cursor(nextPos),
@@ -329,6 +319,64 @@ function outdentBlankListContinuation(view: EditorView): boolean {
     userEvent: "delete.dedent",
   });
   return true;
+}
+
+function continueOrExitList(view: EditorView): boolean {
+  const range = view.state.selection.main;
+  if (!range.empty) {
+    return false;
+  }
+
+  const edit = listEnterEdit(view.state, range.head);
+  if (!edit) {
+    return outdentBlankListContinuation(view);
+  }
+
+  view.dispatch({
+    changes: { from: edit.from, to: edit.to, insert: edit.insert },
+    selection: EditorSelection.cursor(edit.selection),
+    scrollIntoView: true,
+    userEvent: edit.exitList ? "delete.dedent" : "input",
+  });
+  return true;
+}
+
+export function listEnterEdit(state: EditorState, pos: number): { from: number; to: number; insert: string; selection: number; exitList: boolean } | null {
+  const line = state.doc.lineAt(pos);
+  const match = line.text.match(listPrefixPattern);
+  if (!match) {
+    return null;
+  }
+
+  const prefix = match[0];
+  const marker = match[2] || "-";
+  const content = line.text.slice(prefix.length);
+  if (content.trim().length === 0) {
+    return {
+      from: line.from,
+      to: line.to,
+      insert: "",
+      selection: line.from,
+      exitList: true,
+    };
+  }
+
+  const nextPrefix = `${match[1]}${nextListMarker(marker)} `;
+  return {
+    from: pos,
+    to: pos,
+    insert: `\n${nextPrefix}`,
+    selection: pos + nextPrefix.length + 1,
+    exitList: false,
+  };
+}
+
+function nextListMarker(marker: string): string {
+  const ordered = marker.match(/^(\d+)([.)])$/);
+  if (!ordered) {
+    return marker;
+  }
+  return `${Number(ordered[1]) + 1}${ordered[2]}`;
 }
 
 function isBlankListContinuationLine(state: EditorState, lineNumber: number): boolean {

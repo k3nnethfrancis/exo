@@ -6,6 +6,7 @@ import { indentWithTab } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { bracketMatching, foldGutter, HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { lintGutter, lintKeymap } from "@codemirror/lint";
+import { EditorSelection } from "@codemirror/state";
 import { keymap, lineNumbers, EditorView } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 import { Code2, GitBranch, Save, SlidersHorizontal } from "lucide-react";
@@ -68,6 +69,7 @@ export function NoteEditor(props: NoteEditorProps) {
   const [rawMarkdownMode, setRawMarkdownMode] = useState(false);
   const codeMirrorRef = useRef<ReactCodeMirrorRef>(null);
   const scrollTopByPathRef = useRef<Map<string, number>>(new Map());
+  const selectionByPathRef = useRef<Map<string, { anchor: number; head: number }>>(new Map());
   const previousBodyRef = useRef(document?.body ?? "");
   const previousPathRef = useRef(document?.filePath ?? "");
   const restoringScrollRef = useRef(false);
@@ -86,6 +88,17 @@ export function NoteEditor(props: NoteEditorProps) {
   const frontmatterEntries = document ? Object.entries(document.frontmatter).filter(([key]) => !key.startsWith("branch_")) : [];
   const cmTheme = useMemo(() => editorTheme(appearance, fontSize), [appearance, fontSize]);
   const syntaxTheme = useMemo(() => syntaxHighlighting(exoSyntaxHighlightStyle(appearance)), [appearance]);
+  const selectionTracker = useMemo(
+    () =>
+      EditorView.updateListener.of((update) => {
+        if (!documentPath || !update.selectionSet) {
+          return;
+        }
+        const range = update.state.selection.main;
+        selectionByPathRef.current.set(documentPath, { anchor: range.anchor, head: range.head });
+      }),
+    [documentPath],
+  );
   const saveKeymap = useMemo(
     () =>
       keymap.of([
@@ -180,6 +193,16 @@ export function NoteEditor(props: NoteEditorProps) {
 
     const restore = () => {
       scroller.scrollTop = scrollTop;
+      const view = codeMirrorRef.current?.view;
+      const selection = selectionByPathRef.current.get(document.filePath);
+      if (view && selection) {
+        const anchor = clampPosition(selection.anchor, view.state.doc.length);
+        const head = clampPosition(selection.head, view.state.doc.length);
+        const current = view.state.selection.main;
+        if (current.anchor !== anchor || current.head !== head) {
+          view.dispatch({ selection: EditorSelection.range(anchor, head) });
+        }
+      }
     };
     const frame = window.requestAnimationFrame(restore);
     const interval = window.setInterval(restore, 50);
@@ -250,6 +273,16 @@ export function NoteEditor(props: NoteEditorProps) {
     restoringScrollRef.current = true;
     const restore = () => {
       scroller.scrollTop = scrollRestoreRequest.scrollTop;
+      const view = codeMirrorRef.current?.view;
+      const selection = selectionByPathRef.current.get(document.filePath);
+      if (view && selection) {
+        const anchor = clampPosition(selection.anchor, view.state.doc.length);
+        const head = clampPosition(selection.head, view.state.doc.length);
+        const current = view.state.selection.main;
+        if (current.anchor !== anchor || current.head !== head) {
+          view.dispatch({ selection: EditorSelection.range(anchor, head) });
+        }
+      }
     };
     restore();
     const frame = window.requestAnimationFrame(restore);
@@ -415,6 +448,7 @@ export function NoteEditor(props: NoteEditorProps) {
                   markdown(),
                   EditorView.lineWrapping,
                   saveKeymap,
+                  selectionTracker,
                   ...(!rawMarkdownMode
                     ? [
                         markdownLivePreview({
@@ -458,6 +492,7 @@ export function NoteEditor(props: NoteEditorProps) {
                   bracketMatching(),
                   lintGutter(),
                   saveKeymap,
+                  selectionTracker,
                   ...(codeLanguage?.extensions ?? []),
                   cmTheme,
                   syntaxTheme,
@@ -475,6 +510,10 @@ export function NoteEditor(props: NoteEditorProps) {
 
     </section>
   );
+}
+
+function clampPosition(position: number, docLength: number): number {
+  return Math.max(0, Math.min(position, docLength));
 }
 
 function exoSyntaxHighlightStyle(appearance: ResolvedAppearance): HighlightStyle {

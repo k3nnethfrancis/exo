@@ -62,6 +62,48 @@ test("preserves editor scroll when an open document refreshes from disk", async 
   await cleanup();
 });
 
+test("preserves editor cursor when an open document refreshes from disk", async () => {
+  const { page, workspaceRoot, cleanup } = await launchExoFixture({
+    mutable: true,
+    prepareWorkspace: async (workspaceRoot) => {
+      const target = path.join(workspaceRoot, "notes/test-notes/external-cursor-test.md");
+      await writeFile(target, "# External Cursor Test\n\nfirst line\nsecond line\nthird line\n", "utf8");
+    },
+  });
+
+  const target = path.join(workspaceRoot, "notes/test-notes/external-cursor-test.md");
+
+  await page.getByRole("button", { name: /external-cursor-test/i }).first().click();
+  await expect(page.getByTestId("editor-panel")).toContainText("third line");
+  const selectionBefore = await page.evaluate(() => {
+    const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+    const view = content?.cmView?.view;
+    if (!view) {
+      throw new Error("Unable to resolve CodeMirror view");
+    }
+    const target = view.state.doc.toString().indexOf("second line") + "second ".length;
+    view.dispatch({ selection: { anchor: target } });
+    view.focus();
+    return view.state.selection.main.head;
+  });
+  expect(selectionBefore).toBeGreaterThan(0);
+
+  await writeFile(target, "# External Cursor Test\n\nfirst line\nsecond line updated\nthird line\n", "utf8");
+  await expect(page.getByTestId("editor-panel")).toContainText("second line updated", { timeout: 5000 });
+  await page.waitForTimeout(800);
+
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+        return content?.cmView?.view?.state.selection.main.head ?? 0;
+      }),
+    )
+    .toBe(selectionBefore);
+
+  await cleanup();
+});
+
 test("does not overwrite an unsaved document when the file changes on disk", async () => {
   const { page, workspaceRoot, cleanup } = await launchExoFixture({
     mutable: true,

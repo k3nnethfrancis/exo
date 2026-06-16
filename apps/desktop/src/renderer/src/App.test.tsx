@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { EditorState } from "@codemirror/state";
 
 import {
   DEFAULT_TERMINAL_HISTORY_LINES,
@@ -12,6 +13,7 @@ import {
 } from "../../main/settings-store";
 import { buildProjectReviewChanges, uniqueCwdMatchedSession } from "./changedFileReview";
 import { isTerminalGeneratedResponse } from "./components/terminalInputFilters";
+import { listEnterEdit } from "./components/markdownLivePreview";
 import { defaultTerminalCwdForNotesFolder } from "./hooks/useWorkspaceBootstrap";
 import { terminalSessionsEqual } from "./terminalSessions";
 import {
@@ -205,6 +207,47 @@ describe("terminal input filtering", () => {
     expect(isTerminalGeneratedResponse("\x1b[24;80R")).toBe(true);
     expect(isTerminalGeneratedResponse("hello")).toBe(false);
     expect(isTerminalGeneratedResponse("try this out")).toBe(false);
+  });
+});
+
+describe("markdown editor list behavior", () => {
+  it("continues unordered lists on Enter", () => {
+    const state = EditorState.create({ doc: "- account strategy" });
+    const edit = listEnterEdit(state, state.doc.length);
+
+    expect(edit).toEqual({
+      from: state.doc.length,
+      to: state.doc.length,
+      insert: "\n- ",
+      selection: state.doc.length + 3,
+      exitList: false,
+    });
+  });
+
+  it("increments ordered lists on Enter", () => {
+    const state = EditorState.create({ doc: "  9. account strategy" });
+    const edit = listEnterEdit(state, state.doc.length);
+
+    expect(edit).toEqual({
+      from: state.doc.length,
+      to: state.doc.length,
+      insert: "\n  10. ",
+      selection: state.doc.length + 7,
+      exitList: false,
+    });
+  });
+
+  it("exits empty list items on Enter", () => {
+    const state = EditorState.create({ doc: "  - " });
+    const edit = listEnterEdit(state, state.doc.length);
+
+    expect(edit).toEqual({
+      from: 0,
+      to: state.doc.length,
+      insert: "",
+      selection: 0,
+      exitList: true,
+    });
   });
 });
 
