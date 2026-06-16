@@ -1,0 +1,37 @@
+{
+  "id": "graph-health.plugin",
+  "name": "Graph Health",
+  "version": "0.1.0",
+  "exoApiVersion": "0.1",
+  "description": "Bundled routine template for inspecting an exograph's link and maintenance health.",
+  "capabilities": [
+    {
+      "id": "graph-health.template",
+      "kind": "routineTemplate",
+      "label": "Graph Health",
+      "description": "Audit selected notes for orphaned pages, stale markers, unresolved links, and missing source context.",
+      "lifecycle": "experimental",
+      "owner": "graph-health.plugin",
+      "surfaces": ["cli", "desktop"],
+      "permissions": ["workspace:read", "notes:read", "artifacts:write"],
+      "compatibility": {
+        "routineTemplate": {
+          "prompt": "Audit the selected exograph scope. Report orphaned notes, unresolved links, stale markers, low-confidence agent-authored notes, missing source context, and suggested follow-up maintenance actions. Do not modify files unless the routine output policy explicitly permits proposed changes.",
+          "harnessId": "codex",
+          "requiredSkills": [],
+          "trigger": { "kind": "manual" },
+          "permissions": {
+            "permissions": ["workspace:read", "notes:read", "artifacts:write"]
+          },
+          "outputPolicy": {
+            "fileChanges": "propose",
+            "artifacts": "record",
+            "allowedPaths": [".exo/artifacts"]
+          }
+        }
+      }
+    }
+  ],
+  "permissions": ["workspace:read", "notes:read", "artifacts:write"],
+  "surfaces": ["cli", "desktop"]
+}

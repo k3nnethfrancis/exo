@@ -553,6 +553,43 @@ describe("cli package", () => {
       expect(runExitCode).toBe(0);
       expect(stdout).toContain('"status": "succeeded"');
       expect(stdout).toContain('"dry-run-report"');
+
+      const runId = (JSON.parse(stdout) as { run: { id: string } }).run.id;
+      stdout = "";
+      const runsExitCode = await runCli(["node", "exo-cli", "routines", "runs", "--routine", "graph-health-manual"], {
+        env,
+        stdout: { write: (text) => { stdout += text; } },
+        stderr: { write: () => {} },
+      });
+      expect(runsExitCode).toBe(0);
+      expect(stdout).toContain(runId);
+
+      stdout = "";
+      const readExitCode = await runCli(["node", "exo-cli", "routines", "read", runId], {
+        env,
+        stdout: { write: (text) => { stdout += text; } },
+        stderr: { write: () => {} },
+      });
+      expect(readExitCode).toBe(0);
+      expect(stdout).toContain('"routineId": "graph-health-manual"');
+
+      stdout = "";
+      const artifactsExitCode = await runCli(["node", "exo-cli", "routines", "artifacts", runId], {
+        env,
+        stdout: { write: (text) => { stdout += text; } },
+        stderr: { write: () => {} },
+      });
+      expect(artifactsExitCode).toBe(0);
+      expect(stdout).toContain('"id": "dry-run-report"');
+
+      stdout = "";
+      const artifactExitCode = await runCli(["node", "exo-cli", "routines", "artifact", runId, "dry-run-report"], {
+        env,
+        stdout: { write: (text) => { stdout += text; } },
+        stderr: { write: () => {} },
+      });
+      expect(artifactExitCode).toBe(0);
+      expect(stdout).toContain("# Routine Dry Run");
     } finally {
       await rm(root, { recursive: true, force: true });
     }

@@ -705,6 +705,40 @@ export async function runCli(
       return 0;
     }
 
+    if (subcommand === "runs") {
+      const { values } = parseInlineOptions(args);
+      stdout.write(`${JSON.stringify(await service.listRuns({ routineId: values.routine }), null, 2)}\n`);
+      return 0;
+    }
+
+    if (subcommand === "read") {
+      const runId = args[0];
+      if (!runId) {
+        throw new Error("Usage: exo routines read <run-id>");
+      }
+      stdout.write(`${JSON.stringify(await service.requireRun(runId), null, 2)}\n`);
+      return 0;
+    }
+
+    if (subcommand === "artifacts") {
+      const runId = args[0];
+      if (!runId) {
+        throw new Error("Usage: exo routines artifacts <run-id>");
+      }
+      stdout.write(`${JSON.stringify((await service.requireRun(runId)).artifacts, null, 2)}\n`);
+      return 0;
+    }
+
+    if (subcommand === "artifact") {
+      const runId = args[0];
+      const artifactId = args[1];
+      if (!runId || !artifactId) {
+        throw new Error("Usage: exo routines artifact <run-id> <artifact-id>");
+      }
+      stdout.write((await service.readArtifact(runId, artifactId)).contents);
+      return 0;
+    }
+
     if (subcommand === "create") {
       const { values, positionals } = parseInlineOptions(args);
       const templateId = positionals[0];
@@ -738,7 +772,7 @@ export async function runCli(
       return 0;
     }
 
-    throw new Error("Usage: exo routines [templates | list | create <template-id> <routine-id> | run <routine-id> --dry-run]");
+    throw new Error("Usage: exo routines [templates | list | runs | read <run-id> | artifacts <run-id> | artifact <run-id> <artifact-id> | create <template-id> <routine-id> | run <routine-id> --dry-run]");
   }
 
   // ─── Launch commands ─────────────────────────────────────────────────
@@ -791,6 +825,10 @@ export async function runCli(
       "  exo read <path-or-docid> [--from n] [--lines n]",
       "  exo routines templates                    List plugin-declared routine templates",
       "  exo routines list                         List concrete workspace routines",
+      "  exo routines runs                         List routine runs",
+      "  exo routines read <run-id>                 Read a routine run record",
+      "  exo routines artifacts <run-id>            List routine run artifacts",
+      "  exo routines artifact <run-id> <artifact>  Print a routine artifact",
       "  exo routines create <template-id> <id>     Create a routine from a template",
       "  exo routines run <id> --dry-run            Record a dry-run routine execution",
       "  exo index status                           Show QMD-backed index status (app)",
@@ -868,10 +906,14 @@ async function resolveCliRuntimeConfig(env: NodeJS.ProcessEnv) {
 }
 
 function createRoutineService(config: Awaited<ReturnType<typeof resolveCliRuntimeConfig>>, env: NodeJS.ProcessEnv): RoutineService {
+  const exoRoot = resolveExoRoot(env);
   return new RoutineService({
     workspace: config.workspace,
     runtimeRoot: config.runtimeRoot,
-    pluginDirectories: routinePluginDirectoriesFromEnv(config.workspace.workspaceRoot, env),
+    pluginDirectories: routinePluginDirectoriesFromEnv(config.workspace.workspaceRoot, {
+      ...env,
+      EXO_PROJECT_ROOT: env.EXO_PROJECT_ROOT ?? exoRoot,
+    }),
   });
 }
 

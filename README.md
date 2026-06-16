@@ -205,12 +205,16 @@ Standalone workspace/runtime commands:
 ./bin/exo routines list
 ./bin/exo routines create graph-health.template graph-health-weekly --schedule "0 8 * * 1"
 ./bin/exo routines run graph-health-weekly --dry-run
+./bin/exo routines runs --routine graph-health-weekly
+./bin/exo routines read <run-id>
+./bin/exo routines artifacts <run-id>
+./bin/exo routines artifact <run-id> dry-run-report
 ./bin/exo runtime status
 ./bin/exo runtime sync
 ./bin/exo launch claude
 ```
 
-`exo routines` is an early operator surface. Plugins can contribute routine templates through metadata-only `exo.plugin.json` manifests, and the CLI can instantiate those templates into concrete workspace routines under `.exo/routines/`. `run --dry-run` records a run, trace, and report artifact without launching an agent. Real scheduler and harness execution are still future work.
+`exo routines` is an early operator surface. Plugins can contribute routine templates through metadata-only `exo.plugin.json` manifests, and the CLI can instantiate those templates into concrete workspace routines under `.exo/routines/`. The repo includes a bundled dev `graph-health.template` plugin. `run --dry-run` records a run, trace, and report artifact without launching an agent. Real scheduler and harness execution are still future work.
 
 Commands that drive a running Exo app:
 

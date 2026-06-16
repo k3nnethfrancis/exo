@@ -1,4 +1,5 @@
 import path from "node:path";
+import { readFile } from "node:fs/promises";
 
 import { discoverPluginManifests, PluginRegistry, type PluginSource, type PluginTrustState } from "./plugin";
 import { RoutineExecutor, type RoutineExecutionHost } from "./routine-executor";
@@ -24,6 +25,13 @@ export interface RoutineServiceOptions {
 export interface RoutineDryRunResult {
   routine: RoutineDefinition;
   run: RunRecord;
+}
+
+export interface RoutineArtifactReadResult {
+  run: RunRecord;
+  artifactId: string;
+  path: string;
+  contents: string;
 }
 
 export class RoutineService {
@@ -68,6 +76,33 @@ export class RoutineService {
     return this.store.readRoutine(routineId);
   }
 
+  async listRuns(options: { routineId?: string } = {}): Promise<RunRecord[]> {
+    const runs = await this.store.listRuns();
+    return options.routineId ? runs.filter((run) => run.routineId === options.routineId) : runs;
+  }
+
+  async requireRun(runId: string): Promise<RunRecord> {
+    const run = await this.store.readRun(runId);
+    if (!run) {
+      throw new Error(`Routine run not found: ${runId}`);
+    }
+    return run;
+  }
+
+  async readArtifact(runId: string, artifactId: string): Promise<RoutineArtifactReadResult> {
+    const run = await this.requireRun(runId);
+    const artifact = run.artifacts.find((candidate) => candidate.id === artifactId);
+    if (!artifact) {
+      throw new Error(`Routine artifact not found: ${artifactId}`);
+    }
+    return {
+      run,
+      artifactId,
+      path: artifact.path,
+      contents: await readFile(artifact.path, "utf8"),
+    };
+  }
+
   async createRoutineFromTemplate(templateId: string, options: Omit<RoutineInstantiationOptions, "now">): Promise<RoutineDefinition> {
     const template = await this.requireTemplate(templateId);
     const routine = instantiateRoutineTemplate(template, {
@@ -98,6 +133,7 @@ export function routinePluginDirectoriesFromEnv(workspaceRoot: string, env: Reco
 
   return [
     ...splitPathList(env.EXO_DEV_PLUGIN_DIRS).map((directory): RoutinePluginDirectory => ({ path: directory, source: "dev", trust: "trusted" })),
+    ...(env.EXO_PROJECT_ROOT ? [{ path: path.join(env.EXO_PROJECT_ROOT, "plugins"), source: "dev" as const, trust: "trusted" as const }] : []),
     ...(env.EXO_USER_DATA_PATH ? [{ path: path.join(env.EXO_USER_DATA_PATH, "plugins"), source: "user" as const }] : []),
     { path: path.join(workspaceRoot, ".exo", "plugins"), source: "workspace" },
   ];

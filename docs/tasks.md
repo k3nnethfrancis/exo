@@ -133,7 +133,8 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Define the core Routine model: prompt, selected harness, optional required harness skills, manual trigger or schedule, scope, permissions, output policy, logs, traces, artifacts, review state, and recovery.
 - [x] Define how harness skill inventory is represented so Exo can warn when a Routine prompt references a skill the selected harness does not expose.
 - [x] Define plugin routine templates as metadata that can be instantiated into concrete user/workspace Routines.
-- [x] Add the first Routine CLI MVP: list plugin templates, create concrete routines, list routines, and record dry-run executions.
+- [x] Add the first Routine CLI MVP: list plugin templates, create concrete routines, list routines, record dry-run executions, and inspect run records/artifacts.
+- [x] Add a bundled dev `graph-health.template` routine plugin manifest for dogfooding plugin-template discovery.
 - [ ] Add first scheduler candidate use cases: update entities, graph health, organize wiki, plugin-hosted elicitation, training export, eval run, and Exo-on-Exo maintenance.
 - [x] Decide the first user-facing Routine creation surface: CLI MVP on top of one core routine service.
 - [ ] Decide initial implementation target for scheduled runs: CLI-only MVP, resident app scheduler, or both with one shared run store.

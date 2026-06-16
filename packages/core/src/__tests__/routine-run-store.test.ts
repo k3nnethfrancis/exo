@@ -97,6 +97,7 @@ describe("routine run store layout", () => {
       expect(await store.readRoutine(routine.id)).toEqual(routine);
       expect(await store.readRun(run.id)).toEqual(run);
       expect(await store.listRoutines()).toEqual([routine]);
+      expect(await store.listRuns()).toEqual([run]);
       expect(await readFile(routinePath, "utf8")).toContain("\"title\": \"Graph Health\"");
     } finally {
       await rm(root, { recursive: true, force: true });

@@ -10,7 +10,8 @@ Plugin architecture, tmux terminal persistence, packaged first-run hardening, an
 - Adds internal plugin seams for built-in QMD search providers and shell/Claude/Codex agent harnesses, while preserving existing desktop, CLI, MCP, and command-server behavior.
 - Adds core Routine, Run, artifact, trace, evaluation-result, routine-store, and manual executor primitives that future routine/template, trace collector, eval runner, and exporter plugins can build on.
 - Adds plugin-declared routine templates that can be instantiated into concrete user/workspace Routine definitions without executing plugin code.
-- Adds `exo routines` CLI commands for listing plugin templates, creating concrete routines, listing routines, and recording explicit dry-run executions.
+- Adds `exo routines` CLI commands for listing plugin templates, creating concrete routines, listing routines, recording explicit dry-run executions, and inspecting run records/artifacts.
+- Adds a bundled dev `graph-health.template` routine plugin manifest.
 - Adds a permissioned surface policy for desktop, CLI, MCP, command-server, and internal capability exposure.
 - Adds optional Streamable HTTP MCP transport for remote-only MCP hosts while keeping stdio as the default local transport.
 - Adds tmux-backed terminal persistence with Exo-owned tmux sessions, node-pty attach bridges, session registry reattach, power-resume recovery, reconnect affordances, tmux history sizing, and deterministic terminal QA coverage.

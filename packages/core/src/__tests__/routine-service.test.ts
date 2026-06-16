@@ -68,6 +68,12 @@ describe("routine service", () => {
       expect(run.status).toBe("succeeded");
       expect(run.artifacts).toHaveLength(1);
       expect(run.tracePackets?.map((packet) => packet.id)).toEqual(["dry-run-start"]);
+      await expect(service.listRuns({ routineId: "graph-health-manual" })).resolves.toEqual([run]);
+      await expect(service.requireRun(run.id)).resolves.toEqual(run);
+      await expect(service.readArtifact(run.id, "dry-run-report")).resolves.toMatchObject({
+        artifactId: "dry-run-report",
+        contents: expect.stringContaining("# Routine Dry Run"),
+      });
       await expect(readFile(run.artifacts[0]!.path, "utf8")).resolves.toContain("# Routine Dry Run");
     } finally {
       await rm(root, { recursive: true, force: true });
@@ -113,7 +119,8 @@ describe("routine service", () => {
       { path: "/plugins/b", source: "dev", trust: "trusted" },
     ]);
 
-    expect(routinePluginDirectoriesFromEnv("/workspace", { EXO_USER_DATA_PATH: "/user-data" })).toEqual([
+    expect(routinePluginDirectoriesFromEnv("/workspace", { EXO_PROJECT_ROOT: "/repo/exo", EXO_USER_DATA_PATH: "/user-data" })).toEqual([
+      { path: path.join("/repo/exo", "plugins"), source: "dev", trust: "trusted" },
       { path: path.join("/user-data", "plugins"), source: "user" },
       { path: path.join("/workspace", ".exo", "plugins"), source: "workspace" },
     ]);

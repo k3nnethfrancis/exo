@@ -79,6 +79,21 @@ export class RoutineRunStore {
     return readJsonOrNull<RunRecord>(runRecordPath(this.layout, runId));
   }
 
+  async listRuns(): Promise<RunRecord[]> {
+    let entries: string[];
+    try {
+      const dirents = await readdir(this.layout.runsDir, { withFileTypes: true });
+      entries = dirents.filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
+    } catch (error) {
+      if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+        return [];
+      }
+      throw error;
+    }
+    const runs = await Promise.all(entries.map((entry) => readJsonOrNull<RunRecord>(path.join(this.layout.runsDir, entry, "run.json"))));
+    return runs.filter((run): run is RunRecord => Boolean(run));
+  }
+
   async updateRun(runId: string, updater: (run: RunRecord) => RunRecord | Promise<RunRecord>): Promise<RunRecord> {
     const existing = await this.readRun(runId);
     if (!existing) {
