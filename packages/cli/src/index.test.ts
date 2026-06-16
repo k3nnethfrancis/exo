@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -486,6 +486,78 @@ describe("cli package", () => {
     expect(calls).toEqual(["raw command\n", "reconnect:term-1"]);
   });
 
+  it("lists routine templates from plugin manifests and creates routines", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-cli-routines-"));
+    try {
+      const pluginRoot = await writeRoutinePlugin(root);
+      const env = routineTestEnv(root, pluginRoot);
+      let stdout = "";
+
+      const templatesExitCode = await runCli(["node", "exo-cli", "routines", "templates"], {
+        env,
+        stdout: { write: (text) => { stdout += text; } },
+        stderr: { write: () => {} },
+      });
+      expect(templatesExitCode).toBe(0);
+      expect(stdout).toContain('"id": "graph-health.template"');
+
+      stdout = "";
+      const createExitCode = await runCli([
+        "node",
+        "exo-cli",
+        "routines",
+        "create",
+        "graph-health.template",
+        "graph-health-weekly",
+        "--schedule",
+        "0 8 * * 1",
+        "--timezone",
+        "America/Los_Angeles",
+        "--path",
+        "notes",
+      ], {
+        env,
+        stdout: { write: (text) => { stdout += text; } },
+        stderr: { write: () => {} },
+      });
+
+      expect(createExitCode).toBe(0);
+      expect(stdout).toContain('"id": "graph-health-weekly"');
+      expect(stdout).toContain('"schedule": "0 8 * * 1"');
+      await expect(readFile(path.join(root, ".exo-runtime", "routines", "graph-health-weekly.json"), "utf8")).resolves.toContain(
+        "graph-health-weekly",
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("records routine dry runs through the CLI", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-cli-routines-"));
+    try {
+      const pluginRoot = await writeRoutinePlugin(root);
+      const env = routineTestEnv(root, pluginRoot);
+      let stdout = "";
+
+      await runCli(["node", "exo-cli", "routines", "create", "graph-health.template", "graph-health-manual"], {
+        env,
+        stdout: { write: () => {} },
+        stderr: { write: () => {} },
+      });
+      const runExitCode = await runCli(["node", "exo-cli", "routines", "run", "graph-health-manual", "--dry-run"], {
+        env,
+        stdout: { write: (text) => { stdout += text; } },
+        stderr: { write: () => {} },
+      });
+
+      expect(runExitCode).toBe(0);
+      expect(stdout).toContain('"status": "succeeded"');
+      expect(stdout).toContain('"dry-run-report"');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("prints Codex integration config", async () => {
     let stdout = "";
     const exitCode = await runCli(["node", "exo-cli", "integrations", "config", "codex"], {
@@ -610,6 +682,66 @@ function testRuntimeEnv(): NodeJS.ProcessEnv {
     EXO_SETTINGS_PATH: "/tmp/exo-test-workspace/settings.json",
     EXO_APP_CLIENT_REQUEST_TIMEOUT_MS: "500",
   };
+}
+
+function routineTestEnv(root: string, pluginRoot: string): NodeJS.ProcessEnv {
+  return {
+    EXO_WORKSPACE_ROOT: root,
+    EXO_NOTE_ROOTS: path.join(root, "notes"),
+    EXO_PROJECT_ROOTS: "",
+    EXO_RUNTIME_ROOT: path.join(root, ".exo-runtime"),
+    EXO_PLUGIN_DIRS: pluginRoot,
+    EXO_SETTINGS_PATH: path.join(root, "settings.json"),
+  };
+}
+
+async function writeRoutinePlugin(root: string): Promise<string> {
+  const pluginsRoot = path.join(root, "plugins");
+  const pluginDir = path.join(pluginsRoot, "graph-health");
+  await mkdir(pluginDir, { recursive: true });
+  await writeFile(
+    path.join(pluginDir, "exo.plugin.json"),
+    JSON.stringify(
+      {
+        id: "graph-health.plugin",
+        name: "Graph Health Plugin",
+        version: "0.1.0",
+        exoApiVersion: "0.1",
+        capabilities: [
+          {
+            id: "graph-health.template",
+            kind: "routineTemplate",
+            label: "Graph Health",
+            description: "Audit graph structure and write a report.",
+            lifecycle: "experimental",
+            owner: "graph-health.plugin",
+            surfaces: ["cli"],
+            permissions: ["workspace:read", "notes:read", "artifacts:write"],
+            compatibility: {
+              routineTemplate: {
+                prompt: "Audit the selected exograph and write a graph health report.",
+                harnessId: "codex",
+                requiredSkills: [],
+                trigger: { kind: "manual" },
+                permissions: { permissions: ["workspace:read", "notes:read", "artifacts:write"] },
+                outputPolicy: {
+                  fileChanges: "propose",
+                  artifacts: "record",
+                  allowedPaths: [".exo/artifacts"],
+                },
+              },
+            },
+          },
+        ],
+        permissions: ["workspace:read", "notes:read", "artifacts:write"],
+        surfaces: ["cli"],
+      },
+      null,
+      2,
+    ),
+    "utf8",
+  );
+  return pluginsRoot;
 }
 
 function fakeAppClient(overrides: Partial<{

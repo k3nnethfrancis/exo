@@ -17,6 +17,8 @@ import {
   renderPrimaryAgentInstructions,
   resolveAgentLaunchPlan,
   resolveRuntimeConfig,
+  RoutineService,
+  routinePluginDirectoriesFromEnv,
   resolveWorkspaceModel,
   loadActiveWorkspaceSettings,
   listWorkspaceRegistryEntries,
@@ -31,6 +33,7 @@ import {
   workspaceSettingsToEnv,
   type ManagedAgentKind,
   type ExoMcpIntegrationClient,
+  type RoutineTrigger,
 } from "@exo/core";
 
 import { AppClient, type AppClientWriteResult } from "./app-client";
@@ -686,6 +689,58 @@ export async function runCli(
     return 0;
   }
 
+  // ─── Routine commands ────────────────────────────────────────────────
+
+  if (command === "routines") {
+    const config = await resolveCliRuntimeConfig(env);
+    const service = createRoutineService(config, env);
+
+    if (subcommand === "templates") {
+      stdout.write(`${JSON.stringify(await service.listTemplates(), null, 2)}\n`);
+      return 0;
+    }
+
+    if (subcommand === "list" || !subcommand) {
+      stdout.write(`${JSON.stringify(await service.listRoutines(), null, 2)}\n`);
+      return 0;
+    }
+
+    if (subcommand === "create") {
+      const { values, positionals } = parseInlineOptions(args);
+      const templateId = positionals[0];
+      const routineId = positionals[1];
+      if (!templateId || !routineId) {
+        throw new Error("Usage: exo routines create <template-id> <routine-id> [--title <title>] [--harness <id>] [--schedule <cron>] [--timezone <tz>] [--path <path>]");
+      }
+      const routine = await service.createRoutineFromTemplate(templateId, {
+        id: routineId,
+        title: values.title,
+        harnessId: values.harness,
+        trigger: parseRoutineTrigger(values),
+        scope: {
+          workspaceRoot: config.workspace.workspaceRoot,
+          noteRootIds: config.workspace.noteRoots.map((root) => root.id),
+          projectRootIds: config.workspace.projectRoots.map((root) => root.id),
+          paths: values.path ? [values.path] : [],
+        },
+      });
+      stdout.write(`${JSON.stringify(routine, null, 2)}\n`);
+      return 0;
+    }
+
+    if (subcommand === "run") {
+      const { values, positionals } = parseInlineOptions(args);
+      const routineId = positionals[0];
+      if (!routineId || values["dry-run"] !== "1") {
+        throw new Error("Usage: exo routines run <routine-id> --dry-run");
+      }
+      stdout.write(`${JSON.stringify(await service.runManualDryRun(routineId), null, 2)}\n`);
+      return 0;
+    }
+
+    throw new Error("Usage: exo routines [templates | list | create <template-id> <routine-id> | run <routine-id> --dry-run]");
+  }
+
   // ─── Launch commands ─────────────────────────────────────────────────
 
   if (command === "dev") {
@@ -734,6 +789,10 @@ export async function runCli(
       "  exo dev                                    Launch the desktop app",
       "  exo search <query> [--limit n]              Search Exo knowledge index or workspace fallback",
       "  exo read <path-or-docid> [--from n] [--lines n]",
+      "  exo routines templates                    List plugin-declared routine templates",
+      "  exo routines list                         List concrete workspace routines",
+      "  exo routines create <template-id> <id>     Create a routine from a template",
+      "  exo routines run <id> --dry-run            Record a dry-run routine execution",
       "  exo index status                           Show QMD-backed index status (app)",
       "  exo index sync                             Sync documents and embeddings for configured mode (app)",
       "  exo index add <path> [--name n] [--kind k] [--force]",
@@ -806,6 +865,25 @@ async function resolveCliWorkspaceEnv(env: NodeJS.ProcessEnv): Promise<NodeJS.Pr
 
 async function resolveCliRuntimeConfig(env: NodeJS.ProcessEnv) {
   return resolveRuntimeConfig(await resolveCliWorkspaceEnv(env));
+}
+
+function createRoutineService(config: Awaited<ReturnType<typeof resolveCliRuntimeConfig>>, env: NodeJS.ProcessEnv): RoutineService {
+  return new RoutineService({
+    workspace: config.workspace,
+    runtimeRoot: config.runtimeRoot,
+    pluginDirectories: routinePluginDirectoriesFromEnv(config.workspace.workspaceRoot, env),
+  });
+}
+
+function parseRoutineTrigger(values: Record<string, string>): RoutineTrigger | undefined {
+  if (!values.schedule) {
+    return undefined;
+  }
+  return {
+    kind: "schedule",
+    schedule: values.schedule,
+    timezone: values.timezone,
+  };
 }
 
 async function launchAgent(

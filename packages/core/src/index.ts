@@ -9,6 +9,7 @@ export * from "./agent-harness";
 export * from "./agent-harness-registry";
 export * from "./routine";
 export * from "./routine-executor";
+export * from "./routine-service";
 export * from "./routine-template";
 export * from "./run";
 export * from "./routine-run-store";

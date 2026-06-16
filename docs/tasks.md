@@ -133,8 +133,9 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Define the core Routine model: prompt, selected harness, optional required harness skills, manual trigger or schedule, scope, permissions, output policy, logs, traces, artifacts, review state, and recovery.
 - [x] Define how harness skill inventory is represented so Exo can warn when a Routine prompt references a skill the selected harness does not expose.
 - [x] Define plugin routine templates as metadata that can be instantiated into concrete user/workspace Routines.
+- [x] Add the first Routine CLI MVP: list plugin templates, create concrete routines, list routines, and record dry-run executions.
 - [ ] Add first scheduler candidate use cases: update entities, graph health, organize wiki, plugin-hosted elicitation, training export, eval run, and Exo-on-Exo maintenance.
-- [ ] Decide the first user-facing Routine creation surface: CLI MVP, Settings/operator UI, or both through one core routine service.
+- [x] Decide the first user-facing Routine creation surface: CLI MVP on top of one core routine service.
 - [ ] Decide initial implementation target for scheduled runs: CLI-only MVP, resident app scheduler, or both with one shared run store.
 
 ## Next: QMD, Notes Index, And Search
@@ -207,6 +208,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Add a first JSON-backed core store for Routine definitions and Run records.
 - [x] Add artifact writing and trace JSONL append helpers to the Routine/Run store.
 - [x] Add metadata-only plugin routine-template extraction and concrete Routine instantiation helpers.
+- [x] Add a core Routine service that discovers plugin templates, persists routines, and records dry-run executions.
 - [x] Add a generic trace collector contract without registering workload-specific collectors in core.
 - [x] Add a manual Routine executor substrate with injected host execution, artifact recording, trace recording, failure capture, and review status updates.
 - [x] Document that workload-specific systems such as Guardian Angel should be downstream plugins/reference workloads, not Exo core features.
