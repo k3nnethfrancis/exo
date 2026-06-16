@@ -93,14 +93,14 @@ If Corepack fails before install with a package-manager signature or key error, 
 
 ```bash
 COREPACK_ENABLE_PROJECT_SPEC=0 pnpm install
-COREPACK_ENABLE_PROJECT_SPEC=0 pnpm dev
+COREPACK_ENABLE_PROJECT_SPEC=0 pnpm dev:qa
 ```
 
-The repo-backed `exo` launcher and `scripts/install-local` set `COREPACK_ENABLE_PROJECT_SPEC=0` automatically so `exo dev` does not trip stale Corepack key metadata.
+The repo-backed `exo` launcher and `scripts/install-local` set `COREPACK_ENABLE_PROJECT_SPEC=0` automatically so local CLI commands do not trip stale Corepack key metadata.
 
 ```bash
 pnpm install
-pnpm dev
+pnpm dev:qa
 ```
 
 Install a repo-backed local `exo` command:

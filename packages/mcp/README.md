@@ -51,7 +51,7 @@ Workspace resolution matches the CLI: explicit `EXO_RUNTIME_ROOT` or workspace e
 
 Optional environment:
 
-- `EXO_MCP_START_COMMAND` — shell command used to start Exo. Defaults to this repo's `bin/exo dev`.
+- `EXO_MCP_START_COMMAND` — shell command used to start Exo. Defaults to this repo's `bin/exo start`.
 - `EXO_MCP_CONNECT_TIMEOUT_MS` — startup/connect timeout. Defaults to `20000`.
 - `EXO_MCP_REQUEST_TIMEOUT_MS` — normal command-server request timeout. Defaults to `2000`.
 - `EXO_MCP_SEARCH_TIMEOUT_MS` — search request timeout for QMD-backed retrieval. Defaults to `30000`.

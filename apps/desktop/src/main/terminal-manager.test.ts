@@ -619,7 +619,7 @@ describe("TerminalManager Codex readiness", () => {
     expect(shellLaunch).toContain(`'mcp_servers.exo.command=\"node\"'`);
     expect(shellLaunch).toContain(`'mcp_servers.exo.args=[\"${exoRoot}/packages/mcp/bin/exo-mcp.mjs\"]'`);
     expect(shellLaunch).toContain(
-      `'mcp_servers.exo.env={EXO_MCP_AUTOSTART=\"1\", EXO_MCP_SEARCH_TIMEOUT_MS=\"30000\", EXO_MCP_START_COMMAND=\"${exoRoot}/bin/exo dev\"}'`,
+      `'mcp_servers.exo.env={EXO_MCP_AUTOSTART=\"1\", EXO_MCP_SEARCH_TIMEOUT_MS=\"30000\", EXO_MCP_START_COMMAND=\"${exoRoot}/bin/exo start\"}'`,
     );
   });
 });

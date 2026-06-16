@@ -19,6 +19,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Verify fresh-clone/setup docs against current pnpm/Corepack/Electron/MCP behavior.
 - [ ] Push the reviewed branch and open the review/PR surface.
 - [x] Install the packaged macOS app as the stable resident Exo runtime and use it as the default environment for the next bounded Exo implementation/review task.
+- [x] Make `exo` / `exo start` launch or focus the resident packaged app, while source QA stays under `pnpm dev:qa`.
 - [x] Use `pnpm dev:qa` for source-build QA while the installed stable Exo app remains available for monitoring and agent coordination.
 - [x] Verify `/Applications/Exo.app` shows the Exo menu bar icon, survives window close, and keeps CLI/MCP commands available while hidden.
 - [ ] Add launch-at-login support for the installed app after the resident runtime passes daily-use QA.

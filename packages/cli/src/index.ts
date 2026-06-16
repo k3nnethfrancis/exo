@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -800,9 +801,14 @@ export async function runCli(
 
   // ─── Launch commands ─────────────────────────────────────────────────
 
+  if (!command || command === "start") {
+    return startExoApp({ env, stderr });
+  }
+
   if (command === "dev") {
+    stderr.write("Deprecated: `exo dev` is a developer shortcut. Use `exo start` for the resident app or `pnpm dev:qa` for source QA.\n");
     const projectRoot = env.EXO_PROJECT_ROOT ?? path.resolve(fileURLToPath(import.meta.url), "../../../..");
-    const child = spawn("pnpm", ["dev"], {
+    const child = spawn("pnpm", ["dev:qa"], {
       cwd: projectRoot,
       env: {
         ...process.env,
@@ -843,7 +849,8 @@ export async function runCli(
   stderr.write(
     [
       "Usage:",
-      "  exo dev                                    Launch the desktop app",
+      "  exo                                        Start or focus the resident Exo app",
+      "  exo start                                  Start or focus the resident Exo app",
       "  exo search <query> [--limit n]              Search Exo knowledge index or workspace fallback",
       "  exo read <path-or-docid> [--from n] [--lines n]",
       "  exo routines templates                    List plugin-declared routine templates",
@@ -898,9 +905,52 @@ export async function runCli(
       "  exo runtime context <shell|claude|codex>",
       "  exo runtime launch-plan <shell|claude|codex> [cwd]",
       "  exo runtime sync",
+      "",
+      "Developer source QA:",
+      "  pnpm dev:qa",
     ].join("\n"),
   );
   return 1;
+}
+
+async function startExoApp(options: {
+  env: NodeJS.ProcessEnv;
+  stderr: { write: (text: string) => void };
+}): Promise<number> {
+  if (process.platform !== "darwin") {
+    options.stderr.write("`exo start` currently supports macOS packaged app launches. Use `pnpm dev:qa` for source QA.\n");
+    return 1;
+  }
+
+  const explicitAppPath = options.env.EXO_APP_PATH;
+  const candidates = [
+    explicitAppPath,
+    path.join(options.env.HOME ?? "", "Applications", "Exo.app"),
+    "/Applications/Exo.app",
+  ].filter((candidate): candidate is string => Boolean(candidate));
+  const appPath = candidates.find((candidate) => existsSync(candidate));
+
+  if (!appPath) {
+    options.stderr.write("Unable to find Exo.app. Install it with `scripts/install-mac-app --with-cli`, or set EXO_APP_PATH.\n");
+    return 1;
+  }
+
+  const child = spawn("open", [appPath], {
+    env: { ...process.env, ...options.env },
+    stdio: "ignore",
+    detached: true,
+  });
+  child.unref();
+
+  return new Promise<number>((resolve, reject) => {
+    child.on("error", reject);
+    child.on("exit", (code) => {
+      if (code) {
+        options.stderr.write(`Unable to start Exo app at ${appPath}.\n`);
+      }
+      resolve(code ?? 0);
+    });
+  });
 }
 
 async function connectOrFail(
@@ -911,7 +961,7 @@ async function connectOrFail(
   const config = await resolveCliRuntimeConfig(env);
   const client = await connectAppClient(config.runtimeRoot, env);
   if (!client) {
-    stderr.write("Exo app is not running. Start it with: exo dev\n");
+    stderr.write("Exo app is not running. Start it with: exo start\n");
     return null;
   }
   return client;

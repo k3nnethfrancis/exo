@@ -25,7 +25,7 @@ describe("integrations", () => {
       "--env",
       "EXO_MCP_SEARCH_TIMEOUT_MS=30000",
       "--env",
-      "EXO_MCP_START_COMMAND=/tmp/exo-test-workspace/projects/exo/bin/exo dev",
+      "EXO_MCP_START_COMMAND=/tmp/exo-test-workspace/projects/exo/bin/exo start",
       "--",
       "node",
       "/tmp/exo-test-workspace/projects/exo/packages/mcp/bin/exo-mcp.mjs",
@@ -48,7 +48,7 @@ describe("integrations", () => {
       env: {
         EXO_MCP_AUTOSTART: "1",
         EXO_MCP_SEARCH_TIMEOUT_MS: "30000",
-        EXO_MCP_START_COMMAND: "/tmp/exo-test-workspace/projects/exo/bin/exo dev",
+        EXO_MCP_START_COMMAND: "/tmp/exo-test-workspace/projects/exo/bin/exo start",
       },
     });
     expect(spec.installArgs).toContain("exo");

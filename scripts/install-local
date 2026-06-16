@@ -159,7 +159,7 @@ Command:
   $EXO_TARGET
 
 Try:
-  exo dev
+  exo start
   exo status
   exo integrations doctor
 EOF

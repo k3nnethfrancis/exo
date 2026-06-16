@@ -19,6 +19,7 @@ Plugin architecture, tmux terminal persistence, packaged first-run hardening, an
 
 ### Changed
 
+- Makes bare `exo` and `exo start` the end-user launcher for the resident packaged app, moves MCP autostart defaults from `exo dev` to `exo start`, and leaves `exo dev` as a deprecated source-QA shortcut.
 - Reopens and supersedes the alpha.3 direct-pty-only terminal decision: Exo core terminals now use tmux for persistence and sleep/relaunch resilience, with node-pty retained as the live attach/render bridge.
 - Makes terminal scrollback a numeric setting and applies it to both renderer/live buffers and tmux history instead of coarse `full` / `custom` labels.
 - Stops live terminal hydration from resetting xterm and replaying stale scrollback over active agent output.

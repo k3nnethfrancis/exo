@@ -251,7 +251,7 @@ async function waitForReachableClient(
 }
 
 function startExo(env: NodeJS.ProcessEnv): void {
-  const command = env.EXO_MCP_START_COMMAND ?? `${defaultExoCommand()} dev`;
+  const command = env.EXO_MCP_START_COMMAND ?? `${defaultExoCommand()} start`;
   const child = spawn(command, {
     shell: true,
     detached: true,
