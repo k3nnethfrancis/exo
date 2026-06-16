@@ -198,7 +198,18 @@ Skills are capabilities available inside a harness. A prompt may ask the harness
 
 The first implementation can be metadata-only. Full cross-provider skill management comes later.
 
-Status: first-pass Routine, Run, artifact, trace, store, and manual executor contracts are implemented in core. Scheduler, UI, and real harness execution hosts remain future work.
+Status: first-pass Routine, Run, artifact, trace, store, manual executor, and plugin-declared routine-template contracts are implemented in core. Scheduler, UI, and real harness execution hosts remain future work.
+
+Plugin routine templates are metadata, not live jobs. A plugin can declare a `routineTemplate` capability with `compatibility.routineTemplate`, including:
+
+- prompt
+- default harness id
+- optional required harness skills
+- default manual or scheduled trigger
+- permissions
+- output policy
+
+Exo turns that template into a concrete `RoutineDefinition` only when a user/workspace supplies scope, ids, and any overrides. This keeps plugin-authored workflows reusable without giving a manifest implicit write access or scheduler authority.
 
 ### Phase 4: Permissioned Surface Contributions
 
@@ -330,7 +341,7 @@ Plugins can own concrete behavior:
 - provider integrations
 - dashboards
 - training-data exports
-- routine templates and prompts
+- routine templates and prompts, which become runnable only after user/workspace instantiation
 
 An eval system may include a web dashboard, but it should not be only a hosted web app. It needs privileged, permissioned access to Exo's agent sessions, terminal logs, files, search, git state, and artifacts through stable APIs.
 

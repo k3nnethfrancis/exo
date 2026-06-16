@@ -187,7 +187,7 @@ pnpm check
 
 ## Phase 4: Routine And Run Model Spec
 
-Status: first-pass type contracts implemented in `packages/core/src/routine.ts` and `packages/core/src/run.ts`. Storage path helpers, a small JSON filesystem store, artifact writing, and trace JSONL append helpers are implemented in `packages/core/src/routine-run-store.ts`. A manual executor substrate with an injected host is implemented in `packages/core/src/routine-executor.ts`. Scheduler implementation and real desktop/CLI harness hosts remain future work. Do not build scheduler UI yet.
+Status: first-pass type contracts implemented in `packages/core/src/routine.ts` and `packages/core/src/run.ts`. Storage path helpers, a small JSON filesystem store, artifact writing, and trace JSONL append helpers are implemented in `packages/core/src/routine-run-store.ts`. A manual executor substrate with an injected host is implemented in `packages/core/src/routine-executor.ts`. Plugin-declared routine templates can be extracted from `routineTemplate` capabilities and instantiated as concrete user/workspace Routine definitions through `packages/core/src/routine-template.ts`. Scheduler implementation and real desktop/CLI harness hosts remain future work. Do not build scheduler UI yet.
 
 Core concepts:
 
@@ -212,6 +212,14 @@ Routine:
 - scope
 - permissions
 - output policy
+
+Routine template:
+
+- plugin-declared metadata attached to a `routineTemplate` capability
+- prompt, default harness, optional required harness skills, default trigger, permissions, and output policy
+- no execution by itself
+- no implicit scope or write access
+- becomes runnable only after Exo instantiates it into a concrete `RoutineDefinition` with a workspace scope
 
 Run:
 
