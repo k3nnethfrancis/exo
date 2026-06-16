@@ -33,7 +33,10 @@ import {
   workspaceSettingsToEnv,
   type ManagedAgentKind,
   type ExoMcpIntegrationClient,
+  type RoutineDefinition,
+  type RoutineExecutionHost,
   type RoutineTrigger,
+  type RunRecord,
 } from "@exo/core";
 
 import { AppClient, type AppClientWriteResult } from "./app-client";
@@ -744,11 +747,12 @@ export async function runCli(
       const templateId = positionals[0];
       const routineId = positionals[1];
       if (!templateId || !routineId) {
-        throw new Error("Usage: exo routines create <template-id> <routine-id> [--title <title>] [--harness <id>] [--schedule <cron>] [--timezone <tz>] [--path <path>]");
+        throw new Error("Usage: exo routines create <template-id> <routine-id> [--title <title>] [--prompt <text>] [--harness <id>] [--schedule <cron>] [--timezone <tz>] [--path <path>]");
       }
       const routine = await service.createRoutineFromTemplate(templateId, {
         id: routineId,
         title: values.title,
+        prompt: values.prompt,
         harnessId: values.harness,
         trigger: parseRoutineTrigger(values),
         scope: {
@@ -765,14 +769,33 @@ export async function runCli(
     if (subcommand === "run") {
       const { values, positionals } = parseInlineOptions(args);
       const routineId = positionals[0];
-      if (!routineId || values["dry-run"] !== "1") {
-        throw new Error("Usage: exo routines run <routine-id> --dry-run");
+      if (!routineId || (values["dry-run"] !== "1" && values.agent !== "1")) {
+        throw new Error("Usage: exo routines run <routine-id> (--dry-run | --agent) [--harness claude|codex] [--cwd <path>] [--no-submit]");
+      }
+      if (values.agent === "1") {
+        const routine = await service.readRoutine(routineId);
+        if (!routine) {
+          throw new Error(`Routine not found: ${routineId}`);
+        }
+        const harness = normalizeAgentKind(values.harness ?? routine.harnessId);
+        if (!harness) {
+          throw new Error(`Routine harness must be one of shell, claude, or codex: ${values.harness ?? routine.harnessId}`);
+        }
+        const client = await connectOrFail(env, stderr, connectAppClient);
+        if (!client) return 1;
+        stdout.write(`${JSON.stringify(await service.runManualWithHost(routineId, new AppRoutineExecutionHost(client, {
+          harness,
+          cwd: values.cwd,
+          submit: values["no-submit"] !== "1",
+          clock: () => new Date().toISOString(),
+        })), null, 2)}\n`);
+        return 0;
       }
       stdout.write(`${JSON.stringify(await service.runManualDryRun(routineId), null, 2)}\n`);
       return 0;
     }
 
-    throw new Error("Usage: exo routines [templates | list | runs | read <run-id> | artifacts <run-id> | artifact <run-id> <artifact-id> | create <template-id> <routine-id> | run <routine-id> --dry-run]");
+    throw new Error("Usage: exo routines [templates | list | runs | read <run-id> | artifacts <run-id> | artifact <run-id> <artifact-id> | create <template-id> <routine-id> | run <routine-id> (--dry-run | --agent)]");
   }
 
   // ─── Launch commands ─────────────────────────────────────────────────
@@ -831,6 +854,7 @@ export async function runCli(
       "  exo routines artifact <run-id> <artifact>  Print a routine artifact",
       "  exo routines create <template-id> <id>     Create a routine from a template",
       "  exo routines run <id> --dry-run            Record a dry-run routine execution",
+      "  exo routines run <id> --agent              Launch an Exo app agent and send the routine prompt",
       "  exo index status                           Show QMD-backed index status (app)",
       "  exo index sync                             Sync documents and embeddings for configured mode (app)",
       "  exo index add <path> [--name n] [--kind k] [--force]",
@@ -926,6 +950,97 @@ function parseRoutineTrigger(values: Record<string, string>): RoutineTrigger | u
     schedule: values.schedule,
     timezone: values.timezone,
   };
+}
+
+class AppRoutineExecutionHost implements RoutineExecutionHost {
+  constructor(
+    private readonly client: AppClientLike,
+    private readonly options: {
+      harness: ManagedAgentKind;
+      cwd?: string;
+      submit: boolean;
+      clock: () => string;
+    },
+  ) {}
+
+  async execute(routine: RoutineDefinition, run: RunRecord) {
+    const terminal = await this.client.createTerminal(this.options.harness, this.options.cwd);
+    const terminalId = String(terminal.id ?? "");
+    if (!terminalId) {
+      throw new Error("Exo app did not return a terminal id for routine execution.");
+    }
+    const message = formatRoutineAgentPrompt(routine);
+    const delivery = await this.client.sendTerminalMessage(terminalId, message, this.options.submit);
+    const now = this.options.clock();
+    return {
+      artifacts: [
+        {
+          artifact: {
+            id: "agent-session",
+            kind: "report" as const,
+            title: "Routine Agent Session",
+            mimeType: "text/markdown",
+            createdAt: now,
+            metadata: {
+              terminalId,
+              harness: this.options.harness,
+              delivery,
+            },
+          },
+          fileName: "agent-session.md",
+          contents: [
+            "# Routine Agent Session",
+            "",
+            `- Routine: ${routine.id}`,
+            `- Run: ${run.id}`,
+            `- Harness: ${this.options.harness}`,
+            `- Terminal: ${terminalId}`,
+            `- Delivery: ${delivery.delivery}`,
+            "",
+            "## Prompt Sent",
+            "",
+            message,
+            "",
+          ].join("\n"),
+        },
+      ],
+      tracePackets: [
+        {
+          id: "agent-session-created",
+          kind: "event" as const,
+          timestamp: now,
+          actor: "exo.routine-cli",
+          private: false,
+          evidence: [],
+          payload: {
+            terminalId,
+            harness: this.options.harness,
+            delivery,
+          },
+        },
+      ],
+      needsReview: true,
+    };
+  }
+}
+
+function formatRoutineAgentPrompt(routine: RoutineDefinition): string {
+  const requiredSkills =
+    routine.requiredSkills.length > 0
+      ? [
+          "",
+          "Required or suggested harness skills:",
+          ...routine.requiredSkills.map((skill) => `- ${skill.id}${skill.required ? " (required)" : " (optional)"}${skill.label ? `: ${skill.label}` : ""}`),
+        ]
+      : [];
+  return [
+    `# Exo Routine: ${routine.title}`,
+    "",
+    routine.prompt,
+    ...requiredSkills,
+    "",
+    "When finished, summarize what you did and call out any files, artifacts, or follow-up review needed.",
+  ].join("\n");
 }
 
 async function launchAgent(

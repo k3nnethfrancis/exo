@@ -595,6 +595,94 @@ describe("cli package", () => {
     }
   });
 
+  it("launches a Codex routine agent through the running app", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-cli-routines-"));
+    try {
+      const pluginRoot = await writeRoutinePlugin(root);
+      const env = routineTestEnv(root, pluginRoot);
+      const calls: Array<Record<string, unknown>> = [];
+      let stdout = "";
+      await runCli(["node", "exo-cli", "routines", "create", "graph-health.template", "graph-health-agent"], {
+        env,
+        stdout: { write: () => {} },
+        stderr: { write: () => {} },
+      });
+
+      const exitCode = await runCli(["node", "exo-cli", "routines", "run", "graph-health-agent", "--agent"], {
+        env,
+        stdout: { write: (text) => { stdout += text; } },
+        stderr: { write: () => {} },
+        connectAppClient: async () => fakeAppClient({
+          createTerminal: async (kind, cwd) => {
+            calls.push({ action: "create", kind, cwd });
+            return { id: "term-codex" };
+          },
+          sendTerminalMessage: async (id, message, submit) => {
+            calls.push({ action: "send", id, message, submit });
+            return { ok: true as const, delivery: "sent" as const };
+          },
+        }),
+      });
+
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('"status": "needsReview"');
+      expect(stdout).toContain('"id": "agent-session"');
+      expect(calls[0]).toMatchObject({ action: "create", kind: "codex" });
+      expect(calls[1]).toMatchObject({ action: "send", id: "term-codex", submit: true });
+      expect(String(calls[1]?.message)).toContain("# Exo Routine: Graph Health");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("launches a Claude routine agent with a skill-request prompt", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-cli-routines-"));
+    try {
+      const pluginRoot = await writeRoutinePlugin(root);
+      const env = routineTestEnv(root, pluginRoot);
+      const calls: Array<Record<string, unknown>> = [];
+      await runCli([
+        "node",
+        "exo-cli",
+        "routines",
+        "create",
+        "graph-health.template",
+        "app-qa-smoke",
+        "--prompt",
+        "Use the app-qa skill if it is available. Do not modify files; only report the QA checklist you would run.",
+        "--harness",
+        "claude",
+      ], {
+        env,
+        stdout: { write: () => {} },
+        stderr: { write: () => {} },
+      });
+
+      const exitCode = await runCli(["node", "exo-cli", "routines", "run", "app-qa-smoke", "--agent", "--no-submit"], {
+        env,
+        stdout: { write: () => {} },
+        stderr: { write: () => {} },
+        connectAppClient: async () => fakeAppClient({
+          createTerminal: async (kind) => {
+            calls.push({ action: "create", kind });
+            return { id: "term-claude" };
+          },
+          sendTerminalMessage: async (id, message, submit) => {
+            calls.push({ action: "send", id, message, submit });
+            return { ok: true as const, delivery: "queued" as const, queuedInputCount: 1 };
+          },
+        }),
+      });
+
+      expect(exitCode).toBe(0);
+      expect(calls[0]).toMatchObject({ action: "create", kind: "claude" });
+      expect(calls[1]).toMatchObject({ action: "send", id: "term-claude", submit: false });
+      expect(String(calls[1]?.message)).toContain("Use the app-qa skill if it is available");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("prints Codex integration config", async () => {
     let stdout = "";
     const exitCode = await runCli(["node", "exo-cli", "integrations", "config", "codex"], {

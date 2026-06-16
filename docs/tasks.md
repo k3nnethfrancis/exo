@@ -135,9 +135,11 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Define plugin routine templates as metadata that can be instantiated into concrete user/workspace Routines.
 - [x] Add the first Routine CLI MVP: list plugin templates, create concrete routines, list routines, record dry-run executions, and inspect run records/artifacts.
 - [x] Add a bundled dev `graph-health.template` routine plugin manifest for dogfooding plugin-template discovery.
+- [x] Add first app-backed Routine execution handoff: `exo routines run --agent` launches shell/Claude/Codex through the running app, sends the prompt, and records the agent-session artifact for review.
 - [ ] Add first scheduler candidate use cases: update entities, graph health, organize wiki, plugin-hosted elicitation, training export, eval run, and Exo-on-Exo maintenance.
 - [x] Decide the first user-facing Routine creation surface: CLI MVP on top of one core routine service.
 - [ ] Decide initial implementation target for scheduled runs: CLI-only MVP, resident app scheduler, or both with one shared run store.
+- [ ] Add Routine run lifecycle tracking beyond handoff: terminal transcript links, completion detection, cancellation, and accepted/rejected review outcomes.
 
 ## Next: QMD, Notes Index, And Search
 

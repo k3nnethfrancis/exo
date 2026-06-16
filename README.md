@@ -205,6 +205,8 @@ Standalone workspace/runtime commands:
 ./bin/exo routines list
 ./bin/exo routines create graph-health.template graph-health-weekly --schedule "0 8 * * 1"
 ./bin/exo routines run graph-health-weekly --dry-run
+./bin/exo routines run graph-health-weekly --agent --harness codex
+./bin/exo routines run graph-health-weekly --agent --harness claude --no-submit
 ./bin/exo routines runs --routine graph-health-weekly
 ./bin/exo routines read <run-id>
 ./bin/exo routines artifacts <run-id>
@@ -214,7 +216,7 @@ Standalone workspace/runtime commands:
 ./bin/exo launch claude
 ```
 
-`exo routines` is an early operator surface. Plugins can contribute routine templates through metadata-only `exo.plugin.json` manifests, and the CLI can instantiate those templates into concrete workspace routines under `.exo/routines/`. The repo includes a bundled dev `graph-health.template` plugin. `run --dry-run` records a run, trace, and report artifact without launching an agent. Real scheduler and harness execution are still future work.
+`exo routines` is an early operator surface. Plugins can contribute routine templates through metadata-only `exo.plugin.json` manifests, and the CLI can instantiate those templates into concrete workspace routines under `.exo/routines/`. The repo includes a bundled dev `graph-health.template` plugin. `run --dry-run` records a run, trace, and report artifact without launching an agent. `run --agent` creates an Exo-managed shell/Claude/Codex terminal through the running app, sends the routine prompt, and records the agent session for review. Scheduler and automatic completion tracking are still future work.
 
 Commands that drive a running Exo app:
 

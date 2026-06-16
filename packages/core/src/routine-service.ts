@@ -123,6 +123,17 @@ export class RoutineService {
     const run = await executor.runManual(executableRoutine);
     return { routine, run };
   }
+
+  async runManualWithHost(routineId: string, host: RoutineExecutionHost): Promise<RoutineDryRunResult> {
+    const routine = await this.store.readRoutine(routineId);
+    if (!routine) {
+      throw new Error(`Routine not found: ${routineId}`);
+    }
+    const executor = new RoutineExecutor(this.store, host, undefined, this.clock);
+    const executableRoutine = routine.trigger.kind === "manual" ? routine : { ...routine, trigger: { kind: "manual" as const } };
+    const run = await executor.runManual(executableRoutine);
+    return { routine, run };
+  }
 }
 
 export function routinePluginDirectoriesFromEnv(workspaceRoot: string, env: Record<string, string | undefined>): RoutinePluginDirectory[] {
