@@ -13,7 +13,7 @@ import {
 } from "../../main/settings-store";
 import { buildProjectReviewChanges, uniqueCwdMatchedSession } from "./changedFileReview";
 import { isTerminalGeneratedResponse } from "./components/terminalInputFilters";
-import { listEnterEdit } from "./components/markdownLivePreview";
+import { listEnterEdit, wikilinkExitEdit } from "./components/markdownLivePreview";
 import { defaultTerminalCwdForNotesFolder } from "./hooks/useWorkspaceBootstrap";
 import { terminalSessionsEqual } from "./terminalSessions";
 import {
@@ -248,6 +248,36 @@ describe("markdown editor list behavior", () => {
       selection: 0,
       exitList: true,
     });
+  });
+});
+
+describe("markdown editor wikilink behavior", () => {
+  it("exits a wikilink by inserting one trailing space", () => {
+    const state = EditorState.create({ doc: "Discuss [[customer-name]]today" });
+    const pos = "Discuss [[customer-name".length;
+
+    expect(wikilinkExitEdit(state, pos)).toEqual({
+      insertAt: "Discuss [[customer-name]]".length,
+      insert: " ",
+      selection: "Discuss [[customer-name]] ".length,
+    });
+  });
+
+  it("exits a wikilink through an existing trailing space", () => {
+    const state = EditorState.create({ doc: "Discuss [[customer-name]] today" });
+    const pos = "Discuss [[customer-name]]".length;
+
+    expect(wikilinkExitEdit(state, pos)).toEqual({
+      insertAt: "Discuss [[customer-name]]".length,
+      insert: "",
+      selection: "Discuss [[customer-name]] ".length,
+    });
+  });
+
+  it("does not handle Tab or Enter outside wikilinks", () => {
+    const state = EditorState.create({ doc: "Discuss customer-name" });
+
+    expect(wikilinkExitEdit(state, state.doc.length)).toBeNull();
   });
 });
 

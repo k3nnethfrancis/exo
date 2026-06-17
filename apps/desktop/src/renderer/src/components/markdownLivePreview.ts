@@ -86,6 +86,7 @@ export function markdownLivePreview(options: MarkdownLivePreviewOptions): Extens
     listPrefixAtomicRanges,
     listPrefixSelectionFilter,
     plugin,
+    wikilinkExitKeymap,
     listContinuationOutdentKeymap,
     listPrefixNavigationKeymap,
     EditorView.domEventHandlers({
@@ -241,6 +242,17 @@ const listContinuationOutdentKeymap = Prec.highest(keymap.of([
   },
 ]));
 
+const wikilinkExitKeymap = Prec.highest(keymap.of([
+  {
+    key: "Tab",
+    run: exitWikilink,
+  },
+  {
+    key: "Enter",
+    run: exitWikilink,
+  },
+]));
+
 const listPrefixSelectionFilter = EditorState.transactionFilter.of((tr) => {
   if (!tr.selection || !tr.changes.empty) {
     return tr;
@@ -319,6 +331,44 @@ function outdentBlankListContinuation(view: EditorView): boolean {
     userEvent: "delete.dedent",
   });
   return true;
+}
+
+function exitWikilink(view: EditorView): boolean {
+  const range = view.state.selection.main;
+  if (!range.empty) {
+    return false;
+  }
+
+  const edit = wikilinkExitEdit(view.state, range.head);
+  if (!edit) {
+    return false;
+  }
+
+  view.dispatch({
+    changes: edit.insert ? { from: edit.insertAt, to: edit.insertAt, insert: edit.insert } : undefined,
+    selection: EditorSelection.cursor(edit.selection),
+    scrollIntoView: true,
+    userEvent: "select",
+  });
+  return true;
+}
+
+export function wikilinkExitEdit(state: EditorState, pos: number): { insertAt: number; insert: string; selection: number } | null {
+  const line = state.doc.lineAt(pos);
+  for (const match of line.text.matchAll(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g)) {
+    const start = line.from + (match.index ?? 0);
+    const end = start + match[0].length;
+    if (pos < start || pos > end) {
+      continue;
+    }
+
+    const hasSpaceAfter = end < line.to && state.doc.sliceString(end, end + 1) === " ";
+    if (hasSpaceAfter) {
+      return { insertAt: end, insert: "", selection: end + 1 };
+    }
+    return { insertAt: end, insert: " ", selection: end + 1 };
+  }
+  return null;
 }
 
 function continueOrExitList(view: EditorView): boolean {
