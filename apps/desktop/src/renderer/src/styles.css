@@ -532,6 +532,7 @@ button svg,
 }
 
 .editor-surface {
+  position: relative;
   align-self: stretch;
   min-height: 0;
   height: 100%;
@@ -545,6 +546,56 @@ button svg,
   height: 100%;
   min-height: 0;
   overflow: hidden;
+}
+
+.wikilink-suggestions {
+  position: absolute;
+  z-index: 20;
+  width: min(320px, calc(100% - 32px));
+  max-height: 150px;
+  overflow: hidden;
+  border: 1px solid var(--surface-border-strong);
+  border-radius: 8px;
+  background: var(--panel-strong);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+  padding: 4px;
+}
+
+.wikilink-suggestions__item {
+  width: 100%;
+  min-height: 34px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  padding: 6px 8px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.wikilink-suggestions__item:first-child,
+.wikilink-suggestions__item:hover {
+  background: var(--surface-hover);
+}
+
+.wikilink-suggestions__label {
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.wikilink-suggestions__detail {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .editor-surface .cm-editor {

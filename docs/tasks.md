@@ -11,6 +11,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Fix markdown editor cursor/list QoL: preserve cursor across refresh, continue bullets on Enter, exit empty bullets cleanly, and keep arrow navigation out of hidden list markers.
 - [x] Fix markdown task-list continuation so Enter preserves `- [ ]` structure and empty task items exit cleanly.
 - [x] Add wikilink exit behavior: Tab/Enter from inside `[[target]]` moves the cursor after a following space so typing can continue inline.
+- [x] Add wikilink existing-note suggestions while typing `[[query]]`, capped to three matches, with Enter selecting the first existing note match.
 - [ ] Reproduce and fix `EXO-ISSUE-029`: stray default Electron app window during `pnpm dev`.
 - [ ] Implement `EXO-ISSUE-030`: tmux-backed core terminal runtime with deterministic terminal-quality tests and no live-inference automated QA.
   - Progress: create/attach/terminate now runs through tmux with node-pty as the attach bridge; session registry, app relaunch reattach, stale bridge reconnect, power-resume recovery hook, UI reconnect affordance, attach-bridge kill/reconnect app QA, idle p50/p90 latency, and streaming-output p50/p90 latency have focused unit/Electron coverage. Remaining before close: manual macOS sleep/wake QA in the installed app, broader rendering/scrollback stress, and a final installed-app terminal dogfood pass.

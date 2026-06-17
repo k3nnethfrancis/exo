@@ -174,3 +174,47 @@ test("Tab and Enter exit wikilinks to a following space", async () => {
 
   await cleanup();
 });
+
+test("suggests existing note targets while typing wikilinks", async () => {
+  const { page, cleanup } = await launchExoFixture({
+    mutable: true,
+    prepareWorkspace: async (workspaceRoot) => {
+      const notesRoot = path.join(workspaceRoot, "notes/test-notes");
+      await writeFile(path.join(notesRoot, "wikilink-suggest-test.md"), "# Wikilink Suggest Test\n\n", "utf8");
+      await writeFile(path.join(notesRoot, "customer-alpha.md"), "# Customer Alpha\n", "utf8");
+      await writeFile(path.join(notesRoot, "customer-beta.md"), "# Customer Beta\n", "utf8");
+      await writeFile(path.join(notesRoot, "customer-gamma.md"), "# Customer Gamma\n", "utf8");
+      await writeFile(path.join(notesRoot, "customer-delta.md"), "# Customer Delta\n", "utf8");
+    },
+  });
+
+  await page.getByRole("button", { name: /wikilink-suggest-test/i }).first().click();
+  await page.locator(".cm-content").click();
+  await page.evaluate(() => {
+    const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+    const view = content?.cmView?.view;
+    if (!view) {
+      throw new Error("Unable to resolve CodeMirror view");
+    }
+    view.dispatch({ selection: { anchor: view.state.doc.length } });
+    view.focus();
+  });
+
+  await page.keyboard.type("[[cus");
+  await expect(page.getByTestId("wikilink-suggestions")).toBeVisible();
+  await expect(page.locator(".wikilink-suggestions__item")).toHaveCount(3);
+  await page.keyboard.press("Enter");
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+        return content?.cmView?.view?.state.doc.toString() ?? "";
+      }),
+    )
+    .toContain("[[customer-alpha]]");
+
+  await page.keyboard.type("\n[[no-such-existing-note");
+  await expect(page.getByTestId("wikilink-suggestions")).toHaveCount(0);
+
+  await cleanup();
+});

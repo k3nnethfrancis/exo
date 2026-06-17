@@ -1,13 +1,12 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
 import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
-import { autocompletion, type CompletionContext } from "@codemirror/autocomplete";
 import { indentWithTab } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { bracketMatching, foldGutter, HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { lintGutter, lintKeymap } from "@codemirror/lint";
-import { EditorSelection } from "@codemirror/state";
-import { keymap, lineNumbers, EditorView } from "@codemirror/view";
+import { EditorSelection, type EditorState } from "@codemirror/state";
+import { keymap, lineNumbers, EditorView, type ViewUpdate } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 import { Code2, GitBranch, Save, SlidersHorizontal } from "lucide-react";
 import type { BranchFamily, NoteDocument } from "@exo/core";
@@ -15,6 +14,18 @@ import type { ResolvedAppearance } from "../appearance";
 import { codeLanguageForPath } from "./codeLanguages";
 import { coerceFrontmatterValue, getDocumentDisplayTitle, stringifyFrontmatterValue } from "./documentDisplay";
 import { markdownLivePreview } from "./markdownLivePreview";
+
+const WIKILINK_COMPLETION_LIMIT = 3;
+
+type WikilinkSuggestion = { label: string; target: string; detail?: string };
+
+interface WikilinkSuggestionState {
+  from: number;
+  to: number;
+  left: number;
+  top: number;
+  items: WikilinkSuggestion[];
+}
 
 interface EditorDocument extends NoteDocument {
   dirty: boolean;
@@ -75,9 +86,14 @@ export function NoteEditor(props: NoteEditorProps) {
   const restoringScrollRef = useRef(false);
   const processedRevealLineNonceRef = useRef<number | null>(null);
   const processedScrollRestoreNonceRef = useRef<number | null>(null);
+  const wikilinkSuggestionRequestRef = useRef(0);
+  const suppressedWikilinkCompletionRef = useRef<{ pos: number; text: string } | null>(null);
+  const [wikilinkSuggestions, setWikilinkSuggestions] = useState<WikilinkSuggestionState | null>(null);
 
   useEffect(() => {
     setRawMarkdownMode(false);
+    setWikilinkSuggestions(null);
+    suppressedWikilinkCompletionRef.current = null;
   }, [document?.filePath]);
 
   const documentPath = document?.filePath ?? "";
@@ -98,6 +114,104 @@ export function NoteEditor(props: NoteEditorProps) {
         selectionByPathRef.current.set(documentPath, { anchor: range.anchor, head: range.head });
       }),
     [documentPath],
+  );
+  const maybeUpdateWikilinkSuggestions = useMemo(
+    () =>
+      (update: ViewUpdate) => {
+        if (!isMarkdown || rawMarkdownMode) {
+          setWikilinkSuggestions(null);
+          return;
+        }
+        const range = update.state.selection.main;
+        if (!range.empty) {
+          setWikilinkSuggestions(null);
+          return;
+        }
+        const linkContext = getWikilinkCompletionContext(update.state, range.head);
+        if (!linkContext) {
+          suppressedWikilinkCompletionRef.current = null;
+          setWikilinkSuggestions(null);
+          return;
+        }
+        const suppressed = suppressedWikilinkCompletionRef.current;
+        const linkText = update.state.doc.sliceString(linkContext.from, linkContext.to);
+        if (suppressed && suppressed.pos === range.head && suppressed.text === linkText) {
+          setWikilinkSuggestions(null);
+          return;
+        }
+        suppressedWikilinkCompletionRef.current = null;
+
+        const requestId = ++wikilinkSuggestionRequestRef.current;
+        const cursorCoords = update.view.coordsAtPos(range.head);
+        const surface = update.view.dom.closest<HTMLElement>(".editor-surface");
+        const surfaceRect = surface?.getBoundingClientRect();
+        const left = cursorCoords && surfaceRect ? cursorCoords.left - surfaceRect.left : 24;
+        const top = cursorCoords && surfaceRect ? cursorCoords.bottom - surfaceRect.top + 4 : 48;
+        void onSuggestTargets(linkContext.query).then((suggestions) => {
+          if (requestId !== wikilinkSuggestionRequestRef.current) {
+            return;
+          }
+          const currentRange = update.view.state.selection.main;
+          const currentContext = currentRange.empty ? getWikilinkCompletionContext(update.view.state, currentRange.head) : null;
+          if (!currentContext || currentContext.query !== linkContext.query) {
+            setWikilinkSuggestions(null);
+            return;
+          }
+          const items = suggestions.slice(0, WIKILINK_COMPLETION_LIMIT);
+          setWikilinkSuggestions(items.length > 0 ? { ...currentContext, left, top, items } : null);
+        }).catch(() => {
+          if (requestId === wikilinkSuggestionRequestRef.current) {
+            setWikilinkSuggestions(null);
+          }
+        });
+      },
+    [isMarkdown, onSuggestTargets, rawMarkdownMode],
+  );
+  const handleEditorChange = useMemo(
+    () =>
+      (value: string, update: ViewUpdate) => {
+        onBodyChange(value);
+        maybeUpdateWikilinkSuggestions(update);
+      },
+    [maybeUpdateWikilinkSuggestions, onBodyChange],
+  );
+  const acceptWikilinkSuggestion = useMemo(
+    () =>
+      (suggestion: WikilinkSuggestion) => {
+        const view = codeMirrorRef.current?.view;
+        const active = wikilinkSuggestions;
+        if (!view || !active) {
+          return;
+        }
+        const insert = `[[${suggestion.target}]]`;
+        view.dispatch({
+          changes: { from: active.from, to: active.to, insert },
+          selection: { anchor: active.from + insert.length },
+          userEvent: "input.complete",
+        });
+        suppressedWikilinkCompletionRef.current = { pos: active.from + insert.length, text: insert };
+        setWikilinkSuggestions(null);
+        view.focus();
+      },
+    [wikilinkSuggestions],
+  );
+  const handleEditorSurfaceKeyDown = useMemo(
+    () =>
+      (event: KeyboardEvent<HTMLDivElement>) => {
+        if (event.key === "Escape" && wikilinkSuggestions) {
+          event.preventDefault();
+          event.stopPropagation();
+          setWikilinkSuggestions(null);
+          return;
+        }
+        if (event.key !== "Enter" || !wikilinkSuggestions || wikilinkSuggestions.items.length === 0) {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        acceptWikilinkSuggestion(wikilinkSuggestions.items[0]);
+      },
+    [acceptWikilinkSuggestion, wikilinkSuggestions],
   );
   const saveKeymap = useMemo(
     () =>
@@ -437,7 +551,10 @@ export function NoteEditor(props: NoteEditorProps) {
         </div>
       ) : null}
 
-      <div className={`editor-surface ${isMarkdown && !rawMarkdownMode ? "editor-surface--live-preview" : ""} ${!isMarkdown ? "editor-surface--code" : ""}`}>
+      <div
+        className={`editor-surface ${isMarkdown && !rawMarkdownMode ? "editor-surface--live-preview" : ""} ${!isMarkdown ? "editor-surface--code" : ""}`}
+        onKeyDownCapture={handleEditorSurfaceKeyDown}
+      >
         <CodeMirror
           ref={codeMirrorRef}
           key={`${document.filePath}:${isMarkdown && !rawMarkdownMode ? "live" : "code"}:${appearance}:${fontSize}`}
@@ -454,32 +571,6 @@ export function NoteEditor(props: NoteEditorProps) {
                         markdownLivePreview({
                           onOpenTarget,
                           onOpenTag,
-                        }),
-                        autocompletion({
-                          override: [
-                            async (context: CompletionContext) => {
-                              const before = context.matchBefore(/\[\[[^\]]*/);
-                              if (!before) {
-                                return null;
-                              }
-
-                              if (!context.explicit && before.from === before.to) {
-                                return null;
-                              }
-
-                              const query = before.text.replace(/^\[\[/, "");
-                              const suggestions = await onSuggestTargets(query);
-                              return {
-                                from: before.from,
-                                options: suggestions.map((suggestion) => ({
-                                  label: suggestion.label,
-                                  detail: suggestion.detail,
-                                  type: "text",
-                                  apply: `[[${suggestion.target}]]`,
-                                })),
-                              };
-                            },
-                          ],
                         }),
                       ]
                     : []),
@@ -499,13 +590,36 @@ export function NoteEditor(props: NoteEditorProps) {
                 ]
           }
           basicSetup={{
+            autocompletion: false,
             lineNumbers: false,
             foldGutter: false,
             highlightSelectionMatches: false,
           }}
-          onChange={onBodyChange}
+          onChange={handleEditorChange}
           height="100%"
         />
+        {wikilinkSuggestions ? (
+          <div
+            className="wikilink-suggestions"
+            data-testid="wikilink-suggestions"
+            style={{ left: wikilinkSuggestions.left, top: wikilinkSuggestions.top }}
+          >
+            {wikilinkSuggestions.items.map((suggestion) => (
+              <button
+                key={suggestion.target}
+                className="wikilink-suggestions__item"
+                type="button"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  acceptWikilinkSuggestion(suggestion);
+                }}
+              >
+                <span className="wikilink-suggestions__label">{suggestion.label}</span>
+                {suggestion.detail ? <span className="wikilink-suggestions__detail">{suggestion.detail}</span> : null}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
 
     </section>
@@ -514,6 +628,32 @@ export function NoteEditor(props: NoteEditorProps) {
 
 function clampPosition(position: number, docLength: number): number {
   return Math.max(0, Math.min(position, docLength));
+}
+
+function getWikilinkCompletionContext(state: EditorState, pos: number): { from: number; to: number; query: string } | null {
+  const line = state.doc.lineAt(pos);
+  const offset = pos - line.from;
+  const open = line.text.lastIndexOf("[[", offset);
+  if (open < 0) {
+    return null;
+  }
+
+  const close = line.text.indexOf("]]", open + 2);
+  if (close !== -1 && offset > close + 2) {
+    return null;
+  }
+
+  const queryEnd = close === -1 ? offset : close;
+  const query = line.text.slice(open + 2, queryEnd);
+  if (!query.trim() || /[\[\]\n]/.test(query)) {
+    return null;
+  }
+
+  return {
+    from: line.from + open,
+    to: line.from + (close === -1 ? offset : close + 2),
+    query,
+  };
 }
 
 function exoSyntaxHighlightStyle(appearance: ResolvedAppearance): HighlightStyle {

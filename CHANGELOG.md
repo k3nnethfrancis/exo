@@ -30,6 +30,7 @@ Plugin architecture, tmux terminal persistence, packaged first-run hardening, an
 
 - Fixes markdown editor cursor preservation across clean-file refreshes and improves live-preview editing so Enter continues bullets/numbered lists, empty list items exit cleanly, cursor navigation avoids hidden list markers, and Tab/Enter exits `[[wikilinks]]` to a following space.
 - Fixes markdown task-list continuation so Enter from `- [ ]` / `- [x]` creates a new unchecked task item, while empty task items exit cleanly.
+- Adds existing-note suggestions while typing `[[wikilinks]]`, capped to three matches, with Enter selecting the first match and no popup when no note matches.
 - Tightens terminal resize handoff between xterm and the tmux/node-pty bridge to reduce split-pane prompt rendering drift during active Claude/Codex typing.
 - Fixes fresh packaged startup when no workspace registry exists by loading the active workspace/onboarding path instead of falling back to `/`.
 - Simplifies first-run onboarding so the initial path is notes-folder selection instead of a confusing non-working workspace button.
