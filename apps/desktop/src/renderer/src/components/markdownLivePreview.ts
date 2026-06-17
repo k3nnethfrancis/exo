@@ -61,6 +61,7 @@ interface CodeFenceContext {
 }
 
 const listPrefixPattern = /^(\s*)((?:[-*+]|\d+[.)]))\s+/;
+const taskListPrefixPattern = /^(\s*)([-*+])\s+\[[ xX]\]\s+/;
 const leadingWhitespacePattern = /^(\s*)/;
 
 export function markdownLivePreview(options: MarkdownLivePreviewOptions): Extension[] {
@@ -396,6 +397,29 @@ export function listEnterEdit(state: EditorState, pos: number): { from: number; 
   const match = line.text.match(listPrefixPattern);
   if (!match) {
     return null;
+  }
+
+  const taskMatch = line.text.match(taskListPrefixPattern);
+  if (taskMatch) {
+    const prefix = taskMatch[0];
+    const content = line.text.slice(prefix.length);
+    if (content.trim().length === 0) {
+      return {
+        from: line.from,
+        to: line.to,
+        insert: "",
+        selection: line.from,
+        exitList: true,
+      };
+    }
+    const nextPrefix = `${taskMatch[1]}${taskMatch[2]} [ ] `;
+    return {
+      from: pos,
+      to: pos,
+      insert: `\n${nextPrefix}`,
+      selection: pos + nextPrefix.length + 1,
+      exitList: false,
+    };
   }
 
   const prefix = match[0];

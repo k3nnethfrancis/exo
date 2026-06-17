@@ -76,6 +76,51 @@ test("continues and exits markdown bullets in live preview", async () => {
   await cleanup();
 });
 
+test("continues and exits markdown task list items in live preview", async () => {
+  const { page, cleanup } = await launchExoFixture({
+    mutable: true,
+    prepareWorkspace: async (workspaceRoot) => {
+      const target = path.join(workspaceRoot, "notes/test-notes/task-list-edit-test.md");
+      await writeFile(target, "# Task List Edit Test\n\n- [x] follow up\n", "utf8");
+    },
+  });
+
+  await page.getByRole("button", { name: /task-list-edit-test/i }).first().click();
+  await page.locator(".cm-content").click();
+  await page.evaluate(() => {
+    const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+    const view = content?.cmView?.view;
+    if (!view) {
+      throw new Error("Unable to resolve CodeMirror view");
+    }
+    const target = view.state.doc.toString().indexOf("- [x] follow up") + "- [x] follow up".length;
+    view.dispatch({ selection: { anchor: target } });
+    view.focus();
+  });
+
+  await page.keyboard.press("Enter");
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+        return content?.cmView?.view?.state.doc.toString() ?? "";
+      }),
+    )
+    .toBe("# Task List Edit Test\n\n- [x] follow up\n- [ ] \n");
+
+  await page.keyboard.press("Enter");
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+        return content?.cmView?.view?.state.doc.toString() ?? "";
+      }),
+    )
+    .toBe("# Task List Edit Test\n\n- [x] follow up\n\n");
+
+  await cleanup();
+});
+
 test("Tab and Enter exit wikilinks to a following space", async () => {
   const { page, cleanup } = await launchExoFixture({
     mutable: true,

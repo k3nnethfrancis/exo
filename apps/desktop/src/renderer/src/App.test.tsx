@@ -237,8 +237,34 @@ describe("markdown editor list behavior", () => {
     });
   });
 
+  it("continues task lists as unchecked task items on Enter", () => {
+    const state = EditorState.create({ doc: "- [x] follow up" });
+    const edit = listEnterEdit(state, state.doc.length);
+
+    expect(edit).toEqual({
+      from: state.doc.length,
+      to: state.doc.length,
+      insert: "\n- [ ] ",
+      selection: state.doc.length + 7,
+      exitList: false,
+    });
+  });
+
   it("exits empty list items on Enter", () => {
     const state = EditorState.create({ doc: "  - " });
+    const edit = listEnterEdit(state, state.doc.length);
+
+    expect(edit).toEqual({
+      from: 0,
+      to: state.doc.length,
+      insert: "",
+      selection: 0,
+      exitList: true,
+    });
+  });
+
+  it("exits empty task list items on Enter", () => {
+    const state = EditorState.create({ doc: "  - [ ] " });
     const edit = listEnterEdit(state, state.doc.length);
 
     expect(edit).toEqual({

@@ -1,6 +1,6 @@
 # Exo Tasks
 
-Last updated: 2026-06-15
+Last updated: 2026-06-17
 
 This is the active task tracker for Exo. It is intentionally not a history file; completed implementation history belongs in `ledger.md`. Tasks here should be concrete, current, and ordered by practical priority.
 
@@ -9,6 +9,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [ ] Complete fresh-clone setup QA for `EXO-ISSUE-027`: frozen install, package build, user Applications install, and first launch logging.
 - [x] Complete first-run onboarding QA for `EXO-ISSUE-028`: existing notes folder selection, post-selection shell state, terminal cwd default, and settings Apply copy.
 - [x] Fix markdown editor cursor/list QoL: preserve cursor across refresh, continue bullets on Enter, exit empty bullets cleanly, and keep arrow navigation out of hidden list markers.
+- [x] Fix markdown task-list continuation so Enter preserves `- [ ]` structure and empty task items exit cleanly.
 - [x] Add wikilink exit behavior: Tab/Enter from inside `[[target]]` moves the cursor after a following space so typing can continue inline.
 - [ ] Reproduce and fix `EXO-ISSUE-029`: stray default Electron app window during `pnpm dev`.
 - [ ] Implement `EXO-ISSUE-030`: tmux-backed core terminal runtime with deterministic terminal-quality tests and no live-inference automated QA.
@@ -28,6 +29,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [ ] Design a packaged CLI/helper story so installed Exo does not depend on the repo-backed `bin/exo` long term.
 - [x] Scope and implement `EXO-ISSUE-033`: optional Streamable HTTP MCP transport for remote-only MCP hosts such as Glean, keeping stdio as the default local transport.
 - [x] Fix `EXO-ISSUE-035`: stop active terminal rehydration from resetting xterm and replaying stale scrollback over live agent output.
+- [ ] Continue `EXO-ISSUE-017` terminal field validation after the split-pane resize-handoff mitigation: watch for Claude/Codex prompt wrapping drift, large blank history gaps, and missing-looking output chunks.
 - [ ] Resolve `EXO-ISSUE-025` before June 2026 GitHub Actions Node 24 enforcement affects CI.
 - [ ] Spawn one Exo-managed agent for a narrow Exo task, inspect transcript/diff through Exo/CLI, and record every friction point as product work.
 - [ ] Add an explicit issue/log path for Exo-on-Exo bugs found during real use.

@@ -10,6 +10,7 @@ import { registerTerminal, unregisterTerminal } from "./terminalRegistry";
 
 const TERMINAL_WRITE_CHUNK_SIZE = 16_384;
 const PROGRAMMATIC_INPUT_GUARD_MS = 250;
+const TERMINAL_RESIZE_DEBOUNCE_MS = 16;
 
 interface TerminalViewProps {
   appearance: ResolvedAppearance;
@@ -305,7 +306,7 @@ function safeFit(
   sizeRef.current.resizeTimer = window.setTimeout(() => {
     sizeRef.current.resizeTimer = 0;
     onResize(sessionId, terminal.cols, terminal.rows);
-  }, 75);
+  }, TERMINAL_RESIZE_DEBOUNCE_MS);
 }
 
 function shellEscape(path: string): string {
