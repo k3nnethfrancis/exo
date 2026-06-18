@@ -912,6 +912,7 @@ export class TerminalManager extends EventEmitter {
       ["history-limit", String(this.tmuxHistoryLimit())],
       ["status", "off"],
       ["mouse", "off"],
+      ["focus-events", "on"],
     ];
     try {
       for (const [key, value] of options) {

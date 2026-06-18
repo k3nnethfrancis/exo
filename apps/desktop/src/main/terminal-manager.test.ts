@@ -445,6 +445,11 @@ describe("TerminalManager Codex readiness", () => {
       ["set-option", "-t", sessionName, "mouse", "off"],
       expect.any(Object),
     ]);
+    expect(childProcess.execFileSync.mock.calls).toContainEqual([
+      "tmux",
+      ["set-option", "-t", sessionName, "focus-events", "on"],
+      expect.any(Object),
+    ]);
     expect(childProcess.execFileSync.mock.calls).not.toContainEqual([
       "tmux",
       ["set-option", "-t", sessionName, "alternate-screen", expect.any(String)],
