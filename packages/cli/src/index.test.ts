@@ -450,8 +450,8 @@ describe("cli package", () => {
     let stdout = "";
     const client = fakeAppClient({
       terminalDiagnostics: async () => [{ id: "term-1", health: "healthy" }],
-      writeTerminal: async (_id, data) => {
-        calls.push(data);
+      sendTerminalMessage: async (_id, message, submit) => {
+        calls.push(`${message}:${submit}`);
         return { ok: true as const, delivery: "sent" as const };
       },
       reconnectTerminal: async (id) => {
@@ -483,7 +483,7 @@ describe("cli package", () => {
     expect(sendExitCode).toBe(0);
     expect(reconnectExitCode).toBe(0);
     expect(stdout).toContain('"health": "healthy"');
-    expect(calls).toEqual(["raw command\n", "reconnect:term-1"]);
+    expect(calls).toEqual(["raw command:true", "reconnect:term-1"]);
   });
 
   it("lists routine templates from plugin manifests and creates routines", async () => {
@@ -890,8 +890,8 @@ function fakeAppClient(overrides: Partial<{
   createTerminal: (kind: string, cwd?: string) => Promise<Record<string, unknown>>;
   readTerminal: (id: string) => Promise<string>;
   readTerminalTranscript: (id: string, tailChars?: number) => Promise<string>;
-  writeTerminal: (id: string, data: string) => Promise<{ ok: true; delivery: "sent" | "queued" | "not-found"; queuedInputCount?: number }>;
-  sendTerminalMessage: (id: string, message: string, submit?: boolean) => Promise<{ ok: true; delivery: "sent" | "queued" | "not-found"; queuedInputCount?: number }>;
+  writeTerminal: (id: string, data: string) => Promise<{ ok: boolean; delivery: "sent" | "queued" | "not-found"; queuedInputCount?: number }>;
+  sendTerminalMessage: (id: string, message: string, submit?: boolean) => Promise<{ ok: boolean; delivery: "sent" | "queued" | "not-found"; queuedInputCount?: number }>;
   reconnectTerminal: (id: string) => Promise<Record<string, unknown>>;
   killTerminal: (id: string) => Promise<void>;
 }> = {}) {
@@ -921,11 +921,11 @@ function fakeAppClient(overrides: Partial<{
     readTerminalTranscript: missing,
     writeTerminal: async (...args: [string, string]) => {
       await missing(...args);
-      return { ok: true as const, delivery: "not-found" as const };
+      return { ok: false, delivery: "not-found" as const };
     },
     sendTerminalMessage: async (...args: [string, string, boolean?]) => {
       await missing(...args);
-      return { ok: true as const, delivery: "not-found" as const };
+      return { ok: false, delivery: "not-found" as const };
     },
     reconnectTerminal: missing,
     killTerminal: missing,

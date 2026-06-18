@@ -282,6 +282,34 @@ describe("TerminalManager Codex readiness", () => {
     expect(pty.writes).toEqual(["y"]);
   });
 
+  it("reports missing or exited write targets as not delivered", async () => {
+    const workspaceRoot = await workspaceFixture();
+    const manager = managerForWorkspace(workspaceRoot);
+
+    await expect(manager.write("missing", "input")).resolves.toEqual({ ok: false, delivery: "not-found" });
+    await expect(manager.sendMessage("missing", "input", true)).resolves.toEqual({ ok: false, delivery: "not-found" });
+
+    const terminal = await manager.create({ kind: "shell", cwd: workspaceRoot });
+    ptyState.spawned[0].emitExit(0);
+
+    await expect(manager.write(terminal.id, "input")).resolves.toEqual({ ok: false, delivery: "not-found" });
+    await expect(manager.sendMessage(terminal.id, "input", true)).resolves.toEqual({ ok: false, delivery: "not-found" });
+  });
+
+  it("preserves alternate-screen escapes while stripping embedded mouse tracking modes", async () => {
+    const workspaceRoot = await workspaceFixture();
+    const manager = managerForWorkspace(workspaceRoot);
+
+    const terminal = await manager.create({ kind: "shell", cwd: workspaceRoot });
+    const pty = ptyState.spawned[0];
+
+    pty.emitData("before\x1b[?1000h\x1b[?1049hinside-alt-screen\x1b[?1049l\x1b[?1000lofter");
+
+    expect(manager.readTail(terminal.id)).toBe("before\x1b[?1049hinside-alt-screen\x1b[?1049lofter");
+    expect(manager.readTranscript(terminal.id)).toContain("\x1b[?1049hinside-alt-screen\x1b[?1049l");
+    expect(manager.readTranscript(terminal.id)).not.toContain("\x1b[?1000h");
+  });
+
   it("uses configured live scrollback lines while transcripts keep receiving data", async () => {
     const workspaceRoot = await workspaceFixture();
     const manager = new TerminalManager(workspaceRoot, 500);
@@ -295,6 +323,22 @@ describe("TerminalManager Codex readiness", () => {
 
     expect(manager.readTail(terminal.id)).toBe(lines.slice(-500).join("\n"));
     expect(manager.readTranscript(terminal.id)).toContain("line-1");
+  });
+
+  it("hydrates bounded terminal tail from tmux history before live attach output", async () => {
+    const workspaceRoot = await workspaceFixture();
+    childProcess.execFileSync.mockImplementation((_command: string, args: string[]) => {
+      if (args.includes("capture-pane")) {
+        return "captured-001\ncaptured-002\n";
+      }
+      return "";
+    });
+    const manager = managerForWorkspace(workspaceRoot);
+
+    const terminal = await manager.create({ kind: "shell", cwd: workspaceRoot });
+
+    expect(manager.readTail(terminal.id)).toContain("captured-001\r\ncaptured-002");
+    expect(manager.readTranscript(terminal.id)).toContain("captured-001\r\ncaptured-002");
   });
 
   it("applies configured live scrollback to tmux history", async () => {
@@ -318,7 +362,7 @@ describe("TerminalManager Codex readiness", () => {
     ]);
   });
 
-  it("configures embedded tmux sessions to behave like Exo-owned terminal panes", async () => {
+  it("configures embedded tmux sessions without disabling normal terminal capabilities", async () => {
     const workspaceRoot = await workspaceFixture();
     const manager = managerForWorkspace(workspaceRoot);
 
@@ -335,9 +379,9 @@ describe("TerminalManager Codex readiness", () => {
       ["set-option", "-t", sessionName, "mouse", "off"],
       expect.any(Object),
     ]);
-    expect(childProcess.execFileSync.mock.calls).toContainEqual([
+    expect(childProcess.execFileSync.mock.calls).not.toContainEqual([
       "tmux",
-      ["set-option", "-t", sessionName, "alternate-screen", "off"],
+      ["set-option", "-t", sessionName, "alternate-screen", expect.any(String)],
       expect.any(Object),
     ]);
   });

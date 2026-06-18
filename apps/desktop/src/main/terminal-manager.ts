@@ -271,6 +271,7 @@ export class TerminalManager extends EventEmitter {
     this.sessions.set(id, record);
 
     this.appendTranscript(id, this.transcriptHeader(info));
+    this.hydrateFromTmuxHistory(record, tmux.runner);
     this.wireProcess(id, processHandle);
     this.persistSessions();
 
@@ -281,7 +282,7 @@ export class TerminalManager extends EventEmitter {
   async write(id: string, data: string): Promise<TerminalWriteResult> {
     const record = this.sessions.get(id);
     if (!record || record.info.status === "exited") {
-      return { ok: true, delivery: "not-found" };
+      return { ok: false, delivery: "not-found" };
     }
 
     return this.writeToRecord(record, { data, delayedSubmit: false }, shouldQueueWrite(record, data));
@@ -290,7 +291,7 @@ export class TerminalManager extends EventEmitter {
   async sendMessage(id: string, message: string, submit = true): Promise<TerminalWriteResult> {
     const record = this.sessions.get(id);
     if (!record || record.info.status === "exited") {
-      return { ok: true, delivery: "not-found" };
+      return { ok: false, delivery: "not-found" };
     }
 
     const pendingWrite = {
@@ -361,7 +362,9 @@ export class TerminalManager extends EventEmitter {
     if (!record) {
       return null;
     }
-    return record.buffer.toString();
+    const buffered = record.buffer.toString();
+    const captured = this.captureTmuxHistory(record);
+    return captured.length > buffered.length ? captured : buffered;
   }
 
   readTranscript(id: string, tailChars = 0): string | null {
@@ -475,8 +478,14 @@ export class TerminalManager extends EventEmitter {
           return;
         }
         this.reconcileTmuxState();
-        if (isAgentTerminal(record) && (record.paneStatus === "missing" || record.paneStatus === "dead")) {
-          this.retireExitedTerminal(record, exitCode);
+        if (record.paneStatus === "missing" || record.paneStatus === "dead") {
+          if (isAgentTerminal(record)) {
+            this.retireExitedTerminal(record, exitCode);
+            return;
+          }
+          this.markExited(record, exitCode);
+          this.persistSessions();
+          this.emit("exit", { id, exitCode });
           return;
         }
         record.info.health = "unhealthy";
@@ -731,6 +740,7 @@ export class TerminalManager extends EventEmitter {
         };
         this.sessions.set(session.id, record);
         this.applyTmuxHistoryLimit(record);
+        this.hydrateFromTmuxHistory(record, runner);
         this.wireProcess(session.id, processHandle);
         this.nextId = Math.max(this.nextId, terminalNumericId(session.id) + 1);
         restored += 1;
@@ -778,7 +788,6 @@ export class TerminalManager extends EventEmitter {
       ["history-limit", String(this.tmuxHistoryLimit())],
       ["status", "off"],
       ["mouse", "off"],
-      ["alternate-screen", "off"],
     ];
     try {
       for (const [key, value] of options) {
@@ -798,6 +807,53 @@ export class TerminalManager extends EventEmitter {
 
   private tmuxHistoryLimit(): number {
     return this.bufferLineLimit ?? DEFAULT_LIVE_SCROLLBACK_LINES;
+  }
+
+  private hydrateFromTmuxHistory(record: TerminalRecord, runner: TmuxCommandRunner): void {
+    try {
+      const data = this.captureTmuxHistory(record, runner);
+      if (data.length === 0) {
+        return;
+      }
+      record.buffer.append(data);
+      this.appendTranscript(record.info.id, data);
+    } catch (error) {
+      console.warn("[exo] failed to hydrate terminal from tmux history", {
+        id: record.info.id,
+        tmuxSessionName: record.tmuxSessionName,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  private captureTmuxHistory(record: TerminalRecord, runner?: TmuxCommandRunner): string {
+    const tmuxRunner = runner ?? this.tmuxRunnerOrNull();
+    if (!tmuxRunner) {
+      return "";
+    }
+    try {
+      return normalizeCapturedTmuxPane(tmuxRunner.run([
+        "capture-pane",
+        "-p",
+        "-e",
+        "-t",
+        record.tmuxSessionName,
+        "-S",
+        `-${this.tmuxHistoryLimit()}`,
+      ]));
+    } catch (error) {
+      console.warn("[exo] failed to capture tmux terminal history", {
+        id: record.info.id,
+        tmuxSessionName: record.tmuxSessionName,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return "";
+    }
+  }
+
+  private tmuxRunnerOrNull(): TmuxCommandRunner | null {
+    const availability = detectTmux();
+    return availability.available ? new TmuxCommandRunner(availability.path) : null;
   }
 
   private readPersistedSessions(): PersistedTerminalSession[] {
@@ -936,9 +992,12 @@ function latestRegexIndex(text: string, patterns: RegExp[]): number {
 }
 
 function stripMouseTrackingModes(data: string): string {
-  return data
-    .replace(/\x1b\[\?(?:9|100[0-7]|1015)(?:;(?:9|100[0-7]|1015))*[hl]/g, "")
-    .replace(/\x1b\[\?(?:47|1047|1048|1049)(?:;(?:47|1047|1048|1049))*[hl]/g, "");
+  return data.replace(/\x1b\[\?(?:9|100[0-7]|1015)(?:;(?:9|100[0-7]|1015))*[hl]/g, "");
+}
+
+function normalizeCapturedTmuxPane(data: string): string {
+  const trimmed = data.replace(/[ \t]+\r?\n/g, "\n").replace(/\s+$/g, "");
+  return trimmed.length > 0 ? `${trimmed.replace(/\r?\n/g, "\r\n")}\r\n` : "";
 }
 
 class TerminalLineBuffer {

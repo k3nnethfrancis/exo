@@ -76,7 +76,7 @@ export interface ExoSendTerminalMessageRequest {
 }
 
 export interface ExoWriteTerminalResponse {
-  ok: true;
+  ok: boolean;
   delivery: "sent" | "queued" | "not-found";
   writeId?: number;
   queuedInputCount?: number;

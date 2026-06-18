@@ -4,7 +4,7 @@ import path from "node:path";
 import { EXO_COMMAND_ROUTES, type ExoCommandServerInfo } from "@exo/core";
 
 export interface AppClientWriteResult {
-  ok: true;
+  ok: boolean;
   delivery: "sent" | "queued" | "not-found";
   queuedInputCount?: number;
   readiness?: "ready" | "starting" | "blocked";

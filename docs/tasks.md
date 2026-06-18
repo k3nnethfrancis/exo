@@ -1,6 +1,6 @@
 # Exo Tasks
 
-Last updated: 2026-06-17
+Last updated: 2026-06-18
 
 This is the active task tracker for Exo. It is intentionally not a history file; completed implementation history belongs in `ledger.md`. Tasks here should be concrete, current, and ordered by practical priority.
 
@@ -15,6 +15,8 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [ ] Reproduce and fix `EXO-ISSUE-029`: stray default Electron app window during `pnpm dev`.
 - [ ] Implement `EXO-ISSUE-030`: tmux-backed core terminal runtime with deterministic terminal-quality tests and no live-inference automated QA.
   - Progress: create/attach/terminate now runs through tmux with node-pty as the attach bridge; session registry, app relaunch reattach, stale bridge reconnect, power-resume recovery hook, UI reconnect affordance, attach-bridge kill/reconnect app QA, idle p50/p90 latency, and streaming-output p50/p90 latency have focused unit/Electron coverage. Remaining before close: manual macOS sleep/wake QA in the installed app, broader rendering/scrollback stress, and a final installed-app terminal dogfood pass.
+- [ ] Complete `EXO-ISSUE-037` terminal parity follow-up after multi-agent review: replace normal `tmux attach-session` with a control-mode/equivalent bridge, stale tmux state persistence, configurable MCP read caps, direct terminal-quality CI gate, and diagnostics gaps.
+- [x] Remove artificial terminal capability limits found by multi-agent review: preserve alternate-screen/TUI escapes, replace broad wheel-input suppression with explicit viewport scrolling, send first measured resize immediately, route `exo terminals send` through semantic message delivery, and report missing/exited write targets as not delivered.
 - [ ] Reproduce and fix `EXO-ISSUE-031`: packaged app silently exits on first launch after local install.
 - [x] Mitigate `EXO-ISSUE-026`: installed app renderer runaway CPU/RSS during idle workspace use and missing renderer recovery after forced renderer death.
 - [x] Capture the current phased approach in `docs/usability-readiness.md`: readiness first, commit cleanup/push, installed-app daily use, live bug bash, then larger roadmap phases.

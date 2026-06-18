@@ -1,14 +1,48 @@
 # Exo Issues
 
-Last updated: 2026-06-17
+Last updated: 2026-06-18
 
 This is the active bug/QA tracker. It captures user-observed issues that need investigation before the next push/release pass.
 
 ## Open
 
+### EXO-ISSUE-037: Terminal parity review found remaining VS Code/full-terminal gaps
+
+- Status: partially fixed; follow-ups open
+- Severity: high
+- Area: terminal runtime, renderer, tmux attach bridge, QA
+- Observed:
+  - Multi-agent terminal review found several places where Exo still falls short of a normal terminal experience:
+    - alternate-screen/TUI support had been intentionally disabled in tmux/session setup and renderer mount behavior;
+    - first measured xterm size could lag behind the backend pty/tmux pane, causing startup or tab-switch geometry drift;
+    - renderer hydration is still a bounded text tail, not a real terminal-state replay;
+    - restored tmux sessions do not yet hydrate from `tmux capture-pane` or transcript before new bridge output arrives;
+    - MCP `read_agent` has a hardcoded `200000` character maximum;
+    - terminal quality e2e coverage is not yet a default CI gate.
+- Expected:
+  - Exo terminals should preserve normal terminal capabilities unless there is a clear product reason and user-visible setting.
+  - TUI/alternate-screen tools, agent TUIs, scrollback, resize, tab switching, copy/paste, and long output should feel like a normal terminal in VS Code.
+- Resolution so far:
+  - Removed the artificial alternate-screen disable path from tmux session setup and renderer mount.
+  - Stopped stripping alternate-screen escape sequences from terminal output while still stripping embedded tmux mouse tracking.
+  - Replaced the renderer wheel-input guard with explicit viewport scrolling so mouse-wheel scrollback does not become process input and real Up/PageUp keypresses are not suppressed.
+  - Sent the first measured terminal resize immediately so the backend does not keep the startup fallback geometry.
+  - Routed `exo terminals send` through the semantic terminal-message path; `exo terminals write` remains the raw/debug path.
+  - Writes to missing or exited sessions now report `ok: false` instead of pretending delivery succeeded.
+  - Added bounded tmux `capture-pane` reads to terminal tail hydration so CLI/MCP/renderer reads can see history that the attach stream missed.
+- QA:
+  - Focused unit/type/build checks pass for the first patch batch.
+  - Focused Electron terminal QA still fails the visible scrollback case: mouse-wheel scroll no longer leaks Up-arrow input, but normal `tmux attach-session` can keep repainting the visible tmux pane slice over xterm, so xterm still cannot reliably behave like VS Code scrollback for hidden tmux sessions.
+- Remaining:
+  - Replace the normal `tmux attach-session` bridge with a control-mode or equivalent bridge that exposes pane output/history without nesting a full tmux client viewport.
+  - Reconcile and persist stale tmux session state during list/startup, not only diagnostics/reconnect.
+  - Replace or remove stale `terminalHistoryMode` naming so settings map directly to live scrollback/transcript behavior.
+  - Make MCP agent read limits configurable or clearly tied to workspace terminal settings.
+  - Promote a deterministic terminal-quality e2e subset into CI.
+
 ### EXO-ISSUE-036: Tmux-backed terminals expose nested tmux viewport instead of normal app scrollback
 
-- Status: fixed; needs real Claude resume QA
+- Status: partially fixed; needs real Claude resume QA and capture-pane hydration
 - Severity: high
 - Area: terminal runtime, tmux attach bridge, scrollback
 - Observed:
@@ -19,9 +53,10 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
   - Exo can use tmux for persistence, but the visible terminal should behave like an Exo-owned terminal pane.
   - New sessions should not show nested tmux chrome or trap agent/TUI output outside normal scrollback.
 - Resolution:
-  - New/restored tmux sessions now apply Exo terminal pane policy: configured `history-limit`, `status off`, `mouse off`, and `alternate-screen off`.
+  - New/restored tmux sessions now apply Exo terminal pane policy: configured `history-limit`, `status off`, and `mouse off`.
+  - Exo no longer disables alternate screen because that breaks normal terminal/TUI capability.
   - Added regression coverage that Exo applies the embedded tmux pane options when creating sessions.
-  - If real Claude resume still does not expose old conversation history, the next fix is a tmux control-mode bridge instead of rendering a full `tmux attach-session` client.
+  - If real Claude resume still does not expose old conversation history, the next fix is tmux `capture-pane` hydration or a control-mode bridge instead of relying only on live attach output.
 
 ### EXO-ISSUE-035: Active terminal viewport can replay stale scrollback over current agent output
 

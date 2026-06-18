@@ -44,7 +44,7 @@ export interface TerminalDataEvent {
 }
 
 export interface TerminalWriteResult {
-  ok: true;
+  ok: boolean;
   delivery: "sent" | "queued" | "not-found";
   writeId?: number;
   queuedInputCount?: number;

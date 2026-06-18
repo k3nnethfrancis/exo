@@ -433,7 +433,11 @@ export async function runCli(
       if (!id || !data) {
         throw new Error(`Usage: exo terminals ${subcommand} <terminal-id> <text>`);
       }
-      await client.writeTerminal(id, subcommand === "send" ? `${data}\n` : data);
+      if (subcommand === "send") {
+        await client.sendTerminalMessage(id, data, true);
+      } else {
+        await client.writeTerminal(id, data);
+      }
       return 0;
     }
 

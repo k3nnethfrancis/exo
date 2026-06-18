@@ -36,7 +36,6 @@ export function TerminalView(props: TerminalViewProps) {
   const disposedRef = useRef(false);
   const inputHandlerRef = useRef(onInput);
   const resizeHandlerRef = useRef(onResize);
-  const wheelInputGuardUntilRef = useRef(0);
   const programmaticInputGuardUntilRef = useRef(0);
   const sizeRef = useRef({ width: 0, height: 0, cols: 0, rows: 0, resizeTimer: 0 });
 
@@ -62,16 +61,12 @@ export function TerminalView(props: TerminalViewProps) {
     terminal.loadAddon(fitAddon);
     terminal.open(viewportRef.current!);
     programmaticInputGuardUntilRef.current = Date.now() + PROGRAMMATIC_INPUT_GUARD_MS;
-    terminal.write("\x1b[?1049l\x1b[?1047l\x1b[?47l");
     requestAnimationFrame(() => {
       safeFit(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef);
       terminal.focus();
     });
 
     const disposeData = terminal.onData((data) => {
-      if (Date.now() < wheelInputGuardUntilRef.current && isWheelGeneratedInput(data)) {
-        return;
-      }
       if (Date.now() < programmaticInputGuardUntilRef.current && isTerminalGeneratedResponse(data)) {
         return;
       }
@@ -89,8 +84,16 @@ export function TerminalView(props: TerminalViewProps) {
       terminal.focus();
     }
 
-    function guardWheelGeneratedInput() {
-      wheelInputGuardUntilRef.current = Date.now() + 200;
+    function handleWheel(event: WheelEvent) {
+      if (!event.deltaY) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      const lines = Math.min(1000, Math.max(1, Math.ceil(Math.abs(event.deltaY) / 40)));
+      const direction = event.deltaY > 0 ? -lines : lines;
+      terminal.scrollLines(direction);
     }
 
     function handleDragOver(event: DragEvent) {
@@ -121,7 +124,8 @@ export function TerminalView(props: TerminalViewProps) {
     }
 
     surfaceRef.current!.addEventListener("mousedown", focusTerminal);
-    surfaceRef.current!.addEventListener("wheel", guardWheelGeneratedInput, { capture: true, passive: false });
+    surfaceRef.current!.addEventListener("wheel", handleWheel, { capture: true, passive: false });
+    viewportRef.current!.addEventListener("wheel", handleWheel, { capture: true, passive: false });
     surfaceRef.current!.addEventListener("dragover", handleDragOver, { capture: true });
     surfaceRef.current!.addEventListener("drop", handleDrop, { capture: true });
 
@@ -140,7 +144,8 @@ export function TerminalView(props: TerminalViewProps) {
       disposeData.dispose();
       observer.disconnect();
       surfaceRef.current?.removeEventListener("mousedown", focusTerminal);
-      surfaceRef.current?.removeEventListener("wheel", guardWheelGeneratedInput, { capture: true });
+      surfaceRef.current?.removeEventListener("wheel", handleWheel, { capture: true });
+      viewportRef.current?.removeEventListener("wheel", handleWheel, { capture: true });
       surfaceRef.current?.removeEventListener("dragover", handleDragOver, { capture: true });
       surfaceRef.current?.removeEventListener("drop", handleDrop, { capture: true });
       terminal.dispose();
@@ -293,6 +298,7 @@ function safeFit(
     return;
   }
 
+  const isInitialMeasurement = sizeRef.current.width === 0 || sizeRef.current.height === 0 || sizeRef.current.cols === 0 || sizeRef.current.rows === 0;
   sizeRef.current = {
     width: rect.width,
     height: rect.height,
@@ -300,6 +306,12 @@ function safeFit(
     rows: terminal.rows,
     resizeTimer: sizeRef.current.resizeTimer,
   };
+
+  if (isInitialMeasurement) {
+    onResize(sessionId, terminal.cols, terminal.rows);
+    return;
+  }
+
   if (sizeRef.current.resizeTimer) {
     window.clearTimeout(sizeRef.current.resizeTimer);
   }
@@ -314,53 +326,8 @@ function shellEscape(path: string): string {
   return "'" + path.replace(/'/g, "'\\''") + "'";
 }
 
-function isWheelGeneratedInput(data: string): boolean {
-  return /^(?:\x1b\[[AB]|\x1bO[AB]|\x1b\[[56]~|\x1b\[M[\s\S]{3}|\x1b\[<\d+;\d+;\d+[mM])+$/.test(data);
-}
-
 function isScrolledToBottom(terminal: Terminal): boolean {
   return terminal.buffer.active.viewportY >= terminal.buffer.active.baseY;
-}
-
-function findAppendOffset(previous: string, next: string): number | null {
-  if (previous === next) {
-    return next.length;
-  }
-
-  if (next.length > previous.length && previous.length > 65_536) {
-    return previous.length;
-  }
-
-  if (next.startsWith(previous)) {
-    return previous.length;
-  }
-
-  const overlap = longestSuffixPrefixOverlap(previous, next);
-  return overlap > 0 ? overlap : null;
-}
-
-function longestSuffixPrefixOverlap(previous: string, next: string): number {
-  const maxOverlap = Math.min(previous.length, next.length);
-  if (maxOverlap === 0) {
-    return 0;
-  }
-
-  const candidate = next.slice(0, maxOverlap);
-  const pattern = `${candidate}\0${previous.slice(-maxOverlap)}`;
-  const table = new Array<number>(pattern.length).fill(0);
-
-  for (let i = 1; i < pattern.length; i += 1) {
-    let length = table[i - 1];
-    while (length > 0 && pattern[i] !== pattern[length]) {
-      length = table[length - 1];
-    }
-    if (pattern[i] === pattern[length]) {
-      length += 1;
-    }
-    table[i] = length;
-  }
-
-  return table[table.length - 1] ?? 0;
 }
 
 function xtermTheme(appearance: ResolvedAppearance) {
