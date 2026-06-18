@@ -201,6 +201,10 @@ test("opens project files and creates note branches", async () => {
   await expect.poll(async () => readFile(path.join(workspaceRoot, "projects/sample-project/src/demo.ts"), "utf8")).toContain("saved");
   await page.getByTestId("sidebar").getByRole("button", { name: "README" }).click();
   await expect(page.getByTestId("editor-title")).toHaveText("README");
+  await expect(page.getByTestId("properties-panel")).toContainText("Project file");
+  await expect(page.getByTestId("toggle-markdown-mode")).toHaveCount(0);
+  await expect(page.getByTestId("toggle-properties")).toHaveCount(0);
+  await expect(page.locator(".editor-surface--code")).toBeVisible();
   await page.evaluate(() => {
     const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
     const view = content?.cmView?.view;

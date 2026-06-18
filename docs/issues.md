@@ -35,6 +35,9 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
   - Focused Electron terminal QA still fails the visible scrollback case: mouse-wheel scroll no longer leaks Up-arrow input, but normal `tmux attach-session` can keep repainting the visible tmux pane slice over xterm, so xterm still cannot reliably behave like VS Code scrollback for hidden tmux sessions.
 - Remaining:
   - Replace the normal `tmux attach-session` bridge with a control-mode or equivalent bridge that exposes pane output/history without nesting a full tmux client viewport.
+    - Probe notes: `tmux -C attach-session` does not replay history by itself; use bounded `capture-pane` for hydration.
+    - Live output arrives as `%output <pane-id> <octal-escaped-bytes>` after enabling pane output with `refresh-client -A <pane-id>:on` and sizing with `refresh-client -C <cols>x<rows>`.
+    - The bridge must preserve literal multiline agent messages, Enter/Ctrl-C/Escape/raw keystrokes, resize, and low-latency typing before replacing the current attach path.
   - Reconcile and persist stale tmux session state during list/startup, not only diagnostics/reconnect.
   - Replace or remove stale `terminalHistoryMode` naming so settings map directly to live scrollback/transcript behavior.
   - Make MCP agent read limits configurable or clearly tied to workspace terminal settings.

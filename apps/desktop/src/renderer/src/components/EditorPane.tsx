@@ -44,6 +44,7 @@ interface EditorPaneProps {
   compact: boolean;
   revealLineRequest?: { filePath: string; line: number; nonce: number } | null;
   scrollRestoreRequest?: { filePath: string; scrollTop: number; nonce: number } | null;
+  isNoteDocument: (filePath: string) => boolean;
 }
 
 export function EditorPane(props: EditorPaneProps) {
@@ -74,6 +75,7 @@ export function EditorPane(props: EditorPaneProps) {
     compact,
     revealLineRequest,
     scrollRestoreRequest,
+    isNoteDocument,
   } = props;
 
   const activeDocument = pane.activePath ? documents[pane.activePath] ?? null : null;
@@ -151,6 +153,7 @@ export function EditorPane(props: EditorPaneProps) {
         fontSize={fontSize}
         onZoomEditor={onZoomEditor}
         compact={compact}
+        isNoteDocument={activeDocument ? isNoteDocument(activeDocument.filePath) : false}
         revealLineRequest={revealLineRequest}
         scrollRestoreRequest={scrollRestoreRequest}
       />

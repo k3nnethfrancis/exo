@@ -50,6 +50,7 @@ interface NoteEditorProps {
   fontSize: number;
   onZoomEditor: (direction: -1 | 0 | 1) => void;
   compact: boolean;
+  isNoteDocument: boolean;
   revealLineRequest?: { filePath: string; line: number; nonce: number } | null;
   scrollRestoreRequest?: { filePath: string; scrollTop: number; nonce: number } | null;
 }
@@ -74,6 +75,7 @@ export function NoteEditor(props: NoteEditorProps) {
     fontSize,
     onZoomEditor,
     compact,
+    isNoteDocument,
     revealLineRequest,
     scrollRestoreRequest,
   } = props;
@@ -99,8 +101,17 @@ export function NoteEditor(props: NoteEditorProps) {
   const documentPath = document?.filePath ?? "";
   const documentBody = document?.body ?? "";
   const isMarkdown = document?.kind === "markdown";
+  const useMarkdownEditing = isMarkdown && isNoteDocument;
   const displayTitle = document ? getDocumentDisplayTitle(document.filePath, document.kind) : "";
-  const codeLanguage = useMemo(() => (!document || isMarkdown ? null : codeLanguageForPath(document.filePath)), [document, isMarkdown]);
+  const codeLanguage = useMemo(() => {
+    if (!document || useMarkdownEditing) {
+      return null;
+    }
+    if (document.kind === "markdown") {
+      return { id: "markdown", label: "Markdown", extensions: [markdown()] };
+    }
+    return codeLanguageForPath(document.filePath);
+  }, [document, useMarkdownEditing]);
   const frontmatterEntries = document ? Object.entries(document.frontmatter).filter(([key]) => !key.startsWith("branch_")) : [];
   const cmTheme = useMemo(() => editorTheme(appearance, fontSize), [appearance, fontSize]);
   const syntaxTheme = useMemo(() => syntaxHighlighting(exoSyntaxHighlightStyle(appearance)), [appearance]);
@@ -118,7 +129,7 @@ export function NoteEditor(props: NoteEditorProps) {
   const maybeUpdateWikilinkSuggestions = useMemo(
     () =>
       (update: ViewUpdate) => {
-        if (!isMarkdown || rawMarkdownMode) {
+        if (!useMarkdownEditing || rawMarkdownMode) {
           setWikilinkSuggestions(null);
           return;
         }
@@ -165,7 +176,7 @@ export function NoteEditor(props: NoteEditorProps) {
           }
         });
       },
-    [isMarkdown, onSuggestTargets, rawMarkdownMode],
+    [onSuggestTargets, rawMarkdownMode, useMarkdownEditing],
   );
   const handleEditorChange = useMemo(
     () =>
@@ -427,7 +438,7 @@ export function NoteEditor(props: NoteEditorProps) {
       <div className="editor-panel__header">
         <div className="editor-panel__summary">
           <div className="editor-panel__title-row">
-            {isMarkdown ? (
+            {useMarkdownEditing ? (
               <button
                 aria-label={propertiesCollapsed ? "Show properties" : "Hide properties"}
                 className={`toolbar-button toolbar-button--icon ${compact ? "toolbar-button--compact" : ""}`}
@@ -463,7 +474,7 @@ export function NoteEditor(props: NoteEditorProps) {
           >
             <Save size={14} />
           </button>
-          {isMarkdown && branchFamily ? (
+          {useMarkdownEditing && branchFamily ? (
             <div className="branch-selector branch-selector--icon-only" data-testid="branch-selector-wrap" title="Branches">
               <GitBranch size={14} />
               <select
@@ -491,7 +502,7 @@ export function NoteEditor(props: NoteEditorProps) {
               </select>
             </div>
           ) : null}
-          {isMarkdown ? (
+          {useMarkdownEditing ? (
             <button
               aria-label={rawMarkdownMode ? "Switch to live preview" : "Switch to raw markdown"}
               className={`toolbar-button toolbar-button--icon ${compact ? "toolbar-button--compact" : ""}`}
@@ -506,7 +517,7 @@ export function NoteEditor(props: NoteEditorProps) {
         </div>
       </div>
 
-      {isMarkdown && !propertiesCollapsed ? (
+      {useMarkdownEditing && !propertiesCollapsed ? (
         <div className="properties-card" data-testid="properties-panel">
           <div className="properties-card__content">
             {frontmatterEntries.map(([key, value]) => (
@@ -541,7 +552,7 @@ export function NoteEditor(props: NoteEditorProps) {
             ))}
           </div>
         </div>
-      ) : !isMarkdown ? (
+      ) : !useMarkdownEditing ? (
         <div className="properties-card properties-card--file" data-testid="properties-panel">
           <div className="properties-card__file-label">Project file</div>
           <div className="properties-card__file-meta">
@@ -552,15 +563,15 @@ export function NoteEditor(props: NoteEditorProps) {
       ) : null}
 
       <div
-        className={`editor-surface ${isMarkdown && !rawMarkdownMode ? "editor-surface--live-preview" : ""} ${!isMarkdown ? "editor-surface--code" : ""}`}
+        className={`editor-surface ${useMarkdownEditing && !rawMarkdownMode ? "editor-surface--live-preview" : ""} ${!useMarkdownEditing ? "editor-surface--code" : ""}`}
         onKeyDownCapture={handleEditorSurfaceKeyDown}
       >
         <CodeMirror
           ref={codeMirrorRef}
-          key={`${document.filePath}:${isMarkdown && !rawMarkdownMode ? "live" : "code"}:${appearance}:${fontSize}`}
+          key={`${document.filePath}:${useMarkdownEditing && !rawMarkdownMode ? "live" : "code"}:${appearance}:${fontSize}`}
           value={document.body}
           extensions={
-            document.kind === "markdown"
+            useMarkdownEditing
               ? [
                   markdown(),
                   EditorView.lineWrapping,

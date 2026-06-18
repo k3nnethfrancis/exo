@@ -1060,6 +1060,7 @@ export function App() {
               compact={compactEditorChrome}
               revealLineRequest={editorRevealLineRequest}
               scrollRestoreRequest={editorScrollRestoreRequest}
+              isNoteDocument={(filePath) => workspaceModel ? workspaceModel.noteRoots.some((root) => isPathWithin(root.path, filePath)) : true}
             />
             <InspectorDock
               document={activeDocument}
