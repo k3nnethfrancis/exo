@@ -16,7 +16,6 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
     - alternate-screen/TUI support had been intentionally disabled in tmux/session setup and renderer mount behavior;
     - first measured xterm size could lag behind the backend pty/tmux pane, causing startup or tab-switch geometry drift;
     - renderer hydration is still a bounded text tail, not a real terminal-state replay;
-    - restored tmux sessions do not yet hydrate from `tmux capture-pane` or transcript before new bridge output arrives;
     - MCP `read_agent` has a hardcoded `200000` character maximum;
     - terminal quality e2e coverage is not yet a default CI gate.
 - Expected:
@@ -30,14 +29,16 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
   - Routed `exo terminals send` through the semantic terminal-message path; `exo terminals write` remains the raw/debug path.
   - Writes to missing or exited sessions now report `ok: false` instead of pretending delivery succeeded.
   - Added bounded tmux `capture-pane` reads to terminal tail hydration so CLI/MCP/renderer reads can see history that the attach stream missed.
+  - Replaced the nested `tmux attach-session` pty bridge with `tmux -C` control mode so Exo receives pane output directly instead of rendering a full tmux client viewport inside xterm.
+  - Stored pane ids in terminal session state so restored sessions reattach to the correct tmux pane.
+  - Removed Exo wheel interception and let xterm own visible scrollback, while preserving bounded tmux history reads for hydration/API tails.
+  - Added a short raw-input coalescing window plus whitespace-safe tmux buffer paste for printable input so rapid typing and semantic agent messages preserve spaces/newlines.
 - QA:
-  - Focused unit/type/build checks pass for the first patch batch.
-  - Focused Electron terminal QA still fails the visible scrollback case: mouse-wheel scroll no longer leaks Up-arrow input, but normal `tmux attach-session` can keep repainting the visible tmux pane slice over xterm, so xterm still cannot reliably behave like VS Code scrollback for hidden tmux sessions.
+  - `pnpm --filter @exo/desktop exec vitest run src/main/terminal-manager.test.ts src/main/terminal-tmux.test.ts`
+  - `pnpm --filter @exo/desktop typecheck`
+  - `pnpm --filter @exo/desktop build`
+  - `pnpm exec playwright test -c apps/desktop/playwright.config.ts apps/desktop/tests/e2e/shell.spec.ts -g "keeps large terminal bursts available above the visible viewport|keeps app terminal tail above the legacy 12k cap|accepts terminal keyboard input"`
 - Remaining:
-  - Replace the normal `tmux attach-session` bridge with a control-mode or equivalent bridge that exposes pane output/history without nesting a full tmux client viewport.
-    - Probe notes: `tmux -C attach-session` does not replay history by itself; use bounded `capture-pane` for hydration.
-    - Live output arrives as `%output <pane-id> <octal-escaped-bytes>` after enabling pane output with `refresh-client -A <pane-id>:on` and sizing with `refresh-client -C <cols>x<rows>`.
-    - The bridge must preserve literal multiline agent messages, Enter/Ctrl-C/Escape/raw keystrokes, resize, and low-latency typing before replacing the current attach path.
   - Reconcile and persist stale tmux session state during list/startup, not only diagnostics/reconnect.
   - Replace or remove stale `terminalHistoryMode` naming so settings map directly to live scrollback/transcript behavior.
   - Make MCP agent read limits configurable or clearly tied to workspace terminal settings.

@@ -3,7 +3,6 @@ import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-import pty, { type IPty } from "node-pty";
 import {
   buildExoMcpServerSpec,
   resolveAgentLaunchPlan,
@@ -21,19 +20,31 @@ import {
   parseTmuxPaneList,
   shellCommand,
   TmuxCommandRunner,
+  TmuxControlModeProcess,
   tmuxEnvironmentArgs,
   type TmuxAvailable,
   type TmuxPaneInfo,
 } from "./terminal-tmux";
 
+interface TerminalProcess {
+  onData(handler: (data: string) => void): void;
+  onExit(handler: (event: { exitCode?: number }) => void): void;
+  write(data: string): void;
+  resize(cols: number, rows: number): void;
+  kill(): void;
+}
+
 interface TerminalRecord {
   info: TerminalSessionInfo;
-  process: IPty;
+  process: TerminalProcess;
   tmuxSessionName: string;
+  tmuxPaneId: string;
   createdAt: string;
   buffer: TerminalLineBuffer;
   transcriptPath: string;
   pendingWrites: PendingTerminalWrite[];
+  rawInputBuffer: string;
+  rawInputTimer?: NodeJS.Timeout;
   readinessTimer?: NodeJS.Timeout;
   lastInputAt?: number;
   lastOutputAt?: number;
@@ -58,6 +69,7 @@ interface PersistedTerminalSession {
   command: string;
   instructionOverlayPath?: string | null;
   tmuxSessionName: string;
+  tmuxPaneId?: string;
   transcriptPath: string;
   createdAt: string;
   lastAttachedAt: string | null;
@@ -69,6 +81,7 @@ const DEFAULT_BUFFER_LINE_LIMIT = DEFAULT_LIVE_SCROLLBACK_LINES;
 const MIN_LIVE_SCROLLBACK_LINES = 500;
 const CODEX_STARTUP_GRACE_MS = 1_500;
 const CODEX_QUEUED_SUBMIT_DELAY_MS = 120;
+const RAW_INPUT_COALESCE_MS = 40;
 
 export class TerminalManager extends EventEmitter {
   private readonly sessions = new Map<string, TerminalRecord>();
@@ -225,13 +238,8 @@ export class TerminalManager extends EventEmitter {
     );
     this.applyTmuxSessionOptions(tmux.runner, tmuxSessionName);
 
-    const processHandle = pty.spawn(tmux.availability.path, ["attach-session", "-t", tmuxSessionName], {
-      cols: 120,
-      rows: 32,
-      cwd: launch.cwd,
-      env,
-      name: "xterm-256color",
-    });
+    const tmuxPaneId = this.requireTmuxPaneId(tmux.runner, tmuxSessionName);
+    const processHandle = this.attachTmuxSession(tmux.availability, tmuxSessionName, tmuxPaneId, launch.cwd, env);
 
     const transcriptPath = this.makeTranscriptPath(id, options.kind, createdAt, launchToken);
     const info: TerminalSessionInfo = {
@@ -251,10 +259,12 @@ export class TerminalManager extends EventEmitter {
       info,
       process: processHandle,
       tmuxSessionName,
+      tmuxPaneId,
       createdAt,
       buffer: new TerminalLineBuffer(this.bufferLineLimit),
       transcriptPath,
       pendingWrites: [],
+      rawInputBuffer: "",
       lastWriteId: 0,
     };
 
@@ -281,19 +291,25 @@ export class TerminalManager extends EventEmitter {
 
   async write(id: string, data: string): Promise<TerminalWriteResult> {
     const record = this.sessions.get(id);
-    if (!record || record.info.status === "exited") {
+    if (!record || record.info.status === "exited" || record.bridgeDetached) {
       return { ok: false, delivery: "not-found" };
     }
 
+    if (shouldCoalesceRawInput(data)) {
+      return this.queueRawInput(record, data);
+    }
+
+    this.flushRawInput(record);
     return this.writeToRecord(record, { data, delayedSubmit: false }, shouldQueueWrite(record, data));
   }
 
   async sendMessage(id: string, message: string, submit = true): Promise<TerminalWriteResult> {
     const record = this.sessions.get(id);
-    if (!record || record.info.status === "exited") {
+    if (!record || record.info.status === "exited" || record.bridgeDetached) {
       return { ok: false, delivery: "not-found" };
     }
 
+    this.flushRawInput(record);
     const pendingWrite = {
       data: record.info.kind === "shell" ? message : bracketedPaste(message),
       delayedSubmit: submit,
@@ -321,9 +337,9 @@ export class TerminalManager extends EventEmitter {
     } catch {
       // The old bridge may already be gone after app sleep, crash, or detach.
     }
-    let processHandle: IPty;
+    let processHandle: TerminalProcess;
     try {
-      processHandle = this.attachTmuxSession(tmux.availability, record.tmuxSessionName, record.info.cwd);
+      processHandle = this.attachTmuxSession(tmux.availability, record.tmuxSessionName, record.tmuxPaneId, record.info.cwd);
     } catch (error) {
       record.reconnecting = false;
       record.bridgeDetached = true;
@@ -448,7 +464,40 @@ export class TerminalManager extends EventEmitter {
     };
   }
 
-  private wireProcess(id: string, processHandle: IPty) {
+  private queueRawInput(record: TerminalRecord, data: string): TerminalWriteResult {
+    const writeId = this.nextWriteId++;
+    record.lastWriteId = writeId;
+    record.lastInputAt = Date.now();
+    record.rawInputBuffer += data;
+    if (record.rawInputTimer) {
+      clearTimeout(record.rawInputTimer);
+    }
+    record.rawInputTimer = setTimeout(() => this.flushRawInput(record), RAW_INPUT_COALESCE_MS);
+    return {
+      ok: true,
+      delivery: "sent",
+      writeId,
+      queuedInputCount: record.pendingWrites.length,
+      readiness: record.info.readiness,
+      readinessDetail: record.info.readinessDetail,
+    };
+  }
+
+  private flushRawInput(record: TerminalRecord): void {
+    if (record.rawInputTimer) {
+      clearTimeout(record.rawInputTimer);
+      record.rawInputTimer = undefined;
+    }
+    if (record.rawInputBuffer.length === 0 || record.info.status !== "running") {
+      record.rawInputBuffer = "";
+      return;
+    }
+    const data = record.rawInputBuffer;
+    record.rawInputBuffer = "";
+    record.process.write(data);
+  }
+
+  private wireProcess(id: string, processHandle: TerminalProcess) {
     processHandle.onData((data) => {
       const record = this.sessions.get(id);
       const sanitizedData = stripMouseTrackingModes(data);
@@ -631,6 +680,10 @@ export class TerminalManager extends EventEmitter {
       clearTimeout(record.readinessTimer);
       record.readinessTimer = undefined;
     }
+    if (record.rawInputTimer) {
+      clearTimeout(record.rawInputTimer);
+      record.rawInputTimer = undefined;
+    }
   }
 
   private requireTmuxRuntime(): { availability: TmuxAvailable; runner: TmuxCommandRunner } {
@@ -644,8 +697,17 @@ export class TerminalManager extends EventEmitter {
     };
   }
 
-  private attachTmuxSession(availability: TmuxAvailable, tmuxSessionName: string, cwd: string): IPty {
-    return pty.spawn(availability.path, ["attach-session", "-t", tmuxSessionName], {
+  private attachTmuxSession(
+    availability: TmuxAvailable,
+    tmuxSessionName: string,
+    tmuxPaneId: string,
+    cwd: string,
+    env: NodeJS.ProcessEnv = process.env,
+  ): TerminalProcess {
+    return new TmuxControlModeProcess({
+      tmuxPath: availability.path,
+      sessionName: tmuxSessionName,
+      paneId: tmuxPaneId,
       cols: 120,
       rows: 32,
       cwd,
@@ -654,8 +716,8 @@ export class TerminalManager extends EventEmitter {
         TERM: "xterm-256color",
         COLORTERM: "truecolor",
         SHELL_SESSIONS_DISABLE: "1",
+        ...env,
       },
-      name: "xterm-256color",
     });
   }
 
@@ -708,15 +770,17 @@ export class TerminalManager extends EventEmitter {
     }
 
     const runner = new TmuxCommandRunner(availability.path);
-    const liveSessions = new Set(this.listTmuxPanes(runner).filter((pane) => !pane.dead).map((pane) => pane.sessionName));
+    const livePanes = new Map(this.listTmuxPanes(runner).filter((pane) => !pane.dead).map((pane) => [pane.sessionName, pane]));
     let restored = 0;
     for (const session of persisted) {
-      if (session.status !== "running" || !liveSessions.has(session.tmuxSessionName) || this.sessions.has(session.id)) {
+      const livePane = livePanes.get(session.tmuxSessionName);
+      if (session.status !== "running" || !livePane || this.sessions.has(session.id)) {
         continue;
       }
 
       try {
-        const processHandle = this.attachTmuxSession(availability, session.tmuxSessionName, session.cwd);
+        const tmuxPaneId = session.tmuxPaneId ?? livePane.paneId;
+        const processHandle = this.attachTmuxSession(availability, session.tmuxSessionName, tmuxPaneId, session.cwd);
         const record: TerminalRecord = {
           info: {
             id: session.id,
@@ -731,11 +795,13 @@ export class TerminalManager extends EventEmitter {
           },
           process: processHandle,
           tmuxSessionName: session.tmuxSessionName,
+          tmuxPaneId,
           createdAt: session.createdAt,
           paneStatus: "alive",
           buffer: new TerminalLineBuffer(this.bufferLineLimit),
           transcriptPath: session.transcriptPath,
           pendingWrites: [],
+          rawInputBuffer: "",
           lastWriteId: 0,
         };
         this.sessions.set(session.id, record);
@@ -773,6 +839,14 @@ export class TerminalManager extends EventEmitter {
       });
       return [];
     }
+  }
+
+  private requireTmuxPaneId(runner: TmuxCommandRunner, tmuxSessionName: string): string {
+    const pane = this.listTmuxPanes(runner).find((candidate) => candidate.sessionName === tmuxSessionName && !candidate.dead);
+    if (!pane) {
+      throw new Error(`Unable to find live tmux pane for session ${tmuxSessionName}.`);
+    }
+    return pane.paneId;
   }
 
   private applyTmuxHistoryLimit(record: TerminalRecord): void {
@@ -884,6 +958,7 @@ export class TerminalManager extends EventEmitter {
       command: record.info.command,
       instructionOverlayPath: record.info.instructionOverlayPath ?? null,
       tmuxSessionName: record.tmuxSessionName,
+      tmuxPaneId: record.tmuxPaneId,
       transcriptPath: record.transcriptPath,
       createdAt: record.createdAt,
       lastAttachedAt: new Date().toISOString(),
@@ -925,6 +1000,10 @@ function shouldQueueSubmittedAgentMessage(record: TerminalRecord): boolean {
     record.info.status === "running" &&
     record.info.readiness !== "ready"
   );
+}
+
+function shouldCoalesceRawInput(data: string): boolean {
+  return data.length > 0 && !/[\u0000-\u001f\u007f]/.test(data);
 }
 
 function looksLikeSubmittedChatMessage(data: string): boolean {

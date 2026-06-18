@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { EventEmitter } from "node:events";
 
 const childProcess = vi.hoisted(() => ({
   execFileSync: vi.fn(),
+  spawn: vi.fn(),
   spawnSync: vi.fn(),
 }));
 
@@ -14,7 +16,9 @@ import {
   shellCommand,
   shellQuote,
   TmuxCommandError,
+  TmuxControlModeProcess,
   TmuxCommandRunner,
+  decodeTmuxControlValue,
   tmuxEnvironmentArgs,
 } from "./terminal-tmux";
 
@@ -134,4 +138,112 @@ describe("terminal tmux runtime helpers", () => {
     expect(shellQuote("has ' quote")).toBe("'has '\\'' quote'");
     expect(shellCommand("node", ["/tmp/fake agent.mjs", "--name='Claude'"])).toBe("'node' '/tmp/fake agent.mjs' '--name='\\''Claude'\\'''");
   });
+
+  it("decodes tmux control output escapes", () => {
+    expect(decodeTmuxControlValue("hello\\015\\012path\\\\name")).toBe("hello\r\npath\\name");
+  });
+
+  it("streams only the selected pane from tmux control mode", () => {
+    const fake = fakeControlProcess();
+    childProcess.spawn.mockReturnValue(fake.child);
+    const received: string[] = [];
+
+    const process = new TmuxControlModeProcess({
+      tmuxPath: "/opt/homebrew/bin/tmux",
+      sessionName: "exo-session",
+      paneId: "%3",
+      cwd: "/tmp/work",
+      env: { PATH: "/bin" },
+      cols: 100,
+      rows: 30,
+    });
+    process.onData((data) => received.push(data));
+
+    fake.emitStdout("%output %2 ignored\\015\\012\n");
+    fake.emitStdout("%output %3 hello\\015\\012\n");
+
+    expect(received).toEqual(["hello\r\n"]);
+    expect(fake.stdinWrites).toContain("refresh-client -C 100x30\n");
+  });
+
+  it("maps terminal input to tmux keys without treating escape sequences as text", () => {
+    const fake = fakeControlProcess();
+    childProcess.spawn.mockReturnValue(fake.child);
+    childProcess.execFileSync.mockReturnValue("");
+
+    const process = new TmuxControlModeProcess({
+      tmuxPath: "/opt/homebrew/bin/tmux",
+      sessionName: "exo-session",
+      paneId: "%3",
+      cwd: "/tmp/work",
+      env: { PATH: "/bin" },
+      cols: 100,
+      rows: 30,
+    });
+
+    process.write("abc\u001b[A\u007f\r");
+
+    expect(childProcess.execFileSync.mock.calls.map((call) => call[1])).toEqual([
+      ["send-keys", "-t", "%3", "-l", "abc"],
+      ["send-keys", "-t", "%3", "Up"],
+      ["send-keys", "-t", "%3", "BSpace"],
+      ["send-keys", "-t", "%3", "Enter"],
+    ]);
+  });
+
+  it("pastes semantic agent messages as literal text", () => {
+    const fake = fakeControlProcess();
+    childProcess.spawn.mockReturnValue(fake.child);
+    childProcess.execFileSync.mockReturnValue("");
+
+    const process = new TmuxControlModeProcess({
+      tmuxPath: "/opt/homebrew/bin/tmux",
+      sessionName: "exo-session",
+      paneId: "%3",
+      cwd: "/tmp/work",
+      env: { PATH: "/bin" },
+      cols: 100,
+      rows: 30,
+    });
+
+    process.write("\u001b[200~line one\n  line two\u001b[201~");
+
+    expect(childProcess.execFileSync.mock.calls.map((call) => call[1])).toContainEqual(["load-buffer", "-b", "exo-3", "-"]);
+    expect(childProcess.execFileSync.mock.calls.find((call) => call[1]?.includes("load-buffer"))?.[2]).toMatchObject({ input: "line one\n  line two" });
+    expect(childProcess.execFileSync.mock.calls.map((call) => call[1])).toContainEqual(["paste-buffer", "-b", "exo-3", "-t", "%3", "-d"]);
+  });
 });
+
+function fakeControlProcess() {
+  const child = new EventEmitter() as EventEmitter & {
+    stdout: EventEmitter & { setEncoding: (encoding: string) => void };
+    stderr: EventEmitter & { setEncoding: (encoding: string) => void };
+    stdin: { writable: boolean; write: (data: string) => void };
+    killed: boolean;
+    kill: () => void;
+  };
+  const stdout = new EventEmitter() as EventEmitter & { setEncoding: (encoding: string) => void };
+  const stderr = new EventEmitter() as EventEmitter & { setEncoding: (encoding: string) => void };
+  const stdinWrites: string[] = [];
+  stdout.setEncoding = vi.fn();
+  stderr.setEncoding = vi.fn();
+  child.stdout = stdout;
+  child.stderr = stderr;
+  child.stdin = {
+    writable: true,
+    write: (data: string) => {
+      stdinWrites.push(data);
+    },
+  };
+  child.killed = false;
+  child.kill = vi.fn(() => {
+    child.killed = true;
+    child.emit("exit", 0);
+  });
+
+  return {
+    child,
+    stdinWrites,
+    emitStdout: (data: string) => stdout.emit("data", data),
+  };
+}

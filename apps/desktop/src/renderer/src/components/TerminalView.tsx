@@ -82,18 +82,7 @@ export function TerminalView(props: TerminalViewProps) {
       event?.preventDefault();
       onFocus();
       terminal.focus();
-    }
-
-    function handleWheel(event: WheelEvent) {
-      if (!event.deltaY) {
-        return;
-      }
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-      const lines = Math.min(1000, Math.max(1, Math.ceil(Math.abs(event.deltaY) / 40)));
-      const direction = event.deltaY > 0 ? -lines : lines;
-      terminal.scrollLines(direction);
+      window.setTimeout(() => terminal.focus(), 0);
     }
 
     function handleDragOver(event: DragEvent) {
@@ -124,8 +113,7 @@ export function TerminalView(props: TerminalViewProps) {
     }
 
     surfaceRef.current!.addEventListener("mousedown", focusTerminal);
-    surfaceRef.current!.addEventListener("wheel", handleWheel, { capture: true, passive: false });
-    viewportRef.current!.addEventListener("wheel", handleWheel, { capture: true, passive: false });
+    surfaceRef.current!.addEventListener("click", focusTerminal);
     surfaceRef.current!.addEventListener("dragover", handleDragOver, { capture: true });
     surfaceRef.current!.addEventListener("drop", handleDrop, { capture: true });
 
@@ -144,8 +132,7 @@ export function TerminalView(props: TerminalViewProps) {
       disposeData.dispose();
       observer.disconnect();
       surfaceRef.current?.removeEventListener("mousedown", focusTerminal);
-      surfaceRef.current?.removeEventListener("wheel", handleWheel, { capture: true });
-      viewportRef.current?.removeEventListener("wheel", handleWheel, { capture: true });
+      surfaceRef.current?.removeEventListener("click", focusTerminal);
       surfaceRef.current?.removeEventListener("dragover", handleDragOver, { capture: true });
       surfaceRef.current?.removeEventListener("drop", handleDrop, { capture: true });
       terminal.dispose();

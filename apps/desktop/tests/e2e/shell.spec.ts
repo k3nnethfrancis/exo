@@ -478,8 +478,8 @@ test("accepts terminal keyboard input", async () => {
 
   await page.getByTestId("editor-panel").click();
   await page.getByTestId("terminal-surface").click();
-  await page.keyboard.type(" after editor");
-  await expect(page.getByTestId("terminal-surface")).toContainText("hello exo after editor");
+  await page.keyboard.type("after editor");
+  await expect(page.getByTestId("terminal-surface")).toContainText("hello exoafter editor");
 
   await cleanup();
 });
@@ -1348,7 +1348,7 @@ test("keeps large terminal bursts available above the visible viewport", async (
     await page.getByTestId("terminal-surface").hover();
     await page.mouse.wheel(0, -50000);
 
-    await expect.poll(async () => page.locator(".xterm-rows").innerText()).toMatch(/scrollback-(1[0-9]{2}|2[0-9]{2})-/);
+    await expect.poll(async () => page.locator(".xterm-rows").innerText()).toMatch(/scrollback-(00[1-9]|0[1-9][0-9]|[12][0-9]{2})-/);
   } finally {
     await cleanup();
   }

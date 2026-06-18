@@ -1,4 +1,5 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { EventEmitter } from "node:events";
 import os from "node:os";
 import path from "node:path";
 
@@ -10,71 +11,132 @@ const ptyState = vi.hoisted(() => ({
     args: string[];
     options: { cwd?: string; env?: Record<string, string | undefined> };
     writes: string[];
+    stdinWrites: string[];
     emitData: (data: string) => void;
     emitExit: (exitCode?: number) => void;
+    resize: () => void;
   }>,
+  tmuxSessions: [] as Array<{ sessionName: string; paneId: string; cwd: string }>,
+  pasteBuffers: new Map<string, string>(),
 }));
 
-const childProcess = vi.hoisted(() => ({
-  spawnSync: vi.fn(() => ({ status: 0, stdout: "tmux 3.5a\n", stderr: "" })),
-  execFileSync: vi.fn((_command: string, _args: string[]) => ""),
-}));
+const childProcess = vi.hoisted(() => {
+  function findAttachedProcess(paneId: string) {
+    return ptyState.spawned.find((process) => process.args.includes("-t") && ptyState.tmuxSessions.some((session) => session.sessionName === process.args.at(-1) && session.paneId === paneId));
+  }
 
-vi.mock("node:child_process", () => childProcess);
-
-vi.mock("node-pty", () => {
-  class FakePty {
-    command = "";
-    args: string[] = [];
-    options: { cwd?: string; env?: Record<string, string | undefined> } = {};
-    writes: string[] = [];
-    private dataHandlers: Array<(data: string) => void> = [];
-    private exitHandlers: Array<(event: { exitCode?: number }) => void> = [];
-
-    onData(handler: (data: string) => void) {
-      this.dataHandlers.push(handler);
+  function execFileSync(_command: string, args: string[], options?: { input?: string }) {
+    if (args.includes("new-session")) {
+      const sessionName = args[args.indexOf("-s") + 1] ?? `exo-test-${ptyState.tmuxSessions.length + 1}`;
+      const cwd = args[args.indexOf("-c") + 1] ?? "";
+      ptyState.tmuxSessions.push({
+        sessionName,
+        paneId: `%${ptyState.tmuxSessions.length + 1}`,
+        cwd,
+      });
+      return "";
     }
-
-    onExit(handler: (event: { exitCode?: number }) => void) {
-      this.exitHandlers.push(handler);
+    if (args.includes("list-panes")) {
+      return ptyState.tmuxSessions.map((session) => `${session.sessionName}\t@1\t${session.paneId}\t0\tzsh\t${session.cwd}`).join("\n");
     }
-
-    write(data: string) {
-      this.writes.push(data);
-    }
-
-    resize() {}
-
-    kill() {
-      this.emitExit(0);
-    }
-
-    emitData(data: string) {
-      for (const handler of this.dataHandlers) {
-        handler(data);
+    if (args.includes("send-keys")) {
+      const paneId = args[args.indexOf("-t") + 1] ?? "";
+      const process = findAttachedProcess(paneId);
+      if (process) {
+        const payload = args.at(-1) ?? "";
+        if (args.includes("-l")) {
+          process.writes.push(payload);
+        } else if (payload === "Enter") {
+          process.writes.push("\r");
+        } else {
+          process.writes.push(payload);
+        }
       }
+      return "";
     }
-
-    emitExit(exitCode?: number) {
-      for (const handler of this.exitHandlers) {
-        handler({ exitCode });
+    if (args.includes("load-buffer")) {
+      const bufferName = args[args.indexOf("-b") + 1] ?? "";
+      ptyState.pasteBuffers.set(bufferName, options?.input ?? "");
+      return "";
+    }
+    if (args.includes("paste-buffer")) {
+      const paneId = args[args.indexOf("-t") + 1] ?? "";
+      const bufferName = args[args.indexOf("-b") + 1] ?? "";
+      const process = findAttachedProcess(paneId);
+      if (process) {
+        process.writes.push(ptyState.pasteBuffers.get(bufferName) ?? "");
       }
+      return "";
     }
+    if (args.includes("kill-session")) {
+      const sessionName = args[args.indexOf("-t") + 1] ?? "";
+      const index = ptyState.tmuxSessions.findIndex((session) => session.sessionName === sessionName);
+      if (index >= 0) {
+        ptyState.tmuxSessions.splice(index, 1);
+      }
+      return "";
+    }
+    return "";
+  }
+
+  function spawn(command: string, args: string[], options: { cwd?: string; env?: Record<string, string | undefined> }) {
+    const child = new EventEmitter() as EventEmitter & {
+      stdout: EventEmitter & { setEncoding: (encoding: string) => void };
+      stderr: EventEmitter & { setEncoding: (encoding: string) => void };
+      stdin: { writable: boolean; write: (data: string) => void };
+      killed: boolean;
+      kill: () => void;
+    };
+    const stdout = new EventEmitter() as EventEmitter & { setEncoding: (encoding: string) => void };
+    const stderr = new EventEmitter() as EventEmitter & { setEncoding: (encoding: string) => void };
+    const state = {
+      command,
+      args,
+      options,
+      writes: [] as string[],
+      stdinWrites: [] as string[],
+      emitData: (data: string) => stdout.emit("data", `%output ${paneIdForSession(args.at(-1) ?? "")} ${tmuxControlEncode(data)}\n`),
+      emitExit: (exitCode?: number) => child.emit("exit", exitCode),
+      resize: () => {
+        child.stdin.write("refresh-client -C 120x32\n");
+      },
+    };
+    stdout.setEncoding = vi.fn();
+    stderr.setEncoding = vi.fn();
+    child.stdout = stdout;
+    child.stderr = stderr;
+    child.stdin = {
+      writable: true,
+      write: (data: string) => {
+        state.stdinWrites.push(data);
+      },
+    };
+    child.killed = false;
+    child.kill = vi.fn(() => {
+      child.killed = true;
+      child.emit("exit", 0);
+    });
+    ptyState.spawned.push(state);
+    return child;
+  }
+
+  function paneIdForSession(sessionName: string): string {
+    return ptyState.tmuxSessions.find((session) => session.sessionName === sessionName)?.paneId ?? "%1";
+  }
+
+  function tmuxControlEncode(data: string): string {
+    return data.replace(/[\\\r\n\x1b]/g, (char) => `\\${char.charCodeAt(0).toString(8).padStart(3, "0")}`);
   }
 
   return {
-    default: {
-      spawn: vi.fn((command: string, args: string[], options: { cwd?: string; env?: Record<string, string | undefined> }) => {
-        const fake = new FakePty();
-        fake.command = command;
-        fake.args = args;
-        fake.options = options;
-        ptyState.spawned.push(fake);
-        return fake;
-      }),
-    },
+    spawn,
+    spawnSync: vi.fn(() => ({ status: 0, stdout: "tmux 3.5a\n", stderr: "" })),
+    execFileSync: vi.fn(execFileSync),
+    defaultExecFileSync: execFileSync,
   };
 });
+
+vi.mock("node:child_process", () => childProcess);
 
 import { TerminalManager } from "./terminal-manager";
 
@@ -91,8 +153,10 @@ afterEach(async () => {
   warnSpy.mockRestore();
   vi.clearAllMocks();
   childProcess.spawnSync.mockReturnValue({ status: 0, stdout: "tmux 3.5a\n", stderr: "" });
-  childProcess.execFileSync.mockReturnValue("");
+  childProcess.execFileSync.mockImplementation(childProcess.defaultExecFileSync);
   ptyState.spawned.splice(0);
+  ptyState.tmuxSessions.splice(0);
+  ptyState.pasteBuffers.clear();
   await Promise.all(tempPaths.splice(0).map((target) => rm(target, { recursive: true, force: true })));
 });
 
@@ -125,11 +189,11 @@ describe("TerminalManager Codex readiness", () => {
       readiness: "ready",
       queuedInputCount: 0,
     });
-    expect(pty.writes).toEqual([bracketedPaste("Fix the issue")]);
+    expect(pty.writes).toEqual(["Fix the issue"]);
 
     vi.advanceTimersByTime(120);
 
-    expect(pty.writes).toEqual([bracketedPaste("Fix the issue"), "\r"]);
+    expect(pty.writes).toEqual(["Fix the issue", "\r"]);
   });
 
   it("blocks queued Codex task text across startup update prompts", async () => {
@@ -161,7 +225,7 @@ describe("TerminalManager Codex readiness", () => {
       readiness: "ready",
       queuedInputCount: 0,
     });
-    expect(pty.writes).toEqual([bracketedPaste("Do useful work")]);
+    expect(pty.writes).toEqual(["Do useful work"]);
   });
 
   it("does not treat a Codex header as ready when a later startup update prompt is active", async () => {
@@ -193,7 +257,7 @@ describe("TerminalManager Codex readiness", () => {
       readiness: "ready",
       queuedInputCount: 0,
     });
-    expect(pty.writes).toEqual([bracketedPaste("Wait for chat input")]);
+    expect(pty.writes).toEqual(["Wait for chat input"]);
   });
 
   it("flushes queued Codex text after the startup grace when no prompt appears", async () => {
@@ -215,11 +279,11 @@ describe("TerminalManager Codex readiness", () => {
       readiness: "ready",
       queuedInputCount: 0,
     });
-    expect(pty.writes).toEqual([bracketedPaste("Start cleanly")]);
+    expect(pty.writes).toEqual(["Start cleanly"]);
 
     vi.advanceTimersByTime(120);
 
-    expect(pty.writes).toEqual([bracketedPaste("Start cleanly"), "\r"]);
+    expect(pty.writes).toEqual(["Start cleanly", "\r"]);
   });
 
   it("sends semantic messages with bracketed paste to preserve whitespace", async () => {
@@ -233,9 +297,9 @@ describe("TerminalManager Codex readiness", () => {
 
     await expect(manager.sendMessage(agent.id, message, true)).resolves.toMatchObject({ delivery: "sent" });
 
-    expect(pty.writes).toEqual([bracketedPaste(message)]);
+    expect(pty.writes).toEqual([message]);
     vi.advanceTimersByTime(120);
-    expect(pty.writes).toEqual([bracketedPaste(message), "\r"]);
+    expect(pty.writes).toEqual([message, "\r"]);
   });
 
   it("sends semantic shell messages as plain text because shells may not support bracketed paste", async () => {
@@ -266,7 +330,7 @@ describe("TerminalManager Codex readiness", () => {
     await expect(manager.sendMessage(agent.id, message, false)).resolves.toMatchObject({ delivery: "sent" });
 
     vi.advanceTimersByTime(500);
-    expect(pty.writes).toEqual([bracketedPaste(message)]);
+    expect(pty.writes).toEqual([message]);
   });
 
   it("lets raw non-submitted input through so a user can answer interstitials", async () => {
@@ -279,6 +343,8 @@ describe("TerminalManager Codex readiness", () => {
 
     await expect(manager.write(agent.id, "y")).resolves.toMatchObject({ delivery: "sent" });
 
+    expect(pty.writes).toEqual([]);
+    vi.advanceTimersByTime(40);
     expect(pty.writes).toEqual(["y"]);
   });
 
@@ -327,11 +393,11 @@ describe("TerminalManager Codex readiness", () => {
 
   it("hydrates bounded terminal tail from tmux history before live attach output", async () => {
     const workspaceRoot = await workspaceFixture();
-    childProcess.execFileSync.mockImplementation((_command: string, args: string[]) => {
+    childProcess.execFileSync.mockImplementation((command: string, args: string[]) => {
       if (args.includes("capture-pane")) {
         return "captured-001\ncaptured-002\n";
       }
-      return "";
+      return childProcess.defaultExecFileSync(command, args);
     });
     const manager = managerForWorkspace(workspaceRoot);
 
@@ -480,11 +546,12 @@ describe("TerminalManager Codex readiness", () => {
         ],
       }),
     );
-    childProcess.execFileSync.mockImplementation((_command: string, args: string[]) => {
+    childProcess.execFileSync.mockImplementation((command: string, args: string[]) => {
       if (args.includes("list-panes")) {
-        return `${tmuxSessionName}\t@1\t%2\t0\tzsh\t${workspaceRoot}\n`;
+        const generated = childProcess.defaultExecFileSync(command, args);
+        return `${tmuxSessionName}\t@1\t%2\t0\tzsh\t${workspaceRoot}\n${generated}`;
       }
-      return "";
+      return childProcess.defaultExecFileSync(command, args);
     });
 
     const manager = managerForWorkspace(workspaceRoot);
@@ -497,7 +564,7 @@ describe("TerminalManager Codex readiness", () => {
       }),
     ]);
     expect(ptyState.spawned[0]?.command).toBe("tmux");
-    expect(ptyState.spawned[0]?.args).toEqual(["attach-session", "-t", tmuxSessionName]);
+    expect(ptyState.spawned[0]?.args).toEqual(["-C", "attach-session", "-t", tmuxSessionName]);
 
     await manager.create({ kind: "shell", cwd: workspaceRoot });
     expect(manager.list().map((session) => session.id)).toContain("term-8");
@@ -550,6 +617,7 @@ describe("TerminalManager Codex readiness", () => {
     manager.on("exit", (event) => exitEvents.push(event));
 
     const agent = await manager.create({ kind: "codex", cwd: workspaceRoot });
+    ptyState.tmuxSessions.splice(0);
     ptyState.spawned[0].emitExit(0);
 
     expect(manager.list().map((session) => session.id)).not.toContain(agent.id);
@@ -561,11 +629,13 @@ describe("TerminalManager Codex readiness", () => {
     const manager = managerForWorkspace(workspaceRoot);
 
     await manager.create({ kind: "shell", cwd: workspaceRoot });
-    (ptyState.spawned[0] as unknown as { resize: () => void }).resize = () => {
+    const originalStdinWrite = ptyState.spawned[0].stdinWrites.push.bind(ptyState.spawned[0].stdinWrites);
+    ptyState.spawned[0].stdinWrites.push = () => {
       throw new Error("ioctl(2) failed, EBADF");
     };
 
     await expect(manager.resize("term-1", 120, 32)).resolves.toBeUndefined();
+    ptyState.spawned[0].stdinWrites.push = originalStdinWrite;
     expect(manager.diagnostics()[0]).toMatchObject({
       health: "unhealthy",
       bridgeStatus: "detached",
@@ -591,7 +661,7 @@ describe("TerminalManager Codex readiness", () => {
       status: "running",
     });
     expect(ptyState.spawned).toHaveLength(2);
-    expect(ptyState.spawned[1].args).toEqual(["attach-session", "-t", spawnedTmuxSessionName(0)]);
+    expect(ptyState.spawned[1].args).toEqual(["-C", "attach-session", "-t", spawnedTmuxSessionName(0)]);
     expect(manager.diagnostics()[0]).toMatchObject({
       bridgeStatus: "attached",
       paneStatus: "alive",
@@ -608,7 +678,7 @@ describe("TerminalManager Codex readiness", () => {
     manager.reconnectRecoverableTerminals();
 
     expect(ptyState.spawned).toHaveLength(2);
-    expect(ptyState.spawned[1].args).toEqual(["attach-session", "-t", spawnedTmuxSessionName(0)]);
+    expect(ptyState.spawned[1].args).toEqual(["-C", "attach-session", "-t", spawnedTmuxSessionName(0)]);
     expect(manager.diagnostics()[0]).toMatchObject({
       bridgeStatus: "attached",
       paneStatus: "alive",
@@ -657,7 +727,7 @@ describe("TerminalManager Codex readiness", () => {
     }
     const shellLaunch = tmuxCommand.at(-1) ?? "";
     expect(ptyState.spawned[0]?.command).toBe("tmux");
-    expect(ptyState.spawned[0]?.args).toEqual(["attach-session", "-t", expect.stringMatching(/^exo-[a-f0-9]{10}-term-1-\d{4}-/i)]);
+    expect(ptyState.spawned[0]?.args).toEqual(["-C", "attach-session", "-t", expect.stringMatching(/^exo-[a-f0-9]{10}-term-1-\d{4}-/i)]);
     expect(shellLaunch).toContain("'codex'");
     expect(shellLaunch).toContain("'-c'");
     expect(shellLaunch).toContain(`'mcp_servers.exo.command=\"node\"'`);
@@ -689,7 +759,7 @@ function bracketedPaste(data: string): string {
 }
 
 function spawnedTmuxSessionName(index: number): string {
-  const sessionName = ptyState.spawned[index]?.args[2];
+  const sessionName = ptyState.tmuxSessions[index]?.sessionName;
   if (!sessionName) {
     throw new Error(`Expected spawned tmux session at index ${index}`);
   }
