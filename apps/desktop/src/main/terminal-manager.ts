@@ -10,6 +10,17 @@ import {
   syncRuntimeContextFiles,
   type RuntimeConfig,
 } from "@exo/core";
+import {
+  DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS,
+  DEFAULT_TERMINAL_AGENT_SUBMIT_DELAY_MS,
+  DEFAULT_TERMINAL_INITIAL_COLUMNS,
+  DEFAULT_TERMINAL_INITIAL_ROWS,
+  DEFAULT_TERMINAL_INPUT_COALESCE_MS,
+  DEFAULT_TERMINAL_IDLE_THRESHOLD_MS,
+  DEFAULT_TERMINAL_MINIMUM_COLUMNS,
+  DEFAULT_TERMINAL_MINIMUM_ROWS,
+  DEFAULT_TERMINAL_UNRESPONSIVE_THRESHOLD_MS,
+} from "@exo/core/terminal-settings";
 
 import type { TerminalCreateOptions, TerminalDiagnostics, TerminalHealthState, TerminalSessionInfo, TerminalKind, TerminalWriteResult } from "../shared/api";
 import { agentInstructionOverlayEnv, writeAgentInstructionOverlaysSync } from "./agent-instruction-overlays";
@@ -79,9 +90,30 @@ interface PersistedTerminalSession {
 const DEFAULT_LIVE_SCROLLBACK_LINES = 100_000;
 const DEFAULT_BUFFER_LINE_LIMIT = DEFAULT_LIVE_SCROLLBACK_LINES;
 const MIN_LIVE_SCROLLBACK_LINES = 500;
-const CODEX_STARTUP_GRACE_MS = 1_500;
-const CODEX_QUEUED_SUBMIT_DELAY_MS = 120;
-const RAW_INPUT_COALESCE_MS = 40;
+
+export interface TerminalRuntimeOptions {
+  inputCoalesceMs?: number;
+  agentStartupGraceMs?: number;
+  agentSubmitDelayMs?: number;
+  initialColumns?: number;
+  initialRows?: number;
+  minimumColumns?: number;
+  minimumRows?: number;
+  unresponsiveThresholdMs?: number;
+  idleThresholdMs?: number;
+}
+
+const DEFAULT_TERMINAL_RUNTIME_OPTIONS: Required<TerminalRuntimeOptions> = {
+  inputCoalesceMs: DEFAULT_TERMINAL_INPUT_COALESCE_MS,
+  agentStartupGraceMs: DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS,
+  agentSubmitDelayMs: DEFAULT_TERMINAL_AGENT_SUBMIT_DELAY_MS,
+  initialColumns: DEFAULT_TERMINAL_INITIAL_COLUMNS,
+  initialRows: DEFAULT_TERMINAL_INITIAL_ROWS,
+  minimumColumns: DEFAULT_TERMINAL_MINIMUM_COLUMNS,
+  minimumRows: DEFAULT_TERMINAL_MINIMUM_ROWS,
+  unresponsiveThresholdMs: DEFAULT_TERMINAL_UNRESPONSIVE_THRESHOLD_MS,
+  idleThresholdMs: DEFAULT_TERMINAL_IDLE_THRESHOLD_MS,
+};
 
 export class TerminalManager extends EventEmitter {
   private readonly sessions = new Map<string, TerminalRecord>();
@@ -92,15 +124,18 @@ export class TerminalManager extends EventEmitter {
   private transcripts: TerminalTranscriptStore;
   private nextWriteId = 1;
   private sessionRegistryPath = this.makeSessionRegistryPath();
+  private terminalRuntimeOptions: Required<TerminalRuntimeOptions>;
 
   constructor(
     private defaultCwd: string,
     bufferLineLimit: number | null = DEFAULT_BUFFER_LINE_LIMIT,
     transcriptRetentionDays = 0,
+    terminalRuntimeOptions: TerminalRuntimeOptions = {},
   ) {
     super();
     this.bufferLineLimit = normalizeBufferLineLimit(bufferLineLimit);
     this.transcriptRetentionDays = normalizeTranscriptRetentionDays(transcriptRetentionDays);
+    this.terminalRuntimeOptions = normalizeTerminalRuntimeOptions(terminalRuntimeOptions);
     this.transcripts = this.createTranscriptStore();
     this.restorePersistedSessions();
   }
@@ -109,8 +144,8 @@ export class TerminalManager extends EventEmitter {
     const now = Date.now();
     return Array.from(this.sessions.values())
       .map((record) => {
-        record.info.health = terminalHealth(record, now);
-        record.info.healthDetail = terminalHealthDetail(record, now);
+        record.info.health = this.terminalHealth(record, now);
+        record.info.healthDetail = this.terminalHealthDetail(record, now);
         return record.info;
       })
       .sort((left, right) => left.id.localeCompare(right.id));
@@ -124,8 +159,8 @@ export class TerminalManager extends EventEmitter {
         id: record.info.id,
         kind: record.info.kind,
         status: record.info.status,
-        health: terminalHealth(record, now),
-        healthDetail: terminalHealthDetail(record, now),
+        health: this.terminalHealth(record, now),
+        healthDetail: this.terminalHealthDetail(record, now),
         runtime: "tmux",
         tmuxSessionName: record.tmuxSessionName,
         bridgeStatus: record.bridgeDetached ? "detached" : "attached",
@@ -190,6 +225,18 @@ export class TerminalManager extends EventEmitter {
     this.flushAllTranscripts();
     this.transcriptRetentionDays = normalizeTranscriptRetentionDays(retentionDays);
     this.transcripts = this.createTranscriptStore();
+  }
+
+  setTerminalRuntimeOptions(options: TerminalRuntimeOptions) {
+    this.terminalRuntimeOptions = normalizeTerminalRuntimeOptions(options);
+  }
+
+  private terminalHealth(record: TerminalRecord, now = Date.now()): TerminalHealthState {
+    return terminalHealth(record, this.terminalRuntimeOptions, now);
+  }
+
+  private terminalHealthDetail(record: TerminalRecord, now = Date.now()): string {
+    return terminalHealthDetail(record, this.terminalRuntimeOptions, now);
   }
 
   async syncRuntimeContext() {
@@ -275,7 +322,7 @@ export class TerminalManager extends EventEmitter {
           return;
         }
         this.markReady(current, "Codex startup grace elapsed.");
-      }, CODEX_STARTUP_GRACE_MS);
+      }, this.terminalRuntimeOptions.agentStartupGraceMs);
     }
 
     this.sessions.set(id, record);
@@ -326,7 +373,7 @@ export class TerminalManager extends EventEmitter {
     this.reconcileTmuxState();
     if (record.paneStatus !== "alive") {
       record.info.health = "unhealthy";
-      record.info.healthDetail = terminalHealthDetail(record, Date.now());
+      record.info.healthDetail = this.terminalHealthDetail(record, Date.now());
       return record.info;
     }
 
@@ -351,7 +398,7 @@ export class TerminalManager extends EventEmitter {
     record.reconnecting = false;
     record.bridgeDetached = false;
     record.paneStatus = "alive";
-    record.info.health = terminalHealth(record, Date.now());
+    record.info.health = this.terminalHealth(record, Date.now());
     record.info.healthDetail = "Reattached to live tmux session.";
     this.wireProcess(id, processHandle);
     this.persistSessions();
@@ -399,7 +446,10 @@ export class TerminalManager extends EventEmitter {
     }
 
     try {
-      record.process.resize(Math.max(20, cols), Math.max(8, rows));
+      record.process.resize(
+        Math.max(this.terminalRuntimeOptions.minimumColumns, cols),
+        Math.max(this.terminalRuntimeOptions.minimumRows, rows),
+      );
     } catch (error) {
       record.bridgeDetached = true;
       record.info.health = "unhealthy";
@@ -472,7 +522,7 @@ export class TerminalManager extends EventEmitter {
     if (record.rawInputTimer) {
       clearTimeout(record.rawInputTimer);
     }
-    record.rawInputTimer = setTimeout(() => this.flushRawInput(record), RAW_INPUT_COALESCE_MS);
+    record.rawInputTimer = setTimeout(() => this.flushRawInput(record), this.terminalRuntimeOptions.inputCoalesceMs);
     return {
       ok: true,
       delivery: "sent",
@@ -510,8 +560,8 @@ export class TerminalManager extends EventEmitter {
         }
         record.buffer.append(sanitizedData);
         this.updateAgentReadiness(record);
-        record.info.health = terminalHealth(record, Date.now());
-        record.info.healthDetail = terminalHealthDetail(record, Date.now());
+        record.info.health = this.terminalHealth(record, Date.now());
+        record.info.healthDetail = this.terminalHealthDetail(record, Date.now());
         this.emit("data", { id, data: sanitizedData });
       }
     });
@@ -666,7 +716,7 @@ export class TerminalManager extends EventEmitter {
         if (record.info.status === "running") {
           record.process.write("\r");
         }
-      }, CODEX_QUEUED_SUBMIT_DELAY_MS);
+      }, this.terminalRuntimeOptions.agentSubmitDelayMs);
       return;
     }
   }
@@ -708,8 +758,8 @@ export class TerminalManager extends EventEmitter {
       tmuxPath: availability.path,
       sessionName: tmuxSessionName,
       paneId: tmuxPaneId,
-      cols: 120,
-      rows: 32,
+      cols: this.terminalRuntimeOptions.initialColumns,
+      rows: this.terminalRuntimeOptions.initialRows,
       cwd,
       env: {
         ...process.env,
@@ -1125,24 +1175,24 @@ class TerminalLineBuffer {
   }
 }
 
-function terminalHealth(record: TerminalRecord, now = Date.now()): TerminalHealthState {
+function terminalHealth(record: TerminalRecord, options: Required<TerminalRuntimeOptions>, now = Date.now()): TerminalHealthState {
   if (record.info.status === "exited") {
     return "exited";
   }
   if (record.paneStatus === "missing" || record.paneStatus === "dead" || record.bridgeDetached) {
     return "unhealthy";
   }
-  if (record.lastInputAt && (!record.lastOutputAt || record.lastOutputAt < record.lastInputAt) && now - record.lastInputAt > 10_000) {
+  if (record.lastInputAt && (!record.lastOutputAt || record.lastOutputAt < record.lastInputAt) && now - record.lastInputAt > options.unresponsiveThresholdMs) {
     return "unhealthy";
   }
-  if (!record.lastOutputAt || now - record.lastOutputAt > 120_000) {
+  if (!record.lastOutputAt || now - record.lastOutputAt > options.idleThresholdMs) {
     return "idle";
   }
   return "healthy";
 }
 
-function terminalHealthDetail(record: TerminalRecord, now = Date.now()): string {
-  const health = terminalHealth(record, now);
+function terminalHealthDetail(record: TerminalRecord, options: Required<TerminalRuntimeOptions>, now = Date.now()): string {
+  const health = terminalHealth(record, options, now);
   if (health === "exited") {
     return record.info.exitCode === undefined ? "Process exited." : `Process exited with code ${record.info.exitCode}.`;
   }
@@ -1156,12 +1206,16 @@ function terminalHealthDetail(record: TerminalRecord, now = Date.now()): string 
     return "Tmux session is alive but Exo's attach bridge is detached; reconnect the terminal.";
   }
   if (health === "unhealthy") {
-    return "Input was sent but no terminal output has been observed for more than 10 seconds.";
+    return `Input was sent but no terminal output has been observed for more than ${formatDuration(options.unresponsiveThresholdMs)}.`;
   }
   if (health === "idle") {
     return "No recent terminal output; terminal may simply be waiting for input.";
   }
   return "Recent terminal input/output observed.";
+}
+
+function formatDuration(durationMs: number): string {
+  return durationMs < 1000 ? `${durationMs}ms` : `${Math.round(durationMs / 1000)} seconds`;
 }
 
 function normalizeBufferLineLimit(value: number | null | undefined): number | null {
@@ -1179,6 +1233,27 @@ function normalizeTranscriptRetentionDays(value: number): number {
     return 0;
   }
   return Math.max(0, Math.min(3650, Math.floor(value)));
+}
+
+function normalizeTerminalRuntimeOptions(options: TerminalRuntimeOptions): Required<TerminalRuntimeOptions> {
+  return {
+    inputCoalesceMs: integerAtLeast(options.inputCoalesceMs, DEFAULT_TERMINAL_RUNTIME_OPTIONS.inputCoalesceMs, 0),
+    agentStartupGraceMs: integerAtLeast(options.agentStartupGraceMs, DEFAULT_TERMINAL_RUNTIME_OPTIONS.agentStartupGraceMs, 0),
+    agentSubmitDelayMs: integerAtLeast(options.agentSubmitDelayMs, DEFAULT_TERMINAL_RUNTIME_OPTIONS.agentSubmitDelayMs, 0),
+    initialColumns: integerAtLeast(options.initialColumns, DEFAULT_TERMINAL_RUNTIME_OPTIONS.initialColumns, 20),
+    initialRows: integerAtLeast(options.initialRows, DEFAULT_TERMINAL_RUNTIME_OPTIONS.initialRows, 8),
+    minimumColumns: integerAtLeast(options.minimumColumns, DEFAULT_TERMINAL_RUNTIME_OPTIONS.minimumColumns, 1),
+    minimumRows: integerAtLeast(options.minimumRows, DEFAULT_TERMINAL_RUNTIME_OPTIONS.minimumRows, 1),
+    unresponsiveThresholdMs: integerAtLeast(options.unresponsiveThresholdMs, DEFAULT_TERMINAL_RUNTIME_OPTIONS.unresponsiveThresholdMs, 1_000),
+    idleThresholdMs: integerAtLeast(options.idleThresholdMs, DEFAULT_TERMINAL_RUNTIME_OPTIONS.idleThresholdMs, 1_000),
+  };
+}
+
+function integerAtLeast(value: number | undefined, fallback: number, min: number): number {
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+  return Math.max(min, Math.floor(value as number));
 }
 
 function terminalNumericId(id: string): number {

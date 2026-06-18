@@ -1,6 +1,6 @@
 # Terminal Quality Standard
 
-Last updated: 2026-06-13
+Last updated: 2026-06-18
 
 Terminals are a core Exo surface. They must feel like a normal local terminal, not like an embedded widget with special failure modes. If typing lags, output corrupts, scrollback behaves unpredictably, focus requires extra clicks, bottom status lines are clipped, or long-running agent sessions are lost during ordinary laptop use, the feature fails the useability standard.
 
@@ -16,6 +16,30 @@ Exo terminals must meet these user-facing requirements:
 - Health/recovery states are visible and actionable.
 - Terminal focus works on the first click after using editor, explorer, browser preview, or settings.
 - Alternate-screen programs, wrapped lines, ANSI color/style output, status bars, and interactive prompts render correctly.
+- Values that affect user-visible terminal behavior are configurable in workspace settings and exposed in the Settings UI with concrete units.
+
+## Configuration And Debuggability Standard
+
+Terminal behavior must not depend on hidden hardcoded caps or tuning values. Defaults are allowed, but they must be defaults for visible settings, not private limits embedded in runtime code.
+
+Any value that can change user-visible capability, reliability, latency, history, or recovery behavior must live in workspace settings and be visible/editable in Settings:
+
+- live scrollback line count
+- transcript retention
+- terminal read/tail defaults and maximums used by CLI/MCP/app reads
+- input coalescing delay
+- agent startup/message-submit timing
+- initial and minimum terminal geometry
+
+Implementation constants are allowed only when they are protocol facts or internal invariants rather than user capability limits. Examples: ANSI/tmux key names, escape-sequence parsing tokens, fixed command protocol route names, and test fixture values.
+
+Every new terminal value must be classified before merge:
+
+- user setting exposed in Settings UI
+- documented internal invariant with a clear reason it should not be user-tunable
+- test-only fixture value
+
+If a value would help a human debug lag, scrollback, rendering, focus, process survival, or agent-read behavior, it belongs in config and Settings.
 
 ## Pass/Fail Criteria
 
@@ -126,9 +150,10 @@ Terminal diagnostics should expose:
 - xterm write queue bytes
 - xterm write drain latency
 - live scrollback line count
+- configured terminal runtime values
 - transcript path and write status
 - last resize dimensions and timestamp
 
 The UI should surface unhealthy states without requiring users to inspect logs.
 
--- Shoshin | 2026-06-13
+-- Shoshin | 2026-06-18

@@ -8,6 +8,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
+import { DEFAULT_TERMINAL_MAX_READ_TAIL_CHARS, DEFAULT_TERMINAL_READ_TAIL_CHARS } from "@exo/core/terminal-settings";
 import * as z from "zod/v4";
 
 import { ExoCommandClient, formatAgents, stripAnsi } from "./exo-client";
@@ -177,7 +178,7 @@ server.registerTool(
     description: "Read the bounded live terminal tail for one Exo agent. This is read-only.",
     inputSchema: {
       agentId: z.string().min(1).describe("Agent id from list_agents, for example term-3."),
-      tailChars: z.number().int().positive().max(200_000).default(20_000).describe("Maximum characters to return from the end of the transcript."),
+      tailChars: z.number().int().nonnegative().optional().describe("Maximum characters to return from the end of the transcript. Omit to use Exo's configured default; 0 returns the full transcript unless the configured maximum is lower."),
       clean: z.boolean().default(true).describe("Strip ANSI terminal escape codes before returning output."),
     },
     annotations: {
@@ -188,11 +189,18 @@ server.registerTool(
   },
   async ({ agentId, tailChars, clean }) => {
     const client = await ExoCommandClient.connect();
-    const rawOutput = await client.readAgent(agentId, tailChars);
+    const config = await client.getConfig();
+    const configuredDefault = readNonNegativeInteger(config.terminalReadTailChars, DEFAULT_TERMINAL_READ_TAIL_CHARS);
+    const configuredMax = readNonNegativeInteger(config.terminalMaxReadTailChars, DEFAULT_TERMINAL_MAX_READ_TAIL_CHARS);
+    const requestedTailChars = tailChars ?? configuredDefault;
+    const effectiveTailChars = configuredMax > 0 && requestedTailChars > 0
+      ? Math.min(requestedTailChars, configuredMax)
+      : requestedTailChars;
+    const rawOutput = await client.readAgent(agentId, effectiveTailChars);
     const output = clean ? stripAnsi(rawOutput) : rawOutput;
     return {
       content: [{ type: "text", text: output || "(no buffered output)" }],
-      structuredContent: { agentId, output },
+      structuredContent: { agentId, output, tailChars: effectiveTailChars },
     };
   },
 );
@@ -426,6 +434,10 @@ function sendJsonRpcError(res: ServerResponse, status: number, message: string) 
   res.statusCode = status;
   res.setHeader("content-type", "application/json");
   res.end(JSON.stringify({ jsonrpc: "2.0", error: { code: -32000, message }, id: null }));
+}
+
+function readNonNegativeInteger(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : fallback;
 }
 
 export async function runCli(argv = process.argv) {

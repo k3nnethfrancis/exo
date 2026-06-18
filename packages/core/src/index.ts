@@ -1,6 +1,7 @@
 export * from "./types";
 export * from "./workspace";
 export * from "./workspace-settings";
+export * from "./terminal-settings";
 export * from "./notes";
 export * from "./branches";
 export * from "./plugin";

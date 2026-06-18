@@ -375,6 +375,7 @@ app.whenReady().then(async () => {
     workspaceModel.defaultTerminalCwd,
     terminalPolicy.bufferLineLimit,
     terminalPolicy.transcriptRetentionDays,
+    terminalPolicy,
   );
   indexingService = new IndexingService({
     getWorkspaceModel: () => workspaceModel,

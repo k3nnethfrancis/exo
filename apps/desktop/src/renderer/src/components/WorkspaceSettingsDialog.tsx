@@ -530,6 +530,155 @@ function TerminalSection({
           />
         </label>
       ) : null}
+      <label className="dialog-field">
+        <span className="dialog-field__label">
+          Agent read default characters
+          <HelpTooltip label="Default terminal transcript characters returned when an agent reads a session without requesting a specific tail size." />
+        </span>
+        <input
+          className="dialog-card__input"
+          data-testid="workspace-settings-terminal-read-tail-chars"
+          type="number"
+          min={0}
+          step={1000}
+          value={settings.terminalReadTailChars}
+          onChange={(event) => setSettings((current) => (current ? { ...current, terminalReadTailChars: event.target.value, saveStatus: "idle", errorMessage: null } : current))}
+        />
+      </label>
+      <label className="dialog-field">
+        <span className="dialog-field__label">
+          Agent read maximum characters
+          <HelpTooltip label="Maximum terminal transcript characters an agent can request through Exo MCP. Set higher when debugging long sessions." />
+        </span>
+        <input
+          className="dialog-card__input"
+          data-testid="workspace-settings-terminal-max-read-tail-chars"
+          type="number"
+          min={0}
+          step={10000}
+          value={settings.terminalMaxReadTailChars}
+          onChange={(event) => setSettings((current) => (current ? { ...current, terminalMaxReadTailChars: event.target.value, saveStatus: "idle", errorMessage: null } : current))}
+        />
+      </label>
+      <label className="dialog-field">
+        <span className="dialog-field__label">
+          Input coalesce milliseconds
+          <HelpTooltip label="How long Exo batches rapid raw terminal input before writing it to tmux. Lower values favor immediate keystrokes; higher values can reduce write churn." />
+        </span>
+        <input
+          className="dialog-card__input"
+          data-testid="workspace-settings-terminal-input-coalesce-ms"
+          type="number"
+          min={0}
+          step={5}
+          value={settings.terminalInputCoalesceMs}
+          onChange={(event) => setSettings((current) => (current ? { ...current, terminalInputCoalesceMs: event.target.value, saveStatus: "idle", errorMessage: null } : current))}
+        />
+      </label>
+      <label className="dialog-field">
+        <span className="dialog-field__label">
+          Agent startup grace milliseconds
+          <HelpTooltip label="How long Exo waits before flushing queued startup input to agent harnesses that show startup interstitials." />
+        </span>
+        <input
+          className="dialog-card__input"
+          data-testid="workspace-settings-terminal-agent-startup-grace-ms"
+          type="number"
+          min={0}
+          step={100}
+          value={settings.terminalAgentStartupGraceMs}
+          onChange={(event) => setSettings((current) => (current ? { ...current, terminalAgentStartupGraceMs: event.target.value, saveStatus: "idle", errorMessage: null } : current))}
+        />
+      </label>
+      <label className="dialog-field">
+        <span className="dialog-field__label">
+          Agent submit delay milliseconds
+          <HelpTooltip label="Delay before pressing Enter for queued startup messages after an agent harness becomes ready." />
+        </span>
+        <input
+          className="dialog-card__input"
+          data-testid="workspace-settings-terminal-agent-submit-delay-ms"
+          type="number"
+          min={0}
+          step={20}
+          value={settings.terminalAgentSubmitDelayMs}
+          onChange={(event) => setSettings((current) => (current ? { ...current, terminalAgentSubmitDelayMs: event.target.value, saveStatus: "idle", errorMessage: null } : current))}
+        />
+      </label>
+      <label className="dialog-field">
+        <span className="dialog-field__label">Initial terminal columns</span>
+        <input
+          className="dialog-card__input"
+          data-testid="workspace-settings-terminal-initial-columns"
+          type="number"
+          min={20}
+          value={settings.terminalInitialColumns}
+          onChange={(event) => setSettings((current) => (current ? { ...current, terminalInitialColumns: event.target.value, saveStatus: "idle", errorMessage: null } : current))}
+        />
+      </label>
+      <label className="dialog-field">
+        <span className="dialog-field__label">Initial terminal rows</span>
+        <input
+          className="dialog-card__input"
+          data-testid="workspace-settings-terminal-initial-rows"
+          type="number"
+          min={8}
+          value={settings.terminalInitialRows}
+          onChange={(event) => setSettings((current) => (current ? { ...current, terminalInitialRows: event.target.value, saveStatus: "idle", errorMessage: null } : current))}
+        />
+      </label>
+      <label className="dialog-field">
+        <span className="dialog-field__label">Minimum terminal columns</span>
+        <input
+          className="dialog-card__input"
+          data-testid="workspace-settings-terminal-minimum-columns"
+          type="number"
+          min={1}
+          value={settings.terminalMinimumColumns}
+          onChange={(event) => setSettings((current) => (current ? { ...current, terminalMinimumColumns: event.target.value, saveStatus: "idle", errorMessage: null } : current))}
+        />
+      </label>
+      <label className="dialog-field">
+        <span className="dialog-field__label">Minimum terminal rows</span>
+        <input
+          className="dialog-card__input"
+          data-testid="workspace-settings-terminal-minimum-rows"
+          type="number"
+          min={1}
+          value={settings.terminalMinimumRows}
+          onChange={(event) => setSettings((current) => (current ? { ...current, terminalMinimumRows: event.target.value, saveStatus: "idle", errorMessage: null } : current))}
+        />
+      </label>
+      <label className="dialog-field">
+        <span className="dialog-field__label">
+          Unresponsive threshold milliseconds
+          <HelpTooltip label="How long Exo waits after input without output before marking a terminal unhealthy." />
+        </span>
+        <input
+          className="dialog-card__input"
+          data-testid="workspace-settings-terminal-unresponsive-threshold-ms"
+          type="number"
+          min={1000}
+          step={1000}
+          value={settings.terminalUnresponsiveThresholdMs}
+          onChange={(event) => setSettings((current) => (current ? { ...current, terminalUnresponsiveThresholdMs: event.target.value, saveStatus: "idle", errorMessage: null } : current))}
+        />
+      </label>
+      <label className="dialog-field">
+        <span className="dialog-field__label">
+          Idle threshold milliseconds
+          <HelpTooltip label="How long Exo waits without terminal output before showing an idle health state." />
+        </span>
+        <input
+          className="dialog-card__input"
+          data-testid="workspace-settings-terminal-idle-threshold-ms"
+          type="number"
+          min={1000}
+          step={1000}
+          value={settings.terminalIdleThresholdMs}
+          onChange={(event) => setSettings((current) => (current ? { ...current, terminalIdleThresholdMs: event.target.value, saveStatus: "idle", errorMessage: null } : current))}
+        />
+      </label>
     </div>
   );
 }

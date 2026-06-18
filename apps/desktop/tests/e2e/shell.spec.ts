@@ -833,6 +833,11 @@ test("opens workspace settings from the sidebar", async () => {
   await page.getByTestId("workspace-settings-terminal-history-lines").fill("250000");
   await expect(page.getByTestId("workspace-settings-terminal-history-lines")).toHaveValue("250000");
   await expect(page.getByTestId("workspace-settings-terminal-transcript-retention")).toHaveValue("forever");
+  await expect(page.getByTestId("workspace-settings-terminal-read-tail-chars")).toHaveValue("20000");
+  await expect(page.getByTestId("workspace-settings-terminal-max-read-tail-chars")).toHaveValue("200000");
+  await expect(page.getByTestId("workspace-settings-terminal-input-coalesce-ms")).toHaveValue("40");
+  await expect(page.getByTestId("workspace-settings-terminal-unresponsive-threshold-ms")).toHaveValue("10000");
+  await expect(page.getByTestId("workspace-settings-terminal-idle-threshold-ms")).toHaveValue("120000");
   await expect(page.getByTestId("workspace-settings-dialog")).not.toContainText("Agent streaming");
   await expect(page.getByTestId("workspace-settings-dialog")).not.toContainText("Agent terminal transport");
 

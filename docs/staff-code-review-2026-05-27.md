@@ -4,7 +4,7 @@ Scope: post-modularization review of `apps/desktop/src/renderer/src/App.tsx`, `a
 
 Update 2026-05-28: the terminal runtime findings from the original review were resolved by the direct-pty simplification pass. Core terminals are now direct `node-pty` only, tmux runtime paths were removed, live display ownership stays in xterm, renderer hydration uses bounded tail snapshots, and full history is transcript-only. Keep future work focused on the remaining modularity and contract risks below.
 
-Update 2026-06-13: the direct-pty terminal guidance in this historical review is superseded by `terminal-runtime-decision.md`, `terminal-refactor-plan.md`, and `terminal-quality-standard.md`. The current decision is to move daily Exo terminals to a tmux-backed runtime with `node-pty` as the attach bridge, while preserving append-driven xterm rendering and deterministic terminal QA.
+Update 2026-06-18: the direct-pty terminal guidance in this historical review is superseded by `terminal-runtime-decision.md` and `terminal-quality-standard.md`. Daily Exo terminals now use a tmux-backed runtime with Exo's tmux control-mode bridge, while preserving append-driven xterm rendering and deterministic terminal QA.
 
 ## Executive Summary
 
@@ -17,7 +17,7 @@ Highest-priority cleanup should focus on main-process service boundaries, render
 ### Terminal Runtime And Rendering Ownership
 
 - Resolved at the time by the direct-pty terminal cleanup; superseded by the 2026-06-13 tmux-backed runtime decision.
-- New shell, Claude, and Codex sessions use tmux-backed sessions with `node-pty` as the attach bridge.
+- New shell, Claude, and Codex sessions use tmux-backed sessions with Exo's tmux control-mode bridge.
 - Renderer terminal rendering is append-driven into xterm. React state is not the live output owner.
 - Hydration reads a bounded live tail. Full history is available through transcripts.
 - Remaining risk: `EXO-ISSUE-021` tracks the Electron/Playwright harness timeout after many serial app launches; affected terminal behavior passes focused tests.

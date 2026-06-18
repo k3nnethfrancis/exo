@@ -1,6 +1,8 @@
 # Terminal Refactor Plan
 
-Last updated: 2026-06-13
+Last updated: 2026-06-18
+
+Status note: this plan is historical for the tmux migration. The current implementation uses tmux control mode as Exo's live bridge and does not use `node-pty`. For current requirements and implementation rules, use `docs/terminal-runtime-decision.md` and `docs/terminal-quality-standard.md`.
 
 ## Goal
 

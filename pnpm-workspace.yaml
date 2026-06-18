@@ -11,7 +11,6 @@ allowBuilds:
   electron-winstaller: true
   esbuild: true
   node-llama-cpp: true
-  node-pty: true
   tree-sitter-go: true
   tree-sitter-javascript: true
   tree-sitter-python: true

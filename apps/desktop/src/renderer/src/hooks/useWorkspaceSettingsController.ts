@@ -1,5 +1,21 @@
 import { useEffect, useRef, useState, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
-import type { IndexStatus, WorkspaceSettings } from "@exo/core";
+import {
+  type IndexStatus,
+  type WorkspaceSettings,
+} from "@exo/core";
+import {
+  DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS,
+  DEFAULT_TERMINAL_AGENT_SUBMIT_DELAY_MS,
+  DEFAULT_TERMINAL_IDLE_THRESHOLD_MS,
+  DEFAULT_TERMINAL_INITIAL_COLUMNS,
+  DEFAULT_TERMINAL_INITIAL_ROWS,
+  DEFAULT_TERMINAL_INPUT_COALESCE_MS,
+  DEFAULT_TERMINAL_MAX_READ_TAIL_CHARS,
+  DEFAULT_TERMINAL_MINIMUM_COLUMNS,
+  DEFAULT_TERMINAL_MINIMUM_ROWS,
+  DEFAULT_TERMINAL_READ_TAIL_CHARS,
+  DEFAULT_TERMINAL_UNRESPONSIVE_THRESHOLD_MS,
+} from "@exo/core/terminal-settings";
 
 import type { AppearanceMode } from "../appearance";
 import {
@@ -101,6 +117,17 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
       terminalHistoryLines: String(settings.terminalHistoryLines),
       terminalTranscriptRetention: settings.terminalTranscriptRetention,
       terminalTranscriptRetentionDays: String(settings.terminalTranscriptRetentionDays),
+      terminalInputCoalesceMs: String(settings.terminalInputCoalesceMs ?? DEFAULT_TERMINAL_INPUT_COALESCE_MS),
+      terminalAgentStartupGraceMs: String(settings.terminalAgentStartupGraceMs ?? DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS),
+      terminalAgentSubmitDelayMs: String(settings.terminalAgentSubmitDelayMs ?? DEFAULT_TERMINAL_AGENT_SUBMIT_DELAY_MS),
+      terminalInitialColumns: String(settings.terminalInitialColumns ?? DEFAULT_TERMINAL_INITIAL_COLUMNS),
+      terminalInitialRows: String(settings.terminalInitialRows ?? DEFAULT_TERMINAL_INITIAL_ROWS),
+      terminalMinimumColumns: String(settings.terminalMinimumColumns ?? DEFAULT_TERMINAL_MINIMUM_COLUMNS),
+      terminalMinimumRows: String(settings.terminalMinimumRows ?? DEFAULT_TERMINAL_MINIMUM_ROWS),
+      terminalReadTailChars: String(settings.terminalReadTailChars ?? DEFAULT_TERMINAL_READ_TAIL_CHARS),
+      terminalMaxReadTailChars: String(settings.terminalMaxReadTailChars ?? DEFAULT_TERMINAL_MAX_READ_TAIL_CHARS),
+      terminalUnresponsiveThresholdMs: String(settings.terminalUnresponsiveThresholdMs ?? DEFAULT_TERMINAL_UNRESPONSIVE_THRESHOLD_MS),
+      terminalIdleThresholdMs: String(settings.terminalIdleThresholdMs ?? DEFAULT_TERMINAL_IDLE_THRESHOLD_MS),
       explorerScale: String(settings.explorerScale),
       exploreIndexSearchOnEnter: settings.exploreIndexSearchOnEnter,
       indexUpdateStrategy: settings.indexUpdateStrategy,
@@ -314,6 +341,11 @@ function workspaceSettingsFromDialog(
   const terminalHistoryLines = Number.isFinite(parsedTerminalHistoryLines)
     ? Math.max(MIN_TERMINAL_HISTORY_LINES, parsedTerminalHistoryLines)
     : MIN_TERMINAL_HISTORY_LINES;
+  const terminalReadTailChars = integerAtLeast(Number(settingsDialog.terminalReadTailChars), DEFAULT_TERMINAL_READ_TAIL_CHARS, 0);
+  const terminalMaxReadTailChars = Math.max(
+    terminalReadTailChars,
+    integerAtLeast(Number(settingsDialog.terminalMaxReadTailChars), DEFAULT_TERMINAL_MAX_READ_TAIL_CHARS, 0),
+  );
 
   return {
     workspaceRoot: options.includeStructural ? fallbackStructural.workspaceRoot : currentSettings?.workspaceRoot ?? fallbackStructural.workspaceRoot,
@@ -337,8 +369,23 @@ function workspaceSettingsFromDialog(
     terminalHistoryLines,
     terminalTranscriptRetention: settingsDialog.terminalTranscriptRetention,
     terminalTranscriptRetentionDays: clampNumber(Number(settingsDialog.terminalTranscriptRetentionDays), 1, 3650),
+    terminalInputCoalesceMs: integerAtLeast(Number(settingsDialog.terminalInputCoalesceMs), DEFAULT_TERMINAL_INPUT_COALESCE_MS, 0),
+    terminalAgentStartupGraceMs: integerAtLeast(Number(settingsDialog.terminalAgentStartupGraceMs), DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS, 0),
+    terminalAgentSubmitDelayMs: integerAtLeast(Number(settingsDialog.terminalAgentSubmitDelayMs), DEFAULT_TERMINAL_AGENT_SUBMIT_DELAY_MS, 0),
+    terminalInitialColumns: integerAtLeast(Number(settingsDialog.terminalInitialColumns), DEFAULT_TERMINAL_INITIAL_COLUMNS, 20),
+    terminalInitialRows: integerAtLeast(Number(settingsDialog.terminalInitialRows), DEFAULT_TERMINAL_INITIAL_ROWS, 8),
+    terminalMinimumColumns: integerAtLeast(Number(settingsDialog.terminalMinimumColumns), DEFAULT_TERMINAL_MINIMUM_COLUMNS, 1),
+    terminalMinimumRows: integerAtLeast(Number(settingsDialog.terminalMinimumRows), DEFAULT_TERMINAL_MINIMUM_ROWS, 1),
+    terminalReadTailChars,
+    terminalMaxReadTailChars,
+    terminalUnresponsiveThresholdMs: integerAtLeast(Number(settingsDialog.terminalUnresponsiveThresholdMs), DEFAULT_TERMINAL_UNRESPONSIVE_THRESHOLD_MS, 1_000),
+    terminalIdleThresholdMs: integerAtLeast(Number(settingsDialog.terminalIdleThresholdMs), DEFAULT_TERMINAL_IDLE_THRESHOLD_MS, 1_000),
     explorerScale: clampNumber(Number(settingsDialog.explorerScale), 0.82, 1.35),
     exploreIndexSearchOnEnter: settingsDialog.exploreIndexSearchOnEnter,
     indexUpdateStrategy: settingsDialog.indexUpdateStrategy,
   };
+}
+
+function integerAtLeast(value: number, fallback: number, min: number): number {
+  return Number.isFinite(value) ? Math.max(min, Math.floor(value)) : fallback;
 }

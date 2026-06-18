@@ -117,7 +117,7 @@ For simple fixes, compress these steps into one turn, but keep the same discipli
 Current boundaries are documented but not mechanically enforced:
 
 - Renderer uses `window.exo`; it does not import Node filesystem/process APIs directly.
-- Electron main owns filesystem/process/pty behavior.
+- Electron main owns filesystem/process/terminal-runtime behavior.
 - `packages/core` owns portable workspace/runtime/protocol logic.
 - `packages/cli` and `packages/mcp` are clients of the command server contract.
 

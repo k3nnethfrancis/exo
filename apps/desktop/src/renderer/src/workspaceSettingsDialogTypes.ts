@@ -22,6 +22,17 @@ export interface WorkspaceSettingsDialogState {
   terminalHistoryLines: string;
   terminalTranscriptRetention: WorkspaceSettings["terminalTranscriptRetention"];
   terminalTranscriptRetentionDays: string;
+  terminalInputCoalesceMs: string;
+  terminalAgentStartupGraceMs: string;
+  terminalAgentSubmitDelayMs: string;
+  terminalInitialColumns: string;
+  terminalInitialRows: string;
+  terminalMinimumColumns: string;
+  terminalMinimumRows: string;
+  terminalReadTailChars: string;
+  terminalMaxReadTailChars: string;
+  terminalUnresponsiveThresholdMs: string;
+  terminalIdleThresholdMs: string;
   explorerScale: string;
   exploreIndexSearchOnEnter: boolean;
   indexUpdateStrategy: WorkspaceSettings["indexUpdateStrategy"];

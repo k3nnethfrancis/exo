@@ -3,10 +3,21 @@ import {
   DEFAULT_EDITOR_FONT_SIZE,
   DEFAULT_EXPLORER_SCALE,
   DEFAULT_TERMINAL_FONT_SIZE,
+  DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS,
+  DEFAULT_TERMINAL_AGENT_SUBMIT_DELAY_MS,
   DEFAULT_TERMINAL_HISTORY_LINES,
   DEFAULT_TERMINAL_HISTORY_MODE,
+  DEFAULT_TERMINAL_INITIAL_COLUMNS,
+  DEFAULT_TERMINAL_INITIAL_ROWS,
+  DEFAULT_TERMINAL_INPUT_COALESCE_MS,
+  DEFAULT_TERMINAL_IDLE_THRESHOLD_MS,
+  DEFAULT_TERMINAL_MAX_READ_TAIL_CHARS,
+  DEFAULT_TERMINAL_MINIMUM_COLUMNS,
+  DEFAULT_TERMINAL_MINIMUM_ROWS,
+  DEFAULT_TERMINAL_READ_TAIL_CHARS,
   DEFAULT_TERMINAL_TRANSCRIPT_RETENTION,
   DEFAULT_TERMINAL_TRANSCRIPT_RETENTION_DAYS,
+  DEFAULT_TERMINAL_UNRESPONSIVE_THRESHOLD_MS,
   MIN_TERMINAL_HISTORY_LINES,
   getWorkspaceRegistryEntry,
   listWorkspaceRegistryEntries,
@@ -26,10 +37,21 @@ export {
   DEFAULT_EDITOR_FONT_SIZE,
   DEFAULT_EXPLORER_SCALE,
   DEFAULT_TERMINAL_FONT_SIZE,
+  DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS,
+  DEFAULT_TERMINAL_AGENT_SUBMIT_DELAY_MS,
   DEFAULT_TERMINAL_HISTORY_LINES,
   DEFAULT_TERMINAL_HISTORY_MODE,
+  DEFAULT_TERMINAL_INITIAL_COLUMNS,
+  DEFAULT_TERMINAL_INITIAL_ROWS,
+  DEFAULT_TERMINAL_INPUT_COALESCE_MS,
+  DEFAULT_TERMINAL_IDLE_THRESHOLD_MS,
+  DEFAULT_TERMINAL_MAX_READ_TAIL_CHARS,
+  DEFAULT_TERMINAL_MINIMUM_COLUMNS,
+  DEFAULT_TERMINAL_MINIMUM_ROWS,
+  DEFAULT_TERMINAL_READ_TAIL_CHARS,
   DEFAULT_TERMINAL_TRANSCRIPT_RETENTION,
   DEFAULT_TERMINAL_TRANSCRIPT_RETENTION_DAYS,
+  DEFAULT_TERMINAL_UNRESPONSIVE_THRESHOLD_MS,
   MIN_TERMINAL_HISTORY_LINES,
   type WorkspaceRegistryEntry,
 };
@@ -43,6 +65,17 @@ export interface TerminalRuntimePolicy {
   scrollbackLines: number;
   bufferLineLimit: number | null;
   transcriptRetentionDays: number;
+  inputCoalesceMs: number;
+  agentStartupGraceMs: number;
+  agentSubmitDelayMs: number;
+  initialColumns: number;
+  initialRows: number;
+  minimumColumns: number;
+  minimumRows: number;
+  readTailChars: number;
+  maxReadTailChars: number;
+  unresponsiveThresholdMs: number;
+  idleThresholdMs: number;
 }
 
 export class WorkspaceSettingsStore {
@@ -79,6 +112,17 @@ export class WorkspaceSettingsStore {
       terminalHistoryLines: DEFAULT_TERMINAL_HISTORY_LINES,
       terminalTranscriptRetention: DEFAULT_TERMINAL_TRANSCRIPT_RETENTION,
       terminalTranscriptRetentionDays: DEFAULT_TERMINAL_TRANSCRIPT_RETENTION_DAYS,
+      terminalInputCoalesceMs: DEFAULT_TERMINAL_INPUT_COALESCE_MS,
+      terminalAgentStartupGraceMs: DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS,
+      terminalAgentSubmitDelayMs: DEFAULT_TERMINAL_AGENT_SUBMIT_DELAY_MS,
+      terminalInitialColumns: DEFAULT_TERMINAL_INITIAL_COLUMNS,
+      terminalInitialRows: DEFAULT_TERMINAL_INITIAL_ROWS,
+      terminalMinimumColumns: DEFAULT_TERMINAL_MINIMUM_COLUMNS,
+      terminalMinimumRows: DEFAULT_TERMINAL_MINIMUM_ROWS,
+      terminalReadTailChars: DEFAULT_TERMINAL_READ_TAIL_CHARS,
+      terminalMaxReadTailChars: DEFAULT_TERMINAL_MAX_READ_TAIL_CHARS,
+      terminalUnresponsiveThresholdMs: DEFAULT_TERMINAL_UNRESPONSIVE_THRESHOLD_MS,
+      terminalIdleThresholdMs: DEFAULT_TERMINAL_IDLE_THRESHOLD_MS,
       explorerScale: DEFAULT_EXPLORER_SCALE,
       exploreIndexSearchOnEnter: model.indexing.enabled && model.indexing.mode !== "off" && model.indexedRoots.length > 0,
       indexUpdateStrategy: "on-save",
@@ -137,5 +181,19 @@ export function resolveTerminalRuntimePolicy(settings: WorkspaceSettings): Termi
     scrollbackLines: resolveTerminalScrollbackLines(settings.terminalHistoryMode, settings.terminalHistoryLines),
     bufferLineLimit: resolveTerminalBufferLineLimit(settings.terminalHistoryMode, settings.terminalHistoryLines),
     transcriptRetentionDays: resolveTranscriptRetentionDays(settings),
+    inputCoalesceMs: settings.terminalInputCoalesceMs ?? DEFAULT_TERMINAL_INPUT_COALESCE_MS,
+    agentStartupGraceMs: settings.terminalAgentStartupGraceMs ?? DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS,
+    agentSubmitDelayMs: settings.terminalAgentSubmitDelayMs ?? DEFAULT_TERMINAL_AGENT_SUBMIT_DELAY_MS,
+    initialColumns: settings.terminalInitialColumns ?? DEFAULT_TERMINAL_INITIAL_COLUMNS,
+    initialRows: settings.terminalInitialRows ?? DEFAULT_TERMINAL_INITIAL_ROWS,
+    minimumColumns: settings.terminalMinimumColumns ?? DEFAULT_TERMINAL_MINIMUM_COLUMNS,
+    minimumRows: settings.terminalMinimumRows ?? DEFAULT_TERMINAL_MINIMUM_ROWS,
+    readTailChars: settings.terminalReadTailChars ?? DEFAULT_TERMINAL_READ_TAIL_CHARS,
+    maxReadTailChars: Math.max(
+      settings.terminalReadTailChars ?? DEFAULT_TERMINAL_READ_TAIL_CHARS,
+      settings.terminalMaxReadTailChars ?? DEFAULT_TERMINAL_MAX_READ_TAIL_CHARS,
+    ),
+    unresponsiveThresholdMs: settings.terminalUnresponsiveThresholdMs ?? DEFAULT_TERMINAL_UNRESPONSIVE_THRESHOLD_MS,
+    idleThresholdMs: settings.terminalIdleThresholdMs ?? DEFAULT_TERMINAL_IDLE_THRESHOLD_MS,
   };
 }

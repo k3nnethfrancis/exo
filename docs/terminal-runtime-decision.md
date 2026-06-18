@@ -1,6 +1,6 @@
 # Terminal Runtime Decision
 
-Last updated: 2026-06-13
+Last updated: 2026-06-18
 
 ## Decision
 
@@ -11,12 +11,13 @@ The target architecture is:
 ```text
 xterm.js renderer
   <-> Exo terminal renderer bridge
-  <-> node-pty attach process
-  <-> tmux session/window/pane
+  <-> TerminalManager
+  <-> tmux control-mode bridge (`tmux -C`)
+  <-> tmux pane
   <-> shell / Claude / Codex / future terminal agent
 ```
 
-`node-pty` remains part of the implementation, but only as the local bridge that attaches Exo to tmux. The durable user process should live inside tmux.
+`node-pty` is not part of the current terminal runtime. The durable user process lives inside tmux, and Exo attaches through a narrow tmux control-mode bridge that streams pane output/input without rendering a nested tmux client viewport.
 
 There should be one standard terminal runtime path for daily Exo use. Do not expose a direct-pty versus tmux preference, do not keep direct pty as a hidden fallback, and do not reintroduce mixed terminal transports inside `TerminalManager`.
 
@@ -77,6 +78,7 @@ In particular:
 - mounted terminals must receive live append events only
 - xterm must not reset/replay during normal focus or tab switching
 - scrollback must be predictable and configurable
+- user-visible terminal caps and tuning values must come from workspace settings and be exposed in Settings UI
 - full transcripts must remain durable
 - no automated test should depend on live Claude/Codex inference
 - fake provider commands should cover agent-like terminal behavior deterministically
@@ -88,15 +90,17 @@ Implement tmux behind one explicit terminal runtime boundary.
 Allowed:
 
 - `TerminalManager` delegates lifecycle to a tmux-backed runtime.
-- `node-pty` attaches Exo to tmux for live rendering/input.
+- tmux control mode attaches Exo to the tmux pane for live rendering/input.
 - Exo persists its own session registry mapping Exo terminal ids to tmux sessions/panes.
 - Exo exposes clear health and recovery actions.
 
 Not allowed:
 
 - direct pty as a hidden fallback
+- `node-pty` as a stale attach bridge or hidden fallback
 - user-facing runtime transport preference
 - scattered tmux command construction inside unrelated code
+- hidden hardcoded terminal caps or timing values that are not configurable in Settings
 - using React state as the live terminal output source
 - routine `terminals.read()` hydration for mounted/live terminals
 - automated tests that call real Claude/Codex inference
@@ -105,4 +109,4 @@ Not allowed:
 
 See `docs/terminal-refactor-plan.md`.
 
--- Shoshin | 2026-06-13
+-- Shoshin | 2026-06-18

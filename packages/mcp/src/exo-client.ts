@@ -81,6 +81,10 @@ export class ExoCommandClient {
     return this.get(EXO_COMMAND_ROUTES.status);
   }
 
+  async getConfig(): Promise<Record<string, unknown>> {
+    return this.get(EXO_COMMAND_ROUTES.config);
+  }
+
   async getIndexStatus(): Promise<Record<string, unknown>> {
     return this.get(EXO_COMMAND_ROUTES.indexStatus);
   }
@@ -123,7 +127,7 @@ export class ExoCommandClient {
     return this.post(EXO_COMMAND_ROUTES.terminals, { kind, cwd });
   }
 
-  async readAgent(id: string, tailChars = 20_000): Promise<string> {
+  async readAgent(id: string, tailChars: number): Promise<string> {
     const result = await this.get(EXO_COMMAND_ROUTES.terminalTranscript(id, tailChars));
     return String(result.transcript ?? "");
   }

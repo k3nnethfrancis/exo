@@ -10,7 +10,7 @@ Exo is currently macOS-first.
 - Experimental targets: Windows and Linux source builds.
 - Not yet promised: Windows installers, Linux packages, cross-platform terminal persistence, or platform-specific agent recovery.
 
-Electron can support the other platforms later, but Exo's terminal pty runtime, native dependencies, and agent recovery flows need explicit Windows/Linux validation before release claims change.
+Electron can support the other platforms later, but Exo's tmux-backed terminal runtime, native dependencies, and agent recovery flows need explicit Windows/Linux validation before release claims change.
 
 ## Packaging
 

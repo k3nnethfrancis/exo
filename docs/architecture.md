@@ -101,7 +101,7 @@ Skills are harness-visible capabilities referenced by prompts, not Exo worker ru
 
 Terminals are the first agent interface.
 
-- shell, Claude, and Codex terminals use tmux-backed sessions for durable processes, with `node-pty` used only as Exo's live attach bridge
+- shell, Claude, and Codex terminals use tmux-backed sessions for durable processes, with Exo's tmux control-mode bridge used for live rendering and input
 - Exo session ids are local app ids such as `term-13`
 - terminal history policy is configured through workspace settings
 - `full` terminal history keeps Exo's live terminal tail at the configured full xterm line window

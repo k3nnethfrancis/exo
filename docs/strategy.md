@@ -72,7 +72,7 @@ Already shipped:
 - Fast note filename/path search in explorer search mode.
 - Optional QMD-backed lexical, semantic, and hybrid notes index.
 - Claude, Codex, and shell terminals.
-- Tmux-backed terminal supervision with node-pty as the live attach bridge and disk-backed transcripts for durable history.
+- Tmux-backed terminal supervision through Exo's tmux control-mode bridge, with disk-backed transcripts for durable history.
 - Runtime command server and `bin/exo` CLI.
 - Exo MCP tools for live terminal agents.
 - MCP autostart and integration installer/doctor for Codex and Claude Code.

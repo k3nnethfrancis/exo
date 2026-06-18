@@ -33,6 +33,17 @@ export interface WorkspaceSettings {
   terminalHistoryLines: number;
   terminalTranscriptRetention: TerminalTranscriptRetention;
   terminalTranscriptRetentionDays: number;
+  terminalInputCoalesceMs?: number;
+  terminalAgentStartupGraceMs?: number;
+  terminalAgentSubmitDelayMs?: number;
+  terminalInitialColumns?: number;
+  terminalInitialRows?: number;
+  terminalMinimumColumns?: number;
+  terminalMinimumRows?: number;
+  terminalReadTailChars?: number;
+  terminalMaxReadTailChars?: number;
+  terminalUnresponsiveThresholdMs?: number;
+  terminalIdleThresholdMs?: number;
   explorerScale: number;
   exploreIndexSearchOnEnter: boolean;
   indexUpdateStrategy: IndexUpdateStrategy;

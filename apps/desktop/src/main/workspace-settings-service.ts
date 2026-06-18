@@ -58,6 +58,7 @@ export class WorkspaceSettingsService {
     this.options.terminalManager.setDefaultCwd(nextModel.defaultTerminalCwd);
     this.options.terminalManager.setBufferLineLimit(terminalPolicy.bufferLineLimit);
     this.options.terminalManager.setTranscriptRetentionDays(terminalPolicy.transcriptRetentionDays);
+    this.options.terminalManager.setTerminalRuntimeOptions(terminalPolicy);
     await this.options.terminalManager.syncRuntimeContext();
 
     if (nextRuntimeConfig.runtimeRoot !== previousRuntimeRoot) {

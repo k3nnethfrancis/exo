@@ -3,6 +3,19 @@ import os from "node:os";
 import path from "node:path";
 
 import type { IndexMode, WorkspaceLayoutSettings, WorkspacePaneContent, WorkspacePaneNode, WorkspaceSettings } from "./types";
+import {
+  DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS,
+  DEFAULT_TERMINAL_AGENT_SUBMIT_DELAY_MS,
+  DEFAULT_TERMINAL_IDLE_THRESHOLD_MS,
+  DEFAULT_TERMINAL_INITIAL_COLUMNS,
+  DEFAULT_TERMINAL_INITIAL_ROWS,
+  DEFAULT_TERMINAL_INPUT_COALESCE_MS,
+  DEFAULT_TERMINAL_MAX_READ_TAIL_CHARS,
+  DEFAULT_TERMINAL_MINIMUM_COLUMNS,
+  DEFAULT_TERMINAL_MINIMUM_ROWS,
+  DEFAULT_TERMINAL_READ_TAIL_CHARS,
+  DEFAULT_TERMINAL_UNRESPONSIVE_THRESHOLD_MS,
+} from "./terminal-settings";
 import { createIndexedRoot, DEFAULT_INDEXING } from "./workspace";
 
 export const DEFAULT_APPEARANCE_MODE: WorkspaceSettings["appearanceMode"] = "system";
@@ -180,6 +193,20 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
     terminalHistoryLines: normalizeTerminalHistoryLines(input.terminalHistoryLines),
     terminalTranscriptRetention: input.terminalTranscriptRetention === "days" ? "days" : DEFAULT_TERMINAL_TRANSCRIPT_RETENTION,
     terminalTranscriptRetentionDays: clampSettingsNumber(input.terminalTranscriptRetentionDays, DEFAULT_TERMINAL_TRANSCRIPT_RETENTION_DAYS, 1, 3650),
+    terminalInputCoalesceMs: terminalIntegerAtLeast(input.terminalInputCoalesceMs, DEFAULT_TERMINAL_INPUT_COALESCE_MS, 0),
+    terminalAgentStartupGraceMs: terminalIntegerAtLeast(input.terminalAgentStartupGraceMs, DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS, 0),
+    terminalAgentSubmitDelayMs: terminalIntegerAtLeast(input.terminalAgentSubmitDelayMs, DEFAULT_TERMINAL_AGENT_SUBMIT_DELAY_MS, 0),
+    terminalInitialColumns: terminalIntegerAtLeast(input.terminalInitialColumns, DEFAULT_TERMINAL_INITIAL_COLUMNS, 20),
+    terminalInitialRows: terminalIntegerAtLeast(input.terminalInitialRows, DEFAULT_TERMINAL_INITIAL_ROWS, 8),
+    terminalMinimumColumns: terminalIntegerAtLeast(input.terminalMinimumColumns, DEFAULT_TERMINAL_MINIMUM_COLUMNS, 1),
+    terminalMinimumRows: terminalIntegerAtLeast(input.terminalMinimumRows, DEFAULT_TERMINAL_MINIMUM_ROWS, 1),
+    terminalReadTailChars: terminalIntegerAtLeast(input.terminalReadTailChars, DEFAULT_TERMINAL_READ_TAIL_CHARS, 0),
+    terminalMaxReadTailChars: Math.max(
+      terminalIntegerAtLeast(input.terminalReadTailChars, DEFAULT_TERMINAL_READ_TAIL_CHARS, 0),
+      terminalIntegerAtLeast(input.terminalMaxReadTailChars, DEFAULT_TERMINAL_MAX_READ_TAIL_CHARS, 0),
+    ),
+    terminalUnresponsiveThresholdMs: terminalIntegerAtLeast(input.terminalUnresponsiveThresholdMs, DEFAULT_TERMINAL_UNRESPONSIVE_THRESHOLD_MS, 1_000),
+    terminalIdleThresholdMs: terminalIntegerAtLeast(input.terminalIdleThresholdMs, DEFAULT_TERMINAL_IDLE_THRESHOLD_MS, 1_000),
     explorerScale: clampSettingsNumber(input.explorerScale, DEFAULT_EXPLORER_SCALE, 0.82, 1.35),
     exploreIndexSearchOnEnter: typeof input.exploreIndexSearchOnEnter === "boolean" ? input.exploreIndexSearchOnEnter : indexing.enabled && indexing.mode !== "off" && indexedRoots.length > 0,
     indexUpdateStrategy: input.indexUpdateStrategy === "manual" ? "manual" : "on-save",
@@ -264,6 +291,14 @@ function normalizeTerminalHistoryLines(value: unknown): number {
     return DEFAULT_TERMINAL_HISTORY_LINES;
   }
   return Math.max(MIN_TERMINAL_HISTORY_LINES, Math.floor(parsed));
+}
+
+function terminalIntegerAtLeast(value: unknown, fallback: number, min: number): number {
+  const parsed = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  return Math.max(min, Math.floor(parsed));
 }
 
 const DEFAULT_SIDEBAR_WIDTH = 175;

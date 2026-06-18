@@ -5,9 +5,20 @@ import path from "node:path";
 import { EditorState } from "@codemirror/state";
 
 import {
+  DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS,
+  DEFAULT_TERMINAL_AGENT_SUBMIT_DELAY_MS,
   DEFAULT_TERMINAL_HISTORY_LINES,
   DEFAULT_TERMINAL_HISTORY_MODE,
+  DEFAULT_TERMINAL_INITIAL_COLUMNS,
+  DEFAULT_TERMINAL_INITIAL_ROWS,
+  DEFAULT_TERMINAL_INPUT_COALESCE_MS,
+  DEFAULT_TERMINAL_IDLE_THRESHOLD_MS,
+  DEFAULT_TERMINAL_MAX_READ_TAIL_CHARS,
+  DEFAULT_TERMINAL_MINIMUM_COLUMNS,
+  DEFAULT_TERMINAL_MINIMUM_ROWS,
+  DEFAULT_TERMINAL_READ_TAIL_CHARS,
   DEFAULT_TERMINAL_TRANSCRIPT_RETENTION,
+  DEFAULT_TERMINAL_UNRESPONSIVE_THRESHOLD_MS,
   resolveTerminalRuntimePolicy,
   WorkspaceSettingsStore,
 } from "../../main/settings-store";
@@ -74,10 +85,21 @@ describe("workspace terminal settings", () => {
     expect(settings?.terminalHistoryLines).toBe(24_000);
     expect(settings?.terminalTranscriptRetention).toBe("days");
     expect(settings?.terminalTranscriptRetentionDays).toBe(30);
-    expect(settings ? resolveTerminalRuntimePolicy(settings) : null).toEqual({
+    expect(settings ? resolveTerminalRuntimePolicy(settings) : null).toMatchObject({
       scrollbackLines: 24_000,
       bufferLineLimit: 24_000,
       transcriptRetentionDays: 30,
+      inputCoalesceMs: DEFAULT_TERMINAL_INPUT_COALESCE_MS,
+      agentStartupGraceMs: DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS,
+      agentSubmitDelayMs: DEFAULT_TERMINAL_AGENT_SUBMIT_DELAY_MS,
+      initialColumns: DEFAULT_TERMINAL_INITIAL_COLUMNS,
+      initialRows: DEFAULT_TERMINAL_INITIAL_ROWS,
+      minimumColumns: DEFAULT_TERMINAL_MINIMUM_COLUMNS,
+      minimumRows: DEFAULT_TERMINAL_MINIMUM_ROWS,
+      readTailChars: DEFAULT_TERMINAL_READ_TAIL_CHARS,
+      maxReadTailChars: DEFAULT_TERMINAL_MAX_READ_TAIL_CHARS,
+      unresponsiveThresholdMs: DEFAULT_TERMINAL_UNRESPONSIVE_THRESHOLD_MS,
+      idleThresholdMs: DEFAULT_TERMINAL_IDLE_THRESHOLD_MS,
     });
   });
 });
@@ -118,6 +140,17 @@ describe("workspace settings renderer model", () => {
       terminalHistoryLines: String(RENDERER_DEFAULT_TERMINAL_HISTORY_LINES),
       terminalTranscriptRetention: "forever",
       terminalTranscriptRetentionDays: "14",
+      terminalInputCoalesceMs: String(DEFAULT_TERMINAL_INPUT_COALESCE_MS),
+      terminalAgentStartupGraceMs: String(DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS),
+      terminalAgentSubmitDelayMs: String(DEFAULT_TERMINAL_AGENT_SUBMIT_DELAY_MS),
+      terminalInitialColumns: String(DEFAULT_TERMINAL_INITIAL_COLUMNS),
+      terminalInitialRows: String(DEFAULT_TERMINAL_INITIAL_ROWS),
+      terminalMinimumColumns: String(DEFAULT_TERMINAL_MINIMUM_COLUMNS),
+      terminalMinimumRows: String(DEFAULT_TERMINAL_MINIMUM_ROWS),
+      terminalReadTailChars: String(DEFAULT_TERMINAL_READ_TAIL_CHARS),
+      terminalMaxReadTailChars: String(DEFAULT_TERMINAL_MAX_READ_TAIL_CHARS),
+      terminalUnresponsiveThresholdMs: String(DEFAULT_TERMINAL_UNRESPONSIVE_THRESHOLD_MS),
+      terminalIdleThresholdMs: String(DEFAULT_TERMINAL_IDLE_THRESHOLD_MS),
       explorerScale: "1",
       exploreIndexSearchOnEnter: true,
       indexUpdateStrategy: "on-save",

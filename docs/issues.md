@@ -147,14 +147,14 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 - Current context:
   - Exo intentionally simplified core terminals to direct `node-pty` on 2026-05-28 to remove stale mixed tmux/direct code.
   - Real-world sleep/wake behavior is now evidence that direct pty should not remain the durable terminal runtime.
-  - The runtime decision is now tmux-backed core terminals with `node-pty` as the attach bridge; see `docs/terminal-runtime-decision.md`.
+  - The runtime decision is now tmux-backed core terminals with Exo's tmux control-mode bridge; see `docs/terminal-runtime-decision.md`.
 - Next:
   - Implement `docs/terminal-refactor-plan.md`.
   - Add deterministic fake-agent terminal tests; do not use live Claude/Codex inference in automated QA.
   - Validate against `docs/terminal-quality-standard.md`, including latency, corruption, scrollback, reattach, sleep/wake, and recovery behavior.
 - Progress:
   - Added tmux runtime primitives, structured missing-tmux errors, and Exo-owned tmux session naming.
-  - Terminal creation now launches the durable command inside tmux and uses node-pty only to attach Exo to the tmux session.
+  - Terminal creation now launches the durable command inside tmux and uses tmux control mode to attach Exo to the tmux session.
   - Terminal kill now explicitly terminates the tmux session.
   - Added `.exo/terminal-sessions.json` persistence and startup reattach for live tmux panes.
   - Added deterministic fake-agent Electron QA, p50/p90 shell input latency measurement, and app relaunch reattach coverage without live Claude/Codex inference.
@@ -336,12 +336,12 @@ These issues have fixes and coverage, but remain worth exercising during daily i
   - Removed stale tmux runtime compatibility code, diagnostics, restore state, and transport UI/API fields from the core terminal path.
   - Reduced terminal typing/output lag by appending streamed chunks through an append-specific live stream path instead of trimming and comparing whole terminal output on every frame.
   - Explicit terminal reads now hydrate from bounded live tails so switching/restoring terminals still refreshes the xterm surface without pretending the live tail is durable history.
-  - Claude and Codex terminals now use tmux-backed sessions with `node-pty` as the attach bridge; `EXO-ISSUE-030` tracks the remaining persistence/recovery QA.
+  - Claude and Codex terminals now use tmux-backed sessions with Exo's tmux control-mode bridge; `EXO-ISSUE-030` tracks the remaining persistence/recovery QA.
   - Added terminal health, latency, transcript, and live-tail diagnostics in app IPC, command server, and `exo terminals diagnostics`.
   - Replaced main-process live terminal storage with a bounded line tail and bounded renderer-side terminal tracking.
   - Live active terminal output now streams directly into xterm through the terminal registry, avoiding React-owned full-output state as the primary render path.
   - Debounced terminal resize events before they reach pty.
-  - Reduced renderer-to-tmux/node-pty resize handoff debounce from 75ms to one animation frame so split-pane xterm fitting and backend terminal dimensions converge faster during active typing.
+  - Reduced renderer-to-tmux resize handoff debounce from 75ms to one animation frame so split-pane xterm fitting and backend terminal dimensions converge faster during active typing.
 
 ## Resolved
 
