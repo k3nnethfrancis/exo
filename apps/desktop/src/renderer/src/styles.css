@@ -1750,6 +1750,7 @@ select.dialog-card__input {
 }
 
 .agent-skills__file {
+  display: block;
   min-width: 0;
   padding: 6px 8px;
   border: 1px solid transparent;
@@ -1765,16 +1766,16 @@ select.dialog-card__input {
   white-space: nowrap;
 }
 
+.agent-skills__file--directory {
+  color: var(--text);
+  font-weight: 600;
+}
+
 .agent-skills__file:not(:disabled):hover,
 .agent-skills__file--active {
   border-color: var(--surface-border);
   background: var(--surface-hover);
   color: var(--text);
-}
-
-.agent-skills__file:disabled {
-  cursor: default;
-  opacity: 0.72;
 }
 
 .agent-skills__editor {

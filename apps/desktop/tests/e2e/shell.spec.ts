@@ -1221,13 +1221,21 @@ test("manages harness skill files from the agent config editor", async () => {
 
   try {
     await mkdir(skillRoot, { recursive: true });
+    await mkdir(path.join(skillRoot, "references"), { recursive: true });
     await writeFile(skillFile, "# QA Skill\n\nInitial body.\n", "utf8");
+    await writeFile(path.join(skillRoot, "references", "example.md"), "# Example\n", "utf8");
 
     await page.getByTestId("open-agent-config").click();
     await expect(page.getByTestId("agent-context-manager")).toBeVisible();
     await page.getByTestId("agent-config-tab-skills").click();
     await expect(page.getByTestId("agent-skills-manager")).toContainText("QA Skill");
     await expect(page.getByTestId("agent-skills-manager")).toContainText("claude · global · enabled");
+    await expect(page.getByTestId("agent-skill-files").locator(".agent-skills__file").first()).toHaveText("SKILL.md");
+    await expect(page.getByTestId("agent-skill-file-references")).toHaveText(/▾ references/);
+    await expect(page.getByTestId("agent-skill-file-references/example.md")).toBeVisible();
+    await page.getByTestId("agent-skill-file-references").click();
+    await expect(page.getByTestId("agent-skill-file-references")).toHaveText(/▸ references/);
+    await expect(page.getByTestId("agent-skill-file-references/example.md")).toHaveCount(0);
     await expect(page.getByTestId("agent-skill-file-editor")).toHaveValue(/Initial body/);
 
     await page.getByTestId("agent-skill-file-editor").fill("# QA Skill\n\nEdited body.\n");

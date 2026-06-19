@@ -185,6 +185,7 @@ function AgentSkillsPanel() {
   const [inventory, setInventory] = useState<AgentSkillInventory | null>(null);
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
   const [selectedRelativePath, setSelectedRelativePath] = useState<string | null>(null);
+  const [expandedDirectoryPaths, setExpandedDirectoryPaths] = useState<string[]>([]);
   const [fileBody, setFileBody] = useState("");
   const [loadState, setLoadState] = useState<"idle" | "loading" | "error">("idle");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -194,8 +195,11 @@ function AgentSkillsPanel() {
     () => inventory?.skills.find((skill) => skill.id === selectedSkillId) ?? null,
     [inventory, selectedSkillId],
   );
-  const selectedFiles = useMemo(() => selectedSkill ? flattenSkillFiles(selectedSkill.files) : [], [selectedSkill]);
-  const selectedFile = selectedFiles.find((file) => file.relativePath === selectedRelativePath) ?? null;
+  const selectedFiles = useMemo(
+    () => selectedSkill ? flattenSkillFiles(selectedSkill.files, new Set(expandedDirectoryPaths)) : [],
+    [expandedDirectoryPaths, selectedSkill],
+  );
+  const selectedFile = selectedFiles.find((file) => file.kind === "file" && file.relativePath === selectedRelativePath) ?? null;
 
   useEffect(() => {
     void loadInventory();
@@ -218,6 +222,14 @@ function AgentSkillsPanel() {
   }, [selectedRelativePath, selectedSkill]);
 
   useEffect(() => {
+    if (!selectedSkill) {
+      setExpandedDirectoryPaths([]);
+      return;
+    }
+    setExpandedDirectoryPaths(collectDirectoryPaths(selectedSkill.files));
+  }, [selectedSkill?.id]);
+
+  useEffect(() => {
     if (!selectedSkill || !selectedRelativePath) {
       setFileBody("");
       return;
@@ -235,6 +247,7 @@ function AgentSkillsPanel() {
       if (nextSelectedSkillId !== undefined) {
         setSelectedSkillId(nextSelectedSkillId);
         setSelectedRelativePath(null);
+        setExpandedDirectoryPaths([]);
       }
     } catch (error) {
       setLoadState("error");
@@ -289,6 +302,7 @@ function AgentSkillsPanel() {
       );
       setSelectedSkillId(movedSkill?.id ?? null);
       setSelectedRelativePath(null);
+      setExpandedDirectoryPaths([]);
       setFileBody("");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : String(error));
@@ -311,6 +325,7 @@ function AgentSkillsPanel() {
             onClick={() => {
               setSelectedSkillId(skill.id);
               setSelectedRelativePath(null);
+              setExpandedDirectoryPaths([]);
             }}
             type="button"
           >
@@ -339,15 +354,25 @@ function AgentSkillsPanel() {
               <div className="agent-skills__files" data-testid="agent-skill-files">
                 {selectedFiles.map((file) => (
                   <button
-                    className={`agent-skills__file ${file.relativePath === selectedRelativePath ? "agent-skills__file--active" : ""}`}
+                    className={`agent-skills__file ${file.kind === "directory" ? "agent-skills__file--directory" : ""} ${file.relativePath === selectedRelativePath ? "agent-skills__file--active" : ""}`}
                     data-depth={file.depth}
-                    disabled={file.kind !== "file"}
+                    data-testid={`agent-skill-file-${file.relativePath}`}
                     key={file.relativePath}
-                    onClick={() => setSelectedRelativePath(file.relativePath)}
+                    onClick={() => {
+                      if (file.kind === "directory") {
+                        setExpandedDirectoryPaths((current) =>
+                          current.includes(file.relativePath)
+                            ? current.filter((directoryPath) => directoryPath !== file.relativePath)
+                            : [...current, file.relativePath],
+                        );
+                        return;
+                      }
+                      setSelectedRelativePath(file.relativePath);
+                    }}
                     style={{ paddingLeft: `${8 + file.depth * 14}px` }}
                     type="button"
                   >
-                    {file.kind === "directory" ? "▸ " : ""}
+                    {file.kind === "directory" ? `${file.expanded ? "▾" : "▸"} ` : ""}
                     {file.label}
                   </button>
                 ))}
@@ -401,21 +426,42 @@ interface FlatSkillFile {
   kind: AgentSkillFile["kind"];
   label: string;
   depth: number;
+  expanded?: boolean;
 }
 
-function flattenSkillFiles(files: AgentSkillFile[], depth = 0): FlatSkillFile[] {
-  return files.flatMap((file) => [
-    {
-      relativePath: file.relativePath,
-      kind: file.kind,
-      label: file.relativePath.split(/[\\/]/).at(-1) ?? file.relativePath,
-      depth,
-    },
-    ...(file.children ? flattenSkillFiles(file.children, depth + 1) : []),
-  ]);
+function flattenSkillFiles(files: AgentSkillFile[], expandedDirectories = new Set<string>(), depth = 0): FlatSkillFile[] {
+  return sortSkillFiles(files).flatMap((file) => {
+    const expanded = file.kind === "directory" && expandedDirectories.has(file.relativePath);
+    return [
+      {
+        relativePath: file.relativePath,
+        kind: file.kind,
+        label: file.relativePath.split(/[\\/]/).at(-1) ?? file.relativePath,
+        depth,
+        expanded,
+      },
+      ...(file.children && expanded ? flattenSkillFiles(file.children, expandedDirectories, depth + 1) : []),
+    ];
+  });
 }
 
 function findDefaultSkillFile(skill: AgentSkillSummary): FlatSkillFile | null {
-  const files = flattenSkillFiles(skill.files).filter((file) => file.kind === "file");
+  const files = flattenSkillFiles(skill.files, new Set(collectDirectoryPaths(skill.files))).filter((file) => file.kind === "file");
   return files.find((file) => file.relativePath === "SKILL.md") ?? files[0] ?? null;
+}
+
+function collectDirectoryPaths(files: AgentSkillFile[]): string[] {
+  return files.flatMap((file) => [
+    ...(file.kind === "directory" ? [file.relativePath] : []),
+    ...(file.children ? collectDirectoryPaths(file.children) : []),
+  ]);
+}
+
+function sortSkillFiles(files: AgentSkillFile[]): AgentSkillFile[] {
+  return [...files].sort((a, b) => {
+    if (a.relativePath === "SKILL.md") return -1;
+    if (b.relativePath === "SKILL.md") return 1;
+    if (a.kind !== b.kind) return a.kind === "directory" ? -1 : 1;
+    return a.relativePath.localeCompare(b.relativePath);
+  });
 }
