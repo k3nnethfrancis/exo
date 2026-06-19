@@ -1388,6 +1388,10 @@ button svg,
   overflow: hidden;
 }
 
+.dialog-card--agent-context-manager .dialog-tabs {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .dialog-card__header {
   display: flex;
   align-items: center;
@@ -1658,6 +1662,148 @@ select.dialog-card__input {
   white-space: pre;
 }
 
+.agent-skills {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.34fr) minmax(0, 1fr);
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.agent-skills__sidebar,
+.agent-skills__main,
+.agent-skills__files,
+.agent-skills__editor {
+  min-width: 0;
+  min-height: 0;
+}
+
+.agent-skills__sidebar {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.agent-skills__skill {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--divider) 55%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-2) 45%, transparent);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.agent-skills__skill--active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-2));
+}
+
+.agent-skills__skill span,
+.agent-skills__skill small {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-skills__main {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.agent-skills__toolbar,
+.agent-skills__editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.agent-skills__workspace {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.28fr) minmax(0, 1fr);
+  gap: 10px;
+  min-height: 0;
+}
+
+.agent-skills__files {
+  display: grid;
+  align-content: start;
+  gap: 3px;
+  overflow: auto;
+  border: 1px solid color-mix(in srgb, var(--divider) 45%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-2) 32%, transparent);
+  padding: 6px;
+}
+
+.agent-skills__file {
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-skills__file:not(:disabled):hover,
+.agent-skills__file--active {
+  border-color: var(--surface-border);
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.agent-skills__file:disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.agent-skills__editor {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 8px;
+}
+
+.agent-skills__editor-header span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-skills__textarea {
+  box-sizing: border-box;
+  min-height: 0;
+  height: 100%;
+  overflow: auto;
+  resize: none;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre;
+}
+
 @media (max-width: 860px) {
   .agent-context-summary__header,
   .agent-context-summary__footer {
@@ -1671,7 +1817,9 @@ select.dialog-card__input {
 
   .agent-context-summary__grid,
   .agent-config-editor__scope-buttons,
-  .agent-config-editor__files {
+  .agent-config-editor__files,
+  .agent-skills,
+  .agent-skills__workspace {
     grid-template-columns: 1fr;
   }
 }

@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
-import { PanelRightClose, PanelRightOpen, PanelsLeftBottom, SquareTerminal } from "lucide-react";
+import { PanelRightClose, PanelRightOpen, PanelsLeftBottom, Settings2, SquareTerminal } from "lucide-react";
 
 import { AgentIcon } from "./AgentIcon";
 import { RailButton } from "./Chrome";
@@ -11,12 +11,13 @@ interface TerminalRailProps {
   topControls?: ReactNode;
   onToggleCollapsed: () => void;
   onToggleSidePanes: () => void;
+  onOpenAgentConfigEditor: () => void;
   onCreateTerminal: (kind: "shell" | "claude" | "codex") => void;
   style?: CSSProperties;
 }
 
 export function TerminalRail(props: TerminalRailProps) {
-  const { collapsed, sidePanesFlipped, topControls, onToggleCollapsed, onToggleSidePanes, onCreateTerminal, style } = props;
+  const { collapsed, sidePanesFlipped, topControls, onToggleCollapsed, onToggleSidePanes, onOpenAgentConfigEditor, onCreateTerminal, style } = props;
 
   return (
     <div className="terminal-rail" data-testid="terminal-rail" style={style}>
@@ -24,6 +25,7 @@ export function TerminalRail(props: TerminalRailProps) {
         <TerminalRailTopControls
           collapsed={collapsed}
           onToggleCollapsed={onToggleCollapsed}
+          onOpenAgentConfigEditor={onOpenAgentConfigEditor}
           onCreateTerminal={onCreateTerminal}
         />
       )}
@@ -42,9 +44,10 @@ export function TerminalRail(props: TerminalRailProps) {
 export function TerminalRailTopControls(props: {
   collapsed: boolean;
   onToggleCollapsed: () => void;
+  onOpenAgentConfigEditor: () => void;
   onCreateTerminal: (kind: "shell" | "claude" | "codex") => void;
 }) {
-  const { collapsed, onToggleCollapsed, onCreateTerminal } = props;
+  const { collapsed, onToggleCollapsed, onOpenAgentConfigEditor, onCreateTerminal } = props;
   const CollapseIcon = collapsed ? PanelRightOpen : PanelRightClose;
 
   return (
@@ -76,6 +79,13 @@ export function TerminalRailTopControls(props: {
         title="Launch Codex"
       >
         <AgentIcon kind="codex" size={16} />
+      </RailButton>
+      <RailButton
+        testId="open-agent-config"
+        onClick={onOpenAgentConfigEditor}
+        title="Agent config"
+      >
+        <Settings2 size={16} />
       </RailButton>
     </>
   );

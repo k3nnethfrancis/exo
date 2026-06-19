@@ -27,18 +27,22 @@ export interface WorkspaceIpcHandlers {
   getSettings: () => WorkspaceSettings;
   getSetupState: () => { complete: boolean; settingsPath: string };
   listAgentInstructionOverlays: WorkspaceApi["listAgentInstructionOverlays"];
+  listAgentSkills: WorkspaceApi["listAgentSkills"];
   listTree: WorkspaceApi["listTree"];
   listWorkspaces: () => Promise<WorkspaceRegistryEntry[]>;
   readNote: NotesApi["read"];
+  readAgentSkillFile: WorkspaceApi["readAgentSkillFile"];
   renamePath: WorkspaceApi["renamePath"];
   resolveTarget: NotesApi["resolveTarget"];
   saveAgentInstructionConfig: WorkspaceApi["saveAgentInstructionConfig"];
+  saveAgentSkillFile: WorkspaceApi["saveAgentSkillFile"];
   saveNote: NotesApi["save"];
   saveSettings: WorkspaceApi["saveSettings"];
   searchIndex: WorkspaceApi["searchIndex"];
   searchNotes: WorkspaceApi["searchNotes"];
   searchTag: WorkspaceApi["searchTag"];
   searchWorkspace: WorkspaceApi["searchWorkspace"];
+  setAgentSkillEnabled: WorkspaceApi["setAgentSkillEnabled"];
   statNote: (filePath: string) => Promise<FileStatInfo | null>;
   suggestTargets: NotesApi["suggestTargets"];
   syncIndex: WorkspaceApi["syncIndex"];
@@ -102,6 +106,14 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
     handlers.saveAgentInstructionConfig(input),
   );
   handleDesktopInvoke("workspace:list-agent-instruction-overlays", async () => handlers.listAgentInstructionOverlays());
+  handleDesktopInvoke("workspace:list-agent-skills", async () => handlers.listAgentSkills());
+  handleDesktopInvoke("workspace:read-agent-skill-file", async (_event, skillId, relativePath) =>
+    handlers.readAgentSkillFile(skillId, relativePath),
+  );
+  handleDesktopInvoke("workspace:save-agent-skill-file", async (_event, skillId, relativePath, body) =>
+    handlers.saveAgentSkillFile(skillId, relativePath, body),
+  );
+  handleDesktopInvoke("workspace:set-agent-skill-enabled", async (_event, input) => handlers.setAgentSkillEnabled(input));
   handleDesktopInvoke("workspace:create-file", async (_event, targetPath, content) => handlers.createFile(targetPath, content));
   handleDesktopInvoke("workspace:create-directory", async (_event, targetPath) => handlers.createDirectory(targetPath));
   handleDesktopInvoke("workspace:rename-path", async (_event, sourcePath, nextPath) => handlers.renamePath(sourcePath, nextPath));

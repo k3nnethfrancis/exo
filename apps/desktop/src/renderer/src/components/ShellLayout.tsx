@@ -80,6 +80,7 @@ interface ShellLayoutProps {
   revealExplorerPathRequest?: { path: string; nonce: number } | null;
   onAppearanceModeChange: (mode: AppearanceMode) => void;
   onOpenWorkspaceSettings: () => void;
+  onOpenAgentConfigEditor: () => void;
   onOpenIndexSettings: () => void;
   onOpenProjectChanges: () => void;
   onSearchQueryChange: (value: string) => void;
@@ -119,6 +120,7 @@ export function ShellLayout(props: ShellLayoutProps) {
     revealExplorerPathRequest,
     onAppearanceModeChange,
     onOpenWorkspaceSettings,
+    onOpenAgentConfigEditor,
     onOpenIndexSettings,
     onOpenProjectChanges,
     onSearchQueryChange,
@@ -180,6 +182,7 @@ export function ShellLayout(props: ShellLayoutProps) {
     <TerminalRailTopControls
       collapsed={terminalCollapsed}
       onToggleCollapsed={() => setTerminalCollapsed((current) => !current)}
+      onOpenAgentConfigEditor={onOpenAgentConfigEditor}
       onCreateTerminal={onCreateTerminal}
     />
   );
@@ -326,6 +329,7 @@ export function ShellLayout(props: ShellLayoutProps) {
         style={{}}
         onToggleCollapsed={() => setTerminalCollapsed((c) => !c)}
         onToggleSidePanes={() => setSidePanesFlipped((current) => !current)}
+        onOpenAgentConfigEditor={onOpenAgentConfigEditor}
         onCreateTerminal={onCreateTerminal}
       />
 

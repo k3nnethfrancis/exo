@@ -965,6 +965,7 @@ export function App() {
       }}
       shellLayout={shellLayout}
       revealExplorerPathRequest={revealExplorerPathRequest}
+      onOpenAgentConfigEditor={() => void openAgentContextManager()}
       renderEditorLeaf={(leaf, isFocused) => {
         if (leaf.content.kind === "browser") {
           return (
@@ -1186,7 +1187,6 @@ export function App() {
           structuralDraftKey={workspaceSettingsStructuralDraftKey}
           onChooseFolder={(target) => void workspaceSettingsController.chooseFolder(target)}
           onClose={workspaceSettingsController.closeDialog}
-          onOpenAgentConfigEditor={() => void openAgentContextManager()}
           onOpenWorkspaceSwitcher={() => {
             setWorkspaceSettingsDialog(null);
             void workspaceBootstrap.openWorkspaceSwitcher();

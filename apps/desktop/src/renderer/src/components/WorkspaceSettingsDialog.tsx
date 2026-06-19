@@ -14,7 +14,6 @@ interface WorkspaceSettingsDialogProps {
   indexStatus: IndexStatus | null;
   onChooseFolder: (target: "workspaceRoot" | "defaultTerminalCwd" | "projectRoot") => void | Promise<void>;
   onClose: () => void;
-  onOpenAgentConfigEditor: () => void;
   onOpenWorkspaceSwitcher: () => void | Promise<void>;
   onRunIndexUpdate: (kind: Exclude<IndexBusyState, null>) => void | Promise<void>;
   onSave: (settingsDialog: WorkspaceSettingsDialogState, options: { includeStructural: boolean }) => void | Promise<void>;
@@ -32,7 +31,6 @@ export function WorkspaceSettingsDialog({
   indexStatus,
   onChooseFolder,
   onClose,
-  onOpenAgentConfigEditor,
   onOpenWorkspaceSwitcher,
   onRunIndexUpdate,
   onSave,
@@ -88,7 +86,7 @@ export function WorkspaceSettingsDialog({
             <IndexSection indexBusy={indexBusy} indexStatus={indexStatus} settings={settings} setSettings={setSettings} onRunIndexUpdate={onRunIndexUpdate} />
           ) : null}
           {settings.section === "agents" ? (
-            <AgentsSection agentInstructionEditor={agentInstructionEditor} onOpenAgentConfigEditor={onOpenAgentConfigEditor} />
+            <AgentsSection agentInstructionEditor={agentInstructionEditor} />
           ) : null}
           {settings.section === "appearance" ? <AppearanceSection settings={settings} setSettings={setSettings} /> : null}
           {settings.section === "terminal" ? <TerminalSection settings={settings} setSettings={setSettings} /> : null}
@@ -372,10 +370,7 @@ function IndexSection({
   );
 }
 
-function AgentsSection({
-  agentInstructionEditor,
-  onOpenAgentConfigEditor,
-}: Pick<WorkspaceSettingsDialogProps, "agentInstructionEditor" | "onOpenAgentConfigEditor">) {
+function AgentsSection({ agentInstructionEditor }: Pick<WorkspaceSettingsDialogProps, "agentInstructionEditor">) {
   const globalScope = agentInstructionEditor.state.config?.scopes.find((scope) => scope.id === "global") ?? null;
   const exocortexScope = agentInstructionEditor.state.config?.scopes.find((scope) => scope.id === "exocortex") ?? null;
 
@@ -386,9 +381,6 @@ function AgentsSection({
           <div className="dialog-field__label">Agent config</div>
           <div className="agent-context-summary__copy">Keep Codex AGENTS.md and Claude CLAUDE.md aligned for global and notes instructions.</div>
         </div>
-        <button className="toolbar-button" data-testid="agent-context-open-manager" onClick={() => void onOpenAgentConfigEditor()} type="button">
-          Open editor
-        </button>
       </div>
       <div className="agent-context-summary__grid">
         <div className="agent-context-summary__metric">

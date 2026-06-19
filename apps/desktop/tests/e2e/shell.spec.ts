@@ -1113,7 +1113,8 @@ test("opens workspace settings with partial agent instruction discovery errors",
     await expect(page.getByTestId("agent-context-settings")).toContainText("Agent config");
     await expect(page.getByTestId("agent-context-partial-errors")).toContainText("Some agent instruction data could not be loaded");
     await expect(page.getByTestId("agent-context-partial-errors")).toContainText("Notes AGENTS.md");
-    await page.getByTestId("agent-context-open-manager").click();
+    await page.getByTestId("workspace-settings-close").click();
+    await page.getByTestId("open-agent-config").click();
     await expect(page.getByTestId("agent-context-manager")).toBeVisible();
     await expect(page.getByTestId("agent-context-manager-partial-errors")).toContainText("Notes AGENTS.md");
     await expect(page.getByTestId("agent-context-manager-body")).toContainText("Scope");
@@ -1145,9 +1146,7 @@ test("keeps long agent instruction errors separate from narrow manager controls"
       });
     }, longError);
 
-    await page.getByTestId("workspace-settings").click();
-    await page.getByTestId("workspace-settings-tab-agents").click();
-    await page.getByTestId("agent-context-open-manager").click();
+    await page.getByTestId("open-agent-config").click();
     await expect(page.getByTestId("agent-context-manager")).toBeVisible();
     await page.setViewportSize({ width: 720, height: 720 });
     await expect(page.getByTestId("agent-context-manager-partial-errors")).toContainText("stale preload bridge restart");
@@ -1172,10 +1171,7 @@ test("syncs global and exocortex agent instruction files from workspace settings
   });
 
   try {
-    await page.getByTestId("workspace-settings").click();
-    await page.getByTestId("workspace-settings-tab-agents").click();
-    await expect(page.getByTestId("agent-context-settings")).toContainText("AGENTS.md and CLAUDE.md only");
-    await page.getByTestId("agent-context-open-manager").click();
+    await page.getByTestId("open-agent-config").click();
     await expect(page.getByTestId("agent-context-manager")).toBeVisible();
     await expect(page.getByTestId("agent-context-manager")).not.toContainText("soul.md");
     await expect(page.getByTestId("agent-context-manager")).not.toContainText("Managed config editor");
@@ -1213,6 +1209,38 @@ test("syncs global and exocortex agent instruction files from workspace settings
     await expect.poll(async () => readFile(path.join(workspaceRoot, "notes/test-notes/CLAUDE.md"), "utf8")).toBe("Use unified notes context.\n");
     await expect(access(path.join(workspaceRoot, "notes/test-notes/soul.md"))).rejects.toThrow();
     await expect(access(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"))).rejects.toThrow();
+  } finally {
+    await cleanup();
+  }
+});
+
+test("manages harness skill files from the agent config editor", async () => {
+  const { page, homeRoot, cleanup } = await launchExoFixture({ mutable: true });
+  const skillRoot = path.join(homeRoot, ".claude", "skills", "qa-skill");
+  const skillFile = path.join(skillRoot, "SKILL.md");
+
+  try {
+    await mkdir(skillRoot, { recursive: true });
+    await writeFile(skillFile, "# QA Skill\n\nInitial body.\n", "utf8");
+
+    await page.getByTestId("open-agent-config").click();
+    await expect(page.getByTestId("agent-context-manager")).toBeVisible();
+    await page.getByTestId("agent-config-tab-skills").click();
+    await expect(page.getByTestId("agent-skills-manager")).toContainText("QA Skill");
+    await expect(page.getByTestId("agent-skills-manager")).toContainText("claude · global · enabled");
+    await expect(page.getByTestId("agent-skill-file-editor")).toHaveValue(/Initial body/);
+
+    await page.getByTestId("agent-skill-file-editor").fill("# QA Skill\n\nEdited body.\n");
+    await page.getByTestId("agent-skill-save-file").click();
+    await expect.poll(async () => readFile(skillFile, "utf8")).toBe("# QA Skill\n\nEdited body.\n");
+
+    await page.getByTestId("agent-skill-toggle-enabled").click();
+    await expect(page.getByTestId("agent-skills-manager")).toContainText("claude · global · disabled");
+    await expect(access(skillFile)).rejects.toThrow();
+
+    await page.getByTestId("agent-skill-toggle-enabled").click();
+    await expect(page.getByTestId("agent-skills-manager")).toContainText("claude · global · enabled");
+    await expect.poll(async () => readFile(skillFile, "utf8")).toBe("# QA Skill\n\nEdited body.\n");
   } finally {
     await cleanup();
   }

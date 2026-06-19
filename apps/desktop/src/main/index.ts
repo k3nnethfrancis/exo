@@ -24,6 +24,7 @@ import {
 
 import type { DesktopEventChannel, DesktopEventPayloads } from "../shared/desktop-ipc";
 import { AgentInstructionsService } from "./agent-instructions-service";
+import { AgentSkillsService } from "./agent-skills-service";
 import { AppLifecycleController } from "./app-lifecycle";
 import { CommandServer } from "./command-server";
 import { IndexingService } from "./indexing-service";
@@ -78,6 +79,7 @@ let indexingService: IndexingService;
 let workspaceNotesService: WorkspaceNotesService;
 let projectReviewService: ProjectReviewService;
 let agentInstructionsService: AgentInstructionsService;
+let agentSkillsService: AgentSkillsService;
 let workspaceSettingsService: WorkspaceSettingsService;
 
 if (!singleInstanceLock) {
@@ -305,12 +307,15 @@ function registerIpcHandlers() {
       settingsPath: workspaceSettingsStore.resolvePath(),
     }),
     listAgentInstructionOverlays: () => agentInstructionsService.listOverlays(),
+    listAgentSkills: () => agentSkillsService.listInventory(),
     listTree: listRootTree,
     listWorkspaces: () => workspaceSettingsStore.listWorkspaces(workspaceSettings),
+    readAgentSkillFile: (skillId, relativePath) => agentSkillsService.readSkillFile(skillId, relativePath),
     readNote: readWorkspaceDocument,
     renamePath: renameWorkspacePath,
     resolveTarget: (sourceFilePath, target) => workspaceNotesService.resolveTarget(sourceFilePath, target),
     saveAgentInstructionConfig: (input) => agentInstructionsService.saveConfig(input),
+    saveAgentSkillFile: (skillId, relativePath, body) => agentSkillsService.saveSkillFile(skillId, relativePath, body),
     saveNote: async (filePath, frontmatter, body) => {
       await saveWorkspaceDocument(filePath, frontmatter, body);
       indexingService.scheduleForFile(filePath, "note-save");
@@ -320,6 +325,7 @@ function registerIpcHandlers() {
     searchNotes: (query) => searchNotes(workspaceModel, query),
     searchTag: (tag) => workspaceNotesService.searchTag(tag),
     searchWorkspace: (query) => searchWorkspace(workspaceModel, query),
+    setAgentSkillEnabled: (input) => agentSkillsService.setSkillEnabled(input),
     statNote: async (filePath) => {
       try {
         const info = await stat(filePath);
@@ -416,6 +422,11 @@ app.whenReady().then(async () => {
   agentInstructionsService = new AgentInstructionsService({
     getWorkspaceModel: () => workspaceModel,
     errorMessage,
+  });
+  agentSkillsService = new AgentSkillsService({
+    disabledRootPath: path.join(app.getPath("userData"), "disabled-skills"),
+    getWorkspaceModel: () => workspaceModel,
+    homePath: process.env.HOME || app.getPath("home"),
   });
   appLifecycle = new AppLifecycleController({
     currentDirectory,

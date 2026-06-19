@@ -149,6 +149,51 @@ export interface AgentInstructionOverlay {
   body: string;
 }
 
+export type AgentSkillHarnessId = "claude" | "codex";
+export type AgentSkillScope = "global" | "workspace" | "exocortex";
+
+export interface AgentSkillLocation {
+  id: string;
+  harness: AgentSkillHarnessId;
+  scope: AgentSkillScope;
+  label: string;
+  path: string;
+  enabled: boolean;
+}
+
+export interface AgentSkillFile {
+  relativePath: string;
+  path: string;
+  kind: "file" | "directory";
+  children?: AgentSkillFile[];
+}
+
+export interface AgentSkillSummary {
+  id: string;
+  name: string;
+  label: string;
+  harness: AgentSkillHarnessId;
+  scope: AgentSkillScope;
+  enabled: boolean;
+  rootPath: string;
+  locationId: string;
+  locationLabel: string;
+  files: AgentSkillFile[];
+  entryFilePath: string | null;
+}
+
+export interface AgentSkillInventory {
+  skills: AgentSkillSummary[];
+  locations: AgentSkillLocation[];
+}
+
+export interface AgentSkillFileContent {
+  skillId: string;
+  relativePath: string;
+  path: string;
+  body: string;
+}
+
 export interface IndexSyncStateEvent {
   state: "running" | "idle" | "error";
   reason: string;
@@ -184,6 +229,10 @@ export interface DesktopApi {
       body: string;
     }) => Promise<AgentInstructionConfig>;
     listAgentInstructionOverlays: () => Promise<AgentInstructionOverlay[]>;
+    listAgentSkills: () => Promise<AgentSkillInventory>;
+    readAgentSkillFile: (skillId: string, relativePath: string) => Promise<AgentSkillFileContent>;
+    saveAgentSkillFile: (skillId: string, relativePath: string, body: string) => Promise<AgentSkillFileContent>;
+    setAgentSkillEnabled: (input: { skillId: string; enabled: boolean }) => Promise<AgentSkillInventory>;
     createFile: (targetPath: string, content?: string) => Promise<string>;
     createDirectory: (targetPath: string) => Promise<string>;
     renamePath: (sourcePath: string, nextPath: string) => Promise<string>;
