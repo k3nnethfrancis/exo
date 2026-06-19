@@ -1389,7 +1389,7 @@ button svg,
 }
 
 .dialog-card--agent-context-manager .dialog-tabs {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .dialog-card__header {
@@ -1805,6 +1805,107 @@ select.dialog-card__input {
   white-space: pre;
 }
 
+.agent-sources {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.agent-sources__form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(140px, 0.24fr) auto;
+  align-items: end;
+  gap: 10px;
+  min-width: 0;
+}
+
+.agent-sources__body {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.34fr) minmax(0, 1fr);
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.agent-sources__panel {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.agent-sources__source,
+.agent-sources__skill {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--divider) 55%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-2) 45%, transparent);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+}
+
+.agent-sources__source {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.agent-sources__skill {
+  cursor: pointer;
+}
+
+.agent-sources__skill--active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-2));
+}
+
+.agent-sources__source span,
+.agent-sources__source small,
+.agent-sources__skill span,
+.agent-sources__skill small {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-sources__error {
+  color: var(--danger, #ff8a8a) !important;
+}
+
+.agent-sources__install-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 0.38fr);
+  gap: 10px;
+  align-items: end;
+  min-width: 0;
+}
+
+.agent-sources__target {
+  min-height: 38px;
+}
+
+.agent-sources__library {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.agent-sources__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 @media (max-width: 860px) {
   .agent-context-summary__header,
   .agent-context-summary__footer {
@@ -1820,7 +1921,10 @@ select.dialog-card__input {
   .agent-config-editor__scope-buttons,
   .agent-config-editor__files,
   .agent-skills,
-  .agent-skills__workspace {
+  .agent-skills__workspace,
+  .agent-sources__form,
+  .agent-sources__body,
+  .agent-sources__install-header {
     grid-template-columns: 1fr;
   }
 }

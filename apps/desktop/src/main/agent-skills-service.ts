@@ -1,13 +1,17 @@
 import path from "node:path";
+import { execFile } from "node:child_process";
 import { cp, mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { promisify } from "node:util";
 
 import type {
+  AgentLibrarySkill,
   AgentSkillFile,
   AgentSkillFileContent,
   AgentSkillHarnessId,
   AgentSkillInventory,
   AgentSkillLocation,
   AgentSkillScope,
+  AgentSkillSource,
   AgentSkillSummary,
 } from "../shared/api";
 import type { WorkspaceModel } from "@exo/core";
@@ -16,6 +20,7 @@ export interface AgentSkillsServiceOptions {
   disabledRootPath: string;
   getWorkspaceModel: () => WorkspaceModel;
   homePath: string;
+  skillSourcesRootPath: string;
 }
 
 interface SkillLocationCandidate extends AgentSkillLocation {
@@ -30,6 +35,8 @@ interface DisabledSkillMetadata {
 
 const METADATA_FILE = ".exo-skill-location.json";
 const ENTRY_FILE = "SKILL.md";
+const SOURCE_REGISTRY_FILE = "sources.json";
+const execFileAsync = promisify(execFile);
 
 export class AgentSkillsService {
   constructor(private readonly options: AgentSkillsServiceOptions) {}
@@ -55,7 +62,83 @@ export class AgentSkillsService {
           enabled: false,
         },
       ]),
+      sources: await this.listSources(),
+      librarySkills: await this.listLibrarySkills(),
     };
+  }
+
+  async addSkillSource(input: { url: string; skillsPath?: string; label?: string }): Promise<AgentSkillInventory> {
+    const url = input.url.trim();
+    if (!url) {
+      throw new Error("Skill source URL is required.");
+    }
+    const skillsPath = normalizeRelativePath(input.skillsPath?.trim() || "skills");
+    const sources = await this.readSourceRegistry();
+    const existing = sources.find((source) => source.url === url && source.skillsPath === skillsPath);
+    const source = existing ?? {
+      id: sourceIdFor(url, skillsPath),
+      label: input.label?.trim() || sourceLabelFor(url),
+      url,
+      skillsPath,
+      localPath: this.sourceLocalPath(sourceIdFor(url, skillsPath)),
+      status: "idle" as const,
+      lastSyncedAt: null,
+      lastErrorMessage: null,
+    };
+    const nextSources = existing
+      ? sources.map((candidate) => candidate.id === existing.id ? { ...candidate, label: input.label?.trim() || candidate.label } : candidate)
+      : [...sources, source];
+    await this.writeSourceRegistry(nextSources);
+    await this.syncSkillSource(source.id);
+    return this.listInventory();
+  }
+
+  async syncSkillSource(sourceId: string): Promise<AgentSkillInventory> {
+    const sources = await this.readSourceRegistry();
+    const source = sources.find((candidate) => candidate.id === sourceId);
+    if (!source) {
+      throw new Error("Skill source not found.");
+    }
+
+    await this.writeSourceRegistry(sources.map((candidate) =>
+      candidate.id === source.id ? { ...candidate, status: "syncing", lastErrorMessage: null } : candidate,
+    ));
+
+    try {
+      await this.syncGitRepository(source);
+      await this.writeSourceRegistry((await this.readSourceRegistry()).map((candidate) =>
+        candidate.id === source.id
+          ? { ...candidate, status: "idle", lastSyncedAt: new Date().toISOString(), lastErrorMessage: null }
+          : candidate,
+      ));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await this.writeSourceRegistry((await this.readSourceRegistry()).map((candidate) =>
+        candidate.id === source.id ? { ...candidate, status: "error", lastErrorMessage: message } : candidate,
+      ));
+      throw new Error(`Failed to sync skill source: ${message}`);
+    }
+
+    return this.listInventory();
+  }
+
+  async installLibrarySkill(input: { librarySkillId: string; locationId: string; targetName?: string }): Promise<AgentSkillInventory> {
+    const librarySkill = (await this.listLibrarySkills()).find((skill) => skill.id === input.librarySkillId);
+    if (!librarySkill) {
+      throw new Error("Library skill not found.");
+    }
+    const location = this.skillLocations().find((candidate) => candidate.id === input.locationId);
+    if (!location) {
+      throw new Error("Target skill location not found.");
+    }
+    const targetName = sanitizeSkillFolderName(input.targetName?.trim() || librarySkill.name);
+    const targetPath = path.join(location.path, targetName);
+    if (await fileExists(targetPath)) {
+      throw new Error(`A skill named ${targetName} already exists in ${location.label}.`);
+    }
+    await mkdir(location.path, { recursive: true });
+    await cp(librarySkill.rootPath, targetPath, { recursive: true, errorOnExist: true });
+    return this.listInventory();
   }
 
   async readSkillFile(skillId: string, relativePath: string): Promise<AgentSkillFileContent> {
@@ -139,6 +222,35 @@ export class AgentSkillsService {
     }
 
     return skills;
+  }
+
+  private async listLibrarySkills(): Promise<AgentLibrarySkill[]> {
+    const sources = await this.listSources();
+    const skills: AgentLibrarySkill[] = [];
+
+    for (const source of sources) {
+      const sourceSkillsRoot = path.join(source.localPath, source.skillsPath);
+      const skillDirectories = await listDirectoryEntries(sourceSkillsRoot);
+      for (const entry of skillDirectories) {
+        if (!entry.isDirectory() || entry.name.startsWith(".")) {
+          continue;
+        }
+        const rootPath = path.join(sourceSkillsRoot, entry.name);
+        const entryFilePath = path.join(rootPath, ENTRY_FILE);
+        skills.push({
+          id: `library:${source.id}:${entry.name}`,
+          sourceId: source.id,
+          sourceLabel: source.label,
+          name: entry.name,
+          label: await readSkillLabel(entryFilePath, entry.name),
+          rootPath,
+          files: await listSkillFiles(rootPath),
+          entryFilePath: await fileExists(entryFilePath) ? entryFilePath : null,
+        });
+      }
+    }
+
+    return skills.sort((a, b) => `${a.sourceLabel}:${a.name}`.localeCompare(`${b.sourceLabel}:${b.name}`));
   }
 
   private async skillSummary(rootPath: string, location: SkillLocationCandidate, enabled: boolean): Promise<AgentSkillSummary> {
@@ -256,6 +368,48 @@ export class AgentSkillsService {
       disabledPath: path.join(this.options.disabledRootPath, candidate.harness, candidate.scope),
     }));
   }
+
+  private async listSources(): Promise<AgentSkillSource[]> {
+    return this.readSourceRegistry();
+  }
+
+  private async readSourceRegistry(): Promise<AgentSkillSource[]> {
+    try {
+      const raw = await readFile(this.sourceRegistryPath(), "utf8");
+      const parsed = JSON.parse(raw) as AgentSkillSource[];
+      return parsed.map((source) => ({
+        ...source,
+        localPath: source.localPath || this.sourceLocalPath(source.id),
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  private async writeSourceRegistry(sources: AgentSkillSource[]): Promise<void> {
+    await mkdir(this.options.skillSourcesRootPath, { recursive: true });
+    await writeFile(this.sourceRegistryPath(), JSON.stringify(sources, null, 2), "utf8");
+  }
+
+  private async syncGitRepository(source: AgentSkillSource): Promise<void> {
+    await mkdir(path.dirname(source.localPath), { recursive: true });
+    if (await fileExists(path.join(source.localPath, ".git"))) {
+      await execFileAsync("git", ["-C", source.localPath, "pull", "--ff-only"], { timeout: 60_000 });
+      return;
+    }
+    if (await fileExists(source.localPath)) {
+      throw new Error(`Source cache exists but is not a git repository: ${source.localPath}`);
+    }
+    await execFileAsync("git", ["clone", "--depth", "1", source.url, source.localPath], { timeout: 120_000 });
+  }
+
+  private sourceRegistryPath(): string {
+    return path.join(this.options.skillSourcesRootPath, SOURCE_REGISTRY_FILE);
+  }
+
+  private sourceLocalPath(sourceId: string): string {
+    return path.join(this.options.skillSourcesRootPath, "repos", sourceId);
+  }
 }
 
 async function listDirectoryEntries(rootPath: string) {
@@ -357,8 +511,25 @@ function normalizeRelativePath(relativePath: string): string {
   return relativePath.split(/[\\/]+/).filter(Boolean).join(path.sep);
 }
 
+function sanitizeSkillFolderName(name: string): string {
+  const sanitized = name.replace(/[\\/]/g, "-").trim();
+  if (!sanitized || sanitized === "." || sanitized === "..") {
+    throw new Error("Skill folder name is invalid.");
+  }
+  return sanitized;
+}
+
 function skillIdForPath(rootPath: string): string {
   return Buffer.from(path.resolve(rootPath), "utf8").toString("base64url");
+}
+
+function sourceIdFor(url: string, skillsPath: string): string {
+  return Buffer.from(`${url}\0${skillsPath}`, "utf8").toString("base64url").replace(/=+$/g, "").slice(0, 48);
+}
+
+function sourceLabelFor(url: string): string {
+  const withoutGitSuffix = url.replace(/\.git$/i, "");
+  return path.basename(withoutGitSuffix) || url;
 }
 
 function compareSkills(a: AgentSkillSummary, b: AgentSkillSummary): number {

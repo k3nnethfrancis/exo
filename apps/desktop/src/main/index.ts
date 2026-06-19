@@ -306,6 +306,8 @@ function registerIpcHandlers() {
       complete: workspaceSetupComplete,
       settingsPath: workspaceSettingsStore.resolvePath(),
     }),
+    addAgentSkillSource: (input) => agentSkillsService.addSkillSource(input),
+    installAgentLibrarySkill: (input) => agentSkillsService.installLibrarySkill(input),
     listAgentInstructionOverlays: () => agentInstructionsService.listOverlays(),
     listAgentSkills: () => agentSkillsService.listInventory(),
     listTree: listRootTree,
@@ -335,6 +337,7 @@ function registerIpcHandlers() {
       }
     },
     suggestTargets: (sourceFilePath, query) => workspaceNotesService.suggestTargets(sourceFilePath, query),
+    syncAgentSkillSource: (sourceId) => agentSkillsService.syncSkillSource(sourceId),
     syncIndex: () => indexingService.runSync("settings"),
     syncRuntime: () => terminalManager.syncRuntimeContext(),
     updateIndex: () => indexingService.update("settings"),
@@ -427,6 +430,7 @@ app.whenReady().then(async () => {
     disabledRootPath: path.join(app.getPath("userData"), "disabled-skills"),
     getWorkspaceModel: () => workspaceModel,
     homePath: process.env.HOME || app.getPath("home"),
+    skillSourcesRootPath: path.join(app.getPath("userData"), "skill-sources"),
   });
   appLifecycle = new AppLifecycleController({
     currentDirectory,

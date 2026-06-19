@@ -1,10 +1,14 @@
+import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 
 import type { WorkspaceModel } from "@exo/core";
 import { AgentSkillsService } from "./agent-skills-service";
+
+const execFileAsync = promisify(execFile);
 
 describe("AgentSkillsService", () => {
   it("discovers Claude and Codex skill folders across configured scopes", async () => {
@@ -66,6 +70,35 @@ describe("AgentSkillsService", () => {
     expect(skill).toBeTruthy();
     await expect(service.readSkillFile(skill!.id, "../outside.md")).rejects.toThrow("escapes");
   });
+
+  it("syncs git skill sources into a library and installs copies without overwriting active skills", async () => {
+    const { service, homeRoot, workspaceRoot } = await agentSkillsService();
+    const sourceRepo = path.join(workspaceRoot, "skill-source");
+    await createSkill(path.join(sourceRepo, "skills", "from-library"), "# From Library\n");
+    await git(sourceRepo, "init");
+    await git(sourceRepo, "config", "user.email", "exo@example.com");
+    await git(sourceRepo, "config", "user.name", "Exo Test");
+    await git(sourceRepo, "add", ".");
+    await git(sourceRepo, "commit", "-m", "init skills");
+
+    const inventory = await service.addSkillSource({ url: sourceRepo, skillsPath: "skills" });
+    const librarySkill = inventory.librarySkills.find((skill) => skill.name === "from-library");
+    const targetLocation = inventory.locations.find((location) => location.id === "claude:global");
+
+    expect(librarySkill).toEqual(expect.objectContaining({ label: "From Library", sourceLabel: "skill-source" }));
+    expect(targetLocation).toBeTruthy();
+
+    const installedInventory = await service.installLibrarySkill({
+      librarySkillId: librarySkill!.id,
+      locationId: targetLocation!.id,
+    });
+
+    await expect(readFile(path.join(homeRoot, ".claude", "skills", "from-library", "SKILL.md"), "utf8")).resolves.toBe("# From Library\n");
+    expect(installedInventory.skills).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: "from-library", harness: "claude", scope: "global", enabled: true }),
+    ]));
+    await expect(service.installLibrarySkill({ librarySkillId: librarySkill!.id, locationId: targetLocation!.id })).rejects.toThrow("already exists");
+  });
 });
 
 async function agentSkillsService() {
@@ -73,6 +106,7 @@ async function agentSkillsService() {
   const homeRoot = path.join(workspaceRoot, "home");
   const notesRoot = path.join(workspaceRoot, "notes");
   const disabledRootPath = path.join(workspaceRoot, "user-data", "disabled-skills");
+  const skillSourcesRootPath = path.join(workspaceRoot, "user-data", "skill-sources");
   await mkdir(notesRoot, { recursive: true });
   const model: WorkspaceModel = {
     workspaceRoot,
@@ -87,7 +121,8 @@ async function agentSkillsService() {
     disabledRootPath,
     homeRoot,
     notesRoot,
-    service: new AgentSkillsService({ disabledRootPath, getWorkspaceModel: () => model, homePath: homeRoot }),
+    service: new AgentSkillsService({ disabledRootPath, getWorkspaceModel: () => model, homePath: homeRoot, skillSourcesRootPath }),
+    skillSourcesRootPath,
     workspaceRoot,
   };
 }
@@ -104,4 +139,9 @@ async function exists(targetPath: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+async function git(cwd: string, ...args: string[]): Promise<void> {
+  await mkdir(cwd, { recursive: true });
+  await execFileAsync("git", args, { cwd });
 }

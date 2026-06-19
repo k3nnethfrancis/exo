@@ -71,6 +71,13 @@ function killTmuxAttachClients(tmuxSessionName: string): number {
   return pids.length;
 }
 
+function runGit(cwd: string, args: string[]) {
+  const result = spawnSync("git", args, { cwd, encoding: "utf8" });
+  if (result.status !== 0) {
+    throw new Error(result.stderr || result.stdout || `git ${args.join(" ")} failed`);
+  }
+}
+
 test.describe.configure({ mode: "parallel" });
 
 test("boots the shell, opens notes, and manages terminal tabs", async () => {
@@ -1249,6 +1256,36 @@ test("manages harness skill files from the agent config editor", async () => {
     await page.getByTestId("agent-skill-toggle-enabled").click();
     await expect(page.getByTestId("agent-skills-manager")).toContainText("claude · global · enabled");
     await expect.poll(async () => readFile(skillFile, "utf8")).toBe("# QA Skill\n\nEdited body.\n");
+  } finally {
+    await cleanup();
+  }
+});
+
+test("syncs a git skill source and installs a library skill copy", async () => {
+  const { page, workspaceRoot, homeRoot, cleanup } = await launchExoFixture({ mutable: true });
+  const sourceRepo = path.join(workspaceRoot, "skill-source");
+  const librarySkillRoot = path.join(sourceRepo, "skills", "library-skill");
+  const installedSkillFile = path.join(homeRoot, ".claude", "skills", "library-skill", "SKILL.md");
+
+  try {
+    await mkdir(librarySkillRoot, { recursive: true });
+    await writeFile(path.join(librarySkillRoot, "SKILL.md"), "# Library Skill\n\nUse safely.\n", "utf8");
+    runGit(sourceRepo, ["init"]);
+    runGit(sourceRepo, ["config", "user.email", "exo@example.com"]);
+    runGit(sourceRepo, ["config", "user.name", "Exo Test"]);
+    runGit(sourceRepo, ["add", "."]);
+    runGit(sourceRepo, ["commit", "-m", "init skills"]);
+
+    await page.getByTestId("open-agent-config").click();
+    await expect(page.getByTestId("agent-context-manager")).toBeVisible();
+    await page.getByTestId("agent-config-tab-sources").click();
+    await page.getByTestId("agent-skill-source-url").fill(sourceRepo);
+    await page.getByTestId("agent-skill-source-add").click();
+    await expect(page.getByTestId("agent-skill-sources")).toContainText("Library Skill");
+    await expect(page.getByTestId("agent-skill-install-target")).toHaveValue("claude:global");
+    await page.getByTestId("agent-library-skill-install").click();
+    await expect(page.getByTestId("agent-skill-sources")).toContainText("Skill installed");
+    await expect.poll(async () => readFile(installedSkillFile, "utf8")).toBe("# Library Skill\n\nUse safely.\n");
   } finally {
     await cleanup();
   }

@@ -10,6 +10,7 @@ type NotesApi = DesktopApi["notes"];
 
 export interface WorkspaceIpcHandlers {
   activateWorkspace: WorkspaceApi["activateWorkspace"];
+  addAgentSkillSource: WorkspaceApi["addAgentSkillSource"];
   createBranch: NotesApi["createBranch"];
   createDirectory: WorkspaceApi["createDirectory"];
   createFile: WorkspaceApi["createFile"];
@@ -43,8 +44,10 @@ export interface WorkspaceIpcHandlers {
   searchTag: WorkspaceApi["searchTag"];
   searchWorkspace: WorkspaceApi["searchWorkspace"];
   setAgentSkillEnabled: WorkspaceApi["setAgentSkillEnabled"];
+  installAgentLibrarySkill: WorkspaceApi["installAgentLibrarySkill"];
   statNote: (filePath: string) => Promise<FileStatInfo | null>;
   suggestTargets: NotesApi["suggestTargets"];
+  syncAgentSkillSource: WorkspaceApi["syncAgentSkillSource"];
   syncIndex: WorkspaceApi["syncIndex"];
   syncRuntime: () => Promise<unknown>;
   updateIndex: WorkspaceApi["updateIndex"];
@@ -107,6 +110,9 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
   );
   handleDesktopInvoke("workspace:list-agent-instruction-overlays", async () => handlers.listAgentInstructionOverlays());
   handleDesktopInvoke("workspace:list-agent-skills", async () => handlers.listAgentSkills());
+  handleDesktopInvoke("workspace:add-agent-skill-source", async (_event, input) => handlers.addAgentSkillSource(input));
+  handleDesktopInvoke("workspace:sync-agent-skill-source", async (_event, sourceId) => handlers.syncAgentSkillSource(sourceId));
+  handleDesktopInvoke("workspace:install-agent-library-skill", async (_event, input) => handlers.installAgentLibrarySkill(input));
   handleDesktopInvoke("workspace:read-agent-skill-file", async (_event, skillId, relativePath) =>
     handlers.readAgentSkillFile(skillId, relativePath),
   );

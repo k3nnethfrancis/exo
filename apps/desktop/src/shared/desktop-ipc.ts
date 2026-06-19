@@ -27,6 +27,9 @@ export interface DesktopInvokeHandlers {
   "workspace:save-agent-instruction-config": WorkspaceApi["saveAgentInstructionConfig"];
   "workspace:list-agent-instruction-overlays": WorkspaceApi["listAgentInstructionOverlays"];
   "workspace:list-agent-skills": WorkspaceApi["listAgentSkills"];
+  "workspace:add-agent-skill-source": WorkspaceApi["addAgentSkillSource"];
+  "workspace:sync-agent-skill-source": WorkspaceApi["syncAgentSkillSource"];
+  "workspace:install-agent-library-skill": WorkspaceApi["installAgentLibrarySkill"];
   "workspace:read-agent-skill-file": WorkspaceApi["readAgentSkillFile"];
   "workspace:save-agent-skill-file": WorkspaceApi["saveAgentSkillFile"];
   "workspace:set-agent-skill-enabled": WorkspaceApi["setAgentSkillEnabled"];

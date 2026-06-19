@@ -182,9 +182,33 @@ export interface AgentSkillSummary {
   entryFilePath: string | null;
 }
 
+export interface AgentSkillSource {
+  id: string;
+  label: string;
+  url: string;
+  skillsPath: string;
+  localPath: string;
+  status: "idle" | "syncing" | "error";
+  lastSyncedAt: string | null;
+  lastErrorMessage?: string | null;
+}
+
+export interface AgentLibrarySkill {
+  id: string;
+  sourceId: string;
+  sourceLabel: string;
+  name: string;
+  label: string;
+  rootPath: string;
+  files: AgentSkillFile[];
+  entryFilePath: string | null;
+}
+
 export interface AgentSkillInventory {
   skills: AgentSkillSummary[];
   locations: AgentSkillLocation[];
+  sources: AgentSkillSource[];
+  librarySkills: AgentLibrarySkill[];
 }
 
 export interface AgentSkillFileContent {
@@ -230,6 +254,9 @@ export interface DesktopApi {
     }) => Promise<AgentInstructionConfig>;
     listAgentInstructionOverlays: () => Promise<AgentInstructionOverlay[]>;
     listAgentSkills: () => Promise<AgentSkillInventory>;
+    addAgentSkillSource: (input: { url: string; skillsPath?: string; label?: string }) => Promise<AgentSkillInventory>;
+    syncAgentSkillSource: (sourceId: string) => Promise<AgentSkillInventory>;
+    installAgentLibrarySkill: (input: { librarySkillId: string; locationId: string; targetName?: string }) => Promise<AgentSkillInventory>;
     readAgentSkillFile: (skillId: string, relativePath: string) => Promise<AgentSkillFileContent>;
     saveAgentSkillFile: (skillId: string, relativePath: string, body: string) => Promise<AgentSkillFileContent>;
     setAgentSkillEnabled: (input: { skillId: string; enabled: boolean }) => Promise<AgentSkillInventory>;

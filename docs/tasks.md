@@ -121,6 +121,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Move the Agent Config Editor entry point from Workspace Settings to the agent harness rail.
 - [x] Add first-pass skill inventory and editing for Claude/Codex global, workspace, and active notes skill folders.
 - [x] Add reversible harness skill disable/enable by moving folders into an Exo-managed disabled-skills store instead of deleting them.
+- [x] Add first-pass git/GitHub skill sources: sync a repo `skills/` folder into Exo's library store and install copies into selected harness scopes without overwriting existing local skills.
 - [x] Simplify the manager to global and active exocortex/notes-root instruction layers.
 - [x] Keep Codex `AGENTS.md` and Claude `CLAUDE.md` aligned from one editor for each managed layer.
 - [x] Detect when `AGENTS.md` and `CLAUDE.md` diverge and require the user to choose a source or manually edit before saving both.

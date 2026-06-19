@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 
-import type { AgentSkillFile, AgentSkillInventory, AgentSkillSummary } from "../../../shared/api";
+import type { AgentLibrarySkill, AgentSkillFile, AgentSkillInventory, AgentSkillSummary } from "../../../shared/api";
 import { agentInstructionStatusLabel, type useAgentInstructionEditor } from "../hooks/useAgentInstructionEditor";
 
 type AgentInstructionEditor = ReturnType<typeof useAgentInstructionEditor>;
-type AgentConfigTab = "instructions" | "skills";
+type AgentConfigTab = "instructions" | "skills" | "sources";
 
 interface AgentConfigEditorDialogProps {
   editor: AgentInstructionEditor;
@@ -64,9 +64,20 @@ export function AgentConfigEditorDialog({ editor, onClose }: AgentConfigEditorDi
           >
             Skills
           </button>
+          <button
+            className={`dialog-tabs__button ${activeTab === "sources" ? "dialog-tabs__button--active" : ""}`}
+            data-testid="agent-config-tab-sources"
+            onClick={() => setActiveTab("sources")}
+            role="tab"
+            type="button"
+          >
+            Sources
+          </button>
         </div>
 
-        {activeTab === "instructions" ? <AgentInstructionsPanel editor={editor} /> : <AgentSkillsPanel />}
+        {activeTab === "instructions" ? <AgentInstructionsPanel editor={editor} /> : null}
+        {activeTab === "skills" ? <AgentSkillsPanel /> : null}
+        {activeTab === "sources" ? <AgentSkillSourcesPanel /> : null}
       </div>
     </div>
   );
@@ -417,6 +428,209 @@ function AgentSkillsPanel() {
           <div className="dialog-card__status dialog-card__status--error">{errorMessage}</div>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+function AgentSkillSourcesPanel() {
+  const [inventory, setInventory] = useState<AgentSkillInventory | null>(null);
+  const [sourceUrl, setSourceUrl] = useState("");
+  const [skillsPath, setSkillsPath] = useState("skills");
+  const [selectedLibrarySkillId, setSelectedLibrarySkillId] = useState<string | null>(null);
+  const [selectedLocationId, setSelectedLocationId] = useState<string>("");
+  const [status, setStatus] = useState<"idle" | "loading" | "syncing" | "installing" | "error" | "installed">("idle");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const installLocations = useMemo(
+    () => inventory?.locations.filter((location) => location.enabled) ?? [],
+    [inventory],
+  );
+  const selectedLibrarySkill = useMemo(
+    () => inventory?.librarySkills.find((skill) => skill.id === selectedLibrarySkillId) ?? null,
+    [inventory, selectedLibrarySkillId],
+  );
+
+  useEffect(() => {
+    void loadInventory();
+  }, []);
+
+  useEffect(() => {
+    if (!inventory) {
+      return;
+    }
+    if (!selectedLibrarySkillId && inventory.librarySkills[0]) {
+      setSelectedLibrarySkillId(inventory.librarySkills[0].id);
+    }
+    if (!selectedLocationId && installLocations[0]) {
+      setSelectedLocationId(installLocations[0].id);
+    }
+  }, [installLocations, inventory, selectedLibrarySkillId, selectedLocationId]);
+
+  async function loadInventory() {
+    setStatus("loading");
+    setErrorMessage(null);
+    try {
+      setInventory(await window.exo.workspace.listAgentSkills());
+      setStatus("idle");
+    } catch (error) {
+      setStatus("error");
+      setErrorMessage(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function addSource() {
+    setStatus("syncing");
+    setErrorMessage(null);
+    try {
+      const nextInventory = await window.exo.workspace.addAgentSkillSource({
+        url: sourceUrl,
+        skillsPath,
+      });
+      setInventory(nextInventory);
+      setSourceUrl("");
+      setStatus("idle");
+    } catch (error) {
+      setStatus("error");
+      setErrorMessage(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function syncSource(sourceId: string) {
+    setStatus("syncing");
+    setErrorMessage(null);
+    try {
+      setInventory(await window.exo.workspace.syncAgentSkillSource(sourceId));
+      setStatus("idle");
+    } catch (error) {
+      setStatus("error");
+      setErrorMessage(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function installSkill(skill: AgentLibrarySkill) {
+    if (!selectedLocationId) {
+      setStatus("error");
+      setErrorMessage("Choose an install target.");
+      return;
+    }
+    setStatus("installing");
+    setErrorMessage(null);
+    try {
+      setInventory(await window.exo.workspace.installAgentLibrarySkill({
+        librarySkillId: skill.id,
+        locationId: selectedLocationId,
+      }));
+      setStatus("installed");
+    } catch (error) {
+      setStatus("error");
+      setErrorMessage(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  return (
+    <div className="agent-sources" data-testid="agent-skill-sources">
+      <div className="agent-sources__form">
+        <label className="dialog-field">
+          <span className="dialog-field__label">GitHub or git repo URL</span>
+          <input
+            className="dialog-card__input"
+            data-testid="agent-skill-source-url"
+            placeholder="https://github.com/org/repo.git"
+            value={sourceUrl}
+            onChange={(event) => setSourceUrl(event.target.value)}
+          />
+        </label>
+        <label className="dialog-field">
+          <span className="dialog-field__label">Skills folder</span>
+          <input
+            className="dialog-card__input"
+            data-testid="agent-skill-source-path"
+            value={skillsPath}
+            onChange={(event) => setSkillsPath(event.target.value)}
+          />
+        </label>
+        <button
+          className="toolbar-button"
+          data-testid="agent-skill-source-add"
+          disabled={status === "syncing" || sourceUrl.trim().length === 0}
+          onClick={() => void addSource()}
+          type="button"
+        >
+          {status === "syncing" ? "Syncing..." : "Add source"}
+        </button>
+      </div>
+
+      <div className="agent-sources__body">
+        <div className="agent-sources__panel">
+          <div className="dialog-field__label">Sources</div>
+          {status === "loading" && !inventory ? <div className="dialog-card__status">Loading sources...</div> : null}
+          {inventory?.sources.length === 0 ? <div className="dialog-card__status">No skill sources configured.</div> : null}
+          {inventory?.sources.map((source) => (
+            <div className="agent-sources__source" data-testid={`agent-skill-source-${source.id}`} key={source.id}>
+              <div>
+                <strong>{source.label}</strong>
+                <span>{source.url}</span>
+                <small>{source.skillsPath} · {source.lastSyncedAt ? `synced ${new Date(source.lastSyncedAt).toLocaleString()}` : "not synced"}</small>
+                {source.lastErrorMessage ? <small className="agent-sources__error">{source.lastErrorMessage}</small> : null}
+              </div>
+              <button className="toolbar-button" onClick={() => void syncSource(source.id)} type="button">
+                Sync
+              </button>
+            </div>
+          ))}
+        </div>
+
+        <div className="agent-sources__panel">
+          <div className="agent-sources__install-header">
+            <div>
+              <div className="dialog-field__label">Library skills</div>
+              <div className="agent-config-editor__path">Installing copies a library skill into the selected harness folder. Existing skills are never overwritten.</div>
+            </div>
+            <select
+              className="dialog-card__input agent-sources__target"
+              data-testid="agent-skill-install-target"
+              value={selectedLocationId}
+              onChange={(event) => setSelectedLocationId(event.target.value)}
+            >
+              {installLocations.map((location) => (
+                <option key={location.id} value={location.id}>{location.label}</option>
+              ))}
+            </select>
+          </div>
+          {inventory?.librarySkills.length === 0 ? <div className="dialog-card__status">No library skills found in synced sources.</div> : null}
+          <div className="agent-sources__library">
+            {inventory?.librarySkills.map((skill) => (
+              <button
+                className={`agent-sources__skill ${skill.id === selectedLibrarySkillId ? "agent-sources__skill--active" : ""}`}
+                data-testid={`agent-library-skill-${skill.name}`}
+                key={skill.id}
+                onClick={() => setSelectedLibrarySkillId(skill.id)}
+                type="button"
+              >
+                <strong>{skill.label}</strong>
+                <span>{skill.sourceLabel} · {skill.name}</span>
+                <small>{skill.rootPath}</small>
+              </button>
+            ))}
+          </div>
+          {selectedLibrarySkill ? (
+            <div className="agent-sources__actions">
+              <button
+                className="toolbar-button"
+                data-testid="agent-library-skill-install"
+                disabled={status === "installing"}
+                onClick={() => void installSkill(selectedLibrarySkill)}
+                type="button"
+              >
+                {status === "installing" ? "Installing..." : "Install copy"}
+              </button>
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      {status === "installed" ? <div className="dialog-card__status">Skill installed.</div> : null}
+      {status === "error" && errorMessage ? <div className="dialog-card__status dialog-card__status--error">{errorMessage}</div> : null}
     </div>
   );
 }
