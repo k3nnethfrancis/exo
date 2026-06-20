@@ -344,6 +344,7 @@ These issues have fixes and coverage, but remain worth exercising during daily i
   - Debounced terminal resize events before they reach pty.
   - Reduced renderer-to-tmux resize handoff debounce from 75ms to one animation frame so split-pane xterm fitting and backend terminal dimensions converge faster during active typing.
   - Made renderer write chunking Unicode-safe for surrogate-pair emoji and skipped the initial empty hydration reset so live output is not disturbed by startup hydration.
+  - Decoded tmux control-mode octal output as UTF-8 bytes so box-drawing glyphs, Claude UI borders, and emoji do not become replacement characters before reaching xterm.
 
 ## Resolved
 

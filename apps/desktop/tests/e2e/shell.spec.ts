@@ -1459,12 +1459,17 @@ test("renders emoji-heavy terminal output without replacement glyph corruption",
   const { page, cleanup } = await launchExoFixture({
     env: {
       EXO_SHELL: process.execPath,
-      EXO_SHELL_ARGS: '-e,process.stdout.write("🙂".repeat(20000)+"\\nterminal-emoji-end\\n");setInterval(()=>{},1000)',
+      EXO_SHELL_ARGS: '-e,process.stdout.write("── 🙂 terminal-border\\n"+"🙂".repeat(20000)+"\\nterminal-emoji-end\\n");setInterval(()=>{},1000)',
     },
   });
 
   try {
     await expect(page.locator(".xterm-rows")).toContainText("terminal-emoji-end");
+    const buffer = await page.evaluate(async () => {
+      const sessions = await window.exo.terminals.list();
+      return sessions[0] ? window.exo.terminals.read(sessions[0].id) : "";
+    });
+    expect(buffer).toContain("── 🙂 terminal-border");
     await expect(page.locator(".xterm-rows")).not.toContainText("�");
   } finally {
     await cleanup();

@@ -257,12 +257,45 @@ export function shellQuote(value: string): string {
 }
 
 export function decodeTmuxControlValue(value: string): string {
-  return value.replace(/\\([0-7]{3}|\\)/g, (_match, escape: string) => {
-    if (escape === "\\") {
-      return "\\";
+  let decoded = "";
+  let pendingBytes: number[] = [];
+
+  const flushBytes = () => {
+    if (pendingBytes.length === 0) {
+      return;
     }
-    return String.fromCharCode(Number.parseInt(escape, 8));
-  });
+    decoded += Buffer.from(pendingBytes).toString("utf8");
+    pendingBytes = [];
+  };
+
+  for (let index = 0; index < value.length;) {
+    if (value[index] !== "\\") {
+      flushBytes();
+      decoded += value[index];
+      index += 1;
+      continue;
+    }
+
+    const octal = /^[0-7]{3}/.exec(value.slice(index + 1));
+    if (octal) {
+      pendingBytes.push(Number.parseInt(octal[0], 8));
+      index += 4;
+      continue;
+    }
+
+    flushBytes();
+    if (value[index + 1] === "\\") {
+      decoded += "\\";
+      index += 2;
+      continue;
+    }
+
+    decoded += value[index];
+    index += 1;
+  }
+
+  flushBytes();
+  return decoded;
 }
 
 function parseControlOutput(line: string): { paneId: string; data: string } | null {

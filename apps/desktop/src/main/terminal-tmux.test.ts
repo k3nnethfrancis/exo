@@ -141,6 +141,7 @@ describe("terminal tmux runtime helpers", () => {
 
   it("decodes tmux control output escapes", () => {
     expect(decodeTmuxControlValue("hello\\015\\012path\\\\name")).toBe("hello\r\npath\\name");
+    expect(decodeTmuxControlValue("\\342\\224\\200\\342\\224\\200 \\360\\237\\231\\202")).toBe("── 🙂");
   });
 
   it("streams only the selected pane from tmux control mode", () => {
@@ -161,8 +162,9 @@ describe("terminal tmux runtime helpers", () => {
 
     fake.emitStdout("%output %2 ignored\\015\\012\n");
     fake.emitStdout("%output %3 hello\\015\\012\n");
+    fake.emitStdout("%output %3 \\342\\224\\200\\342\\224\\200 \\360\\237\\231\\202\\015\\012\n");
 
-    expect(received).toEqual(["hello\r\n"]);
+    expect(received).toEqual(["hello\r\n", "── 🙂\r\n"]);
     expect(fake.stdinWrites).toContain("refresh-client -C 100x30\n");
   });
 
