@@ -9,7 +9,7 @@ import type { WorkspaceSearchResultMode } from "../hooks/useWorkspaceSearch";
 import type { AppearanceMode, ResolvedAppearance } from "../appearance";
 import type { TreeNode, WorkspaceSearchResults } from "@exo/core";
 import type { WorkspaceGitChange } from "../../../shared/api";
-import exoIcon from "../assets/exo-icon.svg";
+import exoGlyph from "../assets/exo-glyph.svg";
 
 const RESIZER_TRACK_SIZE = "6px";
 
@@ -262,7 +262,7 @@ export function ShellLayout(props: ShellLayoutProps) {
         <div className="topbar__title" aria-label="exograph">
           <span
             className="topbar__brand-icon"
-            style={{ "--exo-brand-icon": `url("${exoIcon}")` } as CSSProperties}
+            style={{ "--exo-brand-icon": `url("${exoGlyph}")` } as CSSProperties}
             aria-hidden="true"
           />
           <span className="topbar__brand-text">exograph</span>
