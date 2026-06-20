@@ -1,6 +1,7 @@
 import { EventEmitter } from "node:events";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { inflateSync } from "node:zlib";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const electronMock = vi.hoisted(() => ({
@@ -223,6 +224,23 @@ describe("AppLifecycleController", () => {
     expect(electronMock.trayInstances).toHaveLength(1);
   });
 
+  it("uses a transparent template tray glyph instead of a square app icon", () => {
+    const controller = appLifecycleController();
+
+    controller.setupTray();
+
+    const dataUrl = electronMock.trayImageCreateFromDataURL.mock.calls[0]?.[0];
+    expect(dataUrl).toEqual(expect.stringMatching(/^data:image\/png;base64,/));
+
+    const image = decodePngRgba(dataUrl);
+    expect(image.width).toBe(18);
+    expect(image.height).toBe(18);
+    expect(image.alphaAt(0, 0)).toBe(0);
+    expect(image.alphaAt(image.width - 1, 0)).toBe(0);
+    expect(image.alphaAt(0, image.height - 1)).toBe(0);
+    expect(image.alphaAt(image.width - 1, image.height - 1)).toBe(0);
+  });
+
   it("opens settings from the resident menu without quitting the runtime", () => {
     const controller = appLifecycleController();
     controller.createWindow();
@@ -288,4 +306,86 @@ function clickMenuItem(label: string): void {
   expect(item).toBeTruthy();
   expect(item?.click).toBeTypeOf("function");
   (item!.click as () => void)();
+}
+
+function decodePngRgba(dataUrl: string): { width: number; height: number; alphaAt: (x: number, y: number) => number } {
+  const buffer = Buffer.from(dataUrl.replace(/^data:image\/png;base64,/, ""), "base64");
+  let offset = 8;
+  let width = 0;
+  let height = 0;
+  const idat: Buffer[] = [];
+
+  while (offset < buffer.length) {
+    const length = buffer.readUInt32BE(offset);
+    const type = buffer.toString("ascii", offset + 4, offset + 8);
+    const data = buffer.subarray(offset + 8, offset + 8 + length);
+    offset += 12 + length;
+
+    if (type === "IHDR") {
+      width = data.readUInt32BE(0);
+      height = data.readUInt32BE(4);
+      expect(data[9]).toBe(6);
+    } else if (type === "IDAT") {
+      idat.push(data);
+    } else if (type === "IEND") {
+      break;
+    }
+  }
+
+  const inflated = inflateSync(Buffer.concat(idat));
+  const stride = width * 4;
+  const rows: Buffer[] = [];
+  let sourceOffset = 0;
+  let previousRow = Buffer.alloc(stride);
+
+  for (let y = 0; y < height; y += 1) {
+    const filter = inflated[sourceOffset];
+    sourceOffset += 1;
+    const row = Buffer.from(inflated.subarray(sourceOffset, sourceOffset + stride));
+    sourceOffset += stride;
+    unfilterPngRow(row, previousRow, filter);
+    rows.push(row);
+    previousRow = row;
+  }
+
+  return {
+    width,
+    height,
+    alphaAt: (x: number, y: number) => rows[y][x * 4 + 3],
+  };
+}
+
+function unfilterPngRow(row: Buffer, previousRow: Buffer, filter: number): void {
+  const bytesPerPixel = 4;
+  for (let index = 0; index < row.length; index += 1) {
+    const left = index >= bytesPerPixel ? row[index - bytesPerPixel] : 0;
+    const up = previousRow[index];
+    const upLeft = index >= bytesPerPixel ? previousRow[index - bytesPerPixel] : 0;
+    let value = row[index];
+
+    if (filter === 1) {
+      value += left;
+    } else if (filter === 2) {
+      value += up;
+    } else if (filter === 3) {
+      value += Math.floor((left + up) / 2);
+    } else if (filter === 4) {
+      value += paethPredictor(left, up, upLeft);
+    } else {
+      expect(filter).toBe(0);
+    }
+
+    row[index] = value & 0xff;
+  }
+}
+
+function paethPredictor(left: number, up: number, upLeft: number): number {
+  const estimate = left + up - upLeft;
+  const leftDistance = Math.abs(estimate - left);
+  const upDistance = Math.abs(estimate - up);
+  const upLeftDistance = Math.abs(estimate - upLeft);
+  if (leftDistance <= upDistance && leftDistance <= upLeftDistance) {
+    return left;
+  }
+  return upDistance <= upLeftDistance ? up : upLeft;
 }
