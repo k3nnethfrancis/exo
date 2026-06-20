@@ -35,10 +35,107 @@ import {
   workspaceSettingsStructuralDraftKey,
   workspaceSettingsStructuralKeyFromSettings,
 } from "./workspaceSettingsModel";
+import { buildExplorerChangeState } from "./explorerChangeState";
 
 describe("desktop shell", () => {
   it("keeps a renderer test surface in place", () => {
     expect(true).toBe(true);
+  });
+});
+
+describe("explorer changed file state", () => {
+  it("marks changed file rows and collapsed ancestor directories", () => {
+    const rootPath = "/workspace/projects/sample-project";
+    const state = buildExplorerChangeState(
+      [
+        {
+          id: "src",
+          name: "src",
+          path: `${rootPath}/src`,
+          kind: "directory",
+          children: [
+            {
+              id: "demo",
+              name: "demo.ts",
+              path: `${rootPath}/src/demo.ts`,
+              kind: "file",
+            },
+          ],
+        },
+        {
+          id: "readme",
+          name: "README.md",
+          path: `${rootPath}/README.md`,
+          kind: "file",
+        },
+      ],
+      [
+        {
+          rootPath,
+          rootLabel: "sample-project",
+          path: "src/demo.ts",
+          absolutePath: `${rootPath}/src/demo.ts`,
+          status: "M",
+          firstChangedLine: 2,
+        },
+      ],
+    );
+
+    expect(state.byPath.get(`${rootPath}/src/demo.ts`)).toMatchObject({ status: "M", firstChangedLine: 2 });
+    expect(state.byPath.has(`${rootPath}/README.md`)).toBe(false);
+    expect(state.descendantCountByPath.get(`${rootPath}/src`)).toBe(1);
+  });
+
+  it("clears descendant state when project changes are clean", () => {
+    const rootPath = "/workspace/projects/sample-project";
+    const state = buildExplorerChangeState(
+      [
+        {
+          id: "src",
+          name: "src",
+          path: `${rootPath}/src`,
+          kind: "directory",
+          children: [
+            {
+              id: "demo",
+              name: "demo.ts",
+              path: `${rootPath}/src/demo.ts`,
+              kind: "file",
+            },
+          ],
+        },
+      ],
+      [],
+    );
+
+    expect(state.byPath.size).toBe(0);
+    expect(state.descendantCountByPath.has(`${rootPath}/src`)).toBe(false);
+  });
+
+  it("counts dirty descendants even when changed child nodes are not loaded", () => {
+    const rootPath = "/workspace/projects/sample-project";
+    const state = buildExplorerChangeState(
+      [
+        {
+          id: "src",
+          name: "src",
+          path: `${rootPath}/src`,
+          kind: "directory",
+          children: [],
+        },
+      ],
+      [
+        {
+          rootPath,
+          rootLabel: "sample-project",
+          path: "src/deep/demo.ts",
+          absolutePath: `${rootPath}/src/deep/demo.ts`,
+          status: "??",
+        },
+      ],
+    );
+
+    expect(state.descendantCountByPath.get(`${rootPath}/src`)).toBe(1);
   });
 });
 

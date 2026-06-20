@@ -368,15 +368,20 @@ test("shows changed project files in the project drawer", async () => {
   await writeFile(path.join(projectRoot, "src/demo.ts"), "export const stable = true;\nexport const demo = 'changed';\n");
 
   await page.getByTestId("project-roots-toggle").click();
-  await expect(page.getByTestId("project-changes")).toContainText("src/demo.ts");
-  await expect(page.getByTestId("project-changes")).toContainText(":2");
-  await expect(page.getByTestId("project-changes").locator(".project-change__agent")).toHaveCount(0);
+  await expect(page.getByTestId("project-changes")).toHaveCount(0);
+  const changedFolder = page.getByTestId("project-roots-panel").getByRole("button", { name: /src, folder, 1 file changed/ });
+  await expect(changedFolder).toBeVisible();
+  await expect(changedFolder.locator(".tree-node__dirty-badge")).toHaveText("1");
+  await changedFolder.click();
+  const changedFile = page.getByTestId("project-roots-panel").getByRole("button", { name: /demo\.ts, file, M changed, first changed line 2/ });
+  await expect(changedFile).toBeVisible();
+  await expect(changedFile.locator(".tree-node__dirty-badge")).toHaveText("M");
   await expect(page.locator('[data-testid^="terminal-session-changes-"]')).toHaveCount(0);
   await expect(page.getByTestId("statusbar-changes")).toHaveText("1 change");
   await page.getByTestId("statusbar-changes").click();
   await expect(page.getByTestId("editor-title")).toHaveText("demo.ts");
   await expect.poll(() => activeEditorLine(page)).toBe(2);
-  await page.getByTestId("project-changes").getByRole("button", { name: /src\/demo\.ts/ }).click();
+  await changedFile.click();
   await expect(page.getByTestId("editor-title")).toHaveText("demo.ts");
   await expect.poll(() => activeEditorLine(page)).toBe(2);
 
