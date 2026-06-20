@@ -1,14 +1,15 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { AppClient } from "./app-client";
+import { AppClient, formatAppClientDiscoveryFailure } from "./app-client";
 
 const tempPaths: string[] = [];
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
   await Promise.all(tempPaths.splice(0).map((target) => rm(target, { recursive: true, force: true })));
 });
@@ -68,6 +69,65 @@ describe("AppClient", () => {
       expect(result.failure.port).toBe(12345);
       expect(result.failure.pid).toBe(9_999_999);
     }
+  });
+
+  it("quarantines stale server.json when the recorded pid is gone", async () => {
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-client-"));
+    tempPaths.push(runtimeRoot);
+    await writeFile(path.join(runtimeRoot, "server.json"), JSON.stringify({ port: 12345, pid: 9_999_999 }), "utf8");
+
+    const result = await AppClient.connectDetailed(runtimeRoot);
+
+    expect(result.ok).toBe(false);
+    const entries = await readdir(runtimeRoot);
+    expect(entries).not.toContain("server.json");
+    expect(entries.some((entry) => entry.startsWith("server.json.stale-"))).toBe(true);
+  });
+
+  it("does not quarantine server.json when process liveness is blocked by permissions", async () => {
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-client-"));
+    tempPaths.push(runtimeRoot);
+    await writeFile(path.join(runtimeRoot, "server.json"), JSON.stringify({ port: 12345, pid: 14108 }), "utf8");
+    vi.spyOn(process, "kill").mockImplementation(() => {
+      throw Object.assign(new Error("kill EPERM 14108"), { code: "EPERM" });
+    });
+    vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new Error("fetch failed"))));
+
+    const result = await AppClient.connectDetailed(runtimeRoot, {
+      EXO_APP_CLIENT_REQUEST_TIMEOUT_MS: "5",
+    });
+
+    expect(result.ok).toBe(false);
+    const entries = await readdir(runtimeRoot);
+    expect(entries).toContain("server.json");
+    expect(entries.some((entry) => entry.startsWith("server.json.stale-"))).toBe(false);
+    if (!result.ok) {
+      expect(result.failure.code).toBe("server-liveness-unknown");
+      expect(result.failure.processCheck).toMatchObject({ status: "blocked", code: "EPERM", message: "kill EPERM 14108" });
+      expect(formatAppClientDiscoveryFailure(result.failure)).toContain("Process check: blocked; code=EPERM");
+    }
+  });
+
+  it("connects when process liveness is blocked but the command server is reachable", async () => {
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-client-"));
+    tempPaths.push(runtimeRoot);
+    await writeFile(path.join(runtimeRoot, "server.json"), JSON.stringify({ port: 12345, pid: 14108 }), "utf8");
+    vi.spyOn(process, "kill").mockImplementation(() => {
+      throw Object.assign(new Error("kill EPERM 14108"), { code: "EPERM" });
+    });
+    stubCommandServer((targetUrl) => {
+      if (targetUrl.pathname === "/status") {
+        return json({ ok: true });
+      }
+      return json({ error: "not found" }, 404);
+    });
+
+    const result = await AppClient.connectDetailed(runtimeRoot);
+
+    expect(result.ok).toBe(true);
+    const entries = await readdir(runtimeRoot);
+    expect(entries).toContain("server.json");
+    expect(entries.some((entry) => entry.startsWith("server.json.stale-"))).toBe(false);
   });
 
   it("reports unreachable discovery when the recorded pid is alive but the port is not", async () => {

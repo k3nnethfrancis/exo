@@ -1,4 +1,4 @@
-import { readFile, stat } from "node:fs/promises";
+import { readFile, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
 
 import { EXO_COMMAND_ROUTES, type ExoCommandServerInfo } from "@exo/core";
@@ -20,7 +20,8 @@ export type AppClientDiscoveryFailureCode =
   | "server-json-missing"
   | "server-json-invalid"
   | "server-stale"
-  | "server-unreachable";
+  | "server-unreachable"
+  | "server-liveness-unknown";
 
 export interface AppClientDiscoveryMetadata {
   runtimeRoot: string;
@@ -33,6 +34,13 @@ export interface AppClientDiscoveryFailure extends AppClientDiscoveryMetadata {
   code: AppClientDiscoveryFailureCode;
   message: string;
   causeMessage?: string;
+  processCheck?: AppClientProcessCheckDiagnostic;
+}
+
+export interface AppClientProcessCheckDiagnostic {
+  status: "alive" | "dead" | "blocked" | "unknown";
+  code?: string;
+  message?: string;
 }
 
 export type AppClientConnectResult =
@@ -95,18 +103,26 @@ export class AppClient {
     const discovery = { runtimeRoot, serverJsonPath, port: info.port, pid: info.pid };
     const client = new AppClient(baseUrl, discovery, requestTimeoutMs, searchRequestTimeoutMs, maintenanceRequestTimeoutMs);
 
+    const initialProcessCheck = checkProcessLiveness(info.pid);
+    if (initialProcessCheck.status === "dead") {
+      await quarantineStaleDiscoveryFile(serverJsonPath);
+      return discoveryFailure("server-stale", runtimeRoot, serverJsonPath, undefined, info, initialProcessCheck);
+    }
+
     // Health check
     try {
       await client.getStatus();
       return { ok: true, client, discovery };
     } catch (error) {
-      return discoveryFailure(
-        isProcessAlive(info.pid) ? "server-unreachable" : "server-stale",
-        runtimeRoot,
-        serverJsonPath,
-        error,
-        info,
-      );
+      const postFetchProcessCheck = checkProcessLiveness(info.pid);
+      if (postFetchProcessCheck.status === "dead") {
+        await quarantineStaleDiscoveryFile(serverJsonPath);
+        return discoveryFailure("server-stale", runtimeRoot, serverJsonPath, error, info, postFetchProcessCheck);
+      }
+      if (postFetchProcessCheck.status === "blocked" || postFetchProcessCheck.status === "unknown") {
+        return discoveryFailure("server-liveness-unknown", runtimeRoot, serverJsonPath, error, info, postFetchProcessCheck);
+      }
+      return discoveryFailure("server-unreachable", runtimeRoot, serverJsonPath, error, info, postFetchProcessCheck);
     }
   }
 
@@ -296,6 +312,7 @@ function discoveryFailure(
   serverJsonPath: string,
   cause?: unknown,
   info?: Partial<ExoCommandServerInfo>,
+  processCheck?: AppClientProcessCheckDiagnostic,
 ): AppClientConnectResult {
   const causeMessage = cause instanceof Error ? cause.message : cause ? String(cause) : undefined;
   return {
@@ -308,6 +325,7 @@ function discoveryFailure(
       pid: info?.pid,
       message: discoveryFailureMessage(code, runtimeRoot, serverJsonPath, info),
       causeMessage,
+      processCheck,
     },
   };
 }
@@ -321,6 +339,12 @@ export function formatAppClientDiscoveryFailure(failure: AppClientDiscoveryFailu
   if (failure.pid) lines.push(`Recorded pid: ${failure.pid}`);
   if (failure.port) lines.push(`Recorded port: ${failure.port}`);
   if (failure.causeMessage) lines.push(`Cause: ${failure.causeMessage}`);
+  if (failure.processCheck) {
+    const parts = [`Process check: ${failure.processCheck.status}`];
+    if (failure.processCheck.code) parts.push(`code=${failure.processCheck.code}`);
+    if (failure.processCheck.message) parts.push(`message=${failure.processCheck.message}`);
+    lines.push(parts.join("; "));
+  }
   return `${lines.join("\n")}\n`;
 }
 
@@ -341,15 +365,36 @@ function discoveryFailureMessage(
       return `Exo command server discovery is stale. The recorded process${info?.pid ? ` (${info.pid})` : ""} is no longer running; restart Exo with \`exo start\`.`;
     case "server-unreachable":
       return `Exo command server is unreachable${info?.port ? ` at http://127.0.0.1:${info.port}` : ""}. Restart Exo with \`exo start\` or check that EXO_RUNTIME_ROOT points at the active runtime.`;
+    case "server-liveness-unknown":
+      return `Exo command server is unreachable${info?.port ? ` at http://127.0.0.1:${info.port}` : ""}, and Exo could not verify whether the recorded process${info?.pid ? ` (${info.pid})` : ""} is alive. The discovery file was preserved because the process check was blocked or inconclusive.`;
   }
 }
 
-function isProcessAlive(pid: number): boolean {
+function checkProcessLiveness(pid: number): AppClientProcessCheckDiagnostic {
   try {
     process.kill(pid, 0);
-    return true;
+    return { status: "alive" };
+  } catch (error) {
+    if (isNodeError(error)) {
+      const message = error.message || String(error);
+      if (error.code === "ESRCH") {
+        return { status: "dead", code: error.code, message };
+      }
+      if (error.code === "EPERM") {
+        return { status: "blocked", code: error.code, message };
+      }
+      return { status: "unknown", code: error.code, message };
+    }
+    return { status: "unknown", message: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+async function quarantineStaleDiscoveryFile(serverJsonPath: string): Promise<void> {
+  const stalePath = `${serverJsonPath}.stale-${Date.now()}`;
+  try {
+    await rename(serverJsonPath, stalePath);
   } catch {
-    return false;
+    await rm(serverJsonPath, { force: true }).catch(() => {});
   }
 }
 

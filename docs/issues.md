@@ -40,7 +40,7 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 
 ### EXO-ISSUE-045: Restart can leave stale command-server discovery with visible broken terminal UI
 
-- Status: open
+- Status: implemented in `exo/issue-045-restart-lifecycle`; pending review and full Electron restart QA
 - Severity: critical
 - Area: terminal lifecycle, control plane, command-server discovery, macOS app lifecycle
 - Observed:
@@ -67,6 +67,14 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
   - E2E coverage for renderer-visible terminal tabs after main/control-plane restart: tabs should either reconnect cleanly or show an actionable recovery state.
   - Reattach coverage for Claude/Codex tabs after restart, asserting typed input and prompt rendering are not malformed.
   - Discovery-file regression coverage for stale pid, missing pid, dead pid, and fetch-failed server cases.
+- Resolution notes:
+  - CLI discovery now validates the recorded command-server pid with structured liveness diagnostics: only `ESRCH` is treated as definitely dead, while `EPERM` and other failures are treated as blocked/unknown because sandboxed probes can falsely reject healthy Exo processes.
+  - `server.json` is quarantined to `server.json.stale-<timestamp>` only when the pid is definitely dead before `/status`, or after `/status` fails and a second process check returns definitely dead evidence.
+  - Blocked/unknown process checks preserve `server.json` and return a distinct `server-liveness-unknown` diagnostic with the process-check code/message instead of deleting discovery.
+  - Terminal panes now disable xterm input and show an explicit unavailable overlay when the session is unhealthy or exited, while unhealthy running sessions expose reconnect from the header/overlay.
+  - Terminal view health transitions force a fit/resize refresh, so reattached bridges get current geometry before the user can resume typing.
+  - Added focused CLI regression coverage for quarantining definitely stale `server.json` and preserving discovery on permission/sandbox-style process-check failures, plus renderer predicate coverage for blocking unhealthy terminal input while allowing reconnect.
+  - Focused CLI app-client tests, renderer terminal predicate tests, and CLI/desktop package typechecks pass in this worktree; full Electron restart QA remains manual.
 
 ### EXO-ISSUE-044: Editor header chrome is too tall and daily notes repeat the title as an H1
 

@@ -4,6 +4,7 @@ import { GripVertical, RefreshCw, SquareTerminal, X } from "lucide-react";
 import type { TerminalSessionInfo } from "../../../shared/api";
 import type { ResolvedAppearance } from "../appearance";
 import type { DragManager } from "../hooks/useDragManager";
+import { isReconnectableSession, isTerminalInputEnabled } from "../terminalSessions";
 import { AgentIcon } from "./AgentIcon";
 import { ChromeTab } from "./Chrome";
 import { focusTerminal } from "./terminalRegistry";
@@ -65,6 +66,7 @@ export function TerminalDock(props: TerminalDockProps) {
   } = props;
   const activeSession = sessions.find((session) => session.id === activeTerminalId) ?? null;
   const canReconnect = Boolean(activeSession && isReconnectableSession(activeSession) && onReconnect);
+  const inputEnabled = activeSession ? isTerminalInputEnabled(activeSession) : true;
   const hydrateRef = useRef(onHydrate);
 
   useEffect(() => {
@@ -156,17 +158,37 @@ export function TerminalDock(props: TerminalDockProps) {
           </div>
 
           {activeSession ? (
-            <TerminalView
-              appearance={appearance}
-              session={activeSession}
-              hydrationSnapshot={hydrationSnapshots[activeSession.id] ?? ""}
-              hydrationVersion={hydrationVersions[activeSession.id] ?? 0}
-              fontSize={fontSize}
-              scrollbackLines={scrollbackLines}
-              onFocus={onFocus}
-              onInput={onWrite}
-              onResize={onResize}
-            />
+            <div className="terminal-dock__terminal-frame">
+              <TerminalView
+                appearance={appearance}
+                session={activeSession}
+                hydrationSnapshot={hydrationSnapshots[activeSession.id] ?? ""}
+                hydrationVersion={hydrationVersions[activeSession.id] ?? 0}
+                fontSize={fontSize}
+                scrollbackLines={scrollbackLines}
+                onFocus={onFocus}
+                onInput={onWrite}
+                onResize={onResize}
+                inputEnabled={inputEnabled}
+              />
+              {!inputEnabled ? (
+                <div className="terminal-dock__health-overlay" data-testid="terminal-health-overlay">
+                  <div className="terminal-dock__health-title">{activeSession.status === "exited" ? "Terminal exited" : "Terminal unavailable"}</div>
+                  <div className="terminal-dock__health-detail">{activeSession.healthDetail ?? "Reconnect or inspect terminal diagnostics."}</div>
+                  {canReconnect ? (
+                    <button
+                      type="button"
+                      className="terminal-dock__header-button terminal-dock__reconnect"
+                      data-testid="terminal-overlay-reconnect"
+                      onClick={() => onReconnect?.(activeSession.id)}
+                    >
+                      <RefreshCw size={13} />
+                      <span>Reconnect</span>
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
           ) : !empty ? (
             <div className="terminal-dock__empty">No terminals yet.</div>
           ) : null}
@@ -175,8 +197,4 @@ export function TerminalDock(props: TerminalDockProps) {
       </div>
     </section>
   );
-}
-
-function isReconnectableSession(session: TerminalSessionInfo): boolean {
-  return session.health === "unhealthy" && (session.healthDetail?.toLowerCase().includes("attach bridge") ?? false);
 }

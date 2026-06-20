@@ -27,7 +27,7 @@ import { isTerminalGeneratedResponse } from "./components/terminalInputFilters";
 import { chunkTerminalData } from "./components/terminalOutputChunks";
 import { listEnterEdit, shouldSuppressGeneratedTitleLine, wikilinkExitEdit } from "./components/markdownLivePreview";
 import { defaultTerminalCwdForNotesFolder } from "./hooks/useWorkspaceBootstrap";
-import { terminalSessionsEqual } from "./terminalSessions";
+import { isReconnectableSession, isTerminalInputEnabled, terminalSessionsEqual } from "./terminalSessions";
 import {
   DEFAULT_TERMINAL_HISTORY_LINES as RENDERER_DEFAULT_TERMINAL_HISTORY_LINES,
   clampNumber,
@@ -492,6 +492,24 @@ describe("terminal session sync", () => {
 
     expect(terminalSessionsEqual([...sessions], [...sessions])).toBe(true);
     expect(terminalSessionsEqual([...sessions], [{ ...sessions[0], healthDetail: "stale output" }])).toBe(false);
+  });
+
+  it("blocks terminal input while a running session is unhealthy but allows reconnect", () => {
+    const unhealthySession = {
+      id: "term-a",
+      title: "Claude",
+      cwd: "/workspace",
+      kind: "claude",
+      command: "claude",
+      status: "running",
+      health: "unhealthy",
+      healthDetail: "Tmux session is alive but Exo's attach bridge is detached; reconnect the terminal.",
+    } as const;
+
+    expect(isTerminalInputEnabled(unhealthySession)).toBe(false);
+    expect(isReconnectableSession(unhealthySession)).toBe(true);
+    expect(isTerminalInputEnabled({ ...unhealthySession, health: "idle" })).toBe(true);
+    expect(isTerminalInputEnabled({ ...unhealthySession, status: "exited", health: "exited" })).toBe(false);
   });
 });
 

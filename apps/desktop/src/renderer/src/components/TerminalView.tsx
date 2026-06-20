@@ -22,10 +22,11 @@ interface TerminalViewProps {
   onFocus: () => void;
   onInput: (id: string, data: string) => void;
   onResize: (id: string, cols: number, rows: number) => void;
+  inputEnabled?: boolean;
 }
 
 export function TerminalView(props: TerminalViewProps) {
-  const { appearance, session, hydrationSnapshot, hydrationVersion, fontSize, scrollbackLines, onFocus, onInput, onResize } = props;
+  const { appearance, session, hydrationSnapshot, hydrationVersion, fontSize, scrollbackLines, onFocus, onInput, onResize, inputEnabled = true } = props;
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
@@ -35,6 +36,7 @@ export function TerminalView(props: TerminalViewProps) {
   const writingRef = useRef(false);
   const disposedRef = useRef(false);
   const inputHandlerRef = useRef(onInput);
+  const inputEnabledRef = useRef(inputEnabled);
   const resizeHandlerRef = useRef(onResize);
   const programmaticInputGuardUntilRef = useRef(0);
   const sizeRef = useRef({ width: 0, height: 0, cols: 0, rows: 0, resizeTimer: 0 });
@@ -42,6 +44,10 @@ export function TerminalView(props: TerminalViewProps) {
   useEffect(() => {
     inputHandlerRef.current = onInput;
   }, [onInput]);
+
+  useEffect(() => {
+    inputEnabledRef.current = inputEnabled;
+  }, [inputEnabled]);
 
   useEffect(() => {
     resizeHandlerRef.current = onResize;
@@ -67,6 +73,9 @@ export function TerminalView(props: TerminalViewProps) {
     });
 
     const disposeData = terminal.onData((data) => {
+      if (!inputEnabledRef.current) {
+        return;
+      }
       if (isTerminalGeneratedResponse(data)) {
         return;
       }
@@ -105,6 +114,9 @@ export function TerminalView(props: TerminalViewProps) {
 
       const paths = window.exo.terminals.resolveDroppedFilePaths(Array.from(event.dataTransfer.files));
       if (paths.length === 0) {
+        return;
+      }
+      if (!inputEnabledRef.current) {
         return;
       }
 
@@ -166,6 +178,17 @@ export function TerminalView(props: TerminalViewProps) {
 
   useEffect(() => {
     const terminal = terminalRef.current;
+    const fitAddon = fitAddonRef.current;
+    if (!terminal || !fitAddon) {
+      return;
+    }
+    requestAnimationFrame(() => {
+      safeFit(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef);
+    });
+  }, [session.health, session.healthDetail, session.id]);
+
+  useEffect(() => {
+    const terminal = terminalRef.current;
     if (!terminal) {
       return;
     }
@@ -204,9 +227,10 @@ export function TerminalView(props: TerminalViewProps) {
   return (
     <div
       ref={surfaceRef}
-      className="terminal-surface"
+      className={`terminal-surface ${inputEnabled ? "" : "terminal-surface--input-disabled"}`}
       data-testid="terminal-surface"
       tabIndex={0}
+      aria-disabled={!inputEnabled}
     >
       <div ref={viewportRef} className="terminal-surface__viewport" />
     </div>
