@@ -6,6 +6,29 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 
 ## Open
 
+### EXO-ISSUE-046: MCP autostart and tool calls can stay pinned to stale command-server discovery
+
+- Status: open
+- Severity: high
+- Area: MCP, command-server discovery, autostart, Exo-on-Exo reliability
+- Observed:
+  - NDE audit on 2026-06-20 verified MCP stdio initialize and `listTools` worked quickly and exposed only the intended narrow nine-tool surface.
+  - The active runtime discovery file at `/Users/kenneth/Desktop/lab/.exo/server.json` pointed to dead pid `14108` on port `53794`.
+  - MCP app-backed calls such as `workspace_status` and `list_agents` returned `isError: true` stale-server text instead of useful structured runtime status.
+  - With `EXO_MCP_AUTOSTART=1`, `EXO_MCP_CONNECT_TIMEOUT_MS=12000`, and `EXO_MCP_START_COMMAND=/Users/kenneth/Desktop/lab/projects/exo/bin/exo start`, MCP still waited against `http://127.0.0.1:53794` and timed out after about 12.1s.
+- Expected:
+  - If MCP can initialize and list tools, the first app-backed call should either recover stale discovery through autostart or return a structured stale-runtime diagnostic.
+  - Autostart should validate stale `server.json`, avoid staying pinned to a dead pid/port, and wait for a fresh reachable command server.
+  - New agents should not need to infer from plain text that the MCP control plane is unavailable.
+- Investigation notes:
+  - Review `ExoCommandClient.connect()` stale discovery handling: it reads `server.json`, checks reachability, starts Exo when autostart is enabled, then waits for a reachable client but appears to keep reporting the stale base URL when recovery fails.
+  - Check whether `startExo()` succeeds but does not replace the stale discovery file, or whether the app start command is failing silently because it is detached with ignored stdio.
+  - Audit MCP error shaping so app-unreachable failures include runtime root, discovery file, stale pid/port, autostart state, timeout, and whether a start attempt was made.
+- QA coverage:
+  - MCP unit/integration fixture with stale `server.json`, unreachable port, and autostart enabled.
+  - MCP fixture without autostart that verifies structured stale-runtime error output.
+  - End-to-end smoke for configured Codex/Claude MCP startup after stale discovery, asserting `workspace_status` either succeeds or returns actionable structured diagnostics.
+
 ### EXO-ISSUE-045: Restart can leave stale command-server discovery with visible broken terminal UI
 
 - Status: open
