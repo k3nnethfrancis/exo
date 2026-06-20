@@ -1,10 +1,59 @@
 # Exo Issues
 
-Last updated: 2026-06-18
+Last updated: 2026-06-20
 
 This is the active bug/QA tracker. It captures user-observed issues that need investigation before the next push/release pass.
 
 ## Open
+
+### EXO-ISSUE-040: Agent-facing Exo orientation requires sandbox escalation and raw repo search
+
+- Status: needs investigation
+- Severity: high
+- Area: CLI/MCP control plane, sandbox compatibility, Exo-on-Exo orientation
+- Observed:
+  - Multiple Codex sessions tried to follow the lab protocol by using Exo workspace/status/search surfaces before raw filesystem reads.
+  - `./bin/exo --help`, `./bin/exo status`, and `./bin/exo search ...` can fail inside the sandbox with `listen EPERM` on a `tsx` IPC pipe under `/var/folders/...`.
+  - Re-running with escalation works, but read-only orientation should not require broad escalation.
+  - In a terminal review, `exo search terminal tmux transcript reconnect agent readiness` returned no useful context while raw `rg` found the relevant implementation and docs quickly.
+- Expected:
+  - Read-only Exo orientation should work in sandboxed agent sessions without GUI assumptions or tsx IPC startup failures.
+  - Exo should clearly expose whether the active session has MCP available and whether CLI fallback is degraded.
+  - If Exo search is degraded, the user/agent should see why and what fallback is being used.
+- Source:
+  - `/Users/kenneth/Desktop/lab/notes/shoshin-codex/exo-issues.md`, 2026-06-20, 2026-06-14, 2026-06-09, 2026-06-06.
+
+### EXO-ISSUE-039: Exo search/read fallback is too low-recall for agent orientation
+
+- Status: needs investigation
+- Severity: high
+- Area: search, note read, QMD fallback, lexical retrieval
+- Observed:
+  - QMD/hybrid search can degrade because native modules are built against a different Node ABI or because `vec0` is unavailable.
+  - When degraded, lexical/filesystem fallback has missed exact or obvious note context including `Ashby`, `Sigmund Lab`, CEO-Bench terms, and broad research-orientation queries.
+  - `exo notes read garden/research/artifacts/sigmund.md` failed when the absolute path worked, so relative note-root path resolution is brittle.
+- Expected:
+  - Exact title/body lexical matching over configured note roots should be reliable even when semantic/hybrid search is unavailable.
+  - Degraded search should be visibly degraded but still useful enough for project orientation.
+  - `exo notes read` should resolve paths relative to configured note roots before failing.
+- Source:
+  - `/Users/kenneth/Desktop/lab/notes/shoshin-codex/exo-issues.md`, 2026-06-19, 2026-06-09, 2026-06-07, 2026-05-31.
+
+### EXO-ISSUE-038: Exo-managed Claude/Codex lifecycle can exit immediately and mix stale transcripts
+
+- Status: needs investigation
+- Severity: critical
+- Area: agent lifecycle, terminal transcripts, Exo-on-Exo orchestration
+- Observed:
+  - During Exo-on-Exo smoke, existing Claude tabs never opened into usable sessions.
+  - Creating a Codex agent returned a running/starting session, but `agents list` immediately reported it exited with code 1.
+  - `agents read term-3 --raw` included old May Codex output before the fresh June transcript header, implying terminal ids/transcript files can be reused or read in a way that mixes historical and active sessions.
+- Expected:
+  - Creating Claude/Codex agents should reach ready or produce a clear launch failure with actionable diagnostics.
+  - Agent transcripts and reads must be scoped to the current terminal session and never present stale output as active context.
+  - Exo-on-Exo should support: create agent, wait ready, send message, read reply, interrupt/terminate, and inspect transcript without ambiguity.
+- Source:
+  - `/Users/kenneth/Desktop/lab/notes/shoshin-codex/exo-issues.md`, 2026-06-14.
 
 ### EXO-ISSUE-037: Terminal parity review found remaining VS Code/full-terminal gaps
 
