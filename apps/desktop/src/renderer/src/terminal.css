@@ -172,9 +172,18 @@
   gap: 6px;
 }
 
-.terminal-surface {
+.terminal-dock__terminal-frame {
   grid-column: 1;
   grid-row: 3;
+  min-width: 0;
+  min-height: 0;
+  position: relative;
+  display: grid;
+}
+
+.terminal-surface {
+  grid-column: 1;
+  grid-row: 1;
   min-width: 0;
   min-height: 0;
   display: grid;
@@ -185,6 +194,10 @@
   overflow: hidden;
 }
 
+.terminal-surface--input-disabled {
+  filter: saturate(0.72);
+}
+
 .terminal-surface__viewport {
   min-width: 0;
   min-height: 0;
@@ -193,11 +206,43 @@
 
 .terminal-dock--bottom .terminal-surface {
   grid-column: 1;
-  grid-row: 3;
+  grid-row: 1;
 }
 
 .terminal-surface:focus {
   outline: none;
+}
+
+.terminal-dock__health-overlay {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: start;
+  justify-self: center;
+  margin-top: 18px;
+  max-width: min(520px, calc(100% - 32px));
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--danger, #ff6b6b) 38%, var(--divider));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--editor-bg) 92%, black);
+  color: var(--text);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+  z-index: 5;
+  pointer-events: auto;
+}
+
+.terminal-dock__health-title {
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.terminal-dock__health-detail {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 .terminal-dock__empty {

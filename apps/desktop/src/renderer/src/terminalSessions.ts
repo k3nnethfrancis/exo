@@ -23,3 +23,11 @@ export function terminalSessionsEqual(left: TerminalSessionInfo[], right: Termin
       leftSession.instructionOverlayPath === rightSession.instructionOverlayPath;
   });
 }
+
+export function isReconnectableSession(session: TerminalSessionInfo): boolean {
+  return session.status === "running" && session.health === "unhealthy";
+}
+
+export function isTerminalInputEnabled(session: TerminalSessionInfo): boolean {
+  return session.status === "running" && session.health !== "unhealthy" && session.health !== "exited";
+}
