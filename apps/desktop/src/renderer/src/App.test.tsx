@@ -262,7 +262,6 @@ describe("workspace settings renderer model", () => {
       appliedWorkspaceKey: "",
       applyStatus: "idle",
       applyErrorMessage: null,
-      partialErrorMessages: [],
     })).toBe(workspaceSettingsStructuralKeyFromSettings(settings!));
   });
 
@@ -302,7 +301,6 @@ describe("workspace settings renderer model", () => {
       appliedWorkspaceKey: "",
       applyStatus: "idle" as const,
       applyErrorMessage: null,
-      partialErrorMessages: [],
     };
 
     expect(workspaceSettingsImmediateDraftKey(base)).not.toBe(

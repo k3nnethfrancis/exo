@@ -43,5 +43,4 @@ export interface WorkspaceSettingsDialogState {
   appliedWorkspaceKey: string;
   applyStatus: "idle" | "applying" | "applied" | "error";
   applyErrorMessage: string | null;
-  partialErrorMessages: string[];
 }

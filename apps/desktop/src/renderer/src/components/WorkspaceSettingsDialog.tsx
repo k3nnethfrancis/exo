@@ -5,13 +5,11 @@ import type { IndexStatus, WorkspaceSettings } from "@exo/core";
 import type { AppearanceMode } from "../appearance";
 import { THEME_FAMILIES, normalizeColorThemeId } from "../theme/registry";
 import type { ColorThemeId } from "../theme/types";
-import { agentInstructionStatusLabel, type AgentInstructionEditorController } from "../hooks/useAgentInstructionEditor";
 import type { IndexBusyState, WorkspaceSettingsDialogState, WorkspaceSettingsSection } from "../workspaceSettingsDialogTypes";
 import { HelpTooltip } from "./HelpTooltip";
 import { PathList } from "./PathList";
 
 interface WorkspaceSettingsDialogProps {
-  agentInstructionEditor: AgentInstructionEditorController;
   indexBusy: IndexBusyState;
   indexStatus: IndexStatus | null;
   onChooseFolder: (target: "workspaceRoot" | "defaultTerminalCwd" | "projectRoot") => void | Promise<void>;
@@ -19,16 +17,14 @@ interface WorkspaceSettingsDialogProps {
   onOpenWorkspaceSwitcher: () => void | Promise<void>;
   onRunIndexUpdate: (kind: Exclude<IndexBusyState, null>) => void | Promise<void>;
   onSave: (settingsDialog: WorkspaceSettingsDialogState, options: { includeStructural: boolean }) => void | Promise<void>;
-  partialErrors: string[];
   settings: WorkspaceSettingsDialogState;
   setSettings: Dispatch<SetStateAction<WorkspaceSettingsDialogState | null>>;
   structuralDraftKey: (settings: WorkspaceSettingsDialogState) => string;
 }
 
-const SETTINGS_SECTIONS: WorkspaceSettingsSection[] = ["workspace", "index", "agents", "appearance", "terminal"];
+const SETTINGS_SECTIONS: WorkspaceSettingsSection[] = ["workspace", "index", "appearance", "terminal"];
 
 export function WorkspaceSettingsDialog({
-  agentInstructionEditor,
   indexBusy,
   indexStatus,
   onChooseFolder,
@@ -36,7 +32,6 @@ export function WorkspaceSettingsDialog({
   onOpenWorkspaceSwitcher,
   onRunIndexUpdate,
   onSave,
-  partialErrors,
   settings,
   setSettings,
   structuralDraftKey,
@@ -58,14 +53,6 @@ export function WorkspaceSettingsDialog({
           </button>
         </div>
         <div className="dialog-card__message">Appearance and terminal preferences save immediately. Workspace paths and index settings take effect when you press Apply.</div>
-        {partialErrors.length > 0 ? (
-          <div className="dialog-card__status dialog-card__status--error" data-testid="agent-context-partial-errors">
-            <div>Some agent instruction data could not be loaded.</div>
-            {partialErrors.slice(0, 3).map((message) => (
-              <div key={message}>{message}</div>
-            ))}
-          </div>
-        ) : null}
         <div className="dialog-tabs" role="tablist" aria-label="Workspace settings sections">
           {SETTINGS_SECTIONS.map((section) => (
             <button
@@ -86,9 +73,6 @@ export function WorkspaceSettingsDialog({
           ) : null}
           {settings.section === "index" ? (
             <IndexSection indexBusy={indexBusy} indexStatus={indexStatus} settings={settings} setSettings={setSettings} onRunIndexUpdate={onRunIndexUpdate} />
-          ) : null}
-          {settings.section === "agents" ? (
-            <AgentsSection agentInstructionEditor={agentInstructionEditor} />
           ) : null}
           {settings.section === "appearance" ? <AppearanceSection settings={settings} setSettings={setSettings} /> : null}
           {settings.section === "terminal" ? <TerminalSection settings={settings} setSettings={setSettings} /> : null}
@@ -369,42 +353,6 @@ function IndexSection({
         </div>
       </details>
     </>
-  );
-}
-
-function AgentsSection({ agentInstructionEditor }: Pick<WorkspaceSettingsDialogProps, "agentInstructionEditor">) {
-  const globalScope = agentInstructionEditor.state.config?.scopes.find((scope) => scope.id === "global") ?? null;
-  const exocortexScope = agentInstructionEditor.state.config?.scopes.find((scope) => scope.id === "exocortex") ?? null;
-
-  return (
-    <div className="agent-context-summary" data-testid="agent-context-settings">
-      <div className="agent-context-summary__header">
-        <div>
-          <div className="dialog-field__label">Agent config</div>
-          <div className="agent-context-summary__copy">Keep Codex AGENTS.md and Claude CLAUDE.md aligned for global and notes instructions.</div>
-        </div>
-      </div>
-      <div className="agent-context-summary__grid">
-        <div className="agent-context-summary__metric">
-          <span>Global</span>
-          <strong>{agentInstructionStatusLabel(globalScope)}</strong>
-          <small>~/.codex/AGENTS.md and ~/.claude/CLAUDE.md</small>
-        </div>
-        <div className="agent-context-summary__metric">
-          <span>Exocortex</span>
-          <strong>{agentInstructionStatusLabel(exocortexScope)}</strong>
-          <small>{exocortexScope?.rootPath ?? "No notes folder selected."}</small>
-        </div>
-        <div className="agent-context-summary__metric">
-          <span>Outputs</span>
-          <strong>2</strong>
-          <small>AGENTS.md and CLAUDE.md only.</small>
-        </div>
-      </div>
-      <div className="agent-context-summary__footer">
-        <span>Exo writes only the selected layer and leaves arbitrary project agent files alone.</span>
-      </div>
-    </div>
   );
 }
 

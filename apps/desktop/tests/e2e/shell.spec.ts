@@ -1142,7 +1142,7 @@ async function createMcpJsonRpcClient(env: Record<string, string>) {
   };
 }
 
-test("opens workspace settings with partial agent instruction discovery errors", async () => {
+test("opens agent config editor with partial agent instruction discovery errors", async () => {
   const { page, workspaceRoot, cleanup } = await launchExoFixture({
     env: {
       EXO_INDEX_ENABLED: "0",
@@ -1157,10 +1157,7 @@ test("opens workspace settings with partial agent instruction discovery errors",
   try {
     await page.getByTestId("workspace-settings").click();
     await expect(page.getByTestId("workspace-settings-dialog")).toBeVisible();
-    await page.getByTestId("workspace-settings-tab-agents").click();
-    await expect(page.getByTestId("agent-context-settings")).toContainText("Agent config");
-    await expect(page.getByTestId("agent-context-partial-errors")).toContainText("Some agent instruction data could not be loaded");
-    await expect(page.getByTestId("agent-context-partial-errors")).toContainText("Notes AGENTS.md");
+    await expect(page.getByTestId("workspace-settings-tab-agents")).toHaveCount(0);
     await page.getByTestId("workspace-settings-close").click();
     await page.getByTestId("open-agent-config").click();
     await expect(page.getByTestId("agent-context-manager")).toBeVisible();

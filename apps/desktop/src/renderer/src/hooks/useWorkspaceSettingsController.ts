@@ -38,8 +38,6 @@ interface UseWorkspaceSettingsControllerOptions {
   applyWorkspaceSettings: (settings: WorkspaceSettings) => void;
   refreshWorkspaceModel: () => Promise<void>;
   setIndexStatus: Dispatch<SetStateAction<IndexStatus | null>>;
-  resetAgentInstructionLoadErrors: () => void;
-  loadAgentInstructions: () => Promise<string[]>;
 }
 
 export function useWorkspaceSettingsController(options: UseWorkspaceSettingsControllerOptions) {
@@ -102,7 +100,6 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
   async function openDialog(section: WorkspaceSettingsSection = "workspace") {
     const settings = await window.exo.workspace.getSettings();
     const appliedWorkspaceKey = workspaceSettingsStructuralKeyFromSettings(settings);
-    optionsRef.current.resetAgentInstructionLoadErrors();
     setDialog({
       section,
       workspaceRoot: settings.workspaceRoot,
@@ -138,14 +135,10 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
       appliedWorkspaceKey,
       applyStatus: "idle",
       applyErrorMessage: null,
-      partialErrorMessages: [],
     });
     void window.exo.workspace.getIndexStatus().then(optionsRef.current.setIndexStatus).catch((error) => {
       console.warn("[exo] failed to load index status", error);
       optionsRef.current.setIndexStatus(null);
-    });
-    void optionsRef.current.loadAgentInstructions().then((partialErrorMessages) => {
-      setDialog((current) => current ? { ...current, partialErrorMessages } : current);
     });
   }
 

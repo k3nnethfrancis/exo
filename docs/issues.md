@@ -6,6 +6,22 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 
 ## Open
 
+### EXO-ISSUE-047: Workspace Settings still shows duplicate agent config surface
+
+- Status: fixed locally
+- Severity: low
+- Area: settings, agent config editor, navigation
+- Observed:
+  - Agent config is now handled by the dedicated agent config icon/dialog, but Workspace Settings still exposes an `Agents` tab with a summary of the same feature.
+  - This duplicates navigation and keeps agent instruction discovery coupled to Settings open.
+- Expected:
+  - Workspace Settings should only contain workspace/index/appearance/terminal settings.
+  - Agent config discovery and errors should appear only in the dedicated Agent Config Editor.
+- Resolution:
+  - Removed the `Agents` tab from Workspace Settings and from the shared settings-section command type.
+  - Stopped Workspace Settings from loading agent instruction config data on open.
+  - Updated e2e coverage to assert Settings no longer has an Agents tab while the dedicated Agent Config Editor still reports partial discovery errors.
+
 ### EXO-ISSUE-046: MCP autostart and tool calls can stay pinned to stale command-server discovery
 
 - Status: open

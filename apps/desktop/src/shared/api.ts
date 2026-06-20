@@ -15,7 +15,7 @@ import type {
 
 export type TerminalKind = "shell" | "claude" | "codex";
 export type TerminalHealthState = "healthy" | "idle" | "unhealthy" | "exited";
-export type WorkspaceSettingsSection = "workspace" | "index" | "agents" | "appearance" | "terminal";
+export type WorkspaceSettingsSection = "workspace" | "index" | "appearance" | "terminal";
 
 export interface TerminalSessionInfo {
   id: string;

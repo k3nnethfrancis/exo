@@ -139,8 +139,6 @@ export function App() {
     applyWorkspaceSettings,
     refreshWorkspaceModel,
     setIndexStatus,
-    resetAgentInstructionLoadErrors: agentInstructionEditor.resetLoadErrors,
-    loadAgentInstructions: agentInstructionEditor.load,
   });
   const {
     dialog: workspaceSettingsDialog,
@@ -389,14 +387,6 @@ export function App() {
     [projectTrees, workspaceModel],
   );
   const projectReviewChanges = projectReviewState.projectReviewChanges;
-  const workspaceSettingsPartialErrors = useMemo(
-    () =>
-      workspaceSettingsDialog
-        ? uniqueMessages([...workspaceSettingsDialog.partialErrorMessages, ...agentInstructionEditor.partialErrors])
-        : agentInstructionEditor.partialErrors,
-    [agentInstructionEditor.partialErrors, workspaceSettingsDialog],
-  );
-
   async function reloadTrees() {
     if (!workspaceModel) {
       return;
@@ -1186,10 +1176,8 @@ export function App() {
 
       {workspaceSettingsDialog ? (
         <WorkspaceSettingsDialog
-          agentInstructionEditor={agentInstructionEditor}
           indexBusy={indexBusy}
           indexStatus={indexStatus}
-          partialErrors={workspaceSettingsPartialErrors}
           settings={workspaceSettingsDialog}
           setSettings={setWorkspaceSettingsDialog}
           structuralDraftKey={workspaceSettingsStructuralDraftKey}

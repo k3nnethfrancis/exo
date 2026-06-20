@@ -66,7 +66,7 @@ export interface DesktopEventPayloads {
   "workspace:changed": { rootPath: string; eventType: string; filePath: string | null };
   "workspace:index-sync-state": IndexSyncStateEvent;
   "command:open-file": string;
-  "command:open-settings": { section: "workspace" | "index" | "agents" | "appearance" | "terminal" };
+  "command:open-settings": { section: "workspace" | "index" | "appearance" | "terminal" };
   "terminal:created": TerminalSessionInfo;
   "terminal:data": TerminalDataEvent;
   "terminal:exit": { id: string; exitCode?: number };
