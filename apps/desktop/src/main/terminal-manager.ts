@@ -438,6 +438,10 @@ export class TerminalManager extends EventEmitter {
     }
     const buffered = record.buffer.toString();
     const captured = this.captureTmuxHistory(record);
+    if (buffered.length === 0 && captured.length > 0) {
+      record.buffer.append(captured);
+      return record.buffer.toString();
+    }
     return captured.length > buffered.length ? captured : buffered;
   }
 
@@ -1028,7 +1032,7 @@ export class TerminalManager extends EventEmitter {
         "-p",
         "-e",
         "-t",
-        record.tmuxSessionName,
+        record.tmuxPaneId || record.tmuxSessionName,
         "-S",
         `-${this.tmuxHistoryLimit()}`,
       ]));

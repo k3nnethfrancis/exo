@@ -6,6 +6,24 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 
 ## Open
 
+### EXO-ISSUE-049: Index settings show stale embeddings and misleading Apply copy
+
+- Status: open
+- Severity: medium
+- Area: workspace settings, indexing UX, embeddings status
+- Observed:
+  - The bottom status bar can show `Embeddings needed` even after pressing `Sync now` from Workspace Settings > Index.
+  - The Index tab shows recent sync activity and pending documents, but manual sync does not make it clear why embeddings remain pending or what action is still required.
+  - Workspace Settings can show `Draft saved. Press Apply for workspace path or index changes.` while no Apply button is visible on the current tab/state.
+- Expected:
+  - Manual sync should either clear the `Embeddings needed` status when all required index work is complete, or explicitly say what remains pending and which control runs it.
+  - If embeddings require `Build embeddings only` rather than `Sync now`, the UI should make that distinction obvious.
+  - Settings footer copy should only mention Apply when an Apply button is visible and relevant; otherwise it should use tab-specific save/status copy.
+- Investigation notes:
+  - Check whether `Sync now` intentionally refreshes documents only while embeddings require the advanced `Build embeddings only` action.
+  - Confirm whether `pending` in the index activity row refers to document refreshes, embeddings, or both.
+  - Review `WorkspaceSettingsDialog` footer state because save status is global while Apply is conditional on `structuralDraftKey(settings) !== settings.appliedWorkspaceKey`.
+
 ### EXO-ISSUE-048: Workspace Settings modal feels cramped after theme/settings updates
 
 - Status: fixed locally
@@ -185,7 +203,7 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 
 ### EXO-ISSUE-041: Terminal panes can blank, hydrate at stale width, or leak generated OSC responses
 
-- Status: fixed in local branch
+- Status: fixed locally; needs installed app QA
 - Severity: critical
 - Area: terminal renderer, xterm hydration, pane moves, refresh/reload recovery
 - Observed:
@@ -193,6 +211,9 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
   - Switching tabs can make a blank terminal group repaint, but single-tab terminal groups have no tab switch recovery path.
   - Moving terminal tabs between panes can leave a half-blank terminal surface or hydrate scrollback at an older/narrower width.
   - Random text such as `]10;rgb:5858/6e6e/7575\]11;rgb:fdfd/f6f6/e3e3\` can appear in an agent prompt after tab/pane swapping.
+  - 2026-06-20 QA after the first hydration fix: after app restart, a terminal can show blank while the underlying Claude/Codex/tmux session is still active.
+  - In that state the user can type and press Enter and the input reaches the active session, but prior history is not visible until new output/input causes a partial repaint.
+  - The restored terminal should not depend on tab switching, hard refresh, or sending new input to recover visible history.
 - Expected:
   - Visible active terminal panes should hydrate from the backend tail after reload or remount without requiring input or tab switching.
   - Hydration should happen after xterm has a measured viewport so replayed history fits the current pane.

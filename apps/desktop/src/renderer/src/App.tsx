@@ -51,6 +51,7 @@ import {
   DEFAULT_EXPLORER_SCALE,
   DEFAULT_TERMINAL_HISTORY_LINES,
   DEFAULT_TERMINAL_FONT_SIZE,
+  DEFAULT_TERMINAL_READ_TAIL_CHARS,
   resolveSettingsTerminalRuntime,
   workspaceSettingsStructuralDraftKey,
 } from "./workspaceSettingsModel";
@@ -81,6 +82,7 @@ export function App() {
   const [editorFontSize, setEditorFontSize] = useState(DEFAULT_EDITOR_FONT_SIZE);
   const [terminalFontSize, setTerminalFontSize] = useState(DEFAULT_TERMINAL_FONT_SIZE);
   const [terminalRuntimeScrollbackLines, setTerminalRuntimeScrollbackLines] = useState(DEFAULT_TERMINAL_HISTORY_LINES);
+  const [terminalRuntimeReadTailChars, setTerminalRuntimeReadTailChars] = useState(DEFAULT_TERMINAL_READ_TAIL_CHARS);
   const [explorerScale, setExplorerScale] = useState(DEFAULT_EXPLORER_SCALE);
   const [systemPrefersDark, setSystemPrefersDark] = useState(() =>
     window.matchMedia("(prefers-color-scheme: dark)").matches,
@@ -92,6 +94,7 @@ export function App() {
   const { tree: editorTree, focusedLeafId: editorFocusedLeafId, actions: editorActions } = shellLayout.editorPaneTree;
   const { tree: terminalTree, focusedLeafId: terminalFocusedLeafId, actions: terminalActions } = shellLayout.terminalPaneTree;
   const terminalState = useTerminalSessions({
+    maxPendingDataChars: terminalRuntimeReadTailChars,
     onExternalSessions: (sessions, options) => {
       terminalPaneControllerRef.current?.attachExternalTerminalSessions(sessions, options);
     },
@@ -278,6 +281,7 @@ export function App() {
     setEditorFontSize(settings.editorFontSize);
     setTerminalFontSize(settings.terminalFontSize);
     setTerminalRuntimeScrollbackLines(terminalPolicy.scrollbackLines);
+    setTerminalRuntimeReadTailChars(terminalPolicy.readTailChars);
     setExplorerScale(settings.explorerScale);
     setExploreIndexSearchOnEnter(settings.exploreIndexSearchOnEnter);
   }

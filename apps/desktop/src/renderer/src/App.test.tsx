@@ -26,6 +26,7 @@ import { buildProjectReviewChanges, uniqueCwdMatchedSession } from "./changedFil
 import { isTerminalGeneratedResponse } from "./components/terminalInputFilters";
 import { chunkTerminalData } from "./components/terminalOutputChunks";
 import { listEnterEdit, shouldSuppressGeneratedTitleLine, wikilinkExitEdit } from "./components/markdownLivePreview";
+import { appendPendingTerminalData, mergeHydrationSnapshot } from "./hooks/useTerminalSessions";
 import { defaultTerminalCwdForNotesFolder } from "./hooks/useWorkspaceBootstrap";
 import { isReconnectableSession, isTerminalInputEnabled, terminalSessionsEqual } from "./terminalSessions";
 import { applyTheme } from "./theme/applyTheme";
@@ -595,6 +596,16 @@ describe("terminal session sync", () => {
     expect(isReconnectableSession(unhealthySession)).toBe(true);
     expect(isTerminalInputEnabled({ ...unhealthySession, health: "idle" })).toBe(true);
     expect(isTerminalInputEnabled({ ...unhealthySession, status: "exited", health: "exited" })).toBe(false);
+  });
+
+  it("preserves terminal data that arrives before or during hydration", () => {
+    expect(mergeHydrationSnapshot("", "claude ready\n")).toBe("claude ready\n");
+    expect(mergeHydrationSnapshot("boot\nclaude", "claude ready\n")).toBe("boot\nclaude ready\n");
+    expect(mergeHydrationSnapshot("boot\nclaude ready\n", "claude ready\n")).toBe("boot\nclaude ready\n");
+  });
+
+  it("caps pending terminal data to the newest content", () => {
+    expect(appendPendingTerminalData("abcdef", "ghij", 6)).toBe("efghij");
   });
 });
 

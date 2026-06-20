@@ -5,6 +5,7 @@ import { writeTerminalData } from "../components/terminalRegistry";
 import { terminalSessionsEqual } from "../terminalSessions";
 
 export interface UseTerminalSessionsOptions {
+  maxPendingDataChars: number;
   onExternalSessions: (sessions: TerminalSessionInfo[], options: { activateLatest: boolean }) => void;
 }
 
@@ -18,6 +19,7 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
   const activeTerminalIdRef = useRef<string | null>(null);
   const hydratedSessionIdsRef = useRef(new Set<string>());
   const pendingHydrationIdsRef = useRef(new Set<string>());
+  const pendingTerminalDataRef = useRef<Record<string, string>>({});
   const optionsRef = useRef(options);
 
   useEffect(() => {
@@ -60,7 +62,14 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
 
   useEffect(() => {
     const removeDataListener = window.exo.terminals.onData(({ id, data }) => {
-      writeTerminalData(id, data);
+      const rendered = writeTerminalData(id, data);
+      if (!rendered || pendingHydrationIdsRef.current.has(id)) {
+        pendingTerminalDataRef.current[id] = appendPendingTerminalData(
+          pendingTerminalDataRef.current[id] ?? "",
+          data,
+          optionsRef.current.maxPendingDataChars,
+        );
+      }
     });
 
     const removeExitListener = window.exo.terminals.onExit(({ id, exitCode }) => {
@@ -99,9 +108,14 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
   }
 
   function setHydrationSnapshot(id: string, snapshot: string) {
+    const pendingData = pendingTerminalDataRef.current[id] ?? "";
+    if (pendingData.length > 0) {
+      delete pendingTerminalDataRef.current[id];
+    }
+    const mergedSnapshot = mergeHydrationSnapshot(snapshot, pendingData);
     hydratedSessionIdsRef.current.add(id);
     pendingHydrationIdsRef.current.delete(id);
-    setHydrationSnapshots((current) => ({ ...current, [id]: snapshot }));
+    setHydrationSnapshots((current) => ({ ...current, [id]: mergedSnapshot }));
     setHydrationVersions((current) => ({ ...current, [id]: (current[id] ?? 0) + 1 }));
   }
 
@@ -123,6 +137,7 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
     setHydrationVersions((current) => pruneRecordToKeys(current, activeIds));
     hydratedSessionIdsRef.current = new Set([...hydratedSessionIdsRef.current].filter((id) => activeIds.has(id)));
     pendingHydrationIdsRef.current = new Set([...pendingHydrationIdsRef.current].filter((id) => activeIds.has(id)));
+    pendingTerminalDataRef.current = pruneRecordToKeys(pendingTerminalDataRef.current, activeIds);
   }
 
   async function createTerminal(kind: "shell" | "claude" | "codex", cwd?: string): Promise<TerminalSessionInfo> {
@@ -186,6 +201,7 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
     });
     hydratedSessionIdsRef.current.delete(id);
     pendingHydrationIdsRef.current.delete(id);
+    delete pendingTerminalDataRef.current[id];
     setAgentAnnotations((current) => {
       const next = { ...current };
       delete next[id];
@@ -235,4 +251,45 @@ function mergeSessions(current: TerminalSessionInfo[], nextSessions: TerminalSes
 function pruneRecordToKeys<T>(record: Record<string, T>, keys: Set<string>): Record<string, T> {
   const entries = Object.entries(record).filter(([key]) => keys.has(key));
   return entries.length === Object.keys(record).length ? record : Object.fromEntries(entries);
+}
+
+export function appendPendingTerminalData(current: string, data: string, maxChars: number): string {
+  const next = `${current}${data}`;
+  return next.length <= maxChars ? next : next.slice(-maxChars);
+}
+
+export function mergeHydrationSnapshot(snapshot: string, pendingData: string): string {
+  if (pendingData.length === 0) {
+    return snapshot;
+  }
+
+  const overlap = largestSuffixPrefixOverlap(snapshot, pendingData);
+  return `${snapshot}${pendingData.slice(overlap)}`;
+}
+
+function largestSuffixPrefixOverlap(snapshot: string, pendingData: string): number {
+  const maxOverlap = Math.min(snapshot.length, pendingData.length);
+  const tail = snapshot.slice(snapshot.length - maxOverlap);
+  const combined = new Array<number>(pendingData.length + 1 + tail.length);
+  for (let index = 0; index < pendingData.length; index += 1) {
+    combined[index] = pendingData.charCodeAt(index);
+  }
+  combined[pendingData.length] = -1;
+  for (let index = 0; index < tail.length; index += 1) {
+    combined[pendingData.length + 1 + index] = tail.charCodeAt(index);
+  }
+  const prefixLengths = new Array<number>(combined.length).fill(0);
+
+  for (let index = 1; index < combined.length; index += 1) {
+    let candidateLength = prefixLengths[index - 1];
+    while (candidateLength > 0 && combined[index] !== combined[candidateLength]) {
+      candidateLength = prefixLengths[candidateLength - 1];
+    }
+    if (combined[index] === combined[candidateLength]) {
+      candidateLength += 1;
+    }
+    prefixLengths[index] = candidateLength;
+  }
+
+  return Math.min(prefixLengths[prefixLengths.length - 1] ?? 0, maxOverlap);
 }

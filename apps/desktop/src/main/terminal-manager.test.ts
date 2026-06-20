@@ -577,6 +577,51 @@ describe("TerminalManager Codex readiness", () => {
     expect(manager.list().map((session) => session.id)).toContain("term-8");
   });
 
+  it("hydrates restored tmux sessions by capturing the live pane id", async () => {
+    const workspaceRoot = await workspaceFixture();
+    const runtimeRoot = path.join(workspaceRoot, ".exo");
+    const tmuxSessionName = "exo-abc1234567-term-7";
+    await mkdir(runtimeRoot, { recursive: true });
+    await writeFile(
+      path.join(runtimeRoot, "terminal-sessions.json"),
+      JSON.stringify({
+        version: 1,
+        sessions: [
+          {
+            id: "term-7",
+            title: "Shell",
+            cwd: workspaceRoot,
+            kind: "shell",
+            command: "/bin/zsh",
+            tmuxSessionName,
+            transcriptPath: path.join(runtimeRoot, "terminal-transcripts", "term-7-shell.ansi.log"),
+            createdAt: new Date().toISOString(),
+            lastAttachedAt: null,
+            status: "running",
+          },
+        ],
+      }),
+    );
+    childProcess.execFileSync.mockImplementation((command: string, args: string[]) => {
+      if (args.includes("list-panes")) {
+        return `${tmuxSessionName}\t@1\t%2\t0\tzsh\t${workspaceRoot}\n`;
+      }
+      if (args.includes("capture-pane")) {
+        return args[args.indexOf("-t") + 1] === "%2" ? "restored-history-001\nrestored-history-002\n" : "";
+      }
+      return childProcess.defaultExecFileSync(command, args);
+    });
+
+    const manager = managerForWorkspace(workspaceRoot);
+
+    expect(manager.readTail("term-7")).toContain("restored-history-001\r\nrestored-history-002");
+    expect(childProcess.execFileSync.mock.calls).toContainEqual([
+      "tmux",
+      ["capture-pane", "-p", "-e", "-t", "%2", "-S", "-100000"],
+      expect.any(Object),
+    ]);
+  });
+
   it("reports process diagnostics without exposing legacy transport fields", async () => {
     const workspaceRoot = await workspaceFixture();
     const manager = managerForWorkspace(workspaceRoot);

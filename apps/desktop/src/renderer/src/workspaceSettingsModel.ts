@@ -3,6 +3,7 @@ import type { WorkspaceSettings } from "@exo/core";
 import type { WorkspaceSettingsDialogState } from "./workspaceSettingsDialogTypes";
 
 export const DEFAULT_TERMINAL_HISTORY_LINES = 100_000;
+export const DEFAULT_TERMINAL_READ_TAIL_CHARS = 20_000;
 export const MIN_TERMINAL_HISTORY_LINES = 500;
 export const DEFAULT_EDITOR_FONT_SIZE = 15;
 export const DEFAULT_TERMINAL_FONT_SIZE = 13;
@@ -46,8 +47,9 @@ export function workspaceSettingsStructuralKeyFromSettings(settings: WorkspaceSe
   });
 }
 
-export function resolveSettingsTerminalRuntime(settings: WorkspaceSettings): { scrollbackLines: number } {
+export function resolveSettingsTerminalRuntime(settings: WorkspaceSettings): { readTailChars: number; scrollbackLines: number } {
   return {
+    readTailChars: settings.terminalReadTailChars ?? DEFAULT_TERMINAL_READ_TAIL_CHARS,
     scrollbackLines: settings.terminalHistoryLines,
   };
 }

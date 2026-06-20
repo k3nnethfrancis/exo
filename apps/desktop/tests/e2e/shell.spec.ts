@@ -747,6 +747,7 @@ test("collapses the terminal pane after closing the last terminal", async () => 
 });
 
 test("reattaches a tmux-backed shell after app relaunch", async () => {
+  const beforeRelaunchMarker = `before-relaunch-${Date.now()}`;
   const shellEnv = {
     EXO_SHELL: "/bin/sh",
     EXO_SHELL_ARGS: "-lc,while IFS= read -r line; do printf 'persist:%s\\n' \"$line\"; done",
@@ -756,10 +757,15 @@ test("reattaches a tmux-backed shell after app relaunch", async () => {
 
   try {
     const shell = await pageShellSession(fixture.page);
-    await fixture.page.evaluate(async (id) => {
-      await window.exo.terminals.sendMessage(id, "before-relaunch", true);
-    }, shell.id);
-    await expect.poll(async () => fixture.page.evaluate((id) => window.exo.terminals.read(id), shell.id)).toContain("persist:before-relaunch");
+    await fixture.page.evaluate(
+      async ({ id, marker }) => {
+        await window.exo.terminals.sendMessage(id, marker, true);
+      },
+      { id: shell.id, marker: beforeRelaunchMarker },
+    );
+    await expect.poll(async () => fixture.page.evaluate((id) => window.exo.terminals.read(id), shell.id)).toContain(
+      `persist:${beforeRelaunchMarker}`,
+    );
 
     await fixture.electronApp.close();
     relaunched = await relaunchExoFixture(fixture, { env: shellEnv });
@@ -771,7 +777,14 @@ test("reattaches a tmux-backed shell after app relaunch", async () => {
         status: "running",
       }),
     ]);
-    await waitForTerminalText(relaunched.page, "persist:before-relaunch");
+    await expect(relaunched.page.getByTestId("terminal-tab-shell")).toHaveCount(1);
+    await expect.poll(async () => relaunched?.page.evaluate((id) => window.exo.terminals.read(id), shell.id) ?? "").toContain(
+      `persist:${beforeRelaunchMarker}`,
+    );
+    await expect(
+      relaunched.page.locator(".xterm-rows"),
+      "tmux history should be visible immediately after relaunch, before any new input",
+    ).toContainText(`persist:${beforeRelaunchMarker}`);
     await relaunched.page.evaluate(async (id) => {
       await window.exo.terminals.sendMessage(id, "after-relaunch", true);
     }, shell.id);
@@ -789,6 +802,49 @@ test("reattaches a tmux-backed shell after app relaunch", async () => {
     } else {
       await fixture.cleanup();
     }
+  }
+});
+
+test("hydrates single-tab tmux terminal history after renderer reload before input", async () => {
+  const beforeReloadMarker = `before-reload-${Date.now()}`;
+  const { page, cleanup } = await launchExoFixture({
+    env: {
+      EXO_SHELL: "/bin/sh",
+      EXO_SHELL_ARGS: "-lc,while IFS= read -r line; do printf 'persist:%s\\n' \"$line\"; done",
+    },
+    initialNoteLabel: null,
+  });
+
+  try {
+    const shell = await pageShellSession(page);
+    await page.evaluate(
+      async ({ id, marker }) => {
+        await window.exo.terminals.sendMessage(id, marker, true);
+      },
+      { id: shell.id, marker: beforeReloadMarker },
+    );
+    await expect.poll(async () => page.evaluate((id) => window.exo.terminals.read(id), shell.id)).toContain(
+      `persist:${beforeReloadMarker}`,
+    );
+
+    await page.reload();
+    await expect(page.getByTestId("sidebar")).toBeVisible();
+    await expect(page.getByTestId("terminal-rail")).toBeVisible();
+    await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(1);
+    await expect.poll(async () => page.evaluate((id) => window.exo.terminals.read(id), shell.id)).toContain(
+      `persist:${beforeReloadMarker}`,
+    );
+    await expect(
+      page.locator(".xterm-rows"),
+      "single-tab tmux history should render after reload without tab switching or input",
+    ).toContainText(`persist:${beforeReloadMarker}`);
+
+    await page.evaluate(async (id) => {
+      await window.exo.terminals.sendMessage(id, "after-reload", true);
+    }, shell.id);
+    await expect.poll(async () => page.evaluate((id) => window.exo.terminals.read(id), shell.id)).toContain("persist:after-reload");
+  } finally {
+    await cleanup();
   }
 });
 
