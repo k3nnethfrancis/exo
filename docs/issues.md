@@ -54,7 +54,7 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 
 ### EXO-ISSUE-043: Explorer file and folder rows lack enough visual differentiation
 
-- Status: open
+- Status: fixed in local branch
 - Severity: medium
 - Area: project explorer, navigation hierarchy, visual design
 - Observed:
@@ -71,10 +71,13 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 - QA coverage:
   - Explorer visual regression coverage for nested folders, files, expanded/collapsed folders, and selected rows.
   - Interaction coverage that keyboard focus and selection remain visible after styling changes.
+- Resolution notes:
+  - Added restrained file/folder icons, folder disclosure treatment, heavier folder labels, lighter file labels, and explicit focus-visible outlines for explorer rows.
+  - Kept dirty-state styling compatible with the inline changed-state model from EXO-ISSUE-042.
 
 ### EXO-ISSUE-042: Projects sidebar duplicates changed files in a separate Changes section
 
-- Status: open
+- Status: fixed in local branch
 - Severity: medium
 - Area: projects sidebar, file explorer, changed-file indicators
 - Observed:
@@ -92,6 +95,10 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
   - Explorer coverage for changed file badges shown inline on file rows.
   - Coverage for collapsed folders surfacing descendant changed state and clearing when all descendants are clean.
   - Regression coverage that removing the duplicate `CHANGES` section does not remove dirty-state visibility.
+- Resolution notes:
+  - Removed the separate Projects `Changes` section from the sidebar.
+  - Added inline changed-state derivation for project tree rows: changed files show a status badge and accessible changed/line text; ancestor folders show a descendant changed count.
+  - Updated focused unit and Playwright coverage for inline file state and collapsed-folder descendant state.
 
 ### EXO-ISSUE-041: Terminal panes can blank, hydrate at stale width, or leak generated OSC responses
 

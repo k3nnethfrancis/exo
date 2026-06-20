@@ -4,7 +4,6 @@ import {
   ClipboardCopy,
   FilePlus2,
   FolderPlus,
-  GitCompare,
   Globe2,
   Monitor,
   MoonStar,
@@ -18,8 +17,8 @@ import {
   Trash2,
 } from "lucide-react";
 import type { WorkspaceSearchResults } from "@exo/core";
-import type { WorkspaceGitChange } from "../../../shared/api";
 import type { AppearanceMode, ResolvedAppearance } from "../appearance";
+import { buildExplorerChangeState, type ExplorerChangeView } from "../explorerChangeState";
 import type { DragManager } from "../hooks/useDragManager";
 import type { WorkspaceSearchResultMode } from "../hooks/useWorkspaceSearch";
 import { RailButton } from "./Chrome";
@@ -65,7 +64,7 @@ interface FileTreeProps {
   revealPathRequest?: { path: string; nonce: number } | null;
 }
 
-interface ProjectChangeView extends WorkspaceGitChange {
+interface ProjectChangeView extends ExplorerChangeView {
   rootPath: string;
   rootLabel: string;
   agents: Array<{ id: string; title: string; kind: string; cwd: string; observed?: boolean; observedAt?: number | null }>;
@@ -162,7 +161,6 @@ export function FileTree(props: FileTreeProps) {
     onToggleCollapsed,
     onOpenWorkspaceSettings,
     onOpenFile,
-    onOpenTerminalSession,
     projectChanges,
     onExpandDirectory,
     explorerScale,
@@ -184,6 +182,10 @@ export function FileTree(props: FileTreeProps) {
   const [explorerMode, setExplorerMode] = useState<"files" | "search">("files");
   const panesRef = useRef<HTMLDivElement | null>(null);
   const processedRevealNonceRef = useRef<number | null>(null);
+  const projectExplorerChangeState = useMemo(
+    () => buildExplorerChangeState(projectRoots.flatMap((root) => root.nodes), projectChanges),
+    [projectChanges, projectRoots],
+  );
 
   const defaultExpandedPaths = useMemo(() => {
     const next = new Set<string>();
@@ -379,7 +381,6 @@ export function FileTree(props: FileTreeProps) {
             onCollapsedChange={(collapsed) => setProjectRootsExpanded(!collapsed)}
             mirrored={mirrored}
           >
-            <ProjectChanges changes={projectChanges} onOpenFile={onOpenFile} onOpenTerminalSession={onOpenTerminalSession} />
             <Section
               label="Projects"
               rootKind="projects"
@@ -392,6 +393,7 @@ export function FileTree(props: FileTreeProps) {
               showHeader={false}
               alwaysShowRoots
               mirrored={mirrored}
+              changeState={projectExplorerChangeState}
             />
           </SidebarDrawer>
           </>
@@ -487,65 +489,6 @@ export function FileTree(props: FileTreeProps) {
         </>
       ) : null}
     </aside>
-  );
-}
-
-function ProjectChanges({
-  changes,
-  onOpenFile,
-  onOpenTerminalSession,
-}: {
-  changes: ProjectChangeView[];
-  onOpenFile: (filePath: string, line?: number | null) => void;
-  onOpenTerminalSession: (sessionId: string) => void;
-}) {
-  if (changes.length === 0) {
-    return null;
-  }
-
-  return (
-    <div className="project-changes" data-testid="project-changes">
-      <div className="project-changes__title">
-        <GitCompare size={13} />
-        Changes
-      </div>
-      <div className="project-changes__list">
-        {changes.slice(0, 20).map((change) => (
-          <div className="project-change" key={`${change.rootPath}:${change.path}:${change.status}`}>
-            <button
-              className="project-change__file"
-              onClick={() => onOpenFile(change.absolutePath, change.firstChangedLine)}
-              title={`${change.status} ${change.absolutePath}`}
-              type="button"
-            >
-              <span className="project-change__status">{change.status}</span>
-              <span className="project-change__path">{change.path}</span>
-              {change.firstChangedLine ? <span className="project-change__line">:{change.firstChangedLine}</span> : null}
-              <span className="project-change__root">{change.rootLabel}</span>
-            </button>
-            {change.agents.length > 0 ? (
-              <span className="project-change__agents">
-                {change.agents.slice(0, 3).map((agent) => (
-                  <button
-                    className={`project-change__agent ${agent.observed ? "project-change__agent--observed" : ""}`}
-                    data-testid={`project-change-agent-${agent.id}`}
-                    key={agent.id}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onOpenTerminalSession(agent.id);
-                    }}
-                    title={agent.observed ? `Observed change near ${agent.title} in ${agent.cwd}` : `Show ${agent.title} in ${agent.cwd}`}
-                    type="button"
-                  >
-                    {agent.kind}
-                  </button>
-                ))}
-              </span>
-            ) : null}
-          </div>
-        ))}
-      </div>
-    </div>
   );
 }
 
