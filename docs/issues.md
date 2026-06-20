@@ -6,6 +6,125 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 
 ## Open
 
+### EXO-ISSUE-056: Terminal input can stop rendering while browser preview is open
+
+- Status: open
+- Severity: high
+- Area: terminal rendering, browser preview, pane focus/resize
+- Observed:
+  - When a browser preview pane is open to a web page, terminal input can stop visually appearing in the terminal.
+  - The terminal may still receive input, but typed characters do not render until the user hard-refreshes the app.
+- Expected:
+  - Terminal input echo and prompt rendering should remain immediate and visible while preview panes are open.
+  - Preview webviews should not steal terminal focus, suppress xterm rendering, or block terminal resize/refresh.
+  - Hard refresh should never be required to make typed terminal input visible.
+- Investigation notes:
+  - Audit focus handoff between editor, terminal, and browser preview webview panes.
+  - Check whether preview pane resize/visibility changes leave xterm in a stale geometry or hidden-measurement state.
+  - Verify terminal render/fit calls when preview panes mount, unmount, become active, or share a split with terminal panes.
+- QA coverage:
+  - App QA with browser preview open beside a shell/Claude/Codex terminal; type continuously while resizing and switching panes.
+  - Regression coverage for terminal focus/input after preview pane activation.
+
+### EXO-ISSUE-055: Explorer folder labels are too bold
+
+- Status: open
+- Severity: low
+- Area: explorer, visual design
+- Observed:
+  - Folder names in the file/project explorer are bold enough to feel harsh.
+- Expected:
+  - Folder labels should be distinguishable from files without visually overpowering the explorer.
+  - Try lighter bold or normal weight with icon/disclosure differentiation carrying more of the hierarchy signal.
+- QA coverage:
+  - Visual QA across notes and project trees with nested folders, selected rows, changed rows, and collapsed sections.
+
+### EXO-ISSUE-054: Exo MCP needs a tool to open preview window URLs or local HTML artifacts
+
+- Status: open
+- Severity: medium
+- Area: MCP, browser preview, command server, Exo-on-Exo workflows
+- Observed:
+  - Exo MCP can coordinate agents and read workspace context, but does not expose a way for an agent to ask Exo to open a URL/path in the in-app browser preview.
+  - This blocks agent workflows that generate local HTML artifacts or want the user to review a web page inside Exo.
+- Expected:
+  - MCP should expose a narrow, safe tool for opening a URL or local path/HTML artifact in Exo's browser preview surface.
+  - The tool should validate inputs, avoid surprising navigation, and return structured success/error output.
+  - If Exo is not running or the workspace cannot open preview panes, the MCP response should be actionable.
+- Investigation notes:
+  - Decide whether this belongs in the narrow MCP work plane now or behind a preview/browser capability.
+  - Reuse existing command-server/browser-preview IPC where possible instead of creating a second navigation path.
+  - Consider local file path rules and whether project/notes root attachment is required before opening a file URL.
+- QA coverage:
+  - MCP smoke that opens an HTTP URL in preview.
+  - MCP smoke that opens a local generated HTML file in preview.
+  - Negative tests for malformed URLs and disallowed local paths.
+
+### EXO-ISSUE-053: Live wikilink search is missing while typing \`[[...]]\`
+
+- Status: open
+- Severity: medium
+- Area: editor, backlinks, graph navigation
+- Observed:
+  - Typing \`[[\` creates the bracket pair and lets the user type inside it, but there is no live search popup for existing pages.
+  - Example expectation: typing \`[[go]]\` should surface a small capped list such as \`[[goals]]\` when matching pages exist.
+- Expected:
+  - While the cursor is inside an active \`[[...]]\` wikilink token, show a small popup near the cursor with up to three matching pages.
+  - Pressing Enter should accept the selected existing page suggestion when the popup is open.
+  - No popup should show when there are no matches.
+  - The interaction should preserve normal typing, bracket completion, and cursor movement behavior.
+- Investigation notes:
+  - Use indexed/known workspace page titles or current file tree data as the first candidate source.
+  - Avoid adding a slow search call on every keystroke; debounce or use an in-memory title list where possible.
+  - Define behavior for exact match, casing, spaces, aliases, and creating a new page when no match exists.
+- QA coverage:
+  - Editor tests for \`[[\` completion, live filtering, Enter selection, no-match behavior, and preserving typed new links.
+  - App QA in a real notes vault with several similarly named pages.
+
+### EXO-ISSUE-052: Inspect mode should be replaced by read-only backlinks/references below rendered pages
+
+- Status: open
+- Severity: medium
+- Area: editor, backlinks, references, inspect mode
+- Observed:
+  - Inspect mode is not the desired surface for backlinks/references.
+  - Backlinks and references should be visible as part of the reading surface, not hidden behind a separate inspect mode.
+- Expected:
+  - Remove or de-emphasize inspect mode for this workflow.
+  - Render backlinks and references at the bottom of each rendered page under a faint divider.
+  - This section should be read-only, not part of the editable document body, and should not appear in raw mode.
+  - Items should be clickable and navigate to the referenced page.
+- Investigation notes:
+  - Define backlinks versus outgoing references and where their data comes from in the current index/model.
+  - Ensure the bottom section does not interfere with save state, cursor placement, selection, or Markdown body content.
+  - Consider empty state: likely hide the section when there are no backlinks/references.
+- QA coverage:
+  - Rendered note with backlinks shows bottom references section.
+  - Raw mode hides the section.
+  - Clicking a backlink opens the target page.
+  - Editing/saving the document does not include generated backlinks text.
+
+### EXO-ISSUE-051: Wikilink hover preview is missing
+
+- Status: open
+- Severity: medium
+- Area: editor, backlinks, page preview
+- Observed:
+  - Hovering over a bracket item such as \`[[goals]]\` does not show a preview of the linked page content.
+- Expected:
+  - Hovering a rendered wikilink should show a small preview card/popover with a concise excerpt from the target page.
+  - Preview should be fast, readable, and dismiss naturally on mouse leave/scroll.
+  - Missing pages should either show no preview or a clear lightweight missing-page state.
+- Investigation notes:
+  - Reuse existing note read/cache paths where possible.
+  - Avoid loading large files synchronously in the renderer on hover.
+  - Coordinate styling and z-index with live wikilink search popups.
+- QA coverage:
+  - Hover over existing wikilink shows excerpt.
+  - Hover over missing wikilink does not crash or block editing.
+  - Popover positions correctly near viewport edges.
+
+
 ### EXO-ISSUE-049: Index settings show stale embeddings and misleading Apply copy
 
 - Status: open
