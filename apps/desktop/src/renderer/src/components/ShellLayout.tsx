@@ -1,4 +1,4 @@
-import { useRef, type ReactNode } from "react";
+import { useRef, type CSSProperties, type ReactNode } from "react";
 
 import { ExplorerRail, ExplorerRailTopControls, FileTree } from "./FileTree";
 import { TerminalRail, TerminalRailTopControls } from "./TerminalRail";
@@ -260,7 +260,11 @@ export function ShellLayout(props: ShellLayoutProps) {
       <header className="topbar">
         <div className="topbar__spacer topbar__spacer--left" aria-hidden />
         <div className="topbar__title" aria-label="exograph">
-          <img className="topbar__brand-icon" src={exoIcon} alt="" aria-hidden="true" />
+          <span
+            className="topbar__brand-icon"
+            style={{ "--exo-brand-icon": `url("${exoIcon}")` } as CSSProperties}
+            aria-hidden="true"
+          />
           <span className="topbar__brand-text">exograph</span>
         </div>
         <div className="topbar__spacer topbar__spacer--right" aria-hidden />
