@@ -277,7 +277,7 @@ async function searchIndex(
       results,
     };
   } catch (error) {
-    return searchFilesystem(model, trimmedQuery, options, `QMD search failed (${errorMessage(error)}); using lightweight workspace search.`);
+    return searchFilesystem(model, trimmedQuery, options, qmdFallbackWarning(error));
   } finally {
     await store?.close();
   }
@@ -518,4 +518,25 @@ function numberValue(value: unknown): number | null {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function qmdFallbackWarning(error: unknown): string {
+  const message = errorMessage(error);
+  const lowerMessage = message.toLowerCase();
+  if (
+    lowerMessage.includes("node_module_version") ||
+    lowerMessage.includes("was compiled against") ||
+    lowerMessage.includes("abi") ||
+    lowerMessage.includes("dlopen")
+  ) {
+    return `QMD native ABI mismatch (${message}); using degraded filesystem search.`;
+  }
+  if (
+    lowerMessage.includes("vec0") ||
+    lowerMessage.includes("sqlite-vec") ||
+    lowerMessage.includes("no such module")
+  ) {
+    return `QMD vec0 extension is unavailable (${message}); using degraded filesystem search.`;
+  }
+  return `QMD search failed (${message}); using degraded filesystem search.`;
 }

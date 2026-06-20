@@ -5,11 +5,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc -p tsconfig.json --noEmit",
+    "build": "tsc -p tsconfig.json --noEmit && node ../../scripts/build-cli.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
-    "@exo/core": "workspace:*"
+    "@exo/core": "workspace:*",
+    "@tobilu/qmd": "2.1.0"
   }
 }

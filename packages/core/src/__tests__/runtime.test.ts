@@ -122,10 +122,12 @@ describe("runtime", () => {
     const claudeText = await readFile(paths.claude, "utf8");
 
     expect(primaryText).toContain("Exo Runtime");
-    expect(primaryText).toContain("exo-cli runtime launch-plan");
+    expect(primaryText).toContain("Prefer Exo MCP tools");
+    expect(primaryText).toContain("exo runtime launch-plan");
     expect(primaryText).toContain("Optional Notes Index / Retrieval Backend");
     expect(primaryText).toContain("index_mode: off");
-    expect(primaryText).toContain("exo-cli search");
+    expect(primaryText).toContain("exo search");
+    expect(primaryText).not.toContain("exo-cli");
     expect(claudeText).toBe(primaryText);
   });
 });

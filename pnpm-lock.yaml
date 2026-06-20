@@ -147,6 +147,9 @@ importers:
       '@exo/core':
         specifier: workspace:*
         version: link:../core
+      '@tobilu/qmd':
+        specifier: 2.1.0
+        version: 2.1.0(typescript@5.9.3)
 
   packages/core:
     dependencies:

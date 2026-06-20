@@ -404,7 +404,7 @@ describe("TerminalManager Codex readiness", () => {
     const terminal = await manager.create({ kind: "shell", cwd: workspaceRoot });
 
     expect(manager.readTail(terminal.id)).toContain("captured-001\r\ncaptured-002");
-    expect(manager.readTranscript(terminal.id)).toContain("captured-001\r\ncaptured-002");
+    expect(manager.readTranscript(terminal.id)).not.toContain("captured-001\r\ncaptured-002");
   });
 
   it("applies configured live scrollback to tmux history", async () => {
@@ -504,26 +504,28 @@ describe("TerminalManager Codex readiness", () => {
     expect(registry.sessions[0]?.transcriptPath).toMatch(/term-1-shell-\d{4}-/);
   });
 
-  it("uses fresh runtime identities when terminal ids repeat across app launches", async () => {
+  it("does not reuse terminal display ids across app launches after explicit close", async () => {
     const workspaceRoot = await workspaceFixture();
     const firstManager = managerForWorkspace(workspaceRoot);
 
-    await firstManager.create({ kind: "shell", cwd: workspaceRoot });
+    const firstTerminal = await firstManager.create({ kind: "shell", cwd: workspaceRoot });
+    await firstManager.kill(firstTerminal.id);
     const firstRegistry = JSON.parse(await readFile(path.join(workspaceRoot, ".exo", "terminal-sessions.json"), "utf8")) as {
+      nextId: number;
       sessions: Array<Record<string, string>>;
     };
-    await rm(path.join(workspaceRoot, ".exo", "terminal-sessions.json"), { force: true });
 
     const secondManager = managerForWorkspace(workspaceRoot);
     await secondManager.create({ kind: "shell", cwd: workspaceRoot });
     const secondRegistry = JSON.parse(await readFile(path.join(workspaceRoot, ".exo", "terminal-sessions.json"), "utf8")) as {
+      nextId: number;
       sessions: Array<Record<string, string>>;
     };
 
-    expect(firstRegistry.sessions[0]?.id).toBe("term-1");
-    expect(secondRegistry.sessions[0]?.id).toBe("term-1");
-    expect(secondRegistry.sessions[0]?.tmuxSessionName).not.toBe(firstRegistry.sessions[0]?.tmuxSessionName);
-    expect(secondRegistry.sessions[0]?.transcriptPath).not.toBe(firstRegistry.sessions[0]?.transcriptPath);
+    expect(firstRegistry.nextId).toBe(2);
+    expect(firstRegistry.sessions).toEqual([]);
+    expect(secondRegistry.sessions[0]?.id).toBe("term-2");
+    expect(secondRegistry.nextId).toBe(3);
   });
 
   it("reattaches persisted running sessions when tmux still has the pane", async () => {
@@ -615,18 +617,48 @@ describe("TerminalManager Codex readiness", () => {
     });
   });
 
-  it("retires agent sessions when the tmux pane exits", async () => {
+  it("retains fast-exiting agent sessions with diagnostics until explicit kill", async () => {
     const workspaceRoot = await workspaceFixture();
     const manager = managerForWorkspace(workspaceRoot);
     const exitEvents: Array<{ id: string; exitCode?: number }> = [];
     manager.on("exit", (event) => exitEvents.push(event));
 
     const agent = await manager.create({ kind: "codex", cwd: workspaceRoot });
+    const transcriptPath = manager.diagnostics()[0]?.transcriptPath;
     ptyState.tmuxSessions.splice(0);
-    ptyState.spawned[0].emitExit(0);
+    ptyState.spawned[0].emitExit(1);
 
-    expect(manager.list().map((session) => session.id)).not.toContain(agent.id);
-    expect(exitEvents).toEqual([{ id: agent.id, exitCode: 0 }]);
+    expect(manager.list()).toEqual([
+      expect.objectContaining({
+        id: agent.id,
+        kind: "codex",
+        status: "exited",
+        exitCode: 1,
+        transcriptPath,
+        cwd: workspaceRoot,
+        command: "codex",
+        readiness: "starting",
+        health: "exited",
+        healthDetail: "Process exited with code 1.",
+      }),
+    ]);
+    expect(manager.diagnostics()).toEqual([
+      expect.objectContaining({
+        id: agent.id,
+        kind: "codex",
+        status: "exited",
+        exitCode: 1,
+        transcriptPath,
+        cwd: workspaceRoot,
+        command: "codex",
+        health: "exited",
+        healthDetail: "Process exited with code 1.",
+      }),
+    ]);
+    expect(exitEvents).toEqual([{ id: agent.id, exitCode: 1 }]);
+
+    await manager.kill(agent.id);
+    expect(manager.list()).toEqual([]);
   });
 
   it("handles stale pty resize failures without throwing through IPC", async () => {

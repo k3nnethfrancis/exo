@@ -10,4 +10,11 @@ done
 
 ROOT="$(cd -P "$(dirname "$SOURCE")/.." && pwd)"
 export COREPACK_ENABLE_PROJECT_SPEC="${COREPACK_ENABLE_PROJECT_SPEC:-0}"
+
+COMPILED_CLI="$ROOT/packages/cli/dist/index.cjs"
+
+if [[ "${EXO_CLI_USE_TSX:-0}" != "1" && -f "$COMPILED_CLI" ]]; then
+  exec node "$COMPILED_CLI" "$@"
+fi
+
 exec pnpm --dir "$ROOT" exec tsx packages/cli/src/index.ts "$@"

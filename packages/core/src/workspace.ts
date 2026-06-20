@@ -265,28 +265,50 @@ export async function searchNotes(model: WorkspaceModel, query: string): Promise
     return [];
   }
 
-  const noteFiles = await findMatchingFiles(
+  const results: SearchResult[] = [];
+  await findMatchingFiles(
     model.noteRoots.map((root) => root.path),
-    (filePath) => {
+    async (filePath) => {
       if (!/\.md(?:own)?$/i.test(filePath)) {
         return false;
       }
       const relativePath = path.relative(model.workspaceRoot, filePath);
-      const title = path.basename(filePath, path.extname(filePath));
-      return `${title}\n${relativePath}`.toLowerCase().includes(trimmedQuery);
+      const pathTitle = path.basename(filePath, path.extname(filePath));
+
+      let document;
+      try {
+        document = await readWorkspaceDocument(filePath);
+      } catch {
+        return false;
+      }
+
+      const frontmatterTags = frontmatterTagsForSearch(document.frontmatter);
+      const bodyTags = Array.from(document.body.matchAll(/(^|\s)#([a-zA-Z0-9/_-]+)/g)).map((match) => match[2] ?? "");
+      const heading = firstMarkdownHeading(document.body);
+      const fields = [
+        { kind: "title", value: document.title },
+        { kind: "title", value: heading },
+        { kind: "path", value: relativePath },
+        { kind: "path", value: pathTitle },
+        ...frontmatterTags.map((tag) => ({ kind: "tag", value: tag })),
+        ...bodyTags.map((tag) => ({ kind: "tag", value: tag })),
+        { kind: "body", value: document.body },
+      ];
+      const match = fields.find((field) => field.value.toLowerCase().includes(trimmedQuery));
+      if (!match) {
+        return false;
+      }
+
+      results.push({
+        filePath,
+        title: document.title,
+        snippet: snippetForNoteMatch(match.kind, match.value, query.trim(), relativePath),
+        kind: "note" as const,
+      });
+      return true;
     },
     SEARCH_RESULT_LIMIT,
   );
-  const results = noteFiles.map<SearchResult>((filePath) => {
-    const relativePath = path.relative(model.workspaceRoot, filePath);
-    const title = path.basename(filePath, path.extname(filePath));
-    return {
-      filePath,
-      title,
-      snippet: relativePath,
-      kind: "note" as const,
-    };
-  });
 
   return results.slice(0, SEARCH_RESULT_LIMIT);
 }
@@ -322,9 +344,15 @@ export async function searchTags(model: WorkspaceModel, query: string): Promise<
     return [];
   }
 
-  const noteFiles = await listMarkdownFiles(model.noteRoots.map((root) => root.path));
-  const results: Array<SearchResult | null> = await Promise.all(
-    noteFiles.map(async (filePath) => {
+  const results: SearchResult[] = [];
+  await findMatchingFiles(
+    model.noteRoots.map((root) => root.path),
+    async (filePath) => {
+      if (!/\.md(?:own)?$/i.test(filePath)) {
+        return false;
+      }
+
+      try {
         const document = await readWorkspaceDocument(filePath);
         const rawTags =
           Array.isArray(document.frontmatter.tags)
@@ -339,30 +367,69 @@ export async function searchTags(model: WorkspaceModel, query: string): Promise<
             .map((match) => match[2] ?? "")
             .find((entry) => entry.toLowerCase().includes(trimmedQuery));
 
-      if (!matchingTag) {
-        return null;
-      }
+        if (!matchingTag) {
+          return false;
+        }
 
-      return {
-        filePath,
-        title: document.title,
-        snippet: `#${matchingTag}`,
-        kind: "tag" as const,
-      };
-    }),
+        results.push({
+          filePath,
+          title: document.title,
+          snippet: `#${matchingTag}`,
+          kind: "tag" as const,
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    SEARCH_RESULT_LIMIT,
   );
 
-  return results.filter(isSearchResult).slice(0, 30);
+  return results.slice(0, SEARCH_RESULT_LIMIT);
 }
 
 export async function searchWorkspace(model: WorkspaceModel, query: string): Promise<WorkspaceSearchResults> {
-  const notes = await searchNotes(model, query);
+  const [notes, tags] = await Promise.all([
+    searchNotes(model, query),
+    searchTags(model, query),
+  ]);
 
   return {
     notes,
     projectFiles: [],
-    tags: [],
+    tags,
   };
+}
+
+export function resolveNotePath(model: WorkspaceModel, target: string, cwd = process.cwd()): string {
+  const noteRootPaths = model.noteRoots.map((root) => path.resolve(root.path));
+  if (path.isAbsolute(target)) {
+    const resolvedTarget = path.resolve(target);
+    if (!noteRootPaths.some((rootPath) => isWithin(rootPath, resolvedTarget))) {
+      throw new Error("Refusing to read a note path outside configured note roots.");
+    }
+    return resolvedTarget;
+  }
+
+  const cwdRelative = path.resolve(cwd, target);
+  if (noteRootPaths.some((rootPath) => isWithin(rootPath, cwdRelative)) && existsSync(cwdRelative)) {
+    return cwdRelative;
+  }
+
+  const rootRelative = noteRootPaths
+    .map((rootPath) => ({ rootPath, targetPath: path.resolve(rootPath, target) }))
+    .filter((candidate) => isWithin(candidate.rootPath, candidate.targetPath))
+    .map((candidate) => candidate.targetPath);
+  const existingRootRelative = rootRelative.find((candidate) => existsSync(candidate));
+  if (existingRootRelative) {
+    return existingRootRelative;
+  }
+
+  if (noteRootPaths.some((rootPath) => isWithin(rootPath, cwdRelative))) {
+    return cwdRelative;
+  }
+
+  throw new Error(`Note path not found inside configured note roots: ${target}`);
 }
 
 export async function listMarkdownFiles(rootPaths: string[]): Promise<string[]> {
@@ -409,7 +476,7 @@ export async function listFiles(rootPaths: string[]): Promise<string[]> {
 
 async function findMatchingFiles(
   rootPaths: string[],
-  matches: (filePath: string) => boolean,
+  matches: (filePath: string) => boolean | Promise<boolean>,
   limit: number,
 ): Promise<string[]> {
   const results: string[] = [];
@@ -449,7 +516,7 @@ async function findMatchingFiles(
       const entryPath = path.join(directoryPath, entry.name);
       if (entry.isDirectory()) {
         await visit(entryPath);
-      } else if (matches(entryPath)) {
+      } else if (await matches(entryPath)) {
         results.push(entryPath);
       }
     }
@@ -498,6 +565,48 @@ function isTextLikeFile(filePath: string): boolean {
   return /\.(?:md|markdown|txt|ts|tsx|js|jsx|json|py|swift|toml|ya?ml|css|html|sh|mjs|cjs)$/i.test(filePath);
 }
 
-function isSearchResult(value: SearchResult | null): value is SearchResult {
-  return value !== null;
+function isWithin(root: string, targetPath: string): boolean {
+  const relative = path.relative(path.resolve(root), path.resolve(targetPath));
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+function frontmatterTagsForSearch(frontmatter: Record<string, unknown>): string[] {
+  if (Array.isArray(frontmatter.tags)) {
+    return frontmatter.tags.filter((entry: unknown): entry is string => typeof entry === "string");
+  }
+  if (typeof frontmatter.tags === "string") {
+    return frontmatter.tags.split(/[,\s]+/).filter(Boolean);
+  }
+  return [];
+}
+
+function firstMarkdownHeading(body: string): string {
+  const heading = body.match(/^#{1,6}\s+(.+)$/m);
+  return heading?.[1]?.trim() ?? "";
+}
+
+function snippetForNoteMatch(kind: string, value: string, query: string, relativePath: string): string {
+  if (kind === "title") {
+    return `title: ${value}`;
+  }
+  if (kind === "tag") {
+    return `#${value.replace(/^#/, "")}`;
+  }
+  if (kind === "path") {
+    return relativePath;
+  }
+  return excerptAroundMatch(value, query);
+}
+
+function excerptAroundMatch(text: string, query: string): string {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  const index = normalized.toLowerCase().indexOf(query.toLowerCase());
+  if (index < 0) {
+    return normalized.slice(0, 240);
+  }
+  const start = Math.max(0, index - 80);
+  const end = Math.min(normalized.length, index + query.length + 120);
+  const prefix = start > 0 ? "..." : "";
+  const suffix = end < normalized.length ? "..." : "";
+  return `${prefix}${normalized.slice(start, end)}${suffix}`;
 }

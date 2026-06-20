@@ -8,7 +8,7 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 
 ### EXO-ISSUE-040: Agent-facing Exo orientation requires sandbox escalation and raw repo search
 
-- Status: needs investigation
+- Status: fixed in local branch
 - Severity: high
 - Area: CLI/MCP control plane, sandbox compatibility, Exo-on-Exo orientation
 - Observed:
@@ -22,10 +22,16 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
   - If Exo search is degraded, the user/agent should see why and what fallback is being used.
 - Source:
   - `/Users/kenneth/Desktop/lab/notes/shoshin-codex/exo-issues.md`, 2026-06-20, 2026-06-14, 2026-06-09, 2026-06-06.
+- Resolution:
+  - `bin/exo` now prefers compiled CLI JavaScript after `@exo/cli` build and only uses `tsx` when the compiled CLI is missing or `EXO_CLI_USE_TSX=1` is set.
+  - CLI live-app discovery now reports distinct runtime-root, missing `server.json`, invalid `server.json`, stale pid, and unreachable command-server diagnostics with runtime root and discovery path.
+  - Generated runtime instructions now tell agents to prefer Exo MCP tools when available and use the `exo` CLI as fallback/operator/debug surface.
+  - `exo status` attaches local control-plane discovery metadata when the app is reachable.
+  - Residual: compiled `exo search` can still visibly degrade to filesystem fallback when QMD is unavailable from the compiled package context; retrieval quality remains tracked under EXO-ISSUE-039.
 
 ### EXO-ISSUE-039: Exo search/read fallback is too low-recall for agent orientation
 
-- Status: needs investigation
+- Status: fixed in local branch
 - Severity: high
 - Area: search, note read, QMD fallback, lexical retrieval
 - Observed:
@@ -38,10 +44,15 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
   - `exo notes read` should resolve paths relative to configured note roots before failing.
 - Source:
   - `/Users/kenneth/Desktop/lab/notes/shoshin-codex/exo-issues.md`, 2026-06-19, 2026-06-09, 2026-06-07, 2026-05-31.
+- Resolution:
+  - Degraded filesystem search now scans configured note roots for Markdown title, first heading, body, tags, and path matches with bounded traversal and snippets.
+  - QMD fallback warnings now distinguish native ABI mismatch and missing `vec0`/vector support from generic search failure.
+  - `exo notes read <path>` resolves paths relative to configured note roots while preserving outside-root rejection.
+  - Residual: QMD health/capability classification is still heuristic string matching and should become a structured provider diagnostic before a public release.
 
 ### EXO-ISSUE-038: Exo-managed Claude/Codex lifecycle can exit immediately and mix stale transcripts
 
-- Status: needs investigation
+- Status: fixed in local branch
 - Severity: critical
 - Area: agent lifecycle, terminal transcripts, Exo-on-Exo orchestration
 - Observed:
@@ -54,6 +65,12 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
   - Exo-on-Exo should support: create agent, wait ready, send message, read reply, interrupt/terminate, and inspect transcript without ambiguity.
 - Source:
   - `/Users/kenneth/Desktop/lab/notes/shoshin-codex/exo-issues.md`, 2026-06-14.
+- Resolution:
+  - Fast-exiting Claude/Codex sessions remain visible as exited sessions with exit code, transcript path, cwd, command, readiness, and health details until explicit cleanup.
+  - Terminal display ids now advance across app restarts via persisted terminal registry state instead of being reused after explicit close.
+  - Tmux capture used for live-tail/UI hydration is no longer appended to durable transcripts during restore.
+  - `exo agents read <id>` now defaults to a bounded transcript tail; `--full` is required for full transcript output.
+  - Residual: provider-specific Claude/Codex readiness state machines are still a future hardening step.
 
 ### EXO-ISSUE-037: Terminal parity review found remaining VS Code/full-terminal gaps
 

@@ -10,9 +10,13 @@ import { createIndexedRoot, resolveWorkspaceModel } from "../workspace";
 
 const stores: MockStore[] = [];
 const tempPaths: string[] = [];
+let createStoreError: Error | null = null;
 
 vi.mock("@tobilu/qmd", () => ({
   createStore: vi.fn(async () => {
+    if (createStoreError) {
+      throw createStoreError;
+    }
     const store = new MockStore();
     stores.push(store);
     return store;
@@ -21,6 +25,7 @@ vi.mock("@tobilu/qmd", () => ({
 
 afterEach(async () => {
   stores.splice(0);
+  createStoreError = null;
   await Promise.all(tempPaths.splice(0).map((target) => rm(target, { recursive: true, force: true })));
 });
 
@@ -84,6 +89,46 @@ describe("QMD index adapter", () => {
 
     expect(result.warnings.some((warning) => warning.includes("Semantic search is not ready"))).toBe(true);
     expect(stores[0].searchLexCalls.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("falls back to filesystem title and body search when QMD cannot open", async () => {
+    const root = await fixtureRoot();
+    const notePath = path.join(root, "notes", "sigmund.md");
+    await writeFile(
+      notePath,
+      [
+        "---",
+        "title: Sigmund Lab",
+        "tags: [cybernetics]",
+        "---",
+        "",
+        "Ashby shows up only in the note body.",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    const model = indexedModel(root, "hybrid");
+    createStoreError = new Error("The module was compiled against a different Node.js version using NODE_MODULE_VERSION 127");
+
+    const bodyResult = await searchIndex(model, path.join(root, ".exo"), "Ashby");
+    const titleResult = await searchIndex(model, path.join(root, ".exo"), "Sigmund Lab");
+
+    expect(bodyResult.source).toBe("filesystem");
+    expect(bodyResult.warnings[0]).toContain("QMD native ABI mismatch");
+    expect(bodyResult.results[0]).toMatchObject({ filePath: notePath, title: "Sigmund Lab", source: "filesystem" });
+    expect(bodyResult.results[0].snippet).toContain("Ashby");
+    expect(titleResult.results[0]).toMatchObject({ filePath: notePath, title: "Sigmund Lab", snippet: "title: Sigmund Lab" });
+  });
+
+  it("reports missing vec0 separately when degraded search is used", async () => {
+    const root = await fixtureRoot();
+    const model = indexedModel(root, "hybrid");
+    createStoreError = new Error("SQLITE_ERROR: no such module: vec0");
+
+    const result = await searchIndex(model, path.join(root, ".exo"), "focus");
+
+    expect(result.source).toBe("filesystem");
+    expect(result.warnings[0]).toContain("QMD vec0 extension is unavailable");
   });
 
   it("runs hybrid search against every selected indexed root", async () => {

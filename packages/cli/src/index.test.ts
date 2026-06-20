@@ -30,6 +30,30 @@ describe("cli package", () => {
     expect(stdout).toContain('"kind": "qmd"');
   });
 
+  it("prints actionable discovery diagnostics for live app commands", async () => {
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-discovery-"));
+    let stderr = "";
+
+    try {
+      const exitCode = await runCli(["node", "exo-cli", "status"], {
+        env: {
+          EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
+          EXO_RUNTIME_ROOT: runtimeRoot,
+        },
+        stdout: { write: () => {} },
+        stderr: { write: (text) => { stderr += text; } },
+      });
+
+      expect(exitCode).toBe(1);
+      expect(stderr).toContain("discovery file is missing");
+      expect(stderr).toContain(`Runtime root: ${runtimeRoot}`);
+      expect(stderr).toContain(`Discovery file: ${path.join(runtimeRoot, "server.json")}`);
+      expect(stderr).toContain("exo start");
+    } finally {
+      await rm(runtimeRoot, { recursive: true, force: true });
+    }
+  });
+
   it("uses the active workspace registry when env does not override workspace paths", async () => {
     const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-cli-workspace-registry-"));
     let stdout = "";
@@ -65,6 +89,48 @@ describe("cli package", () => {
       expect(stdout).toContain('"defaultTerminalCwd": "/tmp/exo-active/project"');
     } finally {
       await rm(userDataPath, { recursive: true, force: true });
+    }
+  });
+
+  it("reads notes by paths relative to configured note roots", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-cli-notes-read-"));
+    let stdout = "";
+    try {
+      const notePath = path.join(root, "notes", "garden", "research", "ashby.md");
+      await mkdir(path.dirname(notePath), { recursive: true });
+      await writeFile(
+        notePath,
+        [
+          "---",
+          "title: Ashby Note",
+          "---",
+          "",
+          "Relative note-root reads should find this body.",
+          "",
+        ].join("\n"),
+        "utf8",
+      );
+
+      const exitCode = await runCli(["node", "exo-cli", "notes", "read", "garden/research/ashby.md"], {
+        cwd: path.join(root, "project"),
+        env: {
+          EXO_WORKSPACE_ROOT: root,
+          EXO_NOTE_ROOTS: path.join(root, "notes"),
+          EXO_PROJECT_ROOTS: "",
+        },
+        stdout: { write: (text) => { stdout += text; } },
+        stderr: { write: () => {} },
+      });
+
+      const document = JSON.parse(stdout);
+      expect(exitCode).toBe(0);
+      expect(document).toMatchObject({
+        filePath: notePath,
+        title: "Ashby Note",
+      });
+      expect(document.body).toContain("Relative note-root reads");
+    } finally {
+      await rm(root, { recursive: true, force: true });
     }
   });
 
@@ -238,6 +304,44 @@ describe("cli package", () => {
 
     expect(exitCode).toBe(0);
     expect(stdout).toContain("Queued message for term-1");
+  });
+
+  it("reads a bounded agent transcript tail by default", async () => {
+    let receivedTailChars: number | undefined;
+    let stdout = "";
+    const exitCode = await runCli(["node", "exo-cli", "agents", "read", "term-1"], {
+      env: testRuntimeEnv(),
+      stdout: { write: (text) => { stdout += text; } },
+      stderr: { write: () => {} },
+      connectAppClient: async () => fakeAppClient({
+        readTerminalTranscript: async (_id, tailChars) => {
+          receivedTailChars = tailChars;
+          return "old\nfresh\n";
+        },
+      }),
+    });
+
+    expect(exitCode).toBe(0);
+    expect(receivedTailChars).toBe(20_000);
+    expect(stdout).toBe("old\nfresh\n");
+  });
+
+  it("preserves full agent transcript reads behind --full", async () => {
+    let receivedTailChars: number | undefined;
+    const exitCode = await runCli(["node", "exo-cli", "agents", "read", "term-1", "--full"], {
+      env: testRuntimeEnv(),
+      stdout: { write: () => {} },
+      stderr: { write: () => {} },
+      connectAppClient: async () => fakeAppClient({
+        readTerminalTranscript: async (_id, tailChars) => {
+          receivedTailChars = tailChars;
+          return "full transcript\n";
+        },
+      }),
+    });
+
+    expect(exitCode).toBe(0);
+    expect(receivedTailChars).toBe(0);
   });
 
   it("keeps deprecated agent message aliases working with warnings", async () => {

@@ -85,6 +85,15 @@ interface PersistedTerminalSession {
   createdAt: string;
   lastAttachedAt: string | null;
   status: "running" | "exited" | "missing" | "unhealthy";
+  exitCode?: number;
+  readiness?: TerminalSessionInfo["readiness"];
+  readinessDetail?: string;
+  healthDetail?: string;
+}
+
+interface PersistedTerminalRegistry {
+  sessions: PersistedTerminalSession[];
+  nextId: number;
 }
 
 const DEFAULT_LIVE_SCROLLBACK_LINES = 100_000;
@@ -159,6 +168,7 @@ export class TerminalManager extends EventEmitter {
         id: record.info.id,
         kind: record.info.kind,
         status: record.info.status,
+        exitCode: record.info.exitCode,
         health: this.terminalHealth(record, now),
         healthDetail: this.terminalHealthDetail(record, now),
         runtime: "tmux",
@@ -246,7 +256,7 @@ export class TerminalManager extends EventEmitter {
   async create(options: TerminalCreateOptions): Promise<TerminalSessionInfo> {
     const cwd = options.cwd ?? this.defaultCwd;
     await this.syncRuntimeContext();
-    const id = `term-${this.nextId++}`;
+    const id = this.allocateTerminalId();
     const launch = resolveAgentLaunchPlan(this.runtimeConfig, options.kind, cwd);
     const isAgent = options.kind === "claude" || options.kind === "codex";
     const overlayEnv = isAgent ? agentInstructionOverlayEnv(this.runtimeConfig.workspace, launch.cwd) : {};
@@ -296,6 +306,7 @@ export class TerminalManager extends EventEmitter {
       kind: options.kind,
       command: launch.command,
       instructionOverlayPath: overlayEnv.EXO_INSTRUCTIONS ?? null,
+      transcriptPath,
       status: "running",
       readiness: initialReadiness(options.kind),
       readinessDetail: initialReadinessDetail(options.kind),
@@ -590,10 +601,12 @@ export class TerminalManager extends EventEmitter {
         record.info.health = "unhealthy";
         record.info.healthDetail = `Tmux attach bridge exited with code ${exitCode ?? "unknown"}; session may still be running.`;
         record.bridgeDetached = true;
+        this.persistSessions();
         return;
       }
 
       this.markExited(record, exitCode);
+      this.persistSessions();
       this.emit("exit", { id, exitCode });
     });
   }
@@ -601,7 +614,6 @@ export class TerminalManager extends EventEmitter {
   private retireExitedTerminal(record: TerminalRecord, exitCode?: number): void {
     this.flushTranscript(record.info.id);
     this.markExited(record, exitCode);
-    this.sessions.delete(record.info.id);
     this.persistSessions();
     this.emit("exit", { id: record.info.id, exitCode });
   }
@@ -609,7 +621,7 @@ export class TerminalManager extends EventEmitter {
   private markExited(record: TerminalRecord, exitCode?: number): void {
     record.info.status = "exited";
     record.info.health = "exited";
-    record.info.healthDetail = `Process exited with code ${exitCode}.`;
+    record.info.healthDetail = exitCode === undefined ? "Process exited." : `Process exited with code ${exitCode}.`;
     record.info.exitCode = exitCode;
     this.clearReadinessTimer(record);
   }
@@ -665,6 +677,13 @@ export class TerminalManager extends EventEmitter {
 
   private makeSessionRegistryPath(): string {
     return path.join(this.runtimeConfig.runtimeRoot, "terminal-sessions.json");
+  }
+
+  private allocateTerminalId(): string {
+    const id = `term-${this.nextId}`;
+    this.nextId += 1;
+    this.persistSessions();
+    return id;
   }
 
   private updateAgentReadiness(record: TerminalRecord): void {
@@ -778,6 +797,11 @@ export class TerminalManager extends EventEmitter {
     const availability = detectTmux();
     if (!availability.available) {
       for (const record of this.sessions.values()) {
+        if (record.info.status === "exited") {
+          record.info.health = "exited";
+          record.info.healthDetail = this.terminalHealthDetail(record, Date.now());
+          continue;
+        }
         record.paneStatus = "unknown";
         record.info.health = "unhealthy";
         record.info.healthDetail = availability.reason;
@@ -787,6 +811,11 @@ export class TerminalManager extends EventEmitter {
     const runner = new TmuxCommandRunner(availability.path);
     const panes = new Map(this.listTmuxPanes(runner).map((pane) => [pane.sessionName, pane]));
     for (const record of this.sessions.values()) {
+      if (record.info.status === "exited") {
+        record.info.health = "exited";
+        record.info.healthDetail = this.terminalHealthDetail(record, Date.now());
+        continue;
+      }
       const pane = panes.get(record.tmuxSessionName);
       if (!pane) {
         record.paneStatus = "missing";
@@ -805,32 +834,26 @@ export class TerminalManager extends EventEmitter {
   }
 
   private restorePersistedSessions(): void {
-    const persisted = this.readPersistedSessions();
-    if (persisted.length === 0) {
+    const registry = this.readPersistedRegistry();
+    this.nextId = Math.max(this.nextId, registry.nextId);
+    if (registry.sessions.length === 0) {
       return;
     }
 
     const availability = detectTmux();
-    if (!availability.available) {
-      console.warn("[exo] unable to restore terminal sessions because tmux is unavailable", {
+    if (!availability.available && registry.sessions.some((session) => session.status === "running")) {
+      console.warn("[exo] unable to restore running terminal sessions because tmux is unavailable", {
         reason: availability.reason,
         attempted: availability.attempted,
       });
-      return;
     }
 
-    const runner = new TmuxCommandRunner(availability.path);
-    const livePanes = new Map(this.listTmuxPanes(runner).filter((pane) => !pane.dead).map((pane) => [pane.sessionName, pane]));
+    const tmuxAvailability = availability.available ? availability : null;
+    const runner = tmuxAvailability ? new TmuxCommandRunner(tmuxAvailability.path) : null;
+    const livePanes = runner ? new Map(this.listTmuxPanes(runner).filter((pane) => !pane.dead).map((pane) => [pane.sessionName, pane])) : new Map<string, TmuxPaneInfo>();
     let restored = 0;
-    for (const session of persisted) {
-      const livePane = livePanes.get(session.tmuxSessionName);
-      if (session.status !== "running" || !livePane || this.sessions.has(session.id)) {
-        continue;
-      }
-
-      try {
-        const tmuxPaneId = session.tmuxPaneId ?? livePane.paneId;
-        const processHandle = this.attachTmuxSession(availability, session.tmuxSessionName, tmuxPaneId, session.cwd);
+    for (const session of registry.sessions) {
+      if (session.status === "exited" && !this.sessions.has(session.id)) {
         const record: TerminalRecord = {
           info: {
             id: session.id,
@@ -839,6 +862,50 @@ export class TerminalManager extends EventEmitter {
             kind: session.kind,
             command: session.command,
             instructionOverlayPath: session.instructionOverlayPath ?? null,
+            transcriptPath: session.transcriptPath,
+            status: "exited",
+            readiness: session.readiness ?? "ready",
+            readinessDetail: session.readinessDetail,
+            queuedInputCount: 0,
+            health: "exited",
+            healthDetail: session.healthDetail ?? (session.exitCode === undefined ? "Process exited." : `Process exited with code ${session.exitCode}.`),
+            exitCode: session.exitCode,
+          },
+          process: noopTerminalProcess(),
+          tmuxSessionName: session.tmuxSessionName,
+          tmuxPaneId: session.tmuxPaneId ?? "",
+          createdAt: session.createdAt,
+          paneStatus: "dead",
+          buffer: new TerminalLineBuffer(this.bufferLineLimit),
+          transcriptPath: session.transcriptPath,
+          pendingWrites: [],
+          rawInputBuffer: "",
+          lastWriteId: 0,
+          bridgeDetached: true,
+        };
+        this.sessions.set(session.id, record);
+        this.nextId = Math.max(this.nextId, terminalNumericId(session.id) + 1);
+        restored += 1;
+        continue;
+      }
+
+      const livePane = livePanes.get(session.tmuxSessionName);
+      if (!runner || !tmuxAvailability || session.status !== "running" || !livePane || this.sessions.has(session.id)) {
+        continue;
+      }
+
+      try {
+        const tmuxPaneId = session.tmuxPaneId ?? livePane.paneId;
+        const processHandle = this.attachTmuxSession(tmuxAvailability, session.tmuxSessionName, tmuxPaneId, session.cwd);
+        const record: TerminalRecord = {
+          info: {
+            id: session.id,
+            title: session.title,
+            cwd: session.cwd,
+            kind: session.kind,
+            command: session.command,
+            instructionOverlayPath: session.instructionOverlayPath ?? null,
+            transcriptPath: session.transcriptPath,
             status: "running",
             readiness: "ready",
             queuedInputCount: 0,
@@ -941,7 +1008,6 @@ export class TerminalManager extends EventEmitter {
         return;
       }
       record.buffer.append(data);
-      this.appendTranscript(record.info.id, data);
     } catch (error) {
       console.warn("[exo] failed to hydrate terminal from tmux history", {
         id: record.info.id,
@@ -981,22 +1047,22 @@ export class TerminalManager extends EventEmitter {
     return availability.available ? new TmuxCommandRunner(availability.path) : null;
   }
 
-  private readPersistedSessions(): PersistedTerminalSession[] {
+  private readPersistedRegistry(): PersistedTerminalRegistry {
     if (!existsSync(this.sessionRegistryPath)) {
-      return [];
+      return { sessions: [], nextId: 1 };
     }
     try {
-      const parsed = JSON.parse(readFileSync(this.sessionRegistryPath, "utf8")) as { sessions?: unknown };
-      if (!Array.isArray(parsed.sessions)) {
-        return [];
-      }
-      return parsed.sessions.filter(isPersistedTerminalSession);
+      const parsed = JSON.parse(readFileSync(this.sessionRegistryPath, "utf8")) as { sessions?: unknown; nextId?: unknown };
+      const sessions = Array.isArray(parsed.sessions) ? parsed.sessions.filter(isPersistedTerminalSession) : [];
+      const sessionNextId = sessions.reduce((next, session) => Math.max(next, terminalNumericId(session.id) + 1), 1);
+      const persistedNextId = typeof parsed.nextId === "number" && Number.isFinite(parsed.nextId) ? Math.floor(parsed.nextId) : 1;
+      return { sessions, nextId: Math.max(1, sessionNextId, persistedNextId) };
     } catch (error) {
       console.warn("[exo] failed to read terminal session registry", {
         path: this.sessionRegistryPath,
         error: error instanceof Error ? error.message : String(error),
       });
-      return [];
+      return { sessions: [], nextId: 1 };
     }
   }
 
@@ -1014,10 +1080,24 @@ export class TerminalManager extends EventEmitter {
       createdAt: record.createdAt,
       lastAttachedAt: new Date().toISOString(),
       status: record.info.status === "running" ? "running" : "exited",
+      exitCode: record.info.exitCode,
+      readiness: record.info.readiness,
+      readinessDetail: record.info.readinessDetail,
+      healthDetail: record.info.healthDetail,
     }));
     mkdirSync(path.dirname(this.sessionRegistryPath), { recursive: true });
-    writeFileSync(this.sessionRegistryPath, JSON.stringify({ version: 1, sessions }, null, 2));
+    writeFileSync(this.sessionRegistryPath, JSON.stringify({ version: 1, nextId: this.nextId, sessions }, null, 2));
   }
+}
+
+function noopTerminalProcess(): TerminalProcess {
+  return {
+    onData: () => {},
+    onExit: () => {},
+    write: () => {},
+    resize: () => {},
+    kill: () => {},
+  };
 }
 
 function initialReadiness(kind: TerminalKind): TerminalSessionInfo["readiness"] {

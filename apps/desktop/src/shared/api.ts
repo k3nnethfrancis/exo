@@ -24,6 +24,7 @@ export interface TerminalSessionInfo {
   kind: TerminalKind;
   command: string;
   instructionOverlayPath?: string | null;
+  transcriptPath?: string;
   status: "running" | "exited";
   exitCode?: number;
   readiness?: "ready" | "starting" | "blocked";
@@ -58,6 +59,7 @@ export interface TerminalDiagnostics {
   id: string;
   kind: TerminalKind;
   status: TerminalSessionInfo["status"];
+  exitCode?: number;
   health: TerminalHealthState;
   healthDetail: string;
   runtime: "tmux";

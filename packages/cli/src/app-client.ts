@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 
 import { EXO_COMMAND_ROUTES, type ExoCommandServerInfo } from "@exo/core";
@@ -15,6 +15,30 @@ const defaultRequestTimeoutMs = 2_000;
 const defaultSearchRequestTimeoutMs = 30_000;
 const defaultMaintenanceRequestTimeoutMs = 30 * 60_000;
 
+export type AppClientDiscoveryFailureCode =
+  | "runtime-root-missing"
+  | "server-json-missing"
+  | "server-json-invalid"
+  | "server-stale"
+  | "server-unreachable";
+
+export interface AppClientDiscoveryMetadata {
+  runtimeRoot: string;
+  serverJsonPath: string;
+  port?: number;
+  pid?: number;
+}
+
+export interface AppClientDiscoveryFailure extends AppClientDiscoveryMetadata {
+  code: AppClientDiscoveryFailureCode;
+  message: string;
+  causeMessage?: string;
+}
+
+export type AppClientConnectResult =
+  | { ok: true; client: AppClient; discovery: AppClientDiscoveryMetadata }
+  | { ok: false; failure: AppClientDiscoveryFailure };
+
 /**
  * HTTP client for communicating with the Exo desktop app's command server.
  * Discovers the server port from .exo/server.json.
@@ -22,6 +46,7 @@ const defaultMaintenanceRequestTimeoutMs = 30 * 60_000;
 export class AppClient {
   private constructor(
     private baseUrl: string,
+    private readonly discovery: AppClientDiscoveryMetadata,
     private readonly requestTimeoutMs = defaultRequestTimeoutMs,
     private readonly searchRequestTimeoutMs = defaultSearchRequestTimeoutMs,
     private readonly maintenanceRequestTimeoutMs = defaultMaintenanceRequestTimeoutMs,
@@ -32,14 +57,34 @@ export class AppClient {
    * Returns null if the app isn't running or server.json doesn't exist.
    */
   static async connect(runtimeRoot: string, env: NodeJS.ProcessEnv = process.env): Promise<AppClient | null> {
+    const result = await AppClient.connectDetailed(runtimeRoot, env);
+    return result.ok ? result.client : null;
+  }
+
+  static async connectDetailed(runtimeRoot: string, env: NodeJS.ProcessEnv = process.env): Promise<AppClientConnectResult> {
     const serverJsonPath = path.join(runtimeRoot, "server.json");
     let info: ExoCommandServerInfo;
 
     try {
+      const runtimeRootStat = await stat(runtimeRoot);
+      if (!runtimeRootStat.isDirectory()) {
+        return discoveryFailure("runtime-root-missing", runtimeRoot, serverJsonPath);
+      }
+    } catch (error) {
+      return discoveryFailure("runtime-root-missing", runtimeRoot, serverJsonPath, error);
+    }
+
+    try {
       const raw = await readFile(serverJsonPath, "utf-8");
       info = JSON.parse(raw);
-    } catch {
-      return null;
+      if (!isValidServerInfo(info)) {
+        return discoveryFailure("server-json-invalid", runtimeRoot, serverJsonPath);
+      }
+    } catch (error) {
+      if (isNodeError(error) && error.code === "ENOENT") {
+        return discoveryFailure("server-json-missing", runtimeRoot, serverJsonPath, error);
+      }
+      return discoveryFailure("server-json-invalid", runtimeRoot, serverJsonPath, error);
     }
 
     const baseUrl = `http://127.0.0.1:${info.port}`;
@@ -47,19 +92,37 @@ export class AppClient {
     const searchRequestTimeoutMs = parsePositiveInt(env.EXO_APP_CLIENT_SEARCH_TIMEOUT_MS) ?? defaultSearchRequestTimeoutMs;
     const maintenanceRequestTimeoutMs =
       parsePositiveInt(env.EXO_APP_CLIENT_MAINTENANCE_TIMEOUT_MS) ?? defaultMaintenanceRequestTimeoutMs;
-    const client = new AppClient(baseUrl, requestTimeoutMs, searchRequestTimeoutMs, maintenanceRequestTimeoutMs);
+    const discovery = { runtimeRoot, serverJsonPath, port: info.port, pid: info.pid };
+    const client = new AppClient(baseUrl, discovery, requestTimeoutMs, searchRequestTimeoutMs, maintenanceRequestTimeoutMs);
 
     // Health check
     try {
       await client.getStatus();
-      return client;
-    } catch {
-      return null;
+      return { ok: true, client, discovery };
+    } catch (error) {
+      return discoveryFailure(
+        isProcessAlive(info.pid) ? "server-unreachable" : "server-stale",
+        runtimeRoot,
+        serverJsonPath,
+        error,
+        info,
+      );
     }
   }
 
   async getStatus(): Promise<Record<string, unknown>> {
-    return this.get(EXO_COMMAND_ROUTES.status);
+    const status = await this.get(EXO_COMMAND_ROUTES.status);
+    return {
+      ...status,
+      controlPlane: {
+        ...(isRecord(status.controlPlane) ? status.controlPlane : {}),
+        runtimeRoot: this.discovery.runtimeRoot,
+        serverJsonPath: this.discovery.serverJsonPath,
+        pid: this.discovery.pid,
+        port: this.discovery.port,
+        baseUrl: this.baseUrl,
+      },
+    };
   }
 
   async openFile(filePath: string): Promise<void> {
@@ -212,4 +275,84 @@ function enhanceTimeoutError(error: unknown, method: string, targetPath: string,
 
 function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && (error.name === "AbortError" || error.name === "TimeoutError");
+}
+
+function isValidServerInfo(value: unknown): value is ExoCommandServerInfo {
+  if (!isRecord(value)) {
+    return false;
+  }
+  const port = value.port;
+  const pid = value.pid;
+  return Number.isInteger(port) && Number(port) > 0 && Number.isInteger(pid) && Number(pid) > 0;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function discoveryFailure(
+  code: AppClientDiscoveryFailureCode,
+  runtimeRoot: string,
+  serverJsonPath: string,
+  cause?: unknown,
+  info?: Partial<ExoCommandServerInfo>,
+): AppClientConnectResult {
+  const causeMessage = cause instanceof Error ? cause.message : cause ? String(cause) : undefined;
+  return {
+    ok: false,
+    failure: {
+      code,
+      runtimeRoot,
+      serverJsonPath,
+      port: info?.port,
+      pid: info?.pid,
+      message: discoveryFailureMessage(code, runtimeRoot, serverJsonPath, info),
+      causeMessage,
+    },
+  };
+}
+
+export function formatAppClientDiscoveryFailure(failure: AppClientDiscoveryFailure): string {
+  const lines = [
+    failure.message,
+    `Runtime root: ${failure.runtimeRoot}`,
+    `Discovery file: ${failure.serverJsonPath}`,
+  ];
+  if (failure.pid) lines.push(`Recorded pid: ${failure.pid}`);
+  if (failure.port) lines.push(`Recorded port: ${failure.port}`);
+  if (failure.causeMessage) lines.push(`Cause: ${failure.causeMessage}`);
+  return `${lines.join("\n")}\n`;
+}
+
+function discoveryFailureMessage(
+  code: AppClientDiscoveryFailureCode,
+  runtimeRoot: string,
+  serverJsonPath: string,
+  info?: Partial<ExoCommandServerInfo>,
+): string {
+  switch (code) {
+    case "runtime-root-missing":
+      return `Exo runtime root is missing or is not a directory. Start Exo with \`exo start\`, run \`exo runtime status\` to confirm the active workspace, or set EXO_RUNTIME_ROOT.`;
+    case "server-json-missing":
+      return `Exo command server discovery file is missing. Start Exo with \`exo start\`, or set EXO_RUNTIME_ROOT to the runtime containing server.json.`;
+    case "server-json-invalid":
+      return `Exo command server discovery file is invalid. Remove or regenerate ${serverJsonPath} by restarting Exo.`;
+    case "server-stale":
+      return `Exo command server discovery is stale. The recorded process${info?.pid ? ` (${info.pid})` : ""} is no longer running; restart Exo with \`exo start\`.`;
+    case "server-unreachable":
+      return `Exo command server is unreachable${info?.port ? ` at http://127.0.0.1:${info.port}` : ""}. Restart Exo with \`exo start\` or check that EXO_RUNTIME_ROOT points at the active runtime.`;
+  }
+}
+
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isNodeError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && "code" in error;
 }

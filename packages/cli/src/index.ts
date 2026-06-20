@@ -20,6 +20,7 @@ import {
   resolveRuntimeConfig,
   RoutineService,
   routinePluginDirectoriesFromEnv,
+  resolveNotePath,
   resolveWorkspaceModel,
   loadActiveWorkspaceSettings,
   listWorkspaceRegistryEntries,
@@ -40,7 +41,7 @@ import {
   type RunRecord,
 } from "@exo/core";
 
-import { AppClient, type AppClientWriteResult } from "./app-client";
+import { AppClient, formatAppClientDiscoveryFailure, type AppClientWriteResult } from "./app-client";
 
 interface CommandRunResult {
   code: number;
@@ -83,6 +84,10 @@ type CommandRunner = (
 
 type AppClientConnector = (runtimeRoot: string, env: NodeJS.ProcessEnv) => Promise<AppClientLike | null>;
 
+const defaultAppClientConnector: AppClientConnector = (runtimeRoot, connectEnv) => AppClient.connect(runtimeRoot, connectEnv);
+
+const DEFAULT_AGENT_READ_TAIL_CHARS = 20_000;
+
 export async function runCli(
   argv: string[],
   options: {
@@ -101,7 +106,7 @@ export async function runCli(
   const stderr = options.stderr ?? process.stderr;
   const cwd = options.cwd ?? process.cwd();
   const runCommand = options.runCommand ?? runProcess;
-  const connectAppClient = options.connectAppClient ?? ((runtimeRoot, connectEnv) => AppClient.connect(runtimeRoot, connectEnv));
+  const connectAppClient = options.connectAppClient ?? defaultAppClientConnector;
 
   const [, , command, subcommand, ...args] = argv;
 
@@ -500,10 +505,10 @@ export async function runCli(
     if (subcommand === "read") {
       const id = args[0];
       if (!id) {
-        throw new Error("Usage: exo agents read <agent-id> [--tail chars] [--raw]");
+        throw new Error("Usage: exo agents read <agent-id> [--tail chars] [--full] [--raw]");
       }
 
-      const tailChars = parseTailChars(args);
+      const tailChars = parseAgentReadTailChars(args);
       const raw = args.includes("--raw");
       const transcript = await client.readTerminalTranscript(id, tailChars);
       const output = raw ? transcript : stripAnsi(transcript);
@@ -556,7 +561,7 @@ export async function runCli(
       return 0;
     }
 
-    stderr.write("Usage: exo agents [list | create <shell|claude|codex> [cwd] | read <id> [--tail chars] [--raw] | send <id> <text> [--raw|--no-submit] | interrupt <id> [escape|ctrl-c] | terminate <id>]\n");
+    stderr.write("Usage: exo agents [list | create <shell|claude|codex> [cwd] | read <id> [--tail chars] [--full] [--raw] | send <id> <text> [--raw|--no-submit] | interrupt <id> [escape|ctrl-c] | terminate <id>]\n");
     return 1;
   }
 
@@ -623,11 +628,13 @@ export async function runCli(
   }
 
   if (command === "notes" && subcommand === "read") {
-    const targetPath = args[0];
-    if (!targetPath) {
+    const target = args[0];
+    if (!target) {
       throw new Error("Expected a note path.");
     }
 
+    const model = resolveWorkspaceModel(await resolveCliWorkspaceEnv(env));
+    const targetPath = resolveNotePath(model, target, cwd);
     const document = await readWorkspaceDocument(targetPath);
     stdout.write(`${JSON.stringify(document, null, 2)}\n`);
     return 0;
@@ -887,7 +894,7 @@ export async function runCli(
       "  exo terminals reconnect <id>               Reattach Exo to a live tmux terminal (app)",
       "  exo agents [list]                          List live Exo agents (app)",
       "  exo agents create <shell|claude|codex>     Create Exo agent (app)",
-      "  exo agents read <id> [--tail n] [--raw]    Read agent transcript (app)",
+      "  exo agents read <id> [--tail n] [--full] [--raw] Read agent transcript tail (app)",
       "  exo agents send <id> <text> [--raw|--no-submit] Send message to agent (app)",
       "  exo agents interrupt <id> [escape|ctrl-c]  Interrupt agent (app)",
       "  exo agents terminate <id>                  Terminate agent (app)",
@@ -963,9 +970,22 @@ async function connectOrFail(
   connectAppClient: AppClientConnector,
 ): Promise<AppClientLike | null> {
   const config = await resolveCliRuntimeConfig(env);
+  if (connectAppClient === defaultAppClientConnector) {
+    const result = await AppClient.connectDetailed(config.runtimeRoot, env);
+    if (!result.ok) {
+      stderr.write(formatAppClientDiscoveryFailure(result.failure));
+      return null;
+    }
+    return result.client;
+  }
   const client = await connectAppClient(config.runtimeRoot, env);
   if (!client) {
-    stderr.write("Exo app is not running. Start it with: exo start\n");
+    stderr.write([
+      "Exo app is not reachable. Start it with: exo start",
+      `Runtime root: ${config.runtimeRoot}`,
+      `Discovery file: ${path.join(config.runtimeRoot, "server.json")}`,
+      "",
+    ].join("\n"));
     return null;
   }
   return client;
@@ -1155,12 +1175,12 @@ function isHelpFlag(value: string | undefined): boolean {
 
 function formatAgentsHelp(): string {
   return [
-    "Usage: exo agents [list | create <shell|claude|codex> [cwd] | read <id> [--tail chars] [--raw] | send <id> <text> [--raw|--no-submit] | interrupt <id> [escape|ctrl-c] | terminate <id>]",
+    "Usage: exo agents [list | create <shell|claude|codex> [cwd] | read <id> [--tail chars] [--full] [--raw] | send <id> <text> [--raw|--no-submit] | interrupt <id> [escape|ctrl-c] | terminate <id>]",
     "",
     "Commands:",
     "  list                                      List live Exo agents",
     "  create <shell|claude|codex> [cwd]        Create an Exo agent",
-    "  read <id> [--tail chars] [--raw]       Read an agent transcript",
+    "  read <id> [--tail chars] [--full] [--raw] Read an agent transcript tail",
     "  send <id> <text> [--raw|--no-submit]     Send a semantic message, or raw terminal input with --raw",
     "  interrupt <id> [escape|ctrl-c]           Interrupt an agent",
     "  terminate <id>                           Terminate an agent",
@@ -1213,6 +1233,14 @@ function parseTailChars(args: string[]): number {
     throw new Error("Expected --tail to be a non-negative number.");
   }
   return parsed;
+}
+
+function parseAgentReadTailChars(args: string[]): number {
+  if (args.includes("--full")) {
+    return 0;
+  }
+  const tailChars = parseTailChars(args);
+  return tailChars > 0 ? tailChars : DEFAULT_AGENT_READ_TAIL_CHARS;
 }
 
 function parseInlineOptions(args: string[]): { values: Record<string, string>; positionals: string[] } {
