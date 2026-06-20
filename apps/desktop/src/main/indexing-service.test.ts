@@ -101,6 +101,7 @@ function workspaceSettings(): WorkspaceSettings {
     ],
     indexing: { enabled: true, mode: "lexical", backend: "qmd" },
     appearanceMode: "system",
+    colorThemeId: "exo-neutral",
     editorFontSize: 15,
     terminalFontSize: 13,
     terminalHistoryMode: "full",

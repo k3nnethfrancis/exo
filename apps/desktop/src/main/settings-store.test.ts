@@ -59,6 +59,7 @@ function workspaceSettings(workspaceRoot: string): WorkspaceSettings {
     indexedRoots: [],
     indexing: { enabled: false, mode: "off", backend: "qmd" },
     appearanceMode: "system",
+    colorThemeId: "exo-neutral",
     editorFontSize: 15,
     terminalFontSize: 13,
     terminalHistoryMode: "full",

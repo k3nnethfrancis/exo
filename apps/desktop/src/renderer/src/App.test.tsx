@@ -28,10 +28,14 @@ import { chunkTerminalData } from "./components/terminalOutputChunks";
 import { listEnterEdit, shouldSuppressGeneratedTitleLine, wikilinkExitEdit } from "./components/markdownLivePreview";
 import { defaultTerminalCwdForNotesFolder } from "./hooks/useWorkspaceBootstrap";
 import { isReconnectableSession, isTerminalInputEnabled, terminalSessionsEqual } from "./terminalSessions";
+import { applyTheme } from "./theme/applyTheme";
+import { contrastRatio } from "./theme/contrast";
+import { THEME_FAMILIES, resolveTheme } from "./theme/registry";
 import {
   DEFAULT_TERMINAL_HISTORY_LINES as RENDERER_DEFAULT_TERMINAL_HISTORY_LINES,
   clampNumber,
   resolveSettingsTerminalRuntime,
+  workspaceSettingsImmediateDraftKey,
   workspaceSettingsStructuralDraftKey,
   workspaceSettingsStructuralKeyFromSettings,
 } from "./workspaceSettingsModel";
@@ -232,6 +236,7 @@ describe("workspace settings renderer model", () => {
       indexedRoots: ["/workspace/notes"],
       indexMode: "lexical",
       appearanceMode: "system",
+      colorThemeId: "exo-neutral",
       editorFontSize: "15",
       terminalFontSize: "13",
       terminalHistoryMode: "custom",
@@ -261,6 +266,50 @@ describe("workspace settings renderer model", () => {
     })).toBe(workspaceSettingsStructuralKeyFromSettings(settings!));
   });
 
+  it("tracks color theme in immediate settings saves", () => {
+    const base = {
+      section: "appearance" as const,
+      workspaceRoot: "/workspace",
+      defaultTerminalCwd: "/workspace",
+      noteRoots: ["/workspace/notes"],
+      projectRoots: [],
+      indexedRoots: [],
+      indexMode: "off" as const,
+      appearanceMode: "system" as const,
+      colorThemeId: "exo-neutral" as const,
+      editorFontSize: "15",
+      terminalFontSize: "13",
+      terminalHistoryMode: "custom" as const,
+      terminalHistoryLines: String(RENDERER_DEFAULT_TERMINAL_HISTORY_LINES),
+      terminalTranscriptRetention: "forever" as const,
+      terminalTranscriptRetentionDays: "14",
+      terminalInputCoalesceMs: String(DEFAULT_TERMINAL_INPUT_COALESCE_MS),
+      terminalAgentStartupGraceMs: String(DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS),
+      terminalAgentSubmitDelayMs: String(DEFAULT_TERMINAL_AGENT_SUBMIT_DELAY_MS),
+      terminalInitialColumns: String(DEFAULT_TERMINAL_INITIAL_COLUMNS),
+      terminalInitialRows: String(DEFAULT_TERMINAL_INITIAL_ROWS),
+      terminalMinimumColumns: String(DEFAULT_TERMINAL_MINIMUM_COLUMNS),
+      terminalMinimumRows: String(DEFAULT_TERMINAL_MINIMUM_ROWS),
+      terminalReadTailChars: String(DEFAULT_TERMINAL_READ_TAIL_CHARS),
+      terminalMaxReadTailChars: String(DEFAULT_TERMINAL_MAX_READ_TAIL_CHARS),
+      terminalUnresponsiveThresholdMs: String(DEFAULT_TERMINAL_UNRESPONSIVE_THRESHOLD_MS),
+      terminalIdleThresholdMs: String(DEFAULT_TERMINAL_IDLE_THRESHOLD_MS),
+      explorerScale: "1",
+      exploreIndexSearchOnEnter: false,
+      indexUpdateStrategy: "on-save" as const,
+      saveStatus: "idle" as const,
+      errorMessage: null,
+      appliedWorkspaceKey: "",
+      applyStatus: "idle" as const,
+      applyErrorMessage: null,
+      partialErrorMessages: [],
+    };
+
+    expect(workspaceSettingsImmediateDraftKey(base)).not.toBe(
+      workspaceSettingsImmediateDraftKey({ ...base, colorThemeId: "exo-solar" }),
+    );
+  });
+
   it("resolves numeric scrollback and preserves old full-mode line counts", () => {
     const store = new WorkspaceSettingsStore({ userDataPath: "/tmp/exo-test", env: {} });
     const settings = store.normalize({
@@ -279,6 +328,44 @@ describe("workspace settings renderer model", () => {
     expect(clampNumber(Number.NaN, 10, 20)).toBe(10);
     expect(clampNumber(25, 10, 20)).toBe(20);
     expect(clampNumber(15, 10, 20)).toBe(15);
+  });
+});
+
+describe("renderer theme registry", () => {
+  it("resolves named themes and applies runtime css variables", () => {
+    const properties = new Map<string, string>();
+    const root = {
+      dataset: {} as Record<string, string>,
+      style: {
+        setProperty: (name: string, value: string) => properties.set(name, value),
+        getPropertyValue: (name: string) => properties.get(name) ?? "",
+      },
+    } as unknown as HTMLElement;
+    const theme = resolveTheme("exo-solar", "dark");
+
+    applyTheme(root, theme);
+
+    expect(root.dataset.colorTheme).toBe("exo-solar");
+    expect(root.style.getPropertyValue("--editor-bg")).toBe("#1f1f1f");
+    expect(resolveTheme("unknown-theme", "light").id).toBe("exo-neutral-light");
+  });
+
+  it("keeps core text, syntax, and terminal foreground pairs above AA contrast", () => {
+    for (const family of THEME_FAMILIES) {
+      for (const theme of Object.values(family.variants)) {
+        if (!theme) {
+          continue;
+        }
+        const editorBg = theme.css["--editor-bg"];
+        const terminalBg = theme.terminal.background;
+
+        expect(contrastRatio(theme.css["--text-primary"], editorBg), theme.id).toBeGreaterThanOrEqual(4.5);
+        expect(contrastRatio(theme.terminal.foreground, terminalBg), theme.id).toBeGreaterThanOrEqual(4.5);
+        for (const [slot, color] of Object.entries(theme.syntax)) {
+          expect(contrastRatio(color, editorBg), `${theme.id} syntax ${slot}`).toBeGreaterThanOrEqual(4.5);
+        }
+      }
+    }
   });
 });
 

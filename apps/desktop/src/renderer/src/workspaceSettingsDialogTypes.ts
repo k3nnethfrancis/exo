@@ -1,6 +1,7 @@
 import type { WorkspaceSettings } from "@exo/core";
 
 import type { AppearanceMode } from "./appearance";
+import type { ColorThemeId } from "./theme/types";
 import type { WorkspaceSettingsSection } from "../../shared/api";
 
 export type { WorkspaceSettingsSection };
@@ -16,6 +17,7 @@ export interface WorkspaceSettingsDialogState {
   indexedRoots: string[];
   indexMode: WorkspaceSettings["indexing"]["mode"];
   appearanceMode: AppearanceMode;
+  colorThemeId: ColorThemeId;
   editorFontSize: string;
   terminalFontSize: string;
   terminalHistoryMode: WorkspaceSettings["terminalHistoryMode"];

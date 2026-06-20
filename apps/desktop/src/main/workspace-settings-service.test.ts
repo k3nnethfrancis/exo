@@ -54,6 +54,7 @@ describe("WorkspaceSettingsService", () => {
       setDefaultCwd: vi.fn(),
       setBufferLineLimit: vi.fn(),
       setTranscriptRetentionDays: vi.fn(),
+      setTerminalRuntimeOptions: vi.fn(),
       syncRuntimeContext: vi.fn(async () => undefined),
     } as unknown as TerminalManager;
     const workspaceWatcherService = { start: vi.fn() } as unknown as WorkspaceWatcherService;
@@ -137,6 +138,7 @@ function terminalManagerStub(): TerminalManager {
     setDefaultCwd: vi.fn(),
     setBufferLineLimit: vi.fn(),
     setTranscriptRetentionDays: vi.fn(),
+    setTerminalRuntimeOptions: vi.fn(),
     syncRuntimeContext: vi.fn(async () => undefined),
   } as unknown as TerminalManager;
 }
@@ -172,6 +174,7 @@ function workspaceSettings(overrides: Partial<WorkspaceSettings> = {}): Workspac
     ],
     indexing: { enabled: true, mode: "lexical", backend: "qmd" },
     appearanceMode: "system",
+    colorThemeId: "exo-neutral",
     editorFontSize: 15,
     terminalFontSize: 13,
     terminalHistoryMode: "custom",

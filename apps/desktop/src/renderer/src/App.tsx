@@ -33,6 +33,9 @@ import { useWorkspaceMutations } from "./hooks/useWorkspaceMutations";
 import { useWorkspaceSettingsController } from "./hooks/useWorkspaceSettingsController";
 import { useWorkspaceTrees } from "./hooks/useWorkspaceTrees";
 import { useWorkspaceSearch } from "./hooks/useWorkspaceSearch";
+import { applyTheme } from "./theme/applyTheme";
+import { DEFAULT_COLOR_THEME_ID, resolveTheme } from "./theme/registry";
+import type { ColorThemeId } from "./theme/types";
 import { collectLeaves, findEditorLeaf, findNode, mapLeaves, paneId, pruneEmptyLeaves, updateNode, type PaneLeaf, type PaneNode, type PaneNodeId, type BrowserPaneContent } from "./hooks/usePaneTree";
 import {
   addTerminalSessionToFirstLeaf,
@@ -73,6 +76,7 @@ export function App() {
   const agentInstructionEditor = useAgentInstructionEditor();
   const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null);
   const [appearanceMode, setAppearanceMode] = useState<AppearanceMode>("system");
+  const [colorThemeId, setColorThemeId] = useState<ColorThemeId>(DEFAULT_COLOR_THEME_ID);
   const [zoomSurface, setZoomSurface] = useState<ZoomSurface>("editor");
   const [editorFontSize, setEditorFontSize] = useState(DEFAULT_EDITOR_FONT_SIZE);
   const [terminalFontSize, setTerminalFontSize] = useState(DEFAULT_TERMINAL_FONT_SIZE);
@@ -192,6 +196,7 @@ export function App() {
   });
   const compactEditorChrome = collectLeaves(editorTree).length > 1;
   const resolvedAppearance: ResolvedAppearance = appearanceMode === "system" ? (systemPrefersDark ? "dark" : "light") : appearanceMode;
+  const resolvedTheme = useMemo(() => resolveTheme(colorThemeId, resolvedAppearance), [colorThemeId, resolvedAppearance]);
 
   useEffect(() => {
     terminalRuntimeScrollbackLinesRef.current = terminalRuntimeScrollbackLines;
@@ -232,7 +237,8 @@ export function App() {
     document.documentElement.dataset.appearanceMode = appearanceMode;
     document.documentElement.dataset.theme = resolvedAppearance;
     document.documentElement.style.colorScheme = resolvedAppearance;
-  }, [appearanceMode, resolvedAppearance]);
+    applyTheme(document.documentElement, resolvedTheme);
+  }, [appearanceMode, resolvedAppearance, resolvedTheme]);
 
   useWorkspaceLayoutPersistence({
     editorTree,
@@ -270,6 +276,7 @@ export function App() {
   function applyWorkspaceSettings(settings: WorkspaceSettings) {
     const terminalPolicy = resolveSettingsTerminalRuntime(settings);
     setAppearanceMode(settings.appearanceMode);
+    setColorThemeId(settings.colorThemeId);
     setEditorFontSize(settings.editorFontSize);
     setTerminalFontSize(settings.terminalFontSize);
     setTerminalRuntimeScrollbackLines(terminalPolicy.scrollbackLines);
@@ -998,7 +1005,7 @@ export function App() {
               activeTerminalId={leaf.content.activeTerminalId}
               hydrationSnapshots={terminalHydrationSnapshots}
               hydrationVersions={terminalHydrationVersions}
-              appearance={resolvedAppearance}
+              theme={resolvedTheme}
               fontSize={terminalFontSize}
               scrollbackLines={terminalRuntimeScrollbackLines}
               onFocus={() => {
@@ -1055,7 +1062,7 @@ export function App() {
               onOpenBranch={(filePath) => void openFile(filePath, leaf.id)}
               onSuggestTargets={(query) => suggestNoteTargets(query)}
               onCreateBranch={() => void createBranchFromActiveDocument()}
-              appearance={resolvedAppearance}
+              theme={resolvedTheme}
               fontSize={editorFontSize}
               onZoomEditor={(direction) => updateFocusedSurfaceZoom(direction, "editor")}
               compact={compactEditorChrome}
@@ -1090,7 +1097,7 @@ export function App() {
             activeTerminalId={leafActiveTerminalId}
             hydrationSnapshots={terminalHydrationSnapshots}
             hydrationVersions={terminalHydrationVersions}
-            appearance={resolvedAppearance}
+            theme={resolvedTheme}
             fontSize={terminalFontSize}
             scrollbackLines={terminalRuntimeScrollbackLines}
             onFocus={() => setZoomSurface("terminal")}

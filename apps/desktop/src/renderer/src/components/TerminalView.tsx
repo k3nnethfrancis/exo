@@ -4,7 +4,8 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "xterm";
 
 import type { TerminalSessionInfo } from "../../../shared/api";
-import type { ResolvedAppearance } from "../appearance";
+import type { ExoThemeVariant } from "../theme/types";
+import { exoXtermTheme } from "../theme/xterm";
 import { isTerminalGeneratedResponse } from "./terminalInputFilters";
 import { chunkTerminalData, TERMINAL_WRITE_CHUNK_SIZE } from "./terminalOutputChunks";
 import { registerTerminal, unregisterTerminal } from "./terminalRegistry";
@@ -13,7 +14,7 @@ const PROGRAMMATIC_INPUT_GUARD_MS = 250;
 const TERMINAL_RESIZE_DEBOUNCE_MS = 16;
 
 interface TerminalViewProps {
-  appearance: ResolvedAppearance;
+  theme: ExoThemeVariant;
   session: TerminalSessionInfo;
   hydrationSnapshot: string;
   hydrationVersion: number;
@@ -26,7 +27,7 @@ interface TerminalViewProps {
 }
 
 export function TerminalView(props: TerminalViewProps) {
-  const { appearance, session, hydrationSnapshot, hydrationVersion, fontSize, scrollbackLines, onFocus, onInput, onResize, inputEnabled = true } = props;
+  const { theme, session, hydrationSnapshot, hydrationVersion, fontSize, scrollbackLines, onFocus, onInput, onResize, inputEnabled = true } = props;
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
@@ -60,7 +61,7 @@ export function TerminalView(props: TerminalViewProps) {
       cursorBlink: false,
       minimumContrastRatio: 4.5,
       scrollback: scrollbackLines,
-      theme: xtermTheme(appearance),
+      theme: exoXtermTheme(theme),
     });
     const fitAddon = new FitAddon();
     disposedRef.current = false;
@@ -152,7 +153,7 @@ export function TerminalView(props: TerminalViewProps) {
         window.clearTimeout(sizeRef.current.resizeTimer);
       }
     };
-  }, [appearance, session.id]);
+  }, [session.id, theme]);
 
   useEffect(() => {
     const terminal = terminalRef.current;
@@ -160,8 +161,8 @@ export function TerminalView(props: TerminalViewProps) {
       return;
     }
 
-    terminal.options.theme = xtermTheme(appearance);
-  }, [appearance]);
+    terminal.options.theme = exoXtermTheme(theme);
+  }, [theme]);
 
   useEffect(() => {
     const terminal = terminalRef.current;
@@ -344,22 +345,4 @@ function shellEscape(path: string): string {
 
 function isScrolledToBottom(terminal: Terminal): boolean {
   return terminal.buffer.active.viewportY >= terminal.buffer.active.baseY;
-}
-
-function xtermTheme(appearance: ResolvedAppearance) {
-  if (appearance === "light") {
-    return {
-      background: "#fdf6e3",
-      foreground: "#586e75",
-      cursor: "#586e75",
-      selectionBackground: "rgba(38, 139, 210, 0.18)",
-    };
-  }
-
-  return {
-    background: "#1f1f1f",
-    foreground: "#d4d4d4",
-    cursor: "#c8c8c8",
-    selectionBackground: "#3a3d41",
-  };
 }

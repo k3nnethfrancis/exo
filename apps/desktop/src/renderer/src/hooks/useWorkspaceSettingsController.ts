@@ -18,6 +18,7 @@ import {
 } from "@exo/core/terminal-settings";
 
 import type { AppearanceMode } from "../appearance";
+import { normalizeColorThemeId } from "../theme/registry";
 import {
   clampNumber,
   MIN_TERMINAL_HISTORY_LINES,
@@ -111,6 +112,7 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
       indexedRoots: settings.indexedRoots.map((root) => root.path),
       indexMode: settings.indexing.mode,
       appearanceMode: settings.appearanceMode as AppearanceMode,
+      colorThemeId: normalizeColorThemeId(settings.colorThemeId),
       editorFontSize: String(settings.editorFontSize),
       terminalFontSize: String(settings.terminalFontSize),
       terminalHistoryMode: settings.terminalHistoryMode,
@@ -363,6 +365,7 @@ function workspaceSettingsFromDialog(
       ? fallbackStructural.indexing
       : currentSettings?.indexing ?? fallbackStructural.indexing,
     appearanceMode: settingsDialog.appearanceMode,
+    colorThemeId: normalizeColorThemeId(settingsDialog.colorThemeId),
     editorFontSize: clampNumber(Number(settingsDialog.editorFontSize), 11, 24),
     terminalFontSize: clampNumber(Number(settingsDialog.terminalFontSize), 10, 22),
     terminalHistoryMode: "custom",
