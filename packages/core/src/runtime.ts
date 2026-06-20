@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { resolveRegisteredAgentLauncher } from "./agent-harness-registry";
+import { resolveRegisteredAgentHarnesses, resolveRegisteredAgentLauncher } from "./agent-harness-registry";
 import type {
   AgentLaunchPlan,
   ManagedAgentKind,
@@ -35,7 +35,10 @@ export function resolveRuntimeConfig(env: NodeJS.ProcessEnv = process.env): Runt
       shell: resolveRegisteredAgentLauncher("shell", env),
       claude: resolveRegisteredAgentLauncher("claude", env),
       codex: resolveRegisteredAgentLauncher("codex", env),
+      pi: resolveRegisteredAgentLauncher("pi", env),
+      hermes: resolveRegisteredAgentLauncher("hermes", env),
     },
+    harnesses: resolveRegisteredAgentHarnesses(env),
   };
 }
 
@@ -69,9 +72,9 @@ export function renderPrimaryAgentInstructions(config: RuntimeConfig): string {
     "- `exo index status`",
     "- `exo status`",
     "- `exo runtime status`",
-    "- `exo launch <shell|claude|codex> [cwd]`",
-    "- `exo runtime context <shell|claude|codex>`",
-    "- `exo runtime launch-plan <shell|claude|codex> [cwd]`",
+    "- `exo launch <shell|claude|codex|pi|hermes> [cwd]`",
+    "- `exo runtime context <shell|claude|codex|pi|hermes>`",
+    "- `exo runtime launch-plan <shell|claude|codex|pi|hermes> [cwd]`",
     "- `exo runtime sync`",
     "",
     "## Optional Notes Index / Retrieval Backend",

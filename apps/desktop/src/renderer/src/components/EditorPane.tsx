@@ -1,4 +1,4 @@
-import type { BranchFamily, NoteDocument } from "@exo/core";
+import type { BranchFamily, NoteDocument, NoteKnowledge } from "@exo/core";
 import type { DragManager } from "../hooks/useDragManager";
 import type { ExoThemeVariant } from "../theme/types";
 
@@ -19,6 +19,7 @@ export interface EditorPaneState {
 interface EditorPaneProps {
   pane: EditorPaneState;
   documents: Record<string, EditorDocument>;
+  knowledgeByPath: Record<string, NoteKnowledge>;
   saveStatuses: Record<string, "idle" | "saving" | "saved" | "error">;
   branchFamiliesByPath: Record<string, BranchFamily>;
   propertiesCollapsed: boolean;
@@ -37,6 +38,7 @@ interface EditorPaneProps {
   onOpenTarget: (target: string) => void;
   onOpenBranch: (filePath: string) => void;
   onSuggestTargets: (query: string) => Promise<Array<{ label: string; target: string; detail?: string }>>;
+  onPreviewTarget: (target: string) => Promise<{ title: string; excerpt: string } | null>;
   onCreateBranch: () => void;
   theme: ExoThemeVariant;
   fontSize: number;
@@ -51,6 +53,7 @@ export function EditorPane(props: EditorPaneProps) {
   const {
     pane,
     documents,
+    knowledgeByPath,
     saveStatuses,
     branchFamiliesByPath,
     propertiesCollapsed,
@@ -68,6 +71,7 @@ export function EditorPane(props: EditorPaneProps) {
     onOpenTarget,
     onOpenBranch,
     onSuggestTargets,
+    onPreviewTarget,
     onCreateBranch,
     theme,
     fontSize,
@@ -79,6 +83,7 @@ export function EditorPane(props: EditorPaneProps) {
   } = props;
 
   const activeDocument = pane.activePath ? documents[pane.activePath] ?? null : null;
+  const activeKnowledge = pane.activePath ? knowledgeByPath[pane.activePath] ?? null : null;
 
   return (
     <div
@@ -136,6 +141,7 @@ export function EditorPane(props: EditorPaneProps) {
 
       <NoteEditor
         document={activeDocument}
+        knowledge={activeKnowledge}
         saveStatus={pane.activePath ? saveStatuses[pane.activePath] ?? "idle" : "idle"}
         branchFamily={pane.activePath ? branchFamiliesByPath[pane.activePath] ?? null : null}
         propertiesCollapsed={propertiesCollapsed}
@@ -147,6 +153,7 @@ export function EditorPane(props: EditorPaneProps) {
         onOpenTarget={onOpenTarget}
         onOpenBranch={onOpenBranch}
         onSuggestTargets={onSuggestTargets}
+        onPreviewTarget={onPreviewTarget}
         onCreateBranch={onCreateBranch}
         onFocus={onFocusPane}
         theme={theme}

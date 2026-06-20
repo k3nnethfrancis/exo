@@ -24,6 +24,7 @@ export interface DesktopInvokeHandlers {
   "workspace:search-tag": WorkspaceApi["searchTag"];
   "workspace:get-git-status": WorkspaceApi["getGitStatus"];
   "workspace:get-agent-instruction-config": WorkspaceApi["getAgentInstructionConfig"];
+  "workspace:list-agent-harnesses": WorkspaceApi["listAgentHarnesses"];
   "workspace:save-agent-instruction-config": WorkspaceApi["saveAgentInstructionConfig"];
   "workspace:list-agent-instruction-overlays": WorkspaceApi["listAgentInstructionOverlays"];
   "workspace:list-agent-skills": WorkspaceApi["listAgentSkills"];
@@ -66,6 +67,7 @@ export interface DesktopEventPayloads {
   "workspace:changed": { rootPath: string; eventType: string; filePath: string | null };
   "workspace:index-sync-state": IndexSyncStateEvent;
   "command:open-file": string;
+  "command:open-preview": { url: string };
   "command:open-settings": { section: "workspace" | "index" | "appearance" | "terminal" };
   "terminal:created": TerminalSessionInfo;
   "terminal:data": TerminalDataEvent;

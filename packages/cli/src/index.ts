@@ -41,6 +41,8 @@ import {
   type RunRecord,
 } from "@exo/core";
 
+const AGENT_KIND_USAGE = "shell|claude|codex|pi|hermes";
+
 import { AppClient, formatAppClientDiscoveryFailure, type AppClientWriteResult } from "./app-client";
 
 interface CommandRunResult {
@@ -398,10 +400,11 @@ export async function runCli(
 
     if (subcommand === "create") {
       const kind = args[0];
-      if (!kind || !["shell", "claude", "codex"].includes(kind)) {
-        throw new Error("Expected one of: shell, claude, codex.");
+      const normalizedKind = normalizeAgentKind(kind);
+      if (!normalizedKind) {
+        throw new Error("Expected one of: shell, claude, codex, pi, hermes.");
       }
-      const terminal = await client.createTerminal(kind, args[1]);
+      const terminal = await client.createTerminal(normalizedKind, args[1]);
       stdout.write(`${JSON.stringify(terminal, null, 2)}\n`);
       return 0;
     }
@@ -464,7 +467,7 @@ export async function runCli(
       return 0;
     }
 
-    stderr.write("Usage: exo terminals [list | diagnostics | create <shell|claude|codex> [cwd] | read <id> | transcript <id> [--tail chars] [--full] | write <id> <text> | send <id> <text> | reconnect <id> | kill <id>]\n");
+    stderr.write(`Usage: exo terminals [list | diagnostics | create <${AGENT_KIND_USAGE}> [cwd] | read <id> | transcript <id> [--tail chars] [--full] | write <id> <text> | send <id> <text> | reconnect <id> | kill <id>]\n`);
     return 1;
   }
 
@@ -490,8 +493,8 @@ export async function runCli(
 
     if (subcommand === "create") {
       const kind = args[0];
-      if (!kind || !["shell", "claude", "codex"].includes(kind)) {
-        throw new Error("Usage: exo agents create <shell|claude|codex> [cwd]");
+      if (!normalizeAgentKind(kind)) {
+        throw new Error(`Usage: exo agents create <${AGENT_KIND_USAGE}> [cwd]`);
       }
       const cwdArg = args[1];
       if (cwdArg?.startsWith("-")) {
@@ -561,7 +564,7 @@ export async function runCli(
       return 0;
     }
 
-    stderr.write("Usage: exo agents [list | create <shell|claude|codex> [cwd] | read <id> [--tail chars] [--full] [--raw] | send <id> <text> [--raw|--no-submit] | interrupt <id> [escape|ctrl-c] | terminate <id>]\n");
+    stderr.write(`Usage: exo agents [list | create <${AGENT_KIND_USAGE}> [cwd] | read <id> [--tail chars] [--full] [--raw] | send <id> <text> [--raw|--no-submit] | interrupt <id> [escape|ctrl-c] | terminate <id>]\n`);
     return 1;
   }
 
@@ -676,7 +679,7 @@ export async function runCli(
   if (command === "runtime" && subcommand === "context") {
     const kind = normalizeAgentKind(args[0]);
     if (!kind) {
-      throw new Error("Expected one of: shell, claude, codex.");
+      throw new Error("Expected one of: shell, claude, codex, pi, hermes.");
     }
 
     const config = await resolveCliRuntimeConfig(env);
@@ -688,7 +691,7 @@ export async function runCli(
   if (command === "runtime" && subcommand === "launch-plan") {
     const kind = normalizeAgentKind(args[0]);
     if (!kind) {
-      throw new Error("Expected one of: shell, claude, codex.");
+      throw new Error("Expected one of: shell, claude, codex, pi, hermes.");
     }
 
     const config = await resolveCliRuntimeConfig(env);
@@ -846,7 +849,7 @@ export async function runCli(
   if (command === "launch") {
     const kind = normalizeAgentKind(subcommand);
     if (!kind) {
-      throw new Error("Expected one of: shell, claude, codex.");
+      throw new Error("Expected one of: shell, claude, codex, pi, hermes.");
     }
 
     const config = await resolveCliRuntimeConfig(env);
@@ -886,19 +889,19 @@ export async function runCli(
       "  exo project-roots add <path>               Attach a project root (app)",
       "  exo project-roots remove <path>            Detach a project root (app)",
       "  exo terminals [list]                       List terminals (app)",
-      "  exo terminals create <shell|claude|codex>  Create terminal (app)",
+      `  exo terminals create <${AGENT_KIND_USAGE}>  Create terminal (app)`,
       "  exo terminals read <id>                    Read bounded live terminal tail (app)",
       "  exo terminals transcript <id> [--tail n]   Read disk-backed terminal transcript (app)",
       "  exo terminals write <id> <text>            Write raw input to terminal (app)",
       "  exo terminals send <id> <text>             Send input plus Enter to terminal (app)",
       "  exo terminals reconnect <id>               Reattach Exo to a live tmux terminal (app)",
       "  exo agents [list]                          List live Exo agents (app)",
-      "  exo agents create <shell|claude|codex>     Create Exo agent (app)",
+      `  exo agents create <${AGENT_KIND_USAGE}>     Create Exo agent (app)`,
       "  exo agents read <id> [--tail n] [--full] [--raw] Read agent transcript tail (app)",
       "  exo agents send <id> <text> [--raw|--no-submit] Send message to agent (app)",
       "  exo agents interrupt <id> [escape|ctrl-c]  Interrupt agent (app)",
       "  exo agents terminate <id>                  Terminate agent (app)",
-      "  exo launch <shell|claude|codex> [cwd]",
+      `  exo launch <${AGENT_KIND_USAGE}> [cwd]`,
       "  exo workspace status",
       "  exo workspace current",
       "  exo workspace list",
@@ -913,8 +916,8 @@ export async function runCli(
       "  exo integrations install <codex|claude|all> [--dry-run]",
       "  exo integrations test <codex|claude|all>",
       "  exo runtime status",
-      "  exo runtime context <shell|claude|codex>",
-      "  exo runtime launch-plan <shell|claude|codex> [cwd]",
+      `  exo runtime context <${AGENT_KIND_USAGE}>`,
+      `  exo runtime launch-plan <${AGENT_KIND_USAGE}> [cwd]`,
       "  exo runtime sync",
       "",
       "Developer source QA:",
@@ -1162,7 +1165,7 @@ async function launchAgent(
 }
 
 function normalizeAgentKind(value?: string): ManagedAgentKind | null {
-  if (value === "shell" || value === "claude" || value === "codex") {
+  if (value === "shell" || value === "claude" || value === "codex" || value === "pi" || value === "hermes") {
     return value;
   }
 
@@ -1175,11 +1178,11 @@ function isHelpFlag(value: string | undefined): boolean {
 
 function formatAgentsHelp(): string {
   return [
-    "Usage: exo agents [list | create <shell|claude|codex> [cwd] | read <id> [--tail chars] [--full] [--raw] | send <id> <text> [--raw|--no-submit] | interrupt <id> [escape|ctrl-c] | terminate <id>]",
+    `Usage: exo agents [list | create <${AGENT_KIND_USAGE}> [cwd] | read <id> [--tail chars] [--full] [--raw] | send <id> <text> [--raw|--no-submit] | interrupt <id> [escape|ctrl-c] | terminate <id>]`,
     "",
     "Commands:",
     "  list                                      List live Exo agents",
-    "  create <shell|claude|codex> [cwd]        Create an Exo agent",
+    `  create <${AGENT_KIND_USAGE}> [cwd]        Create an Exo agent`,
     "  read <id> [--tail chars] [--full] [--raw] Read an agent transcript tail",
     "  send <id> <text> [--raw|--no-submit]     Send a semantic message, or raw terminal input with --raw",
     "  interrupt <id> [escape|ctrl-c]           Interrupt an agent",
@@ -1190,12 +1193,12 @@ function formatAgentsHelp(): string {
 
 function formatAgentsCreateHelp(): string {
   return [
-    "Usage: exo agents create <shell|claude|codex> [cwd]",
+    `Usage: exo agents create <${AGENT_KIND_USAGE}> [cwd]`,
     "",
     "Create an Exo-managed agent terminal in the running app.",
     "",
     "Arguments:",
-    "  shell|claude|codex                       Agent provider to launch",
+    `  ${AGENT_KIND_USAGE}                       Agent provider to launch`,
     "  cwd                                      Optional working directory for the agent",
     "",
   ].join("\n");

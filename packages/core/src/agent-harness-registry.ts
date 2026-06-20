@@ -1,6 +1,6 @@
 import { builtInAgentHarnesses } from "./agent-harnesses/builtins";
 import type { AgentHarness } from "./agent-harness";
-import type { ManagedAgentKind } from "./types";
+import type { AgentHarnessDetection, ManagedAgentKind } from "./types";
 
 export class AgentHarnessRegistry {
   private readonly harnesses = new Map<string, AgentHarness>();
@@ -41,11 +41,41 @@ export class AgentHarnessRegistry {
 }
 
 export function createBuiltInAgentHarnessRegistry(): AgentHarnessRegistry {
-  return new AgentHarnessRegistry([builtInAgentHarnesses.shell, builtInAgentHarnesses.claude, builtInAgentHarnesses.codex]);
+  return new AgentHarnessRegistry([
+    builtInAgentHarnesses.shell,
+    builtInAgentHarnesses.claude,
+    builtInAgentHarnesses.codex,
+    builtInAgentHarnesses.pi,
+    builtInAgentHarnesses.hermes,
+  ]);
 }
 
 export const agentHarnessRegistry = createBuiltInAgentHarnessRegistry();
 
 export function resolveRegisteredAgentLauncher(kind: ManagedAgentKind, env: NodeJS.ProcessEnv) {
   return agentHarnessRegistry.require(kind).resolveLauncher(env);
+}
+
+export function resolveRegisteredAgentHarnesses(env: NodeJS.ProcessEnv = process.env): AgentHarnessDetection[] {
+  return agentHarnessRegistry.list().map((harness) => {
+    if (harness.resolveDetection) {
+      return harness.resolveDetection(env);
+    }
+
+    const launcher = harness.resolveLauncher(env);
+    return {
+      id: harness.kind,
+      adapterId: harness.kind === "claude" ? "claude-code" : harness.kind,
+      family: harness.kind === "claude" ? "claude-code" : harness.kind,
+      label: harness.title,
+      productName: harness.title,
+      enabled: true,
+      configured: false,
+      detected: true,
+      launchable: true,
+      status: "available",
+      statusLabel: "Available",
+      launcher,
+    };
+  });
 }

@@ -712,8 +712,8 @@
 }
 
 .tree-node--directory {
-  color: var(--text);
-  font-weight: 650;
+  color: color-mix(in srgb, var(--text) 92%, var(--text-soft));
+  font-weight: 540;
 }
 
 .tree-node--changed-file,
@@ -736,7 +736,11 @@
 }
 
 .tree-node--directory .tree-node__kind-icon {
-  color: color-mix(in srgb, var(--muted) 70%, var(--text));
+  color: color-mix(in srgb, var(--muted) 58%, var(--text));
+}
+
+.tree-node--directory .tree-node__disclosure {
+  color: color-mix(in srgb, var(--muted) 72%, var(--text));
 }
 
 .tree-node--file .tree-node__kind-icon {

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import type { TerminalSessionInfo } from "../../../shared/api";
+import type { TerminalKind, TerminalSessionInfo } from "../../../shared/api";
 import { writeTerminalData } from "../components/terminalRegistry";
 import { terminalSessionsEqual } from "../terminalSessions";
 
@@ -140,7 +140,7 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
     pendingTerminalDataRef.current = pruneRecordToKeys(pendingTerminalDataRef.current, activeIds);
   }
 
-  async function createTerminal(kind: "shell" | "claude" | "codex", cwd?: string): Promise<TerminalSessionInfo> {
+  async function createTerminal(kind: TerminalKind, cwd?: string): Promise<TerminalSessionInfo> {
     const session = await window.exo.terminals.create({ kind, cwd });
     setSessions((current) =>
       current.some((existing) => existing.id === session.id) ? current : [...current, session],

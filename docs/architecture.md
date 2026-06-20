@@ -179,6 +179,7 @@ Integration setup commands:
 - `workspace_status`
 - `search`
 - `read_document`
+- `open_preview`
 - `list_agents`
 - `create_agent`
 - `read_agent`
@@ -186,7 +187,7 @@ Integration setup commands:
 - `interrupt_agent`
 - `terminate_agent`
 
-Future MCP additions should be tested against this rule: can an agent use this tool to do useful work in the current workspace without gaining broad admin/debug power? Good candidates are scoped document graph/context inspection, allowed note creation/append/guarded patch, and agent communication. Bad candidates are provider installation, index maintenance, project-root mutation, raw terminal writes, and app repair.
+Future MCP additions should be tested against this rule: can an agent use this tool to do useful work in the current workspace without gaining broad admin/debug power? Good candidates are scoped document graph/context inspection, allowed note creation/append/guarded patch, browser preview of agent-produced artifacts, and agent communication. Bad candidates are provider installation, index maintenance, project-root mutation, raw terminal writes, and app repair.
 
 By default, the MCP server needs Exo already running so it can read `.exo/server.json`. With `EXO_MCP_AUTOSTART=1`, it can start Exo through `EXO_MCP_START_COMMAND` and wait for the command server. If `EXO_RUNTIME_ROOT` or explicit workspace env vars are not set, MCP uses the same active desktop workspace registry as the CLI to find the runtime root.
 

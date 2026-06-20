@@ -87,6 +87,7 @@ Equivalent env vars are `EXO_MCP_HTTP_HOST`, `EXO_MCP_HTTP_PORT`, and `EXO_MCP_H
 - `workspace_status` — inspect the active Exo workspace model, live agents, and notes-index summary.
 - `search` — search notes through QMD when enabled, with filesystem fallback when indexing is off or unavailable.
 - `read_document` — read an indexed or filesystem note/document target.
+- `open_preview` — open an HTTP(S) URL or existing local `.html`/`.htm` artifact inside Exo's in-app browser preview. Local files must be inside the workspace, note roots, or project roots.
 - `list_agents` — list live Exo terminal agents.
 - `create_agent` — create a new shell, Claude, or Codex terminal.
 - `read_agent` — read bounded live terminal tail output. ANSI cleanup is enabled by default.

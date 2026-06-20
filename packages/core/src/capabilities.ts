@@ -87,4 +87,30 @@ export const builtInCapabilities = [
       managedAgentKind: "codex",
     },
   },
+  {
+    id: "pi",
+    kind: "agentHarness",
+    label: "Pi",
+    description: "Built-in Pi terminal agent harness adapter.",
+    lifecycle: "built-in",
+    owner: "@exo/core/runtime",
+    surfaces: ["desktop", "cli", "mcp", "commandServer", "internal"],
+    permissions: ["workspace:read", "notes:read", "projects:read", "terminals:launch", "agents:launch"],
+    compatibility: {
+      managedAgentKind: "pi",
+    },
+  },
+  {
+    id: "hermes",
+    kind: "agentHarness",
+    label: "Hermes",
+    description: "Built-in Hermes terminal agent harness adapter.",
+    lifecycle: "built-in",
+    owner: "@exo/core/runtime",
+    surfaces: ["desktop", "cli", "mcp", "commandServer", "internal"],
+    permissions: ["workspace:read", "notes:read", "projects:read", "terminals:launch", "agents:launch"],
+    compatibility: {
+      managedAgentKind: "hermes",
+    },
+  },
 ] satisfies CapabilityMetadata[];

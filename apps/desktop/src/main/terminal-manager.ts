@@ -258,7 +258,7 @@ export class TerminalManager extends EventEmitter {
     await this.syncRuntimeContext();
     const id = this.allocateTerminalId();
     const launch = resolveAgentLaunchPlan(this.runtimeConfig, options.kind, cwd);
-    const isAgent = options.kind === "claude" || options.kind === "codex";
+    const isAgent = isAgentHarnessKind(options.kind);
     const overlayEnv = isAgent ? agentInstructionOverlayEnv(this.runtimeConfig.workspace, launch.cwd) : {};
     if (isAgent) {
       writeAgentInstructionOverlaysSync(this.runtimeConfig.workspace);
@@ -1117,7 +1117,11 @@ function shouldGateStartupInput(info: TerminalSessionInfo): boolean {
 }
 
 function isAgentTerminal(record: TerminalRecord): boolean {
-  return record.info.kind === "claude" || record.info.kind === "codex";
+  return isAgentHarnessKind(record.info.kind);
+}
+
+function isAgentHarnessKind(kind: TerminalKind): boolean {
+  return kind === "claude" || kind === "codex" || kind === "pi" || kind === "hermes";
 }
 
 function shouldQueueWrite(record: TerminalRecord, data: string): boolean {
@@ -1355,7 +1359,7 @@ function isPersistedTerminalSession(value: unknown): value is PersistedTerminalS
     typeof session.id === "string" &&
     typeof session.title === "string" &&
     typeof session.cwd === "string" &&
-    (session.kind === "shell" || session.kind === "claude" || session.kind === "codex") &&
+    (session.kind === "shell" || session.kind === "claude" || session.kind === "codex" || session.kind === "pi" || session.kind === "hermes") &&
     typeof session.command === "string" &&
     typeof session.tmuxSessionName === "string" &&
     typeof session.transcriptPath === "string" &&

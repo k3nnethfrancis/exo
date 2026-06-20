@@ -9,6 +9,7 @@ export const EXO_COMMAND_ROUTES = {
   indexUpdate: "/index/update",
   indexEmbed: "/index/embed",
   open: "/open",
+  openPreview: "/preview/open",
   config: "/config",
   projectRoots: "/project-roots",
   projectRoot: (target: string) => `/project-roots/${encodeURIComponent(target)}`,
@@ -59,6 +60,16 @@ export interface ExoCommandTerminalDiagnostics extends ExoCommandTerminalInfo {
 
 export interface ExoOpenFileRequest {
   path?: string;
+}
+
+export interface ExoOpenPreviewRequest {
+  target?: string;
+}
+
+export interface ExoOpenPreviewResponse {
+  ok: true;
+  url: string;
+  source: "url" | "file";
 }
 
 export interface ExoCreateTerminalRequest {

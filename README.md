@@ -158,6 +158,7 @@ Exo exposes a narrow MCP work plane for agents and a broader CLI control plane f
 - `workspace_status`
 - `search`
 - `read_document`
+- `open_preview`
 - `list_agents`
 - `create_agent`
 - `read_agent`
@@ -182,7 +183,7 @@ Preview without modifying local agent config:
 
 Already-running agent sessions may need restart or MCP refresh before they see newly installed tools. The CLI mirror remains available when MCP is unavailable.
 
-Stdio is the default MCP transport for local hosts. Remote-only MCP hosts can use the same 9-tool surface over Streamable HTTP:
+Stdio is the default MCP transport for local hosts. Remote-only MCP hosts can use the same 10-tool surface over Streamable HTTP:
 
 ```bash
 node packages/mcp/bin/exo-mcp.mjs --transport http --host 127.0.0.1 --port 3333

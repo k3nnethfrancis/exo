@@ -156,6 +156,7 @@ export function App() {
   });
   const {
     openDocuments,
+    knowledgeByPath,
     documentSaveStatuses,
     branchFamiliesByPath,
     activeDocumentPath,
@@ -259,6 +260,7 @@ export function App() {
   useWorkspaceCommandHandlers({
     workspaceModel,
     openFile,
+    openPreview: createBrowserPane,
     openSettings: workspaceSettingsController.openDialog,
     reloadTrees,
     scheduleOpenDocumentRefresh,
@@ -599,6 +601,25 @@ export function App() {
       target: suggestion.target,
       detail: suggestion.snippet,
     }));
+  }
+
+  async function previewKnowledgeTarget(target: string) {
+    if (!activeDocumentPath || /^https?:\/\//.test(target)) {
+      return null;
+    }
+
+    const resolved = target.endsWith(".md") || target.includes("/")
+      ? await window.exo.notes.resolveTarget(activeDocumentPath, target)
+      : await window.exo.notes.resolveTarget(activeDocumentPath, `${target}.md`);
+    if (!resolved) {
+      return null;
+    }
+
+    const document = await window.exo.notes.read(resolved);
+    return {
+      title: document.title || getPreviewTitle(resolved),
+      excerpt: markdownPreviewExcerpt(document.body),
+    };
   }
 
   function createBrowserPane(url = "about:blank") {
@@ -1035,6 +1056,7 @@ export function App() {
               key={leaf.id}
               pane={pane}
               documents={openDocuments}
+              knowledgeByPath={knowledgeByPath}
               saveStatuses={documentSaveStatuses}
               branchFamiliesByPath={branchFamiliesByPath}
               propertiesCollapsed={propertiesCollapsed}
@@ -1055,6 +1077,7 @@ export function App() {
               onOpenTarget={(target) => void openKnowledgeTarget(target)}
               onOpenBranch={(filePath) => void openFile(filePath, leaf.id)}
               onSuggestTargets={(query) => suggestNoteTargets(query)}
+              onPreviewTarget={(target) => previewKnowledgeTarget(target)}
               onCreateBranch={() => void createBranchFromActiveDocument()}
               theme={resolvedTheme}
               fontSize={editorFontSize}
@@ -1256,6 +1279,28 @@ function summarizeIndexStatus(status: IndexStatus | null, busy: IndexBusyState):
 
 function joinPath(parentPath: string, name: string): string {
   return `${parentPath.replace(/\/$/, "")}/${name.replace(/^\//, "")}`;
+}
+
+function getPreviewTitle(filePath: string): string {
+  const basename = filePath.split("/").pop() ?? filePath;
+  return basename.replace(/\.[^.]+$/, "");
+}
+
+function markdownPreviewExcerpt(markdownBody: string): string {
+  const excerpt = markdownBody
+    .replace(/^---[\s\S]*?---\s*/u, "")
+    .replace(/```[\s\S]*?```/gu, " ")
+    .replace(/`([^`]+)`/gu, "$1")
+    .replace(/!\[([^\]]*)\]\([^)]+\)/gu, "$1")
+    .replace(/\[([^\]]+)\]\([^)]+\)/gu, "$1")
+    .replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/gu, "$2")
+    .replace(/\[\[([^\]]+)\]\]/gu, "$1")
+    .replace(/^#{1,6}\s+/gmu, "")
+    .replace(/^[>\-*+\d.)\s]+/gmu, "")
+    .replace(/[*_~>#]/gu, "")
+    .replace(/\s+/gu, " ")
+    .trim();
+  return excerpt.length > 180 ? `${excerpt.slice(0, 177).trimEnd()}...` : excerpt || "Empty note";
 }
 
 function isPathWithin(parentPath: string, targetPath: string): boolean {

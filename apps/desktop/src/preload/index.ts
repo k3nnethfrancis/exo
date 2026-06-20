@@ -45,6 +45,7 @@ const api: DesktopApi = {
     searchTag: (tag) => invokeDesktop("workspace:search-tag", tag),
     getGitStatus: (rootPath) => invokeDesktop("workspace:get-git-status", rootPath),
     getAgentInstructionConfig: () => invokeDesktop("workspace:get-agent-instruction-config"),
+    listAgentHarnesses: () => invokeDesktop("workspace:list-agent-harnesses"),
     saveAgentInstructionConfig: (input) => invokeDesktop("workspace:save-agent-instruction-config", input),
     listAgentInstructionOverlays: () => invokeDesktop("workspace:list-agent-instruction-overlays"),
     listAgentSkills: () => invokeDesktop("workspace:list-agent-skills"),
@@ -73,6 +74,11 @@ const api: DesktopApi = {
       const listener = (_event: unknown, filePath: string) => callback(filePath);
       ipcRenderer.on("command:open-file", listener);
       return () => ipcRenderer.removeListener("command:open-file", listener);
+    },
+    onCommandOpenPreview: (callback) => {
+      const listener = (_event: unknown, payload: Parameters<typeof callback>[0]) => callback(payload);
+      ipcRenderer.on("command:open-preview", listener);
+      return () => ipcRenderer.removeListener("command:open-preview", listener);
     },
     onCommandOpenSettings: (callback) => {
       const listener = (_event: unknown, payload: Parameters<typeof callback>[0]) => callback(payload);

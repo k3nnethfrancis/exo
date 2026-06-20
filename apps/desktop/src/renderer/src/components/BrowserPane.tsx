@@ -1,8 +1,9 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Globe2, RotateCw, X } from "lucide-react";
 
 import type { DragManager } from "../hooks/useDragManager";
 import { ChromeTab } from "./Chrome";
+import { refreshAllTerminals } from "./terminalRegistry";
 
 interface BrowserPaneProps {
   paneId: string;
@@ -19,6 +20,15 @@ export function BrowserPane(props: BrowserPaneProps) {
   const [draftUrl, setDraftUrl] = useState(url);
   const safeUrl = useMemo(() => normalizeBrowserUrl(url), [url]);
 
+  useEffect(() => {
+    refreshTerminalsAroundPreviewLayout();
+  }, [safeUrl]);
+
+  function focusPreviewPane() {
+    onFocus();
+    refreshTerminalsAroundPreviewLayout();
+  }
+
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const nextUrl = normalizeBrowserUrl(draftUrl);
@@ -27,7 +37,7 @@ export function BrowserPane(props: BrowserPaneProps) {
   }
 
   return (
-    <section className={`browser-pane ${compact ? "browser-pane--compact" : ""}`} data-testid="browser-pane" onMouseDown={onFocus}>
+    <section className={`browser-pane ${compact ? "browser-pane--compact" : ""}`} data-testid="browser-pane" onMouseDown={focusPreviewPane}>
       <div className="browser-pane__header">
         <ChromeTab
           active
@@ -35,7 +45,7 @@ export function BrowserPane(props: BrowserPaneProps) {
           testId="browser-tab-preview"
           dropPaneId={paneId}
           dropKind="browser"
-          onClick={onFocus}
+          onClick={focusPreviewPane}
           onMouseDown={(event) => {
             dragManager.startDrag(event, {
               kind: "browser",
@@ -73,10 +83,18 @@ export function BrowserPane(props: BrowserPaneProps) {
           className="browser-pane__webview"
           data-testid="browser-webview"
           src={safeUrl}
+          onFocus={refreshTerminalsAroundPreviewLayout}
+          onLoad={refreshTerminalsAroundPreviewLayout}
         />
       )}
     </section>
   );
+}
+
+function refreshTerminalsAroundPreviewLayout() {
+  refreshAllTerminals();
+  window.requestAnimationFrame(refreshAllTerminals);
+  window.setTimeout(refreshAllTerminals, 75);
 }
 
 function normalizeBrowserUrl(value: string): string {

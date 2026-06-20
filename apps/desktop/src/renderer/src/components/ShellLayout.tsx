@@ -8,7 +8,7 @@ import type { DragManager, DragPayload } from "../hooks/useDragManager";
 import type { WorkspaceSearchResultMode } from "../hooks/useWorkspaceSearch";
 import type { AppearanceMode, ResolvedAppearance } from "../appearance";
 import type { TreeNode, WorkspaceSearchResults } from "@exo/core";
-import type { WorkspaceGitChange } from "../../../shared/api";
+import type { TerminalKind, WorkspaceGitChange } from "../../../shared/api";
 import exoGlyph from "../assets/exo-glyph.svg";
 
 const RESIZER_TRACK_SIZE = "6px";
@@ -97,7 +97,7 @@ interface ShellLayoutProps {
   onCreateTerminalInDirectory: (directoryPath: string) => void;
   onRenamePath: (targetPath: string) => void;
   onDeletePath: (targetPath: string) => void;
-  onCreateTerminal: (kind: "shell" | "claude" | "codex") => void;
+  onCreateTerminal: (kind: TerminalKind) => void;
   onCreateBrowserPane: () => void;
 }
 

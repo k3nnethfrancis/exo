@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 
 import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { indentWithTab } from "@codemirror/commands";
@@ -8,12 +8,12 @@ import { lintGutter, lintKeymap } from "@codemirror/lint";
 import { EditorSelection, type EditorState } from "@codemirror/state";
 import { keymap, lineNumbers, EditorView, type ViewUpdate } from "@codemirror/view";
 import { Code2, GitBranch, Save, SlidersHorizontal } from "lucide-react";
-import type { BranchFamily, NoteDocument } from "@exo/core";
+import type { BranchFamily, NoteDocument, NoteKnowledge } from "@exo/core";
 import { exoEditorTheme, exoSyntaxHighlighting } from "../theme/codemirror";
 import type { ExoThemeVariant } from "../theme/types";
 import { codeLanguageForPath } from "./codeLanguages";
 import { coerceFrontmatterValue, getDocumentDisplayTitle, stringifyFrontmatterValue } from "./documentDisplay";
-import { markdownLivePreview } from "./markdownLivePreview";
+import { markdownLivePreview, type MarkdownGraphReferences } from "./markdownLivePreview";
 
 const WIKILINK_COMPLETION_LIMIT = 3;
 
@@ -27,12 +27,22 @@ interface WikilinkSuggestionState {
   items: WikilinkSuggestion[];
 }
 
+interface WikilinkPreviewState {
+  target: string;
+  left: number;
+  top: number;
+  title: string;
+  excerpt: string;
+  loading: boolean;
+}
+
 interface EditorDocument extends NoteDocument {
   dirty: boolean;
 }
 
 interface NoteEditorProps {
   document: EditorDocument | null;
+  knowledge: NoteKnowledge | null;
   saveStatus: "idle" | "saving" | "saved" | "error";
   branchFamily: BranchFamily | null;
   propertiesCollapsed: boolean;
@@ -44,6 +54,7 @@ interface NoteEditorProps {
   onOpenTarget: (target: string) => void;
   onOpenBranch: (filePath: string) => void;
   onSuggestTargets: (query: string) => Promise<Array<{ label: string; target: string; detail?: string }>>;
+  onPreviewTarget: (target: string) => Promise<{ title: string; excerpt: string } | null>;
   onCreateBranch: () => void;
   onFocus: () => void;
   theme: ExoThemeVariant;
@@ -58,6 +69,7 @@ interface NoteEditorProps {
 export function NoteEditor(props: NoteEditorProps) {
   const {
     document,
+    knowledge,
     saveStatus,
     branchFamily,
     propertiesCollapsed,
@@ -69,6 +81,7 @@ export function NoteEditor(props: NoteEditorProps) {
     onOpenTarget,
     onOpenBranch,
     onSuggestTargets,
+    onPreviewTarget,
     onCreateBranch,
     onFocus,
     theme,
@@ -89,12 +102,15 @@ export function NoteEditor(props: NoteEditorProps) {
   const processedRevealLineNonceRef = useRef<number | null>(null);
   const processedScrollRestoreNonceRef = useRef<number | null>(null);
   const wikilinkSuggestionRequestRef = useRef(0);
+  const wikilinkPreviewRequestRef = useRef(0);
   const suppressedWikilinkCompletionRef = useRef<{ pos: number; text: string } | null>(null);
   const [wikilinkSuggestions, setWikilinkSuggestions] = useState<WikilinkSuggestionState | null>(null);
+  const [wikilinkPreview, setWikilinkPreview] = useState<WikilinkPreviewState | null>(null);
 
   useEffect(() => {
     setRawMarkdownMode(false);
     setWikilinkSuggestions(null);
+    setWikilinkPreview(null);
     suppressedWikilinkCompletionRef.current = null;
   }, [document?.filePath]);
 
@@ -119,6 +135,21 @@ export function NoteEditor(props: NoteEditorProps) {
   const frontmatterEntries = document ? Object.entries(document.frontmatter).filter(([key]) => !key.startsWith("branch_")) : [];
   const cmTheme = useMemo(() => exoEditorTheme(theme, fontSize), [fontSize, theme]);
   const syntaxTheme = useMemo(() => exoSyntaxHighlighting(theme), [theme]);
+  const graphReferences = useMemo((): MarkdownGraphReferences | null => {
+    if (!useMarkdownEditing || !knowledge) {
+      return null;
+    }
+    const referenceLinks = [
+      ...knowledge.wikilinks.map((item) => ({ label: item.label, target: item.target })),
+      ...knowledge.markdownLinks
+        .filter((item) => !item.target.startsWith("http"))
+        .map((item) => ({ label: item.label, target: item.target })),
+    ];
+    return {
+      backlinks: knowledge.backlinks.map((item) => ({ label: item.title, target: item.filePath })),
+      references: referenceLinks,
+    };
+  }, [knowledge, useMarkdownEditing]);
   const selectionTracker = useMemo(
     () =>
       EditorView.updateListener.of((update) => {
@@ -227,6 +258,57 @@ export function NoteEditor(props: NoteEditorProps) {
         acceptWikilinkSuggestion(wikilinkSuggestions.items[0]);
       },
     [acceptWikilinkSuggestion, wikilinkSuggestions],
+  );
+  const handleEditorSurfaceMouseMove = useMemo(
+    () =>
+      (event: MouseEvent<HTMLDivElement>) => {
+        if (!useMarkdownEditing || rawMarkdownMode) {
+          return;
+        }
+        const target = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-exo-link-kind='wikilink'][data-exo-link-target]");
+        if (!target) {
+          wikilinkPreviewRequestRef.current += 1;
+          setWikilinkPreview(null);
+          return;
+        }
+
+        const linkTarget = target.dataset.exoLinkTarget;
+        if (!linkTarget || wikilinkPreview?.target === linkTarget) {
+          return;
+        }
+
+        const surface = target.closest<HTMLElement>(".editor-surface");
+        const surfaceRect = surface?.getBoundingClientRect();
+        const targetRect = target.getBoundingClientRect();
+        const left = surfaceRect ? targetRect.left - surfaceRect.left : 24;
+        const top = surfaceRect ? targetRect.bottom - surfaceRect.top + 8 : 48;
+        const requestId = ++wikilinkPreviewRequestRef.current;
+        setWikilinkPreview({ target: linkTarget, left, top, title: linkTarget, excerpt: "", loading: true });
+
+        void onPreviewTarget(linkTarget).then((preview) => {
+          if (requestId !== wikilinkPreviewRequestRef.current) {
+            return;
+          }
+          if (!preview) {
+            setWikilinkPreview(null);
+            return;
+          }
+          setWikilinkPreview({ target: linkTarget, left, top, title: preview.title, excerpt: preview.excerpt, loading: false });
+        }).catch(() => {
+          if (requestId === wikilinkPreviewRequestRef.current) {
+            setWikilinkPreview(null);
+          }
+        });
+      },
+    [onPreviewTarget, rawMarkdownMode, useMarkdownEditing, wikilinkPreview?.target],
+  );
+  const handleEditorSurfaceMouseLeave = useMemo(
+    () =>
+      () => {
+        wikilinkPreviewRequestRef.current += 1;
+        setWikilinkPreview(null);
+      },
+    [],
   );
   const saveKeymap = useMemo(
     () =>
@@ -569,6 +651,8 @@ export function NoteEditor(props: NoteEditorProps) {
       <div
         className={`editor-surface ${useMarkdownEditing && !rawMarkdownMode ? "editor-surface--live-preview" : ""} ${!useMarkdownEditing ? "editor-surface--code" : ""}`}
         onKeyDownCapture={handleEditorSurfaceKeyDown}
+        onMouseLeave={handleEditorSurfaceMouseLeave}
+        onMouseMove={handleEditorSurfaceMouseMove}
       >
         <CodeMirror
           ref={codeMirrorRef}
@@ -587,6 +671,7 @@ export function NoteEditor(props: NoteEditorProps) {
                           onOpenTarget,
                           onOpenTag,
                           suppressedGeneratedTitle,
+                          graphReferences,
                         }),
                       ]
                     : []),
@@ -614,6 +699,18 @@ export function NoteEditor(props: NoteEditorProps) {
           onChange={handleEditorChange}
           height="100%"
         />
+        {wikilinkPreview ? (
+          <div
+            className="wikilink-preview"
+            data-testid="wikilink-preview"
+            style={{ left: wikilinkPreview.left, top: wikilinkPreview.top }}
+          >
+            <div className="wikilink-preview__title">{wikilinkPreview.title}</div>
+            <div className="wikilink-preview__excerpt">
+              {wikilinkPreview.loading ? "Loading..." : wikilinkPreview.excerpt}
+            </div>
+          </div>
+        ) : null}
         {wikilinkSuggestions ? (
           <div
             className="wikilink-suggestions"

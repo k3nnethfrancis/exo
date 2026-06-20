@@ -13,6 +13,8 @@ import {
   type ExoProjectRootRequest,
   type ExoReadDocumentRequest,
   type ExoOpenFileRequest,
+  type ExoOpenPreviewRequest,
+  type ExoOpenPreviewResponse,
   type ExoSendTerminalMessageRequest,
   type ExoWriteTerminalRequest,
   type ExoWriteTerminalResponse,
@@ -28,6 +30,7 @@ export interface CommandServerOptions {
   runtimeRoot: string;
   onShowWindow: () => void;
   onOpenFile: (filePath: string) => void;
+  onOpenPreview: (target: string) => Promise<ExoOpenPreviewResponse>;
   onSearch: (query: string) => Promise<WorkspaceSearchResults>;
   onIndexSearch: (query: string, options: { limit?: number; intent?: string; includeContent?: boolean; maxLinesPerResult?: number }) => Promise<IndexSearchResponse>;
   onReadDocument: (target: string, options: { fromLine?: number; maxLines?: number }) => Promise<IndexReadResponse>;
@@ -227,6 +230,17 @@ export class CommandServer {
         }
         this.options.onOpenFile(filePath);
         json(res, { ok: true });
+        return;
+      }
+
+      if (method === "POST" && pathname === EXO_COMMAND_ROUTES.openPreview) {
+        const body = await readBody(req);
+        const { target } = body as ExoOpenPreviewRequest;
+        if (!target) {
+          json(res, { error: "Missing target in body" }, 400);
+          return;
+        }
+        json(res, await this.options.onOpenPreview(target));
         return;
       }
 

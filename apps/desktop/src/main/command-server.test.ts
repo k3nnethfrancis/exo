@@ -38,6 +38,40 @@ describe("CommandServer discovery", () => {
   });
 });
 
+describe("CommandServer preview routes", () => {
+  it("opens a preview target over HTTP", async () => {
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-command-server-"));
+    tempPaths.push(runtimeRoot);
+    let receivedTarget = "";
+    const server = new CommandServer({
+      ...commandServerOptions(runtimeRoot),
+      onOpenPreview: async (target) => {
+        receivedTarget = target;
+        return { ok: true, url: target, source: "url" };
+      },
+    });
+
+    try {
+      const port = await server.start();
+      const response = await fetch(`http://127.0.0.1:${port}/preview/open`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target: "http://localhost:4321/report.html" }),
+      });
+
+      expect(response.ok).toBe(true);
+      await expect(response.json()).resolves.toEqual({
+        ok: true,
+        url: "http://localhost:4321/report.html",
+        source: "url",
+      });
+      expect(receivedTarget).toBe("http://localhost:4321/report.html");
+    } finally {
+      server.stop();
+    }
+  });
+});
+
 describe("CommandServer terminal routes", () => {
   it("preserves semantic terminal messages and submit=false over HTTP", async () => {
     const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-command-server-"));
@@ -183,6 +217,7 @@ function commandServerOptions(runtimeRoot: string): CommandServerOptions {
     runtimeRoot,
     onShowWindow: () => {},
     onOpenFile: () => {},
+    onOpenPreview: async (target) => ({ ok: true, url: target, source: "url" }),
     onSearch: async () => ({ notes: [], projectFiles: [], tags: [] }),
     onIndexSearch: async () => ({ mode: "lexical", source: "filesystem", query: "", results: [], warnings: [] }),
     onReadDocument: async () => ({ target: "", filePath: "", title: "", body: "", source: "filesystem" }),

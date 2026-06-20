@@ -125,6 +125,46 @@ server.registerTool(
 );
 
 server.registerTool(
+  "open_preview",
+  {
+    title: "Open Exo Preview",
+    description:
+      "Open an http(s) URL or an existing local .html/.htm file inside Exo's in-app browser preview pane. Local paths must be inside the active workspace, note roots, or project roots.",
+    inputSchema: {
+      target: z.string().min(1).describe("HTTP(S) URL, file:// URL, absolute local HTML path, or workspace-relative HTML path."),
+    },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+  },
+  async ({ target }) => {
+    try {
+      const client = await ExoCommandClient.connect();
+      const result = await client.openPreview(target);
+      const structuredContent: Record<string, unknown> = {
+        ok: result.ok,
+        url: result.url,
+        source: result.source,
+      };
+      return {
+        content: [{ type: "text", text: `Opened preview: ${result.url}` }],
+        structuredContent,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return {
+        isError: true,
+        content: [{ type: "text", text: message }],
+        structuredContent: { ok: false, error: message },
+      };
+    }
+  },
+);
+
+server.registerTool(
   "list_agents",
   {
     title: "List Exo Agents",

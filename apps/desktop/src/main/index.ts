@@ -1,7 +1,7 @@
 import { app, nativeTheme, powerMonitor } from "electron";
 import path from "node:path";
 import { appendFile, mkdir, stat } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
   createWorkspaceDirectory,
@@ -18,6 +18,8 @@ import {
   searchIndex,
   searchNotes,
   searchWorkspace,
+  type ManagedAgentKind,
+  type ExoOpenPreviewResponse,
   type WorkspaceModel,
   type WorkspaceSettings,
 } from "@exo/core";
@@ -99,6 +101,12 @@ function startCommandServer() {
     onOpenFile: (filePath: string) => {
       sendToRenderer("command:open-file", filePath);
     },
+    onOpenPreview: async (target: string) => {
+      const result = await resolvePreviewTarget(target, workspaceSettingsService.currentSettings());
+      appLifecycle.showMainWindow();
+      sendToRenderer("command:open-preview", { url: result.url });
+      return result;
+    },
     onSearch: (query: string) => searchWorkspace(workspaceModel, query),
     onIndexSearch: (query, options) => searchIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot, query, options),
     onReadDocument: (target, options) => readIndexDocument(workspaceModel, resolveRuntimeConfig().runtimeRoot, target, options),
@@ -114,7 +122,7 @@ function startCommandServer() {
     onListTerminals: () => terminalManager.list(),
     onTerminalDiagnostics: () => terminalManager.diagnostics(),
     onCreateTerminal: (kind: string, cwd?: string) =>
-      terminalManager.create({ kind: kind as "shell" | "claude" | "codex", cwd }),
+      terminalManager.create({ kind: kind as ManagedAgentKind, cwd }),
     onReadTerminalTail: (id: string) => terminalManager.readTail(id),
     onReadTerminalTranscript: (id: string, tailChars: number) => terminalManager.readTranscript(id, tailChars),
     onWriteTerminal: (id: string, data: string) => terminalManager.write(id, data),
@@ -138,6 +146,69 @@ function startCommandServer() {
     console.error("Failed to start command server:", error);
     logMain("command server start failed", serializeError(error));
   });
+}
+
+async function resolvePreviewTarget(target: string, settings: WorkspaceSettings): Promise<ExoOpenPreviewResponse> {
+  const trimmed = target.trim();
+  if (!trimmed) {
+    throw new Error("Preview target cannot be empty.");
+  }
+
+  const parsedUrl = parsePreviewUrl(trimmed);
+  if (parsedUrl) {
+    if (parsedUrl.protocol === "http:" || parsedUrl.protocol === "https:") {
+      return { ok: true, url: parsedUrl.toString(), source: "url" };
+    }
+    if (parsedUrl.protocol === "file:") {
+      return resolveLocalPreviewPath(fileURLToPath(parsedUrl), settings);
+    }
+    throw new Error("Preview URL must use http, https, or file.");
+  }
+
+  const candidatePath = path.isAbsolute(trimmed)
+    ? trimmed
+    : path.resolve(settings.workspaceRoot, trimmed);
+  return resolveLocalPreviewPath(candidatePath, settings);
+}
+
+function parsePreviewUrl(target: string): URL | null {
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(target)) {
+    return null;
+  }
+  try {
+    return new URL(target);
+  } catch {
+    throw new Error("Preview target is not a valid URL.");
+  }
+}
+
+async function resolveLocalPreviewPath(filePath: string, settings: WorkspaceSettings): Promise<ExoOpenPreviewResponse> {
+  const resolvedPath = path.resolve(filePath);
+  const allowedRoots = [
+    settings.workspaceRoot,
+    ...settings.noteRoots,
+    ...settings.projectRoots,
+  ].map((rootPath) => path.resolve(rootPath));
+
+  if (!allowedRoots.some((rootPath) => isPathWithin(rootPath, resolvedPath))) {
+    throw new Error("Local preview files must be inside the workspace, note roots, or project roots.");
+  }
+
+  if (![".html", ".htm"].includes(path.extname(resolvedPath).toLowerCase())) {
+    throw new Error("Local preview files must be .html or .htm files.");
+  }
+
+  const fileStat = await stat(resolvedPath);
+  if (!fileStat.isFile()) {
+    throw new Error("Local preview target must be an existing file.");
+  }
+
+  return { ok: true, url: pathToFileURL(resolvedPath).toString(), source: "file" };
+}
+
+function isPathWithin(parentPath: string, targetPath: string): boolean {
+  const relative = path.relative(parentPath, targetPath);
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
 }
 
 async function refreshCommandServerDiscovery(reason: string): Promise<void> {
@@ -294,6 +365,7 @@ function registerIpcHandlers() {
     embedIndex: () => indexingService.embed("settings"),
     ensureTarget: (sourceFilePath, target) => workspaceNotesService.ensureTarget(sourceFilePath, target),
     getAgentInstructionConfig: () => agentInstructionsService.getConfig(),
+    listAgentHarnesses: async () => terminalManager.getRuntimeConfig().harnesses,
     getBranchFamily: (filePath) => workspaceNotesService.getBranchFamily(filePath),
     getGitStatus: (rootPath) => projectReviewService.getGitStatus(rootPath),
     getIndexStatus: () => indexingService.getMeasuredStatus(),

@@ -8,21 +8,21 @@ import {
   type PaneNodeId,
   type PaneTreeActions,
 } from "./usePaneTree";
-import type { TerminalSessionInfo } from "../../../shared/api";
+import type { TerminalKind, TerminalSessionInfo } from "../../../shared/api";
 import {
   addTerminalSessionToFirstLeaf,
   removeTerminalSessionFromTree,
 } from "../paneTreeSelectors";
 
 interface TerminalStateApi {
-  createTerminal: (kind: "shell" | "claude" | "codex", cwd?: string) => Promise<TerminalSessionInfo>;
+  createTerminal: (kind: TerminalKind, cwd?: string) => Promise<TerminalSessionInfo>;
   setActiveTerminalId: (id: string | null) => void;
   activateTerminal: (id: string) => Promise<void>;
   killTerminal: (id: string) => Promise<TerminalSessionInfo[]>;
 }
 
 export interface TerminalPaneController {
-  createTerminal: (kind: "shell" | "claude" | "codex", cwd?: string, activate?: boolean) => Promise<TerminalSessionInfo>;
+  createTerminal: (kind: TerminalKind, cwd?: string, activate?: boolean) => Promise<TerminalSessionInfo>;
   attachExternalTerminalSessions: (sessions: TerminalSessionInfo[], options: { activateLatest: boolean }) => void;
   activateTerminal: (leafId: PaneNodeId, id: string) => Promise<void>;
   focusTerminalSession: (id: string) => Promise<void>;
@@ -42,7 +42,7 @@ interface UseTerminalPaneControllerOptions {
 }
 
 export function useTerminalPaneController(options: UseTerminalPaneControllerOptions): TerminalPaneController {
-  async function createTerminal(kind: "shell" | "claude" | "codex", cwd?: string, activate = true) {
+  async function createTerminal(kind: TerminalKind, cwd?: string, activate = true) {
     const session = await options.terminalState.createTerminal(kind, cwd);
     options.setTerminalCollapsed(false);
 

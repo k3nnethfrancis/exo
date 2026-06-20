@@ -1,6 +1,8 @@
 export type RootKind = "notes" | "projects";
 export type DocumentKind = "markdown" | "text";
-export type ManagedAgentKind = "shell" | "claude" | "codex";
+export type ManagedAgentKind = "shell" | "claude" | "codex" | "pi" | "hermes";
+export type AgentHarnessAdapterId = "shell" | "claude-code" | "codex" | "pi" | "hermes";
+export type AgentHarnessStatus = "available" | "configured" | "not-found" | "disabled" | "broken";
 export type ColorThemeId = "exo-neutral" | "exo-solar";
 
 export interface AttachedRoot {
@@ -301,6 +303,32 @@ export interface AgentLauncherConfig {
   args: string[];
 }
 
+export interface AgentHarnessInstallMetadata {
+  url?: string;
+  label?: string;
+}
+
+export interface AgentHarnessDetection {
+  id: ManagedAgentKind;
+  adapterId: AgentHarnessAdapterId;
+  family: AgentHarnessAdapterId;
+  label: string;
+  productName: string;
+  enabled: boolean;
+  configured: boolean;
+  detected: boolean;
+  launchable: boolean;
+  status: AgentHarnessStatus;
+  statusLabel: string;
+  executablePath?: string;
+  repoPath?: string;
+  channel?: string;
+  build?: string;
+  install?: AgentHarnessInstallMetadata;
+  detail?: string;
+  launcher?: AgentLauncherConfig;
+}
+
 export interface RuntimeConfig {
   workspace: WorkspaceModel;
   runtimeRoot: string;
@@ -308,6 +336,7 @@ export interface RuntimeConfig {
   retrieval: RetrievalBackendConfig;
   communication: AgentCommunicationConfig;
   launchers: Record<ManagedAgentKind, AgentLauncherConfig>;
+  harnesses: AgentHarnessDetection[];
 }
 
 export interface AgentLaunchPlan {

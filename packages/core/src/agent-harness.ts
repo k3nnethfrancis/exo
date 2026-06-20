@@ -1,5 +1,5 @@
 import type { CapabilityMetadata } from "./capabilities";
-import type { AgentLauncherConfig, ManagedAgentKind } from "./types";
+import type { AgentHarnessDetection, AgentLauncherConfig, ManagedAgentKind } from "./types";
 
 export type HarnessSkillSource = "built-in" | "filesystem" | "external";
 
@@ -17,6 +17,7 @@ export interface AgentHarness {
   title: string;
   skills: readonly HarnessSkillMetadata[];
   resolveLauncher(env: NodeJS.ProcessEnv): AgentLauncherConfig;
+  resolveDetection?(env: NodeJS.ProcessEnv): AgentHarnessDetection;
 }
 
 export type AgentHarnessMap = Record<ManagedAgentKind, AgentHarness>;

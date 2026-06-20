@@ -4,6 +4,8 @@ import type {
   IndexSearchResponse,
   IndexSyncResult,
   IndexStatus,
+  AgentHarnessDetection,
+  ManagedAgentKind,
   NoteDocument,
   NoteKnowledge,
   SearchResult,
@@ -13,7 +15,7 @@ import type {
   WorkspaceSearchResults,
 } from "@exo/core";
 
-export type TerminalKind = "shell" | "claude" | "codex";
+export type TerminalKind = ManagedAgentKind;
 export type TerminalHealthState = "healthy" | "idle" | "unhealthy" | "exited";
 export type WorkspaceSettingsSection = "workspace" | "index" | "appearance" | "terminal";
 
@@ -250,6 +252,7 @@ export interface DesktopApi {
     searchTag: (tag: string) => Promise<SearchResult[]>;
     getGitStatus: (rootPath: string) => Promise<WorkspaceGitStatus | null>;
     getAgentInstructionConfig: () => Promise<AgentInstructionConfig>;
+    listAgentHarnesses: () => Promise<AgentHarnessDetection[]>;
     saveAgentInstructionConfig: (input: {
       scopeId: AgentInstructionScopeId;
       body: string;
@@ -269,6 +272,7 @@ export interface DesktopApi {
     onDidChange: (callback: (event: { rootPath: string; eventType: string; filePath: string | null }) => void) => () => void;
     onIndexSyncState: (callback: (event: IndexSyncStateEvent) => void) => () => void;
     onCommandOpenFile: (callback: (filePath: string) => void) => () => void;
+    onCommandOpenPreview: (callback: (event: { url: string }) => void) => () => void;
     onCommandOpenSettings: (callback: (event: { section: WorkspaceSettingsSection }) => void) => () => void;
   };
   notes: {

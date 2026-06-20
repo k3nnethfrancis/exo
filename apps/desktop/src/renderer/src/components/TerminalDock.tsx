@@ -1,5 +1,5 @@
 import { useEffect, useRef, type CSSProperties, type ReactNode, type Ref } from "react";
-import { GripVertical, RefreshCw, SquareTerminal, X } from "lucide-react";
+import { Bot, GripVertical, RefreshCw, SquareTerminal, X } from "lucide-react";
 
 import type { TerminalSessionInfo } from "../../../shared/api";
 import type { DragManager } from "../hooks/useDragManager";
@@ -124,7 +124,7 @@ export function TerminalDock(props: TerminalDockProps) {
                   }}
                   title={`${session.title} · ${session.health ?? session.status}${session.healthDetail ? ` · ${session.healthDetail}` : ""}`}
                   leading={<GripVertical size={11} />}
-                  trailing={session.kind === "shell" ? <SquareTerminal size={12} /> : <AgentIcon kind={session.kind} size={12} />}
+                  trailing={<TerminalTabIcon kind={session.kind} />}
                   closeLabel={`Close ${session.title}`}
                   closeTestId={`close-terminal-${session.kind}`}
                   closeIcon={<X size={12} />}
@@ -197,4 +197,14 @@ export function TerminalDock(props: TerminalDockProps) {
       </div>
     </section>
   );
+}
+
+function TerminalTabIcon({ kind }: { kind: TerminalSessionInfo["kind"] }) {
+  if (kind === "shell") {
+    return <SquareTerminal size={12} />;
+  }
+  if (kind === "claude" || kind === "codex") {
+    return <AgentIcon kind={kind} size={12} />;
+  }
+  return <Bot size={12} />;
 }

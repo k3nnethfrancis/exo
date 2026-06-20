@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { EditorState } from "@codemirror/state";
+import type { AgentHarnessDetection, ManagedAgentKind } from "@exo/core";
 
 import {
   DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS,
@@ -25,6 +26,8 @@ import {
 import { buildProjectReviewChanges, uniqueCwdMatchedSession } from "./changedFileReview";
 import { isTerminalGeneratedResponse } from "./components/terminalInputFilters";
 import { TerminalOutputChunker, chunkTerminalData } from "./components/terminalOutputChunks";
+import { focusTerminal, refreshAllTerminals, registerTerminal, unregisterTerminal } from "./components/terminalRegistry";
+import { launchableTerminalAgentHarnesses } from "./components/TerminalRail";
 import { listEnterEdit, shouldSuppressGeneratedTitleLine, wikilinkExitEdit } from "./components/markdownLivePreview";
 import { appendPendingTerminalData, mergeHydrationSnapshot } from "./hooks/useTerminalSessions";
 import { defaultTerminalCwdForNotesFolder } from "./hooks/useWorkspaceBootstrap";
@@ -45,6 +48,67 @@ import { buildExplorerChangeState } from "./explorerChangeState";
 describe("desktop shell", () => {
   it("keeps a renderer test surface in place", () => {
     expect(true).toBe(true);
+  });
+});
+
+function harness(id: ManagedAgentKind, launchable: boolean): AgentHarnessDetection {
+  return {
+    id,
+    adapterId: id === "claude" ? "claude-code" : id,
+    family: id === "claude" ? "claude-code" : id,
+    label: id,
+    productName: id,
+    enabled: true,
+    configured: launchable,
+    detected: launchable,
+    launchable,
+    status: launchable ? "configured" : "not-found",
+    statusLabel: launchable ? "Configured" : "Not found",
+  };
+}
+
+describe("terminal harness launchers", () => {
+  it("shows launchers only for enabled launchable agent harnesses", () => {
+    const launchable = launchableTerminalAgentHarnesses([
+      harness("shell", true),
+      harness("codex", false),
+      harness("pi", true),
+      harness("hermes", false),
+    ]);
+
+    expect(launchable.map((candidate) => candidate.id)).toEqual(["pi"]);
+  });
+});
+
+describe("terminal renderer registry", () => {
+  it("refreshes the terminal surface before focusing after pane handoff", () => {
+    const terminal = { focus: vi.fn() };
+    const refresh = vi.fn();
+
+    registerTerminal("terminal-1", terminal as never, vi.fn(), refresh);
+    try {
+      expect(focusTerminal("terminal-1")).toBe(true);
+      expect(refresh).toHaveBeenCalledBefore(terminal.focus);
+      expect(terminal.focus).toHaveBeenCalledTimes(1);
+    } finally {
+      unregisterTerminal("terminal-1");
+    }
+  });
+
+  it("can refresh all registered terminal surfaces after preview layout changes", () => {
+    const refreshOne = vi.fn();
+    const refreshTwo = vi.fn();
+
+    registerTerminal("terminal-1", { focus: vi.fn() } as never, vi.fn(), refreshOne);
+    registerTerminal("terminal-2", { focus: vi.fn() } as never, vi.fn(), refreshTwo);
+    try {
+      refreshAllTerminals();
+      expect(refreshOne).toHaveBeenCalledTimes(1);
+      expect(refreshTwo).toHaveBeenCalledTimes(1);
+    } finally {
+      unregisterTerminal("terminal-1");
+      unregisterTerminal("terminal-2");
+    }
   });
 });
 

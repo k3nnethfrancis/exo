@@ -599,6 +599,32 @@ button svg,
   white-space: nowrap;
 }
 
+.wikilink-preview {
+  position: absolute;
+  z-index: 21;
+  width: min(340px, calc(100% - 32px));
+  border: 1px solid var(--surface-border-strong);
+  border-radius: 8px;
+  background: var(--panel-strong);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.28);
+  padding: 10px 12px;
+  pointer-events: none;
+}
+
+.wikilink-preview__title {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.25;
+  margin-bottom: 5px;
+}
+
+.wikilink-preview__excerpt {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .editor-surface .cm-editor {
   height: 100%;
   min-height: 0;
@@ -816,6 +842,55 @@ button svg,
   text-decoration: underline;
   text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
   text-underline-offset: 0.15em;
+}
+
+.editor-surface--live-preview .markdown-graph-references {
+  max-width: 860px;
+  margin: 2.2rem auto 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--divider);
+  color: var(--text-muted);
+}
+
+.editor-surface--live-preview .markdown-graph-references__group + .markdown-graph-references__group {
+  margin-top: 0.85rem;
+}
+
+.editor-surface--live-preview .markdown-graph-references__title {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  margin-bottom: 0.45rem;
+  text-transform: uppercase;
+}
+
+.editor-surface--live-preview .markdown-graph-references__items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.editor-surface--live-preview .markdown-graph-references__item {
+  min-height: 28px;
+  max-width: 100%;
+  border: 1px solid var(--surface-border);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.2;
+  overflow: hidden;
+  padding: 5px 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editor-surface--live-preview .markdown-graph-references__item:hover {
+  background: var(--surface-hover);
 }
 
 .editor-surface--live-preview .exo-md-tag {
@@ -1393,7 +1468,7 @@ button svg,
 }
 
 .dialog-card--agent-context-manager .dialog-tabs {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .dialog-card__header {
@@ -1431,6 +1506,64 @@ button svg,
 .dialog-card__message {
   color: var(--muted);
   line-height: 1.5;
+}
+
+.agent-harnesses {
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.agent-harnesses__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 0.6fr);
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--surface-border);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.agent-harnesses__title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.agent-harnesses__status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--surface-border);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.agent-harnesses__status--available,
+.agent-harnesses__status--configured {
+  color: var(--accent-strong);
+  border-color: color-mix(in srgb, var(--accent-strong) 45%, transparent);
+}
+
+.agent-harnesses__status--broken {
+  color: var(--danger-strong);
+  border-color: var(--danger-border);
+}
+
+.agent-harnesses__meta {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+}
+
+.agent-harnesses__meta small {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .dialog-card__input {

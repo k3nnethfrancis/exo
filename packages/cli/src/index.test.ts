@@ -390,7 +390,7 @@ describe("cli package", () => {
 
     expect(exitCode).toBe(0);
     expect(connected).toBe(false);
-    expect(stdout).toContain("Usage: exo agents create <shell|claude|codex> [cwd]");
+    expect(stdout).toContain("Usage: exo agents create <shell|claude|codex|pi|hermes> [cwd]");
   });
 
   it("prints provider-specific agents create help without creating a terminal", async () => {
@@ -411,7 +411,7 @@ describe("cli package", () => {
 
     expect(exitCode).toBe(0);
     expect(created).toBe(false);
-    expect(stdout).toContain("Usage: exo agents create <shell|claude|codex> [cwd]");
+    expect(stdout).toContain("Usage: exo agents create <shell|claude|codex|pi|hermes> [cwd]");
   });
 
   it("rejects option-shaped agent create cwd values without creating a terminal", async () => {

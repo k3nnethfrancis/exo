@@ -92,8 +92,12 @@ export function TerminalView(props: TerminalViewProps) {
     function focusTerminal(event?: MouseEvent) {
       event?.preventDefault();
       onFocus();
+      refreshTerminalSurface(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef, disposedRef);
       terminal.focus();
-      window.setTimeout(() => terminal.focus(), 0);
+      window.setTimeout(() => {
+        refreshTerminalSurface(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef, disposedRef);
+        terminal.focus();
+      }, 0);
     }
 
     function handleDragOver(event: DragEvent) {
@@ -136,6 +140,8 @@ export function TerminalView(props: TerminalViewProps) {
     sizeRef.current = { width: 0, height: 0, cols: 0, rows: 0, resizeTimer: 0 };
     registerTerminal(session.id, terminal, (data) => {
       enqueueTerminalWrite(terminal, data, writeQueueRef, outputChunkerRef, writingRef, disposedRef, programmaticInputGuardUntilRef);
+    }, () => {
+      refreshTerminalSurface(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef, disposedRef);
     });
 
     return () => {
@@ -340,6 +346,30 @@ function safeFit(
     sizeRef.current.resizeTimer = 0;
     onResize(sessionId, terminal.cols, terminal.rows);
   }, TERMINAL_RESIZE_DEBOUNCE_MS);
+}
+
+function refreshTerminalSurface(
+  host: HTMLDivElement | null,
+  terminal: Terminal,
+  fitAddon: FitAddon,
+  sessionId: string,
+  onResize: (id: string, cols: number, rows: number) => void,
+  sizeRef: MutableRefObject<{ width: number; height: number; cols: number; rows: number; resizeTimer: number }>,
+  disposedRef: MutableRefObject<boolean>,
+) {
+  if (disposedRef.current) {
+    return;
+  }
+
+  window.requestAnimationFrame(() => {
+    if (disposedRef.current) {
+      return;
+    }
+    safeFit(host, terminal, fitAddon, sessionId, onResize, sizeRef);
+    if (terminal.rows > 0) {
+      terminal.refresh(0, terminal.rows - 1);
+    }
+  });
 }
 
 function shellEscape(path: string): string {

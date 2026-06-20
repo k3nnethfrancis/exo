@@ -41,7 +41,7 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 
 ### EXO-ISSUE-054: Exo MCP needs a tool to open preview window URLs or local HTML artifacts
 
-- Status: open
+- Status: fixed locally
 - Severity: medium
 - Area: MCP, browser preview, command server, Exo-on-Exo workflows
 - Observed:
@@ -59,17 +59,21 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
   - MCP smoke that opens an HTTP URL in preview.
   - MCP smoke that opens a local generated HTML file in preview.
   - Negative tests for malformed URLs and disallowed local paths.
+- Resolution:
+  - Added MCP `open_preview`, backed by a new shared command-server `/preview/open` route and renderer `command:open-preview` event.
+  - Preview accepts HTTP(S) URLs and existing local `.html`/`.htm` files under the active workspace, note roots, or project roots; `file://` URLs are normalized through the same local validation.
+  - The renderer opens the validated target in the existing in-app browser preview pane path.
 
-### EXO-ISSUE-053: Live wikilink search is missing while typing \`[[...]]\`
+### EXO-ISSUE-053: Live wikilink search is missing while typing `[[...]]`
 
 - Status: open
 - Severity: medium
 - Area: editor, backlinks, graph navigation
 - Observed:
-  - Typing \`[[\` creates the bracket pair and lets the user type inside it, but there is no live search popup for existing pages.
-  - Example expectation: typing \`[[go]]\` should surface a small capped list such as \`[[goals]]\` when matching pages exist.
+  - Typing `[[` creates the bracket pair and lets the user type inside it, but there is no live search popup for existing pages.
+  - Example expectation: typing `[[go]]` should surface a small capped list such as `[[goals]]` when matching pages exist.
 - Expected:
-  - While the cursor is inside an active \`[[...]]\` wikilink token, show a small popup near the cursor with up to three matching pages.
+  - While the cursor is inside an active `[[...]]` wikilink token, show a small popup near the cursor with up to three matching pages.
   - Pressing Enter should accept the selected existing page suggestion when the popup is open.
   - No popup should show when there are no matches.
   - The interaction should preserve normal typing, bracket completion, and cursor movement behavior.
@@ -78,7 +82,7 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
   - Avoid adding a slow search call on every keystroke; debounce or use an in-memory title list where possible.
   - Define behavior for exact match, casing, spaces, aliases, and creating a new page when no match exists.
 - QA coverage:
-  - Editor tests for \`[[\` completion, live filtering, Enter selection, no-match behavior, and preserving typed new links.
+  - Editor tests for `[[` completion, live filtering, Enter selection, no-match behavior, and preserving typed new links.
   - App QA in a real notes vault with several similarly named pages.
 
 ### EXO-ISSUE-052: Inspect mode should be replaced by read-only backlinks/references below rendered pages
@@ -110,7 +114,7 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 - Severity: medium
 - Area: editor, backlinks, page preview
 - Observed:
-  - Hovering over a bracket item such as \`[[goals]]\` does not show a preview of the linked page content.
+  - Hovering over a bracket item such as `[[goals]]` does not show a preview of the linked page content.
 - Expected:
   - Hovering a rendered wikilink should show a small preview card/popover with a concise excerpt from the target page.
   - Preview should be fast, readable, and dismiss naturally on mouse leave/scroll.
@@ -124,6 +128,24 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
   - Hover over missing wikilink does not crash or block editing.
   - Popover positions correctly near viewport edges.
 
+### EXO-ISSUE-050: Agent rail shows dead harness launcher buttons for unavailable adapters
+
+- Status: fixed locally
+- Severity: medium
+- Area: agent harnesses, terminal launcher rail, agent config editor
+- Observed:
+  - The terminal rail could expose agent launch buttons even when a harness executable was not installed or configured.
+  - Open-source Exo needed first-class supported harness metadata for Codex, Claude Code, Pi, and Hermes without committing local product forks or machine-specific paths.
+  - Custom local Pi builds should appear as configured Pi instances when provided by local configuration, while missing Hermes should be visible in configuration but not launchable.
+- Expected:
+  - The rail should only show enabled and launchable harnesses.
+  - Supported but missing harnesses should remain visible in agent configuration/status UI with a clear Not found state.
+  - Custom Pi builds should use generic local configuration fields and labels such as `custom Pi build`; no GA-specific adapter or source default should be committed.
+- Resolution:
+  - Added typed built-in harness metadata/status resolution for shell, Codex, Claude Code, Pi, and Hermes.
+  - Added local executable/repo-path detection and generic custom Pi configuration support through environment/config-compatible fields.
+  - Added a Harnesses tab to the Agent Config Editor and changed the terminal rail to render only launchable agent harnesses.
+  - Added regression coverage for configured custom Pi, missing Hermes, and launcher filtering.
 
 ### EXO-ISSUE-049: Index settings show stale embeddings and misleading Apply copy
 

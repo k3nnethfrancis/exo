@@ -315,6 +315,7 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
 
   return {
     openDocuments,
+    knowledgeByPath,
     documentSaveStatuses,
     branchFamiliesByPath,
     activeDocumentPath,

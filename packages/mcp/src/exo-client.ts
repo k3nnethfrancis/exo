@@ -3,7 +3,8 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { EXO_COMMAND_ROUTES, type ExoCommandServerInfo } from "@exo/core/command-protocol";
+import { EXO_COMMAND_ROUTES, type ExoCommandServerInfo, type ExoOpenPreviewResponse } from "@exo/core/command-protocol";
+import type { ManagedAgentKind } from "@exo/core/types";
 import { loadActiveWorkspaceSettings, workspaceEnvOverrides, workspaceSettingsToEnv } from "@exo/core/workspace-settings";
 
 export interface ExoAgent {
@@ -16,7 +17,7 @@ export interface ExoAgent {
   exitCode?: number;
 }
 
-export type ExoAgentKind = "shell" | "claude" | "codex";
+export type ExoAgentKind = ManagedAgentKind;
 
 export interface ExoAgentInputResult {
   ok: true;
@@ -104,6 +105,10 @@ export class ExoCommandClient {
 
   async readDocument(target: string, options: { fromLine?: number; maxLines?: number } = {}): Promise<Record<string, unknown>> {
     return this.post(EXO_COMMAND_ROUTES.read, { target, ...options });
+  }
+
+  async openPreview(target: string): Promise<ExoOpenPreviewResponse> {
+    return this.post(EXO_COMMAND_ROUTES.openPreview, { target });
   }
 
   async listProjectRoots(): Promise<string[]> {

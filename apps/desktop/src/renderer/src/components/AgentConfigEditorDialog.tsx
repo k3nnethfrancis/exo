@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
+import type { AgentHarnessDetection } from "@exo/core";
 import { X } from "lucide-react";
 
 import type { AgentLibrarySkill, AgentSkillFile, AgentSkillInventory, AgentSkillSummary } from "../../../shared/api";
 import { agentInstructionStatusLabel, type useAgentInstructionEditor } from "../hooks/useAgentInstructionEditor";
 
 type AgentInstructionEditor = ReturnType<typeof useAgentInstructionEditor>;
-type AgentConfigTab = "instructions" | "skills" | "sources";
+type AgentConfigTab = "instructions" | "harnesses" | "skills" | "sources";
 
 interface AgentConfigEditorDialogProps {
   editor: AgentInstructionEditor;
@@ -65,6 +66,15 @@ export function AgentConfigEditorDialog({ editor, onClose }: AgentConfigEditorDi
             Skills
           </button>
           <button
+            className={`dialog-tabs__button ${activeTab === "harnesses" ? "dialog-tabs__button--active" : ""}`}
+            data-testid="agent-config-tab-harnesses"
+            onClick={() => setActiveTab("harnesses")}
+            role="tab"
+            type="button"
+          >
+            Harnesses
+          </button>
+          <button
             className={`dialog-tabs__button ${activeTab === "sources" ? "dialog-tabs__button--active" : ""}`}
             data-testid="agent-config-tab-sources"
             onClick={() => setActiveTab("sources")}
@@ -76,9 +86,68 @@ export function AgentConfigEditorDialog({ editor, onClose }: AgentConfigEditorDi
         </div>
 
         {activeTab === "instructions" ? <AgentInstructionsPanel editor={editor} /> : null}
+        {activeTab === "harnesses" ? <AgentHarnessesPanel /> : null}
         {activeTab === "skills" ? <AgentSkillsPanel /> : null}
         {activeTab === "sources" ? <AgentSkillSourcesPanel /> : null}
       </div>
+    </div>
+  );
+}
+
+function AgentHarnessesPanel() {
+  const [harnesses, setHarnesses] = useState<AgentHarnessDetection[]>([]);
+  const [loadState, setLoadState] = useState<"loading" | "idle" | "error">("loading");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    window.exo.workspace.listAgentHarnesses()
+      .then((nextHarnesses) => {
+        if (!cancelled) {
+          setHarnesses(nextHarnesses);
+          setLoadState("idle");
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setErrorMessage(error instanceof Error ? error.message : String(error));
+          setLoadState("error");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <div className="agent-harnesses" data-testid="agent-harnesses-manager">
+      {loadState === "loading" ? <div className="dialog-card__status">Loading harnesses...</div> : null}
+      {loadState === "error" ? <div className="dialog-card__status dialog-card__status--error">{errorMessage}</div> : null}
+      {harnesses.map((harness) => (
+        <div className="agent-harnesses__row" data-testid={`agent-harness-${harness.id}`} key={harness.id}>
+          <div>
+            <div className="agent-harnesses__title">
+              <strong>{harness.label}</strong>
+              <span className={`agent-harnesses__status agent-harnesses__status--${harness.status}`}>
+                {harness.statusLabel}
+              </span>
+            </div>
+            <div className="agent-config-editor__path">
+              {harness.productName}
+              {harness.channel ? ` · ${harness.channel}` : ""}
+              {harness.build ? ` · ${harness.build}` : ""}
+            </div>
+          </div>
+          <div className="agent-harnesses__meta">
+            <span>{harness.launchable ? "Launchable" : "Not launchable"}</span>
+            {harness.executablePath ? <small>{harness.executablePath}</small> : null}
+            {!harness.executablePath && harness.repoPath ? <small>{harness.repoPath}</small> : null}
+            {!harness.executablePath && !harness.repoPath && harness.install?.label ? <small>{harness.install.label}</small> : null}
+            {harness.detail ? <small>{harness.detail}</small> : null}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

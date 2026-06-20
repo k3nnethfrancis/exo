@@ -45,6 +45,7 @@ interface MarkdownLivePreviewOptions {
   onOpenTarget: (target: string) => void;
   onOpenTag: (tag: string) => void;
   suppressedGeneratedTitle?: string | null;
+  graphReferences?: MarkdownGraphReferences | null;
 }
 
 interface ListContext {
@@ -59,6 +60,16 @@ interface CodeFenceContext {
   startLine: number;
   endLine: number;
   language: string;
+}
+
+export interface MarkdownGraphReferenceItem {
+  label: string;
+  target: string;
+}
+
+export interface MarkdownGraphReferences {
+  backlinks: MarkdownGraphReferenceItem[];
+  references: MarkdownGraphReferenceItem[];
 }
 
 const listPrefixPattern = /^(\s*)((?:[-*+]|\d+[.)]))\s+/;
@@ -705,6 +716,17 @@ function buildDecorations(view: EditorView, options: MarkdownLivePreviewOptions)
   // Line decorations (from === to, point decorations) must come first at each position,
   // then range decorations sorted by from, then by to.
   const all = [...lineDecorations, ...inlineDecorations];
+  if (options.graphReferences && (options.graphReferences.backlinks.length > 0 || options.graphReferences.references.length > 0)) {
+    all.push({
+      from: view.state.doc.length,
+      to: view.state.doc.length,
+      decoration: Decoration.widget({
+        widget: new GraphReferencesWidget(options.graphReferences),
+        block: true,
+        side: 1,
+      }),
+    });
+  }
   all.sort((a, b) => a.from - b.from || a.to - b.to);
 
   for (const entry of all) {
@@ -712,6 +734,59 @@ function buildDecorations(view: EditorView, options: MarkdownLivePreviewOptions)
   }
 
   return builder.finish();
+}
+
+class GraphReferencesWidget extends WidgetType {
+  constructor(private readonly references: MarkdownGraphReferences) {
+    super();
+  }
+
+  toDOM() {
+    const wrap = document.createElement("section");
+    wrap.className = "markdown-graph-references";
+    wrap.dataset.testid = "markdown-graph-references";
+
+    if (this.references.backlinks.length > 0) {
+      wrap.appendChild(this.renderGroup("Backlinks", this.references.backlinks, "backlinks"));
+    }
+    if (this.references.references.length > 0) {
+      wrap.appendChild(this.renderGroup("References", this.references.references, "references"));
+    }
+
+    return wrap;
+  }
+
+  eq(other: GraphReferencesWidget) {
+    return JSON.stringify(other.references) === JSON.stringify(this.references);
+  }
+
+  ignoreEvent(event: Event) {
+    return event.type !== "click" && event.type !== "mousedown";
+  }
+
+  private renderGroup(title: string, items: MarkdownGraphReferenceItem[], testId: string) {
+    const group = document.createElement("div");
+    group.className = "markdown-graph-references__group";
+    group.dataset.testid = `markdown-graph-${testId}`;
+
+    const heading = document.createElement("div");
+    heading.className = "markdown-graph-references__title";
+    heading.textContent = title;
+    group.appendChild(heading);
+
+    const list = document.createElement("div");
+    list.className = "markdown-graph-references__items";
+    for (const item of items) {
+      const button = document.createElement("button");
+      button.className = "markdown-graph-references__item";
+      button.type = "button";
+      button.dataset.exoLinkTarget = item.target;
+      button.textContent = item.label;
+      list.appendChild(button);
+    }
+    group.appendChild(list);
+    return group;
+  }
 }
 
 export function shouldSuppressGeneratedTitleLine(lineText: string, suppressedGeneratedTitle: string | null): boolean {
@@ -938,13 +1013,13 @@ function applyWikilinks(text: string, lineFrom: number, out: DecorationEntry[], 
 
     if (cursorWithin(cursorPos, start, end)) {
       // Cursor inside — show raw wikilink, still make the label clickable
-      out.push({ from: labelStart, to: labelEnd, decoration: Decoration.mark({ class: "exo-md-link", attributes: { "data-exo-link-target": target } }) });
+      out.push({ from: labelStart, to: labelEnd, decoration: Decoration.mark({ class: "exo-md-link", attributes: { "data-exo-link-target": target, "data-exo-link-kind": "wikilink" } }) });
     } else {
       out.push({ from: start, to: start + 2, decoration: concealDecoration });
       if (match[2]) {
         out.push({ from: start + 2, to: labelStart, decoration: concealDecoration });
       }
-      out.push({ from: labelStart, to: labelEnd, decoration: Decoration.mark({ class: "exo-md-link", attributes: { "data-exo-link-target": target } }) });
+      out.push({ from: labelStart, to: labelEnd, decoration: Decoration.mark({ class: "exo-md-link", attributes: { "data-exo-link-target": target, "data-exo-link-kind": "wikilink" } }) });
       out.push({ from: end - 2, to: end, decoration: concealDecoration });
     }
   }
