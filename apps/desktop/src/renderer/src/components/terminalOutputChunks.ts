@@ -1,5 +1,36 @@
 export const TERMINAL_WRITE_CHUNK_SIZE = 16_384;
 
+export class TerminalOutputChunker {
+  private pendingHighSurrogate = "";
+
+  chunks(data: string, chunkSize = TERMINAL_WRITE_CHUNK_SIZE): string[] {
+    if (chunkSize <= 0) {
+      throw new Error("Terminal chunk size must be positive.");
+    }
+
+    let output = data;
+    if (this.pendingHighSurrogate.length > 0) {
+      output = this.pendingHighSurrogate + output;
+      this.pendingHighSurrogate = "";
+    }
+
+    if (output.length > 0 && isHighSurrogate(output.charCodeAt(output.length - 1))) {
+      this.pendingHighSurrogate = output.charAt(output.length - 1);
+      output = output.slice(0, -1);
+    }
+
+    if (output.length === 0) {
+      return [];
+    }
+
+    return chunkTerminalData(output, chunkSize);
+  }
+
+  reset() {
+    this.pendingHighSurrogate = "";
+  }
+}
+
 export function chunkTerminalData(data: string, chunkSize = TERMINAL_WRITE_CHUNK_SIZE): string[] {
   if (chunkSize <= 0) {
     throw new Error("Terminal chunk size must be positive.");

@@ -7,7 +7,7 @@ import type { TerminalSessionInfo } from "../../../shared/api";
 import type { ExoThemeVariant } from "../theme/types";
 import { exoXtermTheme } from "../theme/xterm";
 import { isTerminalGeneratedResponse } from "./terminalInputFilters";
-import { chunkTerminalData, TERMINAL_WRITE_CHUNK_SIZE } from "./terminalOutputChunks";
+import { TerminalOutputChunker, TERMINAL_WRITE_CHUNK_SIZE } from "./terminalOutputChunks";
 import { registerTerminal, unregisterTerminal } from "./terminalRegistry";
 
 const PROGRAMMATIC_INPUT_GUARD_MS = 250;
@@ -34,6 +34,7 @@ export function TerminalView(props: TerminalViewProps) {
   const fitAddonRef = useRef<FitAddon | null>(null);
   const hydrationVersionRef = useRef(-1);
   const writeQueueRef = useRef<string[]>([]);
+  const outputChunkerRef = useRef(new TerminalOutputChunker());
   const writingRef = useRef(false);
   const disposedRef = useRef(false);
   const inputHandlerRef = useRef(onInput);
@@ -134,13 +135,14 @@ export function TerminalView(props: TerminalViewProps) {
     fitAddonRef.current = fitAddon;
     sizeRef.current = { width: 0, height: 0, cols: 0, rows: 0, resizeTimer: 0 };
     registerTerminal(session.id, terminal, (data) => {
-      enqueueTerminalWrite(terminal, data, writeQueueRef, writingRef, disposedRef, programmaticInputGuardUntilRef);
+      enqueueTerminalWrite(terminal, data, writeQueueRef, outputChunkerRef, writingRef, disposedRef, programmaticInputGuardUntilRef);
     });
 
     return () => {
       unregisterTerminal(session.id);
       disposedRef.current = true;
       writeQueueRef.current = [];
+      outputChunkerRef.current.reset();
       writingRef.current = false;
       disposeData.dispose();
       observer.disconnect();
@@ -217,9 +219,10 @@ export function TerminalView(props: TerminalViewProps) {
 
     terminal.reset();
     writeQueueRef.current = [];
+    outputChunkerRef.current.reset();
     writingRef.current = false;
     safeFit(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef);
-    enqueueTerminalWrite(terminal, hydrationSnapshot, writeQueueRef, writingRef, disposedRef, programmaticInputGuardUntilRef);
+    enqueueTerminalWrite(terminal, hydrationSnapshot, writeQueueRef, outputChunkerRef, writingRef, disposedRef, programmaticInputGuardUntilRef);
     if (shouldFollowOutput) {
       terminal.scrollToBottom();
     }
@@ -242,6 +245,7 @@ function enqueueTerminalWrite(
   terminal: Terminal,
   data: string,
   queueRef: MutableRefObject<string[]>,
+  outputChunkerRef: MutableRefObject<TerminalOutputChunker>,
   writingRef: MutableRefObject<boolean>,
   disposedRef: MutableRefObject<boolean>,
   programmaticInputGuardUntilRef: MutableRefObject<number>,
@@ -250,7 +254,7 @@ function enqueueTerminalWrite(
     return;
   }
 
-  for (const chunk of chunkTerminalData(data, TERMINAL_WRITE_CHUNK_SIZE)) {
+  for (const chunk of outputChunkerRef.current.chunks(data, TERMINAL_WRITE_CHUNK_SIZE)) {
     queueRef.current.push(chunk);
   }
 

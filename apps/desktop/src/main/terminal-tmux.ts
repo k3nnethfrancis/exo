@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { execFileSync, spawn, spawnSync, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { StringDecoder } from "node:string_decoder";
 
 export interface TmuxAvailable {
   available: true;
@@ -116,6 +117,7 @@ export class TmuxControlModeProcess {
   private readonly child: ChildProcessWithoutNullStreams;
   private readonly events = new EventEmitter();
   private readonly pasteBufferName: string;
+  private readonly outputDecoder = new TmuxControlOutputDecoder();
   private stdoutBuffer = "";
   private exited = false;
 
@@ -218,9 +220,11 @@ export class TmuxControlModeProcess {
   }
 
   private handleControlLine(line: string): void {
-    const output = parseControlOutput(line);
+    const output = parseControlOutput(line, this.outputDecoder);
     if (output && output.paneId === this.options.paneId) {
-      this.events.emit("data", output.data);
+      if (output.data.length > 0) {
+        this.events.emit("data", output.data);
+      }
       return;
     }
     if (line.startsWith("%exit")) {
@@ -257,55 +261,65 @@ export function shellQuote(value: string): string {
 }
 
 export function decodeTmuxControlValue(value: string): string {
-  let decoded = "";
-  let pendingBytes: number[] = [];
+  const decoder = new StringDecoder("utf8");
+  return decoder.write(tmuxControlValueBytes(value)) + decoder.end();
+}
 
-  const flushBytes = () => {
-    if (pendingBytes.length === 0) {
-      return;
+class TmuxControlOutputDecoder {
+  private readonly decoders = new Map<string, StringDecoder>();
+
+  decode(paneId: string, value: string): string {
+    let decoder = this.decoders.get(paneId);
+    if (!decoder) {
+      decoder = new StringDecoder("utf8");
+      this.decoders.set(paneId, decoder);
     }
-    decoded += Buffer.from(pendingBytes).toString("utf8");
-    pendingBytes = [];
-  };
+    return decoder.write(tmuxControlValueBytes(value));
+  }
+}
 
+function tmuxControlValueBytes(value: string): Buffer {
+  const bytes: number[] = [];
   for (let index = 0; index < value.length;) {
     if (value[index] !== "\\") {
-      flushBytes();
-      decoded += value[index];
-      index += 1;
+      const codePoint = value.codePointAt(index);
+      if (codePoint === undefined) {
+        index += 1;
+        continue;
+      }
+      bytes.push(...Buffer.from(String.fromCodePoint(codePoint), "utf8"));
+      index += codePoint > 0xffff ? 2 : 1;
+      continue;
+    }
+
+    if (value[index + 1] === "\\") {
+      bytes.push("\\".charCodeAt(0));
+      index += 2;
       continue;
     }
 
     const octal = /^[0-7]{3}/.exec(value.slice(index + 1));
     if (octal) {
-      pendingBytes.push(Number.parseInt(octal[0], 8));
+      bytes.push(Number.parseInt(octal[0], 8));
       index += 4;
       continue;
     }
 
-    flushBytes();
-    if (value[index + 1] === "\\") {
-      decoded += "\\";
-      index += 2;
-      continue;
-    }
-
-    decoded += value[index];
+    bytes.push("\\".charCodeAt(0));
     index += 1;
   }
 
-  flushBytes();
-  return decoded;
+  return Buffer.from(bytes);
 }
 
-function parseControlOutput(line: string): { paneId: string; data: string } | null {
+function parseControlOutput(line: string, decoder = new TmuxControlOutputDecoder()): { paneId: string; data: string } | null {
   const output = /^%output\s+(\S+)\s+([\s\S]*)$/.exec(line);
   if (output) {
-    return { paneId: output[1], data: decodeTmuxControlValue(output[2]) };
+    return { paneId: output[1], data: decoder.decode(output[1], output[2]) };
   }
 
   const extended = /^%extended-output\s+(\S+)\s+[\s\S]*\s:\s([\s\S]*)$/.exec(line);
-  return extended ? { paneId: extended[1], data: decodeTmuxControlValue(extended[2]) } : null;
+  return extended ? { paneId: extended[1], data: decoder.decode(extended[1], extended[2]) } : null;
 }
 
 type TmuxInputAction = { kind: "literal"; value: string } | { kind: "key"; key: string };

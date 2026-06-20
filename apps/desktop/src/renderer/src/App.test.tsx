@@ -24,7 +24,7 @@ import {
 } from "../../main/settings-store";
 import { buildProjectReviewChanges, uniqueCwdMatchedSession } from "./changedFileReview";
 import { isTerminalGeneratedResponse } from "./components/terminalInputFilters";
-import { chunkTerminalData } from "./components/terminalOutputChunks";
+import { TerminalOutputChunker, chunkTerminalData } from "./components/terminalOutputChunks";
 import { listEnterEdit, shouldSuppressGeneratedTitleLine, wikilinkExitEdit } from "./components/markdownLivePreview";
 import { appendPendingTerminalData, mergeHydrationSnapshot } from "./hooks/useTerminalSessions";
 import { defaultTerminalCwdForNotesFolder } from "./hooks/useWorkspaceBootstrap";
@@ -451,6 +451,25 @@ describe("terminal output chunking", () => {
     expect(chunks).toEqual(["ab", "🙂c", "d"]);
     expect(chunks.join("")).toBe("ab🙂cd");
     expect(chunks.every((chunk) => !endsWithHighSurrogate(chunk) && !startsWithLowSurrogate(chunk))).toBe(true);
+  });
+
+  it("carries surrogate pairs split across terminal data events", () => {
+    const chunker = new TerminalOutputChunker();
+    const emoji = "🙂";
+    const high = emoji.charAt(0);
+    const low = emoji.charAt(1);
+
+    expect(chunker.chunks(`prompt ${high}`, 64)).toEqual(["prompt "]);
+    expect(chunker.chunks(`${low} ready`, 64)).toEqual(["🙂 ready"]);
+  });
+
+  it("clears pending surrogate data when the terminal stream resets", () => {
+    const chunker = new TerminalOutputChunker();
+    const emoji = "🙂";
+
+    expect(chunker.chunks(emoji.charAt(0), 64)).toEqual([]);
+    chunker.reset();
+    expect(chunker.chunks("fresh", 64)).toEqual(["fresh"]);
   });
 });
 

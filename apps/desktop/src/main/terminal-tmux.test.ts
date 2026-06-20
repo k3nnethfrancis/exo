@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { EventEmitter } from "node:events";
+import { StringDecoder } from "node:string_decoder";
 
 const childProcess = vi.hoisted(() => ({
   execFileSync: vi.fn(),
@@ -142,6 +143,7 @@ describe("terminal tmux runtime helpers", () => {
   it("decodes tmux control output escapes", () => {
     expect(decodeTmuxControlValue("hello\\015\\012path\\\\name")).toBe("hello\r\npath\\name");
     expect(decodeTmuxControlValue("\\342\\224\\200\\342\\224\\200 \\360\\237\\231\\202")).toBe("── 🙂");
+    expect(decodeTmuxControlValue("literal ─ 🙂")).toBe("literal ─ 🙂");
   });
 
   it("streams only the selected pane from tmux control mode", () => {
@@ -166,6 +168,61 @@ describe("terminal tmux runtime helpers", () => {
 
     expect(received).toEqual(["hello\r\n", "── 🙂\r\n"]);
     expect(fake.stdinWrites).toContain("refresh-client -C 100x30\n");
+  });
+
+  it("preserves UTF-8 glyphs when tmux splits escaped bytes across output records and stdout chunks", () => {
+    const fake = fakeControlProcess();
+    childProcess.spawn.mockReturnValue(fake.child);
+    const received: string[] = [];
+
+    const process = new TmuxControlModeProcess({
+      tmuxPath: "/opt/homebrew/bin/tmux",
+      sessionName: "exo-session",
+      paneId: "%3",
+      cwd: "/tmp/work",
+      env: { PATH: "/bin" },
+      cols: 100,
+      rows: 30,
+    });
+    process.onData((data) => received.push(data));
+
+    fake.emitStdout("%output %2 \\342\\224\n");
+    fake.emitStdout("%output %3 Claude ");
+    fake.emitStdout("\\342\\224\n");
+    fake.emitStdout("%output %2 \\200 ignored\\015\\012\n");
+    fake.emitStdout("%output %3 \\200");
+    fake.emitStdout("\\342\\224\\202 ");
+    fake.emitStdout("\\360\n");
+    fake.emitStdout("%output %3 \\237\\231\n");
+    fake.emitStdout("%output %3 \\202 prompt\\015\\012\n");
+
+    expect(received.join("")).toBe("Claude ─│ 🙂 prompt\r\n");
+    expect(received.join("")).not.toContain("�");
+  });
+
+  it("preserves literal UTF-8 glyphs split across stdout byte chunks", () => {
+    const fake = fakeControlProcess();
+    childProcess.spawn.mockReturnValue(fake.child);
+    const received: string[] = [];
+
+    const process = new TmuxControlModeProcess({
+      tmuxPath: "/opt/homebrew/bin/tmux",
+      sessionName: "exo-session",
+      paneId: "%3",
+      cwd: "/tmp/work",
+      env: { PATH: "/bin" },
+      cols: 100,
+      rows: 30,
+    });
+    process.onData((data) => received.push(data));
+
+    const line = Buffer.from("%output %3 literal ─ 🙂 prompt\\015\\012\n", "utf8");
+    fake.emitStdoutBytes(line.subarray(0, 20));
+    fake.emitStdoutBytes(line.subarray(20, 23));
+    fake.emitStdoutBytes(line.subarray(23));
+
+    expect(received.join("")).toBe("literal ─ 🙂 prompt\r\n");
+    expect(received.join("")).not.toContain("�");
   });
 
   it("maps terminal input to tmux keys without treating escape sequences as text", () => {
@@ -226,6 +283,7 @@ function fakeControlProcess() {
   };
   const stdout = new EventEmitter() as EventEmitter & { setEncoding: (encoding: string) => void };
   const stderr = new EventEmitter() as EventEmitter & { setEncoding: (encoding: string) => void };
+  const stdoutDecoder = new StringDecoder("utf8");
   const stdinWrites: string[] = [];
   stdout.setEncoding = vi.fn();
   stderr.setEncoding = vi.fn();
@@ -247,5 +305,11 @@ function fakeControlProcess() {
     child,
     stdinWrites,
     emitStdout: (data: string) => stdout.emit("data", data),
+    emitStdoutBytes: (data: Buffer) => {
+      const decoded = stdoutDecoder.write(data);
+      if (decoded.length > 0) {
+        stdout.emit("data", decoded);
+      }
+    },
   };
 }

@@ -203,7 +203,7 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 
 ### EXO-ISSUE-041: Terminal panes can blank, hydrate at stale width, or leak generated OSC responses
 
-- Status: regressed; open
+- Status: implemented locally; pending real-app QA
 - Severity: critical
 - Area: terminal renderer, xterm hydration, pane moves, refresh/reload recovery
 - Observed:
@@ -233,9 +233,14 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
   - Empty initial snapshots no longer mark version `0` as consumed.
   - Hydration now fits the xterm viewport before replaying the snapshot.
   - Terminal-generated OSC 10/11/12 and indexed color responses are filtered before reaching the terminal process.
+  - Tmux control-mode output now decodes octal-escaped bytes through a stateful UTF-8 decoder per pane, so split box-drawing glyphs and emoji are not finalized as replacement characters.
+  - Renderer live terminal writes now carry a pending high surrogate across data events before chunking writes into xterm, so split Unicode output is not corrupted at the browser/xterm boundary.
 - QA coverage:
   - Unit coverage for CSI and OSC terminal-generated response filtering.
   - Relaunch E2E now asserts prior terminal output is visible before sending new input.
+  - Added deterministic tmux control-mode regressions for split escaped UTF-8 bytes, split stdout chunks, box-drawing glyphs, and emoji.
+  - Added renderer chunking regressions for surrogate pairs split across terminal data events.
+  - Focused Electron terminal rendering e2e passes for emoji-heavy output without replacement glyphs; manual Claude Code startup QA remains required.
 
 ### EXO-ISSUE-040: Agent-facing Exo orientation requires sandbox escalation and raw repo search
 
