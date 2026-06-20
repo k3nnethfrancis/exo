@@ -14,11 +14,14 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 - Observed:
   - NDE audit on 2026-06-20 verified MCP stdio initialize and `listTools` worked quickly and exposed only the intended narrow nine-tool surface.
   - The active runtime discovery file at `/Users/kenneth/Desktop/lab/.exo/server.json` pointed to dead pid `14108` on port `53794`.
+  - Later on 2026-06-20, sandboxed `exo status` again reported pid `14108` / port `53794` as stale/dead, but escalated process inspection showed pid `14108` was alive and escalated `exo status` succeeded against `http://127.0.0.1:53794`.
+  - This means sandboxed Exo-on-Exo diagnostics can falsely classify healthy command-server discovery as stale when sandbox policy blocks process or network checks.
   - MCP app-backed calls such as `workspace_status` and `list_agents` returned `isError: true` stale-server text instead of useful structured runtime status.
   - With `EXO_MCP_AUTOSTART=1`, `EXO_MCP_CONNECT_TIMEOUT_MS=12000`, and `EXO_MCP_START_COMMAND=/Users/kenneth/Desktop/lab/projects/exo/bin/exo start`, MCP still waited against `http://127.0.0.1:53794` and timed out after about 12.1s.
 - Expected:
   - If MCP can initialize and list tools, the first app-backed call should either recover stale discovery through autostart or return a structured stale-runtime diagnostic.
   - Autostart should validate stale `server.json`, avoid staying pinned to a dead pid/port, and wait for a fresh reachable command server.
+  - Diagnostics should distinguish sandbox, permission, and connectivity failures from a truly dead pid or stale discovery file, especially for MCP and CLI fallback paths.
   - New agents should not need to infer from plain text that the MCP control plane is unavailable.
 - Investigation notes:
   - Review `ExoCommandClient.connect()` stale discovery handling: it reads `server.json`, checks reachability, starts Exo when autostart is enabled, then waits for a reachable client but appears to keep reporting the stale base URL when recovery fails.
@@ -26,6 +29,7 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
   - Audit MCP error shaping so app-unreachable failures include runtime root, discovery file, stale pid/port, autostart state, timeout, and whether a start attempt was made.
 - QA coverage:
   - MCP unit/integration fixture with stale `server.json`, unreachable port, and autostart enabled.
+  - Sandboxed diagnostic fixture where pid/port checks are blocked but unsandboxed checks would reach a healthy command server.
   - MCP fixture without autostart that verifies structured stale-runtime error output.
   - End-to-end smoke for configured Codex/Claude MCP startup after stale discovery, asserting `workspace_status` either succeeds or returns actionable structured diagnostics.
 
