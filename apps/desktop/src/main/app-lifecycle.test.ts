@@ -10,6 +10,7 @@ const electronMock = vi.hoisted(() => ({
   openSettings: vi.fn(),
   restartCommandServer: vi.fn(),
   showMessageBox: vi.fn(),
+  trayImageCreateFromDataURL: vi.fn(),
   trayImageCreateFromPath: vi.fn(),
   trayImageSetTemplateImage: vi.fn(),
   trayInstances: [] as Array<any>,
@@ -89,6 +90,12 @@ vi.mock("electron", () => ({
     createEmpty: () => ({
       setTemplateImage: electronMock.trayImageSetTemplateImage,
     }),
+    createFromDataURL: (dataUrl: string) => {
+      electronMock.trayImageCreateFromDataURL(dataUrl);
+      return {
+        setTemplateImage: electronMock.trayImageSetTemplateImage,
+      };
+    },
     createFromPath: (iconPath: string) => {
       electronMock.trayImageCreateFromPath(iconPath);
       return {
@@ -126,6 +133,7 @@ describe("AppLifecycleController", () => {
     electronMock.restartCommandServer.mockClear();
     electronMock.showMessageBox.mockReset();
     electronMock.showMessageBox.mockImplementation(async () => ({ response: electronMock.dialogResponse }));
+    electronMock.trayImageCreateFromDataURL.mockClear();
     electronMock.trayImageCreateFromPath.mockClear();
     electronMock.trayImageSetTemplateImage.mockClear();
     electronMock.trayInstances.length = 0;
@@ -188,7 +196,8 @@ describe("AppLifecycleController", () => {
     controller.createWindow();
     controller.setupTray();
 
-    expect(electronMock.trayImageCreateFromPath).toHaveBeenCalledWith(expect.stringContaining("build/tray-icon.png"));
+    expect(electronMock.trayImageCreateFromDataURL).toHaveBeenCalledWith(expect.stringMatching(/^data:image\/png;base64,/));
+    expect(electronMock.trayImageCreateFromPath).not.toHaveBeenCalled();
     expect(electronMock.trayImageSetTemplateImage).toHaveBeenCalledWith(true);
     expect(electronMock.trayInstances).toHaveLength(1);
     expect(electronMock.trayInstances[0].setToolTip).toHaveBeenCalledWith("Exo");
@@ -200,6 +209,18 @@ describe("AppLifecycleController", () => {
     expect(menuLabels()).toContain("Live Terminals: 1");
     expect(menuLabels()).toContain("Restart Command Server");
     expect(menuLabels()).toContain("Quit Exo");
+  });
+
+  it("does not require a packaged tray asset on disk", () => {
+    const controller = appLifecycleController([], {
+      currentDirectory: path.join(currentDirectory, "missing-packaged-dist"),
+    });
+
+    controller.setupTray();
+
+    expect(electronMock.trayImageCreateFromDataURL).toHaveBeenCalledWith(expect.stringMatching(/^data:image\/png;base64,/));
+    expect(electronMock.trayImageCreateFromPath).not.toHaveBeenCalled();
+    expect(electronMock.trayInstances).toHaveLength(1);
   });
 
   it("opens settings from the resident menu without quitting the runtime", () => {
@@ -241,7 +262,10 @@ describe("AppLifecycleController", () => {
   });
 });
 
-function appLifecycleController(terminals: Array<{ id: string; status: string }> = []) {
+function appLifecycleController(
+  terminals: Array<{ id: string; status: string }> = [],
+  overrides: Partial<ConstructorParameters<typeof AppLifecycleController>[0]> = {},
+) {
   return new AppLifecycleController({
     currentDirectory,
     getTerminalDiagnostics: () => terminals as any,
@@ -249,6 +273,7 @@ function appLifecycleController(terminals: Array<{ id: string; status: string }>
     openSettings: electronMock.openSettings,
     restartCommandServer: electronMock.restartCommandServer,
     logMain: () => {},
+    ...overrides,
   });
 }
 
