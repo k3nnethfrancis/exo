@@ -322,6 +322,7 @@ These issues have fixes and coverage, but remain worth exercising during daily i
   - A tmux-backed Claude agent launched from `lab` completed an organization-protocol run and asked follow-up questions, but the terminal then became unresponsive and the user could not type a reply.
   - Fresh setup field report from 2026-06-02 found terminal display corruption, garbled output, misaligned text, or blank regions after refreshing or switching terminal tabs. The terminal remained functional and often self-corrected after later output.
   - On 2026-06-17, while Claude Code was split beside the editor, prompt input sometimes reached the agent but the visible prompt did not wrap/newline correctly; the last visible character appeared to change in place. Terminal history also sometimes showed large blank gaps, odd formatting, or missing-looking chunks.
+  - On 2026-06-19, emoji/unknown-character output could spread across the terminal viewport and leave the xterm surface corrupted until a full renderer reload.
 - Suspected reliability risks:
   - Historical tmux-backed sessions added a second terminal layer that could hide dead, blocked, or detached panes behind a still-running attach process. The new tmux-backed runtime must avoid that old failure mode through one explicit runtime boundary, health diagnostics, and deterministic QA; see `terminal-runtime-decision.md`.
   - Historical terminal activation/switching forced full-output reads and xterm replay, which made the renderer busy exactly when the user tried to type.
@@ -342,6 +343,7 @@ These issues have fixes and coverage, but remain worth exercising during daily i
   - Live active terminal output now streams directly into xterm through the terminal registry, avoiding React-owned full-output state as the primary render path.
   - Debounced terminal resize events before they reach pty.
   - Reduced renderer-to-tmux resize handoff debounce from 75ms to one animation frame so split-pane xterm fitting and backend terminal dimensions converge faster during active typing.
+  - Made renderer write chunking Unicode-safe for surrogate-pair emoji and skipped the initial empty hydration reset so live output is not disturbed by startup hydration.
 
 ## Resolved
 

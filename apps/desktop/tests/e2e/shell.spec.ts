@@ -1455,6 +1455,22 @@ test("keeps app terminal tail above the legacy 12k cap", async () => {
   }
 });
 
+test("renders emoji-heavy terminal output without replacement glyph corruption", async () => {
+  const { page, cleanup } = await launchExoFixture({
+    env: {
+      EXO_SHELL: process.execPath,
+      EXO_SHELL_ARGS: '-e,process.stdout.write("🙂".repeat(20000)+"\\nterminal-emoji-end\\n");setInterval(()=>{},1000)',
+    },
+  });
+
+  try {
+    await expect(page.locator(".xterm-rows")).toContainText("terminal-emoji-end");
+    await expect(page.locator(".xterm-rows")).not.toContainText("�");
+  } finally {
+    await cleanup();
+  }
+});
+
 test("does not feed xterm device responses back into terminal input", async () => {
   const { page, cleanup } = await launchExoFixture({
     env: {

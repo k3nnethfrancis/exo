@@ -24,6 +24,7 @@ import {
 } from "../../main/settings-store";
 import { buildProjectReviewChanges, uniqueCwdMatchedSession } from "./changedFileReview";
 import { isTerminalGeneratedResponse } from "./components/terminalInputFilters";
+import { chunkTerminalData } from "./components/terminalOutputChunks";
 import { listEnterEdit, wikilinkExitEdit } from "./components/markdownLivePreview";
 import { defaultTerminalCwdForNotesFolder } from "./hooks/useWorkspaceBootstrap";
 import { terminalSessionsEqual } from "./terminalSessions";
@@ -242,6 +243,26 @@ describe("terminal input filtering", () => {
     expect(isTerminalGeneratedResponse("try this out")).toBe(false);
   });
 });
+
+describe("terminal output chunking", () => {
+  it("does not split surrogate-pair emoji across xterm write chunks", () => {
+    const chunks = chunkTerminalData(`ab🙂cd`, 3);
+
+    expect(chunks).toEqual(["ab", "🙂c", "d"]);
+    expect(chunks.join("")).toBe("ab🙂cd");
+    expect(chunks.every((chunk) => !endsWithHighSurrogate(chunk) && !startsWithLowSurrogate(chunk))).toBe(true);
+  });
+});
+
+function endsWithHighSurrogate(value: string): boolean {
+  const code = value.charCodeAt(value.length - 1);
+  return code >= 0xd800 && code <= 0xdbff;
+}
+
+function startsWithLowSurrogate(value: string): boolean {
+  const code = value.charCodeAt(0);
+  return code >= 0xdc00 && code <= 0xdfff;
+}
 
 describe("markdown editor list behavior", () => {
   it("continues unordered lists on Enter", () => {

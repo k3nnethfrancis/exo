@@ -6,9 +6,9 @@ import { Terminal } from "xterm";
 import type { TerminalSessionInfo } from "../../../shared/api";
 import type { ResolvedAppearance } from "../appearance";
 import { isTerminalGeneratedResponse } from "./terminalInputFilters";
+import { chunkTerminalData, TERMINAL_WRITE_CHUNK_SIZE } from "./terminalOutputChunks";
 import { registerTerminal, unregisterTerminal } from "./terminalRegistry";
 
-const TERMINAL_WRITE_CHUNK_SIZE = 16_384;
 const PROGRAMMATIC_INPUT_GUARD_MS = 250;
 const TERMINAL_RESIZE_DEBOUNCE_MS = 16;
 
@@ -181,8 +181,12 @@ export function TerminalView(props: TerminalViewProps) {
 
     const shouldFollowOutput = isScrolledToBottom(terminal);
 
-    const forceReset = hydrationVersionRef.current !== hydrationVersion;
-    if (!forceReset) {
+    if (hydrationVersionRef.current === -1 && hydrationVersion === 0 && hydrationSnapshot.length === 0) {
+      hydrationVersionRef.current = hydrationVersion;
+      return;
+    }
+
+    if (hydrationVersionRef.current === hydrationVersion) {
       return;
     }
     hydrationVersionRef.current = hydrationVersion;
@@ -220,8 +224,8 @@ function enqueueTerminalWrite(
     return;
   }
 
-  for (let offset = 0; offset < data.length; offset += TERMINAL_WRITE_CHUNK_SIZE) {
-    queueRef.current.push(data.slice(offset, offset + TERMINAL_WRITE_CHUNK_SIZE));
+  for (const chunk of chunkTerminalData(data, TERMINAL_WRITE_CHUNK_SIZE)) {
+    queueRef.current.push(chunk);
   }
 
   drainTerminalWriteQueue(terminal, queueRef, writingRef, disposedRef, programmaticInputGuardUntilRef);
