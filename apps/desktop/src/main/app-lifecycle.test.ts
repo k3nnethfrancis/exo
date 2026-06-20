@@ -1,4 +1,6 @@
 import { EventEmitter } from "node:events";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const electronMock = vi.hoisted(() => ({
@@ -8,6 +10,7 @@ const electronMock = vi.hoisted(() => ({
   openSettings: vi.fn(),
   restartCommandServer: vi.fn(),
   showMessageBox: vi.fn(),
+  trayImageCreateFromPath: vi.fn(),
   trayImageSetTemplateImage: vi.fn(),
   trayInstances: [] as Array<any>,
   windows: [] as Array<any>,
@@ -83,9 +86,15 @@ vi.mock("electron", () => ({
     },
   },
   nativeImage: {
-    createFromDataURL: () => ({
+    createEmpty: () => ({
       setTemplateImage: electronMock.trayImageSetTemplateImage,
     }),
+    createFromPath: (iconPath: string) => {
+      electronMock.trayImageCreateFromPath(iconPath);
+      return {
+        setTemplateImage: electronMock.trayImageSetTemplateImage,
+      };
+    },
   },
   nativeTheme: {
     shouldUseDarkColors: true,
@@ -103,6 +112,8 @@ vi.mock("electron", () => ({
 
 import { AppLifecycleController } from "./app-lifecycle";
 
+const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
+
 describe("AppLifecycleController", () => {
   beforeEach(() => {
     delete process.env.EXO_TEST;
@@ -115,6 +126,7 @@ describe("AppLifecycleController", () => {
     electronMock.restartCommandServer.mockClear();
     electronMock.showMessageBox.mockReset();
     electronMock.showMessageBox.mockImplementation(async () => ({ response: electronMock.dialogResponse }));
+    electronMock.trayImageCreateFromPath.mockClear();
     electronMock.trayImageSetTemplateImage.mockClear();
     electronMock.trayInstances.length = 0;
     electronMock.windows.length = 0;
@@ -176,6 +188,7 @@ describe("AppLifecycleController", () => {
     controller.createWindow();
     controller.setupTray();
 
+    expect(electronMock.trayImageCreateFromPath).toHaveBeenCalledWith(expect.stringContaining("build/tray-icon.png"));
     expect(electronMock.trayImageSetTemplateImage).toHaveBeenCalledWith(true);
     expect(electronMock.trayInstances).toHaveLength(1);
     expect(electronMock.trayInstances[0].setToolTip).toHaveBeenCalledWith("Exo");
@@ -230,7 +243,7 @@ describe("AppLifecycleController", () => {
 
 function appLifecycleController(terminals: Array<{ id: string; status: string }> = []) {
   return new AppLifecycleController({
-    currentDirectory: "/workspace/apps/desktop/src/main",
+    currentDirectory,
     getTerminalDiagnostics: () => terminals as any,
     getCommandServerStatus: () => electronMock.commandServerStatus,
     openSettings: electronMock.openSettings,

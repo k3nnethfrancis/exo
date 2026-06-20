@@ -13,9 +13,6 @@ export interface AppLifecycleControllerOptions {
   logMain: (message: string, details?: unknown) => void;
 }
 
-const MENU_BAR_ICON_DATA_URL =
-  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABIAAAASCAYAAABWzo5XAAAARUlEQVR4nGNgGHHgP4XycEUwTI48hiJiMVGG3SHXReiK8RlEEkA3DJfh9DMIWTNFhsAMwhdmZBlEFUOoahjFgCqG0BcAAGWcO4nvN6GIAAAAAElFTkSuQmCC";
-
 export class AppLifecycleController {
   private mainWindow: BrowserWindow | null = null;
   private rendererReady = false;
@@ -147,7 +144,8 @@ export class AppLifecycleController {
       return;
     }
 
-    const icon = nativeImage.createFromDataURL(MENU_BAR_ICON_DATA_URL);
+    const iconPath = this.resolveTrayIconPath() ?? this.resolveWindowIconPath();
+    const icon = iconPath ? nativeImage.createFromPath(iconPath) : nativeImage.createEmpty();
     icon.setTemplateImage(true);
 
     this.tray = new Tray(icon);
@@ -330,6 +328,11 @@ export class AppLifecycleController {
 
   private resolveWindowIconPath(): string | undefined {
     const iconPath = path.join(this.options.currentDirectory, "../../build/icon.png");
+    return existsSync(iconPath) ? iconPath : undefined;
+  }
+
+  private resolveTrayIconPath(): string | undefined {
+    const iconPath = path.join(this.options.currentDirectory, "../../build/tray-icon.png");
     return existsSync(iconPath) ? iconPath : undefined;
   }
 

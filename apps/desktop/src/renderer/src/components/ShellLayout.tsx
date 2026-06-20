@@ -9,6 +9,7 @@ import type { WorkspaceSearchResultMode } from "../hooks/useWorkspaceSearch";
 import type { AppearanceMode, ResolvedAppearance } from "../appearance";
 import type { TreeNode, WorkspaceSearchResults } from "@exo/core";
 import type { WorkspaceGitChange } from "../../../shared/api";
+import exoIcon from "../assets/exo-icon.svg";
 
 const RESIZER_TRACK_SIZE = "6px";
 
@@ -258,7 +259,10 @@ export function ShellLayout(props: ShellLayoutProps) {
     <div className="shell-frame">
       <header className="topbar">
         <div className="topbar__spacer topbar__spacer--left" aria-hidden />
-        <div className="topbar__title" aria-hidden />
+        <div className="topbar__title" aria-label="exograph">
+          <img className="topbar__brand-icon" src={exoIcon} alt="" aria-hidden="true" />
+          <span className="topbar__brand-text">exograph</span>
+        </div>
         <div className="topbar__spacer topbar__spacer--right" aria-hidden />
       </header>
       <div
