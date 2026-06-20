@@ -19,6 +19,7 @@ import {
 import { createIndexedRoot, DEFAULT_INDEXING } from "./workspace";
 
 export const DEFAULT_APPEARANCE_MODE: WorkspaceSettings["appearanceMode"] = "system";
+export const DEFAULT_COLOR_THEME_ID: WorkspaceSettings["colorThemeId"] = "exo-neutral";
 export const DEFAULT_EDITOR_FONT_SIZE = 15;
 export const DEFAULT_TERMINAL_FONT_SIZE = 13;
 export const DEFAULT_TERMINAL_HISTORY_MODE: WorkspaceSettings["terminalHistoryMode"] = "custom";
@@ -187,6 +188,7 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
     indexedRoots,
     indexing,
     appearanceMode: input.appearanceMode === "light" || input.appearanceMode === "dark" || input.appearanceMode === "system" ? input.appearanceMode : DEFAULT_APPEARANCE_MODE,
+    colorThemeId: normalizeColorThemeId(input.colorThemeId),
     editorFontSize: clampSettingsNumber(input.editorFontSize, DEFAULT_EDITOR_FONT_SIZE, 11, 24),
     terminalFontSize: clampSettingsNumber(input.terminalFontSize, DEFAULT_TERMINAL_FONT_SIZE, 10, 22),
     terminalHistoryMode: DEFAULT_TERMINAL_HISTORY_MODE,
@@ -212,6 +214,10 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
     indexUpdateStrategy: input.indexUpdateStrategy === "manual" ? "manual" : "on-save",
     layout: normalizeWorkspaceLayout(input.layout),
   };
+}
+
+function normalizeColorThemeId(value: unknown): WorkspaceSettings["colorThemeId"] {
+  return value === "exo-solar" || value === "exo-neutral" ? value : DEFAULT_COLOR_THEME_ID;
 }
 
 export function workspaceEntryFromSettings(settings: WorkspaceSettings): WorkspaceRegistryEntry {

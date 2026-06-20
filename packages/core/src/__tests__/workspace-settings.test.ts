@@ -4,14 +4,73 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  loadWorkspaceSettings,
   listWorkspaceRegistryEntries,
   loadActiveWorkspaceSettings,
+  normalizeWorkspaceSettings,
   saveWorkspaceSettings,
   workspaceEnvOverrides,
   workspaceSettingsToEnv,
 } from "../workspace-settings";
 
 describe("workspace settings registry", () => {
+  it("defaults missing color theme ids and normalizes unknown ids", () => {
+    const missing = normalizeWorkspaceSettings({
+      workspaceRoot: "/tmp/exo-theme/notes",
+      defaultTerminalCwd: "/tmp/exo-theme/project",
+      noteRoots: ["/tmp/exo-theme/notes"],
+      projectRoots: [],
+      indexedRoots: [],
+      indexing: { enabled: false, mode: "off", backend: "qmd" },
+    });
+    const unknown = normalizeWorkspaceSettings({
+      workspaceRoot: "/tmp/exo-theme/notes",
+      defaultTerminalCwd: "/tmp/exo-theme/project",
+      noteRoots: ["/tmp/exo-theme/notes"],
+      projectRoots: [],
+      indexedRoots: [],
+      indexing: { enabled: false, mode: "off", backend: "qmd" },
+      colorThemeId: "unknown-theme" as never,
+    });
+
+    expect(missing?.colorThemeId).toBe("exo-neutral");
+    expect(unknown?.colorThemeId).toBe("exo-neutral");
+  });
+
+  it("persists selected color theme ids", async () => {
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-theme-"));
+    const env = { EXO_USER_DATA_PATH: userDataPath };
+
+    try {
+      await saveWorkspaceSettings({
+        workspaceRoot: "/tmp/exo-theme/notes",
+        defaultTerminalCwd: "/tmp/exo-theme/project",
+        noteRoots: ["/tmp/exo-theme/notes"],
+        projectRoots: ["/tmp/exo-theme/project"],
+        indexedRoots: [],
+        indexing: { enabled: false, mode: "off", backend: "qmd" },
+        appearanceMode: "dark",
+        colorThemeId: "exo-solar",
+        editorFontSize: 15,
+        terminalFontSize: 13,
+        terminalHistoryMode: "custom",
+        terminalHistoryLines: 100_000,
+        terminalTranscriptRetention: "forever",
+        terminalTranscriptRetentionDays: 14,
+        explorerScale: 1,
+        exploreIndexSearchOnEnter: false,
+        indexUpdateStrategy: "on-save",
+      }, env);
+
+      await expect(loadWorkspaceSettings(env)).resolves.toMatchObject({
+        appearanceMode: "dark",
+        colorThemeId: "exo-solar",
+      });
+    } finally {
+      await rm(userDataPath, { recursive: true, force: true });
+    }
+  });
+
   it("normalizes persisted pane layout settings", async () => {
     const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-layout-"));
 
@@ -24,6 +83,7 @@ describe("workspace settings registry", () => {
         indexedRoots: [],
         indexing: { enabled: false, mode: "off", backend: "qmd" },
         appearanceMode: "system",
+        colorThemeId: "exo-neutral",
         editorFontSize: 15,
         terminalFontSize: 13,
         terminalHistoryMode: "full",
@@ -90,6 +150,7 @@ describe("workspace settings registry", () => {
         indexedRoots: [],
         indexing: { enabled: false, mode: "off", backend: "qmd" },
         appearanceMode: "system",
+        colorThemeId: "exo-neutral",
         editorFontSize: 15,
         terminalFontSize: 13,
         terminalHistoryMode: "full",
@@ -130,6 +191,7 @@ describe("workspace settings registry", () => {
         indexedRoots: [],
         indexing: { enabled: false, mode: "off", backend: "qmd" },
         appearanceMode: "system",
+        colorThemeId: "exo-neutral",
         editorFontSize: 15,
         terminalFontSize: 13,
         terminalHistoryMode: "full",

@@ -2,9 +2,9 @@ import { useEffect, useRef, type CSSProperties, type ReactNode, type Ref } from 
 import { GripVertical, RefreshCw, SquareTerminal, X } from "lucide-react";
 
 import type { TerminalSessionInfo } from "../../../shared/api";
-import type { ResolvedAppearance } from "../appearance";
 import type { DragManager } from "../hooks/useDragManager";
 import { isReconnectableSession, isTerminalInputEnabled } from "../terminalSessions";
+import type { ExoThemeVariant } from "../theme/types";
 import { AgentIcon } from "./AgentIcon";
 import { ChromeTab } from "./Chrome";
 import { focusTerminal } from "./terminalRegistry";
@@ -13,7 +13,7 @@ import { TerminalView } from "./TerminalView";
 interface TerminalDockProps {
   placement: "right" | "bottom";
   paneId: string;
-  appearance: ResolvedAppearance;
+  theme: ExoThemeVariant;
   compact: boolean;
   empty: boolean;
   sessions: TerminalSessionInfo[];
@@ -41,7 +41,7 @@ export function TerminalDock(props: TerminalDockProps) {
   const {
     placement,
     paneId,
-    appearance,
+    theme,
     compact,
     empty,
     sessions,
@@ -160,7 +160,7 @@ export function TerminalDock(props: TerminalDockProps) {
           {activeSession ? (
             <div className="terminal-dock__terminal-frame">
               <TerminalView
-                appearance={appearance}
+                theme={theme}
                 session={activeSession}
                 hydrationSnapshot={hydrationSnapshots[activeSession.id] ?? ""}
                 hydrationVersion={hydrationVersions[activeSession.id] ?? 0}

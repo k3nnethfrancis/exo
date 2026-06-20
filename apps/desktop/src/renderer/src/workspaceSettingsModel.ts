@@ -11,6 +11,7 @@ export const DEFAULT_EXPLORER_SCALE = 1;
 export function workspaceSettingsImmediateDraftKey(settings: WorkspaceSettingsDialogState): string {
   return JSON.stringify({
     appearanceMode: settings.appearanceMode,
+    colorThemeId: settings.colorThemeId,
     editorFontSize: settings.editorFontSize,
     terminalFontSize: settings.terminalFontSize,
     terminalHistoryMode: settings.terminalHistoryMode,

@@ -3,6 +3,8 @@ import { Plus, X } from "lucide-react";
 import type { IndexStatus, WorkspaceSettings } from "@exo/core";
 
 import type { AppearanceMode } from "../appearance";
+import { THEME_FAMILIES, normalizeColorThemeId } from "../theme/registry";
+import type { ColorThemeId } from "../theme/types";
 import { agentInstructionStatusLabel, type AgentInstructionEditorController } from "../hooks/useAgentInstructionEditor";
 import type { IndexBusyState, WorkspaceSettingsDialogState, WorkspaceSettingsSection } from "../workspaceSettingsDialogTypes";
 import { HelpTooltip } from "./HelpTooltip";
@@ -413,7 +415,7 @@ function AppearanceSection({
   return (
     <div className="dialog-form__grid">
       <label className="dialog-field">
-        <span className="dialog-field__label">Appearance</span>
+        <span className="dialog-field__label">Mode</span>
         <select
           className="dialog-card__input"
           data-testid="workspace-settings-appearance"
@@ -425,6 +427,27 @@ function AppearanceSection({
           <option value="system">System</option>
           <option value="light">Light</option>
           <option value="dark">Dark</option>
+        </select>
+      </label>
+      <label className="dialog-field">
+        <span className="dialog-field__label">Color theme</span>
+        <select
+          className="dialog-card__input"
+          data-testid="workspace-settings-color-theme"
+          value={settings.colorThemeId}
+          onChange={(event) =>
+            setSettings((current) =>
+              current
+                ? { ...current, colorThemeId: normalizeColorThemeId(event.target.value as ColorThemeId), saveStatus: "idle", errorMessage: null }
+                : current,
+            )
+          }
+        >
+          {THEME_FAMILIES.map((theme) => (
+            <option key={theme.id} value={theme.id}>
+              {theme.label}
+            </option>
+          ))}
         </select>
       </label>
       <label className="dialog-field">

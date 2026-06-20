@@ -213,19 +213,19 @@
 }
 
 .statusbar__index--ok {
-  color: #62c073;
+  color: var(--state-success);
 }
 
 .statusbar__index--warn {
-  color: #d4a941;
+  color: var(--state-warning);
 }
 
 .statusbar__index--info {
-  color: #5fa7e8;
+  color: var(--state-info);
 }
 
 .statusbar__index--error {
-  color: #e66f6f;
+  color: var(--state-danger);
 }
 
 .statusbar__ellipsis::after {

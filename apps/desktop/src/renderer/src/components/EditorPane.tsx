@@ -1,6 +1,6 @@
 import type { BranchFamily, NoteDocument } from "@exo/core";
-import type { ResolvedAppearance } from "../appearance";
 import type { DragManager } from "../hooks/useDragManager";
+import type { ExoThemeVariant } from "../theme/types";
 
 import { ChromeTab } from "./Chrome";
 import { getDocumentDisplayTitle } from "./documentDisplay";
@@ -38,7 +38,7 @@ interface EditorPaneProps {
   onOpenBranch: (filePath: string) => void;
   onSuggestTargets: (query: string) => Promise<Array<{ label: string; target: string; detail?: string }>>;
   onCreateBranch: () => void;
-  appearance: ResolvedAppearance;
+  theme: ExoThemeVariant;
   fontSize: number;
   onZoomEditor: (direction: -1 | 0 | 1) => void;
   compact: boolean;
@@ -69,7 +69,7 @@ export function EditorPane(props: EditorPaneProps) {
     onOpenBranch,
     onSuggestTargets,
     onCreateBranch,
-    appearance,
+    theme,
     fontSize,
     onZoomEditor,
     compact,
@@ -149,7 +149,7 @@ export function EditorPane(props: EditorPaneProps) {
         onSuggestTargets={onSuggestTargets}
         onCreateBranch={onCreateBranch}
         onFocus={onFocusPane}
-        appearance={appearance}
+        theme={theme}
         fontSize={fontSize}
         onZoomEditor={onZoomEditor}
         compact={compact}

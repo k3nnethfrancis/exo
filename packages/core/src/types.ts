@@ -1,6 +1,7 @@
 export type RootKind = "notes" | "projects";
 export type DocumentKind = "markdown" | "text";
 export type ManagedAgentKind = "shell" | "claude" | "codex";
+export type ColorThemeId = "exo-neutral" | "exo-solar";
 
 export interface AttachedRoot {
   id: string;
@@ -27,6 +28,7 @@ export interface WorkspaceSettings {
   indexedRoots: IndexedRoot[];
   indexing: IndexingConfig;
   appearanceMode: "system" | "light" | "dark";
+  colorThemeId: ColorThemeId;
   editorFontSize: number;
   terminalFontSize: number;
   terminalHistoryMode: TerminalHistoryMode;

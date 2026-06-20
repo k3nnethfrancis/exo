@@ -1,5 +1,6 @@
 import {
   DEFAULT_APPEARANCE_MODE,
+  DEFAULT_COLOR_THEME_ID,
   DEFAULT_EDITOR_FONT_SIZE,
   DEFAULT_EXPLORER_SCALE,
   DEFAULT_TERMINAL_FONT_SIZE,
@@ -106,6 +107,7 @@ export class WorkspaceSettingsStore {
       indexedRoots: model.indexedRoots,
       indexing: model.indexing,
       appearanceMode: DEFAULT_APPEARANCE_MODE,
+      colorThemeId: DEFAULT_COLOR_THEME_ID,
       editorFontSize: DEFAULT_EDITOR_FONT_SIZE,
       terminalFontSize: DEFAULT_TERMINAL_FONT_SIZE,
       terminalHistoryMode: DEFAULT_TERMINAL_HISTORY_MODE,
