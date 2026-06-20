@@ -73,6 +73,7 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
   - Crash report review found the 08:42/08:47 reports were `com.github.Electron` dev/test Electron processes launched by `node` under `com.openai.codex`, not installed `Exo.app`; sandboxed stale pid reports should be treated as suspect unless confirmed outside the sandbox.
   - MCP app-backed calls such as `workspace_status` and `list_agents` returned `isError: true` stale-server text instead of useful structured runtime status.
   - With `EXO_MCP_AUTOSTART=1`, `EXO_MCP_CONNECT_TIMEOUT_MS=12000`, and `EXO_MCP_START_COMMAND=/Users/kenneth/Desktop/lab/projects/exo/bin/exo start`, MCP still waited against `http://127.0.0.1:53794` and timed out after about 12.1s.
+  - During the 2026-06-20 terminal corruption restart pass, `/Users/kenneth/.local/bin/exo start` returned exit code 0 after a clean quit but did not leave an Exo process running or recreate `.exo/server.json`; directly opening `/Users/kenneth/Applications/Exo.app` did start Exo and published a healthy command server.
 - Expected:
   - If MCP can initialize and list tools, the first app-backed call should either recover stale discovery through autostart or return a structured stale-runtime diagnostic.
   - Autostart should validate stale `server.json`, avoid staying pinned to a dead pid/port, and wait for a fresh reachable command server.
@@ -82,6 +83,7 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 - Investigation notes:
   - Review `ExoCommandClient.connect()` stale discovery handling: it reads `server.json`, checks reachability, starts Exo when autostart is enabled, then waits for a reachable client but appears to keep reporting the stale base URL when recovery fails.
   - Check whether `startExo()` succeeds but does not replace the stale discovery file, or whether the app start command is failing silently because it is detached with ignored stdio.
+  - Audit the installed CLI `exo start` path separately from direct macOS `open Exo.app`; a zero exit code must mean the app process and command server became reachable, or the command should print an actionable launch failure.
   - Audit MCP error shaping so app-unreachable failures include runtime root, discovery file, stale pid/port, autostart state, timeout, and whether a start attempt was made.
   - Preserve `process.kill(pid, 0)` error details in CLI/MCP discovery checks so permission/sandbox failures are not collapsed into "pid is dead".
 - QA coverage:
