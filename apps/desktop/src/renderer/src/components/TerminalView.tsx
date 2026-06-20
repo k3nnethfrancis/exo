@@ -67,7 +67,7 @@ export function TerminalView(props: TerminalViewProps) {
     });
 
     const disposeData = terminal.onData((data) => {
-      if (Date.now() < programmaticInputGuardUntilRef.current && isTerminalGeneratedResponse(data)) {
+      if (isTerminalGeneratedResponse(data)) {
         return;
       }
       inputHandlerRef.current(session.id, data);
@@ -175,14 +175,14 @@ export function TerminalView(props: TerminalViewProps) {
 
   useEffect(() => {
     const terminal = terminalRef.current;
-    if (!terminal) {
+    const fitAddon = fitAddonRef.current;
+    if (!terminal || !fitAddon) {
       return;
     }
 
     const shouldFollowOutput = isScrolledToBottom(terminal);
 
     if (hydrationVersionRef.current === -1 && hydrationVersion === 0 && hydrationSnapshot.length === 0) {
-      hydrationVersionRef.current = hydrationVersion;
       return;
     }
 
@@ -194,6 +194,7 @@ export function TerminalView(props: TerminalViewProps) {
     terminal.reset();
     writeQueueRef.current = [];
     writingRef.current = false;
+    safeFit(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef);
     enqueueTerminalWrite(terminal, hydrationSnapshot, writeQueueRef, writingRef, disposedRef, programmaticInputGuardUntilRef);
     if (shouldFollowOutput) {
       terminal.scrollToBottom();

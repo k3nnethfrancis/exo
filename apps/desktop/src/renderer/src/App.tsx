@@ -1006,6 +1006,7 @@ export function App() {
                 setZoomSurface("terminal");
                 editorActions.focusLeaf(leaf.id);
               }}
+              onHydrate={(id, options) => void terminalState.hydrateTerminal(id, options)}
               onSetActiveTerminal={(id) => {
                 setZoomSurface("terminal");
                 editorActions.updateLeafContent(leaf.id, (content) =>
@@ -1094,6 +1095,7 @@ export function App() {
             fontSize={terminalFontSize}
             scrollbackLines={terminalRuntimeScrollbackLines}
             onFocus={() => setZoomSurface("terminal")}
+            onHydrate={(id, options) => void terminalState.hydrateTerminal(id, options)}
             onSetActiveTerminal={(id) => {
               setZoomSurface("terminal");
               void terminalPaneController.activateTerminal(leaf.id, id);

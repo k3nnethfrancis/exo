@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { TerminalSessionInfo } from "../../../shared/api";
-import { hasRegisteredTerminal, writeTerminalData } from "../components/terminalRegistry";
+import { writeTerminalData } from "../components/terminalRegistry";
 import { terminalSessionsEqual } from "../terminalSessions";
 
 export interface UseTerminalSessionsOptions {
@@ -16,6 +16,8 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
   const [, setAgentAnnotations] = useState<Record<string, { runLabel: string; parentId: string | null }>>({});
   const sessionsRef = useRef<TerminalSessionInfo[]>([]);
   const activeTerminalIdRef = useRef<string | null>(null);
+  const hydratedSessionIdsRef = useRef(new Set<string>());
+  const pendingHydrationIdsRef = useRef(new Set<string>());
   const optionsRef = useRef(options);
 
   useEffect(() => {
@@ -97,21 +99,30 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
   }
 
   function setHydrationSnapshot(id: string, snapshot: string) {
+    hydratedSessionIdsRef.current.add(id);
+    pendingHydrationIdsRef.current.delete(id);
     setHydrationSnapshots((current) => ({ ...current, [id]: snapshot }));
     setHydrationVersions((current) => ({ ...current, [id]: (current[id] ?? 0) + 1 }));
   }
 
-  async function hydrateTerminal(id: string) {
-    if (hasRegisteredTerminal(id)) {
+  async function hydrateTerminal(id: string, options?: { force?: boolean }) {
+    if ((!options?.force && hydratedSessionIdsRef.current.has(id)) || pendingHydrationIdsRef.current.has(id)) {
       return;
     }
-    const snapshot = await window.exo.terminals.read(id);
-    setHydrationSnapshot(id, snapshot);
+    pendingHydrationIdsRef.current.add(id);
+    try {
+      const snapshot = await window.exo.terminals.read(id);
+      setHydrationSnapshot(id, snapshot);
+    } finally {
+      pendingHydrationIdsRef.current.delete(id);
+    }
   }
 
   function pruneHydration(activeIds: Set<string>) {
     setHydrationSnapshots((current) => pruneRecordToKeys(current, activeIds));
     setHydrationVersions((current) => pruneRecordToKeys(current, activeIds));
+    hydratedSessionIdsRef.current = new Set([...hydratedSessionIdsRef.current].filter((id) => activeIds.has(id)));
+    pendingHydrationIdsRef.current = new Set([...pendingHydrationIdsRef.current].filter((id) => activeIds.has(id)));
   }
 
   async function createTerminal(kind: "shell" | "claude" | "codex", cwd?: string): Promise<TerminalSessionInfo> {
@@ -173,6 +184,8 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
       delete next[id];
       return next;
     });
+    hydratedSessionIdsRef.current.delete(id);
+    pendingHydrationIdsRef.current.delete(id);
     setAgentAnnotations((current) => {
       const next = { ...current };
       delete next[id];

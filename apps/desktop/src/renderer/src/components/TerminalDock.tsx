@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode, Ref } from "react";
+import { useEffect, useRef, type CSSProperties, type ReactNode, type Ref } from "react";
 import { GripVertical, RefreshCw, SquareTerminal, X } from "lucide-react";
 
 import type { TerminalSessionInfo } from "../../../shared/api";
@@ -22,6 +22,7 @@ interface TerminalDockProps {
   fontSize: number;
   scrollbackLines: number;
   onFocus: () => void;
+  onHydrate: (id: string, options?: { force?: boolean }) => void;
   onSetActiveTerminal: (id: string) => void;
   onWrite: (id: string, data: string) => void;
   onResize: (id: string, cols: number, rows: number) => void;
@@ -49,6 +50,7 @@ export function TerminalDock(props: TerminalDockProps) {
     fontSize,
     scrollbackLines,
     onFocus,
+    onHydrate,
     onSetActiveTerminal,
     onWrite,
     onResize,
@@ -63,6 +65,17 @@ export function TerminalDock(props: TerminalDockProps) {
   } = props;
   const activeSession = sessions.find((session) => session.id === activeTerminalId) ?? null;
   const canReconnect = Boolean(activeSession && isReconnectableSession(activeSession) && onReconnect);
+  const hydrateRef = useRef(onHydrate);
+
+  useEffect(() => {
+    hydrateRef.current = onHydrate;
+  }, [onHydrate]);
+
+  useEffect(() => {
+    if (activeSession) {
+      hydrateRef.current(activeSession.id, { force: true });
+    }
+  }, [activeSession?.id, paneId]);
 
   function focusTerminalAfterPaneActivation(sessionId: string | null) {
     if (!sessionId) {

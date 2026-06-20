@@ -731,6 +731,7 @@ test("reattaches a tmux-backed shell after app relaunch", async () => {
         status: "running",
       }),
     ]);
+    await waitForTerminalText(relaunched.page, "persist:before-relaunch");
     await relaunched.page.evaluate(async (id) => {
       await window.exo.terminals.sendMessage(id, "after-relaunch", true);
     }, shell.id);

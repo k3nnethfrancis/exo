@@ -6,6 +6,35 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 
 ## Open
 
+### EXO-ISSUE-041: Terminal panes can blank, hydrate at stale width, or leak generated OSC responses
+
+- Status: fixed in local branch
+- Severity: critical
+- Area: terminal renderer, xterm hydration, pane moves, refresh/reload recovery
+- Observed:
+  - After Cmd+Shift+R, terminal panes can render blank even though input still reaches the underlying session.
+  - Switching tabs can make a blank terminal group repaint, but single-tab terminal groups have no tab switch recovery path.
+  - Moving terminal tabs between panes can leave a half-blank terminal surface or hydrate scrollback at an older/narrower width.
+  - Random text such as `]10;rgb:5858/6e6e/7575\]11;rgb:fdfd/f6f6/e3e3\` can appear in an agent prompt after tab/pane swapping.
+- Expected:
+  - Visible active terminal panes should hydrate from the backend tail after reload or remount without requiring input or tab switching.
+  - Hydration should happen after xterm has a measured viewport so replayed history fits the current pane.
+  - xterm-generated device/color responses should never be forwarded to shell or agent processes as user input.
+- Investigation notes:
+  - The renderer used `terminalRegistry` registration as a proxy for hydration completion; after reload a blank xterm registered before any tail read and then blocked hydration.
+  - `TerminalView` consumed empty version `0` snapshots as completed hydration even when no read had occurred yet.
+  - Hydration could replay before the new pane geometry was fitted after pane moves.
+  - The input filter covered CSI device responses but not OSC color reports for foreground/background/cursor/indexed colors.
+- Resolution:
+  - Terminal hydration state is now tracked separately from the imperative xterm registry.
+  - Visible active `TerminalDock` instances request hydration on mount/active-session change, deduped by pending/hydrated state.
+  - Empty initial snapshots no longer mark version `0` as consumed.
+  - Hydration now fits the xterm viewport before replaying the snapshot.
+  - Terminal-generated OSC 10/11/12 and indexed color responses are filtered before reaching the terminal process.
+- QA coverage:
+  - Unit coverage for CSI and OSC terminal-generated response filtering.
+  - Relaunch E2E now asserts prior terminal output is visible before sending new input.
+
 ### EXO-ISSUE-040: Agent-facing Exo orientation requires sandbox escalation and raw repo search
 
 - Status: fixed in local branch
