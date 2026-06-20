@@ -1362,8 +1362,7 @@ button svg,
   display: grid;
   place-items: center;
   padding: 24px;
-  background: color-mix(in srgb, var(--bg) 58%, transparent);
-  backdrop-filter: blur(8px);
+  background: color-mix(in srgb, var(--bg) 42%, transparent);
   overflow: hidden;
 }
 
@@ -1382,7 +1381,7 @@ button svg,
 }
 
 .dialog-card--settings {
-  width: min(520px, calc(100vw - 48px));
+  width: min(720px, calc(100vw - 48px));
   grid-template-rows: auto auto auto minmax(0, 1fr) auto;
   overflow: hidden;
 }
@@ -1479,7 +1478,7 @@ select.dialog-card__input {
 
 .dialog-tabs {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 6px;
   padding: 3px;
   border: 1px solid var(--surface-border);

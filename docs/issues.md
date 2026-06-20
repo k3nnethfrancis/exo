@@ -6,6 +6,24 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 
 ## Open
 
+### EXO-ISSUE-048: Workspace Settings modal feels cramped after theme/settings updates
+
+- Status: fixed locally
+- Severity: low
+- Area: settings, themes, modal layout
+- Observed:
+  - Workspace Settings still used a narrow modal width after the Appearance/theme controls grew.
+  - The settings tab strip showed unused spacing after the Agents tab was removed.
+  - The modal overlay blurred the workspace behind it, making the app feel visually smeared instead of using a standard quiet scrim.
+- Expected:
+  - Workspace Settings should have enough width for path-heavy controls and theme settings.
+  - The tab strip should match the active four settings sections without an extra empty slot.
+  - Settings should use a simple modal scrim without backdrop blur.
+- Resolution:
+  - Widened Workspace Settings to 720px within viewport constraints.
+  - Updated the shared dialog tab grid to four columns, with the Agent Config Editor retaining its three-column override.
+  - Removed backdrop blur from the shared dialog overlay and kept a plain theme-aware scrim.
+
 ### EXO-ISSUE-047: Workspace Settings still shows duplicate agent config surface
 
 - Status: fixed locally

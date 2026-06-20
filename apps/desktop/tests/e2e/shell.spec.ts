@@ -1158,9 +1158,25 @@ test("opens agent config editor with partial agent instruction discovery errors"
     await page.getByTestId("workspace-settings").click();
     await expect(page.getByTestId("workspace-settings-dialog")).toBeVisible();
     await expect(page.getByTestId("workspace-settings-tab-agents")).toHaveCount(0);
+    await expect(page.getByTestId("workspace-settings-dialog").locator(".dialog-tabs__button")).toHaveCount(4);
+    const settingsLayout = await page.getByTestId("workspace-settings-dialog").evaluate((dialog) => {
+      const overlay = document.querySelector<HTMLElement>('[data-testid="workspace-settings-overlay"]');
+      const tabs = dialog.querySelector<HTMLElement>(".dialog-tabs");
+      const lastTab = dialog.querySelector<HTMLElement>(".dialog-tabs__button:last-child");
+      return {
+        backdropFilter: overlay ? getComputedStyle(overlay).backdropFilter : "",
+        lastTabRight: lastTab?.getBoundingClientRect().right ?? 0,
+        tabsRight: tabs?.getBoundingClientRect().right ?? 0,
+        width: dialog.getBoundingClientRect().width,
+      };
+    });
+    expect(settingsLayout.width).toBeGreaterThanOrEqual(680);
+    expect(settingsLayout.backdropFilter === "" || settingsLayout.backdropFilter === "none").toBe(true);
+    expect(settingsLayout.tabsRight - settingsLayout.lastTabRight).toBeLessThanOrEqual(6);
     await page.getByTestId("workspace-settings-close").click();
     await page.getByTestId("open-agent-config").click();
     await expect(page.getByTestId("agent-context-manager")).toBeVisible();
+    await expect(page.getByTestId("agent-context-manager").locator(".dialog-tabs__button")).toHaveCount(3);
     await expect(page.getByTestId("agent-context-manager-partial-errors")).toContainText("Notes AGENTS.md");
     await expect(page.getByTestId("agent-context-manager-body")).toContainText("Scope");
   } finally {
