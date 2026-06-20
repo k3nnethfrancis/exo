@@ -35,7 +35,7 @@ The immediate architecture is current-package domain modules, not a new runtime 
 
 This staged approach lets Exo ship resident runtime features without prematurely freezing plugin or runtime APIs.
 
-The first plugin architecture pass should not load arbitrary third-party code. It should define typed internal registries for built-in capabilities, then migrate hardwired behavior onto those contracts. The first two practical seams are search providers and agent harnesses because QMD and shell/Claude/Codex are already plugin-shaped but currently hardwired.
+The first plugin architecture pass should not load arbitrary third-party code. It should define typed internal registries for bundled capabilities, then migrate hardwired behavior onto those contracts. The first two practical seams are search providers and agent harnesses because QMD and shell/Claude/Codex/Pi/Hermes are plugin-shaped. Vanilla Exo should be understood as core plus bundled/recommended plugins, not core plus permanent hardcoded defaults.
 
 ## Runtime Command Server
 
@@ -101,7 +101,7 @@ Skills are harness-visible capabilities referenced by prompts, not Exo worker ru
 
 Terminals are the first agent interface.
 
-- shell, Claude, and Codex terminals use tmux-backed sessions for durable processes, with Exo's tmux control-mode bridge used for live rendering and input
+- shell, Claude Code, Codex, Pi, Hermes, and future harness terminals use tmux-backed sessions for durable processes, with Exo's current embedded terminal path using tmux control mode for live rendering and input
 - Exo session ids are local app ids such as `term-13`
 - terminal history policy is configured through workspace settings
 - `full` terminal history keeps Exo's live terminal tail at the configured full xterm line window
@@ -120,7 +120,9 @@ Stability constraints:
 - do not add secondary terminal transports or hidden process-survival fallbacks without a design decision
 - only the active terminal should receive hot renderer append work
 - strip mouse tracking modes from app output so wheel scroll remains local scroll in Exo
-- terminal file drops should resolve to filesystem paths before being pasted into the pty
+- terminal file drops should resolve to filesystem paths before being pasted into the active terminal session
+
+Open architecture question: the current embedded terminal path still makes Exo responsible for tmux control-mode decoding, xterm rendering, hydration, and reconnect behavior. Any simplification must preserve the product requirements in `terminal-quality-standard.md`, but proposals may demote embedded interactive terminals if Exo can still reliably supervise durable tmux sessions, expose transcripts/tails, send semantic agent messages, and open a real external terminal attached to the tmux session.
 
 ## CLI Contract
 
@@ -141,7 +143,7 @@ Current live app operator/debug commands:
 - `exo project-roots add <path>`
 - `exo project-roots remove <path>`
 - `exo terminals list`
-- `exo terminals create <shell|claude|codex> [cwd]`
+- `exo terminals create <shell|claude|codex|pi|hermes> [cwd]`
 - `exo terminals read <id>`
 - `exo terminals transcript <id> [--tail n] [--full]`
 - `exo terminals write <id> <text>`
@@ -152,7 +154,7 @@ Current live app operator/debug commands:
 `exo terminals` is the low-level terminal debug surface. `exo agents` is the primary human/agent session surface and mirrors the MCP work-plane tools for already-running local agent sessions:
 
 - `exo agents list`
-- `exo agents create <shell|claude|codex> [cwd]`
+- `exo agents create <shell|claude|codex|pi|hermes> [cwd]`
 - `exo agents read <id> [--tail n] [--raw]`
 - `exo agents send <id> <text>` sends the message and presses Enter by default; Codex startup sends may be queued until normal chat input is ready
 - `exo agents send <id> <text> --raw` writes without pressing Enter

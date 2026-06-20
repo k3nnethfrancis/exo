@@ -1,6 +1,6 @@
 # Plugin Architecture
 
-Last updated: 2026-06-15
+Last updated: 2026-06-20
 
 Exo should support a plugin path so users can extend their exograph without requiring every feature to land in core.
 
@@ -13,7 +13,7 @@ The detailed implementation sequence lives in `plugin-implementation-plan.md`. T
 That keeps Exo from overbuilding while still moving toward the long-term shape:
 
 - QMD becomes the default search provider behind a search-provider registry.
-- Claude, Codex, shell, and future agents become agent-harness adapters behind an agent-harness registry.
+- Shell, Claude Code, Codex, Pi, Hermes, and future agents become bundled or external agent-harness plugins behind an agent-harness registry.
 - MCP and CLI stay separate product surfaces, with plugin contributions admitted only through policy.
 - WebView/browser panes stay core, while plugin-hosted apps can target that primitive later.
 - Workload-specific harnesses, workcells, evals, graph analyzers, search optimization, LM Wiki/Shoshin profiles, and personal routines can become plugin-shaped without being forced into core.
@@ -166,9 +166,9 @@ The launcher contract should cover:
 - supported message submission semantics
 - provenance hooks
 
-Future Pi, Aider, Goose, OpenCode, and local/open-source agents should use this path instead of hardwired conditionals.
+Pi, Hermes, Aider, Goose, OpenCode, and local/open-source agents should use this path instead of hardwired conditionals. Local forks such as GA Pi should be configured instances of a generic adapter unless their protocol diverges enough to require a separate plugin.
 
-Output: existing shell/Claude/Codex launches behave identically; tests prove launcher discovery, env rendering, and MCP/CLI `create_agent` compatibility.
+Output: enabled and launchable shell/Claude/Codex/Pi/Hermes instances appear in launcher surfaces; supported but missing harnesses appear only in configuration/setup surfaces; tests prove launcher discovery, env rendering, and MCP/CLI `create_agent` compatibility.
 
 Status: implemented.
 
@@ -297,7 +297,7 @@ This should be an operator/admin surface, not a new default workflow screen.
 1. Add core capability contract types and a built-in registry with tests.
 2. Register built-in search provider metadata for QMD without changing behavior.
 3. Extract the QMD implementation behind a `SearchProvider` interface.
-4. Register built-in agent harness metadata for shell, Claude, and Codex without changing behavior.
+4. Register bundled agent harness metadata for shell, Claude Code, Codex, Pi, and Hermes without turning missing harnesses into dead launch buttons.
 5. Extract launch planning behind an `AgentHarness` interface.
 6. Define Routine and harness skill inventory contracts.
 7. Define generic Run, artifact, trace, review, and executor contracts that downstream workload plugins can use.
@@ -317,7 +317,7 @@ Specific coding agents should be adapter-shaped where possible. Exo core defines
 - optional hooks for provenance, code review, and PR workflows
 - optional harness skill inventory
 
-Claude, Codex, Pi, Aider, Goose, OpenCode, and local/open-source agents can then be first-party or community plugins. A custom Pi fork can be an official/reference plugin without requiring Pi-specific behavior to be hardwired into core.
+Claude Code, Codex, Pi, Hermes, Aider, Goose, OpenCode, and local/open-source agents can then be bundled, first-party, user, workspace, or community plugins. A custom Pi fork can be configured as a local Pi instance without requiring fork-specific behavior to be hardwired into core.
 
 ## Tracing, Evals, And Training
 

@@ -14,8 +14,8 @@ The immediate product proving loop is Exo-on-Exo: finish usability/harness readi
 6. `docs/harness.md` - gates, work chunks, agent workflow
 7. `docs/tasks.md` - active execution tracker
 8. `docs/usability-readiness.md` - near-term standard before installed daily use
-9. `docs/terminal-runtime-decision.md` - terminal runtime decision
-10. `docs/terminal-refactor-plan.md` - tmux-backed terminal refactor plan
+9. `docs/terminal-runtime-decision.md` - current terminal runtime decision and open simplification questions
+10. `docs/terminal-refactor-plan.md` - historical tmux migration plan; use the decision/quality docs for current rules
 11. `docs/terminal-quality-standard.md` - terminal useability and QA standard
 12. `docs/qmd-integration-notes.md` - current QMD adapter contract and upgrade notes
 13. `docs/roadmap.md` - future plans
@@ -74,7 +74,7 @@ CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build 
 - Renderer code must not touch filesystem or processes directly; use preload APIs backed by main-process services.
 - CLI and MCP are peer clients of the local command server discovered through `${workspace_root}/.exo/server.json`.
 - `packages/core/src/command-protocol.ts` owns shared command routes and payload shapes.
-- Shell, Claude, and Codex terminals use tmux-backed core sessions with `node-pty` as the live attach bridge. Follow `docs/terminal-runtime-decision.md`, `docs/terminal-refactor-plan.md`, and `docs/terminal-quality-standard.md`; do not add hidden direct-pty/tmux fallbacks or user-facing transport switches.
+- Shell, Claude, Codex, Pi, and future harness terminals use tmux-backed core sessions. The current embedded path attaches through Exo's tmux control-mode bridge; `node-pty` is not the current live attach bridge. Follow `docs/terminal-runtime-decision.md` and `docs/terminal-quality-standard.md`; do not add hidden direct-pty/tmux fallbacks or user-facing transport switches.
 - Terminal output must stream into xterm imperatively. React state may keep bounded metadata/tail state for restore, tabs, diagnostics, and tests, but must not be the live rendering source for high-volume terminal output.
 - Terminal live scrollback is user-facing configuration. Avoid hidden hard caps or internal truncation that users cannot discover or change; if a guard is necessary, expose the behavior in settings/docs and keep durable transcripts independent.
 - Full transcripts live under `.exo/terminal-transcripts/` with retention.
@@ -105,7 +105,7 @@ CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build 
 - A Routine is a saved/manual/scheduled run definition: prompt, selected harness, optional required harness skills, trigger/schedule, scope, permissions, and output policy. Each execution is a Run. Harnesses are integrations/plugins; skills are harness-visible capabilities referenced by prompts and managed later through harness skill inventory.
 - QMD is the default notes-index/search provider behind Exo-managed lexical/semantic/hybrid search, CLI, and MCP tools, not the permanent product boundary.
 - Keep QMD calls behind `packages/core/src/qmd.ts`; do not patch `node_modules` or fork QMD casually.
-- Plugin architecture starts as typed internal capability registries, not arbitrary third-party code loading. Move built-in QMD/search and shell/Claude/Codex launcher seams behind registry contracts before adding manifests, package loading, or a Plugin Manager UI.
+- Plugin architecture starts as typed internal capability registries, not arbitrary third-party code loading. Think of vanilla Exo as core plus bundled/recommended plugins. Search providers and harness adapters such as QMD, shell, Claude Code, Codex, Pi, and Hermes should go through registry contracts; local forks such as GA Pi are configured instances of a generic harness plugin, not OSS source defaults.
 - Future provenance work should track human vs agent-authored changes by source, session, and task.
 - Project-root mutation belongs in UI/CLI operator surfaces; MCP may inspect attached roots through workspace status but should stay a narrow agent work plane.
 - Workcells/evals/training/search-optimization harnesses should probably be plugin sets unless they become necessary for the default Exo-on-Exo loop.

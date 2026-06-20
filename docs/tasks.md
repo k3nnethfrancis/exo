@@ -1,6 +1,6 @@
 # Exo Tasks
 
-Last updated: 2026-06-19
+Last updated: 2026-06-20
 
 This is the active task tracker for Exo. It is intentionally not a history file; completed implementation history belongs in `ledger.md`. Tasks here should be concrete, current, and ordered by practical priority.
 
@@ -17,6 +17,8 @@ This is the active task tracker for Exo. It is intentionally not a history file;
   - Progress: create/attach/terminate now runs through tmux with a control-mode bridge; session registry, pane-id persistence, app relaunch reattach, stale bridge reconnect, power-resume recovery hook, UI reconnect affordance, idle/streaming latency, visible xterm scrollback, large live-tail reads, and typing after pane focus handoff have focused unit/Electron coverage. Remaining before close: manual macOS sleep/wake QA in the installed app, broader live Claude/Codex dogfood, and a final installed-app terminal pass.
 - [ ] Complete `EXO-ISSUE-037` terminal parity follow-up after multi-agent review: stale tmux state persistence, direct terminal-quality CI gate, and diagnostics gaps.
   - Progress: terminal runtime requirements now require user-visible config for behavior-affecting caps/tuning values; MCP read defaults/maximums are backed by workspace settings and visible in Settings.
+- [ ] Run the terminal architecture simplification decision pass: question embedded-terminal requirements, identify control-mode/xterm/hydration responsibilities Exo can delete or demote, and decide whether the default daily path should be embedded interactive terminal, external tmux attach, or a split monitoring/control model.
+  - Constraint: simplification must still satisfy daily Exo-on-Exo requirements: reliable agent supervision, persistence, transcripts/tails, semantic send, recovery states, and app QA. Do not cut user-facing terminal expectations just to reduce code.
 - [x] Remove artificial terminal capability limits found by multi-agent review: preserve alternate-screen/TUI escapes, replace broad wheel-input suppression with explicit viewport scrolling, send first measured resize immediately, route `exo terminals send` through semantic message delivery, and report missing/exited write targets as not delivered.
 - [ ] Reproduce and fix `EXO-ISSUE-031`: packaged app silently exits on first launch after local install.
 - [x] Mitigate `EXO-ISSUE-026`: installed app renderer runaway CPU/RSS during idle workspace use and missing renderer recovery after forced renderer death.
@@ -229,6 +231,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Add a manual Routine executor substrate with injected host execution, artifact recording, trace recording, failure capture, and review status updates.
 - [x] Document that workload-specific systems such as Guardian Angel should be downstream plugins/reference workloads, not Exo core features.
 - [ ] Define external plugin contracts for workload-specific trace collection, review labels, dataset export, eval packets, and instrumented agent runtimes.
+- [ ] Review the first-pass bundled harness plugin/config work for shell, Claude Code, Codex, Pi, and Hermes; ensure missing harnesses are configuration items, not dead launch buttons, and local GA Pi is represented only as a local custom Pi instance.
 - [ ] Define how downstream plugins can use OKF-compatible concept documents for curated knowledge while storing raw traces, labels, eval packets, and training exports as linked local artifacts.
 - [x] Define permissioned surface-contribution policy for desktop, CLI, MCP, and command-server exposure.
 - [x] Define plugin manifest shape and first Exo API version policy.

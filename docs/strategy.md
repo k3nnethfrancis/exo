@@ -1,6 +1,6 @@
 # Exo Strategy
 
-Last updated: 2026-05-31
+Last updated: 2026-06-20
 
 This is the strategy document for Exo. `README.md` explains the product publicly, `docs/roadmap.md` describes future systems, `docs/tasks.md` tracks concrete work, and `ledger.md` records shipped history.
 
@@ -19,7 +19,7 @@ Exo is organized around:
 - `workspace_root` - the local workspace containing runtime state.
 - `note_roots[]` - Markdown knowledge roots selected by the user.
 - `project_roots[]` - explicitly attached project/code roots.
-- `terminal_sessions[]` - shell, Claude, Codex, and future local/open-source terminal agents.
+- `terminal_sessions[]` - shell and harness-backed sessions such as Claude Code, Codex, Pi, Hermes, and future local/open-source agents.
 - `runtime_process` - the resident Exo process that owns the command server, MCP bridge, watchers, transcripts, and terminal-agent runtime independent of whether the workspace window is visible.
 - `agent_context_files[]` - global and local `AGENTS.md` / `CLAUDE.md` files.
 - `exograph_profile` - user-defined schema/profile for interpreting files, properties, links, paths, sessions, and artifacts as graph nodes and relations.
@@ -28,7 +28,7 @@ Exo is organized around:
 - `search_providers[]` - the provider-backed retrieval layer behind Exo search. QMD is the default local provider, but the Exo contract should allow alternate local, custom, or remote retrieval implementations later.
 - `agent_communication` - future inspectable message transport for multi-agent coordination.
 - `workcells[]` - future bounded development/research loops with artifacts, metrics, and replay.
-- `plugins[]` - future local-first extension packages that can add agent launchers, commands, panels, WebView apps, search providers, eval runners, trace collectors, and workflows through permissioned APIs.
+- `plugins[]` - future local-first extension packages that can add agent harnesses, commands, panels, WebView apps, search providers, eval runners, trace collectors, and workflows through permissioned APIs.
 
 Architecture should evolve in phases: first stabilize the current app enough to use Exo for Exo work, then harden Exo-on-Exo agent coordination, then define exograph/profile/provider contracts where the actual workflow demands them, then extract runtime/plugin boundaries after the core primitives are proven.
 
@@ -50,7 +50,7 @@ Local/private paths belong in settings or environment examples, not source defau
 - First-run setup requires an explicit notes folder choice before the app shell appears.
 - Notebook mode is a projection over Markdown, not a separate data model.
 - Project roots are explicit attachments.
-- Terminal agents run inside Exo; Exo does not treat them as detached side channels.
+- Terminal agents are supervised by Exo even when their full-fidelity interaction is delegated to tmux or an external terminal client.
 - Exo running and Exo visible are separate states; hiding the window should not kill the local runtime or live agents.
 - CLI and MCP are first-class control surfaces.
 - CLI is the operator/admin/debug control plane; MCP is the narrower agent work plane.
@@ -71,8 +71,8 @@ Already shipped:
 - Explicit note roots and project roots.
 - Fast note filename/path search in explorer search mode.
 - Optional QMD-backed lexical, semantic, and hybrid notes index.
-- Claude, Codex, and shell terminals.
-- Tmux-backed terminal supervision through Exo's tmux control-mode bridge, with disk-backed transcripts for durable history.
+- Shell, Claude Code, Codex, and first-pass harness metadata for Pi and Hermes.
+- Tmux-backed terminal supervision through Exo's current tmux control-mode bridge, with disk-backed transcripts for durable history. The durable tmux session model is settled; the embedded interactive rendering path remains under simplification review because Exo should not own terminal-emulator complexity unless it can meet the terminal quality standard.
 - Runtime command server and `bin/exo` CLI.
 - Exo MCP tools for live terminal agents.
 - MCP autostart and integration installer/doctor for Codex and Claude Code.
@@ -161,7 +161,7 @@ Core should own durable run, artifact, trace, evaluation-result, provenance, and
 
 Exo's plugin model should distinguish app plugins, surface plugins, capability plugins, and workflow plugins. The WebView/browser pane belongs in core because many unrelated workflows need local web-app previews, dashboards, docs, and artifact viewers. Plugins can target that primitive with their own apps.
 
-Specific coding agents should use adapter-shaped integrations where possible. Core defines launch, terminal transport, lifecycle, MCP/CLI exposure, and provenance hooks; individual agents such as Claude, Codex, Pi, Aider, Goose, OpenCode, and local/open-source agents can be first-party or community plugins.
+Specific coding agents should use adapter-shaped integrations where possible. Core defines launch, session lifecycle, MCP/CLI exposure, semantic message delivery, trace/provenance hooks, and optional terminal attachment. Individual agents such as Claude Code, Codex, Pi, Hermes, Aider, Goose, OpenCode, and local/open-source agents should be bundled, first-party, user, workspace, or community plugins rather than permanent core branches. Local forks such as GA Pi are configured instances of the Pi harness plugin, not source defaults in OSS Exo.
 
 ### Self-Modifying Exo
 

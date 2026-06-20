@@ -1,6 +1,6 @@
 # Terminal Runtime Decision
 
-Last updated: 2026-06-18
+Last updated: 2026-06-20
 
 ## Decision
 
@@ -22,6 +22,31 @@ xterm.js renderer
 There should be one standard terminal runtime path for daily Exo use. Do not expose a direct-pty versus tmux preference, do not keep direct pty as a hidden fallback, and do not reintroduce mixed terminal transports inside `TerminalManager`.
 
 If tmux is unavailable, Exo should show a clear dependency/setup error and disable terminal creation until fixed.
+
+## Current Reassessment
+
+The tmux-backed persistence decision still stands: Exo needs durable sessions for long-running shell, Claude, Codex, Pi, and future harness work.
+
+The part under active review is the default interactive rendering path. The current embedded path is:
+
+```text
+tmux pane
+  <-> tmux control-mode bridge
+  <-> Exo decoder / IPC
+  <-> xterm.js
+```
+
+That path gives Exo an integrated terminal surface, but it also makes Exo responsible for terminal-emulator-grade behavior: Unicode decoding, control sequences, scrollback, resize, hydration, reconnect, and renderer lifecycle. Repeated field reports show this is the highest-risk part of the terminal system.
+
+Future simplification work may demote the embedded interactive terminal if it can preserve the real product requirements:
+
+- Exo supervises durable tmux sessions.
+- Exo can create, list, send semantic messages to, interrupt, terminate, and diagnose sessions.
+- Exo keeps transcripts and configurable live tails.
+- Exo can open a real external terminal attached to the tmux session for full-fidelity interaction.
+- Embedded terminal surfaces either meet `terminal-quality-standard.md` or are explicitly treated as monitoring/experimental surfaces.
+
+Do not use simplification as a feature cut. Any replacement for the current bridge must satisfy daily Exo-on-Exo useability, agent monitoring, persistence, and recovery requirements.
 
 ## Why This Changed
 

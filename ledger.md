@@ -1,6 +1,6 @@
 # Exo Ledger
 
-Last updated: 2026-06-15
+Last updated: 2026-06-20
 
 This is the fastest current-state handoff for Exo. It records what exists now, what changed recently, and what is next. Active tasks live in `docs/tasks.md`; future systems live in `docs/roadmap.md`; product/system strategy lives in `docs/strategy.md`.
 
@@ -24,7 +24,7 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Index status pill in the footer and Index settings panel with `Sync index`.
 - CLI notes-index routes for status, search, read, sync, update, and embed flows through the running Exo command server. MCP exposes the narrower agent-facing search/read primitives plus index summary in `workspace_status`.
 - Claude, Codex, and shell terminal launchers.
-- Tmux-backed Claude/Codex/shell sessions supervised by Exo, with node-pty used as the live attach bridge.
+- Tmux-backed Claude/Codex/shell sessions supervised by Exo, with the current embedded terminal path attached through Exo's tmux control-mode bridge.
 - Terminal reload hydration from bounded main-process tails plus startup reattach for persisted tmux sessions.
 - Disk-backed terminal transcripts with retention policy.
 - Terminal scroll hardening and file-drop path handling.
@@ -53,6 +53,7 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 
 ## Recent Completed Work
 
+- Ran a context-evolution pass after the terminal/cmux/harness discussions: updated repo guidance away from stale node-pty attach-bridge language, captured the current terminal simplification question, reframed vanilla Exo as core plus bundled/recommended plugins, and clarified that local forks such as GA Pi are configured instances of generic harness plugins rather than OSS source defaults.
 - Added metadata-only local plugin manifests in `@exo/core`: `exo.plugin.json` discovery, strict manifest validation, source/trust metadata, duplicate-safe plugin/capability registration, and tests. This does not execute plugin code or grant plugin permissions.
 - Fixed markdown editor QoL regressions: clean-file refreshes now restore cursor selection instead of jumping to the top, live-preview bullets/numbered lists and task lists continue on Enter, empty list/task items exit cleanly, cursor filtering avoids hidden list-marker positions, and Tab/Enter exits `[[wikilinks]]` to a following space for continued inline typing.
 - Added an Exo-owned wikilink suggestion popup in the editor: typing inside `[[...]]` searches existing note targets, shows at most three matches, hides when no existing note matches, and Enter accepts the first result.
@@ -66,8 +67,8 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Kept Guardian Angel out of Exo core: GA remains a downstream/reference plugin workload that should use generic Exo primitives rather than shipping as built-in OSS product code without explicit approval.
 - Moved shell, Claude, and Codex launch planning behind the first `AgentHarness` contract in `@exo/core`: built-in harnesses now expose capability metadata and resolve launcher configs while `runtime.ts` remains the compatibility facade used by terminal manager, CLI, and MCP.
 - Moved QMD behind the first `SearchProvider` contract in `@exo/core`: the QMD implementation now lives as a provider with capability metadata while `qmd.ts` remains a compatibility facade for existing desktop, CLI, MCP, and command-server callers.
-- Added the first internal plugin-architecture primitive in `@exo/core`: typed capability metadata, a duplicate-safe registry, built-in QMD search-provider metadata, built-in shell/Claude/Codex agent-harness metadata, and focused registry tests without changing runtime behavior.
-- Began the terminal runtime refactor for `EXO-ISSUE-030`: terminal creation now launches durable shell/agent commands inside Exo-owned tmux sessions, node-pty attaches to tmux for live rendering/input, terminal kill explicitly terminates tmux, and diagnostics expose tmux runtime/session/bridge state without adding a user-facing transport switch.
+- Added the first internal plugin-architecture primitive in `@exo/core`: typed capability metadata, a duplicate-safe registry, bundled QMD search-provider metadata, bundled shell/Claude/Codex agent-harness metadata, and focused registry tests without changing runtime behavior.
+- Began the terminal runtime refactor for `EXO-ISSUE-030`: terminal creation now launches durable shell/agent commands inside Exo-owned tmux sessions, the current embedded path attaches through Exo's tmux control-mode bridge, terminal kill explicitly terminates tmux, and diagnostics expose tmux runtime/session/bridge state without adding a user-facing transport switch.
 - Added `.exo/terminal-sessions.json` as the initial Exo-to-tmux registry and startup reattach path for live tmux panes, with focused unit coverage and Electron relaunch QA proving a shell accepts input after Exo closes and relaunches.
 - Added deterministic terminal-quality QA: fake agent fixture, p50/p90 shell input latency measurement, no-live-inference fake-agent e2e, and fixture cleanup for tmux-backed Electron tests.
 - Verified the pure local install workflow on 2026-05-31: `/Applications/Exo.app` launches as the stable resident runtime, the menu bar icon is visible, normal `exo status` resolves to the installed runtime, and `pnpm dev:qa` can run concurrently against `.exo-dev/` without clobbering stable command-server discovery.

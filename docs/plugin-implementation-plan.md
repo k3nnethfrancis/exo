@@ -1,6 +1,6 @@
 # Plugin Architecture Implementation Plan
 
-Last updated: 2026-06-15
+Last updated: 2026-06-20
 
 This plan turns Exo's plugin architecture into code without prematurely loading arbitrary third-party code. The first goal is internal extensibility: Exo core should use typed registries and contracts for the capabilities that are already plugin-shaped.
 
@@ -16,9 +16,9 @@ Core owns the substrate:
 - CLI/MCP surfaces
 - security, permissions, settings, and app lifecycle
 
-Plugins and profiles own variation:
+Plugins and profiles own variation. Vanilla Exo should be treated as core plus bundled/recommended plugins, not core plus hardcoded permanent defaults:
 
-- agent harnesses such as shell, Claude, Codex, Pi, Hermes, Aider, OpenCode, or local agents
+- agent harnesses such as shell, Claude Code, Codex, Pi, Hermes, Aider, OpenCode, or local agents
 - search providers such as QMD, lexical search, graph search, local vector stores, or remote retrieval
 - exograph/profile packs such as OKF, Shoshin, LM Wiki, domain-specific workbenches, or project-specific mappings
 - analyzers, trace collectors, dataset exporters, eval runners, dashboards, and Routine templates
@@ -28,7 +28,7 @@ Plugins and profiles own variation:
 The current code already has good starting boundaries:
 
 - `packages/core/src/qmd.ts` is the only QMD adapter and is the first search-provider migration target.
-- `packages/core/src/runtime.ts` owns shell/Claude/Codex launch planning and is the first agent-harness migration target.
+- `packages/core/src/runtime.ts` owns compatibility launch planning and remains the facade while shell/Claude/Codex/Pi/Hermes move behind harness adapters.
 - `apps/desktop/src/main/indexing-service.ts` consumes QMD search/index functions and should keep doing so through a stable search-provider facade.
 - `apps/desktop/src/main/terminal-manager.ts` consumes `resolveAgentLaunchPlan()` and should keep creating tmux-backed terminal sessions while harness planning moves behind a contract.
 - `apps/desktop/src/main/command-server.ts`, `packages/cli`, and `packages/mcp` should remain clients/surfaces over Exo-owned capabilities, not become the plugin system.
@@ -41,7 +41,7 @@ The current code already has good starting boundaries:
 - Keep `apps/desktop/src/main/index.ts` from growing.
 - Keep command-server, CLI, and MCP behavior stable until a phase explicitly changes those contracts.
 - Keep QMD as the only built-in search provider until a real second provider exists.
-- Keep shell, Claude, and Codex as built-in agent harnesses.
+- Keep shell, Claude Code, Codex, Pi, and Hermes as bundled harness plugins/adapters. Only enabled and launchable configured instances should appear as launch controls; supported but missing harnesses belong in configuration/setup surfaces.
 - Keep Routines out of the capability registry as executable plugins. A Routine is a run definition: prompt, harness, optional required harness skills, trigger/schedule, scope, permissions, and output policy.
 - Preserve current terminal tmux behavior while refactoring harness planning.
 - Prefer focused modules and tests over broad rewrites.
@@ -81,7 +81,7 @@ Each capability registration should include:
 Register metadata only:
 
 - QMD as built-in `searchProvider`
-- shell, Claude, and Codex as built-in `agentHarness`
+- shell, Claude Code, and Codex as bundled `agentHarness` capabilities
 
 Do not change runtime behavior in this phase.
 
@@ -140,9 +140,9 @@ pnpm check
 
 ## Phase 3: AgentHarness Contract
 
-Move shell/Claude/Codex launch planning behind a typed `AgentHarness` contract while preserving current launch plans.
+Move shell/Claude/Codex/Pi/Hermes launch planning behind a typed `AgentHarness` contract while preserving current launch plans.
 
-Status: implemented. Built-in shell/Claude/Codex harnesses implement `AgentHarness`, and runtime launcher resolution goes through `AgentHarnessRegistry`.
+Status: first-pass implementation exists. Bundled shell/Claude/Codex/Pi/Hermes harnesses implement `AgentHarness`, and runtime launcher resolution goes through `AgentHarnessRegistry`. Pi custom builds are local configuration of the Pi adapter; GA Pi must not become an OSS source default.
 
 Suggested files:
 
@@ -164,15 +164,16 @@ Contract should cover:
 
 Migration approach:
 
-1. Extract shell, Claude, and Codex launch config builders from `runtime.ts` into built-in harness modules.
+1. Extract shell, Claude, Codex, Pi, and Hermes launch config builders from `runtime.ts` into built-in harness modules.
 2. Keep `ManagedAgentKind` and `resolveAgentLaunchPlan()` stable.
-3. Keep `TerminalManager` behavior unchanged.
-4. Keep CLI/MCP `shell|claude|codex` validation unchanged until the harness list becomes dynamic in a later phase.
+3. Keep `TerminalManager` Codex-specific startup behavior unchanged while sharing instruction overlays across agent harnesses.
+4. Use harness detection/configuration status to decide which launchers appear in the UI; keep supported or missing harnesses visible in configuration surfaces, but do not render dead launcher buttons.
+5. Treat trace/provenance hooks as harness-adapter responsibilities. Terminal transcripts are evidence, but xterm rendering must not be the trace system.
 
 Tests:
 
 - current runtime tests continue to pass
-- built-in harness registry exposes shell/Claude/Codex
+- built-in harness registry exposes shell/Claude/Codex/Pi/Hermes
 - Codex reasoning-effort override behavior remains identical
 - launch plans preserve env vars used by terminal manager and runtime overlays
 
@@ -317,7 +318,7 @@ Future work:
 
 1. Core capability registry and built-in metadata.
 2. SearchProvider contract with QMD behind it.
-3. AgentHarness contract with shell/Claude/Codex behind it.
+3. AgentHarness contract with shell/Claude/Codex/Pi/Hermes behind it.
 4. Routine and Run type/storage spec.
 5. External reference workload contract requirements.
 6. Scheduler implementation.
@@ -334,7 +335,7 @@ Minimum gates by scope:
 
 - registry/types only: `pnpm --filter @exo/core test`, `pnpm check:repo`
 - search migration: core QMD tests, desktop indexing tests, CLI/MCP search tests, `pnpm check`
-- harness migration: core runtime tests, desktop terminal-manager tests, CLI/MCP agent tests, focused app QA launching shell/Claude/Codex
+- harness migration: core runtime tests, desktop terminal-manager tests, CLI/MCP agent tests, focused app QA launching every enabled/available harness and verifying unsupported harnesses appear only in configuration/setup surfaces
 - scheduler/feed/runtime changes: focused unit tests, e2e hidden-window CLI/MCP tests, installed-app app QA
 
 -- Exo | 2026-06-15

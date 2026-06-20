@@ -16,7 +16,7 @@ Exo is for people who want terminal agents to participate in their actual workin
 
 - An exograph workspace over notes, tasks, drafts, logs, projects, agents, sessions, and artifacts.
 - A Markdown knowledge environment where files remain the durable source of truth.
-- A terminal-agent workspace for running Claude, Codex, shell sessions, and future local agents.
+- A terminal-agent workspace for running shell, Claude Code, Codex, Pi-style local agents, and future harness plugins.
 - A project/code viewer for inspecting what agents are changing.
 - A shared command surface through the Exo CLI and MCP server.
 - A foundation for note indexing, memory, multi-agent communication, attribution, graph views, workcells, evals, and training loops.
@@ -30,8 +30,8 @@ Exo is for people who want terminal agents to participate in their actual workin
 - Optional QMD-backed notes indexing with lexical, semantic, and hybrid modes.
 - Index status, sync, and settings controls for selected note roots.
 - Editor and terminal panes with flat tabs, split behavior, and no-empty-leaves pruning.
-- tmux-backed terminals rooted in the workspace, with node-pty used as the live attach bridge.
-- Claude and Codex terminal launchers backed by Exo runtime launch plans.
+- tmux-backed terminals rooted in the workspace, attached through Exo's tmux control-mode bridge.
+- Agent harness launchers backed by Exo runtime launch plans and harness metadata.
 - Disk-backed terminal transcripts for recovery context.
 - CLI and MCP control of live Exo terminal agents.
 - Integration helpers for installing Exo MCP into Codex and Claude Code.
@@ -57,7 +57,7 @@ Exo is early. The immediate product test is whether Kenneth can use Exo to build
 - Let agents inspect attached project roots through Exo workspace status while humans and supervised scripts add/remove roots through CLI/UI.
 - Add multi-agent communication protocols over files, SQLite, MCP, and later richer local transports.
 - Add an agent roster with names, roles, objectives, message routing, and communication logs.
-- Add a plugin architecture for optional workflows, search providers, graph analyzers, eval/training harnesses, and shareable extensions without bloating core.
+- Add a plugin architecture for optional workflows, search providers, harness adapters, graph analyzers, eval/training tools, and shareable extensions without bloating core.
 
 See `docs/roadmap.md` and `docs/tasks.md` for the active plan.
 
@@ -313,7 +313,7 @@ See `docs/harness.md` for work-chunk rules, validation evidence, and agent-frien
 
 - Electron, React, TypeScript, Vite
 - CodeMirror 6
-- xterm.js, tmux-backed terminal persistence, and node-pty as the live attach bridge
+- xterm.js and tmux-backed terminal persistence through Exo's tmux control-mode bridge
 - pnpm workspaces
 - Vitest and Playwright
 - Model Context Protocol SDK
