@@ -241,9 +241,9 @@ button svg,
 .editor-panel__header {
   min-width: 0;
   justify-content: space-between;
-  min-height: 40px;
-  gap: 8px;
-  padding: 0 12px 0 16px;
+  min-height: 34px;
+  gap: 6px;
+  padding: 0 10px 0 14px;
 }
 
 .editor-panel__summary {
@@ -255,16 +255,16 @@ button svg,
 .editor-panel__title-row {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
   max-width: 100%;
 }
 
 .editor-panel__title {
-  font-size: 16px;
-  font-weight: 650;
-  letter-spacing: -0.03em;
-  line-height: 1.1;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.2;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -291,7 +291,7 @@ button svg,
 .terminal-dock__actions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   flex-wrap: wrap;
   justify-content: flex-end;
   min-width: 0;
@@ -302,9 +302,10 @@ button svg,
 
 .editor-panel__actions .toolbar-button,
 .editor-panel__title-row .toolbar-button {
-  width: 26px;
-  min-width: 26px;
-  min-height: 26px;
+  width: 34px;
+  min-width: 34px;
+  min-height: 34px;
+  height: 34px;
   padding: 0;
   border-radius: 6px;
   background: transparent;
@@ -327,7 +328,7 @@ button svg,
 }
 
 .editor-panel__save-state {
-  max-width: 88px;
+  max-width: 72px;
   overflow: hidden;
   color: var(--muted);
   font-size: 11px;
@@ -696,6 +697,10 @@ button svg,
 .editor-surface--live-preview .exo-md-line--h1 {
   font-size: 1.92rem;
   margin: 0.38em 0 0.46em;
+}
+
+.editor-surface--live-preview .exo-md-line--suppressed-title {
+  display: none !important;
 }
 
 .editor-surface--live-preview .exo-md-line--h2 {

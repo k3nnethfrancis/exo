@@ -25,7 +25,7 @@ import {
 import { buildProjectReviewChanges, uniqueCwdMatchedSession } from "./changedFileReview";
 import { isTerminalGeneratedResponse } from "./components/terminalInputFilters";
 import { chunkTerminalData } from "./components/terminalOutputChunks";
-import { listEnterEdit, wikilinkExitEdit } from "./components/markdownLivePreview";
+import { listEnterEdit, shouldSuppressGeneratedTitleLine, wikilinkExitEdit } from "./components/markdownLivePreview";
 import { defaultTerminalCwdForNotesFolder } from "./hooks/useWorkspaceBootstrap";
 import { terminalSessionsEqual } from "./terminalSessions";
 import {
@@ -249,6 +249,15 @@ describe("terminal input filtering", () => {
     expect(isTerminalGeneratedResponse("\x1b]10;not-rgb\x1b\\")).toBe(false);
     expect(isTerminalGeneratedResponse("hello")).toBe(false);
     expect(isTerminalGeneratedResponse("try this out")).toBe(false);
+  });
+});
+
+describe("markdown live preview title suppression", () => {
+  it("only suppresses exact generated daily-title H1 lines", () => {
+    expect(shouldSuppressGeneratedTitleLine("# 2026-06-14", "2026-06-14")).toBe(true);
+    expect(shouldSuppressGeneratedTitleLine("# Daily Review", "2026-06-14")).toBe(false);
+    expect(shouldSuppressGeneratedTitleLine("## 2026-06-14", "2026-06-14")).toBe(false);
+    expect(shouldSuppressGeneratedTitleLine("# 2026-06-14", null)).toBe(false);
   });
 });
 

@@ -44,6 +44,7 @@ const codeDecoration = Decoration.mark({ class: "exo-md-inline-code" });
 interface MarkdownLivePreviewOptions {
   onOpenTarget: (target: string) => void;
   onOpenTag: (tag: string) => void;
+  suppressedGeneratedTitle?: string | null;
 }
 
 interface ListContext {
@@ -70,12 +71,12 @@ export function markdownLivePreview(options: MarkdownLivePreviewOptions): Extens
       decorations: DecorationSet;
 
       constructor(view: EditorView) {
-        this.decorations = buildDecorations(view);
+        this.decorations = buildDecorations(view, options);
       }
 
       update(update: ViewUpdate) {
         if (update.docChanged || update.viewportChanged || update.selectionSet || update.transactions.some(tr => tr.effects.some(e => e.is(toggleFoldEffect)))) {
-          this.decorations = buildDecorations(update.view);
+          this.decorations = buildDecorations(update.view, options);
         }
       }
     },
@@ -546,7 +547,7 @@ interface DecorationEntry {
   decoration: Decoration;
 }
 
-function buildDecorations(view: EditorView): DecorationSet {
+function buildDecorations(view: EditorView, options: MarkdownLivePreviewOptions): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
   const currentLine = view.state.doc.lineAt(view.state.selection.main.head).number;
   const listContexts = collectListMetadata(view.state.doc);
@@ -588,6 +589,18 @@ function buildDecorations(view: EditorView): DecorationSet {
     const line = view.state.doc.line(lineNumber);
     const text = line.text;
     const codeFenceCtx = codeFenceContexts.get(lineNumber);
+
+    if (lineNumber === 1 && shouldSuppressGeneratedTitleLine(text, options.suppressedGeneratedTitle ?? null)) {
+      lineDecorations.push({
+        from: line.from,
+        to: line.from,
+        decoration: Decoration.line({ class: "exo-md-line--suppressed-title" }),
+      });
+      if (line.from < line.to) {
+        lineDecorations.push({ from: line.from, to: line.to, decoration: Decoration.replace({}) });
+      }
+      continue;
+    }
 
     if (hiddenLines.has(lineNumber)) {
       lineDecorations.push({
@@ -699,6 +712,13 @@ function buildDecorations(view: EditorView): DecorationSet {
   }
 
   return builder.finish();
+}
+
+export function shouldSuppressGeneratedTitleLine(lineText: string, suppressedGeneratedTitle: string | null): boolean {
+  if (!suppressedGeneratedTitle) {
+    return false;
+  }
+  return lineText.trim() === `# ${suppressedGeneratedTitle}`;
 }
 
 function cursorWithin(cursorPos: number, from: number, to: number): boolean {
