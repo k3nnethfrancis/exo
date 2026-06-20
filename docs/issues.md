@@ -18,6 +18,7 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
   - This means sandboxed Exo-on-Exo diagnostics can falsely classify healthy command-server discovery as stale when sandbox policy blocks process or network checks.
   - Fresh 2026-06-20 user report: macOS showed another `unexpected quit` / `error launching app`; sandboxed `exo status` again reported stale discovery for pid `14108` / port `53794`, while unsandboxed `exo status` succeeded and process inspection showed the Exo main pid plus helper/renderer processes alive.
   - Follow-up 2026-06-20 report: user saw another unexpected quit after the above evidence was captured; quick DiagnosticReports listing did not show a newer obvious `Electron-*.ips` entry beyond the 08:42/08:47 reports, so the quit path may not always produce a fresh crash report.
+  - Crash report review found the 08:42/08:47 reports were `com.github.Electron` dev/test Electron processes launched by `node` under `com.openai.codex`, not installed `Exo.app`; sandboxed stale pid reports should be treated as suspect unless confirmed outside the sandbox.
   - MCP app-backed calls such as `workspace_status` and `list_agents` returned `isError: true` stale-server text instead of useful structured runtime status.
   - With `EXO_MCP_AUTOSTART=1`, `EXO_MCP_CONNECT_TIMEOUT_MS=12000`, and `EXO_MCP_START_COMMAND=/Users/kenneth/Desktop/lab/projects/exo/bin/exo start`, MCP still waited against `http://127.0.0.1:53794` and timed out after about 12.1s.
 - Expected:
@@ -30,6 +31,7 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
   - Review `ExoCommandClient.connect()` stale discovery handling: it reads `server.json`, checks reachability, starts Exo when autostart is enabled, then waits for a reachable client but appears to keep reporting the stale base URL when recovery fails.
   - Check whether `startExo()` succeeds but does not replace the stale discovery file, or whether the app start command is failing silently because it is detached with ignored stdio.
   - Audit MCP error shaping so app-unreachable failures include runtime root, discovery file, stale pid/port, autostart state, timeout, and whether a start attempt was made.
+  - Preserve `process.kill(pid, 0)` error details in CLI/MCP discovery checks so permission/sandbox failures are not collapsed into "pid is dead".
 - QA coverage:
   - MCP unit/integration fixture with stale `server.json`, unreachable port, and autostart enabled.
   - Sandboxed diagnostic fixture where pid/port checks are blocked but unsandboxed checks would reach a healthy command server.
@@ -48,6 +50,7 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
   - Fresh 2026-06-20 report: macOS showed another `unexpected quit` / `error launching app`, with crash reports at `/Users/kenneth/Library/Logs/DiagnosticReports/Electron-2026-06-20-084716.ips`, `/Users/kenneth/Library/Logs/DiagnosticReports/Electron-2026-06-20-084226.000.ips`, and `/Users/kenneth/Library/Logs/DiagnosticReports/Electron-2026-06-20-084226.ips`.
   - In that report, unsandboxed `exo status` succeeded and process inspection showed Exo main pid `14108` plus helper/renderer processes alive, so the visible failure may be a renderer/helper crash while the main/control plane remains reachable.
   - Follow-up 2026-06-20 report: another unexpected quit occurred, but a quick crash-report listing only showed the existing 08:42/08:47 reports. Exo should preserve enough app-level lifecycle logging to diagnose quits even when macOS does not produce a new report.
+  - Crash report review found the 08:42/08:47 reports have `procName: Electron`, `bundleID: com.github.Electron`, `parentProc: node`, `responsibleProc: Codex`, and fault in main-process AppKit registration before renderer/helper involvement. No matching installed `Exo.app` crash report was found in that set.
 - Expected:
   - App restart should leave a healthy command server or a clear unavailable state with stale discovery removed or quarantined.
   - Stale command-server discovery should not coexist with a visible-but-broken UI that appears attached to usable terminal sessions.
@@ -58,6 +61,7 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
   - Review command server discovery lifecycle: creation, pid validation, fetch failure handling, stale `server.json` cleanup, and whether `exo status` can report a dead process while the UI remains visible.
   - The renderer may survive, be restored, or show stale UI after main/control-plane process failure; terminal tabs should detect backend/control-plane health loss and enter an explicit reconnect/degraded state instead of staying apparently live.
   - Reattach/input rendering may need a health recovery path that refreshes terminal geometry, tmux pane attachment, xterm state, and command-server connectivity before accepting user input.
+  - Separate installed-app lifecycle diagnostics from dev/test Electron launch diagnostics; the current evidence points to dev Electron launch crashes plus sandbox false-stale reports, not a confirmed installed-app main-process crash.
 - QA coverage:
   - Desktop restart/relaunch coverage that kills or replaces the command server, then asserts `exo status` reports a healthy new server or an explicit unavailable state with no stale pid.
   - E2E coverage for renderer-visible terminal tabs after main/control-plane restart: tabs should either reconnect cleanly or show an actionable recovery state.
