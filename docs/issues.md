@@ -203,7 +203,7 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 
 ### EXO-ISSUE-041: Terminal panes can blank, hydrate at stale width, or leak generated OSC responses
 
-- Status: fixed locally; needs installed app QA
+- Status: regressed; open
 - Severity: critical
 - Area: terminal renderer, xterm hydration, pane moves, refresh/reload recovery
 - Observed:
@@ -214,10 +214,14 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
   - 2026-06-20 QA after the first hydration fix: after app restart, a terminal can show blank while the underlying Claude/Codex/tmux session is still active.
   - In that state the user can type and press Enter and the input reaches the active session, but prior history is not visible until new output/input causes a partial repaint.
   - The restored terminal should not depend on tab switching, hard refresh, or sending new input to recover visible history.
+  - 2026-06-20 QA after `a2ea42f`: newly opened Claude Code terminals can render heavy replacement-character corruption (`���`) across Claude's header, prompt/status separators, and shell prompt decorations.
+  - The corruption can appear immediately when starting Claude Code from Exo, while the same terminal often recovers after a full Exo restart.
+  - A plain new shell prompt can also show odd prompt glyph/tofu artifacts before Claude is launched, so this may involve tmux control-mode byte decoding, terminal font fallback, prompt/theme glyph handling, or a bad initial geometry/charset replay.
 - Expected:
   - Visible active terminal panes should hydrate from the backend tail after reload or remount without requiring input or tab switching.
   - Hydration should happen after xterm has a measured viewport so replayed history fits the current pane.
   - xterm-generated device/color responses should never be forwarded to shell or agent processes as user input.
+  - Claude Code and shell prompt Unicode/box drawing/status glyphs should render without replacement-character corruption in fresh terminals.
 - Investigation notes:
   - The renderer used `terminalRegistry` registration as a proxy for hydration completion; after reload a blank xterm registered before any tail read and then blocked hydration.
   - `TerminalView` consumed empty version `0` snapshots as completed hydration even when no read had occurred yet.
