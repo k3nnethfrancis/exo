@@ -297,7 +297,42 @@ test("handles global save and daily-note keybindings", async () => {
 
   await page.keyboard.press(`${modifier}+N`);
   await expect(page.getByTestId("editor-title")).toHaveText(dailyName);
-  await expect.poll(async () => readFile(path.join(workspaceRoot, "notes/test-notes", `${dailyName}.md`), "utf8")).toContain(`# ${dailyName}`);
+  await expect.poll(async () => readFile(path.join(workspaceRoot, "notes/test-notes", `${dailyName}.md`), "utf8")).toBe("");
+
+  await cleanup();
+});
+
+test("suppresses generated daily-note titles but preserves explicit H1s", async () => {
+  const generatedDailyName = "2026-06-14";
+  const explicitDailyName = "2026-06-15";
+  const explicitNormalName = "explicit-heading";
+  const { page, cleanup } = await launchExoFixture({
+    prepareWorkspace: async (workspaceRoot) => {
+      const noteRoot = path.join(workspaceRoot, "notes/test-notes");
+      await writeFile(path.join(noteRoot, `${generatedDailyName}.md`), `# ${generatedDailyName}\n\nToday has notes.\n`);
+      await writeFile(path.join(noteRoot, `${explicitDailyName}.md`), "# Daily Review\n\nThis heading is authored.\n");
+      await writeFile(path.join(noteRoot, `${explicitNormalName}.md`), "# Explicit Heading\n\nThis heading is authored.\n");
+    },
+    initialNoteLabel: null,
+  });
+
+  const sidebar = page.getByTestId("sidebar");
+
+  await sidebar.getByRole("button", { name: generatedDailyName }).click();
+  await expect(page.getByTestId("editor-title")).toHaveText(generatedDailyName);
+  await expect(page.locator(".exo-md-line--h1", { hasText: generatedDailyName })).toHaveCount(0);
+  await expect(page.getByTestId("editor-panel")).toContainText("Today has notes.");
+  await expect(page.getByTestId("toggle-markdown-mode")).toBeVisible();
+  await expect(page.getByTestId("editor-save")).toBeVisible();
+  await expect(page.getByTestId("editor-save-status")).toBeVisible();
+  await page.getByTestId("toggle-properties").click();
+  await expect(page.getByTestId("properties-panel")).toBeVisible();
+
+  await sidebar.getByRole("button", { name: explicitDailyName }).click();
+  await expect(page.locator(".exo-md-line--h1", { hasText: "Daily Review" })).toBeVisible();
+
+  await sidebar.getByRole("button", { name: explicitNormalName }).click();
+  await expect(page.locator(".exo-md-line--h1", { hasText: "Explicit Heading" })).toBeVisible();
 
   await cleanup();
 });

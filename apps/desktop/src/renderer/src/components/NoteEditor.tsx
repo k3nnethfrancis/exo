@@ -103,6 +103,10 @@ export function NoteEditor(props: NoteEditorProps) {
   const isMarkdown = document?.kind === "markdown";
   const useMarkdownEditing = isMarkdown && isNoteDocument;
   const displayTitle = document ? getDocumentDisplayTitle(document.filePath, document.kind) : "";
+  const suppressedGeneratedTitle = useMemo(
+    () => (document && useMarkdownEditing ? generatedDailyTitleForPath(document.filePath) : null),
+    [document, useMarkdownEditing],
+  );
   const codeLanguage = useMemo(() => {
     if (!document || useMarkdownEditing) {
       return null;
@@ -582,6 +586,7 @@ export function NoteEditor(props: NoteEditorProps) {
                         markdownLivePreview({
                           onOpenTarget,
                           onOpenTag,
+                          suppressedGeneratedTitle,
                         }),
                       ]
                     : []),
@@ -716,6 +721,11 @@ function exoSyntaxHighlightStyle(appearance: ResolvedAppearance): HighlightStyle
     { tag: [tags.meta, tags.processingInstruction, tags.moduleKeyword], color: color.meta },
     { tag: tags.invalid, color: color.invalid },
   ]);
+}
+
+function generatedDailyTitleForPath(filePath: string): string | null {
+  const displayTitle = getDocumentDisplayTitle(filePath, "markdown");
+  return /^\d{4}-\d{2}-\d{2}$/.test(displayTitle) ? displayTitle : null;
 }
 
 function editorTheme(appearance: ResolvedAppearance, fontSize: number) {

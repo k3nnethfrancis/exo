@@ -648,8 +648,7 @@ export function App() {
     try {
       await window.exo.notes.read(dailyPath);
     } catch {
-      const seed = `# ${yyyy}-${mm}-${dd}\n\n`;
-      await window.exo.workspace.createFile(dailyPath, seed);
+      await window.exo.workspace.createFile(dailyPath, "");
       await reloadTrees();
     }
 
