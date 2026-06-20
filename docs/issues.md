@@ -6,6 +6,30 @@ This is the active bug/QA tracker. It captures user-observed issues that need in
 
 ## Open
 
+### EXO-ISSUE-045: Restart can leave stale command-server discovery with visible broken terminal UI
+
+- Status: open
+- Severity: critical
+- Area: terminal lifecycle, control plane, command-server discovery, macOS app lifecycle
+- Observed:
+  - User report from 2026-06-20: after the agent said Exo had restarted, the Exo UI still showed old terminal tabs.
+  - Typing in an existing Claude tab produced malformed prompt/input rendering instead of a normal reattached terminal input surface.
+  - A subsequent `exo status` returned stale command server discovery: recorded pid `6377` was no longer running, runtime root `/Users/kenneth/Desktop/lab/.exo`, discovery file `/Users/kenneth/Desktop/lab/.exo/server.json`, cause `fetch failed`.
+- Expected:
+  - App restart should leave a healthy command server or a clear unavailable state with stale discovery removed or quarantined.
+  - Stale command-server discovery should not coexist with a visible-but-broken UI that appears attached to usable terminal sessions.
+  - Reattached terminal input after restart should render normally in Claude/Codex/shell tabs, with prompt and typed input preserved or cleanly recovered.
+- Investigation notes:
+  - Audit macOS app/menu-bar lifecycle versus terminal tmux persistence: the menu-bar app, main/control-plane process, renderer windows, tmux sessions, and terminal tabs may not share the same restart boundary.
+  - Review command server discovery lifecycle: creation, pid validation, fetch failure handling, stale `server.json` cleanup, and whether `exo status` can report a dead process while the UI remains visible.
+  - The renderer may survive, be restored, or show stale UI after main/control-plane process failure; terminal tabs should detect backend/control-plane health loss and enter an explicit reconnect/degraded state instead of staying apparently live.
+  - Reattach/input rendering may need a health recovery path that refreshes terminal geometry, tmux pane attachment, xterm state, and command-server connectivity before accepting user input.
+- QA coverage:
+  - Desktop restart/relaunch coverage that kills or replaces the command server, then asserts `exo status` reports a healthy new server or an explicit unavailable state with no stale pid.
+  - E2E coverage for renderer-visible terminal tabs after main/control-plane restart: tabs should either reconnect cleanly or show an actionable recovery state.
+  - Reattach coverage for Claude/Codex tabs after restart, asserting typed input and prompt rendering are not malformed.
+  - Discovery-file regression coverage for stale pid, missing pid, dead pid, and fetch-failed server cases.
+
 ### EXO-ISSUE-044: Editor header chrome is too tall and daily notes repeat the title as an H1
 
 - Status: open
