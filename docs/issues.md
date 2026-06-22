@@ -10,7 +10,7 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
 
 ### EXO-ISSUE-061: Packaged mac build failed in electron-builder dependency collector
 
-- Status: open
+- Status: resolved 2026-06-22
 - Severity: high
 - Area: packaging, install readiness, electron-builder
 - Observed:
@@ -19,14 +19,16 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
 - Expected:
   - Packaging should complete cleanly or fail without leaving artifacts that look installable.
   - Install/readiness QA should be able to produce a clean unsigned `Exo.app` for local stable use.
-- Investigation notes:
-  - Reproduce from a clean release directory.
-  - Check whether the failure is caused by native dependency metadata, pnpm layout, stale release artifacts, or electron-builder dependency traversal.
-  - Ensure cleanup on failure removes partial app bundles or clearly marks them unusable.
+- Resolution:
+  - Reproduced from a clean release directory in the Codex sandbox: `pnpm pack:mac` completed Vite/TypeScript build steps, then electron-builder failed while asking pnpm to collect dependencies with `ERR_SQLITE_ERROR`, leaving `release/mac-arm64/Electron.app`.
+  - `pnpm --dir apps/desktop why @tobilu/qmd better-sqlite3 sqlite-vec --prod` failed with the same SQLite error in the sandbox and succeeded with normal filesystem access, so the remaining root cause is environment-specific pnpm store/index SQLite access rather than malformed dependency metadata.
+  - `pnpm pack:mac` also succeeded with normal filesystem access and produced `release/mac-arm64/Exo.app`.
+  - Added `scripts/pack-mac.mjs` so mac packaging starts from clean `release/mac*` app-output directories and removes generated mac app-output directories on failure. When pnpm reports `ERR_SQLITE_ERROR`, the script prints an actionable electron-builder/pnpm diagnostic and a direct `pnpm why` verification command.
 - QA coverage:
-  - Fresh `pnpm pack:mac` from a clean checkout/build.
-  - `./scripts/install-mac-app --app-dir "$HOME/Applications" --with-cli --with-mcp`.
-  - Launch installed app and verify onboarding/workspace open, menu-bar icon, CLI, and MCP discovery.
+  - `node --test scripts/pack-mac.test.mjs` covers stale/partial app-output cleanup and the pnpm SQLite diagnostic.
+  - Fresh `pnpm pack:mac` from this worktree succeeded with normal filesystem access.
+  - `./scripts/install-mac-app --skip-build --dry-run` targets `~/Applications/Exo.app`.
+  - Remaining install smoke not run in this chunk: actual copy into `~/Applications`, launch installed app, onboarding/workspace open, menu-bar icon, CLI, and MCP discovery.
 
 ### EXO-ISSUE-060: `exo terminals read --lines` can ignore bounded read limits
 

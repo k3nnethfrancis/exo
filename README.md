@@ -349,6 +349,8 @@ Unsigned macOS app bundle:
 pnpm pack:mac
 ```
 
+This writes the installable local bundle to `release/mac-<arch>/Exo.app` after cleaning stale `release/mac*` app-output directories. If packaging fails, partial app bundles such as `release/mac-arm64/Electron.app` are removed before the command exits.
+
 Install that local bundle into `~/Applications`:
 
 ```bash

@@ -104,6 +104,7 @@ const requiredFiles = [
   '.github/workflows/package-macos.yml',
   'scripts/install-local',
   'scripts/install-mac-app',
+  'scripts/pack-mac.mjs',
 ];
 for (const file of requiredFiles) {
   assertFile(file);
@@ -115,7 +116,7 @@ const packageJson = JSON.parse(read('package.json'));
 if (packageJson.packageManager !== 'pnpm@11.2.2') {
   fail('package.json packageManager must stay pinned to pnpm@11.2.2');
 }
-for (const scriptName of ['ci:check', 'check:repo', 'check', 'build', 'test', 'typecheck', 'dev:qa', 'install:local', 'install:mac-app']) {
+for (const scriptName of ['ci:check', 'check:repo', 'check', 'build', 'test', 'typecheck', 'dev:qa', 'install:local', 'install:mac-app', 'pack:mac', 'dist:mac']) {
   if (!packageJson.scripts?.[scriptName]) {
     fail(`package.json missing script: ${scriptName}`);
   }
