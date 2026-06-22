@@ -7,6 +7,7 @@ import type { AgentHarness } from "../agent-harness";
 import {
   agentHarnessRegistry,
   AgentHarnessRegistry,
+  resolveRegisteredAgentHarnessDetection,
   resolveRegisteredAgentHarnesses,
   resolveRegisteredAgentLauncher,
   validateRegisteredAgentHarnessLaunch,
@@ -59,7 +60,46 @@ describe("agent harness registry", () => {
     expect(registry.get("test-shell")).toBe(testHarness);
   });
 
-  it("surfaces a configured custom Pi build without committing local defaults", () => {
+  it("blocks a configured Pi executable when no inference backend is configured", () => {
+    const tempRoot = mkdtempSync(path.join(os.tmpdir(), "exo-pi-missing-backend-"));
+    const piCommand = path.join(tempRoot, "pi");
+    writeFileSync(piCommand, "#!/bin/sh\nexit 0\n", "utf8");
+    chmodSync(piCommand, 0o755);
+
+    try {
+      const pi = resolveRegisteredAgentHarnesses({
+        PATH: "/usr/bin",
+        EXO_PI_COMMAND: piCommand,
+        EXO_PI_REPO_PATH: tempRoot,
+      }).find((harness) => harness.id === "pi");
+
+      expect(pi).toMatchObject({
+        id: "pi",
+        configured: true,
+        detected: true,
+        launchable: false,
+        status: "missing-dependency",
+        statusLabel: "Missing dependency",
+        dependencies: [
+          expect.objectContaining({
+            id: "pi-inference-backend",
+            kind: "inference-backend",
+            required: true,
+            configured: false,
+            satisfied: false,
+            statusLabel: "Missing",
+          }),
+        ],
+      });
+      expect(() => validateRegisteredAgentHarnessLaunch("pi", { EXO_PI_COMMAND: piCommand, EXO_PI_REPO_PATH: tempRoot })).toThrow(
+        "Agent harness is not launchable: pi (Missing dependency).",
+      );
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("surfaces a configured custom Pi-compatible build without committing local defaults", () => {
     const tempRoot = mkdtempSync(path.join(os.tmpdir(), "exo-pi-harness-"));
     const piCommand = path.join(tempRoot, "pi");
     writeFileSync(piCommand, "#!/bin/sh\nexit 0\n", "utf8");
@@ -70,27 +110,37 @@ describe("agent harness registry", () => {
         PATH: "/usr/bin",
         EXO_PI_COMMAND: piCommand,
         EXO_PI_REPO_PATH: tempRoot,
-        EXO_PI_LABEL: "GA Pi",
+        EXO_PI_LABEL: "Custom Pi build",
         EXO_PI_CHANNEL: "custom",
+        EXO_PI_BACKEND_URL: "http://127.0.0.1:8080",
       });
 
       expect(harnesses.find((harness) => harness.id === "pi")).toMatchObject({
         id: "pi",
         adapterId: "pi",
-        label: "GA Pi",
+        label: "Custom Pi build",
+        productName: "Pi-compatible harness",
         configured: true,
         launchable: true,
         status: "configured",
         channel: "custom",
         executablePath: piCommand,
         repoPath: tempRoot,
+        dependencies: [
+          expect.objectContaining({
+            id: "pi-inference-backend",
+            configured: true,
+            satisfied: true,
+            detail: "http://127.0.0.1:8080",
+          }),
+        ],
       });
     } finally {
       rmSync(tempRoot, { recursive: true, force: true });
     }
   });
 
-  it("auto-detects a Pi source checkout in project roots", () => {
+  it("auto-detects a Pi source checkout but keeps launch unavailable until backend config exists", () => {
     const tempRoot = mkdtempSync(path.join(os.tmpdir(), "exo-pi-source-"));
     const cliPath = path.join(tempRoot, "packages", "coding-agent", "dist", "cli.js");
     mkdirSync(path.dirname(cliPath), { recursive: true });
@@ -106,36 +156,59 @@ describe("agent harness registry", () => {
         id: "pi",
         adapterId: "pi",
         configured: false,
-        launchable: true,
-        status: "available",
+        launchable: false,
+        status: "missing-dependency",
         channel: "source",
         repoPath: tempRoot,
-        launcher: {
-          command: process.execPath,
-          args: [cliPath],
-        },
+        launcher: undefined,
+        dependencies: [expect.objectContaining({ id: "pi-inference-backend", satisfied: false })],
       });
     } finally {
       rmSync(tempRoot, { recursive: true, force: true });
     }
   });
 
-  it("keeps missing Hermes visible but not launchable", () => {
-    const hermes = resolveRegisteredAgentHarnesses({ PATH: "/tmp/does-not-exist" }).find((harness) => harness.id === "hermes");
+  it("hides unconfigured Hermes from normal harness lists", () => {
+    const harnesses = resolveRegisteredAgentHarnesses({ PATH: "/tmp/does-not-exist" });
 
-    expect(hermes).toMatchObject({
+    expect(harnesses.find((harness) => harness.id === "hermes")).toBeUndefined();
+    expect(resolveRegisteredAgentHarnessDetection("hermes", { PATH: "/tmp/does-not-exist" })).toMatchObject({
       id: "hermes",
       adapterId: "hermes",
       configured: false,
       detected: false,
       launchable: false,
-      status: "not-found",
+      visible: false,
     });
+  });
+
+  it("surfaces explicitly configured Hermes without making it a default launcher", () => {
+    const tempRoot = mkdtempSync(path.join(os.tmpdir(), "exo-hermes-harness-"));
+    const hermesCommand = path.join(tempRoot, "hermes");
+    writeFileSync(hermesCommand, "#!/bin/sh\nexit 0\n", "utf8");
+    chmodSync(hermesCommand, 0o755);
+
+    try {
+      const hermes = resolveRegisteredAgentHarnesses({
+        PATH: "/usr/bin",
+        EXO_HERMES_COMMAND: hermesCommand,
+      }).find((harness) => harness.id === "hermes");
+
+      expect(hermes).toMatchObject({
+        id: "hermes",
+        configured: true,
+        launchable: true,
+        status: "configured",
+        executablePath: hermesCommand,
+      });
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true });
+    }
   });
 
   it("rejects unavailable registered harnesses before launch", () => {
     expect(() => validateRegisteredAgentHarnessLaunch("hermes", { PATH: "/tmp/does-not-exist" })).toThrow(
-      "Agent harness is not launchable: hermes (Not found).",
+      "Agent harness is not launchable: hermes (Disabled).",
     );
   });
 });

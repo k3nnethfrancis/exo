@@ -102,5 +102,10 @@ export function resolveRegisteredAgentHarnesses(env: NodeJS.ProcessEnv = process
   return agentHarnessRegistry
     .list()
     .map((harness) => resolveRegisteredAgentHarnessDetection(harness.kind, env))
-    .filter((detection): detection is AgentHarnessDetection => Boolean(detection));
+    .filter((detection): detection is AgentHarnessDetection => {
+      if (!detection) {
+        return false;
+      }
+      return detection.visible !== false;
+    });
 }

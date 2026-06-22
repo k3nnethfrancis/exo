@@ -1554,7 +1554,8 @@ button svg,
   border-color: color-mix(in srgb, var(--accent-strong) 45%, transparent);
 }
 
-.agent-harnesses__status--broken {
+.agent-harnesses__status--broken,
+.agent-harnesses__status--missing-dependency {
   color: var(--danger-strong);
   border-color: var(--danger-border);
 }

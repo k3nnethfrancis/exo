@@ -234,7 +234,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Add a manual Routine executor substrate with injected host execution, artifact recording, trace recording, failure capture, and review status updates.
 - [x] Document that workload-specific systems such as Guardian Angel should be downstream plugins/reference workloads, not Exo core features.
 - [ ] Define external plugin contracts for workload-specific trace collection, review labels, dataset export, eval packets, and instrumented agent runtimes.
-- [ ] Review the first-pass bundled harness plugin/config work for shell, Claude Code, Codex, Pi, and Hermes; ensure missing harnesses are configuration items, not dead launch buttons, and local GA Pi is represented only as a local custom Pi instance.
+- [x] Review the first-pass bundled harness plugin/config work for shell, Claude Code, Codex, Pi, and Hermes; ensure missing harnesses are configuration items, not dead launch buttons, and local GA Pi is represented only as a local custom Pi instance.
 - [ ] Split terminal/session substrate types from harness-adapter ids so CLI/MCP agent creation derives allowed choices from the registered harnesses while `exo terminals` stays the low-level core terminal surface.
 - [ ] Define how downstream plugins can use OKF-compatible concept documents for curated knowledge while storing raw traces, labels, eval packets, and training exports as linked local artifacts.
 - [x] Define permissioned surface-contribution policy for desktop, CLI, MCP, and command-server exposure.

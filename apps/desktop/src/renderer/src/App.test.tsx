@@ -128,7 +128,7 @@ describe("browser preview panes", () => {
   });
 });
 
-function harness(id: ManagedAgentKind, launchable: boolean): AgentHarnessDetection {
+function harness(id: ManagedAgentKind, launchable: boolean, overrides: Partial<AgentHarnessDetection> = {}): AgentHarnessDetection {
   return {
     id,
     adapterId: id === "claude" ? "claude-code" : id,
@@ -141,6 +141,7 @@ function harness(id: ManagedAgentKind, launchable: boolean): AgentHarnessDetecti
     launchable,
     status: launchable ? "configured" : "not-found",
     statusLabel: launchable ? "Configured" : "Not found",
+    ...overrides,
   };
 }
 
@@ -150,7 +151,7 @@ describe("terminal harness launchers", () => {
       harness("shell", true),
       harness("codex", false),
       harness("pi", true),
-      harness("hermes", false),
+      harness("hermes", true, { visible: false }),
     ]);
 
     expect(launchable.map((candidate) => candidate.id)).toEqual(["pi"]);
@@ -167,7 +168,7 @@ describe("terminal harness launchers", () => {
         harness("claude", true),
         harness("codex", false),
         harness("pi", true),
-        harness("hermes", true),
+        harness("hermes", true, { visible: false }),
       ],
       onToggleCollapsed,
       onOpenAgentConfigEditor,
@@ -179,7 +180,6 @@ describe("terminal harness launchers", () => {
       "launch-shell",
       "launch-claude",
       "launch-pi",
-      "launch-hermes",
       "open-agent-config",
     ]);
 

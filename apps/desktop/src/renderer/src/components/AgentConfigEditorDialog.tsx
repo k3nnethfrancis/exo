@@ -140,10 +140,17 @@ function AgentHarnessesPanel() {
             </div>
           </div>
           <div className="agent-harnesses__meta">
-            <span>{harness.launchable ? "Launchable" : "Not launchable"}</span>
+            <span>{harness.enabled ? "Enabled" : "Disabled"}</span>
+            <span>{harness.launchable ? "Launchable" : "Launch unavailable"}</span>
             {harness.executablePath ? <small>{harness.executablePath}</small> : null}
             {!harness.executablePath && harness.repoPath ? <small>{harness.repoPath}</small> : null}
             {!harness.executablePath && !harness.repoPath && harness.install?.label ? <small>{harness.install.label}</small> : null}
+            {harness.dependencies?.map((dependency) => (
+              <small key={dependency.id}>
+                {dependency.label}: {dependency.statusLabel}
+                {dependency.detail ? ` · ${dependency.detail}` : ""}
+              </small>
+            ))}
             {harness.detail ? <small>{harness.detail}</small> : null}
           </div>
         </div>
