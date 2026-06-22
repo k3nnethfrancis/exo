@@ -57,6 +57,7 @@ import {
 } from "./workspaceSettingsModel";
 import { pathLabel } from "./workspaceTree";
 import type { IndexBusyState } from "./workspaceSettingsDialogTypes";
+import { getPreviewTitle, markdownPreviewExcerpt, suggestWikilinkTargetsFromTrees } from "./graphAffordances";
 
 type ZoomSurface = "editor" | "terminal" | "explorer";
 
@@ -599,16 +600,7 @@ export function App() {
   }
 
   async function suggestNoteTargets(query: string) {
-    if (!activeDocumentPath) {
-      return [];
-    }
-
-    const suggestions = await window.exo.notes.suggestTargets(activeDocumentPath, query);
-    return suggestions.map((suggestion) => ({
-      label: suggestion.title,
-      target: suggestion.target,
-      detail: suggestion.snippet,
-    }));
+    return suggestWikilinkTargetsFromTrees(workspaceModel, noteTrees, query);
   }
 
   async function previewKnowledgeTarget(target: string) {
@@ -1292,28 +1284,6 @@ function summarizeIndexStatus(status: IndexStatus | null, busy: IndexBusyState):
 
 function joinPath(parentPath: string, name: string): string {
   return `${parentPath.replace(/\/$/, "")}/${name.replace(/^\//, "")}`;
-}
-
-function getPreviewTitle(filePath: string): string {
-  const basename = filePath.split("/").pop() ?? filePath;
-  return basename.replace(/\.[^.]+$/, "");
-}
-
-function markdownPreviewExcerpt(markdownBody: string): string {
-  const excerpt = markdownBody
-    .replace(/^---[\s\S]*?---\s*/u, "")
-    .replace(/```[\s\S]*?```/gu, " ")
-    .replace(/`([^`]+)`/gu, "$1")
-    .replace(/!\[([^\]]*)\]\([^)]+\)/gu, "$1")
-    .replace(/\[([^\]]+)\]\([^)]+\)/gu, "$1")
-    .replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/gu, "$2")
-    .replace(/\[\[([^\]]+)\]\]/gu, "$1")
-    .replace(/^#{1,6}\s+/gmu, "")
-    .replace(/^[>\-*+\d.)\s]+/gmu, "")
-    .replace(/[*_~>#]/gu, "")
-    .replace(/\s+/gu, " ")
-    .trim();
-  return excerpt.length > 180 ? `${excerpt.slice(0, 177).trimEnd()}...` : excerpt || "Empty note";
 }
 
 function isPathWithin(parentPath: string, targetPath: string): boolean {

@@ -5,7 +5,7 @@ import { indentWithTab } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { bracketMatching, foldGutter } from "@codemirror/language";
 import { lintGutter, lintKeymap } from "@codemirror/lint";
-import { EditorSelection, type EditorState } from "@codemirror/state";
+import { EditorSelection } from "@codemirror/state";
 import { keymap, lineNumbers, EditorView, type ViewUpdate } from "@codemirror/view";
 import { Code2, GitBranch, Save, SlidersHorizontal } from "lucide-react";
 import type { BranchFamily, NoteDocument, NoteKnowledge } from "@exo/core";
@@ -14,14 +14,18 @@ import type { ExoThemeVariant } from "../theme/types";
 import { codeLanguageForPath } from "./codeLanguages";
 import { coerceFrontmatterValue, getDocumentDisplayTitle, stringifyFrontmatterValue } from "./documentDisplay";
 import { markdownLivePreview, type MarkdownGraphReferences } from "./markdownLivePreview";
-
-const WIKILINK_COMPLETION_LIMIT = 3;
-
-type WikilinkSuggestion = { label: string; target: string; detail?: string };
+import {
+  graphReferencesForMarkdownMode,
+  getWikilinkCompletionContext,
+  wikilinkSuggestionEdit,
+  WIKILINK_COMPLETION_LIMIT,
+  type WikilinkSuggestion,
+} from "../graphAffordances";
 
 interface WikilinkSuggestionState {
   from: number;
   to: number;
+  query: string;
   left: number;
   top: number;
   items: WikilinkSuggestion[];
@@ -136,20 +140,8 @@ export function NoteEditor(props: NoteEditorProps) {
   const cmTheme = useMemo(() => exoEditorTheme(theme, fontSize), [fontSize, theme]);
   const syntaxTheme = useMemo(() => exoSyntaxHighlighting(theme), [theme]);
   const graphReferences = useMemo((): MarkdownGraphReferences | null => {
-    if (!useMarkdownEditing || !knowledge) {
-      return null;
-    }
-    const referenceLinks = [
-      ...knowledge.wikilinks.map((item) => ({ label: item.label, target: item.target })),
-      ...knowledge.markdownLinks
-        .filter((item) => !item.target.startsWith("http"))
-        .map((item) => ({ label: item.label, target: item.target })),
-    ];
-    return {
-      backlinks: knowledge.backlinks.map((item) => ({ label: item.title, target: item.filePath })),
-      references: referenceLinks,
-    };
-  }, [knowledge, useMarkdownEditing]);
+    return graphReferencesForMarkdownMode(useMarkdownEditing, rawMarkdownMode, knowledge);
+  }, [knowledge, rawMarkdownMode, useMarkdownEditing]);
   const selectionTracker = useMemo(
     () =>
       EditorView.updateListener.of((update) => {
@@ -229,13 +221,13 @@ export function NoteEditor(props: NoteEditorProps) {
         if (!view || !active) {
           return;
         }
-        const insert = `[[${suggestion.target}]]`;
+        const edit = wikilinkSuggestionEdit(active, suggestion);
         view.dispatch({
-          changes: { from: active.from, to: active.to, insert },
-          selection: { anchor: active.from + insert.length },
+          changes: { from: active.from, to: active.to, insert: edit.insert },
+          selection: { anchor: edit.selection },
           userEvent: "input.complete",
         });
-        suppressedWikilinkCompletionRef.current = { pos: active.from + insert.length, text: insert };
+        suppressedWikilinkCompletionRef.current = { pos: edit.selection, text: edit.insert };
         setWikilinkSuggestions(null);
         view.focus();
       },
@@ -741,32 +733,6 @@ export function NoteEditor(props: NoteEditorProps) {
 
 function clampPosition(position: number, docLength: number): number {
   return Math.max(0, Math.min(position, docLength));
-}
-
-function getWikilinkCompletionContext(state: EditorState, pos: number): { from: number; to: number; query: string } | null {
-  const line = state.doc.lineAt(pos);
-  const offset = pos - line.from;
-  const open = line.text.lastIndexOf("[[", offset);
-  if (open < 0) {
-    return null;
-  }
-
-  const close = line.text.indexOf("]]", open + 2);
-  if (close !== -1 && offset > close + 2) {
-    return null;
-  }
-
-  const queryEnd = close === -1 ? offset : close;
-  const query = line.text.slice(open + 2, queryEnd);
-  if (!query.trim() || /[\[\]\n]/.test(query)) {
-    return null;
-  }
-
-  return {
-    from: line.from + open,
-    to: line.from + (close === -1 ? offset : close + 2),
-    query,
-  };
 }
 
 function generatedDailyTitleForPath(filePath: string): string | null {

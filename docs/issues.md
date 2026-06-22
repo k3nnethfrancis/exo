@@ -167,7 +167,7 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
 
 ### EXO-ISSUE-053: Live wikilink search is missing while typing `[[...]]`
 
-- Status: open
+- Status: fixed locally
 - Severity: medium
 - Area: editor, backlinks, graph navigation
 - Observed:
@@ -185,10 +185,14 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
 - QA coverage:
   - Editor tests for `[[` completion, live filtering, Enter selection, no-match behavior, and preserving typed new links.
   - App QA in a real notes vault with several similarly named pages.
+- Resolution:
+  - Added an active wikilink completion context detector and a small cursor-adjacent suggestion popup capped at three entries.
+  - Suggestions are filtered from the renderer's in-memory note tree, avoiding per-keystroke note-root scans; pressing Enter accepts the first highlighted suggestion.
+  - Added focused renderer tests for context detection, filtering/no-match behavior, and suggestion insertion.
 
 ### EXO-ISSUE-052: Inspect mode should be replaced by read-only backlinks/references below rendered pages
 
-- Status: open
+- Status: fixed locally
 - Severity: medium
 - Area: editor, backlinks, references, inspect mode
 - Observed:
@@ -208,10 +212,14 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
   - Raw mode hides the section.
   - Clicking a backlink opens the target page.
   - Editing/saving the document does not include generated backlinks text.
+- Resolution:
+  - Added a generated CodeMirror widget below live-rendered Markdown pages for backlinks and outgoing note references.
+  - The generated section is read-only, hidden in raw Markdown mode, and uses existing link-click navigation data attributes.
+  - Added focused renderer tests for raw-mode hiding and backlink target mapping.
 
 ### EXO-ISSUE-051: Wikilink hover preview is missing
 
-- Status: open
+- Status: fixed locally
 - Severity: medium
 - Area: editor, backlinks, page preview
 - Observed:
@@ -228,6 +236,10 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
   - Hover over existing wikilink shows excerpt.
   - Hover over missing wikilink does not crash or block editing.
   - Popover positions correctly near viewport edges.
+- Resolution:
+  - Added a lightweight hover preview for rendered wikilinks using existing target resolution and note read paths.
+  - Missing targets resolve to no preview instead of throwing into the editor surface; empty notes use a small fallback excerpt.
+  - Added focused renderer tests for preview excerpt/fallback behavior.
 
 ### EXO-ISSUE-050: Agent rail shows dead harness launcher buttons for unavailable adapters
 

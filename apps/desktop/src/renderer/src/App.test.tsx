@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { EditorState } from "@codemirror/state";
-import type { AgentHarnessDetection, ManagedAgentKind } from "@exo/core";
+import type { AgentHarnessDetection, ManagedAgentKind, NoteKnowledge, TreeNode, WorkspaceModel } from "@exo/core";
 
 import {
   DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS,
@@ -45,6 +45,13 @@ import {
 } from "./workspaceSettingsModel";
 import { buildExplorerChangeState } from "./explorerChangeState";
 import { collectLeaves, openOrUpdateBrowserPane, type PaneNode } from "./hooks/usePaneTree";
+import {
+  getWikilinkCompletionContext,
+  graphReferencesForMarkdownMode,
+  markdownPreviewExcerpt,
+  suggestWikilinkTargetsFromTrees,
+  wikilinkSuggestionEdit,
+} from "./graphAffordances";
 
 describe("desktop shell", () => {
   it("keeps a renderer test surface in place", () => {
@@ -733,7 +740,82 @@ describe("markdown editor wikilink behavior", () => {
 
     expect(wikilinkExitEdit(state, state.doc.length)).toBeNull();
   });
+
+  it("finds the active wikilink query and accepts a selected suggestion", () => {
+    const state = EditorState.create({ doc: "See [[go]] next" });
+    const pos = "See [[go".length;
+    const context = getWikilinkCompletionContext(state, pos);
+
+    expect(context).toEqual({ from: "See ".length, to: "See [[go]]".length, query: "go" });
+    expect(wikilinkSuggestionEdit(context!, { label: "goals", target: "goals" })).toEqual({
+      insert: "[[goals]]",
+      selection: "See [[goals]]".length,
+    });
+  });
+
+  it("filters wikilink popup candidates from the in-memory note tree", () => {
+    const model = workspaceModel("/vault");
+    const noteTrees: Record<string, TreeNode[]> = {
+      "/vault": [
+        { id: "goals", name: "goals.md", path: "/vault/goals.md", kind: "file" },
+        { id: "garden", name: "garden.md", path: "/vault/garden.md", kind: "file" },
+        { id: "daily", name: "daily.md", path: "/vault/logs/daily.md", kind: "file" },
+        { id: "guide", name: "guide.md", path: "/vault/projects/guide.md", kind: "file" },
+      ],
+    };
+
+    expect(suggestWikilinkTargetsFromTrees(model, noteTrees, "g").map((item) => item.target)).toEqual([
+      "garden",
+      "goals",
+      "projects/guide",
+    ]);
+    expect(suggestWikilinkTargetsFromTrees(model, noteTrees, "missing")).toEqual([]);
+  });
+
+  it("hides generated graph references in raw markdown mode", () => {
+    const knowledge = noteKnowledge();
+
+    expect(graphReferencesForMarkdownMode(true, false, knowledge)).toEqual({
+      backlinks: [{ label: "Source", target: "/vault/source.md" }],
+      references: [{ label: "goals", target: "goals" }],
+    });
+    expect(graphReferencesForMarkdownMode(true, true, knowledge)).toBeNull();
+  });
+
+  it("keeps backlink entries navigable by their file path target", () => {
+    const references = graphReferencesForMarkdownMode(true, false, noteKnowledge());
+
+    expect(references?.backlinks[0]).toEqual({ label: "Source", target: "/vault/source.md" });
+  });
+
+  it("returns a lightweight hover preview fallback for empty or missing note bodies", () => {
+    expect(markdownPreviewExcerpt("")).toBe("Empty note");
+    expect(markdownPreviewExcerpt("# Goals\n\nUse [[daily|daily notes]] and [docs](docs.md).")).toBe(
+      "Goals Use daily notes and docs.",
+    );
+  });
 });
+
+function workspaceModel(noteRoot: string): WorkspaceModel {
+  return {
+    workspaceRoot: noteRoot,
+    defaultTerminalCwd: noteRoot,
+    noteRoots: [{ id: "notes", label: "Notes", path: noteRoot, kind: "notes" }],
+    projectRoots: [],
+    indexedRoots: [],
+    indexing: { enabled: false, mode: "off", backend: "qmd" },
+    attachedWorkcells: [],
+  };
+}
+
+function noteKnowledge(): NoteKnowledge {
+  return {
+    wikilinks: [{ label: "goals", target: "goals" }],
+    markdownLinks: [{ label: "external", target: "https://example.com" }],
+    tags: [],
+    backlinks: [{ title: "Source", filePath: "/vault/source.md" }],
+  };
+}
 
 describe("terminal session sync", () => {
   it("detects unchanged terminal session snapshots", () => {
