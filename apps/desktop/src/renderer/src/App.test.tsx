@@ -25,6 +25,7 @@ import {
 } from "../../main/settings-store";
 import { buildProjectReviewChanges, uniqueCwdMatchedSession } from "./changedFileReview";
 import { schedulePreviewTerminalRefresh } from "./components/BrowserPane";
+import { TERMINAL_CUSTOM_GLYPHS, TERMINAL_FONT_FAMILY } from "./components/terminalFonts";
 import { isTerminalGeneratedResponse } from "./components/terminalInputFilters";
 import { TerminalOutputChunker, chunkTerminalData } from "./components/terminalOutputChunks";
 import { focusTerminal, refreshAllTerminals, registerTerminal, unregisterTerminal } from "./components/terminalRegistry";
@@ -660,6 +661,21 @@ describe("markdown live preview title suppression", () => {
 });
 
 describe("terminal output chunking", () => {
+  it("preserves Claude-like Unicode and ANSI status output across renderer write chunks", () => {
+    const claudeLike = [
+      "\x1b[38;5;141m╭──────────────── Claude Code ────────────────╮\x1b[0m\r\n",
+      "\x1b[2m│\x1b[0m ⠋ Working  \ue0b0  ✻  🧠  status: ready \x1b[2m│\x1b[0m\r\n",
+      "\x1b[38;5;141m╰─────────────────────────────────────────────╯\x1b[0m\r\n",
+      "\x1b[7m model: claude │ cwd: ~/lab │ tokens: 1,024 \x1b[0m\r\n",
+    ].join("");
+
+    const chunks = chunkTerminalData(claudeLike, 7);
+
+    expect(chunks.join("")).toBe(claudeLike);
+    expect(chunks.join("")).not.toContain("�");
+    expect(chunks.every((chunk) => !endsWithHighSurrogate(chunk) && !startsWithLowSurrogate(chunk))).toBe(true);
+  });
+
   it("does not split surrogate-pair emoji across xterm write chunks", () => {
     const chunks = chunkTerminalData(`ab🙂cd`, 3);
 
@@ -685,6 +701,16 @@ describe("terminal output chunking", () => {
     expect(chunker.chunks(emoji.charAt(0), 64)).toEqual([]);
     chunker.reset();
     expect(chunker.chunks("fresh", 64)).toEqual(["fresh"]);
+  });
+});
+
+describe("terminal font configuration", () => {
+  it("keeps symbol, emoji, and custom box-drawing fallbacks enabled for agent TUIs", () => {
+    expect(TERMINAL_CUSTOM_GLYPHS).toBe(true);
+    expect(TERMINAL_FONT_FAMILY).toContain('"Apple Symbols"');
+    expect(TERMINAL_FONT_FAMILY).toContain('"Apple Color Emoji"');
+    expect(TERMINAL_FONT_FAMILY).toContain('"Symbols Nerd Font');
+    expect(TERMINAL_FONT_FAMILY).toMatch(/^"IBM Plex Mono"/);
   });
 });
 

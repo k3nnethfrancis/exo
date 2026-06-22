@@ -6,6 +6,7 @@ import { Terminal } from "xterm";
 import type { TerminalSessionInfo } from "../../../shared/api";
 import type { ExoThemeVariant } from "../theme/types";
 import { exoXtermTheme } from "../theme/xterm";
+import { TERMINAL_CUSTOM_GLYPHS, TERMINAL_FONT_FAMILY } from "./terminalFonts";
 import { isTerminalGeneratedResponse } from "./terminalInputFilters";
 import { TerminalOutputChunker, TERMINAL_WRITE_CHUNK_SIZE } from "./terminalOutputChunks";
 import { registerTerminal, unregisterTerminal } from "./terminalRegistry";
@@ -57,8 +58,9 @@ export function TerminalView(props: TerminalViewProps) {
 
   useEffect(() => {
     const terminal = new Terminal({
-      fontFamily: '"IBM Plex Mono", "SF Mono", monospace',
+      fontFamily: TERMINAL_FONT_FAMILY,
       fontSize,
+      customGlyphs: TERMINAL_CUSTOM_GLYPHS,
       cursorBlink: false,
       minimumContrastRatio: 4.5,
       scrollback: scrollbackLines,

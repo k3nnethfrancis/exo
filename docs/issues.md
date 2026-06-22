@@ -8,6 +8,59 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
 
 ## Open
 
+### EXO-ISSUE-062: Claude terminal launch shows replacement-glyph corruption
+
+- Status: fixed locally; live Claude launch QA pending after restart
+- Severity: critical
+- Area: terminal rendering, tmux control mode, xterm, Claude Code harness
+- Observed:
+  - Launching Claude Code in Exo terminals can render repeated replacement characters (`��`) around Claude's header, box-drawing/status lines, and prompt area.
+  - The corruption is visible immediately on new Claude launches and can persist until hard refresh/restart or later terminal repaint.
+  - The same class of corruption has appeared across machines and themes, including cases where the terminal remains interactive but visually untrustworthy.
+- Expected:
+  - Claude Code should render with the same fidelity as a normal terminal: no replacement glyphs, no corrupted box drawing, no stale/replayed prompt sections, and no need to refresh after launch.
+  - Exo must support Claude/Codex-style Unicode, symbols, status bars, wrapped lines, alternate-screen behavior, and tmux status/prompt output without visible corruption.
+- Investigation notes:
+  - Treat this as a failed terminal release criterion, not a cosmetic issue.
+  - Audit the whole path: Claude output -> tmux pane -> `tmux -C` control output -> Exo decoder -> IPC append events -> xterm write queue -> xterm font fallback/rendering.
+  - Existing tests cover some split UTF-8 control output, so reproduce the exact failure shape with Claude-like glyphs/status lines, private-use or symbol glyphs, and split `%output` records.
+  - Check whether the terminal font stack lacks required symbol fallback before assuming the bytes are corrupt.
+  - Verify hydration/reset paths do not replay old output over a live Claude screen during launch, pane moves, tab switches, or preview-pane focus changes.
+- Resolution:
+  - Added deterministic Claude-shaped tmux control-mode coverage for ANSI SGR, box drawing, braille spinner symbols, emoji, and private-use/powerline-style glyph bytes split across `%output` records.
+  - Added renderer chunking coverage for the same Claude-shaped output split into small xterm write chunks.
+  - Those regressions show Exo's tmux byte decoder and renderer string chunker do not introduce U+FFFD for this output shape.
+  - Updated xterm creation to use an explicit terminal font stack with symbol, emoji, and common Nerd Font fallbacks.
+  - Explicitly enabled xterm custom glyph rendering so box drawing does not depend on the first available text font.
+- QA coverage needed:
+  - Deterministic test for Claude-like Unicode/box-drawing/status output split across tmux control-mode records and renderer write chunks.
+  - Real-app QA: launch Claude from Exo, start/resume a conversation, scroll, switch tabs/panes, open preview beside it, and confirm no replacement-glyph corruption without hard refresh.
+  - Compare Exo rendering against macOS Terminal/iTerm/VS Code terminal for the same Claude launch when possible.
+
+### EXO-ISSUE-063: Terminal review residuals after tmux refactor
+
+- Status: open
+- Severity: high
+- Area: terminal architecture, hydration, read tails, reconnect, CI
+- Observed:
+  - Review found several still-open terminal risks after the latest tmux-backed refactor.
+  - Bounded live reads can prefer stale `recentOutput` over a fresh bounded tmux capture when the captured tail is shorter than the buffered text.
+  - Active pane moves still force hydration/reset of mounted xterm instances through `TerminalDock`, risking replay over live terminal state.
+  - Reconnect does not force an explicit reconnect snapshot if the session was previously marked hydrated.
+  - MCP live `maxLines` remains capped in code rather than surfaced as a settings/config value.
+  - CI still does not gate enough terminal e2e/visual behavior to catch the field failures users are reporting.
+- Expected:
+  - Running-session live reads should use current tmux pane state as the authoritative bounded tail.
+  - Mounted live terminals should receive append events only; tab/focus/pane metadata changes should not reset/replay xterm.
+  - Reconnect should explicitly hydrate from the live pane when requested.
+  - All user-impacting terminal caps should be configurable and visible in Settings.
+  - Terminal quality checks should become a named fast gate and be included in readiness before push.
+- QA coverage needed:
+  - Stale-buffer versus fresh bounded-capture regression.
+  - Pane move/tab switch regression proving no `terminals.read()`/xterm reset for mounted live terminals.
+  - Reconnect snapshot regression.
+  - Preview-adjacent terminal typing e2e with fake agent process.
+
 ### EXO-ISSUE-061: Packaged mac build failed in electron-builder dependency collector
 
 - Status: resolved 2026-06-22

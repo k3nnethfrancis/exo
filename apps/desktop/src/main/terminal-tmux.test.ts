@@ -225,6 +225,38 @@ describe("terminal tmux runtime helpers", () => {
     expect(received.join("")).not.toContain("�");
   });
 
+  it("preserves Claude-like ANSI, box drawing, braille, emoji, and private-use glyph bytes across tmux output records", () => {
+    const fake = fakeControlProcess();
+    childProcess.spawn.mockReturnValue(fake.child);
+    const received: string[] = [];
+
+    const process = new TmuxControlModeProcess({
+      tmuxPath: "/opt/homebrew/bin/tmux",
+      sessionName: "exo-session",
+      paneId: "%3",
+      cwd: "/tmp/work",
+      env: { PATH: "/bin" },
+      cols: 100,
+      rows: 30,
+    });
+    process.onData((data) => received.push(data));
+
+    const claudeLike = [
+      "\x1b[38;5;141m╭──────────────── Claude Code ────────────────╮\x1b[0m\r\n",
+      "\x1b[2m│\x1b[0m ⠋ Working  \ue0b0  ✻  🧠  status: ready \x1b[2m│\x1b[0m\r\n",
+      "\x1b[38;5;141m╰─────────────────────────────────────────────╯\x1b[0m\r\n",
+      "\x1b[7m model: claude │ cwd: ~/lab │ tokens: 1,024 \x1b[0m\r\n",
+    ].join("");
+    const encoded = tmuxControlEncode(claudeLike);
+
+    for (const part of splitControlValue(encoded, [11, 5, 1, 19, 7, 2, 23, 3])) {
+      fake.emitStdout(`%output %3 ${part}\n`);
+    }
+
+    expect(received.join("")).toBe(claudeLike);
+    expect(received.join("")).not.toContain("�");
+  });
+
   it("maps terminal input to tmux keys without treating escape sequences as text", () => {
     const fake = fakeControlProcess();
     childProcess.spawn.mockReturnValue(fake.child);
@@ -312,4 +344,24 @@ function fakeControlProcess() {
       }
     },
   };
+}
+
+function tmuxControlEncode(data: string): string {
+  return Array.from(Buffer.from(data, "utf8"))
+    .map((byte) => `\\${byte.toString(8).padStart(3, "0")}`)
+    .join("");
+}
+
+function splitControlValue(value: string, pattern: number[]): string[] {
+  const chunks: string[] = [];
+  let offset = 0;
+  let patternIndex = 0;
+  while (offset < value.length) {
+    const byteCount = pattern[patternIndex % pattern.length] ?? 1;
+    const length = byteCount * 4;
+    chunks.push(value.slice(offset, offset + length));
+    offset += length;
+    patternIndex += 1;
+  }
+  return chunks;
 }
