@@ -1,27 +1,29 @@
 # Plugin Architecture Implementation Plan
 
-Last updated: 2026-06-20
+Last updated: 2026-06-21
 
 This plan turns Exo's plugin architecture into code without prematurely loading arbitrary third-party code. The first goal is internal extensibility: Exo core should use typed registries and contracts for the capabilities that are already plugin-shaped.
 
 ## Product Frame
 
-Exo is a local AI workbench for configuring, running, evaluating, and eventually training personal AI systems over a Markdown-first exograph.
+Exo is a local-first AI workstation for building personal AI systems over a Markdown-first exograph. Core should stay boring substrate; plugins provide the interesting workflow, evaluation, training, and automation behavior.
 
 Core owns the substrate:
 
 - workspace, note roots, project roots, and Markdown files
-- feed/event stream, Routines, Runs, artifacts, provenance, review state, and scheduler
-- terminal/session lifecycle and command-server protocol
+- minimal feed/event and activity substrate: activity ids/status/timestamps, scopes, permission checks, artifact references, and provenance references
+- terminal/session lifecycle, rendering surface, scrollback, transcripts, reconnect, diagnostics, semantic message delivery, and command-server protocol
+- pane/grid layout, trusted web viewer host, and open/focus/close endpoints
 - CLI/MCP surfaces
 - security, permissions, settings, and app lifecycle
 
 Plugins and profiles own variation. Vanilla Exo should be treated as core plus bundled/recommended plugins, not core plus hardcoded permanent defaults:
 
 - agent harnesses such as shell, Claude Code, Codex, Pi, Hermes, Aider, OpenCode, or local agents
-- search providers such as QMD, lexical search, graph search, local vector stores, or remote retrieval
+- advanced search providers such as QMD, graph search, local vector stores, rerankers, or remote retrieval
+- dashboards, local web apps, and artifact producers that use Exo's core web viewer endpoints
 - exograph/profile packs such as OKF, Shoshin, LM Wiki, domain-specific workbenches, or project-specific mappings
-- analyzers, trace collectors, dataset exporters, eval runners, dashboards, and Routine templates
+- automations, analyzers, trace collectors, dataset exporters, eval runners, dashboards, and Routine templates
 
 ## Current Code Seams
 
@@ -32,7 +34,8 @@ The current code already has good starting boundaries:
 - `apps/desktop/src/main/indexing-service.ts` consumes QMD search/index functions and should keep doing so through a stable search-provider facade.
 - `apps/desktop/src/main/terminal-manager.ts` consumes `resolveAgentLaunchPlan()` and should keep creating tmux-backed terminal sessions while harness planning moves behind a contract.
 - `apps/desktop/src/main/command-server.ts`, `packages/cli`, and `packages/mcp` should remain clients/surfaces over Exo-owned capabilities, not become the plugin system.
-- Renderer panes, settings, and WebView surfaces come later; do not add plugin UI in the first implementation.
+- Renderer panes, settings, and web viewer endpoint usage come later; do not add plugin UI in the first implementation.
+- The current terminal rail should evolve into a tool/plugin dock, but terminal rendering and session ownership stay in core.
 
 ## Design Rules
 
@@ -42,8 +45,8 @@ The current code already has good starting boundaries:
 - Keep command-server, CLI, and MCP behavior stable until a phase explicitly changes those contracts.
 - Keep QMD as the only built-in search provider until a real second provider exists.
 - Keep shell, Claude Code, Codex, Pi, and Hermes as bundled harness plugins/adapters. Only enabled and launchable configured instances should appear as launch controls; supported but missing harnesses belong in configuration/setup surfaces.
-- Keep Routines out of the capability registry as executable plugins. A Routine is a run definition: prompt, harness, optional required harness skills, trigger/schedule, scope, permissions, and output policy.
-- Preserve current terminal tmux behavior while refactoring harness planning.
+- Keep automation semantics plugin-owned. Core may expose an activity/job substrate, but concrete Routines, workflows, evals, and maintenance jobs should be plugins unless they prove universal.
+- Preserve current terminal tmux behavior while refactoring harness planning. Do not make the terminal renderer/session service a plugin.
 - Prefer focused modules and tests over broad rewrites.
 
 ## Phase 1: Core Capability Registry
@@ -144,6 +147,8 @@ Move shell/Claude/Codex/Pi/Hermes launch planning behind a typed `AgentHarness` 
 
 Status: first-pass implementation exists. Bundled shell/Claude/Codex/Pi/Hermes harnesses implement `AgentHarness`, and runtime launcher resolution goes through `AgentHarnessRegistry`. Pi custom builds are local configuration of the Pi adapter; GA Pi must not become an OSS source default.
 
+Remaining cleanup: keep the terminal substrate core while reducing fixed bundled harness ids in CLI/MCP/session types. `exo terminals` should remain the low-level terminal/admin surface; `exo agents create` and MCP `create_agent` should choose from registered, enabled, policy-approved harnesses.
+
 Suggested files:
 
 - `packages/core/src/agent-harness.ts`
@@ -186,25 +191,25 @@ pnpm --filter @exo/cli test
 pnpm check
 ```
 
-## Phase 4: Routine And Run Model Spec
+## Phase 4: Activity Substrate And Plugin Routine Spec
 
-Status: first-pass type contracts implemented in `packages/core/src/routine.ts` and `packages/core/src/run.ts`. Storage path helpers, a small JSON filesystem store, artifact writing, and trace JSONL append helpers are implemented in `packages/core/src/routine-run-store.ts`. A manual executor substrate with an injected host is implemented in `packages/core/src/routine-executor.ts`. Plugin-declared routine templates can be extracted from `routineTemplate` capabilities and instantiated as concrete user/workspace Routine definitions through `packages/core/src/routine-template.ts`. `RoutineService` and `exo routines` provide the first CLI MVP for listing templates, creating routines, listing routines, recording dry-run executions, inspecting run records/artifacts, and handing a routine prompt to an Exo-managed shell/Claude/Codex terminal through the running app. Scheduler implementation, automatic completion tracking, and desktop Routine UI remain future work. Do not build scheduler UI yet.
+Status: first-pass type contracts implemented in `packages/core/src/routine.ts` and `packages/core/src/run.ts`. Storage path helpers, a small JSON filesystem store, artifact writing, and trace JSONL append helpers are implemented in `packages/core/src/routine-run-store.ts`. A manual executor substrate with an injected host is implemented in `packages/core/src/routine-executor.ts`. Plugin-declared routine templates can be extracted from `routineTemplate` capabilities and instantiated as concrete user/workspace Routine definitions through `packages/core/src/routine-template.ts`. `RoutineService` and `exo routines` provide the first CLI MVP for listing templates, creating routines, listing routines, recording dry-run executions, inspecting run records/artifacts, and handing a routine prompt to an Exo-managed shell/Claude/Codex terminal through the running app.
 
-Core concepts:
+Treat this implementation as provisional substrate, not a decision to keep growing automation as a core product domain. The durable target is smaller: core owns activity ids/status/timestamps, permission checks, artifact references, transcript references, minimal provenance links, and optional review state. Plugins own Routine/workflow/eval-specific schemas, detailed traces, review labels, dashboards, and export formats. Scheduler implementation, automatic completion tracking, and desktop Routine UI remain future work. Do not build scheduler UI yet.
 
-- `RoutineDefinition`
-- `RoutineTrigger`
-- `RoutineScope`
+Core substrate concepts:
+
+- activity id
+- status and timestamps
+- actor, harness, and scope references
 - `RoutinePermissionSet`
-- `RoutineOutputPolicy`
+- output policy / review requirement
 - `HarnessSkillRequirement`
-- `RunRecord`
-- `RunArtifact`
-- `RunTracePacket`
-- `RunFileChangeProposal`
-- `RunEvaluationResult`
+- artifact reference
+- transcript/log reference
+- optional provenance/review reference
 
-Routine:
+Plugin Routine:
 
 - prompt
 - selected harness
@@ -214,6 +219,8 @@ Routine:
 - permissions
 - output policy
 
+These fields may live in a first-party core type today, but new semantics should be designed as plugin-owned unless they are needed by several unrelated plugins.
+
 Routine template:
 
 - plugin-declared metadata attached to a `routineTemplate` capability
@@ -222,10 +229,11 @@ Routine template:
 - no implicit scope or write access
 - becomes runnable only after Exo instantiates it into a concrete `RoutineDefinition` with a workspace scope
 
-Run:
+Activity/run record:
 
-- one execution of a Routine
-- status, timestamps, logs, transcripts, artifacts, proposed file changes, trace packets, evaluation results, errors, review state, and recovery metadata
+- one execution of a plugin routine, manual job, agent handoff, or future scheduled activity
+- minimal status, timestamps, references, errors, and review state
+- rich traces, evaluation results, labels, dashboards, and export schemas remain plugin-owned
 
 Storage:
 
@@ -240,13 +248,13 @@ Storage:
   - `.exo/runs/{runId}/run.log`
   - `.exo/artifacts/{runId}/{artifactFileName}`
 
-This phase may be docs and type definitions only.
+This phase should be kept narrow. Avoid adding a broad core automation UI until multiple plugins prove which scheduler/activity fields are actually universal.
 
 ## Phase 5: External Reference Workload Contracts
 
 Use downstream workloads to pressure-test the plugin boundary, but do not build workload-specific behavior into Exo core.
 
-Status: generic Exo primitives exist for Routines, Runs, artifacts, traces, injected execution hosts, provider registries, and harness registries. No workload-specific trace collector, exporter, eval runner, review UI, or schema should ship in core without explicit approval.
+Status: generic Exo primitives exist for first-pass Routines, Run/activity records, artifacts, traces, injected execution hosts, provider registries, and harness registries. No workload-specific trace collector, exporter, eval runner, review UI, or schema should ship in core without explicit approval.
 
 The generic plugin contracts must support downstream workloads that need:
 
@@ -262,7 +270,7 @@ The generic plugin contracts must support downstream workloads that need:
 This phase should produce:
 
 - concrete generic Routine examples
-- trace schema draft
+- plugin-owned trace schema draft
 - output policy examples
 - permission examples
 - guidance that domain-specific examples belong in plugin packages, private downstream repos, or clearly marked references, not `@exo/core`
@@ -276,7 +284,7 @@ Only after registry contracts survive built-in migrations, define how capabiliti
 - CLI
 - MCP
 - command server
-- WebView panes
+- core web viewer endpoint requests
 - settings
 
 MCP exposure must remain narrow and agent-safe. CLI remains the broad operator/admin/debug surface.
@@ -309,7 +317,7 @@ Future work:
 - trust prompts
 - permission grants
 - entrypoint loading and sandbox policy
-- command, settings, pane, WebView, CLI, and MCP registration APIs
+- command, settings, pane, web viewer request, CLI, and MCP registration APIs
 - logs/errors
 - Plugin Manager UI
 - uninstall and state cleanup
@@ -319,7 +327,7 @@ Future work:
 1. Core capability registry and built-in metadata.
 2. SearchProvider contract with QMD behind it.
 3. AgentHarness contract with shell/Claude/Codex/Pi/Hermes behind it.
-4. Routine and Run type/storage spec.
+4. Minimal activity/artifact-reference substrate plus plugin Routine template spec.
 5. External reference workload contract requirements.
 6. Scheduler implementation.
 7. Feed/event model.

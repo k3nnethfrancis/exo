@@ -1,6 +1,6 @@
 import path from "node:path";
 import os from "node:os";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -99,6 +99,92 @@ describe("routine run store layout", () => {
       expect(await store.listRoutines()).toEqual([routine]);
       expect(await store.listRuns()).toEqual([run]);
       expect(await readFile(routinePath, "utf8")).toContain("\"title\": \"Graph Health\"");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("reads legacy run-shaped JSON without requiring activity fields", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-routine-run-store-"));
+    try {
+      const store = new RoutineRunStore(path.join(root, ".exo"));
+      const target = runRecordPath(store.layout, "legacy-run");
+      const legacyRun: RunRecord = {
+        id: "legacy-run",
+        routineId: "routine-1",
+        harnessId: "codex",
+        status: "succeeded",
+        reviewState: "notRequired",
+        artifacts: [],
+        proposedFileChanges: [],
+        errors: [],
+      };
+      await mkdir(path.dirname(target), { recursive: true });
+      await writeFile(target, `${JSON.stringify(legacyRun, null, 2)}\n`, "utf8");
+
+      await expect(store.readRun("legacy-run")).resolves.toEqual(legacyRun);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("reads activity-shaped JSON through the run compatibility projection", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-routine-run-store-"));
+    try {
+      const store = new RoutineRunStore(path.join(root, ".exo"));
+      const target = runRecordPath(store.layout, "activity-run");
+      await mkdir(path.dirname(target), { recursive: true });
+      await writeFile(
+        target,
+        `${JSON.stringify(
+          {
+            id: "activity-run",
+            activityType: "routine.run",
+            status: "succeeded",
+            reviewRef: { state: "notRequired" },
+            actor: { id: "graph-health.plugin", kind: "plugin" },
+            harness: { id: "codex", sessionId: "session-1" },
+            routine: { id: "graph-health" },
+            transcriptRef: { id: "transcript", path: path.join(root, ".exo", "runs", "activity-run", "transcript.ansi.log") },
+            logRef: { id: "log", path: path.join(root, ".exo", "runs", "activity-run", "run.log") },
+            artifacts: [
+              {
+                id: "report",
+                activityId: "activity-run",
+                kind: "report",
+                path: path.join(root, ".exo", "artifacts", "activity-run", "report.md"),
+                createdAt: "2026-06-14T00:04:00.000Z",
+              },
+            ],
+            errors: [],
+          },
+          null,
+          2,
+        )}\n`,
+        "utf8",
+      );
+
+      await expect(store.readRun("activity-run")).resolves.toMatchObject({
+        id: "activity-run",
+        routineId: "graph-health",
+        harnessId: "codex",
+        status: "succeeded",
+        reviewState: "notRequired",
+        transcriptPath: path.join(root, ".exo", "runs", "activity-run", "transcript.ansi.log"),
+        logPath: path.join(root, ".exo", "runs", "activity-run", "run.log"),
+        artifacts: [
+          {
+            id: "report",
+            activityId: "activity-run",
+            runId: "activity-run",
+            kind: "report",
+            path: path.join(root, ".exo", "artifacts", "activity-run", "report.md"),
+            createdAt: "2026-06-14T00:04:00.000Z",
+          },
+        ],
+        proposedFileChanges: [],
+        errors: [],
+      });
     } finally {
       await rm(root, { recursive: true, force: true });
     }

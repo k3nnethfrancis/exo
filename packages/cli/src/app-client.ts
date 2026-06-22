@@ -145,6 +145,18 @@ export class AppClient {
     await this.post(EXO_COMMAND_ROUTES.open, { path: filePath });
   }
 
+  async openPreview(target: string): Promise<Record<string, unknown>> {
+    return this.post(EXO_COMMAND_ROUTES.openPreview, { target });
+  }
+
+  async focusPreview(): Promise<Record<string, unknown>> {
+    return this.post(EXO_COMMAND_ROUTES.focusPreview, {});
+  }
+
+  async closePreview(): Promise<Record<string, unknown>> {
+    return this.post(EXO_COMMAND_ROUTES.closePreview, {});
+  }
+
   async showWindow(): Promise<void> {
     await this.post(EXO_COMMAND_ROUTES.show, {});
   }

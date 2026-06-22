@@ -68,6 +68,8 @@ export interface DesktopEventPayloads {
   "workspace:index-sync-state": IndexSyncStateEvent;
   "command:open-file": string;
   "command:open-preview": { url: string };
+  "command:focus-preview": undefined;
+  "command:close-preview": undefined;
   "command:open-settings": { section: "workspace" | "index" | "appearance" | "terminal" };
   "terminal:created": TerminalSessionInfo;
   "terminal:data": TerminalDataEvent;

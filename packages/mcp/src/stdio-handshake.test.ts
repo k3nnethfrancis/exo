@@ -58,7 +58,9 @@ describe("exo-mcp stdio launcher", () => {
       expect(client.getServerVersion()).toMatchObject({ name: "exo" });
       const tools = await client.listTools();
       expect(tools.tools.map((tool) => tool.name).sort()).toEqual([
+        "close_preview",
         "create_agent",
+        "focus_preview",
         "interrupt_agent",
         "list_agents",
         "open_preview",
@@ -100,7 +102,9 @@ describe("exo-mcp stdio launcher", () => {
       expect(client.getServerVersion()).toMatchObject({ name: "exo" });
       const tools = await client.listTools();
       expect(tools.tools.map((tool) => tool.name).sort()).toEqual([
+        "close_preview",
         "create_agent",
+        "focus_preview",
         "interrupt_agent",
         "list_agents",
         "open_preview",

@@ -27,7 +27,7 @@ import { buildProjectReviewChanges, uniqueCwdMatchedSession } from "./changedFil
 import { isTerminalGeneratedResponse } from "./components/terminalInputFilters";
 import { TerminalOutputChunker, chunkTerminalData } from "./components/terminalOutputChunks";
 import { focusTerminal, refreshAllTerminals, registerTerminal, unregisterTerminal } from "./components/terminalRegistry";
-import { launchableTerminalAgentHarnesses } from "./components/TerminalRail";
+import { createTerminalToolDockActions, launchableTerminalAgentHarnesses } from "./components/TerminalRail";
 import { listEnterEdit, shouldSuppressGeneratedTitleLine, wikilinkExitEdit } from "./components/markdownLivePreview";
 import { appendPendingTerminalData, mergeHydrationSnapshot } from "./hooks/useTerminalSessions";
 import { defaultTerminalCwdForNotesFolder } from "./hooks/useWorkspaceBootstrap";
@@ -77,6 +77,44 @@ describe("terminal harness launchers", () => {
     ]);
 
     expect(launchable.map((candidate) => candidate.id)).toEqual(["pi"]);
+  });
+
+  it("builds terminal tool dock actions without changing launcher behavior", () => {
+    const onToggleCollapsed = vi.fn();
+    const onOpenAgentConfigEditor = vi.fn();
+    const onCreateTerminal = vi.fn();
+    const actions = createTerminalToolDockActions({
+      collapsed: false,
+      harnesses: [
+        harness("shell", true),
+        harness("claude", true),
+        harness("codex", false),
+        harness("pi", true),
+        harness("hermes", true),
+      ],
+      onToggleCollapsed,
+      onOpenAgentConfigEditor,
+      onCreateTerminal,
+    });
+
+    expect(actions.map((action) => action.testId)).toEqual([
+      "terminal-collapse",
+      "launch-shell",
+      "launch-claude",
+      "launch-pi",
+      "launch-hermes",
+      "open-agent-config",
+    ]);
+
+    actions.find((action) => action.testId === "terminal-collapse")?.onSelect();
+    actions.find((action) => action.testId === "launch-shell")?.onSelect();
+    actions.find((action) => action.testId === "launch-pi")?.onSelect();
+    actions.find((action) => action.testId === "open-agent-config")?.onSelect();
+
+    expect(onToggleCollapsed).toHaveBeenCalledTimes(1);
+    expect(onCreateTerminal).toHaveBeenNthCalledWith(1, "shell");
+    expect(onCreateTerminal).toHaveBeenNthCalledWith(2, "pi");
+    expect(onOpenAgentConfigEditor).toHaveBeenCalledTimes(1);
   });
 });
 

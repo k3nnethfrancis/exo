@@ -33,6 +33,45 @@ const defaultSearchRequestTimeoutMs = 30_000;
 const defaultMaintenanceRequestTimeoutMs = 30 * 60_000;
 const pollIntervalMs = 250;
 
+type ProcessCheckResult =
+  | { status: "alive" }
+  | { status: "dead"; code?: string; message: string }
+  | { status: "blocked"; code?: string; message: string }
+  | { status: "unknown"; code?: string; message: string };
+
+type ServerDiscoverySnapshot = {
+  info: ExoCommandServerInfo;
+  baseUrl: string;
+  processCheck: ProcessCheckResult;
+};
+
+type ReachabilityFailure = {
+  baseUrl: string;
+  message: string;
+};
+
+type AutostartState = {
+  attempted: boolean;
+  command?: string;
+  failed?: boolean;
+  errorMessage?: string;
+};
+
+type DiscoveryDiagnostic = {
+  kind:
+    | "missing-discovery"
+    | "stale-pid"
+    | "process-check-blocked"
+    | "server-unreachable"
+    | "autostart-timeout";
+  runtimeRoot: string;
+  serverJsonPath: string;
+  snapshot?: ServerDiscoverySnapshot;
+  timeoutMs: number;
+  autostart: AutostartState;
+  lastReachabilityFailure?: ReachabilityFailure;
+};
+
 export class ExoCommandClient {
   constructor(
     readonly baseUrl: string,
@@ -50,32 +89,56 @@ export class ExoCommandClient {
     const searchRequestTimeoutMs = parsePositiveInt(env.EXO_MCP_SEARCH_TIMEOUT_MS) ?? defaultSearchRequestTimeoutMs;
     const maintenanceRequestTimeoutMs =
       parsePositiveInt(env.EXO_MCP_MAINTENANCE_TIMEOUT_MS) ?? defaultMaintenanceRequestTimeoutMs;
-    let info = await readServerInfo(serverJsonPath);
+    let snapshot = await readServerSnapshot(serverJsonPath);
 
     const startEnv = await resolveMcpWorkspaceEnv(env);
-    if (!info && autostart) {
-      startExo(startEnv);
-      info = await waitForServerInfo(serverJsonPath, timeoutMs);
+    const autostartState: AutostartState = { attempted: false };
+    if (!snapshot && autostart) {
+      Object.assign(autostartState, startExo(startEnv));
+      snapshot = await waitForServerSnapshot(serverJsonPath, timeoutMs);
     }
 
-    if (!info) {
-      throw new Error(
-        `Exo app is not reachable. Start Exo first, set EXO_MCP_AUTOSTART=1, or set EXO_RUNTIME_ROOT to the runtime containing server.json. Looked at: ${serverJsonPath}`,
-      );
+    if (!snapshot) {
+      throw discoveryDiagnosticError({
+        kind: autostartState.attempted ? "autostart-timeout" : "missing-discovery",
+        runtimeRoot,
+        serverJsonPath,
+        timeoutMs,
+        autostart: autostartState,
+      });
     }
 
-    let client = new ExoCommandClient(`http://127.0.0.1:${info.port}`, requestTimeoutMs, searchRequestTimeoutMs, maintenanceRequestTimeoutMs);
-    if (await client.isReachable()) {
+    const client = new ExoCommandClient(snapshot.baseUrl, requestTimeoutMs, searchRequestTimeoutMs, maintenanceRequestTimeoutMs);
+    const reachability = await checkReachability(client);
+    if (reachability.ok) {
       return client;
     }
 
+    const lastReachabilityFailure = { baseUrl: snapshot.baseUrl, message: reachability.errorMessage };
     if (!autostart) {
-      throw new Error(`Exo command server is stale or unreachable at ${client.baseUrl}. Set EXO_MCP_AUTOSTART=1 to let MCP start Exo.`);
+      throw discoveryDiagnosticError({
+        kind: classifyUnreachableSnapshot(snapshot),
+        runtimeRoot,
+        serverJsonPath,
+        snapshot,
+        timeoutMs,
+        autostart: autostartState,
+        lastReachabilityFailure,
+      });
     }
 
-    startExo(startEnv);
-    client = await waitForReachableClient(serverJsonPath, timeoutMs, requestTimeoutMs, searchRequestTimeoutMs, maintenanceRequestTimeoutMs);
-    return client;
+    Object.assign(autostartState, startExo(startEnv));
+    return waitForReachableClient({
+      serverJsonPath,
+      runtimeRoot,
+      initialSnapshot: snapshot,
+      timeoutMs,
+      requestTimeoutMs,
+      searchRequestTimeoutMs,
+      maintenanceRequestTimeoutMs,
+      autostart: autostartState,
+      initialReachabilityFailure: lastReachabilityFailure,
+    });
   }
 
   async getStatus(): Promise<Record<string, unknown>> {
@@ -109,6 +172,14 @@ export class ExoCommandClient {
 
   async openPreview(target: string): Promise<ExoOpenPreviewResponse> {
     return this.post(EXO_COMMAND_ROUTES.openPreview, { target });
+  }
+
+  async focusPreview(): Promise<{ ok: true }> {
+    return this.post(EXO_COMMAND_ROUTES.focusPreview, {});
+  }
+
+  async closePreview(): Promise<{ ok: true }> {
+    return this.post(EXO_COMMAND_ROUTES.closePreview, {});
   }
 
   async listProjectRoots(): Promise<string[]> {
@@ -191,12 +262,7 @@ export class ExoCommandClient {
   }
 
   async isReachable(): Promise<boolean> {
-    try {
-      await this.getStatus();
-      return true;
-    } catch {
-      return false;
-    }
+    return (await checkReachability(this)).ok;
   }
 }
 
@@ -224,50 +290,98 @@ async function readServerInfo(serverJsonPath: string): Promise<ExoCommandServerI
   }
 }
 
-async function waitForServerInfo(serverJsonPath: string, timeoutMs: number): Promise<ExoCommandServerInfo | null> {
+async function readServerSnapshot(serverJsonPath: string): Promise<ServerDiscoverySnapshot | null> {
+  const info = await readServerInfo(serverJsonPath);
+  if (!info) {
+    return null;
+  }
+  return {
+    info,
+    baseUrl: `http://127.0.0.1:${info.port}`,
+    processCheck: checkProcess(info.pid),
+  };
+}
+
+async function waitForServerSnapshot(serverJsonPath: string, timeoutMs: number): Promise<ServerDiscoverySnapshot | null> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const info = await readServerInfo(serverJsonPath);
-    if (info) {
-      return info;
+    const snapshot = await readServerSnapshot(serverJsonPath);
+    if (snapshot) {
+      return snapshot;
     }
     await sleep(pollIntervalMs);
   }
   return null;
 }
 
-async function waitForReachableClient(
-  serverJsonPath: string,
-  timeoutMs: number,
-  requestTimeoutMs: number,
-  searchRequestTimeoutMs: number,
-  maintenanceRequestTimeoutMs: number,
-): Promise<ExoCommandClient> {
+async function waitForReachableClient(options: {
+  serverJsonPath: string;
+  runtimeRoot: string;
+  initialSnapshot: ServerDiscoverySnapshot;
+  timeoutMs: number;
+  requestTimeoutMs: number;
+  searchRequestTimeoutMs: number;
+  maintenanceRequestTimeoutMs: number;
+  autostart: AutostartState;
+  initialReachabilityFailure: ReachabilityFailure;
+}): Promise<ExoCommandClient> {
+  const {
+    serverJsonPath,
+    runtimeRoot,
+    initialSnapshot,
+    timeoutMs,
+    requestTimeoutMs,
+    searchRequestTimeoutMs,
+    maintenanceRequestTimeoutMs,
+    autostart,
+    initialReachabilityFailure,
+  } = options;
   const deadline = Date.now() + timeoutMs;
-  let lastBaseUrl = "";
+  let lastSnapshot = initialSnapshot;
+  let lastReachabilityFailure: ReachabilityFailure | undefined = initialReachabilityFailure;
   while (Date.now() < deadline) {
-    const info = await readServerInfo(serverJsonPath);
-    if (info) {
-      const client = new ExoCommandClient(`http://127.0.0.1:${info.port}`, requestTimeoutMs, searchRequestTimeoutMs, maintenanceRequestTimeoutMs);
-      lastBaseUrl = client.baseUrl;
-      if (await client.isReachable()) {
+    const snapshot = await readServerSnapshot(serverJsonPath);
+    if (snapshot) {
+      lastSnapshot = snapshot;
+      const client = new ExoCommandClient(snapshot.baseUrl, requestTimeoutMs, searchRequestTimeoutMs, maintenanceRequestTimeoutMs);
+      const reachability = await checkReachability(client);
+      if (reachability.ok) {
         return client;
       }
+      lastReachabilityFailure = { baseUrl: snapshot.baseUrl, message: reachability.errorMessage };
     }
     await sleep(pollIntervalMs);
   }
-  throw new Error(`Timed out waiting for Exo command server${lastBaseUrl ? ` at ${lastBaseUrl}` : ""}.`);
+  throw discoveryDiagnosticError({
+    kind: "autostart-timeout",
+    runtimeRoot,
+    serverJsonPath,
+    snapshot: lastSnapshot,
+    timeoutMs,
+    autostart,
+    lastReachabilityFailure,
+  });
 }
 
-function startExo(env: NodeJS.ProcessEnv): void {
+function startExo(env: NodeJS.ProcessEnv): AutostartState {
   const command = env.EXO_MCP_START_COMMAND ?? `${defaultExoCommand()} start`;
-  const child = spawn(command, {
-    shell: true,
-    detached: true,
-    stdio: "ignore",
-    env: { ...process.env, ...env },
-  });
-  child.unref();
+  try {
+    const child = spawn(command, {
+      shell: true,
+      detached: true,
+      stdio: "ignore",
+      env: { ...process.env, ...env },
+    });
+    child.unref();
+    return { attempted: true, command };
+  } catch (error) {
+    return {
+      attempted: true,
+      command,
+      failed: true,
+      errorMessage: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
 
 function defaultExoCommand(): string {
@@ -295,6 +409,99 @@ function enhanceTimeoutError(error: unknown, method: string, targetPath: string,
 
 function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && (error.name === "AbortError" || error.name === "TimeoutError");
+}
+
+async function checkReachability(client: ExoCommandClient): Promise<{ ok: true } | { ok: false; errorMessage: string }> {
+  try {
+    await client.getStatus();
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, errorMessage: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+function checkProcess(pid: number): ProcessCheckResult {
+  try {
+    process.kill(pid, 0);
+    return { status: "alive" };
+  } catch (error) {
+    const code = isNodeError(error) ? error.code : undefined;
+    const message = error instanceof Error ? error.message : String(error);
+    if (code === "ESRCH") {
+      return { status: "dead", code, message };
+    }
+    if (code === "EPERM" || code === "EACCES") {
+      return { status: "blocked", code, message };
+    }
+    return { status: "unknown", code, message };
+  }
+}
+
+function classifyUnreachableSnapshot(snapshot: ServerDiscoverySnapshot): DiscoveryDiagnostic["kind"] {
+  if (snapshot.processCheck.status === "dead") {
+    return "stale-pid";
+  }
+  if (snapshot.processCheck.status === "blocked") {
+    return "process-check-blocked";
+  }
+  return "server-unreachable";
+}
+
+function discoveryDiagnosticError(diagnostic: DiscoveryDiagnostic): Error {
+  return new Error(formatDiscoveryDiagnostic(diagnostic));
+}
+
+function formatDiscoveryDiagnostic(diagnostic: DiscoveryDiagnostic): string {
+  const lines = [
+    discoveryDiagnosticSummary(diagnostic),
+    `Runtime root: ${diagnostic.runtimeRoot}`,
+    `Discovery file: ${diagnostic.serverJsonPath}`,
+    `Connect timeout: ${diagnostic.timeoutMs}ms`,
+  ];
+  if (diagnostic.autostart.attempted) {
+    lines.push("Autostart attempted: yes");
+    if (diagnostic.autostart.command) lines.push(`Autostart command: ${diagnostic.autostart.command}`);
+    if (diagnostic.autostart.failed) lines.push(`Autostart failed: ${diagnostic.autostart.errorMessage ?? "unknown error"}`);
+  } else {
+    lines.push("Autostart attempted: no");
+  }
+  if (diagnostic.snapshot) {
+    lines.push(`Recorded pid: ${diagnostic.snapshot.info.pid}`);
+    lines.push(`Recorded port: ${diagnostic.snapshot.info.port}`);
+    lines.push(`Recorded baseUrl: ${diagnostic.snapshot.baseUrl}`);
+    lines.push(`Process check: ${formatProcessCheck(diagnostic.snapshot.processCheck)}`);
+  }
+  if (diagnostic.lastReachabilityFailure) {
+    lines.push(`Last reachability failure: ${diagnostic.lastReachabilityFailure.baseUrl} - ${diagnostic.lastReachabilityFailure.message}`);
+  }
+  return lines.join("\n");
+}
+
+function discoveryDiagnosticSummary(diagnostic: DiscoveryDiagnostic): string {
+  switch (diagnostic.kind) {
+    case "missing-discovery":
+      return "Exo command server discovery file is missing or invalid. Start Exo first, set EXO_MCP_AUTOSTART=1, or set EXO_RUNTIME_ROOT to the runtime containing server.json.";
+    case "stale-pid":
+      return "Exo command server discovery is stale: the recorded pid is not running.";
+    case "process-check-blocked":
+      return "Exo command server process check was blocked by permissions or sandbox policy; server reachability could not be confirmed.";
+    case "server-unreachable":
+      return "Exo command server is unreachable at the recorded base URL.";
+    case "autostart-timeout":
+      return "Timed out waiting for Exo command server after autostart.";
+  }
+}
+
+function formatProcessCheck(result: ProcessCheckResult): string {
+  if (result.status === "alive") {
+    return "alive";
+  }
+  const code = result.code ? `${result.code}: ` : "";
+  return `${result.status} (${code}${result.message})`;
+}
+
+function isNodeError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && "code" in error;
 }
 
 function sleep(ms: number): Promise<void> {

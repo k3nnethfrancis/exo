@@ -207,6 +207,48 @@ describe("cli package", () => {
     expect(stdout).toContain("|/tmp/exo-test-workspace/.exo/instructions/AGENTS.md");
   });
 
+  it("routes preview commands through the app client", async () => {
+    const calls: string[] = [];
+    const client = fakeAppClient({
+      openPreview: async (target) => {
+        calls.push(`open:${target}`);
+        return { ok: true, url: target, source: "url" };
+      },
+      focusPreview: async () => {
+        calls.push("focus");
+        return { ok: true };
+      },
+      closePreview: async () => {
+        calls.push("close");
+        return { ok: true };
+      },
+    });
+
+    const openExitCode = await runCli(["node", "exo-cli", "preview", "open", "http://localhost:3000"], {
+      env: testRuntimeEnv(),
+      stdout: { write: () => {} },
+      stderr: { write: () => {} },
+      connectAppClient: async () => client,
+    });
+    const focusExitCode = await runCli(["node", "exo-cli", "preview", "focus"], {
+      env: testRuntimeEnv(),
+      stdout: { write: () => {} },
+      stderr: { write: () => {} },
+      connectAppClient: async () => client,
+    });
+    const closeExitCode = await runCli(["node", "exo-cli", "preview", "close"], {
+      env: testRuntimeEnv(),
+      stdout: { write: () => {} },
+      stderr: { write: () => {} },
+      connectAppClient: async () => client,
+    });
+
+    expect(openExitCode).toBe(0);
+    expect(focusExitCode).toBe(0);
+    expect(closeExitCode).toBe(0);
+    expect(calls).toEqual(["open:http://localhost:3000", "focus", "close"]);
+  });
+
   it("submits agent messages by default", async () => {
     let receivedMessage = "";
     let receivedSubmit: boolean | undefined;
@@ -788,6 +830,36 @@ describe("cli package", () => {
     }
   });
 
+  it("uses the broad agent kind set in routine run errors", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-cli-routines-"));
+    try {
+      const pluginRoot = await writeRoutinePlugin(root);
+      const env = routineTestEnv(root, pluginRoot);
+
+      await expect(runCli(["node", "exo-cli", "routines", "run", "graph-health-agent"], {
+        env,
+        stdout: { write: () => {} },
+        stderr: { write: () => {} },
+      })).rejects.toThrow(
+        "Usage: exo routines run <routine-id> (--dry-run | --agent) [--harness shell|claude|codex|pi|hermes] [--cwd <path>] [--no-submit]",
+      );
+
+      await runCli(["node", "exo-cli", "routines", "create", "graph-health.template", "graph-health-agent"], {
+        env,
+        stdout: { write: () => {} },
+        stderr: { write: () => {} },
+      });
+
+      await expect(runCli(["node", "exo-cli", "routines", "run", "graph-health-agent", "--agent", "--harness", "aider"], {
+        env,
+        stdout: { write: () => {} },
+        stderr: { write: () => {} },
+      })).rejects.toThrow("Routine harness must be one of shell|claude|codex|pi|hermes: aider");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("prints Codex integration config", async () => {
     let stdout = "";
     const exitCode = await runCli(["node", "exo-cli", "integrations", "config", "codex"], {
@@ -977,6 +1049,9 @@ async function writeRoutinePlugin(root: string): Promise<string> {
 function fakeAppClient(overrides: Partial<{
   getStatus: () => Promise<Record<string, unknown>>;
   openFile: (filePath: string) => Promise<void>;
+  openPreview: (target: string) => Promise<Record<string, unknown>>;
+  focusPreview: () => Promise<Record<string, unknown>>;
+  closePreview: () => Promise<Record<string, unknown>>;
   showWindow: () => Promise<void>;
   getConfig: () => Promise<Record<string, unknown>>;
   listProjectRoots: () => Promise<string[]>;
@@ -1006,6 +1081,9 @@ function fakeAppClient(overrides: Partial<{
   return {
     getStatus: missing,
     openFile: missing,
+    openPreview: missing,
+    focusPreview: missing,
+    closePreview: missing,
     showWindow: missing,
     getConfig: missing,
     listProjectRoots: missing,

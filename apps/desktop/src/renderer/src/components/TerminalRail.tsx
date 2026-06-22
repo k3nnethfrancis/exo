@@ -4,10 +4,10 @@ import { Bot, PanelRightClose, PanelRightOpen, PanelsLeftBottom, Settings2, Squa
 
 import type { TerminalKind } from "../../../shared/api";
 import { AgentIcon } from "./AgentIcon";
-import { RailButton } from "./Chrome";
+import { ToolDockActionButtons, ToolDockRail, type ToolDockAction, type ToolDockRailPlacement } from "./ToolDockRail";
 
 interface TerminalRailProps {
-  placement: "right" | "bottom";
+  placement: ToolDockRailPlacement;
   collapsed: boolean;
   sidePanesFlipped: boolean;
   topControls?: ReactNode;
@@ -19,27 +19,44 @@ interface TerminalRailProps {
 }
 
 export function TerminalRail(props: TerminalRailProps) {
-  const { collapsed, sidePanesFlipped, topControls, onToggleCollapsed, onToggleSidePanes, onOpenAgentConfigEditor, onCreateTerminal, style } = props;
+  const {
+    placement,
+    collapsed,
+    sidePanesFlipped,
+    topControls,
+    onToggleCollapsed,
+    onToggleSidePanes,
+    onOpenAgentConfigEditor,
+    onCreateTerminal,
+    style,
+  } = props;
+  const primary = topControls ?? (
+    <TerminalRailTopControls
+      collapsed={collapsed}
+      onToggleCollapsed={onToggleCollapsed}
+      onOpenAgentConfigEditor={onOpenAgentConfigEditor}
+      onCreateTerminal={onCreateTerminal}
+    />
+  );
 
   return (
-    <div className="terminal-rail" data-testid="terminal-rail" style={style}>
-      {topControls ?? (
-        <TerminalRailTopControls
-          collapsed={collapsed}
-          onToggleCollapsed={onToggleCollapsed}
-          onOpenAgentConfigEditor={onOpenAgentConfigEditor}
-          onCreateTerminal={onCreateTerminal}
-        />
-      )}
-      <div className="terminal-rail__spacer" aria-hidden="true" />
-      <RailButton
-        testId="swap-side-panes"
-        onClick={onToggleSidePanes}
-        title={sidePanesFlipped ? "Move explorer left and terminal right" : "Move terminal left and explorer right"}
-      >
-        <PanelsLeftBottom size={16} />
-      </RailButton>
-    </div>
+    <ToolDockRail
+      placement={placement}
+      primary={primary}
+      secondaryActions={[
+        {
+          id: "swap-side-panes",
+          testId: "swap-side-panes",
+          title: sidePanesFlipped ? "Move explorer left and terminal right" : "Move terminal left and explorer right",
+          icon: <PanelsLeftBottom size={16} />,
+          onSelect: onToggleSidePanes,
+        },
+      ]}
+      className="terminal-rail"
+      spacerClassName="terminal-rail__spacer"
+      testId="terminal-rail"
+      style={style}
+    />
   );
 }
 
@@ -52,44 +69,60 @@ export function TerminalRailTopControls(props: {
 }) {
   const { collapsed, onToggleCollapsed, onOpenAgentConfigEditor, onCreateTerminal } = props;
   const harnesses = useAgentHarnesses(props.harnesses);
-  const CollapseIcon = collapsed ? PanelRightOpen : PanelRightClose;
-  const launchableAgentHarnesses = launchableTerminalAgentHarnesses(harnesses);
 
   return (
-    <>
-      <RailButton
-        testId={collapsed ? "terminal-expand" : "terminal-collapse"}
-        onClick={onToggleCollapsed}
-        title={collapsed ? "Expand terminal" : "Collapse terminal"}
-      >
-        <CollapseIcon size={16} />
-      </RailButton>
-      <RailButton
-        testId="launch-shell"
-        onClick={() => onCreateTerminal("shell")}
-        title="New terminal"
-      >
-        <SquareTerminal size={16} />
-      </RailButton>
-      {launchableAgentHarnesses.map((harness) => (
-        <RailButton
-          key={harness.id}
-          testId={`launch-${harness.id}`}
-          onClick={() => onCreateTerminal(harness.id)}
-          title={`Launch ${harness.label}`}
-        >
-          <HarnessRailIcon harness={harness} />
-        </RailButton>
-      ))}
-      <RailButton
-        testId="open-agent-config"
-        onClick={onOpenAgentConfigEditor}
-        title="Agent config"
-      >
-        <Settings2 size={16} />
-      </RailButton>
-    </>
+    <ToolDockActionButtons
+      actions={createTerminalToolDockActions({
+        collapsed,
+        harnesses,
+        onToggleCollapsed,
+        onOpenAgentConfigEditor,
+        onCreateTerminal,
+      })}
+    />
   );
+}
+
+export function createTerminalToolDockActions(input: {
+  collapsed: boolean;
+  harnesses: AgentHarnessDetection[];
+  onToggleCollapsed: () => void;
+  onOpenAgentConfigEditor: () => void;
+  onCreateTerminal: (kind: TerminalKind) => void;
+}): ToolDockAction[] {
+  const CollapseIcon = input.collapsed ? PanelRightOpen : PanelRightClose;
+  const launchableAgentHarnesses = launchableTerminalAgentHarnesses(input.harnesses);
+
+  return [
+    {
+      id: input.collapsed ? "terminal-expand" : "terminal-collapse",
+      testId: input.collapsed ? "terminal-expand" : "terminal-collapse",
+      title: input.collapsed ? "Expand terminal" : "Collapse terminal",
+      icon: <CollapseIcon size={16} />,
+      onSelect: input.onToggleCollapsed,
+    },
+    {
+      id: "launch-shell",
+      testId: "launch-shell",
+      title: "New terminal",
+      icon: <SquareTerminal size={16} />,
+      onSelect: () => input.onCreateTerminal("shell"),
+    },
+    ...launchableAgentHarnesses.map((harness) => ({
+      id: `launch-${harness.id}`,
+      testId: `launch-${harness.id}`,
+      title: `Launch ${harness.label}`,
+      icon: <HarnessRailIcon harness={harness} />,
+      onSelect: () => input.onCreateTerminal(harness.id),
+    })),
+    {
+      id: "open-agent-config",
+      testId: "open-agent-config",
+      title: "Agent config",
+      icon: <Settings2 size={16} />,
+      onSelect: input.onOpenAgentConfigEditor,
+    },
+  ];
 }
 
 function HarnessRailIcon({ harness }: { harness: AgentHarnessDetection }) {

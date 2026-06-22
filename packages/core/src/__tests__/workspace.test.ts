@@ -23,6 +23,7 @@ describe("workspace", () => {
   });
 
   it("attaches Exo as the default project root when project roots are not configured", () => {
+    const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
     const model = resolveWorkspaceModel({
       EXO_WORKSPACE_ROOT: fixtureWorkspaceRoot,
       EXO_NOTE_ROOTS: path.join(fixtureWorkspaceRoot, "notes/test-notes"),
@@ -31,8 +32,8 @@ describe("workspace", () => {
     expect(model.projectRoots).toEqual([
       {
         id: "project-root-1",
-        label: "exo",
-        path: path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../.."),
+        label: path.basename(repoRoot),
+        path: repoRoot,
         kind: "projects",
       },
     ]);

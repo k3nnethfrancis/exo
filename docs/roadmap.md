@@ -1,22 +1,22 @@
 # Exo Roadmap
 
-Last updated: 2026-05-31
+Last updated: 2026-06-21
 
-Exo is a local-first exograph workspace for humans and terminal agents. This roadmap names the practical path from the current app to Kenneth using Exo to build Exo by default, then to a more general exograph system. `docs/tasks.md` is the active execution list; `ledger.md` records shipped history.
+Exo is a local-first AI workstation for applied AI engineers and researchers building personal AI systems over a Markdown-first exograph. This roadmap names the practical path from the current app to Kenneth using Exo to build Exo by default, then to a more general local AI workbench. `docs/tasks.md` is the active execution list; `ledger.md` records shipped history.
 
 ## Product North Star
 
-Exo should be the shared workspace where humans and terminal agents build and maintain an exograph: a user-defined knowledge/work graph with growable relational ontologies.
+Exo should be the local workstation where humans and terminal agents build, maintain, evaluate, and improve personal AI systems around an exograph: a user-defined knowledge/work graph with growable relational ontologies.
 
 That means:
 
-- Markdown notes, project context, terminal sessions, agent messages, changed files, artifacts, and workflow runs can become graph nodes.
+- Markdown notes, project context, terminal sessions, agent messages, changed files, activity records, artifact references, and provenance references can become graph nodes.
 - Links, frontmatter/properties, tags, paths, observed edits, citations, provenance, and user-defined mappings can become graph edges.
-- Durable approved graph facts live in user-owned files. Exo keeps derived indexes, proposals, workflow runs, and provenance under `.exo/`.
+- Durable approved graph facts live in user-owned files. Exo keeps derived indexes, proposals, activity records, artifact references, and provenance references under `.exo/`.
 - Terminal agents run inside the workspace instead of beside it.
 - Agents can use Exo-controlled CLI/MCP tools to inspect context and communicate.
 - Humans can review what agents are doing and what they changed without bouncing between editors.
-- Search, memory, graph views, workflows, evals, and training grow from the exograph instead of becoming separate products.
+- Search, memory, graph views, workflows, evals, and training grow from the exograph inside one workstation instead of becoming separate products.
 
 ## Useability First
 
@@ -45,7 +45,7 @@ Exo should evolve through useability-driven phases instead of jumping straight t
 
 Exo should be reliable enough that Kenneth can leave it running and work inside it.
 
-- Notes, project files, terminals, browser previews, settings, CLI/MCP, and the menu bar runtime remain stable during normal work.
+- Notes, project files, terminals, web previews, settings, CLI/MCP, and the menu bar runtime remain stable during normal work.
 - Terminal responsiveness, tab switching, scrollback, pane resize, process exit states, and transcript access are top-tier and continuously QA'd.
 - Bug bashes discovered while using Exo become the highest-priority work, not side quests.
 - Every significant change gets automated tests plus in-app QA.
@@ -117,17 +117,17 @@ Exo should track authorship from observed workflows, not guess using AI detector
 - Provenance should support review, audit, and coordination, not punitive authorship scoring.
 - Exo should model authorship, mutability, and role separately from any specific folder name: source/evidence, editable synthesis, append-only log, generated artifact, trace, task, entity, project, eval, and dataset are roles/properties that profiles can map onto folders/frontmatter/conventions.
 
-## 7.5 Feed, Scheduler, And Routines
+## 7.5 Feed And Activity Substrate
 
-Exo should provide a core feed/event stream and scheduler for local AI workbench automation.
+Exo should provide a small core feed/event stream and activity substrate. It should not become a large automation product before plugins prove which primitives are universal.
 
 - Feed items are incoming or generated context, not necessarily notes: quick captures, RSS/bookmarks, voice transcripts, file changes, terminal-agent outputs, MCP messages, workflow results, git events, plugin responses, eval results, and training artifacts.
 - The feed replaces a hardcoded inbox. Inbox-style workflows can be built on top, but Exo should not require an `/inbox/` folder or processing ritual.
 - Feed items can be linked, archived, promoted into notes/entities/tasks, used as source evidence, converted into trace records, or dismissed.
-- The scheduler is core. It launches selected harnesses in headless/background mode against saved Routines.
-- A Routine is a saved/manual/scheduled run definition: prompt, selected harness, optional required harness skills, trigger/schedule, scope, permissions, and output policy.
-- Each Routine execution is a Run with status, logs, transcripts, artifacts, proposed file changes, review state, errors, and recovery data.
-- Scheduled runs should capture logs, traces, artifacts, proposed file changes, review state, and recovery status.
+- Core may own scheduler hooks or job registration so plugins do not each invent process supervision.
+- A core activity record should capture id, status, timestamps, actor, harness, scope, permissions, output policy, and references to artifacts/transcripts/logs.
+- Routines, workflows, graph-health jobs, eval runs, and training exports are plugin concepts by default.
+- Scheduled runs should use plugin-owned schemas for detailed logs, traces, labels, dashboards, and exports, while linking back to core activity/artifact references.
 - Skills are harness-visible capabilities referenced by prompts. Exo should eventually show which skills are available to which harnesses, but skills are not independent worker runtimes by default.
 
 ## 8. Exograph Architecture
@@ -141,7 +141,7 @@ Exo's core object is the exograph, not a fixed folder schema or one retrieval ba
 - Exo should never require OKF frontmatter to use a file as Markdown. OKF checks are explicit diagnostics or export/import compatibility checks, not default editing gates.
 - Exo-created workflows such as create note, create project, create concept, and future profile setup may offer OKF-compatible templates as options.
 - Approved durable graph facts live in Markdown/frontmatter/properties, links, tags, and user files.
-- Inferred facts, schema suggestions, workflow runs, and provenance live in `.exo/` until accepted.
+- Inferred facts, schema suggestions, activity records, artifact references, and provenance references live in `.exo/` until accepted.
 - OKF compatibility should be read/write/export compatible when structure exists or is requested, but Exo runtime state, traces, proposals, plugin data, and training artifacts can remain richer `.exo/` state that links back to Markdown/OKF concepts.
 - Profiles are mappings, not mandates. They define how folders, frontmatter, links, feed items, author/mutability rules, templates, and maintenance routines become graph semantics for a workspace.
 - User-facing exograph modes collapse to two surfaces:
@@ -184,27 +184,28 @@ Exo should make the exograph visible.
 
 ## 12. Workcells, Evals, And Training
 
-These are later systems built on top of the shared workspace. Core should own run/artifact/provenance primitives; specific eval, training, and search-optimization harnesses should probably be plugin sets unless they become necessary for the default Exo-on-Exo loop.
+These are later systems built on top of the shared workspace. Core should own only minimal activity, artifact-reference, provenance-reference, permission, and review hooks. Specific eval, training, and search-optimization harnesses should be plugin sets unless they become necessary for the default Exo-on-Exo loop.
 
 - Workcells define bounded research/development loops.
-- Runs produce artifacts, metrics, logs, and replayable traces.
+- Plugin runs produce artifacts, metrics, logs, and replayable traces while linking to core activity records.
 - Evals measure retrieval quality, memory usefulness, agent recovery, and operator acceptance.
 - Training data is explicitly scoped by project, workcell, agent, artifact type, review status, and time window.
 - Local/open-source agents and training workflows come after stable memory, workcells, and evals.
-- Tracing, evaluation, and training should exercise the plugin boundary without becoming merely a hosted web app: core owns run/artifact/provenance primitives, while plugins can provide collectors, runners, scorers, dashboards, and provider-specific training/export flows.
+- Tracing, evaluation, and training should exercise the plugin boundary without becoming merely a hosted web app: core owns references and permissions, while plugins provide collectors, runners, scorers, dashboards, schemas, and provider-specific training/export flows.
 
 ## 13. Plugin Architecture
 
 Exo should be extensible without making every personal or domain-specific workflow part of core.
 
 - The first plugin architecture phase is internal contracts, not public plugin loading. Exo should define registries for built-in capabilities, then migrate QMD search and shell/Claude/Codex launchers onto those contracts before loading external code.
-- Core owns stable primitives: notes, project roots, panes, WebView/browser panes, commands, agents, messages, exograph profiles, search, settings, runs, artifacts, provenance, proposals, and permission boundaries.
-- Plugins are packages of Exo extensions. A plugin may include backend capabilities, commands, MCP/CLI tools, UI panels, editor extensions, or a web app hosted inside an Exo WebView pane.
-- Harness plugins integrate agent runtimes. Routines are prompt-centered run definitions executed by a harness, often on a schedule; they may be shipped by a plugin or profile but are not themselves the worker runtime.
+- Core owns stable primitives: notes, project roots, basic search, panes, trusted web viewer host/endpoints, terminal runtime/rendering/session services, commands, agents, messages, settings, activity records, artifact/provenance references, proposals, and permission boundaries.
+- Plugins are packages of Exo extensions. A plugin may include backend capabilities, commands, MCP/CLI tools, UI panels, editor extensions, or a local web app/artifact opened through Exo's core web viewer.
+- Harness plugins integrate agent runtimes through Exo-owned terminal/session services. Routines are prompt-centered run definitions executed by a harness, often on a schedule; they may be shipped by a plugin or profile but are not themselves the worker runtime.
 - Downstream workloads should prove the plugin boundary: elicitation harnesses, trace collectors, correction/review surfaces, domain-model hypotheses, dataset exporters, eval runners, and instrumented agent runtimes should use generic Exo primitives without all becoming core.
 - Workload-specific plugins can use OKF concept documents for curated project/domain knowledge where possible, while storing raw traces, review labels, eval packets, and training exports as local artifacts linked back to OKF concepts.
-- Web apps are one possible plugin surface, not the whole plugin model. Browser/WebView support belongs in core because local previews, docs, dashboards, and future plugin apps all need the same pane/runtime primitive.
+- Web apps are one possible plugin output, not the whole plugin model. The web viewer host and open/focus/close endpoints belong in core because local previews, docs, dashboards, and artifacts all need the same trusted viewer.
 - Agent integrations should use plugin-shaped adapter contracts where possible. Exo core should define how agents launch, expose capabilities, receive MCP/CLI tools, and report lifecycle state; specific agents such as Claude, Codex, Pi, Aider, Goose, or local/open-source agents can be first-party or community plugins.
+- The current terminal rail should become a general tool/plugin dock, but terminal correctness remains a core product responsibility rather than a plugin concern.
 - Plugin state should be inspectable, removable, and local-first.
 - Plugin APIs should be versioned and documented before public plugin sharing is encouraged.
 - Plugins should compose through stable registries instead of monkey-patching core internals: command registry, settings registry, pane/view registry, agent harness registry, search provider registry, exograph analyzer registry, MCP/CLI registry, and eval/training/export registries.
@@ -216,8 +217,8 @@ Exo should be extensible without making every personal or domain-specific workfl
 Exo should eventually help maintain and improve itself, but only through reviewable, policy-controlled workflows.
 
 - The first version is supervised: an Exo-managed agent can create a branch, make changes, run the harness, summarize evidence, and prepare a PR or local diff for human review.
-- Later versions can run recurring maintenance workflows for dependency/security updates, failing-test repair, docs/context drift, QMD/search health checks, and release hygiene.
-- Core owns the trust boundary: git/PR workflow primitives, harness execution, audit logs, rollback metadata, provenance, settings, and policy gates.
+- Later versions can run recurring maintenance workflows for dependency/security updates, failing-test repair, docs/context drift, QMD/search health checks, and release hygiene as plugins over core git/harness/activity primitives.
+- Core owns the trust boundary: git/PR workflow primitives, harness execution, audit logs, rollback metadata, provenance references, settings, and policy gates.
 - Plugins can provide concrete maintenance agents, workflow recipes, provider integrations, eval suites, and dashboards.
 - Self-modification should build on the same plugin, workcell, provenance, and harness primitives rather than becoming a separate hidden automation system.
 

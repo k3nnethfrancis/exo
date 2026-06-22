@@ -2,6 +2,32 @@
 
 This directory contains committed, public-facing project context. It should be useful to human contributors and to coding agents working in the repo.
 
+## Canonical Current Docs
+
+- `../README.md` - product overview, setup, commands, build/install caveats, and repository map.
+- `../AGENTS.md` - concise coding-agent map and runtime rules.
+- `strategy.md` - product direction and system model.
+- `architecture.md` - current package, runtime, terminal, CLI/MCP, pane, search, and plugin boundaries.
+- `plugin-system-architecture.md` - canonical core-versus-plugin target architecture.
+- `terminal-architecture-v3.md` - current terminal simplification/module-boundary proposal.
+- `terminal-runtime-decision.md` - current tmux-backed terminal runtime decision and constraints.
+- `terminal-quality-standard.md` - terminal useability, configuration, and QA standard.
+- `tasks.md` - active execution tracker.
+- `roadmap.md` - future product systems and sequencing.
+- `harness.md` - validation gates and agent-friendly development workflow.
+- `qmd-integration-notes.md` - live QMD adapter contract and upgrade checklist.
+- `packages/mcp/README.md` - MCP setup and tool contract.
+
+## Historical And Reference Docs
+
+These remain in place for traceability but should not be treated as the latest architecture source:
+
+- `terminal-refactor-plan.md` - historical tmux migration plan; superseded for current design work by `terminal-architecture-v3.md`, `terminal-runtime-decision.md`, and `terminal-quality-standard.md`.
+- `qmd-integration-plan.md` - longer-term QMD product plan; live adapter details are in `qmd-integration-notes.md`.
+- `staff-code-review-2026-05-27.md` - dated code review; terminal guidance inside it has been superseded.
+- `mcp-nde-test-2026-06-20.md` - dated MCP non-destructive QA audit.
+- `exo-themes-plan.md` - planning document for the named theme system, not a shipped feature contract.
+
 ## Read Order
 
 1. `../README.md` - product overview, setup, current capabilities
@@ -13,13 +39,15 @@ This directory contains committed, public-facing project context. It should be u
 7. `harness.md` - validation gates and agent-friendly development workflow
 8. `architecture.md` - package boundaries and runtime contracts
 9. `roadmap.md` - future product systems
-10. `plugins.md` - plugin architecture direction
-11. `plugin-implementation-plan.md` - phased implementation plan for capability registries, search providers, agent harnesses, Routines, artifacts, and tracing
-12. `open-source.md` - release and platform support notes
-13. `terminal-runtime-decision.md` - terminal runtime decision
-14. `terminal-refactor-plan.md` - tmux-backed terminal refactor plan
-15. `terminal-quality-standard.md` - terminal useability and QA standard
-16. `qmd-integration-notes.md` - live QMD dependency boundary and upgrade checklist
+10. `plugin-system-architecture.md` - core-versus-plugin target architecture
+11. `plugins.md` - plugin architecture direction
+12. `plugin-implementation-plan.md` - phased implementation plan for capability registries, search providers, agent harnesses, activity substrate, plugin manifests, and future permissioned loading
+13. `open-source.md` - release and platform support notes
+14. `terminal-architecture-v3.md` - current terminal simplification and module-boundary proposal
+15. `terminal-runtime-decision.md` - terminal runtime decision
+16. `terminal-quality-standard.md` - terminal useability and QA standard
+17. `terminal-refactor-plan.md` - historical tmux migration plan
+18. `qmd-integration-notes.md` - live QMD dependency boundary and upgrade checklist
 
 ## File Roles
 
@@ -29,13 +57,23 @@ This directory contains committed, public-facing project context. It should be u
 - `roadmap.md` groups future product systems.
 - `tasks.md` tracks the next concrete work.
 - `harness.md` explains how changes should be validated.
+- `plugin-system-architecture.md` defines which platform surfaces stay core versus become bundled/external plugins.
 - `plugins.md` tracks the intended extension model.
 - `plugin-implementation-plan.md` tracks the concrete refactor/implementation order for the first plugin architecture phases.
 - `open-source.md` tracks public release hygiene.
+- `terminal-architecture-v3.md` is the current terminal simplification and extraction proposal.
 - `terminal-runtime-decision.md` records the tmux-backed terminal runtime decision.
-- `terminal-refactor-plan.md` breaks the terminal runtime refactor into implementation phases.
 - `terminal-quality-standard.md` defines the latency, rendering, scrollback, persistence, and QA bar for terminal changes.
+- `terminal-refactor-plan.md` is historical; keep it for migration context, not as the current implementation plan.
 - `qmd-integration-plan.md` tracks the long-term QMD product integration.
 - `qmd-integration-notes.md` tracks the current QMD adapter contract, workarounds, and upgrade checklist.
+
+## Future HTML Architecture Artifacts
+
+Generate these later as checked-in static artifacts under `docs/artifacts/` or an equivalent generated-docs location:
+
+- `docs/artifacts/runtime-control-plane.html` - visualizes desktop main process, command server, CLI, MCP, workspace settings, `.exo/server.json`, and hidden-window resident lifecycle.
+- `docs/artifacts/core-plugin-boundary.html` - visualizes core substrate versus bundled/external plugins, including terminal core, harness adapters, QMD/search providers, routines/activity records, web viewer endpoints, and permission/trust boundaries.
+- `docs/artifacts/terminal-runtime-v3.html` - visualizes tmux, Exo terminal runtime services, transcript store, xterm renderer ownership, hydration rules, CLI/MCP reads, and reconnect/recovery flows.
 
 Do not put private local paths, personal task trackers, or machine-specific setup in committed docs. Keep those in local notes or untracked files.

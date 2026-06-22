@@ -1,6 +1,6 @@
 # Exo Tasks
 
-Last updated: 2026-06-20
+Last updated: 2026-06-21
 
 This is the active task tracker for Exo. It is intentionally not a history file; completed implementation history belongs in `ledger.md`. Tasks here should be concrete, current, and ordered by practical priority.
 
@@ -99,7 +99,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Let files and terminals share one arbitrary split-pane graph.
 - [x] Roadmap mixed file/terminal tab groups after the split-pane model stabilizes.
 - [x] Support multiple terminal panes in the main workspace, not just the terminal dock.
-- [x] Add a core WebView/browser pane for local web-app previews, docs, dashboards, and future plugin-hosted apps.
+- [x] Add a core web viewer pane for local web-app previews, docs, dashboards, and plugin-produced artifacts.
 - [x] Persist pane layout across restart.
 - [x] Keep file and terminal tab chrome aligned across all pane positions.
 - [x] Add broader regression coverage for pane closure, reload, and terminal streaming.
@@ -141,20 +141,21 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [ ] Explore block-level or line-level provenance only where Exo can track it reliably.
 - [ ] Avoid AI-detector-style inference; provenance should come from observed writes and controlled workflows.
 
-## Next: Feed, Scheduler, And Routine Runs
+## Next: Feed, Activity Substrate, And Plugin Routines
 
 - [ ] Define the feed/event item model for incoming and generated context: quick capture, RSS/bookmark/web clip, voice transcript, file change, terminal-agent output, MCP message, workflow result, git event, plugin response, eval result, and training artifact.
 - [ ] Define feed item review/promote/archive semantics without requiring an `/inbox/` folder.
-- [x] Define the core Routine model: prompt, selected harness, optional required harness skills, manual trigger or schedule, scope, permissions, output policy, logs, traces, artifacts, review state, and recovery.
+- [x] Define the first-pass Routine/activity model: prompt, selected harness, optional required harness skills, manual trigger or schedule, scope, permissions, output policy, logs, traces, artifacts, review state, and recovery.
+- [ ] Reassess the current Routine/Run core model and shrink future expansion toward a minimal activity substrate: ids, status, timestamps, actor, scope, permission checks, artifact references, transcript/log references, optional provenance links, and optional review state.
 - [x] Define how harness skill inventory is represented so Exo can warn when a Routine prompt references a skill the selected harness does not expose.
 - [x] Define plugin routine templates as metadata that can be instantiated into concrete user/workspace Routines.
 - [x] Add the first Routine CLI MVP: list plugin templates, create concrete routines, list routines, record dry-run executions, and inspect run records/artifacts.
 - [x] Add a bundled dev `graph-health.template` routine plugin manifest for dogfooding plugin-template discovery.
 - [x] Add first app-backed Routine execution handoff: `exo routines run --agent` launches shell/Claude/Codex through the running app, sends the prompt, and records the agent-session artifact for review.
-- [ ] Add first scheduler candidate use cases: update entities, graph health, organize wiki, plugin-hosted elicitation, training export, eval run, and Exo-on-Exo maintenance.
+- [ ] Add first plugin routine candidate use cases: update entities, graph health, organize wiki, plugin-hosted elicitation, training export, eval run, and Exo-on-Exo maintenance.
 - [x] Decide the first user-facing Routine creation surface: CLI MVP on top of one core routine service.
-- [ ] Decide initial implementation target for scheduled runs: CLI-only MVP, resident app scheduler, or both with one shared run store.
-- [ ] Add Routine run lifecycle tracking beyond handoff: terminal transcript links, completion detection, cancellation, and accepted/rejected review outcomes.
+- [ ] Decide whether core needs scheduler hooks now or whether plugin routine execution can stay manual/CLI until repeated use proves the scheduler substrate.
+- [ ] Add activity lifecycle tracking beyond handoff only at the substrate level: terminal transcript links, completion detection, cancellation, and accepted/rejected review references.
 
 ## Next: QMD, Notes Index, And Search
 
@@ -212,6 +213,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 ## Next: Plugin Architecture Foundations
 
 - [x] Scope the plugin architecture as internal capability registries first, not arbitrary third-party code loading.
+- [x] Define the target core-versus-plugin architecture: core owns Markdown graph/editor, basic search, pane/web viewer hosts, terminal runtime, minimal activity/artifact-reference substrate, permissions, and plugin registry; plugins provide harnesses, advanced search, profiles, routines, analyzers, evals, exporters, dashboards, and maintenance workflows.
 - [x] Write the concrete implementation sequence in `docs/plugin-implementation-plan.md`.
 - [x] Add core capability contract types and a built-in registry with tests.
 - [x] Register built-in QMD search-provider metadata without changing behavior.
@@ -221,9 +223,10 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Extract shell/Claude/Codex launch planning behind an `AgentHarness` interface.
 - [x] Add a typed agent-harness registry and route runtime launcher resolution through it.
 - [x] Define Routine and harness skill inventory contracts before implementing scheduler UI.
-- [x] Define shared Run, artifact, trace, file-change proposal, and evaluation result primitives that plugins can build on.
-- [x] Define canonical `.exo/` storage paths for Routine definitions, Run records, transcripts, logs, and artifacts.
-- [x] Add a first JSON-backed core store for Routine definitions and Run records.
+- [x] Define first-pass Run, artifact, trace, file-change proposal, and evaluation result primitives that plugins can build on.
+- [ ] Narrow the long-term core contract from rich Run/trace/eval schemas to minimal activity, artifact-reference, provenance-reference, and review-reference primitives; leave rich schemas plugin-owned.
+- [x] Define canonical `.exo/` storage paths for first-pass Routine definitions, Run/activity records, transcripts, logs, and artifacts.
+- [x] Add a first JSON-backed core store for Routine definitions and Run/activity records.
 - [x] Add artifact writing and trace JSONL append helpers to the Routine/Run store.
 - [x] Add metadata-only plugin routine-template extraction and concrete Routine instantiation helpers.
 - [x] Add a core Routine service that discovers plugin templates, persists routines, and records dry-run executions.
@@ -232,6 +235,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Document that workload-specific systems such as Guardian Angel should be downstream plugins/reference workloads, not Exo core features.
 - [ ] Define external plugin contracts for workload-specific trace collection, review labels, dataset export, eval packets, and instrumented agent runtimes.
 - [ ] Review the first-pass bundled harness plugin/config work for shell, Claude Code, Codex, Pi, and Hermes; ensure missing harnesses are configuration items, not dead launch buttons, and local GA Pi is represented only as a local custom Pi instance.
+- [ ] Split terminal/session substrate types from harness-adapter ids so CLI/MCP agent creation derives allowed choices from the registered harnesses while `exo terminals` stays the low-level core terminal surface.
 - [ ] Define how downstream plugins can use OKF-compatible concept documents for curated knowledge while storing raw traces, labels, eval packets, and training exports as linked local artifacts.
 - [x] Define permissioned surface-contribution policy for desktop, CLI, MCP, and command-server exposure.
 - [x] Define plugin manifest shape and first Exo API version policy.
@@ -241,6 +245,10 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Keep first-pass plugin manifests non-executable: no entrypoint loading, permission grants, UI contributions, CLI commands, or MCP tools.
 - [x] Add architecture/harness checks that discourage direct implementation imports outside the provider/harness facade path.
 - [ ] Define concrete install/load directories for built-in, dev, user, and workspace plugins in the desktop runtime.
+- [x] Convert the current terminal rail into a general tool/plugin dock without moving terminal rendering, scrollback, reconnect, or diagnostics out of core.
+- [ ] Add renderer surface descriptors for bundled tool actions: terminal launcher, harness launcher, agent config, routines, graph tools, and future plugin panels.
+- [x] Add core web viewer open/focus/close endpoints for URL/path/artifact preview; plugin outputs should call those endpoints rather than require a special WebView plugin API.
+- [ ] Add onboarding capability selection for bundled plugins: QMD, Claude/Codex/Pi/Hermes harness adapters, and future routine/profile packs; web viewer remains core.
 - [ ] Add trust prompts and permission grants before any plugin entrypoint execution.
 - [ ] Add Plugin Manager UI only after manifests, trust, and permissions survive real use.
 
@@ -251,8 +259,8 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [ ] Add durable memory, trace archive, retrieval/index, and working-memory assembly as separate layers.
 - [ ] Support adding non-Claude/non-Codex terminal agents, including local/open-source agents.
 - [ ] Add workcell model for bounded research/development loops.
-- [x] Define run, artifact, trace, and evaluation result primitives that plugins can build on.
-- [ ] Add supervised run surfaces with artifacts, metrics, logs, and replay.
+- [x] Define first-pass run, artifact, trace, and evaluation result primitives that plugins can build on.
+- [ ] Add supervised activity/plugin-run surfaces with artifacts, metrics, logs, and replay.
 - [ ] Add eval hooks for retrieval quality, memory usefulness, agent recovery, and operator acceptance.
 - [ ] Keep training data explicitly scoped by project, workcell, agent, artifact type, review status, and time window.
 - [ ] Explore local-agent training workflows once Exo has stable workcells, memory, and evals.
@@ -262,7 +270,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Define plugin manifest shape and version policy.
 - [ ] Define plugin install/load locations.
 - [x] Define plugin extension depths: app plugins, surface plugins, capability plugins, and routine/template plugins.
-- [ ] Define safe renderer panel and WebView app extension points.
+- [ ] Define safe renderer panel extension points and core web viewer endpoint usage for plugin-produced local apps/artifacts.
 - [ ] Define command registration API.
 - [ ] Define settings API for plugin-owned state.
 - [ ] Define agent harness adapter API for Claude, Codex, Pi, Aider, Goose, OpenCode, and local/open-source agents.

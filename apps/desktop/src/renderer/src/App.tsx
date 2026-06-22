@@ -261,6 +261,8 @@ export function App() {
     workspaceModel,
     openFile,
     openPreview: createBrowserPane,
+    focusPreview: focusBrowserPane,
+    closePreview: closeBrowserPane,
     openSettings: workspaceSettingsController.openDialog,
     reloadTrees,
     scheduleOpenDocumentRefresh,
@@ -645,6 +647,29 @@ export function App() {
     );
     editorActions.focusLeaf(newLeafId);
     setZoomSurface("editor");
+  }
+
+  function focusBrowserPane() {
+    const browserLeaf = collectLeaves(editorTree).find((leaf) => leaf.content.kind === "browser");
+    if (!browserLeaf) {
+      createBrowserPane();
+      return;
+    }
+    editorActions.focusLeaf(browserLeaf.id);
+    setZoomSurface("editor");
+  }
+
+  function closeBrowserPane() {
+    const leaves = collectLeaves(editorTree);
+    if (leaves.length <= 1) {
+      return;
+    }
+    const focusedBrowserLeaf = leaves.find((leaf) => leaf.id === editorFocusedLeafId && leaf.content.kind === "browser");
+    const browserLeaf = focusedBrowserLeaf ?? leaves.find((leaf) => leaf.content.kind === "browser");
+    if (!browserLeaf) {
+      return;
+    }
+    editorActions.removeLeaf(browserLeaf.id);
   }
 
   async function createBranchFromActiveDocument() {

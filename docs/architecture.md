@@ -1,14 +1,14 @@
 # Exo Architecture
 
-Last updated: 2026-05-31
+Last updated: 2026-06-21
 
-Exo is a local-first exograph workspace for humans and terminal agents. The current system is still shell-first, but it now has three live control surfaces over the same workspace runtime:
+Exo is a local-first AI workstation for applied AI engineers and researchers building personal AI systems over a Markdown-first exograph. The current system is still shell-first, but it now has three live control surfaces over the same workspace runtime:
 
 - desktop app
 - `bin/exo` CLI
 - `@exo/mcp` bridge
 
-The exograph is the product object: a user-defined graph over notes, projects, agents, sessions, files, artifacts, and workflow runs with growable relational ontologies. Memory, workcells, datasets, evals, and training are still future layers. The current runtime work is about making Markdown notes, code files, terminals, and terminal agents legible and controllable inside one local workspace.
+The exograph is the core product object inside the workstation: a user-defined graph over notes, projects, agents, sessions, files, activity records, artifact references, and provenance references with growable relational ontologies. Memory, workcells, datasets, evals, and training are still future layers. The current runtime work is about making Markdown notes, code files, terminals, and terminal agents legible and controllable inside one local workstation.
 
 ## Package Boundaries
 
@@ -36,6 +36,27 @@ The immediate architecture is current-package domain modules, not a new runtime 
 This staged approach lets Exo ship resident runtime features without prematurely freezing plugin or runtime APIs.
 
 The first plugin architecture pass should not load arbitrary third-party code. It should define typed internal registries for bundled capabilities, then migrate hardwired behavior onto those contracts. The first two practical seams are search providers and agent harnesses because QMD and shell/Claude/Codex/Pi/Hermes are plugin-shaped. Vanilla Exo should be understood as core plus bundled/recommended plugins, not core plus permanent hardcoded defaults.
+
+## Core Substrate And Bundled Plugins
+
+Exo core owns the services that must be stable, permissioned, and coherent across the app:
+
+- Markdown files, note roots, project roots, basic file/path/text search, and core graph primitives
+- pane/grid layout, tab descriptors, persisted layout, and trusted web viewer host primitive
+- terminal runtime, rendering surface, scrollback, transcripts, reconnect, diagnostics, and semantic message delivery
+- command server, resident runtime, CLI/MCP base contracts, settings, permissions, and app lifecycle
+- minimal feed/activity substrate, artifact references, provenance references, optional review hooks, and plugin registry/trust state
+
+Bundled and external plugins provide replaceable capability variation:
+
+- agent harness adapters such as shell, Claude Code, Codex, Pi, Hermes, Aider, OpenCode, and local agents
+- advanced search/index providers such as QMD, graph search, vector search, rerankers, and remote retrieval
+- dashboards, local web apps, and artifact producers that use the core web viewer endpoints
+- exograph profiles, analyzers, trace collectors, eval runners, dataset exporters, training flows, and Routine templates
+
+The terminal itself is not a plugin. Exo needs to own terminal reliability because scrollback, rendering, sleep/reconnect behavior, semantic sends, transcripts, and CLI/MCP control are central to daily use. Harnesses plug into that terminal service by declaring launch plans, availability, skill/config locations, message semantics, readiness hints, and optional provenance hooks.
+
+See `plugin-system-architecture.md` for the canonical core-versus-plugin boundary.
 
 ## Runtime Command Server
 
@@ -78,24 +99,24 @@ The macOS menu bar controller is the visible runtime control surface when the wo
 
 For Exo-on-Exo development, the installed app is the stable resident runtime. Source QA should use `pnpm dev:qa`, which sets separate `.exo-dev/` runtime and user-data paths so the dev process does not overwrite the stable app's `server.json`, settings, or command-server discovery.
 
-## Feed, Scheduler, And Routine Model
+## Activity Feed And Automation Substrate
 
-Exo should eventually have a core feed/event stream and scheduler for local AI workbench routines.
+Exo should eventually have a small core feed/event stream and activity substrate. It should not grow a large core automation product before plugins prove which primitives are universal.
 
 The feed is the broader primitive behind an inbox. It is a stream of incoming or generated context items from quick capture, files, notes, terminal agents, MCP messages, RSS/bookmarks, voice transcripts, workflow results, git events, evals, and plugin-generated sessions. Feed items are not automatically durable graph facts. They are reviewable inputs that can be linked, archived, promoted into notes/entities/tasks, or used as trace/artifact evidence.
 
-The scheduler is core because recurring local AI work should not depend on each plugin inventing cron. A scheduled run should specify:
+Core may own a scheduler hook or job registration mechanism because recurring local work should not require every plugin to invent process supervision. That substrate should stay small. A scheduled activity record should specify:
 
 - selected harness or agent runtime
 - prompt text and optional required harness skills
 - scope such as note root, project root, profile, feed query, entity set, or saved search
 - permissions for reads, writes, terminal access, network, model calls, and exports
 - output policy: direct write, proposed changes, artifacts only, or review required
-- logs, traces, artifacts, and recovery state
+- status, timestamps, artifact references, transcript/log references, and recovery state
 
-A Routine is the product-level run definition: prompt, selected harness, optional required harness skills, manual or scheduled trigger, scope, permissions, and output policy. Each execution of a Routine is a Run with logs, traces, artifacts, proposed changes, and review state.
+Routines, workflows, eval runs, graph-health jobs, training exports, and maintenance loops are plugin-level concepts by default. They can use the core activity substrate for permission checks, status, cancellation, artifact references, and optional review state, but their richer schemas belong to the plugin until they prove universal.
 
-Skills are harness-visible capabilities referenced by prompts, not Exo worker runtimes. A harness may expose a skill inventory, and a future Exo config surface should help users see which skills are connected to which harnesses. Harness plugins provide headless execution. Profile/plugin packages may ship prompts, templates, default Routines, schedules, and UI surfaces, but Exo core owns scheduling, permission checks, Run records, artifacts, provenance, and review state.
+Skills are harness-visible capabilities referenced by prompts, not Exo worker runtimes. A harness may expose a skill inventory, and a future Exo config surface should help users see which skills are connected to which harnesses. Harness plugins provide headless execution. Profile/plugin packages may ship prompts, templates, default Routines, schedules, and UI surfaces, while Exo core owns only the shared permission, activity, artifact-reference, and review hooks needed for those plugins to compose safely.
 
 ## Terminal And Agent Model
 
@@ -110,7 +131,7 @@ Terminals are the first agent interface.
 - transcript retention defaults to `forever`; optional day-based retention is explicit in settings
 - closing or killing a terminal intentionally terminates the tmux-backed session; window close/hide detaches the UI while the runtime remains available
 
-See `terminal-runtime-decision.md`, `terminal-refactor-plan.md`, and `terminal-quality-standard.md` for the tmux-backed runtime direction and QA bar.
+See `terminal-architecture-v3.md`, `terminal-runtime-decision.md`, and `terminal-quality-standard.md` for the tmux-backed runtime direction, current simplification proposal, and QA bar. `terminal-refactor-plan.md` is historical migration context.
 
 The renderer should treat terminal sessions as live views over supervised processes, not as durable state by itself.
 
@@ -187,7 +208,7 @@ Integration setup commands:
 - `interrupt_agent`
 - `terminate_agent`
 
-Future MCP additions should be tested against this rule: can an agent use this tool to do useful work in the current workspace without gaining broad admin/debug power? Good candidates are scoped document graph/context inspection, allowed note creation/append/guarded patch, browser preview of agent-produced artifacts, and agent communication. Bad candidates are provider installation, index maintenance, project-root mutation, raw terminal writes, and app repair.
+Future MCP additions should be tested against this rule: can an agent use this tool to do useful work in the current workspace without gaining broad admin/debug power? Good candidates are scoped document graph/context inspection, allowed note creation/append/guarded patch, opening agent-produced artifacts through the core web viewer, and agent communication. Bad candidates are provider installation, index maintenance, project-root mutation, raw terminal writes, and app repair.
 
 By default, the MCP server needs Exo already running so it can read `.exo/server.json`. With `EXO_MCP_AUTOSTART=1`, it can start Exo through `EXO_MCP_START_COMMAND` and wait for the command server. If `EXO_RUNTIME_ROOT` or explicit workspace env vars are not set, MCP uses the same active desktop workspace registry as the CLI to find the runtime root.
 
@@ -223,6 +244,8 @@ Project roots are explicit imported folders. First-run source builds attach the 
 
 The current workspace pane graph is a split tree whose leaves are typed as either editor leaves or terminal leaves. Editor leaves own document tabs; terminal leaves own terminal session tabs. This supports arbitrary file/terminal split layouts without mixing live process state into document state.
 
+The current terminal rail should evolve into a tool/plugin dock. Terminal launch controls, future routine controls, graph analyzers, and other plugin surfaces should be contributed through typed surface descriptors. The web viewer remains a core endpoint surface rather than a special plugin API. That dock can host plugin surfaces, but it does not make the terminal runtime itself a plugin; terminal tabs remain live views over Exo-owned terminal sessions.
+
 Mixed file/terminal tab groups should be a deliberate next model, not a visual shortcut. The target shape is one pane leaf with typed tabs:
 
 - document tabs point at open file paths
@@ -237,8 +260,9 @@ Migration path:
 
 1. Keep the current split-tree leaf model stable for separate editor and terminal leaves.
 2. Introduce a normalized tab descriptor type that can represent documents and terminals.
-3. Convert editor and terminal leaves to render through the shared tab descriptor without changing behavior.
-4. Only then allow a single leaf to contain both document and terminal descriptors.
+3. Introduce surface descriptors for tool/plugin dock actions without changing behavior.
+4. Convert editor and terminal leaves to render through the shared tab descriptor without changing behavior.
+5. Only then allow a single leaf to contain document, terminal, browser, or future plugin-surface descriptors.
 
 ## Search And Retrieval
 
@@ -285,8 +309,8 @@ Exo-owned derived data:
 - graph/search indexes and caches
 - inferred candidate nodes/edges
 - schema/profile proposals
-- workflow run logs
-- provenance and review metadata
+- activity logs and artifact references
+- provenance and review references
 
 The initial exograph profile should be configuration, not code: node types, edge types, path/property mappings, conventions, templates, maintenance rules, and review policy. Exo may ship starter profiles such as a minimal flat-notes profile, Shoshin, and LM Wiki, but no starter profile should be mandatory.
 
@@ -302,7 +326,7 @@ This matches Exo's direction and should become the default interoperability affo
 - Exo should treat missing `type`, unknown frontmatter fields, unknown `type` values, missing optional fields, missing indexes, and broken links as normal Markdown states unless the user explicitly asks for OKF conformance checks.
 - Exo should preserve unknown frontmatter when editing or round-tripping documents.
 - User-approved durable graph facts should live in Markdown/frontmatter/links in a way that can be exported as OKF.
-- `.exo/` remains the place for derived indexes, traces, proposals, workflow runs, provenance, plugin state, and dataset artifacts that are not themselves concept documents.
+- `.exo/` remains the place for derived indexes, traces, proposals, activity records, artifact references, provenance references, plugin state, and dataset artifacts that are not themselves concept documents.
 - Plugin artifacts should reference OKF concepts where possible, and may emit OKF concept documents for curated knowledge plus JSONL or other artifacts for raw traces/training data.
 
 OKF is a document/bundle exchange standard, not Exo's runtime or plugin API. Exo can support richer local state and workflows, and it should never make OKF conformance a prerequisite for using normal Markdown notes. The portable knowledge layer should speak OKF when the user opts into structure or imports an OKF-compatible graph.

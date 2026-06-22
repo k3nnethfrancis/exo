@@ -70,9 +70,86 @@ describe("CommandServer preview routes", () => {
       server.stop();
     }
   });
+
+  it("focuses and closes preview panes over HTTP", async () => {
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-command-server-"));
+    tempPaths.push(runtimeRoot);
+    let focused = false;
+    let closed = false;
+    const server = new CommandServer({
+      ...commandServerOptions(runtimeRoot),
+      onFocusPreview: () => {
+        focused = true;
+        return { ok: true };
+      },
+      onClosePreview: () => {
+        closed = true;
+        return { ok: true };
+      },
+    });
+
+    try {
+      const port = await server.start();
+      const focusResponse = await fetch(`http://127.0.0.1:${port}/preview/focus`, { method: "POST" });
+      const closeResponse = await fetch(`http://127.0.0.1:${port}/preview/close`, { method: "POST" });
+
+      expect(focusResponse.ok).toBe(true);
+      await expect(focusResponse.json()).resolves.toEqual({ ok: true });
+      expect(closeResponse.ok).toBe(true);
+      await expect(closeResponse.json()).resolves.toEqual({ ok: true });
+      expect(focused).toBe(true);
+      expect(closed).toBe(true);
+    } finally {
+      server.stop();
+    }
+  });
 });
 
 describe("CommandServer terminal routes", () => {
+  it("rejects registered but unavailable agent harnesses before creating terminals", async () => {
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-command-server-"));
+    tempPaths.push(runtimeRoot);
+    const previousHermesCommand = process.env.EXO_HERMES_COMMAND;
+    process.env.EXO_HERMES_COMMAND = "/definitely/missing/hermes";
+    let created = false;
+    const server = new CommandServer({
+      ...commandServerOptions(runtimeRoot),
+      onCreateTerminal: async () => {
+        created = true;
+        return {
+          id: "terminal-1",
+          kind: "hermes",
+          title: "Hermes",
+          cwd: runtimeRoot,
+          command: "hermes",
+          status: "running",
+        };
+      },
+    });
+
+    try {
+      const port = await server.start();
+      const response = await fetch(`http://127.0.0.1:${port}/terminals`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "hermes" }),
+      });
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toMatchObject({
+        error: expect.stringContaining("Agent harness is not launchable: hermes"),
+      });
+      expect(created).toBe(false);
+    } finally {
+      if (previousHermesCommand === undefined) {
+        delete process.env.EXO_HERMES_COMMAND;
+      } else {
+        process.env.EXO_HERMES_COMMAND = previousHermesCommand;
+      }
+      server.stop();
+    }
+  });
+
   it("preserves semantic terminal messages and submit=false over HTTP", async () => {
     const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-command-server-"));
     tempPaths.push(runtimeRoot);
@@ -218,6 +295,8 @@ function commandServerOptions(runtimeRoot: string): CommandServerOptions {
     onShowWindow: () => {},
     onOpenFile: () => {},
     onOpenPreview: async (target) => ({ ok: true, url: target, source: "url" }),
+    onFocusPreview: () => ({ ok: true }),
+    onClosePreview: () => ({ ok: true }),
     onSearch: async () => ({ notes: [], projectFiles: [], tags: [] }),
     onIndexSearch: async () => ({ mode: "lexical", source: "filesystem", query: "", results: [], warnings: [] }),
     onReadDocument: async () => ({ target: "", filePath: "", title: "", body: "", source: "filesystem" }),

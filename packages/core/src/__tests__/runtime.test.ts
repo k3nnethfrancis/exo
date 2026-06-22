@@ -1,6 +1,6 @@
 import os from "node:os";
 import path from "node:path";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -105,6 +105,27 @@ describe("runtime", () => {
     const plan = resolveAgentLaunchPlan(config, "codex", "/tmp/exo-test-workspace");
 
     expect(plan.args).toEqual(["-c", 'model_reasoning_effort="medium"']);
+  });
+
+  it("resolves a local Pi source checkout through project roots", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "exo-pi-runtime-"));
+    tempPaths.push(tempRoot);
+    const cliPath = path.join(tempRoot, "packages", "coding-agent", "dist", "cli.js");
+    await mkdir(path.dirname(cliPath), { recursive: true });
+    await writeFile(cliPath, "#!/usr/bin/env node\n", "utf8");
+
+    const config = resolveRuntimeConfig({
+      EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
+      EXO_NOTE_ROOTS: "/tmp/exo-test-workspace/notes",
+      EXO_PROJECT_ROOTS: tempRoot,
+    });
+
+    const plan = resolveAgentLaunchPlan(config, "pi", "/tmp/exo-test-workspace/projects/ga-pi");
+
+    expect(plan.command).toBe(process.execPath);
+    expect(plan.args).toEqual([cliPath]);
+    expect(plan.env.EXO_AGENT_KIND).toBe("pi");
+    expect(plan.env.EXO_RUNTIME_PRIMARY_INSTRUCTIONS).toBe(config.instructions.primary);
   });
 
   it("writes generated instruction files", async () => {

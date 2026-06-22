@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  activityArtifactPaths,
+  activityHasPendingReview,
+  activityToRunRecord,
+  runToActivityRecord,
   runArtifactPaths,
   runHasPendingReview,
   runTraceHasEvidence,
+  type ActivityRecord,
   type RunEvaluationResult,
   type RunRecord,
   type RunTracePacket,
@@ -92,5 +97,86 @@ describe("run primitives", () => {
 
     expect(result.metrics[0]).toMatchObject({ name: "operator_agreement", value: 0.74 });
     expect(result.artifactIds).toEqual(["artifact-2"]);
+  });
+
+  it("projects legacy run records into the generic activity substrate", () => {
+    const activity = runToActivityRecord({
+      ...baseRun,
+      transcriptPath: ".exo/runs/run-1/transcript.ansi.log",
+      logPath: ".exo/runs/run-1/run.log",
+    });
+
+    expect(activity).toMatchObject({
+      id: "run-1",
+      activityType: "routine.run",
+      status: "needsReview",
+      actor: { id: "routine-1", kind: "plugin" },
+      harness: { id: "codex" },
+      routine: { id: "routine-1" },
+      transcriptRef: { id: "transcript", path: ".exo/runs/run-1/transcript.ansi.log" },
+      logRef: { id: "log", path: ".exo/runs/run-1/run.log" },
+      reviewRef: { state: "pending" },
+    });
+    expect(activityHasPendingReview(activity)).toBe(true);
+    expect(activityArtifactPaths(activity, "report")).toEqual([".exo/runs/run-1/report.md"]);
+  });
+
+  it("projects activity-shaped records back through the run compatibility API", () => {
+    const activity: ActivityRecord = {
+      id: "activity-1",
+      activityType: "routine.run",
+      status: "succeeded",
+      reviewState: "notRequired",
+      actor: { id: "graph-health.plugin", kind: "plugin" },
+      harness: { id: "codex", sessionId: "session-1" },
+      routine: { id: "graph-health", templateId: "graph-health.template" },
+      scope: {
+        workspaceRoot: "/workspace",
+        noteRootIds: ["notes"],
+        projectRootIds: ["exo"],
+        paths: ["notes", "projects/exo"],
+      },
+      transcriptRef: { id: "transcript", path: ".exo/runs/activity-1/transcript.ansi.log" },
+      logRef: { id: "log", path: ".exo/runs/activity-1/run.log" },
+      provenanceRefs: [{ id: "session", path: ".exo/terminal-transcripts/session-1.log" }],
+      artifacts: [
+        {
+          id: "artifact-1",
+          activityId: "activity-1",
+          kind: "report",
+          path: ".exo/artifacts/activity-1/report.md",
+          createdAt: "2026-06-14T00:04:00.000Z",
+        },
+      ],
+      errors: [],
+      pluginMetadata: {
+        graphHealth: {
+          orphanCount: 2,
+        },
+      },
+    };
+
+    const run = activityToRunRecord(activity);
+
+    expect(run).toMatchObject({
+      id: "activity-1",
+      routineId: "graph-health",
+      harnessId: "codex",
+      status: "succeeded",
+      reviewState: "notRequired",
+      transcriptPath: ".exo/runs/activity-1/transcript.ansi.log",
+      logPath: ".exo/runs/activity-1/run.log",
+      proposedFileChanges: [],
+    });
+    expect(run.artifacts).toEqual([
+      {
+        id: "artifact-1",
+        activityId: "activity-1",
+        runId: "activity-1",
+        kind: "report",
+        path: ".exo/artifacts/activity-1/report.md",
+        createdAt: "2026-06-14T00:04:00.000Z",
+      },
+    ]);
   });
 });

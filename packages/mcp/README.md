@@ -88,8 +88,10 @@ Equivalent env vars are `EXO_MCP_HTTP_HOST`, `EXO_MCP_HTTP_PORT`, and `EXO_MCP_H
 - `search` — search notes through QMD when enabled, with filesystem fallback when indexing is off or unavailable.
 - `read_document` — read an indexed or filesystem note/document target.
 - `open_preview` — open an HTTP(S) URL or existing local `.html`/`.htm` artifact inside Exo's in-app browser preview. Local files must be inside the workspace, note roots, or project roots.
+- `focus_preview` — focus Exo's in-app browser preview, creating an empty preview pane if none is open.
+- `close_preview` — close the focused preview pane, or the first open preview pane when focus is elsewhere.
 - `list_agents` — list live Exo terminal agents.
-- `create_agent` — create a new shell, Claude, or Codex terminal.
+- `create_agent` — create a new terminal from a registered launchable harness: shell, Claude, Codex, Pi, or Hermes. Unavailable or unconfigured harnesses return a command-server error instead of launching a dead process.
 - `read_agent` — read bounded live terminal tail output. ANSI cleanup is enabled by default.
 - `send_agent_message` — send text to a live agent. `submit` defaults to `true`, so the message is submitted with Enter unless explicitly disabled. Codex startup sends may be queued until normal chat input is ready.
 - `interrupt_agent` — send Escape or Ctrl-C to a live agent.
@@ -109,6 +111,9 @@ bin/exo agents send term-4 "message"
 bin/exo agents send term-4 "raw input without Enter" --raw
 bin/exo agents interrupt term-4 ctrl-c
 bin/exo agents terminate term-4
+bin/exo preview open http://localhost:3000
+bin/exo preview focus
+bin/exo preview close
 bin/exo search "query"
 bin/exo read /path/or/qmd-target
 ```

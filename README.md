@@ -1,25 +1,25 @@
 # Exo
 
-**A Local Exograph Workspace for Humans and Agents.**
+**A Local AI Workstation for Personal AI Systems.**
 
-Exo is a local-first workspace for building and maintaining an exograph: a user-defined knowledge/work graph shared by you and your terminal agents.
+Exo is a local-first AI workstation for applied AI engineers and researchers building personal AI systems over their own Markdown-first exograph.
 
-It gives agents a common graph they can read from, write to, and coordinate through, while giving you one surface for keeping their work aligned. That graph is grounded in your Markdown notes, project context, terminals, sessions, artifacts, and review history. You can take notes, run agents, and inspect the code they write without bouncing between editors.
+It gives you one local surface for notes, projects, terminals, agents, search, activity, artifacts, review, and future eval/training plugins. The exograph is the core object underneath that workstation: a user-defined knowledge/work graph grounded in Markdown files, project context, terminal sessions, agent messages, changed files, activity records, artifact references, and review history.
 
 ## Why Exo Exists
 
-AI agents are most useful when they can work from the same context you use: your notes, tasks, drafts, logs, code, and project history. Today that context is usually split across a notes app, terminals, editor windows, chat transcripts, and ad hoc files. Exo brings those pieces into one local-first workspace so humans and agents can share context instead of constantly reassembling it.
+AI agents are most useful when they can work from the same context you use: your notes, tasks, drafts, logs, code, and project history. Today that context is usually split across a notes app, terminals, editor windows, chat transcripts, and ad hoc files. Exo brings those pieces into one local-first workstation so humans and agents can share context instead of constantly reassembling it.
 
-Exo is for people who want terminal agents to participate in their actual working environment: reading and writing notes, searching project context, changing code, communicating with other agents, and leaving an inspectable trail of what happened.
+Exo is for people building their own applied AI systems locally: people who want terminal agents, search providers, routines, skills, graph views, evals, and review workflows to compose around their actual working context through clean core APIs and plugins instead of living as separate tools.
 
 ## What Exo Is
 
-- An exograph workspace over notes, tasks, drafts, logs, projects, agents, sessions, and artifacts.
+- A local AI workstation over notes, tasks, drafts, logs, projects, agents, sessions, and artifacts.
 - A Markdown knowledge environment where files remain the durable source of truth.
 - A terminal-agent workspace for running shell, Claude Code, Codex, Pi-style local agents, and future harness plugins.
 - A project/code viewer for inspecting what agents are changing.
 - A shared command surface through the Exo CLI and MCP server.
-- A foundation for note indexing, memory, multi-agent communication, attribution, graph views, workcells, evals, and training loops.
+- A foundation for exographs, note indexing, memory, multi-agent communication, attribution, graph views, plugin workcells, evals, and training loops.
 
 ## What Works Today
 
@@ -43,7 +43,7 @@ Exo is early. The immediate product test is whether Kenneth can use Exo to build
 - Keep the current app stable enough for daily notes, terminals, agent sessions, code review, and Exo-on-Exo development.
 - Use Exo-managed agents for bounded Exo implementation/review tasks, then treat every friction point in that loop as product input.
 - Make the multi-agent development loop legible: agent roster, objectives, messages, transcripts, changed files, and review links.
-- Define the exograph model: user-owned Markdown/frontmatter/links as approved graph facts; Exo profile/config as interpretation rules; `.exo/` as derived indexes, proposals, runs, and provenance.
+- Define the exograph model: user-owned Markdown/frontmatter/links as approved graph facts; Exo profile/config as interpretation rules; `.exo/` as derived indexes, proposals, activity records, artifact references, and provenance references.
 - Add read-only exograph inspection before adding new writes: document context, headings, links, backlinks, tags/properties, orphan/unresolved-link diagnostics, and graph health.
 - Improve the default QMD search provider with true file-level incremental updates when upstream APIs support it.
 - Detect existing QMD setups, refine Exo-owned QMD setup, configure richer reindex triggers, and keep search provider-neutral at Exo's product boundary.
@@ -57,7 +57,7 @@ Exo is early. The immediate product test is whether Kenneth can use Exo to build
 - Let agents inspect attached project roots through Exo workspace status while humans and supervised scripts add/remove roots through CLI/UI.
 - Add multi-agent communication protocols over files, SQLite, MCP, and later richer local transports.
 - Add an agent roster with names, roles, objectives, message routing, and communication logs.
-- Add a plugin architecture for optional workflows, search providers, harness adapters, graph analyzers, eval/training tools, and shareable extensions without bloating core.
+- Add a plugin architecture for optional workflows, search providers, harness adapters, graph analyzers, eval/training tools, and shareable extensions without bloating core. Core should stay boring substrate; plugins provide interesting behavior.
 
 See `docs/roadmap.md` and `docs/tasks.md` for the active plan.
 
@@ -88,6 +88,7 @@ Prerequisites:
 
 - Node.js 22 or newer.
 - pnpm 11.2.2. With Homebrew pnpm, run `pnpm --version` and upgrade if needed.
+- `tmux` for terminal creation and Exo-managed shell/agent sessions. On macOS, install it with `brew install tmux` if Exo reports a missing terminal dependency.
 
 If Corepack fails before install with a package-manager signature or key error, either update Node/Corepack or use your installed pnpm directly:
 
@@ -159,6 +160,8 @@ Exo exposes a narrow MCP work plane for agents and a broader CLI control plane f
 - `search`
 - `read_document`
 - `open_preview`
+- `focus_preview`
+- `close_preview`
 - `list_agents`
 - `create_agent`
 - `read_agent`
@@ -217,7 +220,7 @@ Standalone workspace/runtime commands:
 ./bin/exo launch claude
 ```
 
-`exo routines` is an early operator surface. Plugins can contribute routine templates through metadata-only `exo.plugin.json` manifests, and the CLI can instantiate those templates into concrete workspace routines under `.exo/routines/`. The repo includes a bundled dev `graph-health.template` plugin. `run --dry-run` records a run, trace, and report artifact without launching an agent. `run --agent` creates an Exo-managed shell/Claude/Codex terminal through the running app, sends the routine prompt, and records the agent session for review. Scheduler and automatic completion tracking are still future work.
+`exo routines` is an early operator experiment over the activity/artifact substrate, not a finished core automation product. Plugins can contribute routine templates through metadata-only `exo.plugin.json` manifests, and the CLI can instantiate those templates into concrete workspace routines under `.exo/routines/`. The repo includes a bundled dev `graph-health.template` plugin. `run --dry-run` records a run, trace, and report artifact without launching an agent. `run --agent` creates an Exo-managed shell/Claude/Codex terminal through the running app, sends the routine prompt, and records the agent session for review. Scheduler and automatic completion tracking are still future work.
 
 Commands that drive a running Exo app:
 
@@ -273,6 +276,7 @@ Runtime files live under `.exo/` inside the workspace root:
 - `.exo/instructions/CLAUDE.md` - Exo-generated Claude overlay
 - `.exo/terminal-transcripts/` - disk-backed terminal transcripts
 - `.exo/qmd/index.sqlite` - Exo-managed QMD notes index when indexing is enabled
+- `.exo/routines/`, `.exo/runs/`, `.exo/artifacts/` - first-pass activity/routine state and artifact references; long-term rich workflow/eval schemas should remain plugin-owned unless promoted to core by repeated use
 
 QMD is the default indexing provider for optional Exo-managed notes search. Live Explore typing remains fast filename/path search; indexed search is explicit through Enter in Explore when enabled, through CLI index/search tools, and through the MCP `search` work-plane tool. See `docs/qmd-integration-notes.md` for the adapter contract and upgrade notes.
 
@@ -327,6 +331,8 @@ See `docs/harness.md` for work-chunk rules, validation evidence, and agent-frien
 - `packages/mcp` - MCP server that wraps the running Exo app for local agents; stdio by default, Streamable HTTP when explicitly requested.
 - `docs/architecture.md` - package and runtime architecture.
 - `docs/strategy.md` - product direction and system model.
+- `docs/plugin-system-architecture.md` - core-versus-plugin boundary.
+- `docs/terminal-architecture-v3.md` - current terminal simplification and module-boundary proposal.
 - `docs/harness.md` - developer harness, gates, and agent workflow.
 - `docs/usability-readiness.md` - near-term standard for installed daily use.
 - `docs/plugins.md` - future extension model.
@@ -383,5 +389,7 @@ ls "$HOME/Library/Logs/DiagnosticReports"/Electron-*.ips
 8. `docs/usability-readiness.md` - installed-app readiness standard
 9. `docs/tasks.md` - active execution tracker
 10. `docs/roadmap.md` - future plans
-11. `docs/plugins.md` - future extension model
-12. `packages/mcp/README.md` - MCP setup and tools
+11. `docs/plugin-system-architecture.md` - core-versus-plugin target architecture
+12. `docs/terminal-architecture-v3.md` - current terminal simplification proposal
+13. `docs/plugins.md` - future extension model
+14. `packages/mcp/README.md` - MCP setup and tools

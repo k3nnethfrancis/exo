@@ -1,16 +1,16 @@
 # Exo Strategy
 
-Last updated: 2026-06-20
+Last updated: 2026-06-21
 
 This is the strategy document for Exo. `README.md` explains the product publicly, `docs/roadmap.md` describes future systems, `docs/tasks.md` tracks concrete work, and `ledger.md` records shipped history.
 
 ## Product Direction
 
-Exo is a local-first exograph workspace for humans and terminal agents.
+Exo is a local-first AI workstation for applied AI engineers and researchers building personal AI systems over their own Markdown-first exograph.
 
-The core idea is simple: your Markdown notes, project context, terminal sessions, agent messages, changed files, artifacts, and workflow runs become a user-defined knowledge/work graph. You can write and organize your own knowledge, while terminal agents can read, write, search, and coordinate through the same exograph using Exo-controlled tools.
+The core idea is simple: your Markdown notes, project context, terminal sessions, agent messages, changed files, activity records, and artifact references become a user-defined knowledge/work graph. You can write and organize your own knowledge, while terminal agents, search providers, routines, plugins, evals, and future training loops operate over the same exograph using Exo-controlled tools.
 
-Exo should be flexible enough to support many workflows. A person might use it as a research IDE, a note-taking system, an agent control room, a code-review surface, or an evaluation/training workspace. The product identity is broader than any one of those use cases: Exo is an exograph environment.
+Exo should be flexible enough to support many workflows. A person might use it as a research IDE, a note-taking system, an agent control room, a code-review surface, or an evaluation/training workspace. The product identity is broader than any one of those use cases: Exo is the local workstation for configuring, running, observing, evaluating, and improving personal AI systems.
 
 ## System Model
 
@@ -27,8 +27,9 @@ Exo is organized around:
 - `notes_index` - Exo-managed QMD-backed index for optional notes search and future memory.
 - `search_providers[]` - the provider-backed retrieval layer behind Exo search. QMD is the default local provider, but the Exo contract should allow alternate local, custom, or remote retrieval implementations later.
 - `agent_communication` - future inspectable message transport for multi-agent coordination.
-- `workcells[]` - future bounded development/research loops with artifacts, metrics, and replay.
-- `plugins[]` - future local-first extension packages that can add agent harnesses, commands, panels, WebView apps, search providers, eval runners, trace collectors, and workflows through permissioned APIs.
+- `activities[]` - minimal records for plugin/manual work: what ran, by whom, against what scope, and where outputs live.
+- `workcells[]` - future plugin-defined bounded development/research loops with artifacts, metrics, and replay.
+- `plugins[]` - future local-first extension packages that can add agent harnesses, commands, panels, local web apps/artifacts opened through Exo's web viewer, search providers, eval runners, trace collectors, and workflows through permissioned APIs.
 
 Architecture should evolve in phases: first stabilize the current app enough to use Exo for Exo work, then harden Exo-on-Exo agent coordination, then define exograph/profile/provider contracts where the actual workflow demands them, then extract runtime/plugin boundaries after the core primitives are proven.
 
@@ -45,7 +46,7 @@ Local/private paths belong in settings or environment examples, not source defau
 - Local-first by default.
 - Markdown-on-disk is canonical.
 - The exograph is user-defined; Exo may detect, recommend, and maintain structure, but should not impose one vault schema.
-- Durable approved graph facts live in user-owned files and properties. Inferred facts and workflow history stay in `.exo/` until accepted.
+- Durable approved graph facts live in user-owned files and properties. Inferred facts, activity records, artifact references, and proposals stay in `.exo/` until accepted.
 - First-run setup and workspace switching use the same workspace create/select surface.
 - First-run setup requires an explicit notes folder choice before the app shell appears.
 - Notebook mode is a projection over Markdown, not a separate data model.
@@ -59,7 +60,8 @@ Local/private paths belong in settings or environment examples, not source defau
 - Exo-on-Exo is the default product proving loop: use Exo-managed agents for bounded Exo tasks, then turn friction into product work.
 - Provenance should come from observed workflows, not AI-detector inference.
 - Training data is never ambient; it must be explicitly scoped.
-- Core primitives should stay stable and small; plugins should extend Exo through registries instead of patching internals.
+- Core primitives should stay stable, boring, and small; plugins should provide interesting workflow behavior through registries instead of patching internals.
+- Product language should distinguish the layers: Exo is the workstation, the exograph is the user-owned knowledge/work graph, the resident runtime is the local substrate, and exocortex is a useful metaphor or profile, not the top-level product category.
 
 ## Current Foundation
 
@@ -155,11 +157,11 @@ The exograph should be visible. Graph and memory views should combine backlinks,
 
 Once the workspace, memory, and coordination layers are stable, Exo can support bounded research/development loops, evals, datasets, and local/open-source agent training workflows.
 
-Core should own durable run, artifact, trace, evaluation-result, provenance, and permission primitives. Specific collectors, scorers, dashboards, provider integrations, and training/export flows can be plugins. An eval dashboard may run inside an Exo WebView pane, but the eval system should not be only a hosted web app because it needs permissioned access to Exo's agents, terminal logs, files, search, git state, and artifacts.
+Core should own minimal activity, artifact-reference, provenance-reference, review, and permission primitives. Specific collectors, scorers, dashboards, schemas, provider integrations, and training/export flows should be plugins. An eval dashboard may open through Exo's native web viewer, but the eval system should not be only a hosted web app because it needs permissioned access to Exo's agents, terminal logs, files, search, git state, and artifacts.
 
 ### Plugin Architecture
 
-Exo's plugin model should distinguish app plugins, surface plugins, capability plugins, and workflow plugins. The WebView/browser pane belongs in core because many unrelated workflows need local web-app previews, dashboards, docs, and artifact viewers. Plugins can target that primitive with their own apps.
+Exo's plugin model should distinguish app plugins, surface plugins, capability plugins, and workflow plugins. The web viewer host belongs in core because many unrelated workflows need local web-app previews, dashboards, docs, and artifact viewers. Plugins can generate local content or run local services and ask Exo to open them through core viewer endpoints.
 
 Specific coding agents should use adapter-shaped integrations where possible. Core defines launch, session lifecycle, MCP/CLI exposure, semantic message delivery, trace/provenance hooks, and optional terminal attachment. Individual agents such as Claude Code, Codex, Pi, Hermes, Aider, Goose, OpenCode, and local/open-source agents should be bundled, first-party, user, workspace, or community plugins rather than permanent core branches. Local forks such as GA Pi are configured instances of the Pi harness plugin, not source defaults in OSS Exo.
 
@@ -188,7 +190,7 @@ Every significant change should update docs and tasks when it changes product be
 
 ### 2026-05-12 — README And Product Identity
 
-Exo is now documented as a local-first agentic development environment built around a shared exocortex. Individual users can shape it into a research IDE, note system, agent control room, code-review surface, or training workspace, but the category is the shared exocortex.
+Exo was documented as a local-first agentic development environment built around a shared exocortex. Individual users could shape it into a research IDE, note system, agent control room, code-review surface, or training workspace, but the category was the shared exocortex.
 
 This was superseded by the 2026-05-31 exograph framing.
 
@@ -215,3 +217,7 @@ The CLI is the broad operator/admin/debug surface, similar in spirit to Obsidian
 ### 2026-05-31 — Exograph And Exo-On-Exo Direction
 
 Exo's core concept is the exograph: a user-defined knowledge/work graph with growable relational ontologies. The immediate product proving loop is Exo-on-Exo: use Exo-managed agents to build Exo, then prioritize the reliability, coordination, review, and graph primitives that make that loop work in practice.
+
+### 2026-06-21 — AI Workstation Product Category
+
+Exo's public category is now the local-first AI workstation: a workbench for applied AI engineers and researchers building personal AI systems locally. The exograph remains the core product object, the resident runtime is the local substrate, plugins provide variation, and exocortex is a user-facing metaphor/profile rather than the headline category.

@@ -49,6 +49,26 @@ function resolvePathCommand(command: string, env: NodeJS.ProcessEnv): string | u
   return undefined;
 }
 
+function splitPathList(rawValue?: string): string[] {
+  return rawValue?.split(path.delimiter).map((value) => value.trim()).filter(Boolean) ?? [];
+}
+
+function discoverPiSourceCheckout(env: NodeJS.ProcessEnv): { repoPath: string; cliPath: string } | undefined {
+  const candidates = [
+    env.EXO_PI_REPO_PATH,
+    ...splitPathList(env.EXO_PROJECT_ROOTS),
+  ].filter((value): value is string => Boolean(value));
+
+  for (const repoPath of candidates) {
+    const cliPath = path.join(repoPath, "packages", "coding-agent", "dist", "cli.js");
+    if (existsSync(cliPath)) {
+      return { repoPath, cliPath };
+    }
+  }
+
+  return undefined;
+}
+
 function detectionFor(input: {
   id: ManagedAgentKind;
   adapterId: AgentHarnessAdapterId;
@@ -247,16 +267,18 @@ class PiAgentHarness implements AgentHarness {
   readonly skills = [];
 
   resolveLauncher(env: NodeJS.ProcessEnv): AgentLauncherConfig {
+    const sourceCheckout = env.EXO_PI_COMMAND ? undefined : discoverPiSourceCheckout(env);
     return {
       kind: this.kind,
       title: env.EXO_PI_LABEL ?? this.title,
-      command: env.EXO_PI_COMMAND ?? "pi",
-      args: splitEnvArgs(env.EXO_PI_ARGS),
+      command: env.EXO_PI_COMMAND ?? (sourceCheckout ? process.execPath : "pi"),
+      args: sourceCheckout ? [sourceCheckout.cliPath, ...splitEnvArgs(env.EXO_PI_ARGS)] : splitEnvArgs(env.EXO_PI_ARGS),
     };
   }
 
   resolveDetection(env: NodeJS.ProcessEnv): AgentHarnessDetection {
     const launcher = this.resolveLauncher(env);
+    const sourceCheckout = env.EXO_PI_COMMAND ? undefined : discoverPiSourceCheckout(env);
     const configured = Boolean(env.EXO_PI_COMMAND || env.EXO_PI_REPO_PATH);
     const executablePath = env.EXO_PI_COMMAND ? resolvePathCommand(env.EXO_PI_COMMAND, env) : resolvePathCommand(launcher.command, env);
     return detectionFor({
@@ -267,8 +289,8 @@ class PiAgentHarness implements AgentHarness {
       launcher,
       configured,
       executablePath,
-      repoPath: env.EXO_PI_REPO_PATH,
-      channel: env.EXO_PI_CHANNEL ?? (configured ? "custom" : undefined),
+      repoPath: env.EXO_PI_REPO_PATH ?? sourceCheckout?.repoPath,
+      channel: env.EXO_PI_CHANNEL ?? (configured ? "custom" : sourceCheckout ? "source" : undefined),
       build: env.EXO_PI_BUILD,
       install: {
         label: "Configure a local Pi build",

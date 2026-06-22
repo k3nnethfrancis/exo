@@ -1,5 +1,7 @@
 # Exo MCP NDE QA Audit - 2026-06-20
 
+Status: dated QA evidence. Use `packages/mcp/README.md`, `architecture.md`, and `harness.md` for the current MCP contract and validation rules.
+
 ## Summary
 
 This was a non-destructive QA/audit pass over Exo MCP in `/Users/kenneth/Desktop/lab/projects/exo`.
@@ -270,4 +272,3 @@ Concerns:
 ## Issues Filed
 
 - `EXO-ISSUE-046`: MCP autostart and tool calls can stay pinned to stale command-server discovery.
-

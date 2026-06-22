@@ -54,6 +54,9 @@ interface CommandRunResult {
 interface AppClientLike {
   getStatus(): Promise<Record<string, unknown>>;
   openFile(filePath: string): Promise<void>;
+  openPreview(target: string): Promise<Record<string, unknown>>;
+  focusPreview(): Promise<Record<string, unknown>>;
+  closePreview(): Promise<Record<string, unknown>>;
   showWindow(): Promise<void>;
   getConfig(): Promise<Record<string, unknown>>;
   listProjectRoots(): Promise<string[]>;
@@ -314,6 +317,33 @@ export async function runCli(
     await client.openFile(filePath);
     stdout.write(`Opened: ${filePath}\n`);
     return 0;
+  }
+
+  if (command === "preview") {
+    const client = await connectOrFail(env, stderr, connectAppClient);
+    if (!client) return 1;
+
+    if (subcommand === "open") {
+      const target = args.join(" ");
+      if (!target) {
+        throw new Error("Usage: exo preview open <url-or-html-path>");
+      }
+      stdout.write(`${JSON.stringify(await client.openPreview(target), null, 2)}\n`);
+      return 0;
+    }
+
+    if (subcommand === "focus") {
+      stdout.write(`${JSON.stringify(await client.focusPreview(), null, 2)}\n`);
+      return 0;
+    }
+
+    if (subcommand === "close") {
+      stdout.write(`${JSON.stringify(await client.closePreview(), null, 2)}\n`);
+      return 0;
+    }
+
+    stderr.write("Usage: exo preview [open <url-or-html-path> | focus | close]\n");
+    return 1;
   }
 
   if (command === "status") {
@@ -785,7 +815,7 @@ export async function runCli(
       const { values, positionals } = parseInlineOptions(args);
       const routineId = positionals[0];
       if (!routineId || (values["dry-run"] !== "1" && values.agent !== "1")) {
-        throw new Error("Usage: exo routines run <routine-id> (--dry-run | --agent) [--harness claude|codex] [--cwd <path>] [--no-submit]");
+        throw new Error(`Usage: exo routines run <routine-id> (--dry-run | --agent) [--harness ${AGENT_KIND_USAGE}] [--cwd <path>] [--no-submit]`);
       }
       if (values.agent === "1") {
         const routine = await service.readRoutine(routineId);
@@ -794,7 +824,7 @@ export async function runCli(
         }
         const harness = normalizeAgentKind(values.harness ?? routine.harnessId);
         if (!harness) {
-          throw new Error(`Routine harness must be one of shell, claude, or codex: ${values.harness ?? routine.harnessId}`);
+          throw new Error(`Routine harness must be one of ${AGENT_KIND_USAGE}: ${values.harness ?? routine.harnessId}`);
         }
         const client = await connectOrFail(env, stderr, connectAppClient);
         if (!client) return 1;
@@ -883,6 +913,9 @@ export async function runCli(
       "  exo index update                           Advanced: refresh indexed documents only (app)",
       "  exo index embed                            Advanced: generate pending embeddings only (app)",
       "  exo open <path>                            Open file in editor (app)",
+      "  exo preview open <url-or-html-path>        Open URL or local HTML in preview (app)",
+      "  exo preview focus                          Focus the preview pane (app)",
+      "  exo preview close                          Close the preview pane (app)",
       "  exo status                                 Workspace status (app)",
       "  exo config get [key]                       Read settings (app)",
       "  exo project-roots [list]                   List attached project roots (app)",

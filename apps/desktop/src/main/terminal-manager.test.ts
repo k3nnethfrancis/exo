@@ -139,6 +139,7 @@ const childProcess = vi.hoisted(() => {
 vi.mock("node:child_process", () => childProcess);
 
 import { TerminalManager } from "./terminal-manager";
+import type { TerminalRuntime, TerminalRuntimeProcess } from "./terminal-runtime";
 
 const tempPaths: string[] = [];
 let warnSpy: ReturnType<typeof vi.spyOn>;
@@ -404,6 +405,10 @@ describe("TerminalManager Codex readiness", () => {
     const terminal = await manager.create({ kind: "shell", cwd: workspaceRoot });
 
     expect(manager.readTail(terminal.id)).toContain("captured-001\r\ncaptured-002");
+    expect(manager.diagnostics()[0]).toMatchObject({
+      bufferedLines: 3,
+      bufferedChars: "captured-001\r\ncaptured-002\r\n".length,
+    });
     expect(manager.readTranscript(terminal.id)).not.toContain("captured-001\r\ncaptured-002");
   });
 
@@ -818,6 +823,72 @@ describe("TerminalManager Codex readiness", () => {
       `'mcp_servers.exo.env={EXO_MCP_AUTOSTART=\"1\", EXO_MCP_SEARCH_TIMEOUT_MS=\"30000\", EXO_MCP_START_COMMAND=\"${exoRoot}/bin/exo start\"}'`,
     );
   });
+
+  it("delegates terminal lifecycle through the runtime boundary", async () => {
+    const workspaceRoot = await workspaceFixture();
+    stubWorkspaceEnv(workspaceRoot);
+    const runtime = fakeRuntime();
+    const manager = new TerminalManager(workspaceRoot, 500, 0, {}, runtime);
+
+    const terminal = await manager.create({ kind: "shell", cwd: workspaceRoot });
+
+    expect(runtime.calls.createSession).toEqual([
+      expect.objectContaining({
+        workspaceRoot,
+        cwd: workspaceRoot,
+        historyLimit: 500,
+      }),
+    ]);
+    expect(runtime.calls.captureTail).toEqual([]);
+    expect(manager.readTail(terminal.id)).toContain("runtime-captured");
+    expect(runtime.calls.captureTail).toEqual([
+      {
+        sessionName: "runtime-session-1",
+        paneId: "%runtime-1",
+        historyLimit: 500,
+      },
+    ]);
+
+    await manager.kill(terminal.id);
+
+    expect(runtime.calls.terminate).toEqual(["runtime-session-1"]);
+    expect(
+      childProcess.execFileSync.mock.calls
+        .map((call) => call as unknown as [string, string[]])
+        .filter(([command, args]) => command === "tmux" || args.includes("new-session") || args.includes("kill-session") || args.includes("capture-pane")),
+    ).toEqual([]);
+  });
+
+  it("uses captured runtime tails for diagnostics and readiness without transcript replay", async () => {
+    vi.useFakeTimers();
+    const workspaceRoot = await workspaceFixture();
+    stubWorkspaceEnv(workspaceRoot);
+    const runtime = fakeRuntime("OpenAI Codex\n› \n");
+    const manager = new TerminalManager(workspaceRoot, 500, 0, {}, runtime);
+
+    const terminal = await manager.create({ kind: "codex", cwd: workspaceRoot });
+    await expect(manager.sendMessage(terminal.id, "Use captured readiness", true)).resolves.toMatchObject({
+      delivery: "queued",
+      queuedInputCount: 1,
+    });
+    expect(manager.diagnostics()[0]).toMatchObject({
+      bufferedLines: 0,
+      bufferedChars: 0,
+    });
+
+    expect(manager.readTail(terminal.id)).toBe("OpenAI Codex\n› \n");
+
+    expect(manager.diagnostics()[0]).toMatchObject({
+      bufferedLines: 3,
+      bufferedChars: "OpenAI Codex\n› \n".length,
+    });
+    expect(manager.getInfo(terminal.id)).toMatchObject({
+      readiness: "ready",
+      queuedInputCount: 0,
+    });
+    expect(runtime.calls.writes).toEqual([bracketedPaste("Use captured readiness")]);
+    expect(manager.readTranscript(terminal.id)).not.toContain("OpenAI Codex");
+  });
 });
 
 async function workspaceFixture(): Promise<string> {
@@ -827,13 +898,17 @@ async function workspaceFixture(): Promise<string> {
 }
 
 function managerForWorkspace(workspaceRoot: string): TerminalManager {
+  stubWorkspaceEnv(workspaceRoot);
+  return new TerminalManager(workspaceRoot);
+}
+
+function stubWorkspaceEnv(workspaceRoot: string): void {
   vi.stubEnv("EXO_WORKSPACE_ROOT", workspaceRoot);
   vi.stubEnv("EXO_NOTE_ROOTS", path.join(workspaceRoot, "notes"));
   vi.stubEnv("EXO_PROJECT_ROOTS", path.join(workspaceRoot, "projects"));
   vi.stubEnv("EXO_DEFAULT_TERMINAL_CWD", workspaceRoot);
   vi.stubEnv("EXO_RUNTIME_ROOT", path.join(workspaceRoot, ".exo"));
   vi.stubEnv("EXO_CODEX_COMMAND", "codex");
-  return new TerminalManager(workspaceRoot);
 }
 
 function bracketedPaste(data: string): string {
@@ -857,4 +932,63 @@ function mockLiveTmuxPanes(workspaceRoot: string, tmuxSessionNames: string[]) {
       .map((sessionName) => `${sessionName}\t@1\t%2\t0\tzsh\t${workspaceRoot}`)
       .join("\n");
   });
+}
+
+function fakeRuntime(capturedTail = "runtime-captured\r\n"): TerminalRuntime & {
+  calls: {
+    createSession: unknown[];
+    captureTail: unknown[];
+    terminate: string[];
+    writes: string[];
+  };
+} {
+  const calls = {
+    createSession: [] as unknown[],
+    captureTail: [] as unknown[],
+    terminate: [] as string[],
+    writes: [] as string[],
+  };
+  const process = fakeRuntimeProcess(calls.writes);
+  return {
+    kind: "tmux",
+    calls,
+    availability: () => ({ available: true }),
+    createSession: (options) => {
+      calls.createSession.push(options);
+      return {
+        sessionName: "runtime-session-1",
+        paneId: "%runtime-1",
+        process,
+      };
+    },
+    attachSession: () => process,
+    listPanes: () => [
+      {
+        sessionName: "runtime-session-1",
+        paneId: "%runtime-1",
+        dead: false,
+        currentCommand: "zsh",
+        currentPath: "/tmp/work",
+      },
+    ],
+    applySessionOptions: () => {},
+    captureTail: (options) => {
+      calls.captureTail.push(options);
+      return capturedTail;
+    },
+    terminate: (sessionName) => {
+      calls.terminate.push(sessionName);
+    },
+  };
+}
+
+function fakeRuntimeProcess(writes: string[]): TerminalRuntimeProcess {
+  const events = new EventEmitter();
+  return {
+    onData: (handler) => events.on("data", handler),
+    onExit: (handler) => events.on("exit", handler),
+    write: (data) => writes.push(data),
+    resize: () => {},
+    kill: () => events.emit("exit", { exitCode: 0 }),
+  };
 }

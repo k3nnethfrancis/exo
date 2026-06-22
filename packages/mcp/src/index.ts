@@ -165,6 +165,49 @@ server.registerTool(
 );
 
 server.registerTool(
+  "focus_preview",
+  {
+    title: "Focus Exo Preview",
+    description: "Focus Exo's in-app browser preview pane, creating an empty preview pane when none is open.",
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+  },
+  async () => {
+    const client = await ExoCommandClient.connect();
+    const result = await client.focusPreview();
+    return {
+      content: [{ type: "text", text: "Focused preview pane." }],
+      structuredContent: result,
+    };
+  },
+);
+
+server.registerTool(
+  "close_preview",
+  {
+    title: "Close Exo Preview",
+    description: "Close the focused Exo preview pane, or the first open preview pane when focus is elsewhere.",
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+    },
+  },
+  async () => {
+    const client = await ExoCommandClient.connect();
+    const result = await client.closePreview();
+    return {
+      content: [{ type: "text", text: "Closed preview pane." }],
+      structuredContent: result,
+    };
+  },
+);
+
+server.registerTool(
   "list_agents",
   {
     title: "List Exo Agents",
@@ -189,9 +232,10 @@ server.registerTool(
   "create_agent",
   {
     title: "Create Exo Agent",
-    description: "Create a new Exo-managed terminal session. Supports shell, Claude, and Codex sessions.",
+    description:
+      "Create a new Exo-managed terminal session for any registered launchable harness. Shell, Claude, Codex, Pi, and Hermes are accepted when available/configured; unavailable harnesses return clear command-server errors.",
     inputSchema: {
-      kind: z.enum(["shell", "claude", "codex"]).describe("Type of terminal session to create."),
+      kind: z.enum(["shell", "claude", "codex", "pi", "hermes"]).describe("Registered launchable harness to create."),
       cwd: z.string().min(1).optional().describe("Optional working directory. Defaults to Exo's default terminal cwd."),
     },
     annotations: {

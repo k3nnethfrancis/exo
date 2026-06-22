@@ -1,6 +1,6 @@
 # Exo Agent Map
 
-Exo is a local-first exograph workspace for humans and terminal agents. Treat this file as the concise map; use the linked docs for detail.
+Exo is a local-first AI workstation for applied AI engineers and researchers building personal AI systems over a Markdown-first exograph. Treat this file as the concise map; use the linked docs for detail.
 
 The immediate product proving loop is Exo-on-Exo: finish usability/harness readiness, install Exo as the stable resident app, use Exo-managed agents to build and QA Exo, then treat friction in that workflow as product signal.
 
@@ -14,14 +14,16 @@ The immediate product proving loop is Exo-on-Exo: finish usability/harness readi
 6. `docs/harness.md` - gates, work chunks, agent workflow
 7. `docs/tasks.md` - active execution tracker
 8. `docs/usability-readiness.md` - near-term standard before installed daily use
-9. `docs/terminal-runtime-decision.md` - current terminal runtime decision and open simplification questions
-10. `docs/terminal-refactor-plan.md` - historical tmux migration plan; use the decision/quality docs for current rules
+9. `docs/terminal-architecture-v3.md` - current terminal simplification and module-boundary proposal
+10. `docs/terminal-runtime-decision.md` - current terminal runtime decision and open simplification questions
 11. `docs/terminal-quality-standard.md` - terminal useability and QA standard
-12. `docs/qmd-integration-notes.md` - current QMD adapter contract and upgrade notes
-13. `docs/roadmap.md` - future plans
-14. `docs/plugins.md` - future extension model
-15. `docs/plugin-implementation-plan.md` - implementation sequence for capability registries, providers, harnesses, Routines, artifacts, and tracing
-16. `packages/mcp/README.md` - MCP setup and tool contract
+12. `docs/terminal-refactor-plan.md` - historical tmux migration plan; use the v3/decision/quality docs for current rules
+13. `docs/qmd-integration-notes.md` - current QMD adapter contract and upgrade notes
+14. `docs/roadmap.md` - future plans
+15. `docs/plugin-system-architecture.md` - core-versus-plugin target architecture
+16. `docs/plugins.md` - future extension model
+17. `docs/plugin-implementation-plan.md` - implementation sequence for capability registries, providers, harnesses, activity substrate, artifact references, and plugin templates
+18. `packages/mcp/README.md` - MCP setup and tool contract
 
 ## Repository Map
 
@@ -96,16 +98,16 @@ CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build 
 - Markdown-on-disk is canonical; notebook mode is a projection.
 - Project roots are imported folders, not every folder under workspace `projects/`.
 - Live Explore typing stays fast filename/path search; optional indexed search is explicit and should not block the renderer.
-- Exo's core object is the exograph: a user-defined graph over notes, projects, agents, sessions, files, artifacts, and workflow runs with growable relational ontologies.
-- Durable approved graph facts should live in user-owned Markdown/frontmatter/properties, links, tags, and files. Derived indexes, inferred facts, proposals, workflow runs, and provenance belong under `.exo/` until accepted.
+- Exo is the workstation; the exograph is its core object: a user-defined graph over notes, projects, agents, sessions, files, activity records, artifacts, and provenance references with growable relational ontologies.
+- Durable approved graph facts should live in user-owned Markdown/frontmatter/properties, links, tags, and files. Derived indexes, inferred facts, proposals, activity records, artifact references, and provenance references belong under `.exo/` until accepted.
 - Exo should opportunistically support Open Knowledge Format (OKF) compatibility for portable knowledge bundles: Markdown concept files, YAML frontmatter with `type` when present, normal Markdown links, optional `index.md`/`log.md`, permissive consumption, and preservation of unknown fields. Do not enforce OKF on arbitrary user Markdown. Exo-created commands may offer OKF-compatible templates, and Exo should benefit when imported graphs already follow OKF. Runtime traces, plugin state, proposals, and datasets may be richer `.exo/` artifacts linked back to OKF concepts.
 - Exo should not impose one vault schema. It may detect, recommend, and maintain structures such as Shoshin or LM Wiki profiles, but users own the schema.
 - Exo should model feed/event streams rather than hardcoded inbox folders. Quick captures, web clips, voice transcripts, file changes, agent outputs, MCP messages, workflow results, git events, plugin responses, eval results, and training artifacts can flow through a reviewable feed before being linked, archived, promoted, or dismissed.
-- The scheduler is a core primitive for local AI workbench automation. It should run Routines through selected harnesses against explicit scopes, permissions, output policies, logs, artifacts, provenance, and review state.
-- A Routine is a saved/manual/scheduled run definition: prompt, selected harness, optional required harness skills, trigger/schedule, scope, permissions, and output policy. Each execution is a Run. Harnesses are integrations/plugins; skills are harness-visible capabilities referenced by prompts and managed later through harness skill inventory.
+- Automation is not automatically core. Core may own a small activity/job substrate: permission checks, activity ids/status/timestamps, artifact references, transcript/log references, provenance references, and optional review state. Routines, workflows, graph-health jobs, eval runs, training exports, and maintenance loops should be plugins unless repeated product use proves a primitive is universal.
+- A plugin Routine is a saved/manual/scheduled workflow definition: prompt, selected harness, optional required harness skills, trigger/schedule, scope, permissions, and output policy. Harnesses are integrations/plugins; skills are harness-visible capabilities referenced by prompts and managed later through harness skill inventory.
 - QMD is the default notes-index/search provider behind Exo-managed lexical/semantic/hybrid search, CLI, and MCP tools, not the permanent product boundary.
 - Keep QMD calls behind `packages/core/src/qmd.ts`; do not patch `node_modules` or fork QMD casually.
-- Plugin architecture starts as typed internal capability registries, not arbitrary third-party code loading. Think of vanilla Exo as core plus bundled/recommended plugins. Search providers and harness adapters such as QMD, shell, Claude Code, Codex, Pi, and Hermes should go through registry contracts; local forks such as GA Pi are configured instances of a generic harness plugin, not OSS source defaults.
+- Plugin architecture starts as typed internal capability registries, not arbitrary third-party code loading. Think of vanilla Exo as core plus bundled/recommended plugins. Search providers, harness adapters, routines, graph analyzers, evals, dashboards, and maintenance workflows should go through registry/contracts where practical; local forks such as GA Pi are configured instances of a generic harness plugin, not OSS source defaults.
 - Future provenance work should track human vs agent-authored changes by source, session, and task.
 - Project-root mutation belongs in UI/CLI operator surfaces; MCP may inspect attached roots through workspace status but should stay a narrow agent work plane.
 - Workcells/evals/training/search-optimization harnesses should probably be plugin sets unless they become necessary for the default Exo-on-Exo loop.

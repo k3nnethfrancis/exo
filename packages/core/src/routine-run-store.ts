@@ -3,6 +3,7 @@ import path from "node:path";
 
 import type { RoutineDefinition } from "./routine";
 import type { RunArtifact, RunArtifactKind, RunRecord, RunTracePacket } from "./run";
+import { activityToRunRecord } from "./run";
 
 export interface RoutineRunStoreLayout {
   runtimeRoot: string;
@@ -76,7 +77,8 @@ export class RoutineRunStore {
   }
 
   async readRun(runId: string): Promise<RunRecord | null> {
-    return readJsonOrNull<RunRecord>(runRecordPath(this.layout, runId));
+    const run = await readJsonOrNull<RunRecord>(runRecordPath(this.layout, runId));
+    return run ? activityToRunRecord(run) : null;
   }
 
   async listRuns(): Promise<RunRecord[]> {
@@ -91,7 +93,7 @@ export class RoutineRunStore {
       throw error;
     }
     const runs = await Promise.all(entries.map((entry) => readJsonOrNull<RunRecord>(path.join(this.layout.runsDir, entry, "run.json"))));
-    return runs.filter((run): run is RunRecord => Boolean(run));
+    return runs.filter((run): run is RunRecord => Boolean(run)).map((run) => activityToRunRecord(run));
   }
 
   async updateRun(runId: string, updater: (run: RunRecord) => RunRecord | Promise<RunRecord>): Promise<RunRecord> {

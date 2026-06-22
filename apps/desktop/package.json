@@ -1,7 +1,7 @@
 {
   "name": "@exo/desktop",
   "version": "0.1.0-alpha.3",
-  "description": "Local-first exograph workspace for humans and terminal agents.",
+  "description": "Local-first AI workstation for personal AI systems over Markdown-first exographs.",
   "author": "Exo contributors",
   "license": "Apache-2.0",
   "private": true,

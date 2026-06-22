@@ -191,6 +191,35 @@ describe("AppClient", () => {
     });
   });
 
+  it("calls preview open, focus, and close endpoints", async () => {
+    const runtimeRoot = await runtimeFixture();
+    const calls: Array<{ path: string; body: unknown }> = [];
+    stubCommandServer(async (targetUrl, init) => {
+      if (targetUrl.pathname === "/status") {
+        return json({ ok: true });
+      }
+      if (targetUrl.pathname.startsWith("/preview/") && init?.method === "POST") {
+        calls.push({ path: targetUrl.pathname, body: init.body ? JSON.parse(String(init.body)) : null });
+        if (targetUrl.pathname === "/preview/open") {
+          return json({ ok: true, url: "http://localhost:3000", source: "url" });
+        }
+        return json({ ok: true });
+      }
+      return json({ error: "not found" }, 404);
+    });
+
+    const client = await AppClient.connect(runtimeRoot);
+
+    await expect(client?.openPreview("http://localhost:3000")).resolves.toMatchObject({ ok: true, source: "url" });
+    await expect(client?.focusPreview()).resolves.toEqual({ ok: true });
+    await expect(client?.closePreview()).resolves.toEqual({ ok: true });
+    expect(calls).toEqual([
+      { path: "/preview/open", body: { target: "http://localhost:3000" } },
+      { path: "/preview/focus", body: {} },
+      { path: "/preview/close", body: {} },
+    ]);
+  });
+
   it("reports search timeout details", async () => {
     const runtimeRoot = await runtimeFixture();
     stubCommandServer(async (targetUrl, init) => {

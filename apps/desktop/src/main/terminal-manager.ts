@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import {
@@ -24,34 +24,19 @@ import {
 
 import type { TerminalCreateOptions, TerminalDiagnostics, TerminalHealthState, TerminalSessionInfo, TerminalKind, TerminalWriteResult } from "../shared/api";
 import { agentInstructionOverlayEnv, writeAgentInstructionOverlaysSync } from "./agent-instruction-overlays";
+import { terminalHealth, terminalHealthDetail } from "./terminal-health";
+import type { TerminalRuntime, TerminalRuntimePaneInfo, TerminalRuntimeProcess } from "./terminal-runtime";
+import { TmuxTerminalRuntime } from "./terminal-runtime-tmux";
+import { TerminalSessionRegistry } from "./terminal-session-registry";
 import { sanitizeTranscriptName, TerminalTranscriptStore } from "./terminal-transcripts";
-import {
-  detectTmux,
-  exoTmuxSessionName,
-  parseTmuxPaneList,
-  shellCommand,
-  TmuxCommandRunner,
-  TmuxControlModeProcess,
-  tmuxEnvironmentArgs,
-  type TmuxAvailable,
-  type TmuxPaneInfo,
-} from "./terminal-tmux";
-
-interface TerminalProcess {
-  onData(handler: (data: string) => void): void;
-  onExit(handler: (event: { exitCode?: number }) => void): void;
-  write(data: string): void;
-  resize(cols: number, rows: number): void;
-  kill(): void;
-}
 
 interface TerminalRecord {
   info: TerminalSessionInfo;
-  process: TerminalProcess;
+  process: TerminalRuntimeProcess;
   tmuxSessionName: string;
   tmuxPaneId: string;
   createdAt: string;
-  buffer: TerminalLineBuffer;
+  recentOutput: string;
   transcriptPath: string;
   pendingWrites: PendingTerminalWrite[];
   rawInputBuffer: string;
@@ -70,30 +55,6 @@ interface TerminalRecord {
 interface PendingTerminalWrite {
   data: string;
   delayedSubmit: boolean;
-}
-
-interface PersistedTerminalSession {
-  id: string;
-  title: string;
-  cwd: string;
-  kind: TerminalKind;
-  command: string;
-  instructionOverlayPath?: string | null;
-  tmuxSessionName: string;
-  tmuxPaneId?: string;
-  transcriptPath: string;
-  createdAt: string;
-  lastAttachedAt: string | null;
-  status: "running" | "exited" | "missing" | "unhealthy";
-  exitCode?: number;
-  readiness?: TerminalSessionInfo["readiness"];
-  readinessDetail?: string;
-  healthDetail?: string;
-}
-
-interface PersistedTerminalRegistry {
-  sessions: PersistedTerminalSession[];
-  nextId: number;
 }
 
 const DEFAULT_LIVE_SCROLLBACK_LINES = 100_000;
@@ -132,7 +93,7 @@ export class TerminalManager extends EventEmitter {
   private runtimeConfig = resolveRuntimeConfig();
   private transcripts: TerminalTranscriptStore;
   private nextWriteId = 1;
-  private sessionRegistryPath = this.makeSessionRegistryPath();
+  private sessionRegistry = this.createSessionRegistry();
   private terminalRuntimeOptions: Required<TerminalRuntimeOptions>;
 
   constructor(
@@ -140,6 +101,7 @@ export class TerminalManager extends EventEmitter {
     bufferLineLimit: number | null = DEFAULT_BUFFER_LINE_LIMIT,
     transcriptRetentionDays = 0,
     terminalRuntimeOptions: TerminalRuntimeOptions = {},
+    private readonly terminalRuntime: TerminalRuntime = new TmuxTerminalRuntime(),
   ) {
     super();
     this.bufferLineLimit = normalizeBufferLineLimit(bufferLineLimit);
@@ -178,8 +140,8 @@ export class TerminalManager extends EventEmitter {
         cwd: record.info.cwd,
         title: record.info.title,
         command: record.info.command,
-        bufferedLines: record.buffer.lineCount,
-        bufferedChars: record.buffer.length,
+        bufferedLines: terminalOutputLineCount(record.recentOutput),
+        bufferedChars: record.recentOutput.length,
         transcriptPath: record.transcriptPath,
         lastInputAt: record.lastInputAt ? new Date(record.lastInputAt).toISOString() : null,
         lastOutputAt: record.lastOutputAt ? new Date(record.lastOutputAt).toISOString() : null,
@@ -209,7 +171,7 @@ export class TerminalManager extends EventEmitter {
   setRuntimeConfig(runtimeConfig: RuntimeConfig = resolveRuntimeConfig()) {
     const previousRuntimeRoot = this.runtimeConfig.runtimeRoot;
     this.runtimeConfig = runtimeConfig;
-    this.sessionRegistryPath = this.makeSessionRegistryPath();
+    this.sessionRegistry = this.createSessionRegistry();
     if (runtimeConfig.runtimeRoot === previousRuntimeRoot) {
       return;
     }
@@ -226,8 +188,8 @@ export class TerminalManager extends EventEmitter {
   setBufferLineLimit(bufferLineLimit: number | null) {
     this.bufferLineLimit = normalizeBufferLineLimit(bufferLineLimit);
     for (const record of this.sessions.values()) {
-      record.buffer.setLineLimit(this.bufferLineLimit);
-      this.applyTmuxHistoryLimit(record);
+      record.recentOutput = appendBoundedLines("", record.recentOutput, this.bufferLineLimit);
+      this.applyRuntimeSessionOptions(record);
     }
   }
 
@@ -242,11 +204,11 @@ export class TerminalManager extends EventEmitter {
   }
 
   private terminalHealth(record: TerminalRecord, now = Date.now()): TerminalHealthState {
-    return terminalHealth(record, this.terminalRuntimeOptions, now);
+    return terminalHealth(terminalHealthInput(record), this.terminalRuntimeOptions, now);
   }
 
   private terminalHealthDetail(record: TerminalRecord, now = Date.now()): string {
-    return terminalHealthDetail(record, this.terminalRuntimeOptions, now);
+    return terminalHealthDetail(terminalHealthInput(record), this.terminalRuntimeOptions, now);
   }
 
   async syncRuntimeContext() {
@@ -275,28 +237,20 @@ export class TerminalManager extends EventEmitter {
     const spawnArgs = options.kind === "codex" ? withCodexMcpOverrides(launch.args, this.runtimeConfig, launch.cwd) : launch.args;
     const createdAt = new Date().toISOString();
     const launchToken = `${id}-${createdAt}-${randomUUID().slice(0, 8)}`;
-    const tmux = this.requireTmuxRuntime();
-    const tmuxSessionName = exoTmuxSessionName(launchToken, this.runtimeConfig.workspace.workspaceRoot);
-    tmux.runner.run(
-      [
-        "new-session",
-        "-d",
-        "-s",
-        tmuxSessionName,
-        "-c",
-        launch.cwd,
-        ...tmuxEnvironmentArgs(env),
-        shellCommand(launch.command, spawnArgs),
-      ],
-      {
-        cwd: launch.cwd,
-        env,
-      },
-    );
-    this.applyTmuxSessionOptions(tmux.runner, tmuxSessionName);
-
-    const tmuxPaneId = this.requireTmuxPaneId(tmux.runner, tmuxSessionName);
-    const processHandle = this.attachTmuxSession(tmux.availability, tmuxSessionName, tmuxPaneId, launch.cwd, env);
+    const runtimeSession = this.terminalRuntime.createSession({
+      sessionToken: launchToken,
+      workspaceRoot: this.runtimeConfig.workspace.workspaceRoot,
+      command: launch.command,
+      args: spawnArgs,
+      cwd: launch.cwd,
+      env,
+      cols: this.terminalRuntimeOptions.initialColumns,
+      rows: this.terminalRuntimeOptions.initialRows,
+      historyLimit: this.tmuxHistoryLimit(),
+    });
+    const tmuxSessionName = runtimeSession.sessionName;
+    const tmuxPaneId = runtimeSession.paneId;
+    const processHandle = runtimeSession.process;
 
     const transcriptPath = this.makeTranscriptPath(id, options.kind, createdAt, launchToken);
     const info: TerminalSessionInfo = {
@@ -319,7 +273,7 @@ export class TerminalManager extends EventEmitter {
       tmuxSessionName,
       tmuxPaneId,
       createdAt,
-      buffer: new TerminalLineBuffer(this.bufferLineLimit),
+      recentOutput: "",
       transcriptPath,
       pendingWrites: [],
       rawInputBuffer: "",
@@ -339,7 +293,6 @@ export class TerminalManager extends EventEmitter {
     this.sessions.set(id, record);
 
     this.appendTranscript(id, this.transcriptHeader(info));
-    this.hydrateFromTmuxHistory(record, tmux.runner);
     this.wireProcess(id, processHandle);
     this.persistSessions();
 
@@ -388,16 +341,21 @@ export class TerminalManager extends EventEmitter {
       return record.info;
     }
 
-    const tmux = this.requireTmuxRuntime();
     record.reconnecting = true;
     try {
       record.process.kill();
     } catch {
       // The old bridge may already be gone after app sleep, crash, or detach.
     }
-    let processHandle: TerminalProcess;
+    let processHandle: TerminalRuntimeProcess;
     try {
-      processHandle = this.attachTmuxSession(tmux.availability, record.tmuxSessionName, record.tmuxPaneId, record.info.cwd);
+      processHandle = this.terminalRuntime.attachSession({
+        sessionName: record.tmuxSessionName,
+        paneId: record.tmuxPaneId,
+        cwd: record.info.cwd,
+        cols: this.terminalRuntimeOptions.initialColumns,
+        rows: this.terminalRuntimeOptions.initialRows,
+      });
     } catch (error) {
       record.reconnecting = false;
       record.bridgeDetached = true;
@@ -436,13 +394,13 @@ export class TerminalManager extends EventEmitter {
     if (!record) {
       return null;
     }
-    const buffered = record.buffer.toString();
+    const buffered = record.recentOutput;
     const captured = this.captureTmuxHistory(record);
-    if (buffered.length === 0 && captured.length > 0) {
-      record.buffer.append(captured);
-      return record.buffer.toString();
+    if (captured.length > buffered.length) {
+      this.cacheCapturedTail(record, captured);
+      return record.recentOutput;
     }
-    return captured.length > buffered.length ? captured : buffered;
+    return buffered;
   }
 
   readTranscript(id: string, tailChars = 0): string | null {
@@ -486,8 +444,7 @@ export class TerminalManager extends EventEmitter {
     this.clearReadinessTimer(record);
     record.terminating = true;
     try {
-      const tmux = this.requireTmuxRuntime();
-      tmux.runner.run(["kill-session", "-t", record.tmuxSessionName]);
+      this.terminalRuntime.terminate(record.tmuxSessionName);
     } catch (error) {
       console.warn("[exo] failed to kill tmux terminal session", {
         id,
@@ -562,7 +519,7 @@ export class TerminalManager extends EventEmitter {
     record.process.write(data);
   }
 
-  private wireProcess(id: string, processHandle: TerminalProcess) {
+  private wireProcess(id: string, processHandle: TerminalRuntimeProcess) {
     processHandle.onData((data) => {
       const record = this.sessions.get(id);
       const sanitizedData = stripMouseTrackingModes(data);
@@ -573,7 +530,7 @@ export class TerminalManager extends EventEmitter {
         if (record.lastInputAt) {
           record.lastWriteLatencyMs = record.lastOutputAt - record.lastInputAt;
         }
-        record.buffer.append(sanitizedData);
+        record.recentOutput = appendBoundedLines(record.recentOutput, sanitizedData, this.bufferLineLimit);
         this.updateAgentReadiness(record);
         record.info.health = this.terminalHealth(record, Date.now());
         record.info.healthDetail = this.terminalHealthDetail(record, Date.now());
@@ -679,8 +636,8 @@ export class TerminalManager extends EventEmitter {
     });
   }
 
-  private makeSessionRegistryPath(): string {
-    return path.join(this.runtimeConfig.runtimeRoot, "terminal-sessions.json");
+  private createSessionRegistry(): TerminalSessionRegistry {
+    return new TerminalSessionRegistry(path.join(this.runtimeConfig.runtimeRoot, "terminal-sessions.json"));
   }
 
   private allocateTerminalId(): string {
@@ -695,7 +652,7 @@ export class TerminalManager extends EventEmitter {
       return;
     }
 
-    const startupState = getCodexStartupState(record.buffer.toString());
+    const startupState = getCodexStartupState(record.recentOutput);
     if (startupState === "ready") {
       this.markReady(record, "Codex chat input is ready.");
       return;
@@ -759,46 +716,11 @@ export class TerminalManager extends EventEmitter {
     }
   }
 
-  private requireTmuxRuntime(): { availability: TmuxAvailable; runner: TmuxCommandRunner } {
-    const availability = detectTmux();
-    if (!availability.available) {
-      throw new Error(availability.reason);
-    }
-    return {
-      availability,
-      runner: new TmuxCommandRunner(availability.path),
-    };
-  }
-
-  private attachTmuxSession(
-    availability: TmuxAvailable,
-    tmuxSessionName: string,
-    tmuxPaneId: string,
-    cwd: string,
-    env: NodeJS.ProcessEnv = process.env,
-  ): TerminalProcess {
-    return new TmuxControlModeProcess({
-      tmuxPath: availability.path,
-      sessionName: tmuxSessionName,
-      paneId: tmuxPaneId,
-      cols: this.terminalRuntimeOptions.initialColumns,
-      rows: this.terminalRuntimeOptions.initialRows,
-      cwd,
-      env: {
-        ...process.env,
-        TERM: "xterm-256color",
-        COLORTERM: "truecolor",
-        SHELL_SESSIONS_DISABLE: "1",
-        ...env,
-      },
-    });
-  }
-
   reconcileTmuxState(): void {
     if (this.sessions.size === 0) {
       return;
     }
-    const availability = detectTmux();
+    const availability = this.terminalRuntime.availability();
     if (!availability.available) {
       for (const record of this.sessions.values()) {
         if (record.info.status === "exited") {
@@ -812,8 +734,7 @@ export class TerminalManager extends EventEmitter {
       }
       return;
     }
-    const runner = new TmuxCommandRunner(availability.path);
-    const panes = new Map(this.listTmuxPanes(runner).map((pane) => [pane.sessionName, pane]));
+    const panes = new Map(this.listRuntimePanes().map((pane) => [pane.sessionName, pane]));
     for (const record of this.sessions.values()) {
       if (record.info.status === "exited") {
         record.info.health = "exited";
@@ -838,13 +759,13 @@ export class TerminalManager extends EventEmitter {
   }
 
   private restorePersistedSessions(): void {
-    const registry = this.readPersistedRegistry();
+    const registry = this.sessionRegistry.load();
     this.nextId = Math.max(this.nextId, registry.nextId);
     if (registry.sessions.length === 0) {
       return;
     }
 
-    const availability = detectTmux();
+    const availability = this.terminalRuntime.availability();
     if (!availability.available && registry.sessions.some((session) => session.status === "running")) {
       console.warn("[exo] unable to restore running terminal sessions because tmux is unavailable", {
         reason: availability.reason,
@@ -852,9 +773,10 @@ export class TerminalManager extends EventEmitter {
       });
     }
 
-    const tmuxAvailability = availability.available ? availability : null;
-    const runner = tmuxAvailability ? new TmuxCommandRunner(tmuxAvailability.path) : null;
-    const livePanes = runner ? new Map(this.listTmuxPanes(runner).filter((pane) => !pane.dead).map((pane) => [pane.sessionName, pane])) : new Map<string, TmuxPaneInfo>();
+    const runtimeAvailable = availability.available;
+    const livePanes = runtimeAvailable
+      ? new Map(this.listRuntimePanes().filter((pane) => !pane.dead).map((pane) => [pane.sessionName, pane]))
+      : new Map<string, TerminalRuntimePaneInfo>();
     let restored = 0;
     for (const session of registry.sessions) {
       if (session.status === "exited" && !this.sessions.has(session.id)) {
@@ -880,7 +802,7 @@ export class TerminalManager extends EventEmitter {
           tmuxPaneId: session.tmuxPaneId ?? "",
           createdAt: session.createdAt,
           paneStatus: "dead",
-          buffer: new TerminalLineBuffer(this.bufferLineLimit),
+          recentOutput: "",
           transcriptPath: session.transcriptPath,
           pendingWrites: [],
           rawInputBuffer: "",
@@ -888,19 +810,24 @@ export class TerminalManager extends EventEmitter {
           bridgeDetached: true,
         };
         this.sessions.set(session.id, record);
-        this.nextId = Math.max(this.nextId, terminalNumericId(session.id) + 1);
         restored += 1;
         continue;
       }
 
       const livePane = livePanes.get(session.tmuxSessionName);
-      if (!runner || !tmuxAvailability || session.status !== "running" || !livePane || this.sessions.has(session.id)) {
+      if (!runtimeAvailable || session.status !== "running" || !livePane || this.sessions.has(session.id)) {
         continue;
       }
 
       try {
         const tmuxPaneId = session.tmuxPaneId ?? livePane.paneId;
-        const processHandle = this.attachTmuxSession(tmuxAvailability, session.tmuxSessionName, tmuxPaneId, session.cwd);
+        const processHandle = this.terminalRuntime.attachSession({
+          sessionName: session.tmuxSessionName,
+          paneId: tmuxPaneId,
+          cwd: session.cwd,
+          cols: this.terminalRuntimeOptions.initialColumns,
+          rows: this.terminalRuntimeOptions.initialRows,
+        });
         const record: TerminalRecord = {
           info: {
             id: session.id,
@@ -919,17 +846,15 @@ export class TerminalManager extends EventEmitter {
           tmuxPaneId,
           createdAt: session.createdAt,
           paneStatus: "alive",
-          buffer: new TerminalLineBuffer(this.bufferLineLimit),
+          recentOutput: "",
           transcriptPath: session.transcriptPath,
           pendingWrites: [],
           rawInputBuffer: "",
           lastWriteId: 0,
         };
         this.sessions.set(session.id, record);
-        this.applyTmuxHistoryLimit(record);
-        this.hydrateFromTmuxHistory(record, runner);
+        this.applyRuntimeSessionOptions(record);
         this.wireProcess(session.id, processHandle);
-        this.nextId = Math.max(this.nextId, terminalNumericId(session.id) + 1);
         restored += 1;
       } catch (error) {
         console.warn("[exo] failed to restore tmux terminal session", {
@@ -945,15 +870,9 @@ export class TerminalManager extends EventEmitter {
     }
   }
 
-  private listTmuxPanes(runner: TmuxCommandRunner): TmuxPaneInfo[] {
+  private listRuntimePanes(): TerminalRuntimePaneInfo[] {
     try {
-      const raw = runner.run([
-        "list-panes",
-        "-a",
-        "-F",
-        "#{session_name}\t#{window_id}\t#{pane_id}\t#{pane_dead}\t#{pane_current_command}\t#{pane_current_path}",
-      ]);
-      return parseTmuxPaneList(raw);
+      return this.terminalRuntime.listPanes();
     } catch (error) {
       console.warn("[exo] failed to list tmux panes during terminal restore", {
         error: error instanceof Error ? error.message : String(error),
@@ -962,40 +881,17 @@ export class TerminalManager extends EventEmitter {
     }
   }
 
-  private requireTmuxPaneId(runner: TmuxCommandRunner, tmuxSessionName: string): string {
-    const pane = this.listTmuxPanes(runner).find((candidate) => candidate.sessionName === tmuxSessionName && !candidate.dead);
-    if (!pane) {
-      throw new Error(`Unable to find live tmux pane for session ${tmuxSessionName}.`);
-    }
-    return pane.paneId;
-  }
-
-  private applyTmuxHistoryLimit(record: TerminalRecord): void {
-    const availability = detectTmux();
-    if (!availability.available) {
-      return;
-    }
-    this.applyTmuxSessionOptions(new TmuxCommandRunner(availability.path), record.tmuxSessionName, record);
-  }
-
-  private applyTmuxSessionOptions(runner: TmuxCommandRunner, tmuxSessionName: string, record?: TerminalRecord): void {
-    const options: Array<[string, string]> = [
-      ["history-limit", String(this.tmuxHistoryLimit())],
-      ["status", "off"],
-      ["mouse", "off"],
-      ["focus-events", "on"],
-    ];
+  private applyRuntimeSessionOptions(record: TerminalRecord): void {
     try {
-      for (const [key, value] of options) {
-        runner.run(["set-option", "-t", tmuxSessionName, key, value]);
-      }
+      this.terminalRuntime.applySessionOptions({
+        sessionName: record.tmuxSessionName,
+        historyLimit: this.tmuxHistoryLimit(),
+      });
     } catch (error) {
-      if (record) {
-        record.info.health = "unhealthy";
-        record.info.healthDetail = error instanceof Error ? `Failed to set tmux session options: ${error.message}` : "Failed to set tmux session options.";
-      }
+      record.info.health = "unhealthy";
+      record.info.healthDetail = error instanceof Error ? `Failed to set tmux session options: ${error.message}` : "Failed to set tmux session options.";
       console.warn("[exo] failed to set tmux session options", {
-        tmuxSessionName,
+        tmuxSessionName: record.tmuxSessionName,
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -1005,37 +901,13 @@ export class TerminalManager extends EventEmitter {
     return this.bufferLineLimit ?? DEFAULT_LIVE_SCROLLBACK_LINES;
   }
 
-  private hydrateFromTmuxHistory(record: TerminalRecord, runner: TmuxCommandRunner): void {
+  private captureTmuxHistory(record: TerminalRecord): string {
     try {
-      const data = this.captureTmuxHistory(record, runner);
-      if (data.length === 0) {
-        return;
-      }
-      record.buffer.append(data);
-    } catch (error) {
-      console.warn("[exo] failed to hydrate terminal from tmux history", {
-        id: record.info.id,
-        tmuxSessionName: record.tmuxSessionName,
-        error: error instanceof Error ? error.message : String(error),
+      return this.terminalRuntime.captureTail({
+        sessionName: record.tmuxSessionName,
+        paneId: record.tmuxPaneId,
+        historyLimit: this.tmuxHistoryLimit(),
       });
-    }
-  }
-
-  private captureTmuxHistory(record: TerminalRecord, runner?: TmuxCommandRunner): string {
-    const tmuxRunner = runner ?? this.tmuxRunnerOrNull();
-    if (!tmuxRunner) {
-      return "";
-    }
-    try {
-      return normalizeCapturedTmuxPane(tmuxRunner.run([
-        "capture-pane",
-        "-p",
-        "-e",
-        "-t",
-        record.tmuxPaneId || record.tmuxSessionName,
-        "-S",
-        `-${this.tmuxHistoryLimit()}`,
-      ]));
     } catch (error) {
       console.warn("[exo] failed to capture tmux terminal history", {
         id: record.info.id,
@@ -1046,55 +918,17 @@ export class TerminalManager extends EventEmitter {
     }
   }
 
-  private tmuxRunnerOrNull(): TmuxCommandRunner | null {
-    const availability = detectTmux();
-    return availability.available ? new TmuxCommandRunner(availability.path) : null;
-  }
-
-  private readPersistedRegistry(): PersistedTerminalRegistry {
-    if (!existsSync(this.sessionRegistryPath)) {
-      return { sessions: [], nextId: 1 };
-    }
-    try {
-      const parsed = JSON.parse(readFileSync(this.sessionRegistryPath, "utf8")) as { sessions?: unknown; nextId?: unknown };
-      const sessions = Array.isArray(parsed.sessions) ? parsed.sessions.filter(isPersistedTerminalSession) : [];
-      const sessionNextId = sessions.reduce((next, session) => Math.max(next, terminalNumericId(session.id) + 1), 1);
-      const persistedNextId = typeof parsed.nextId === "number" && Number.isFinite(parsed.nextId) ? Math.floor(parsed.nextId) : 1;
-      return { sessions, nextId: Math.max(1, sessionNextId, persistedNextId) };
-    } catch (error) {
-      console.warn("[exo] failed to read terminal session registry", {
-        path: this.sessionRegistryPath,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      return { sessions: [], nextId: 1 };
-    }
+  private cacheCapturedTail(record: TerminalRecord, captured: string): void {
+    record.recentOutput = appendBoundedLines("", captured, this.bufferLineLimit);
+    this.updateAgentReadiness(record);
   }
 
   private persistSessions(): void {
-    const sessions: PersistedTerminalSession[] = Array.from(this.sessions.values()).map((record) => ({
-      id: record.info.id,
-      title: record.info.title,
-      cwd: record.info.cwd,
-      kind: record.info.kind,
-      command: record.info.command,
-      instructionOverlayPath: record.info.instructionOverlayPath ?? null,
-      tmuxSessionName: record.tmuxSessionName,
-      tmuxPaneId: record.tmuxPaneId,
-      transcriptPath: record.transcriptPath,
-      createdAt: record.createdAt,
-      lastAttachedAt: new Date().toISOString(),
-      status: record.info.status === "running" ? "running" : "exited",
-      exitCode: record.info.exitCode,
-      readiness: record.info.readiness,
-      readinessDetail: record.info.readinessDetail,
-      healthDetail: record.info.healthDetail,
-    }));
-    mkdirSync(path.dirname(this.sessionRegistryPath), { recursive: true });
-    writeFileSync(this.sessionRegistryPath, JSON.stringify({ version: 1, nextId: this.nextId, sessions }, null, 2));
+    this.sessionRegistry.save(this.nextId, Array.from(this.sessions.values()));
   }
 }
 
-function noopTerminalProcess(): TerminalProcess {
+function noopTerminalProcess(): TerminalRuntimeProcess {
   return {
     onData: () => {},
     onExit: () => {},
@@ -1213,98 +1047,28 @@ function stripMouseTrackingModes(data: string): string {
   return data.replace(/\x1b\[\?(?:9|100[0-7]|1015)(?:;(?:9|100[0-7]|1015))*[hl]/g, "");
 }
 
-function normalizeCapturedTmuxPane(data: string): string {
-  const trimmed = data.replace(/[ \t]+\r?\n/g, "\n").replace(/\s+$/g, "");
-  return trimmed.length > 0 ? `${trimmed.replace(/\r?\n/g, "\r\n")}\r\n` : "";
+function terminalHealthInput(record: TerminalRecord) {
+  return {
+    status: record.info.status,
+    exitCode: record.info.exitCode,
+    paneStatus: record.paneStatus,
+    bridgeDetached: record.bridgeDetached,
+    lastInputAt: record.lastInputAt,
+    lastOutputAt: record.lastOutputAt,
+  };
 }
 
-class TerminalLineBuffer {
-  private lines: string[] = [""];
-
-  constructor(private lineLimit: number | null, initial = "") {
-    if (initial.length > 0) {
-      this.append(initial);
-    }
+function appendBoundedLines(current: string, data: string, lineLimit: number | null): string {
+  const next = `${current}${data}`;
+  if (lineLimit === null) {
+    return next;
   }
-
-  get length(): number {
-    return this.lines.reduce((total, line, index) => total + line.length + (index === 0 ? 0 : 1), 0);
-  }
-
-  get lineCount(): number {
-    return this.lines.length;
-  }
-
-  append(data: string): void {
-    if (data.length === 0) {
-      return;
-    }
-    const parts = data.split("\n");
-    this.lines[this.lines.length - 1] += parts[0] ?? "";
-    for (const part of parts.slice(1)) {
-      this.lines.push(part);
-    }
-    this.trim();
-  }
-
-  setLineLimit(lineLimit: number | null): void {
-    this.lineLimit = lineLimit;
-    this.trim();
-  }
-
-  toString(): string {
-    return this.lines.join("\n");
-  }
-
-  private trim(): void {
-    if (this.lineLimit === null || this.lines.length <= this.lineLimit) {
-      return;
-    }
-    this.lines = this.lines.slice(-this.lineLimit);
-  }
+  const lines = next.split("\n");
+  return lines.length <= lineLimit ? next : lines.slice(-lineLimit).join("\n");
 }
 
-function terminalHealth(record: TerminalRecord, options: Required<TerminalRuntimeOptions>, now = Date.now()): TerminalHealthState {
-  if (record.info.status === "exited") {
-    return "exited";
-  }
-  if (record.paneStatus === "missing" || record.paneStatus === "dead" || record.bridgeDetached) {
-    return "unhealthy";
-  }
-  if (record.lastInputAt && (!record.lastOutputAt || record.lastOutputAt < record.lastInputAt) && now - record.lastInputAt > options.unresponsiveThresholdMs) {
-    return "unhealthy";
-  }
-  if (!record.lastOutputAt || now - record.lastOutputAt > options.idleThresholdMs) {
-    return "idle";
-  }
-  return "healthy";
-}
-
-function terminalHealthDetail(record: TerminalRecord, options: Required<TerminalRuntimeOptions>, now = Date.now()): string {
-  const health = terminalHealth(record, options, now);
-  if (health === "exited") {
-    return record.info.exitCode === undefined ? "Process exited." : `Process exited with code ${record.info.exitCode}.`;
-  }
-  if (record.paneStatus === "missing") {
-    return "Tmux session is missing; transcript remains available.";
-  }
-  if (record.paneStatus === "dead") {
-    return "Tmux pane is dead; restart or open transcript.";
-  }
-  if (record.bridgeDetached) {
-    return "Tmux session is alive but Exo's attach bridge is detached; reconnect the terminal.";
-  }
-  if (health === "unhealthy") {
-    return `Input was sent but no terminal output has been observed for more than ${formatDuration(options.unresponsiveThresholdMs)}.`;
-  }
-  if (health === "idle") {
-    return "No recent terminal output; terminal may simply be waiting for input.";
-  }
-  return "Recent terminal input/output observed.";
-}
-
-function formatDuration(durationMs: number): string {
-  return durationMs < 1000 ? `${durationMs}ms` : `${Math.round(durationMs / 1000)} seconds`;
+function terminalOutputLineCount(output: string): number {
+  return output.length === 0 ? 0 : output.split("\n").length;
 }
 
 function normalizeBufferLineLimit(value: number | null | undefined): number | null {
@@ -1343,28 +1107,6 @@ function integerAtLeast(value: number | undefined, fallback: number, min: number
     return fallback;
   }
   return Math.max(min, Math.floor(value as number));
-}
-
-function terminalNumericId(id: string): number {
-  const match = /^term-(\d+)$/.exec(id);
-  return match ? Number(match[1]) : 0;
-}
-
-function isPersistedTerminalSession(value: unknown): value is PersistedTerminalSession {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-  const session = value as Partial<PersistedTerminalSession>;
-  return (
-    typeof session.id === "string" &&
-    typeof session.title === "string" &&
-    typeof session.cwd === "string" &&
-    (session.kind === "shell" || session.kind === "claude" || session.kind === "codex" || session.kind === "pi" || session.kind === "hermes") &&
-    typeof session.command === "string" &&
-    typeof session.tmuxSessionName === "string" &&
-    typeof session.transcriptPath === "string" &&
-    (session.status === "running" || session.status === "exited" || session.status === "missing" || session.status === "unhealthy")
-  );
 }
 
 function withCodexMcpOverrides(args: string[], config: RuntimeConfig, cwd: string): string[] {

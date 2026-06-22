@@ -22,7 +22,7 @@ pnpm build
 ./scripts/install-local --dry-run --skip-install --skip-build
 ```
 
-`pnpm check` remains the typecheck/test/build subset. CI runs `pnpm ci:check` on macOS in `.github/workflows/ci.yml`.
+`pnpm check` remains the typecheck/test/build subset. CI runs `pnpm ci:check` on macOS in `.github/workflows/ci.yml`./
 
 When QAing the desktop app while using Exo for real work, prefer `pnpm dev:qa`. It isolates source-build runtime state under `.exo-dev/` so the installed stable Exo app can keep coordinating agents without command-server or settings collisions.
 

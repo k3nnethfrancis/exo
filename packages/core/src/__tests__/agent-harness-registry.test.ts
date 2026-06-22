@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -9,6 +9,7 @@ import {
   AgentHarnessRegistry,
   resolveRegisteredAgentHarnesses,
   resolveRegisteredAgentLauncher,
+  validateRegisteredAgentHarnessLaunch,
 } from "../agent-harness-registry";
 import { builtInAgentHarnesses } from "../agent-harnesses/builtins";
 
@@ -89,6 +90,36 @@ describe("agent harness registry", () => {
     }
   });
 
+  it("auto-detects a Pi source checkout in project roots", () => {
+    const tempRoot = mkdtempSync(path.join(os.tmpdir(), "exo-pi-source-"));
+    const cliPath = path.join(tempRoot, "packages", "coding-agent", "dist", "cli.js");
+    mkdirSync(path.dirname(cliPath), { recursive: true });
+    writeFileSync(cliPath, "#!/usr/bin/env node\n", "utf8");
+
+    try {
+      const harnesses = resolveRegisteredAgentHarnesses({
+        PATH: "/usr/bin",
+        EXO_PROJECT_ROOTS: tempRoot,
+      });
+
+      expect(harnesses.find((harness) => harness.id === "pi")).toMatchObject({
+        id: "pi",
+        adapterId: "pi",
+        configured: false,
+        launchable: true,
+        status: "available",
+        channel: "source",
+        repoPath: tempRoot,
+        launcher: {
+          command: process.execPath,
+          args: [cliPath],
+        },
+      });
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it("keeps missing Hermes visible but not launchable", () => {
     const hermes = resolveRegisteredAgentHarnesses({ PATH: "/tmp/does-not-exist" }).find((harness) => harness.id === "hermes");
 
@@ -100,5 +131,11 @@ describe("agent harness registry", () => {
       launchable: false,
       status: "not-found",
     });
+  });
+
+  it("rejects unavailable registered harnesses before launch", () => {
+    expect(() => validateRegisteredAgentHarnessLaunch("hermes", { PATH: "/tmp/does-not-exist" })).toThrow(
+      "Agent harness is not launchable: hermes (Not found).",
+    );
   });
 });

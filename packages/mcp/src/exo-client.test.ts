@@ -6,9 +6,21 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ExoCommandClient, formatAgents, stripAnsi } from "./exo-client";
 
+const spawnMock = vi.hoisted(() =>
+  vi.fn(() => ({
+    unref: vi.fn(),
+  })),
+);
+
+vi.mock("node:child_process", () => ({
+  spawn: spawnMock,
+}));
+
 const tempPaths: string[] = [];
 
 afterEach(async () => {
+  vi.restoreAllMocks();
+  spawnMock.mockClear();
   vi.unstubAllGlobals();
   await Promise.all(tempPaths.splice(0).map((target) => rm(target, { recursive: true, force: true })));
 });
@@ -105,6 +117,35 @@ describe("ExoCommandClient", () => {
     expect(JSON.parse(receivedBody)).toEqual({ message, submit: false });
   });
 
+  it("calls preview open, focus, and close endpoints", async () => {
+    const runtimeRoot = await runtimeFixture();
+    const calls: Array<{ path: string; body: unknown }> = [];
+    stubCommandServer(async (targetUrl, init) => {
+      if (targetUrl.pathname === "/status") {
+        return json({ ok: true });
+      }
+      if (targetUrl.pathname.startsWith("/preview/") && init?.method === "POST") {
+        calls.push({ path: targetUrl.pathname, body: init.body ? JSON.parse(String(init.body)) : null });
+        if (targetUrl.pathname === "/preview/open") {
+          return json({ ok: true, url: "http://localhost:3000", source: "url" });
+        }
+        return json({ ok: true });
+      }
+      return json({ error: "not found" }, 404);
+    });
+
+    const client = await ExoCommandClient.connect(testRuntimeEnv(runtimeRoot));
+
+    await expect(client.openPreview("http://localhost:3000")).resolves.toMatchObject({ ok: true, source: "url" });
+    await expect(client.focusPreview()).resolves.toEqual({ ok: true });
+    await expect(client.closePreview()).resolves.toEqual({ ok: true });
+    expect(calls).toEqual([
+      { path: "/preview/open", body: { target: "http://localhost:3000" } },
+      { path: "/preview/focus", body: {} },
+      { path: "/preview/close", body: {} },
+    ]);
+  });
+
   it("calls index search and read endpoints", async () => {
     const runtimeRoot = await runtimeFixture();
     let readBody = "";
@@ -181,15 +222,85 @@ describe("ExoCommandClient", () => {
     await expect(client.search("roleplay")).rejects.toThrow("GET /search?q=roleplay timed out after 5ms");
   });
 
+  it("reports stale command-server discovery when the recorded pid is dead", async () => {
+    const runtimeRoot = await runtimeFixture({ port: 54321, pid: 999_999 });
+    stubCommandServer(() => {
+      throw new Error("fetch failed");
+    });
+    stubProcessKillFailure("ESRCH", "kill ESRCH");
+
+    const message = await connectErrorMessage(testRuntimeEnv(runtimeRoot));
+
+    expect(message).toContain("Exo command server discovery is stale: the recorded pid is not running.");
+    expect(message).toContain(`Runtime root: ${runtimeRoot}`);
+    expect(message).toContain(`Discovery file: ${path.join(runtimeRoot, "server.json")}`);
+    expect(message).toContain("Recorded pid: 999999");
+    expect(message).toContain("Recorded port: 54321");
+    expect(message).toContain("Recorded baseUrl: http://127.0.0.1:54321");
+    expect(message).toContain("Process check: dead (ESRCH: kill ESRCH)");
+    expect(message).toContain("Last reachability failure: http://127.0.0.1:54321 - fetch failed");
+  });
+
+  it("reports unchanged stale discovery through an autostart wait timeout", async () => {
+    const runtimeRoot = await runtimeFixture({ port: 54322, pid: 999_998 });
+    stubCommandServer(() => {
+      throw new Error("fetch failed");
+    });
+    stubProcessKillFailure("ESRCH", "kill ESRCH");
+
+    const message = await connectErrorMessage({
+      ...testRuntimeEnv(runtimeRoot),
+      EXO_MCP_AUTOSTART: "1",
+      EXO_MCP_CONNECT_TIMEOUT_MS: "5",
+      EXO_MCP_START_COMMAND: "exo start --test",
+    });
+
+    expect(message).toContain("Timed out waiting for Exo command server after autostart.");
+    expect(message).toContain(`Runtime root: ${runtimeRoot}`);
+    expect(message).toContain(`Discovery file: ${path.join(runtimeRoot, "server.json")}`);
+    expect(message).toContain("Connect timeout: 5ms");
+    expect(message).toContain("Autostart attempted: yes");
+    expect(message).toContain("Autostart command: exo start --test");
+    expect(message).toContain("Recorded pid: 999998");
+    expect(message).toContain("Recorded port: 54322");
+    expect(message).toContain("Recorded baseUrl: http://127.0.0.1:54322");
+    expect(message).toContain("Process check: dead (ESRCH: kill ESRCH)");
+    expect(message).toContain("Last reachability failure: http://127.0.0.1:54322 - fetch failed");
+    expect(spawnMock).toHaveBeenCalledWith("exo start --test", expect.objectContaining({
+      detached: true,
+      shell: true,
+      stdio: "ignore",
+    }));
+  });
+
+  it("reports permission-blocked process checks separately from dead pids", async () => {
+    const runtimeRoot = await runtimeFixture({ port: 54323, pid: 999_997 });
+    stubCommandServer(() => {
+      throw new Error("fetch failed");
+    });
+    stubProcessKillFailure("EPERM", "operation not permitted");
+
+    const message = await connectErrorMessage(testRuntimeEnv(runtimeRoot));
+
+    expect(message).toContain("Exo command server process check was blocked by permissions or sandbox policy; server reachability could not be confirmed.");
+    expect(message).toContain(`Runtime root: ${runtimeRoot}`);
+    expect(message).toContain(`Discovery file: ${path.join(runtimeRoot, "server.json")}`);
+    expect(message).toContain("Recorded pid: 999997");
+    expect(message).toContain("Recorded port: 54323");
+    expect(message).toContain("Recorded baseUrl: http://127.0.0.1:54323");
+    expect(message).toContain("Process check: blocked (EPERM: operation not permitted)");
+    expect(message).toContain("Last reachability failure: http://127.0.0.1:54323 - fetch failed");
+  });
+
   it("strips terminal escape codes for readable MCP output", () => {
     expect(stripAnsi("\u001b[31mred\u001b[0m\r\nnext")).toBe("red\nnext");
   });
 });
 
-async function runtimeFixture(): Promise<string> {
+async function runtimeFixture(info: { port: number; pid: number } = { port: 12345, pid: process.pid }): Promise<string> {
   const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-mcp-"));
   tempPaths.push(runtimeRoot);
-  await writeFile(path.join(runtimeRoot, "server.json"), JSON.stringify({ port: 12345, pid: process.pid }), "utf8");
+  await writeFile(path.join(runtimeRoot, "server.json"), JSON.stringify(info), "utf8");
   return runtimeRoot;
 }
 
@@ -209,6 +320,23 @@ function stubCommandServer(handler: (targetUrl: URL, init?: RequestInit) => Prom
     const rawUrl = typeof input === "string" || input instanceof URL ? String(input) : input.url;
     return Promise.resolve(handler(new URL(rawUrl), init));
   }));
+}
+
+function stubProcessKillFailure(code: string, message: string) {
+  vi.spyOn(process, "kill").mockImplementation(() => {
+    const error = new Error(message) as NodeJS.ErrnoException;
+    error.code = code;
+    throw error;
+  });
+}
+
+async function connectErrorMessage(env: NodeJS.ProcessEnv): Promise<string> {
+  try {
+    await ExoCommandClient.connect(env);
+    throw new Error("connect unexpectedly succeeded");
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
 }
 
 function json(body: unknown, status = 200): Response {

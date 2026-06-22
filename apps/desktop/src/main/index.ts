@@ -107,6 +107,15 @@ function startCommandServer() {
       sendToRenderer("command:open-preview", { url: result.url });
       return result;
     },
+    onFocusPreview: () => {
+      appLifecycle.showMainWindow();
+      sendToRenderer("command:focus-preview", undefined);
+      return { ok: true };
+    },
+    onClosePreview: () => {
+      sendToRenderer("command:close-preview", undefined);
+      return { ok: true };
+    },
     onSearch: (query: string) => searchWorkspace(workspaceModel, query),
     onIndexSearch: (query, options) => searchIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot, query, options),
     onReadDocument: (target, options) => readIndexDocument(workspaceModel, resolveRuntimeConfig().runtimeRoot, target, options),

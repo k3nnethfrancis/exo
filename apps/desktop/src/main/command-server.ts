@@ -4,6 +4,7 @@ import path from "node:path";
 
 import {
   EXO_COMMAND_ROUTES,
+  validateRegisteredAgentHarnessLaunch,
   type ExoCommandServerInfo,
   type ExoCommandTerminalDiagnostics,
   type ExoReconnectTerminalResponse,
@@ -15,6 +16,7 @@ import {
   type ExoOpenFileRequest,
   type ExoOpenPreviewRequest,
   type ExoOpenPreviewResponse,
+  type ExoPreviewCommandResponse,
   type ExoSendTerminalMessageRequest,
   type ExoWriteTerminalRequest,
   type ExoWriteTerminalResponse,
@@ -31,6 +33,8 @@ export interface CommandServerOptions {
   onShowWindow: () => void;
   onOpenFile: (filePath: string) => void;
   onOpenPreview: (target: string) => Promise<ExoOpenPreviewResponse>;
+  onFocusPreview: () => ExoPreviewCommandResponse;
+  onClosePreview: () => ExoPreviewCommandResponse;
   onSearch: (query: string) => Promise<WorkspaceSearchResults>;
   onIndexSearch: (query: string, options: { limit?: number; intent?: string; includeContent?: boolean; maxLinesPerResult?: number }) => Promise<IndexSearchResponse>;
   onReadDocument: (target: string, options: { fromLine?: number; maxLines?: number }) => Promise<IndexReadResponse>;
@@ -244,6 +248,16 @@ export class CommandServer {
         return;
       }
 
+      if (method === "POST" && pathname === EXO_COMMAND_ROUTES.focusPreview) {
+        json(res, this.options.onFocusPreview());
+        return;
+      }
+
+      if (method === "POST" && pathname === EXO_COMMAND_ROUTES.closePreview) {
+        json(res, this.options.onClosePreview());
+        return;
+      }
+
       if (method === "GET" && pathname === EXO_COMMAND_ROUTES.config) {
         json(res, this.options.onGetSettings());
         return;
@@ -284,9 +298,17 @@ export class CommandServer {
       if (method === "POST" && pathname === EXO_COMMAND_ROUTES.terminals) {
         const body = await readBody(req);
         const { kind, cwd } = body as ExoCreateTerminalRequest;
-        if (!kind || !["shell", "claude", "codex"].includes(kind)) {
-          json(res, { error: "kind must be shell, claude, or codex" }, 400);
+        if (!kind) {
+          json(res, { error: "Missing kind in body" }, 400);
           return;
+        }
+        if (kind !== "shell") {
+          try {
+            validateRegisteredAgentHarnessLaunch(kind);
+          } catch (error) {
+            json(res, { error: error instanceof Error ? error.message : String(error) }, 400);
+            return;
+          }
         }
         const terminal = await this.options.onCreateTerminal(kind, cwd);
         json(res, terminal);

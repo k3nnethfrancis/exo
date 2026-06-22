@@ -6,6 +6,8 @@ interface UseWorkspaceCommandHandlersOptions {
   workspaceModel: WorkspaceModel | null;
   openFile: (filePath: string) => Promise<void>;
   openPreview: (url: string) => void;
+  focusPreview: () => void;
+  closePreview: () => void;
   openSettings: (section: WorkspaceSettingsSection) => Promise<void>;
   reloadTrees: () => Promise<void>;
   scheduleOpenDocumentRefresh: (filePath: string) => void;
@@ -25,6 +27,18 @@ export function useWorkspaceCommandHandlers(options: UseWorkspaceCommandHandlers
       options.openPreview(event.url);
     });
   }, [options.openPreview]);
+
+  useEffect(() => {
+    return window.exo.workspace.onCommandFocusPreview(() => {
+      options.focusPreview();
+    });
+  }, [options.focusPreview]);
+
+  useEffect(() => {
+    return window.exo.workspace.onCommandClosePreview(() => {
+      options.closePreview();
+    });
+  }, [options.closePreview]);
 
   useEffect(() => {
     return window.exo.workspace.onCommandOpenSettings((event) => {

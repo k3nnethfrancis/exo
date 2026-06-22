@@ -10,6 +10,8 @@ export const EXO_COMMAND_ROUTES = {
   indexEmbed: "/index/embed",
   open: "/open",
   openPreview: "/preview/open",
+  focusPreview: "/preview/focus",
+  closePreview: "/preview/close",
   config: "/config",
   projectRoots: "/project-roots",
   projectRoot: (target: string) => `/project-roots/${encodeURIComponent(target)}`,
@@ -70,6 +72,10 @@ export interface ExoOpenPreviewResponse {
   ok: true;
   url: string;
   source: "url" | "file";
+}
+
+export interface ExoPreviewCommandResponse {
+  ok: true;
 }
 
 export interface ExoCreateTerminalRequest {

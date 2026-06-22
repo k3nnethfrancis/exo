@@ -1,22 +1,24 @@
 # Plugin Architecture
 
-Last updated: 2026-06-20
+Last updated: 2026-06-21
 
-Exo should support a plugin path so users can extend their exograph without requiring every feature to land in core.
+Exo should support a plugin path so users can extend their local AI workstation without requiring every feature to land in core.
 
 ## Current Decision
 
 Plugin architecture is now the next platform workstream after terminal/runtime usability. The immediate goal is not public third-party plugin loading. The immediate goal is to turn the extension seams Exo already needs into typed internal registries, then migrate hardwired behavior onto those registries.
 
-The detailed implementation sequence lives in `plugin-implementation-plan.md`. This document names the product model and boundaries; the implementation plan is the source of truth for the next refactor phases.
+The target core-versus-plugin boundary lives in `plugin-system-architecture.md`. The detailed implementation sequence lives in `plugin-implementation-plan.md`. This document names the product model and boundaries; the implementation plan is the source of truth for the next refactor phases.
 
 That keeps Exo from overbuilding while still moving toward the long-term shape:
 
-- QMD becomes the default search provider behind a search-provider registry.
+- QMD becomes the bundled advanced search provider behind a search-provider registry.
 - Shell, Claude Code, Codex, Pi, Hermes, and future agents become bundled or external agent-harness plugins behind an agent-harness registry.
 - MCP and CLI stay separate product surfaces, with plugin contributions admitted only through policy.
-- WebView/browser panes stay core, while plugin-hosted apps can target that primitive later.
+- Terminal remains a core platform service; harnesses plug into it.
+- The web viewer host and open/focus/close endpoints stay core; plugins can generate local content or services and ask Exo to open them.
 - Workload-specific harnesses, workcells, evals, graph analyzers, search optimization, LM Wiki/Shoshin profiles, and personal routines can become plugin-shaped without being forced into core.
+- Product framing stays layered: Exo is the workstation, the exograph is the user-owned graph it operates over, and plugins are how users swap or add harnesses, search providers, routines, profiles, analyzers, eval runners, exporters, and dashboards.
 - Local plugin manifests can now be discovered and validated as metadata, but Exo does not yet execute plugin code or grant plugin permissions.
 
 Guardian Angel is an example downstream workload that can pressure-test this architecture outside core. Workflows like elicitation, trace capture, accept/reject/correction review, psychological-model hypotheses, dataset export, eval packets, and instrumented agent runtimes should use Exo's generic plugin primitives rather than becoming built-in Exo product code by default.
@@ -36,7 +38,7 @@ The first pass should produce the stable contracts that later plugin loading can
 
 ## Why Plugins Matter
 
-Exo is open source and intentionally hackable, but not every workflow should become core product behavior. Some features are personal, experimental, or domain-specific. Plugins should let users add those capabilities while keeping the core app focused.
+Exo is open source and intentionally hackable, but not every workflow should become core product behavior. Some features are personal, experimental, or domain-specific. Plugins should let users add those capabilities while keeping the core workstation focused.
 
 Examples that likely belong in plugins:
 
@@ -54,14 +56,14 @@ Core should own:
 
 - workspace model
 - note roots and project roots
-- editor, terminal, and WebView/browser pane system
+- Markdown editor, file explorer, basic file/path/text search, and core graph primitives
+- pane/grid layout and trusted web viewer host primitive
+- terminal runtime, rendering surface, scrollback, transcripts, reconnect, diagnostics, and semantic message delivery
 - Exo CLI and MCP contracts
-- terminal-agent lifecycle
 - command, settings, pane/view, agent harness, search provider, exograph analyzer, exporter, eval, and routine-template registries
 - settings and security boundaries
 - notes index integration points
-- provenance and communication primitives
-- run, artifact, trace, and evaluation primitives
+- minimal activity, artifact-reference, provenance-reference, and communication primitives
 
 Plugins can add:
 
@@ -70,10 +72,10 @@ Plugins can add:
 - CLI commands and MCP tools where permissioned
 - file transforms
 - graph/memory views
-- agent harnesses and helpers
-- search/index providers
+- agent harness adapters and helpers that run through Exo's terminal/session service
+- advanced search/index providers
 - trace collectors, eval runners, scorers, dashboards, and training/export flows
-- web apps hosted in Exo WebView panes
+- dashboards, local web apps, and artifact producers that use Exo's web viewer endpoints
 - project-specific routines and routine templates
 - integrations with external tools
 
@@ -81,12 +83,12 @@ Plugins can add:
 
 Not every plugin has the same relationship to Exo. The plugin model should support several depths without treating them as the same thing:
 
-- App plugins: mostly run as an app inside an Exo WebView pane. Examples: local web-app previews, eval dashboards, graph dashboards, custom notebook tools.
+- App plugins: mostly produce local content or run a local app that Exo opens through the native web viewer. Examples: eval dashboards, graph dashboards, custom notebook tools.
 - Surface plugins: add Exo-native UI surfaces. Examples: side panels, status widgets, editor decorations, command palette actions.
 - Capability plugins: add backend abilities. Examples: agent harnesses, MCP tools, CLI commands, search providers, trace collectors, eval runners.
 - Routine/template plugins: ship prompts, templates, default schedules, and review/output policies that Exo can run through a selected harness. Examples: run eval, collect traces, score results, produce a report, and prepare a PR.
 
-The browser/WebView pane is a core primitive, not merely a plugin. Many unrelated workflows need a safe way to show local web apps, documentation previews, dashboards, and artifacts. Plugins can target that primitive with their own apps.
+The terminal and web viewer hosts are core primitives, not merely plugins. Many unrelated workflows need a safe terminal/session service and a safe way to show local web apps, documentation previews, dashboards, and artifacts. Plugins can target those primitives, but they do not own the underlying terminal or web viewer security boundary.
 
 ## Implementation Phases
 
@@ -172,21 +174,19 @@ Output: enabled and launchable shell/Claude/Codex/Pi/Hermes instances appear in 
 
 Status: implemented.
 
-### Phase 3.5: Routine And Harness Skill Inventory Contract
+### Phase 3.5: Activity Substrate And Harness Skill Inventory Contract
 
-Do not model workflow as an executable plugin kind. The product concept is a Routine.
+Do not model workflow as an executable core feature. Workflow, Routine, eval, and maintenance semantics should usually belong to plugins. Core should provide only the minimal activity substrate those plugins need to compose safely.
 
-A Routine is:
+The substrate should describe:
 
-- prompt
-- selected harness
-- optional required harness skills
-- manual trigger or schedule
-- scope
-- permissions
-- output policy
+- activity id, status, timestamps, actor, selected harness, and scope
+- permission and output-policy checks
+- artifact references, transcript references, and optional provenance links
+- cancellation/status hooks
+- optional review state when Exo mediates proposed changes
 
-Each execution is a Run with status, logs, transcripts, artifacts, proposed changes, errors, and review state.
+Plugin-defined Routines can then layer on richer meaning: prompt, selected harness, optional required harness skills, trigger/schedule, scope, permissions, and output policy. Plugin-owned execution schemas can include detailed logs, traces, eval results, review labels, dashboards, and exports.
 
 Skills are capabilities available inside a harness. A prompt may ask the harness to use a skill, but Exo must be able to detect and warn when the selected harness does not expose that skill. Later, Exo should manage skills across harnesses in the same spirit as agent config management:
 
@@ -198,7 +198,7 @@ Skills are capabilities available inside a harness. A prompt may ask the harness
 
 The first implementation can be metadata-only. Full cross-provider skill management comes later.
 
-Status: first-pass Routine, Run, artifact, trace, store, manual executor, and plugin-declared routine-template contracts are implemented in core. Scheduler, UI, and real harness execution hosts remain future work.
+Status: first-pass Routine, Run, artifact, trace, store, manual executor, and plugin-declared routine-template contracts are implemented in core. Treat this as provisional substrate, not permission to keep expanding core automation. Scheduler, UI, and real harness execution hosts remain future work.
 
 Plugin routine templates are metadata, not live jobs. A plugin can declare a `routineTemplate` capability with `compatibility.routineTemplate`, including:
 
@@ -209,7 +209,7 @@ Plugin routine templates are metadata, not live jobs. A plugin can declare a `ro
 - permissions
 - output policy
 
-Exo turns that template into a concrete `RoutineDefinition` only when a user/workspace supplies scope, ids, and any overrides. This keeps plugin-authored workflows reusable without giving a manifest implicit write access or scheduler authority.
+Exo should turn that template into a concrete workspace activity only when a user/workspace supplies scope, ids, permissions, and any overrides. This keeps plugin-authored workflows reusable without giving a manifest implicit write access or scheduler authority.
 
 ### Phase 4: Permissioned Surface Contributions
 
@@ -299,8 +299,8 @@ This should be an operator/admin surface, not a new default workflow screen.
 3. Extract the QMD implementation behind a `SearchProvider` interface.
 4. Register bundled agent harness metadata for shell, Claude Code, Codex, Pi, and Hermes without turning missing harnesses into dead launch buttons.
 5. Extract launch planning behind an `AgentHarness` interface.
-6. Define Routine and harness skill inventory contracts.
-7. Define generic Run, artifact, trace, review, and executor contracts that downstream workload plugins can use.
+6. Define the minimal activity/artifact-reference substrate and harness skill inventory contracts.
+7. Define plugin-owned Routine, trace, review, eval, and executor contracts that can link back to core activity/artifact references.
 8. Add docs and harness checks so new hardwired provider/harness branches are rejected unless they go through the registry.
 9. Use local plugin manifests as metadata-only declarations.
 10. Only then design permissioned loading.
@@ -323,20 +323,22 @@ Claude Code, Codex, Pi, Hermes, Aider, Goose, OpenCode, and local/open-source ag
 
 Tracing and evaluation are the first serious test of the plugin boundary.
 
-Core should own durable primitives:
+Core should own only the durable substrate:
 
-- workcells/runs
-- artifacts
-- trace/event records
-- agent/session/file provenance links
-- evaluation result records
-- CLI/MCP access to run and result state
-- audit logs and permissions
+- activity records and status
+- artifact references
+- trace/provenance references
+- agent/session/file links when Exo can observe them
+- audit logs and permission checks
+- CLI/MCP access to minimal activity and artifact-reference state
 
 Plugins can own concrete behavior:
 
+- workcell/run schemas
 - trace collectors
+- trace/event record schemas
 - eval runners
+- evaluation result schemas
 - scorers and graders
 - provider integrations
 - dashboards
@@ -362,8 +364,8 @@ An eval system may include a web dashboard, but it should not be only a hosted w
 - How are plugin permissions granted and revoked?
 - Can plugins add MCP tools or CLI commands?
 - How are plugin settings stored and exported?
-- How should WebView apps receive data from backend plugin capabilities?
-- Which run/artifact/provenance primitives must exist before eval/tracing plugins are useful?
+- How should local web apps receive data from backend plugin capabilities through core web viewer endpoints?
+- Which activity/artifact/provenance references must exist before eval/tracing plugins are useful?
 - What minimum API is needed before building personal note-branching, versioning, or scheduled Routine templates?
 
 ## Initial Task Direction
@@ -372,11 +374,11 @@ Before building personal extension features into core, define:
 
 - plugin install/load locations
 - plugin trust prompts and permission grants
-- safe renderer panel and WebView app APIs
+- safe renderer panel APIs and core web viewer open/focus/close endpoints
 - command registration API
 - settings API
 - agent harness API
-- Routine and harness skill inventory contracts
+- activity substrate, plugin Routine templates, and harness skill inventory contracts
 - MCP/CLI registration policy
 - capability permission model
 - compatibility/version policy

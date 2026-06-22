@@ -80,6 +80,16 @@ const api: DesktopApi = {
       ipcRenderer.on("command:open-preview", listener);
       return () => ipcRenderer.removeListener("command:open-preview", listener);
     },
+    onCommandFocusPreview: (callback) => {
+      const listener = () => callback();
+      ipcRenderer.on("command:focus-preview", listener);
+      return () => ipcRenderer.removeListener("command:focus-preview", listener);
+    },
+    onCommandClosePreview: (callback) => {
+      const listener = () => callback();
+      ipcRenderer.on("command:close-preview", listener);
+      return () => ipcRenderer.removeListener("command:close-preview", listener);
+    },
     onCommandOpenSettings: (callback) => {
       const listener = (_event: unknown, payload: Parameters<typeof callback>[0]) => callback(payload);
       ipcRenderer.on("command:open-settings", listener);

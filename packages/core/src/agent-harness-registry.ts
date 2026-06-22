@@ -56,26 +56,51 @@ export function resolveRegisteredAgentLauncher(kind: ManagedAgentKind, env: Node
   return agentHarnessRegistry.require(kind).resolveLauncher(env);
 }
 
-export function resolveRegisteredAgentHarnesses(env: NodeJS.ProcessEnv = process.env): AgentHarnessDetection[] {
-  return agentHarnessRegistry.list().map((harness) => {
-    if (harness.resolveDetection) {
-      return harness.resolveDetection(env);
-    }
+export function resolveRegisteredAgentHarnessDetection(
+  kind: string,
+  env: NodeJS.ProcessEnv = process.env,
+): AgentHarnessDetection | undefined {
+  const harness = agentHarnessRegistry.get(kind);
+  if (!harness) {
+    return undefined;
+  }
 
-    const launcher = harness.resolveLauncher(env);
-    return {
-      id: harness.kind,
-      adapterId: harness.kind === "claude" ? "claude-code" : harness.kind,
-      family: harness.kind === "claude" ? "claude-code" : harness.kind,
-      label: harness.title,
-      productName: harness.title,
-      enabled: true,
-      configured: false,
-      detected: true,
-      launchable: true,
-      status: "available",
-      statusLabel: "Available",
-      launcher,
-    };
-  });
+  if (harness.resolveDetection) {
+    return harness.resolveDetection(env);
+  }
+
+  const launcher = harness.resolveLauncher(env);
+  return {
+    id: harness.kind,
+    adapterId: harness.kind === "claude" ? "claude-code" : harness.kind,
+    family: harness.kind === "claude" ? "claude-code" : harness.kind,
+    label: harness.title,
+    productName: harness.title,
+    enabled: true,
+    configured: false,
+    detected: true,
+    launchable: true,
+    status: "available",
+    statusLabel: "Available",
+    launcher,
+  };
+}
+
+export function validateRegisteredAgentHarnessLaunch(kind: string, env: NodeJS.ProcessEnv = process.env): AgentHarnessDetection {
+  const detection = resolveRegisteredAgentHarnessDetection(kind, env);
+  if (!detection) {
+    throw new Error(`Agent harness is not registered: ${kind}`);
+  }
+  if (!detection.launchable) {
+    const detail = detection.detail ? ` ${detection.detail}` : "";
+    throw new Error(`Agent harness is not launchable: ${kind} (${detection.statusLabel}).${detail}`);
+  }
+  return detection;
+}
+
+export function resolveRegisteredAgentHarnesses(env: NodeJS.ProcessEnv = process.env): AgentHarnessDetection[] {
+  return agentHarnessRegistry
+    .list()
+    .map((harness) => resolveRegisteredAgentHarnessDetection(harness.kind, env))
+    .filter((detection): detection is AgentHarnessDetection => Boolean(detection));
 }

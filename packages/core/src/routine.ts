@@ -1,6 +1,20 @@
 import type { CapabilityPermission } from "./capabilities";
 import type { AgentHarness, HarnessSkillMetadata } from "./agent-harness";
 export type {
+  ActivityActorRef,
+  ActivityArtifactKind,
+  ActivityArtifactRef,
+  ActivityEvidenceRef,
+  ActivityHarnessRef,
+  ActivityRecord,
+  ActivityRef,
+  ActivityReviewRef,
+  ActivityReviewState,
+  ActivityRoutineRef,
+  ActivityScopeRef,
+  ActivityStatus,
+  ActivityTraceKind,
+  ActivityTracePacket,
   RunArtifact,
   RunArtifactKind,
   RunError,

@@ -2,6 +2,8 @@
 
 Date: 2026-06-20
 
+Status: active planning note, not a shipped feature contract. Use `README.md`, `architecture.md`, and `tasks.md` for current product/runtime behavior.
+
 ## Goal
 
 Add a named theme system to Exo that makes the app feel deliberate across notes, code, terminals, agents, drawers, dialogs, review, search, and future graph/provenance views.

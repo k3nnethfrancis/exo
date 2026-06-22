@@ -722,7 +722,6 @@ function buildDecorations(view: EditorView, options: MarkdownLivePreviewOptions)
       to: view.state.doc.length,
       decoration: Decoration.widget({
         widget: new GraphReferencesWidget(options.graphReferences),
-        block: true,
         side: 1,
       }),
     });
