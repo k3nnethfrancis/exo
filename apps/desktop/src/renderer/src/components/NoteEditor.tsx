@@ -116,12 +116,12 @@ export function NoteEditor(props: NoteEditorProps) {
 
   const documentPath = document?.filePath ?? "";
   const documentBody = document?.body ?? "";
-  const isMarkdown = document?.kind === "markdown";
-  const useMarkdownEditing = isMarkdown && isNoteDocument;
+  const useMarkdownEditing = shouldUseMarkdownRenderer(document);
+  const showNoteMetadata = useMarkdownEditing && isNoteDocument;
   const displayTitle = document ? getDocumentDisplayTitle(document.filePath, document.kind) : "";
   const suppressedGeneratedTitle = useMemo(
-    () => (document && useMarkdownEditing ? generatedDailyTitleForPath(document.filePath) : null),
-    [document, useMarkdownEditing],
+    () => (document && showNoteMetadata ? generatedDailyTitleForPath(document.filePath) : null),
+    [document, showNoteMetadata],
   );
   const codeLanguage = useMemo(() => {
     if (!document || useMarkdownEditing) {
@@ -136,7 +136,7 @@ export function NoteEditor(props: NoteEditorProps) {
   const cmTheme = useMemo(() => exoEditorTheme(theme, fontSize), [fontSize, theme]);
   const syntaxTheme = useMemo(() => exoSyntaxHighlighting(theme), [theme]);
   const graphReferences = useMemo((): MarkdownGraphReferences | null => {
-    if (!useMarkdownEditing || !knowledge) {
+    if (!showNoteMetadata || !knowledge) {
       return null;
     }
     const referenceLinks = [
@@ -149,7 +149,7 @@ export function NoteEditor(props: NoteEditorProps) {
       backlinks: knowledge.backlinks.map((item) => ({ label: item.title, target: item.filePath })),
       references: referenceLinks,
     };
-  }, [knowledge, useMarkdownEditing]);
+  }, [knowledge, showNoteMetadata]);
   const selectionTracker = useMemo(
     () =>
       EditorView.updateListener.of((update) => {
@@ -524,7 +524,7 @@ export function NoteEditor(props: NoteEditorProps) {
       <div className="editor-panel__header">
         <div className="editor-panel__summary">
           <div className="editor-panel__title-row">
-            {useMarkdownEditing ? (
+            {showNoteMetadata ? (
               <button
                 aria-label={propertiesCollapsed ? "Show properties" : "Hide properties"}
                 className={`toolbar-button toolbar-button--icon ${compact ? "toolbar-button--compact" : ""}`}
@@ -560,7 +560,7 @@ export function NoteEditor(props: NoteEditorProps) {
           >
             <Save size={14} />
           </button>
-          {useMarkdownEditing && branchFamily ? (
+          {showNoteMetadata && branchFamily ? (
             <div className="branch-selector branch-selector--icon-only" data-testid="branch-selector-wrap" title="Branches">
               <GitBranch size={14} />
               <select
@@ -603,7 +603,7 @@ export function NoteEditor(props: NoteEditorProps) {
         </div>
       </div>
 
-      {useMarkdownEditing && !propertiesCollapsed ? (
+      {showNoteMetadata && !propertiesCollapsed ? (
         <div className="properties-card" data-testid="properties-panel">
           <div className="properties-card__content">
             {frontmatterEntries.map(([key, value]) => (
@@ -741,6 +741,10 @@ export function NoteEditor(props: NoteEditorProps) {
 
 function clampPosition(position: number, docLength: number): number {
   return Math.max(0, Math.min(position, docLength));
+}
+
+export function shouldUseMarkdownRenderer(document: Pick<NoteDocument, "kind"> | null): boolean {
+  return document?.kind === "markdown";
 }
 
 function getWikilinkCompletionContext(state: EditorState, pos: number): { from: number; to: number; query: string } | null {

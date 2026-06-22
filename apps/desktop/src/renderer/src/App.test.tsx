@@ -28,6 +28,8 @@ import { isTerminalGeneratedResponse } from "./components/terminalInputFilters";
 import { TerminalOutputChunker, chunkTerminalData } from "./components/terminalOutputChunks";
 import { focusTerminal, refreshAllTerminals, registerTerminal, unregisterTerminal } from "./components/terminalRegistry";
 import { createTerminalToolDockActions, launchableTerminalAgentHarnesses } from "./components/TerminalRail";
+import { shouldUseMarkdownRenderer } from "./components/NoteEditor";
+import { workspaceSettingsSavedFooterCopy } from "./components/WorkspaceSettingsDialog";
 import { listEnterEdit, shouldSuppressGeneratedTitleLine, wikilinkExitEdit } from "./components/markdownLivePreview";
 import { appendPendingTerminalData, mergeHydrationSnapshot } from "./hooks/useTerminalSessions";
 import { defaultTerminalCwdForNotesFolder } from "./hooks/useWorkspaceBootstrap";
@@ -49,6 +51,21 @@ import { collectLeaves, openOrUpdateBrowserPane, type PaneNode } from "./hooks/u
 describe("desktop shell", () => {
   it("keeps a renderer test surface in place", () => {
     expect(true).toBe(true);
+  });
+});
+
+describe("editor document mode", () => {
+  it("uses the markdown renderer for markdown documents from any root", () => {
+    expect(shouldUseMarkdownRenderer({ kind: "markdown" })).toBe(true);
+    expect(shouldUseMarkdownRenderer({ kind: "text" })).toBe(false);
+    expect(shouldUseMarkdownRenderer(null)).toBe(false);
+  });
+});
+
+describe("workspace settings footer copy", () => {
+  it("only mentions Apply when structural changes are pending", () => {
+    expect(workspaceSettingsSavedFooterCopy(true)).toContain("Apply");
+    expect(workspaceSettingsSavedFooterCopy(false)).toBe("Settings saved.");
   });
 });
 

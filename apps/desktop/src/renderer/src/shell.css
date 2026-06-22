@@ -640,7 +640,7 @@
 
 .tree-node {
   display: grid;
-  grid-template-columns: 12px 14px minmax(0, 1fr) auto;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
   align-items: center;
   gap: 5px;
   min-width: 0;
@@ -661,7 +661,7 @@
 }
 
 .sidebar--mirrored .tree-node {
-  grid-template-columns: auto minmax(0, 1fr) 14px 12px;
+  grid-template-columns: auto minmax(0, 1fr) 14px;
   padding-left: 10px;
   padding-right: calc(var(--tree-depth, 0) * 14px + 12px);
   text-align: right;
@@ -669,7 +669,7 @@
 
 .tree-node--file {
   grid-template-columns: 14px minmax(0, 1fr) auto;
-  padding-left: calc(var(--tree-depth, 0) * 14px + 29px);
+  padding-left: calc(var(--tree-depth, 0) * 14px + 12px);
   color: color-mix(in srgb, var(--text-soft) 78%, var(--muted));
   font-weight: 400;
 }
@@ -677,7 +677,7 @@
 .sidebar--mirrored .tree-node--file {
   grid-template-columns: auto minmax(0, 1fr) 14px;
   padding-left: 10px;
-  padding-right: calc(var(--tree-depth, 0) * 14px + 29px);
+  padding-right: calc(var(--tree-depth, 0) * 14px + 12px);
   text-align: right;
 }
 
@@ -713,7 +713,7 @@
 
 .tree-node--directory {
   color: color-mix(in srgb, var(--text) 84%, var(--text-soft));
-  font-weight: 430;
+  font-weight: 400;
 }
 
 .tree-node--changed-file,
@@ -721,14 +721,12 @@
   color: var(--text);
 }
 
-.tree-node__disclosure,
 .tree-node__kind-icon,
 .root-group__toggle svg {
   color: var(--muted);
   opacity: 0.86;
 }
 
-.tree-node__disclosure,
 .tree-node__kind-icon {
   display: inline-flex;
   align-items: center;
@@ -741,11 +739,6 @@
   opacity: 0.95;
 }
 
-.tree-node--directory .tree-node__disclosure {
-  color: color-mix(in srgb, var(--muted) 78%, var(--text));
-  opacity: 0.9;
-}
-
 .tree-node--file .tree-node__kind-icon {
   color: color-mix(in srgb, var(--muted) 72%, transparent);
   opacity: 0.76;
@@ -753,26 +746,21 @@
 
 .tree-node__dirty-badge {
   justify-self: end;
-  min-width: 16px;
-  padding: 1px 5px;
-  border: 1px solid color-mix(in srgb, var(--accent) 34%, transparent);
+  min-width: 14px;
+  padding: 0 4px;
+  border: 1px solid color-mix(in srgb, var(--state-changed) 34%, transparent);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--accent-soft) 58%, transparent);
-  color: var(--accent);
+  background: color-mix(in srgb, var(--state-changed) 12%, transparent);
+  color: var(--state-changed);
   font-family: var(--mono);
-  font-size: 10px;
-  line-height: 1.25;
+  font-size: 9px;
+  line-height: 1.18;
   text-align: center;
 }
 
 .tree-node__dirty-badge--status {
-  min-width: 18px;
+  min-width: 16px;
   text-transform: uppercase;
-}
-
-.sidebar--mirrored .tree-node__disclosure {
-  grid-column: 4;
-  grid-row: 1;
 }
 
 .sidebar--mirrored .tree-node__kind-icon {

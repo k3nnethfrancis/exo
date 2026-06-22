@@ -36,6 +36,8 @@ export function WorkspaceSettingsDialog({
   setSettings,
   structuralDraftKey,
 }: WorkspaceSettingsDialogProps) {
+  const hasStructuralChanges = structuralDraftKey(settings) !== settings.appliedWorkspaceKey;
+
   return (
     <div className="dialog-overlay" data-testid="workspace-settings-overlay">
       <div className="dialog-card dialog-card--settings" data-testid="workspace-settings-dialog">
@@ -77,7 +79,7 @@ export function WorkspaceSettingsDialog({
           {settings.section === "appearance" ? <AppearanceSection settings={settings} setSettings={setSettings} /> : null}
           {settings.section === "terminal" ? <TerminalSection settings={settings} setSettings={setSettings} /> : null}
         </div>
-        {structuralDraftKey(settings) !== settings.appliedWorkspaceKey ? (
+        {hasStructuralChanges ? (
           <div className="dialog-card__apply-row">
             <div className="dialog-card__status">Workspace path and index changes are ready to apply.</div>
             <button
@@ -106,7 +108,7 @@ export function WorkspaceSettingsDialog({
         ) : null}
         {settings.saveStatus === "saved" ? (
           <div className="dialog-card__status" data-testid="workspace-settings-status">
-            Draft saved. Press Apply for workspace path or index changes.
+            {workspaceSettingsSavedFooterCopy(hasStructuralChanges)}
           </div>
         ) : null}
         {settings.saveStatus === "error" && settings.errorMessage ? (
@@ -115,6 +117,10 @@ export function WorkspaceSettingsDialog({
       </div>
     </div>
   );
+}
+
+export function workspaceSettingsSavedFooterCopy(hasStructuralChanges: boolean): string {
+  return hasStructuralChanges ? "Draft saved. Press Apply for workspace path or index changes." : "Settings saved.";
 }
 
 function WorkspaceSection({
