@@ -36,7 +36,7 @@ import { useWorkspaceSearch } from "./hooks/useWorkspaceSearch";
 import { applyTheme } from "./theme/applyTheme";
 import { DEFAULT_COLOR_THEME_ID, resolveTheme } from "./theme/registry";
 import type { ColorThemeId } from "./theme/types";
-import { collectLeaves, findEditorLeaf, findNode, mapLeaves, paneId, pruneEmptyLeaves, updateNode, type PaneLeaf, type PaneNode, type PaneNodeId, type BrowserPaneContent } from "./hooks/usePaneTree";
+import { collectLeaves, findEditorLeaf, findNode, mapLeaves, openOrUpdateBrowserPane, paneId, pruneEmptyLeaves, updateNode, type PaneLeaf, type PaneNode, type PaneNodeId } from "./hooks/usePaneTree";
 import {
   addTerminalSessionToFirstLeaf,
   collectActiveTerminalIds,
@@ -537,12 +537,18 @@ export function App() {
     const targetLeafId = leafId ?? editorFocusedLeafId;
     await ensureDocumentLoaded(filePath);
 
-    // Find the target editor leaf — use targetLeafId if it's an editor, otherwise find any editor leaf
-    const targetLeaf = findNode(editorTree, (n) => n.id === targetLeafId && n.kind === "leaf" && n.content.kind === "editor");
-    const editorLeafId = targetLeaf?.id ?? findEditorLeaf(editorTree)?.id;
+    // File opens should never be trapped by a focused browser/terminal leaf.
+    // Prefer the requested editor leaf, then any editor leaf, then recover by
+    // converting the focused/first leaf back into an editor leaf.
+    const targetLeaf = findNode(editorTree, (n) => n.id === targetLeafId && n.kind === "leaf") as PaneLeaf | undefined;
+    const targetEditorLeaf = targetLeaf?.content.kind === "editor" ? targetLeaf : undefined;
+    const fallbackLeaf = targetLeaf ?? collectLeaves(editorTree)[0];
+    const editorLeafId = targetEditorLeaf?.id ?? findEditorLeaf(editorTree)?.id ?? fallbackLeaf?.id;
     if (editorLeafId) {
       editorActions.updateLeafContent(editorLeafId, (content) => {
-        if (content.kind !== "editor") return content;
+        if (content.kind !== "editor") {
+          return { kind: "editor", activePath: filePath, openPaths: [filePath] };
+        }
         return {
           ...content,
           activePath: filePath,
@@ -625,27 +631,9 @@ export function App() {
   }
 
   function createBrowserPane(url = "about:blank") {
-    const focusedLeaf = findNode(editorTree, (node) => node.id === editorFocusedLeafId && node.kind === "leaf") as PaneLeaf | undefined;
-    const targetLeaf = focusedLeaf ?? collectLeaves(editorTree)[0];
-    if (!targetLeaf) {
-      return;
-    }
-
-    const newLeafId = paneId();
-    const browserContent: BrowserPaneContent = { kind: "browser", url };
-    editorActions.setTree((prev) =>
-      updateNode(prev, targetLeaf.id, (node) => ({
-        kind: "split" as const,
-        id: paneId(),
-        direction: "horizontal",
-        ratio: 0.58,
-        children: [
-          node as PaneLeaf,
-          { kind: "leaf", id: newLeafId, content: browserContent },
-        ],
-      })),
-    );
-    editorActions.focusLeaf(newLeafId);
+    const result = openOrUpdateBrowserPane(editorTree, editorFocusedLeafId, url);
+    editorActions.setTree(result.tree);
+    editorActions.focusLeaf(result.focusLeafId);
     setZoomSurface("editor");
   }
 

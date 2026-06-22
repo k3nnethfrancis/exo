@@ -119,6 +119,41 @@ export function findEditorLeaf(tree: PaneNode): PaneLeaf | undefined {
   return findNode(tree, (n) => n.kind === "leaf" && n.content.kind === "editor") as PaneLeaf | undefined;
 }
 
+export function openOrUpdateBrowserPane(tree: PaneNode, targetLeafId: PaneNodeId | null, url: string): { tree: PaneNode; focusLeafId: PaneNodeId } {
+  const browserLeaf = collectLeaves(tree).find((leaf) => leaf.content.kind === "browser");
+  if (browserLeaf) {
+    return {
+      tree: updateNode(tree, browserLeaf.id, (node) => {
+        if (node.kind !== "leaf" || node.content.kind !== "browser") {
+          return node;
+        }
+        return { ...node, content: { ...node.content, url } };
+      }),
+      focusLeafId: browserLeaf.id,
+    };
+  }
+
+  const focusedLeaf = targetLeafId
+    ? findNode(tree, (node) => node.id === targetLeafId && node.kind === "leaf") as PaneLeaf | undefined
+    : undefined;
+  const targetLeaf = focusedLeaf ?? collectLeaves(tree)[0];
+  const newLeafId = paneId();
+  const browserContent: BrowserPaneContent = { kind: "browser", url };
+  return {
+    tree: updateNode(tree, targetLeaf.id, (node) => ({
+      kind: "split",
+      id: paneId(),
+      direction: "horizontal",
+      ratio: 0.58,
+      children: [
+        node as PaneLeaf,
+        { kind: "leaf", id: newLeafId, content: browserContent },
+      ],
+    })),
+    focusLeafId: newLeafId,
+  };
+}
+
 /** Find the first terminal leaf. */
 export function findTerminalLeaf(tree: PaneNode): PaneLeaf | undefined {
   return findNode(tree, (n) => n.kind === "leaf" && n.content.kind === "terminal") as PaneLeaf | undefined;

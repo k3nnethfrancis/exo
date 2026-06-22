@@ -44,10 +44,63 @@ import {
   workspaceSettingsStructuralKeyFromSettings,
 } from "./workspaceSettingsModel";
 import { buildExplorerChangeState } from "./explorerChangeState";
+import { collectLeaves, openOrUpdateBrowserPane, type PaneNode } from "./hooks/usePaneTree";
 
 describe("desktop shell", () => {
   it("keeps a renderer test surface in place", () => {
     expect(true).toBe(true);
+  });
+});
+
+describe("browser preview panes", () => {
+  it("creates a browser pane when none exists", () => {
+    const tree: PaneNode = {
+      kind: "leaf",
+      id: "editor-1",
+      content: { kind: "editor", openPaths: ["/workspace/readme.md"], activePath: "/workspace/readme.md" },
+    };
+
+    const result = openOrUpdateBrowserPane(tree, "editor-1", "file:///workspace/a.html");
+    const leaves = collectLeaves(result.tree);
+
+    expect(leaves).toHaveLength(2);
+    expect(leaves.find((leaf) => leaf.content.kind === "browser")?.content).toMatchObject({
+      kind: "browser",
+      url: "file:///workspace/a.html",
+    });
+    expect(result.focusLeafId).toBe(leaves.find((leaf) => leaf.content.kind === "browser")?.id);
+  });
+
+  it("updates and focuses the existing browser pane instead of creating another one", () => {
+    const tree: PaneNode = {
+      kind: "split",
+      id: "split-1",
+      direction: "horizontal",
+      ratio: 0.58,
+      children: [
+        {
+          kind: "leaf",
+          id: "editor-1",
+          content: { kind: "editor", openPaths: ["/workspace/readme.md"], activePath: "/workspace/readme.md" },
+        },
+        {
+          kind: "leaf",
+          id: "browser-1",
+          content: { kind: "browser", url: "file:///workspace/a.html" },
+        },
+      ],
+    };
+
+    const result = openOrUpdateBrowserPane(tree, "editor-1", "file:///workspace/b.html");
+    const leaves = collectLeaves(result.tree);
+    const browserLeaves = leaves.filter((leaf) => leaf.content.kind === "browser");
+
+    expect(browserLeaves).toHaveLength(1);
+    expect(browserLeaves[0]).toMatchObject({
+      id: "browser-1",
+      content: { kind: "browser", url: "file:///workspace/b.html" },
+    });
+    expect(result.focusLeafId).toBe("browser-1");
   });
 });
 
