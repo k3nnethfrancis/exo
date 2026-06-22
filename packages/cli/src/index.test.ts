@@ -207,6 +207,19 @@ describe("cli package", () => {
     expect(stdout).toContain("|/tmp/exo-test-workspace/.exo/instructions/AGENTS.md");
   });
 
+  it("rejects direct Pi launch when its inference backend is missing", async () => {
+    await expect(runCli(["node", "exo-cli", "launch", "pi", "/tmp"], {
+      env: {
+        EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
+        EXO_NOTE_ROOTS: "/tmp/exo-test-workspace/notes",
+        EXO_PROJECT_ROOTS: "/tmp/exo-test-workspace/projects",
+        EXO_PI_COMMAND: "/bin/sh",
+      },
+      stdout: { write: () => {} },
+      stderr: { write: () => {} },
+    })).rejects.toThrow("Agent harness is not launchable: pi (Missing dependency).");
+  });
+
   it("routes preview commands through the app client", async () => {
     const calls: string[] = [];
     const client = fakeAppClient({

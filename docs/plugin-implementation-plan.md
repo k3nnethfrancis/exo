@@ -1,6 +1,6 @@
 # Plugin Architecture Implementation Plan
 
-Last updated: 2026-06-21
+Last updated: 2026-06-22
 
 This plan turns Exo's plugin architecture into code without prematurely loading arbitrary third-party code. The first goal is internal extensibility: Exo core should use typed registries and contracts for the capabilities that are already plugin-shaped.
 
@@ -19,7 +19,7 @@ Core owns the substrate:
 
 Plugins and profiles own variation. Vanilla Exo should be treated as core plus bundled/recommended plugins, not core plus hardcoded permanent defaults:
 
-- agent harnesses such as shell, Claude Code, Codex, Pi, Hermes, Aider, OpenCode, or local agents
+- agent harnesses such as shell, Claude Code, Codex, Pi-compatible, Hermes, Aider, OpenCode, or local agents
 - advanced search providers such as QMD, graph search, local vector stores, rerankers, or remote retrieval
 - dashboards, local web apps, and artifact producers that use Exo's core web viewer endpoints
 - exograph/profile packs such as OKF, Shoshin, LM Wiki, domain-specific workbenches, or project-specific mappings
@@ -44,7 +44,7 @@ The current code already has good starting boundaries:
 - Keep `apps/desktop/src/main/index.ts` from growing.
 - Keep command-server, CLI, and MCP behavior stable until a phase explicitly changes those contracts.
 - Keep QMD as the only built-in search provider until a real second provider exists.
-- Keep shell, Claude Code, Codex, Pi, and Hermes as bundled harness plugins/adapters. Only enabled and launchable configured instances should appear as launch controls; supported but missing harnesses belong in configuration/setup surfaces.
+- Keep shell, Claude Code, Codex, Pi-compatible, and Hermes as bundled harness plugins/adapters. Only enabled and launchable configured instances should appear as launch controls; supported but missing harnesses belong in configuration/setup surfaces. Hermes is hidden from normal lists unless explicitly configured.
 - Keep automation semantics plugin-owned. Core may expose an activity/job substrate, but concrete Routines, workflows, evals, and maintenance jobs should be plugins unless they prove universal.
 - Preserve current terminal tmux behavior while refactoring harness planning. Do not make the terminal renderer/session service a plugin.
 - Prefer focused modules and tests over broad rewrites.
@@ -143,9 +143,9 @@ pnpm check
 
 ## Phase 3: AgentHarness Contract
 
-Move shell/Claude/Codex/Pi/Hermes launch planning behind a typed `AgentHarness` contract while preserving current launch plans.
+Move shell/Claude/Codex/Pi-compatible/Hermes launch planning behind a typed `AgentHarness` contract while preserving current launch plans.
 
-Status: first-pass implementation exists. Bundled shell/Claude/Codex/Pi/Hermes harnesses implement `AgentHarness`, and runtime launcher resolution goes through `AgentHarnessRegistry`. Pi custom builds are local configuration of the Pi adapter; GA Pi must not become an OSS source default.
+Status: first-pass implementation exists. Bundled shell/Claude/Codex/Pi-compatible/Hermes harnesses implement `AgentHarness`, and runtime launcher resolution goes through `AgentHarnessRegistry`. Pi custom builds are local configuration of the Pi-compatible adapter; GA Pi must not become an OSS source default. Pi launchability now requires an explicit compatible inference backend config, and Hermes is hidden from normal lists unless explicitly configured.
 
 Remaining cleanup: keep the terminal substrate core while reducing fixed bundled harness ids in CLI/MCP/session types. `exo terminals` should remain the low-level terminal/admin surface; `exo agents create` and MCP `create_agent` should choose from registered, enabled, policy-approved harnesses.
 
@@ -166,19 +166,20 @@ Contract should cover:
 - instruction-overlay env contract
 - message submission semantics
 - optional skill inventory metadata
+- required runtime dependency metadata, including inference backends
 
 Migration approach:
 
-1. Extract shell, Claude, Codex, Pi, and Hermes launch config builders from `runtime.ts` into built-in harness modules.
+1. Extract shell, Claude, Codex, Pi-compatible, and Hermes launch config builders from `runtime.ts` into built-in harness modules.
 2. Keep `ManagedAgentKind` and `resolveAgentLaunchPlan()` stable.
 3. Keep `TerminalManager` Codex-specific startup behavior unchanged while sharing instruction overlays across agent harnesses.
-4. Use harness detection/configuration status to decide which launchers appear in the UI; keep supported or missing harnesses visible in configuration surfaces, but do not render dead launcher buttons.
+4. Use harness detection/configuration/dependency status to decide which launchers appear in the UI; keep supported or missing harnesses visible in configuration surfaces, but do not render dead launcher buttons. Hide experimental adapters such as Hermes unless local configuration opts them in.
 5. Treat trace/provenance hooks as harness-adapter responsibilities. Terminal transcripts are evidence, but xterm rendering must not be the trace system.
 
 Tests:
 
 - current runtime tests continue to pass
-- built-in harness registry exposes shell/Claude/Codex/Pi/Hermes
+- built-in harness registry exposes shell/Claude/Codex/Pi-compatible/Hermes
 - Codex reasoning-effort override behavior remains identical
 - launch plans preserve env vars used by terminal manager and runtime overlays
 

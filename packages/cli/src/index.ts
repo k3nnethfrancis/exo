@@ -18,6 +18,7 @@ import {
   renderPrimaryAgentInstructions,
   resolveAgentLaunchPlan,
   resolveRuntimeConfig,
+  validateRegisteredAgentHarnessLaunch,
   RoutineService,
   routinePluginDirectoriesFromEnv,
   resolveNotePath,
@@ -883,6 +884,9 @@ export async function runCli(
     }
 
     const config = await resolveCliRuntimeConfig(env);
+    if (kind !== "shell") {
+      validateRegisteredAgentHarnessLaunch(kind, env);
+    }
     await syncRuntimeContextFiles(config);
     const launchPlan = resolveAgentLaunchPlan(config, kind, args[0]);
     return launchAgent(launchPlan, { env, stdin, stdout, stderr });

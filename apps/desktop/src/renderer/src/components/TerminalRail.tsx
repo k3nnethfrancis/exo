@@ -164,5 +164,5 @@ function useAgentHarnesses(providedHarnesses?: AgentHarnessDetection[]): AgentHa
 }
 
 export function launchableTerminalAgentHarnesses(harnesses: AgentHarnessDetection[]): AgentHarnessDetection[] {
-  return harnesses.filter((harness) => harness.id !== "shell" && harness.enabled && harness.launchable);
+  return harnesses.filter((harness) => harness.id !== "shell" && harness.visible !== false && harness.enabled && harness.launchable);
 }

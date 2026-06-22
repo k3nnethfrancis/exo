@@ -1371,6 +1371,56 @@ test("manages harness skill files from the agent config editor", async () => {
   }
 });
 
+test("shows missing Pi backend status and hides unconfigured Hermes launchers", async () => {
+  const { page, cleanup } = await launchExoFixture({
+    env: {
+      EXO_PI_COMMAND: "/bin/sh",
+      EXO_PI_LABEL: "Custom Pi build",
+    },
+  });
+
+  try {
+    await expect(page.getByTestId("launch-pi")).toHaveCount(0);
+    await expect(page.getByTestId("launch-hermes")).toHaveCount(0);
+
+    await page.getByTestId("open-agent-config").click();
+    await expect(page.getByTestId("agent-context-manager")).toBeVisible();
+    await page.getByTestId("agent-config-tab-harnesses").click();
+
+    await expect(page.getByTestId("agent-harness-pi")).toContainText("Custom Pi build");
+    await expect(page.getByTestId("agent-harness-pi")).toContainText("Missing dependency");
+    await expect(page.getByTestId("agent-harness-pi")).toContainText("Launch unavailable");
+    await expect(page.getByTestId("agent-harness-pi")).toContainText("Pi inference backend: Missing");
+    await expect(page.getByTestId("agent-harness-hermes")).toHaveCount(0);
+  } finally {
+    await cleanup();
+  }
+});
+
+test("shows a configured generic Pi-compatible launcher when backend config exists", async () => {
+  const { page, cleanup } = await launchExoFixture({
+    env: {
+      EXO_PI_COMMAND: "/bin/sh",
+      EXO_PI_LABEL: "Custom Pi build",
+      EXO_PI_BACKEND_URL: "http://127.0.0.1:8080",
+    },
+  });
+
+  try {
+    await expect(page.getByTestId("launch-pi")).toBeVisible();
+
+    await page.getByTestId("open-agent-config").click();
+    await page.getByTestId("agent-config-tab-harnesses").click();
+
+    await expect(page.getByTestId("agent-harness-pi")).toContainText("Configured");
+    await expect(page.getByTestId("agent-harness-pi")).toContainText("Launchable");
+    await expect(page.getByTestId("agent-harness-pi")).toContainText("Pi inference backend: Configured");
+    await expect(page.getByTestId("agent-harness-pi")).toContainText("http://127.0.0.1:8080");
+  } finally {
+    await cleanup();
+  }
+});
+
 test("syncs a git skill source and installs a library skill copy", async () => {
   const { page, workspaceRoot, homeRoot, cleanup } = await launchExoFixture({ mutable: true });
   const sourceRepo = path.join(workspaceRoot, "skill-source");

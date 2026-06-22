@@ -1,6 +1,6 @@
 # Plugin Architecture
 
-Last updated: 2026-06-21
+Last updated: 2026-06-22
 
 Exo should support a plugin path so users can extend their local AI workstation without requiring every feature to land in core.
 
@@ -13,7 +13,7 @@ The target core-versus-plugin boundary lives in `plugin-system-architecture.md`.
 That keeps Exo from overbuilding while still moving toward the long-term shape:
 
 - QMD becomes the bundled advanced search provider behind a search-provider registry.
-- Shell, Claude Code, Codex, Pi, Hermes, and future agents become bundled or external agent-harness plugins behind an agent-harness registry.
+- Shell, Claude Code, Codex, Pi-compatible, Hermes, and future agents become bundled or external agent-harness plugins behind an agent-harness registry.
 - MCP and CLI stay separate product surfaces, with plugin contributions admitted only through policy.
 - Terminal remains a core platform service; harnesses plug into it.
 - The web viewer host and open/focus/close endpoints stay core; plugins can generate local content or services and ask Exo to open them.
@@ -22,6 +22,20 @@ That keeps Exo from overbuilding while still moving toward the long-term shape:
 - Local plugin manifests can now be discovered and validated as metadata, but Exo does not yet execute plugin code or grant plugin permissions.
 
 Guardian Angel is an example downstream workload that can pressure-test this architecture outside core. Workflows like elicitation, trace capture, accept/reject/correction review, psychological-model hypotheses, dataset export, eval packets, and instrumented agent runtimes should use Exo's generic plugin primitives rather than becoming built-in Exo product code by default.
+
+## Current Harness Configuration
+
+Agent harness detection separates:
+
+- enabled state: whether the harness is allowed to launch
+- installation evidence: executable path and optional local repo path
+- runtime dependencies: required backend or runtime services
+- launchability: enabled plus installed plus all required dependencies satisfied
+- visibility: whether the harness should appear in normal launcher/config lists
+
+Pi is represented as a generic Pi-compatible harness instance. Local builds are configured with `EXO_PI_COMMAND`, `EXO_PI_REPO_PATH`, `EXO_PI_LABEL`, `EXO_PI_ARGS`, `EXO_PI_CHANNEL`, and `EXO_PI_BUILD`. A compatible inference backend is required before Pi is launchable; configure one with `EXO_PI_BACKEND_URL` or `EXO_PI_BACKEND_COMMAND` and optionally label it with `EXO_PI_BACKEND_LABEL` or `EXO_PI_BACKEND_KIND`.
+
+Hermes remains a registered adapter, but it is hidden from normal harness lists by default so it does not appear as a dead launcher. It appears only when explicitly configured with `EXO_HERMES_COMMAND` or `EXO_HERMES_ENABLED`.
 
 ## Non-Goals For The First Pass
 
@@ -168,9 +182,9 @@ The launcher contract should cover:
 - supported message submission semantics
 - provenance hooks
 
-Pi, Hermes, Aider, Goose, OpenCode, and local/open-source agents should use this path instead of hardwired conditionals. Local forks such as GA Pi should be configured instances of a generic adapter unless their protocol diverges enough to require a separate plugin.
+Pi-compatible harnesses, Hermes, Aider, Goose, OpenCode, and local/open-source agents should use this path instead of hardwired conditionals. Local forks such as GA Pi should be configured instances of a generic adapter unless their protocol diverges enough to require a separate plugin.
 
-Output: enabled and launchable shell/Claude/Codex/Pi/Hermes instances appear in launcher surfaces; supported but missing harnesses appear only in configuration/setup surfaces; tests prove launcher discovery, env rendering, and MCP/CLI `create_agent` compatibility.
+Output: enabled and launchable shell/Claude/Codex/Pi-compatible/Hermes instances appear in launcher surfaces; Pi-compatible instances expose required inference-backend status before launch; Hermes is hidden unless explicitly configured; supported but missing harnesses appear only in configuration/setup surfaces; tests prove launcher discovery, env rendering, and MCP/CLI `create_agent` compatibility.
 
 Status: implemented.
 

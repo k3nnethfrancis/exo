@@ -2,7 +2,8 @@ export type RootKind = "notes" | "projects";
 export type DocumentKind = "markdown" | "text";
 export type ManagedAgentKind = "shell" | "claude" | "codex" | "pi" | "hermes";
 export type AgentHarnessAdapterId = "shell" | "claude-code" | "codex" | "pi" | "hermes";
-export type AgentHarnessStatus = "available" | "configured" | "not-found" | "disabled" | "broken";
+export type AgentHarnessStatus = "available" | "configured" | "not-found" | "disabled" | "broken" | "missing-dependency";
+export type AgentHarnessDependencyKind = "inference-backend" | "runtime";
 export type ColorThemeId = "exo-neutral" | "exo-solar";
 
 export interface AttachedRoot {
@@ -308,6 +309,18 @@ export interface AgentHarnessInstallMetadata {
   label?: string;
 }
 
+export interface AgentHarnessDependencyStatus {
+  id: string;
+  kind: AgentHarnessDependencyKind;
+  label: string;
+  required: boolean;
+  configured: boolean;
+  detected: boolean;
+  satisfied: boolean;
+  statusLabel: string;
+  detail?: string;
+}
+
 export interface AgentHarnessDetection {
   id: ManagedAgentKind;
   adapterId: AgentHarnessAdapterId;
@@ -326,7 +339,9 @@ export interface AgentHarnessDetection {
   build?: string;
   install?: AgentHarnessInstallMetadata;
   detail?: string;
+  dependencies?: AgentHarnessDependencyStatus[];
   launcher?: AgentLauncherConfig;
+  visible?: boolean;
 }
 
 export interface RuntimeConfig {

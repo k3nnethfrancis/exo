@@ -1,6 +1,6 @@
 # Exo Ledger
 
-Last updated: 2026-06-20
+Last updated: 2026-06-22
 
 This is the fastest current-state handoff for Exo. It records what exists now, what changed recently, and what is next. Active tasks live in `docs/tasks.md`; future systems live in `docs/roadmap.md`; product/system strategy lives in `docs/strategy.md`.
 
@@ -53,6 +53,7 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 
 ## Recent Completed Work
 
+- Fixed harness inference configuration readiness: Pi is now a generic Pi-compatible harness instance with local executable/repo/backend config, launch is blocked with a missing inference-backend status until `EXO_PI_BACKEND_URL` or `EXO_PI_BACKEND_COMMAND` is configured, Agent Config Editor separates enabled/launch/dependency status, and Hermes is hidden from normal harness lists unless explicitly configured.
 - Ran a context-evolution pass after the terminal/cmux/harness discussions: updated repo guidance away from stale node-pty attach-bridge language, captured the current terminal simplification question, reframed vanilla Exo as core plus bundled/recommended plugins, and clarified that local forks such as GA Pi are configured instances of generic harness plugins rather than OSS source defaults.
 - Added metadata-only local plugin manifests in `@exo/core`: `exo.plugin.json` discovery, strict manifest validation, source/trust metadata, duplicate-safe plugin/capability registration, and tests. This does not execute plugin code or grant plugin permissions.
 - Fixed markdown editor QoL regressions: clean-file refreshes now restore cursor selection instead of jumping to the top, live-preview bullets/numbered lists and task lists continue on Enter, empty list/task items exit cleanly, cursor filtering avoids hidden list-marker positions, and Tab/Enter exits `[[wikilinks]]` to a following space for continued inline typing.

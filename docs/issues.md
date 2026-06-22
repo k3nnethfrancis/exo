@@ -10,7 +10,7 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
 
 ### EXO-ISSUE-061: Packaged mac build failed in electron-builder dependency collector
 
-- Status: open
+- Status: fixed
 - Severity: high
 - Area: packaging, install readiness, electron-builder
 - Observed:
@@ -66,9 +66,14 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
   - Confirm which fields belong in public OSS defaults versus local machine config.
   - Preserve the principle that launch rails show only installed/enabled/launchable harnesses.
 - QA coverage:
-  - Agent Config Editor shows Pi with missing backend state when no backend is configured.
+  - Agent Config Editor shows Pi with installed/enabled/launch availability plus required inference backend status.
   - Pi launch button is hidden/disabled until configured dependencies are satisfied.
-  - Hermes does not appear as a dead launcher in the default app.
+  - Hermes does not appear as a dead launcher in the default app; explicitly configured Hermes instances remain supported.
+- Resolution:
+  - Added generic harness dependency status to `AgentHarnessDetection` and wired Pi to a required `inference-backend` dependency.
+  - Pi is represented as a generic Pi-compatible harness with local executable/repo/backend env config (`EXO_PI_COMMAND`, `EXO_PI_REPO_PATH`, `EXO_PI_BACKEND_URL` or `EXO_PI_BACKEND_COMMAND`) and no GA-specific defaults.
+  - Default Hermes detections are hidden from normal harness lists unless `EXO_HERMES_COMMAND` or `EXO_HERMES_ENABLED` explicitly configures it.
+  - Added tests for missing Pi backend, configured custom Pi-compatible harnesses, hidden Hermes, explicit Hermes, and terminal launcher filtering.
 
 ### EXO-ISSUE-058: Explorer uses duplicate folder open/close affordances
 

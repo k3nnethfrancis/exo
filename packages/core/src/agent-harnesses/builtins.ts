@@ -3,7 +3,13 @@ import { accessSync, constants, existsSync } from "node:fs";
 
 import { builtInCapabilities, type CapabilityMetadata } from "../capabilities";
 import type { AgentHarness, AgentHarnessMap } from "../agent-harness";
-import type { AgentHarnessAdapterId, AgentHarnessDetection, AgentLauncherConfig, ManagedAgentKind } from "../types";
+import type {
+  AgentHarnessAdapterId,
+  AgentHarnessDependencyStatus,
+  AgentHarnessDetection,
+  AgentLauncherConfig,
+  ManagedAgentKind,
+} from "../types";
 
 function splitEnvArgs(rawValue?: string): string[] {
   if (!rawValue) {
@@ -53,6 +59,10 @@ function splitPathList(rawValue?: string): string[] {
   return rawValue?.split(path.delimiter).map((value) => value.trim()).filter(Boolean) ?? [];
 }
 
+function envFlagEnabled(rawValue?: string): boolean {
+  return rawValue !== "0" && rawValue !== "false";
+}
+
 function discoverPiSourceCheckout(env: NodeJS.ProcessEnv): { repoPath: string; cliPath: string } | undefined {
   const candidates = [
     env.EXO_PI_REPO_PATH,
@@ -83,14 +93,19 @@ function detectionFor(input: {
   build?: string;
   install?: AgentHarnessDetection["install"];
   detail?: string;
+  dependencies?: AgentHarnessDependencyStatus[];
+  visible?: boolean;
 }): AgentHarnessDetection {
   const enabled = input.enabled ?? true;
   const repoExists = input.repoPath ? existsSync(input.repoPath) : false;
   const detected = Boolean(input.executablePath) || repoExists;
-  const launchable = enabled && Boolean(input.executablePath);
+  const missingRequiredDependencies = input.dependencies?.filter((dependency) => dependency.required && !dependency.satisfied) ?? [];
+  const launchable = enabled && Boolean(input.executablePath) && missingRequiredDependencies.length === 0;
   const status = !enabled
     ? "disabled"
-    : launchable
+    : missingRequiredDependencies.length > 0 && detected
+      ? "missing-dependency"
+      : launchable
       ? input.configured ? "configured" : "available"
       : input.configured || repoExists
         ? "broken"
@@ -114,7 +129,9 @@ function detectionFor(input: {
     build: input.build,
     install: input.install,
     detail: input.detail,
+    dependencies: input.dependencies,
     launcher: launchable ? input.launcher : undefined,
+    visible: input.visible,
   };
 }
 
@@ -130,6 +147,8 @@ function statusLabel(status: AgentHarnessDetection["status"]): string {
       return "Disabled";
     case "broken":
       return "Broken";
+    case "missing-dependency":
+      return "Missing dependency";
   }
 }
 
@@ -270,7 +289,7 @@ class PiAgentHarness implements AgentHarness {
     const sourceCheckout = env.EXO_PI_COMMAND ? undefined : discoverPiSourceCheckout(env);
     return {
       kind: this.kind,
-      title: env.EXO_PI_LABEL ?? this.title,
+      title: env.EXO_PI_LABEL ?? "Pi-compatible harness",
       command: env.EXO_PI_COMMAND ?? (sourceCheckout ? process.execPath : "pi"),
       args: sourceCheckout ? [sourceCheckout.cliPath, ...splitEnvArgs(env.EXO_PI_ARGS)] : splitEnvArgs(env.EXO_PI_ARGS),
     };
@@ -281,13 +300,15 @@ class PiAgentHarness implements AgentHarness {
     const sourceCheckout = env.EXO_PI_COMMAND ? undefined : discoverPiSourceCheckout(env);
     const configured = Boolean(env.EXO_PI_COMMAND || env.EXO_PI_REPO_PATH);
     const executablePath = env.EXO_PI_COMMAND ? resolvePathCommand(env.EXO_PI_COMMAND, env) : resolvePathCommand(launcher.command, env);
+    const backendDependency = resolvePiBackendDependency(env);
     return detectionFor({
       id: this.kind,
       adapterId: "pi",
       label: launcher.title,
-      productName: "Pi",
+      productName: "Pi-compatible harness",
       launcher,
       configured,
+      enabled: envFlagEnabled(env.EXO_PI_ENABLED),
       executablePath,
       repoPath: env.EXO_PI_REPO_PATH ?? sourceCheckout?.repoPath,
       channel: env.EXO_PI_CHANNEL ?? (configured ? "custom" : sourceCheckout ? "source" : undefined),
@@ -295,9 +316,57 @@ class PiAgentHarness implements AgentHarness {
       install: {
         label: "Configure a local Pi build",
       },
-      detail: configured && !executablePath ? "Pi is configured, but no executable command was found." : undefined,
+      detail: piHarnessDetail({ configured, executablePath, backendDependency }),
+      dependencies: [backendDependency],
     });
   }
+}
+
+function resolvePiBackendDependency(env: NodeJS.ProcessEnv): AgentHarnessDependencyStatus {
+  const backendLabel = env.EXO_PI_BACKEND_LABEL ?? env.EXO_PI_BACKEND_KIND ?? "Pi inference backend";
+  const configured = Boolean(env.EXO_PI_BACKEND_URL || env.EXO_PI_BACKEND_COMMAND || env.EXO_PI_BACKEND_READY);
+  const detected = env.EXO_PI_BACKEND_READY ? envFlagEnabled(env.EXO_PI_BACKEND_READY) : configured;
+  const satisfied = configured && detected;
+  const statusLabel = satisfied ? "Configured" : "Missing";
+  const detail = satisfied
+    ? backendDetail(env)
+    : "Configure EXO_PI_BACKEND_URL or EXO_PI_BACKEND_COMMAND for a compatible local inference backend.";
+
+  return {
+    id: "pi-inference-backend",
+    kind: "inference-backend",
+    label: backendLabel,
+    required: true,
+    configured,
+    detected,
+    satisfied,
+    statusLabel,
+    detail,
+  };
+}
+
+function backendDetail(env: NodeJS.ProcessEnv): string | undefined {
+  if (env.EXO_PI_BACKEND_URL) {
+    return env.EXO_PI_BACKEND_URL;
+  }
+  if (env.EXO_PI_BACKEND_COMMAND) {
+    return env.EXO_PI_BACKEND_COMMAND;
+  }
+  return undefined;
+}
+
+function piHarnessDetail(input: {
+  configured: boolean;
+  executablePath?: string;
+  backendDependency: AgentHarnessDependencyStatus;
+}): string | undefined {
+  if (input.configured && !input.executablePath) {
+    return "Pi is configured, but no executable command was found.";
+  }
+  if (!input.backendDependency.satisfied) {
+    return input.backendDependency.detail;
+  }
+  return undefined;
 }
 
 class HermesAgentHarness implements AgentHarness {
@@ -317,7 +386,7 @@ class HermesAgentHarness implements AgentHarness {
 
   resolveDetection(env: NodeJS.ProcessEnv): AgentHarnessDetection {
     const launcher = this.resolveLauncher(env);
-    const configured = Boolean(env.EXO_HERMES_COMMAND);
+    const configured = Boolean(env.EXO_HERMES_COMMAND || env.EXO_HERMES_ENABLED);
     const executablePath = resolvePathCommand(launcher.command, env);
     return detectionFor({
       id: this.kind,
@@ -325,10 +394,12 @@ class HermesAgentHarness implements AgentHarness {
       label: launcher.title,
       launcher,
       configured,
+      enabled: configured && envFlagEnabled(env.EXO_HERMES_ENABLED),
       executablePath,
       install: {
         label: "Configure Hermes",
       },
+      visible: configured,
     });
   }
 }
