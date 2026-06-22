@@ -26,7 +26,7 @@ Local install of the unsigned app bundle:
 ./scripts/install-mac-app
 ```
 
-This installs to `~/Applications` by default so the setup path does not require administrator permissions. Use `./scripts/install-mac-app --system-app-dir` when you intentionally want `/Applications`.
+`pnpm pack:mac` writes `release/mac-<arch>/Exo.app`. `./scripts/install-mac-app` installs that bundle to `~/Applications/Exo.app` by default so the setup path does not require administrator permissions. Use `./scripts/install-mac-app --system-app-dir` when you intentionally want `/Applications`.
 
 Unsigned macOS DMG and ZIP for the current build machine architecture:
 
