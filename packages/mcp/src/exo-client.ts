@@ -208,6 +208,11 @@ export class ExoCommandClient {
     return String(result.transcript ?? "");
   }
 
+  async readAgentTail(id: string, maxLines?: number): Promise<string> {
+    const result = await this.get(EXO_COMMAND_ROUTES.terminalTail(id, maxLines));
+    return String(result.tail ?? "");
+  }
+
   async sendAgentInput(id: string, input: string): Promise<ExoAgentInputResult> {
     return this.post(EXO_COMMAND_ROUTES.terminalWrite(id), { data: input });
   }

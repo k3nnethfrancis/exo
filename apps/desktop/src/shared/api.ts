@@ -296,7 +296,7 @@ export interface DesktopApi {
     list: () => Promise<TerminalSessionInfo[]>;
     diagnostics: () => Promise<TerminalDiagnostics[]>;
     create: (options: TerminalCreateOptions) => Promise<TerminalSessionInfo>;
-    read: (id: string) => Promise<string>;
+    read: (id: string, options?: { maxLines?: number }) => Promise<string>;
     readTranscript: (id: string, tailChars?: number) => Promise<string>;
     write: (id: string, data: string) => Promise<TerminalWriteResult>;
     sendMessage: (id: string, message: string, submit?: boolean) => Promise<TerminalMessageResult>;

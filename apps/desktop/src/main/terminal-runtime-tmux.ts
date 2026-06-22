@@ -123,7 +123,7 @@ export class TmuxTerminalRuntime implements TerminalRuntime {
       "-t",
       options.paneId || options.sessionName,
       "-S",
-      `-${options.historyLimit}`,
+      `-${options.lineLimit && options.lineLimit > 0 ? Math.min(options.lineLimit, options.historyLimit) : options.historyLimit}`,
     ]));
   }
 

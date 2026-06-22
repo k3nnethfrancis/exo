@@ -17,7 +17,10 @@ export const EXO_COMMAND_ROUTES = {
   projectRoot: (target: string) => `/project-roots/${encodeURIComponent(target)}`,
   terminals: "/terminals",
   terminalDiagnostics: "/terminals/diagnostics",
-  terminalTail: (id: string) => `/terminals/${encodeURIComponent(id)}/tail`,
+  terminalTail: (id: string, lines?: number) => {
+    const query = lines && lines > 0 ? `?lines=${encodeURIComponent(String(lines))}` : "";
+    return `/terminals/${encodeURIComponent(id)}/tail${query}`;
+  },
   terminalTranscript: (id: string, tailChars: number) =>
     `/terminals/${encodeURIComponent(id)}/transcript?tailChars=${encodeURIComponent(String(tailChars))}`,
   terminalWrite: (id: string) => `/terminals/${encodeURIComponent(id)}/write`,

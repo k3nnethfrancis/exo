@@ -41,6 +41,9 @@ describe("ExoCommandClient", () => {
       if (targetUrl.pathname === "/terminals/term-1/transcript" && targetUrl.searchParams.get("tailChars") === "5") {
         return json({ transcript: "laude" });
       }
+      if (targetUrl.pathname === "/terminals/term-1/tail" && targetUrl.searchParams.get("lines") === "2") {
+        return json({ tail: "line-2\nline-3" });
+      }
       if (targetUrl.pathname === "/terminals/term-2" && init?.method === "DELETE") {
         return json({ ok: true });
       }
@@ -51,6 +54,7 @@ describe("ExoCommandClient", () => {
 
     expect(formatAgents(await client.listAgents())).toContain("term-1\tclaude\trunning");
     expect(await client.readAgent("term-1", 5)).toBe("laude");
+    expect(await client.readAgentTail("term-1", 2)).toBe("line-2\nline-3");
     expect(await client.createAgent("codex", "/tmp")).toMatchObject({ id: "term-2", kind: "codex" });
     await expect(client.killAgent("term-2")).resolves.toBeUndefined();
   });

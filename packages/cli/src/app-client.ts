@@ -224,8 +224,8 @@ export class AppClient {
     return this.post(EXO_COMMAND_ROUTES.terminals, { kind, cwd });
   }
 
-  async readTerminal(id: string): Promise<string> {
-    const result = await this.get(EXO_COMMAND_ROUTES.terminalTail(id));
+  async readTerminal(id: string, options: { maxLines?: number } = {}): Promise<string> {
+    const result = await this.get(EXO_COMMAND_ROUTES.terminalTail(id, options.maxLines));
     return String(result.tail ?? "");
   }
 

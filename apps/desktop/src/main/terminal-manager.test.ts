@@ -392,6 +392,20 @@ describe("TerminalManager Codex readiness", () => {
     expect(manager.readTranscript(terminal.id)).toContain("line-1");
   });
 
+  it("honors explicit live tail line limits without shrinking the internal buffer", async () => {
+    const workspaceRoot = await workspaceFixture();
+    const manager = new TerminalManager(workspaceRoot, 500);
+
+    const terminal = await manager.create({ kind: "shell", cwd: workspaceRoot });
+    const pty = ptyState.spawned[0];
+    const lines = Array.from({ length: 80 }, (_, index) => `line-${index + 1}`);
+
+    pty.emitData(lines.join("\n"));
+
+    expect(manager.readTail(terminal.id, { maxLines: 12 })).toBe(lines.slice(-12).join("\n"));
+    expect(manager.readTail(terminal.id)).toBe(lines.join("\n"));
+  });
+
   it("hydrates bounded terminal tail from tmux history before live attach output", async () => {
     const workspaceRoot = await workspaceFixture();
     childProcess.execFileSync.mockImplementation((command: string, args: string[]) => {
@@ -410,6 +424,27 @@ describe("TerminalManager Codex readiness", () => {
       bufferedChars: "captured-001\r\ncaptured-002\r\n".length,
     });
     expect(manager.readTranscript(terminal.id)).not.toContain("captured-001\r\ncaptured-002");
+  });
+
+  it("passes explicit live tail line limits to tmux capture", async () => {
+    const workspaceRoot = await workspaceFixture();
+    stubWorkspaceEnv(workspaceRoot);
+    const capturedTail = Array.from({ length: 12 }, (_, index) => `captured-${index + 1}`).join("\r\n");
+    const runtime = fakeRuntime(capturedTail);
+    const manager = new TerminalManager(workspaceRoot, 500, 0, {}, runtime);
+
+    const terminal = await manager.create({ kind: "shell", cwd: workspaceRoot });
+
+    expect(manager.readTail(terminal.id, { maxLines: 4 })).toBe("captured-9\r\ncaptured-10\r\ncaptured-11\r\ncaptured-12");
+    expect(runtime.calls.captureTail).toEqual([
+      {
+        sessionName: "runtime-session-1",
+        paneId: "%runtime-1",
+        historyLimit: 500,
+        lineLimit: 4,
+      },
+    ]);
+    expect(manager.readTail(terminal.id)).toBe(capturedTail);
   });
 
   it("applies configured live scrollback to tmux history", async () => {
