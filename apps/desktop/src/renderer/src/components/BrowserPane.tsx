@@ -21,12 +21,40 @@ export function BrowserPane(props: BrowserPaneProps) {
   const safeUrl = useMemo(() => normalizeBrowserUrl(url), [url]);
 
   useEffect(() => {
-    refreshTerminalsAroundPreviewLayout();
+    return schedulePreviewTerminalRefresh();
   }, [safeUrl]);
+
+  useEffect(() => {
+    let cancelPendingRefresh = () => {};
+    const refresh = () => {
+      cancelPendingRefresh();
+      cancelPendingRefresh = schedulePreviewTerminalRefresh();
+    };
+    const eventNames: Array<"focus" | "blur" | "resize" | "pageshow" | "visibilitychange"> = [
+      "focus",
+      "blur",
+      "resize",
+      "pageshow",
+      "visibilitychange",
+    ];
+    for (const eventName of eventNames) {
+      window.addEventListener(eventName, refresh);
+    }
+    return () => {
+      cancelPendingRefresh();
+      for (const eventName of eventNames) {
+        window.removeEventListener(eventName, refresh);
+      }
+    };
+  }, []);
 
   function focusPreviewPane() {
     onFocus();
-    refreshTerminalsAroundPreviewLayout();
+    schedulePreviewTerminalRefresh();
+  }
+
+  function refreshPreviewTerminals() {
+    schedulePreviewTerminalRefresh();
   }
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -83,18 +111,39 @@ export function BrowserPane(props: BrowserPaneProps) {
           className="browser-pane__webview"
           data-testid="browser-webview"
           src={safeUrl}
-          onFocus={refreshTerminalsAroundPreviewLayout}
-          onLoad={refreshTerminalsAroundPreviewLayout}
+          onBlur={refreshPreviewTerminals}
+          onFocus={refreshPreviewTerminals}
+          onLoad={refreshPreviewTerminals}
         />
       )}
     </section>
   );
 }
 
-function refreshTerminalsAroundPreviewLayout() {
-  refreshAllTerminals();
-  window.requestAnimationFrame(refreshAllTerminals);
-  window.setTimeout(refreshAllTerminals, 75);
+interface PreviewRefreshScheduler {
+  requestAnimationFrame: typeof window.requestAnimationFrame;
+  cancelAnimationFrame: typeof window.cancelAnimationFrame;
+  setTimeout: typeof window.setTimeout;
+  clearTimeout: typeof window.clearTimeout;
+}
+
+export function schedulePreviewTerminalRefresh(
+  refresh: () => void = refreshAllTerminals,
+  scheduler: PreviewRefreshScheduler = window,
+): () => void {
+  refresh();
+  const frameId = scheduler.requestAnimationFrame(refresh);
+  const timerIds = [
+    scheduler.setTimeout(refresh, 75),
+    scheduler.setTimeout(refresh, 250),
+  ];
+
+  return () => {
+    scheduler.cancelAnimationFrame(frameId);
+    for (const timerId of timerIds) {
+      scheduler.clearTimeout(timerId);
+    }
+  };
 }
 
 function normalizeBrowserUrl(value: string): string {

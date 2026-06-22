@@ -387,6 +387,26 @@ describe("cli package", () => {
     expect(receivedTailChars).toBe(0);
   });
 
+  it("passes terminal read line limits to the app client", async () => {
+    let receivedOptions: { maxLines?: number } | undefined;
+    let stdout = "";
+    const exitCode = await runCli(["node", "exo-cli", "terminals", "read", "term-1", "--lines", "3"], {
+      env: testRuntimeEnv(),
+      stdout: { write: (text) => { stdout += text; } },
+      stderr: { write: () => {} },
+      connectAppClient: async () => fakeAppClient({
+        readTerminal: async (_id, options) => {
+          receivedOptions = options;
+          return "line-3\nline-4\nline-5";
+        },
+      }),
+    });
+
+    expect(exitCode).toBe(0);
+    expect(receivedOptions).toEqual({ maxLines: 3 });
+    expect(stdout).toBe("line-3\nline-4\nline-5\n");
+  });
+
   it("keeps deprecated agent message aliases working with warnings", async () => {
     const calls: string[] = [];
     let stderr = "";
@@ -1068,7 +1088,7 @@ function fakeAppClient(overrides: Partial<{
   listTerminals: () => Promise<unknown[]>;
   terminalDiagnostics: () => Promise<unknown[]>;
   createTerminal: (kind: string, cwd?: string) => Promise<Record<string, unknown>>;
-  readTerminal: (id: string) => Promise<string>;
+  readTerminal: (id: string, options?: { maxLines?: number }) => Promise<string>;
   readTerminalTranscript: (id: string, tailChars?: number) => Promise<string>;
   writeTerminal: (id: string, data: string) => Promise<{ ok: boolean; delivery: "sent" | "queued" | "not-found"; queuedInputCount?: number }>;
   sendTerminalMessage: (id: string, message: string, submit?: boolean) => Promise<{ ok: boolean; delivery: "sent" | "queued" | "not-found"; queuedInputCount?: number }>;

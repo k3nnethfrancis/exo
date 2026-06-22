@@ -50,7 +50,7 @@ export interface CommandServerOptions {
   onListTerminals: () => ExoCommandTerminalInfo[];
   onTerminalDiagnostics: () => ExoCommandTerminalDiagnostics[];
   onCreateTerminal: (kind: string, cwd?: string) => Promise<ExoCommandTerminalInfo>;
-  onReadTerminalTail: (id: string) => string | null;
+  onReadTerminalTail: (id: string, options?: { maxLines?: number }) => string | null;
   onReadTerminalTranscript: (id: string, tailChars: number) => string | null;
   onWriteTerminal: (id: string, data: string) => Promise<ExoWriteTerminalResponse>;
   onSendTerminalMessage: (id: string, message: string, submit: boolean) => Promise<ExoWriteTerminalResponse>;
@@ -317,7 +317,9 @@ export class CommandServer {
 
       const terminalReadMatch = pathname.match(/^\/terminals\/([^/]+)\/tail$/);
       if (method === "GET" && terminalReadMatch) {
-        const tail = this.options.onReadTerminalTail(decodeURIComponent(terminalReadMatch[1]));
+        const tail = this.options.onReadTerminalTail(decodeURIComponent(terminalReadMatch[1]), {
+          maxLines: parsePositiveNumber(url.searchParams.get("lines")),
+        });
         if (tail === null) {
           json(res, { error: "Terminal not found" }, 404);
           return;
@@ -392,6 +394,14 @@ function parseTailChars(value: string | null): number {
   }
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+}
+
+function parsePositiveNumber(value: string | null): number | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }
 
 function parseOptionalNumber(value: string | null): number | undefined {

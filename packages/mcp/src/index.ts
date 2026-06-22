@@ -262,7 +262,8 @@ server.registerTool(
     description: "Read the bounded live terminal tail for one Exo agent. This is read-only.",
     inputSchema: {
       agentId: z.string().min(1).describe("Agent id from list_agents, for example term-3."),
-      tailChars: z.number().int().nonnegative().optional().describe("Maximum characters to return from the end of the transcript. Omit to use Exo's configured default; 0 returns the full transcript unless the configured maximum is lower."),
+      maxLines: z.number().int().positive().max(1000).optional().describe("Maximum live terminal lines to return. Prefer this for bounded reads that should not flood callers."),
+      tailChars: z.number().int().nonnegative().optional().describe("Maximum characters to return from the end of the transcript when maxLines is omitted. Omit to use Exo's configured default."),
       clean: z.boolean().default(true).describe("Strip ANSI terminal escape codes before returning output."),
     },
     annotations: {
@@ -271,7 +272,7 @@ server.registerTool(
       idempotentHint: true,
     },
   },
-  async ({ agentId, tailChars, clean }) => {
+  async ({ agentId, maxLines, tailChars, clean }) => {
     const client = await ExoCommandClient.connect();
     const config = await client.getConfig();
     const configuredDefault = readNonNegativeInteger(config.terminalReadTailChars, DEFAULT_TERMINAL_READ_TAIL_CHARS);
@@ -280,11 +281,11 @@ server.registerTool(
     const effectiveTailChars = configuredMax > 0 && requestedTailChars > 0
       ? Math.min(requestedTailChars, configuredMax)
       : requestedTailChars;
-    const rawOutput = await client.readAgent(agentId, effectiveTailChars);
+    const rawOutput = maxLines ? await client.readAgentTail(agentId, maxLines) : await client.readAgent(agentId, effectiveTailChars);
     const output = clean ? stripAnsi(rawOutput) : rawOutput;
     return {
       content: [{ type: "text", text: output || "(no buffered output)" }],
-      structuredContent: { agentId, output, tailChars: effectiveTailChars },
+      structuredContent: { agentId, output, maxLines, tailChars: maxLines ? undefined : effectiveTailChars },
     };
   },
 );

@@ -73,7 +73,7 @@ interface AppClientLike {
   listTerminals(): Promise<unknown[]>;
   terminalDiagnostics(): Promise<unknown[]>;
   createTerminal(kind: string, cwd?: string): Promise<Record<string, unknown>>;
-  readTerminal(id: string): Promise<string>;
+  readTerminal(id: string, options?: { maxLines?: number }): Promise<string>;
   readTerminalTranscript(id: string, tailChars?: number): Promise<string>;
   writeTerminal(id: string, data: string): Promise<AppClientWriteResult>;
   sendTerminalMessage(id: string, message: string, submit?: boolean): Promise<AppClientWriteResult>;
@@ -440,11 +440,12 @@ export async function runCli(
     }
 
     if (subcommand === "read") {
-      const id = args[0];
+      const { values, positionals } = parseInlineOptions(args);
+      const id = positionals[0];
       if (!id) {
-        throw new Error("Expected a terminal id.");
+        throw new Error("Usage: exo terminals read <terminal-id> [--lines n]");
       }
-      const tail = await client.readTerminal(id);
+      const tail = await client.readTerminal(id, { maxLines: parseBoundedTerminalReadLines(values.lines) });
       stdout.write(tail);
       if (tail && !tail.endsWith("\n")) {
         stdout.write("\n");
@@ -497,7 +498,7 @@ export async function runCli(
       return 0;
     }
 
-    stderr.write(`Usage: exo terminals [list | diagnostics | create <${AGENT_KIND_USAGE}> [cwd] | read <id> | transcript <id> [--tail chars] [--full] | write <id> <text> | send <id> <text> | reconnect <id> | kill <id>]\n`);
+    stderr.write(`Usage: exo terminals [list | diagnostics | create <${AGENT_KIND_USAGE}> [cwd] | read <id> [--lines n] | transcript <id> [--tail chars] [--full] | write <id> <text> | send <id> <text> | reconnect <id> | kill <id>]\n`);
     return 1;
   }
 
@@ -923,7 +924,7 @@ export async function runCli(
       "  exo project-roots remove <path>            Detach a project root (app)",
       "  exo terminals [list]                       List terminals (app)",
       `  exo terminals create <${AGENT_KIND_USAGE}>  Create terminal (app)`,
-      "  exo terminals read <id>                    Read bounded live terminal tail (app)",
+      "  exo terminals read <id> [--lines n]        Read bounded live terminal tail (app)",
       "  exo terminals transcript <id> [--tail n]   Read disk-backed terminal transcript (app)",
       "  exo terminals write <id> <text>            Write raw input to terminal (app)",
       "  exo terminals send <id> <text>             Send input plus Enter to terminal (app)",
@@ -1277,6 +1278,17 @@ function parseAgentReadTailChars(args: string[]): number {
   }
   const tailChars = parseTailChars(args);
   return tailChars > 0 ? tailChars : DEFAULT_AGENT_READ_TAIL_CHARS;
+}
+
+function parseBoundedTerminalReadLines(value: string | undefined): number | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error("Expected --lines to be a positive number.");
+  }
+  return parsed;
 }
 
 function parseInlineOptions(args: string[]): { values: Record<string, string>; positionals: string[] } {

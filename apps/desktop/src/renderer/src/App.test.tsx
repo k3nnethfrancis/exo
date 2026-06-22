@@ -24,6 +24,7 @@ import {
   WorkspaceSettingsStore,
 } from "../../main/settings-store";
 import { buildProjectReviewChanges, uniqueCwdMatchedSession } from "./changedFileReview";
+import { schedulePreviewTerminalRefresh } from "./components/BrowserPane";
 import { isTerminalGeneratedResponse } from "./components/terminalInputFilters";
 import { TerminalOutputChunker, chunkTerminalData } from "./components/terminalOutputChunks";
 import { focusTerminal, refreshAllTerminals, registerTerminal, unregisterTerminal } from "./components/terminalRegistry";
@@ -101,6 +102,41 @@ describe("browser preview panes", () => {
       content: { kind: "browser", url: "file:///workspace/b.html" },
     });
     expect(result.focusLeafId).toBe("browser-1");
+  });
+
+  it("schedules repeated terminal refreshes around preview layout and focus changes", () => {
+    const refresh = vi.fn();
+    const frameCallbacks: FrameRequestCallback[] = [];
+    const timeoutCallbacks: Array<() => void> = [];
+    const scheduler = {
+      requestAnimationFrame: vi.fn((callback: FrameRequestCallback) => {
+        frameCallbacks.push(callback);
+        return frameCallbacks.length;
+      }),
+      cancelAnimationFrame: vi.fn(),
+      setTimeout: vi.fn((callback: () => void) => {
+        timeoutCallbacks.push(callback);
+        return timeoutCallbacks.length;
+      }),
+      clearTimeout: vi.fn(),
+    };
+
+    const cancel = schedulePreviewTerminalRefresh(refresh, scheduler as never);
+
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(scheduler.requestAnimationFrame).toHaveBeenCalledTimes(1);
+    expect(scheduler.setTimeout).toHaveBeenCalledTimes(2);
+
+    frameCallbacks[0](0);
+    timeoutCallbacks.forEach((callback) => callback());
+
+    expect(refresh).toHaveBeenCalledTimes(4);
+
+    cancel();
+
+    expect(scheduler.cancelAnimationFrame).toHaveBeenCalledWith(1);
+    expect(scheduler.clearTimeout).toHaveBeenCalledWith(1);
+    expect(scheduler.clearTimeout).toHaveBeenCalledWith(2);
   });
 });
 

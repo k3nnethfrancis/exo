@@ -62,6 +62,7 @@ export interface TerminalRuntimeCaptureTailOptions {
   sessionName: string;
   paneId: string;
   historyLimit: number;
+  lineLimit?: number;
 }
 
 export interface TerminalRuntime {

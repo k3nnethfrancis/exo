@@ -132,7 +132,7 @@ function startCommandServer() {
     onTerminalDiagnostics: () => terminalManager.diagnostics(),
     onCreateTerminal: (kind: string, cwd?: string) =>
       terminalManager.create({ kind: kind as ManagedAgentKind, cwd }),
-    onReadTerminalTail: (id: string) => terminalManager.readTail(id),
+    onReadTerminalTail: (id: string, options?: { maxLines?: number }) => terminalManager.readTail(id, options),
     onReadTerminalTranscript: (id: string, tailChars: number) => terminalManager.readTranscript(id, tailChars),
     onWriteTerminal: (id: string, data: string) => terminalManager.write(id, data),
     onSendTerminalMessage: (id: string, message: string, submit: boolean) => terminalManager.sendMessage(id, message, submit),

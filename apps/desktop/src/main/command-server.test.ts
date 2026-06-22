@@ -106,6 +106,30 @@ describe("CommandServer preview routes", () => {
 });
 
 describe("CommandServer terminal routes", () => {
+  it("passes terminal tail line limits from query params", async () => {
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-command-server-"));
+    tempPaths.push(runtimeRoot);
+    let receivedOptions: { maxLines?: number } | undefined;
+    const server = new CommandServer({
+      ...commandServerOptions(runtimeRoot),
+      onReadTerminalTail: (_id, options) => {
+        receivedOptions = options;
+        return "line-2\nline-3";
+      },
+    });
+
+    try {
+      const port = await server.start();
+      const response = await fetch(`http://127.0.0.1:${port}/terminals/term-1/tail?lines=2`);
+
+      expect(response.ok).toBe(true);
+      await expect(response.json()).resolves.toEqual({ tail: "line-2\nline-3" });
+      expect(receivedOptions).toEqual({ maxLines: 2 });
+    } finally {
+      server.stop();
+    }
+  });
+
   it("rejects registered but unavailable agent harnesses before creating terminals", async () => {
     const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-command-server-"));
     tempPaths.push(runtimeRoot);

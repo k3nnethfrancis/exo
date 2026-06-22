@@ -30,7 +30,7 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
 
 ### EXO-ISSUE-060: `exo terminals read --lines` can ignore bounded read limits
 
-- Status: open
+- Status: fixed in local branch
 - Severity: high
 - Area: terminal CLI, MCP read surfaces, bounded tails
 - Observed:
@@ -46,6 +46,12 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
 - QA coverage:
   - Regression test that long output plus `--lines 40` returns roughly 40 terminal lines, not the full transcript.
   - MCP `read_agent` bounded read test for large-output sessions.
+- Resolution:
+  - `exo terminals read <id> --lines N` is now parsed by the CLI and sent to the command server as a `lines` query parameter on the live tail endpoint.
+  - The command server, preload IPC, app client, and terminal manager now carry an explicit `{ maxLines }` live-tail option.
+  - Bounded live-tail reads request a bounded tmux `capture-pane` range and return a bounded view of buffered output without shrinking the manager's internal hydration/live-tail cache.
+  - MCP `read_agent` now supports `maxLines` for predictable bounded live terminal reads while preserving the existing transcript `tailChars` path.
+  - Added focused CLI, command-server, terminal-manager, and MCP client regression coverage for bounded read propagation and line limiting.
 
 ### EXO-ISSUE-059: Harness plugins need inference-engine configuration and Hermes should be hidden for now
 
@@ -109,7 +115,7 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
 
 ### EXO-ISSUE-056: Terminal input can stop rendering while browser preview is open
 
-- Status: open
+- Status: mitigated in local branch; pending real-app preview QA
 - Severity: high
 - Area: terminal rendering, browser preview, pane focus/resize
 - Observed:
@@ -126,6 +132,11 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
 - QA coverage:
   - App QA with browser preview open beside a shell/Claude/Codex terminal; type continuously while resizing and switching panes.
   - Regression coverage for terminal focus/input after preview pane activation.
+- Resolution:
+  - Preview panes now schedule terminal fit/refresh passes when the preview URL changes, the webview loads/focuses/blurs, and the app window focuses, blurs, resizes, pageshows, or changes visibility.
+  - The mitigation only calls the existing xterm registry refresh path; it does not call `terminals.read()`, reset xterm, replay a full buffer, or alter active terminal hydration.
+  - Added a focused renderer regression for the repeated preview-adjacent terminal refresh scheduler.
+  - Manual QA still required in the real Electron app because unit tests cannot reproduce Electron webview focus/compositing behavior: open a web preview beside a shell/Claude/Codex terminal, type continuously, focus/unfocus preview and terminal panes, resize the split, switch panes, and verify input echo remains visible without hard refresh.
 
 ### EXO-ISSUE-055: Explorer folder labels are too bold
 

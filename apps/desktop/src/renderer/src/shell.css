@@ -942,6 +942,11 @@
   min-height: 0;
 }
 
+.pane-leaf--browser {
+  contain: strict;
+  isolation: isolate;
+}
+
 .pane-leaf--focused {
   box-shadow: none;
 }

@@ -389,18 +389,21 @@ export class TerminalManager extends EventEmitter {
     }
   }
 
-  readTail(id: string): string | null {
+  readTail(id: string, options: { maxLines?: number } = {}): string | null {
     const record = this.sessions.get(id);
     if (!record) {
       return null;
     }
     const buffered = record.recentOutput;
-    const captured = this.captureTmuxHistory(record);
+    const maxLines = normalizeTailLineLimit(options.maxLines);
+    const captured = this.captureTmuxHistory(record, maxLines);
     if (captured.length > buffered.length) {
-      this.cacheCapturedTail(record, captured);
-      return record.recentOutput;
+      if (!maxLines) {
+        this.cacheCapturedTail(record, captured);
+      }
+      return tailLines(captured, maxLines);
     }
-    return buffered;
+    return tailLines(buffered, maxLines);
   }
 
   readTranscript(id: string, tailChars = 0): string | null {
@@ -901,13 +904,14 @@ export class TerminalManager extends EventEmitter {
     return this.bufferLineLimit ?? DEFAULT_LIVE_SCROLLBACK_LINES;
   }
 
-  private captureTmuxHistory(record: TerminalRecord): string {
+  private captureTmuxHistory(record: TerminalRecord, lineLimit?: number): string {
     try {
-      return this.terminalRuntime.captureTail({
+      const options = {
         sessionName: record.tmuxSessionName,
         paneId: record.tmuxPaneId,
         historyLimit: this.tmuxHistoryLimit(),
-      });
+      };
+      return this.terminalRuntime.captureTail(lineLimit ? { ...options, lineLimit } : options);
     } catch (error) {
       console.warn("[exo] failed to capture tmux terminal history", {
         id: record.info.id,
@@ -1065,6 +1069,22 @@ function appendBoundedLines(current: string, data: string, lineLimit: number | n
   }
   const lines = next.split("\n");
   return lines.length <= lineLimit ? next : lines.slice(-lineLimit).join("\n");
+}
+
+function tailLines(output: string, lineLimit?: number): string {
+  const normalizedLimit = normalizeTailLineLimit(lineLimit);
+  if (!normalizedLimit) {
+    return output;
+  }
+  const lines = output.split("\n");
+  return lines.length <= normalizedLimit ? output : lines.slice(-normalizedLimit).join("\n");
+}
+
+function normalizeTailLineLimit(value: number | null | undefined): number | undefined {
+  if (value === null || value === undefined || !Number.isFinite(value) || value <= 0) {
+    return undefined;
+  }
+  return Math.floor(value);
 }
 
 function terminalOutputLineCount(output: string): number {
