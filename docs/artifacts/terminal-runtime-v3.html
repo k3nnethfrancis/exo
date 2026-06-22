@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Exo Terminal Runtime V3</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f7f4ea;
+      --paper: #fffdf5;
+      --ink: #26383b;
+      --muted: #64777a;
+      --line: #d8d1be;
+      --core: #376c72;
+      --runtime: #7a5c25;
+      --plugin: #7a4d5f;
+      --danger: #9d4d38;
+      --shadow: 0 20px 70px rgba(37, 42, 38, 0.14);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1f211e;
+        --paper: #272a26;
+        --ink: #ece7da;
+        --muted: #a9aa9f;
+        --line: #46483f;
+        --core: #77b4bd;
+        --runtime: #d0a64f;
+        --plugin: #d093ad;
+        --danger: #dc8068;
+        --shadow: 0 24px 80px rgba(0, 0, 0, 0.32);
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 14px/1.45 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    header {
+      padding: 42px clamp(24px, 5vw, 72px) 24px;
+      border-bottom: 1px solid var(--line);
+    }
+    .eyebrow {
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    h1 {
+      margin: 0;
+      max-width: 980px;
+      font-size: clamp(36px, 6vw, 72px);
+      line-height: 0.95;
+      letter-spacing: 0;
+    }
+    .summary {
+      max-width: 850px;
+      margin: 18px 0 0;
+      color: var(--muted);
+      font-size: 17px;
+    }
+    main {
+      padding: 28px clamp(20px, 4vw, 56px) 56px;
+      display: grid;
+      gap: 22px;
+    }
+    .map {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+      padding: clamp(18px, 3vw, 34px);
+      overflow: auto;
+    }
+    svg {
+      width: 100%;
+      min-width: 980px;
+      height: auto;
+      display: block;
+    }
+    .node rect {
+      fill: color-mix(in srgb, var(--paper) 82%, var(--bg));
+      stroke: var(--line);
+      stroke-width: 1.4;
+      rx: 10;
+    }
+    .node.core rect { stroke: var(--core); }
+    .node.runtime rect { stroke: var(--runtime); }
+    .node.plugin rect { stroke: var(--plugin); }
+    .node.danger rect { stroke: var(--danger); }
+    .node text {
+      fill: var(--ink);
+      font: 600 14px ui-sans-serif, system-ui;
+    }
+    .node .small {
+      fill: var(--muted);
+      font: 12px ui-sans-serif, system-ui;
+      font-weight: 400;
+    }
+    .edge {
+      fill: none;
+      stroke: var(--line);
+      stroke-width: 2;
+      marker-end: url(#arrow);
+    }
+    .edge.hot { stroke: var(--core); }
+    .edge.runtime { stroke: var(--runtime); }
+    .edge.danger { stroke: var(--danger); stroke-dasharray: 7 7; }
+    .panels {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+    section {
+      background: color-mix(in srgb, var(--paper) 70%, transparent);
+      border-top: 1px solid var(--line);
+      padding-top: 16px;
+    }
+    h2 {
+      margin: 0 0 8px;
+      font-size: 16px;
+      letter-spacing: 0;
+    }
+    ul {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+    }
+    li + li { margin-top: 6px; }
+    details {
+      border-top: 1px solid var(--line);
+      padding: 14px 0 0;
+    }
+    summary {
+      cursor: pointer;
+      font-weight: 650;
+    }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      background: color-mix(in srgb, var(--line) 30%, transparent);
+      border-radius: 4px;
+      padding: 1px 4px;
+    }
+    @media (max-width: 900px) {
+      .panels { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="eyebrow">Terminal Runtime V3</div>
+    <h1>tmux owns durable process state. xterm owns the live screen.</h1>
+    <p class="summary">The simplifying move is not to remove tmux. It is to stop duplicating terminal ownership across transcripts, React state, tail buffers, and hydration resets.</p>
+  </header>
+  <main>
+    <div class="map" aria-label="Terminal architecture diagram">
+      <svg viewBox="0 0 1160 700" role="img">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"></path>
+          </marker>
+        </defs>
+
+        <path class="edge hot" d="M 190 148 C 270 148 280 148 360 148"></path>
+        <path class="edge hot" d="M 190 238 C 270 238 280 238 360 238"></path>
+        <path class="edge runtime" d="M 570 180 C 640 180 650 180 720 180"></path>
+        <path class="edge runtime" d="M 930 180 C 982 180 992 180 1044 180"></path>
+        <path class="edge hot" d="M 820 256 C 820 315 820 330 820 386"></path>
+        <path class="edge hot" d="M 464 288 C 464 340 464 354 464 408"></path>
+        <path class="edge runtime" d="M 464 510 C 560 560 692 560 820 510"></path>
+        <path class="edge danger" d="M 186 530 C 290 596 486 608 704 530"></path>
+
+        <g class="node core" transform="translate(36 98)">
+          <rect width="154" height="88"></rect>
+          <text x="18" y="30">Desktop UI</text>
+          <text class="small" x="18" y="54">TerminalSurface</text>
+          <text class="small" x="18" y="72">xterm, fit, focus</text>
+        </g>
+        <g class="node core" transform="translate(36 208)">
+          <rect width="154" height="88"></rect>
+          <text x="18" y="30">CLI / MCP</text>
+          <text class="small" x="18" y="54">send, read, kill</text>
+          <text class="small" x="18" y="72">diagnostics</text>
+        </g>
+        <g class="node core" transform="translate(360 96)">
+          <rect width="210" height="210"></rect>
+          <text x="20" y="34">TerminalManager</text>
+          <text class="small" x="20" y="64">facade only</text>
+          <text class="small" x="20" y="88">create/list/write/send</text>
+          <text class="small" x="20" y="112">reconnect/resize/kill</text>
+          <text class="small" x="20" y="136">read tail/transcript</text>
+          <text class="small" x="20" y="178">does not own screen</text>
+        </g>
+        <g class="node runtime" transform="translate(720 96)">
+          <rect width="210" height="170"></rect>
+          <text x="20" y="34">Tmux Runtime</text>
+          <text class="small" x="20" y="64">sessions and panes</text>
+          <text class="small" x="20" y="88">control-mode bridge</text>
+          <text class="small" x="20" y="112">history capture</text>
+          <text class="small" x="20" y="136">durable process owner</text>
+        </g>
+        <g class="node runtime" transform="translate(1044 134)">
+          <rect width="90" height="88"></rect>
+          <text x="18" y="34">tmux</text>
+          <text class="small" x="18" y="60">server</text>
+        </g>
+        <g class="node core" transform="translate(334 408)">
+          <rect width="260" height="104"></rect>
+          <text x="20" y="34">Session Registry</text>
+          <text class="small" x="20" y="62">Exo ids to tmux panes</text>
+          <text class="small" x="20" y="84">startup reconciliation</text>
+        </g>
+        <g class="node core" transform="translate(690 386)">
+          <rect width="260" height="126"></rect>
+          <text x="20" y="34">Transcript Store</text>
+          <text class="small" x="20" y="62">append-only ansi logs</text>
+          <text class="small" x="20" y="84">durable read tails</text>
+          <text class="small" x="20" y="106">not live replay source</text>
+        </g>
+        <g class="node danger" transform="translate(36 486)">
+          <rect width="150" height="88"></rect>
+          <text x="18" y="32">Avoid</text>
+          <text class="small" x="18" y="58">reset/replay on</text>
+          <text class="small" x="18" y="76">tab focus</text>
+        </g>
+      </svg>
+    </div>
+
+    <div class="panels">
+      <section>
+        <h2>Core invariant</h2>
+        <ul>
+          <li>Only xterm interprets live terminal output.</li>
+          <li>Only tmux owns durable process and session state.</li>
+          <li>React state stores metadata, never the live screen.</li>
+        </ul>
+      </section>
+      <section>
+        <h2>Known failure class</h2>
+        <ul>
+          <li>Blank terminals after reload are hydration bugs.</li>
+          <li>Replacement glyphs point to control-mode decoding or font/charset paths.</li>
+          <li>Scrollback bugs usually mean tail, transcript, and xterm ownership got mixed.</li>
+        </ul>
+      </section>
+      <section>
+        <h2>Test gate</h2>
+        <ul>
+          <li>Fake Claude/Codex agents, not live inference.</li>
+          <li>Reload, relaunch, pane move, resize, Unicode, and large output.</li>
+          <li>Assert no mounted terminal calls read-and-reset during normal focus.</li>
+        </ul>
+      </section>
+    </div>
+
+    <details open>
+      <summary>Read this architecture as a decision</summary>
+      <p>Exo keeps tmux persistence because long-running agents and builds must survive normal workspace lifecycle. The refactor work is about reducing live-output ownership, not adding another terminal backend.</p>
+    </details>
+  </main>
+</body>
+</html>

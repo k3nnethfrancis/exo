@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Overall Exo Architecture</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f7f4ea;
+      --paper: #fffdf5;
+      --ink: #26383b;
+      --muted: #64777a;
+      --line: #d8d1be;
+      --core: #376c72;
+      --storage: #7a5c25;
+      --agent: #7a4d5f;
+      --surface: #496a45;
+      --shadow: 0 20px 70px rgba(37, 42, 38, 0.14);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1f211e;
+        --paper: #272a26;
+        --ink: #ece7da;
+        --muted: #a9aa9f;
+        --line: #46483f;
+        --core: #77b4bd;
+        --storage: #d0a64f;
+        --agent: #d093ad;
+        --surface: #9fc487;
+        --shadow: 0 24px 80px rgba(0, 0, 0, 0.32);
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 14px/1.45 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    header {
+      padding: 42px clamp(24px, 5vw, 72px) 24px;
+      border-bottom: 1px solid var(--line);
+    }
+    .eyebrow {
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    h1 {
+      margin: 0;
+      max-width: 1040px;
+      font-size: clamp(34px, 5.6vw, 70px);
+      line-height: 0.98;
+      letter-spacing: 0;
+    }
+    .summary {
+      max-width: 900px;
+      margin: 18px 0 0;
+      color: var(--muted);
+      font-size: 17px;
+    }
+    main {
+      padding: 28px clamp(20px, 4vw, 56px) 56px;
+      display: grid;
+      gap: 22px;
+    }
+    .diagram {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+      padding: clamp(18px, 3vw, 34px);
+      overflow: auto;
+    }
+    svg {
+      width: 100%;
+      min-width: 1120px;
+      height: auto;
+      display: block;
+    }
+    rect {
+      fill: color-mix(in srgb, var(--paper) 84%, var(--bg));
+      stroke: var(--line);
+      stroke-width: 1.4;
+      rx: 10;
+    }
+    .surface rect { stroke: var(--surface); }
+    .core rect { stroke: var(--core); }
+    .agent rect { stroke: var(--agent); }
+    .storage rect { stroke: var(--storage); }
+    text {
+      fill: var(--ink);
+      font: 600 14px ui-sans-serif, system-ui;
+    }
+    .small {
+      fill: var(--muted);
+      font: 12px ui-sans-serif, system-ui;
+      font-weight: 400;
+    }
+    path {
+      fill: none;
+      stroke: var(--line);
+      stroke-width: 2;
+      marker-end: url(#arrow);
+    }
+    path.surface { stroke: var(--surface); }
+    path.core { stroke: var(--core); }
+    path.agent { stroke: var(--agent); }
+    path.storage { stroke: var(--storage); }
+    .lanes {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .lane {
+      border-top: 1px solid var(--line);
+      padding-top: 16px;
+    }
+    .lane h2 {
+      margin: 0 0 8px;
+      font-size: 16px;
+    }
+    .lane p {
+      margin: 0;
+      color: var(--muted);
+    }
+    .checks {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .check {
+      background: color-mix(in srgb, var(--paper) 70%, transparent);
+      border-top: 1px solid var(--line);
+      padding-top: 16px;
+    }
+    .check h2 {
+      margin: 0 0 8px;
+      font-size: 16px;
+    }
+    ul {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+    }
+    li + li { margin-top: 6px; }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      background: color-mix(in srgb, var(--line) 30%, transparent);
+      border-radius: 4px;
+      padding: 1px 4px;
+    }
+    @media (max-width: 980px) {
+      .lanes,
+      .checks { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="eyebrow">Overall Architecture</div>
+    <h1>Exo is a local AI workstation over a Markdown-first exograph.</h1>
+    <p class="summary">The desktop app, CLI, and MCP bridge all talk to one resident local runtime. User knowledge stays in Markdown. Derived state, plugin state, transcripts, activity records, and artifacts live under `.exo`.</p>
+  </header>
+  <main>
+    <section class="diagram" aria-label="Overall Exo architecture map">
+      <svg viewBox="0 0 1220 760" role="img">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"></path>
+          </marker>
+        </defs>
+
+        <path class="surface" d="M 220 126 C 320 126 336 126 436 126"></path>
+        <path class="surface" d="M 220 236 C 320 236 336 236 436 236"></path>
+        <path class="surface" d="M 220 346 C 320 346 336 346 436 346"></path>
+
+        <path class="core" d="M 650 212 C 720 212 738 212 808 212"></path>
+        <path class="core" d="M 650 282 C 720 282 738 282 808 282"></path>
+        <path class="core" d="M 650 352 C 720 352 738 352 808 352"></path>
+
+        <path class="storage" d="M 558 452 C 558 520 558 540 558 608"></path>
+        <path class="storage" d="M 908 452 C 908 520 908 540 908 608"></path>
+
+        <path class="agent" d="M 1018 212 C 1080 212 1092 212 1154 212"></path>
+        <path class="agent" d="M 1018 282 C 1080 282 1092 282 1154 282"></path>
+        <path class="agent" d="M 1018 352 C 1080 352 1092 352 1154 352"></path>
+
+        <g class="surface" transform="translate(40 76)">
+          <rect width="180" height="100"></rect>
+          <text x="18" y="34">Desktop app</text>
+          <text class="small" x="18" y="62">editor, explorer</text>
+          <text class="small" x="18" y="82">terminal, web viewer</text>
+        </g>
+        <g class="surface" transform="translate(40 186)">
+          <rect width="180" height="100"></rect>
+          <text x="18" y="34">CLI</text>
+          <text class="small" x="18" y="62">operator/admin/debug</text>
+          <text class="small" x="18" y="82">scripts and setup</text>
+        </g>
+        <g class="surface" transform="translate(40 296)">
+          <rect width="180" height="100"></rect>
+          <text x="18" y="34">MCP</text>
+          <text class="small" x="18" y="62">narrow agent plane</text>
+          <text class="small" x="18" y="82">search/read/agents</text>
+        </g>
+
+        <g class="core" transform="translate(436 86)">
+          <rect width="214" height="366"></rect>
+          <text x="24" y="36">Resident runtime</text>
+          <text class="small" x="24" y="68">command server</text>
+          <text class="small" x="24" y="92">workspace registry</text>
+          <text class="small" x="24" y="116">settings</text>
+          <text class="small" x="24" y="140">pane model</text>
+          <text class="small" x="24" y="164">file watchers</text>
+          <text class="small" x="24" y="188">terminal service</text>
+          <text class="small" x="24" y="212">web viewer endpoints</text>
+          <text class="small" x="24" y="236">plugin registry</text>
+          <text class="small" x="24" y="260">activity substrate</text>
+          <text class="small" x="24" y="316">runs with or without</text>
+          <text class="small" x="24" y="338">visible window</text>
+        </g>
+
+        <g class="core" transform="translate(808 102)">
+          <rect width="210" height="76"></rect>
+          <text x="18" y="32">Markdown graph</text>
+          <text class="small" x="18" y="56">notes, projects, links</text>
+        </g>
+        <g class="core" transform="translate(808 210)">
+          <rect width="210" height="76"></rect>
+          <text x="18" y="32">Terminal runtime</text>
+          <text class="small" x="18" y="56">tmux, xterm, transcripts</text>
+        </g>
+        <g class="core" transform="translate(808 318)">
+          <rect width="210" height="76"></rect>
+          <text x="18" y="32">Plugin hosts</text>
+          <text class="small" x="18" y="56">dock, settings, commands</text>
+        </g>
+
+        <g class="agent" transform="translate(1154 172)">
+          <rect width="54" height="80"></rect>
+          <text x="12" y="34">User</text>
+          <text class="small" x="12" y="58">edits</text>
+        </g>
+        <g class="agent" transform="translate(1154 252)">
+          <rect width="54" height="80"></rect>
+          <text x="12" y="34">Agents</text>
+          <text class="small" x="12" y="58">work</text>
+        </g>
+        <g class="agent" transform="translate(1154 332)">
+          <rect width="54" height="80"></rect>
+          <text x="12" y="34">Plugins</text>
+          <text class="small" x="12" y="58">extend</text>
+        </g>
+
+        <g class="storage" transform="translate(404 608)">
+          <rect width="308" height="108"></rect>
+          <text x="20" y="34">User-owned files</text>
+          <text class="small" x="20" y="62">Markdown, code, assets</text>
+          <text class="small" x="20" y="84">canonical knowledge state</text>
+        </g>
+        <g class="storage" transform="translate(754 608)">
+          <rect width="308" height="108"></rect>
+          <text x="20" y="34">.exo runtime state</text>
+          <text class="small" x="20" y="62">indexes, transcripts, runs</text>
+          <text class="small" x="20" y="84">artifacts, plugin state</text>
+        </g>
+      </svg>
+    </section>
+
+    <div class="lanes">
+      <section class="lane">
+        <h2>Surfaces</h2>
+        <p>Desktop, CLI, and MCP are separate interfaces over the same local command server. CLI stays broad; MCP stays narrow.</p>
+      </section>
+      <section class="lane">
+        <h2>Runtime</h2>
+        <p>The app can run while the window is hidden. Resident services own command routing, terminals, watchers, plugin state, and settings.</p>
+      </section>
+      <section class="lane">
+        <h2>Storage</h2>
+        <p>Markdown remains canonical. `.exo` stores derived and operational state that should not pollute user-authored files.</p>
+      </section>
+      <section class="lane">
+        <h2>Extensibility</h2>
+        <p>Plugins declare capabilities and compose through core hosts rather than bypassing renderer, terminal, or web-viewer boundaries.</p>
+      </section>
+    </div>
+
+    <div class="checks">
+      <section class="check">
+        <h2>Daily-use invariant</h2>
+        <ul>
+          <li>Open and edit Markdown.</li>
+          <li>Search local context.</li>
+          <li>Run and supervise terminals/agents.</li>
+          <li>Preview local artifacts and web surfaces.</li>
+        </ul>
+      </section>
+      <section class="check">
+        <h2>Architecture pressure</h2>
+        <ul>
+          <li>Keep terminal and web viewer as core safety boundaries.</li>
+          <li>Move harnesses, search providers, routines, evals, and profiles into plugins.</li>
+          <li>Expose enough command APIs for Exo-on-Exo without turning MCP into admin mode.</li>
+        </ul>
+      </section>
+    </div>
+  </main>
+</body>
+</html>

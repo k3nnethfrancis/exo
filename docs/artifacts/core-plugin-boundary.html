@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Exo Core And Plugin Boundary</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f7f4ea;
+      --paper: #fffdf5;
+      --ink: #26383b;
+      --muted: #64777a;
+      --line: #d8d1be;
+      --core: #376c72;
+      --bundled: #7a5c25;
+      --external: #7a4d5f;
+      --guard: #9d4d38;
+      --shadow: 0 20px 70px rgba(37, 42, 38, 0.14);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1f211e;
+        --paper: #272a26;
+        --ink: #ece7da;
+        --muted: #a9aa9f;
+        --line: #46483f;
+        --core: #77b4bd;
+        --bundled: #d0a64f;
+        --external: #d093ad;
+        --guard: #dc8068;
+        --shadow: 0 24px 80px rgba(0, 0, 0, 0.32);
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 14px/1.45 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    header {
+      padding: 42px clamp(24px, 5vw, 72px) 24px;
+      border-bottom: 1px solid var(--line);
+    }
+    .eyebrow {
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    h1 {
+      margin: 0;
+      max-width: 980px;
+      font-size: clamp(34px, 5.5vw, 68px);
+      line-height: 0.98;
+      letter-spacing: 0;
+    }
+    .summary {
+      max-width: 880px;
+      margin: 18px 0 0;
+      color: var(--muted);
+      font-size: 17px;
+    }
+    main {
+      padding: 28px clamp(20px, 4vw, 56px) 56px;
+      display: grid;
+      gap: 22px;
+    }
+    .legend {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      color: var(--muted);
+    }
+    .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .swatch {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+      background: var(--core);
+    }
+    .swatch.bundled { background: var(--bundled); }
+    .swatch.external { background: var(--external); }
+    .swatch.guard { background: var(--guard); }
+    .matrix {
+      display: grid;
+      grid-template-columns: minmax(260px, 0.9fr) minmax(320px, 1.1fr) minmax(320px, 1.1fr);
+      gap: 16px;
+      align-items: stretch;
+    }
+    .column {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+      min-height: 560px;
+      overflow: hidden;
+    }
+    .column header {
+      padding: 18px 18px 14px;
+      border-bottom: 1px solid var(--line);
+    }
+    .column h2 {
+      margin: 0;
+      font-size: 20px;
+    }
+    .column p {
+      margin: 6px 0 0;
+      color: var(--muted);
+    }
+    .stack {
+      display: grid;
+      gap: 10px;
+      padding: 16px;
+    }
+    .item {
+      border-left: 3px solid var(--core);
+      padding: 10px 12px;
+      background: color-mix(in srgb, var(--paper) 72%, var(--bg));
+      border-radius: 6px;
+    }
+    .item.bundled { border-left-color: var(--bundled); }
+    .item.external { border-left-color: var(--external); }
+    .item.guard { border-left-color: var(--guard); }
+    .item strong {
+      display: block;
+      margin-bottom: 3px;
+    }
+    .item span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .flow {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 22px;
+      overflow: auto;
+    }
+    svg {
+      width: 100%;
+      min-width: 980px;
+      height: auto;
+      display: block;
+    }
+    text { fill: var(--ink); font: 600 14px ui-sans-serif, system-ui; }
+    .small { fill: var(--muted); font: 12px ui-sans-serif, system-ui; font-weight: 400; }
+    rect { fill: color-mix(in srgb, var(--paper) 84%, var(--bg)); stroke: var(--line); rx: 10; }
+    .core rect { stroke: var(--core); }
+    .bundled rect { stroke: var(--bundled); }
+    .external rect { stroke: var(--external); }
+    .guard rect { stroke: var(--guard); }
+    path { fill: none; stroke: var(--line); stroke-width: 2; marker-end: url(#arrow); }
+    path.core { stroke: var(--core); }
+    path.guard { stroke: var(--guard); stroke-dasharray: 7 7; }
+    @media (max-width: 980px) {
+      .matrix { grid-template-columns: 1fr; }
+      .column { min-height: 0; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="eyebrow">Plugin Boundary</div>
+    <h1>Core is the workstation substrate. Plugins are replaceable capabilities.</h1>
+    <p class="summary">Vanilla Exo should be core plus bundled/recommended plugins. Disabling optional plugins must still leave a useful Markdown graph editor with basic search, terminal, web viewer, settings, and command surfaces.</p>
+  </header>
+  <main>
+    <div class="legend" aria-label="Legend">
+      <span><i class="swatch"></i>Core substrate</span>
+      <span><i class="swatch bundled"></i>Bundled plugin</span>
+      <span><i class="swatch external"></i>External plugin</span>
+      <span><i class="swatch guard"></i>Trust and permissions</span>
+    </div>
+
+    <div class="matrix">
+      <section class="column">
+        <header>
+          <h2>Core</h2>
+          <p>Stable, security-reviewed services every capability composes through.</p>
+        </header>
+        <div class="stack">
+          <div class="item"><strong>Markdown graph</strong><span>Files, links, tags, frontmatter, roots, basic search.</span></div>
+          <div class="item"><strong>Pane and layout host</strong><span>Grid, tabs, tool dock, editor bodies, persisted layout.</span></div>
+          <div class="item"><strong>Terminal runtime</strong><span>tmux durability, xterm rendering, scrollback, transcripts, diagnostics.</span></div>
+          <div class="item"><strong>Web viewer host</strong><span>Open local paths, localhost URLs, artifacts, trusted URLs.</span></div>
+          <div class="item"><strong>Command plane</strong><span>Desktop command server, CLI contracts, MCP base contracts.</span></div>
+          <div class="item guard"><strong>Registry and trust</strong><span>Capability metadata, permission grants, plugin settings surfaces.</span></div>
+        </div>
+      </section>
+
+      <section class="column">
+        <header>
+          <h2>Bundled Plugins</h2>
+          <p>First-party capabilities that ship with Exo but use plugin-shaped seams.</p>
+        </header>
+        <div class="stack">
+          <div class="item bundled"><strong>QMD search provider</strong><span>Advanced local retrieval behind a provider contract.</span></div>
+          <div class="item bundled"><strong>Harness adapters</strong><span>Shell, Claude Code, Codex, Pi. Hermes hidden until stable.</span></div>
+          <div class="item bundled"><strong>Routine templates</strong><span>Prompt plus harness plus scope plus output policy.</span></div>
+          <div class="item bundled"><strong>Graph/profile helpers</strong><span>Starter profiles, analyzers, health reports, OKF-aware templates.</span></div>
+          <div class="item bundled"><strong>Tool dock surfaces</strong><span>Launchers, config panels, provider controls, status widgets.</span></div>
+        </div>
+      </section>
+
+      <section class="column">
+        <header>
+          <h2>External Plugins</h2>
+          <p>Optional packages that add capability variation without owning core surfaces.</p>
+        </header>
+        <div class="stack">
+          <div class="item external"><strong>Search alternatives</strong><span>Graph search, vector search, rerankers, remote retrieval.</span></div>
+          <div class="item external"><strong>Inference engines</strong><span>llama.cpp, Ollama, vLLM, local APIs used by harnesses like Pi.</span></div>
+          <div class="item external"><strong>Dashboards and artifacts</strong><span>Local web apps opened through the core web viewer.</span></div>
+          <div class="item external"><strong>Evals and traces</strong><span>Collectors, exporters, scorers, replay views, datasets.</span></div>
+          <div class="item external"><strong>Profile packs</strong><span>OKF, Shoshin, LM Wiki, domain/project-specific graph rules.</span></div>
+        </div>
+      </section>
+    </div>
+
+    <section class="flow" aria-label="Capability flow">
+      <svg viewBox="0 0 1100 330" role="img">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"></path>
+          </marker>
+        </defs>
+        <path class="core" d="M 226 88 C 312 88 332 88 418 88"></path>
+        <path class="core" d="M 226 168 C 312 168 332 168 418 168"></path>
+        <path class="core" d="M 226 248 C 312 248 332 248 418 248"></path>
+        <path d="M 610 168 C 686 168 708 168 784 168"></path>
+        <path class="guard" d="M 886 168 C 948 168 964 168 1026 168"></path>
+
+        <g class="bundled" transform="translate(36 48)">
+          <rect width="190" height="80"></rect>
+          <text x="18" y="32">Harness plugin</text>
+          <text class="small" x="18" y="56">launch plan + semantics</text>
+        </g>
+        <g class="bundled" transform="translate(36 128)">
+          <rect width="190" height="80"></rect>
+          <text x="18" y="32">Search plugin</text>
+          <text class="small" x="18" y="56">index + retrieval strategy</text>
+        </g>
+        <g class="external" transform="translate(36 208)">
+          <rect width="190" height="80"></rect>
+          <text x="18" y="32">Routine plugin</text>
+          <text class="small" x="18" y="56">prompt + schedule + scope</text>
+        </g>
+        <g class="guard" transform="translate(418 88)">
+          <rect width="192" height="160"></rect>
+          <text x="18" y="34">Registry</text>
+          <text class="small" x="18" y="62">manifest metadata</text>
+          <text class="small" x="18" y="86">trust state</text>
+          <text class="small" x="18" y="110">permission grants</text>
+          <text class="small" x="18" y="134">settings schema</text>
+        </g>
+        <g class="core" transform="translate(784 88)">
+          <rect width="210" height="160"></rect>
+          <text x="18" y="34">Core hosts</text>
+          <text class="small" x="18" y="62">terminal service</text>
+          <text class="small" x="18" y="86">web viewer</text>
+          <text class="small" x="18" y="110">editor/pane host</text>
+          <text class="small" x="18" y="134">CLI/MCP surfaces</text>
+        </g>
+        <g class="guard" transform="translate(1026 128)">
+          <rect width="64" height="80"></rect>
+          <text x="16" y="34">User</text>
+          <text class="small" x="16" y="58">opts in</text>
+        </g>
+      </svg>
+    </section>
+  </main>
+</body>
+</html>

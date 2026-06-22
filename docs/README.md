@@ -68,11 +68,11 @@ These remain in place for traceability but should not be treated as the latest a
 - `qmd-integration-plan.md` tracks the long-term QMD product integration.
 - `qmd-integration-notes.md` tracks the current QMD adapter contract, workarounds, and upgrade checklist.
 
-## Future HTML Architecture Artifacts
+## HTML Architecture Artifacts
 
-Generate these later as checked-in static artifacts under `docs/artifacts/` or an equivalent generated-docs location:
+Checked-in static explainers under `docs/artifacts/`:
 
-- `docs/artifacts/runtime-control-plane.html` - visualizes desktop main process, command server, CLI, MCP, workspace settings, `.exo/server.json`, and hidden-window resident lifecycle.
+- `docs/artifacts/overall-exo-architecture.html` - visualizes desktop, CLI, MCP, resident runtime, Markdown graph, terminal runtime, plugin hosts, user files, and `.exo` runtime state.
 - `docs/artifacts/core-plugin-boundary.html` - visualizes core substrate versus bundled/external plugins, including terminal core, harness adapters, QMD/search providers, routines/activity records, web viewer endpoints, and permission/trust boundaries.
 - `docs/artifacts/terminal-runtime-v3.html` - visualizes tmux, Exo terminal runtime services, transcript store, xterm renderer ownership, hydration rules, CLI/MCP reads, and reconnect/recovery flows.
 
