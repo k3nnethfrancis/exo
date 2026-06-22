@@ -1,10 +1,111 @@
 # Exo Issues
 
-Last updated: 2026-06-20
+Last updated: 2026-06-22
 
-This is the active bug/QA tracker. It captures user-observed issues that need investigation before the next push/release pass.
+This is the canonical active bug/QA tracker for Exo implementation work. It captures user-observed issues that need investigation before the next push/release pass.
+
+Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin-codex/exo-issues.md`, but actionable implementation items should be promoted here with an `EXO-ISSUE-*` id before assignment.
 
 ## Open
+
+### EXO-ISSUE-061: Packaged mac build failed in electron-builder dependency collector
+
+- Status: open
+- Severity: high
+- Area: packaging, install readiness, electron-builder
+- Observed:
+  - A recent `pnpm pack:mac` run completed Vite/TypeScript build steps but failed in electron-builder's dependency collector with `ERR_SQLITE_ERROR`.
+  - The failed run left a partial `release/mac-arm64/Electron.app`, which is misleading because it is not a usable Exo app bundle.
+- Expected:
+  - Packaging should complete cleanly or fail without leaving artifacts that look installable.
+  - Install/readiness QA should be able to produce a clean unsigned `Exo.app` for local stable use.
+- Investigation notes:
+  - Reproduce from a clean release directory.
+  - Check whether the failure is caused by native dependency metadata, pnpm layout, stale release artifacts, or electron-builder dependency traversal.
+  - Ensure cleanup on failure removes partial app bundles or clearly marks them unusable.
+- QA coverage:
+  - Fresh `pnpm pack:mac` from a clean checkout/build.
+  - `./scripts/install-mac-app --app-dir "$HOME/Applications" --with-cli --with-mcp`.
+  - Launch installed app and verify onboarding/workspace open, menu-bar icon, CLI, and MCP discovery.
+
+### EXO-ISSUE-060: `exo terminals read --lines` can ignore bounded read limits
+
+- Status: open
+- Severity: high
+- Area: terminal CLI, MCP read surfaces, bounded tails
+- Observed:
+  - `./bin/exo terminals read term-16 --lines 40` returned a very large ANSI transcript/tmux tail instead of a small bounded read.
+  - Output included historical Claude terminal content and control sequences, enough to truncate Codex output.
+- Expected:
+  - `--lines N` should return a predictable bounded tail across shell, Claude, Codex, and restored tmux-backed sessions.
+  - Bounded reads should not flood CLI/MCP callers or hide the terminal bug being diagnosed.
+  - Full durable history should remain available through explicit transcript reads.
+- Investigation notes:
+  - Audit CLI argument parsing, command-server read payload, tmux `capture-pane` limits, and renderer hydration tail logic.
+  - Confirm whether line count is being converted to character count or ignored by a fallback read path.
+- QA coverage:
+  - Regression test that long output plus `--lines 40` returns roughly 40 terminal lines, not the full transcript.
+  - MCP `read_agent` bounded read test for large-output sessions.
+
+### EXO-ISSUE-059: Harness plugins need inference-engine configuration and Hermes should be hidden for now
+
+- Status: open
+- Severity: high
+- Area: plugin architecture, harness adapters, Pi integration, agent config
+- Observed:
+  - Pi harness can appear configured but fail because it expects a `llama.cpp` backend that is not running.
+  - Hermes is still too much surface area before the core harness/plugin model is stable.
+  - Harness enablement is not yet clearly separated from required backend/inference-engine configuration.
+- Expected:
+  - Built-in harness plugins should expose required configuration and dependency status before launch controls appear.
+  - Pi/GA-Pi should be represented as a generic Pi-compatible harness instance with local executable/repo/backend config, not GA-specific OSS defaults.
+  - If an inference backend is required, Exo should show the missing dependency and link it to harness configuration.
+  - Hermes should be removed or hidden from normal UI until explicitly reintroduced.
+- Investigation notes:
+  - Decide whether inference engines are plugin capabilities, harness sub-capabilities, or configured runtime dependencies.
+  - Confirm which fields belong in public OSS defaults versus local machine config.
+  - Preserve the principle that launch rails show only installed/enabled/launchable harnesses.
+- QA coverage:
+  - Agent Config Editor shows Pi with missing backend state when no backend is configured.
+  - Pi launch button is hidden/disabled until configured dependencies are satisfied.
+  - Hermes does not appear as a dead launcher in the default app.
+
+### EXO-ISSUE-058: Explorer uses duplicate folder open/close affordances
+
+- Status: open
+- Severity: medium
+- Area: explorer, navigation hierarchy, visual design
+- Observed:
+  - The explorer can show both disclosure arrows and folder icons as open/close affordances.
+  - This makes folder rows visually busy and less modern than the target lightweight explorer style.
+- Expected:
+  - Use a single primary open/close affordance for folders.
+  - Prefer folder icons carrying open/closed state, with accessible labels and keyboard behavior preserved.
+  - Keep hierarchy scan-friendly without bold, noisy folder rows.
+- QA coverage:
+  - Nested folder tree with collapsed/expanded folders.
+  - Keyboard expand/collapse still works.
+  - Screen-reader/accessibility labels preserve expanded state.
+
+### EXO-ISSUE-057: Markdown files in project folders should render with the Markdown renderer
+
+- Status: open
+- Severity: medium
+- Area: editor, project files, Markdown rendering
+- Observed:
+  - Markdown files opened from project roots do not consistently render with Exo's Markdown renderer.
+  - Project Markdown can feel like a code file even when it is documentation or planning content.
+- Expected:
+  - `.md` files from notes and project folders should use the same rendered Markdown experience by default.
+  - Users can still switch to raw/code mode explicitly.
+  - Code files in project folders should continue to avoid soft wrapping and behave like code.
+- Investigation notes:
+  - Audit file classification logic for note-root versus project-root documents.
+  - Ensure project Markdown save/index behavior does not incorrectly assume a note-root file.
+- QA coverage:
+  - Open README/docs/tasks Markdown from a project root and verify rendered mode.
+  - Toggle raw mode and save.
+  - Open code files from a project root and verify code-like no-wrap behavior remains.
 
 ### EXO-ISSUE-056: Terminal input can stop rendering while browser preview is open
 
