@@ -219,7 +219,6 @@ function TreeNodes({
   mirrored: boolean;
   changeState: ExplorerChangeState | null;
 }) {
-  const CollapsedChevron = mirrored ? ChevronLeft : ChevronRight;
   return (
     <div className="tree-nodes">
       {nodes.map((node) => {
@@ -235,7 +234,8 @@ function TreeNodes({
                 className={`tree-node tree-node--directory ${hasDirtyDescendants ? "tree-node--changed-descendant" : ""}`}
                 data-explorer-drop-path={node.path}
                 style={depthStyle}
-                aria-label={`${node.name}, folder${hasDirtyDescendants ? `, ${formatChangeCount(descendantChangeCount)} changed` : ""}`}
+                aria-expanded={expanded}
+                aria-label={`${node.name}, ${expanded ? "expanded" : "collapsed"} folder${hasDirtyDescendants ? `, ${formatChangeCount(descendantChangeCount)} changed` : ""}`}
                 onClick={() => onTogglePath(node.path, rootKind)}
                 onMouseDown={(event) =>
                   dragManager.startDrag(event, { kind: "workspace-path", path: node.path, nodeKind: "directory" })
@@ -243,9 +243,6 @@ function TreeNodes({
                 onContextMenu={(event) => onContextMenu(event, { path: node.path, kind: "directory" })}
                 type="button"
               >
-                <span className="tree-node__disclosure">
-                  {expanded ? <ChevronDown size={12} /> : <CollapsedChevron size={12} />}
-                </span>
                 <FolderIcon className="tree-node__kind-icon" size={13} aria-hidden="true" />
                 <span className="tree-node__label" title={node.name}>{truncateLabel(node.name)}</span>
                 {hasDirtyDescendants ? (

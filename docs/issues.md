@@ -74,7 +74,7 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
 
 ### EXO-ISSUE-058: Explorer uses duplicate folder open/close affordances
 
-- Status: open
+- Status: fixed locally
 - Severity: medium
 - Area: explorer, navigation hierarchy, visual design
 - Observed:
@@ -88,10 +88,14 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
   - Nested folder tree with collapsed/expanded folders.
   - Keyboard expand/collapse still works.
   - Screen-reader/accessibility labels preserve expanded state.
+- Resolution:
+  - Folder rows now use the folder icon as the single open/closed affordance; the duplicate disclosure chevron was removed from folder nodes.
+  - Folder buttons expose expanded/collapsed state through `aria-expanded` and accessible labels.
+  - Existing tree click behavior and lazy expansion are preserved.
 
 ### EXO-ISSUE-057: Markdown files in project folders should render with the Markdown renderer
 
-- Status: open
+- Status: fixed locally
 - Severity: medium
 - Area: editor, project files, Markdown rendering
 - Observed:
@@ -108,6 +112,10 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
   - Open README/docs/tasks Markdown from a project root and verify rendered mode.
   - Toggle raw mode and save.
   - Open code files from a project root and verify code-like no-wrap behavior remains.
+- Resolution:
+  - Markdown editor mode is now based on document kind rather than note-root membership, so project `.md` files open in rendered Markdown by default.
+  - Note-only affordances such as properties, branches, and graph reference metadata remain scoped to attached notes.
+  - Project code/text files continue to use the code editor surface with no wrapping.
 
 ### EXO-ISSUE-056: Terminal input can stop rendering while browser preview is open
 
@@ -131,7 +139,7 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
 
 ### EXO-ISSUE-055: Explorer folder labels are too bold
 
-- Status: open
+- Status: fixed locally
 - Severity: low
 - Area: explorer, visual design
 - Observed:
@@ -141,6 +149,9 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
   - Try lighter bold or normal weight with icon/disclosure differentiation carrying more of the hierarchy signal.
 - QA coverage:
   - Visual QA across notes and project trees with nested folders, selected rows, changed rows, and collapsed sections.
+- Resolution:
+  - Folder row labels now use normal weight, with file/folder distinction carried by icon state and file row color.
+  - Changed descendant badges were reduced in size and moved to the warm `--state-changed` color.
 
 ### EXO-ISSUE-054: Exo MCP needs a tool to open preview window URLs or local HTML artifacts
 
@@ -252,7 +263,7 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
 
 ### EXO-ISSUE-049: Index settings show stale embeddings and misleading Apply copy
 
-- Status: open
+- Status: open; footer copy fixed locally
 - Severity: medium
 - Area: workspace settings, indexing UX, embeddings status
 - Observed:
@@ -267,6 +278,9 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
   - Check whether `Sync now` intentionally refreshes documents only while embeddings require the advanced `Build embeddings only` action.
   - Confirm whether `pending` in the index activity row refers to document refreshes, embeddings, or both.
   - Review `WorkspaceSettingsDialog` footer state because save status is global while Apply is conditional on `structuralDraftKey(settings) !== settings.appliedWorkspaceKey`.
+- Partial resolution:
+  - Footer save copy now only says to press Apply when structural workspace/index changes are pending and the Apply action is relevant.
+  - Stale embeddings/status semantics remain open in this issue.
 
 ### EXO-ISSUE-048: Workspace Settings modal feels cramped after theme/settings updates
 

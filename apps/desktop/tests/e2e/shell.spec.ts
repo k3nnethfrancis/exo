@@ -208,10 +208,15 @@ test("opens project files and creates note branches", async () => {
   await expect.poll(async () => readFile(path.join(workspaceRoot, "projects/sample-project/src/demo.ts"), "utf8")).toContain("saved");
   await page.getByTestId("sidebar").getByRole("button", { name: "README" }).click();
   await expect(page.getByTestId("editor-title")).toHaveText("README");
-  await expect(page.getByTestId("properties-panel")).toContainText("Project file");
-  await expect(page.getByTestId("toggle-markdown-mode")).toHaveCount(0);
+  await expect(page.getByTestId("properties-panel")).toHaveCount(0);
+  await expect(page.getByTestId("toggle-markdown-mode")).toBeVisible();
   await expect(page.getByTestId("toggle-properties")).toHaveCount(0);
-  await expect(page.locator(".editor-surface--code")).toBeVisible();
+  await expect(page.locator(".editor-surface--code")).toHaveCount(0);
+  await expect(page.locator(".editor-surface--live-preview")).toBeVisible();
+  await expect(page.locator(".exo-md-line--h1", { hasText: "Exo Demo Project" })).toBeVisible();
+  await page.getByTestId("toggle-markdown-mode").click();
+  await expect(page.locator(".editor-surface--live-preview")).toHaveCount(0);
+  await expect(page.getByTestId("editor-panel")).toContainText("# Exo Demo Project");
   await page.evaluate(() => {
     const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
     const view = content?.cmView?.view;
@@ -233,7 +238,7 @@ test("opens project files and creates note branches", async () => {
   await page.getByTestId("sidebar-search-toggle").click();
   await page.getByTestId("sidebar-search-input").fill("focus-note");
   await page.getByTestId("sidebar-search-pane").getByRole("button", { name: /focus-note/i }).first().click();
-  await page.getByTestId("sidebar").getByRole("button", { name: "focus-note" }).click();
+  await expect(page.getByTestId("editor-title")).toHaveText("focus-note");
   await page.getByTestId("branch-selector").selectOption("__create__");
   await expect(page.getByTestId("branch-selector")).toHaveValue(/-looms\/1\.md$/);
   await expect(page.getByTestId("branch-selector").locator("option")).toHaveCount(3);
@@ -341,8 +346,8 @@ test("shows changed project files in the project drawer", async () => {
   const { page, workspaceRoot, cleanup } = await launchExoFixture({
     mutable: true,
     env: {
-      EXO_SHELL: "/bin/pwd",
-      EXO_SHELL_ARGS: "",
+      EXO_SHELL: "/bin/sh",
+      EXO_SHELL_ARGS: "-lc,pwd; cat",
     },
     prepareWorkspace: async (workspaceRoot) => {
       const projectRoot = path.join(workspaceRoot, "projects/sample-project");
@@ -369,7 +374,7 @@ test("shows changed project files in the project drawer", async () => {
 
   await page.getByTestId("project-roots-toggle").click();
   await expect(page.getByTestId("project-changes")).toHaveCount(0);
-  const changedFolder = page.getByTestId("project-roots-panel").getByRole("button", { name: /src, folder, 1 file changed/ });
+  const changedFolder = page.getByTestId("project-roots-panel").getByRole("button", { name: /src, collapsed folder, 1 file changed/ });
   await expect(changedFolder).toBeVisible();
   await expect(changedFolder.locator(".tree-node__dirty-badge")).toHaveText("1");
   await changedFolder.click();
