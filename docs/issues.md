@@ -61,6 +61,75 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
   - Reconnect snapshot regression.
   - Preview-adjacent terminal typing e2e with fake agent process.
 
+### EXO-ISSUE-064: Routine template plugins need trust and policy enforcement before agent execution
+
+- Status: open
+- Severity: high
+- Area: plugin architecture, routines, agent execution safety
+- Observed:
+  - Review found that untrusted workspace/user plugin manifests can contribute routine templates that are listed, instantiated, and then run through `exo routines run --agent`.
+  - Routine template metadata is non-code, but it can become executable agent instructions once sent to a live harness.
+  - `permissions`, `outputPolicy`, and `requiredSkills` are currently stored as metadata but not enforced before execution.
+- Expected:
+  - Untrusted, disabled, or non-CLI routine-template capabilities should not silently become executable agent prompts.
+  - Running a routine through an agent should require explicit trust/policy checks.
+  - Missing required skills, disallowed permissions, and unsupported output policies should fail clearly before launching a terminal agent.
+- Investigation notes:
+  - Tighten `RoutineService.listTemplates()` and template instantiation around trusted/active/surface-aware capability filters.
+  - Decide whether bundled dev templates are trusted by default and how workspace/user templates become trusted.
+  - Keep routine templates as plugin-contributed metadata, but treat prompt execution as a permissioned action.
+- QA coverage needed:
+  - Untrusted routine templates are hidden or blocked from `run --agent`.
+  - Disabled routine templates are not listed by default.
+  - `run --agent` fails on missing required skills and disallowed permissions/output policy.
+
+### EXO-ISSUE-065: Harness plugin model is still partially hardcoded into terminal and public APIs
+
+- Status: open
+- Severity: medium-high
+- Area: plugin architecture, harness adapters, terminal boundary, CLI/MCP APIs
+- Observed:
+  - Review found the harness registry exists, but public agent surfaces are still closed over bundled ids such as `shell`, `claude`, `codex`, `pi`, and `hermes`.
+  - `ManagedAgentKind`, runtime config records, CLI validation, MCP schemas, and persisted terminal-session validation still depend on fixed built-in harness ids.
+  - Codex-specific behavior still leaks into `TerminalManager` through launch env overrides, readiness gates, prompt scanning, and queued message behavior.
+  - Pi backend configuration can mark Pi launchable based on backend config presence rather than a probed/managed backend readiness state.
+- Expected:
+  - Terminal sessions should have substrate/session identity separate from registered harness ids.
+  - Harness adapters should own harness-specific launch plans, readiness, semantic message handling, skill/config surfaces, and provenance hooks.
+  - CLI/MCP should validate against policy-approved registered harnesses rather than a fixed union once the plugin model is ready.
+  - Pi-compatible harnesses should show explicit inference-backend dependency status and should not imply Exo manages a backend unless it actually does.
+- Investigation notes:
+  - Move Codex readiness/MCP injection out of terminal core and into harness adapter metadata/hooks.
+  - Split low-level terminal commands from agent harness commands in shared types.
+  - Hide/remove Hermes from default user surfaces until it is explicitly configured and product-ready.
+- QA coverage needed:
+  - Agent creation derives from registered/launchable harness metadata.
+  - Codex-specific startup behavior is covered by harness adapter tests, not terminal-manager-only tests.
+  - Pi launch button remains disabled unless executable and backend dependency are actually satisfied.
+
+### EXO-ISSUE-066: Stable workstation gate and architecture cleanup residuals
+
+- Status: open
+- Severity: high
+- Area: CI, architecture, command server, editor modules, docs hygiene
+- Observed:
+  - Review found `pnpm ci:check` still does not include enough Electron e2e/visual smoke coverage for daily-use surfaces such as hidden-window command server, terminal rendering, preview focus, pane behavior, and app relaunch/reattach.
+  - Command-server contract sharing is incomplete: route constants exist in core, but the server still hand-matches dynamic routes and CLI/MCP duplicate discovery, liveness, timeout, fetch, and route-client logic.
+  - `App.tsx` and `NoteEditor.tsx` remain accumulation points for top-level orchestration, editor setup, Markdown rendering, wikilink completion, hover preview, scroll restoration, and metadata UI.
+  - Routine artifact storage has a safety smell: safe store writes can preserve host-supplied artifact paths that are later read directly.
+  - Fixture hygiene is fragile because local ignored `.exo` runtime state under fixtures can be copied into test workspaces.
+  - Some docs still contain private/local examples that should be rewritten or moved out of OSS-facing docs.
+- Expected:
+  - Add a named stable workstation check that includes focused Electron smoke for terminal, preview, command server, and relaunch behavior.
+  - Share command-server route construction/discovery through one client module used by CLI and MCP.
+  - Continue extracting editor surfaces and hooks so graph/editor extension work is modular.
+  - Keep routine artifacts inside the run store unless an explicit trusted external artifact ref model is introduced.
+  - Test fixtures should exclude runtime debris such as `.exo`, `.git`, `node_modules`, and build outputs.
+- QA coverage needed:
+  - `pnpm stable:check` or equivalent covers the daily-use smoke path before release/push readiness.
+  - Fixture-copy tests prove ignored runtime state is not copied into mutable test workspaces.
+  - Command-server route tests use shared route construction instead of duplicated strings/regex behavior.
+
 ### EXO-ISSUE-061: Packaged mac build failed in electron-builder dependency collector
 
 - Status: resolved 2026-06-22
