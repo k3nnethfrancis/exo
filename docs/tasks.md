@@ -1,6 +1,6 @@
 # Exo Tasks
 
-Last updated: 2026-06-21
+Last updated: 2026-06-23
 
 This is the active task tracker for Exo. It is intentionally not a history file; completed implementation history belongs in `ledger.md`. Tasks here should be concrete, current, and ordered by practical priority.
 
@@ -19,6 +19,13 @@ This is the active task tracker for Exo. It is intentionally not a history file;
   - Progress: terminal runtime requirements now require user-visible config for behavior-affecting caps/tuning values; MCP read defaults/maximums are backed by workspace settings and visible in Settings.
 - [ ] Run the terminal architecture simplification decision pass: question embedded-terminal requirements, identify control-mode/xterm/hydration responsibilities Exo can delete or demote, and decide whether the default daily path should be embedded interactive terminal, external tmux attach, or a split monitoring/control model.
   - Constraint: simplification must still satisfy daily Exo-on-Exo requirements: reliable agent supervision, persistence, transcripts/tails, semantic send, recovery states, and app QA. Do not cut user-facing terminal expectations just to reduce code.
+  - Progress: terminal persistence remains a hard requirement. Added `.claude/skills/terminal-stability/SKILL.md` so future terminal work follows the tmux/xterm ownership model, no-hidden-caps rule, hydration invariants, focused checks, and real-app QA script.
+  - Next simplification slices:
+    1. Extract renderer terminal hydration into an explicit state machine: first mount/bootstrap, renderer reload before live mount, and forced reconnect are allowed; focus/tab/pane/preview changes are append-only.
+    2. Move Codex readiness, startup prompt scanning, queued semantic sends, and MCP launch overrides out of `TerminalManager` and into harness-owned readiness metadata/hooks.
+    3. Split live-tail policy from session lifecycle: running panes read bounded tmux capture, exited/missing sessions read transcript tail, and in-memory recent output is only fallback/readiness aid.
+    4. Remove or migrate legacy `terminalHistoryMode` toward explicit live scrollback/read-tail/transcript settings.
+    5. Replace preview-pane global terminal refresh hacks with a scoped `TerminalView` visibility/fit contract once preview-adjacent terminal e2e coverage is in place.
 - [x] Remove artificial terminal capability limits found by multi-agent review: preserve alternate-screen/TUI escapes, replace broad wheel-input suppression with explicit viewport scrolling, send first measured resize immediately, route `exo terminals send` through semantic message delivery, and report missing/exited write targets as not delivered.
 - [ ] Reproduce and fix `EXO-ISSUE-031`: packaged app silently exits on first launch after local install.
 - [x] Mitigate `EXO-ISSUE-026`: installed app renderer runaway CPU/RSS during idle workspace use and missing renderer recovery after forced renderer death.

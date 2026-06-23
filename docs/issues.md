@@ -65,11 +65,18 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
   - `TerminalDock` no longer forces hydration on active terminal/pane changes; already-hydrated mounted terminals stay on live append unless reconnect explicitly requests a forced snapshot.
   - Reconnect now forces a hydration snapshot so a restored bridge can replay current live pane output after backend reconnect.
   - MCP `read_agent.maxLines` no longer advertises or enforces the hidden 1000-line schema cap; live line limits now flow to the app and are bounded by configured terminal history.
-  - Remaining open follow-up: make terminal e2e/visual quality checks a named readiness gate, including the preview-adjacent fake-agent typing case.
+  - Added `.claude/skills/terminal-stability/SKILL.md` and linked it from repo guidance so future terminal changes start from the terminal ownership rules, invariants, focused checks, and app QA script.
+  - Remaining open follow-ups:
+    - Extract renderer terminal hydration into an explicit state machine.
+    - Move Codex readiness and queued semantic sends out of `TerminalManager` into harness-owned readiness metadata/hooks.
+    - Split live-tail policy from session lifecycle.
+    - Remove or migrate legacy `terminalHistoryMode`.
+    - Replace preview-pane global terminal refresh hacks with a scoped `TerminalView` visibility/fit contract.
+    - Make terminal e2e/visual quality checks a named readiness gate, including the preview-adjacent fake-agent typing case.
 
 ### EXO-ISSUE-064: Routine template plugins need trust and policy enforcement before agent execution
 
-- Status: implemented in `exo-issue-064`; pending review
+- Status: fixed in `main`
 - Severity: high
 - Area: plugin architecture, routines, agent execution safety
 - Observed:
@@ -93,7 +100,7 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
 
 ### EXO-ISSUE-065: Harness plugin model is still partially hardcoded into terminal and public APIs
 
-- Status: open; first implementation slice landed locally
+- Status: open; first implementation slice landed in `main`
 - Severity: medium-high
 - Area: plugin architecture, harness adapters, terminal boundary, CLI/MCP APIs
 - Observed:
@@ -125,7 +132,7 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
 
 ### EXO-ISSUE-066: Stable workstation gate and architecture cleanup residuals
 
-- Status: partially resolved locally; stable gate and fixture hygiene slice complete, architecture cleanup remains
+- Status: partially resolved in `main`; stable gate and fixture hygiene slice complete, architecture cleanup remains
 - Severity: high
 - Area: CI, architecture, command server, editor modules, docs hygiene
 - Observed:

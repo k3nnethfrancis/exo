@@ -1,8 +1,10 @@
 # Terminal Quality Standard
 
-Last updated: 2026-06-18
+Last updated: 2026-06-23
 
 Terminals are a core Exo surface. They must feel like a normal local terminal, not like an embedded widget with special failure modes. If typing lags, output corrupts, scrollback behaves unpredictably, focus requires extra clicks, bottom status lines are clipped, or long-running agent sessions are lost during ordinary laptop use, the feature fails the useability standard.
+
+Agents changing terminal code must use `.claude/skills/terminal-stability/SKILL.md` before editing. That skill is the operational checklist for this standard: ownership rules, hard invariants, focused tests, and real-app QA.
 
 ## Product Standard
 
