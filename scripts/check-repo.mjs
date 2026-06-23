@@ -2,12 +2,17 @@
 import { lstatSync, readFileSync, readdirSync, readlinkSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
+import { inflateSync } from 'node:zlib';
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname);
 const failures = [];
 
 function read(relativePath) {
   return readFileSync(path.join(repoRoot, relativePath), 'utf8');
+}
+
+function readBinary(relativePath) {
+  return readFileSync(path.join(repoRoot, relativePath));
 }
 
 function fail(message) {
@@ -88,6 +93,113 @@ function assertSymlink(relativePath, target) {
   }
 }
 
+function pngSize(buffer) {
+  const signature = buffer.subarray(0, 8);
+  if (!signature.equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) {
+    throw new Error('not a PNG');
+  }
+  return {
+    width: buffer.readUInt32BE(16),
+    height: buffer.readUInt32BE(20),
+  };
+}
+
+function assertPngCornerAlpha(relativePath, expectedAlpha) {
+  const buffer = readBinary(relativePath);
+  const { width, height } = pngSize(buffer);
+  const idatChunks = [];
+  let colorType = 0;
+  let offset = 8;
+  while (offset + 8 <= buffer.length) {
+    const length = buffer.readUInt32BE(offset);
+    const type = buffer.subarray(offset + 4, offset + 8).toString('ascii');
+    const payload = buffer.subarray(offset + 8, offset + 8 + length);
+    if (type === 'IHDR') {
+      colorType = payload[9];
+    } else if (type === 'IDAT') {
+      idatChunks.push(payload);
+    } else if (type === 'IEND') {
+      break;
+    }
+    offset += length + 12;
+  }
+  if (colorType !== 6) {
+    fail(`${relativePath} must be an RGBA PNG`);
+    return;
+  }
+  const raw = inflateSync(Buffer.concat(idatChunks));
+  const channels = 4;
+  const stride = width * channels;
+  let rawOffset = 0;
+  let previous = Buffer.alloc(stride);
+  let topLeftAlpha = null;
+  let bottomRightAlpha = null;
+  for (let y = 0; y < height; y += 1) {
+    const filter = raw[rawOffset];
+    rawOffset += 1;
+    const scanline = raw.subarray(rawOffset, rawOffset + stride);
+    rawOffset += stride;
+    const row = Buffer.alloc(stride);
+    for (let x = 0; x < stride; x += 1) {
+      const left = x >= channels ? row[x - channels] : 0;
+      const up = previous[x];
+      const upLeft = x >= channels ? previous[x - channels] : 0;
+      const value = scanline[x];
+      if (filter === 0) {
+        row[x] = value;
+      } else if (filter === 1) {
+        row[x] = (value + left) & 255;
+      } else if (filter === 2) {
+        row[x] = (value + up) & 255;
+      } else if (filter === 3) {
+        row[x] = (value + Math.floor((left + up) / 2)) & 255;
+      } else if (filter === 4) {
+        const predictor = left + up - upLeft;
+        const leftDistance = Math.abs(predictor - left);
+        const upDistance = Math.abs(predictor - up);
+        const upLeftDistance = Math.abs(predictor - upLeft);
+        const paeth = leftDistance <= upDistance && leftDistance <= upLeftDistance ? left : upDistance <= upLeftDistance ? up : upLeft;
+        row[x] = (value + paeth) & 255;
+      } else {
+        fail(`${relativePath} uses unsupported PNG filter ${filter}`);
+        return;
+      }
+    }
+    if (y === 0) {
+      topLeftAlpha = row[3];
+    }
+    if (y === height - 1) {
+      bottomRightAlpha = row[stride - 1];
+    }
+    previous = row;
+  }
+  if (topLeftAlpha !== expectedAlpha || bottomRightAlpha !== expectedAlpha) {
+    fail(`${relativePath} must have alpha ${expectedAlpha} at app-icon corners; got ${topLeftAlpha}/${bottomRightAlpha}`);
+  }
+}
+
+function assertIcnsContainsLargeIcon(relativePath) {
+  const buffer = readBinary(relativePath);
+  if (buffer.subarray(0, 4).toString('ascii') !== 'icns') {
+    fail(`${relativePath} must be an ICNS file`);
+    return;
+  }
+  let has1024 = false;
+  let offset = 8;
+  while (offset + 8 <= buffer.length) {
+    const length = buffer.readUInt32BE(offset + 4);
+    const payload = buffer.subarray(offset + 8, offset + length);
+    if (payload.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) {
+      const { width, height } = pngSize(payload);
+      has1024 = has1024 || (width === 1024 && height === 1024);
+    }
+    offset += length;
+  }
+  if (!has1024) {
+    fail(`${relativePath} must contain a 1024x1024 macOS icon payload`);
+  }
+}
+
 const requiredFiles = [
   'README.md',
   'AGENTS.md',
@@ -111,6 +223,10 @@ for (const file of requiredFiles) {
 }
 
 assertSymlink('CLAUDE.md', 'AGENTS.md');
+assertFile('apps/desktop/build/icon.png');
+assertFile('apps/desktop/build/icon.icns');
+assertPngCornerAlpha('apps/desktop/build/icon.png', 0);
+assertIcnsContainsLargeIcon('apps/desktop/build/icon.icns');
 
 const packageJson = JSON.parse(read('package.json'));
 if (packageJson.packageManager !== 'pnpm@11.2.2') {
