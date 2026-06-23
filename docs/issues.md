@@ -1,6 +1,6 @@
 # Exo Issues
 
-Last updated: 2026-06-22
+Last updated: 2026-06-23
 
 This is the canonical active bug/QA tracker for Exo implementation work. It captures user-observed issues that need investigation before the next push/release pass.
 
@@ -109,7 +109,7 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
 
 ### EXO-ISSUE-066: Stable workstation gate and architecture cleanup residuals
 
-- Status: open
+- Status: partially resolved locally; stable gate and fixture hygiene slice complete, architecture cleanup remains
 - Severity: high
 - Area: CI, architecture, command server, editor modules, docs hygiene
 - Observed:
@@ -129,6 +129,15 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
   - `pnpm stable:check` or equivalent covers the daily-use smoke path before release/push readiness.
   - Fixture-copy tests prove ignored runtime state is not copied into mutable test workspaces.
   - Command-server route tests use shared route construction instead of duplicated strings/regex behavior.
+- Resolution slice 2026-06-23:
+  - Added `pnpm stable:check` as a named local daily-readiness gate. It runs the existing `pnpm ci:check` repo gate, then a focused Electron smoke set for mutable fixture hygiene, shell boot, pane-tree terminal input, tmux relaunch/reattach, hidden-window command server, hidden-window CLI/MCP control, and preview/terminal split resizing.
+  - Left GitHub Actions on `pnpm ci:check` for this slice. The stable smoke adds several serial Electron launches and CLI/MCP work; it is appropriate as a local pre-push/daily-use gate first, then can move into CI after runtime is measured and the CI timeout budget is adjusted.
+  - Added filtered mutable fixture copying so local ignored debris under `fixtures/test-workspace`, including `.exo`, `.git`, `node_modules`, `dist`, `release`, `.turbo`, `.vite`, and `coverage`, is not copied into temporary test workspaces.
+  - Added focused Playwright helper coverage proving ignored runtime/build directories are excluded while normal fixture content is preserved.
+- Remaining work:
+  - Share command-server route construction/discovery through one client module used by CLI and MCP.
+  - Continue editor/App decomposition and routine artifact storage hardening.
+  - Decide whether and when `pnpm stable:check` should run in CI after local timing data is collected.
 
 ### EXO-ISSUE-061: Packaged mac build failed in electron-builder dependency collector
 

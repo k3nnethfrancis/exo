@@ -1055,9 +1055,12 @@ test("supports CLI and MCP agent control while the window is hidden", async () =
 
     try {
       await expect(mcpClient.listTools()).resolves.toEqual([
+        "close_preview",
         "create_agent",
+        "focus_preview",
         "interrupt_agent",
         "list_agents",
+        "open_preview",
         "read_agent",
         "read_document",
         "search",

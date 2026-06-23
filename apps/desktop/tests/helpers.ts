@@ -10,6 +10,31 @@ import { _electron as electron, expect, type ElectronApplication, type Page } fr
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const fixtureRoot = path.join(repoRoot, "fixtures/test-workspace");
 const execFileAsync = promisify(execFile);
+const mutableFixtureExcludedNames = new Set([
+  ".exo",
+  ".git",
+  ".turbo",
+  ".vite",
+  "coverage",
+  "dist",
+  "node_modules",
+  "release",
+]);
+
+export function shouldCopyMutableFixturePath(sourceRoot: string, sourcePath: string): boolean {
+  const relativePath = path.relative(sourceRoot, sourcePath);
+  if (!relativePath || relativePath === ".") {
+    return true;
+  }
+  return !relativePath.split(path.sep).some((part) => mutableFixtureExcludedNames.has(part));
+}
+
+export async function copyMutableFixtureWorkspace(sourceRoot: string, targetRoot: string): Promise<void> {
+  await cp(sourceRoot, targetRoot, {
+    recursive: true,
+    filter: (sourcePath) => shouldCopyMutableFixturePath(sourceRoot, sourcePath),
+  });
+}
 
 export async function launchExoFixture(options?: {
   mutable?: boolean;
@@ -39,7 +64,7 @@ export async function launchExoFixture(options?: {
   if (options?.mutable || options?.prepareWorkspace) {
     tempRoot = await mkdtemp(path.join(os.tmpdir(), "exo-fixture-"));
     workspaceRoot = path.join(tempRoot, "test-workspace");
-    await cp(fixtureRoot, workspaceRoot, { recursive: true });
+    await copyMutableFixtureWorkspace(fixtureRoot, workspaceRoot);
   }
 
   if (options?.prepareWorkspace) {
