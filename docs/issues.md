@@ -69,7 +69,7 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
 
 ### EXO-ISSUE-064: Routine template plugins need trust and policy enforcement before agent execution
 
-- Status: open
+- Status: implemented in `exo-issue-064`; pending review
 - Severity: high
 - Area: plugin architecture, routines, agent execution safety
 - Observed:
@@ -84,6 +84,8 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
   - Tighten `RoutineService.listTemplates()` and template instantiation around trusted/active/surface-aware capability filters.
   - Decide whether bundled dev templates are trusted by default and how workspace/user templates become trusted.
   - Keep routine templates as plugin-contributed metadata, but treat prompt execution as a permissioned action.
+  - 2026-06-23 implementation: default routine template listing/creation now uses trusted-only, active, CLI-surface filtering. Bundled/dev trusted templates remain visible; untrusted workspace/user templates require an explicit trust path before default listing/instantiation.
+  - 2026-06-23 implementation: `exo routines run --agent` validates required harness skills, routine permissions, and output policy before app connection or terminal-agent launch. Dry-run remains allowed for saved routines because it records metadata/artifacts only and does not send prompts to a live harness.
 - QA coverage needed:
   - Untrusted routine templates are hidden or blocked from `run --agent`.
   - Disabled routine templates are not listed by default.

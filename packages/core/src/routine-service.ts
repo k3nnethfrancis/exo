@@ -1,11 +1,13 @@
 import path from "node:path";
 import { readFile } from "node:fs/promises";
 
+import type { AgentHarness } from "./agent-harness";
+import type { CapabilityPermission, CapabilitySurface } from "./capabilities";
 import { discoverPluginManifests, PluginRegistry, type PluginSource, type PluginTrustState } from "./plugin";
 import { RoutineExecutor, type RoutineExecutionHost } from "./routine-executor";
 import { RoutineRunStore } from "./routine-run-store";
 import { instantiateRoutineTemplate, routineTemplatesFromPlugin, type RoutineInstantiationOptions, type RoutineTemplateDefinition } from "./routine-template";
-import type { RoutineDefinition } from "./routine";
+import { missingRequiredHarnessSkills, type RoutineDefinition, type RoutineOutputPolicy } from "./routine";
 import type { RunRecord } from "./run";
 import type { WorkspaceModel } from "./types";
 
@@ -27,6 +29,19 @@ export interface RoutineDryRunResult {
   run: RunRecord;
 }
 
+export interface RoutineTemplateListOptions {
+  includeDisabled?: boolean;
+  surface?: CapabilitySurface;
+  trustedOnly?: boolean;
+}
+
+export interface RoutineAgentPolicyOptions {
+  harness?: Pick<AgentHarness, "skills">;
+  allowedPermissions?: readonly CapabilityPermission[];
+  supportedFileChanges?: readonly RoutineOutputPolicy["fileChanges"][];
+  supportedArtifacts?: readonly RoutineOutputPolicy["artifacts"][];
+}
+
 export interface RoutineArtifactReadResult {
   run: RunRecord;
   artifactId: string;
@@ -45,7 +60,12 @@ export class RoutineService {
     this.clock = options.clock ?? (() => new Date().toISOString());
   }
 
-  async listTemplates(): Promise<RoutineTemplateDefinition[]> {
+  async listTemplates(options: RoutineTemplateListOptions = {}): Promise<RoutineTemplateDefinition[]> {
+    const {
+      includeDisabled = false,
+      surface = "cli",
+      trustedOnly = true,
+    } = options;
     const discovered = (
       await Promise.all(
         this.pluginDirectories.map((directory) =>
@@ -57,7 +77,9 @@ export class RoutineService {
       )
     ).flat();
     const registry = new PluginRegistry(discovered);
-    return registry.list().flatMap((plugin) => routineTemplatesFromPlugin(plugin));
+    return registry
+      .list({ includeDisabled, trustedOnly })
+      .flatMap((plugin) => routineTemplatesFromPlugin(plugin, { includeDisabled, surface }));
   }
 
   async requireTemplate(templateId: string): Promise<RoutineTemplateDefinition> {
@@ -124,15 +146,59 @@ export class RoutineService {
     return { routine, run };
   }
 
-  async runManualWithHost(routineId: string, host: RoutineExecutionHost): Promise<RoutineDryRunResult> {
+  async runManualWithHost(routineId: string, host: RoutineExecutionHost, policy: RoutineAgentPolicyOptions = {}): Promise<RoutineDryRunResult> {
     const routine = await this.store.readRoutine(routineId);
     if (!routine) {
       throw new Error(`Routine not found: ${routineId}`);
     }
+    assertRoutineAgentPolicy(routine, policy);
     const executor = new RoutineExecutor(this.store, host, undefined, this.clock);
     const executableRoutine = routine.trigger.kind === "manual" ? routine : { ...routine, trigger: { kind: "manual" as const } };
     const run = await executor.runManual(executableRoutine);
     return { routine, run };
+  }
+}
+
+export const DEFAULT_ROUTINE_AGENT_ALLOWED_PERMISSIONS = [
+  "workspace:read",
+  "notes:read",
+  "projects:read",
+  "artifacts:write",
+] satisfies CapabilityPermission[];
+
+export const DEFAULT_ROUTINE_AGENT_SUPPORTED_FILE_CHANGES = ["none", "propose"] satisfies RoutineOutputPolicy["fileChanges"][];
+export const DEFAULT_ROUTINE_AGENT_SUPPORTED_ARTIFACTS = ["none", "record"] satisfies RoutineOutputPolicy["artifacts"][];
+
+export function assertRoutineAgentPolicy(routine: RoutineDefinition, options: RoutineAgentPolicyOptions = {}): void {
+  const allowedPermissions = new Set(options.allowedPermissions ?? DEFAULT_ROUTINE_AGENT_ALLOWED_PERMISSIONS);
+  const supportedFileChanges = options.supportedFileChanges ?? DEFAULT_ROUTINE_AGENT_SUPPORTED_FILE_CHANGES;
+  const supportedArtifacts = options.supportedArtifacts ?? DEFAULT_ROUTINE_AGENT_SUPPORTED_ARTIFACTS;
+  const errors: string[] = [];
+
+  const requiredSkills = routine.requiredSkills.filter((skill) => skill.required);
+  if (requiredSkills.length > 0 && !options.harness) {
+    errors.push("required harness skill metadata was not provided");
+  } else if (options.harness) {
+    const missingSkills = missingRequiredHarnessSkills(routine, options.harness);
+    if (missingSkills.length > 0) {
+      errors.push(`missing required harness skills: ${missingSkills.map((skill) => skill.id).join(", ")}`);
+    }
+  }
+
+  const disallowedPermissions = routine.permissions.permissions.filter((permission) => !allowedPermissions.has(permission));
+  if (disallowedPermissions.length > 0) {
+    errors.push(`disallowed permissions: ${disallowedPermissions.join(", ")}`);
+  }
+
+  if (!supportedFileChanges.includes(routine.outputPolicy.fileChanges)) {
+    errors.push(`unsupported output policy fileChanges=${routine.outputPolicy.fileChanges}`);
+  }
+  if (!supportedArtifacts.includes(routine.outputPolicy.artifacts)) {
+    errors.push(`unsupported output policy artifacts=${routine.outputPolicy.artifacts}`);
+  }
+
+  if (errors.length > 0) {
+    throw new Error([`Routine agent policy rejected ${routine.id}:`, ...errors.map((error) => `- ${error}`)].join("\n"));
   }
 }
 

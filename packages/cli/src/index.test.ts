@@ -815,6 +815,37 @@ describe("cli package", () => {
     }
   });
 
+  it("checks routine agent policy before connecting to the app", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-cli-routines-"));
+    try {
+      const pluginRoot = await writeRoutinePlugin(root, {
+        templateOverrides: {
+          requiredSkills: [{ id: "graph-health", label: "Graph Health", required: true }],
+        },
+      });
+      const env = routineTestEnv(root, pluginRoot);
+      let connected = false;
+      await runCli(["node", "exo-cli", "routines", "create", "graph-health.template", "graph-health-agent"], {
+        env,
+        stdout: { write: () => {} },
+        stderr: { write: () => {} },
+      });
+
+      await expect(runCli(["node", "exo-cli", "routines", "run", "graph-health-agent", "--agent"], {
+        env,
+        stdout: { write: () => {} },
+        stderr: { write: () => {} },
+        connectAppClient: async () => {
+          connected = true;
+          return fakeAppClient({});
+        },
+      })).rejects.toThrow("missing required harness skills: graph-health");
+      expect(connected).toBe(false);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("launches a Claude routine agent with a skill-request prompt", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "exo-cli-routines-"));
     try {
@@ -1030,7 +1061,7 @@ function routineTestEnv(root: string, pluginRoot: string): NodeJS.ProcessEnv {
   };
 }
 
-async function writeRoutinePlugin(root: string): Promise<string> {
+async function writeRoutinePlugin(root: string, options: { templateOverrides?: Record<string, unknown> } = {}): Promise<string> {
   const pluginsRoot = path.join(root, "plugins");
   const pluginDir = path.join(pluginsRoot, "graph-health");
   await mkdir(pluginDir, { recursive: true });
@@ -1064,6 +1095,7 @@ async function writeRoutinePlugin(root: string): Promise<string> {
                   artifacts: "record",
                   allowedPaths: [".exo/artifacts"],
                 },
+                ...options.templateOverrides,
               },
             },
           },

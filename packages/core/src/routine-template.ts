@@ -1,4 +1,4 @@
-import type { CapabilityMetadata, CapabilityPermission } from "./capabilities";
+import type { CapabilityMetadata, CapabilityPermission, CapabilitySurface } from "./capabilities";
 import type { DiscoveredPlugin } from "./plugin";
 import type {
   HarnessSkillRequirement,
@@ -37,6 +37,11 @@ export interface RoutineInstantiationOptions {
   now?: string;
 }
 
+export interface RoutineTemplateFilter {
+  includeDisabled?: boolean;
+  surface?: CapabilitySurface;
+}
+
 const ROUTINE_TEMPLATE_PERMISSIONS = [
   "workspace:read",
   "notes:read",
@@ -70,8 +75,14 @@ export function instantiateRoutineTemplate(
   };
 }
 
-export function routineTemplatesFromPlugin(plugin: DiscoveredPlugin): RoutineTemplateDefinition[] {
+export function routineTemplatesFromPlugin(plugin: DiscoveredPlugin, filter: RoutineTemplateFilter = {}): RoutineTemplateDefinition[] {
+  if (filter.surface && !plugin.manifest.surfaces.includes(filter.surface)) {
+    return [];
+  }
   return plugin.manifest.capabilities.flatMap((capability) => {
+    if (!matchesRoutineTemplateFilter(capability, filter)) {
+      return [];
+    }
     const template = routineTemplateFromCapability(capability);
     if (!template) {
       return [];
@@ -84,6 +95,19 @@ export function routineTemplatesFromPlugin(plugin: DiscoveredPlugin): RoutineTem
       },
     ];
   });
+}
+
+function matchesRoutineTemplateFilter(capability: CapabilityMetadata, filter: RoutineTemplateFilter): boolean {
+  if (capability.kind !== "routineTemplate") {
+    return false;
+  }
+  if (!filter.includeDisabled && capability.lifecycle === "disabled") {
+    return false;
+  }
+  if (filter.surface && !capability.surfaces.includes(filter.surface)) {
+    return false;
+  }
+  return true;
 }
 
 export function routineTemplateFromCapability(capability: CapabilityMetadata): RoutineTemplateDefinition | null {

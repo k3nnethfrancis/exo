@@ -34,6 +34,8 @@ import {
   syncRuntimeContextFiles,
   workspaceEnvOverrides,
   workspaceSettingsToEnv,
+  agentHarnessRegistry,
+  assertRoutineAgentPolicy,
   type ManagedAgentKind,
   type ExoMcpIntegrationClient,
   type RoutineDefinition,
@@ -828,6 +830,8 @@ export async function runCli(
         if (!harness) {
           throw new Error(`Routine harness must be one of ${AGENT_KIND_USAGE}: ${values.harness ?? routine.harnessId}`);
         }
+        const agentHarness = agentHarnessRegistry.require(harness);
+        assertRoutineAgentPolicy(routine, { harness: agentHarness });
         const client = await connectOrFail(env, stderr, connectAppClient);
         if (!client) return 1;
         stdout.write(`${JSON.stringify(await service.runManualWithHost(routineId, new AppRoutineExecutionHost(client, {
@@ -835,7 +839,7 @@ export async function runCli(
           cwd: values.cwd,
           submit: values["no-submit"] !== "1",
           clock: () => new Date().toISOString(),
-        })), null, 2)}\n`);
+        }), { harness: agentHarness }), null, 2)}\n`);
         return 0;
       }
       stdout.write(`${JSON.stringify(await service.runManualDryRun(routineId), null, 2)}\n`);

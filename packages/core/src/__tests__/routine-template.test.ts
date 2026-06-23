@@ -81,6 +81,16 @@ describe("routine template contracts", () => {
     ]);
   });
 
+  it("filters disabled and wrong-surface template capabilities", () => {
+    expect(
+      routineTemplatesFromPlugin(discoveredPlugin([
+        templateCapability,
+        { ...templateCapability, id: "disabled.template", label: "Disabled", lifecycle: "disabled" },
+        { ...templateCapability, id: "internal.template", label: "Internal", surfaces: ["internal"] },
+      ]), { surface: "cli" }).map((template) => template.id),
+    ).toEqual(["graph-health.template"]);
+  });
+
   it("instantiates concrete user routines from templates", () => {
     const routine = instantiateRoutineTemplate(routineTemplateFromCapability(templateCapability)!, {
       id: "graph-health-weekly",
@@ -186,14 +196,14 @@ function baseTemplate(): RoutineTemplateDefinition {
   return routineTemplateFromCapability(templateCapability)!;
 }
 
-function discoveredPlugin(): DiscoveredPlugin {
+function discoveredPlugin(capabilities: CapabilityMetadata[] = [templateCapability]): DiscoveredPlugin {
   return {
     manifest: {
       id: "example.plugin",
       name: "Example Plugin",
       version: "0.1.0",
       exoApiVersion: "0.1",
-      capabilities: [templateCapability],
+      capabilities,
       permissions: ["workspace:read", "notes:read", "artifacts:write"],
       surfaces: ["desktop", "cli"],
     },
