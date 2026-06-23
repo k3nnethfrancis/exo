@@ -8,6 +8,30 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
 
 ## Open
 
+### EXO-ISSUE-067: Claude terminal launch requires hard refresh and input can stop reaching the pane
+
+- Status: open
+- Severity: critical
+- Area: terminal launch, harness readiness, renderer hydration, focus/input
+- Observed:
+  - Launching a new Claude terminal can leave the pane in a non-usable state until the app is hard-refreshed.
+  - After hard refresh, the Claude pane can render enough to appear present, but keyboard input may not reach the terminal pane.
+  - This is distinct from pure glyph corruption: the failure includes launch readiness and input/focus delivery.
+- Expected:
+  - Creating a Claude terminal should attach and render without hard refresh.
+  - After app refresh/relaunch, a tmux-backed Claude session should reattach and accept input on first terminal focus.
+  - Terminal focus/input should not depend on tab switching, forced refresh, or renderer reset side effects.
+- Investigation notes:
+  - Use `.claude/skills/terminal-stability/SKILL.md` before changing terminal code.
+  - Treat this as a terminal launch blocker, not a cosmetic issue.
+  - Check whether Claude harness readiness, queued semantic sends, hydration state, and xterm focus/registration disagree after create and after hard refresh.
+  - Verify `TerminalDock`/`useTerminalSessions` no longer skips the needed reconnect snapshot while also avoiding normal focus-triggered resets.
+  - Inspect command-server and tmux session state for cases where a pane exists but renderer registration/input is stale.
+- QA coverage needed:
+  - Deterministic fake-Claude launch that waits for input and proves the renderer accepts typing without hard refresh.
+  - Hard-refresh/reload test for a running fake-Claude session proving reattach plus first-click input.
+  - Focus handoff test from editor/preview into a refreshed terminal pane.
+
 ### EXO-ISSUE-062: Claude terminal launch shows replacement-glyph corruption
 
 - Status: fixed locally; live Claude launch QA pending after restart
