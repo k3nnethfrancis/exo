@@ -447,6 +447,24 @@ describe("TerminalManager Codex readiness", () => {
     expect(manager.readTail(terminal.id)).toBe(capturedTail);
   });
 
+  it("prefers fresh bounded tmux capture over longer stale buffered output", async () => {
+    const workspaceRoot = await workspaceFixture();
+    childProcess.execFileSync.mockImplementation((command: string, args: string[]) => {
+      if (args.includes("capture-pane")) {
+        return "fresh-1\nfresh-2\n";
+      }
+      return childProcess.defaultExecFileSync(command, args);
+    });
+    const manager = managerForWorkspace(workspaceRoot);
+
+    const terminal = await manager.create({ kind: "shell", cwd: workspaceRoot });
+    const staleLines = Array.from({ length: 80 }, (_, index) => `stale-${index + 1}`);
+    ptyState.spawned[0].emitData(staleLines.join("\n"));
+
+    expect(manager.readTail(terminal.id, { maxLines: 4 })).toBe("fresh-1\r\nfresh-2\r\n");
+    expect(manager.readTail(terminal.id)).toBe(staleLines.join("\n"));
+  });
+
   it("applies configured live scrollback to tmux history", async () => {
     const workspaceRoot = await workspaceFixture();
     const manager = new TerminalManager(workspaceRoot, 24_000);

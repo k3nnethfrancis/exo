@@ -120,7 +120,7 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
   }
 
   async function hydrateTerminal(id: string, options?: { force?: boolean }) {
-    if ((!options?.force && hydratedSessionIdsRef.current.has(id)) || pendingHydrationIdsRef.current.has(id)) {
+    if (shouldSkipTerminalHydration(id, hydratedSessionIdsRef.current, pendingHydrationIdsRef.current, options)) {
       return;
     }
     pendingHydrationIdsRef.current.add(id);
@@ -181,7 +181,7 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
     setSessions((current) =>
       current.map((existing) => (existing.id === session.id ? session : existing)),
     );
-    await hydrateTerminal(id);
+    await hydrateTerminal(id, { force: true });
     return session;
   }
 
@@ -265,6 +265,15 @@ export function mergeHydrationSnapshot(snapshot: string, pendingData: string): s
 
   const overlap = largestSuffixPrefixOverlap(snapshot, pendingData);
   return `${snapshot}${pendingData.slice(overlap)}`;
+}
+
+export function shouldSkipTerminalHydration(
+  id: string,
+  hydratedSessionIds: ReadonlySet<string>,
+  pendingHydrationIds: ReadonlySet<string>,
+  options?: { force?: boolean },
+): boolean {
+  return pendingHydrationIds.has(id) || (!options?.force && hydratedSessionIds.has(id));
 }
 
 function largestSuffixPrefixOverlap(snapshot: string, pendingData: string): number {

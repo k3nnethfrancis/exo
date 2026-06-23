@@ -397,13 +397,16 @@ export class TerminalManager extends EventEmitter {
     const buffered = record.recentOutput;
     const maxLines = normalizeTailLineLimit(options.maxLines);
     const captured = this.captureTmuxHistory(record, maxLines);
-    if (captured.length > buffered.length) {
-      if (!maxLines) {
-        this.cacheCapturedTail(record, captured);
+    if (captured !== null) {
+      if (maxLines && captured.length > 0) {
+        return tailLines(captured, maxLines);
       }
-      return tailLines(captured, maxLines);
+      if (captured.length > buffered.length) {
+        this.cacheCapturedTail(record, captured);
+        return captured;
+      }
     }
-    return tailLines(buffered, maxLines);
+    return maxLines ? tailLines(buffered, maxLines) : buffered;
   }
 
   readTranscript(id: string, tailChars = 0): string | null {
@@ -904,7 +907,7 @@ export class TerminalManager extends EventEmitter {
     return this.bufferLineLimit ?? DEFAULT_LIVE_SCROLLBACK_LINES;
   }
 
-  private captureTmuxHistory(record: TerminalRecord, lineLimit?: number): string {
+  private captureTmuxHistory(record: TerminalRecord, lineLimit?: number): string | null {
     try {
       const options = {
         sessionName: record.tmuxSessionName,
@@ -918,7 +921,7 @@ export class TerminalManager extends EventEmitter {
         tmuxSessionName: record.tmuxSessionName,
         error: error instanceof Error ? error.message : String(error),
       });
-      return "";
+      return null;
     }
   }
 

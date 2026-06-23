@@ -71,6 +71,12 @@ describe("exo-mcp stdio launcher", () => {
         "terminate_agent",
         "workspace_status",
       ]);
+      const readAgentTool = tools.tools.find((tool) => tool.name === "read_agent");
+      const readAgentSchema = readAgentTool?.inputSchema as
+        | { properties?: Record<string, Record<string, unknown>> }
+        | undefined;
+      const maxLinesSchema = readAgentSchema?.properties?.maxLines ?? {};
+      expect(maxLinesSchema.maximum).not.toBe(1000);
     } catch (error) {
       throw new Error(`${error instanceof Error ? error.message : String(error)}\nMCP stderr:\n${stderr}`);
     } finally {

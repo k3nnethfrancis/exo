@@ -33,7 +33,7 @@ import { createTerminalToolDockActions, launchableTerminalAgentHarnesses } from 
 import { shouldUseMarkdownRenderer } from "./components/NoteEditor";
 import { workspaceSettingsSavedFooterCopy } from "./components/WorkspaceSettingsDialog";
 import { listEnterEdit, shouldSuppressGeneratedTitleLine, wikilinkExitEdit } from "./components/markdownLivePreview";
-import { appendPendingTerminalData, mergeHydrationSnapshot } from "./hooks/useTerminalSessions";
+import { appendPendingTerminalData, mergeHydrationSnapshot, shouldSkipTerminalHydration } from "./hooks/useTerminalSessions";
 import { defaultTerminalCwdForNotesFolder } from "./hooks/useWorkspaceBootstrap";
 import { isReconnectableSession, isTerminalInputEnabled, terminalSessionsEqual } from "./terminalSessions";
 import { applyTheme } from "./theme/applyTheme";
@@ -941,6 +941,16 @@ describe("terminal session sync", () => {
 
   it("caps pending terminal data to the newest content", () => {
     expect(appendPendingTerminalData("abcdef", "ghij", 6)).toBe("efghij");
+  });
+
+  it("skips mounted hydrated terminal reads unless reconnect forces a snapshot", () => {
+    const hydrated = new Set(["term-a"]);
+    const pending = new Set<string>();
+
+    expect(shouldSkipTerminalHydration("term-a", hydrated, pending)).toBe(true);
+    expect(shouldSkipTerminalHydration("term-a", hydrated, pending, { force: true })).toBe(false);
+    expect(shouldSkipTerminalHydration("term-b", hydrated, pending)).toBe(false);
+    expect(shouldSkipTerminalHydration("term-a", hydrated, new Set(["term-a"]), { force: true })).toBe(true);
   });
 });
 

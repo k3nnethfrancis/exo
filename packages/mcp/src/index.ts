@@ -262,7 +262,7 @@ server.registerTool(
     description: "Read the bounded live terminal tail for one Exo agent. This is read-only.",
     inputSchema: {
       agentId: z.string().min(1).describe("Agent id from list_agents, for example term-3."),
-      maxLines: z.number().int().positive().max(1000).optional().describe("Maximum live terminal lines to return. Prefer this for bounded reads that should not flood callers."),
+      maxLines: z.number().int().positive().optional().describe("Maximum live terminal lines to return, bounded by Exo's configured terminal history lines. Prefer this for reads that should not flood callers."),
       tailChars: z.number().int().nonnegative().optional().describe("Maximum characters to return from the end of the transcript when maxLines is omitted. Omit to use Exo's configured default."),
       clean: z.boolean().default(true).describe("Strip ANSI terminal escape codes before returning output."),
     },

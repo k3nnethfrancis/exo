@@ -39,7 +39,7 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
 
 ### EXO-ISSUE-063: Terminal review residuals after tmux refactor
 
-- Status: open
+- Status: partially fixed
 - Severity: high
 - Area: terminal architecture, hydration, read tails, reconnect, CI
 - Observed:
@@ -60,6 +60,12 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
   - Pane move/tab switch regression proving no `terminals.read()`/xterm reset for mounted live terminals.
   - Reconnect snapshot regression.
   - Preview-adjacent terminal typing e2e with fake agent process.
+- Resolution notes (2026-06-23):
+  - Bounded running-session reads now treat a non-empty tmux capture as authoritative when `maxLines` is provided, instead of falling back to longer stale `recentOutput`.
+  - `TerminalDock` no longer forces hydration on active terminal/pane changes; already-hydrated mounted terminals stay on live append unless reconnect explicitly requests a forced snapshot.
+  - Reconnect now forces a hydration snapshot so a restored bridge can replay current live pane output after backend reconnect.
+  - MCP `read_agent.maxLines` no longer advertises or enforces the hidden 1000-line schema cap; live line limits now flow to the app and are bounded by configured terminal history.
+  - Remaining open follow-up: make terminal e2e/visual quality checks a named readiness gate, including the preview-adjacent fake-agent typing case.
 
 ### EXO-ISSUE-064: Routine template plugins need trust and policy enforcement before agent execution
 
