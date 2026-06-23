@@ -93,7 +93,7 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
 
 ### EXO-ISSUE-065: Harness plugin model is still partially hardcoded into terminal and public APIs
 
-- Status: open
+- Status: open; first implementation slice landed locally
 - Severity: medium-high
 - Area: plugin architecture, harness adapters, terminal boundary, CLI/MCP APIs
 - Observed:
@@ -110,6 +110,14 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
   - Move Codex readiness/MCP injection out of terminal core and into harness adapter metadata/hooks.
   - Split low-level terminal commands from agent harness commands in shared types.
   - Hide/remove Hermes from default user surfaces until it is explicitly configured and product-ready.
+  - 2026-06-23 first safe slice:
+    - Centralized the built-in `ManagedAgentKind` tuple, parser, and CLI usage formatter in `@exo/core`.
+    - Derived the built-in harness registry and runtime launcher record from that core boundary instead of spelling every harness id again.
+    - Pointed CLI validation/help and MCP `create_agent` schema/description at the shared core boundary.
+    - Added focused core/CLI tests for the boundary and invalid-harness validation.
+  - Remaining next patch:
+    - Introduce harness-owned launch/readiness metadata for Codex startup gating, MCP launch overrides, prompt readiness scanning, and semantic message submit behavior.
+    - Keep that next patch isolated to `agent-harness*` plus the narrow `TerminalManager` call sites that currently branch on `kind === "codex"`.
 - QA coverage needed:
   - Agent creation derives from registered/launchable harness metadata.
   - Codex-specific startup behavior is covered by harness adapter tests, not terminal-manager-only tests.

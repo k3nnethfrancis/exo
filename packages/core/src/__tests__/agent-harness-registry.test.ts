@@ -10,13 +10,22 @@ import {
   resolveRegisteredAgentHarnessDetection,
   resolveRegisteredAgentHarnesses,
   resolveRegisteredAgentLauncher,
+  resolveRegisteredAgentLaunchers,
   validateRegisteredAgentHarnessLaunch,
 } from "../agent-harness-registry";
 import { builtInAgentHarnesses } from "../agent-harnesses/builtins";
+import { formatManagedAgentKindUsage, MANAGED_AGENT_KINDS, normalizeManagedAgentKind } from "../types";
 
 describe("agent harness registry", () => {
+  it("keeps built-in harness kind parsing and usage in one core boundary", () => {
+    expect(MANAGED_AGENT_KINDS).toEqual(["shell", "claude", "codex", "pi", "hermes"]);
+    expect(formatManagedAgentKindUsage()).toBe("shell|claude|codex|pi|hermes");
+    expect(normalizeManagedAgentKind("codex")).toBe("codex");
+    expect(normalizeManagedAgentKind("unknown")).toBeNull();
+  });
+
   it("registers built-in harnesses", () => {
-    expect(agentHarnessRegistry.list().map((harness) => harness.metadata.id)).toEqual(["shell", "claude", "codex", "pi", "hermes"]);
+    expect(agentHarnessRegistry.list().map((harness) => harness.metadata.id)).toEqual([...MANAGED_AGENT_KINDS]);
     expect(agentHarnessRegistry.require("shell")).toBe(builtInAgentHarnesses.shell);
     expect(agentHarnessRegistry.require("claude")).toBe(builtInAgentHarnesses.claude);
     expect(agentHarnessRegistry.require("codex")).toBe(builtInAgentHarnesses.codex);
@@ -31,6 +40,14 @@ describe("agent harness registry", () => {
       command: "/bin/zsh",
       args: ["-l"],
     });
+  });
+
+  it("resolves the runtime launcher record from the managed harness kind boundary", () => {
+    const launchers = resolveRegisteredAgentLaunchers({ SHELL: "/bin/zsh" });
+
+    expect(Object.keys(launchers)).toEqual([...MANAGED_AGENT_KINDS]);
+    expect(launchers.shell).toMatchObject({ kind: "shell", command: "/bin/zsh" });
+    expect(launchers.codex).toMatchObject({ kind: "codex", command: "codex" });
   });
 
   it("rejects duplicate harness ids", () => {

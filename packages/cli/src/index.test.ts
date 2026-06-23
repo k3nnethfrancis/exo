@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { runCli } from "./index";
-import { saveWorkspaceSettings } from "@exo/core";
+import { formatManagedAgentKindUsage, saveWorkspaceSettings } from "@exo/core";
 
 describe("cli package", () => {
   it("renders runtime status", async () => {
@@ -218,6 +218,14 @@ describe("cli package", () => {
       stdout: { write: () => {} },
       stderr: { write: () => {} },
     })).rejects.toThrow("Agent harness is not launchable: pi (Missing dependency).");
+  });
+
+  it("uses the core managed harness kind usage when rejecting invalid launches", async () => {
+    await expect(runCli(["node", "exo-cli", "launch", "unknown"], {
+      env: testRuntimeEnv(),
+      stdout: { write: () => {} },
+      stderr: { write: () => {} },
+    })).rejects.toThrow(`Expected one of: ${formatManagedAgentKindUsage().replaceAll("|", ", ")}.`);
   });
 
   it("routes preview commands through the app client", async () => {

@@ -1,12 +1,13 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { resolveRegisteredAgentHarnesses, resolveRegisteredAgentLauncher } from "./agent-harness-registry";
+import { resolveRegisteredAgentHarnesses, resolveRegisteredAgentLaunchers } from "./agent-harness-registry";
 import type {
   AgentLaunchPlan,
   ManagedAgentKind,
   RuntimeConfig,
 } from "./types";
+import { formatManagedAgentKindUsage } from "./types";
 import { resolveWorkspaceModel } from "./workspace";
 
 export function resolveRuntimeConfig(env: NodeJS.ProcessEnv = process.env): RuntimeConfig {
@@ -31,19 +32,14 @@ export function resolveRuntimeConfig(env: NodeJS.ProcessEnv = process.env): Runt
       messagesDirectory: env.EXO_AGENT_MESSAGES_DIR ?? path.join(runtimeRoot, "messages"),
       sqlitePath: env.EXO_AGENT_SQLITE_PATH ?? path.join(runtimeRoot, "agent-communication.sqlite"),
     },
-    launchers: {
-      shell: resolveRegisteredAgentLauncher("shell", env),
-      claude: resolveRegisteredAgentLauncher("claude", env),
-      codex: resolveRegisteredAgentLauncher("codex", env),
-      pi: resolveRegisteredAgentLauncher("pi", env),
-      hermes: resolveRegisteredAgentLauncher("hermes", env),
-    },
+    launchers: resolveRegisteredAgentLaunchers(env),
     harnesses: resolveRegisteredAgentHarnesses(env),
   };
 }
 
 export function renderPrimaryAgentInstructions(config: RuntimeConfig): string {
   const workspace = config.workspace;
+  const harnessUsage = formatManagedAgentKindUsage();
 
   return [
     "# Exo Runtime",
@@ -72,9 +68,9 @@ export function renderPrimaryAgentInstructions(config: RuntimeConfig): string {
     "- `exo index status`",
     "- `exo status`",
     "- `exo runtime status`",
-    "- `exo launch <shell|claude|codex|pi|hermes> [cwd]`",
-    "- `exo runtime context <shell|claude|codex|pi|hermes>`",
-    "- `exo runtime launch-plan <shell|claude|codex|pi|hermes> [cwd]`",
+    `- \`exo launch <${harnessUsage}> [cwd]\``,
+    `- \`exo runtime context <${harnessUsage}>\``,
+    `- \`exo runtime launch-plan <${harnessUsage}> [cwd]\``,
     "- `exo runtime sync`",
     "",
     "## Optional Notes Index / Retrieval Backend",

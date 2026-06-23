@@ -9,6 +9,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { DEFAULT_TERMINAL_MAX_READ_TAIL_CHARS, DEFAULT_TERMINAL_READ_TAIL_CHARS } from "@exo/core/terminal-settings";
+import { MANAGED_AGENT_KINDS, formatManagedAgentKindUsage } from "@exo/core/types";
 import * as z from "zod/v4";
 
 import { ExoCommandClient, formatAgents, stripAnsi } from "./exo-client";
@@ -233,9 +234,9 @@ server.registerTool(
   {
     title: "Create Exo Agent",
     description:
-      "Create a new Exo-managed terminal session for any registered launchable harness. Shell, Claude, Codex, Pi, and Hermes are accepted when available/configured; unavailable harnesses return clear command-server errors.",
+      `Create a new Exo-managed terminal session for any registered launchable harness. Built-in kinds: ${formatManagedAgentKindUsage()}. Unavailable harnesses return clear command-server errors.`,
     inputSchema: {
-      kind: z.enum(["shell", "claude", "codex", "pi", "hermes"]).describe("Registered launchable harness to create."),
+      kind: z.enum(MANAGED_AGENT_KINDS).describe("Registered launchable harness to create."),
       cwd: z.string().min(1).optional().describe("Optional working directory. Defaults to Exo's default terminal cwd."),
     },
     annotations: {

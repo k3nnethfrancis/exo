@@ -1,6 +1,19 @@
 export type RootKind = "notes" | "projects";
 export type DocumentKind = "markdown" | "text";
-export type ManagedAgentKind = "shell" | "claude" | "codex" | "pi" | "hermes";
+export const MANAGED_AGENT_KINDS = ["shell", "claude", "codex", "pi", "hermes"] as const;
+export type ManagedAgentKind = (typeof MANAGED_AGENT_KINDS)[number];
+export function isManagedAgentKind(value: string | undefined): value is ManagedAgentKind {
+  return MANAGED_AGENT_KINDS.includes(value as ManagedAgentKind);
+}
+
+export function normalizeManagedAgentKind(value: string | undefined): ManagedAgentKind | null {
+  return isManagedAgentKind(value) ? value : null;
+}
+
+export function formatManagedAgentKindUsage(): string {
+  return MANAGED_AGENT_KINDS.join("|");
+}
+
 export type AgentHarnessAdapterId = "shell" | "claude-code" | "codex" | "pi" | "hermes";
 export type AgentHarnessStatus = "available" | "configured" | "not-found" | "disabled" | "broken" | "missing-dependency";
 export type AgentHarnessDependencyKind = "inference-backend" | "runtime";

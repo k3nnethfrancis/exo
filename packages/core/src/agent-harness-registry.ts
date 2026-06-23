@@ -1,6 +1,11 @@
 import { builtInAgentHarnesses } from "./agent-harnesses/builtins";
 import type { AgentHarness } from "./agent-harness";
-import type { AgentHarnessDetection, ManagedAgentKind } from "./types";
+import {
+  MANAGED_AGENT_KINDS,
+  type AgentHarnessDetection,
+  type AgentLauncherConfig,
+  type ManagedAgentKind,
+} from "./types";
 
 export class AgentHarnessRegistry {
   private readonly harnesses = new Map<string, AgentHarness>();
@@ -41,19 +46,19 @@ export class AgentHarnessRegistry {
 }
 
 export function createBuiltInAgentHarnessRegistry(): AgentHarnessRegistry {
-  return new AgentHarnessRegistry([
-    builtInAgentHarnesses.shell,
-    builtInAgentHarnesses.claude,
-    builtInAgentHarnesses.codex,
-    builtInAgentHarnesses.pi,
-    builtInAgentHarnesses.hermes,
-  ]);
+  return new AgentHarnessRegistry(MANAGED_AGENT_KINDS.map((kind) => builtInAgentHarnesses[kind]));
 }
 
 export const agentHarnessRegistry = createBuiltInAgentHarnessRegistry();
 
 export function resolveRegisteredAgentLauncher(kind: ManagedAgentKind, env: NodeJS.ProcessEnv) {
   return agentHarnessRegistry.require(kind).resolveLauncher(env);
+}
+
+export function resolveRegisteredAgentLaunchers(env: NodeJS.ProcessEnv): Record<ManagedAgentKind, AgentLauncherConfig> {
+  return Object.fromEntries(
+    MANAGED_AGENT_KINDS.map((kind) => [kind, resolveRegisteredAgentLauncher(kind, env)]),
+  ) as Record<ManagedAgentKind, AgentLauncherConfig>;
 }
 
 export function resolveRegisteredAgentHarnessDetection(

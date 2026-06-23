@@ -10,9 +10,11 @@ import {
   buildExoMcpIntegrationSpec,
   formatMcpServerJson,
   formatShellCommand,
+  formatManagedAgentKindUsage,
   parseMcpListOutput,
   createBranchFile,
   getBranchFamily,
+  normalizeManagedAgentKind,
   readWorkspaceDocument,
   readIndexDocument,
   renderPrimaryAgentInstructions,
@@ -44,7 +46,8 @@ import {
   type RunRecord,
 } from "@exo/core";
 
-const AGENT_KIND_USAGE = "shell|claude|codex|pi|hermes";
+const AGENT_KIND_USAGE = formatManagedAgentKindUsage();
+const AGENT_KIND_EXPECTED = `Expected one of: ${AGENT_KIND_USAGE.replaceAll("|", ", ")}.`;
 
 import { AppClient, formatAppClientDiscoveryFailure, type AppClientWriteResult } from "./app-client";
 
@@ -435,7 +438,7 @@ export async function runCli(
       const kind = args[0];
       const normalizedKind = normalizeAgentKind(kind);
       if (!normalizedKind) {
-        throw new Error("Expected one of: shell, claude, codex, pi, hermes.");
+        throw new Error(AGENT_KIND_EXPECTED);
       }
       const terminal = await client.createTerminal(normalizedKind, args[1]);
       stdout.write(`${JSON.stringify(terminal, null, 2)}\n`);
@@ -713,7 +716,7 @@ export async function runCli(
   if (command === "runtime" && subcommand === "context") {
     const kind = normalizeAgentKind(args[0]);
     if (!kind) {
-      throw new Error("Expected one of: shell, claude, codex, pi, hermes.");
+      throw new Error(AGENT_KIND_EXPECTED);
     }
 
     const config = await resolveCliRuntimeConfig(env);
@@ -725,7 +728,7 @@ export async function runCli(
   if (command === "runtime" && subcommand === "launch-plan") {
     const kind = normalizeAgentKind(args[0]);
     if (!kind) {
-      throw new Error("Expected one of: shell, claude, codex, pi, hermes.");
+      throw new Error(AGENT_KIND_EXPECTED);
     }
 
     const config = await resolveCliRuntimeConfig(env);
@@ -885,7 +888,7 @@ export async function runCli(
   if (command === "launch") {
     const kind = normalizeAgentKind(subcommand);
     if (!kind) {
-      throw new Error("Expected one of: shell, claude, codex, pi, hermes.");
+      throw new Error(AGENT_KIND_EXPECTED);
     }
 
     const config = await resolveCliRuntimeConfig(env);
@@ -1207,11 +1210,7 @@ async function launchAgent(
 }
 
 function normalizeAgentKind(value?: string): ManagedAgentKind | null {
-  if (value === "shell" || value === "claude" || value === "codex" || value === "pi" || value === "hermes") {
-    return value;
-  }
-
-  return null;
+  return normalizeManagedAgentKind(value);
 }
 
 function isHelpFlag(value: string | undefined): boolean {
