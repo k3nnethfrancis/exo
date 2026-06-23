@@ -115,7 +115,7 @@ describe("terminal tmux runtime helpers", () => {
 
     expect(childProcess.execFileSync).toHaveBeenCalledWith(
       "/opt/homebrew/bin/tmux",
-      ["display-message", "-p", "hello"],
+      ["-u", "display-message", "-p", "hello"],
       expect.objectContaining({
         cwd: "/tmp/work",
         env: { PATH: "/bin" },
@@ -275,10 +275,10 @@ describe("terminal tmux runtime helpers", () => {
     process.write("abc\u001b[A\u007f\r");
 
     expect(childProcess.execFileSync.mock.calls.map((call) => call[1])).toEqual([
-      ["send-keys", "-t", "%3", "-l", "abc"],
-      ["send-keys", "-t", "%3", "Up"],
-      ["send-keys", "-t", "%3", "BSpace"],
-      ["send-keys", "-t", "%3", "Enter"],
+      ["-u", "send-keys", "-t", "%3", "-l", "abc"],
+      ["-u", "send-keys", "-t", "%3", "Up"],
+      ["-u", "send-keys", "-t", "%3", "BSpace"],
+      ["-u", "send-keys", "-t", "%3", "Enter"],
     ]);
   });
 
@@ -299,9 +299,9 @@ describe("terminal tmux runtime helpers", () => {
 
     process.write("\u001b[200~line one\n  line two\u001b[201~");
 
-    expect(childProcess.execFileSync.mock.calls.map((call) => call[1])).toContainEqual(["load-buffer", "-b", "exo-3", "-"]);
+    expect(childProcess.execFileSync.mock.calls.map((call) => call[1])).toContainEqual(["-u", "load-buffer", "-b", "exo-3", "-"]);
     expect(childProcess.execFileSync.mock.calls.find((call) => call[1]?.includes("load-buffer"))?.[2]).toMatchObject({ input: "line one\n  line two" });
-    expect(childProcess.execFileSync.mock.calls.map((call) => call[1])).toContainEqual(["paste-buffer", "-b", "exo-3", "-t", "%3", "-d"]);
+    expect(childProcess.execFileSync.mock.calls.map((call) => call[1])).toContainEqual(["-u", "paste-buffer", "-b", "exo-3", "-t", "%3", "-d"]);
   });
 });
 

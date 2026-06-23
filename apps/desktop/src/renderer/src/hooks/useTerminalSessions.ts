@@ -20,6 +20,7 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
   const hydratedSessionIdsRef = useRef(new Set<string>());
   const pendingHydrationIdsRef = useRef(new Set<string>());
   const pendingTerminalDataRef = useRef<Record<string, string>>({});
+  const hydrationSnapshotsRef = useRef<Record<string, string>>({});
   const optionsRef = useRef(options);
 
   useEffect(() => {
@@ -33,6 +34,10 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
   useEffect(() => {
     activeTerminalIdRef.current = activeTerminalId;
   }, [activeTerminalId]);
+
+  useEffect(() => {
+    hydrationSnapshotsRef.current = hydrationSnapshots;
+  }, [hydrationSnapshots]);
 
   useEffect(() => {
     setAgentAnnotations((current) => {
@@ -120,6 +125,10 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
   }
 
   async function hydrateTerminal(id: string, options?: { force?: boolean }) {
+    if (!options?.force && hydratedSessionIdsRef.current.has(id) && (pendingTerminalDataRef.current[id]?.length ?? 0) > 0) {
+      setHydrationSnapshot(id, hydrationSnapshotsRef.current[id] ?? "");
+      return;
+    }
     if (shouldSkipTerminalHydration(id, hydratedSessionIdsRef.current, pendingHydrationIdsRef.current, options)) {
       return;
     }
@@ -255,7 +264,7 @@ function pruneRecordToKeys<T>(record: Record<string, T>, keys: Set<string>): Rec
 
 export function appendPendingTerminalData(current: string, data: string, maxChars: number): string {
   const next = `${current}${data}`;
-  return next.length <= maxChars ? next : next.slice(-maxChars);
+  return unicodeSafeTail(next, maxChars);
 }
 
 export function mergeHydrationSnapshot(snapshot: string, pendingData: string): string {
@@ -301,4 +310,30 @@ function largestSuffixPrefixOverlap(snapshot: string, pendingData: string): numb
   }
 
   return Math.min(prefixLengths[prefixLengths.length - 1] ?? 0, maxOverlap);
+}
+
+function unicodeSafeTail(value: string, maxChars: number): string {
+  if (maxChars <= 0) {
+    return "";
+  }
+  if (value.length <= maxChars) {
+    return value;
+  }
+
+  let tail = value.slice(-maxChars);
+  if (tail.length > 0 && isLowSurrogate(tail.charCodeAt(0))) {
+    tail = tail.slice(1);
+  }
+  if (tail.length > 0 && isHighSurrogate(tail.charCodeAt(tail.length - 1))) {
+    tail = tail.slice(0, -1);
+  }
+  return tail;
+}
+
+function isHighSurrogate(code: number): boolean {
+  return code >= 0xd800 && code <= 0xdbff;
+}
+
+function isLowSurrogate(code: number): boolean {
+  return code >= 0xdc00 && code <= 0xdfff;
 }

@@ -1,4 +1,5 @@
 import type { Page } from "@playwright/test";
+import { expect } from "@playwright/test";
 
 export interface LatencySummary {
   max: number;
@@ -22,10 +23,24 @@ export function latencySummary(samples: number[]): LatencySummary {
 
 export async function waitForTerminalText(page: Page, text: string, timeout = 5_000): Promise<void> {
   await page.waitForFunction(
-    (expected) => document.querySelector(".xterm-rows")?.textContent?.includes(expected) ?? false,
+    (expected) =>
+      Array.from(document.querySelectorAll(".xterm-rows")).some((rows) => rows.textContent?.includes(expected) ?? false),
     text,
     { timeout, polling: 10 },
   );
+}
+
+export async function visibleTerminalText(page: Page): Promise<string> {
+  return page.evaluate(() => Array.from(document.querySelectorAll(".xterm-rows")).map((rows) => rows.textContent ?? "").join("\n"));
+}
+
+export async function expectTerminalRenderStable(page: Page): Promise<void> {
+  const text = await visibleTerminalText(page);
+  expect(text).not.toContain("\uFFFD");
+  expect(text).not.toMatch(/\?{3,}/);
+  expect(text).toContain("Claude Code");
+  expect(text).toContain("status: ready");
+  expect(text).toContain("wrapped prompt marker");
 }
 
 function percentile(sortedSamples: number[], percentileValue: number): number {

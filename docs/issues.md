@@ -10,7 +10,7 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
 
 ### EXO-ISSUE-067: Claude terminal launch requires hard refresh and input can stop reaching the pane
 
-- Status: open
+- Status: fixed locally; automated QA pending
 - Severity: critical
 - Area: terminal launch, harness readiness, renderer hydration, focus/input
 - Observed:
@@ -31,10 +31,14 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
   - Deterministic fake-Claude launch that waits for input and proves the renderer accepts typing without hard refresh.
   - Hard-refresh/reload test for a running fake-Claude session proving reattach plus first-click input.
   - Focus handoff test from editor/preview into a refreshed terminal pane.
+- Resolution notes (2026-06-23):
+  - Integrated a focused `TerminalDock` activation fix that focuses the active xterm after session hydration/activation.
+  - Added fake-Claude reload/input e2e coverage proving a tmux-backed Claude session reattaches after renderer reload and accepts first focused input.
+  - This does not close the broader render corruption class tracked in `EXO-ISSUE-062`.
 
 ### EXO-ISSUE-062: Claude terminal launch shows replacement-glyph corruption
 
-- Status: fixed locally; live Claude launch QA pending after restart
+- Status: open; render-stability gate in progress
 - Severity: critical
 - Area: terminal rendering, tmux control mode, xterm, Claude Code harness
 - Observed:
@@ -56,8 +60,10 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
   - Those regressions show Exo's tmux byte decoder and renderer string chunker do not introduce U+FFFD for this output shape.
   - Updated xterm creation to use an explicit terminal font stack with symbol, emoji, and common Nerd Font fallbacks.
   - Explicitly enabled xterm custom glyph rendering so box drawing does not depend on the first available text font.
+  - 2026-06-23: Added explicit `tmux -u` invocation, UTF-8 locale defaults for terminal launches, Unicode-safe pending hydration tails, stricter xterm-generated OSC response filtering, and fake-Claude render-stability e2e coverage while a preview pane is open.
 - QA coverage needed:
   - Deterministic test for Claude-like Unicode/box-drawing/status output split across tmux control-mode records and renderer write chunks.
+  - E2E render-quality test that fails on `U+FFFD`, `???`, missing Claude-like header/status text, or preview-open input/render loss.
   - Real-app QA: launch Claude from Exo, start/resume a conversation, scroll, switch tabs/panes, open preview beside it, and confirm no replacement-glyph corruption without hard refresh.
   - Compare Exo rendering against macOS Terminal/iTerm/VS Code terminal for the same Claude launch when possible.
 
@@ -308,12 +314,13 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
 
 ### EXO-ISSUE-056: Terminal input can stop rendering while browser preview is open
 
-- Status: mitigated in local branch; pending real-app preview QA
+- Status: open; preview-specific regression coverage in progress
 - Severity: high
 - Area: terminal rendering, browser preview, pane focus/resize
 - Observed:
   - When a browser preview pane is open to a web page, terminal input can stop visually appearing in the terminal.
   - The terminal may still receive input, but typed characters do not render until the user hard-refreshes the app.
+  - 2026-06-23: User also reported terminals not appearing at all while preview mode was open; closing preview and refreshing allowed terminals to open again.
 - Expected:
   - Terminal input echo and prompt rendering should remain immediate and visible while preview panes are open.
   - Preview webviews should not steal terminal focus, suppress xterm rendering, or block terminal resize/refresh.
@@ -329,6 +336,7 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
   - Preview panes now schedule terminal fit/refresh passes when the preview URL changes, the webview loads/focuses/blurs, and the app window focuses, blurs, resizes, pageshows, or changes visibility.
   - The mitigation only calls the existing xterm registry refresh path; it does not call `terminals.read()`, reset xterm, replay a full buffer, or alter active terminal hydration.
   - Added a focused renderer regression for the repeated preview-adjacent terminal refresh scheduler.
+  - 2026-06-23: Added fake-Claude e2e coverage that opens a preview pane, launches Claude, verifies render quality, types into the terminal, reloads the renderer, and verifies the session remains visible and interactive.
   - Manual QA still required in the real Electron app because unit tests cannot reproduce Electron webview focus/compositing behavior: open a web preview beside a shell/Claude/Codex terminal, type continuously, focus/unfocus preview and terminal panes, resize the split, switch panes, and verify input echo remains visible without hard refresh.
 
 ### EXO-ISSUE-055: Explorer folder labels are too bold

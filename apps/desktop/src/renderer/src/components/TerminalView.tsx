@@ -24,11 +24,12 @@ interface TerminalViewProps {
   onFocus: () => void;
   onInput: (id: string, data: string) => void;
   onResize: (id: string, cols: number, rows: number) => void;
+  onReady?: (id: string) => void;
   inputEnabled?: boolean;
 }
 
 export function TerminalView(props: TerminalViewProps) {
-  const { theme, session, hydrationSnapshot, hydrationVersion, fontSize, scrollbackLines, onFocus, onInput, onResize, inputEnabled = true } = props;
+  const { theme, session, hydrationSnapshot, hydrationVersion, fontSize, scrollbackLines, onFocus, onInput, onResize, onReady, inputEnabled = true } = props;
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
@@ -145,6 +146,7 @@ export function TerminalView(props: TerminalViewProps) {
     }, () => {
       refreshTerminalSurface(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef, disposedRef);
     });
+    onReady?.(session.id);
 
     return () => {
       unregisterTerminal(session.id);

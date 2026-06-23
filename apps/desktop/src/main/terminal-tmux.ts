@@ -90,7 +90,7 @@ export class TmuxCommandRunner {
 
   run(args: string[], options: { cwd?: string; env?: NodeJS.ProcessEnv } = {}): string {
     try {
-      return execFileSync(this.tmuxPath, args, {
+      return execFileSync(this.tmuxPath, tmuxUtf8Args(args), {
         cwd: options.cwd,
         env: options.env,
         encoding: "utf8",
@@ -123,7 +123,7 @@ export class TmuxControlModeProcess {
 
   constructor(private readonly options: TmuxControlModeProcessOptions) {
     this.pasteBufferName = `exo-${options.paneId.replace(/[^A-Za-z0-9_-]/g, "")}`;
-    this.child = spawn(options.tmuxPath, ["-C", "attach-session", "-t", options.sessionName], {
+    this.child = spawn(options.tmuxPath, tmuxUtf8Args(["-C", "attach-session", "-t", options.sessionName]), {
       cwd: options.cwd,
       env: options.env,
     });
@@ -168,7 +168,7 @@ export class TmuxControlModeProcess {
   }
 
   private sendKeys(args: string[]): void {
-    execFileSync(this.options.tmuxPath, ["send-keys", "-t", this.options.paneId, ...args], {
+    execFileSync(this.options.tmuxPath, tmuxUtf8Args(["send-keys", "-t", this.options.paneId, ...args]), {
       cwd: this.options.cwd,
       env: this.options.env,
       stdio: ["ignore", "ignore", "pipe"],
@@ -189,13 +189,13 @@ export class TmuxControlModeProcess {
   }
 
   private pasteLiteral(value: string): void {
-    execFileSync(this.options.tmuxPath, ["load-buffer", "-b", this.pasteBufferName, "-"], {
+    execFileSync(this.options.tmuxPath, tmuxUtf8Args(["load-buffer", "-b", this.pasteBufferName, "-"]), {
       cwd: this.options.cwd,
       env: this.options.env,
       input: value,
       stdio: ["pipe", "ignore", "pipe"],
     });
-    execFileSync(this.options.tmuxPath, ["paste-buffer", "-b", this.pasteBufferName, "-t", this.options.paneId, "-d"], {
+    execFileSync(this.options.tmuxPath, tmuxUtf8Args(["paste-buffer", "-b", this.pasteBufferName, "-t", this.options.paneId, "-d"]), {
       cwd: this.options.cwd,
       env: this.options.env,
       stdio: ["ignore", "ignore", "pipe"],
@@ -320,6 +320,10 @@ function parseControlOutput(line: string, decoder = new TmuxControlOutputDecoder
 
   const extended = /^%extended-output\s+(\S+)\s+[\s\S]*\s:\s([\s\S]*)$/.exec(line);
   return extended ? { paneId: extended[1], data: decoder.decode(extended[1], extended[2]) } : null;
+}
+
+function tmuxUtf8Args(args: string[]): string[] {
+  return ["-u", ...args];
 }
 
 type TmuxInputAction = { kind: "literal"; value: string } | { kind: "key"; key: string };

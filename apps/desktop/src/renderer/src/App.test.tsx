@@ -644,7 +644,8 @@ describe("terminal input filtering", () => {
     expect(isTerminalGeneratedResponse("\x1b]4;2;rgb:0000/8080/0000\x1b\\")).toBe(true);
     expect(isTerminalGeneratedResponse("\x1b]10;rgb:5858/6e6e/7575\x1b\\\x1b]11;rgb:fdfd/f6f6/e3e3\x1b\\")).toBe(true);
     expect(isTerminalGeneratedResponse("\x1b]10;rgb:5858/6e6e/7575\x07")).toBe(true);
-    expect(isTerminalGeneratedResponse("]10;rgb:5858/6e6e/7575\\")).toBe(false);
+    expect(isTerminalGeneratedResponse("]10;rgb:5858/6e6e/7575\\")).toBe(true);
+    expect(isTerminalGeneratedResponse("]10;rgb:5858/6e6e/7575\\]11;rgb:fdfd/f6f6/e3e3\\")).toBe(true);
     expect(isTerminalGeneratedResponse("\x1b]10;not-rgb\x1b\\")).toBe(false);
     expect(isTerminalGeneratedResponse("hello")).toBe(false);
     expect(isTerminalGeneratedResponse("try this out")).toBe(false);
@@ -941,6 +942,17 @@ describe("terminal session sync", () => {
 
   it("caps pending terminal data to the newest content", () => {
     expect(appendPendingTerminalData("abcdef", "ghij", 6)).toBe("efghij");
+  });
+
+  it("does not split terminal Unicode while capping pending hydration data", () => {
+    const emoji = "🙂";
+    const high = emoji.charAt(0);
+    const low = emoji.charAt(1);
+
+    expect(appendPendingTerminalData(`abc${high}`, low, 4)).toBe(`bc${emoji}`);
+    expect(appendPendingTerminalData(`abc${emoji}`, "de", 4)).toBe(`${emoji}de`);
+    expect(appendPendingTerminalData(`abc${emoji}`, "de", 3)).toBe("de");
+    expect(appendPendingTerminalData(`abc${high}`, "", 1)).toBe("");
   });
 
   it("skips mounted hydrated terminal reads unless reconnect forces a snapshot", () => {

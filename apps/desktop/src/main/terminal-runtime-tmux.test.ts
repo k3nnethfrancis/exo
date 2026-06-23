@@ -24,14 +24,14 @@ describe("TmuxTerminalRuntime", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     let createdSessionName = "";
     childProcess.execFileSync.mockImplementation((_command: string, args: string[]) => {
-      if (args[0] === "new-session") {
+      if (args.includes("new-session")) {
         createdSessionName = args[args.indexOf("-s") + 1] ?? "";
         return "";
       }
-      if (args[0] === "set-option") {
+      if (args.includes("set-option")) {
         throw new Error("unsupported option");
       }
-      if (args[0] === "list-panes") {
+      if (args.includes("list-panes")) {
         return `${createdSessionName}\t@1\t%1\t0\tzsh\t/tmp/workspace\n`;
       }
       return "";
@@ -55,7 +55,7 @@ describe("TmuxTerminalRuntime", () => {
       sessionName: createdSessionName,
       paneId: "%1",
     });
-    expect(childProcess.spawn).toHaveBeenCalledWith("/custom/tmux", ["-C", "attach-session", "-t", createdSessionName], expect.any(Object));
+    expect(childProcess.spawn).toHaveBeenCalledWith("/custom/tmux", ["-u", "-C", "attach-session", "-t", createdSessionName], expect.any(Object));
     expect(childProcess.execFileSync.mock.calls.map((call) => call[1] as string[])).not.toContainEqual(expect.arrayContaining(["kill-session"]));
     expect(warnSpy).toHaveBeenCalledWith(
       "[exo] failed to set tmux session option",
@@ -69,7 +69,7 @@ describe("TmuxTerminalRuntime", () => {
 
   it("cleans up a created tmux session when pane discovery fails", () => {
     childProcess.execFileSync.mockImplementation((_command: string, args: string[]) => {
-      if (args[0] === "list-panes") {
+      if (args.includes("list-panes")) {
         return "";
       }
       return "";

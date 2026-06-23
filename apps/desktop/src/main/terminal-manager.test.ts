@@ -473,7 +473,7 @@ describe("TerminalManager Codex readiness", () => {
 
     expect(childProcess.execFileSync.mock.calls).toContainEqual([
       "tmux",
-      ["set-option", "-t", spawnedTmuxSessionName(0), "history-limit", "24000"],
+      ["-u", "set-option", "-t", spawnedTmuxSessionName(0), "history-limit", "24000"],
       expect.any(Object),
     ]);
 
@@ -481,7 +481,7 @@ describe("TerminalManager Codex readiness", () => {
 
     expect(childProcess.execFileSync.mock.calls).toContainEqual([
       "tmux",
-      ["set-option", "-t", spawnedTmuxSessionName(0), "history-limit", "500"],
+      ["-u", "set-option", "-t", spawnedTmuxSessionName(0), "history-limit", "500"],
       expect.any(Object),
     ]);
   });
@@ -495,17 +495,17 @@ describe("TerminalManager Codex readiness", () => {
     const sessionName = spawnedTmuxSessionName(0);
     expect(childProcess.execFileSync.mock.calls).toContainEqual([
       "tmux",
-      ["set-option", "-t", sessionName, "status", "off"],
+      ["-u", "set-option", "-t", sessionName, "status", "off"],
       expect.any(Object),
     ]);
     expect(childProcess.execFileSync.mock.calls).toContainEqual([
       "tmux",
-      ["set-option", "-t", sessionName, "mouse", "off"],
+      ["-u", "set-option", "-t", sessionName, "mouse", "off"],
       expect.any(Object),
     ]);
     expect(childProcess.execFileSync.mock.calls).toContainEqual([
       "tmux",
-      ["set-option", "-t", sessionName, "focus-events", "on"],
+      ["-u", "set-option", "-t", sessionName, "focus-events", "on"],
       expect.any(Object),
     ]);
     expect(childProcess.execFileSync.mock.calls).not.toContainEqual([
@@ -537,7 +537,7 @@ describe("TerminalManager Codex readiness", () => {
     if (!killCommand) {
       throw new Error("Expected tmux kill-session command");
     }
-    expect(killCommand).toEqual(["kill-session", "-t", expect.stringMatching(/^exo-[a-f0-9]{10}-term-1-\d{4}-/i)]);
+    expect(killCommand).toEqual(["-u", "kill-session", "-t", expect.stringMatching(/^exo-[a-f0-9]{10}-term-1-\d{4}-/i)]);
     expect(manager.list()).toEqual([]);
   });
 
@@ -629,7 +629,7 @@ describe("TerminalManager Codex readiness", () => {
       }),
     ]);
     expect(ptyState.spawned[0]?.command).toBe("tmux");
-    expect(ptyState.spawned[0]?.args).toEqual(["-C", "attach-session", "-t", tmuxSessionName]);
+    expect(ptyState.spawned[0]?.args).toEqual(["-u", "-C", "attach-session", "-t", tmuxSessionName]);
 
     await manager.create({ kind: "shell", cwd: workspaceRoot });
     expect(manager.list().map((session) => session.id)).toContain("term-8");
@@ -675,7 +675,7 @@ describe("TerminalManager Codex readiness", () => {
     expect(manager.readTail("term-7")).toContain("restored-history-001\r\nrestored-history-002");
     expect(childProcess.execFileSync.mock.calls).toContainEqual([
       "tmux",
-      ["capture-pane", "-p", "-e", "-t", "%2", "-S", "-100000"],
+      ["-u", "capture-pane", "-p", "-e", "-t", "%2", "-S", "-100000"],
       expect.any(Object),
     ]);
   });
@@ -801,7 +801,7 @@ describe("TerminalManager Codex readiness", () => {
       status: "running",
     });
     expect(ptyState.spawned).toHaveLength(2);
-    expect(ptyState.spawned[1].args).toEqual(["-C", "attach-session", "-t", spawnedTmuxSessionName(0)]);
+    expect(ptyState.spawned[1].args).toEqual(["-u", "-C", "attach-session", "-t", spawnedTmuxSessionName(0)]);
     expect(manager.diagnostics()[0]).toMatchObject({
       bridgeStatus: "attached",
       paneStatus: "alive",
@@ -818,7 +818,7 @@ describe("TerminalManager Codex readiness", () => {
     manager.reconnectRecoverableTerminals();
 
     expect(ptyState.spawned).toHaveLength(2);
-    expect(ptyState.spawned[1].args).toEqual(["-C", "attach-session", "-t", spawnedTmuxSessionName(0)]);
+    expect(ptyState.spawned[1].args).toEqual(["-u", "-C", "attach-session", "-t", spawnedTmuxSessionName(0)]);
     expect(manager.diagnostics()[0]).toMatchObject({
       bridgeStatus: "attached",
       paneStatus: "alive",
@@ -867,7 +867,7 @@ describe("TerminalManager Codex readiness", () => {
     }
     const shellLaunch = tmuxCommand.at(-1) ?? "";
     expect(ptyState.spawned[0]?.command).toBe("tmux");
-    expect(ptyState.spawned[0]?.args).toEqual(["-C", "attach-session", "-t", expect.stringMatching(/^exo-[a-f0-9]{10}-term-1-\d{4}-/i)]);
+    expect(ptyState.spawned[0]?.args).toEqual(["-u", "-C", "attach-session", "-t", expect.stringMatching(/^exo-[a-f0-9]{10}-term-1-\d{4}-/i)]);
     expect(shellLaunch).toContain("'codex'");
     expect(shellLaunch).toContain("'-c'");
     expect(shellLaunch).toContain(`'mcp_servers.exo.command=\"node\"'`);

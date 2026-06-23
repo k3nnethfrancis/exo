@@ -170,6 +170,7 @@ export function TerminalDock(props: TerminalDockProps) {
                 onFocus={onFocus}
                 onInput={onWrite}
                 onResize={onResize}
+                onReady={(id) => hydrateRef.current(id)}
                 inputEnabled={inputEnabled}
               />
               {!inputEnabled ? (

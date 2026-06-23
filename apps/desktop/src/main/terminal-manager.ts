@@ -229,6 +229,8 @@ export class TerminalManager extends EventEmitter {
       ...process.env,
       TERM: "xterm-256color",
       COLORTERM: "truecolor",
+      LANG: process.env.LANG ?? "en_US.UTF-8",
+      LC_CTYPE: process.env.LC_CTYPE ?? process.env.LANG ?? "en_US.UTF-8",
       SHELL_SESSIONS_DISABLE: "1",
       ...launch.env,
       ...overlayEnv,

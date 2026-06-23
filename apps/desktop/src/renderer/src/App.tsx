@@ -324,9 +324,16 @@ export function App() {
     defaultTerminalId: string;
     defaultTerminalSnapshot: string;
   }) {
-    terminalState.initialize(input.sessions, input.defaultTerminalId, input.defaultTerminalSnapshot);
-
     const sessionIds = input.sessions.map((session) => session.id);
+    const sessionIdSet = new Set(sessionIds);
+    const persistedActiveTerminalId = findPersistedActiveTerminalId(input.settings.layout, sessionIdSet);
+    const restoredActiveTerminalId = persistedActiveTerminalId ?? input.sessions.at(-1)?.id ?? input.defaultTerminalId;
+    terminalState.initialize(
+      input.sessions,
+      restoredActiveTerminalId,
+      restoredActiveTerminalId === input.defaultTerminalId ? input.defaultTerminalSnapshot : undefined,
+    );
+
     const restoreTerminalsInEditor = Boolean(input.settings.layout?.terminalCollapsed && input.settings.layout.editorTree);
     const persistedEditorTerminalIds = input.settings.layout
       ? collectTerminalSessionIds(input.settings.layout.editorTree as PaneNode)
@@ -1015,6 +1022,7 @@ export function App() {
         }
         if (leaf.content.kind === "terminal") {
           const terminalLeafSessions = terminalSessions.filter((s) => leaf.content.kind === "terminal" && leaf.content.terminalIds.includes(s.id));
+          const leafActiveTerminalId = resolveTerminalPaneActiveId(terminalLeafSessions, leaf.content.activeTerminalId, activeTerminalId);
           return (
             <TerminalDock
               placement="right"
@@ -1022,7 +1030,7 @@ export function App() {
               compact={compactEditorChrome}
               empty={terminalLeafSessions.length === 0}
               sessions={terminalLeafSessions}
-              activeTerminalId={leaf.content.activeTerminalId}
+              activeTerminalId={leafActiveTerminalId}
               hydrationSnapshots={terminalHydrationSnapshots}
               hydrationVersions={terminalHydrationVersions}
               theme={resolvedTheme}
@@ -1108,7 +1116,9 @@ export function App() {
       }}
       renderTerminalLeaf={(leaf) => {
         const terminalLeafSessions = terminalSessions.filter((s) => leaf.content.kind === "terminal" && leaf.content.terminalIds.includes(s.id));
-        const leafActiveTerminalId = leaf.content.kind === "terminal" ? leaf.content.activeTerminalId : null;
+        const leafActiveTerminalId = leaf.content.kind === "terminal"
+          ? resolveTerminalPaneActiveId(terminalLeafSessions, leaf.content.activeTerminalId, activeTerminalId)
+          : null;
         return (
           <TerminalDock
             placement="right"
@@ -1231,6 +1241,37 @@ export function App() {
       ) : null}
     </>
   );
+}
+
+function resolveTerminalPaneActiveId(
+  sessions: TerminalSessionInfo[],
+  paneActiveTerminalId: string | null,
+  globalActiveTerminalId: string | null,
+): string | null {
+  if (globalActiveTerminalId && sessions.some((session) => session.id === globalActiveTerminalId)) {
+    return globalActiveTerminalId;
+  }
+  if (paneActiveTerminalId && sessions.some((session) => session.id === paneActiveTerminalId)) {
+    return paneActiveTerminalId;
+  }
+  return sessions.at(-1)?.id ?? null;
+}
+
+function findPersistedActiveTerminalId(
+  layout: WorkspaceSettings["layout"] | undefined,
+  liveSessionIds: ReadonlySet<string>,
+): string | null {
+  if (!layout) {
+    return null;
+  }
+  for (const tree of [layout.editorTree, layout.terminalTree]) {
+    for (const id of collectActiveTerminalIds(tree as PaneNode)) {
+      if (liveSessionIds.has(id)) {
+        return id;
+      }
+    }
+  }
+  return null;
 }
 
 function uniqueMessages(messages: string[]): string[] {

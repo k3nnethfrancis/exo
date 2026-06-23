@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { test, expect } from "@playwright/test";
 
 import { launchExoFixture, relaunchExoFixture } from "../helpers";
-import { latencySummary, waitForTerminalText } from "../terminalQuality";
+import { expectTerminalRenderStable, latencySummary, waitForTerminalText } from "../terminalQuality";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const fakeAgentPath = path.join(repoRoot, "apps/desktop/tests/fixtures/fake-terminal-agent.mjs");
@@ -718,6 +718,43 @@ test("reattaches a fake Claude terminal after renderer reload and accepts first 
       `FAKE_AGENT_INPUT ${afterReloadInput}`,
     );
     await waitForTerminalText(page, `FAKE_AGENT_INPUT ${afterReloadInput}`);
+  } finally {
+    await cleanup();
+  }
+});
+
+test("keeps fake Claude render stable and interactive while preview is open", async () => {
+  const input = `preview render input ${Date.now()}`;
+  const afterReloadInput = `preview reload input ${Date.now()}`;
+  const { page, cleanup } = await launchExoFixture({
+    env: {
+      EXO_CLAUDE_COMMAND: process.execPath,
+      EXO_CLAUDE_ARGS: `${fakeAgentPath},--claude,--render-stability`,
+    },
+    initialNoteLabel: null,
+  });
+
+  try {
+    await page.getByTestId("launch-browser").click();
+    await expect(page.getByTestId("browser-pane")).toBeVisible();
+    await page.getByTestId("launch-claude").click();
+    await expect(page.getByTestId("terminal-tab-claude")).toBeVisible();
+    await expect.poll(async () => readFirstTerminalOfKind(page, "claude")).toContain("wrapped prompt marker");
+    await waitForTerminalText(page, "wrapped prompt marker");
+    await expectTerminalRenderStable(page);
+
+    await page.getByTestId("terminal-surface").click();
+    await page.keyboard.type(`${input}\n`);
+    await waitForTerminalText(page, `FAKE_AGENT_INPUT ${input}`);
+    await expectTerminalRenderStable(page);
+
+    await page.reload();
+    await expect(page.getByTestId("terminal-tab-claude")).toBeVisible();
+    await waitForTerminalText(page, "FAKE_AGENT_PROMPT ready for input");
+    await page.getByTestId("terminal-surface").click();
+    await page.keyboard.type(`${afterReloadInput}\n`);
+    await waitForTerminalText(page, `FAKE_AGENT_INPUT ${afterReloadInput}`);
+    await expectTerminalRenderStable(page);
   } finally {
     await cleanup();
   }

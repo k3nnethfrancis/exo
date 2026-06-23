@@ -49,6 +49,9 @@ export function useTerminalPaneController(options: UseTerminalPaneControllerOpti
     const focusedLeaf = findNode(options.terminalTree, (n) => n.id === options.terminalFocusedLeafId) as PaneLeaf | undefined;
     const termLeaf = (focusedLeaf?.content.kind === "terminal" ? focusedLeaf : null) ?? findTerminalLeaf(options.terminalTree);
     if (termLeaf) {
+      if (activate) {
+        options.terminalActions.focusLeaf(termLeaf.id);
+      }
       options.terminalActions.updateLeafContent(termLeaf.id, (content) => {
         if (content.kind !== "terminal") return content;
         if (content.terminalIds.includes(session.id)) {
@@ -62,7 +65,8 @@ export function useTerminalPaneController(options: UseTerminalPaneControllerOpti
       });
     }
     if (activate) {
-      options.terminalState.setActiveTerminalId(session.id);
+      options.setZoomSurface("terminal");
+      await options.terminalState.activateTerminal(session.id);
     }
     return session;
   }
