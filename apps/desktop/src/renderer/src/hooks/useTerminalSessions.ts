@@ -117,6 +117,9 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
     if (pendingData.length > 0) {
       delete pendingTerminalDataRef.current[id];
     }
+    // Data can arrive after the tail snapshot is requested but before xterm is
+    // mounted/registered. Merge only that pending append window so first mount
+    // does not drop output; mounted terminals still receive live appends only.
     const mergedSnapshot = mergeHydrationSnapshot(snapshot, pendingData);
     hydratedSessionIdsRef.current.add(id);
     pendingHydrationIdsRef.current.delete(id);
@@ -126,6 +129,9 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
 
   async function hydrateTerminal(id: string, options?: { force?: boolean }) {
     if (!options?.force && hydratedSessionIdsRef.current.has(id) && (pendingTerminalDataRef.current[id]?.length ?? 0) > 0) {
+      // A terminal may be marked hydrated before its xterm instance registers.
+      // Flush pending appends without calling terminals.read() again; routine
+      // focus/tab changes must not reset or replay mounted terminal state.
       setHydrationSnapshot(id, hydrationSnapshotsRef.current[id] ?? "");
       return;
     }

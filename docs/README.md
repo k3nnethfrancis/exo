@@ -12,6 +12,7 @@ This directory contains committed, public-facing project context. It should be u
 - `terminal-architecture-v3.md` - current terminal simplification/module-boundary proposal.
 - `terminal-runtime-decision.md` - current tmux-backed terminal runtime decision and constraints.
 - `terminal-quality-standard.md` - terminal useability, configuration, and QA standard.
+- `terminal-fallback-audit.md` - current terminal fallback/recovery decisions, steelman objections, and hardening backlog.
 - `tasks.md` - active execution tracker.
 - `roadmap.md` - future product systems and sequencing.
 - `harness.md` - validation gates and agent-friendly development workflow.
@@ -46,8 +47,9 @@ These remain in place for traceability but should not be treated as the latest a
 14. `terminal-architecture-v3.md` - current terminal simplification and module-boundary proposal
 15. `terminal-runtime-decision.md` - terminal runtime decision
 16. `terminal-quality-standard.md` - terminal useability and QA standard
-17. `terminal-refactor-plan.md` - historical tmux migration plan
-18. `qmd-integration-notes.md` - live QMD dependency boundary and upgrade checklist
+17. `terminal-fallback-audit.md` - terminal fallback/recovery policy and current decisions
+18. `terminal-refactor-plan.md` - historical tmux migration plan
+19. `qmd-integration-notes.md` - live QMD dependency boundary and upgrade checklist
 
 ## File Roles
 
@@ -64,6 +66,7 @@ These remain in place for traceability but should not be treated as the latest a
 - `terminal-architecture-v3.md` is the current terminal simplification and extraction proposal.
 - `terminal-runtime-decision.md` records the tmux-backed terminal runtime decision.
 - `terminal-quality-standard.md` defines the latency, rendering, scrollback, persistence, and QA bar for terminal changes.
+- `terminal-fallback-audit.md` explains which fallback/recovery paths are allowed, why they exist, and which ones still need hardening.
 - `terminal-refactor-plan.md` is historical; keep it for migration context, not as the current implementation plan.
 - `qmd-integration-plan.md` tracks the long-term QMD product integration.
 - `qmd-integration-notes.md` tracks the current QMD adapter contract, workarounds, and upgrade checklist.

@@ -312,12 +312,11 @@ server.registerTool(
   async ({ agentId, message, submit }) => {
     const client = await ExoCommandClient.connect();
     const result = await client.sendAgentMessage(agentId, message, submit);
-    const text = result.delivery === "queued"
-      ? `Queued message for ${agentId} until the agent is ready (${result.queuedInputCount ?? 1} pending).`
-      : `Sent ${submit ? "message plus Enter" : "message without Enter"} to ${agentId}.`;
+    const text = formatAgentMessageDelivery(agentId, submit, result);
     return {
       content: [{ type: "text", text }],
       structuredContent: { agentId, submitted: submit, delivery: result.delivery, queuedInputCount: result.queuedInputCount ?? 0 },
+      isError: result.delivery === "not-found" || result.ok === false,
     };
   },
 );
@@ -520,6 +519,20 @@ function sendJsonRpcError(res: ServerResponse, status: number, message: string) 
   res.statusCode = status;
   res.setHeader("content-type", "application/json");
   res.end(JSON.stringify({ jsonrpc: "2.0", error: { code: -32000, message }, id: null }));
+}
+
+function formatAgentMessageDelivery(
+  agentId: string,
+  submit: boolean,
+  result: { ok: boolean; delivery: "sent" | "queued" | "not-found"; queuedInputCount?: number },
+): string {
+  if (result.delivery === "queued") {
+    return `Queued message for ${agentId} until the agent is ready (${result.queuedInputCount ?? 1} pending).`;
+  }
+  if (result.delivery === "sent") {
+    return `Sent ${submit ? "message plus Enter" : "message without Enter"} to ${agentId}.`;
+  }
+  return `Could not send message to ${agentId}: terminal is missing, exited, or detached.`;
 }
 
 function readNonNegativeInteger(value: unknown, fallback: number): number {

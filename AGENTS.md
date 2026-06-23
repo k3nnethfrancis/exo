@@ -17,13 +17,14 @@ The immediate product proving loop is Exo-on-Exo: finish usability/harness readi
 9. `docs/terminal-architecture-v3.md` - current terminal simplification and module-boundary proposal
 10. `docs/terminal-runtime-decision.md` - current terminal runtime decision and open simplification questions
 11. `docs/terminal-quality-standard.md` - terminal useability and QA standard
-12. `docs/terminal-refactor-plan.md` - historical tmux migration plan; use the v3/decision/quality docs for current rules
-13. `docs/qmd-integration-notes.md` - current QMD adapter contract and upgrade notes
-14. `docs/roadmap.md` - future plans
-15. `docs/plugin-system-architecture.md` - core-versus-plugin target architecture
-16. `docs/plugins.md` - future extension model
-17. `docs/plugin-implementation-plan.md` - implementation sequence for capability registries, providers, harnesses, activity substrate, artifact references, and plugin templates
-18. `packages/mcp/README.md` - MCP setup and tool contract
+12. `docs/terminal-fallback-audit.md` - terminal fallback/recovery policy, steelman objections, and hardening backlog
+13. `docs/terminal-refactor-plan.md` - historical tmux migration plan; use the v3/decision/quality/fallback docs for current rules
+14. `docs/qmd-integration-notes.md` - current QMD adapter contract and upgrade notes
+15. `docs/roadmap.md` - future plans
+16. `docs/plugin-system-architecture.md` - core-versus-plugin target architecture
+17. `docs/plugins.md` - future extension model
+18. `docs/plugin-implementation-plan.md` - implementation sequence for capability registries, providers, harnesses, activity substrate, artifact references, and plugin templates
+19. `packages/mcp/README.md` - MCP setup and tool contract
 
 ## Repository Map
 
@@ -127,7 +128,7 @@ CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build 
 - Do not include local secrets, private paths as source defaults, transcripts, logs, or `.exo/` runtime files.
 - Preserve unrelated local edits. Before staging, inspect `git status` and include only files that belong to the current task.
 - UI and terminal changes require app QA in the real Electron app, not only browser or unit tests. Use focused automated tests first, then manually exercise the affected workflow.
-- Before changing terminal runtime, terminal rendering, terminal settings, terminal tests, or agent terminal launch behavior, use `.claude/skills/terminal-stability/SKILL.md` and follow its ownership rules, invariants, checks, and manual QA script.
+- Before changing terminal runtime, terminal rendering, terminal settings, terminal tests, or agent terminal launch behavior, use `.claude/skills/terminal-stability/SKILL.md` and follow its ownership rules, fallback discipline, invariants, checks, and manual QA script.
 - Review tests for quality before accepting them: they should assert user-visible behavior or stable contracts, isolate live Exo state, fail for the intended regression, and avoid only snapshotting implementation details.
 - Prefer extracting pure helpers or focused hooks over expanding `App.tsx` or `main/index.ts`. Keep IPC types in `@exo/core` when shared across CLI/MCP/desktop and avoid duplicate type definitions in preload-only files.
 - For simplification work, preserve behavior first. Run targeted tests for the moved surface, then full `pnpm ci:check` before handoff. Report line-count movement separately from architecture improvement because extraction can increase net LOC while reducing cognitive load.

@@ -38,6 +38,9 @@ export class TmuxCommandError extends Error {
   }
 }
 
+// Discovery candidates are install-location fallbacks, not runtime fallbacks. If
+// none work, terminal creation fails clearly instead of switching to another
+// transport and hiding the missing tmux dependency.
 const DEFAULT_TMUX_CANDIDATES = ["tmux", "/opt/homebrew/bin/tmux", "/usr/local/bin/tmux", "/usr/bin/tmux"];
 
 export function detectTmux(env: NodeJS.ProcessEnv = process.env): TmuxAvailability {

@@ -84,6 +84,9 @@ export class TmuxTerminalRuntime implements TerminalRuntime {
   listPanes(): TerminalRuntimePaneInfo[] {
     const runner = this.runnerOrNull();
     if (!runner) {
+      // Pane listing is used by diagnostics/reconciliation. Creation still
+      // calls requireTmux(), so this is graceful degraded health reporting,
+      // not an alternate runtime path.
       return [];
     }
     return this.listPanesWithRunner(runner);
@@ -114,6 +117,8 @@ export class TmuxTerminalRuntime implements TerminalRuntime {
   captureTail(options: TerminalRuntimeCaptureTailOptions): string {
     const runner = this.runnerOrNull();
     if (!runner) {
+      // Tail reads should not crash the app if tmux disappears between startup
+      // and diagnostics/CLI reads; callers can fall back to their bounded cache.
       return "";
     }
     return normalizeCapturedTmuxPane(runner.run([

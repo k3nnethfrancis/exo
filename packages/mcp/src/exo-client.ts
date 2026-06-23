@@ -20,7 +20,7 @@ export interface ExoAgent {
 export type ExoAgentKind = ManagedAgentKind;
 
 export interface ExoAgentInputResult {
-  ok: true;
+  ok: boolean;
   delivery: "sent" | "queued" | "not-found";
   queuedInputCount?: number;
   readiness?: "ready" | "starting" | "blocked";

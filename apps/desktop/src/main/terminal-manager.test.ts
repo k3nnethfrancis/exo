@@ -680,6 +680,62 @@ describe("TerminalManager Codex readiness", () => {
     ]);
   });
 
+  it("keeps missing persisted running sessions visible as unhealthy transcript records", async () => {
+    const workspaceRoot = await workspaceFixture();
+    const runtimeRoot = path.join(workspaceRoot, ".exo");
+    const tmuxSessionName = "exo-abc1234567-term-7";
+    const transcriptPath = path.join(runtimeRoot, "terminal-transcripts", "term-7-shell.ansi.log");
+    await mkdir(runtimeRoot, { recursive: true });
+    await writeFile(
+      path.join(runtimeRoot, "terminal-sessions.json"),
+      JSON.stringify({
+        version: 1,
+        sessions: [
+          {
+            id: "term-7",
+            title: "Shell",
+            cwd: workspaceRoot,
+            kind: "shell",
+            command: "/bin/zsh",
+            tmuxSessionName,
+            transcriptPath,
+            createdAt: new Date().toISOString(),
+            lastAttachedAt: null,
+            status: "running",
+          },
+        ],
+      }),
+    );
+    childProcess.execFileSync.mockImplementation((command: string, args: string[]) => {
+      if (args.includes("list-panes")) {
+        return "";
+      }
+      return childProcess.defaultExecFileSync(command, args);
+    });
+
+    const manager = managerForWorkspace(workspaceRoot);
+
+    expect(manager.list()).toEqual([
+      expect.objectContaining({
+        id: "term-7",
+        status: "running",
+        health: "unhealthy",
+        healthDetail: "Tmux session is missing; transcript remains available.",
+        transcriptPath,
+      }),
+    ]);
+    expect(manager.diagnostics()).toEqual([
+      expect.objectContaining({
+        id: "term-7",
+        bridgeStatus: "detached",
+        paneStatus: "missing",
+        bufferedChars: 0,
+        transcriptPath,
+      }),
+    ]);
+    await expect(manager.write("term-7", "input")).resolves.toEqual({ ok: false, delivery: "not-found" });
+  });
+
   it("reports process diagnostics without exposing legacy transport fields", async () => {
     const workspaceRoot = await workspaceFixture();
     const manager = managerForWorkspace(workspaceRoot);

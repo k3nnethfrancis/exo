@@ -121,6 +121,26 @@ describe("ExoCommandClient", () => {
     expect(JSON.parse(receivedBody)).toEqual({ message, submit: false });
   });
 
+  it("preserves not-found delivery for missing semantic agent targets", async () => {
+    const runtimeRoot = await runtimeFixture();
+    stubCommandServer(async (targetUrl, init) => {
+      if (targetUrl.pathname === "/status") {
+        return json({ ok: true });
+      }
+      if (targetUrl.pathname === "/terminals/missing/message" && init?.method === "POST") {
+        return json({ ok: false, delivery: "not-found" });
+      }
+      return json({ error: "not found" }, 404);
+    });
+
+    const client = await ExoCommandClient.connect(testRuntimeEnv(runtimeRoot));
+
+    await expect(client.sendAgentMessage("missing", "hello", true)).resolves.toEqual({
+      ok: false,
+      delivery: "not-found",
+    });
+  });
+
   it("calls preview open, focus, and close endpoints", async () => {
     const runtimeRoot = await runtimeFixture();
     const calls: Array<{ path: string; body: unknown }> = [];

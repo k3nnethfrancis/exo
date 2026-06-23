@@ -11,7 +11,6 @@ import { isTerminalGeneratedResponse } from "./terminalInputFilters";
 import { TerminalOutputChunker, TERMINAL_WRITE_CHUNK_SIZE } from "./terminalOutputChunks";
 import { registerTerminal, unregisterTerminal } from "./terminalRegistry";
 
-const PROGRAMMATIC_INPUT_GUARD_MS = 250;
 const TERMINAL_RESIZE_DEBOUNCE_MS = 16;
 
 interface TerminalViewProps {
@@ -42,7 +41,6 @@ export function TerminalView(props: TerminalViewProps) {
   const inputHandlerRef = useRef(onInput);
   const inputEnabledRef = useRef(inputEnabled);
   const resizeHandlerRef = useRef(onResize);
-  const programmaticInputGuardUntilRef = useRef(0);
   const sizeRef = useRef({ width: 0, height: 0, cols: 0, rows: 0, resizeTimer: 0 });
 
   useEffect(() => {
@@ -71,7 +69,6 @@ export function TerminalView(props: TerminalViewProps) {
     disposedRef.current = false;
     terminal.loadAddon(fitAddon);
     terminal.open(viewportRef.current!);
-    programmaticInputGuardUntilRef.current = Date.now() + PROGRAMMATIC_INPUT_GUARD_MS;
     requestAnimationFrame(() => {
       safeFit(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef);
       terminal.focus();
@@ -142,7 +139,7 @@ export function TerminalView(props: TerminalViewProps) {
     fitAddonRef.current = fitAddon;
     sizeRef.current = { width: 0, height: 0, cols: 0, rows: 0, resizeTimer: 0 };
     registerTerminal(session.id, terminal, (data) => {
-      enqueueTerminalWrite(terminal, data, writeQueueRef, outputChunkerRef, writingRef, disposedRef, programmaticInputGuardUntilRef);
+      enqueueTerminalWrite(terminal, data, writeQueueRef, outputChunkerRef, writingRef, disposedRef);
     }, () => {
       refreshTerminalSurface(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef, disposedRef);
     });
@@ -227,12 +224,15 @@ export function TerminalView(props: TerminalViewProps) {
     }
     hydrationVersionRef.current = hydrationVersion;
 
+    // Hydration is the only path that may reset xterm: first mount and explicit
+    // reconnect/reload snapshots. Normal focus, tab switches, and preview-pane
+    // refreshes must use live appends/fit refresh instead of replaying state.
     terminal.reset();
     writeQueueRef.current = [];
     outputChunkerRef.current.reset();
     writingRef.current = false;
     safeFit(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef);
-    enqueueTerminalWrite(terminal, hydrationSnapshot, writeQueueRef, outputChunkerRef, writingRef, disposedRef, programmaticInputGuardUntilRef);
+    enqueueTerminalWrite(terminal, hydrationSnapshot, writeQueueRef, outputChunkerRef, writingRef, disposedRef);
     if (shouldFollowOutput) {
       terminal.scrollToBottom();
     }
@@ -258,7 +258,6 @@ function enqueueTerminalWrite(
   outputChunkerRef: MutableRefObject<TerminalOutputChunker>,
   writingRef: MutableRefObject<boolean>,
   disposedRef: MutableRefObject<boolean>,
-  programmaticInputGuardUntilRef: MutableRefObject<number>,
 ) {
   if (data.length === 0 || disposedRef.current) {
     return;
@@ -268,7 +267,7 @@ function enqueueTerminalWrite(
     queueRef.current.push(chunk);
   }
 
-  drainTerminalWriteQueue(terminal, queueRef, writingRef, disposedRef, programmaticInputGuardUntilRef);
+  drainTerminalWriteQueue(terminal, queueRef, writingRef, disposedRef);
 }
 
 function drainTerminalWriteQueue(
@@ -276,7 +275,6 @@ function drainTerminalWriteQueue(
   queueRef: MutableRefObject<string[]>,
   writingRef: MutableRefObject<boolean>,
   disposedRef: MutableRefObject<boolean>,
-  programmaticInputGuardUntilRef: MutableRefObject<number>,
 ) {
   if (writingRef.current || disposedRef.current) {
     return;
@@ -288,14 +286,12 @@ function drainTerminalWriteQueue(
   }
 
   writingRef.current = true;
-  programmaticInputGuardUntilRef.current = Date.now() + PROGRAMMATIC_INPUT_GUARD_MS;
   try {
     terminal.write(next, () => {
-      programmaticInputGuardUntilRef.current = Date.now() + PROGRAMMATIC_INPUT_GUARD_MS;
       writingRef.current = false;
       if (!disposedRef.current) {
         window.requestAnimationFrame(() => {
-          drainTerminalWriteQueue(terminal, queueRef, writingRef, disposedRef, programmaticInputGuardUntilRef);
+          drainTerminalWriteQueue(terminal, queueRef, writingRef, disposedRef);
         });
       }
     });

@@ -84,6 +84,9 @@ export function TerminalDock(props: TerminalDockProps) {
     if (!sessionId) {
       return;
     }
+    // Pane/tab activation can commit React layout before xterm has measurable
+    // dimensions. Focus once after paint and once after the current event loop
+    // so first-click terminal input works without forcing a hydration replay.
     window.requestAnimationFrame(() => {
       focusTerminal(sessionId);
       window.setTimeout(() => focusTerminal(sessionId), 0);

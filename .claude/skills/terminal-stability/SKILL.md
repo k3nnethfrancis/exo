@@ -37,6 +37,35 @@ Do not reintroduce direct `node-pty` as a fallback path or user-facing transport
 - Reconnect is explicit recovery and may force a snapshot; ordinary focus is not recovery.
 - Fake local agents should be used for automated tests. Do not depend on live Claude/Codex inference in CI.
 
+## Fallback Discipline
+
+Before adding, preserving, or modifying fallback behavior, read `docs/terminal-fallback-audit.md`.
+
+For each fallback, write down:
+
+1. trigger: the exact failure or race it handles
+2. preserved outcome: what user capability it keeps working
+3. hidden-risk: what failure it could mask
+4. visibility: how UI, diagnostics, logs, or tests expose the fallback
+5. alternative: why failing clearly is worse
+
+Allowed fallback patterns:
+
+- install-location discovery such as tmux binary candidates
+- transcript-backed unhealthy records when durable session evidence exists but the live pane is gone
+- diagnostics/read degradation that keeps Exo open while showing health state
+- bounded pre-mount output buffering so xterm does not miss early data
+- harness readiness queues when the provider UI is not yet ready for semantic sends
+
+Forbidden fallback patterns:
+
+- alternate terminal runtimes or hidden direct-pty fallback
+- transcript replay into a mounted live terminal
+- reset/replay during focus, tab switch, pane move, preview focus, or metadata polling
+- reporting missing/detached terminal writes as successful sends
+- hidden caps/timers/geometry limits not exposed in settings
+- provider-specific branches inside low-level tmux/runtime code
+
 ## Before Editing
 
 Read these first:
@@ -44,6 +73,7 @@ Read these first:
 - `docs/terminal-quality-standard.md`
 - `docs/terminal-architecture-v3.md`
 - `docs/terminal-runtime-decision.md`
+- `docs/terminal-fallback-audit.md`
 - `apps/desktop/src/main/terminal-manager.ts`
 - `apps/desktop/src/renderer/src/components/TerminalView.tsx`
 - `apps/desktop/src/renderer/src/hooks/useTerminalSessions.ts`

@@ -27,7 +27,7 @@ import { agentInstructionOverlayEnv, writeAgentInstructionOverlaysSync } from ".
 import { terminalHealth, terminalHealthDetail } from "./terminal-health";
 import type { TerminalRuntime, TerminalRuntimePaneInfo, TerminalRuntimeProcess } from "./terminal-runtime";
 import { TmuxTerminalRuntime } from "./terminal-runtime-tmux";
-import { TerminalSessionRegistry } from "./terminal-session-registry";
+import { TerminalSessionRegistry, type PersistedTerminalSession } from "./terminal-session-registry";
 import { sanitizeTranscriptName, TerminalTranscriptStore } from "./terminal-transcripts";
 
 interface TerminalRecord {
@@ -347,7 +347,9 @@ export class TerminalManager extends EventEmitter {
     try {
       record.process.kill();
     } catch {
-      // The old bridge may already be gone after app sleep, crash, or detach.
+      // Reconnect replaces only Exo's control-mode bridge. The durable process
+      // lives in tmux, so a missing old bridge is expected after sleep, crash,
+      // or manual detach and should not block reattach.
     }
     let processHandle: TerminalRuntimeProcess;
     try {
@@ -559,6 +561,9 @@ export class TerminalManager extends EventEmitter {
         this.reconcileTmuxState();
         if (record.paneStatus === "missing" || record.paneStatus === "dead") {
           if (isAgentTerminal(record)) {
+            // Agent harnesses exit back to no useful interactive shell in this
+            // product model, so retire the tab instead of leaving a stale
+            // terminal that looks writable but cannot do work.
             this.retireExitedTerminal(record, exitCode);
             return;
           }
@@ -567,6 +572,9 @@ export class TerminalManager extends EventEmitter {
           this.emit("exit", { id, exitCode });
           return;
         }
+        // A bridge exit with a live pane means the user process may still be
+        // healthy in tmux. Mark the bridge detached and require explicit
+        // reconnect rather than replaying history or killing the session.
         record.info.health = "unhealthy";
         record.info.healthDetail = `Tmux attach bridge exited with code ${exitCode ?? "unknown"}; session may still be running.`;
         record.bridgeDetached = true;
@@ -700,6 +708,9 @@ export class TerminalManager extends EventEmitter {
   private writePendingData(record: TerminalRecord, pendingWrite: PendingTerminalWrite): void {
     record.process.write(pendingWrite.data);
     if (pendingWrite.delayedSubmit) {
+      // Semantic agent sends paste the exact prompt first, then submit after
+      // the configured delay. This avoids racing Claude/Codex multiline input
+      // handling while keeping raw keystrokes on the immediate write path.
       setTimeout(() => {
         if (record.info.status === "running") {
           record.process.write("\r");
@@ -788,42 +799,30 @@ export class TerminalManager extends EventEmitter {
     let restored = 0;
     for (const session of registry.sessions) {
       if (session.status === "exited" && !this.sessions.has(session.id)) {
-        const record: TerminalRecord = {
-          info: {
-            id: session.id,
-            title: session.title,
-            cwd: session.cwd,
-            kind: session.kind,
-            command: session.command,
-            instructionOverlayPath: session.instructionOverlayPath ?? null,
-            transcriptPath: session.transcriptPath,
-            status: "exited",
-            readiness: session.readiness ?? "ready",
-            readinessDetail: session.readinessDetail,
-            queuedInputCount: 0,
-            health: "exited",
-            healthDetail: session.healthDetail ?? (session.exitCode === undefined ? "Process exited." : `Process exited with code ${session.exitCode}.`),
-            exitCode: session.exitCode,
-          },
-          process: noopTerminalProcess(),
-          tmuxSessionName: session.tmuxSessionName,
-          tmuxPaneId: session.tmuxPaneId ?? "",
-          createdAt: session.createdAt,
+        this.sessions.set(session.id, this.persistedTranscriptRecord(session, {
+          status: "exited",
+          health: "exited",
+          healthDetail: session.healthDetail ?? (session.exitCode === undefined ? "Process exited." : `Process exited with code ${session.exitCode}.`),
           paneStatus: "dead",
-          recentOutput: "",
-          transcriptPath: session.transcriptPath,
-          pendingWrites: [],
-          rawInputBuffer: "",
-          lastWriteId: 0,
-          bridgeDetached: true,
-        };
-        this.sessions.set(session.id, record);
+        }));
         restored += 1;
         continue;
       }
 
       const livePane = livePanes.get(session.tmuxSessionName);
-      if (!runtimeAvailable || session.status !== "running" || !livePane || this.sessions.has(session.id)) {
+      if (this.sessions.has(session.id) || session.status !== "running") {
+        continue;
+      }
+      if (!runtimeAvailable || !livePane) {
+        this.sessions.set(session.id, this.persistedTranscriptRecord(session, {
+          status: "running",
+          health: "unhealthy",
+          healthDetail: runtimeAvailable
+            ? "Tmux session is missing; transcript remains available."
+            : availability.reason,
+          paneStatus: runtimeAvailable ? "missing" : "unknown",
+        }));
+        restored += 1;
         continue;
       }
 
@@ -878,6 +877,49 @@ export class TerminalManager extends EventEmitter {
     }
   }
 
+  private persistedTranscriptRecord(
+    session: PersistedTerminalSession,
+    state: {
+      status: TerminalSessionInfo["status"];
+      health: TerminalHealthState;
+      healthDetail: string;
+      paneStatus: TerminalRecord["paneStatus"];
+    },
+  ): TerminalRecord {
+    // This record is intentionally transcript-backed only. It preserves the
+    // user's evidence after restart without pretending Exo still has a live
+    // bridge or pane to write to.
+    return {
+      info: {
+        id: session.id,
+        title: session.title,
+        cwd: session.cwd,
+        kind: session.kind,
+        command: session.command,
+        instructionOverlayPath: session.instructionOverlayPath ?? null,
+        transcriptPath: session.transcriptPath,
+        status: state.status,
+        readiness: session.readiness ?? "ready",
+        readinessDetail: session.readinessDetail,
+        queuedInputCount: 0,
+        health: state.health,
+        healthDetail: state.healthDetail,
+        exitCode: session.exitCode,
+      },
+      process: noopTerminalProcess(),
+      tmuxSessionName: session.tmuxSessionName,
+      tmuxPaneId: session.tmuxPaneId ?? "",
+      createdAt: session.createdAt,
+      paneStatus: state.paneStatus,
+      recentOutput: "",
+      transcriptPath: session.transcriptPath,
+      pendingWrites: [],
+      rawInputBuffer: "",
+      lastWriteId: 0,
+      bridgeDetached: true,
+    };
+  }
+
   private listRuntimePanes(): TerminalRuntimePaneInfo[] {
     try {
       return this.terminalRuntime.listPanes();
@@ -885,6 +927,9 @@ export class TerminalManager extends EventEmitter {
       console.warn("[exo] failed to list tmux panes during terminal restore", {
         error: error instanceof Error ? error.message : String(error),
       });
+      // Startup reconciliation should degrade to "unknown/missing" health
+      // instead of preventing Exo from opening. Creation/reconnect paths still
+      // fail explicitly when tmux cannot satisfy their contract.
       return [];
     }
   }
@@ -923,6 +968,10 @@ export class TerminalManager extends EventEmitter {
         tmuxSessionName: record.tmuxSessionName,
         error: error instanceof Error ? error.message : String(error),
       });
+      // Read callers fall back to the bounded append cache so CLI/MCP/UI reads
+      // do not show a blank terminal during a transient tmux capture failure.
+      // Durable history remains the transcript; this cache is not a live render
+      // source for mounted xterm instances.
       return null;
     }
   }
