@@ -677,6 +677,52 @@ test("runs deterministic fake agent terminal QA without live inference", async (
   }
 });
 
+test("reattaches a fake Claude terminal after renderer reload and accepts first focused input", async () => {
+  const beforeReloadInput = `before reload ${Date.now()}`;
+  const afterReloadInput = `after reload ${Date.now()}`;
+  const { page, cleanup } = await launchExoFixture({
+    env: {
+      EXO_CLAUDE_COMMAND: process.execPath,
+      EXO_CLAUDE_ARGS: `${fakeAgentPath},--claude`,
+    },
+    initialNoteLabel: null,
+  });
+
+  try {
+    await page.getByTestId("launch-claude").click();
+    await expect(page.getByTestId("terminal-tab-claude")).toBeVisible();
+    await waitForTerminalText(page, "FAKE_AGENT_PROMPT ready for input");
+
+    await page.getByTestId("terminal-surface").click();
+    await page.keyboard.type(`${beforeReloadInput}\n`);
+    await waitForTerminalText(page, `FAKE_AGENT_INPUT ${beforeReloadInput}`);
+
+    const claudeId = await page.evaluate(async () => {
+      const sessions = await window.exo.terminals.list();
+      const claude = sessions.find((session) => session.kind === "claude");
+      if (!claude) {
+        throw new Error("No Claude terminal found");
+      }
+      return claude.id;
+    });
+
+    await page.reload();
+    await expect(page.getByTestId("sidebar")).toBeVisible();
+    await expect(page.getByTestId("terminal-rail")).toBeVisible();
+    await expect(page.getByTestId("terminal-tab-claude")).toBeVisible();
+    await waitForTerminalText(page, `FAKE_AGENT_INPUT ${beforeReloadInput}`);
+
+    await page.getByTestId("terminal-surface").click();
+    await page.keyboard.type(`${afterReloadInput}\n`);
+    await expect.poll(async () => page.evaluate((id) => window.exo.terminals.read(id), claudeId)).toContain(
+      `FAKE_AGENT_INPUT ${afterReloadInput}`,
+    );
+    await waitForTerminalText(page, `FAKE_AGENT_INPUT ${afterReloadInput}`);
+  } finally {
+    await cleanup();
+  }
+});
+
 test("keeps terminal interactive after large output, tab switches, and semantic sends", async () => {
   const { page, cleanup } = await launchExoFixture({
     env: {
