@@ -36,6 +36,10 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
   - 2026-06-24: Removed `BrowserPane` global terminal refresh scheduling. Mounted `TerminalView` instances now reconcile their own xterm fit/refresh on local focus, resize, pageshow, and visibility events; registry focus only refreshes the targeted terminal.
   - 2026-06-24: Added `pnpm terminal:check` as the focused terminal gate and wired `pnpm stable:check` to run it after the broad CI handoff gate.
   - 2026-06-24: Moved live-tail source selection into `terminal-live-tail-policy`; `TerminalManager` still performs tmux capture/cache mutation but no longer owns the captured-tail vs bounded-cache decision.
+  - 2026-06-24 installed-app QA: created temporary shell `term-34`, sent deterministic Unicode-heavy output through the live Exo terminal path, confirmed `exo terminals read` preserved checkmark, box drawing, braille spinner, and gear glyphs, and visually inspected the installed app with no screen-wide smear.
+  - 2026-06-24 installed-app QA: created temporary Claude `term-35`, confirmed fresh Claude header/status rendered cleanly in the installed app, clicked once into the terminal, typed `/status`, and verified Claude accepted input and rendered the status screen without model inference or replacement-glyph corruption. Temporary QA sessions were killed afterward.
+  - 2026-06-24 gate: `pnpm terminal:check` passed with process privileges: 114 focused Vitest tests and 8 Playwright terminal/readiness tests. A sandboxed attempt failed earlier at Electron process launch/kill with `EPERM`, not a terminal assertion failure.
+  - 2026-06-24 residual: installed-app QA still needs user-field coverage for resumed long Claude conversation, sleep/wake, and longer real work sessions before this issue can close.
 - Existing issue links:
   - `EXO-ISSUE-062` tracks the replacement-glyph/render-corruption class.
   - `EXO-ISSUE-063` tracks residual tmux/hydration/read-tail/reconnect cleanup.

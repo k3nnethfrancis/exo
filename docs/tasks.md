@@ -17,6 +17,8 @@ This is the active task tracker for Exo. It is intentionally not a history file;
      - 2026-06-24: Added visible-history assertions to the fake-Claude preview/reload e2e so the test scrolls back to Claude-like history anchors and then returns to the live prompt before continuing input.
   7. [x] Promote the focused terminal gate into the standard readiness path: terminal vitest subset, render-stability fixture, fake-agent e2e, stable smoke, installed-app restart, and manual Claude/Codex QA.
   8. Pass real app QA after each terminal slice: fresh shell, fresh Claude, resumed long Claude conversation, preview open, pane move, tab switch, hard refresh, app restart, and sleep/wake when feasible.
+     - 2026-06-24 installed-app QA: temporary shell `term-34` preserved Unicode-heavy output through CLI read and rendered without visible smear in the installed app; temporary Claude `term-35` rendered a clean fresh header and accepted `/status` on first focused click without inference. Remaining field coverage: resumed long Claude session, sleep/wake, and longer daily-use sessions.
+     - 2026-06-24 gate: `pnpm terminal:check` passed with process privileges after the sandboxed Electron launch failed with `kill EPERM`.
 - [ ] Complete fresh-clone setup QA for `EXO-ISSUE-027`: frozen install, package build, user Applications install, and first launch logging.
 - [x] Complete first-run onboarding QA for `EXO-ISSUE-028`: existing notes folder selection, post-selection shell state, terminal cwd default, and settings Apply copy.
 - [x] Fix markdown editor cursor/list QoL: preserve cursor across refresh, continue bullets on Enter, exit empty bullets cleanly, and keep arrow navigation out of hidden list markers.
