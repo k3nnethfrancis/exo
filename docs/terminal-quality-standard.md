@@ -6,6 +6,8 @@ Terminals are a core Exo surface. They must feel like a normal local terminal, n
 
 Agents changing terminal code must use `.claude/skills/terminal-stability/SKILL.md` before editing. That skill is the operational checklist for this standard: ownership rules, hard invariants, focused tests, and real-app QA.
 
+Use `docs/terminal-render-cleanup-protocol.md` for field-reported render glitches. Each new visible corruption shape should become a render-stability fixture before or with the fix.
+
 ## Product Standard
 
 Exo terminals must meet these user-facing requirements:

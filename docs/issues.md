@@ -125,6 +125,8 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
   - Updated xterm creation to use an explicit terminal font stack with symbol, emoji, and common Nerd Font fallbacks.
   - Explicitly enabled xterm custom glyph rendering so box drawing does not depend on the first available text font.
   - 2026-06-23: Added explicit `tmux -u` invocation, UTF-8 locale defaults for terminal launches, Unicode-safe pending hydration tails, stricter xterm-generated OSC response filtering, and fake-Claude render-stability e2e coverage while a preview pane is open.
+  - 2026-06-24: Added `docs/terminal-render-cleanup-protocol.md` so future render glitches are handled as field evidence -> classification -> fixture -> narrow fix -> `pnpm terminal:check`, rather than one-off terminal patches.
+  - 2026-06-24: Added Claude's `⏺` action marker to the render-stability corpus and applied a text-emoji presentation hint to terminal surfaces. Treat this separately from true `�` byte corruption.
 - QA coverage needed:
   - Deterministic test for Claude-like Unicode/box-drawing/status output split across tmux control-mode records and renderer write chunks.
   - E2E render-quality test that fails on `U+FFFD`, `???`, missing Claude-like header/status text, or preview-open input/render loss.
