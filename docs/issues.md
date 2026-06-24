@@ -10,27 +10,30 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
 
 ### EXO-ISSUE-070: Terminal code-review residuals from 2026-06-23
 
-- Status: in progress
+- Status: fixed in `main`
 - Severity: high
 - Area: terminal queueing, tmux bridge errors, live tails, transcript tails, health tests
 - Source:
   - `docs/terminal-code-review-2026-06-23.md`
 - Scope:
-  - [ ] Fix multiple queued `delayedSubmit` messages scheduling multiple Enter submits.
-  - [ ] Make queued-write flushing respect detached bridges and exited sessions.
-  - [ ] Make coalesced raw-input discard/flush behavior explicit around exit/kill.
-  - [ ] Prevent tmux `send-keys` / paste-buffer command failures from escaping the terminal runtime write path as unhandled IPC failures.
-  - [ ] Prefer fresh tmux captured live tails over stale cache after clear-screen/current-screen changes.
-  - [ ] Avoid U+FFFD when transcript tail reads start in the middle of UTF-8 bytes.
-  - [ ] Cache tmux availability inside the tmux runtime without reintroducing fallback transports.
-  - [ ] Expand terminal health tests for bridge-detached, idle, healthy, and exited paths.
+  - [x] Fix multiple queued `delayedSubmit` messages scheduling multiple Enter submits.
+  - [x] Make queued-write flushing respect detached bridges and exited sessions.
+  - [x] Make coalesced raw-input discard/flush behavior explicit around exit/kill.
+  - [x] Prevent tmux `send-keys` / paste-buffer command failures from escaping the terminal runtime write path as unhandled IPC failures.
+  - [x] Prefer fresh tmux captured live tails over stale cache after clear-screen/current-screen changes.
+  - [x] Avoid U+FFFD when transcript tail reads start in the middle of UTF-8 bytes.
+  - [x] Cache tmux availability inside the tmux runtime without reintroducing fallback transports.
+  - [x] Expand terminal health tests for bridge-detached, idle, healthy, and exited paths.
 - Assignment:
   - Feynman: `terminal-manager.ts` queue/flush/raw-input behavior.
   - Hegel: `terminal-tmux.ts` command failures and `terminal-transcripts.ts` UTF-8 tails.
   - Gibbs: `terminal-live-tail-policy.ts`, `terminal-runtime-tmux.ts`, and `terminal-health.test.ts`.
 - Acceptance:
   - Focused tests cover each review finding.
+    - 2026-06-24: `pnpm --filter @exo/desktop exec vitest run src/main/terminal-manager.test.ts src/main/terminal-tmux.test.ts src/main/terminal-transcripts.test.ts src/main/terminal-live-tail-policy.test.ts src/main/terminal-runtime-tmux.test.ts src/main/terminal-health.test.ts` passed.
+    - 2026-06-24: `pnpm --filter @exo/desktop typecheck` and `pnpm --filter @exo/desktop exec vitest run src/renderer/src/App.test.tsx` passed.
   - `pnpm terminal:check`, `pnpm check:repo`, and desktop build pass after integration.
+    - 2026-06-24: `pnpm check:repo`, `pnpm terminal:check`, and `pnpm --filter @exo/desktop build` passed.
   - Installed Exo is restarted after the integrated build.
 
 ### EXO-ISSUE-068: Terminal launch-readiness finish line

@@ -458,6 +458,8 @@ export class TerminalManager extends EventEmitter {
 
     this.flushTranscript(id);
     this.clearReadinessTimer(record);
+    this.discardRawInputForKill(record);
+    this.discardPendingWrites(record, "terminal was killed before queued input could be delivered");
     record.terminating = true;
     try {
       this.terminalRuntime.terminate(record.tmuxSessionName);
@@ -526,13 +528,70 @@ export class TerminalManager extends EventEmitter {
       clearTimeout(record.rawInputTimer);
       record.rawInputTimer = undefined;
     }
-    if (record.rawInputBuffer.length === 0 || record.info.status !== "running") {
-      record.rawInputBuffer = "";
+    if (record.rawInputBuffer.length === 0) {
+      return;
+    }
+    if (!canDeliverInput(record)) {
+      this.discardRawInput(record, "terminal is not writable");
       return;
     }
     const data = record.rawInputBuffer;
     record.rawInputBuffer = "";
     record.process.write(data);
+  }
+
+  private discardRawInput(record: TerminalRecord, reason: string): void {
+    if (record.rawInputTimer) {
+      clearTimeout(record.rawInputTimer);
+      record.rawInputTimer = undefined;
+    }
+    if (record.rawInputBuffer.length === 0) {
+      return;
+    }
+    const discardedChars = record.rawInputBuffer.length;
+    record.rawInputBuffer = "";
+    console.warn("[exo] dropped buffered terminal input", {
+      id: record.info.id,
+      discardedChars,
+      reason,
+    });
+  }
+
+  private discardPendingWrites(record: TerminalRecord, reason: string): void {
+    if (record.pendingWrites.length === 0) {
+      return;
+    }
+    const discardedWrites = record.pendingWrites.length;
+    record.pendingWrites = [];
+    this.updateQueuedInputCount(record);
+    console.warn("[exo] dropped queued terminal input", {
+      id: record.info.id,
+      discardedWrites,
+      reason,
+    });
+  }
+
+  private discardRawInputOnExit(record: TerminalRecord): void {
+    this.discardRawInput(record, "terminal exited before buffered input could be delivered");
+  }
+
+  private discardRawInputForKill(record: TerminalRecord): void {
+    // Explicit terminal kill is destructive by user intent. Do not race a
+    // final coalesced keystroke into a tmux pane that is being terminated.
+    this.discardRawInput(record, "terminal was killed before buffered input could be delivered");
+  }
+
+  private dropQueuedInputIfUndeliverable(record: TerminalRecord): boolean {
+    if (canDeliverInput(record)) {
+      return false;
+    }
+    this.discardPendingWrites(
+      record,
+      record.info.status === "exited"
+        ? "terminal exited before queued input could be delivered"
+        : "terminal bridge is detached",
+    );
+    return true;
   }
 
   private wireProcess(id: string, processHandle: TerminalRuntimeProcess) {
@@ -602,6 +661,8 @@ export class TerminalManager extends EventEmitter {
   }
 
   private markExited(record: TerminalRecord, exitCode?: number): void {
+    this.discardRawInputOnExit(record);
+    this.discardPendingWrites(record, "terminal exited before queued input could be delivered");
     record.info.status = "exited";
     record.info.health = "exited";
     record.info.healthDetail = exitCode === undefined ? "Process exited." : `Process exited with code ${exitCode}.`;
@@ -692,23 +753,40 @@ export class TerminalManager extends EventEmitter {
   }
 
   private flushPendingWrites(record: TerminalRecord): void {
-    while (record.pendingWrites.length > 0 && record.info.status !== "exited") {
-      const pendingWrite = record.pendingWrites.shift();
-      if (pendingWrite !== undefined) {
-        this.writePendingData(record, pendingWrite);
+    if (record.pendingWrites.length === 0) {
+      return;
+    }
+    if (this.dropQueuedInputIfUndeliverable(record)) {
+      return;
+    }
+
+    const pendingWrites = record.pendingWrites.splice(0);
+    let lastDelayedSubmitIndex = -1;
+    for (let index = pendingWrites.length - 1; index >= 0; index -= 1) {
+      if (pendingWrites[index]?.delayedSubmit) {
+        lastDelayedSubmitIndex = index;
+        break;
       }
     }
+
+    pendingWrites.forEach((pendingWrite, index) => {
+      this.writePendingData(record, pendingWrite, index === lastDelayedSubmitIndex);
+    });
     this.updateQueuedInputCount(record);
   }
 
-  private writePendingData(record: TerminalRecord, pendingWrite: PendingTerminalWrite): void {
+  private writePendingData(
+    record: TerminalRecord,
+    pendingWrite: PendingTerminalWrite,
+    scheduleDelayedSubmit = pendingWrite.delayedSubmit,
+  ): void {
     record.process.write(pendingWrite.data);
-    if (pendingWrite.delayedSubmit) {
+    if (scheduleDelayedSubmit) {
       // Semantic agent sends paste the exact prompt first, then submit after
       // the configured delay. This avoids racing Claude/Codex multiline input
       // handling while keeping raw keystrokes on the immediate write path.
       setTimeout(() => {
-        if (record.info.status === "running") {
+        if (canDeliverInput(record)) {
           record.process.write("\r");
         }
       }, this.terminalRuntimeOptions.agentSubmitDelayMs);
@@ -724,10 +802,6 @@ export class TerminalManager extends EventEmitter {
     if (record.readinessTimer) {
       clearTimeout(record.readinessTimer);
       record.readinessTimer = undefined;
-    }
-    if (record.rawInputTimer) {
-      clearTimeout(record.rawInputTimer);
-      record.rawInputTimer = undefined;
     }
   }
 
@@ -1013,6 +1087,10 @@ function terminalHealthInput(record: TerminalRecord) {
     lastInputAt: record.lastInputAt,
     lastOutputAt: record.lastOutputAt,
   };
+}
+
+function canDeliverInput(record: TerminalRecord): boolean {
+  return record.info.status === "running" && !record.bridgeDetached;
 }
 
 function normalizeBufferLineLimit(value: number | null | undefined): number | null {

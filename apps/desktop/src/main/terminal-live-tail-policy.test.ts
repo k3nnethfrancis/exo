@@ -11,12 +11,12 @@ describe("terminal live tail policy", () => {
         maxLines: 2,
       }),
     ).toEqual({
-      text: "tmux-3\n",
+      text: "tmux-2\ntmux-3\n",
       cacheCapturedTail: false,
     });
   });
 
-  it("uses and caches a longer unbounded tmux capture", () => {
+  it("uses and caches an unbounded tmux capture", () => {
     expect(
       selectTerminalLiveTail({
         buffered: "cache\n",
@@ -36,20 +36,20 @@ describe("terminal live tail policy", () => {
         maxLines: 2,
       }),
     ).toEqual({
-      text: "cache-3\n",
+      text: "cache-2\ncache-3\n",
       cacheCapturedTail: false,
     });
   });
 
-  it("keeps the cache when an unbounded capture is not newer than the cache", () => {
+  it("uses and caches a shorter unbounded tmux capture after current-screen changes", () => {
     expect(
       selectTerminalLiveTail({
         buffered: "cache-output\n",
-        captured: "old\n",
+        captured: "\r\n",
       }),
     ).toEqual({
-      text: "cache-output\n",
-      cacheCapturedTail: false,
+      text: "\r\n",
+      cacheCapturedTail: true,
     });
   });
 });

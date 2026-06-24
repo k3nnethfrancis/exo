@@ -5,6 +5,7 @@ import {
   shellCommand,
   TmuxCommandRunner,
   TmuxControlModeProcess,
+  type TmuxAvailability,
   tmuxEnvironmentArgs,
   type TmuxAvailable,
 } from "./terminal-tmux";
@@ -22,9 +23,13 @@ import type {
 
 export class TmuxTerminalRuntime implements TerminalRuntime {
   readonly kind = "tmux" as const;
+  private tmuxAvailabilityCache?: {
+    exoTmuxPath: string | undefined;
+    availability: TmuxAvailability;
+  };
 
   availability(): TerminalRuntimeAvailability {
-    const availability = detectTmux();
+    const availability = this.detectTmuxCached();
     if (availability.available) {
       return { available: true };
     }
@@ -138,7 +143,7 @@ export class TmuxTerminalRuntime implements TerminalRuntime {
   }
 
   private requireTmux(): TmuxAvailable {
-    const availability = detectTmux();
+    const availability = this.detectTmuxCached();
     if (!availability.available) {
       throw new Error(availability.reason);
     }
@@ -146,8 +151,19 @@ export class TmuxTerminalRuntime implements TerminalRuntime {
   }
 
   private runnerOrNull(): TmuxCommandRunner | null {
-    const availability = detectTmux();
+    const availability = this.detectTmuxCached();
     return availability.available ? new TmuxCommandRunner(availability.path) : null;
+  }
+
+  private detectTmuxCached(): TmuxAvailability {
+    const exoTmuxPath = process.env.EXO_TMUX_PATH;
+    const cached = this.tmuxAvailabilityCache;
+    if (cached && cached.exoTmuxPath === exoTmuxPath) {
+      return cached.availability;
+    }
+    const availability = detectTmux();
+    this.tmuxAvailabilityCache = { exoTmuxPath, availability };
+    return availability;
   }
 
   private attachSessionWithTmux(tmux: TmuxAvailable, options: TerminalRuntimeAttachOptions): TerminalRuntimeProcess {

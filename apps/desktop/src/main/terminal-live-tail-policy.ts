@@ -13,18 +13,16 @@ export function selectTerminalLiveTail(options: {
   const { buffered, captured, maxLines } = options;
 
   if (captured !== null) {
-    if (maxLines && captured.length > 0) {
+    if (maxLines) {
       return {
         text: tailLines(captured, maxLines),
         cacheCapturedTail: false,
       };
     }
-    if (captured.length > buffered.length) {
-      return {
-        text: captured,
-        cacheCapturedTail: true,
-      };
-    }
+    return {
+      text: captured,
+      cacheCapturedTail: true,
+    };
   }
 
   return {

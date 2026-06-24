@@ -279,6 +279,33 @@ describe("terminal tmux runtime helpers", () => {
     ]);
   });
 
+  it("detaches instead of throwing when tmux send-keys fails", () => {
+    const fake = fakeControlProcess();
+    childProcess.spawn.mockReturnValue(fake.child);
+    childProcess.execFileSync.mockImplementation(() => {
+      throw new Error("no server running");
+    });
+    const exits: Array<{ exitCode?: number }> = [];
+
+    const process = new TmuxControlModeProcess({
+      tmuxPath: "/opt/homebrew/bin/tmux",
+      sessionName: "exo-session",
+      paneId: "%3",
+      cwd: "/tmp/work",
+      env: { PATH: "/bin" },
+      cols: 100,
+      rows: 30,
+    });
+    process.onExit((event) => exits.push(event));
+
+    expect(() => process.write("abc")).not.toThrow();
+    process.write("def");
+
+    expect(exits).toEqual([{ exitCode: undefined }]);
+    expect(fake.child.kill).toHaveBeenCalledTimes(1);
+    expect(childProcess.execFileSync).toHaveBeenCalledTimes(1);
+  });
+
   it("pastes semantic agent messages as literal text", () => {
     const fake = fakeControlProcess();
     childProcess.spawn.mockReturnValue(fake.child);
@@ -299,6 +326,39 @@ describe("terminal tmux runtime helpers", () => {
     expect(childProcess.execFileSync.mock.calls.map((call) => call[1])).toContainEqual(["-u", "load-buffer", "-b", "exo-3", "-"]);
     expect(childProcess.execFileSync.mock.calls.find((call) => call[1]?.includes("load-buffer"))?.[2]).toMatchObject({ input: "line one\n  line two" });
     expect(childProcess.execFileSync.mock.calls.map((call) => call[1])).toContainEqual(["-u", "paste-buffer", "-b", "exo-3", "-t", "%3", "-d"]);
+  });
+
+  it.each(["load-buffer", "paste-buffer"])("detaches instead of throwing when tmux %s fails", (failingCommand) => {
+    const fake = fakeControlProcess();
+    childProcess.spawn.mockReturnValue(fake.child);
+    childProcess.execFileSync.mockImplementation((_command: string, args: string[]) => {
+      if (args.includes(failingCommand)) {
+        throw new Error("pane not found");
+      }
+      return "";
+    });
+    const exits: Array<{ exitCode?: number }> = [];
+
+    const process = new TmuxControlModeProcess({
+      tmuxPath: "/opt/homebrew/bin/tmux",
+      sessionName: "exo-session",
+      paneId: "%3",
+      cwd: "/tmp/work",
+      env: { PATH: "/bin" },
+      cols: 100,
+      rows: 30,
+    });
+    process.onExit((event) => exits.push(event));
+
+    expect(() => process.write("\u001b[200~line one\nline two\u001b[201~")).not.toThrow();
+    process.write("after-failure");
+
+    expect(exits).toEqual([{ exitCode: undefined }]);
+    expect(fake.child.kill).toHaveBeenCalledTimes(1);
+    expect(childProcess.execFileSync.mock.calls.map((call) => call[1])).toContainEqual(["-u", "load-buffer", "-b", "exo-3", "-"]);
+    if (failingCommand === "paste-buffer") {
+      expect(childProcess.execFileSync.mock.calls.map((call) => call[1])).toContainEqual(["-u", "paste-buffer", "-b", "exo-3", "-t", "%3", "-d"]);
+    }
   });
 });
 

@@ -147,18 +147,26 @@ export class TmuxControlModeProcess {
   }
 
   write(data: string): void {
-    const paste = unwrapBracketedPaste(data);
-    if (paste !== null) {
-      this.sendLiteral(paste);
+    if (this.exited) {
       return;
     }
 
-    for (const action of splitTmuxInput(data)) {
-      if (action.kind === "key") {
-        this.sendKeys([action.key]);
-      } else if (action.value.length > 0) {
-        this.sendLiteral(action.value);
+    try {
+      const paste = unwrapBracketedPaste(data);
+      if (paste !== null) {
+        this.sendLiteral(paste);
+        return;
       }
+
+      for (const action of splitTmuxInput(data)) {
+        if (action.kind === "key") {
+          this.sendKeys([action.key]);
+        } else if (action.value.length > 0) {
+          this.sendLiteral(action.value);
+        }
+      }
+    } catch {
+      this.detachAfterWriteFailure();
     }
   }
 
@@ -206,8 +214,15 @@ export class TmuxControlModeProcess {
   }
 
   private writeControlCommand(command: string): void {
-    if (!this.child.killed && this.child.stdin.writable) {
+    if (!this.exited && !this.child.killed && this.child.stdin.writable) {
       this.child.stdin.write(`${command}\n`);
+    }
+  }
+
+  private detachAfterWriteFailure(): void {
+    this.emitExit();
+    if (!this.child.killed) {
+      this.child.kill();
     }
   }
 

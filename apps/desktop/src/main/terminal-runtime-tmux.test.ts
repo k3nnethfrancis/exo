@@ -20,6 +20,33 @@ beforeEach(() => {
 });
 
 describe("TmuxTerminalRuntime", () => {
+  it("caches tmux detection across runtime calls", () => {
+    childProcess.execFileSync.mockReturnValue("");
+    const runtime = new TmuxTerminalRuntime();
+
+    expect(runtime.availability()).toEqual({ available: true });
+    expect(runtime.listPanes()).toEqual([]);
+    expect(runtime.captureTail({
+      sessionName: "exo-test",
+      paneId: "%1",
+      historyLimit: 500,
+    })).toBe("");
+
+    expect(childProcess.spawnSync).toHaveBeenCalledTimes(1);
+    expect(childProcess.spawnSync).toHaveBeenCalledWith("/custom/tmux", ["-V"], { encoding: "utf8" });
+  });
+
+  it("refreshes tmux detection when EXO_TMUX_PATH changes", () => {
+    const runtime = new TmuxTerminalRuntime();
+
+    expect(runtime.availability()).toEqual({ available: true });
+    vi.stubEnv("EXO_TMUX_PATH", "/other/tmux");
+    expect(runtime.availability()).toEqual({ available: true });
+
+    expect(childProcess.spawnSync).toHaveBeenCalledTimes(2);
+    expect(childProcess.spawnSync.mock.calls.map((call) => call[0])).toEqual(["/custom/tmux", "/other/tmux"]);
+  });
+
   it("continues terminal creation when tmux session options fail", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     let createdSessionName = "";

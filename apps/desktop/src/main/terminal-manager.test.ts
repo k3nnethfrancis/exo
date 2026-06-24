@@ -17,6 +17,7 @@ const ptyState = vi.hoisted(() => ({
     resize: () => void;
   }>,
   tmuxSessions: [] as Array<{ sessionName: string; paneId: string; cwd: string }>,
+  paneOutput: new Map<string, string>(),
   pasteBuffers: new Map<string, string>(),
 }));
 
@@ -38,6 +39,10 @@ const childProcess = vi.hoisted(() => {
     }
     if (args.includes("list-panes")) {
       return ptyState.tmuxSessions.map((session) => `${session.sessionName}\t@1\t${session.paneId}\t0\tzsh\t${session.cwd}`).join("\n");
+    }
+    if (args.includes("capture-pane")) {
+      const paneId = args[args.indexOf("-t") + 1] ?? "";
+      return ptyState.paneOutput.get(paneId) ?? "";
     }
     if (args.includes("send-keys")) {
       const paneId = args[args.indexOf("-t") + 1] ?? "";
@@ -95,7 +100,11 @@ const childProcess = vi.hoisted(() => {
       options,
       writes: [] as string[],
       stdinWrites: [] as string[],
-      emitData: (data: string) => stdout.emit("data", `%output ${paneIdForSession(args.at(-1) ?? "")} ${tmuxControlEncode(data)}\n`),
+      emitData: (data: string) => {
+        const paneId = paneIdForSession(args.at(-1) ?? "");
+        ptyState.paneOutput.set(paneId, `${ptyState.paneOutput.get(paneId) ?? ""}${data}`);
+        stdout.emit("data", `%output ${paneId} ${tmuxControlEncode(data)}\n`);
+      },
       emitExit: (exitCode?: number) => child.emit("exit", exitCode),
       resize: () => {
         child.stdin.write("refresh-client -C 120x32\n");
@@ -157,6 +166,7 @@ afterEach(async () => {
   childProcess.execFileSync.mockImplementation(childProcess.defaultExecFileSync);
   ptyState.spawned.splice(0);
   ptyState.tmuxSessions.splice(0);
+  ptyState.paneOutput.clear();
   ptyState.pasteBuffers.clear();
   await Promise.all(tempPaths.splice(0).map((target) => rm(target, { recursive: true, force: true })));
 });
@@ -287,6 +297,78 @@ describe("TerminalManager Codex readiness", () => {
     expect(pty.writes).toEqual(["Start cleanly", "\r"]);
   });
 
+  it("submits multiple queued Codex messages with only one delayed Enter", async () => {
+    vi.useFakeTimers();
+    const workspaceRoot = await workspaceFixture();
+    stubWorkspaceEnv(workspaceRoot);
+    const runtime = fakeRuntime();
+    const manager = new TerminalManager(workspaceRoot, 500, 0, {}, runtime);
+
+    const agent = await manager.create({ kind: "codex", cwd: workspaceRoot });
+
+    await expect(manager.sendMessage(agent.id, "First queued prompt", true)).resolves.toMatchObject({
+      delivery: "queued",
+      queuedInputCount: 1,
+    });
+    await expect(manager.sendMessage(agent.id, "Second queued prompt", true)).resolves.toMatchObject({
+      delivery: "queued",
+      queuedInputCount: 2,
+    });
+
+    runtime.emitData("\nAsk Codex\n");
+
+    expect(manager.getInfo(agent.id)).toMatchObject({
+      readiness: "ready",
+      queuedInputCount: 0,
+    });
+    expect(runtime.calls.writes).toEqual([
+      bracketedPaste("First queued prompt"),
+      bracketedPaste("Second queued prompt"),
+    ]);
+
+    vi.advanceTimersByTime(120);
+
+    expect(runtime.calls.writes).toEqual([
+      bracketedPaste("First queued prompt"),
+      bracketedPaste("Second queued prompt"),
+      "\r",
+    ]);
+  });
+
+  it("drops queued Codex messages instead of flushing into a detached bridge", async () => {
+    vi.useFakeTimers();
+    const workspaceRoot = await workspaceFixture();
+    stubWorkspaceEnv(workspaceRoot);
+    const runtime = fakeRuntime();
+    const manager = new TerminalManager(workspaceRoot, 500, 0, {}, runtime);
+
+    const agent = await manager.create({ kind: "codex", cwd: workspaceRoot });
+
+    await expect(manager.sendMessage(agent.id, "Do not lose this invisibly", true)).resolves.toMatchObject({
+      delivery: "queued",
+      queuedInputCount: 1,
+    });
+
+    runtime.emitExit(1);
+    expect(manager.diagnostics()[0]).toMatchObject({
+      bridgeStatus: "detached",
+    });
+    expect(manager.getInfo(agent.id)).toMatchObject({ queuedInputCount: 1 });
+
+    vi.advanceTimersByTime(1_500);
+
+    expect(runtime.calls.writes).toEqual([]);
+    expect(manager.getInfo(agent.id)).toMatchObject({
+      readiness: "ready",
+      queuedInputCount: 0,
+    });
+    expect(warnSpy).toHaveBeenCalledWith("[exo] dropped queued terminal input", expect.objectContaining({
+      discardedWrites: 1,
+      id: agent.id,
+      reason: "terminal bridge is detached",
+    }));
+  });
+
   it("sends semantic messages with bracketed paste to preserve whitespace", async () => {
     vi.useFakeTimers();
     const workspaceRoot = await workspaceFixture();
@@ -349,6 +431,47 @@ describe("TerminalManager Codex readiness", () => {
     expect(pty.writes).toEqual(["y"]);
   });
 
+  it("keeps coalesced raw input scheduled when readiness timers are cleared", async () => {
+    vi.useFakeTimers();
+    const workspaceRoot = await workspaceFixture();
+    stubWorkspaceEnv(workspaceRoot);
+    const runtime = fakeRuntime();
+    const manager = new TerminalManager(workspaceRoot, 500, 0, {}, runtime);
+
+    const agent = await manager.create({ kind: "codex", cwd: workspaceRoot });
+
+    await expect(manager.write(agent.id, "y")).resolves.toMatchObject({ delivery: "sent" });
+    runtime.emitData("Do you trust the files in this folder?");
+    vi.advanceTimersByTime(40);
+
+    expect(manager.getInfo(agent.id)).toMatchObject({
+      readiness: "blocked",
+    });
+    expect(runtime.calls.writes).toEqual(["y"]);
+  });
+
+  it("explicitly discards coalesced raw input when killing a terminal", async () => {
+    vi.useFakeTimers();
+    const workspaceRoot = await workspaceFixture();
+    stubWorkspaceEnv(workspaceRoot);
+    const runtime = fakeRuntime();
+    const manager = new TerminalManager(workspaceRoot, 500, 0, {}, runtime);
+
+    const terminal = await manager.create({ kind: "shell", cwd: workspaceRoot });
+
+    await expect(manager.write(terminal.id, "abc")).resolves.toMatchObject({ delivery: "sent" });
+    await manager.kill(terminal.id);
+    vi.advanceTimersByTime(40);
+
+    expect(runtime.calls.writes).toEqual([]);
+    expect(manager.list()).toEqual([]);
+    expect(warnSpy).toHaveBeenCalledWith("[exo] dropped buffered terminal input", expect.objectContaining({
+      discardedChars: 3,
+      id: terminal.id,
+      reason: "terminal was killed before buffered input could be delivered",
+    }));
+  });
+
   it("reports missing or exited write targets as not delivered", async () => {
     const workspaceRoot = await workspaceFixture();
     const manager = managerForWorkspace(workspaceRoot);
@@ -365,6 +488,12 @@ describe("TerminalManager Codex readiness", () => {
 
   it("preserves alternate-screen escapes while stripping embedded mouse tracking modes", async () => {
     const workspaceRoot = await workspaceFixture();
+    childProcess.execFileSync.mockImplementation((command: string, args: string[]) => {
+      if (args.includes("capture-pane")) {
+        throw new Error("capture unavailable");
+      }
+      return childProcess.defaultExecFileSync(command, args);
+    });
     const manager = managerForWorkspace(workspaceRoot);
 
     const terminal = await manager.create({ kind: "shell", cwd: workspaceRoot });
@@ -377,8 +506,14 @@ describe("TerminalManager Codex readiness", () => {
     expect(manager.readTranscript(terminal.id)).not.toContain("\x1b[?1000h");
   });
 
-  it("uses configured live scrollback lines while transcripts keep receiving data", async () => {
+  it("falls back to configured append-cache lines while transcripts keep receiving data", async () => {
     const workspaceRoot = await workspaceFixture();
+    childProcess.execFileSync.mockImplementation((command: string, args: string[]) => {
+      if (args.includes("capture-pane")) {
+        throw new Error("capture unavailable");
+      }
+      return childProcess.defaultExecFileSync(command, args);
+    });
     const manager = new TerminalManager(workspaceRoot, 500);
 
     const terminal = await manager.create({ kind: "shell", cwd: workspaceRoot });
@@ -392,8 +527,14 @@ describe("TerminalManager Codex readiness", () => {
     expect(manager.readTranscript(terminal.id)).toContain("line-1");
   });
 
-  it("honors explicit live tail line limits without shrinking the internal buffer", async () => {
+  it("honors explicit fallback tail line limits without shrinking the internal buffer", async () => {
     const workspaceRoot = await workspaceFixture();
+    childProcess.execFileSync.mockImplementation((command: string, args: string[]) => {
+      if (args.includes("capture-pane")) {
+        throw new Error("capture unavailable");
+      }
+      return childProcess.defaultExecFileSync(command, args);
+    });
     const manager = new TerminalManager(workspaceRoot, 500);
 
     const terminal = await manager.create({ kind: "shell", cwd: workspaceRoot });
@@ -462,7 +603,7 @@ describe("TerminalManager Codex readiness", () => {
     ptyState.spawned[0].emitData(staleLines.join("\n"));
 
     expect(manager.readTail(terminal.id, { maxLines: 4 })).toBe("fresh-1\r\nfresh-2\r\n");
-    expect(manager.readTail(terminal.id)).toBe(staleLines.join("\n"));
+    expect(manager.readTail(terminal.id)).toBe("fresh-1\r\nfresh-2\r\n");
   });
 
   it("applies configured live scrollback to tmux history", async () => {
@@ -1065,6 +1206,8 @@ function fakeRuntime(capturedTail = "runtime-captured\r\n"): TerminalRuntime & {
     terminate: string[];
     writes: string[];
   };
+  emitData: (data: string) => void;
+  emitExit: (exitCode?: number) => void;
 } {
   const calls = {
     createSession: [] as unknown[],
@@ -1103,10 +1246,15 @@ function fakeRuntime(capturedTail = "runtime-captured\r\n"): TerminalRuntime & {
     terminate: (sessionName) => {
       calls.terminate.push(sessionName);
     },
+    emitData: process.emitData,
+    emitExit: process.emitExit,
   };
 }
 
-function fakeRuntimeProcess(writes: string[]): TerminalRuntimeProcess {
+function fakeRuntimeProcess(writes: string[]): TerminalRuntimeProcess & {
+  emitData: (data: string) => void;
+  emitExit: (exitCode?: number) => void;
+} {
   const events = new EventEmitter();
   return {
     onData: (handler) => events.on("data", handler),
@@ -1114,5 +1262,7 @@ function fakeRuntimeProcess(writes: string[]): TerminalRuntimeProcess {
     write: (data) => writes.push(data),
     resize: () => {},
     kill: () => events.emit("exit", { exitCode: 0 }),
+    emitData: (data) => events.emit("data", data),
+    emitExit: (exitCode) => events.emit("exit", { exitCode }),
   };
 }

@@ -42,8 +42,16 @@ export function tailLines(output: string, lineLimit?: number): string {
   if (!normalizedLimit) {
     return output;
   }
+  const hasTrailingNewline = output.endsWith("\n");
   const lines = output.split("\n");
-  return lines.length <= normalizedLimit ? output : lines.slice(-normalizedLimit).join("\n");
+  if (hasTrailingNewline) {
+    lines.pop();
+  }
+  if (lines.length <= normalizedLimit) {
+    return output;
+  }
+  const tail = lines.slice(-normalizedLimit).join("\n");
+  return hasTrailingNewline ? `${tail}\n` : tail;
 }
 
 export function normalizeTailLineLimit(value: number | null | undefined): number | undefined {

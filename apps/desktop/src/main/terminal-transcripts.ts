@@ -109,10 +109,22 @@ function readFileTail(filePath: string, tailChars: number): string {
   try {
     const buffer = Buffer.alloc(bytesToRead);
     readSync(fd, buffer, 0, bytesToRead, stats.size - bytesToRead);
-    return buffer.toString("utf8").slice(-tailChars);
+    return decodeUtf8TailBuffer(buffer).slice(-tailChars);
   } finally {
     closeSync(fd);
   }
+}
+
+export function decodeUtf8TailBuffer(buffer: Buffer): string {
+  let start = 0;
+  while (start < buffer.length && isUtf8ContinuationByte(buffer[start])) {
+    start += 1;
+  }
+  return buffer.subarray(start).toString("utf8");
+}
+
+function isUtf8ContinuationByte(byte: number | undefined): boolean {
+  return byte !== undefined && byte >= 0x80 && byte <= 0xbf;
 }
 
 function listTranscriptFiles(directory: string): Array<{ path: string; size: number; mtimeMs: number }> {

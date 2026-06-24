@@ -22,7 +22,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
      - 2026-06-24 gate: `pnpm stable:check` passed end to end.
      - 2026-06-24 installed-app QA: temporary Codex `term-36` rendered cleanly, exposed a malformed global `terminal-stability` skill warning, and after fixing `/Users/kenneth/.codex/skills/terminal-stability/SKILL.md`, temporary Codex `term-37` launched without that warning. Preview-open terminal visibility was also spot-checked in the installed app. Long resumed Claude sessions and macOS sleep/wake remain field-dogfooding coverage rather than implementation blockers.
 - [ ] Continue `EXO-ISSUE-069` terminal field dogfooding: macOS sleep/wake and long resumed Claude/Codex sessions with real user workflows.
-- [ ] Resolve `EXO-ISSUE-070` terminal code-review residuals from `docs/terminal-code-review-2026-06-23.md`.
+- [x] Resolve `EXO-ISSUE-070` terminal code-review residuals from `docs/terminal-code-review-2026-06-23.md`.
 - [ ] Continue `EXO-ISSUE-062` terminal render cleanup using `docs/terminal-render-cleanup-protocol.md`: every new `�`/`???`/tofu/smear field case needs classification, fixture coverage, and `pnpm terminal:check`.
 - [ ] Complete fresh-clone setup QA for `EXO-ISSUE-027`: frozen install, package build, user Applications install, and first launch logging.
 - [x] Complete first-run onboarding QA for `EXO-ISSUE-028`: existing notes folder selection, post-selection shell state, terminal cwd default, and settings Apply copy.
