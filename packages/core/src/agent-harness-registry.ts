@@ -74,6 +74,9 @@ export function resolveRegisteredAgentHarnessDetection(
     return harness.resolveDetection(env);
   }
 
+  // Compatibility path for simple built-in adapters while the plugin manager grows.
+  // Third-party harnesses should provide resolveDetection so missing binaries do not
+  // look launchable just because a launcher can be described.
   const launcher = harness.resolveLauncher(env);
   return {
     id: harness.kind,

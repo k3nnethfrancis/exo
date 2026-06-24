@@ -81,6 +81,8 @@ export class PluginRegistry {
     if (this.plugins.has(id)) {
       throw new Error(`Plugin already registered: ${id}`);
     }
+    // Disabled plugins remain inspectable for management UI, but their capabilities
+    // must not reserve ids or appear active while a user has explicitly turned them off.
     if (plugin.trust !== "disabled") {
       for (const capability of plugin.manifest.capabilities) {
         const existingPluginId = this.capabilityIds.get(capability.id);
@@ -160,6 +162,8 @@ export async function discoverPluginManifests(
 
 export async function readPluginManifest(manifestPath: string): Promise<PluginManifest | null> {
   try {
+    // Plugin discovery is metadata-only for now. Reading manifests lets Exo show
+    // capabilities without executing arbitrary user/workspace plugin code.
     return parsePluginManifest(await readFile(manifestPath, "utf8"));
   } catch (error) {
     if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {

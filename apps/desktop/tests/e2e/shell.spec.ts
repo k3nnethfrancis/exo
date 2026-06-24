@@ -71,6 +71,20 @@ function killTmuxAttachClients(tmuxSessionName: string): number {
   return pids.length;
 }
 
+async function dragBy(page: import("@playwright/test").Page, locator: import("@playwright/test").Locator, delta: { x: number; y: number }) {
+  const box = await locator.boundingBox();
+  expect(box).not.toBeNull();
+  const start = { x: box!.x + box!.width / 2, y: box!.y + box!.height / 2 };
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  for (let step = 1; step <= 8; step += 1) {
+    await page.mouse.move(start.x + (delta.x * step) / 8, start.y + (delta.y * step) / 8);
+    await expect(page.locator(".xterm-rows")).toContainText("preview-first-input");
+  }
+  await page.mouse.up();
+  await page.waitForTimeout(50);
+}
+
 function runGit(cwd: string, args: string[]) {
   const result = spawnSync("git", args, { cwd, encoding: "utf8" });
   if (result.status !== 0) {
@@ -761,6 +775,48 @@ test("keeps fake Claude render stable and interactive while preview is open", as
     await waitForTerminalText(page, `FAKE_AGENT_INPUT ${afterReloadInput}`);
     await expectTerminalRenderStable(page);
     await expectTerminalRenderHistoryStable(page);
+  } finally {
+    await cleanup();
+  }
+});
+
+test("keeps /bin/cat terminal input visible while a loaded preview is focused and resized", async () => {
+  const previewFirstInput = "preview-first-input";
+  const previewReturnInput = "preview-return-input";
+  const previewResizeInput = "preview-resize-input";
+  const { page, cleanup, workspaceRoot } = await launchExoFixture({
+    prepareWorkspace: async (root) => {
+      await writeFile(
+        path.join(root, "preview-terminal-focus.html"),
+        "<!doctype html><html><body><button autofocus>preview loaded</button><p>terminal focus regression</p></body></html>",
+      );
+    },
+    env: {
+      EXO_SHELL: "/bin/cat",
+      EXO_SHELL_ARGS: "",
+    },
+    initialNoteLabel: null,
+  });
+
+  try {
+    await page.getByTestId("launch-browser").click();
+    await page.getByTestId("browser-url-input").fill(`file://${path.join(workspaceRoot, "preview-terminal-focus.html")}`);
+    await page.getByTestId("browser-load-url").click();
+    await expect(page.getByTestId("browser-webview")).toHaveAttribute("src", /^file:\/\/.*preview-terminal-focus\.html$/);
+
+    await page.getByTestId("terminal-surface").click();
+    await page.keyboard.type(previewFirstInput);
+    await expect(page.locator(".xterm-rows")).toContainText(previewFirstInput);
+
+    await page.getByTestId("browser-pane").click();
+    await page.getByTestId("terminal-surface").click();
+    await page.keyboard.type(previewReturnInput);
+    await expect(page.locator(".xterm-rows")).toContainText(`${previewFirstInput}${previewReturnInput}`);
+
+    await dragBy(page, page.locator(".workspace__body > .pane-split-resizer--vertical").first(), { x: -160, y: 0 });
+    await page.getByTestId("terminal-surface").click();
+    await page.keyboard.type(previewResizeInput);
+    await expect(page.locator(".xterm-rows")).toContainText(`${previewFirstInput}${previewReturnInput}${previewResizeInput}`);
   } finally {
     await cleanup();
   }

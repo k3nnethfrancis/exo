@@ -325,6 +325,8 @@ class PiAgentHarness implements AgentHarness {
 function resolvePiBackendDependency(env: NodeJS.ProcessEnv): AgentHarnessDependencyStatus {
   const backendLabel = env.EXO_PI_BACKEND_LABEL ?? env.EXO_PI_BACKEND_KIND ?? "Pi inference backend";
   const configured = Boolean(env.EXO_PI_BACKEND_URL || env.EXO_PI_BACKEND_COMMAND || env.EXO_PI_BACKEND_READY);
+  // URL/command means the user configured a backend contract; EXO_PI_BACKEND_READY
+  // is the stricter opt-in probe when a local fork wants Exo to gate on live readiness.
   const detected = env.EXO_PI_BACKEND_READY ? envFlagEnabled(env.EXO_PI_BACKEND_READY) : configured;
   const satisfied = configured && detected;
   const statusLabel = satisfied ? "Configured" : "Missing";

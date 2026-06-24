@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import type { WorkspaceModel } from "@exo/core";
 import type { WorkspaceSettingsSection } from "../../../shared/api";
 
@@ -16,6 +16,22 @@ interface UseWorkspaceCommandHandlersOptions {
 }
 
 export function useWorkspaceCommandHandlers(options: UseWorkspaceCommandHandlersOptions) {
+  const openPreviewRef = useRef(options.openPreview);
+  const focusPreviewRef = useRef(options.focusPreview);
+  const closePreviewRef = useRef(options.closePreview);
+
+  useEffect(() => {
+    openPreviewRef.current = options.openPreview;
+  }, [options.openPreview]);
+
+  useEffect(() => {
+    focusPreviewRef.current = options.focusPreview;
+  }, [options.focusPreview]);
+
+  useEffect(() => {
+    closePreviewRef.current = options.closePreview;
+  }, [options.closePreview]);
+
   useEffect(() => {
     return window.exo.workspace.onCommandOpenFile((filePath: string) => {
       void options.openFile(filePath);
@@ -24,21 +40,21 @@ export function useWorkspaceCommandHandlers(options: UseWorkspaceCommandHandlers
 
   useEffect(() => {
     return window.exo.workspace.onCommandOpenPreview((event) => {
-      options.openPreview(event.url);
+      openPreviewRef.current(event.url);
     });
-  }, [options.openPreview]);
+  }, []);
 
   useEffect(() => {
     return window.exo.workspace.onCommandFocusPreview(() => {
-      options.focusPreview();
+      focusPreviewRef.current();
     });
-  }, [options.focusPreview]);
+  }, []);
 
   useEffect(() => {
     return window.exo.workspace.onCommandClosePreview(() => {
-      options.closePreview();
+      closePreviewRef.current();
     });
-  }, [options.closePreview]);
+  }, []);
 
   useEffect(() => {
     return window.exo.workspace.onCommandOpenSettings((event) => {

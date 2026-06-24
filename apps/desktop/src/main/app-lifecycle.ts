@@ -59,7 +59,7 @@ export class AppLifecycleController {
     this.loadRenderer(window);
 
     window.webContents.on("did-start-loading", () => {
-      if (this.mainWindow === window) {
+      if (this.mainWindow === window && window.webContents.isLoadingMainFrame()) {
         this.rendererReady = false;
       }
     });

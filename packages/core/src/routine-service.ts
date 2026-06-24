@@ -205,6 +205,8 @@ export function assertRoutineAgentPolicy(routine: RoutineDefinition, options: Ro
 export function routinePluginDirectoriesFromEnv(workspaceRoot: string, env: Record<string, string | undefined>): RoutinePluginDirectory[] {
   const explicit = splitPathList(env.EXO_PLUGIN_DIRS);
   if (explicit.length > 0) {
+    // EXO_PLUGIN_DIRS is a developer/operator override, not a user-install path.
+    // Treat it as trusted so local plugin development works without a trust UI.
     return explicit.map((directory) => ({ path: directory, source: "dev", trust: "trusted" }));
   }
 

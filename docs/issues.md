@@ -8,6 +8,34 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
 
 ## Open
 
+### EXO-ISSUE-071: Plugin architecture needs decision/fallback audit and plugin-development skill
+
+- Status: fixed locally
+- Severity: medium-high
+- Area: plugin architecture, docs, developer workflow, future extensibility
+- Observed:
+  - We applied a productive architecture pass to terminals by steelmanning every design decision and fallback, deleting weak fallbacks, documenting justified ones, and adding skill-level rules for future terminal work.
+  - The plugin architecture now needs the same treatment before it grows into more surfaces: agent harnesses, search providers, routines, profiles, analyzers, trace collectors, dashboards, and future plugin-owned settings/UI.
+  - Current plugin docs describe the target split, but not every fallback/decision has a durable rationale or inline implementation commentary.
+- Expected:
+  - Core/plugin decisions should have explicit reasoning: why the seam exists, why a behavior is core or plugin-owned, which fallbacks are allowed, which are forbidden, and what risk the decision reduces.
+  - Fallbacks should survive a steelman review: keep only fallbacks that solve a real product/reliability/security problem and document why they exist.
+  - Plugin-system code should have concise inline comments at non-obvious decision points, especially trust/permission gates, metadata-only discovery, bundled-plugin handling, and disabled/untrusted behavior.
+  - Add a concise plugin-development skill for future Exo work that tells agents how to build on the plugin system without hardcoding GA/Shoshin-specific behavior, bypassing trust, or expanding core unnecessarily.
+- Investigation notes:
+  - Audit `docs/plugin-system-architecture.md`, `docs/plugin-implementation-plan.md`, `packages/core/src/capabilities*`, `packages/core/src/plugin*`, `packages/core/src/search-provider*`, `packages/core/src/agent-harness*`, `packages/core/src/routine*`, and current plugin issues.
+  - Apply the deep-module vocabulary: module, interface, seam, adapter, depth, leverage, and locality.
+  - Distinguish core substrate from bundled plugins and from local/private plugin configuration.
+- Acceptance:
+  - A plugin architecture audit doc exists with decisions, steelmanned reasons, accepted fallbacks, rejected fallbacks, and next implementation slices.
+  - Inline comments clarify non-obvious plugin fallback/trust/metadata decisions without narrating obvious code.
+  - A plugin-development skill exists and is referenced from repo guidance.
+  - Tests or docs are updated if any fallback behavior changes.
+- Resolution:
+  - Added `docs/plugin-architecture-audit.md` with core/plugin decisions, steelmanned reasons, accepted fallbacks, rejected fallbacks, inline-comment targets, and hardening backlog.
+  - Added `.claude/skills/plugin-development/SKILL.md` and referenced it from `AGENTS.md`.
+  - Added concise inline comments for metadata-only plugin discovery, disabled plugin capability handling, trusted dev plugin dirs, surface policy limits, QMD degraded search fallbacks, harness detection compatibility, and Pi backend readiness.
+
 ### EXO-ISSUE-070: Terminal code-review residuals from 2026-06-23
 
 - Status: fixed in `main`
@@ -403,13 +431,14 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
 
 ### EXO-ISSUE-056: Terminal input can stop rendering while browser preview is open
 
-- Status: open; preview-specific regression coverage in progress
+- Status: fixed locally; manual app QA pending
 - Severity: high
 - Area: terminal rendering, browser preview, pane focus/resize
 - Observed:
   - When a browser preview pane is open to a web page, terminal input can stop visually appearing in the terminal.
   - The terminal may still receive input, but typed characters do not render until the user hard-refreshes the app.
   - 2026-06-23: User also reported terminals not appearing at all while preview mode was open; closing preview and refreshing allowed terminals to open again.
+  - 2026-06-24: User again reported losing the ability to type into terminal panes while preview mode is running with loaded content; terminal input does not recover until Cmd+R page refresh.
 - Expected:
   - Terminal input echo and prompt rendering should remain immediate and visible while preview panes are open.
   - Preview webviews should not steal terminal focus, suppress xterm rendering, or block terminal resize/refresh.
@@ -426,6 +455,8 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
   - The mitigation only calls the existing xterm registry refresh path; it does not call `terminals.read()`, reset xterm, replay a full buffer, or alter active terminal hydration.
   - Added a focused renderer regression for the repeated preview-adjacent terminal refresh scheduler.
   - 2026-06-23: Added fake-Claude e2e coverage that opens a preview pane, launches Claude, verifies render quality, types into the terminal, reloads the renderer, and verifies the session remains visible and interactive.
+  - 2026-06-24: Added scoped `TerminalView` visibility/focus/fit reconciliation and `shell:focus-window` handoff so terminal focus can reclaim keyboard input from a loaded `webview`.
+  - Added deterministic `/bin/cat` e2e coverage for loaded preview focus handoff, resize, and visible terminal input.
   - Manual QA still required in the real Electron app because unit tests cannot reproduce Electron webview focus/compositing behavior: open a web preview beside a shell/Claude/Codex terminal, type continuously, focus/unfocus preview and terminal panes, resize the split, switch panes, and verify input echo remains visible without hard refresh.
 
 ### EXO-ISSUE-055: Explorer folder labels are too bold
@@ -452,6 +483,7 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
 - Observed:
   - Exo MCP can coordinate agents and read workspace context, but does not expose a way for an agent to ask Exo to open a URL/path in the in-app browser preview.
   - This blocks agent workflows that generate local HTML artifacts or want the user to review a web page inside Exo.
+  - 2026-06-24: Passing an absolute local HTML path such as `/Users/kenneth/Desktop/lab/projects/exo/docs/artifacts/core-plugin-boundary.html` still does not open correctly in preview mode.
 - Expected:
   - MCP should expose a narrow, safe tool for opening a URL or local path/HTML artifact in Exo's browser preview surface.
   - The tool should validate inputs, avoid surprising navigation, and return structured success/error output.
@@ -468,6 +500,8 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
   - Added MCP `open_preview`, backed by a new shared command-server `/preview/open` route and renderer `command:open-preview` event.
   - Preview accepts HTTP(S) URLs and existing local `.html`/`.htm` files under the active workspace, note roots, or project roots; `file://` URLs are normalized through the same local validation.
   - The renderer opens the validated target in the existing in-app browser preview pane path.
+  - 2026-06-24: Moved preview target validation into a focused main-process module and fixed renderer-ready tracking so webview navigation no longer causes command-server preview IPC to be dropped.
+  - Absolute local HTML paths are covered through command-server e2e, and the preview address bar now normalizes absolute local paths to `file://` URLs.
 
 ### EXO-ISSUE-053: Live wikilink search is missing while typing `[[...]]`
 

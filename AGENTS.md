@@ -22,9 +22,10 @@ The immediate product proving loop is Exo-on-Exo: finish usability/harness readi
 14. `docs/qmd-integration-notes.md` - current QMD adapter contract and upgrade notes
 15. `docs/roadmap.md` - future plans
 16. `docs/plugin-system-architecture.md` - core-versus-plugin target architecture
-17. `docs/plugins.md` - future extension model
-18. `docs/plugin-implementation-plan.md` - implementation sequence for capability registries, providers, harnesses, activity substrate, artifact references, and plugin templates
-19. `packages/mcp/README.md` - MCP setup and tool contract
+17. `docs/plugin-architecture-audit.md` - plugin decision/fallback audit and hardening policy
+18. `docs/plugins.md` - future extension model
+19. `docs/plugin-implementation-plan.md` - implementation sequence for capability registries, providers, harnesses, activity substrate, artifact references, and plugin templates
+20. `packages/mcp/README.md` - MCP setup and tool contract
 
 ## Repository Map
 
@@ -129,6 +130,7 @@ CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build 
 - Preserve unrelated local edits. Before staging, inspect `git status` and include only files that belong to the current task.
 - UI and terminal changes require app QA in the real Electron app, not only browser or unit tests. Use focused automated tests first, then manually exercise the affected workflow.
 - Before changing terminal runtime, terminal rendering, terminal settings, terminal tests, or agent terminal launch behavior, use `.claude/skills/terminal-stability/SKILL.md` and follow its ownership rules, fallback discipline, invariants, checks, and manual QA script.
+- Before changing plugin architecture, capability registries, plugin manifests, plugin trust/permissions, search-provider adapters, harness adapters, Routine templates, or plugin-owned surfaces, use `.claude/skills/plugin-development/SKILL.md` and follow its core/plugin split, fallback discipline, and trust rules.
 - Review tests for quality before accepting them: they should assert user-visible behavior or stable contracts, isolate live Exo state, fail for the intended regression, and avoid only snapshotting implementation details.
 - Prefer extracting pure helpers or focused hooks over expanding `App.tsx` or `main/index.ts`. Keep IPC types in `@exo/core` when shared across CLI/MCP/desktop and avoid duplicate type definitions in preload-only files.
 - For simplification work, preserve behavior first. Run targeted tests for the moved surface, then full `pnpm ci:check` before handoff. Report line-count movement separately from architecture improvement because extraction can increase net LOC while reducing cognitive load.

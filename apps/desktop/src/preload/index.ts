@@ -142,6 +142,7 @@ const api: DesktopApi = {
   },
   shell: {
     openExternal: (target) => invokeDesktop("shell:open-external", target),
+    focusWindow: () => invokeDesktop("shell:focus-window"),
   },
 };
 

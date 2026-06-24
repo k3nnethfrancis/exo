@@ -15,6 +15,8 @@ export const defaultSurfaceContributionPolicies: SurfaceContributionPolicy[] = [
 ];
 
 export function isCapabilityAvailableOnSurface(capability: CapabilityMetadata, surface: CapabilitySurface): boolean {
+  // This is discoverability policy, not an authorization check. Runtime owners
+  // still need to enforce permissions before launching agents, writing files, or exposing tools.
   return capability.lifecycle !== "disabled" && capability.surfaces.includes(surface);
 }
 

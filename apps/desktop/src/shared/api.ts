@@ -319,5 +319,6 @@ export interface DesktopApi {
   };
   shell: {
     openExternal: (target: string) => Promise<void>;
+    focusWindow: () => Promise<void>;
   };
 }

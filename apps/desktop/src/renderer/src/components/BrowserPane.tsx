@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Globe2, RotateCw, X } from "lucide-react";
 
 import type { DragManager } from "../hooks/useDragManager";
@@ -18,6 +18,10 @@ export function BrowserPane(props: BrowserPaneProps) {
   const { paneId, url, compact, onFocus, onNavigate, onClosePane, dragManager } = props;
   const [draftUrl, setDraftUrl] = useState(url);
   const safeUrl = useMemo(() => normalizeBrowserUrl(url), [url]);
+
+  useEffect(() => {
+    setDraftUrl(url);
+  }, [url]);
 
   function focusPreviewPane() {
     onFocus();
@@ -74,6 +78,7 @@ export function BrowserPane(props: BrowserPaneProps) {
         <div className="browser-pane__empty">Enter a local URL to preview.</div>
       ) : (
         <webview
+          key={safeUrl}
           className="browser-pane__webview"
           data-testid="browser-webview"
           src={safeUrl}
@@ -90,6 +95,9 @@ function normalizeBrowserUrl(value: string): string {
   }
   if (trimmed === "about:blank" || /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)) {
     return trimmed;
+  }
+  if (trimmed.startsWith("/")) {
+    return `file://${trimmed.split("/").map((segment) => encodeURIComponent(segment)).join("/")}`;
   }
   return `http://${trimmed}`;
 }

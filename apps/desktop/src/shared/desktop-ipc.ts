@@ -61,6 +61,7 @@ export interface DesktopInvokeHandlers {
   "terminals:resize": TerminalsApi["resize"];
   "terminals:kill": TerminalsApi["kill"];
   "shell:open-external": ShellApi["openExternal"];
+  "shell:focus-window": ShellApi["focusWindow"];
 }
 
 export interface DesktopEventPayloads {

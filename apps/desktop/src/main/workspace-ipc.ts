@@ -141,4 +141,9 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
     handlers.createBranch(filePath, frontmatter, body),
   );
   handleDesktopInvoke("shell:open-external", async (_event, target) => shell.openExternal(target));
+  handleDesktopInvoke("shell:focus-window", async () => {
+    const window = handlers.getMainWindow();
+    window?.focus();
+    window?.webContents.focus();
+  });
 }

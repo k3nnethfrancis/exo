@@ -214,7 +214,7 @@ async function searchIndex(
           warnings.push("Embeddings are not ready; Exo will use lexical fallback if semantic/hybrid search is unavailable.");
         }
       } catch {
-        // Status warnings are best-effort; search fallback below remains authoritative.
+        // Status warnings are best-effort; the actual query fallback below remains authoritative.
       }
     }
 
@@ -229,6 +229,8 @@ async function searchIndex(
         ]);
         rawResults = [...lexical.flat(), ...vector.flat()];
       } catch (error) {
+        // Preserve search as an orientation surface even when embeddings are stale or unavailable.
+        // The warning keeps the degraded provider visible instead of silently pretending this was semantic.
         warnings.push(`Semantic search is not ready (${errorMessage(error)}); using lexical search.`);
         const lexical = await Promise.all(collections.map((collection) => store!.searchLex(trimmedQuery, { limit, collection })));
         rawResults = lexical.flat();
@@ -248,6 +250,8 @@ async function searchIndex(
         );
         rawResults = hybrid.flat();
       } catch (error) {
+        // Hybrid depends on the same vector path as semantic search. Fall back to lexical results,
+        // but keep a provider warning so index repair remains discoverable.
         warnings.push(`Hybrid search is not ready (${errorMessage(error)}); using lexical search.`);
         const lexical = await Promise.all(collections.map((collection) => store!.searchLex(trimmedQuery, { limit, collection })));
         rawResults = lexical.flat();
@@ -277,6 +281,8 @@ async function searchIndex(
       results,
     };
   } catch (error) {
+    // If QMD cannot open at all, keep basic workspace search usable. This fallback is intentionally
+    // degraded and warning-bearing; admin/status paths should still surface the underlying QMD issue.
     return searchFilesystem(model, trimmedQuery, options, qmdFallbackWarning(error));
   } finally {
     await store?.close();

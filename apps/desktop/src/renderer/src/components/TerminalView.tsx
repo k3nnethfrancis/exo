@@ -23,6 +23,7 @@ const TERMINAL_RESIZE_DEBOUNCE_MS = 16;
 interface TerminalViewProps {
   theme: ExoThemeVariant;
   session: TerminalSessionInfo;
+  focused: boolean;
   hydrationSnapshot: string;
   hydrationVersion: number;
   hydrationReason: TerminalHydrationReason;
@@ -36,7 +37,7 @@ interface TerminalViewProps {
 }
 
 export function TerminalView(props: TerminalViewProps) {
-  const { theme, session, hydrationSnapshot, hydrationVersion, hydrationReason, fontSize, scrollbackLines, onFocus, onInput, onResize, onReady, inputEnabled = true } = props;
+  const { theme, session, focused, hydrationSnapshot, hydrationVersion, hydrationReason, fontSize, scrollbackLines, onFocus, onInput, onResize, onReady, inputEnabled = true } = props;
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
@@ -49,6 +50,7 @@ export function TerminalView(props: TerminalViewProps) {
   const inputHandlerRef = useRef(onInput);
   const inputEnabledRef = useRef(inputEnabled);
   const resizeHandlerRef = useRef(onResize);
+  const focusedRef = useRef(focused);
   const sizeRef = useRef({ width: 0, height: 0, cols: 0, rows: 0, resizeTimer: 0 });
 
   useEffect(() => {
@@ -62,6 +64,10 @@ export function TerminalView(props: TerminalViewProps) {
   useEffect(() => {
     resizeHandlerRef.current = onResize;
   }, [onResize]);
+
+  useEffect(() => {
+    focusedRef.current = focused;
+  }, [focused]);
 
   useEffect(() => {
     hydrationStateRef.current = initialTerminalHydrationViewState();
@@ -80,7 +86,9 @@ export function TerminalView(props: TerminalViewProps) {
     terminal.open(viewportRef.current!);
     requestAnimationFrame(() => {
       safeFit(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef);
-      terminal.focus();
+      if (focusedRef.current) {
+        terminal.focus();
+      }
     });
 
     const disposeData = terminal.onData((data) => {
@@ -94,9 +102,18 @@ export function TerminalView(props: TerminalViewProps) {
     });
 
     const observer = new ResizeObserver(() => {
-      safeFit(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef);
+      refreshTerminalSurface(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef, disposedRef);
     });
     observer.observe(viewportRef.current!);
+
+    const visibilityObserver = typeof IntersectionObserver === "undefined"
+      ? null
+      : new IntersectionObserver((entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          refreshTerminalSurface(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef, disposedRef);
+        }
+      }, { threshold: 0.01 });
+    visibilityObserver?.observe(surfaceRef.current!);
 
     const reconcileSurface = () => {
       refreshTerminalSurface(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef, disposedRef);
@@ -111,14 +128,16 @@ export function TerminalView(props: TerminalViewProps) {
       window.addEventListener(eventName, reconcileSurface);
     }
 
-    function focusTerminal(event?: MouseEvent) {
-      event?.preventDefault();
+    function focusTerminal() {
       onFocus();
+      focusTerminalElement(surfaceRef.current, viewportRef.current, terminal);
       reconcileSurface();
-      terminal.focus();
+      window.requestAnimationFrame(() => {
+        focusTerminalElement(surfaceRef.current, viewportRef.current, terminal);
+      });
       window.setTimeout(() => {
         reconcileSurface();
-        terminal.focus();
+        focusTerminalElement(surfaceRef.current, viewportRef.current, terminal);
       }, 0);
     }
 
@@ -175,6 +194,7 @@ export function TerminalView(props: TerminalViewProps) {
       writingRef.current = false;
       disposeData.dispose();
       observer.disconnect();
+      visibilityObserver?.disconnect();
       for (const eventName of eventNames) {
         window.removeEventListener(eventName, reconcileSurface);
       }
@@ -188,6 +208,21 @@ export function TerminalView(props: TerminalViewProps) {
       }
     };
   }, [session.id]);
+
+  useEffect(() => {
+    const terminal = terminalRef.current;
+    const fitAddon = fitAddonRef.current;
+    if (!focused || !terminal || !fitAddon) {
+      return;
+    }
+
+    refreshTerminalSurface(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef, disposedRef);
+    focusTerminalElement(surfaceRef.current, viewportRef.current, terminal);
+    window.requestAnimationFrame(() => {
+      refreshTerminalSurface(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef, disposedRef);
+      focusTerminalElement(surfaceRef.current, viewportRef.current, terminal);
+    });
+  }, [focused, session.id]);
 
   useEffect(() => {
     const terminal = terminalRef.current;
@@ -400,6 +435,27 @@ function refreshTerminalSurface(
       terminal.refresh(0, terminal.rows - 1);
     }
   });
+}
+
+function focusTerminalElement(
+  surface: HTMLDivElement | null,
+  viewport: HTMLDivElement | null,
+  terminal: Terminal,
+) {
+  void window.exo.shell.focusWindow().catch(() => {});
+  window.focus();
+  for (const webview of Array.from(document.querySelectorAll("webview"))) {
+    if (webview instanceof HTMLElement) {
+      webview.blur();
+    }
+  }
+  if (document.activeElement instanceof HTMLElement) {
+    document.activeElement.blur();
+  }
+  surface?.focus({ preventScroll: true });
+  terminal.focus();
+  const helperTextarea = viewport?.querySelector<HTMLTextAreaElement>("textarea.xterm-helper-textarea");
+  helperTextarea?.focus({ preventScroll: true });
 }
 
 function shellEscape(path: string): string {

@@ -235,6 +235,7 @@ export interface PaneTreeActions {
   splitLeaf: (leafId: PaneNodeId, direction: "horizontal" | "vertical", newContent: PaneContent, position: "before" | "after") => PaneLeaf;
   removeLeaf: (leafId: PaneNodeId) => void;
   updateLeafContent: (leafId: PaneNodeId, updater: (content: PaneContent) => PaneContent) => void;
+  openBrowserPane: (targetLeafId: PaneNodeId | null, url: string) => void;
   startResize: (splitId: PaneNodeId, axis: "horizontal" | "vertical", clientPos: number, containerSize: number) => void;
   focusLeaf: (leafId: PaneNodeId) => void;
   setTree: (treeOrUpdater: PaneNode | ((prev: PaneNode) => PaneNode)) => void;
@@ -325,6 +326,14 @@ export function usePaneTree(initialTree: PaneNode) {
           return { ...node, content: updater(node.content) };
         }),
       );
+    },
+
+    openBrowserPane(targetLeafId, url) {
+      setTree((prev) => {
+        const result = openOrUpdateBrowserPane(prev, targetLeafId, url);
+        setFocusedLeafId(result.focusLeafId);
+        return result.tree;
+      });
     },
 
     startResize(splitId, axis, clientPos, containerSize) {

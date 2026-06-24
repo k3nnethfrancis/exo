@@ -36,7 +36,7 @@ import { useWorkspaceSearch } from "./hooks/useWorkspaceSearch";
 import { applyTheme } from "./theme/applyTheme";
 import { DEFAULT_COLOR_THEME_ID, resolveTheme } from "./theme/registry";
 import type { ColorThemeId } from "./theme/types";
-import { collectLeaves, findEditorLeaf, findNode, mapLeaves, openOrUpdateBrowserPane, paneId, pruneEmptyLeaves, updateNode, type PaneLeaf, type PaneNode, type PaneNodeId } from "./hooks/usePaneTree";
+import { collectLeaves, findEditorLeaf, findNode, mapLeaves, paneId, pruneEmptyLeaves, updateNode, type PaneLeaf, type PaneNode, type PaneNodeId } from "./hooks/usePaneTree";
 import {
   addTerminalSessionToFirstLeaf,
   collectActiveTerminalIds,
@@ -631,9 +631,7 @@ export function App() {
   }
 
   function createBrowserPane(url = "about:blank") {
-    const result = openOrUpdateBrowserPane(editorTree, editorFocusedLeafId, url);
-    editorActions.setTree(result.tree);
-    editorActions.focusLeaf(result.focusLeafId);
+    editorActions.openBrowserPane(editorFocusedLeafId, url);
     setZoomSurface("editor");
   }
 
@@ -1030,6 +1028,7 @@ export function App() {
               paneId={leaf.id}
               compact={compactEditorChrome}
               empty={terminalLeafSessions.length === 0}
+              focused={isFocused && zoomSurface === "terminal"}
               sessions={terminalLeafSessions}
               activeTerminalId={leafActiveTerminalId}
               hydrationSnapshots={terminalHydrationSnapshots}
@@ -1116,7 +1115,7 @@ export function App() {
           </>
         );
       }}
-      renderTerminalLeaf={(leaf) => {
+      renderTerminalLeaf={(leaf, isFocused) => {
         const terminalLeafSessions = terminalSessions.filter((s) => leaf.content.kind === "terminal" && leaf.content.terminalIds.includes(s.id));
         const leafActiveTerminalId = leaf.content.kind === "terminal"
           ? resolveTerminalPaneActiveId(terminalLeafSessions, leaf.content.activeTerminalId, activeTerminalId)
@@ -1127,6 +1126,7 @@ export function App() {
             paneId={leaf.id}
             compact={false}
             empty={terminalLeafSessions.length === 0}
+            focused={isFocused && zoomSurface === "terminal"}
             sessions={terminalLeafSessions}
             activeTerminalId={leafActiveTerminalId}
             hydrationSnapshots={terminalHydrationSnapshots}

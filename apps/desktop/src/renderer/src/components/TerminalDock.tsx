@@ -17,6 +17,7 @@ interface TerminalDockProps {
   theme: ExoThemeVariant;
   compact: boolean;
   empty: boolean;
+  focused: boolean;
   sessions: TerminalSessionInfo[];
   activeTerminalId: string | null;
   hydrationSnapshots: Record<string, string>;
@@ -46,6 +47,7 @@ export function TerminalDock(props: TerminalDockProps) {
     theme,
     compact,
     empty,
+    focused,
     sessions,
     activeTerminalId,
     hydrationSnapshots,
@@ -169,6 +171,7 @@ export function TerminalDock(props: TerminalDockProps) {
               <TerminalView
                 theme={theme}
                 session={activeSession}
+                focused={focused}
                 hydrationSnapshot={hydrationSnapshots[activeSession.id] ?? ""}
                 hydrationVersion={hydrationVersions[activeSession.id] ?? 0}
                 hydrationReason={hydrationReasons[activeSession.id] ?? "bootstrap"}
