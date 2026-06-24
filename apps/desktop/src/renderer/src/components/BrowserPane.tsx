@@ -1,9 +1,8 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import { Globe2, RotateCw, X } from "lucide-react";
 
 import type { DragManager } from "../hooks/useDragManager";
 import { ChromeTab } from "./Chrome";
-import { refreshAllTerminals } from "./terminalRegistry";
 
 interface BrowserPaneProps {
   paneId: string;
@@ -20,41 +19,8 @@ export function BrowserPane(props: BrowserPaneProps) {
   const [draftUrl, setDraftUrl] = useState(url);
   const safeUrl = useMemo(() => normalizeBrowserUrl(url), [url]);
 
-  useEffect(() => {
-    return schedulePreviewTerminalRefresh();
-  }, [safeUrl]);
-
-  useEffect(() => {
-    let cancelPendingRefresh = () => {};
-    const refresh = () => {
-      cancelPendingRefresh();
-      cancelPendingRefresh = schedulePreviewTerminalRefresh();
-    };
-    const eventNames: Array<"focus" | "blur" | "resize" | "pageshow" | "visibilitychange"> = [
-      "focus",
-      "blur",
-      "resize",
-      "pageshow",
-      "visibilitychange",
-    ];
-    for (const eventName of eventNames) {
-      window.addEventListener(eventName, refresh);
-    }
-    return () => {
-      cancelPendingRefresh();
-      for (const eventName of eventNames) {
-        window.removeEventListener(eventName, refresh);
-      }
-    };
-  }, []);
-
   function focusPreviewPane() {
     onFocus();
-    schedulePreviewTerminalRefresh();
-  }
-
-  function refreshPreviewTerminals() {
-    schedulePreviewTerminalRefresh();
   }
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -111,39 +77,10 @@ export function BrowserPane(props: BrowserPaneProps) {
           className="browser-pane__webview"
           data-testid="browser-webview"
           src={safeUrl}
-          onBlur={refreshPreviewTerminals}
-          onFocus={refreshPreviewTerminals}
-          onLoad={refreshPreviewTerminals}
         />
       )}
     </section>
   );
-}
-
-interface PreviewRefreshScheduler {
-  requestAnimationFrame: typeof window.requestAnimationFrame;
-  cancelAnimationFrame: typeof window.cancelAnimationFrame;
-  setTimeout: typeof window.setTimeout;
-  clearTimeout: typeof window.clearTimeout;
-}
-
-export function schedulePreviewTerminalRefresh(
-  refresh: () => void = refreshAllTerminals,
-  scheduler: PreviewRefreshScheduler = window,
-): () => void {
-  refresh();
-  const frameId = scheduler.requestAnimationFrame(refresh);
-  const timerIds = [
-    scheduler.setTimeout(refresh, 75),
-    scheduler.setTimeout(refresh, 250),
-  ];
-
-  return () => {
-    scheduler.cancelAnimationFrame(frameId);
-    for (const timerId of timerIds) {
-      scheduler.clearTimeout(timerId);
-    }
-  };
 }
 
 function normalizeBrowserUrl(value: string): string {

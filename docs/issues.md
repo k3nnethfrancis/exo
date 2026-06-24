@@ -25,7 +25,7 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
   - [ ] Split `TerminalManager` further so session lifecycle, harness readiness/queued sends, live-tail policy, diagnostics, transcripts, and health/recovery each have a named owner.
   - [x] Move Codex-specific startup prompt scanning, queued semantic sends, and MCP launch overrides out of `TerminalManager` into `terminal-harness-readiness`.
   - [x] Remove legacy `terminalHistoryMode`; terminal behavior is expressed as explicit numeric/settings fields for live scrollback, read tails, transcript retention, timing, and geometry.
-  - [ ] Replace preview-pane/global terminal refresh mitigations with scoped `TerminalView` visibility, focus, fit, and resize handling.
+  - [x] Replace preview-pane/global terminal refresh mitigations with scoped `TerminalView` visibility, focus, fit, and resize handling.
   - [x] Add a first-class UI affordance for native tmux recovery/debug: copy attach command from terminal diagnostics.
   - [ ] Extend render-stability fixtures whenever field QA finds a new Claude/Codex corruption shape, especially `???`, `�`, tofu boxes, stale overlays, prompt wrapping drift, and blank history gaps.
   - [ ] Promote the focused terminal gate into the standard readiness path: terminal vitest subset, render-stability fixture, fake-agent e2e, stable smoke, installed-app restart, and manual Claude/Codex QA.
@@ -33,6 +33,7 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
 - Notes:
   - 2026-06-24: Moved Codex startup prompt scanning, semantic-send queue policy, bracketed-paste formatting, and Codex MCP launch overrides out of `TerminalManager` into `terminal-harness-readiness`.
   - 2026-06-24: Extended the fake-Claude render-stability e2e to scroll visible xterm history after preview/reload, assert Claude-like/history anchors remain visible, and fail on replacement glyphs, `???`, tofu boxes, or blank/stale history gaps before continuing input.
+  - 2026-06-24: Removed `BrowserPane` global terminal refresh scheduling. Mounted `TerminalView` instances now reconcile their own xterm fit/refresh on local focus, resize, pageshow, and visibility events; registry focus only refreshes the targeted terminal.
 - Existing issue links:
   - `EXO-ISSUE-062` tracks the replacement-glyph/render-corruption class.
   - `EXO-ISSUE-063` tracks residual tmux/hydration/read-tail/reconnect cleanup.

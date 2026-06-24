@@ -29,10 +29,6 @@ export function focusTerminal(sessionId: string): boolean {
   return true;
 }
 
-export function refreshAllTerminals() {
-  terminalRegistry.forEach((entry) => entry.refresh());
-}
-
 export function getRenderedTerminalContent(sessionId: string): string {
   const entry = terminalRegistry.get(sessionId);
   if (!entry) return "";

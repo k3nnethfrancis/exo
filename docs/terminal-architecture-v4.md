@@ -385,5 +385,6 @@ Next deletion candidates:
 - Decide whether diagnostics should keep `bufferedLines`/`bufferedChars`; removing or renaming them is a public command-server/API compatibility decision.
 - Move Codex readiness and queued semantic message delivery behind a readiness gate so `TerminalManager` can stop owning harness-specific startup text scanning.
   - 2026-06-24: `terminal-harness-readiness.ts` now owns Codex startup prompt scanning, semantic-send queue policy, bracketed-paste formatting, and Codex MCP launch overrides.
+  - 2026-06-24: Browser preview no longer schedules global terminal refreshes; mounted `TerminalView` owns scoped fit/refresh reconciliation for its own xterm surface.
 
 -- Shoshin | 2026-06-21

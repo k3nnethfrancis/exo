@@ -97,13 +97,26 @@ export function TerminalView(props: TerminalViewProps) {
     });
     observer.observe(viewportRef.current!);
 
+    const reconcileSurface = () => {
+      refreshTerminalSurface(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef, disposedRef);
+    };
+    const eventNames: Array<"focus" | "resize" | "pageshow" | "visibilitychange"> = [
+      "focus",
+      "resize",
+      "pageshow",
+      "visibilitychange",
+    ];
+    for (const eventName of eventNames) {
+      window.addEventListener(eventName, reconcileSurface);
+    }
+
     function focusTerminal(event?: MouseEvent) {
       event?.preventDefault();
       onFocus();
-      refreshTerminalSurface(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef, disposedRef);
+      reconcileSurface();
       terminal.focus();
       window.setTimeout(() => {
-        refreshTerminalSurface(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef, disposedRef);
+        reconcileSurface();
         terminal.focus();
       }, 0);
     }
@@ -161,6 +174,9 @@ export function TerminalView(props: TerminalViewProps) {
       writingRef.current = false;
       disposeData.dispose();
       observer.disconnect();
+      for (const eventName of eventNames) {
+        window.removeEventListener(eventName, reconcileSurface);
+      }
       surfaceRef.current?.removeEventListener("mousedown", focusTerminal);
       surfaceRef.current?.removeEventListener("click", focusTerminal);
       surfaceRef.current?.removeEventListener("dragover", handleDragOver, { capture: true });

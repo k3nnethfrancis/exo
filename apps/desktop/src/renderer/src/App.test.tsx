@@ -23,7 +23,6 @@ import {
   WorkspaceSettingsStore,
 } from "../../main/settings-store";
 import { buildProjectReviewChanges, uniqueCwdMatchedSession } from "./changedFileReview";
-import { schedulePreviewTerminalRefresh } from "./components/BrowserPane";
 import { TERMINAL_CUSTOM_GLYPHS, TERMINAL_FONT_FAMILY } from "./components/terminalFonts";
 import {
   initialTerminalHydrationViewState,
@@ -32,7 +31,7 @@ import {
 } from "./components/terminalHydration";
 import { isTerminalGeneratedResponse } from "./components/terminalInputFilters";
 import { TerminalOutputChunker, chunkTerminalData } from "./components/terminalOutputChunks";
-import { focusTerminal, refreshAllTerminals, registerTerminal, unregisterTerminal } from "./components/terminalRegistry";
+import { focusTerminal, registerTerminal, unregisterTerminal } from "./components/terminalRegistry";
 import { copyTerminalAttachCommand } from "./components/terminalAttachCommand";
 import { createTerminalToolDockActions, launchableTerminalAgentHarnesses } from "./components/TerminalRail";
 import { shouldUseMarkdownRenderer } from "./components/NoteEditor";
@@ -140,40 +139,6 @@ describe("browser preview panes", () => {
     expect(result.focusLeafId).toBe("browser-1");
   });
 
-  it("schedules repeated terminal refreshes around preview layout and focus changes", () => {
-    const refresh = vi.fn();
-    const frameCallbacks: FrameRequestCallback[] = [];
-    const timeoutCallbacks: Array<() => void> = [];
-    const scheduler = {
-      requestAnimationFrame: vi.fn((callback: FrameRequestCallback) => {
-        frameCallbacks.push(callback);
-        return frameCallbacks.length;
-      }),
-      cancelAnimationFrame: vi.fn(),
-      setTimeout: vi.fn((callback: () => void) => {
-        timeoutCallbacks.push(callback);
-        return timeoutCallbacks.length;
-      }),
-      clearTimeout: vi.fn(),
-    };
-
-    const cancel = schedulePreviewTerminalRefresh(refresh, scheduler as never);
-
-    expect(refresh).toHaveBeenCalledTimes(1);
-    expect(scheduler.requestAnimationFrame).toHaveBeenCalledTimes(1);
-    expect(scheduler.setTimeout).toHaveBeenCalledTimes(2);
-
-    frameCallbacks[0](0);
-    timeoutCallbacks.forEach((callback) => callback());
-
-    expect(refresh).toHaveBeenCalledTimes(4);
-
-    cancel();
-
-    expect(scheduler.cancelAnimationFrame).toHaveBeenCalledWith(1);
-    expect(scheduler.clearTimeout).toHaveBeenCalledWith(1);
-    expect(scheduler.clearTimeout).toHaveBeenCalledWith(2);
-  });
 });
 
 function harness(id: ManagedAgentKind, launchable: boolean, overrides: Partial<AgentHarnessDetection> = {}): AgentHarnessDetection {
@@ -258,16 +223,16 @@ describe("terminal renderer registry", () => {
     }
   });
 
-  it("can refresh all registered terminal surfaces after preview layout changes", () => {
+  it("does not refresh unrelated registered terminal surfaces during pane handoff", () => {
     const refreshOne = vi.fn();
     const refreshTwo = vi.fn();
 
     registerTerminal("terminal-1", { focus: vi.fn() } as never, vi.fn(), refreshOne);
     registerTerminal("terminal-2", { focus: vi.fn() } as never, vi.fn(), refreshTwo);
     try {
-      refreshAllTerminals();
+      expect(focusTerminal("terminal-1")).toBe(true);
       expect(refreshOne).toHaveBeenCalledTimes(1);
-      expect(refreshTwo).toHaveBeenCalledTimes(1);
+      expect(refreshTwo).not.toHaveBeenCalled();
     } finally {
       unregisterTerminal("terminal-1");
       unregisterTerminal("terminal-2");
