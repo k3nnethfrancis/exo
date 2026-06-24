@@ -9,9 +9,9 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [ ] Complete the terminal launch-readiness checklist tracked in `EXO-ISSUE-068` before treating Exo as launch-ready for daily agent work:
   1. Split `TerminalManager` further so session lifecycle, harness readiness/queued sends, live-tail policy, diagnostics, transcripts, and health/recovery each have a named owner.
   2. Move Codex-specific startup prompt scanning, queued semantic sends, and MCP launch overrides out of low-level terminal runtime code into harness-owned readiness/launch hooks.
-  3. Remove or fully migrate legacy `terminalHistoryMode`; terminal behavior should be expressed as explicit numeric/settings fields for live scrollback, read tails, transcript retention, timing, and geometry.
+  3. [x] Remove legacy `terminalHistoryMode`; terminal behavior is expressed as explicit numeric/settings fields for live scrollback, read tails, transcript retention, timing, and geometry.
   4. Replace preview-pane/global terminal refresh mitigations with scoped `TerminalView` visibility, focus, fit, and resize handling.
-  5. Add a first-class UI affordance for native tmux recovery/debug: copy attach command and/or open in native terminal from terminal diagnostics.
+  5. [x] Add a first-class UI affordance for native tmux recovery/debug: copy attach command from terminal diagnostics.
   6. Extend render-stability fixtures whenever field QA finds a new Claude/Codex corruption shape, especially `???`, `�`, tofu boxes, stale overlays, prompt wrapping drift, and blank history gaps.
   7. Promote the focused terminal gate into the standard readiness path: terminal vitest subset, render-stability fixture, fake-agent e2e, stable smoke, installed-app restart, and manual Claude/Codex QA.
   8. Pass real app QA after each terminal slice: fresh shell, fresh Claude, resumed long Claude conversation, preview open, pane move, tab switch, hard refresh, app restart, and sleep/wake when feasible.

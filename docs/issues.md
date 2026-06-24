@@ -24,9 +24,9 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
 - Finish-line checklist:
   - [ ] Split `TerminalManager` further so session lifecycle, harness readiness/queued sends, live-tail policy, diagnostics, transcripts, and health/recovery each have a named owner.
   - [ ] Move Codex-specific startup prompt scanning, queued semantic sends, and MCP launch overrides out of low-level terminal runtime code into harness-owned readiness/launch hooks.
-  - [ ] Remove or fully migrate legacy `terminalHistoryMode`; terminal behavior should be expressed as explicit numeric/settings fields for live scrollback, read tails, transcript retention, timing, and geometry.
+  - [x] Remove legacy `terminalHistoryMode`; terminal behavior is expressed as explicit numeric/settings fields for live scrollback, read tails, transcript retention, timing, and geometry.
   - [ ] Replace preview-pane/global terminal refresh mitigations with scoped `TerminalView` visibility, focus, fit, and resize handling.
-  - [ ] Add a first-class UI affordance for native tmux recovery/debug: copy attach command and/or open in native terminal from terminal diagnostics.
+  - [x] Add a first-class UI affordance for native tmux recovery/debug: copy attach command from terminal diagnostics.
   - [ ] Extend render-stability fixtures whenever field QA finds a new Claude/Codex corruption shape, especially `???`, `�`, tofu boxes, stale overlays, prompt wrapping drift, and blank history gaps.
   - [ ] Promote the focused terminal gate into the standard readiness path: terminal vitest subset, render-stability fixture, fake-agent e2e, stable smoke, installed-app restart, and manual Claude/Codex QA.
   - [ ] Pass real app QA after each terminal slice: fresh shell, fresh Claude, resumed long Claude conversation, preview open, pane move, tab switch, hard refresh, app restart, and sleep/wake when feasible.
@@ -843,7 +843,7 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
   - `pnpm exec playwright test -c apps/desktop/playwright.config.ts apps/desktop/tests/e2e/shell.spec.ts -g "keeps large terminal bursts available above the visible viewport|keeps app terminal tail above the legacy 12k cap|accepts terminal keyboard input"`
 - Remaining:
   - Reconcile and persist stale tmux session state during list/startup, not only diagnostics/reconnect.
-  - Replace or remove stale `terminalHistoryMode` naming so settings map directly to live scrollback/transcript behavior.
+  - Replace stale terminal history naming so settings map directly to live scrollback/transcript behavior.
   - Make MCP agent read limits configurable or clearly tied to workspace terminal settings.
   - Promote a deterministic terminal-quality e2e subset into CI.
 

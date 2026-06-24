@@ -401,7 +401,6 @@ function workspaceSettings(): CommandServerOptions["onGetSettings"] extends () =
     colorThemeId: "exo-neutral",
     editorFontSize: 15,
     terminalFontSize: 13,
-    terminalHistoryMode: "full",
     terminalHistoryLines: 1_000_000,
     terminalTranscriptRetention: "forever",
     terminalTranscriptRetentionDays: 14,

@@ -177,7 +177,6 @@ function workspaceSettings(overrides: Partial<WorkspaceSettings> = {}): Workspac
     colorThemeId: "exo-neutral",
     editorFontSize: 15,
     terminalFontSize: 13,
-    terminalHistoryMode: "custom",
     terminalHistoryLines: 1_000,
     terminalTranscriptRetention: "forever",
     terminalTranscriptRetentionDays: 14,

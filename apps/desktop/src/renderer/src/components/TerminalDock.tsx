@@ -1,5 +1,5 @@
 import { useEffect, useRef, type CSSProperties, type ReactNode, type Ref } from "react";
-import { Bot, GripVertical, RefreshCw, SquareTerminal, X } from "lucide-react";
+import { Bot, ClipboardCopy, GripVertical, RefreshCw, SquareTerminal, X } from "lucide-react";
 
 import type { TerminalSessionInfo } from "../../../shared/api";
 import type { DragManager } from "../hooks/useDragManager";
@@ -7,6 +7,7 @@ import { isReconnectableSession, isTerminalInputEnabled } from "../terminalSessi
 import type { ExoThemeVariant } from "../theme/types";
 import { AgentIcon } from "./AgentIcon";
 import { ChromeTab } from "./Chrome";
+import { copyTerminalAttachCommand } from "./terminalAttachCommand";
 import type { TerminalHydrationReason } from "./terminalHydration";
 import { focusTerminal } from "./terminalRegistry";
 import { TerminalView } from "./TerminalView";
@@ -69,6 +70,7 @@ export function TerminalDock(props: TerminalDockProps) {
   } = props;
   const activeSession = sessions.find((session) => session.id === activeTerminalId) ?? null;
   const canReconnect = Boolean(activeSession && isReconnectableSession(activeSession) && onReconnect);
+  const canCopyAttachCommand = Boolean(activeSession);
   const inputEnabled = activeSession ? isTerminalInputEnabled(activeSession) : true;
   const hydrateRef = useRef(onHydrate);
 
@@ -145,8 +147,25 @@ export function TerminalDock(props: TerminalDockProps) {
                 </ChromeTab>
               ))}
             </div>
-            {headerActions || canReconnect ? (
+            {headerActions || canReconnect || canCopyAttachCommand ? (
               <div className="terminal-dock__actions">
+                {activeSession ? (
+                  <button
+                    type="button"
+                    className="terminal-dock__header-button terminal-dock__attach"
+                    data-testid="terminal-copy-attach"
+                    title="Copy tmux attach command"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void copyTerminalAttachCommand(activeSession.id)
+                        .catch((error) => console.warn("[exo] failed to copy tmux attach command", error))
+                        .finally(() => focusTerminalAfterPaneActivation(activeSession.id));
+                    }}
+                  >
+                    <ClipboardCopy size={13} />
+                  </button>
+                ) : null}
                 {canReconnect && activeSession ? (
                   <button
                     type="button"

@@ -20,7 +20,6 @@ export interface WorkspaceSettingsDialogState {
   colorThemeId: ColorThemeId;
   editorFontSize: string;
   terminalFontSize: string;
-  terminalHistoryMode: WorkspaceSettings["terminalHistoryMode"];
   terminalHistoryLines: string;
   terminalTranscriptRetention: WorkspaceSettings["terminalTranscriptRetention"];
   terminalTranscriptRetentionDays: string;

@@ -46,7 +46,7 @@ Assumed implementation choices:
 
 Delete or retire now:
 
-- `terminalHistoryMode`; normalization forces `"custom"` and the mode no longer expresses product behavior.
+- Legacy `terminalHistoryMode`; removed from product settings because the mode no longer expressed behavior.
 - Any active mounted-terminal path where `terminals.read()` triggers `terminal.reset()`.
 - Any use of transcript contents to seed live xterm state during normal operation. Use transcript only for explicit transcript reads.
 - Main-process buffer as a competing live-render source. Keep only a bounded API tail cache if needed for `/terminals/:id/tail`; prefer tmux `capture-pane` for live session tails and transcript reads for durable history.
@@ -154,7 +154,7 @@ Automation must cover:
 
 ## What To Delete Or Simplify Now
 
-1. Remove `terminalHistoryMode` from product thinking and migrate settings/tests toward explicit fields:
+1. Remove `terminalHistoryMode` from product thinking and keep settings/tests on explicit fields:
    - `terminalLiveScrollbackLines`
    - `terminalReadTailChars`
    - `terminalMaxReadTailChars`
@@ -252,7 +252,7 @@ Phase 4: preview/focus reliability.
 
 Phase 5: tail and scrollback cleanup.
 
-- Rename settings away from `terminalHistoryMode`.
+- Keep settings away from `terminalHistoryMode`.
 - Decide whether API live tail comes from tmux capture, tail cache, or transcript tail by session state:
   - running: tmux capture-pane bounded by live scrollback setting
   - exited/missing: transcript tail

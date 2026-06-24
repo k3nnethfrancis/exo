@@ -15,7 +15,6 @@ export function workspaceSettingsImmediateDraftKey(settings: WorkspaceSettingsDi
     colorThemeId: settings.colorThemeId,
     editorFontSize: settings.editorFontSize,
     terminalFontSize: settings.terminalFontSize,
-    terminalHistoryMode: settings.terminalHistoryMode,
     terminalHistoryLines: settings.terminalHistoryLines,
     terminalTranscriptRetention: settings.terminalTranscriptRetention,
     terminalTranscriptRetentionDays: settings.terminalTranscriptRetentionDays,

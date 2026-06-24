@@ -47,7 +47,6 @@ export interface WorkspaceSettings {
   colorThemeId: ColorThemeId;
   editorFontSize: number;
   terminalFontSize: number;
-  terminalHistoryMode: TerminalHistoryMode;
   terminalHistoryLines: number;
   terminalTranscriptRetention: TerminalTranscriptRetention;
   terminalTranscriptRetentionDays: number;
@@ -175,7 +174,6 @@ export type IndexedRootKind = "notes" | "docs" | "code" | "mixed";
 export type IndexMode = "off" | "lexical" | "semantic" | "hybrid";
 export type IndexBackend = "qmd";
 export type IndexUpdateStrategy = "manual" | "on-save";
-export type TerminalHistoryMode = "full" | "custom";
 export type TerminalTranscriptRetention = "forever" | "days";
 
 export interface IndexedRoot {

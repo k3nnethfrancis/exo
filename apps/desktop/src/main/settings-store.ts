@@ -7,7 +7,6 @@ import {
   DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS,
   DEFAULT_TERMINAL_AGENT_SUBMIT_DELAY_MS,
   DEFAULT_TERMINAL_HISTORY_LINES,
-  DEFAULT_TERMINAL_HISTORY_MODE,
   DEFAULT_TERMINAL_INITIAL_COLUMNS,
   DEFAULT_TERMINAL_INITIAL_ROWS,
   DEFAULT_TERMINAL_INPUT_COALESCE_MS,
@@ -41,7 +40,6 @@ export {
   DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS,
   DEFAULT_TERMINAL_AGENT_SUBMIT_DELAY_MS,
   DEFAULT_TERMINAL_HISTORY_LINES,
-  DEFAULT_TERMINAL_HISTORY_MODE,
   DEFAULT_TERMINAL_INITIAL_COLUMNS,
   DEFAULT_TERMINAL_INITIAL_ROWS,
   DEFAULT_TERMINAL_INPUT_COALESCE_MS,
@@ -110,7 +108,6 @@ export class WorkspaceSettingsStore {
       colorThemeId: DEFAULT_COLOR_THEME_ID,
       editorFontSize: DEFAULT_EDITOR_FONT_SIZE,
       terminalFontSize: DEFAULT_TERMINAL_FONT_SIZE,
-      terminalHistoryMode: DEFAULT_TERMINAL_HISTORY_MODE,
       terminalHistoryLines: DEFAULT_TERMINAL_HISTORY_LINES,
       terminalTranscriptRetention: DEFAULT_TERMINAL_TRANSCRIPT_RETENTION,
       terminalTranscriptRetentionDays: DEFAULT_TERMINAL_TRANSCRIPT_RETENTION_DAYS,
@@ -160,17 +157,11 @@ export function isForcedTheme(value: string | undefined): value is WorkspaceSett
   return value === "light" || value === "dark" || value === "system";
 }
 
-export function resolveTerminalScrollbackLines(
-  _mode: WorkspaceSettings["terminalHistoryMode"],
-  lines: number,
-): number {
+export function resolveTerminalScrollbackLines(lines: number): number {
   return Math.max(MIN_TERMINAL_HISTORY_LINES, Math.floor(lines));
 }
 
-export function resolveTerminalBufferLineLimit(
-  _mode: WorkspaceSettings["terminalHistoryMode"],
-  lines: number,
-): number {
+export function resolveTerminalBufferLineLimit(lines: number): number {
   return Math.max(MIN_TERMINAL_HISTORY_LINES, Math.floor(lines));
 }
 
@@ -180,8 +171,8 @@ export function resolveTranscriptRetentionDays(settings: Pick<WorkspaceSettings,
 
 export function resolveTerminalRuntimePolicy(settings: WorkspaceSettings): TerminalRuntimePolicy {
   return {
-    scrollbackLines: resolveTerminalScrollbackLines(settings.terminalHistoryMode, settings.terminalHistoryLines),
-    bufferLineLimit: resolveTerminalBufferLineLimit(settings.terminalHistoryMode, settings.terminalHistoryLines),
+    scrollbackLines: resolveTerminalScrollbackLines(settings.terminalHistoryLines),
+    bufferLineLimit: resolveTerminalBufferLineLimit(settings.terminalHistoryLines),
     transcriptRetentionDays: resolveTranscriptRetentionDays(settings),
     inputCoalesceMs: settings.terminalInputCoalesceMs ?? DEFAULT_TERMINAL_INPUT_COALESCE_MS,
     agentStartupGraceMs: settings.terminalAgentStartupGraceMs ?? DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS,

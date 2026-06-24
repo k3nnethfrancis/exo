@@ -22,7 +22,6 @@ export const DEFAULT_APPEARANCE_MODE: WorkspaceSettings["appearanceMode"] = "sys
 export const DEFAULT_COLOR_THEME_ID: WorkspaceSettings["colorThemeId"] = "exo-neutral";
 export const DEFAULT_EDITOR_FONT_SIZE = 15;
 export const DEFAULT_TERMINAL_FONT_SIZE = 13;
-export const DEFAULT_TERMINAL_HISTORY_MODE: WorkspaceSettings["terminalHistoryMode"] = "custom";
 export const DEFAULT_TERMINAL_HISTORY_LINES = 100_000;
 export const MIN_TERMINAL_HISTORY_LINES = 500;
 export const DEFAULT_TERMINAL_TRANSCRIPT_RETENTION: WorkspaceSettings["terminalTranscriptRetention"] = "forever";
@@ -191,7 +190,6 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
     colorThemeId: normalizeColorThemeId(input.colorThemeId),
     editorFontSize: clampSettingsNumber(input.editorFontSize, DEFAULT_EDITOR_FONT_SIZE, 11, 24),
     terminalFontSize: clampSettingsNumber(input.terminalFontSize, DEFAULT_TERMINAL_FONT_SIZE, 10, 22),
-    terminalHistoryMode: DEFAULT_TERMINAL_HISTORY_MODE,
     terminalHistoryLines: normalizeTerminalHistoryLines(input.terminalHistoryLines),
     terminalTranscriptRetention: input.terminalTranscriptRetention === "days" ? "days" : DEFAULT_TERMINAL_TRANSCRIPT_RETENTION,
     terminalTranscriptRetentionDays: clampSettingsNumber(input.terminalTranscriptRetentionDays, DEFAULT_TERMINAL_TRANSCRIPT_RETENTION_DAYS, 1, 3650),

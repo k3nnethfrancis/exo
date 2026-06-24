@@ -9,7 +9,6 @@ import {
   DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS,
   DEFAULT_TERMINAL_AGENT_SUBMIT_DELAY_MS,
   DEFAULT_TERMINAL_HISTORY_LINES,
-  DEFAULT_TERMINAL_HISTORY_MODE,
   DEFAULT_TERMINAL_INITIAL_COLUMNS,
   DEFAULT_TERMINAL_INITIAL_ROWS,
   DEFAULT_TERMINAL_INPUT_COALESCE_MS,
@@ -34,6 +33,7 @@ import {
 import { isTerminalGeneratedResponse } from "./components/terminalInputFilters";
 import { TerminalOutputChunker, chunkTerminalData } from "./components/terminalOutputChunks";
 import { focusTerminal, refreshAllTerminals, registerTerminal, unregisterTerminal } from "./components/terminalRegistry";
+import { copyTerminalAttachCommand } from "./components/terminalAttachCommand";
 import { createTerminalToolDockActions, launchableTerminalAgentHarnesses } from "./components/TerminalRail";
 import { shouldUseMarkdownRenderer } from "./components/NoteEditor";
 import { workspaceSettingsSavedFooterCopy } from "./components/WorkspaceSettingsDialog";
@@ -383,7 +383,6 @@ describe("workspace terminal settings", () => {
       indexing: { enabled: false, mode: "off", backend: "qmd" },
     });
 
-    expect(settings?.terminalHistoryMode).toBe(DEFAULT_TERMINAL_HISTORY_MODE);
     expect(settings?.terminalHistoryLines).toBe(DEFAULT_TERMINAL_HISTORY_LINES);
     expect(settings?.terminalTranscriptRetention).toBe(DEFAULT_TERMINAL_TRANSCRIPT_RETENTION);
     expect(Object.prototype.hasOwnProperty.call(settings, "terminalStreamingMode")).toBe(false);
@@ -405,13 +404,11 @@ describe("workspace terminal settings", () => {
       projectRoots: [],
       indexedRoots: [],
       indexing: { enabled: false, mode: "off", backend: "qmd" },
-      terminalHistoryMode: "custom",
       terminalHistoryLines: 24_000,
       terminalTranscriptRetention: "days",
       terminalTranscriptRetentionDays: 30,
     });
 
-    expect(settings?.terminalHistoryMode).toBe("custom");
     expect(settings?.terminalHistoryLines).toBe(24_000);
     expect(settings?.terminalTranscriptRetention).toBe("days");
     expect(settings?.terminalTranscriptRetentionDays).toBe(30);
@@ -467,7 +464,6 @@ describe("workspace settings renderer model", () => {
       colorThemeId: "exo-neutral",
       editorFontSize: "15",
       terminalFontSize: "13",
-      terminalHistoryMode: "custom",
       terminalHistoryLines: String(RENDERER_DEFAULT_TERMINAL_HISTORY_LINES),
       terminalTranscriptRetention: "forever",
       terminalTranscriptRetentionDays: "14",
@@ -506,7 +502,6 @@ describe("workspace settings renderer model", () => {
       colorThemeId: "exo-neutral" as const,
       editorFontSize: "15",
       terminalFontSize: "13",
-      terminalHistoryMode: "custom" as const,
       terminalHistoryLines: String(RENDERER_DEFAULT_TERMINAL_HISTORY_LINES),
       terminalTranscriptRetention: "forever" as const,
       terminalTranscriptRetentionDays: "14",
@@ -536,7 +531,7 @@ describe("workspace settings renderer model", () => {
     );
   });
 
-  it("resolves numeric scrollback and preserves old full-mode line counts", () => {
+  it("resolves numeric scrollback and ignores legacy history mode", () => {
     const store = new WorkspaceSettingsStore({ userDataPath: "/tmp/exo-test", env: {} });
     const settings = store.normalize({
       workspaceRoot: "/workspace",
@@ -545,11 +540,12 @@ describe("workspace settings renderer model", () => {
       projectRoots: [],
       indexedRoots: [],
       indexing: { enabled: false, mode: "off", backend: "qmd" },
+      // Old persisted settings may include this field. New code ignores it
+      // and preserves the explicit numeric scrollback value.
       terminalHistoryMode: "full",
       terminalHistoryLines: 1_000_000,
-    });
+    } as Parameters<WorkspaceSettingsStore["normalize"]>[0] & { terminalHistoryMode: "full" });
 
-    expect(settings?.terminalHistoryMode).toBe("custom");
     expect(settings ? resolveSettingsTerminalRuntime(settings).scrollbackLines : null).toBe(1_000_000);
     expect(clampNumber(Number.NaN, 10, 20)).toBe(10);
     expect(clampNumber(25, 10, 20)).toBe(20);
@@ -1021,5 +1017,34 @@ describe("changed file review attribution", () => {
         [...sessions],
       )[0].agents,
     ).toEqual([]);
+  });
+});
+
+describe("terminal debug attach affordance", () => {
+  it("copies the active terminal tmux attach command from diagnostics", async () => {
+    const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined);
+
+    await expect(copyTerminalAttachCommand("term-1", {
+      getDiagnostics: async () => [
+        { id: "other", safeAttachCommand: "tmux attach-session -t 'other'" },
+        { id: "term-1", safeAttachCommand: "tmux attach-session -t 'exo-test'" },
+      ] as Awaited<ReturnType<typeof window.exo.terminals.diagnostics>>,
+      writeText,
+    })).resolves.toBe(true);
+
+    expect(writeText).toHaveBeenCalledWith("tmux attach-session -t 'exo-test'");
+  });
+
+  it("does not write clipboard text when diagnostics have no attach command for the session", async () => {
+    const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined);
+
+    await expect(copyTerminalAttachCommand("missing", {
+      getDiagnostics: async () => [
+        { id: "term-1", safeAttachCommand: "tmux attach-session -t 'exo-test'" },
+      ] as Awaited<ReturnType<typeof window.exo.terminals.diagnostics>>,
+      writeText,
+    })).resolves.toBe(false);
+
+    expect(writeText).not.toHaveBeenCalled();
   });
 });
