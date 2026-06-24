@@ -14,7 +14,7 @@ This protocol covers terminal visual/render issues:
 - screen-wide glyph smear
 - stale history pasted over live output
 - broken box drawing, braille spinners, status bars, prompt wraps, or alternate-screen output
-- symbol presentation issues, such as Claude's `⏺` action marker rendering as a colorful emoji
+- symbol presentation issues, such as Claude's `⏺` action marker rendering with oversized or poorly spaced metrics
 
 It does not replace `docs/terminal-quality-standard.md`; it is the operational loop for keeping that standard true as harnesses evolve.
 
@@ -54,7 +54,7 @@ It does not replace `docs/terminal-quality-standard.md`; it is the operational l
 
 ## Current Field Cases
 
-- `⏺` rendering as a blue emoji-style marker is a symbol-presentation issue. The stream is valid; prefer a terminal text presentation where Chromium supports it.
+- `⏺` rendering with oversized or poorly spaced metrics is a symbol-presentation issue. The stream is valid; prefer a renderer-only text-presentation hint where Chromium/xterm supports it.
 - Residual `�` in Claude transcripts is a byte/data issue until proven otherwise. It remains tracked under `EXO-ISSUE-062` and should produce a fixture before any fix is considered complete.
 
 -- Shoshin | 2026-06-24

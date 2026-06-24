@@ -15,6 +15,7 @@ import {
 } from "./terminalHydration";
 import { isTerminalGeneratedResponse } from "./terminalInputFilters";
 import { TerminalOutputChunker, TERMINAL_WRITE_CHUNK_SIZE } from "./terminalOutputChunks";
+import { normalizeTerminalPresentation } from "./terminalPresentation";
 import { registerTerminal, unregisterTerminal } from "./terminalRegistry";
 
 const TERMINAL_RESIZE_DEBOUNCE_MS = 16;
@@ -288,7 +289,11 @@ function enqueueTerminalWrite(
     return;
   }
 
-  for (const chunk of outputChunkerRef.current.chunks(data, TERMINAL_WRITE_CHUNK_SIZE)) {
+  // Presentation normalization is display-only: tmux output, transcripts, and
+  // CLI reads keep the original bytes. This asks Chromium/xterm to render
+  // terminal UI symbols like Claude's U+23FA marker as text, not colorful emoji.
+  const displayData = normalizeTerminalPresentation(data);
+  for (const chunk of outputChunkerRef.current.chunks(displayData, TERMINAL_WRITE_CHUNK_SIZE)) {
     queueRef.current.push(chunk);
   }
 

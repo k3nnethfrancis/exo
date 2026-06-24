@@ -31,6 +31,7 @@ import {
 } from "./components/terminalHydration";
 import { isTerminalGeneratedResponse } from "./components/terminalInputFilters";
 import { TerminalOutputChunker, chunkTerminalData } from "./components/terminalOutputChunks";
+import { normalizeTerminalPresentation } from "./components/terminalPresentation";
 import { focusTerminal, registerTerminal, unregisterTerminal } from "./components/terminalRegistry";
 import { createTerminalToolDockActions, launchableTerminalAgentHarnesses } from "./components/TerminalRail";
 import { shouldUseMarkdownRenderer } from "./components/NoteEditor";
@@ -668,6 +669,16 @@ describe("terminal output chunking", () => {
     expect(chunker.chunks(emoji.charAt(0), 64)).toEqual([]);
     chunker.reset();
     expect(chunker.chunks("fresh", 64)).toEqual(["fresh"]);
+  });
+});
+
+describe("terminal presentation normalization", () => {
+  it("asks Claude action markers to render as text without changing other emoji", () => {
+    expect(normalizeTerminalPresentation("⏺ Hey 🙂")).toBe("⏺︎ Hey 🙂");
+  });
+
+  it("does not duplicate explicit text or emoji presentation selectors", () => {
+    expect(normalizeTerminalPresentation("⏺︎ text ⏺️ emoji")).toBe("⏺︎ text ⏺️ emoji");
   });
 });
 

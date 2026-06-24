@@ -192,9 +192,6 @@
   padding: 6px 8px 26px;
   background: var(--terminal-bg);
   overflow: hidden;
-  /* Prefer monochrome presentation for terminal UI symbols such as Claude's
-     U+23FA action marker without rewriting the terminal byte stream. */
-  font-variant-emoji: text;
 }
 
 .terminal-surface--input-disabled {
