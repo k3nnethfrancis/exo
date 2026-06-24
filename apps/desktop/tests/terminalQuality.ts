@@ -35,6 +35,16 @@ export async function visibleTerminalText(page: Page): Promise<string> {
   return page.evaluate(() => Array.from(document.querySelectorAll(".xterm-rows")).map((rows) => rows.textContent ?? "").join("\n"));
 }
 
+export async function scrollTerminalToTop(page: Page): Promise<void> {
+  await page.getByTestId("terminal-surface").hover();
+  await page.mouse.wheel(0, -50_000);
+}
+
+export async function scrollTerminalToBottom(page: Page): Promise<void> {
+  await page.getByTestId("terminal-surface").hover();
+  await page.mouse.wheel(0, 50_000);
+}
+
 export async function expectTerminalRenderStable(page: Page): Promise<void> {
   const visibleText = await visibleTerminalText(page);
   const sessionText = await page.evaluate(async () => {
@@ -55,6 +65,36 @@ export async function expectTerminalRenderStable(page: Page): Promise<void> {
     }),
     `terminal render stability visible text failed:\n${visibleText}`,
   ).toEqual([]);
+}
+
+export async function expectTerminalRenderHistoryStable(page: Page): Promise<void> {
+  await scrollTerminalToTop(page);
+  await expect
+    .poll(
+      async () =>
+        terminalRenderStabilityIssues(await visibleTerminalText(page), {
+          requireVisibleHistoryFragments: true,
+        }),
+      { timeout: 5_000 },
+    )
+    .toEqual([]);
+
+  const scrolledHistoryText = await visibleTerminalText(page);
+  expect(
+    terminalRenderStabilityIssues(scrolledHistoryText),
+    `terminal render stability scrolled history failed:\n${scrolledHistoryText}`,
+  ).toEqual([]);
+
+  await scrollTerminalToBottom(page);
+  await expect
+    .poll(
+      async () =>
+        terminalRenderStabilityIssues(await visibleTerminalText(page), {
+          requireVisibleFragments: true,
+        }),
+      { timeout: 5_000 },
+    )
+    .toEqual([]);
 }
 
 function percentile(sortedSamples: number[], percentileValue: number): number {

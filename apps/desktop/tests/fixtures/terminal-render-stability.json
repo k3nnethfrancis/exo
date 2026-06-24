@@ -38,6 +38,11 @@
   "visibleFragments": [
     "FAKE_AGENT_PROMPT ready for input"
   ],
+  "visibleHistoryFragments": [
+    "Claude Code v2.1.183",
+    "fake-agent-scrollback-001",
+    "A few key takeaways:"
+  ],
   "forbiddenPatterns": [
     "replacement character",
     "triple question mark",

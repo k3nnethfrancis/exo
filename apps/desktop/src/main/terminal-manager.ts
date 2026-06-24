@@ -1,10 +1,8 @@
 import { EventEmitter } from "node:events";
 import { randomUUID } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import {
-  buildExoMcpServerSpec,
   resolveAgentLaunchPlan,
   resolveRuntimeConfig,
   syncRuntimeContextFiles,
@@ -25,6 +23,19 @@ import {
 import type { TerminalCreateOptions, TerminalHealthState, TerminalSessionInfo, TerminalKind, TerminalWriteResult } from "../shared/api";
 import { agentInstructionOverlayEnv, writeAgentInstructionOverlaysSync } from "./agent-instruction-overlays";
 import { terminalDiagnosticsFromRecord } from "./terminal-diagnostics";
+import {
+  harnessLaunchArgs,
+  initialHarnessReadiness,
+  initialHarnessReadinessDetail,
+  isAgentHarnessKind,
+  observeHarnessReadiness,
+  semanticMessageWrite,
+  shouldGateHarnessStartupInput,
+  shouldQueueRawWrite,
+  shouldQueueSemanticMessage,
+  startupGraceReadyDetail,
+  type PendingTerminalWrite,
+} from "./terminal-harness-readiness";
 import { terminalHealth, terminalHealthDetail } from "./terminal-health";
 import type { TerminalRuntime, TerminalRuntimePaneInfo, TerminalRuntimeProcess } from "./terminal-runtime";
 import { TmuxTerminalRuntime } from "./terminal-runtime-tmux";
@@ -52,11 +63,6 @@ interface TerminalRecord {
   paneStatus?: "alive" | "dead" | "missing" | "unknown";
   reconnecting?: boolean;
   terminating?: boolean;
-}
-
-interface PendingTerminalWrite {
-  data: string;
-  delayedSubmit: boolean;
 }
 
 const DEFAULT_LIVE_SCROLLBACK_LINES = 100_000;
@@ -240,7 +246,7 @@ export class TerminalManager extends EventEmitter {
       ...overlayEnv,
     };
 
-    const spawnArgs = options.kind === "codex" ? withCodexMcpOverrides(launch.args, this.runtimeConfig, launch.cwd) : launch.args;
+    const spawnArgs = harnessLaunchArgs(options.kind, launch.args, this.runtimeConfig, launch.cwd);
     const createdAt = new Date().toISOString();
     const launchToken = `${id}-${createdAt}-${randomUUID().slice(0, 8)}`;
     const runtimeSession = this.terminalRuntime.createSession({
@@ -268,8 +274,8 @@ export class TerminalManager extends EventEmitter {
       instructionOverlayPath: overlayEnv.EXO_INSTRUCTIONS ?? null,
       transcriptPath,
       status: "running",
-      readiness: initialReadiness(options.kind),
-      readinessDetail: initialReadinessDetail(options.kind),
+      readiness: initialHarnessReadiness(options.kind),
+      readinessDetail: initialHarnessReadinessDetail(options.kind),
       queuedInputCount: 0,
     };
 
@@ -286,13 +292,13 @@ export class TerminalManager extends EventEmitter {
       lastWriteId: 0,
     };
 
-    if (shouldGateStartupInput(info)) {
+    if (shouldGateHarnessStartupInput(info)) {
       record.readinessTimer = setTimeout(() => {
         const current = this.sessions.get(id);
         if (!current || current.info.readiness !== "starting") {
           return;
         }
-        this.markReady(current, "Codex startup grace elapsed.");
+        this.markReady(current, startupGraceReadyDetail(current.info.kind));
       }, this.terminalRuntimeOptions.agentStartupGraceMs);
     }
 
@@ -317,7 +323,7 @@ export class TerminalManager extends EventEmitter {
     }
 
     this.flushRawInput(record);
-    return this.writeToRecord(record, { data, delayedSubmit: false }, shouldQueueWrite(record, data));
+    return this.writeToRecord(record, { data, delayedSubmit: false }, shouldQueueRawWrite(record.info, data));
   }
 
   async sendMessage(id: string, message: string, submit = true): Promise<TerminalWriteResult> {
@@ -328,10 +334,10 @@ export class TerminalManager extends EventEmitter {
 
     this.flushRawInput(record);
     const pendingWrite = {
-      data: record.info.kind === "shell" ? message : bracketedPaste(message),
+      data: semanticMessageWrite(record.info.kind, message),
       delayedSubmit: submit,
     };
-    return this.writeToRecord(record, pendingWrite, submit && shouldQueueSubmittedAgentMessage(record));
+    return this.writeToRecord(record, pendingWrite, shouldQueueSemanticMessage(record.info, submit));
   }
 
   async reconnect(id: string): Promise<TerminalSessionInfo | null> {
@@ -668,27 +674,17 @@ export class TerminalManager extends EventEmitter {
   }
 
   private updateAgentReadiness(record: TerminalRecord): void {
-    if (record.info.kind !== "codex" || record.info.readiness === "ready") {
+    const transition = observeHarnessReadiness(record.info, record.tailCache.text());
+    if (!transition) {
       return;
     }
-
-    const startupState = getCodexStartupState(record.tailCache.text());
-    if (startupState === "ready") {
-      this.markReady(record, "Codex chat input is ready.");
-      return;
-    }
-
-    if (startupState === "trust-blocked") {
+    if (transition.clearTimer) {
       this.clearReadinessTimer(record);
-      record.info.readiness = "blocked";
-      record.info.readinessDetail = "Codex startup trust prompt is waiting for interactive confirmation.";
-      return;
     }
-
-    if (startupState === "update-blocked") {
-      this.clearReadinessTimer(record);
-      record.info.readiness = "blocked";
-      record.info.readinessDetail = "Codex startup update prompt is waiting for Skip, Skip until next version, or Update.";
+    record.info.readiness = transition.readiness;
+    record.info.readinessDetail = transition.readinessDetail;
+    if (transition.flushQueued) {
+      this.flushPendingWrites(record);
     }
   }
 
@@ -1000,109 +996,12 @@ function noopTerminalProcess(): TerminalRuntimeProcess {
   };
 }
 
-function initialReadiness(kind: TerminalKind): TerminalSessionInfo["readiness"] {
-  return kind === "codex" ? "starting" : "ready";
-}
-
-function initialReadinessDetail(kind: TerminalKind): string | undefined {
-  return kind === "codex" ? "Waiting briefly for Codex startup interstitials." : undefined;
-}
-
-function shouldGateStartupInput(info: TerminalSessionInfo): boolean {
-  return info.kind === "codex" && info.status === "running" && info.readiness === "starting";
-}
-
 function isAgentTerminal(record: TerminalRecord): boolean {
   return isAgentHarnessKind(record.info.kind);
 }
 
-function isAgentHarnessKind(kind: TerminalKind): boolean {
-  return kind === "claude" || kind === "codex" || kind === "pi" || kind === "hermes";
-}
-
-function shouldQueueWrite(record: TerminalRecord, data: string): boolean {
-  return (
-    record.info.kind === "codex" &&
-    record.info.status === "running" &&
-    record.info.readiness !== "ready" &&
-    looksLikeSubmittedChatMessage(data)
-  );
-}
-
-function shouldQueueSubmittedAgentMessage(record: TerminalRecord): boolean {
-  return (
-    record.info.kind === "codex" &&
-    record.info.status === "running" &&
-    record.info.readiness !== "ready"
-  );
-}
-
 function shouldCoalesceRawInput(data: string): boolean {
   return data.length > 0 && !/[\u0000-\u001f\u007f]/.test(data);
-}
-
-function looksLikeSubmittedChatMessage(data: string): boolean {
-  if (!data.endsWith("\r")) {
-    return false;
-  }
-
-  const body = data.slice(0, -1);
-  return body.length > 0 && !/[\u0000-\u0008\u000b-\u001f\u007f]/.test(body);
-}
-
-function bracketedPaste(data: string): string {
-  return `\x1b[200~${data}\x1b[201~`;
-}
-
-type CodexStartupState = "ready" | "trust-blocked" | "update-blocked" | "unknown";
-
-function getCodexStartupState(buffer: string): CodexStartupState {
-  const text = normalizeTerminalText(buffer);
-  const readyIndex = latestRegexIndex(text, [
-    /\bask codex\b/g,
-    /\bopenai codex\b/g,
-    /\btype (?:a )?message\b/g,
-    /\bwhat can i help\b/g,
-    /\bcodex is ready\b/g,
-  ]);
-  const trustIndex = latestRegexIndex(text, [
-    /\bdo you trust\b/g,
-    /\btrust (?:the )?(?:files|folder|directory|workspace|repo|repository)\b/g,
-    /\b(?:folder|directory|workspace|repo|repository).{0,80}\btrust\b/g,
-  ]);
-  const updateIndex =
-    /\bskip until next version\b/.test(text) ? latestRegexIndex(text, [/\bupdate available\b/g]) : -1;
-
-  if (trustIndex > readyIndex) {
-    return "trust-blocked";
-  }
-  if (updateIndex > readyIndex) {
-    return "update-blocked";
-  }
-  return readyIndex >= 0 ? "ready" : "unknown";
-}
-
-function normalizeTerminalText(buffer: string): string {
-  return buffer
-    .replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "")
-    .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, "")
-    .replace(/\s+/g, " ")
-    .toLowerCase();
-}
-
-function latestRegexIndex(text: string, patterns: RegExp[]): number {
-  let latest = -1;
-  for (const pattern of patterns) {
-    pattern.lastIndex = 0;
-    let match: RegExpExecArray | null;
-    while ((match = pattern.exec(text)) !== null) {
-      latest = Math.max(latest, match.index);
-      if (match[0].length === 0) {
-        pattern.lastIndex += 1;
-      }
-    }
-  }
-  return latest;
 }
 
 function stripMouseTrackingModes(data: string): string {
@@ -1156,88 +1055,4 @@ function integerAtLeast(value: number | undefined, fallback: number, min: number
     return fallback;
   }
   return Math.max(min, Math.floor(value as number));
-}
-
-function withCodexMcpOverrides(args: string[], config: RuntimeConfig, cwd: string): string[] {
-  const exoRoot = findExoRepoRoot(config, cwd);
-  if (!exoRoot) {
-    return args;
-  }
-
-  const spec = buildExoMcpServerSpec({
-    exoRoot,
-    workspaceRoot: config.workspace.workspaceRoot,
-  });
-
-  return [
-    ...args,
-    "-c",
-    `mcp_servers.${spec.serverName}.command=${tomlString(spec.command)}`,
-    "-c",
-    `mcp_servers.${spec.serverName}.args=${tomlStringArray(spec.args)}`,
-    "-c",
-    `mcp_servers.${spec.serverName}.env=${tomlInlineTable(spec.env)}`,
-  ];
-}
-
-function findExoRepoRoot(config: RuntimeConfig, cwd: string): string | null {
-  const candidates = [
-    cwd,
-    process.cwd(),
-    config.workspace.workspaceRoot,
-    config.workspace.defaultTerminalCwd,
-    ...config.workspace.projectRoots.map((root) => root.path),
-  ];
-
-  for (const candidate of candidates) {
-    const root = findExoRepoRootFrom(candidate);
-    if (root) {
-      return root;
-    }
-  }
-
-  return null;
-}
-
-function findExoRepoRootFrom(startPath: string): string | null {
-  let current = path.resolve(startPath);
-  while (true) {
-    if (isExoRepoRoot(current)) {
-      return current;
-    }
-    const parent = path.dirname(current);
-    if (parent === current) {
-      return null;
-    }
-    current = parent;
-  }
-}
-
-function isExoRepoRoot(candidate: string): boolean {
-  const packageJsonPath = path.join(candidate, "package.json");
-  const mcpLauncherPath = path.join(candidate, "packages", "mcp", "bin", "exo-mcp.mjs");
-  if (!existsSync(packageJsonPath) || !existsSync(mcpLauncherPath)) {
-    return false;
-  }
-
-  try {
-    const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as { name?: string };
-    return packageJson.name === "exo";
-  } catch {
-    return false;
-  }
-}
-
-function tomlString(value: string): string {
-  return JSON.stringify(value);
-}
-
-function tomlStringArray(values: string[]): string {
-  return `[${values.map(tomlString).join(", ")}]`;
-}
-
-function tomlInlineTable(values: Record<string, string>): string {
-  return `{${Object.entries(values)
-    .map(([key, value]) => `${key}=${tomlString(value)}`)
-    .join(", ")}}`;
 }

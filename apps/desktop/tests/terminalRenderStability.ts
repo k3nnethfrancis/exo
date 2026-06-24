@@ -6,12 +6,14 @@ interface TerminalRenderStabilityFixture {
   wrappedPrompt: string;
   expectedFragments: string[];
   visibleFragments: string[];
+  visibleHistoryFragments: string[];
 }
 
 const renderFixture = JSON.parse(readFileSync(new URL("./fixtures/terminal-render-stability.json", import.meta.url), "utf8")) as TerminalRenderStabilityFixture;
 
 export const TERMINAL_RENDER_STABILITY_EXPECTED_FRAGMENTS = renderFixture.expectedFragments;
 export const TERMINAL_RENDER_STABILITY_VISIBLE_FRAGMENTS = renderFixture.visibleFragments;
+export const TERMINAL_RENDER_STABILITY_VISIBLE_HISTORY_FRAGMENTS = renderFixture.visibleHistoryFragments;
 
 export function terminalRenderStabilityBody(): string {
   return [...renderFixture.headerLines.map((line) => `${line}\r\n`), ...renderFixture.spinnerUpdates, `${renderFixture.wrappedPrompt}\r\n`].join("");
@@ -19,7 +21,7 @@ export function terminalRenderStabilityBody(): string {
 
 export function terminalRenderStabilityIssues(
   text: string,
-  options: { requireExpectedFragments?: boolean; requireVisibleFragments?: boolean } = {},
+  options: { requireExpectedFragments?: boolean; requireVisibleFragments?: boolean; requireVisibleHistoryFragments?: boolean } = {},
 ): string[] {
   const issues: string[] = [];
 
@@ -45,6 +47,14 @@ export function terminalRenderStabilityIssues(
     for (const fragment of TERMINAL_RENDER_STABILITY_VISIBLE_FRAGMENTS) {
       if (!text.includes(fragment)) {
         issues.push(`missing expected visible fragment ${JSON.stringify(fragment)}`);
+      }
+    }
+  }
+
+  if (options.requireVisibleHistoryFragments) {
+    for (const fragment of TERMINAL_RENDER_STABILITY_VISIBLE_HISTORY_FRAGMENTS) {
+      if (!text.includes(fragment)) {
+        issues.push(`missing expected visible history fragment ${JSON.stringify(fragment)}`);
       }
     }
   }

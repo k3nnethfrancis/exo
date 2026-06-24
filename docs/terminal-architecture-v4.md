@@ -384,5 +384,6 @@ Next deletion candidates:
 - Replace routine renderer hydration with an explicit first-mount/reconnect state machine, then remove more `terminals.read()` reset/replay paths.
 - Decide whether diagnostics should keep `bufferedLines`/`bufferedChars`; removing or renaming them is a public command-server/API compatibility decision.
 - Move Codex readiness and queued semantic message delivery behind a readiness gate so `TerminalManager` can stop owning harness-specific startup text scanning.
+  - 2026-06-24: `terminal-harness-readiness.ts` now owns Codex startup prompt scanning, semantic-send queue policy, bracketed-paste formatting, and Codex MCP launch overrides.
 
 -- Shoshin | 2026-06-21

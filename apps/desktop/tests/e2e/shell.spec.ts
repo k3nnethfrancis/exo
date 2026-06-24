@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { test, expect } from "@playwright/test";
 
 import { launchExoFixture, relaunchExoFixture } from "../helpers";
-import { expectTerminalRenderStable, latencySummary, waitForTerminalText } from "../terminalQuality";
+import { expectTerminalRenderHistoryStable, expectTerminalRenderStable, latencySummary, waitForTerminalText } from "../terminalQuality";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const fakeAgentPath = path.join(repoRoot, "apps/desktop/tests/fixtures/fake-terminal-agent.mjs");
@@ -743,19 +743,24 @@ test("keeps fake Claude render stable and interactive while preview is open", as
     await waitForTerminalText(page, "wrapped prompt marker");
     await waitForTerminalText(page, "FAKE_AGENT_PROMPT ready for input");
     await expectTerminalRenderStable(page);
+    await expectTerminalRenderHistoryStable(page);
 
     await page.getByTestId("terminal-surface").click();
     await page.keyboard.type(`${input}\n`);
     await waitForTerminalText(page, `FAKE_AGENT_INPUT ${input}`);
     await expectTerminalRenderStable(page);
+    await expectTerminalRenderHistoryStable(page);
 
     await page.reload();
     await expect(page.getByTestId("terminal-tab-claude")).toBeVisible();
     await waitForTerminalText(page, "FAKE_AGENT_PROMPT ready for input");
+    await expectTerminalRenderStable(page);
+    await expectTerminalRenderHistoryStable(page);
     await page.getByTestId("terminal-surface").click();
     await page.keyboard.type(`${afterReloadInput}\n`);
     await waitForTerminalText(page, `FAKE_AGENT_INPUT ${afterReloadInput}`);
     await expectTerminalRenderStable(page);
+    await expectTerminalRenderHistoryStable(page);
   } finally {
     await cleanup();
   }
