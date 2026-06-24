@@ -35,6 +35,7 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
   - `pnpm terminal:check`, `pnpm check:repo`, and desktop build pass after integration.
     - 2026-06-24: `pnpm check:repo`, `pnpm terminal:check`, and `pnpm --filter @exo/desktop build` passed.
   - Installed Exo is restarted after the integrated build.
+    - 2026-06-24: `./scripts/install-mac-app --with-cli --with-mcp --app-dir /Users/kenneth/Applications` completed, installed Exo was relaunched, and `exo status` returned a healthy command server.
 
 ### EXO-ISSUE-068: Terminal launch-readiness finish line
 
