@@ -1,6 +1,6 @@
 # Exo Issues
 
-Last updated: 2026-06-23
+Last updated: 2026-06-24
 
 This is the canonical active bug/QA tracker for Exo implementation work. It captures user-observed issues that need investigation before the next push/release pass.
 
@@ -8,9 +8,41 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
 
 ## Open
 
+### EXO-ISSUE-068: Terminal launch-readiness finish line
+
+- Status: open
+- Severity: critical
+- Area: terminal architecture, render stability, lifecycle/input, QA gates
+- Canonical docs:
+  - `docs/terminal-architecture-v4.md`
+  - `docs/terminal-quality-standard.md`
+  - `docs/terminal-runtime-decision.md`
+  - `docs/terminal-fallback-audit.md`
+- Goal:
+  - Make Exo terminals reliable enough for daily Exo-on-Exo work with shell, Claude, Codex, Pi, and future harnesses embedded inside Exo.
+  - Keep the V4 architecture decision: one tmux-backed durable runtime, xterm-owned live rendering, append-only normal streaming, and no direct-pty fallback.
+- Finish-line checklist:
+  - [ ] Split `TerminalManager` further so session lifecycle, harness readiness/queued sends, live-tail policy, diagnostics, transcripts, and health/recovery each have a named owner.
+  - [ ] Move Codex-specific startup prompt scanning, queued semantic sends, and MCP launch overrides out of low-level terminal runtime code into harness-owned readiness/launch hooks.
+  - [ ] Remove or fully migrate legacy `terminalHistoryMode`; terminal behavior should be expressed as explicit numeric/settings fields for live scrollback, read tails, transcript retention, timing, and geometry.
+  - [ ] Replace preview-pane/global terminal refresh mitigations with scoped `TerminalView` visibility, focus, fit, and resize handling.
+  - [ ] Add a first-class UI affordance for native tmux recovery/debug: copy attach command and/or open in native terminal from terminal diagnostics.
+  - [ ] Extend render-stability fixtures whenever field QA finds a new Claude/Codex corruption shape, especially `???`, `�`, tofu boxes, stale overlays, prompt wrapping drift, and blank history gaps.
+  - [ ] Promote the focused terminal gate into the standard readiness path: terminal vitest subset, render-stability fixture, fake-agent e2e, stable smoke, installed-app restart, and manual Claude/Codex QA.
+  - [ ] Pass real app QA after each terminal slice: fresh shell, fresh Claude, resumed long Claude conversation, preview open, pane move, tab switch, hard refresh, app restart, and sleep/wake when feasible.
+- Existing issue links:
+  - `EXO-ISSUE-062` tracks the replacement-glyph/render-corruption class.
+  - `EXO-ISSUE-063` tracks residual tmux/hydration/read-tail/reconnect cleanup.
+  - `EXO-ISSUE-067` tracks Claude launch/focus/input readiness.
+- Acceptance:
+  - Fresh and resumed Claude/Codex sessions render without `???`, `�`, tofu boxes, stale overlays, blank history gaps, or prompt wrapping drift in installed Exo.
+  - Terminal input works on first focus after editor, explorer, preview, tab switch, pane move, hard refresh, and app relaunch.
+  - Scrollback and transcript behavior match visible settings and no hidden caps drive user-visible behavior.
+  - `pnpm check:repo`, focused terminal vitest, render-stability e2e, `pnpm stable:smoke`, installed-app restart, and documented manual app QA all pass.
+
 ### EXO-ISSUE-067: Claude terminal launch requires hard refresh and input can stop reaching the pane
 
-- Status: fixed locally; automated QA pending
+- Status: fixed in `main`; broader launch-readiness tracked in `EXO-ISSUE-068`
 - Severity: critical
 - Area: terminal launch, harness readiness, renderer hydration, focus/input
 - Observed:
@@ -34,6 +66,7 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
 - Resolution notes (2026-06-23):
   - Integrated a focused `TerminalDock` activation fix that focuses the active xterm after session hydration/activation.
   - Added fake-Claude reload/input e2e coverage proving a tmux-backed Claude session reattaches after renderer reload and accepts first focused input.
+  - Verified in `pnpm stable:smoke` after the V4 terminal pass.
   - This does not close the broader render corruption class tracked in `EXO-ISSUE-062`.
 
 ### EXO-ISSUE-062: Claude terminal launch shows replacement-glyph corruption
@@ -69,7 +102,7 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
 
 ### EXO-ISSUE-063: Terminal review residuals after tmux refactor
 
-- Status: partially fixed
+- Status: fixed in `main`; remaining launch-readiness work moved to `EXO-ISSUE-068`
 - Severity: high
 - Area: terminal architecture, hydration, read tails, reconnect, CI
 - Observed:
@@ -96,13 +129,7 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
   - Reconnect now forces a hydration snapshot so a restored bridge can replay current live pane output after backend reconnect.
   - MCP `read_agent.maxLines` no longer advertises or enforces the hidden 1000-line schema cap; live line limits now flow to the app and are bounded by configured terminal history.
   - Added `.claude/skills/terminal-stability/SKILL.md` and linked it from repo guidance so future terminal changes start from the terminal ownership rules, invariants, focused checks, and app QA script.
-  - Remaining open follow-ups:
-    - Extract renderer terminal hydration into an explicit state machine.
-    - Move Codex readiness and queued semantic sends out of `TerminalManager` into harness-owned readiness metadata/hooks.
-    - Split live-tail policy from session lifecycle.
-    - Remove or migrate legacy `terminalHistoryMode`.
-    - Replace preview-pane global terminal refresh hacks with a scoped `TerminalView` visibility/fit contract.
-    - Make terminal e2e/visual quality checks a named readiness gate, including the preview-adjacent fake-agent typing case.
+  - 2026-06-24 consolidation: the remaining architectural cleanup, diagnostics hardening, named readiness gate, and app QA requirements are now owned by `EXO-ISSUE-068`.
 
 ### EXO-ISSUE-064: Routine template plugins need trust and policy enforcement before agent execution
 

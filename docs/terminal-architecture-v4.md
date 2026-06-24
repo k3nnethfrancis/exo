@@ -168,7 +168,7 @@ Automation must cover:
    - forbidden: active focus, tab click, pane focus, metadata poll, preview-pane refresh
 7. Keep `BrowserPane` terminal refresh calls only as a temporary mitigation. Replace with terminal layout lifecycle tests and a direct `TerminalView` visibility/fit contract.
 
-## V3 Module Boundary Proposal
+## V4 Module Boundary Target
 
 Main process:
 

@@ -131,7 +131,7 @@ Terminals are the first agent interface.
 - transcript retention defaults to `forever`; optional day-based retention is explicit in settings
 - closing or killing a terminal intentionally terminates the tmux-backed session; window close/hide detaches the UI while the runtime remains available
 
-See `terminal-architecture-v4.md`, `terminal-runtime-decision.md`, and `terminal-quality-standard.md` for the tmux-backed runtime direction, current simplification proposal, and QA bar. `terminal-refactor-plan.md` is historical migration context.
+See `terminal-architecture-v4.md`, `terminal-runtime-decision.md`, and `terminal-quality-standard.md` for the tmux-backed runtime direction, current simplification target, and QA bar. `terminal-refactor-plan.md` is historical migration context.
 
 The renderer should treat terminal sessions as live views over supervised processes, not as durable state by itself.
 
@@ -143,7 +143,7 @@ Stability constraints:
 - strip mouse tracking modes from app output so wheel scroll remains local scroll in Exo
 - terminal file drops should resolve to filesystem paths before being pasted into the active terminal session
 
-Open architecture question: the current embedded terminal path still makes Exo responsible for tmux control-mode decoding, xterm rendering, hydration, and reconnect behavior. Any simplification must preserve the product requirements in `terminal-quality-standard.md`, but proposals may demote embedded interactive terminals if Exo can still reliably supervise durable tmux sessions, expose transcripts/tails, send semantic agent messages, and open a real external terminal attached to the tmux session.
+Current terminal target: the embedded terminal remains the daily UX, with native tmux attach available as a recovery/debug escape hatch. Simplification work should narrow and harden Exo's tmux control-mode decoding, xterm rendering, hydration, and reconnect responsibilities without demoting embedded shell/agent use.
 
 ## CLI Contract
 

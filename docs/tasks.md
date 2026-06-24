@@ -1,11 +1,20 @@
 # Exo Tasks
 
-Last updated: 2026-06-23
+Last updated: 2026-06-24
 
 This is the active task tracker for Exo. It is intentionally not a history file; completed implementation history belongs in `ledger.md`. Tasks here should be concrete, current, and ordered by practical priority.
 
 ## Now: Useability And Exo-On-Exo Readiness
 
+- [ ] Complete the terminal launch-readiness checklist tracked in `EXO-ISSUE-068` before treating Exo as launch-ready for daily agent work:
+  1. Split `TerminalManager` further so session lifecycle, harness readiness/queued sends, live-tail policy, diagnostics, transcripts, and health/recovery each have a named owner.
+  2. Move Codex-specific startup prompt scanning, queued semantic sends, and MCP launch overrides out of low-level terminal runtime code into harness-owned readiness/launch hooks.
+  3. Remove or fully migrate legacy `terminalHistoryMode`; terminal behavior should be expressed as explicit numeric/settings fields for live scrollback, read tails, transcript retention, timing, and geometry.
+  4. Replace preview-pane/global terminal refresh mitigations with scoped `TerminalView` visibility, focus, fit, and resize handling.
+  5. Add a first-class UI affordance for native tmux recovery/debug: copy attach command and/or open in native terminal from terminal diagnostics.
+  6. Extend render-stability fixtures whenever field QA finds a new Claude/Codex corruption shape, especially `???`, `�`, tofu boxes, stale overlays, prompt wrapping drift, and blank history gaps.
+  7. Promote the focused terminal gate into the standard readiness path: terminal vitest subset, render-stability fixture, fake-agent e2e, stable smoke, installed-app restart, and manual Claude/Codex QA.
+  8. Pass real app QA after each terminal slice: fresh shell, fresh Claude, resumed long Claude conversation, preview open, pane move, tab switch, hard refresh, app restart, and sleep/wake when feasible.
 - [ ] Complete fresh-clone setup QA for `EXO-ISSUE-027`: frozen install, package build, user Applications install, and first launch logging.
 - [x] Complete first-run onboarding QA for `EXO-ISSUE-028`: existing notes folder selection, post-selection shell state, terminal cwd default, and settings Apply copy.
 - [x] Fix markdown editor cursor/list QoL: preserve cursor across refresh, continue bullets on Enter, exit empty bullets cleanly, and keep arrow navigation out of hidden list markers.
@@ -13,21 +22,12 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Add wikilink exit behavior: Tab/Enter from inside `[[target]]` moves the cursor after a following space so typing can continue inline.
 - [x] Add wikilink existing-note suggestions while typing `[[query]]`, capped to three matches, with Enter selecting the first existing note match.
 - [ ] Reproduce and fix `EXO-ISSUE-029`: stray default Electron app window during `pnpm dev`.
-- [ ] Implement `EXO-ISSUE-030`: tmux-backed core terminal runtime with deterministic terminal-quality tests and no live-inference automated QA.
-  - Progress: create/attach/terminate now runs through tmux with a control-mode bridge; session registry, pane-id persistence, app relaunch reattach, stale bridge reconnect, power-resume recovery hook, UI reconnect affordance, idle/streaming latency, visible xterm scrollback, large live-tail reads, and typing after pane focus handoff have focused unit/Electron coverage. Remaining before close: manual macOS sleep/wake QA in the installed app, broader live Claude/Codex dogfood, and a final installed-app terminal pass.
-- [ ] Complete `EXO-ISSUE-037` terminal parity follow-up after multi-agent review: stale tmux state persistence, direct terminal-quality CI gate, and diagnostics gaps.
-  - Progress: terminal runtime requirements now require user-visible config for behavior-affecting caps/tuning values; MCP read defaults/maximums are backed by workspace settings and visible in Settings.
-- [ ] Run the terminal architecture simplification decision pass: question embedded-terminal requirements, identify control-mode/xterm/hydration responsibilities Exo can delete or demote, and decide whether the default daily path should be embedded interactive terminal, external tmux attach, or a split monitoring/control model.
-  - Constraint: simplification must still satisfy daily Exo-on-Exo requirements: reliable agent supervision, persistence, transcripts/tails, semantic send, recovery states, and app QA. Do not cut user-facing terminal expectations just to reduce code.
-  - Progress: terminal persistence remains a hard requirement. Added `.claude/skills/terminal-stability/SKILL.md` so future terminal work follows the tmux/xterm ownership model, no-hidden-caps rule, hydration invariants, focused checks, and real-app QA script.
-  - Progress: terminal render stability is now treated as its own gate. The current patch adds tmux UTF-8 mode, UTF-8 locale defaults, Unicode-safe pending hydration tails, stricter generated OSC response filtering, and fake-Claude render-quality coverage while preview is open.
-  - Progress: added `docs/terminal-fallback-audit.md`, expanded the terminal-stability skill with fallback discipline, removed an unused renderer input guard, preserved missing persisted tmux sessions as unhealthy transcript-backed records, and stopped MCP `send_agent_message` from reporting missing/detached terminals as successful sends.
-  - Next simplification slices:
-    1. Extract renderer terminal hydration into an explicit state machine: first mount/bootstrap, renderer reload before live mount, and forced reconnect are allowed; focus/tab/pane/preview changes are append-only.
-    2. Move Codex readiness, startup prompt scanning, queued semantic sends, and MCP launch overrides out of `TerminalManager` and into harness-owned readiness metadata/hooks.
-    3. Split live-tail policy from session lifecycle: running panes read bounded tmux capture, exited/missing sessions read transcript tail, and in-memory recent output is only fallback/readiness aid.
-    4. Remove or migrate legacy `terminalHistoryMode` toward explicit live scrollback/read-tail/transcript settings.
-    5. Replace preview-pane global terminal refresh hacks with a scoped `TerminalView` visibility/fit contract once preview-adjacent terminal e2e coverage is in place.
+- [x] Implement `EXO-ISSUE-030`: tmux-backed core terminal runtime with deterministic terminal-quality tests and no live-inference automated QA.
+  - Follow-up: remaining terminal launch-readiness work is now tracked under `EXO-ISSUE-068`.
+- [x] Complete `EXO-ISSUE-037` terminal parity follow-up after multi-agent review: stale tmux state persistence, terminal-quality CI gate, and diagnostics gaps.
+  - Follow-up: remaining diagnostics hardening and launch-readiness work is now tracked under `EXO-ISSUE-068`.
+- [x] Complete the terminal architecture simplification decision pass.
+  - Decision: Exo remains embedded-first, tmux-durable, and xterm-owned. See `docs/terminal-architecture-v4.md`.
 - [x] Remove artificial terminal capability limits found by multi-agent review: preserve alternate-screen/TUI escapes, replace broad wheel-input suppression with explicit viewport scrolling, send first measured resize immediately, route `exo terminals send` through semantic message delivery, and report missing/exited write targets as not delivered.
 - [ ] Reproduce and fix `EXO-ISSUE-031`: packaged app silently exits on first launch after local install.
 - [x] Mitigate `EXO-ISSUE-026`: installed app renderer runaway CPU/RSS during idle workspace use and missing renderer recovery after forced renderer death.
