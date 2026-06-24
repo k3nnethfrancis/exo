@@ -103,12 +103,10 @@ Optimization comes after this boundary exists. Until then, more retries, refresh
 Create a named focused terminal gate:
 
 ```bash
-pnpm --filter @exo/desktop exec vitest run src/main/terminal-manager.test.ts src/main/terminal-tmux.test.ts src/main/terminal-recovery-service.test.ts
-pnpm --filter @exo/desktop test -- src/renderer/src/App.test.tsx
-pnpm exec playwright test -c apps/desktop/playwright.config.ts apps/desktop/tests/e2e/shell.spec.ts -g "terminal|tmux|fake agent|latency|relaunch|reload|reconnect|preview"
+pnpm terminal:check
 ```
 
-Keep the full `pnpm ci:check` gate for broad handoff, but terminal work needs a fast, named subset that catches the known failure classes in minutes.
+Keep the full `pnpm ci:check` gate for broad handoff, but terminal work needs a fast, named subset that catches the known failure classes in minutes. `pnpm stable:check` runs both the broad handoff gate and `pnpm terminal:check`.
 
 ### 5. Automate
 
@@ -386,5 +384,6 @@ Next deletion candidates:
 - Move Codex readiness and queued semantic message delivery behind a readiness gate so `TerminalManager` can stop owning harness-specific startup text scanning.
   - 2026-06-24: `terminal-harness-readiness.ts` now owns Codex startup prompt scanning, semantic-send queue policy, bracketed-paste formatting, and Codex MCP launch overrides.
   - 2026-06-24: Browser preview no longer schedules global terminal refreshes; mounted `TerminalView` owns scoped fit/refresh reconciliation for its own xterm surface.
+  - 2026-06-24: `pnpm terminal:check` is the named focused terminal gate: focused terminal vitest subset plus `stable:smoke`.
 
 -- Shoshin | 2026-06-21

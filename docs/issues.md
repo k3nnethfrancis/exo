@@ -28,12 +28,13 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
   - [x] Replace preview-pane/global terminal refresh mitigations with scoped `TerminalView` visibility, focus, fit, and resize handling.
   - [x] Add a first-class UI affordance for native tmux recovery/debug: copy attach command from terminal diagnostics.
   - [ ] Extend render-stability fixtures whenever field QA finds a new Claude/Codex corruption shape, especially `???`, `�`, tofu boxes, stale overlays, prompt wrapping drift, and blank history gaps.
-  - [ ] Promote the focused terminal gate into the standard readiness path: terminal vitest subset, render-stability fixture, fake-agent e2e, stable smoke, installed-app restart, and manual Claude/Codex QA.
+  - [x] Promote the focused terminal gate into the standard readiness path: terminal vitest subset, render-stability fixture, fake-agent e2e, stable smoke, installed-app restart, and manual Claude/Codex QA.
   - [ ] Pass real app QA after each terminal slice: fresh shell, fresh Claude, resumed long Claude conversation, preview open, pane move, tab switch, hard refresh, app restart, and sleep/wake when feasible.
 - Notes:
   - 2026-06-24: Moved Codex startup prompt scanning, semantic-send queue policy, bracketed-paste formatting, and Codex MCP launch overrides out of `TerminalManager` into `terminal-harness-readiness`.
   - 2026-06-24: Extended the fake-Claude render-stability e2e to scroll visible xterm history after preview/reload, assert Claude-like/history anchors remain visible, and fail on replacement glyphs, `???`, tofu boxes, or blank/stale history gaps before continuing input.
   - 2026-06-24: Removed `BrowserPane` global terminal refresh scheduling. Mounted `TerminalView` instances now reconcile their own xterm fit/refresh on local focus, resize, pageshow, and visibility events; registry focus only refreshes the targeted terminal.
+  - 2026-06-24: Added `pnpm terminal:check` as the focused terminal gate and wired `pnpm stable:check` to run it after the broad CI handoff gate.
 - Existing issue links:
   - `EXO-ISSUE-062` tracks the replacement-glyph/render-corruption class.
   - `EXO-ISSUE-063` tracks residual tmux/hydration/read-tail/reconnect cleanup.
