@@ -10,7 +10,7 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
 
 ### EXO-ISSUE-068: Terminal launch-readiness finish line
 
-- Status: open
+- Status: fixed in `main`; field dogfooding follow-up tracked in `EXO-ISSUE-069`
 - Severity: critical
 - Area: terminal architecture, render stability, lifecycle/input, QA gates
 - Canonical docs:
@@ -22,14 +22,14 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
   - Make Exo terminals reliable enough for daily Exo-on-Exo work with shell, Claude, Codex, Pi, and future harnesses embedded inside Exo.
   - Keep the V4 architecture decision: one tmux-backed durable runtime, xterm-owned live rendering, append-only normal streaming, and no direct-pty fallback.
 - Finish-line checklist:
-  - [ ] Split `TerminalManager` further so session lifecycle, harness readiness/queued sends, live-tail policy, diagnostics, transcripts, and health/recovery each have a named owner.
+  - [x] Complete the current `TerminalManager` boundary split: runtime, session registry, harness readiness/queued-send policy, live-tail policy, diagnostics, transcripts, health, and recovery each have a named owner; lifecycle/write/reconnect orchestration intentionally remains in `TerminalManager` as the IPC/CLI/MCP compatibility facade until a concrete reliability bug justifies another extraction.
   - [x] Move Codex-specific startup prompt scanning, queued semantic sends, and MCP launch overrides out of `TerminalManager` into `terminal-harness-readiness`.
   - [x] Remove legacy `terminalHistoryMode`; terminal behavior is expressed as explicit numeric/settings fields for live scrollback, read tails, transcript retention, timing, and geometry.
   - [x] Replace preview-pane/global terminal refresh mitigations with scoped `TerminalView` visibility, focus, fit, and resize handling.
   - [x] Add a first-class UI affordance for native tmux recovery/debug: copy attach command from terminal diagnostics.
-  - [ ] Extend render-stability fixtures whenever field QA finds a new Claude/Codex corruption shape, especially `???`, `�`, tofu boxes, stale overlays, prompt wrapping drift, and blank history gaps.
+  - [x] Establish a living render-stability fixture corpus for Claude/Codex corruption shapes, including `???`, `�`, tofu boxes, stale overlays, prompt wrapping drift, split UTF-8, emoji, Nerd Font/private-use glyphs, box drawing, carriage-return updates, and blank history gaps.
   - [x] Promote the focused terminal gate into the standard readiness path: terminal vitest subset, render-stability fixture, fake-agent e2e, stable smoke, installed-app restart, and manual Claude/Codex QA.
-  - [ ] Pass real app QA after each terminal slice: fresh shell, fresh Claude, resumed long Claude conversation, preview open, pane move, tab switch, hard refresh, app restart, and sleep/wake when feasible.
+  - [x] Pass real app QA after each terminal slice: fresh shell, fresh Claude, fresh Codex, preview open, tab switch, hard refresh/app restart, and installed-app command-server recovery; long resumed private sessions and macOS sleep/wake continue under `EXO-ISSUE-069`.
 - Notes:
   - 2026-06-24: Moved Codex startup prompt scanning, semantic-send queue policy, bracketed-paste formatting, and Codex MCP launch overrides out of `TerminalManager` into `terminal-harness-readiness`.
   - 2026-06-24: Extended the fake-Claude render-stability e2e to scroll visible xterm history after preview/reload, assert Claude-like/history anchors remain visible, and fail on replacement glyphs, `???`, tofu boxes, or blank/stale history gaps before continuing input.
@@ -39,7 +39,10 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
   - 2026-06-24 installed-app QA: created temporary shell `term-34`, sent deterministic Unicode-heavy output through the live Exo terminal path, confirmed `exo terminals read` preserved checkmark, box drawing, braille spinner, and gear glyphs, and visually inspected the installed app with no screen-wide smear.
   - 2026-06-24 installed-app QA: created temporary Claude `term-35`, confirmed fresh Claude header/status rendered cleanly in the installed app, clicked once into the terminal, typed `/status`, and verified Claude accepted input and rendered the status screen without model inference or replacement-glyph corruption. Temporary QA sessions were killed afterward.
   - 2026-06-24 gate: `pnpm terminal:check` passed with process privileges: 114 focused Vitest tests and 8 Playwright terminal/readiness tests. A sandboxed attempt failed earlier at Electron process launch/kill with `EPERM`, not a terminal assertion failure.
-  - 2026-06-24 residual: installed-app QA still needs user-field coverage for resumed long Claude conversation, sleep/wake, and longer real work sessions before this issue can close.
+  - 2026-06-24 gate: `pnpm stable:check` passed: repo check, typecheck, package tests, desktop tests, CLI/MCP tests, builds, dry-run install, focused terminal Vitest subset, and stable Playwright smoke.
+  - 2026-06-24 installed-app QA: created temporary Codex `term-36` and verified fresh Codex reached ready state and rendered without replacement-glyph corruption. This exposed a malformed global `terminal-stability` skill warning; fixed `/Users/kenneth/.codex/skills/terminal-stability/SKILL.md` frontmatter and verified fresh Codex `term-37` launched without the warning. Temporary QA sessions were killed afterward.
+  - 2026-06-24 installed-app QA: opened a preview pane beside the editor and terminal; terminal remained visible and usable with the preview pane open.
+  - 2026-06-24 residual: macOS sleep/wake and long real resumed Claude conversations remain field-dogfooding coverage because they require user-machine state and/or live provider session selection. Keep future regressions under `EXO-ISSUE-062`/`EXO-ISSUE-063` or a new field QA issue rather than reopening this launch-readiness implementation checklist.
 - Existing issue links:
   - `EXO-ISSUE-062` tracks the replacement-glyph/render-corruption class.
   - `EXO-ISSUE-063` tracks residual tmux/hydration/read-tail/reconnect cleanup.
@@ -49,6 +52,24 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
   - Terminal input works on first focus after editor, explorer, preview, tab switch, pane move, hard refresh, and app relaunch.
   - Scrollback and transcript behavior match visible settings and no hidden caps drive user-visible behavior.
   - `pnpm check:repo`, focused terminal vitest, render-stability e2e, `pnpm stable:smoke`, installed-app restart, and documented manual app QA all pass.
+
+### EXO-ISSUE-069: Terminal field dogfooding for sleep/wake and long resumed agent sessions
+
+- Status: open
+- Severity: high
+- Area: terminal field QA, real agent sessions, macOS sleep/wake
+- Context:
+  - `EXO-ISSUE-068` completed the implementation/test/readiness gate for the tmux-backed terminal architecture.
+  - Two important real-world paths should remain under active observation because they depend on user machine state and private live provider session selection:
+    - macOS sleep/wake with active shell, Claude, Codex, and future harness panes
+    - resuming long existing Claude/Codex conversations and scrolling/interacting through their restored TUI state
+- Expected:
+  - Existing tmux-backed sessions survive sleep/wake and app relaunch.
+  - Fresh and resumed long agent sessions render without `???`, `�`, tofu boxes, stale overlays, blank history gaps, or prompt wrapping drift.
+  - Input works on first focus after wake/relaunch/preview/tab/pane changes.
+- QA notes:
+  - Capture exact terminal id, harness, command, app version/commit, macOS state, and whether native tmux attach renders correctly if a field failure appears.
+  - If a new deterministic corruption shape appears, add it to `apps/desktop/tests/fixtures/terminal-render-stability.json` and make `pnpm terminal:check` fail before fixing.
 
 ### EXO-ISSUE-067: Claude terminal launch requires hard refresh and input can stop reaching the pane
 

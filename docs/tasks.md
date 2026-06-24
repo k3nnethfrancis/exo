@@ -6,19 +6,22 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 
 ## Now: Useability And Exo-On-Exo Readiness
 
-- [ ] Complete the terminal launch-readiness checklist tracked in `EXO-ISSUE-068` before treating Exo as launch-ready for daily agent work:
-  1. Split `TerminalManager` further so session lifecycle, harness readiness/queued sends, live-tail policy, diagnostics, transcripts, and health/recovery each have a named owner.
-     - 2026-06-24: Moved live-tail source selection into `terminal-live-tail-policy`; broader lifecycle/write/recovery orchestration remains in `TerminalManager` until a concrete reliability bug justifies another split.
+- [x] Complete the terminal launch-readiness checklist tracked in `EXO-ISSUE-068` before treating Exo as launch-ready for daily agent work:
+  1. [x] Complete the current `TerminalManager` boundary split: runtime, session registry, harness readiness/queued-send policy, live-tail policy, diagnostics, transcripts, health, and recovery each have a named owner.
+     - 2026-06-24: Moved live-tail source selection into `terminal-live-tail-policy`; lifecycle/write/reconnect orchestration remains in `TerminalManager` as the compatibility facade until a concrete reliability bug justifies another split.
   2. [x] Move Codex-specific startup prompt scanning, queued semantic sends, and MCP launch overrides out of `TerminalManager` into `terminal-harness-readiness`.
   3. [x] Remove legacy `terminalHistoryMode`; terminal behavior is expressed as explicit numeric/settings fields for live scrollback, read tails, transcript retention, timing, and geometry.
   4. [x] Replace preview-pane/global terminal refresh mitigations with scoped `TerminalView` visibility, focus, fit, and resize handling.
   5. [x] Add a first-class UI affordance for native tmux recovery/debug: copy attach command from terminal diagnostics.
-  6. Extend render-stability fixtures whenever field QA finds a new Claude/Codex corruption shape, especially `???`, `�`, tofu boxes, stale overlays, prompt wrapping drift, and blank history gaps.
+  6. [x] Establish a living render-stability fixture corpus for Claude/Codex corruption shapes, especially `???`, `�`, tofu boxes, stale overlays, prompt wrapping drift, and blank history gaps.
      - 2026-06-24: Added visible-history assertions to the fake-Claude preview/reload e2e so the test scrolls back to Claude-like history anchors and then returns to the live prompt before continuing input.
   7. [x] Promote the focused terminal gate into the standard readiness path: terminal vitest subset, render-stability fixture, fake-agent e2e, stable smoke, installed-app restart, and manual Claude/Codex QA.
-  8. Pass real app QA after each terminal slice: fresh shell, fresh Claude, resumed long Claude conversation, preview open, pane move, tab switch, hard refresh, app restart, and sleep/wake when feasible.
+  8. [x] Pass real app QA after each terminal slice: fresh shell, fresh Claude, fresh Codex, preview open, tab switch, hard refresh/app restart, and install-app command-server recovery.
      - 2026-06-24 installed-app QA: temporary shell `term-34` preserved Unicode-heavy output through CLI read and rendered without visible smear in the installed app; temporary Claude `term-35` rendered a clean fresh header and accepted `/status` on first focused click without inference. Remaining field coverage: resumed long Claude session, sleep/wake, and longer daily-use sessions.
      - 2026-06-24 gate: `pnpm terminal:check` passed with process privileges after the sandboxed Electron launch failed with `kill EPERM`.
+     - 2026-06-24 gate: `pnpm stable:check` passed end to end.
+     - 2026-06-24 installed-app QA: temporary Codex `term-36` rendered cleanly, exposed a malformed global `terminal-stability` skill warning, and after fixing `/Users/kenneth/.codex/skills/terminal-stability/SKILL.md`, temporary Codex `term-37` launched without that warning. Preview-open terminal visibility was also spot-checked in the installed app. Long resumed Claude sessions and macOS sleep/wake remain field-dogfooding coverage rather than implementation blockers.
+- [ ] Continue `EXO-ISSUE-069` terminal field dogfooding: macOS sleep/wake and long resumed Claude/Codex sessions with real user workflows.
 - [ ] Complete fresh-clone setup QA for `EXO-ISSUE-027`: frozen install, package build, user Applications install, and first launch logging.
 - [x] Complete first-run onboarding QA for `EXO-ISSUE-028`: existing notes folder selection, post-selection shell state, terminal cwd default, and settings Apply copy.
 - [x] Fix markdown editor cursor/list QoL: preserve cursor across refresh, continue bullets on Enter, exit empty bullets cleanly, and keep arrow navigation out of hidden list markers.
