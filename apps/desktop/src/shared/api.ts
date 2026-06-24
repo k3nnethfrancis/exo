@@ -57,6 +57,12 @@ export interface TerminalWriteResult {
 
 export interface TerminalMessageResult extends TerminalWriteResult {}
 
+export interface TerminalDebugAttachInfo {
+  tmuxSessionName: string;
+  tmuxPaneId: string | null;
+  safeAttachCommand: string;
+}
+
 export interface TerminalDiagnostics {
   id: string;
   kind: TerminalKind;
@@ -66,6 +72,9 @@ export interface TerminalDiagnostics {
   healthDetail: string;
   runtime: "tmux";
   tmuxSessionName: string;
+  tmuxPaneId: string | null;
+  safeAttachCommand: string;
+  debugAttach: TerminalDebugAttachInfo;
   bridgeStatus: "attached" | "detached";
   paneStatus: "alive" | "dead" | "missing" | "unknown";
   cwd: string;

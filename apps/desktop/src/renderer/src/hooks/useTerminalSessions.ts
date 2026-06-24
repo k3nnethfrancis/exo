@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { TerminalKind, TerminalSessionInfo } from "../../../shared/api";
+import type { TerminalHydrationReason } from "../components/terminalHydration";
 import { writeTerminalData } from "../components/terminalRegistry";
 import { terminalSessionsEqual } from "../terminalSessions";
 
@@ -14,11 +15,13 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
   const [activeTerminalId, setActiveTerminalIdState] = useState<string | null>(null);
   const [hydrationSnapshots, setHydrationSnapshots] = useState<Record<string, string>>({});
   const [hydrationVersions, setHydrationVersions] = useState<Record<string, number>>({});
+  const [hydrationReasons, setHydrationReasons] = useState<Record<string, TerminalHydrationReason>>({});
   const [, setAgentAnnotations] = useState<Record<string, { runLabel: string; parentId: string | null }>>({});
   const sessionsRef = useRef<TerminalSessionInfo[]>([]);
   const activeTerminalIdRef = useRef<string | null>(null);
   const hydratedSessionIdsRef = useRef(new Set<string>());
   const pendingHydrationIdsRef = useRef(new Set<string>());
+  const pendingHydrationReasonsRef = useRef<Record<string, TerminalHydrationReason>>({});
   const pendingTerminalDataRef = useRef<Record<string, string>>({});
   const hydrationSnapshotsRef = useRef<Record<string, string>>({});
   const optionsRef = useRef(options);
@@ -68,7 +71,13 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
   useEffect(() => {
     const removeDataListener = window.exo.terminals.onData(({ id, data }) => {
       const rendered = writeTerminalData(id, data);
-      if (!rendered || pendingHydrationIdsRef.current.has(id)) {
+      if (
+        shouldBufferTerminalDataForHydration(
+          rendered,
+          pendingHydrationReasonsRef.current[id],
+          hydratedSessionIdsRef.current.has(id),
+        )
+      ) {
         pendingTerminalDataRef.current[id] = appendPendingTerminalData(
           pendingTerminalDataRef.current[id] ?? "",
           data,
@@ -108,11 +117,11 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
     setSessions(nextSessions);
     setActiveTerminalIdState(activeId);
     if (activeId && activeSnapshot !== undefined) {
-      setHydrationSnapshot(activeId, activeSnapshot);
+      setHydrationSnapshot(activeId, activeSnapshot, "bootstrap");
     }
   }
 
-  function setHydrationSnapshot(id: string, snapshot: string) {
+  function setHydrationSnapshot(id: string, snapshot: string, reason: TerminalHydrationReason) {
     const pendingData = pendingTerminalDataRef.current[id] ?? "";
     if (pendingData.length > 0) {
       delete pendingTerminalDataRef.current[id];
@@ -123,35 +132,42 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
     const mergedSnapshot = mergeHydrationSnapshot(snapshot, pendingData);
     hydratedSessionIdsRef.current.add(id);
     pendingHydrationIdsRef.current.delete(id);
+    delete pendingHydrationReasonsRef.current[id];
     setHydrationSnapshots((current) => ({ ...current, [id]: mergedSnapshot }));
+    setHydrationReasons((current) => ({ ...current, [id]: reason }));
     setHydrationVersions((current) => ({ ...current, [id]: (current[id] ?? 0) + 1 }));
   }
 
   async function hydrateTerminal(id: string, options?: { force?: boolean }) {
+    const reason: TerminalHydrationReason = options?.force ? "reconnect" : "bootstrap";
     if (!options?.force && hydratedSessionIdsRef.current.has(id) && (pendingTerminalDataRef.current[id]?.length ?? 0) > 0) {
       // A terminal may be marked hydrated before its xterm instance registers.
       // Flush pending appends without calling terminals.read() again; routine
       // focus/tab changes must not reset or replay mounted terminal state.
-      setHydrationSnapshot(id, hydrationSnapshotsRef.current[id] ?? "");
+      setHydrationSnapshot(id, hydrationSnapshotsRef.current[id] ?? "", reason);
       return;
     }
     if (shouldSkipTerminalHydration(id, hydratedSessionIdsRef.current, pendingHydrationIdsRef.current, options)) {
       return;
     }
     pendingHydrationIdsRef.current.add(id);
+    pendingHydrationReasonsRef.current[id] = reason;
     try {
       const snapshot = await window.exo.terminals.read(id);
-      setHydrationSnapshot(id, snapshot);
+      setHydrationSnapshot(id, snapshot, reason);
     } finally {
       pendingHydrationIdsRef.current.delete(id);
+      delete pendingHydrationReasonsRef.current[id];
     }
   }
 
   function pruneHydration(activeIds: Set<string>) {
     setHydrationSnapshots((current) => pruneRecordToKeys(current, activeIds));
     setHydrationVersions((current) => pruneRecordToKeys(current, activeIds));
+    setHydrationReasons((current) => pruneRecordToKeys(current, activeIds));
     hydratedSessionIdsRef.current = new Set([...hydratedSessionIdsRef.current].filter((id) => activeIds.has(id)));
     pendingHydrationIdsRef.current = new Set([...pendingHydrationIdsRef.current].filter((id) => activeIds.has(id)));
+    pendingHydrationReasonsRef.current = pruneRecordToKeys(pendingHydrationReasonsRef.current, activeIds);
     pendingTerminalDataRef.current = pruneRecordToKeys(pendingTerminalDataRef.current, activeIds);
   }
 
@@ -214,8 +230,14 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
       delete next[id];
       return next;
     });
+    setHydrationReasons((current) => {
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
     hydratedSessionIdsRef.current.delete(id);
     pendingHydrationIdsRef.current.delete(id);
+    delete pendingHydrationReasonsRef.current[id];
     delete pendingTerminalDataRef.current[id];
     setAgentAnnotations((current) => {
       const next = { ...current };
@@ -240,6 +262,7 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
     activeTerminalId,
     hydrationSnapshots,
     hydrationVersions,
+    hydrationReasons,
     initialize,
     pruneHydration,
     createTerminal,
@@ -289,6 +312,20 @@ export function shouldSkipTerminalHydration(
   options?: { force?: boolean },
 ): boolean {
   return pendingHydrationIds.has(id) || (!options?.force && hydratedSessionIds.has(id));
+}
+
+export function shouldBufferTerminalDataForHydration(
+  rendered: boolean,
+  pendingReason: TerminalHydrationReason | undefined,
+  alreadyHydrated: boolean,
+): boolean {
+  if (!rendered) {
+    return true;
+  }
+  if (pendingReason === "reconnect") {
+    return true;
+  }
+  return pendingReason === "bootstrap" && !alreadyHydrated;
 }
 
 function largestSuffixPrefixOverlap(snapshot: string, pendingData: string): number {

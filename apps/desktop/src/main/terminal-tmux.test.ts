@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { EventEmitter } from "node:events";
 import { StringDecoder } from "node:string_decoder";
+import { terminalRenderStabilityBody, terminalRenderStabilityIssues } from "../../tests/terminalRenderStability";
 
 const childProcess = vi.hoisted(() => ({
   execFileSync: vi.fn(),
@@ -225,7 +226,7 @@ describe("terminal tmux runtime helpers", () => {
     expect(received.join("")).not.toContain("�");
   });
 
-  it("preserves Claude-like ANSI, box drawing, braille, emoji, and private-use glyph bytes across tmux output records", () => {
+  it("preserves the terminal render-stability corpus across tmux output records", () => {
     const fake = fakeControlProcess();
     childProcess.spawn.mockReturnValue(fake.child);
     const received: string[] = [];
@@ -241,20 +242,16 @@ describe("terminal tmux runtime helpers", () => {
     });
     process.onData((data) => received.push(data));
 
-    const claudeLike = [
-      "\x1b[38;5;141m╭──────────────── Claude Code ────────────────╮\x1b[0m\r\n",
-      "\x1b[2m│\x1b[0m ⠋ Working  \ue0b0  ✻  🧠  status: ready \x1b[2m│\x1b[0m\r\n",
-      "\x1b[38;5;141m╰─────────────────────────────────────────────╯\x1b[0m\r\n",
-      "\x1b[7m model: claude │ cwd: ~/lab │ tokens: 1,024 \x1b[0m\r\n",
-    ].join("");
-    const encoded = tmuxControlEncode(claudeLike);
+    const renderStabilityOutput = terminalRenderStabilityBody();
+    const encoded = tmuxControlEncode(renderStabilityOutput);
 
     for (const part of splitControlValue(encoded, [11, 5, 1, 19, 7, 2, 23, 3])) {
       fake.emitStdout(`%output %3 ${part}\n`);
     }
 
-    expect(received.join("")).toBe(claudeLike);
-    expect(received.join("")).not.toContain("�");
+    const decoded = received.join("");
+    expect(decoded).toBe(renderStabilityOutput);
+    expect(terminalRenderStabilityIssues(decoded, { requireExpectedFragments: true })).toEqual([]);
   });
 
   it("maps terminal input to tmux keys without treating escape sequences as text", () => {

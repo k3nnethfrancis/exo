@@ -741,6 +741,7 @@ test("keeps fake Claude render stable and interactive while preview is open", as
     await expect(page.getByTestId("terminal-tab-claude")).toBeVisible();
     await expect.poll(async () => readFirstTerminalOfKind(page, "claude")).toContain("wrapped prompt marker");
     await waitForTerminalText(page, "wrapped prompt marker");
+    await waitForTerminalText(page, "FAKE_AGENT_PROMPT ready for input");
     await expectTerminalRenderStable(page);
 
     await page.getByTestId("terminal-surface").click();

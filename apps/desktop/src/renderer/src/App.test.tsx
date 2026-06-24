@@ -26,6 +26,11 @@ import {
 import { buildProjectReviewChanges, uniqueCwdMatchedSession } from "./changedFileReview";
 import { schedulePreviewTerminalRefresh } from "./components/BrowserPane";
 import { TERMINAL_CUSTOM_GLYPHS, TERMINAL_FONT_FAMILY } from "./components/terminalFonts";
+import {
+  initialTerminalHydrationViewState,
+  markTerminalHydrationApplied,
+  shouldApplyTerminalHydration,
+} from "./components/terminalHydration";
 import { isTerminalGeneratedResponse } from "./components/terminalInputFilters";
 import { TerminalOutputChunker, chunkTerminalData } from "./components/terminalOutputChunks";
 import { focusTerminal, refreshAllTerminals, registerTerminal, unregisterTerminal } from "./components/terminalRegistry";
@@ -33,12 +38,18 @@ import { createTerminalToolDockActions, launchableTerminalAgentHarnesses } from 
 import { shouldUseMarkdownRenderer } from "./components/NoteEditor";
 import { workspaceSettingsSavedFooterCopy } from "./components/WorkspaceSettingsDialog";
 import { listEnterEdit, shouldSuppressGeneratedTitleLine, wikilinkExitEdit } from "./components/markdownLivePreview";
-import { appendPendingTerminalData, mergeHydrationSnapshot, shouldSkipTerminalHydration } from "./hooks/useTerminalSessions";
+import {
+  appendPendingTerminalData,
+  mergeHydrationSnapshot,
+  shouldBufferTerminalDataForHydration,
+  shouldSkipTerminalHydration,
+} from "./hooks/useTerminalSessions";
 import { defaultTerminalCwdForNotesFolder } from "./hooks/useWorkspaceBootstrap";
 import { isReconnectableSession, isTerminalInputEnabled, terminalSessionsEqual } from "./terminalSessions";
 import { applyTheme } from "./theme/applyTheme";
 import { contrastRatio } from "./theme/contrast";
 import { THEME_FAMILIES, resolveTheme } from "./theme/registry";
+import { terminalRenderStabilityBody, terminalRenderStabilityIssues } from "../../../tests/terminalRenderStability";
 import {
   DEFAULT_TERMINAL_HISTORY_LINES as RENDERER_DEFAULT_TERMINAL_HISTORY_LINES,
   clampNumber,
@@ -662,18 +673,13 @@ describe("markdown live preview title suppression", () => {
 });
 
 describe("terminal output chunking", () => {
-  it("preserves Claude-like Unicode and ANSI status output across renderer write chunks", () => {
-    const claudeLike = [
-      "\x1b[38;5;141m╭──────────────── Claude Code ────────────────╮\x1b[0m\r\n",
-      "\x1b[2m│\x1b[0m ⠋ Working  \ue0b0  ✻  🧠  status: ready \x1b[2m│\x1b[0m\r\n",
-      "\x1b[38;5;141m╰─────────────────────────────────────────────╯\x1b[0m\r\n",
-      "\x1b[7m model: claude │ cwd: ~/lab │ tokens: 1,024 \x1b[0m\r\n",
-    ].join("");
+  it("preserves the terminal render-stability corpus across renderer write chunks", () => {
+    const renderStabilityOutput = terminalRenderStabilityBody();
 
-    const chunks = chunkTerminalData(claudeLike, 7);
+    const chunks = chunkTerminalData(renderStabilityOutput, 7);
 
-    expect(chunks.join("")).toBe(claudeLike);
-    expect(chunks.join("")).not.toContain("�");
+    expect(chunks.join("")).toBe(renderStabilityOutput);
+    expect(terminalRenderStabilityIssues(chunks.join(""), { requireExpectedFragments: true })).toEqual([]);
     expect(chunks.every((chunk) => !endsWithHighSurrogate(chunk) && !startsWithLowSurrogate(chunk))).toBe(true);
   });
 
@@ -963,6 +969,28 @@ describe("terminal session sync", () => {
     expect(shouldSkipTerminalHydration("term-a", hydrated, pending, { force: true })).toBe(false);
     expect(shouldSkipTerminalHydration("term-b", hydrated, pending)).toBe(false);
     expect(shouldSkipTerminalHydration("term-a", hydrated, new Set(["term-a"]), { force: true })).toBe(true);
+  });
+
+  it("applies hydration only for first mount or explicit reconnect", () => {
+    const initial = initialTerminalHydrationViewState();
+    const bootstrap = { snapshot: "first prompt\n", version: 1, reason: "bootstrap" as const };
+    const liveMetadataRefresh = { snapshot: "stale prompt\n", version: 2, reason: "bootstrap" as const };
+    const reconnect = { snapshot: "reattached prompt\n", version: 3, reason: "reconnect" as const };
+
+    expect(shouldApplyTerminalHydration(initial, { snapshot: "", version: 0, reason: "bootstrap" })).toBe(false);
+    expect(shouldApplyTerminalHydration(initial, bootstrap)).toBe(true);
+
+    const live = markTerminalHydrationApplied(initial, bootstrap);
+    expect(shouldApplyTerminalHydration(live, liveMetadataRefresh)).toBe(false);
+    expect(shouldApplyTerminalHydration(live, reconnect)).toBe(true);
+  });
+
+  it("does not keep React-owned live terminal data after hydration is live", () => {
+    expect(shouldBufferTerminalDataForHydration(false, undefined, true)).toBe(true);
+    expect(shouldBufferTerminalDataForHydration(true, undefined, true)).toBe(false);
+    expect(shouldBufferTerminalDataForHydration(true, "bootstrap", false)).toBe(true);
+    expect(shouldBufferTerminalDataForHydration(true, "bootstrap", true)).toBe(false);
+    expect(shouldBufferTerminalDataForHydration(true, "reconnect", true)).toBe(true);
   });
 });
 

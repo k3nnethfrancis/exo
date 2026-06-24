@@ -105,6 +105,7 @@ export function App() {
     activeTerminalId,
     hydrationSnapshots: terminalHydrationSnapshots,
     hydrationVersions: terminalHydrationVersions,
+    hydrationReasons: terminalHydrationReasons,
   } = terminalState;
   const terminalPaneController = useTerminalPaneController({
     editorTree,
@@ -1033,6 +1034,7 @@ export function App() {
               activeTerminalId={leafActiveTerminalId}
               hydrationSnapshots={terminalHydrationSnapshots}
               hydrationVersions={terminalHydrationVersions}
+              hydrationReasons={terminalHydrationReasons}
               theme={resolvedTheme}
               fontSize={terminalFontSize}
               scrollbackLines={terminalRuntimeScrollbackLines}
@@ -1129,6 +1131,7 @@ export function App() {
             activeTerminalId={leafActiveTerminalId}
             hydrationSnapshots={terminalHydrationSnapshots}
             hydrationVersions={terminalHydrationVersions}
+            hydrationReasons={terminalHydrationReasons}
             theme={resolvedTheme}
             fontSize={terminalFontSize}
             scrollbackLines={terminalRuntimeScrollbackLines}

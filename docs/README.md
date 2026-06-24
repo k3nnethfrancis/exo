@@ -9,7 +9,7 @@ This directory contains committed, public-facing project context. It should be u
 - `strategy.md` - product direction and system model.
 - `architecture.md` - current package, runtime, terminal, CLI/MCP, pane, search, and plugin boundaries.
 - `plugin-system-architecture.md` - canonical core-versus-plugin target architecture.
-- `terminal-architecture-v3.md` - current terminal simplification/module-boundary proposal.
+- `terminal-architecture-v4.md` - current terminal architecture and module-boundary target.
 - `terminal-runtime-decision.md` - current tmux-backed terminal runtime decision and constraints.
 - `terminal-quality-standard.md` - terminal useability, configuration, and QA standard.
 - `terminal-fallback-audit.md` - current terminal fallback/recovery decisions, steelman objections, and hardening backlog.
@@ -23,7 +23,7 @@ This directory contains committed, public-facing project context. It should be u
 
 These remain in place for traceability but should not be treated as the latest architecture source:
 
-- `terminal-refactor-plan.md` - historical tmux migration plan; superseded for current design work by `terminal-architecture-v3.md`, `terminal-runtime-decision.md`, and `terminal-quality-standard.md`.
+- `terminal-refactor-plan.md` - historical tmux migration plan; superseded for current design work by `terminal-architecture-v4.md`, `terminal-runtime-decision.md`, and `terminal-quality-standard.md`.
 - `qmd-integration-plan.md` - longer-term QMD product plan; live adapter details are in `qmd-integration-notes.md`.
 - `staff-code-review-2026-05-27.md` - dated code review; terminal guidance inside it has been superseded.
 - `mcp-nde-test-2026-06-20.md` - dated MCP non-destructive QA audit.
@@ -44,7 +44,7 @@ These remain in place for traceability but should not be treated as the latest a
 11. `plugins.md` - plugin architecture direction
 12. `plugin-implementation-plan.md` - phased implementation plan for capability registries, search providers, agent harnesses, activity substrate, plugin manifests, and future permissioned loading
 13. `open-source.md` - release and platform support notes
-14. `terminal-architecture-v3.md` - current terminal simplification and module-boundary proposal
+14. `terminal-architecture-v4.md` - current terminal architecture and module-boundary target
 15. `terminal-runtime-decision.md` - terminal runtime decision
 16. `terminal-quality-standard.md` - terminal useability and QA standard
 17. `terminal-fallback-audit.md` - terminal fallback/recovery policy and current decisions
@@ -63,7 +63,7 @@ These remain in place for traceability but should not be treated as the latest a
 - `plugins.md` tracks the intended extension model.
 - `plugin-implementation-plan.md` tracks the concrete refactor/implementation order for the first plugin architecture phases.
 - `open-source.md` tracks public release hygiene.
-- `terminal-architecture-v3.md` is the current terminal simplification and extraction proposal.
+- `terminal-architecture-v4.md` is the current terminal simplification and extraction proposal.
 - `terminal-runtime-decision.md` records the tmux-backed terminal runtime decision.
 - `terminal-quality-standard.md` defines the latency, rendering, scrollback, persistence, and QA bar for terminal changes.
 - `terminal-fallback-audit.md` explains which fallback/recovery paths are allowed, why they exist, and which ones still need hardening.

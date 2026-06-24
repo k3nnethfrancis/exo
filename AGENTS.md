@@ -14,11 +14,11 @@ The immediate product proving loop is Exo-on-Exo: finish usability/harness readi
 6. `docs/harness.md` - gates, work chunks, agent workflow
 7. `docs/tasks.md` - active execution tracker
 8. `docs/usability-readiness.md` - near-term standard before installed daily use
-9. `docs/terminal-architecture-v3.md` - current terminal simplification and module-boundary proposal
+9. `docs/terminal-architecture-v4.md` - current terminal architecture and module-boundary target
 10. `docs/terminal-runtime-decision.md` - current terminal runtime decision and open simplification questions
 11. `docs/terminal-quality-standard.md` - terminal useability and QA standard
 12. `docs/terminal-fallback-audit.md` - terminal fallback/recovery policy, steelman objections, and hardening backlog
-13. `docs/terminal-refactor-plan.md` - historical tmux migration plan; use the v3/decision/quality/fallback docs for current rules
+13. `docs/terminal-refactor-plan.md` - historical tmux migration plan; use the v4/decision/quality/fallback docs for current rules
 14. `docs/qmd-integration-notes.md` - current QMD adapter contract and upgrade notes
 15. `docs/roadmap.md` - future plans
 16. `docs/plugin-system-architecture.md` - core-versus-plugin target architecture

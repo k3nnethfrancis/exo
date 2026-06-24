@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 
+import { readFileSync } from "node:fs";
 import readline from "node:readline";
 
 const profile = process.argv.includes("--codex") ? "codex" : "claude";
 const renderStability = process.argv.includes("--render-stability");
 const label = profile.toUpperCase();
+const renderStabilityFixture = JSON.parse(readFileSync(new URL("./terminal-render-stability.json", import.meta.url), "utf8"));
 
 process.stdout.on("error", (error) => {
   if (error.code === "EPIPE") {
@@ -19,14 +21,13 @@ function write(line = "") {
 
 write(`FAKE_${label}_READY`);
 if (renderStability) {
-  write("\x1b[38;5;141m╭──────────────── Claude Code v2.1.183 ────────────────╮\x1b[0m");
-  write("\x1b[2m│\x1b[0m ⠋ Working  \ue0b0  ✻  🙂  status: ready \x1b[2m│\x1b[0m");
-  write("\x1b[38;5;141m╰──────────────────────────────────────────────────────╯\x1b[0m");
-  write("\x1b[7m [lab] exo:2Δ fieldkit:1Δ notes:112Δ │ Opus 4.6 (1M context) \x1b[0m");
-  process.stdout.write("\r\x1b[35m⠙ rendering\x1b[0m \ue0b0");
-  setTimeout(() => process.stdout.write("\r\x1b[35m⠹ rendering\x1b[0m \ue0b0"));
-  setTimeout(() => process.stdout.write("\r\x1b[35m⠸ rendering\x1b[0m \ue0b0\n"), 20);
-  write("wrapped prompt marker: " + "typecheck-errors ".repeat(24));
+  for (const line of renderStabilityFixture.headerLines) {
+    write(line);
+  }
+  for (const update of renderStabilityFixture.spinnerUpdates) {
+    process.stdout.write(update);
+  }
+  write(renderStabilityFixture.wrappedPrompt);
 }
 write("\x1b[1mA few key takeaways:\x1b[0m");
 write("Their framing was: \"Glean is knowledge discovery; ChatGTM is sales workflows.\"");

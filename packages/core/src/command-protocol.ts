@@ -49,9 +49,18 @@ export interface ExoCommandTerminalInfo {
   healthDetail?: string;
 }
 
+export interface ExoCommandTerminalDebugAttachInfo {
+  tmuxSessionName: string;
+  tmuxPaneId: string | null;
+  safeAttachCommand: string;
+}
+
 export interface ExoCommandTerminalDiagnostics extends ExoCommandTerminalInfo {
   runtime?: "tmux";
   tmuxSessionName?: string;
+  tmuxPaneId?: string | null;
+  safeAttachCommand?: string;
+  debugAttach?: ExoCommandTerminalDebugAttachInfo;
   bridgeStatus?: "attached" | "detached";
   paneStatus?: "alive" | "dead" | "missing" | "unknown";
   bufferedLines: number;

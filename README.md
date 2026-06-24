@@ -332,7 +332,7 @@ See `docs/harness.md` for work-chunk rules, validation evidence, and agent-frien
 - `docs/architecture.md` - package and runtime architecture.
 - `docs/strategy.md` - product direction and system model.
 - `docs/plugin-system-architecture.md` - core-versus-plugin boundary.
-- `docs/terminal-architecture-v3.md` - current terminal simplification and module-boundary proposal.
+- `docs/terminal-architecture-v4.md` - current terminal architecture and module-boundary target.
 - `docs/harness.md` - developer harness, gates, and agent workflow.
 - `docs/usability-readiness.md` - near-term standard for installed daily use.
 - `docs/plugins.md` - future extension model.
@@ -392,6 +392,6 @@ ls "$HOME/Library/Logs/DiagnosticReports"/Electron-*.ips
 9. `docs/tasks.md` - active execution tracker
 10. `docs/roadmap.md` - future plans
 11. `docs/plugin-system-architecture.md` - core-versus-plugin target architecture
-12. `docs/terminal-architecture-v3.md` - current terminal simplification proposal
+12. `docs/terminal-architecture-v4.md` - current terminal simplification proposal
 13. `docs/plugins.md` - future extension model
 14. `packages/mcp/README.md` - MCP setup and tools

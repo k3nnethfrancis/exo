@@ -132,6 +132,6 @@ Not allowed:
 
 ## Detailed Plan
 
-Use `docs/terminal-architecture-v3.md` for the current simplification and module-boundary proposal. `docs/terminal-refactor-plan.md` is retained as historical migration context and should not be treated as the current implementation plan.
+Use `docs/terminal-architecture-v4.md` for the current simplification and module-boundary proposal. `docs/terminal-refactor-plan.md` is retained as historical migration context and should not be treated as the current implementation plan.
 
 -- Shoshin | 2026-06-18

@@ -86,6 +86,8 @@ Real Claude/Codex sessions belong in short manual smoke checks and dogfooding, n
 - Emit 10k+ lines with top, middle, and bottom markers.
 - Emit long wrapped lines wider than the terminal.
 - Emit ANSI colors, bold, dim, inverse, carriage-return updates, and status/footer-like output.
+- Run the Terminal Render Stability fixture through tmux control-mode decoding, renderer write chunking, and Electron e2e with fake Claude/Codex only. The fixture must include Claude-like header/status/footer lines, box drawing, braille spinner frames, emoji, private-use/Nerd Font glyphs, ANSI styles, carriage-return updates, and wrapped prompt lines.
+- Fail the render-stability gate on Unicode replacement characters, `???` fallback text, common literal tofu placeholders, or missing required fixture fragments. Font-rendered tofu cannot be fully detected from terminal text alone, so keep terminal font fallback tests and visual QA in the loop for that class of failure.
 - Resize panes while output is streaming.
 - Switch terminal tabs while output is streaming.
 - Scroll up while output is streaming, then return to bottom.

@@ -131,7 +131,7 @@ Terminals are the first agent interface.
 - transcript retention defaults to `forever`; optional day-based retention is explicit in settings
 - closing or killing a terminal intentionally terminates the tmux-backed session; window close/hide detaches the UI while the runtime remains available
 
-See `terminal-architecture-v3.md`, `terminal-runtime-decision.md`, and `terminal-quality-standard.md` for the tmux-backed runtime direction, current simplification proposal, and QA bar. `terminal-refactor-plan.md` is historical migration context.
+See `terminal-architecture-v4.md`, `terminal-runtime-decision.md`, and `terminal-quality-standard.md` for the tmux-backed runtime direction, current simplification proposal, and QA bar. `terminal-refactor-plan.md` is historical migration context.
 
 The renderer should treat terminal sessions as live views over supervised processes, not as durable state by itself.
 

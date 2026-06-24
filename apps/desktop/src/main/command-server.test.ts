@@ -235,6 +235,13 @@ describe("CommandServer terminal routes", () => {
           healthDetail: "Recent terminal input/output observed.",
           runtime: "tmux",
           tmuxSessionName: "exo-test-term-1",
+          tmuxPaneId: "%1",
+          safeAttachCommand: "tmux attach-session -t 'exo-test-term-1'",
+          debugAttach: {
+            tmuxSessionName: "exo-test-term-1",
+            tmuxPaneId: "%1",
+            safeAttachCommand: "tmux attach-session -t 'exo-test-term-1'",
+          },
           bridgeStatus: "attached",
           paneStatus: "alive",
           bufferedLines: 1,
@@ -259,6 +266,13 @@ describe("CommandServer terminal routes", () => {
       expect(diagnostics[0]).toMatchObject({
         runtime: "tmux",
         tmuxSessionName: "exo-test-term-1",
+        tmuxPaneId: "%1",
+        safeAttachCommand: "tmux attach-session -t 'exo-test-term-1'",
+        debugAttach: {
+          tmuxSessionName: "exo-test-term-1",
+          tmuxPaneId: "%1",
+          safeAttachCommand: "tmux attach-session -t 'exo-test-term-1'",
+        },
         bridgeStatus: "attached",
         paneStatus: "alive",
       });

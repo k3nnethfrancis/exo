@@ -7,6 +7,12 @@ import type { TerminalSessionInfo } from "../../../shared/api";
 import type { ExoThemeVariant } from "../theme/types";
 import { exoXtermTheme } from "../theme/xterm";
 import { TERMINAL_CUSTOM_GLYPHS, TERMINAL_FONT_FAMILY } from "./terminalFonts";
+import {
+  initialTerminalHydrationViewState,
+  markTerminalHydrationApplied,
+  shouldApplyTerminalHydration,
+  type TerminalHydrationReason,
+} from "./terminalHydration";
 import { isTerminalGeneratedResponse } from "./terminalInputFilters";
 import { TerminalOutputChunker, TERMINAL_WRITE_CHUNK_SIZE } from "./terminalOutputChunks";
 import { registerTerminal, unregisterTerminal } from "./terminalRegistry";
@@ -18,6 +24,7 @@ interface TerminalViewProps {
   session: TerminalSessionInfo;
   hydrationSnapshot: string;
   hydrationVersion: number;
+  hydrationReason: TerminalHydrationReason;
   fontSize: number;
   scrollbackLines: number;
   onFocus: () => void;
@@ -28,12 +35,12 @@ interface TerminalViewProps {
 }
 
 export function TerminalView(props: TerminalViewProps) {
-  const { theme, session, hydrationSnapshot, hydrationVersion, fontSize, scrollbackLines, onFocus, onInput, onResize, onReady, inputEnabled = true } = props;
+  const { theme, session, hydrationSnapshot, hydrationVersion, hydrationReason, fontSize, scrollbackLines, onFocus, onInput, onResize, onReady, inputEnabled = true } = props;
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
-  const hydrationVersionRef = useRef(-1);
+  const hydrationStateRef = useRef(initialTerminalHydrationViewState());
   const writeQueueRef = useRef<string[]>([]);
   const outputChunkerRef = useRef(new TerminalOutputChunker());
   const writingRef = useRef(false);
@@ -56,6 +63,7 @@ export function TerminalView(props: TerminalViewProps) {
   }, [onResize]);
 
   useEffect(() => {
+    hydrationStateRef.current = initialTerminalHydrationViewState();
     const terminal = new Terminal({
       fontFamily: TERMINAL_FONT_FAMILY,
       fontSize,
@@ -162,7 +170,7 @@ export function TerminalView(props: TerminalViewProps) {
         window.clearTimeout(sizeRef.current.resizeTimer);
       }
     };
-  }, [session.id, theme]);
+  }, [session.id]);
 
   useEffect(() => {
     const terminal = terminalRef.current;
@@ -215,18 +223,19 @@ export function TerminalView(props: TerminalViewProps) {
 
     const shouldFollowOutput = isScrolledToBottom(terminal);
 
-    if (hydrationVersionRef.current === -1 && hydrationVersion === 0 && hydrationSnapshot.length === 0) {
+    const hydrationFrame = {
+      snapshot: hydrationSnapshot,
+      version: hydrationVersion,
+      reason: hydrationReason,
+    };
+    if (!shouldApplyTerminalHydration(hydrationStateRef.current, hydrationFrame)) {
       return;
     }
+    hydrationStateRef.current = markTerminalHydrationApplied(hydrationStateRef.current, hydrationFrame);
 
-    if (hydrationVersionRef.current === hydrationVersion) {
-      return;
-    }
-    hydrationVersionRef.current = hydrationVersion;
-
-    // Hydration is the only path that may reset xterm: first mount and explicit
-    // reconnect/reload snapshots. Normal focus, tab switches, and preview-pane
-    // refreshes must use live appends/fit refresh instead of replaying state.
+    // Hydration is the only path that may reset xterm: first mount/reload
+    // before this xterm exists, or explicit reconnect. Later bootstrap
+    // versions are metadata/pending-data churn and must stay append-only.
     terminal.reset();
     writeQueueRef.current = [];
     outputChunkerRef.current.reset();
@@ -236,7 +245,7 @@ export function TerminalView(props: TerminalViewProps) {
     if (shouldFollowOutput) {
       terminal.scrollToBottom();
     }
-  }, [hydrationSnapshot, hydrationVersion, session.id]);
+  }, [hydrationReason, hydrationSnapshot, hydrationVersion, session.id]);
 
   return (
     <div

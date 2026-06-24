@@ -7,6 +7,7 @@ import { isReconnectableSession, isTerminalInputEnabled } from "../terminalSessi
 import type { ExoThemeVariant } from "../theme/types";
 import { AgentIcon } from "./AgentIcon";
 import { ChromeTab } from "./Chrome";
+import type { TerminalHydrationReason } from "./terminalHydration";
 import { focusTerminal } from "./terminalRegistry";
 import { TerminalView } from "./TerminalView";
 
@@ -20,6 +21,7 @@ interface TerminalDockProps {
   activeTerminalId: string | null;
   hydrationSnapshots: Record<string, string>;
   hydrationVersions: Record<string, number>;
+  hydrationReasons: Record<string, TerminalHydrationReason>;
   fontSize: number;
   scrollbackLines: number;
   onFocus: () => void;
@@ -48,6 +50,7 @@ export function TerminalDock(props: TerminalDockProps) {
     activeTerminalId,
     hydrationSnapshots,
     hydrationVersions,
+    hydrationReasons,
     fontSize,
     scrollbackLines,
     onFocus,
@@ -168,6 +171,7 @@ export function TerminalDock(props: TerminalDockProps) {
                 session={activeSession}
                 hydrationSnapshot={hydrationSnapshots[activeSession.id] ?? ""}
                 hydrationVersion={hydrationVersions[activeSession.id] ?? 0}
+                hydrationReason={hydrationReasons[activeSession.id] ?? "bootstrap"}
                 fontSize={fontSize}
                 scrollbackLines={scrollbackLines}
                 onFocus={onFocus}

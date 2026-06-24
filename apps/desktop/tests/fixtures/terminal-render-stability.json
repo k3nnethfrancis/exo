@@ -1,0 +1,46 @@
+{
+  "headerLines": [
+    "\u001b[38;5;141m╭──────────────── Claude Code v2.1.183 ────────────────╮\u001b[0m",
+    "\u001b[2m│\u001b[0m ⠋ Working      ✻  🙂  🧠  status: ready \u001b[2m│\u001b[0m",
+    "\u001b[38;5;141m╰──────────────────────────────────────────────────────╯\u001b[0m",
+    "\u001b[7m [lab] exo:2Δ fieldkit:1Δ notes:112Δ │ Opus 4.6 (1M context) \u001b[0m"
+  ],
+  "spinnerUpdates": [
+    "\r\u001b[35m⠙ rendering\u001b[0m ",
+    "\r\u001b[35m⠹ rendering\u001b[0m ",
+    "\r\u001b[35m⠸ rendering\u001b[0m \n"
+  ],
+  "wrappedPrompt": "wrapped prompt marker: typecheck-errors typecheck-errors typecheck-errors typecheck-errors typecheck-errors typecheck-errors typecheck-errors typecheck-errors typecheck-errors typecheck-errors typecheck-errors typecheck-errors typecheck-errors typecheck-errors typecheck-errors typecheck-errors typecheck-errors typecheck-errors typecheck-errors typecheck-errors typecheck-errors typecheck-errors typecheck-errors typecheck-errors ",
+  "expectedFragments": [
+    "Claude Code v2.1.183",
+    "status: ready",
+    "[lab] exo:2Δ fieldkit:1Δ notes:112Δ",
+    "Opus 4.6 (1M context)",
+    "wrapped prompt marker",
+    "╭",
+    "─",
+    "╮",
+    "│",
+    "╰",
+    "╯",
+    "⠋",
+    "⠸",
+    "",
+    "",
+    "✻",
+    "🙂",
+    "🧠",
+    "\u001b[38;5;141m",
+    "\u001b[2m",
+    "\u001b[7m",
+    "\r"
+  ],
+  "visibleFragments": [
+    "FAKE_AGENT_PROMPT ready for input"
+  ],
+  "forbiddenPatterns": [
+    "replacement character",
+    "triple question mark",
+    "tofu square"
+  ]
+}

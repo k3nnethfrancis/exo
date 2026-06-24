@@ -22,12 +22,14 @@ import {
   DEFAULT_TERMINAL_UNRESPONSIVE_THRESHOLD_MS,
 } from "@exo/core/terminal-settings";
 
-import type { TerminalCreateOptions, TerminalDiagnostics, TerminalHealthState, TerminalSessionInfo, TerminalKind, TerminalWriteResult } from "../shared/api";
+import type { TerminalCreateOptions, TerminalHealthState, TerminalSessionInfo, TerminalKind, TerminalWriteResult } from "../shared/api";
 import { agentInstructionOverlayEnv, writeAgentInstructionOverlaysSync } from "./agent-instruction-overlays";
+import { terminalDiagnosticsFromRecord } from "./terminal-diagnostics";
 import { terminalHealth, terminalHealthDetail } from "./terminal-health";
 import type { TerminalRuntime, TerminalRuntimePaneInfo, TerminalRuntimeProcess } from "./terminal-runtime";
 import { TmuxTerminalRuntime } from "./terminal-runtime-tmux";
 import { TerminalSessionRegistry, type PersistedTerminalSession } from "./terminal-session-registry";
+import { TerminalTailCache, normalizeTailLineLimit, tailLines } from "./terminal-tail-cache";
 import { sanitizeTranscriptName, TerminalTranscriptStore } from "./terminal-transcripts";
 
 interface TerminalRecord {
@@ -36,7 +38,7 @@ interface TerminalRecord {
   tmuxSessionName: string;
   tmuxPaneId: string;
   createdAt: string;
-  recentOutput: string;
+  tailCache: TerminalTailCache;
   transcriptPath: string;
   pendingWrites: PendingTerminalWrite[];
   rawInputBuffer: string;
@@ -126,28 +128,30 @@ export class TerminalManager extends EventEmitter {
     const now = Date.now();
     this.reconcileTmuxState();
     return Array.from(this.sessions.values())
-      .map((record): TerminalDiagnostics => ({
-        id: record.info.id,
-        kind: record.info.kind,
-        status: record.info.status,
-        exitCode: record.info.exitCode,
-        health: this.terminalHealth(record, now),
-        healthDetail: this.terminalHealthDetail(record, now),
-        runtime: "tmux",
-        tmuxSessionName: record.tmuxSessionName,
-        bridgeStatus: record.bridgeDetached ? "detached" : "attached",
-        paneStatus: record.paneStatus ?? "unknown",
-        cwd: record.info.cwd,
-        title: record.info.title,
-        command: record.info.command,
-        bufferedLines: terminalOutputLineCount(record.recentOutput),
-        bufferedChars: record.recentOutput.length,
-        transcriptPath: record.transcriptPath,
-        lastInputAt: record.lastInputAt ? new Date(record.lastInputAt).toISOString() : null,
-        lastOutputAt: record.lastOutputAt ? new Date(record.lastOutputAt).toISOString() : null,
-        lastWriteId: record.lastWriteId,
-        lastWriteLatencyMs: record.lastWriteLatencyMs ?? null,
-      }))
+      .map((record) =>
+        terminalDiagnosticsFromRecord({
+          info: record.info,
+          kind: record.info.kind,
+          status: record.info.status,
+          exitCode: record.info.exitCode,
+          health: this.terminalHealth(record, now),
+          healthDetail: this.terminalHealthDetail(record, now),
+          tmuxSessionName: record.tmuxSessionName,
+          tmuxPaneId: record.tmuxPaneId,
+          bridgeDetached: record.bridgeDetached,
+          paneStatus: record.paneStatus,
+          cwd: record.info.cwd,
+          title: record.info.title,
+          command: record.info.command,
+          bufferedLines: record.tailCache.lineCount(),
+          bufferedChars: record.tailCache.charCount(),
+          transcriptPath: record.transcriptPath,
+          lastInputAt: record.lastInputAt,
+          lastOutputAt: record.lastOutputAt,
+          lastWriteId: record.lastWriteId,
+          lastWriteLatencyMs: record.lastWriteLatencyMs,
+        }),
+      )
       .sort((left, right) => left.id.localeCompare(right.id));
   }
 
@@ -188,7 +192,7 @@ export class TerminalManager extends EventEmitter {
   setBufferLineLimit(bufferLineLimit: number | null) {
     this.bufferLineLimit = normalizeBufferLineLimit(bufferLineLimit);
     for (const record of this.sessions.values()) {
-      record.recentOutput = appendBoundedLines("", record.recentOutput, this.bufferLineLimit);
+      record.tailCache.resize(this.bufferLineLimit);
       this.applyRuntimeSessionOptions(record);
     }
   }
@@ -275,7 +279,7 @@ export class TerminalManager extends EventEmitter {
       tmuxSessionName,
       tmuxPaneId,
       createdAt,
-      recentOutput: "",
+      tailCache: new TerminalTailCache(this.bufferLineLimit),
       transcriptPath,
       pendingWrites: [],
       rawInputBuffer: "",
@@ -398,7 +402,7 @@ export class TerminalManager extends EventEmitter {
     if (!record) {
       return null;
     }
-    const buffered = record.recentOutput;
+    const buffered = record.tailCache.text();
     const maxLines = normalizeTailLineLimit(options.maxLines);
     const captured = this.captureTmuxHistory(record, maxLines);
     if (captured !== null) {
@@ -540,7 +544,7 @@ export class TerminalManager extends EventEmitter {
         if (record.lastInputAt) {
           record.lastWriteLatencyMs = record.lastOutputAt - record.lastInputAt;
         }
-        record.recentOutput = appendBoundedLines(record.recentOutput, sanitizedData, this.bufferLineLimit);
+        record.tailCache.append(sanitizedData);
         this.updateAgentReadiness(record);
         record.info.health = this.terminalHealth(record, Date.now());
         record.info.healthDetail = this.terminalHealthDetail(record, Date.now());
@@ -668,7 +672,7 @@ export class TerminalManager extends EventEmitter {
       return;
     }
 
-    const startupState = getCodexStartupState(record.recentOutput);
+    const startupState = getCodexStartupState(record.tailCache.text());
     if (startupState === "ready") {
       this.markReady(record, "Codex chat input is ready.");
       return;
@@ -853,7 +857,7 @@ export class TerminalManager extends EventEmitter {
           tmuxPaneId,
           createdAt: session.createdAt,
           paneStatus: "alive",
-          recentOutput: "",
+          tailCache: new TerminalTailCache(this.bufferLineLimit),
           transcriptPath: session.transcriptPath,
           pendingWrites: [],
           rawInputBuffer: "",
@@ -911,7 +915,7 @@ export class TerminalManager extends EventEmitter {
       tmuxPaneId: session.tmuxPaneId ?? "",
       createdAt: session.createdAt,
       paneStatus: state.paneStatus,
-      recentOutput: "",
+      tailCache: new TerminalTailCache(this.bufferLineLimit),
       transcriptPath: session.transcriptPath,
       pendingWrites: [],
       rawInputBuffer: "",
@@ -977,7 +981,7 @@ export class TerminalManager extends EventEmitter {
   }
 
   private cacheCapturedTail(record: TerminalRecord, captured: string): void {
-    record.recentOutput = appendBoundedLines("", captured, this.bufferLineLimit);
+    record.tailCache.replace(captured);
     this.updateAgentReadiness(record);
   }
 
@@ -1114,35 +1118,6 @@ function terminalHealthInput(record: TerminalRecord) {
     lastInputAt: record.lastInputAt,
     lastOutputAt: record.lastOutputAt,
   };
-}
-
-function appendBoundedLines(current: string, data: string, lineLimit: number | null): string {
-  const next = `${current}${data}`;
-  if (lineLimit === null) {
-    return next;
-  }
-  const lines = next.split("\n");
-  return lines.length <= lineLimit ? next : lines.slice(-lineLimit).join("\n");
-}
-
-function tailLines(output: string, lineLimit?: number): string {
-  const normalizedLimit = normalizeTailLineLimit(lineLimit);
-  if (!normalizedLimit) {
-    return output;
-  }
-  const lines = output.split("\n");
-  return lines.length <= normalizedLimit ? output : lines.slice(-normalizedLimit).join("\n");
-}
-
-function normalizeTailLineLimit(value: number | null | undefined): number | undefined {
-  if (value === null || value === undefined || !Number.isFinite(value) || value <= 0) {
-    return undefined;
-  }
-  return Math.floor(value);
-}
-
-function terminalOutputLineCount(output: string): number {
-  return output.length === 0 ? 0 : output.split("\n").length;
 }
 
 function normalizeBufferLineLimit(value: number | null | undefined): number | null {

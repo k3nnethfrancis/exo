@@ -1,14 +1,14 @@
-# Terminal Architecture V3
+# Terminal Architecture V4
 
-Last updated: 2026-06-21
+Last updated: 2026-06-23
 
-This review applies the simplification algorithm to the current tmux-backed terminal stack. It is based on the inspected terminal docs, issue tracker, main-process runtime, renderer terminal components, settings code, CLI/MCP contracts, and focused terminal tests.
+This is the current Exo terminal architecture target: embedded-first, tmux-durable, and xterm-owned. It applies the simplification algorithm to the tmux-backed terminal stack and supersedes the V3 planning snapshot.
 
 ## Executive Summary
 
 Exo should keep the hard product decision that terminal processes live in tmux. That is a real requirement because Exo-on-Exo depends on long-running shell and agent sessions surviving window close, renderer reload, app relaunch, and normal laptop lifecycle events.
 
-The part to simplify is not tmux persistence. The part to simplify is Exo's overlapping ownership of terminal state. Today `TerminalManager` owns lifecycle, tmux commands, attach bridge, readiness queues, line buffers, transcripts, health, recovery, and settings application. The renderer then owns xterm, hydration snapshots, live append routing, pending data buffers, pane focus, tab layout, forced rehydrate, fit/resize, Unicode chunking, and generated-response filtering. Those fixes are individually reasonable, but together they make corruption and blank-terminal bugs timing-sensitive.
+The part to simplify is not tmux persistence. The part to simplify is Exo's ownership boundaries around terminal state. `TerminalManager` should be an app-facing facade; named modules own tmux runtime, session registry, transcript persistence, health classification, bounded API tail reads, diagnostics, and render-stability checks. The renderer owns xterm, layout, focus, fit/resize, append-only delivery, and explicitly gated hydration.
 
 Hard decisions:
 
@@ -18,7 +18,7 @@ Hard decisions:
 - Make tmux the only durable process/session/history owner.
 - Make transcripts append-only durable records, never a source for live screen replay except explicit transcript viewing.
 - Remove routine active-terminal hydration and any focus path that can reset a mounted xterm.
-- Split `TerminalManager` behind a small runtime boundary before adding more recovery behavior.
+- Keep splitting `TerminalManager` behind named runtime/service boundaries before adding more recovery behavior.
 
 ## Simplification Algorithm
 
@@ -285,7 +285,7 @@ E2E tests:
 - renderer reload and app relaunch with visible history before new input.
 - tmux attach client kill and reconnect.
 - preview-pane focus/resize while typing.
-- Unicode/emoji heavy output without replacement glyphs.
+- Terminal Render Stability fixture through tmux decoding, renderer write chunking, and fake-agent e2e: Claude-like header/status/footer, box drawing, braille spinners, emoji, private-use/Nerd Font glyphs, ANSI styles, carriage returns, and wrapped prompt lines, with no replacement characters, `???`, or literal tofu placeholders.
 - settings UI exposes terminal caps/timing values.
 
 Manual QA:
@@ -305,8 +305,8 @@ Manual QA:
   Detection: reload/relaunch e2e must assert history visible before input.
 - Risk: preview webview steals focus or leaves stale geometry.
   Detection: new preview terminal typing/resize e2e.
-- Risk: Unicode corruption returns at either tmux or browser boundary.
-  Detection: tmux split-byte unit tests plus emoji-heavy e2e checking no replacement glyph.
+- Risk: Unicode or terminal-agent TUI corruption returns at either tmux or browser boundary.
+  Detection: shared Terminal Render Stability corpus in tmux split-byte tests, renderer chunking tests, and fake-agent e2e; emoji-heavy e2e remains a burst-size check.
 - Risk: hidden caps reappear during refactor.
   Detection: settings tests assert all user-visible terminal caps are present in settings/UI; docs classify any internal constants.
 - Risk: Exo-on-Exo diagnostics are blocked by sandbox.

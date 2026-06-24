@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import { expect } from "@playwright/test";
+import { terminalRenderStabilityIssues } from "./terminalRenderStability";
 
 export interface LatencySummary {
   max: number;
@@ -35,12 +36,25 @@ export async function visibleTerminalText(page: Page): Promise<string> {
 }
 
 export async function expectTerminalRenderStable(page: Page): Promise<void> {
-  const text = await visibleTerminalText(page);
-  expect(text).not.toContain("\uFFFD");
-  expect(text).not.toMatch(/\?{3,}/);
-  expect(text).toContain("Claude Code");
-  expect(text).toContain("status: ready");
-  expect(text).toContain("wrapped prompt marker");
+  const visibleText = await visibleTerminalText(page);
+  const sessionText = await page.evaluate(async () => {
+    const sessions = await window.exo.terminals.list();
+    const claude = sessions.find((session) => session.kind === "claude");
+    return claude ? await window.exo.terminals.read(claude.id) : "";
+  });
+
+  expect(
+    terminalRenderStabilityIssues(sessionText, {
+      requireExpectedFragments: true,
+    }),
+    `terminal render stability session text failed:\n${sessionText}`,
+  ).toEqual([]);
+  expect(
+    terminalRenderStabilityIssues(visibleText, {
+      requireVisibleFragments: true,
+    }),
+    `terminal render stability visible text failed:\n${visibleText}`,
+  ).toEqual([]);
 }
 
 function percentile(sortedSamples: number[], percentileValue: number): number {
