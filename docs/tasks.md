@@ -8,6 +8,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 
 - [ ] Complete the terminal launch-readiness checklist tracked in `EXO-ISSUE-068` before treating Exo as launch-ready for daily agent work:
   1. Split `TerminalManager` further so session lifecycle, harness readiness/queued sends, live-tail policy, diagnostics, transcripts, and health/recovery each have a named owner.
+     - 2026-06-24: Moved live-tail source selection into `terminal-live-tail-policy`; broader lifecycle/write/recovery orchestration remains in `TerminalManager` until a concrete reliability bug justifies another split.
   2. [x] Move Codex-specific startup prompt scanning, queued semantic sends, and MCP launch overrides out of `TerminalManager` into `terminal-harness-readiness`.
   3. [x] Remove legacy `terminalHistoryMode`; terminal behavior is expressed as explicit numeric/settings fields for live scrollback, read tails, transcript retention, timing, and geometry.
   4. [x] Replace preview-pane/global terminal refresh mitigations with scoped `TerminalView` visibility, focus, fit, and resize handling.

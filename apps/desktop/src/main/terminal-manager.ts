@@ -37,10 +37,11 @@ import {
   type PendingTerminalWrite,
 } from "./terminal-harness-readiness";
 import { terminalHealth, terminalHealthDetail } from "./terminal-health";
+import { selectTerminalLiveTail } from "./terminal-live-tail-policy";
 import type { TerminalRuntime, TerminalRuntimePaneInfo, TerminalRuntimeProcess } from "./terminal-runtime";
 import { TmuxTerminalRuntime } from "./terminal-runtime-tmux";
 import { TerminalSessionRegistry, type PersistedTerminalSession } from "./terminal-session-registry";
-import { TerminalTailCache, normalizeTailLineLimit, tailLines } from "./terminal-tail-cache";
+import { TerminalTailCache, normalizeTailLineLimit } from "./terminal-tail-cache";
 import { sanitizeTranscriptName, TerminalTranscriptStore } from "./terminal-transcripts";
 
 interface TerminalRecord {
@@ -411,16 +412,11 @@ export class TerminalManager extends EventEmitter {
     const buffered = record.tailCache.text();
     const maxLines = normalizeTailLineLimit(options.maxLines);
     const captured = this.captureTmuxHistory(record, maxLines);
-    if (captured !== null) {
-      if (maxLines && captured.length > 0) {
-        return tailLines(captured, maxLines);
-      }
-      if (captured.length > buffered.length) {
-        this.cacheCapturedTail(record, captured);
-        return captured;
-      }
+    const selected = selectTerminalLiveTail({ buffered, captured, maxLines });
+    if (selected.cacheCapturedTail) {
+      this.cacheCapturedTail(record, selected.text);
     }
-    return maxLines ? tailLines(buffered, maxLines) : buffered;
+    return selected.text;
   }
 
   readTranscript(id: string, tailChars = 0): string | null {

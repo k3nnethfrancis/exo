@@ -35,6 +35,7 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
   - 2026-06-24: Extended the fake-Claude render-stability e2e to scroll visible xterm history after preview/reload, assert Claude-like/history anchors remain visible, and fail on replacement glyphs, `???`, tofu boxes, or blank/stale history gaps before continuing input.
   - 2026-06-24: Removed `BrowserPane` global terminal refresh scheduling. Mounted `TerminalView` instances now reconcile their own xterm fit/refresh on local focus, resize, pageshow, and visibility events; registry focus only refreshes the targeted terminal.
   - 2026-06-24: Added `pnpm terminal:check` as the focused terminal gate and wired `pnpm stable:check` to run it after the broad CI handoff gate.
+  - 2026-06-24: Moved live-tail source selection into `terminal-live-tail-policy`; `TerminalManager` still performs tmux capture/cache mutation but no longer owns the captured-tail vs bounded-cache decision.
 - Existing issue links:
   - `EXO-ISSUE-062` tracks the replacement-glyph/render-corruption class.
   - `EXO-ISSUE-063` tracks residual tmux/hydration/read-tail/reconnect cleanup.

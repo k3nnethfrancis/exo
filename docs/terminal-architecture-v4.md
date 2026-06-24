@@ -385,5 +385,6 @@ Next deletion candidates:
   - 2026-06-24: `terminal-harness-readiness.ts` now owns Codex startup prompt scanning, semantic-send queue policy, bracketed-paste formatting, and Codex MCP launch overrides.
   - 2026-06-24: Browser preview no longer schedules global terminal refreshes; mounted `TerminalView` owns scoped fit/refresh reconciliation for its own xterm surface.
   - 2026-06-24: `pnpm terminal:check` is the named focused terminal gate: focused terminal vitest subset plus `stable:smoke`.
+  - 2026-06-24: `terminal-live-tail-policy.ts` owns the pure captured-tail vs bounded-cache read decision; `TerminalManager` remains responsible for tmux I/O and cache mutation.
 
 -- Shoshin | 2026-06-21

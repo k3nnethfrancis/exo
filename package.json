@@ -14,7 +14,7 @@
     "check:repo": "node scripts/check-repo.mjs",
     "ci:check": "pnpm check:repo && pnpm check && ./scripts/install-local --dry-run --skip-install --skip-build",
     "stable:check": "pnpm ci:check && pnpm terminal:check",
-    "terminal:check": "pnpm --filter @exo/desktop exec vitest run src/main/terminal-manager.test.ts src/main/terminal-tmux.test.ts src/main/terminal-runtime-tmux.test.ts src/main/terminal-recovery-service.test.ts src/main/terminal-diagnostics.test.ts src/main/terminal-harness-readiness.test.ts src/renderer/src/App.test.tsx && pnpm stable:smoke",
+    "terminal:check": "pnpm --filter @exo/desktop exec vitest run src/main/terminal-manager.test.ts src/main/terminal-tmux.test.ts src/main/terminal-runtime-tmux.test.ts src/main/terminal-recovery-service.test.ts src/main/terminal-diagnostics.test.ts src/main/terminal-harness-readiness.test.ts src/main/terminal-live-tail-policy.test.ts src/renderer/src/App.test.tsx && pnpm stable:smoke",
     "stable:smoke": "playwright test -c apps/desktop/playwright.config.ts apps/desktop/tests/e2e/fixture-hygiene.spec.ts apps/desktop/tests/e2e/shell.spec.ts apps/desktop/tests/e2e/preview-pane-layout.spec.ts --grep \"copies mutable fixtures|boots the shell|accepts terminal keyboard input in pane tree|reattaches a tmux-backed shell after app relaunch|keeps fake Claude render stable|keeps the command server available while the window is hidden|supports CLI and MCP agent control while the window is hidden|resizes preview/editor\"",
     "app": "pnpm build && node scripts/run-built-app.mjs",
     "check": "pnpm typecheck && pnpm test && pnpm build",
