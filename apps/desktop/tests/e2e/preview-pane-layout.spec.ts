@@ -72,8 +72,46 @@ test("opens absolute local HTML paths through the command server in the preview 
     prepareWorkspace: async (root) => {
       const artifactRoot = path.join(root, "projects", "sample-project", "docs", "artifacts");
       await mkdir(artifactRoot, { recursive: true });
-      await writeFile(path.join(artifactRoot, "overall-exo-architecture.html"), "<!doctype html><title>Overall</title>", "utf8");
-      await writeFile(path.join(artifactRoot, "core-plugin-boundary.html"), "<!doctype html><title>Core Boundary</title>", "utf8");
+      await writeFile(
+        path.join(artifactRoot, "overall-exo-architecture.html"),
+        `<!doctype html>
+<html>
+  <head>
+    <title>Overall</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+      }
+
+      .viewport-fit {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        grid-template-rows: minmax(0, 1fr) 32px;
+        background: #101820;
+      }
+
+      #viewport-bottom {
+        background: #31d0aa;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="viewport-fit">
+      <section>Preview body</section>
+      <footer id="viewport-bottom">Viewport bottom marker</footer>
+    </main>
+  </body>
+</html>`,
+        "utf8",
+      );
+      await writeFile(
+        path.join(artifactRoot, "core-plugin-boundary.html"),
+        "<!doctype html><title>Core Boundary</title>",
+        "utf8",
+      );
     },
   });
 
@@ -94,6 +132,12 @@ test("opens absolute local HTML paths through the command server in the preview 
       source: "file",
     });
     await expect(page.getByTestId("browser-webview")).toHaveAttribute("src", pathToFileURL(firstPath).toString());
+    await expect.poll(async () => getPreviewLayoutMetrics(page)).toMatchObject({
+      title: "Overall",
+      bottomMarkerVisibleAtViewportBottom: true,
+      webviewFillsPane: true,
+      guestViewportMatchesElement: true,
+    });
 
     const secondResponse = await fetch(`http://127.0.0.1:${serverInfo.port}/preview/open`, {
       method: "POST",
@@ -109,10 +153,68 @@ test("opens absolute local HTML paths through the command server in the preview 
     await page.getByTestId("browser-url-input").fill(firstPath);
     await page.getByTestId("browser-load-url").click();
     await expect(page.getByTestId("browser-webview")).toHaveAttribute("src", pathToFileURL(firstPath).toString());
+    await expect.poll(async () => getPreviewLayoutMetrics(page)).toMatchObject({
+      title: "Overall",
+      bottomMarkerVisibleAtViewportBottom: true,
+      webviewFillsPane: true,
+      guestViewportMatchesElement: true,
+    });
   } finally {
     await cleanup();
   }
 });
+
+async function getPreviewLayoutMetrics(page: Page): Promise<{
+  title: string;
+  bottomMarkerVisibleAtViewportBottom: boolean;
+  webviewFillsPane: boolean;
+  guestViewportMatchesElement: boolean;
+  paneHeight: number;
+  webviewHeight: number;
+  guestInnerHeight: number;
+  bottomMarkerBottom: number;
+}> {
+  return page.evaluate(async () => {
+    const pane = document.querySelector<HTMLElement>("[data-testid='browser-pane']");
+    const webview = document.querySelector<HTMLElement & {
+      executeJavaScript<T>(code: string): Promise<T>;
+    }>("[data-testid='browser-webview']");
+    if (!pane || !webview || typeof webview.executeJavaScript !== "function") {
+      throw new Error("Preview pane/webview is not ready");
+    }
+
+    const paneRect = pane.getBoundingClientRect();
+    const headerRect = pane.querySelector<HTMLElement>(".browser-pane__header")?.getBoundingClientRect();
+    const webviewRect = webview.getBoundingClientRect();
+    const guest = await webview.executeJavaScript<{
+      title: string;
+      innerHeight: number;
+      bottomMarkerBottom: number;
+    }>(`
+      (() => {
+        const marker = document.getElementById("viewport-bottom");
+        const markerRect = marker ? marker.getBoundingClientRect() : { bottom: 0 };
+        return {
+          title: document.title,
+          innerHeight: window.innerHeight,
+          bottomMarkerBottom: markerRect.bottom,
+        };
+      })()
+    `);
+    const expectedWebviewHeight = paneRect.height - (headerRect?.height ?? 0);
+
+    return {
+      title: guest.title,
+      bottomMarkerVisibleAtViewportBottom: Math.abs(guest.bottomMarkerBottom - guest.innerHeight) <= 2,
+      webviewFillsPane: webviewRect.height >= expectedWebviewHeight - 2,
+      guestViewportMatchesElement: Math.abs(guest.innerHeight - webviewRect.height) <= 2,
+      paneHeight: paneRect.height,
+      webviewHeight: webviewRect.height,
+      guestInnerHeight: guest.innerHeight,
+      bottomMarkerBottom: guest.bottomMarkerBottom,
+    };
+  });
+}
 
 test("drags the browser preview tab into the shared pane graph", async () => {
   const { page, cleanup } = await launchExoFixture();

@@ -325,7 +325,9 @@ export function shouldBufferTerminalDataForHydration(
   if (pendingReason === "reconnect") {
     return true;
   }
-  return pendingReason === "bootstrap" && !alreadyHydrated;
+  // Rendered bootstrap data already reached xterm. Buffering it for the pending
+  // snapshot would replay provider splash/status output after TerminalView resets.
+  return false;
 }
 
 function largestSuffixPrefixOverlap(snapshot: string, pendingData: string): number {

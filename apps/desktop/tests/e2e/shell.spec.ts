@@ -5,7 +5,15 @@ import { fileURLToPath } from "node:url";
 import { test, expect } from "@playwright/test";
 
 import { launchExoFixture, relaunchExoFixture } from "../helpers";
-import { expectTerminalRenderHistoryStable, expectTerminalRenderStable, latencySummary, waitForTerminalText } from "../terminalQuality";
+import {
+  expectTerminalRenderHistoryStable,
+  expectTerminalRenderStable,
+  latencySummary,
+  scrollTerminalToBottom,
+  scrollTerminalToTop,
+  visibleTerminalText,
+  waitForTerminalText,
+} from "../terminalQuality";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const fakeAgentPath = path.join(repoRoot, "apps/desktop/tests/fixtures/fake-terminal-agent.mjs");
@@ -33,6 +41,10 @@ async function readFirstTerminalOfKind(page: import("@playwright/test").Page, ki
     const session = sessions.find((candidate) => candidate.kind === terminalKind);
     return session ? window.exo.terminals.read(session.id) : "";
   }, kind);
+}
+
+function countTextOccurrences(text: string, fragment: string): number {
+  return text.split(fragment).length - 1;
 }
 
 async function pageShellSession(page: import("@playwright/test").Page) {
@@ -764,6 +776,13 @@ test("keeps fake Claude render stable and interactive while preview is open", as
     await waitForTerminalText(page, `FAKE_AGENT_INPUT ${input}`);
     await expectTerminalRenderStable(page);
     await expectTerminalRenderHistoryStable(page);
+    await page.getByTestId("browser-pane").click();
+    await page.getByTestId("terminal-surface").click();
+    await scrollTerminalToTop(page);
+    const focusedHistoryText = await visibleTerminalText(page);
+    expect(countTextOccurrences(focusedHistoryText, "Claude Code v2.1.183")).toBe(1);
+    expect(countTextOccurrences(focusedHistoryText, "A few key takeaways:")).toBe(1);
+    await scrollTerminalToBottom(page);
 
     await page.reload();
     await expect(page.getByTestId("terminal-tab-claude")).toBeVisible();

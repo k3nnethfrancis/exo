@@ -118,6 +118,9 @@ export function TerminalView(props: TerminalViewProps) {
     const reconcileSurface = () => {
       refreshTerminalSurface(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef, disposedRef);
     };
+    const fitSurface = () => {
+      fitTerminalSurface(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef, disposedRef);
+    };
     const eventNames: Array<"focus" | "resize" | "pageshow" | "visibilitychange"> = [
       "focus",
       "resize",
@@ -128,15 +131,17 @@ export function TerminalView(props: TerminalViewProps) {
       window.addEventListener(eventName, reconcileSurface);
     }
 
-    function focusTerminal() {
+    function focusTerminal(event: MouseEvent) {
+      event.preventDefault();
+      event.stopPropagation();
       onFocus();
+      fitSurface();
       focusTerminalElement(surfaceRef.current, viewportRef.current, terminal);
-      reconcileSurface();
       window.requestAnimationFrame(() => {
         focusTerminalElement(surfaceRef.current, viewportRef.current, terminal);
       });
       window.setTimeout(() => {
-        reconcileSurface();
+        fitSurface();
         focusTerminalElement(surfaceRef.current, viewportRef.current, terminal);
       }, 0);
     }
@@ -172,7 +177,6 @@ export function TerminalView(props: TerminalViewProps) {
     }
 
     surfaceRef.current!.addEventListener("mousedown", focusTerminal);
-    surfaceRef.current!.addEventListener("click", focusTerminal);
     surfaceRef.current!.addEventListener("dragover", handleDragOver, { capture: true });
     surfaceRef.current!.addEventListener("drop", handleDrop, { capture: true });
 
@@ -182,7 +186,7 @@ export function TerminalView(props: TerminalViewProps) {
     registerTerminal(session.id, terminal, (data) => {
       enqueueTerminalWrite(terminal, data, writeQueueRef, outputChunkerRef, writingRef, disposedRef);
     }, () => {
-      refreshTerminalSurface(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef, disposedRef);
+      fitTerminalSurface(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef, disposedRef);
     });
     onReady?.(session.id);
 
@@ -199,7 +203,6 @@ export function TerminalView(props: TerminalViewProps) {
         window.removeEventListener(eventName, reconcileSurface);
       }
       surfaceRef.current?.removeEventListener("mousedown", focusTerminal);
-      surfaceRef.current?.removeEventListener("click", focusTerminal);
       surfaceRef.current?.removeEventListener("dragover", handleDragOver, { capture: true });
       surfaceRef.current?.removeEventListener("drop", handleDrop, { capture: true });
       terminal.dispose();
@@ -216,10 +219,10 @@ export function TerminalView(props: TerminalViewProps) {
       return;
     }
 
-    refreshTerminalSurface(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef, disposedRef);
+    fitTerminalSurface(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef, disposedRef);
     focusTerminalElement(surfaceRef.current, viewportRef.current, terminal);
     window.requestAnimationFrame(() => {
-      refreshTerminalSurface(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef, disposedRef);
+      fitTerminalSurface(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef, disposedRef);
       focusTerminalElement(surfaceRef.current, viewportRef.current, terminal);
     });
   }, [focused, session.id]);
@@ -433,6 +436,26 @@ function refreshTerminalSurface(
     safeFit(host, terminal, fitAddon, sessionId, onResize, sizeRef);
     if (terminal.rows > 0) {
       terminal.refresh(0, terminal.rows - 1);
+    }
+  });
+}
+
+function fitTerminalSurface(
+  host: HTMLDivElement | null,
+  terminal: Terminal,
+  fitAddon: FitAddon,
+  sessionId: string,
+  onResize: (id: string, cols: number, rows: number) => void,
+  sizeRef: MutableRefObject<{ width: number; height: number; cols: number; rows: number; resizeTimer: number }>,
+  disposedRef: MutableRefObject<boolean>,
+) {
+  if (disposedRef.current) {
+    return;
+  }
+
+  window.requestAnimationFrame(() => {
+    if (!disposedRef.current) {
+      safeFit(host, terminal, fitAddon, sessionId, onResize, sizeRef);
     }
   });
 }

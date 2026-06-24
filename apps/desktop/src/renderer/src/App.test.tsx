@@ -959,7 +959,7 @@ describe("terminal session sync", () => {
   it("does not keep React-owned live terminal data after hydration is live", () => {
     expect(shouldBufferTerminalDataForHydration(false, undefined, true)).toBe(true);
     expect(shouldBufferTerminalDataForHydration(true, undefined, true)).toBe(false);
-    expect(shouldBufferTerminalDataForHydration(true, "bootstrap", false)).toBe(true);
+    expect(shouldBufferTerminalDataForHydration(true, "bootstrap", false)).toBe(false);
     expect(shouldBufferTerminalDataForHydration(true, "bootstrap", true)).toBe(false);
     expect(shouldBufferTerminalDataForHydration(true, "reconnect", true)).toBe(true);
   });

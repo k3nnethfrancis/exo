@@ -8,6 +8,29 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
 
 ## Open
 
+### EXO-ISSUE-072: Preview clipping and repeated Claude screen after preview/focus fix
+
+- Status: fixed locally
+- Severity: high
+- Area: browser preview, terminal rendering, pane focus/layout
+- Observed:
+  - 2026-06-24: After the preview/focus fix in `65616a0`, opening `docs/artifacts/core-plugin-boundary.html` in preview can show only the top portion of the HTML artifact instead of filling the pane.
+  - In the adjacent Claude terminal, the Claude Code header/splash appeared repeated three times in the same terminal surface.
+  - The screenshot shows a preview pane on the left with clipped web content and a terminal pane on the right with repeated Claude header blocks.
+- Expected:
+  - The preview webview should fill the available pane body and render the full local HTML artifact.
+  - Terminal focus/preview reconciliation must not duplicate visible terminal output, replay hydration snapshots, or append stale screen content over the live xterm state.
+  - Fixes must preserve Terminal V4 invariants: xterm owns live screen, tmux owns durable session/history, React owns metadata only, and preview/focus changes cannot trigger terminal reset/replay.
+- Investigation notes:
+  - Preview clipping was caused by Electron `<webview>` keeping a 150px guest viewport even though the host element filled the pane when rendered as a block element in a split pane.
+  - The webview now uses an inline-flex host display, and the preview layout e2e verifies both host size and guest `window.innerHeight`.
+  - Repeated Claude headers were caused by rendered bootstrap output still being buffered into a pending hydration snapshot, then replayed after the TerminalView was reset.
+  - Rendered bootstrap output is no longer buffered for hydration; reconnect remains the only rendered-session buffering path.
+  - Terminal focus/preview paths now fit the xterm surface without issuing refresh/repaint reconciliation, and terminal focus stops bubbling to parent pane handlers.
+- QA coverage:
+  - E2E covers opening a local HTML artifact through both command-server preview open and address bar entry, asserting the webview fills the pane body and the guest viewport reaches the bottom marker.
+  - E2E/fake-Claude coverage asserts one visible header/history section after preview open/focus and terminal interaction, with no duplicate splash/header blocks.
+
 ### EXO-ISSUE-071: Plugin architecture needs decision/fallback audit and plugin-development skill
 
 - Status: fixed locally
