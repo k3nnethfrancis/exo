@@ -32,7 +32,6 @@ import {
 import { isTerminalGeneratedResponse } from "./components/terminalInputFilters";
 import { TerminalOutputChunker, chunkTerminalData } from "./components/terminalOutputChunks";
 import { focusTerminal, registerTerminal, unregisterTerminal } from "./components/terminalRegistry";
-import { copyTerminalAttachCommand } from "./components/terminalAttachCommand";
 import { createTerminalToolDockActions, launchableTerminalAgentHarnesses } from "./components/TerminalRail";
 import { shouldUseMarkdownRenderer } from "./components/NoteEditor";
 import { workspaceSettingsSavedFooterCopy } from "./components/WorkspaceSettingsDialog";
@@ -982,34 +981,5 @@ describe("changed file review attribution", () => {
         [...sessions],
       )[0].agents,
     ).toEqual([]);
-  });
-});
-
-describe("terminal debug attach affordance", () => {
-  it("copies the active terminal tmux attach command from diagnostics", async () => {
-    const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined);
-
-    await expect(copyTerminalAttachCommand("term-1", {
-      getDiagnostics: async () => [
-        { id: "other", safeAttachCommand: "tmux attach-session -t 'other'" },
-        { id: "term-1", safeAttachCommand: "tmux attach-session -t 'exo-test'" },
-      ] as Awaited<ReturnType<typeof window.exo.terminals.diagnostics>>,
-      writeText,
-    })).resolves.toBe(true);
-
-    expect(writeText).toHaveBeenCalledWith("tmux attach-session -t 'exo-test'");
-  });
-
-  it("does not write clipboard text when diagnostics have no attach command for the session", async () => {
-    const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined);
-
-    await expect(copyTerminalAttachCommand("missing", {
-      getDiagnostics: async () => [
-        { id: "term-1", safeAttachCommand: "tmux attach-session -t 'exo-test'" },
-      ] as Awaited<ReturnType<typeof window.exo.terminals.diagnostics>>,
-      writeText,
-    })).resolves.toBe(false);
-
-    expect(writeText).not.toHaveBeenCalled();
   });
 });

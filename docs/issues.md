@@ -26,7 +26,7 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
   - [x] Move Codex-specific startup prompt scanning, queued semantic sends, and MCP launch overrides out of `TerminalManager` into `terminal-harness-readiness`.
   - [x] Remove legacy `terminalHistoryMode`; terminal behavior is expressed as explicit numeric/settings fields for live scrollback, read tails, transcript retention, timing, and geometry.
   - [x] Replace preview-pane/global terminal refresh mitigations with scoped `TerminalView` visibility, focus, fit, and resize handling.
-  - [x] Add a first-class UI affordance for native tmux recovery/debug: copy attach command from terminal diagnostics.
+  - [x] Keep native tmux recovery/debug available through diagnostics/API attach fields; remove the visible terminal-header copy button to reduce chrome clutter.
   - [x] Establish a living render-stability fixture corpus for Claude/Codex corruption shapes, including `???`, `�`, tofu boxes, stale overlays, prompt wrapping drift, split UTF-8, emoji, Nerd Font/private-use glyphs, box drawing, carriage-return updates, and blank history gaps.
   - [x] Promote the focused terminal gate into the standard readiness path: terminal vitest subset, render-stability fixture, fake-agent e2e, stable smoke, installed-app restart, and manual Claude/Codex QA.
   - [x] Pass real app QA after each terminal slice: fresh shell, fresh Claude, fresh Codex, preview open, tab switch, hard refresh/app restart, and installed-app command-server recovery; long resumed private sessions and macOS sleep/wake continue under `EXO-ISSUE-069`.

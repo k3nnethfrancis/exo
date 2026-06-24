@@ -12,7 +12,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
   2. [x] Move Codex-specific startup prompt scanning, queued semantic sends, and MCP launch overrides out of `TerminalManager` into `terminal-harness-readiness`.
   3. [x] Remove legacy `terminalHistoryMode`; terminal behavior is expressed as explicit numeric/settings fields for live scrollback, read tails, transcript retention, timing, and geometry.
   4. [x] Replace preview-pane/global terminal refresh mitigations with scoped `TerminalView` visibility, focus, fit, and resize handling.
-  5. [x] Add a first-class UI affordance for native tmux recovery/debug: copy attach command from terminal diagnostics.
+  5. [x] Keep native tmux recovery/debug available through diagnostics/API attach fields; remove the visible terminal-header copy button to reduce chrome clutter.
   6. [x] Establish a living render-stability fixture corpus for Claude/Codex corruption shapes, especially `???`, `�`, tofu boxes, stale overlays, prompt wrapping drift, and blank history gaps.
      - 2026-06-24: Added visible-history assertions to the fake-Claude preview/reload e2e so the test scrolls back to Claude-like history anchors and then returns to the live prompt before continuing input.
   7. [x] Promote the focused terminal gate into the standard readiness path: terminal vitest subset, render-stability fixture, fake-agent e2e, stable smoke, installed-app restart, and manual Claude/Codex QA.
