@@ -21,6 +21,8 @@ That keeps Exo from overbuilding while still moving toward the long-term shape:
 - Product framing stays layered: Exo is the workstation, the exograph is the user-owned graph it operates over, and plugins are how users swap or add harnesses, search providers, routines, profiles, analyzers, eval runners, exporters, and dashboards.
 - Local plugin manifests can now be discovered and validated as metadata, but Exo does not yet execute plugin code or grant plugin permissions.
 
+Profiles are curated bundles of plugin recommendations and configuration, not just agent config. A profile can package metadata/frontmatter conventions, context templates, AGENTS.md/CLAUDE.md templates, MCP config templates, skills, routine templates, graph views, analyzer settings, and output/review policies. Profiles may depend on plugins, but executable behavior should live in explicit plugin capabilities.
+
 Guardian Angel is an example downstream workload that can pressure-test this architecture outside core. Workflows like elicitation, trace capture, accept/reject/correction review, psychological-model hypotheses, dataset export, eval packets, and instrumented agent runtimes should use Exo's generic plugin primitives rather than becoming built-in Exo product code by default.
 
 ## Current Harness Configuration
@@ -59,6 +61,9 @@ Examples that likely belong in plugins:
 - personal note-branching or versioning workflows
 - custom note transforms
 - domain-specific graph panels
+- graph visualization surfaces such as a 3D graph explorer or metadata-specific relationship view
+- metadata/frontmatter schema helpers
+- profile packs that bundle recommended plugins, config, skills, routines, and graph conventions
 - local research/workcell surfaces
 - extra agent harnesses
 - custom memory/index visualizations
@@ -101,8 +106,11 @@ Not every plugin has the same relationship to Exo. The plugin model should suppo
 - Surface plugins: add Exo-native UI surfaces. Examples: side panels, status widgets, editor decorations, command palette actions.
 - Capability plugins: add backend abilities. Examples: agent harnesses, MCP tools, CLI commands, search providers, trace collectors, eval runners.
 - Routine/template plugins: ship prompts, templates, default schedules, and review/output policies that Exo can run through a selected harness. Examples: run eval, collect traces, score results, produce a report, and prepare a PR.
+- Profile plugins: ship use-case conventions and default bundles. Examples: LM Wiki, Shoshin, Guardian Angel, OKF-compatible graph, or a project/domain-specific exograph profile.
 
 The terminal and web viewer hosts are core primitives, not merely plugins. Many unrelated workflows need a safe terminal/session service and a safe way to show local web apps, documentation previews, dashboards, and artifacts. Plugins can target those primitives, but they do not own the underlying terminal or web viewer security boundary.
+
+Graph data is core substrate. Graph visualization is plugin-shaped: Exo should ship a useful default graph explorer, but users should be able to swap in a 3D graph, metadata-focused graph, or domain-specific graph dashboard without changing the core graph model.
 
 ## Implementation Phases
 
