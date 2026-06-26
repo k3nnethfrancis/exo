@@ -48,7 +48,7 @@ Hermes remains a registered adapter, but it is hidden from normal harness lists 
 - Do not let plugins add MCP tools by default.
 - Do not add a plugin marketplace or package installer.
 - Do not execute `exo.plugin.json` entrypoints until the trust, permission, and API contracts are implemented.
-- Do not make QMD optional in the UI before there is a real second provider.
+- Do not expose QMD as a destructive toggle until Plugin Manager can explain the fallback to core search and the consequences for agent search quality.
 - Do not move unstable services into `packages/runtime` only to create a cleaner diagram.
 - Do not use plugins as a dumping ground for behavior that should be a stable Exo primitive.
 

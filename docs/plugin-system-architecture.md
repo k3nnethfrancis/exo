@@ -155,17 +155,21 @@ The target onboarding sequence is:
 
 1. Select or create the notes folder.
 2. Confirm workspace and default terminal path.
-3. Configure capabilities.
-4. Enter the workspace.
+3. Choose a workspace profile.
+4. Review the profile's recommended plugins and capability settings.
+5. Enter the workspace.
 
 The capability screen should show:
 
 - Core: enabled and not optional.
+- Active workspace profile: bundled default, imported local profile, or no profile.
 - Plugin categories: search providers, agent harness adapters, profiles, analyzers, routines/templates, exporters, eval runners, dashboards, and future contributed surfaces.
 - Recommended bundled plugins: enabled by default only when ready.
 - Detected but not configured capabilities.
 - Missing optional capabilities with setup guidance.
 - Disabled/untrusted plugins with explicit enable/trust actions.
+
+Search-provider onboarding should be framed around optional plugins, not raw backend modes. The default path can recommend QMD as "Advanced local graph search for agents and command surfaces." Lexical/semantic/hybrid are QMD configuration details shown after QMD is enabled, not the first user-facing choice. Basic filename/path/text search remains core and available even if every advanced search plugin is disabled.
 
 Plugin configuration should follow the same separation principle as agent configuration:
 
@@ -173,7 +177,7 @@ Plugin configuration should follow the same separation principle as agent config
 - Plugin Manager is for plugin lifecycle/configuration: enable/disable, dependency detection, permissions, install/setup guidance, category-specific shared fields, and plugin-owned custom fields.
 - Agent Config Editor remains a specialized harness-adjacent surface for instruction files, skills, and provider config because those workflows are complex enough to deserve their own interface.
 
-A search provider and an agent harness may share lifecycle/permission concepts, but their practical setup flows should not be forced into the same settings form. Over time, QMD administration should move toward Plugin Manager under search providers while basic core search preferences remain in Settings.
+A search provider and an agent harness may share lifecycle/permission concepts, but their practical setup flows should not be forced into the same settings form. Over time, QMD administration should move toward Plugin Manager under search providers while basic core search preferences remain in Settings. Profile changes after onboarding should use the same review/apply model: show what the new profile recommends, what differs from the current workspace, and which file/settings/plugin changes require explicit confirmation.
 
 Examples:
 
