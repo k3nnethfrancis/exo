@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -38,6 +38,9 @@ import {
   workspaceSettingsToEnv,
   agentHarnessRegistry,
   assertRoutineAgentPolicy,
+  EXO_PLUGIN_MANIFEST_FILE,
+  listPluginInventory,
+  readPluginManifest,
   type ManagedAgentKind,
   type ExoMcpIntegrationClient,
   type RoutineDefinition,
@@ -744,6 +747,50 @@ export async function runCli(
     return 0;
   }
 
+  // ─── Plugin authoring commands ───────────────────────────────────────
+
+  if (command === "plugins") {
+    if (subcommand === "list" || !subcommand) {
+      const config = await resolveCliRuntimeConfig(env);
+      stdout.write(`${JSON.stringify(await listPluginInventory({
+        workspaceRoot: config.workspace.workspaceRoot,
+        env: cliPluginDiscoveryEnv(env),
+      }), null, 2)}\n`);
+      return 0;
+    }
+
+    if (subcommand === "validate") {
+      const manifestPath = resolvePluginManifestTarget(args[0], cwd);
+      const manifest = await readPluginManifest(manifestPath);
+      if (!manifest) {
+        throw new Error(`Plugin manifest not found: ${manifestPath}`);
+      }
+      stdout.write(`${JSON.stringify({
+        valid: true,
+        manifestPath,
+        plugin: {
+          id: manifest.id,
+          name: manifest.name,
+          version: manifest.version,
+          exoApiVersion: manifest.exoApiVersion,
+          surfaces: manifest.surfaces,
+          permissions: manifest.permissions,
+          capabilities: manifest.capabilities.map((capability) => ({
+            id: capability.id,
+            kind: capability.kind,
+            label: capability.label,
+            lifecycle: capability.lifecycle,
+            surfaces: capability.surfaces,
+            permissions: capability.permissions,
+          })),
+        },
+      }, null, 2)}\n`);
+      return 0;
+    }
+
+    throw new Error("Usage: exo plugins [list | validate <plugin-dir-or-manifest>]");
+  }
+
   // ─── Routine commands ────────────────────────────────────────────────
 
   if (command === "routines") {
@@ -918,6 +965,8 @@ export async function runCli(
       "  exo routines create <template-id> <id>     Create a routine from a template",
       "  exo routines run <id> --dry-run            Record a dry-run routine execution",
       "  exo routines run <id> --agent              Launch an Exo app agent and send the routine prompt",
+      "  exo plugins [list]                         List core, official, and local plugin inventory",
+      "  exo plugins validate <path>                Validate a plugin manifest or plugin directory",
       "  exo index status                           Show QMD advanced search provider status (app)",
       "  exo index sync                             Sync documents and embeddings for configured mode (app)",
       "  exo index add <path> [--name n] [--kind k] [--force]",
@@ -964,6 +1013,8 @@ export async function runCli(
       `  exo runtime context <${AGENT_KIND_USAGE}>`,
       `  exo runtime launch-plan <${AGENT_KIND_USAGE}> [cwd]`,
       "  exo runtime sync",
+      "  exo plugins list",
+      "  exo plugins validate <path>",
       "",
       "Developer source QA:",
       "  pnpm dev:qa",
@@ -1061,6 +1112,23 @@ function createRoutineService(config: Awaited<ReturnType<typeof resolveCliRuntim
       EXO_PROJECT_ROOT: env.EXO_PROJECT_ROOT ?? exoRoot,
     }),
   });
+}
+
+function cliPluginDiscoveryEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  return {
+    ...env,
+    EXO_PROJECT_ROOT: env.EXO_PROJECT_ROOT ?? resolveExoRoot(env),
+  };
+}
+
+function resolvePluginManifestTarget(target: string | undefined, cwd: string): string {
+  if (!target) {
+    throw new Error("Usage: exo plugins validate <plugin-dir-or-manifest>");
+  }
+  const resolved = path.resolve(cwd, target);
+  return existsSync(resolved) && statSync(resolved).isFile()
+    ? resolved
+    : path.join(resolved, EXO_PLUGIN_MANIFEST_FILE);
 }
 
 function parseRoutineTrigger(values: Record<string, string>): RoutineTrigger | undefined {
