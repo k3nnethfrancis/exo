@@ -1180,8 +1180,17 @@ describe("TerminalManager Codex readiness", () => {
 
 async function workspaceFixture(): Promise<string> {
   const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-codex-readiness-"));
+  await createFakeHarnessCommand(workspaceRoot, "codex");
+  await createFakeHarnessCommand(workspaceRoot, "claude");
   tempPaths.push(workspaceRoot);
   return workspaceRoot;
+}
+
+async function createFakeHarnessCommand(workspaceRoot: string, command: string): Promise<void> {
+  const filePath = path.join(workspaceRoot, ".exo", "test-bin", command);
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await writeFile(filePath, "#!/bin/sh\nexit 0\n", "utf8");
+  await chmodExecutable(filePath);
 }
 
 async function chmodExecutable(filePath: string): Promise<void> {
@@ -1194,11 +1203,13 @@ function managerForWorkspace(workspaceRoot: string): TerminalManager {
 }
 
 function stubWorkspaceEnv(workspaceRoot: string): void {
+  const testBinPath = path.join(workspaceRoot, ".exo", "test-bin");
   vi.stubEnv("EXO_WORKSPACE_ROOT", workspaceRoot);
   vi.stubEnv("EXO_NOTE_ROOTS", path.join(workspaceRoot, "notes"));
   vi.stubEnv("EXO_PROJECT_ROOTS", path.join(workspaceRoot, "projects"));
   vi.stubEnv("EXO_DEFAULT_TERMINAL_CWD", workspaceRoot);
   vi.stubEnv("EXO_RUNTIME_ROOT", path.join(workspaceRoot, ".exo"));
+  vi.stubEnv("PATH", `${testBinPath}${path.delimiter}${process.env.PATH ?? ""}`);
   vi.stubEnv("EXO_CODEX_COMMAND", "codex");
 }
 
