@@ -54,8 +54,6 @@ interface ShellLayoutProps {
     workspaceBodyRef: React.RefObject<HTMLDivElement | null>;
     sidebarCollapsed: boolean;
     setSidebarCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
-    inspectorCollapsed: boolean;
-    setInspectorCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
     editorPaneTree: {
       tree: PaneNode;
       focusedLeafId: PaneNodeId;
