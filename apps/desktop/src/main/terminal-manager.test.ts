@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { EventEmitter } from "node:events";
 import os from "node:os";
 import path from "node:path";
@@ -665,6 +665,28 @@ describe("TerminalManager Codex readiness", () => {
     expect(ptyState.spawned).toEqual([]);
   });
 
+  it("rejects non-launchable Pi harnesses before context sync, allocation, or runtime creation", async () => {
+    const workspaceRoot = await workspaceFixture();
+    const piCommand = path.join(workspaceRoot, "pi");
+    await writeFile(piCommand, "#!/bin/sh\nexit 0\n", "utf8");
+    await chmodExecutable(piCommand);
+    stubWorkspaceEnv(workspaceRoot);
+    vi.stubEnv("EXO_PI_COMMAND", piCommand);
+    vi.stubEnv("EXO_PI_REPO_PATH", workspaceRoot);
+    const runtime = fakeRuntime();
+    const manager = new TerminalManager(workspaceRoot, 500, 0, {}, runtime);
+
+    await expect(manager.create({ kind: "pi", cwd: workspaceRoot })).rejects.toThrow(
+      "Agent harness is not launchable: pi (Missing dependency).",
+    );
+
+    expect(manager.list()).toEqual([]);
+    expect(runtime.calls.createSession).toEqual([]);
+    await expect(readFile(path.join(workspaceRoot, ".exo", "instructions", "AGENTS.md"), "utf8")).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  });
+
   it("terminates the tmux session when killing a terminal", async () => {
     const workspaceRoot = await workspaceFixture();
     const manager = managerForWorkspace(workspaceRoot);
@@ -1160,6 +1182,10 @@ async function workspaceFixture(): Promise<string> {
   const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-codex-readiness-"));
   tempPaths.push(workspaceRoot);
   return workspaceRoot;
+}
+
+async function chmodExecutable(filePath: string): Promise<void> {
+  await chmod(filePath, 0o755);
 }
 
 function managerForWorkspace(workspaceRoot: string): TerminalManager {

@@ -5,7 +5,13 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { builtInAgentHarnesses } from "../agent-harnesses/builtins";
-import { resolveAgentLaunchPlan, resolveRuntimeConfig, syncRuntimeContextFiles } from "../runtime";
+import {
+  resolveAgentLaunchPlan,
+  resolveDebugAgentLaunchPlan,
+  resolveLaunchableAgentLaunchPlan,
+  resolveRuntimeConfig,
+  syncRuntimeContextFiles,
+} from "../runtime";
 
 const tempPaths: string[] = [];
 
@@ -107,7 +113,7 @@ describe("runtime", () => {
     expect(plan.args).toEqual(["-c", 'model_reasoning_effort="medium"']);
   });
 
-  it("resolves a local Pi source checkout through project roots", async () => {
+  it("keeps raw Pi launch plans available only as an explicit debug surface", async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), "exo-pi-runtime-"));
     tempPaths.push(tempRoot);
     const cliPath = path.join(tempRoot, "packages", "coding-agent", "dist", "cli.js");
@@ -120,12 +126,40 @@ describe("runtime", () => {
       EXO_PROJECT_ROOTS: tempRoot,
     });
 
-    const plan = resolveAgentLaunchPlan(config, "pi", "/tmp/exo-test-workspace/projects/ga-pi");
+    const plan = resolveDebugAgentLaunchPlan(config, "pi", "/tmp/exo-test-workspace/projects/ga-pi");
 
     expect(plan.command).toBe(process.execPath);
     expect(plan.args).toEqual([cliPath]);
     expect(plan.env.EXO_AGENT_KIND).toBe("pi");
     expect(plan.env.EXO_RUNTIME_PRIMARY_INSTRUCTIONS).toBe(config.instructions.primary);
+    expect(() =>
+      resolveLaunchableAgentLaunchPlan(config, "pi", "/tmp/exo-test-workspace/projects/ga-pi", {
+        EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
+        EXO_NOTE_ROOTS: "/tmp/exo-test-workspace/notes",
+        EXO_PROJECT_ROOTS: tempRoot,
+      }),
+    ).toThrow("Agent harness is not launchable: pi (Missing dependency).");
+  });
+
+  it("resolves production Pi launch plans only when readiness is launchable", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "exo-pi-launchable-runtime-"));
+    tempPaths.push(tempRoot);
+    const cliPath = path.join(tempRoot, "packages", "coding-agent", "dist", "cli.js");
+    await mkdir(path.dirname(cliPath), { recursive: true });
+    await writeFile(cliPath, "#!/usr/bin/env node\n", "utf8");
+
+    const env = {
+      EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
+      EXO_NOTE_ROOTS: "/tmp/exo-test-workspace/notes",
+      EXO_PROJECT_ROOTS: tempRoot,
+      EXO_PI_BACKEND_URL: "http://127.0.0.1:8080",
+    };
+    const config = resolveRuntimeConfig(env);
+    const plan = resolveLaunchableAgentLaunchPlan(config, "pi", "/tmp/exo-test-workspace/projects/ga-pi", env);
+
+    expect(plan.command).toBe(process.execPath);
+    expect(plan.args).toEqual([cliPath]);
+    expect(plan.env.EXO_AGENT_KIND).toBe("pi");
   });
 
   it("writes generated instruction files", async () => {

@@ -194,7 +194,7 @@ async function searchIndex(
   }
 
   if (!shouldUseQmd(model)) {
-    return searchFilesystem(model, trimmedQuery, options, "Index is off or has no indexed roots; using lightweight workspace search.");
+    return searchFilesystem(model, trimmedQuery, options, "QMD advanced search provider is off or has no indexed roots; using core workspace search.");
   }
 
   let store: QmdStore | null = null;
@@ -348,7 +348,7 @@ async function openQmdStore(model: WorkspaceModel, runtimeRoot: string): Promise
   return qmd.createStore({
     dbPath: getQmdDbPath(runtimeRoot),
     config: {
-      global_context: "Exo-managed local knowledge index. Indexed roots are explicitly selected by the user.",
+      global_context: "Exo-managed QMD advanced search provider. Indexed roots are explicitly selected by the user.",
       collections: Object.fromEntries(
         model.indexedRoots.map((root) => [
           collectionName(root),

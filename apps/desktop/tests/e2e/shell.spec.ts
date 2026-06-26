@@ -113,14 +113,25 @@ test("opens the read-only plugin manager inventory", async () => {
   await expect(page.getByTestId("plugin-manager")).toBeVisible();
   await expect(page.getByTestId("plugin-manager-summary")).toContainText("Core");
   await expect(page.getByTestId("plugin-manager-group-core")).toContainText("Terminal host");
+  await page.getByTestId("plugin-manager-category-searchProvider").click();
   await expect(page.getByTestId("plugin-manager-group-searchProvider")).toContainText("QMD");
+  await page.getByTestId("plugin-inventory-item-qmd").click();
+  await expect(page.getByTestId("plugin-manager-detail")).toContainText("Search Provider");
+  await page.getByTestId("plugin-manager-category-agentHarness").click();
   await expect(page.getByTestId("plugin-manager-group-agentHarness")).toContainText("Claude");
+  await page.getByTestId("plugin-inventory-item-claude").click();
+  await expect(page.getByTestId("plugin-manager-detail")).toContainText("Agent Harness");
+  await page.getByTestId("plugin-manager-category-routineTemplate").click();
   await expect(page.getByTestId("plugin-manager-group-routineTemplate")).toContainText("Graph Health");
+  await page.getByTestId("plugin-manager-category-profile").click();
   await expect(page.getByTestId("plugin-manager-group-profile")).toContainText("Exograph Baseline");
   await page.getByTestId("plugin-inventory-item-exograph-baseline.profile").click();
-  await expect(page.getByTestId("plugin-manager-detail")).toContainText("Profile Recommendations");
+  await expect(page.getByTestId("plugin-manager-detail")).toContainText("Profile Plan Preview");
   await expect(page.getByTestId("plugin-manager-detail")).toContainText("qmd");
   await expect(page.getByTestId("plugin-manager-detail")).toContainText("Review paths");
+  for (const mutationLabel of ["Install", "Enable", "Disable", "Trust", "Grant", "Apply profile", "Launch"]) {
+    await expect(page.getByRole("button", { name: new RegExp(`^${mutationLabel}$`, "i") })).toHaveCount(0);
+  }
   await page.getByTestId("plugin-manager-close").click();
   await expect(page.getByTestId("plugin-manager")).toHaveCount(0);
 

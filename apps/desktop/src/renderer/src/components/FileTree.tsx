@@ -594,16 +594,16 @@ function searchSummary({
   resultCount: number;
 }): string {
   if (!query) {
-    return "Type to search filenames. Press Enter for indexed search.";
+    return "Type to search filenames. Press Enter for advanced search.";
   }
   if (resultMode === "index-loading") {
-    return `Searching index for “${resultQuery}”…`;
+    return `Searching advanced provider for “${resultQuery}”…`;
   }
   if (resultMode === "index") {
-    return `Indexed results for “${resultQuery}” · ${formatResultCount(resultCount)}`;
+    return `Advanced search results for “${resultQuery}” · ${formatResultCount(resultCount)}`;
   }
   if (resultMode === "index-unavailable") {
-    return message ?? `Index search unavailable. Showing ${formatResultCount(resultCount)}.`;
+    return message ?? `Advanced search unavailable. Showing ${formatResultCount(resultCount)}.`;
   }
   if (resultMode === "error") {
     return message ?? "Search failed.";

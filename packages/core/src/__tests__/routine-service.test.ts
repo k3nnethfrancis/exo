@@ -247,14 +247,14 @@ describe("routine service", () => {
   it("resolves plugin directories from explicit and default environment paths", () => {
     const explicit = routinePluginDirectoriesFromEnv("/workspace", { EXO_PLUGIN_DIRS: ["/plugins/a", "/plugins/b"].join(path.delimiter) });
     expect(explicit).toEqual([
-      { path: "/plugins/a", source: "dev", trust: "trusted" },
-      { path: "/plugins/b", source: "dev", trust: "trusted" },
+      { path: "/plugins/a", source: "dev", trust: "trusted", enabled: true },
+      { path: "/plugins/b", source: "dev", trust: "trusted", enabled: true },
     ]);
 
     expect(routinePluginDirectoriesFromEnv("/workspace", { EXO_PROJECT_ROOT: "/repo/exo", EXO_USER_DATA_PATH: "/user-data" })).toEqual([
-      { path: path.join("/repo/exo", "plugins"), source: "dev", trust: "trusted" },
-      { path: path.join("/user-data", "plugins"), source: "user" },
-      { path: path.join("/workspace", ".exo", "plugins"), source: "workspace" },
+      { path: path.join("/repo/exo", "plugins"), source: "built-in", trust: "trusted", enabled: true },
+      { path: path.join("/user-data", "plugins"), source: "user", trust: "untrusted", enabled: true },
+      { path: path.join("/workspace", ".exo", "plugins"), source: "workspace", trust: "untrusted", enabled: true },
     ]);
   });
 });

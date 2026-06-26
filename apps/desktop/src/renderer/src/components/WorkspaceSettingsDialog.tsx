@@ -54,7 +54,7 @@ export function WorkspaceSettingsDialog({
             <X size={16} />
           </button>
         </div>
-        <div className="dialog-card__message">Appearance and terminal preferences save immediately. Workspace paths and index settings take effect when you press Apply.</div>
+        <div className="dialog-card__message">Appearance and terminal preferences save immediately. Workspace paths and advanced search settings take effect when you press Apply.</div>
         <div className="dialog-tabs" role="tablist" aria-label="Workspace settings sections">
           {SETTINGS_SECTIONS.map((section) => (
             <button
@@ -81,7 +81,7 @@ export function WorkspaceSettingsDialog({
         </div>
         {hasStructuralChanges ? (
           <div className="dialog-card__apply-row">
-            <div className="dialog-card__status">Workspace path and index changes are ready to apply.</div>
+            <div className="dialog-card__status">Workspace path and advanced search changes are ready to apply.</div>
             <button
               className="toolbar-button"
               data-testid="workspace-settings-apply"
@@ -120,7 +120,7 @@ export function WorkspaceSettingsDialog({
 }
 
 export function workspaceSettingsSavedFooterCopy(hasStructuralChanges: boolean): string {
-  return hasStructuralChanges ? "Draft saved. Press Apply for workspace path or index changes." : "Settings saved.";
+  return hasStructuralChanges ? "Draft saved. Press Apply for workspace path or advanced search changes." : "Settings saved.";
 }
 
 function WorkspaceSection({
@@ -232,7 +232,7 @@ function IndexSection({
             <button className="link-button link-button--inline" onClick={() => void window.exo.shell.openExternal("https://github.com/tobi/qmd")} type="button">
               QMD
             </button>{" "}
-            Index
+            advanced search provider
           </span>
         </div>
         <div className="index-summary__stats">
@@ -247,7 +247,7 @@ function IndexSection({
       </div>
       {indexStatus?.recentJobs?.length ? (
         <div className="index-activity" data-testid="workspace-settings-index-activity">
-          <div className="index-activity__title">Recent index activity</div>
+          <div className="index-activity__title">Recent QMD activity</div>
           {indexStatus.recentJobs.slice(0, 5).map((job) => (
             <div className="index-activity__row" key={job.id}>
               <span>{job.kind}</span>
@@ -260,7 +260,7 @@ function IndexSection({
         </div>
       ) : null}
       <label className="dialog-field dialog-field--section">
-        <span className="dialog-field__label">Knowledge index</span>
+        <span className="dialog-field__label">Advanced search provider</span>
         <select
           className="dialog-card__input"
           data-testid="workspace-settings-index-mode"
@@ -297,10 +297,10 @@ function IndexSection({
           }
           type="checkbox"
         />
-        <span>Use indexed lexical search on Enter in Explore.</span>
+        <span>Use QMD lexical search on Enter in Explore.</span>
       </label>
       <label className="dialog-field dialog-field--section">
-        <span className="dialog-field__label">Index updates</span>
+        <span className="dialog-field__label">QMD updates</span>
         <select
           className="dialog-card__input"
           data-testid="workspace-settings-index-update-strategy"
@@ -335,7 +335,7 @@ function IndexSection({
       <details className="dialog-details dialog-details--section">
         <summary>
           Advanced maintenance
-          <HelpTooltip label="Refresh documents only re-reads Markdown into the lexical index without building embeddings. Build embeddings only creates missing semantic embeddings for documents already in the index. Use these when search looks stale, status says embeddings are needed, or you want to debug one index phase without running a full sync." />
+          <HelpTooltip label="Refresh documents only re-reads Markdown into the QMD lexical store without building embeddings. Build embeddings only creates missing semantic embeddings for documents already in QMD. Use these when advanced search looks stale, status says embeddings are needed, or you want to debug one QMD phase without running a full sync." />
         </summary>
         <div className="dialog-card__actions dialog-card__actions--split">
           <button

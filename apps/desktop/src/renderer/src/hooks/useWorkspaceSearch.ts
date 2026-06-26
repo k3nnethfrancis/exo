@@ -69,7 +69,7 @@ export function useWorkspaceSearch(options: { indexedOnEnter: boolean }) {
     if (!options.indexedOnEnter) {
       setResultMode("index-unavailable");
       setResultQuery(trimmedQuery);
-      setMessage("Index search is off. Showing filename results.");
+      setMessage("QMD advanced search is off. Showing core filename results.");
       return;
     }
 
@@ -102,11 +102,11 @@ export function useWorkspaceSearch(options: { indexedOnEnter: boolean }) {
       if (runRef.current !== runId) {
         return;
       }
-      console.warn("[exo] indexed workspace search failed", error);
+      console.warn("[exo] advanced workspace search failed", error);
       startTransition(() => {
         setResultMode("error");
         setResultQuery(trimmedQuery);
-        setMessage(error instanceof Error ? error.message : "Indexed search failed.");
+        setMessage(error instanceof Error ? error.message : "Advanced search failed.");
       });
     }
   }

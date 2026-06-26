@@ -190,5 +190,7 @@ function discovered(overrides: Partial<PluginManifest> = {}): DiscoveredPlugin {
     rootDirectory: "/plugins/shoshin-profile",
     source: "dev",
     trust: "trusted",
+    enabled: true,
+    manifestHash: "hash-shoshin-profile",
   };
 }

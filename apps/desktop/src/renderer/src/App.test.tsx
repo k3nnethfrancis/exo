@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { EditorState } from "@codemirror/state";
-import type { AgentHarnessDetection, ManagedAgentKind, NoteKnowledge, PluginInventoryItem, TreeNode, WorkspaceModel } from "@exo/core";
+import type { AgentHarnessDetection, ManagedAgentKind, NoteKnowledge, PluginInventory, PluginInventoryItem, TreeNode, WorkspaceModel } from "@exo/core";
 
 import {
   DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS,
@@ -45,7 +45,12 @@ import {
 } from "./hooks/useTerminalSessions";
 import { defaultTerminalCwdForNotesFolder } from "./hooks/useWorkspaceBootstrap";
 import { isReconnectableSession, isTerminalInputEnabled, terminalSessionsEqual } from "./terminalSessions";
-import { buildPluginDetailSections, groupPluginInventoryItems } from "./pluginManagerModel";
+import {
+  buildPluginCategoryFilters,
+  buildPluginDetailSections,
+  filterPluginInventoryItems,
+  groupPluginInventoryItems,
+} from "./pluginManagerModel";
 import { applyTheme } from "./theme/applyTheme";
 import { contrastRatio } from "./theme/contrast";
 import { THEME_FAMILIES, resolveTheme } from "./theme/registry";
@@ -143,20 +148,75 @@ describe("browser preview panes", () => {
 });
 
 describe("plugin manager model", () => {
-  it("groups inventory rows by category with core first", () => {
-    const groups = groupPluginInventoryItems([
+  it("groups and filters inventory rows by category with core first", () => {
+    const items = [
       pluginInventoryItem("codex", "Codex", "agentHarness", "Agent harnesses", "bundled"),
       pluginInventoryItem("core.terminal", "Terminal host", "core", "Core", "core"),
       pluginInventoryItem("graph-health.template", "Graph Health", "routineTemplate", "Routine templates", "localManifest"),
       pluginInventoryItem("qmd", "QMD", "searchProvider", "Search providers", "bundled"),
-    ]);
+    ];
+    const groups = groupPluginInventoryItems(items);
 
     expect(groups.map((group) => group.id)).toEqual(["core", "searchProvider", "agentHarness", "routineTemplate"]);
     expect(groups.find((group) => group.id === "agentHarness")?.items.map((item) => item.id)).toEqual(["codex"]);
+    expect(buildPluginCategoryFilters(items)).toEqual([
+      { id: "core", label: "Core", count: 1 },
+      { id: "searchProvider", label: "Search providers", count: 1 },
+      { id: "agentHarness", label: "Agent harnesses", count: 1 },
+      { id: "routineTemplate", label: "Routine templates", count: 1 },
+      { id: "profile", label: "Profiles", count: 0 },
+      { id: "graphVisualization", label: "Graph visualizations", count: 0 },
+      { id: "other", label: "Other", count: 0 },
+    ]);
+    expect(filterPluginInventoryItems(items, "searchProvider").map((item) => item.id)).toEqual(["qmd"]);
+  });
+
+  it("summarizes search provider and harness metadata for read-only details", () => {
+    const searchSections = buildPluginDetailSections({
+      ...pluginInventoryItem("local-search", "Local Search", "searchProvider", "Search providers", "localManifest"),
+      kind: "searchProvider",
+      permissions: ["workspace:read", "notes:read"],
+      surfaces: ["desktop", "mcp"],
+      compatibility: {
+        provider: "local",
+        backend: "sqlite",
+        modes: ["lexical", "hybrid"],
+      },
+    });
+    const harnessSections = buildPluginDetailSections({
+      ...pluginInventoryItem("pi", "Pi", "agentHarness", "Agent harnesses", "bundled"),
+      kind: "agentHarness",
+      status: "missing-dependency",
+      statusLabel: "Needs inference backend",
+      compatibility: {
+        managedAgentKind: "pi",
+        setupSummary: "Configure a compatible inference backend.",
+      },
+      dependencies: [
+        { id: "backend", label: "Inference backend", required: true, status: "missing", statusLabel: "Missing" },
+      ],
+    });
+
+    expect(searchSections.find((section) => section.id === "search-provider")?.rows).toEqual(
+      expect.arrayContaining([
+        { label: "Provider", value: "local" },
+        { label: "Backend", value: "sqlite" },
+        { label: "Surfaces", value: "desktop, mcp" },
+        { label: "Permissions", value: "workspace:read, notes:read" },
+      ]),
+    );
+    expect(harnessSections.find((section) => section.id === "agent-harness")?.rows).toEqual(
+      expect.arrayContaining([
+        { label: "Harness", value: "pi" },
+        { label: "Readiness", value: "Needs inference backend" },
+        { label: "Launchability", value: "Not launchable until setup/trust/dependencies are satisfied" },
+        { label: "Setup", value: "Configure a compatible inference backend." },
+      ]),
+    );
   });
 
   it("summarizes profile metadata for the read-only detail panel", () => {
-    const sections = buildPluginDetailSections({
+    const profileItem: PluginInventoryItem = {
       ...pluginInventoryItem("exograph-baseline.profile", "Exograph Baseline", "profile", "Profiles", "localManifest"),
       kind: "profile",
       compatibility: {
@@ -169,8 +229,16 @@ describe("plugin manager model", () => {
           outputPolicy: { fileChanges: "propose", artifacts: "record", allowedPaths: [".exo/artifacts/**"] },
         },
       },
-    });
+    };
+    const sections = buildPluginDetailSections(profileItem, pluginInventory([profileItem, pluginInventoryItem("qmd", "QMD", "searchProvider", "Search providers", "bundled")]));
 
+    expect(sections.find((section) => section.id === "profile-preview")?.rows).toEqual(
+      expect.arrayContaining([
+        { label: "Mode", value: "Preview only" },
+        { label: "Ready recommendations", value: "1" },
+        { label: "Would write", value: "none" },
+      ]),
+    );
     expect(sections.find((section) => section.id === "profile-recommendations")?.rows).toEqual(
       expect.arrayContaining([
         { label: "Recommended plugins", value: "qmd" },
@@ -180,6 +248,32 @@ describe("plugin manager model", () => {
     );
     expect(sections.find((section) => section.id === "profile-policies")?.rows).toEqual(
       expect.arrayContaining([{ label: "Output", value: "propose; artifacts record" }]),
+    );
+  });
+
+  it("summarizes routine template metadata for the read-only detail panel", () => {
+    const sections = buildPluginDetailSections({
+      ...pluginInventoryItem("graph-health.template", "Graph Health", "routineTemplate", "Routine templates", "localManifest"),
+      kind: "routineTemplate",
+      compatibility: {
+        routineTemplate: {
+          harnessId: "claude",
+          requiredSkills: [{ id: "graph-health", label: "Graph Health", required: true }],
+          trigger: { kind: "schedule", schedule: "0 9 * * 1", timezone: "US/Pacific" },
+          permissions: { permissions: ["workspace:read", "notes:read", "artifacts:write"] },
+          outputPolicy: { fileChanges: "propose", artifacts: "record", allowedPaths: [".exo/artifacts/**"] },
+        },
+      },
+    });
+
+    expect(sections.find((section) => section.id === "routine-template")?.rows).toEqual(
+      expect.arrayContaining([
+        { label: "Default harness", value: "claude" },
+        { label: "Skills", value: "Graph Health" },
+        { label: "Trigger", value: "schedule: 0 9 * * 1 (US/Pacific)" },
+        { label: "Permissions", value: "workspace:read, notes:read, artifacts:write" },
+        { label: "Output policy", value: "file changes propose; artifacts record" },
+      ]),
     );
   });
 
@@ -228,6 +322,22 @@ function pluginInventoryItem(
     trust: "trusted",
     status: "available",
     statusLabel: "Available",
+  };
+}
+
+function pluginInventory(items: PluginInventoryItem[]): PluginInventory {
+  return {
+    generatedAt: "2026-06-26T00:00:00.000Z",
+    items,
+    errors: [],
+    counts: {
+      total: items.length,
+      core: items.filter((item) => item.source === "core").length,
+      bundled: items.filter((item) => item.source === "bundled").length,
+      localManifest: items.filter((item) => item.source === "localManifest").length,
+      disabled: items.filter((item) => !item.enabled).length,
+      untrusted: items.filter((item) => item.trust === "untrusted").length,
+    },
   };
 }
 

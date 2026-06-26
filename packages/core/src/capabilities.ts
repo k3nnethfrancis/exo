@@ -39,8 +39,8 @@ export const builtInCapabilities = [
   {
     id: "qmd",
     kind: "searchProvider",
-    label: "QMD",
-    description: "Default local Markdown search and indexing provider.",
+    label: "QMD advanced search",
+    description: "Bundled advanced local Markdown search provider plugin. Core filename, path, and text search remains available without it.",
     lifecycle: "built-in",
     owner: "@exo/core/qmd",
     surfaces: ["desktop", "cli", "mcp", "commandServer", "internal"],

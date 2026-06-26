@@ -198,6 +198,8 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [ ] Keep project files out of the notes memory index unless explicitly added later.
 - [x] Design the search-provider interface for capability discovery, status, search, read/resolve, sync/update, and future diagnostics.
 - [x] Move QMD behind the internal `SearchProvider` contract while preserving current UI/CLI/MCP behavior.
+- [x] Reframe QMD in settings, Plugin Manager, CLI, and MCP copy as a bundled advanced search provider plugin while preserving core filename/path/text search when QMD is disabled or degraded.
+- [ ] Add provider-neutral search status and capability metadata so Plugin Manager can show QMD readiness without treating QMD as core search.
 - [ ] Add note traversal and graph context primitives: files/folders, document metadata, headings/outline, outgoing links, backlinks, unresolved links, orphans, and related documents.
 - [ ] Add scoped note write primitives after graph/read primitives are stable: create, append, and guarded patch within selected note roots.
 - [ ] Add LM Wiki maintenance reports for stale pages, orphan pages, unresolved links, missing cross-links, contradiction candidates, and missing source questions.
@@ -213,7 +215,18 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [ ] Define proposal storage for inferred schema, graph, and file changes before any new maintainer write workflows are added.
 - [ ] Define the two user-facing exograph modes: Analyze Exograph and Maintain Exograph.
 - [ ] Add schema-neutral read-only graph extraction for Markdown links, backlinks, headings, tags, frontmatter/properties, paths, and file metadata.
+- [x] Add a core read-only graph snapshot API that produces deterministic note/tag/link facts for graph visualization plugins and MCP/CLI graph traversal.
 - [ ] Keep LM Wiki and Shoshin as optional starter profiles, not built-in mandatory folder structures.
+
+## Next: Plugin Architecture Completion
+
+- [x] Add a profile dry-run/preview planner that shows recommended plugin, schema, context-template, skill, routine, graph-view, and review-policy effects without applying them.
+- [x] Split plugin trust from enabled state and keep user/workspace plugin manifests inspectable but inactive until explicitly trusted later.
+- [x] Add neutral plugin location resolution for built-in, dev, user, and workspace plugin directories so routine discovery does not own plugin discovery.
+- [x] Keep plugin manifests metadata-only and reject unsafe entrypoint paths before any future executable plugin loading exists.
+- [x] Make harness readiness the canonical launchability model for Claude, Codex, Pi-compatible, Hermes, and future adapters.
+- [x] Add a final launch gate so non-shell agent terminals cannot be created from raw launch plans when the harness is not launchable.
+- [x] Keep Plugin Manager read-only for this phase while improving category navigation, detail inspection, and setup/readiness explanations.
 
 ## Next: Multi-Agent Coordination
 

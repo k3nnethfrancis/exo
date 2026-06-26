@@ -148,32 +148,34 @@ describe("plugin inventory", () => {
           ...graphHealthManifest,
           id: "disabled.plugin",
           capabilities: [{ ...graphHealthManifest.capabilities[0]!, id: "disabled.template", lifecycle: "disabled" }],
-        }, "disabled"),
+        }, "trusted", false),
       ],
     });
 
     expect(find(inventory.items, "graph-health.template")).toMatchObject({
-      enabled: true,
+      enabled: false,
       trust: "untrusted",
       statusLabel: "Review required",
     });
     expect(find(inventory.items, "disabled.template")).toMatchObject({
       enabled: false,
-      trust: "disabled",
+      trust: "trusted",
       statusLabel: "Disabled",
     });
     expect(inventory.counts.untrusted).toBe(3);
-    expect(inventory.counts.disabled).toBe(1);
+    expect(inventory.counts.disabled).toBe(4);
   });
 });
 
-function discovered(manifest: PluginManifest, trust: DiscoveredPlugin["trust"]): DiscoveredPlugin {
+function discovered(manifest: PluginManifest, trust: DiscoveredPlugin["trust"], enabled = true): DiscoveredPlugin {
   return {
     manifest,
     manifestPath: `/plugins/${manifest.id}/exo.plugin.json`,
     rootDirectory: `/plugins/${manifest.id}`,
     source: "dev",
     trust,
+    enabled,
+    manifestHash: `hash-${manifest.id}`,
   };
 }
 
