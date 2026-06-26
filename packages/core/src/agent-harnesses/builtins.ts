@@ -94,6 +94,7 @@ function detectionFor(input: {
   install?: AgentHarnessDetection["install"];
   detail?: string;
   dependencies?: AgentHarnessDependencyStatus[];
+  setupSummary?: string;
   visible?: boolean;
 }): AgentHarnessDetection {
   const enabled = input.enabled ?? true;
@@ -130,9 +131,49 @@ function detectionFor(input: {
     install: input.install,
     detail: input.detail,
     dependencies: input.dependencies,
+    setupSummary: input.setupSummary ?? setupSummaryFor({
+      enabled,
+      configured: input.configured,
+      detected,
+      launchable,
+      status,
+      detail: input.detail,
+      dependencies: input.dependencies,
+    }),
     launcher: launchable ? input.launcher : undefined,
     visible: input.visible,
   };
+}
+
+function setupSummaryFor(input: {
+  enabled: boolean;
+  configured: boolean;
+  detected: boolean;
+  launchable: boolean;
+  status: AgentHarnessDetection["status"];
+  detail?: string;
+  dependencies?: AgentHarnessDependencyStatus[];
+}): string {
+  if (!input.enabled) {
+    return "Disabled.";
+  }
+  if (input.launchable) {
+    return input.configured ? "Configured and ready to launch." : "Detected and ready to launch.";
+  }
+  const missingRequiredDependency = input.dependencies?.find((dependency) => dependency.required && !dependency.satisfied);
+  if (missingRequiredDependency) {
+    return missingRequiredDependency.detail ?? `${missingRequiredDependency.label} is required before launch.`;
+  }
+  if (input.detail) {
+    return input.detail;
+  }
+  if (!input.detected) {
+    return input.configured ? "Configured, but no executable was detected." : "Install or configure this harness before launch.";
+  }
+  if (input.status === "broken") {
+    return "Detected configuration is incomplete or not executable.";
+  }
+  return statusLabel(input.status);
 }
 
 function statusLabel(status: AgentHarnessDetection["status"]): string {

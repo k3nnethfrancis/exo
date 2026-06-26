@@ -350,6 +350,7 @@ export interface AgentHarnessDetection {
   install?: AgentHarnessInstallMetadata;
   detail?: string;
   dependencies?: AgentHarnessDependencyStatus[];
+  setupSummary?: string;
   launcher?: AgentLauncherConfig;
   visible?: boolean;
 }

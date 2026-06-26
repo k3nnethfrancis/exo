@@ -106,6 +106,14 @@ describe("plugin manifest contracts", () => {
     );
   });
 
+  it("rejects unsafe entrypoint paths", () => {
+    for (const main of ["/tmp/plugin.js", "../plugin.js", "dist/../plugin.js", "dist//plugin.js", "C:\\plugin.js"]) {
+      expect(() => validatePluginManifest({ ...manifest, entrypoints: { main } })).toThrow(
+        "entrypoints.main must be a relative path without traversal",
+      );
+    }
+  });
+
   it("discovers manifests from plugin directories without loading code", async () => {
     const root = await mkdirTempPluginRoot();
     try {
@@ -121,6 +129,8 @@ describe("plugin manifest contracts", () => {
         rootDirectory: pluginRoot,
         source: "workspace",
         trust: "untrusted",
+        enabled: true,
+        manifestHash: expect.any(String),
       });
     } finally {
       await rm(root, { recursive: true, force: true });
@@ -148,11 +158,22 @@ describe("plugin manifest contracts", () => {
   });
 
   it("filters disabled and untrusted plugins", () => {
-    const registry = new PluginRegistry([discovered(manifest, "untrusted"), discovered({ ...manifest, id: "disabled.plugin" }, "disabled")]);
+    const registry = new PluginRegistry([discovered(manifest, "untrusted"), discovered({ ...manifest, id: "disabled.plugin" }, "trusted", false)]);
 
     expect(registry.list().map((plugin) => plugin.manifest.id)).toEqual(["example.plugin"]);
     expect(registry.list({ trustedOnly: true })).toEqual([]);
     expect(registry.list({ includeDisabled: true }).map((plugin) => plugin.manifest.id)).toEqual(["example.plugin", "disabled.plugin"]);
+    expect(registry.listCapabilities().map((capability) => capability.id)).toEqual([]);
+    expect(registry.listCapabilities({ includeInactive: true, includeDisabled: true }).map((capability) => capability.id)).toEqual([
+      "example.trace",
+      "example.routine",
+      "example.profile",
+      "example.graph-view",
+      "example.trace",
+      "example.routine",
+      "example.profile",
+      "example.graph-view",
+    ]);
   });
 
   it("rejects duplicate plugin and capability ids", () => {
@@ -169,15 +190,41 @@ describe("plugin manifest contracts", () => {
         ]),
     ).toThrow("Plugin capability already registered");
   });
+
+  it("lets inactive plugins remain inspectable without reserving active capability ids", () => {
+    const inactive = discovered(manifest, "trusted", false);
+    const active = discovered(
+      {
+        ...manifest,
+        id: "active.plugin",
+      },
+      "trusted",
+    );
+
+    const registry = new PluginRegistry([inactive, active]);
+
+    expect(registry.list({ includeDisabled: true }).map((plugin) => plugin.manifest.id)).toEqual([
+      "example.plugin",
+      "active.plugin",
+    ]);
+    expect(registry.listCapabilities().map((capability) => capability.id)).toEqual([
+      "example.trace",
+      "example.routine",
+      "example.profile",
+      "example.graph-view",
+    ]);
+  });
 });
 
-function discovered(manifest: PluginManifest, trust: DiscoveredPlugin["trust"] = "trusted"): DiscoveredPlugin {
+function discovered(manifest: PluginManifest, trust: DiscoveredPlugin["trust"] = "trusted", enabled = true): DiscoveredPlugin {
   return {
     manifest,
     manifestPath: `/plugins/${manifest.id}/${EXO_PLUGIN_MANIFEST_FILE}`,
     rootDirectory: `/plugins/${manifest.id}`,
     source: "dev",
     trust,
+    enabled,
+    manifestHash: `hash-${manifest.id}`,
   };
 }
 

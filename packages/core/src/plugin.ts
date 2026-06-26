@@ -8,11 +8,12 @@ import type {
   CapabilityPermission,
   CapabilitySurface,
 } from "./capabilities";
+import { hashPluginManifest } from "./plugin-state";
 
 export const EXO_PLUGIN_MANIFEST_FILE = "exo.plugin.json";
 
 export type PluginSource = "built-in" | "dev" | "user" | "workspace";
-export type PluginTrustState = "trusted" | "untrusted" | "disabled";
+export type PluginTrustState = "trusted" | "untrusted";
 
 export interface PluginEntrypoints {
   main?: string;
@@ -39,6 +40,8 @@ export interface DiscoveredPlugin {
   rootDirectory: string;
   source: PluginSource;
   trust: PluginTrustState;
+  enabled: boolean;
+  manifestHash: string;
 }
 
 const CAPABILITY_KINDS = [
@@ -82,9 +85,9 @@ export class PluginRegistry {
     if (this.plugins.has(id)) {
       throw new Error(`Plugin already registered: ${id}`);
     }
-    // Disabled plugins remain inspectable for management UI, but their capabilities
-    // must not reserve ids or appear active while a user has explicitly turned them off.
-    if (plugin.trust !== "disabled") {
+    // Inactive plugins remain inspectable for management UI, but their capabilities
+    // must not reserve ids or appear active until they are both trusted and enabled.
+    if (isActivePlugin(plugin)) {
       for (const capability of plugin.manifest.capabilities) {
         const existingPluginId = this.capabilityIds.get(capability.id);
         if (existingPluginId) {
@@ -93,7 +96,7 @@ export class PluginRegistry {
       }
     }
     this.plugins.set(id, plugin);
-    if (plugin.trust !== "disabled") {
+    if (isActivePlugin(plugin)) {
       for (const capability of plugin.manifest.capabilities) {
         this.capabilityIds.set(capability.id, id);
       }
@@ -120,7 +123,7 @@ export class PluginRegistry {
 
   list(options: { includeDisabled?: boolean; trustedOnly?: boolean } = {}): DiscoveredPlugin[] {
     return [...this.plugins.values()].filter((plugin) => {
-      if (!options.includeDisabled && plugin.trust === "disabled") {
+      if (!options.includeDisabled && !plugin.enabled) {
         return false;
       }
       if (options.trustedOnly && plugin.trust !== "trusted") {
@@ -130,14 +133,21 @@ export class PluginRegistry {
     });
   }
 
-  listCapabilities(options: { includeDisabled?: boolean; trustedOnly?: boolean } = {}): CapabilityMetadata[] {
-    return this.list(options).flatMap((plugin) => plugin.manifest.capabilities);
+  listCapabilities(options: { includeDisabled?: boolean; trustedOnly?: boolean; includeInactive?: boolean } = {}): CapabilityMetadata[] {
+    if (options.includeInactive) {
+      return this.list(options).flatMap((plugin) => plugin.manifest.capabilities);
+    }
+    return this.list({ ...options, trustedOnly: true }).flatMap((plugin) =>
+      isActivePlugin(plugin)
+        ? plugin.manifest.capabilities.filter((capability) => options.includeDisabled || capability.lifecycle !== "disabled")
+        : [],
+    );
   }
 }
 
 export async function discoverPluginManifests(
   directories: string[],
-  options: { source: PluginSource; trust?: PluginTrustState },
+  options: { source: PluginSource; trust?: PluginTrustState; enabled?: boolean },
 ): Promise<DiscoveredPlugin[]> {
   const discovered: DiscoveredPlugin[] = [];
   for (const directory of directories) {
@@ -145,16 +155,18 @@ export async function discoverPluginManifests(
     for (const entry of entries) {
       const rootDirectory = path.join(directory, entry);
       const manifestPath = path.join(rootDirectory, EXO_PLUGIN_MANIFEST_FILE);
-      const manifest = await readPluginManifest(manifestPath);
-      if (!manifest) {
+      const manifestResult = await readPluginManifestWithHash(manifestPath);
+      if (!manifestResult) {
         continue;
       }
       discovered.push({
-        manifest,
+        manifest: manifestResult.manifest,
         manifestPath,
         rootDirectory,
         source: options.source,
         trust: options.trust ?? defaultPluginTrust(options.source),
+        enabled: options.enabled ?? true,
+        manifestHash: manifestResult.manifestHash,
       });
     }
   }
@@ -220,6 +232,25 @@ export function defaultPluginTrust(source: PluginSource): PluginTrustState {
   }
 }
 
+export function isActivePlugin(plugin: DiscoveredPlugin): boolean {
+  return plugin.enabled && plugin.trust === "trusted";
+}
+
+async function readPluginManifestWithHash(manifestPath: string): Promise<{ manifest: PluginManifest; manifestHash: string } | null> {
+  try {
+    const rawManifest = await readFile(manifestPath, "utf8");
+    return {
+      manifest: parsePluginManifest(rawManifest),
+      manifestHash: hashPluginManifest(rawManifest),
+    };
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+      return null;
+    }
+    throw error;
+  }
+}
+
 async function safeReadDirectories(directory: string): Promise<string[]> {
   try {
     const entries = await readdir(directory, { withFileTypes: true });
@@ -242,11 +273,17 @@ function validateEntrypoints(input: unknown): PluginEntrypoints | undefined {
   if (!isRecord(input)) {
     throw new Error("Plugin manifest entrypoints must be an object.");
   }
-  return {
+  const entrypoints = {
     main: optionalString(input, "main"),
     renderer: optionalString(input, "renderer"),
     webview: optionalString(input, "webview"),
   };
+  for (const [key, value] of Object.entries(entrypoints)) {
+    if (value !== undefined) {
+      assertSafeRelativePath(value, `entrypoints.${key}`);
+    }
+  }
+  return entrypoints;
 }
 
 function validateCapabilities(input: unknown): CapabilityMetadata[] {
@@ -319,6 +356,19 @@ function validateEnum<const T extends string>(value: string, allowed: readonly T
 function assertIdentifier(value: string, label: string): void {
   if (!/^[a-z][a-z0-9.-]*$/.test(value)) {
     throw new Error(`${label} must be lowercase alphanumeric with dots or hyphens: ${value}`);
+  }
+}
+
+function assertSafeRelativePath(value: string, label: string): void {
+  if (path.isAbsolute(value) || path.win32.isAbsolute(value)) {
+    throw new Error(`Plugin manifest ${label} must be a relative path without traversal: ${value}`);
+  }
+  if (value.includes("\\") || value.includes("//")) {
+    throw new Error(`Plugin manifest ${label} must be a relative path without traversal: ${value}`);
+  }
+  const parts = value.split(/[\\/]+/);
+  if (parts.some((part) => part === "..") || parts.includes("")) {
+    throw new Error(`Plugin manifest ${label} must be a relative path without traversal: ${value}`);
   }
 }
 

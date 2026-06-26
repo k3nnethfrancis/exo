@@ -3,10 +3,11 @@ import { builtInCapabilities, type CapabilityMetadata } from "./capabilities";
 import {
   discoverPluginManifests,
   type DiscoveredPlugin,
+  isActivePlugin,
   type PluginSource,
   type PluginTrustState,
 } from "./plugin";
-import { routinePluginDirectoriesFromEnv, type RoutinePluginDirectory } from "./routine-service";
+import { resolvePluginLocations, type PluginLocation } from "./plugin-locations";
 
 export type PluginInventorySource = "core" | "bundled" | "localManifest";
 
@@ -23,6 +24,7 @@ export interface PluginInventoryItem {
   id: string;
   label: string;
   description: string;
+  kind: CapabilityMetadata["kind"] | "core";
   categoryId: string;
   categoryLabel: string;
   source: PluginInventorySource;
@@ -41,6 +43,7 @@ export interface PluginInventoryItem {
   manifestPath?: string;
   rootDirectory?: string;
   dependencies?: PluginInventoryDependency[];
+  compatibility?: Record<string, unknown>;
 }
 
 export interface PluginInventoryError {
@@ -67,7 +70,7 @@ export interface PluginInventoryOptions {
   env?: Record<string, string | undefined>;
   harnesses?: AgentHarnessDetection[];
   builtIns?: CapabilityMetadata[];
-  pluginDirectories?: RoutinePluginDirectory[];
+  pluginDirectories?: PluginLocation[];
   clock?: () => string;
 }
 
@@ -80,7 +83,7 @@ const CORE_INVENTORY_ITEMS: PluginInventoryItem[] = [
 ];
 
 export async function listPluginInventory(options: PluginInventoryOptions): Promise<PluginInventory> {
-  const directories = options.pluginDirectories ?? routinePluginDirectoriesFromEnv(options.workspaceRoot, options.env ?? process.env);
+  const directories = options.pluginDirectories ?? resolvePluginLocations({ workspaceRoot: options.workspaceRoot, env: options.env ?? process.env });
   const { plugins, errors } = await discoverInventoryPlugins(directories);
   return buildPluginInventory({
     builtIns: options.builtIns ?? builtInCapabilities,
@@ -127,7 +130,7 @@ function managedAgentKindFromCapability(capability: CapabilityMetadata): Managed
     : undefined;
 }
 
-async function discoverInventoryPlugins(directories: RoutinePluginDirectory[]): Promise<{
+async function discoverInventoryPlugins(directories: PluginLocation[]): Promise<{
   plugins: DiscoveredPlugin[];
   errors: PluginInventoryError[];
 }> {
@@ -139,6 +142,7 @@ async function discoverInventoryPlugins(directories: RoutinePluginDirectory[]): 
         ...(await discoverPluginManifests([directory.path], {
           source: directory.source,
           trust: directory.trust,
+          enabled: directory.enabled,
         })),
       );
     } catch (error) {
@@ -157,6 +161,7 @@ function coreItem(id: string, label: string, description: string): PluginInvento
     label,
     description,
     categoryId: "core",
+    kind: "core",
     categoryLabel: "Core",
     source: "core",
     sourceLabel: "Core",
@@ -182,6 +187,7 @@ function bundledCapabilityItem(
     label: capability.label,
     description: capability.description,
     categoryId: capability.kind,
+    kind: capability.kind,
     categoryLabel: capabilityKindLabel(capability.kind),
     source: "bundled",
     sourceLabel: "Bundled plugin",
@@ -201,17 +207,19 @@ function bundledCapabilityItem(
       statusLabel: dependency.statusLabel,
       detail: dependency.detail,
     })),
+    compatibility: capability.compatibility,
   };
 }
 
 function pluginInventoryItems(plugin: DiscoveredPlugin): PluginInventoryItem[] {
   return plugin.manifest.capabilities.map((capability) => {
-    const enabled = plugin.trust !== "disabled" && capability.lifecycle !== "disabled";
+    const enabled = isActivePlugin(plugin) && capability.lifecycle !== "disabled";
     return {
       id: capability.id,
       label: capability.label,
       description: capability.description,
       categoryId: capability.kind,
+      kind: capability.kind,
       categoryLabel: capabilityKindLabel(capability.kind),
       source: "localManifest",
       sourceLabel: sourceLabel(plugin.source),
@@ -221,13 +229,14 @@ function pluginInventoryItems(plugin: DiscoveredPlugin): PluginInventoryItem[] {
       permissions: capability.permissions,
       enabled,
       trust: plugin.trust,
-      status: plugin.trust === "untrusted" ? "review-required" : enabled ? "available" : "disabled",
-      statusLabel: plugin.trust === "untrusted" ? "Review required" : enabled ? "Available" : "Disabled",
+      status: !plugin.enabled ? "disabled" : plugin.trust === "untrusted" ? "review-required" : enabled ? "available" : "disabled",
+      statusLabel: !plugin.enabled ? "Disabled" : plugin.trust === "untrusted" ? "Review required" : enabled ? "Available" : "Disabled",
       pluginId: plugin.manifest.id,
       pluginName: plugin.manifest.name,
       pluginSource: plugin.source,
       manifestPath: plugin.manifestPath,
       rootDirectory: plugin.rootDirectory,
+      compatibility: capability.compatibility,
     };
   });
 }

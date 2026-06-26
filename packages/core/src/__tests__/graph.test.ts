@@ -144,5 +144,7 @@ function discovered(overrides: Partial<PluginManifest> = {}): DiscoveredPlugin {
     rootDirectory: "/plugins/default-graph",
     source: "dev",
     trust: "trusted",
+    enabled: true,
+    manifestHash: "hash-default-graph",
   };
 }

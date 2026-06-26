@@ -1,9 +1,9 @@
-import path from "node:path";
 import { readFile } from "node:fs/promises";
 
 import type { AgentHarness } from "./agent-harness";
 import type { CapabilityPermission, CapabilitySurface } from "./capabilities";
-import { discoverPluginManifests, PluginRegistry, type PluginSource, type PluginTrustState } from "./plugin";
+import { discoverPluginManifests, PluginRegistry } from "./plugin";
+import { resolvePluginLocations, splitPluginPathList, type PluginLocation } from "./plugin-locations";
 import { RoutineExecutor, type RoutineExecutionHost } from "./routine-executor";
 import { RoutineRunStore } from "./routine-run-store";
 import { instantiateRoutineTemplate, routineTemplatesFromPlugin, type RoutineInstantiationOptions, type RoutineTemplateDefinition } from "./routine-template";
@@ -11,11 +11,7 @@ import { missingRequiredHarnessSkills, type RoutineDefinition, type RoutineOutpu
 import type { RunRecord } from "./run";
 import type { WorkspaceModel } from "./types";
 
-export interface RoutinePluginDirectory {
-  path: string;
-  source: PluginSource;
-  trust?: PluginTrustState;
-}
+export type RoutinePluginDirectory = Pick<PluginLocation, "path" | "source"> & Partial<Pick<PluginLocation, "trust" | "enabled">>;
 
 export interface RoutineServiceOptions {
   workspace: WorkspaceModel;
@@ -72,6 +68,7 @@ export class RoutineService {
           discoverPluginManifests([directory.path], {
             source: directory.source,
             trust: directory.trust,
+            enabled: directory.enabled,
           }),
         ),
       )
@@ -203,23 +200,18 @@ export function assertRoutineAgentPolicy(routine: RoutineDefinition, options: Ro
 }
 
 export function routinePluginDirectoriesFromEnv(workspaceRoot: string, env: Record<string, string | undefined>): RoutinePluginDirectory[] {
-  const explicit = splitPathList(env.EXO_PLUGIN_DIRS);
-  if (explicit.length > 0) {
-    // EXO_PLUGIN_DIRS is a developer/operator override, not a user-install path.
-    // Treat it as trusted so local plugin development works without a trust UI.
-    return explicit.map((directory) => ({ path: directory, source: "dev", trust: "trusted" }));
+  const explicitOperatorDirectories = splitPluginPathList(env.EXO_PLUGIN_DIRS);
+  if (explicitOperatorDirectories.length > 0) {
+    // Preserve the historical routine-service behavior: EXO_PLUGIN_DIRS is an
+    // operator override for routine discovery, not an additive user plugin path.
+    return explicitOperatorDirectories.map((directory) => ({
+      path: directory,
+      source: "dev",
+      trust: "trusted",
+      enabled: true,
+    }));
   }
-
-  return [
-    ...splitPathList(env.EXO_DEV_PLUGIN_DIRS).map((directory): RoutinePluginDirectory => ({ path: directory, source: "dev", trust: "trusted" })),
-    ...(env.EXO_PROJECT_ROOT ? [{ path: path.join(env.EXO_PROJECT_ROOT, "plugins"), source: "dev" as const, trust: "trusted" as const }] : []),
-    ...(env.EXO_USER_DATA_PATH ? [{ path: path.join(env.EXO_USER_DATA_PATH, "plugins"), source: "user" as const }] : []),
-    { path: path.join(workspaceRoot, ".exo", "plugins"), source: "workspace" },
-  ];
-}
-
-function splitPathList(rawValue: string | undefined): string[] {
-  return rawValue?.split(path.delimiter).filter(Boolean).map((entry) => path.resolve(entry)) ?? [];
+  return resolvePluginLocations({ workspaceRoot, env }).map(({ path, source, trust, enabled }) => ({ path, source, trust, enabled }));
 }
 
 class DryRunRoutineExecutionHost implements RoutineExecutionHost {

@@ -21,6 +21,8 @@ describe("capability registry", () => {
     expect(ids).toEqual(expect.arrayContaining(["qmd", "shell", "claude", "codex", "pi", "hermes"]));
     expect(capabilityRegistry.get("qmd")).toMatchObject({
       kind: "searchProvider",
+      label: "QMD advanced search",
+      description: expect.stringContaining("Core filename, path, and text search remains available"),
       lifecycle: "built-in",
     });
     expect(capabilityRegistry.get("claude")).toMatchObject({

@@ -211,5 +211,7 @@ function discoveredPlugin(capabilities: CapabilityMetadata[] = [templateCapabili
     rootDirectory: "/plugins/example",
     source: "dev",
     trust: "trusted",
+    enabled: true,
+    manifestHash: "hash-example",
   };
 }

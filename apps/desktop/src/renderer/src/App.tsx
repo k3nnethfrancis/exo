@@ -739,7 +739,7 @@ export function App() {
             <>
               <h1 className="onboarding-card__title">Select workspace</h1>
               <p className="onboarding-card__copy">
-                Workspaces are saved notes folders with their own projects, terminal defaults, settings, and local index state.
+                Workspaces are saved notes folders with their own projects, terminal defaults, settings, and advanced search state.
               </p>
               <div className="workspace-picker" data-testid="workspace-picker">
                 {onboardingState.workspaces.length > 0 ? (
@@ -770,7 +770,7 @@ export function App() {
                   <div className="workspace-picker__meta">
                     {selectedWorkspace.settings.projectRoots.length} project{selectedWorkspace.settings.projectRoots.length === 1 ? "" : "s"}
                     {" | "}
-                    index {selectedWorkspace.settings.indexing.mode}
+                    search {selectedWorkspace.settings.indexing.mode}
                     {" | "}
                     terminal {pathLabel(selectedWorkspace.settings.defaultTerminalCwd)}
                   </div>
@@ -802,7 +802,7 @@ export function App() {
                 {onboardingState.mode === "first-run" ? "Open notes folder" : "Choose notes folder"}
               </h1>
               <p className="onboarding-card__copy">
-                Select an existing Markdown folder or create one, then confirm the default terminal, projects, and local index mode.
+                Select an existing Markdown folder or create one, then confirm the default terminal, projects, and advanced search mode.
               </p>
               <div className="onboarding-grid">
                 <div className="onboarding-section onboarding-section--primary">
@@ -878,8 +878,8 @@ export function App() {
                 <div className="onboarding-section onboarding-section--index">
                   <div className="onboarding-section__header">
                     <div>
-                      <div className="dialog-field__label">Knowledge index</div>
-                      <div className="onboarding-section__hint">Optional local search over the notes folder. Hybrid uses embeddings.</div>
+                      <div className="dialog-field__label">Advanced search provider</div>
+                      <div className="onboarding-section__hint">Optional QMD plugin search over the notes folder. Core filename search is always available.</div>
                     </div>
                     <select
                       className="dialog-card__input onboarding-select"
@@ -918,7 +918,7 @@ export function App() {
                         }
                         type="checkbox"
                       />
-                      <span>Use indexed search when pressing Enter in Explore.</span>
+                      <span>Use QMD search when pressing Enter in Explore.</span>
                     </label>
                   ) : null}
                 </div>
@@ -1278,30 +1278,30 @@ function summarizeIndexStatus(status: IndexStatus | null, busy: IndexBusyState):
   busy: boolean;
 } {
   if (busy === "updating") {
-    return { label: "Re-indexing", tone: "info", title: "Updating the local knowledge index.", busy: true };
+    return { label: "Updating search", tone: "info", title: "Updating the QMD advanced search provider.", busy: true };
   }
   if (busy === "syncing") {
-    return { label: "Syncing index", tone: "info", title: "Refreshing documents and embeddings for the local knowledge index.", busy: true };
+    return { label: "Syncing search", tone: "info", title: "Refreshing documents and embeddings for the QMD advanced search provider.", busy: true };
   }
   if (busy === "embedding") {
-    return { label: "Embedding", tone: "info", title: "Building semantic embeddings for the local knowledge index.", busy: true };
+    return { label: "Embedding", tone: "info", title: "Building semantic embeddings for QMD advanced search.", busy: true };
   }
   if (!status) {
-    return { label: "Index unknown", tone: "muted", title: "Index status has not loaded yet.", busy: false };
+    return { label: "Search unknown", tone: "muted", title: "Advanced search provider status has not loaded yet.", busy: false };
   }
   if (status.errors.length > 0) {
-    return { label: "Index error", tone: "error", title: status.errors.join("\n"), busy: false };
+    return { label: "Search provider error", tone: "error", title: status.errors.join("\n"), busy: false };
   }
   if (!status.enabled || status.mode === "off" || status.indexedRoots.length === 0) {
-    return { label: "Index not set up", tone: "warn", title: "Enable the local QMD index in Workspace Settings.", busy: false };
+    return { label: "QMD off", tone: "muted", title: "QMD advanced search is off. Core filename, path, and text search remains available.", busy: false };
   }
   if (status.documentCount === 0) {
-    return { label: "Index empty", tone: "warn", title: "The index is configured but has no documents yet.", busy: false };
+    return { label: "Search provider empty", tone: "warn", title: "QMD advanced search is configured but has no documents yet.", busy: false };
   }
   if ((status.mode === "semantic" || status.mode === "hybrid") && (!status.hasVectorIndex || status.pendingEmbeddings > 0)) {
     return { label: "Embeddings needed", tone: "warn", title: formatIndexStatus(status), busy: false };
   }
-  return { label: "Index ready", tone: "ok", title: formatIndexStatus(status), busy: false };
+  return { label: "QMD ready", tone: "ok", title: formatIndexStatus(status), busy: false };
 }
 
 function joinPath(parentPath: string, name: string): string {

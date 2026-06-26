@@ -1,7 +1,12 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { resolveRegisteredAgentHarnesses, resolveRegisteredAgentLaunchers } from "./agent-harness-registry";
+import {
+  resolveRegisteredAgentHarnessDetection,
+  resolveRegisteredAgentHarnesses,
+  resolveRegisteredAgentLaunchers,
+  validateRegisteredAgentHarnessLaunch,
+} from "./agent-harness-registry";
 import type {
   AgentLaunchPlan,
   ManagedAgentKind,
@@ -116,8 +121,38 @@ export function resolveAgentLaunchPlan(
   kind: ManagedAgentKind,
   cwd = config.workspace.defaultTerminalCwd,
 ): AgentLaunchPlan {
-  const launcher = config.launchers[kind];
+  return buildAgentLaunchPlan(config, kind, config.launchers[kind], cwd);
+}
 
+export function resolveDebugAgentLaunchPlan(
+  config: RuntimeConfig,
+  kind: ManagedAgentKind,
+  cwd = config.workspace.defaultTerminalCwd,
+): AgentLaunchPlan {
+  return resolveAgentLaunchPlan(config, kind, cwd);
+}
+
+export function resolveLaunchableAgentLaunchPlan(
+  config: RuntimeConfig,
+  kind: ManagedAgentKind,
+  cwd = config.workspace.defaultTerminalCwd,
+  env: NodeJS.ProcessEnv = process.env,
+): AgentLaunchPlan {
+  const detection = validateRegisteredAgentHarnessLaunch(kind, env);
+  const launcher = detection.launcher ?? resolveRegisteredAgentHarnessDetection(kind, env)?.launcher;
+  if (!launcher) {
+    throw new Error(`Agent harness is not launchable: ${kind} (${detection.statusLabel}).`);
+  }
+
+  return buildAgentLaunchPlan(config, kind, launcher, cwd);
+}
+
+function buildAgentLaunchPlan(
+  config: RuntimeConfig,
+  kind: ManagedAgentKind,
+  launcher: RuntimeConfig["launchers"][ManagedAgentKind],
+  cwd: string,
+): AgentLaunchPlan {
   return {
     kind,
     title: launcher.title,

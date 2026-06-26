@@ -50,6 +50,52 @@ describe("agent harness registry", () => {
     expect(launchers.codex).toMatchObject({ kind: "codex", command: "codex" });
   });
 
+  it("standardizes readiness and setup metadata for built-in harness inventory", () => {
+    const tempRoot = mkdtempSync(path.join(os.tmpdir(), "exo-harness-metadata-"));
+    const claudeCommand = path.join(tempRoot, "claude");
+    const codexCommand = path.join(tempRoot, "codex");
+    const piCommand = path.join(tempRoot, "pi");
+    const hermesCommand = path.join(tempRoot, "hermes");
+    for (const command of [claudeCommand, codexCommand, piCommand, hermesCommand]) {
+      writeFileSync(command, "#!/bin/sh\nexit 0\n", "utf8");
+      chmodSync(command, 0o755);
+    }
+
+    try {
+      const env = {
+        PATH: "/usr/bin",
+        EXO_CLAUDE_COMMAND: claudeCommand,
+        EXO_CODEX_COMMAND: codexCommand,
+        EXO_PI_COMMAND: piCommand,
+        EXO_PI_REPO_PATH: tempRoot,
+        EXO_PI_BACKEND_URL: "http://127.0.0.1:8080",
+        EXO_HERMES_COMMAND: hermesCommand,
+      };
+      const harnesses = resolveRegisteredAgentHarnesses(env);
+
+      for (const id of ["claude", "codex", "pi", "hermes"] as const) {
+        expect(harnesses.find((harness) => harness.id === id)).toMatchObject({
+          id,
+          configured: true,
+          detected: true,
+          launchable: true,
+          executablePath: id === "claude" ? claudeCommand : id === "codex" ? codexCommand : id === "pi" ? piCommand : hermesCommand,
+          setupSummary: "Configured and ready to launch.",
+        });
+      }
+      expect(harnesses.find((harness) => harness.id === "pi")).toMatchObject({
+        repoPath: tempRoot,
+        install: { label: "Configure a local Pi build" },
+        dependencies: [expect.objectContaining({ id: "pi-inference-backend", satisfied: true })],
+      });
+      expect(harnesses.find((harness) => harness.id === "hermes")).toMatchObject({
+        install: { label: "Configure Hermes" },
+      });
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it("rejects duplicate harness ids", () => {
     const registry = new AgentHarnessRegistry([builtInAgentHarnesses.shell]);
 
@@ -97,6 +143,7 @@ describe("agent harness registry", () => {
         launchable: false,
         status: "missing-dependency",
         statusLabel: "Missing dependency",
+        setupSummary: "Configure EXO_PI_BACKEND_URL or EXO_PI_BACKEND_COMMAND for a compatible local inference backend.",
         dependencies: [
           expect.objectContaining({
             id: "pi-inference-backend",
@@ -178,6 +225,7 @@ describe("agent harness registry", () => {
         channel: "source",
         repoPath: tempRoot,
         launcher: undefined,
+        setupSummary: "Configure EXO_PI_BACKEND_URL or EXO_PI_BACKEND_COMMAND for a compatible local inference backend.",
         dependencies: [expect.objectContaining({ id: "pi-inference-backend", satisfied: false })],
       });
     } finally {
@@ -195,6 +243,7 @@ describe("agent harness registry", () => {
       configured: false,
       detected: false,
       launchable: false,
+      setupSummary: "Disabled.",
       visible: false,
     });
   });

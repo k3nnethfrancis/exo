@@ -2,7 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import type { PluginInventory, PluginInventoryItem } from "@exo/core";
 import { X } from "lucide-react";
 
-import { groupPluginInventoryItems } from "../pluginManagerModel";
+import {
+  buildPluginCategoryFilters,
+  buildPluginDetailSections,
+  filterPluginInventoryItems,
+} from "../pluginManagerModel";
 
 interface PluginManagerDialogProps {
   onClose: () => void;
@@ -12,6 +16,8 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
   const [inventory, setInventory] = useState<PluginInventory | null>(null);
   const [loadState, setLoadState] = useState<"loading" | "idle" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState("core");
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -34,7 +40,27 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
     };
   }, []);
 
-  const groups = useMemo(() => groupPluginInventoryItems(inventory?.items ?? []), [inventory]);
+  const categoryFilters = useMemo(() => buildPluginCategoryFilters(inventory?.items ?? []), [inventory]);
+  const visibleItems = useMemo(
+    () => filterPluginInventoryItems(inventory?.items ?? [], selectedCategoryId),
+    [inventory, selectedCategoryId],
+  );
+  const selectedItem = useMemo(() => {
+    if (!inventory || visibleItems.length === 0) {
+      return null;
+    }
+    return visibleItems.find((item) => item.id === selectedItemId) ?? visibleItems[0] ?? null;
+  }, [inventory, selectedItemId, visibleItems]);
+  const detailSections = useMemo(
+    () => selectedItem ? buildPluginDetailSections(selectedItem, inventory ?? undefined) : [],
+    [inventory, selectedItem],
+  );
+  const detailHeadingId = selectedItem ? `plugin-manager-detail-heading-${selectedItem.id}` : undefined;
+
+  function selectCategory(categoryId: string) {
+    setSelectedCategoryId(categoryId);
+    setSelectedItemId(null);
+  }
 
   return (
     <div className="dialog-overlay" data-testid="plugin-manager-overlay">
@@ -77,20 +103,78 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
               <SummaryTile label="Local manifests" value={inventory.counts.localManifest} />
               <SummaryTile label="Review needed" value={inventory.counts.untrusted} />
             </div>
-            <div className="plugin-manager__groups">
-              {groups.map((group) => (
-                <section className="plugin-manager__group" data-testid={`plugin-manager-group-${group.id}`} key={group.id}>
-                  <div className="plugin-manager__group-header">
-                    <h3>{group.label}</h3>
-                    <span>{group.items.length}</span>
-                  </div>
-                  <div className="plugin-manager__items">
-                    {group.items.map((item) => (
-                      <PluginInventoryRow item={item} key={`${item.source}:${item.id}`} />
+            <div className="plugin-manager__body">
+              <div className="plugin-manager__inventory">
+                <div className="plugin-manager__categories" aria-label="Plugin categories" role="tablist">
+                  {categoryFilters.map((category) => (
+                    <button
+                      aria-controls="plugin-manager-item-list"
+                      aria-selected={selectedCategoryId === category.id}
+                      className={`plugin-manager__category ${selectedCategoryId === category.id ? "plugin-manager__category--selected" : ""}`}
+                      data-testid={`plugin-manager-category-${category.id}`}
+                      disabled={category.count === 0}
+                      key={category.id}
+                      onClick={() => selectCategory(category.id)}
+                      role="tab"
+                      type="button"
+                    >
+                      <span>{category.label}</span>
+                      <strong>{category.count}</strong>
+                    </button>
+                  ))}
+                </div>
+                <div
+                  aria-activedescendant={selectedItem ? `plugin-inventory-option-${selectedItem.id}` : undefined}
+                  aria-label="Plugin inventory"
+                  className="plugin-manager__items"
+                  data-testid={`plugin-manager-group-${selectedCategoryId}`}
+                  id="plugin-manager-item-list"
+                  role="listbox"
+                >
+                  {visibleItems.map((item) => (
+                    <PluginInventoryRow
+                      isSelected={selectedItem?.id === item.id}
+                      item={item}
+                      key={`${item.source}:${item.id}`}
+                      onSelect={() => setSelectedItemId(item.id)}
+                    />
+                  ))}
+                  {visibleItems.length === 0 ? <p className="plugin-manager__empty">No capabilities in this category.</p> : null}
+                </div>
+              </div>
+              <aside
+                aria-labelledby={detailHeadingId}
+                className="plugin-manager__detail-panel"
+                data-testid="plugin-manager-detail"
+              >
+                {selectedItem ? (
+                  <>
+                    <div className="plugin-manager__detail-header">
+                      <div>
+                        <div className="plugin-manager__detail-kicker">{selectedItem.categoryLabel}</div>
+                        <h3 id={detailHeadingId}>{selectedItem.label}</h3>
+                      </div>
+                      <StatusPill item={selectedItem} />
+                    </div>
+                    <p>{selectedItem.description}</p>
+                    {detailSections.map((section) => (
+                      <section className="plugin-manager__detail-section" key={section.id}>
+                        <h4>{section.label}</h4>
+                        <dl>
+                          {section.rows.map((row) => (
+                            <div key={`${section.id}:${row.label}`}>
+                              <dt>{row.label}</dt>
+                              <dd>{row.value}</dd>
+                            </div>
+                          ))}
+                        </dl>
+                      </section>
                     ))}
-                  </div>
-                </section>
-              ))}
+                  </>
+                ) : (
+                  <p>Select a plugin or core surface to inspect.</p>
+                )}
+              </aside>
             </div>
           </div>
         ) : null}
@@ -108,9 +192,25 @@ function SummaryTile({ label, value }: { label: string; value: number }) {
   );
 }
 
-function PluginInventoryRow({ item }: { item: PluginInventoryItem }) {
+function PluginInventoryRow({
+  isSelected,
+  item,
+  onSelect,
+}: {
+  isSelected: boolean;
+  item: PluginInventoryItem;
+  onSelect: () => void;
+}) {
   return (
-    <article className="plugin-manager__row" data-testid={`plugin-inventory-item-${item.id}`}>
+    <button
+      aria-selected={isSelected}
+      className={`plugin-manager__row ${isSelected ? "plugin-manager__row--selected" : ""}`}
+      data-testid={`plugin-inventory-item-${item.id}`}
+      id={`plugin-inventory-option-${item.id}`}
+      onClick={onSelect}
+      role="option"
+      type="button"
+    >
       <div className="plugin-manager__row-main">
         <div className="plugin-manager__row-title">
           <strong>{item.label}</strong>
@@ -125,22 +225,22 @@ function PluginInventoryRow({ item }: { item: PluginInventoryItem }) {
         </div>
       </div>
       <div className="plugin-manager__row-detail">
-        <MetadataList label="Surfaces" values={item.surfaces} />
-        <MetadataList label="Permissions" values={item.permissions.length > 0 ? item.permissions : ["none"]} />
-        <small>{item.owner}</small>
-        {item.manifestPath ? <small>{item.manifestPath}</small> : null}
         {item.dependencies?.length ? (
           <small>
-            {item.dependencies.map((dependency) => `${dependency.label}: ${dependency.statusLabel}`).join(" · ")}
+            Diagnostics: {item.dependencies.map((dependency) => `${dependency.label}: ${dependency.statusLabel}`).join(" · ")}
           </small>
         ) : null}
+        {item.status !== "available" && item.status !== "configured" ? <small>State: {item.statusLabel}</small> : null}
+        {item.dependencies?.length ? (
+          <small>Setup: review dependencies in the detail panel</small>
+        ) : null}
       </div>
-    </article>
+    </button>
   );
 }
 
 function StatusPill({ item }: { item: PluginInventoryItem }) {
-  const tone = !item.enabled || item.trust === "disabled"
+  const tone = !item.enabled
     ? "disabled"
     : item.trust === "untrusted"
       ? "warning"
@@ -148,12 +248,4 @@ function StatusPill({ item }: { item: PluginInventoryItem }) {
         ? "danger"
         : "ok";
   return <span className={`plugin-manager__status plugin-manager__status--${tone}`}>{item.statusLabel}</span>;
-}
-
-function MetadataList({ label, values }: { label: string; values: readonly string[] }) {
-  return (
-    <small>
-      {label}: {values.join(", ")}
-    </small>
-  );
 }

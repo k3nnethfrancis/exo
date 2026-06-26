@@ -54,7 +54,7 @@ Optional environment:
 - `EXO_MCP_START_COMMAND` — shell command used to start Exo. Defaults to this repo's `bin/exo start`.
 - `EXO_MCP_CONNECT_TIMEOUT_MS` — startup/connect timeout. Defaults to `20000`.
 - `EXO_MCP_REQUEST_TIMEOUT_MS` — normal command-server request timeout. Defaults to `2000`.
-- `EXO_MCP_SEARCH_TIMEOUT_MS` — search request timeout for QMD-backed retrieval. Defaults to `30000`.
+- `EXO_MCP_SEARCH_TIMEOUT_MS` — search request timeout for QMD advanced retrieval. Defaults to `30000`.
 - `EXO_MCP_MAINTENANCE_TIMEOUT_MS` — long-running index maintenance timeout. Defaults to `1800000`.
 
 Without autostart, Exo must already be running so the MCP server can discover `.exo/server.json` and talk to the local command server.
@@ -84,8 +84,8 @@ Equivalent env vars are `EXO_MCP_HTTP_HOST`, `EXO_MCP_HTTP_PORT`, and `EXO_MCP_H
 
 ## Tools
 
-- `workspace_status` — inspect the active Exo workspace model, live agents, and notes-index summary.
-- `search` — search notes through QMD when enabled, with filesystem fallback when indexing is off or unavailable.
+- `workspace_status` — inspect the active Exo workspace model, live agents, and advanced search summary.
+- `search` — search notes through the bundled QMD advanced provider when enabled, with core filesystem fallback when QMD is off or unavailable.
 - `read_document` — read an indexed or filesystem note/document target.
 - `open_preview` — open an HTTP(S) URL or existing local `.html`/`.htm` artifact inside Exo's in-app browser preview. Local files must be inside the workspace, note roots, or project roots.
 - `focus_preview` — focus Exo's in-app browser preview, creating an empty preview pane if none is open.

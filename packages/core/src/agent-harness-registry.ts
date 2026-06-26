@@ -90,6 +90,7 @@ export function resolveRegisteredAgentHarnessDetection(
     launchable: true,
     status: "available",
     statusLabel: "Available",
+    setupSummary: "Detected and ready to launch.",
     launcher,
   };
 }

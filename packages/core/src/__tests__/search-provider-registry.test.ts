@@ -5,10 +5,14 @@ import { defaultSearchProvider, SearchProviderRegistry, searchProviderRegistry }
 import { qmdSearchProvider } from "../search-providers/qmd-provider";
 
 describe("search provider registry", () => {
-  it("registers QMD as the built-in default provider", () => {
+  it("registers QMD as the bundled advanced provider behind stable index routes", () => {
     expect(defaultSearchProvider()).toBe(qmdSearchProvider);
     expect(searchProviderRegistry.require("qmd")).toBe(qmdSearchProvider);
     expect(searchProviderRegistry.list().map((provider) => provider.metadata.id)).toEqual(["qmd"]);
+    expect(qmdSearchProvider.metadata).toMatchObject({
+      label: "QMD advanced search",
+      compatibility: { indexBackend: "qmd" },
+    });
   });
 
   it("rejects duplicate provider ids", () => {

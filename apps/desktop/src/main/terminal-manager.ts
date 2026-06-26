@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 
 import {
-  resolveAgentLaunchPlan,
+  resolveLaunchableAgentLaunchPlan,
   resolveRuntimeConfig,
   syncRuntimeContextFiles,
   type RuntimeConfig,
@@ -228,9 +228,9 @@ export class TerminalManager extends EventEmitter {
 
   async create(options: TerminalCreateOptions): Promise<TerminalSessionInfo> {
     const cwd = options.cwd ?? this.defaultCwd;
+    const launch = resolveLaunchableAgentLaunchPlan(this.runtimeConfig, options.kind, cwd);
     await this.syncRuntimeContext();
     const id = this.allocateTerminalId();
-    const launch = resolveAgentLaunchPlan(this.runtimeConfig, options.kind, cwd);
     const isAgent = isAgentHarnessKind(options.kind);
     const overlayEnv = isAgent ? agentInstructionOverlayEnv(this.runtimeConfig.workspace, launch.cwd) : {};
     if (isAgent) {

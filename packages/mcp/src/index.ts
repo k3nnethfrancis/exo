@@ -47,7 +47,7 @@ function registerExoTools(server: McpServer) {
   "workspace_status",
   {
     title: "Workspace Status",
-    description: "Show Exo workspace roots, indexed roots, and runtime status.",
+    description: "Show Exo workspace roots, advanced search roots, and runtime status.",
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,
@@ -75,7 +75,7 @@ server.registerTool(
   "search",
   {
     title: "Search Exo",
-    description: "Search Exo's configured knowledge index. Safe while indexing/embeddings are running; returns warnings when using lexical or filesystem fallback.",
+    description: "Search Exo using the QMD advanced provider when enabled, with core workspace fallback. Safe while sync/embeddings are running; returns warnings when degraded.",
     inputSchema: {
       query: z.string().min(1).describe("Search query."),
       limit: z.number().int().positive().max(50).default(10).describe("Maximum number of results."),
@@ -103,7 +103,7 @@ server.registerTool(
   "read_document",
   {
     title: "Read Document",
-    description: "Read a document by filesystem path or Exo/QMD docid.",
+    description: "Read a document by filesystem path or QMD docid returned by search.",
     inputSchema: {
       target: z.string().min(1).describe("Filesystem path or docid returned by search."),
       fromLine: z.number().int().positive().optional().describe("Optional 1-indexed starting line."),
