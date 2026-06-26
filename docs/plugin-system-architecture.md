@@ -6,7 +6,7 @@ This document defines the target plugin boundary for Exo.
 
 ## Decision
 
-Exo core is an extensible Markdown graph workstation. Vanilla Exo is core plus a set of bundled, recommended plugins.
+Exo core is an extensible Markdown graph workstation. Vanilla Exo is core plus a set of official, reviewed plugins.
 
 Core owns the substrate that must be coherent, reliable, and security-reviewed:
 
@@ -45,11 +45,11 @@ The default app should feel like:
 - Terminal: always available when system dependencies are satisfied.
 - Web viewer: always available through core open/focus/close endpoints.
 - Plugin/tool dock: shows enabled plugin surfaces such as terminal launchers, search provider controls, routines, graph tools, and future dashboards.
-- Plugin manager: shows installed, bundled, missing, disabled, and untrusted capabilities.
+- Plugin manager: shows installed, official, local, missing, disabled, and untrusted capabilities.
 
 If a user disables every optional plugin, Exo should still open notes, edit Markdown, browse files, run basic search, and manage workspace settings. Optional plugins should enhance the workstation without making the core app ambiguous.
 
-Bundled plugins may feel native during everyday use, but they should not be invisible. Onboarding, plugin management, settings, and diagnostics must make the plugin boundary clear: users should see which capabilities are core, which are bundled plugins, which plugin category they belong to, whether they are enabled, and what configuration or dependency state controls them.
+Official plugins may feel native during everyday use, but they should not be invisible. Onboarding, plugin management, settings, and diagnostics must make the plugin boundary clear: users should see which capabilities are core, which are official plugins, which are local plugins, which plugin category they belong to, whether they are enabled, and what configuration or dependency state controls them.
 
 ## Core Services
 
@@ -61,7 +61,7 @@ Bundled plugins may feel native during everyday use, but they should not be invi
 2. Bounded integration contract: the typed interface a capability implements, such as `SearchProvider`, `AgentHarness`, `RoutineTemplate`, analyzer, exporter, eval runner, or dashboard surface.
 3. Executable distribution: how plugin code is shipped, trusted, installed, loaded, updated, and revoked.
 
-Near-term Exo should prove the first two layers with bundled and internal plugins. Arbitrary executable plugin loading is a later security/product decision, not a prerequisite for making QMD, agent harnesses, routines, analyzers, and dashboards plugin-shaped.
+Near-term Exo should prove the first two layers with official and local metadata plugins. Arbitrary executable plugin loading is a later security/product decision, not a prerequisite for making QMD, agent harnesses, routines, analyzers, and dashboards plugin-shaped.
 
 Profiles are bundles, not individual runtime capabilities. A profile can declare recommended plugins, graph metadata conventions, AGENTS.md/CLAUDE.md templates, MCP config templates, skills to install or enable, routine templates, default graph views, analyzer settings, and output/review policies. A profile may depend on plugins, but it should not hide executable code inside configuration. If a profile needs executable behavior, it should depend on an explicit plugin capability.
 
@@ -119,7 +119,7 @@ This split keeps terminal correctness centralized while allowing agent systems t
 
 ### Search Core
 
-Core owns basic file/path/text search and the search-provider contract. QMD is the bundled advanced provider, not an assumption baked into every surface. MCP should expose stable search/read operations; CLI/UI may expose provider setup, sync, diagnostics, and repair.
+Core owns basic file/path/text search and the search-provider contract. QMD is the official advanced provider, not an assumption baked into every surface. MCP should expose stable search/read operations; CLI/UI may expose provider setup, sync, diagnostics, and repair.
 
 ### Scheduler And Activity Substrate
 
@@ -134,20 +134,26 @@ Core should own only the scheduler and minimal automation substrate that multipl
 
 Core should not grow a large opinionated automation product by default. A graph-health routine, eval workflow, LM Wiki maintenance run, GA trace exporter, or Exo-on-Exo maintenance loop should be implemented as a plugin on top of this substrate.
 
-## Bundled Plugins
+## Plugin Distribution
 
-Bundled plugins are first-party capabilities shipped with Exo but still registered through plugin/capability contracts where practical.
+Exo's plugin model is official versus local, not marketplace versus first-party.
 
-Initial bundled plugin families:
+- Official plugins are reviewed plugins committed under `plugins/` or packaged into app resources. The GitHub `main` branch should only contain official plugins that passed normal code review and validation.
+- Local plugins are user/workspace-owned plugin directories using the same `exo.plugin.json` manifest shape. Local plugins can live under user data, `.exo/plugins/`, or an explicit configured path. They are untrusted by default until the user reviews and enables them.
+- Developer plugins are explicit development/operator paths such as `EXO_DEV_PLUGIN_DIRS` and `EXO_PLUGIN_DIRS`. They are trusted for the current developer/operator session, but they are not part of Exo's official distribution unless committed under `plugins/` and reviewed.
+
+Official plugins are first-party capabilities shipped with Exo but still registered through plugin/capability contracts where practical.
+
+Initial official plugin families:
 
 - Terminal tool surfaces: shell launcher, terminal commands, terminal status widgets, and terminal debug surfaces.
 - Agent harness adapters: shell, Claude Code, Codex, Pi, Hermes.
 - Advanced search provider: QMD.
-- Routine templates and automations: dev graph-health and future first-party maintenance workflows, implemented as plugins.
+- Routine templates and automations: graph-health and future first-party maintenance workflows, implemented as plugins.
 - Graph/profile helpers: starter profiles and graph diagnostics once the exograph model lands.
-- Graph visualization: one bundled default graph explorer should eventually exist as a plugin-shaped surface, while graph data extraction and host surfaces remain core.
+- Graph visualization: one official default graph explorer should eventually exist as a plugin-shaped surface, while graph data extraction and host surfaces remain core.
 
-Bundled does not mean always visible. Launch controls should appear only when the plugin is enabled and usable. Missing harnesses belong in Plugin Manager or Agent Config, where Exo can explain how to install or configure them.
+Official does not mean always visible. Launch controls should appear only when the plugin is enabled and usable. Missing harnesses belong in Plugin Manager or Agent Config, where Exo can explain how to install or configure them.
 
 ## Onboarding
 
@@ -156,15 +162,15 @@ The target onboarding sequence is:
 1. Select or create the notes folder.
 2. Confirm workspace and default terminal path.
 3. Choose a workspace profile.
-4. Review the profile's recommended plugins and capability settings.
+4. Review the profile's recommended official/local plugins and capability settings.
 5. Enter the workspace.
 
 The capability screen should show:
 
 - Core: enabled and not optional.
-- Active workspace profile: bundled default, imported local profile, or no profile.
+- Active workspace profile: official default, imported local profile, or no profile.
 - Plugin categories: search providers, agent harness adapters, profiles, analyzers, routines/templates, exporters, eval runners, dashboards, and future contributed surfaces.
-- Recommended bundled plugins: enabled by default only when ready.
+- Recommended official plugins: enabled by default only when ready.
 - Detected but not configured capabilities.
 - Missing optional capabilities with setup guidance.
 - Disabled/untrusted plugins with explicit enable/trust actions.
@@ -207,23 +213,23 @@ Not yet aligned:
 - settings are organized as fixed product tabs rather than core plus plugin-owned settings sections
 - terminal launch controls are partly hardwired UI even though harness metadata exists
 - current Routine/Run naming risks implying a larger core automation product than the target substrate requires
-- shared CLI/MCP/session types still expose fixed bundled harness ids in places where they should eventually derive policy-approved choices from the harness registry
+- shared CLI/MCP/session types still expose fixed official harness ids in places where they should eventually derive policy-approved choices from the harness registry
 - plugin manager/onboarding capability selection does not exist
 - plugin manifests do not yet contribute UI, commands, settings, or MCP/CLI surfaces
 - profile packs do not yet have a concrete manifest shape for recommended plugins, schemas, context files, skills, or routines
 - graph visualization does not yet have a stable plugin surface or core graph-data API
-- core versus bundled plugin language is still being normalized across docs and code names
+- core versus official/local plugin language is still being normalized across docs and code names
 
 ## Implementation Path
 
 1. Keep terminal reliability work in core. Do not push terminal rendering/hydration/reconnect into plugins.
 2. Rename the current terminal rail conceptually to a tool/plugin dock in docs, then in code when the terminal refactor is stable.
-3. Add a renderer surface descriptor model for core and bundled plugin actions.
+3. Add a renderer surface descriptor model for core and official plugin actions.
 4. Move harness launchers, agent config, routine/plugin actions, and graph tools onto surface descriptors.
 5. Keep the web viewer as a core endpoint surface rather than a plugin API.
 6. Reassess current Routine/Run core types and keep only the minimal activity/artifact/review substrate needed for plugins to compose.
 7. Split terminal/session substrate types from harness-adapter ids so `exo terminals` remains a low-level terminal surface while `exo agents create` chooses policy-approved registered harnesses.
-8. Add Plugin Manager and onboarding capability selection after manifests, trust, permissions, and bundled plugin metadata are stable.
+8. Add Plugin Manager and onboarding capability selection after manifests, trust, permissions, and official plugin metadata are stable.
 9. Add settings section contributions for plugin-owned settings.
 10. Add explicit policy and tests before any plugin can contribute MCP tools, CLI commands, or executable code.
 11. Define a profile manifest extension for recommended plugins, metadata schemas, context templates, skills, routines, graph views, and review/output policies.
@@ -236,6 +242,6 @@ Not yet aligned:
 - No plugin-owned terminal rendering.
 - No plugin-owned web viewer host.
 - No hidden fallback terminal transports.
-- No public plugin marketplace before bundled capabilities prove the contracts.
+- No public plugin marketplace before official capabilities prove the contracts.
 - No large core automation system until repeated product use proves which job/activity primitives are universal.
 - No Guardian Angel, Shoshin, LM Wiki, or OKF-specific workflow hardcoded into core without an explicit product decision.

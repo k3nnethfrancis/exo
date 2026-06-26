@@ -6,20 +6,22 @@ Exo should support a plugin path so users can extend their local AI workstation 
 
 ## Current Decision
 
-Plugin architecture is now the next platform workstream after terminal/runtime usability. The immediate goal is not public third-party plugin loading. The immediate goal is to turn the extension seams Exo already needs into typed internal registries, then migrate hardwired behavior onto those registries.
+Plugin architecture is now the next platform workstream after terminal/runtime usability. The immediate goal is not a public marketplace or arbitrary user-code loading. The immediate goal is to turn the extension seams Exo already needs into typed internal registries, then migrate hardwired behavior onto those registries.
 
 The target core-versus-plugin boundary lives in `plugin-system-architecture.md`. The detailed implementation sequence lives in `plugin-implementation-plan.md`. This document names the product model and boundaries; the implementation plan is the source of truth for the next refactor phases.
 
 That keeps Exo from overbuilding while still moving toward the long-term shape:
 
-- QMD becomes the bundled advanced search provider behind a search-provider registry.
-- Shell, Claude Code, Codex, Pi-compatible, Hermes, and future agents become bundled or external agent-harness plugins behind an agent-harness registry.
+- QMD becomes the official advanced search provider behind a search-provider registry.
+- Shell, Claude Code, Codex, Pi-compatible, Hermes, and future agents become official or local agent-harness plugins behind an agent-harness registry.
 - MCP and CLI stay separate product surfaces, with plugin contributions admitted only through policy.
 - Terminal remains a core platform service; harnesses plug into it.
 - The web viewer host and open/focus/close endpoints stay core; plugins can generate local content or services and ask Exo to open them.
 - Workload-specific harnesses, workcells, evals, graph analyzers, search optimization, LM Wiki/Shoshin profiles, and personal routines can become plugin-shaped without being forced into core.
 - Product framing stays layered: Exo is the workstation, the exograph is the user-owned graph it operates over, and plugins are how users swap or add harnesses, search providers, routines, profiles, analyzers, eval runners, exporters, and dashboards.
 - Local plugin manifests can now be discovered and validated as metadata, but Exo does not yet execute plugin code or grant plugin permissions. Profile payloads and graph visualization declarations are also metadata-only in the current implementation.
+
+Exo's distribution model is official versus local. Official plugins live under the repo `plugins/` tree or packaged app resources and go through the normal review process before they ship on `main`. Local plugins use the same manifest shape in user/workspace/plugin directories, but they remain user-owned and untrusted until the user explicitly reviews and enables them.
 
 Profiles are curated bundles of plugin recommendations and configuration, not just agent config. A profile can package metadata/frontmatter conventions, context templates, AGENTS.md/CLAUDE.md templates, MCP config templates, skills, routine templates, graph views, analyzer settings, and output/review policies. Profiles may depend on plugins, but executable behavior should live in explicit plugin capabilities.
 
@@ -324,7 +326,7 @@ This should be an operator/admin surface, not a new default workflow screen.
 1. Add core capability contract types and a built-in registry with tests.
 2. Register built-in search provider metadata for QMD without changing behavior.
 3. Extract the QMD implementation behind a `SearchProvider` interface.
-4. Register bundled agent harness metadata for shell, Claude Code, Codex, Pi, and Hermes without turning missing harnesses into dead launch buttons.
+4. Register official agent harness metadata for shell, Claude Code, Codex, Pi, and Hermes without turning missing harnesses into dead launch buttons.
 5. Extract launch planning behind an `AgentHarness` interface.
 6. Define the minimal activity/artifact-reference substrate and harness skill inventory contracts.
 7. Define plugin-owned Routine, trace, review, eval, and executor contracts that can link back to core activity/artifact references.
@@ -344,7 +346,7 @@ Specific coding agents should be adapter-shaped where possible. Exo core defines
 - optional hooks for provenance, code review, and PR workflows
 - optional harness skill inventory
 
-Claude Code, Codex, Pi, Hermes, Aider, Goose, OpenCode, and local/open-source agents can then be bundled, first-party, user, workspace, or community plugins. A custom Pi fork can be configured as a local Pi instance without requiring fork-specific behavior to be hardwired into core.
+Claude Code, Codex, Pi, Hermes, Aider, Goose, OpenCode, and local/open-source agents can then be official or local plugins. A custom Pi fork can be configured as a local Pi instance without requiring fork-specific behavior to be hardwired into core.
 
 ## Tracing, Evals, And Training
 

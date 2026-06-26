@@ -2,7 +2,7 @@
 
 Last updated: 2026-06-26
 
-This plan turns Exo's plugin architecture into code without prematurely loading arbitrary third-party code. The first goal is internal extensibility: Exo core should use typed registries and contracts for the capabilities that are already plugin-shaped.
+This plan turns Exo's plugin architecture into code without prematurely loading arbitrary user code. The first goal is internal extensibility: Exo core should use typed registries and contracts for the capabilities that are already plugin-shaped.
 
 ## Product Frame
 
@@ -17,7 +17,7 @@ Core owns the substrate:
 - CLI/MCP surfaces
 - security, permissions, settings, and app lifecycle
 
-Plugins and profiles own variation. Vanilla Exo should be treated as core plus bundled/recommended plugins, not core plus hardcoded permanent defaults:
+Plugins and profiles own variation. Vanilla Exo should be treated as core plus official/recommended plugins, not core plus hardcoded permanent defaults:
 
 - agent harnesses such as shell, Claude Code, Codex, Pi-compatible, Hermes, Aider, OpenCode, or local agents
 - advanced search providers such as QMD, graph search, local vector stores, rerankers, or remote retrieval
@@ -44,7 +44,7 @@ The current code already has good starting boundaries:
 - Keep `apps/desktop/src/main/index.ts` from growing.
 - Keep command-server, CLI, and MCP behavior stable until a phase explicitly changes those contracts.
 - Keep QMD as the only built-in search provider until a real second provider exists.
-- Keep shell, Claude Code, Codex, Pi-compatible, and Hermes as bundled harness plugins/adapters. Only enabled and launchable configured instances should appear as launch controls; supported but missing harnesses belong in configuration/setup surfaces. Hermes is hidden from normal lists unless explicitly configured.
+- Keep shell, Claude Code, Codex, Pi-compatible, and Hermes as official harness plugins/adapters. Only enabled and launchable configured instances should appear as launch controls; supported but missing harnesses belong in configuration/setup surfaces. Hermes is hidden from normal lists unless explicitly configured.
 - Keep automation semantics plugin-owned. Core may expose an activity/job substrate, but concrete Routines, workflows, evals, and maintenance jobs should be plugins unless they prove universal.
 - Preserve current terminal tmux behavior while refactoring harness planning. Do not make the terminal renderer/session service a plugin.
 - Prefer focused modules and tests over broad rewrites.
@@ -84,7 +84,7 @@ Each capability registration should include:
 Register metadata only:
 
 - QMD as built-in `searchProvider`
-- shell, Claude Code, and Codex as bundled `agentHarness` capabilities
+- shell, Claude Code, and Codex as official `agentHarness` capabilities
 
 Do not change runtime behavior in this phase.
 
@@ -145,9 +145,9 @@ pnpm check
 
 Move shell/Claude/Codex/Pi-compatible/Hermes launch planning behind a typed `AgentHarness` contract while preserving current launch plans.
 
-Status: first-pass implementation exists. Bundled shell/Claude/Codex/Pi-compatible/Hermes harnesses implement `AgentHarness`, and runtime launcher resolution goes through `AgentHarnessRegistry`. Pi custom builds are local configuration of the Pi-compatible adapter; GA Pi must not become an OSS source default. Pi launchability now requires an explicit compatible inference backend config, and Hermes is hidden from normal lists unless explicitly configured.
+Status: first-pass implementation exists. Official shell/Claude/Codex/Pi-compatible/Hermes harnesses implement `AgentHarness`, and runtime launcher resolution goes through `AgentHarnessRegistry`. Pi custom builds are local configuration of the Pi-compatible adapter; GA Pi must not become an OSS source default. Pi launchability now requires an explicit compatible inference backend config, and Hermes is hidden from normal lists unless explicitly configured.
 
-Remaining cleanup: keep the terminal substrate core while reducing fixed bundled harness ids in CLI/MCP/session types. `exo terminals` should remain the low-level terminal/admin surface; `exo agents create` and MCP `create_agent` should choose from registered, enabled, policy-approved harnesses.
+Remaining cleanup: keep the terminal substrate core while reducing fixed official harness ids in CLI/MCP/session types. `exo terminals` should remain the low-level terminal/admin surface; `exo agents create` and MCP `create_agent` should choose from registered, enabled, policy-approved harnesses.
 
 Suggested files:
 
@@ -325,7 +325,7 @@ Profiles are bundles of recommendations and conventions, not executable capabili
 
 The profile extractor validates shape and rejects unsafe absolute or traversal paths, but it does not read template files, install skills, write `AGENTS.md`/`CLAUDE.md`, enable plugins, schedule routines, or mutate user Markdown. Applying a profile is a separate future UX and permission flow.
 
-Bundled example: `plugins/exograph-baseline/exo.plugin.json` declares the first read-only baseline profile so Plugin Manager can display profile metadata during QA.
+Official example: `plugins/exograph-baseline/exo.plugin.json` declares the first read-only baseline profile so Plugin Manager can display profile metadata during QA.
 
 ### Graph Snapshot And Visualization Payload
 

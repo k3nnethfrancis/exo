@@ -35,9 +35,9 @@ The immediate architecture is current-package domain modules, not a new runtime 
 
 This staged approach lets Exo ship resident runtime features without prematurely freezing plugin or runtime APIs.
 
-The first plugin architecture pass should not load arbitrary third-party code. It should define typed internal registries for bundled capabilities, then migrate hardwired behavior onto those contracts. The first two practical seams are search providers and agent harnesses because QMD and shell/Claude/Codex/Pi/Hermes are plugin-shaped. Vanilla Exo should be understood as core plus bundled/recommended plugins, not core plus permanent hardcoded defaults.
+The first plugin architecture pass should not load arbitrary user code. It should define typed internal registries for official capabilities, then migrate hardwired behavior onto those contracts. The first two practical seams are search providers and agent harnesses because QMD and shell/Claude/Codex/Pi/Hermes are plugin-shaped. Vanilla Exo should be understood as core plus official/recommended plugins, not core plus permanent hardcoded defaults.
 
-## Core Substrate And Bundled Plugins
+## Core Substrate And Official Plugins
 
 Exo core owns the services that must be stable, permissioned, and coherent across the app:
 
@@ -47,7 +47,7 @@ Exo core owns the services that must be stable, permissioned, and coherent acros
 - command server, resident runtime, CLI/MCP base contracts, settings, permissions, and app lifecycle
 - minimal feed/activity substrate, artifact references, provenance references, optional review hooks, and plugin registry/trust state
 
-Bundled and external plugins provide replaceable capability variation:
+Official and local plugins provide replaceable capability variation:
 
 - agent harness adapters such as shell, Claude Code, Codex, Pi, Hermes, Aider, OpenCode, and local agents
 - advanced search/index providers such as QMD, graph search, vector search, rerankers, and remote retrieval

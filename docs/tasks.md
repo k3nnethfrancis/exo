@@ -168,7 +168,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Define how harness skill inventory is represented so Exo can warn when a Routine prompt references a skill the selected harness does not expose.
 - [x] Define plugin routine templates as metadata that can be instantiated into concrete user/workspace Routines.
 - [x] Add the first Routine CLI MVP: list plugin templates, create concrete routines, list routines, record dry-run executions, and inspect run records/artifacts.
-- [x] Add a bundled dev `graph-health.template` routine plugin manifest for dogfooding plugin-template discovery.
+- [x] Add an official `graph-health.template` routine plugin manifest for dogfooding plugin-template discovery.
 - [x] Add first app-backed Routine execution handoff: `exo routines run --agent` launches shell/Claude/Codex through the running app, sends the prompt, and records the agent-session artifact for review.
 - [ ] Add first plugin routine candidate use cases: update entities, graph health, organize wiki, plugin-hosted elicitation, training export, eval run, and Exo-on-Exo maintenance.
 - [x] Decide the first user-facing Routine creation surface: CLI MVP on top of one core routine service.
@@ -198,7 +198,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [ ] Keep project files out of the notes memory index unless explicitly added later.
 - [x] Design the search-provider interface for capability discovery, status, search, read/resolve, sync/update, and future diagnostics.
 - [x] Move QMD behind the internal `SearchProvider` contract while preserving current UI/CLI/MCP behavior.
-- [x] Reframe QMD in settings, Plugin Manager, CLI, and MCP copy as a bundled advanced search provider plugin while preserving core filename/path/text search when QMD is disabled or degraded.
+- [x] Reframe QMD in settings, Plugin Manager, CLI, and MCP copy as an official advanced search provider plugin while preserving core filename/path/text search when QMD is disabled or degraded.
 - [ ] Add provider-neutral search status and capability metadata so Plugin Manager can show QMD readiness without treating QMD as core search.
 - [ ] Add note traversal and graph context primitives: files/folders, document metadata, headings/outline, outgoing links, backlinks, unresolved links, orphans, and related documents.
 - [ ] Add scoped note write primitives after graph/read primitives are stable: create, append, and guarded patch within selected note roots.
@@ -243,12 +243,12 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 
 ## Next: Plugin Architecture Foundations
 
-- [x] Scope the plugin architecture as internal capability registries first, not arbitrary third-party code loading.
+- [x] Scope the plugin architecture as internal capability registries first, not arbitrary user-code loading.
 - [x] Define the target core-versus-plugin architecture: core owns Markdown graph/editor, basic search, pane/web viewer hosts, terminal runtime, minimal activity/artifact-reference substrate, permissions, and plugin registry; plugins provide harnesses, advanced search, profiles, routines, analyzers, evals, exporters, dashboards, and maintenance workflows.
 - [x] Write the concrete implementation sequence in `docs/plugin-implementation-plan.md`.
 - [x] Write the near-term Plugin Manager foundation milestone: inventory sources, visible categories, non-goals, acceptance criteria, tests, and app QA requirements.
-- [x] Expose current core capabilities, bundled plugin-shaped capabilities, and metadata-only local manifests to the desktop through a read-only inventory API.
-- [x] Add a read-only Plugin Manager foundation surface grouped by category, showing Core vs Bundled Plugin vs Local Manifest, lifecycle, trust, enabled/disabled state, dependency/install status, and surfaces/permissions.
+- [x] Expose current core capabilities, official plugin-shaped capabilities, and metadata-only local manifests to the desktop through a read-only inventory API.
+- [x] Add a read-only Plugin Manager foundation surface grouped by category, showing Core vs Official Plugin vs Local Plugin vs Developer Manifest, lifecycle, trust, enabled/disabled state, dependency/install status, and surfaces/permissions.
 - [x] Add a read-only Plugin Manager detail panel for profile and graph visualization metadata without adding mutation or plugin execution.
 - [x] Keep Settings focused on baseline Exo behavior; use Plugin Manager for plugin lifecycle/config and keep Agent Config Editor specialized for harness instructions/skills/provider files.
 - [x] Define the profile manifest extension for recommended plugins, metadata/frontmatter schemas, context templates, AGENTS/CLAUDE templates, MCP config, skills, routine templates, graph views, analyzer settings, and output/review policies.
@@ -272,7 +272,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Add a manual Routine executor substrate with injected host execution, artifact recording, trace recording, failure capture, and review status updates.
 - [x] Document that workload-specific systems such as Guardian Angel should be downstream plugins/reference workloads, not Exo core features.
 - [ ] Define external plugin contracts for workload-specific trace collection, review labels, dataset export, eval packets, and instrumented agent runtimes.
-- [x] Review the first-pass bundled harness plugin/config work for shell, Claude Code, Codex, Pi, and Hermes; ensure missing harnesses are configuration items, not dead launch buttons, and local GA Pi is represented only as a local custom Pi instance.
+- [x] Review the first-pass official harness plugin/config work for shell, Claude Code, Codex, Pi, and Hermes; ensure missing harnesses are configuration items, not dead launch buttons, and local GA Pi is represented only as a local custom Pi instance.
 - [ ] Split terminal/session substrate types from harness-adapter ids so CLI/MCP agent creation derives allowed choices from the registered harnesses while `exo terminals` stays the low-level core terminal surface.
 - [ ] Define how downstream plugins can use OKF-compatible concept documents for curated knowledge while storing raw traces, labels, eval packets, and training exports as linked local artifacts.
 - [x] Define permissioned surface-contribution policy for desktop, CLI, MCP, and command-server exposure.
@@ -284,9 +284,9 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Add architecture/harness checks that discourage direct implementation imports outside the provider/harness facade path.
 - [ ] Define concrete install/load directories for built-in, dev, user, and workspace plugins in the desktop runtime.
 - [x] Convert the current terminal rail into a general tool/plugin dock without moving terminal rendering, scrollback, reconnect, or diagnostics out of core.
-- [ ] Add renderer surface descriptors for bundled tool actions: terminal launcher, harness launcher, agent config, routines, graph tools, and future plugin panels.
+- [ ] Add renderer surface descriptors for official/local tool actions: terminal launcher, harness launcher, agent config, routines, graph tools, and future plugin panels.
 - [x] Add core web viewer open/focus/close endpoints for URL/path/artifact preview; plugin outputs should call those endpoints rather than require a special WebView plugin API.
-- [ ] Add onboarding capability selection for bundled plugins: QMD, Claude/Codex/Pi/Hermes harness adapters, and future routine/profile packs; web viewer remains core.
+- [ ] Add onboarding capability selection for official/local plugins: QMD, Claude/Codex/Pi/Hermes harness adapters, and future routine/profile packs; web viewer remains core.
 - [ ] Add trust prompts and permission grants before any plugin entrypoint execution.
 - [x] Add the first read-only Plugin Manager UI after manifests, trust, and permissions survived the metadata-only pass.
 - [ ] Add Plugin Manager mutation flows only after install paths, trust prompts, permission grants, and plugin-owned settings are explicit.

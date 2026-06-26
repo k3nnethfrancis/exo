@@ -122,6 +122,7 @@ export function buildPluginDetailSections(
       label: "Status",
       rows: compactRows([
         row("Source", item.sourceLabel),
+        row("Distribution", item.distributionLabel),
         row("Lifecycle", item.lifecycle),
         row("Trust", item.trust),
         row("State", item.statusLabel),

@@ -69,7 +69,7 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
           <div>
             <div className="dialog-card__title">Plugin Manager</div>
             <div className="dialog-card__message">
-              Inspect Exo core surfaces, bundled capabilities, and local plugin manifests. This first pass is read-only.
+              Inspect Exo core surfaces, official plugins, and local plugin manifests. This first pass is read-only.
             </div>
           </div>
           <button
@@ -99,8 +99,8 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
           <div className="plugin-manager">
             <div className="plugin-manager__summary" data-testid="plugin-manager-summary">
               <SummaryTile label="Core" value={inventory.counts.core} />
-              <SummaryTile label="Bundled" value={inventory.counts.bundled} />
-              <SummaryTile label="Local manifests" value={inventory.counts.localManifest} />
+              <SummaryTile label="Official" value={inventory.counts.official} />
+              <SummaryTile label="Local" value={inventory.counts.local} />
               <SummaryTile label="Review needed" value={inventory.counts.untrusted} />
             </div>
             <div className="plugin-manager__body">

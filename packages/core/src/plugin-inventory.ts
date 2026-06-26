@@ -10,6 +10,7 @@ import {
 import { resolvePluginLocations, type PluginLocation } from "./plugin-locations";
 
 export type PluginInventorySource = "core" | "bundled" | "localManifest";
+export type PluginInventoryDistribution = "core" | "official" | "local" | "developer";
 
 export interface PluginInventoryDependency {
   id: string;
@@ -29,6 +30,8 @@ export interface PluginInventoryItem {
   categoryLabel: string;
   source: PluginInventorySource;
   sourceLabel: string;
+  distribution: PluginInventoryDistribution;
+  distributionLabel: string;
   lifecycle: CapabilityMetadata["lifecycle"];
   owner: string;
   surfaces: CapabilityMetadata["surfaces"];
@@ -60,6 +63,9 @@ export interface PluginInventory {
     core: number;
     bundled: number;
     localManifest: number;
+    official: number;
+    local: number;
+    developer: number;
     disabled: number;
     untrusted: number;
   };
@@ -117,6 +123,9 @@ export function buildPluginInventory(input: {
       core: items.filter((item) => item.source === "core").length,
       bundled: items.filter((item) => item.source === "bundled").length,
       localManifest: items.filter((item) => item.source === "localManifest").length,
+      official: items.filter((item) => item.distribution === "official").length,
+      local: items.filter((item) => item.distribution === "local").length,
+      developer: items.filter((item) => item.distribution === "developer").length,
       disabled: items.filter((item) => !item.enabled).length,
       untrusted: items.filter((item) => item.trust === "untrusted").length,
     },
@@ -165,6 +174,8 @@ function coreItem(id: string, label: string, description: string): PluginInvento
     categoryLabel: "Core",
     source: "core",
     sourceLabel: "Core",
+    distribution: "core",
+    distributionLabel: "Core",
     lifecycle: "built-in",
     owner: "@exo/core",
     surfaces: ["desktop", "cli", "mcp", "commandServer", "internal"],
@@ -190,7 +201,9 @@ function bundledCapabilityItem(
     kind: capability.kind,
     categoryLabel: capabilityKindLabel(capability.kind),
     source: "bundled",
-    sourceLabel: "Bundled plugin",
+    sourceLabel: "Official plugin",
+    distribution: "official",
+    distributionLabel: "Official",
     lifecycle: capability.lifecycle,
     owner: capability.owner,
     surfaces: capability.surfaces,
@@ -223,6 +236,8 @@ function pluginInventoryItems(plugin: DiscoveredPlugin): PluginInventoryItem[] {
       categoryLabel: capabilityKindLabel(capability.kind),
       source: "localManifest",
       sourceLabel: sourceLabel(plugin.source),
+      distribution: distributionForPluginSource(plugin.source),
+      distributionLabel: distributionLabel(distributionForPluginSource(plugin.source)),
       lifecycle: capability.lifecycle,
       owner: capability.owner,
       surfaces: capability.surfaces,
@@ -267,13 +282,38 @@ function capabilityKindLabel(kind: CapabilityMetadata["kind"]): string {
 function sourceLabel(source: PluginSource): string {
   switch (source) {
     case "built-in":
-      return "Bundled plugin";
+      return "Official plugin";
     case "dev":
       return "Developer manifest";
     case "user":
-      return "User manifest";
+      return "Local user plugin";
     case "workspace":
-      return "Workspace manifest";
+      return "Local workspace plugin";
+  }
+}
+
+function distributionForPluginSource(source: PluginSource): PluginInventoryDistribution {
+  switch (source) {
+    case "built-in":
+      return "official";
+    case "dev":
+      return "developer";
+    case "user":
+    case "workspace":
+      return "local";
+  }
+}
+
+function distributionLabel(distribution: PluginInventoryDistribution): string {
+  switch (distribution) {
+    case "core":
+      return "Core";
+    case "official":
+      return "Official";
+    case "developer":
+      return "Developer";
+    case "local":
+      return "Local";
   }
 }
 

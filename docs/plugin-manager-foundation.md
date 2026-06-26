@@ -4,13 +4,13 @@ Last updated: 2026-06-26
 
 ## Goal
 
-Add the first visible Plugin Manager surface without changing runtime behavior. The manager is an inventory view: it helps users understand what is core Exo, what ships as bundled plugin-shaped capability metadata, and what local plugin manifests are present.
+Add the first visible Plugin Manager surface without changing runtime behavior. The manager is an inventory view: it helps users understand what is core Exo, what ships as official plugin-shaped capability metadata, and what local plugin manifests are present.
 
 ## Sources
 
 - Core surfaces: markdown graph, terminal host, web preview, scheduler, settings.
-- Bundled capabilities: QMD search plus built-in harness adapters such as shell, Claude, Codex, Pi, and Hermes.
-- Local manifests: metadata-only `exo.plugin.json` files discovered through Exo plugin search paths.
+- Official capabilities: QMD search plus reviewed harness adapters such as shell, Claude, Codex, Pi, and Hermes.
+- Local plugins: metadata-only `exo.plugin.json` files discovered through user/workspace Exo plugin search paths.
 
 ## Non-Goals
 
@@ -24,7 +24,7 @@ Add the first visible Plugin Manager surface without changing runtime behavior. 
 
 - Desktop exposes one read-only `workspace:list-plugin-inventory` API.
 - Plugin Manager opens from the right tool rail.
-- Rows are grouped by category and distinguish Core, Bundled Plugin, and Local Manifest sources.
+- Rows are grouped by category and distinguish Core, Official Plugin, Local Plugin, and Developer Manifest sources.
 - Selecting a row shows a read-only detail panel with status, exposure, dependencies, and capability-specific metadata.
 - Profile rows summarize recommended plugins, metadata schemas, skills, routine templates, graph views, analyzer settings, and review/output policies.
 - Graph visualization rows summarize graph snapshot version, host surface, accepted node kinds, and accepted edge kinds.

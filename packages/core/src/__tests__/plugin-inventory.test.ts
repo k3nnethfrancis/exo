@@ -56,7 +56,7 @@ const graphHealthManifest: PluginManifest = {
 };
 
 describe("plugin inventory", () => {
-  it("includes core, bundled capability, and local manifest rows", () => {
+  it("includes core, official capability, and developer manifest rows", () => {
     const inventory = buildPluginInventory({
       now: "2026-06-25T00:00:00.000Z",
       plugins: [discovered(graphHealthManifest, "trusted")],
@@ -65,16 +65,20 @@ describe("plugin inventory", () => {
     expect(inventory.generatedAt).toBe("2026-06-25T00:00:00.000Z");
     expect(find(inventory.items, "core.markdown-graph")).toMatchObject({
       source: "core",
+      distribution: "core",
       categoryLabel: "Core",
       statusLabel: "Built in",
     });
     expect(find(inventory.items, "qmd")).toMatchObject({
       source: "bundled",
+      sourceLabel: "Official plugin",
+      distribution: "official",
       categoryLabel: "Search providers",
       trust: "trusted",
     });
     expect(find(inventory.items, "graph-health.template")).toMatchObject({
       source: "localManifest",
+      distribution: "developer",
       categoryLabel: "Routine templates",
       pluginId: "graph-health.plugin",
       pluginName: "Graph Health",
@@ -91,11 +95,14 @@ describe("plugin inventory", () => {
       core: 5,
       bundled: 6,
       localManifest: 3,
+      official: 6,
+      developer: 3,
+      local: 0,
       total: 14,
     });
   });
 
-  it("enriches bundled harnesses with live readiness metadata", () => {
+  it("enriches official harnesses with live readiness metadata", () => {
     const inventory = buildPluginInventory({
       harnesses: [
         {
