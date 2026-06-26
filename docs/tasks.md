@@ -233,6 +233,12 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Scope the plugin architecture as internal capability registries first, not arbitrary third-party code loading.
 - [x] Define the target core-versus-plugin architecture: core owns Markdown graph/editor, basic search, pane/web viewer hosts, terminal runtime, minimal activity/artifact-reference substrate, permissions, and plugin registry; plugins provide harnesses, advanced search, profiles, routines, analyzers, evals, exporters, dashboards, and maintenance workflows.
 - [x] Write the concrete implementation sequence in `docs/plugin-implementation-plan.md`.
+- [ ] Write the near-term Plugin Manager foundation milestone: inventory sources, visible categories, non-goals, acceptance criteria, tests, and app QA requirements.
+- [ ] Expose current core capabilities, bundled plugin-shaped capabilities, and metadata-only local manifests to the desktop through a read-only inventory API.
+- [ ] Add a read-only Plugin Manager foundation surface grouped by category, showing Core vs Bundled Plugin vs Local Manifest, lifecycle, trust, enabled/disabled state, dependency/install status, and surfaces/permissions.
+- [ ] Keep Settings focused on baseline Exo behavior; use Plugin Manager for plugin lifecycle/config and keep Agent Config Editor specialized for harness instructions/skills/provider files.
+- [ ] Define the profile manifest extension for recommended plugins, metadata/frontmatter schemas, context templates, AGENTS/CLAUDE templates, MCP config, skills, routine templates, graph views, analyzer settings, and output/review policies.
+- [ ] Define the graph-data API and graph visualization surface contract before implementing the default graph explorer.
 - [x] Add core capability contract types and a built-in registry with tests.
 - [x] Register built-in QMD search-provider metadata without changing behavior.
 - [x] Extract QMD behind a `SearchProvider` interface.
@@ -307,6 +313,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 
 ## Developer Harness
 
+- [ ] Configure the scheduled Codex GitHub issue-fix loop: poll only issues labeled `codex-loop` and `ready-for-codex`, fix at most one issue per run in an isolated worktree/branch, run focused tests and app QA, and open a draft PR instead of pushing to `main`.
 - [ ] Add deterministic formatting/lint.
 - [ ] Add deterministic formatting/lint to `pnpm ci:check` and CI.
 - [ ] Add structural rules for renderer/main/core boundaries.

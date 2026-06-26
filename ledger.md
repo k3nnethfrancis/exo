@@ -150,13 +150,19 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Updated the roadmap around Obsidian CLI and LM Wiki lessons: CLI stays broad for operator/admin/debug and future note/graph maintenance; MCP stays compact for agent work; QMD remains the default local search provider behind a future provider-neutral search contract.
 - Recentered roadmap/context around Exo as an exograph workspace and around Exo-on-Exo useability before broad platform expansion.
 - Started cleanup-plan doc sync by removing stale tmux prerequisite language and documenting that current open QA includes the e2e launch harness and broader terminal bug-bash.
+- Clarified the plugin architecture handoff: Exo core owns baseline workstation substrate, terminal, web viewer, scheduler, command server, settings, plugin registry/trust, and core graph data; plugins own replaceable capabilities such as harness adapters, QMD/other search providers, graph visualizations, analyzers, exporters, eval runners, dashboards, and routine templates.
+- Added the plugin/profile distinction to durable context: a plugin is a replaceable capability; a profile is an opinionated bundle of recommended plugins, metadata/frontmatter conventions, context templates, AGENTS/CLAUDE templates, MCP config, skills, routine templates, graph views, analyzer settings, and review/output policies. Profiles may depend on plugins, but executable behavior should live in explicit plugin capabilities.
+- Next plugin implementation resume point: build the Plugin Manager foundation first, as a read-only inventory/config surface over current core capabilities, bundled plugin-shaped capabilities, and metadata-only local manifests. Defer arbitrary executable plugin loading, native component plugins, and broad plugin-contributed surfaces until manifests/trust/permissions survive real use.
+- Proposed background product-quality loop: a scheduled Codex automation can poll GitHub issues labeled `codex-loop` and `ready-for-codex`, take at most one actionable issue per run, fix in an isolated worktree/branch, run focused tests and app QA, then open a draft PR instead of pushing directly to `main`.
 
 ## Next Priorities
 
 1. Use installed Exo as the default environment for daily work and record every friction point as live bug-bash input.
-2. Resolve `EXO-ISSUE-025` and other small harness/readiness issues found during installed-app use.
-3. Multi-agent coordination: roster, objectives, direct messages, changed-file/review links, file+SQLite transport, CLI/MCP access.
-4. Exograph architecture: write the profile/schema/proposal spec, add read-only graph/document context primitives, then add scoped maintainer writes.
+2. Stand up the GitHub issue-fix loop with conservative labels, isolated worktrees, test/app-QA requirements, and draft PR output.
+3. Resume plugin architecture with the Plugin Manager foundation: expose current capability/plugin inventory to the desktop, group by category, and show Core vs Bundled Plugin vs Local Manifest without executable loading.
+4. After Plugin Manager foundation, define the profile manifest extension, graph-data API, and graph visualization surface contract.
+5. Continue multi-agent coordination: roster, objectives, direct messages, changed-file/review links, file+SQLite transport, CLI/MCP access.
+6. Exograph architecture: write the profile/schema/proposal spec, add read-only graph/document context primitives, then add scoped maintainer writes.
 
 ## Operating Rules
 
