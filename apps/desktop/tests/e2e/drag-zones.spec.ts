@@ -72,7 +72,7 @@ async function openRelatedNoteFromInlineReferences(page: Page) {
   await page.locator(".editor-surface .cm-scroller").evaluate((element) => {
     element.scrollTop = element.scrollHeight;
   });
-  await expect(page.locator('section[data-testid="markdown-graph-references"]')).toBeVisible();
+  await expect(page.getByTestId("markdown-graph-reference-section")).toBeVisible();
   const relatedNote = page.getByTestId("markdown-graph-backlinks").getByRole("button", { name: "Related Note" });
   await relatedNote.click();
 }
