@@ -57,7 +57,7 @@ async function revealInlineGraphReferences(page: import("@playwright/test").Page
 }
 
 function inlineGraphReferences(page: import("@playwright/test").Page) {
-  return page.locator('section[data-testid="markdown-graph-references"]');
+  return page.getByTestId("markdown-graph-reference-section");
 }
 
 function countTextOccurrences(text: string, fragment: string): number {
