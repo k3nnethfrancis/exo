@@ -743,7 +743,7 @@ class GraphReferencesWidget extends WidgetType {
   toDOM() {
     const wrap = document.createElement("section");
     wrap.className = "markdown-graph-references";
-    wrap.dataset.testid = "markdown-graph-references";
+    wrap.dataset.testid = "markdown-graph-reference-section";
 
     if (this.references.backlinks.length > 0) {
       wrap.appendChild(this.renderGroup("Backlinks", this.references.backlinks, "backlinks"));
