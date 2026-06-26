@@ -30,6 +30,7 @@ export interface WorkspaceIpcHandlers {
   listAgentHarnesses: WorkspaceApi["listAgentHarnesses"];
   listAgentInstructionOverlays: WorkspaceApi["listAgentInstructionOverlays"];
   listAgentSkills: WorkspaceApi["listAgentSkills"];
+  listPluginInventory: WorkspaceApi["listPluginInventory"];
   listTree: WorkspaceApi["listTree"];
   listWorkspaces: () => Promise<WorkspaceRegistryEntry[]>;
   readNote: NotesApi["read"];
@@ -107,6 +108,7 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
   handleDesktopInvoke("workspace:get-git-status", async (_event, rootPath) => handlers.getGitStatus(rootPath));
   handleDesktopInvoke("workspace:get-agent-instruction-config", async () => handlers.getAgentInstructionConfig());
   handleDesktopInvoke("workspace:list-agent-harnesses", async () => handlers.listAgentHarnesses());
+  handleDesktopInvoke("workspace:list-plugin-inventory", async () => handlers.listPluginInventory());
   handleDesktopInvoke("workspace:save-agent-instruction-config", async (_event, input) =>
     handlers.saveAgentInstructionConfig(input),
   );

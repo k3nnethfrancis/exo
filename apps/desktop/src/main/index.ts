@@ -1,5 +1,6 @@
 import { app, nativeTheme, powerMonitor } from "electron";
 import path from "node:path";
+import { existsSync } from "node:fs";
 import { appendFile, mkdir, stat } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
@@ -9,6 +10,7 @@ import {
   createBranchFile,
   deleteWorkspacePath,
   listRootTree,
+  listPluginInventory,
   readIndexDocument,
   readWorkspaceDocument,
   renameWorkspacePath,
@@ -47,6 +49,7 @@ import { WorkspaceSettingsService } from "./workspace-settings-service";
 import { WorkspaceWatcherService } from "./workspace-watchers";
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
+const sourceProjectRoot = resolveSourceProjectRoot();
 
 if (process.env.EXO_ENABLE_GPU !== "1") {
   app.disableHardwareAcceleration();
@@ -312,6 +315,16 @@ function registerIpcHandlers() {
     ensureTarget: (sourceFilePath, target) => workspaceNotesService.ensureTarget(sourceFilePath, target),
     getAgentInstructionConfig: () => agentInstructionsService.getConfig(),
     listAgentHarnesses: async () => terminalManager.getRuntimeConfig().harnesses,
+    listPluginInventory: () =>
+      listPluginInventory({
+        workspaceRoot: workspaceModel.workspaceRoot,
+        env: {
+          ...process.env,
+          EXO_PROJECT_ROOT: process.env.EXO_PROJECT_ROOT ?? sourceProjectRoot,
+          EXO_USER_DATA_PATH: app.getPath("userData"),
+        },
+        harnesses: terminalManager.getRuntimeConfig().harnesses,
+      }),
     getBranchFamily: (filePath) => workspaceNotesService.getBranchFamily(filePath),
     getGitStatus: (rootPath) => projectReviewService.getGitStatus(rootPath),
     getIndexStatus: () => indexingService.getMeasuredStatus(),
@@ -361,6 +374,21 @@ function registerIpcHandlers() {
     updateIndex: () => indexingService.update("settings"),
   });
   registerTerminalIpcHandlers(terminalManager);
+}
+
+function resolveSourceProjectRoot(): string | undefined {
+  const resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
+  for (const candidate of [
+    process.cwd(),
+    ...(resourcesPath ? [resourcesPath] : []),
+    path.resolve(currentDirectory, "../../.."),
+    path.resolve(currentDirectory, "../../../.."),
+  ]) {
+    if (existsSync(path.join(candidate, "plugins"))) {
+      return candidate;
+    }
+  }
+  return undefined;
 }
 
 function applyWorkspaceSettings(settings: WorkspaceSettings | null) {

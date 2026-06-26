@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { EditorState } from "@codemirror/state";
-import type { AgentHarnessDetection, ManagedAgentKind, NoteKnowledge, TreeNode, WorkspaceModel } from "@exo/core";
+import type { AgentHarnessDetection, ManagedAgentKind, NoteKnowledge, PluginInventoryItem, TreeNode, WorkspaceModel } from "@exo/core";
 
 import {
   DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS,
@@ -45,6 +45,7 @@ import {
 } from "./hooks/useTerminalSessions";
 import { defaultTerminalCwdForNotesFolder } from "./hooks/useWorkspaceBootstrap";
 import { isReconnectableSession, isTerminalInputEnabled, terminalSessionsEqual } from "./terminalSessions";
+import { groupPluginInventoryItems } from "./pluginManagerModel";
 import { applyTheme } from "./theme/applyTheme";
 import { contrastRatio } from "./theme/contrast";
 import { THEME_FAMILIES, resolveTheme } from "./theme/registry";
@@ -140,6 +141,46 @@ describe("browser preview panes", () => {
   });
 
 });
+
+describe("plugin manager model", () => {
+  it("groups inventory rows by category with core first", () => {
+    const groups = groupPluginInventoryItems([
+      pluginInventoryItem("codex", "Codex", "agentHarness", "Agent harnesses", "bundled"),
+      pluginInventoryItem("core.terminal", "Terminal host", "core", "Core", "core"),
+      pluginInventoryItem("graph-health.template", "Graph Health", "routineTemplate", "Routine templates", "localManifest"),
+      pluginInventoryItem("qmd", "QMD", "searchProvider", "Search providers", "bundled"),
+    ]);
+
+    expect(groups.map((group) => group.id)).toEqual(["core", "searchProvider", "agentHarness", "routineTemplate"]);
+    expect(groups.find((group) => group.id === "agentHarness")?.items.map((item) => item.id)).toEqual(["codex"]);
+  });
+});
+
+function pluginInventoryItem(
+  id: string,
+  label: string,
+  categoryId: string,
+  categoryLabel: string,
+  source: PluginInventoryItem["source"],
+): PluginInventoryItem {
+  return {
+    id,
+    label,
+    description: `${label} description`,
+    categoryId,
+    categoryLabel,
+    source,
+    sourceLabel: source,
+    lifecycle: "built-in",
+    owner: "@exo/test",
+    surfaces: ["desktop"],
+    permissions: [],
+    enabled: true,
+    trust: "trusted",
+    status: "available",
+    statusLabel: "Available",
+  };
+}
 
 function harness(id: ManagedAgentKind, launchable: boolean, overrides: Partial<AgentHarnessDetection> = {}): AgentHarnessDetection {
   return {

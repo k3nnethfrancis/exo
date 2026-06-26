@@ -15,6 +15,7 @@ import { EditorPane, type EditorPaneState } from "./components/EditorPane";
 import { BrowserPane } from "./components/BrowserPane";
 import { InspectorDock } from "./components/InspectorDock";
 import { PathList } from "./components/PathList";
+import { PluginManagerDialog } from "./components/PluginManagerDialog";
 import { ShellLayout } from "./components/ShellLayout";
 import { TerminalDock } from "./components/TerminalDock";
 import { WorkspaceSettingsDialog } from "./components/WorkspaceSettingsDialog";
@@ -75,6 +76,7 @@ export function App() {
   const [revealExplorerPathRequest, setRevealExplorerPathRequest] = useState<{ path: string; nonce: number } | null>(null);
   const [editorRevealLineRequest, setEditorRevealLineRequest] = useState<{ filePath: string; line: number; nonce: number } | null>(null);
   const [agentContextManagerOpen, setAgentContextManagerOpen] = useState(false);
+  const [pluginManagerOpen, setPluginManagerOpen] = useState(false);
   const agentInstructionEditor = useAgentInstructionEditor();
   const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null);
   const [appearanceMode, setAppearanceMode] = useState<AppearanceMode>("system");
@@ -1153,6 +1155,7 @@ export function App() {
       }}
       onAppearanceModeChange={updateAppearanceMode}
       onOpenWorkspaceSettings={() => void workspaceSettingsController.openDialog()}
+      onOpenPluginManager={() => setPluginManagerOpen(true)}
       onOpenIndexSettings={() => void workspaceSettingsController.openDialog("index")}
       onOpenProjectChanges={() => void openProjectChangesFromStatus()}
       onSearchQueryChange={(value) => {
@@ -1241,6 +1244,9 @@ export function App() {
           editor={agentInstructionEditor}
           onClose={() => setAgentContextManagerOpen(false)}
         />
+      ) : null}
+      {pluginManagerOpen ? (
+        <PluginManagerDialog onClose={() => setPluginManagerOpen(false)} />
       ) : null}
     </>
   );

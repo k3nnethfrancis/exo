@@ -5,6 +5,7 @@ export * from "./terminal-settings";
 export * from "./notes";
 export * from "./branches";
 export * from "./plugin";
+export * from "./plugin-inventory";
 export * from "./runtime";
 export * from "./agent-harness";
 export * from "./agent-harness-registry";

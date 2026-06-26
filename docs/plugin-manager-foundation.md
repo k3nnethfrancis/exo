@@ -1,0 +1,39 @@
+# Plugin Manager Foundation
+
+Last updated: 2026-06-25
+
+## Goal
+
+Add the first visible Plugin Manager surface without changing runtime behavior. The manager is an inventory view: it helps users understand what is core Exo, what ships as bundled plugin-shaped capability metadata, and what local plugin manifests are present.
+
+## Sources
+
+- Core surfaces: markdown graph, terminal host, web preview, scheduler, settings.
+- Bundled capabilities: QMD search plus built-in harness adapters such as shell, Claude, Codex, Pi, and Hermes.
+- Local manifests: metadata-only `exo.plugin.json` files discovered through Exo plugin search paths.
+
+## Non-Goals
+
+- No arbitrary plugin code execution.
+- No install, enable, disable, trust, or permission grant flows.
+- No command-server or MCP exposure.
+- No plugin-owned UI contribution system.
+- No changes to QMD, terminal launch behavior, routine execution, or harness launching.
+
+## Acceptance Criteria
+
+- Desktop exposes one read-only `workspace:list-plugin-inventory` API.
+- Plugin Manager opens from the right tool rail.
+- Rows are grouped by category and distinguish Core, Bundled Plugin, and Local Manifest sources.
+- Harness rows include live readiness metadata so missing dependencies are visible but not launchable.
+- Bad manifest directories appear as inventory errors without crashing the dialog.
+- Settings remains focused on baseline workspace behavior; Agent Config Editor remains focused on instructions, skills, and harness configuration.
+
+## Tests And QA
+
+- `pnpm --filter @exo/core test`
+- `pnpm --filter @exo/desktop typecheck`
+- `pnpm --filter @exo/desktop exec vitest run src/renderer/src/App.test.tsx`
+- App QA: launch Exo, open Plugin Manager from the right rail, confirm QMD, Claude/Codex/Pi/Hermes, core surfaces, and graph-health appear with correct read-only status.
+
+-- Shoshin | 2026-06-25

@@ -233,10 +233,10 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Scope the plugin architecture as internal capability registries first, not arbitrary third-party code loading.
 - [x] Define the target core-versus-plugin architecture: core owns Markdown graph/editor, basic search, pane/web viewer hosts, terminal runtime, minimal activity/artifact-reference substrate, permissions, and plugin registry; plugins provide harnesses, advanced search, profiles, routines, analyzers, evals, exporters, dashboards, and maintenance workflows.
 - [x] Write the concrete implementation sequence in `docs/plugin-implementation-plan.md`.
-- [ ] Write the near-term Plugin Manager foundation milestone: inventory sources, visible categories, non-goals, acceptance criteria, tests, and app QA requirements.
-- [ ] Expose current core capabilities, bundled plugin-shaped capabilities, and metadata-only local manifests to the desktop through a read-only inventory API.
-- [ ] Add a read-only Plugin Manager foundation surface grouped by category, showing Core vs Bundled Plugin vs Local Manifest, lifecycle, trust, enabled/disabled state, dependency/install status, and surfaces/permissions.
-- [ ] Keep Settings focused on baseline Exo behavior; use Plugin Manager for plugin lifecycle/config and keep Agent Config Editor specialized for harness instructions/skills/provider files.
+- [x] Write the near-term Plugin Manager foundation milestone: inventory sources, visible categories, non-goals, acceptance criteria, tests, and app QA requirements.
+- [x] Expose current core capabilities, bundled plugin-shaped capabilities, and metadata-only local manifests to the desktop through a read-only inventory API.
+- [x] Add a read-only Plugin Manager foundation surface grouped by category, showing Core vs Bundled Plugin vs Local Manifest, lifecycle, trust, enabled/disabled state, dependency/install status, and surfaces/permissions.
+- [x] Keep Settings focused on baseline Exo behavior; use Plugin Manager for plugin lifecycle/config and keep Agent Config Editor specialized for harness instructions/skills/provider files.
 - [ ] Define the profile manifest extension for recommended plugins, metadata/frontmatter schemas, context templates, AGENTS/CLAUDE templates, MCP config, skills, routine templates, graph views, analyzer settings, and output/review policies.
 - [ ] Define the graph-data API and graph visualization surface contract before implementing the default graph explorer.
 - [x] Add core capability contract types and a built-in registry with tests.
@@ -274,7 +274,8 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Add core web viewer open/focus/close endpoints for URL/path/artifact preview; plugin outputs should call those endpoints rather than require a special WebView plugin API.
 - [ ] Add onboarding capability selection for bundled plugins: QMD, Claude/Codex/Pi/Hermes harness adapters, and future routine/profile packs; web viewer remains core.
 - [ ] Add trust prompts and permission grants before any plugin entrypoint execution.
-- [ ] Add Plugin Manager UI only after manifests, trust, and permissions survive real use.
+- [x] Add the first read-only Plugin Manager UI after manifests, trust, and permissions survived the metadata-only pass.
+- [ ] Add Plugin Manager mutation flows only after install paths, trust prompts, permission grants, and plugin-owned settings are explicit.
 
 ## Later: Graph, Memory, Workcells, Training
 

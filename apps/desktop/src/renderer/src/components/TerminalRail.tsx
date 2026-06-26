@@ -1,6 +1,6 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import type { AgentHarnessDetection } from "@exo/core";
-import { Bot, PanelRightClose, PanelRightOpen, PanelsLeftBottom, Settings2, SquareTerminal } from "lucide-react";
+import { Bot, PanelRightClose, PanelRightOpen, PanelsLeftBottom, Plug, Settings2, SquareTerminal } from "lucide-react";
 
 import type { TerminalKind } from "../../../shared/api";
 import { AgentIcon } from "./AgentIcon";
@@ -14,6 +14,7 @@ interface TerminalRailProps {
   onToggleCollapsed: () => void;
   onToggleSidePanes: () => void;
   onOpenAgentConfigEditor: () => void;
+  onOpenPluginManager: () => void;
   onCreateTerminal: (kind: TerminalKind) => void;
   style?: CSSProperties;
 }
@@ -27,6 +28,7 @@ export function TerminalRail(props: TerminalRailProps) {
     onToggleCollapsed,
     onToggleSidePanes,
     onOpenAgentConfigEditor,
+    onOpenPluginManager,
     onCreateTerminal,
     style,
   } = props;
@@ -44,6 +46,13 @@ export function TerminalRail(props: TerminalRailProps) {
       placement={placement}
       primary={primary}
       secondaryActions={[
+        {
+          id: "open-plugin-manager",
+          testId: "open-plugin-manager",
+          title: "Plugin manager",
+          icon: <Plug size={16} />,
+          onSelect: onOpenPluginManager,
+        },
         {
           id: "swap-side-panes",
           testId: "swap-side-panes",

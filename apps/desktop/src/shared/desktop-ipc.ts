@@ -25,6 +25,7 @@ export interface DesktopInvokeHandlers {
   "workspace:get-git-status": WorkspaceApi["getGitStatus"];
   "workspace:get-agent-instruction-config": WorkspaceApi["getAgentInstructionConfig"];
   "workspace:list-agent-harnesses": WorkspaceApi["listAgentHarnesses"];
+  "workspace:list-plugin-inventory": WorkspaceApi["listPluginInventory"];
   "workspace:save-agent-instruction-config": WorkspaceApi["saveAgentInstructionConfig"];
   "workspace:list-agent-instruction-overlays": WorkspaceApi["listAgentInstructionOverlays"];
   "workspace:list-agent-skills": WorkspaceApi["listAgentSkills"];

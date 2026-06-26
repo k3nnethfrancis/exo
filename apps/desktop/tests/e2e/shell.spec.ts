@@ -106,6 +106,22 @@ function runGit(cwd: string, args: string[]) {
 
 test.describe.configure({ mode: "parallel" });
 
+test("opens the read-only plugin manager inventory", async () => {
+  const { page, cleanup } = await launchExoFixture();
+
+  await page.getByTestId("open-plugin-manager").click();
+  await expect(page.getByTestId("plugin-manager")).toBeVisible();
+  await expect(page.getByTestId("plugin-manager-summary")).toContainText("Core");
+  await expect(page.getByTestId("plugin-manager-group-core")).toContainText("Terminal host");
+  await expect(page.getByTestId("plugin-manager-group-searchProvider")).toContainText("QMD");
+  await expect(page.getByTestId("plugin-manager-group-agentHarness")).toContainText("Claude");
+  await expect(page.getByTestId("plugin-manager-group-routineTemplate")).toContainText("Graph Health");
+  await page.getByTestId("plugin-manager-close").click();
+  await expect(page.getByTestId("plugin-manager")).toHaveCount(0);
+
+  await cleanup();
+});
+
 test("boots the shell, opens notes, and manages terminal tabs", async () => {
   const { page, cleanup } = await launchExoFixture();
 

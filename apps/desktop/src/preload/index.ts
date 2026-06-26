@@ -46,6 +46,7 @@ const api: DesktopApi = {
     getGitStatus: (rootPath) => invokeDesktop("workspace:get-git-status", rootPath),
     getAgentInstructionConfig: () => invokeDesktop("workspace:get-agent-instruction-config"),
     listAgentHarnesses: () => invokeDesktop("workspace:list-agent-harnesses"),
+    listPluginInventory: () => invokeDesktop("workspace:list-plugin-inventory"),
     saveAgentInstructionConfig: (input) => invokeDesktop("workspace:save-agent-instruction-config", input),
     listAgentInstructionOverlays: () => invokeDesktop("workspace:list-agent-instruction-overlays"),
     listAgentSkills: () => invokeDesktop("workspace:list-agent-skills"),

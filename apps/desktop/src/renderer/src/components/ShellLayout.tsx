@@ -82,6 +82,7 @@ interface ShellLayoutProps {
   onAppearanceModeChange: (mode: AppearanceMode) => void;
   onOpenWorkspaceSettings: () => void;
   onOpenAgentConfigEditor: () => void;
+  onOpenPluginManager: () => void;
   onOpenIndexSettings: () => void;
   onOpenProjectChanges: () => void;
   onSearchQueryChange: (value: string) => void;
@@ -122,6 +123,7 @@ export function ShellLayout(props: ShellLayoutProps) {
     onAppearanceModeChange,
     onOpenWorkspaceSettings,
     onOpenAgentConfigEditor,
+    onOpenPluginManager,
     onOpenIndexSettings,
     onOpenProjectChanges,
     onSearchQueryChange,
@@ -338,6 +340,7 @@ export function ShellLayout(props: ShellLayoutProps) {
         onToggleCollapsed={() => setTerminalCollapsed((c) => !c)}
         onToggleSidePanes={() => setSidePanesFlipped((current) => !current)}
         onOpenAgentConfigEditor={onOpenAgentConfigEditor}
+        onOpenPluginManager={onOpenPluginManager}
         onCreateTerminal={onCreateTerminal}
       />
 

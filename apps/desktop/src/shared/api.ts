@@ -8,6 +8,7 @@ import type {
   ManagedAgentKind,
   NoteDocument,
   NoteKnowledge,
+  PluginInventory,
   SearchResult,
   TreeNode,
   WorkspaceModel,
@@ -262,6 +263,7 @@ export interface DesktopApi {
     getGitStatus: (rootPath: string) => Promise<WorkspaceGitStatus | null>;
     getAgentInstructionConfig: () => Promise<AgentInstructionConfig>;
     listAgentHarnesses: () => Promise<AgentHarnessDetection[]>;
+    listPluginInventory: () => Promise<PluginInventory>;
     saveAgentInstructionConfig: (input: {
       scopeId: AgentInstructionScopeId;
       body: string;
