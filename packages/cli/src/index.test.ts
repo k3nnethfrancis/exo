@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { runCli } from "./index";
 import { formatManagedAgentKindUsage, saveWorkspaceSettings } from "@exo/core";
@@ -90,113 +89,6 @@ describe("cli package", () => {
       expect(stdout).toContain('"defaultTerminalCwd": "/tmp/exo-active/project"');
     } finally {
       await rm(userDataPath, { recursive: true, force: true });
-    }
-  });
-
-  it("lists core, official, and developer plugin inventory", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "exo-cli-plugins-"));
-    try {
-      const devPluginRoot = await writePlugin(root, {
-        id: "local-graph.plugin",
-        name: "Local Graph Plugin",
-        capabilityId: "local-graph.viz",
-        capabilityKind: "graphVisualization",
-      });
-      let stdout = "";
-
-      const exitCode = await runCli(["node", "exo-cli", "plugins", "list"], {
-        env: {
-          ...testRuntimeEnv(),
-          EXO_WORKSPACE_ROOT: root,
-          EXO_NOTE_ROOTS: path.join(root, "notes"),
-          EXO_PROJECT_ROOT: path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.."),
-          EXO_DEV_PLUGIN_DIRS: devPluginRoot,
-        },
-        stdout: { write: (text) => { stdout += text; } },
-        stderr: { write: () => {} },
-      });
-
-      expect(exitCode).toBe(0);
-      const inventory = JSON.parse(stdout) as {
-        counts: { core: number; official: number; developer: number };
-        items: Array<{ id: string; distribution: string; pluginId?: string }>;
-      };
-      expect(inventory.counts.core).toBeGreaterThan(0);
-      expect(inventory.counts.official).toBeGreaterThan(0);
-      expect(inventory.counts.developer).toBe(1);
-      expect(inventory.items).toEqual(expect.arrayContaining([
-        expect.objectContaining({ id: "core.markdown-graph", distribution: "core" }),
-        expect.objectContaining({ id: "qmd", distribution: "official" }),
-        expect.objectContaining({ id: "local-graph.viz", distribution: "developer", pluginId: "local-graph.plugin" }),
-      ]));
-    } finally {
-      await rm(root, { recursive: true, force: true });
-    }
-  });
-
-  it("validates plugin directories and manifest files", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "exo-cli-plugins-"));
-    try {
-      const pluginsRoot = await writePlugin(root, {
-        id: "valid-plugin.plugin",
-        name: "Valid Plugin",
-        capabilityId: "valid-plugin.profile",
-        capabilityKind: "profile",
-      });
-      const pluginDirectory = path.join(pluginsRoot, "valid-plugin");
-      const manifestPath = path.join(pluginDirectory, "exo.plugin.json");
-      let stdout = "";
-
-      const directoryExitCode = await runCli(["node", "exo-cli", "plugins", "validate", pluginDirectory], {
-        env: testRuntimeEnv(),
-        stdout: { write: (text) => { stdout += text; } },
-        stderr: { write: () => {} },
-      });
-      expect(directoryExitCode).toBe(0);
-      expect(JSON.parse(stdout)).toMatchObject({
-        valid: true,
-        manifestPath,
-        plugin: {
-          id: "valid-plugin.plugin",
-          capabilities: [expect.objectContaining({ id: "valid-plugin.profile", kind: "profile" })],
-        },
-      });
-
-      stdout = "";
-      const fileExitCode = await runCli(["node", "exo-cli", "plugins", "validate", manifestPath], {
-        env: testRuntimeEnv(),
-        stdout: { write: (text) => { stdout += text; } },
-        stderr: { write: () => {} },
-      });
-      expect(fileExitCode).toBe(0);
-      expect(JSON.parse(stdout)).toMatchObject({ valid: true, manifestPath });
-    } finally {
-      await rm(root, { recursive: true, force: true });
-    }
-  });
-
-  it("rejects invalid plugin manifests", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "exo-cli-plugins-"));
-    try {
-      const pluginDirectory = path.join(root, "plugins", "invalid-plugin");
-      await mkdir(pluginDirectory, { recursive: true });
-      await writeFile(path.join(pluginDirectory, "exo.plugin.json"), JSON.stringify({
-        id: "invalid-plugin.plugin",
-        name: "Invalid Plugin",
-        version: "0.1.0",
-        exoApiVersion: "0.1",
-        capabilities: [],
-        permissions: ["workspace:read"],
-        surfaces: ["cli"],
-      }), "utf8");
-
-      await expect(runCli(["node", "exo-cli", "plugins", "validate", pluginDirectory], {
-        env: testRuntimeEnv(),
-        stdout: { write: () => {} },
-        stderr: { write: () => {} },
-      })).rejects.toThrow("must declare at least one capability");
-    } finally {
-      await rm(root, { recursive: true, force: true });
     }
   });
 
@@ -1174,46 +1066,6 @@ function routineTestEnv(root: string, pluginRoot: string): NodeJS.ProcessEnv {
     EXO_PLUGIN_DIRS: pluginRoot,
     EXO_SETTINGS_PATH: path.join(root, "settings.json"),
   };
-}
-
-async function writePlugin(root: string, input: {
-  id: string;
-  name: string;
-  capabilityId: string;
-  capabilityKind: string;
-}): Promise<string> {
-  const pluginsRoot = path.join(root, "plugins");
-  const pluginDir = path.join(pluginsRoot, input.id.replace(/\.plugin$/, ""));
-  await mkdir(pluginDir, { recursive: true });
-  await writeFile(
-    path.join(pluginDir, "exo.plugin.json"),
-    JSON.stringify(
-      {
-        id: input.id,
-        name: input.name,
-        version: "0.1.0",
-        exoApiVersion: "0.1",
-        capabilities: [
-          {
-            id: input.capabilityId,
-            kind: input.capabilityKind,
-            label: input.name,
-            description: "Test plugin capability.",
-            lifecycle: "experimental",
-            owner: input.id,
-            surfaces: ["cli"],
-            permissions: ["workspace:read"],
-          },
-        ],
-        permissions: ["workspace:read"],
-        surfaces: ["cli"],
-      },
-      null,
-      2,
-    ),
-    "utf8",
-  );
-  return pluginsRoot;
 }
 
 async function writeRoutinePlugin(root: string, options: { templateOverrides?: Record<string, unknown> } = {}): Promise<string> {

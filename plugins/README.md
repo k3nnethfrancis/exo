@@ -103,13 +103,13 @@ grant real access explicitly.
 - Do not declare MCP, CLI, command-server, or desktop surfaces as executable
   contributions. Public surface contribution APIs do not exist yet.
 
-## Local Plugin Smoke Check
+## Manifest Smoke Check
 
-After creating a manifest, run the core plugin tests or at least parse the JSON:
+After creating a manifest, run the core plugin tests or at least parse the JSON.
+There is intentionally no public `exo plugins` CLI in v0; plugin authoring stays
+repo-internal until trust, review, and enablement semantics are designed.
 
 ```bash
-exo plugins validate plugins/my-plugin
-exo plugins list
 pnpm --filter @exo/core test -- plugin
 node -e 'JSON.parse(require("node:fs").readFileSync("plugins/my-plugin/exo.plugin.json", "utf8"))'
 ```
