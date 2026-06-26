@@ -313,7 +313,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 
 ## Developer Harness
 
-- [ ] Configure the scheduled Codex GitHub issue-fix loop: poll only issues labeled `codex-loop` and `ready-for-codex`, fix at most one issue per run in an isolated worktree/branch, run focused tests and app QA, and open a draft PR instead of pushing to `main`.
+- [x] Configure the scheduled Codex GitHub issue-fix loop: poll only issues labeled `codex-loop` and `ready-for-codex`, fix at most one issue per run in an isolated worktree/branch, run focused tests and app QA, and open a draft PR instead of pushing to `main`.
 - [ ] Add deterministic formatting/lint.
 - [ ] Add deterministic formatting/lint to `pnpm ci:check` and CI.
 - [ ] Add structural rules for renderer/main/core boundaries.

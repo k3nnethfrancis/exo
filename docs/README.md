@@ -16,6 +16,7 @@ This directory contains committed, public-facing project context. It should be u
 - `tasks.md` - active execution tracker.
 - `roadmap.md` - future product systems and sequencing.
 - `harness.md` - validation gates and agent-friendly development workflow.
+- `github-issue-fix-loop.md` - scheduled Codex loop rules for turning labeled GitHub issues into tested draft PRs.
 - `qmd-integration-notes.md` - live QMD adapter contract and upgrade checklist.
 - `packages/mcp/README.md` - MCP setup and tool contract.
 
@@ -38,18 +39,19 @@ These remain in place for traceability but should not be treated as the latest a
 5. `usability-readiness.md` - near-term standard for installed daily use
 6. `tasks.md` - active priority backlog
 7. `harness.md` - validation gates and agent-friendly development workflow
-8. `architecture.md` - package boundaries and runtime contracts
-9. `roadmap.md` - future product systems
-10. `plugin-system-architecture.md` - core-versus-plugin target architecture
-11. `plugins.md` - plugin architecture direction
-12. `plugin-implementation-plan.md` - phased implementation plan for capability registries, search providers, agent harnesses, activity substrate, plugin manifests, and future permissioned loading
-13. `open-source.md` - release and platform support notes
-14. `terminal-architecture-v4.md` - current terminal architecture and module-boundary target
-15. `terminal-runtime-decision.md` - terminal runtime decision
-16. `terminal-quality-standard.md` - terminal useability and QA standard
-17. `terminal-fallback-audit.md` - terminal fallback/recovery policy and current decisions
-18. `terminal-refactor-plan.md` - historical tmux migration plan
-19. `qmd-integration-notes.md` - live QMD dependency boundary and upgrade checklist
+8. `github-issue-fix-loop.md` - scheduled Codex issue-to-PR loop rules
+9. `architecture.md` - package boundaries and runtime contracts
+10. `roadmap.md` - future product systems
+11. `plugin-system-architecture.md` - core-versus-plugin target architecture
+12. `plugins.md` - plugin architecture direction
+13. `plugin-implementation-plan.md` - phased implementation plan for capability registries, search providers, agent harnesses, activity substrate, plugin manifests, and future permissioned loading
+14. `open-source.md` - release and platform support notes
+15. `terminal-architecture-v4.md` - current terminal architecture and module-boundary target
+16. `terminal-runtime-decision.md` - terminal runtime decision
+17. `terminal-quality-standard.md` - terminal useability and QA standard
+18. `terminal-fallback-audit.md` - terminal fallback/recovery policy and current decisions
+19. `terminal-refactor-plan.md` - historical tmux migration plan
+20. `qmd-integration-notes.md` - live QMD dependency boundary and upgrade checklist
 
 ## File Roles
 
@@ -59,6 +61,7 @@ These remain in place for traceability but should not be treated as the latest a
 - `roadmap.md` groups future product systems.
 - `tasks.md` tracks the next concrete work.
 - `harness.md` explains how changes should be validated.
+- `github-issue-fix-loop.md` defines the conservative scheduled GitHub issue-to-draft-PR loop.
 - `plugin-system-architecture.md` defines which platform surfaces stay core versus become bundled/external plugins.
 - `plugins.md` tracks the intended extension model.
 - `plugin-implementation-plan.md` tracks the concrete refactor/implementation order for the first plugin architecture phases.
