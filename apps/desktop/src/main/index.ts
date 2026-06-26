@@ -356,7 +356,6 @@ function registerIpcHandlers() {
     saveSettings: (settings) => workspaceSettingsService.saveSettings(settings),
     searchIndex: (query, options) => searchIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot, query, options),
     searchNotes: (query) => searchNotes(workspaceModel, query),
-    searchTag: (tag) => workspaceNotesService.searchTag(tag),
     searchWorkspace: (query) => searchWorkspace(workspaceModel, query),
     setAgentSkillEnabled: (input) => agentSkillsService.setSkillEnabled(input),
     statNote: async (filePath) => {

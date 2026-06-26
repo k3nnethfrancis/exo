@@ -7,19 +7,6 @@ import type { WorkspaceModel } from "@exo/core";
 import { WorkspaceNotesService } from "./workspace-notes-service";
 
 describe("WorkspaceNotesService", () => {
-  it("searches body and frontmatter tags across note roots", async () => {
-    const { service, noteRoot } = await workspaceNotesService();
-    await writeFile(path.join(noteRoot, "focus.md"), "---\ntags: [research]\n---\n# Focus\n\n#daily\n", "utf8");
-    await writeFile(path.join(noteRoot, "other.md"), "# Other\n\nNo match.\n", "utf8");
-
-    await expect(service.searchTag("#research")).resolves.toEqual([
-      expect.objectContaining({ title: "focus", snippet: "#research", kind: "tag" }),
-    ]);
-    await expect(service.searchTag("daily")).resolves.toEqual([
-      expect.objectContaining({ title: "focus", snippet: "#daily", kind: "tag" }),
-    ]);
-  });
-
   it("resolves relative targets before falling back to note basename search", async () => {
     const { service, noteRoot } = await workspaceNotesService();
     const sourcePath = path.join(noteRoot, "folder", "source.md");

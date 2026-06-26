@@ -8,7 +8,6 @@ import {
   getNoteKnowledge,
   listMarkdownFiles,
   readWorkspaceDocument,
-  type SearchResult,
   type WorkspaceModel,
 } from "@exo/core";
 
@@ -18,35 +17,6 @@ export interface WorkspaceNotesServiceOptions {
 
 export class WorkspaceNotesService {
   constructor(private readonly options: WorkspaceNotesServiceOptions) {}
-
-  async searchTag(tag: string): Promise<SearchResult[]> {
-    const normalized = tag.replace(/^#/, "");
-    const files = await listMarkdownFiles(this.noteRootPaths());
-    const results: Array<SearchResult | null> = await Promise.all(
-      files.map(async (filePath) => {
-        const document = await readWorkspaceDocument(filePath);
-        const rawTags = Array.isArray(document.frontmatter.tags)
-          ? document.frontmatter.tags.filter((entry): entry is string => typeof entry === "string")
-          : typeof document.frontmatter.tags === "string"
-            ? document.frontmatter.tags.split(/[,\s]+/)
-            : [];
-        const bodyIncludes = document.body.toLowerCase().includes(`#${normalized.toLowerCase()}`);
-        const frontmatterIncludes = rawTags.some((entry) => entry.replace(/^#/, "").toLowerCase() === normalized.toLowerCase());
-        if (!bodyIncludes && !frontmatterIncludes) {
-          return null;
-        }
-
-        return {
-          filePath,
-          title: document.title,
-          snippet: `#${normalized}`,
-          kind: "tag" as const,
-        };
-      }),
-    );
-
-    return results.filter((entry): entry is SearchResult => entry !== null);
-  }
 
   async resolveTarget(sourceFilePath: string, target: string): Promise<string | null> {
     if (/^https?:\/\//.test(target)) {
