@@ -45,7 +45,7 @@ import {
 } from "./hooks/useTerminalSessions";
 import { defaultTerminalCwdForNotesFolder } from "./hooks/useWorkspaceBootstrap";
 import { isReconnectableSession, isTerminalInputEnabled, terminalSessionsEqual } from "./terminalSessions";
-import { groupPluginInventoryItems } from "./pluginManagerModel";
+import { buildPluginDetailSections, groupPluginInventoryItems } from "./pluginManagerModel";
 import { applyTheme } from "./theme/applyTheme";
 import { contrastRatio } from "./theme/contrast";
 import { THEME_FAMILIES, resolveTheme } from "./theme/registry";
@@ -154,6 +154,54 @@ describe("plugin manager model", () => {
     expect(groups.map((group) => group.id)).toEqual(["core", "searchProvider", "agentHarness", "routineTemplate"]);
     expect(groups.find((group) => group.id === "agentHarness")?.items.map((item) => item.id)).toEqual(["codex"]);
   });
+
+  it("summarizes profile metadata for the read-only detail panel", () => {
+    const sections = buildPluginDetailSections({
+      ...pluginInventoryItem("exograph-baseline.profile", "Exograph Baseline", "profile", "Profiles", "localManifest"),
+      kind: "profile",
+      compatibility: {
+        profile: {
+          recommendedPlugins: [{ id: "qmd", required: false }],
+          metadataSchemas: [{ id: "note", label: "Note", scope: { paths: ["**/*.md"] } }],
+          skills: [{ id: "graph-evolve", label: "Graph Evolve", harnesses: ["claude"], sourcePath: "skills/graph-evolve" }],
+          routineTemplateIds: ["graph-health.template"],
+          reviewPolicy: { fileChanges: "propose", requireHumanReview: true, allowedPaths: ["**/*.md"] },
+          outputPolicy: { fileChanges: "propose", artifacts: "record", allowedPaths: [".exo/artifacts/**"] },
+        },
+      },
+    });
+
+    expect(sections.find((section) => section.id === "profile-recommendations")?.rows).toEqual(
+      expect.arrayContaining([
+        { label: "Recommended plugins", value: "qmd" },
+        { label: "Metadata schemas", value: "Note" },
+        { label: "Skills", value: "Graph Evolve (claude)" },
+      ]),
+    );
+    expect(sections.find((section) => section.id === "profile-policies")?.rows).toEqual(
+      expect.arrayContaining([{ label: "Output", value: "propose; artifacts record" }]),
+    );
+  });
+
+  it("summarizes graph visualization metadata for the read-only detail panel", () => {
+    const sections = buildPluginDetailSections({
+      ...pluginInventoryItem("default-graph.view", "Default Graph", "graphVisualization", "Graph visualizations", "localManifest"),
+      kind: "graphVisualization",
+      compatibility: {
+        graphDataVersion: "0.1",
+        acceptedNodeKinds: ["note", "tag"],
+        acceptedEdgeKinds: ["wikilink"],
+        hostSurface: "editorPane",
+      },
+    });
+
+    expect(sections.find((section) => section.id === "graph-compatibility")?.rows).toEqual([
+      { label: "Graph data", value: "0.1" },
+      { label: "Host", value: "editorPane" },
+      { label: "Node kinds", value: "note, tag" },
+      { label: "Edge kinds", value: "wikilink" },
+    ]);
+  });
 });
 
 function pluginInventoryItem(
@@ -167,6 +215,7 @@ function pluginInventoryItem(
     id,
     label,
     description: `${label} description`,
+    kind: categoryId === "core" ? "core" : categoryId as PluginInventoryItem["kind"],
     categoryId,
     categoryLabel,
     source,

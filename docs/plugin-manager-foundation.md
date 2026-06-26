@@ -1,6 +1,6 @@
 # Plugin Manager Foundation
 
-Last updated: 2026-06-25
+Last updated: 2026-06-26
 
 ## Goal
 
@@ -25,6 +25,9 @@ Add the first visible Plugin Manager surface without changing runtime behavior. 
 - Desktop exposes one read-only `workspace:list-plugin-inventory` API.
 - Plugin Manager opens from the right tool rail.
 - Rows are grouped by category and distinguish Core, Bundled Plugin, and Local Manifest sources.
+- Selecting a row shows a read-only detail panel with status, exposure, dependencies, and capability-specific metadata.
+- Profile rows summarize recommended plugins, metadata schemas, skills, routine templates, graph views, analyzer settings, and review/output policies.
+- Graph visualization rows summarize graph snapshot version, host surface, accepted node kinds, and accepted edge kinds.
 - Harness rows include live readiness metadata so missing dependencies are visible but not launchable.
 - Bad manifest directories appear as inventory errors without crashing the dialog.
 - Settings remains focused on baseline workspace behavior; Agent Config Editor remains focused on instructions, skills, and harness configuration.
@@ -34,6 +37,6 @@ Add the first visible Plugin Manager surface without changing runtime behavior. 
 - `pnpm --filter @exo/core test`
 - `pnpm --filter @exo/desktop typecheck`
 - `pnpm --filter @exo/desktop exec vitest run src/renderer/src/App.test.tsx`
-- App QA: launch Exo, open Plugin Manager from the right rail, confirm QMD, Claude/Codex/Pi/Hermes, core surfaces, and graph-health appear with correct read-only status.
+- App QA: launch Exo, open Plugin Manager from the right rail, confirm QMD, Claude/Codex/Pi/Hermes, core surfaces, graph-health, and Exograph Baseline appear with correct read-only status; select Exograph Baseline and confirm profile recommendations/policies render in the detail panel.
 
--- Shoshin | 2026-06-25
+-- Shoshin | 2026-06-26

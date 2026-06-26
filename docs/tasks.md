@@ -236,6 +236,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Write the near-term Plugin Manager foundation milestone: inventory sources, visible categories, non-goals, acceptance criteria, tests, and app QA requirements.
 - [x] Expose current core capabilities, bundled plugin-shaped capabilities, and metadata-only local manifests to the desktop through a read-only inventory API.
 - [x] Add a read-only Plugin Manager foundation surface grouped by category, showing Core vs Bundled Plugin vs Local Manifest, lifecycle, trust, enabled/disabled state, dependency/install status, and surfaces/permissions.
+- [x] Add a read-only Plugin Manager detail panel for profile and graph visualization metadata without adding mutation or plugin execution.
 - [x] Keep Settings focused on baseline Exo behavior; use Plugin Manager for plugin lifecycle/config and keep Agent Config Editor specialized for harness instructions/skills/provider files.
 - [x] Define the profile manifest extension for recommended plugins, metadata/frontmatter schemas, context templates, AGENTS/CLAUDE templates, MCP config, skills, routine templates, graph views, analyzer settings, and output/review policies.
 - [x] Define the graph-data API and graph visualization surface contract before implementing the default graph explorer.

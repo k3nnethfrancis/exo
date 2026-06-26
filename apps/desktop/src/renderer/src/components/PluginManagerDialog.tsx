@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { PluginInventory, PluginInventoryItem } from "@exo/core";
 import { X } from "lucide-react";
 
-import { groupPluginInventoryItems } from "../pluginManagerModel";
+import { buildPluginDetailSections, groupPluginInventoryItems } from "../pluginManagerModel";
 
 interface PluginManagerDialogProps {
   onClose: () => void;
@@ -12,6 +12,7 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
   const [inventory, setInventory] = useState<PluginInventory | null>(null);
   const [loadState, setLoadState] = useState<"loading" | "idle" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -35,6 +36,13 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
   }, []);
 
   const groups = useMemo(() => groupPluginInventoryItems(inventory?.items ?? []), [inventory]);
+  const selectedItem = useMemo(() => {
+    if (!inventory) {
+      return null;
+    }
+    return inventory.items.find((item) => item.id === selectedItemId) ?? inventory.items[0] ?? null;
+  }, [inventory, selectedItemId]);
+  const detailSections = useMemo(() => selectedItem ? buildPluginDetailSections(selectedItem) : [], [selectedItem]);
 
   return (
     <div className="dialog-overlay" data-testid="plugin-manager-overlay">
@@ -77,20 +85,56 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
               <SummaryTile label="Local manifests" value={inventory.counts.localManifest} />
               <SummaryTile label="Review needed" value={inventory.counts.untrusted} />
             </div>
-            <div className="plugin-manager__groups">
-              {groups.map((group) => (
-                <section className="plugin-manager__group" data-testid={`plugin-manager-group-${group.id}`} key={group.id}>
-                  <div className="plugin-manager__group-header">
-                    <h3>{group.label}</h3>
-                    <span>{group.items.length}</span>
-                  </div>
-                  <div className="plugin-manager__items">
-                    {group.items.map((item) => (
-                      <PluginInventoryRow item={item} key={`${item.source}:${item.id}`} />
+            <div className="plugin-manager__body">
+              <div className="plugin-manager__groups">
+                {groups.map((group) => (
+                  <section className="plugin-manager__group" data-testid={`plugin-manager-group-${group.id}`} key={group.id}>
+                    <div className="plugin-manager__group-header">
+                      <h3>{group.label}</h3>
+                      <span>{group.items.length}</span>
+                    </div>
+                    <div className="plugin-manager__items">
+                      {group.items.map((item) => (
+                        <PluginInventoryRow
+                          isSelected={selectedItem?.id === item.id}
+                          item={item}
+                          key={`${item.source}:${item.id}`}
+                          onSelect={() => setSelectedItemId(item.id)}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                ))}
+              </div>
+              <aside className="plugin-manager__detail-panel" data-testid="plugin-manager-detail">
+                {selectedItem ? (
+                  <>
+                    <div className="plugin-manager__detail-header">
+                      <div>
+                        <div className="plugin-manager__detail-kicker">{selectedItem.categoryLabel}</div>
+                        <h3>{selectedItem.label}</h3>
+                      </div>
+                      <StatusPill item={selectedItem} />
+                    </div>
+                    <p>{selectedItem.description}</p>
+                    {detailSections.map((section) => (
+                      <section className="plugin-manager__detail-section" key={section.id}>
+                        <h4>{section.label}</h4>
+                        <dl>
+                          {section.rows.map((row) => (
+                            <div key={`${section.id}:${row.label}`}>
+                              <dt>{row.label}</dt>
+                              <dd>{row.value}</dd>
+                            </div>
+                          ))}
+                        </dl>
+                      </section>
                     ))}
-                  </div>
-                </section>
-              ))}
+                  </>
+                ) : (
+                  <p>Select a plugin or core surface to inspect.</p>
+                )}
+              </aside>
             </div>
           </div>
         ) : null}
@@ -108,9 +152,23 @@ function SummaryTile({ label, value }: { label: string; value: number }) {
   );
 }
 
-function PluginInventoryRow({ item }: { item: PluginInventoryItem }) {
+function PluginInventoryRow({
+  isSelected,
+  item,
+  onSelect,
+}: {
+  isSelected: boolean;
+  item: PluginInventoryItem;
+  onSelect: () => void;
+}) {
   return (
-    <article className="plugin-manager__row" data-testid={`plugin-inventory-item-${item.id}`}>
+    <button
+      aria-pressed={isSelected}
+      className={`plugin-manager__row ${isSelected ? "plugin-manager__row--selected" : ""}`}
+      data-testid={`plugin-inventory-item-${item.id}`}
+      onClick={onSelect}
+      type="button"
+    >
       <div className="plugin-manager__row-main">
         <div className="plugin-manager__row-title">
           <strong>{item.label}</strong>
@@ -135,7 +193,7 @@ function PluginInventoryRow({ item }: { item: PluginInventoryItem }) {
           </small>
         ) : null}
       </div>
-    </article>
+    </button>
   );
 }
 

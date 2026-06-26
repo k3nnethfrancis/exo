@@ -116,6 +116,11 @@ test("opens the read-only plugin manager inventory", async () => {
   await expect(page.getByTestId("plugin-manager-group-searchProvider")).toContainText("QMD");
   await expect(page.getByTestId("plugin-manager-group-agentHarness")).toContainText("Claude");
   await expect(page.getByTestId("plugin-manager-group-routineTemplate")).toContainText("Graph Health");
+  await expect(page.getByTestId("plugin-manager-group-profile")).toContainText("Exograph Baseline");
+  await page.getByTestId("plugin-inventory-item-exograph-baseline.profile").click();
+  await expect(page.getByTestId("plugin-manager-detail")).toContainText("Profile Recommendations");
+  await expect(page.getByTestId("plugin-manager-detail")).toContainText("qmd");
+  await expect(page.getByTestId("plugin-manager-detail")).toContainText("Review paths");
   await page.getByTestId("plugin-manager-close").click();
   await expect(page.getByTestId("plugin-manager")).toHaveCount(0);
 

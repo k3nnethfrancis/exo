@@ -23,6 +23,7 @@ export interface PluginInventoryItem {
   id: string;
   label: string;
   description: string;
+  kind: CapabilityMetadata["kind"] | "core";
   categoryId: string;
   categoryLabel: string;
   source: PluginInventorySource;
@@ -41,6 +42,7 @@ export interface PluginInventoryItem {
   manifestPath?: string;
   rootDirectory?: string;
   dependencies?: PluginInventoryDependency[];
+  compatibility?: Record<string, unknown>;
 }
 
 export interface PluginInventoryError {
@@ -157,6 +159,7 @@ function coreItem(id: string, label: string, description: string): PluginInvento
     label,
     description,
     categoryId: "core",
+    kind: "core",
     categoryLabel: "Core",
     source: "core",
     sourceLabel: "Core",
@@ -182,6 +185,7 @@ function bundledCapabilityItem(
     label: capability.label,
     description: capability.description,
     categoryId: capability.kind,
+    kind: capability.kind,
     categoryLabel: capabilityKindLabel(capability.kind),
     source: "bundled",
     sourceLabel: "Bundled plugin",
@@ -201,6 +205,7 @@ function bundledCapabilityItem(
       statusLabel: dependency.statusLabel,
       detail: dependency.detail,
     })),
+    compatibility: capability.compatibility,
   };
 }
 
@@ -212,6 +217,7 @@ function pluginInventoryItems(plugin: DiscoveredPlugin): PluginInventoryItem[] {
       label: capability.label,
       description: capability.description,
       categoryId: capability.kind,
+      kind: capability.kind,
       categoryLabel: capabilityKindLabel(capability.kind),
       source: "localManifest",
       sourceLabel: sourceLabel(plugin.source),
@@ -228,6 +234,7 @@ function pluginInventoryItems(plugin: DiscoveredPlugin): PluginInventoryItem[] {
       pluginSource: plugin.source,
       manifestPath: plugin.manifestPath,
       rootDirectory: plugin.rootDirectory,
+      compatibility: capability.compatibility,
     };
   });
 }

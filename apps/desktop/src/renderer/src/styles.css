@@ -1612,12 +1612,21 @@ button svg,
   font-size: 12px;
 }
 
+.plugin-manager__body {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.62fr);
+  gap: 14px;
+  overflow: hidden;
+}
+
 .plugin-manager__groups {
   min-height: 0;
   overflow: auto;
   display: grid;
   align-content: start;
   gap: 14px;
+  padding-right: 2px;
 }
 
 .plugin-manager__group {
@@ -1652,10 +1661,24 @@ button svg,
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(260px, 0.7fr);
   gap: 14px;
+  width: 100%;
   padding: 12px;
   border: 1px solid var(--surface-border);
   border-radius: 8px;
   background: var(--surface-2);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.plugin-manager__row:hover {
+  border-color: var(--surface-border-strong);
+  background: var(--surface-hover);
+}
+
+.plugin-manager__row--selected {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-2));
 }
 
 .plugin-manager__row-main,
@@ -1726,6 +1749,85 @@ button svg,
 .plugin-manager__status--danger {
   color: var(--danger-strong);
   border-color: var(--danger-border);
+}
+
+.plugin-manager__detail-panel {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--surface-border);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.plugin-manager__detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.plugin-manager__detail-kicker {
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.plugin-manager__detail-header h3,
+.plugin-manager__detail-section h4 {
+  margin: 0;
+}
+
+.plugin-manager__detail-panel p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.plugin-manager__detail-section {
+  display: grid;
+  gap: 8px;
+}
+
+.plugin-manager__detail-section h4 {
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.plugin-manager__detail-section dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.plugin-manager__detail-section dl > div {
+  display: grid;
+  gap: 3px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--surface-border);
+}
+
+.plugin-manager__detail-section dl > div:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.plugin-manager__detail-section dt {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.plugin-manager__detail-section dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .dialog-card__input {
