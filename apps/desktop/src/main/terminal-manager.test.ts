@@ -973,7 +973,7 @@ describe("TerminalManager Codex readiness", () => {
         exitCode: 1,
         transcriptPath,
         cwd: workspaceRoot,
-        command: "codex",
+        command: path.join(workspaceRoot, "bin", "codex"),
         readiness: "starting",
         health: "exited",
         healthDetail: "Process exited with code 1.",
@@ -987,7 +987,7 @@ describe("TerminalManager Codex readiness", () => {
         exitCode: 1,
         transcriptPath,
         cwd: workspaceRoot,
-        command: "codex",
+        command: path.join(workspaceRoot, "bin", "codex"),
         health: "exited",
         healthDetail: "Process exited with code 1.",
       }),
@@ -1102,7 +1102,7 @@ describe("TerminalManager Codex readiness", () => {
     const shellLaunch = tmuxCommand.at(-1) ?? "";
     expect(ptyState.spawned[0]?.command).toBe("tmux");
     expect(ptyState.spawned[0]?.args).toEqual(["-u", "-C", "attach-session", "-t", expect.stringMatching(/^exo-[a-f0-9]{10}-term-1-\d{4}-/i)]);
-    expect(shellLaunch).toContain("'codex'");
+    expect(shellLaunch).toContain(`'${path.join(workspaceRoot, "bin", "codex")}'`);
     expect(shellLaunch).toContain("'-c'");
     expect(shellLaunch).toContain(`'mcp_servers.exo.command=\"node\"'`);
     expect(shellLaunch).toContain(`'mcp_servers.exo.args=[\"${exoRoot}/packages/mcp/bin/exo-mcp.mjs\"]'`);
@@ -1181,6 +1181,15 @@ describe("TerminalManager Codex readiness", () => {
 async function workspaceFixture(): Promise<string> {
   const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-codex-readiness-"));
   tempPaths.push(workspaceRoot);
+  const binRoot = path.join(workspaceRoot, "bin");
+  await mkdir(binRoot, { recursive: true });
+  await Promise.all(
+    ["claude", "codex"].map(async (command) => {
+      const commandPath = path.join(binRoot, command);
+      await writeFile(commandPath, "#!/bin/sh\nexit 0\n", "utf8");
+      await chmodExecutable(commandPath);
+    }),
+  );
   return workspaceRoot;
 }
 
@@ -1199,7 +1208,8 @@ function stubWorkspaceEnv(workspaceRoot: string): void {
   vi.stubEnv("EXO_PROJECT_ROOTS", path.join(workspaceRoot, "projects"));
   vi.stubEnv("EXO_DEFAULT_TERMINAL_CWD", workspaceRoot);
   vi.stubEnv("EXO_RUNTIME_ROOT", path.join(workspaceRoot, ".exo"));
-  vi.stubEnv("EXO_CODEX_COMMAND", "codex");
+  vi.stubEnv("EXO_CLAUDE_COMMAND", path.join(workspaceRoot, "bin", "claude"));
+  vi.stubEnv("EXO_CODEX_COMMAND", path.join(workspaceRoot, "bin", "codex"));
 }
 
 function bracketedPaste(data: string): string {
