@@ -250,6 +250,8 @@ function capabilityKindLabel(kind: CapabilityMetadata["kind"]): string {
       return "Search providers";
     case "traceCollector":
       return "Trace collectors";
+    case "graphVisualization":
+      return "Graph visualizations";
   }
 }
 

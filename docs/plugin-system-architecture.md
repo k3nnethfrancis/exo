@@ -1,6 +1,6 @@
 # Plugin System Architecture
 
-Last updated: 2026-06-21
+Last updated: 2026-06-26
 
 This document defines the target plugin boundary for Exo.
 
@@ -65,6 +65,8 @@ Near-term Exo should prove the first two layers with bundled and internal plugin
 
 Profiles are bundles, not individual runtime capabilities. A profile can declare recommended plugins, graph metadata conventions, AGENTS.md/CLAUDE.md templates, MCP config templates, skills to install or enable, routine templates, default graph views, analyzer settings, and output/review policies. A profile may depend on plugins, but it should not hide executable code inside configuration. If a profile needs executable behavior, it should depend on an explicit plugin capability.
 
+The first implemented profile contract is metadata-only: `profile` capabilities store a typed payload under `capability.compatibility.profile`. Exo may list and inspect that payload, but it must not apply a profile, write instructions, install skills, enable plugins, or schedule routines without an explicit future permissioned flow.
+
 ### Markdown And Exograph Core
 
 Core treats Markdown files as canonical user-owned state. Graph semantics come from links, tags, paths, properties/frontmatter, profile mappings, and explicit user choices. Core can store derived indexes, proposals, runs, traces, and plugin state under `.exo/`, but durable approved knowledge stays in the user's files.
@@ -88,6 +90,8 @@ Surface contribution types should include:
 - web viewer open/focus/close request
 
 Graph visualization plugins should use these surface contracts. Core should expose graph data and host the pane/web preview surface; a graph visualization plugin owns the layout, rendering strategy, and interaction model. This allows Exo to ship one useful default graph explorer while letting users replace it with a 3D graph, metadata-specific view, or domain-specific explorer.
+
+The first graph contract is a read-only `GraphSnapshot` core type plus metadata-only `graphVisualization` capability declarations. The snapshot stores outgoing edges as canonical graph facts; backlinks are derived views over those edges so graph consumers do not double-count relationships.
 
 ### Terminal Core
 

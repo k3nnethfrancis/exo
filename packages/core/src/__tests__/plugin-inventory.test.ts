@@ -21,6 +21,35 @@ const graphHealthManifest: PluginManifest = {
       surfaces: ["desktop", "cli"],
       permissions: ["workspace:read", "notes:read", "artifacts:write"],
     },
+    {
+      id: "shoshin.profile",
+      kind: "profile",
+      label: "Shoshin Profile",
+      description: "Shoshin graph conventions.",
+      lifecycle: "experimental",
+      owner: "graph-health.plugin",
+      surfaces: ["desktop", "cli"],
+      permissions: ["workspace:read", "notes:read"],
+      compatibility: {
+        profile: {
+          recommendedPlugins: [{ id: "graph-health.plugin", required: false }],
+        },
+      },
+    },
+    {
+      id: "graph-health.view",
+      kind: "graphVisualization",
+      label: "Graph Health View",
+      description: "Visualizes graph-health snapshots.",
+      lifecycle: "experimental",
+      owner: "graph-health.plugin",
+      surfaces: ["desktop"],
+      permissions: ["workspace:read", "notes:read"],
+      compatibility: {
+        graphDataVersion: "0.1",
+        hostSurface: "editorPane",
+      },
+    },
   ],
   permissions: ["workspace:read", "notes:read", "artifacts:write"],
   surfaces: ["desktop", "cli"],
@@ -50,11 +79,19 @@ describe("plugin inventory", () => {
       pluginId: "graph-health.plugin",
       pluginName: "Graph Health",
     });
+    expect(find(inventory.items, "shoshin.profile")).toMatchObject({
+      source: "localManifest",
+      categoryLabel: "Profiles",
+    });
+    expect(find(inventory.items, "graph-health.view")).toMatchObject({
+      source: "localManifest",
+      categoryLabel: "Graph visualizations",
+    });
     expect(inventory.counts).toMatchObject({
       core: 5,
       bundled: 6,
-      localManifest: 1,
-      total: 12,
+      localManifest: 3,
+      total: 14,
     });
   });
 
@@ -125,7 +162,7 @@ describe("plugin inventory", () => {
       trust: "disabled",
       statusLabel: "Disabled",
     });
-    expect(inventory.counts.untrusted).toBe(1);
+    expect(inventory.counts.untrusted).toBe(3);
     expect(inventory.counts.disabled).toBe(1);
   });
 });

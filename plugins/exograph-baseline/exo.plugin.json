@@ -1,0 +1,83 @@
+{
+  "id": "exograph-baseline.plugin",
+  "name": "Exograph Baseline Profile",
+  "version": "0.1.0",
+  "exoApiVersion": "0.1",
+  "description": "Metadata-only starter profile for Markdown-first exographs.",
+  "capabilities": [
+    {
+      "id": "exograph-baseline.profile",
+      "kind": "profile",
+      "label": "Exograph Baseline",
+      "description": "Recommended Markdown graph conventions and bundled capability references for a local exograph.",
+      "lifecycle": "experimental",
+      "owner": "exograph-baseline.plugin",
+      "surfaces": ["desktop", "cli"],
+      "permissions": ["workspace:read", "notes:read"],
+      "compatibility": {
+        "profile": {
+          "recommendedPlugins": [
+            {
+              "id": "qmd",
+              "required": false,
+              "reason": "Advanced local Markdown search and indexing."
+            },
+            {
+              "id": "graph-health.plugin",
+              "required": false,
+              "reason": "Routine template for graph-maintenance reports."
+            }
+          ],
+          "metadataSchemas": [
+            {
+              "id": "markdown-note",
+              "label": "Markdown note",
+              "description": "Advisory fields Exo can use without enforcing them on raw Markdown.",
+              "scope": {
+                "paths": ["**/*.md"]
+              },
+              "frontmatter": {
+                "title": {
+                  "type": "string",
+                  "required": false
+                },
+                "type": {
+                  "type": "string",
+                  "required": false
+                },
+                "status": {
+                  "type": "string",
+                  "required": false
+                },
+                "confidence": {
+                  "type": "string",
+                  "required": false
+                }
+              },
+              "tags": []
+            }
+          ],
+          "contextTemplates": [],
+          "instructionTemplates": [],
+          "mcpConfigTemplates": [],
+          "skills": [],
+          "routineTemplateIds": ["graph-health.template"],
+          "graphViews": [],
+          "analyzerSettings": [],
+          "reviewPolicy": {
+            "fileChanges": "propose",
+            "requireHumanReview": true,
+            "allowedPaths": ["**/*.md", ".exo/**"]
+          },
+          "outputPolicy": {
+            "fileChanges": "propose",
+            "artifacts": "record",
+            "allowedPaths": [".exo/artifacts/**"]
+          }
+        }
+      }
+    }
+  ],
+  "permissions": ["workspace:read", "notes:read"],
+  "surfaces": ["desktop", "cli"]
+}

@@ -1,6 +1,6 @@
 # Plugin Architecture Implementation Plan
 
-Last updated: 2026-06-22
+Last updated: 2026-06-26
 
 This plan turns Exo's plugin architecture into code without prematurely loading arbitrary third-party code. The first goal is internal extensibility: Exo core should use typed registries and contracts for the capabilities that are already plugin-shaped.
 
@@ -307,6 +307,35 @@ The first manifest pass supports:
 - conservative defaults: built-in/dev plugins are trusted, user/workspace plugins are discovered as untrusted, and disabled plugins are hidden from normal lists
 
 This is intentionally not arbitrary plugin loading. A manifest can declare what a plugin would contribute, but Exo does not yet execute plugin entrypoints, grant permissions, add UI, add CLI commands, or add MCP tools from manifests.
+
+### Profile Capability Payload
+
+Status: first metadata contract implemented in `packages/core/src/profile.ts`.
+
+Profiles are bundles of recommendations and conventions, not executable capabilities. A profile capability declares its payload under `capability.compatibility.profile`. It may describe:
+
+- recommended plugin ids and whether each is required
+- advisory metadata/frontmatter schemas and path scopes
+- context, instruction, and MCP config template references
+- skill references by harness id
+- routine template ids
+- graph view references
+- analyzer settings
+- review and output policy defaults
+
+The profile extractor validates shape and rejects unsafe absolute or traversal paths, but it does not read template files, install skills, write `AGENTS.md`/`CLAUDE.md`, enable plugins, schedule routines, or mutate user Markdown. Applying a profile is a separate future UX and permission flow.
+
+Bundled example: `plugins/exograph-baseline/exo.plugin.json` declares the first read-only baseline profile so Plugin Manager can display profile metadata during QA.
+
+### Graph Snapshot And Visualization Payload
+
+Status: first metadata contract implemented in `packages/core/src/graph.ts`.
+
+Graph data is core substrate. A `GraphSnapshot` is a read-only representation of notes, tags, unresolved references, and outgoing graph edges. Backlinks are a derived view over outgoing edges, not separately stored graph facts.
+
+Graph visualization is plugin-shaped. A `graphVisualization` capability may declare accepted graph data version, node kinds, edge kinds, and host surface under capability compatibility metadata. This lets Exo eventually ship one default graph explorer while allowing alternative 2D/3D/domain graph views to consume the same core snapshot.
+
+This pass does not implement graph extraction, graph rendering, renderer plugin loading, or default graph explorer UI.
 
 ## Phase 8: External Plugin Loading
 

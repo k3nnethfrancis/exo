@@ -6,7 +6,8 @@ export type CapabilityKind =
   | "traceCollector"
   | "datasetExporter"
   | "evalRunner"
-  | "routineTemplate";
+  | "routineTemplate"
+  | "graphVisualization";
 
 export type CapabilityLifecycle = "built-in" | "experimental" | "disabled";
 export type CapabilitySurface = "desktop" | "cli" | "mcp" | "commandServer" | "internal";

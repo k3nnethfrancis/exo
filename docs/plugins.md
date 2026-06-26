@@ -1,6 +1,6 @@
 # Plugin Architecture
 
-Last updated: 2026-06-22
+Last updated: 2026-06-26
 
 Exo should support a plugin path so users can extend their local AI workstation without requiring every feature to land in core.
 
@@ -19,9 +19,11 @@ That keeps Exo from overbuilding while still moving toward the long-term shape:
 - The web viewer host and open/focus/close endpoints stay core; plugins can generate local content or services and ask Exo to open them.
 - Workload-specific harnesses, workcells, evals, graph analyzers, search optimization, LM Wiki/Shoshin profiles, and personal routines can become plugin-shaped without being forced into core.
 - Product framing stays layered: Exo is the workstation, the exograph is the user-owned graph it operates over, and plugins are how users swap or add harnesses, search providers, routines, profiles, analyzers, eval runners, exporters, and dashboards.
-- Local plugin manifests can now be discovered and validated as metadata, but Exo does not yet execute plugin code or grant plugin permissions.
+- Local plugin manifests can now be discovered and validated as metadata, but Exo does not yet execute plugin code or grant plugin permissions. Profile payloads and graph visualization declarations are also metadata-only in the current implementation.
 
 Profiles are curated bundles of plugin recommendations and configuration, not just agent config. A profile can package metadata/frontmatter conventions, context templates, AGENTS.md/CLAUDE.md templates, MCP config templates, skills, routine templates, graph views, analyzer settings, and output/review policies. Profiles may depend on plugins, but executable behavior should live in explicit plugin capabilities.
+
+The first profile contract lives under `capability.compatibility.profile`. Exo can parse and show these bundles, but applying one is future work and must be explicit because it can eventually write files, install skills, or change plugin state.
 
 Guardian Angel is an example downstream workload that can pressure-test this architecture outside core. Workflows like elicitation, trace capture, accept/reject/correction review, psychological-model hypotheses, dataset export, eval packets, and instrumented agent runtimes should use Exo's generic plugin primitives rather than becoming built-in Exo product code by default.
 
@@ -112,6 +114,8 @@ The terminal and web viewer hosts are core primitives, not merely plugins. Many 
 
 Graph data is core substrate. Graph visualization is plugin-shaped: Exo should ship a useful default graph explorer, but users should be able to swap in a 3D graph, metadata-focused graph, or domain-specific graph dashboard without changing the core graph model.
 
+The first graph visualization contract is a manifest declaration. Exo has core graph snapshot types, but does not yet load renderer graph plugins or mount a default graph explorer from plugin metadata.
+
 ## Implementation Phases
 
 ### Phase 0: Contract Inventory
@@ -140,6 +144,7 @@ Initial registry kinds:
 - `datasetExporter`
 - `evalRunner`
 - `routineTemplate`
+- `graphVisualization`
 
 Each registration should have:
 

@@ -237,8 +237,8 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Expose current core capabilities, bundled plugin-shaped capabilities, and metadata-only local manifests to the desktop through a read-only inventory API.
 - [x] Add a read-only Plugin Manager foundation surface grouped by category, showing Core vs Bundled Plugin vs Local Manifest, lifecycle, trust, enabled/disabled state, dependency/install status, and surfaces/permissions.
 - [x] Keep Settings focused on baseline Exo behavior; use Plugin Manager for plugin lifecycle/config and keep Agent Config Editor specialized for harness instructions/skills/provider files.
-- [ ] Define the profile manifest extension for recommended plugins, metadata/frontmatter schemas, context templates, AGENTS/CLAUDE templates, MCP config, skills, routine templates, graph views, analyzer settings, and output/review policies.
-- [ ] Define the graph-data API and graph visualization surface contract before implementing the default graph explorer.
+- [x] Define the profile manifest extension for recommended plugins, metadata/frontmatter schemas, context templates, AGENTS/CLAUDE templates, MCP config, skills, routine templates, graph views, analyzer settings, and output/review policies.
+- [x] Define the graph-data API and graph visualization surface contract before implementing the default graph explorer.
 - [x] Add core capability contract types and a built-in registry with tests.
 - [x] Register built-in QMD search-provider metadata without changing behavior.
 - [x] Extract QMD behind a `SearchProvider` interface.

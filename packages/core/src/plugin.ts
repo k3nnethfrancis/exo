@@ -50,6 +50,7 @@ const CAPABILITY_KINDS = [
   "datasetExporter",
   "evalRunner",
   "routineTemplate",
+  "graphVisualization",
 ] satisfies CapabilityKind[];
 
 const CAPABILITY_LIFECYCLES = ["built-in", "experimental", "disabled"] satisfies CapabilityLifecycle[];

@@ -44,6 +44,35 @@ const manifest: PluginManifest = {
       surfaces: ["desktop", "cli"],
       permissions: ["workspace:read"],
     },
+    {
+      id: "example.profile",
+      kind: "profile",
+      label: "Example Profile",
+      description: "Ships an example profile bundle.",
+      lifecycle: "experimental",
+      owner: "example.plugin",
+      surfaces: ["desktop"],
+      permissions: ["workspace:read", "notes:read"],
+      compatibility: {
+        profile: {
+          recommendedPlugins: [{ id: "example.routine", required: false }],
+        },
+      },
+    },
+    {
+      id: "example.graph-view",
+      kind: "graphVisualization",
+      label: "Example Graph View",
+      description: "Renders graph snapshots.",
+      lifecycle: "experimental",
+      owner: "example.plugin",
+      surfaces: ["desktop"],
+      permissions: ["workspace:read", "notes:read"],
+      compatibility: {
+        graphDataVersion: "0.1",
+        hostSurface: "editorPane",
+      },
+    },
   ],
   permissions: ["workspace:read", "artifacts:write"],
   surfaces: ["desktop", "cli", "internal"],
@@ -109,7 +138,12 @@ describe("plugin manifest contracts", () => {
     const registry = new PluginRegistry([discovered(manifest, "trusted")]);
 
     expect(registry.require("example.plugin").manifest).toBe(manifest);
-    expect(registry.listCapabilities().map((capability) => capability.id)).toEqual(["example.trace", "example.routine"]);
+    expect(registry.listCapabilities().map((capability) => capability.id)).toEqual([
+      "example.trace",
+      "example.routine",
+      "example.profile",
+      "example.graph-view",
+    ]);
     expect(registry.list({ trustedOnly: true }).map((plugin) => plugin.manifest.id)).toEqual(["example.plugin"]);
   });
 
