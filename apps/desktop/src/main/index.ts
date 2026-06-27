@@ -11,6 +11,7 @@ import {
   deleteWorkspacePath,
   listRootTree,
   listPluginInventory,
+  applyPluginStateAction,
   readIndexDocument,
   readWorkspaceDocument,
   renameWorkspacePath,
@@ -21,10 +22,12 @@ import {
   searchNotes,
   searchWorkspace,
   type ManagedAgentKind,
+  type PluginStateAction,
   type WorkspaceModel,
   type WorkspaceSettings,
 } from "@exo/core";
 
+import type { WorkspacePluginActionInput } from "../shared/api";
 import type { DesktopEventChannel, DesktopEventPayloads } from "../shared/desktop-ipc";
 import { AgentInstructionsService } from "./agent-instructions-service";
 import { AgentSkillsService } from "./agent-skills-service";
@@ -315,16 +318,10 @@ function registerIpcHandlers() {
     ensureTarget: (sourceFilePath, target) => workspaceNotesService.ensureTarget(sourceFilePath, target),
     getAgentInstructionConfig: () => agentInstructionsService.getConfig(),
     listAgentHarnesses: async () => terminalManager.getRuntimeConfig().harnesses,
-    listPluginInventory: () =>
-      listPluginInventory({
-        workspaceRoot: workspaceModel.workspaceRoot,
-        env: {
-          ...process.env,
-          EXO_PROJECT_ROOT: process.env.EXO_PROJECT_ROOT ?? sourceProjectRoot,
-          EXO_USER_DATA_PATH: app.getPath("userData"),
-        },
-        harnesses: terminalManager.getRuntimeConfig().harnesses,
-      }),
+    listPluginInventory: () => readPluginInventory(),
+    enablePlugin: (input) => updatePluginState("enable", input),
+    disablePlugin: (input) => updatePluginState("disable", input),
+    trustPlugin: (input) => updatePluginState("trust", input),
     getBranchFamily: (filePath) => workspaceNotesService.getBranchFamily(filePath),
     getGitStatus: (rootPath) => projectReviewService.getGitStatus(rootPath),
     getIndexStatus: () => indexingService.getMeasuredStatus(),
@@ -374,6 +371,40 @@ function registerIpcHandlers() {
     updateIndex: () => indexingService.update("settings"),
   });
   registerTerminalIpcHandlers(terminalManager);
+}
+
+function readPluginInventory() {
+  return listPluginInventory({
+    workspaceRoot: workspaceModel.workspaceRoot,
+    runtimeRoot: terminalManager.getRuntimeConfig().runtimeRoot,
+    env: pluginDiscoveryEnv(),
+    harnesses: terminalManager.getRuntimeConfig().harnesses,
+  });
+}
+
+async function updatePluginState(
+  action: PluginStateAction,
+  input: WorkspacePluginActionInput,
+) {
+  await applyPluginStateAction({
+    workspaceRoot: workspaceModel.workspaceRoot,
+    runtimeRoot: terminalManager.getRuntimeConfig().runtimeRoot,
+    pluginId: input.capabilityId ?? input.pluginId,
+    action,
+    source: input.source,
+    manifestPath: input.manifestPath,
+    rootDirectory: input.rootDirectory,
+    env: pluginDiscoveryEnv(),
+  });
+  return readPluginInventory();
+}
+
+function pluginDiscoveryEnv(): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    EXO_PROJECT_ROOT: process.env.EXO_PROJECT_ROOT ?? sourceProjectRoot,
+    EXO_USER_DATA_PATH: app.getPath("userData"),
+  };
 }
 
 function resolveSourceProjectRoot(): string | undefined {

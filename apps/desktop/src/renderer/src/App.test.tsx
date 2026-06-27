@@ -50,6 +50,8 @@ import {
   buildPluginDetailSections,
   filterPluginInventoryItems,
   groupPluginInventoryItems,
+  pluginActionAvailability,
+  pluginActionInput,
 } from "./pluginManagerModel";
 import { applyTheme } from "./theme/applyTheme";
 import { contrastRatio } from "./theme/contrast";
@@ -295,6 +297,44 @@ describe("plugin manager model", () => {
       { label: "Node kinds", value: "note, tag" },
       { label: "Edge kinds", value: "wikilink" },
     ]);
+  });
+
+  it("allows only local and developer manifest-backed rows to mutate plugin state", () => {
+    const core = pluginInventoryItem("core.terminal", "Terminal host", "core", "Core", "core");
+    const official = pluginInventoryItem("qmd", "QMD", "searchProvider", "Search providers", "bundled");
+    const local = {
+      ...pluginInventoryItem("graph-health.template", "Graph Health", "routineTemplate", "Routine templates", "localManifest"),
+      enabled: false,
+      trust: "untrusted" as const,
+      pluginId: "graph-health.plugin",
+      pluginSource: "workspace" as const,
+      manifestPath: "/workspace/.exo/plugins/graph-health/exo.plugin.json",
+      rootDirectory: "/workspace/.exo/plugins/graph-health",
+    };
+    const trustedDeveloper = {
+      ...local,
+      id: "dev-health.template",
+      enabled: true,
+      trust: "trusted" as const,
+      distribution: "developer" as const,
+      distributionLabel: "Developer",
+      pluginId: "dev-health.plugin",
+      pluginSource: "dev" as const,
+      manifestPath: "/dev/plugins/health/exo.plugin.json",
+      rootDirectory: "/dev/plugins/health",
+    };
+
+    expect(pluginActionAvailability(core)).toMatchObject({ mutable: false, actions: [] });
+    expect(pluginActionAvailability(official)).toMatchObject({ mutable: false, actions: [] });
+    expect(pluginActionAvailability(local)).toMatchObject({ mutable: true, actions: ["trust", "enable"] });
+    expect(pluginActionAvailability(trustedDeveloper)).toMatchObject({ mutable: true, actions: ["disable"] });
+    expect(pluginActionInput(local)).toEqual({
+      pluginId: "graph-health.plugin",
+      capabilityId: "graph-health.template",
+      source: "workspace",
+      manifestPath: "/workspace/.exo/plugins/graph-health/exo.plugin.json",
+      rootDirectory: "/workspace/.exo/plugins/graph-health",
+    });
   });
 });
 

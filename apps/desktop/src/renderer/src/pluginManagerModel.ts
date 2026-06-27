@@ -1,4 +1,5 @@
 import type { PluginInventory, PluginInventoryItem } from "@exo/core";
+import type { WorkspacePluginActionInput } from "../../shared/api";
 
 export interface PluginInventoryGroup {
   id: string;
@@ -21,6 +22,14 @@ export interface PluginDetailSection {
 export interface PluginDetailRow {
   label: string;
   value: string;
+}
+
+export type PluginManagerAction = "trust" | "enable" | "disable";
+
+export interface PluginActionAvailability {
+  mutable: boolean;
+  reason: string;
+  actions: PluginManagerAction[];
 }
 
 const SOURCE_ORDER: Record<PluginInventoryItem["source"], number> = {
@@ -165,6 +174,42 @@ export function buildPluginDetailSections(
     });
   }
   return sections.filter((section) => section.rows.length > 0);
+}
+
+export function pluginActionAvailability(item: PluginInventoryItem): PluginActionAvailability {
+  if (item.source === "core") {
+    return { mutable: false, reason: "Core surfaces are built in and cannot be disabled.", actions: [] };
+  }
+  if (item.distribution === "official" || item.source === "bundled") {
+    return { mutable: false, reason: "Official plugin rows are read-only in Plugin Enablement v0.", actions: [] };
+  }
+  if (item.source !== "localManifest" || !item.pluginId || !item.manifestPath || !item.rootDirectory) {
+    return { mutable: false, reason: "This row does not include a local plugin manifest identity.", actions: [] };
+  }
+
+  const actions: PluginManagerAction[] = [];
+  if (item.trust === "untrusted") {
+    actions.push("trust");
+  }
+  actions.push(item.enabled ? "disable" : "enable");
+  return {
+    mutable: true,
+    reason: "Local and developer plugin manifests can be trusted or enabled from this workspace.",
+    actions,
+  };
+}
+
+export function pluginActionInput(item: PluginInventoryItem): WorkspacePluginActionInput {
+  if (!item.pluginId || !item.manifestPath || !item.rootDirectory) {
+    throw new Error(`Plugin row is missing manifest identity: ${item.id}`);
+  }
+  return {
+    pluginId: item.pluginId,
+    capabilityId: item.id,
+    source: item.pluginSource,
+    manifestPath: item.manifestPath,
+    rootDirectory: item.rootDirectory,
+  };
 }
 
 function searchProviderDetailSections(item: PluginInventoryItem): PluginDetailSection[] {

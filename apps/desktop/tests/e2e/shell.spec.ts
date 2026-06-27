@@ -106,7 +106,7 @@ function runGit(cwd: string, args: string[]) {
 
 test.describe.configure({ mode: "parallel" });
 
-test("opens the read-only plugin manager inventory", async () => {
+test("opens the plugin manager inventory and keeps official rows read-only", async () => {
   const { page, cleanup } = await launchExoFixture();
 
   await page.getByTestId("open-plugin-manager").click();

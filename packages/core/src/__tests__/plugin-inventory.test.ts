@@ -172,6 +172,40 @@ describe("plugin inventory", () => {
     expect(inventory.counts.untrusted).toBe(3);
     expect(inventory.counts.disabled).toBe(4);
   });
+
+  it("applies persisted local plugin state to manifest rows", () => {
+    const plugin = discovered(graphHealthManifest, "untrusted");
+    const inventory = buildPluginInventory({
+      plugins: [plugin],
+      pluginStateStore: {
+        version: 1,
+        plugins: [
+          {
+            pluginId: plugin.manifest.id,
+            source: plugin.source,
+            rootDirectory: plugin.rootDirectory,
+            manifestPath: plugin.manifestPath,
+            manifestHash: plugin.manifestHash,
+            trust: "trusted",
+            enabled: false,
+            reviewedAt: "2026-06-27T00:00:00.000Z",
+          },
+        ],
+      },
+    });
+
+    expect(find(inventory.items, "graph-health.template")).toMatchObject({
+      trust: "trusted",
+      enabled: false,
+      statusLabel: "Disabled",
+    });
+    expect(find(inventory.items, "shoshin.profile")).toMatchObject({
+      trust: "trusted",
+      enabled: false,
+      statusLabel: "Disabled",
+    });
+    expect(inventory.counts.untrusted).toBe(0);
+  });
 });
 
 function discovered(manifest: PluginManifest, trust: DiscoveredPlugin["trust"], enabled = true): DiscoveredPlugin {

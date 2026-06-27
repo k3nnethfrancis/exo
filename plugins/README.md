@@ -13,8 +13,8 @@ these manifests yet.
 - Official plugins live in this repository under `plugins/` or in packaged app
   resources. They are reviewed before shipping on `main`.
 - Local plugins use the same manifest shape in user or workspace plugin directories.
-  They are user-owned and untrusted by default until a future explicit review/enable
-  flow grants trust.
+  They are user-owned and untrusted by default. Plugin Enablement v0 stores
+  trust/enablement state locally and exposes it through the desktop Plugin Manager.
 - Dev plugins are loaded through explicit operator paths such as `EXO_PLUGIN_DIRS`.
   That path is for local development and should not be treated as a user install
   mechanism.
@@ -107,7 +107,7 @@ grant real access explicitly.
 
 After creating a manifest, run the core plugin tests or at least parse the JSON.
 There is intentionally no public `exo plugins` CLI in v0; plugin authoring stays
-repo-internal until trust, review, and enablement semantics are designed.
+repo-internal and plugin enablement is managed through the desktop Plugin Manager.
 
 ```bash
 pnpm --filter @exo/core test -- plugin

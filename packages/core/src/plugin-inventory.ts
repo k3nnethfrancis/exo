@@ -8,6 +8,11 @@ import {
   type PluginTrustState,
 } from "./plugin";
 import { resolvePluginLocations, type PluginLocation } from "./plugin-locations";
+import {
+  applyPluginState,
+  readPluginStateStore,
+  type PluginStateStore,
+} from "./plugin-state";
 
 export type PluginInventorySource = "core" | "bundled" | "localManifest";
 export type PluginInventoryDistribution = "core" | "official" | "local" | "developer";
@@ -73,10 +78,12 @@ export interface PluginInventory {
 
 export interface PluginInventoryOptions {
   workspaceRoot: string;
+  runtimeRoot?: string;
   env?: Record<string, string | undefined>;
   harnesses?: AgentHarnessDetection[];
   builtIns?: CapabilityMetadata[];
   pluginDirectories?: PluginLocation[];
+  pluginStateStore?: PluginStateStore;
   clock?: () => string;
 }
 
@@ -91,12 +98,14 @@ const CORE_INVENTORY_ITEMS: PluginInventoryItem[] = [
 export async function listPluginInventory(options: PluginInventoryOptions): Promise<PluginInventory> {
   const directories = options.pluginDirectories ?? resolvePluginLocations({ workspaceRoot: options.workspaceRoot, env: options.env ?? process.env });
   const { plugins, errors } = await discoverInventoryPlugins(directories);
+  const pluginStateStore = options.pluginStateStore ?? (options.runtimeRoot ? await readPluginStateStore(options.runtimeRoot) : undefined);
   return buildPluginInventory({
     builtIns: options.builtIns ?? builtInCapabilities,
     errors,
     harnesses: options.harnesses,
     now: options.clock?.() ?? new Date().toISOString(),
     plugins,
+    pluginStateStore,
   });
 }
 
@@ -106,13 +115,15 @@ export function buildPluginInventory(input: {
   harnesses?: AgentHarnessDetection[];
   now?: string;
   plugins?: DiscoveredPlugin[];
+  pluginStateStore?: PluginStateStore;
 }): PluginInventory {
   const harnessById = new Map((input.harnesses ?? []).map((harness) => [harness.id, harness]));
   const bundledItems = (input.builtIns ?? builtInCapabilities).map((capability) => {
     const harnessKind = managedAgentKindFromCapability(capability);
     return bundledCapabilityItem(capability, harnessKind ? harnessById.get(harnessKind) : undefined);
   });
-  const localItems = (input.plugins ?? []).flatMap(pluginInventoryItems);
+  const plugins = (input.plugins ?? []).map((plugin) => applyPluginState(plugin, input.pluginStateStore));
+  const localItems = plugins.flatMap(pluginInventoryItems);
   const items = [...CORE_INVENTORY_ITEMS, ...bundledItems, ...localItems].sort(compareInventoryItems);
   return {
     generatedAt: input.now ?? new Date().toISOString(),

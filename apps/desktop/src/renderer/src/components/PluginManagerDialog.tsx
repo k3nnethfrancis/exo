@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import type { PluginInventory, PluginInventoryItem } from "@exo/core";
-import { X } from "lucide-react";
+import { Power, PowerOff, ShieldCheck, X } from "lucide-react";
 
 import {
   buildPluginCategoryFilters,
   buildPluginDetailSections,
   filterPluginInventoryItems,
+  pluginActionAvailability,
+  pluginActionInput,
+  type PluginManagerAction,
 } from "../pluginManagerModel";
 
 interface PluginManagerDialogProps {
@@ -16,11 +19,15 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
   const [inventory, setInventory] = useState<PluginInventory | null>(null);
   const [loadState, setLoadState] = useState<"loading" | "idle" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState("core");
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    setLoadState("loading");
+    setErrorMessage(null);
     window.exo.workspace.listPluginInventory()
       .then((nextInventory) => {
         if (!cancelled) {
@@ -55,11 +62,39 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
     () => selectedItem ? buildPluginDetailSections(selectedItem, inventory ?? undefined) : [],
     [inventory, selectedItem],
   );
+  const actionAvailability = useMemo(
+    () => selectedItem ? pluginActionAvailability(selectedItem) : null,
+    [selectedItem],
+  );
   const detailHeadingId = selectedItem ? `plugin-manager-detail-heading-${selectedItem.id}` : undefined;
 
   function selectCategory(categoryId: string) {
     setSelectedCategoryId(categoryId);
     setSelectedItemId(null);
+  }
+
+  async function runPluginAction(item: PluginInventoryItem, action: PluginManagerAction) {
+    const actionKey = `${item.pluginId ?? item.id}:${action}`;
+    setPendingAction(actionKey);
+    setActionMessage(null);
+    setErrorMessage(null);
+    try {
+      const input = pluginActionInput(item);
+      const nextInventory = action === "trust"
+        ? await window.exo.workspace.trustPlugin(input)
+        : action === "enable"
+          ? await window.exo.workspace.enablePlugin(input)
+          : await window.exo.workspace.disablePlugin(input);
+      setInventory(nextInventory);
+      setLoadState("idle");
+      setSelectedItemId(item.id);
+      setActionMessage(pluginActionSuccessMessage(action, item));
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : String(error));
+      setLoadState("error");
+    } finally {
+      setPendingAction(null);
+    }
   }
 
   return (
@@ -69,7 +104,7 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
           <div>
             <div className="dialog-card__title">Plugin Manager</div>
             <div className="dialog-card__message">
-              Inspect Exo core surfaces, official plugins, and local plugin manifests. This first pass is read-only.
+              Inspect Exo core surfaces, official plugins, and local plugin manifests. Local and developer manifests can be trusted or enabled here.
             </div>
           </div>
           <button
@@ -86,6 +121,7 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
 
         {loadState === "loading" ? <div className="dialog-card__status">Loading plugin inventory...</div> : null}
         {loadState === "error" ? <div className="dialog-card__status dialog-card__status--error">{errorMessage}</div> : null}
+        {actionMessage ? <div className="dialog-card__status dialog-card__status--success">{actionMessage}</div> : null}
         {inventory && inventory.errors.length > 0 ? (
           <div className="dialog-card__status dialog-card__status--warning" data-testid="plugin-manager-errors">
             <div>Some plugin manifests could not be loaded.</div>
@@ -157,6 +193,23 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
                       <StatusPill item={selectedItem} />
                     </div>
                     <p>{selectedItem.description}</p>
+                    {actionAvailability ? (
+                      <div className="plugin-manager__actions" data-testid="plugin-manager-actions">
+                        {actionAvailability.actions.map((action) => (
+                          <PluginActionButton
+                            action={action}
+                            disabled={pendingAction !== null}
+                            isPending={pendingAction === `${selectedItem.pluginId ?? selectedItem.id}:${action}`}
+                            item={selectedItem}
+                            key={action}
+                            onRun={runPluginAction}
+                          />
+                        ))}
+                        {actionAvailability.actions.length === 0 ? (
+                          <small>{actionAvailability.reason}</small>
+                        ) : null}
+                      </div>
+                    ) : null}
                     {detailSections.map((section) => (
                       <section className="plugin-manager__detail-section" key={section.id}>
                         <h4>{section.label}</h4>
@@ -239,6 +292,41 @@ function PluginInventoryRow({
   );
 }
 
+function PluginActionButton({
+  action,
+  disabled,
+  isPending,
+  item,
+  onRun,
+}: {
+  action: PluginManagerAction;
+  disabled: boolean;
+  isPending: boolean;
+  item: PluginInventoryItem;
+  onRun: (item: PluginInventoryItem, action: PluginManagerAction) => void;
+}) {
+  const Icon = action === "trust" ? ShieldCheck : action === "enable" ? Power : PowerOff;
+  const label = action === "trust" ? "Trust" : action === "enable" ? "Enable" : "Disable";
+  const title = action === "trust"
+    ? "Trust this local plugin manifest"
+    : action === "enable"
+      ? "Enable this plugin"
+      : "Disable this plugin";
+  return (
+    <button
+      className={`plugin-manager__action plugin-manager__action--${action}`}
+      data-testid={`plugin-manager-action-${action}`}
+      disabled={disabled}
+      onClick={() => onRun(item, action)}
+      title={title}
+      type="button"
+    >
+      <Icon size={15} />
+      <span>{isPending ? "Working..." : label}</span>
+    </button>
+  );
+}
+
 function StatusPill({ item }: { item: PluginInventoryItem }) {
   const tone = !item.enabled
     ? "disabled"
@@ -248,4 +336,16 @@ function StatusPill({ item }: { item: PluginInventoryItem }) {
         ? "danger"
         : "ok";
   return <span className={`plugin-manager__status plugin-manager__status--${tone}`}>{item.statusLabel}</span>;
+}
+
+function pluginActionSuccessMessage(action: PluginManagerAction, item: PluginInventoryItem): string {
+  const pluginName = item.pluginName ?? item.label;
+  switch (action) {
+    case "trust":
+      return `${pluginName} trusted.`;
+    case "enable":
+      return `${pluginName} enabled.`;
+    case "disable":
+      return `${pluginName} disabled.`;
+  }
 }

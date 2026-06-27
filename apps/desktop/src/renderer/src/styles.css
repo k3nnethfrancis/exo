@@ -1843,6 +1843,52 @@ button svg,
   line-height: 1.45;
 }
 
+.plugin-manager__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.plugin-manager__actions small {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.plugin-manager__action {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 10px;
+  border: 1px solid var(--surface-border);
+  border-radius: 8px;
+  background: var(--surface-3);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.plugin-manager__action:hover:not(:disabled) {
+  border-color: var(--surface-border-strong);
+  background: var(--surface-hover);
+}
+
+.plugin-manager__action:disabled {
+  cursor: default;
+  opacity: 0.58;
+}
+
+.plugin-manager__action--trust,
+.plugin-manager__action--enable {
+  color: var(--accent-strong);
+  border-color: color-mix(in srgb, var(--accent-strong) 38%, var(--surface-border));
+}
+
+.plugin-manager__action--disable {
+  color: var(--danger-strong);
+  border-color: var(--danger-border);
+}
+
 .plugin-manager__detail-section {
   display: grid;
   gap: 8px;
@@ -2823,6 +2869,14 @@ select.dialog-card__input {
   border-radius: 8px;
   background: color-mix(in srgb, var(--accent) 9%, var(--surface-2));
   color: var(--text);
+}
+
+.dialog-card__status--success {
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--accent-strong) 34%, var(--divider));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent-strong) 8%, var(--surface-2));
+  color: var(--accent-strong);
 }
 
 .index-activity {

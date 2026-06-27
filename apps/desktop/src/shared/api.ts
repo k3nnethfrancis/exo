@@ -9,6 +9,7 @@ import type {
   NoteDocument,
   NoteKnowledge,
   PluginInventory,
+  PluginSource,
   SearchResult,
   TreeNode,
   WorkspaceModel,
@@ -232,6 +233,14 @@ export interface AgentSkillFileContent {
   body: string;
 }
 
+export interface WorkspacePluginActionInput {
+  pluginId: string;
+  capabilityId?: string;
+  source?: PluginSource;
+  manifestPath: string;
+  rootDirectory: string;
+}
+
 export interface IndexSyncStateEvent {
   state: "running" | "idle" | "error";
   reason: string;
@@ -264,6 +273,9 @@ export interface DesktopApi {
     getAgentInstructionConfig: () => Promise<AgentInstructionConfig>;
     listAgentHarnesses: () => Promise<AgentHarnessDetection[]>;
     listPluginInventory: () => Promise<PluginInventory>;
+    enablePlugin: (input: WorkspacePluginActionInput) => Promise<PluginInventory>;
+    disablePlugin: (input: WorkspacePluginActionInput) => Promise<PluginInventory>;
+    trustPlugin: (input: WorkspacePluginActionInput) => Promise<PluginInventory>;
     saveAgentInstructionConfig: (input: {
       scopeId: AgentInstructionScopeId;
       body: string;

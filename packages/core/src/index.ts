@@ -7,6 +7,7 @@ export * from "./branches";
 export * from "./plugin";
 export * from "./plugin-inventory";
 export * from "./plugin-locations";
+export * from "./plugin-management";
 export * from "./plugin-state";
 export * from "./profile";
 export * from "./profile-plan";

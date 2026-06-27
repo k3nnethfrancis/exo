@@ -27,6 +27,9 @@ export interface WorkspaceIpcHandlers {
   getRuntimeStatus: () => Promise<unknown> | unknown;
   getSettings: () => WorkspaceSettings;
   getSetupState: () => { complete: boolean; settingsPath: string };
+  enablePlugin: WorkspaceApi["enablePlugin"];
+  disablePlugin: WorkspaceApi["disablePlugin"];
+  trustPlugin: WorkspaceApi["trustPlugin"];
   listAgentHarnesses: WorkspaceApi["listAgentHarnesses"];
   listAgentInstructionOverlays: WorkspaceApi["listAgentInstructionOverlays"];
   listAgentSkills: WorkspaceApi["listAgentSkills"];
@@ -109,6 +112,9 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
   handleDesktopInvoke("workspace:get-agent-instruction-config", async () => handlers.getAgentInstructionConfig());
   handleDesktopInvoke("workspace:list-agent-harnesses", async () => handlers.listAgentHarnesses());
   handleDesktopInvoke("workspace:list-plugin-inventory", async () => handlers.listPluginInventory());
+  handleDesktopInvoke("workspace:enable-plugin", async (_event, input) => handlers.enablePlugin(input));
+  handleDesktopInvoke("workspace:disable-plugin", async (_event, input) => handlers.disablePlugin(input));
+  handleDesktopInvoke("workspace:trust-plugin", async (_event, input) => handlers.trustPlugin(input));
   handleDesktopInvoke("workspace:save-agent-instruction-config", async (_event, input) =>
     handlers.saveAgentInstructionConfig(input),
   );

@@ -12,6 +12,7 @@ import {
   pluginStateKey,
   readPluginStateStore,
   resolvePluginState,
+  upsertPluginStateRecord,
   writePluginStateStore,
 } from "../plugin-state";
 
@@ -98,6 +99,34 @@ describe("plugin state", () => {
     } finally {
       await rm(root, { recursive: true, force: true });
     }
+  });
+
+  it("upserts local policy by exact manifest identity", () => {
+    const plugin = discovered("hash-a");
+    const store = upsertPluginStateRecord(emptyPluginStateStore(), plugin, {
+      trust: "trusted",
+      enabled: true,
+      reviewedAt: "2026-06-27T00:00:00.000Z",
+    });
+
+    expect(resolvePluginState(plugin, store)).toMatchObject({
+      trust: "trusted",
+      enabled: true,
+      reviewRequired: false,
+      status: "available",
+    });
+    expect(resolvePluginState(discovered("hash-b"), store)).toMatchObject({
+      trust: "untrusted",
+      enabled: true,
+      reviewRequired: true,
+      status: "review-required",
+    });
+
+    const disabledStore = upsertPluginStateRecord(store, plugin, { enabled: false });
+    expect(resolvePluginState(plugin, disabledStore).record).toMatchObject({
+      reviewedAt: "2026-06-27T00:00:00.000Z",
+      enabled: false,
+    });
   });
 });
 

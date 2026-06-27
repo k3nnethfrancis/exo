@@ -88,6 +88,31 @@ export function applyPluginState(plugin: DiscoveredPlugin, store: PluginStateSto
   };
 }
 
+export function upsertPluginStateRecord(
+  store: PluginStateStore,
+  plugin: DiscoveredPlugin,
+  patch: {
+    trust?: PluginTrustState;
+    enabled?: boolean;
+    reviewedAt?: string | null;
+  },
+): PluginStateStore {
+  const identity = pluginStateIdentity(plugin);
+  const current = resolvePluginState(plugin, store);
+  const nextRecord: PluginStateRecord = {
+    ...identity,
+    trust: patch.trust ?? current.trust,
+    enabled: patch.enabled ?? current.enabled,
+    reviewedAt: patch.reviewedAt === undefined ? current.record?.reviewedAt : patch.reviewedAt === null ? undefined : patch.reviewedAt,
+  };
+  const nextKey = pluginStateKey(nextRecord);
+  const plugins = [
+    ...store.plugins.filter((record) => pluginStateKey(record) !== nextKey),
+    nextRecord,
+  ].sort((a, b) => `${a.source}:${a.pluginId}:${a.rootDirectory}`.localeCompare(`${b.source}:${b.pluginId}:${b.rootDirectory}`));
+  return validatePluginStateStore({ version: 1, plugins });
+}
+
 export function pluginStatePath(runtimeRoot: string): string {
   return path.join(runtimeRoot, EXO_PLUGIN_STATE_FILE);
 }
