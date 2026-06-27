@@ -79,6 +79,8 @@ import {
   suggestWikilinkTargetsFromTrees,
   wikilinkSuggestionEdit,
 } from "./graphAffordances";
+import { runToolSurfaceAction } from "./toolDockModel";
+import type { ToolSurfaceDescriptor } from "@exo/core/surface-descriptor";
 
 describe("desktop shell", () => {
   it("keeps a renderer test surface in place", () => {
@@ -554,6 +556,20 @@ function harness(id: ManagedAgentKind, launchable: boolean, overrides: Partial<A
   };
 }
 
+function toolSurfaceDescriptor(action: ToolSurfaceDescriptor["action"]): ToolSurfaceDescriptor {
+  return {
+    id: "test-tool",
+    label: "Test tool",
+    title: "Test tool",
+    kind: "toolDockPane",
+    placement: "toolDock",
+    owner: "localPlugin",
+    action,
+    enabled: true,
+    visible: true,
+  };
+}
+
 describe("terminal harness launchers", () => {
   it("shows launchers only for enabled launchable agent harnesses", () => {
     const launchable = launchableTerminalAgentHarnesses([
@@ -601,6 +617,22 @@ describe("terminal harness launchers", () => {
     expect(onCreateTerminal).toHaveBeenNthCalledWith(1, "shell");
     expect(onCreateTerminal).toHaveBeenNthCalledWith(2, "pi");
     expect(onOpenAgentConfigEditor).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("tool surface action dispatch", () => {
+  it("routes future plugin tool targets through the Plugin Manager until dedicated hosts exist", () => {
+    const onOpenPluginManager = vi.fn();
+
+    runToolSurfaceAction(toolSurfaceDescriptor({ type: "routineTemplate.open", routineTemplateId: "graph-health.template" }), {
+      onToggleTerminalCollapsed: vi.fn(),
+      onToggleSidePanes: vi.fn(),
+      onOpenAgentConfigEditor: vi.fn(),
+      onOpenPluginManager,
+      onCreateTerminal: vi.fn(),
+    });
+
+    expect(onOpenPluginManager).toHaveBeenCalledTimes(1);
   });
 });
 

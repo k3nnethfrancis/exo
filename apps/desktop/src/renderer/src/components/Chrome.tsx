@@ -6,6 +6,7 @@ interface RailButtonProps {
   children: ReactNode;
   testId?: string;
   className?: string;
+  disabled?: boolean;
 }
 
 interface ChromeTabProps {
@@ -28,11 +29,12 @@ interface ChromeTabProps {
 }
 
 export function RailButton(props: RailButtonProps) {
-  const { title, onClick, children, testId, className } = props;
+  const { title, onClick, children, testId, className, disabled } = props;
   return (
     <button
       className={`appearance-toggle__button ${className ?? ""}`.trim()}
       data-testid={testId}
+      disabled={disabled}
       onClick={onClick}
       title={title}
       type="button"

@@ -202,6 +202,7 @@ Already aligned:
 - capability metadata registry exists in `@exo/core`
 - QMD sits behind a search-provider contract
 - shell/Claude/Codex/Pi/Hermes launch planning sits behind an agent-harness contract
+- the desktop right rail/tool dock has a first typed descriptor layer for core terminal actions, official harness launchers, Agent Config, Plugin Manager, side-pane controls, and future routine/graph plugin targets
 - first-pass Routine, Run, artifact, trace, and routine-template primitives exist in core, but the target boundary should keep rich automation semantics plugin-owned
 - plugin manifests are metadata-only and non-executable
 - command server, CLI, and MCP share core protocol types
@@ -209,7 +210,7 @@ Already aligned:
 
 Not yet aligned:
 
-- renderer still has a hardwired terminal rail instead of a plugin/tool dock
+- renderer still mounts a terminal-named rail/dock component, even though its actions now pass through typed tool surface descriptors
 - settings are organized as fixed product tabs rather than core plus plugin-owned settings sections
 - terminal launch controls are partly hardwired UI even though harness metadata exists
 - current Routine/Run naming risks implying a larger core automation product than the target substrate requires

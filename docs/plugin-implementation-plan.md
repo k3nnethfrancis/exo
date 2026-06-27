@@ -303,7 +303,7 @@ Only after registry contracts survive built-in migrations, define how capabiliti
 
 MCP exposure must remain narrow and agent-safe. CLI remains the broad operator/admin/debug surface.
 
-Status: implemented as a policy-level contract. Capabilities can describe intended surfaces and surface policies can validate desktop, CLI, MCP, command-server, and internal exposure. No public command/tool registration API exists yet.
+Status: policy-level contract plus first desktop tool descriptor slice implemented. Capabilities can describe intended surfaces and surface policies can validate desktop, CLI, MCP, command-server, and internal exposure. The desktop right rail/tool dock now has typed descriptors for current core/official actions and future routine-template/graph-visualization tool targets, but descriptor metadata is still not authorization and no public command/tool registration API exists yet.
 
 ## Phase 7: Local Plugin Manifest V0
 

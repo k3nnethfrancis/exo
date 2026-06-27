@@ -230,6 +230,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Add Plugin Enablement v0: desktop Plugin Manager can trust, enable, and disable local/developer metadata plugins while keeping official/core rows read-only and without executing plugin code.
 - [x] Add Plugin Config v0 core state: metadata-only plugin settings schemas, JSON-backed overrides, validation, reset, and inventory summaries without executing plugin code.
 - [x] Add Plugin Config desktop UI in Plugin Manager so trusted/enabled local plugins can edit reviewed settings without bloating Workspace Settings.
+- [x] Add typed tool surface descriptors for the right rail/tool dock so terminal launchers, harness launchers, Agent Config, Plugin Manager, side-pane controls, and future routine/graph plugin surfaces are described before renderer callback wiring.
 
 ## Next: Multi-Agent Coordination
 

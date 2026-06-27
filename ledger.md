@@ -53,6 +53,7 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 
 ## Recent Completed Work
 
+- Added the first typed tool surface descriptor layer for the desktop right rail/tool dock: core now describes terminal dock toggles, core terminal launch, official harness launchers, Agent Config, Plugin Manager, side-pane controls, and future routine-template/graph-visualization tool targets, while the renderer maps descriptors to existing icons and callbacks without moving terminal runtime/rendering into plugins.
 - Added Plugin Config v0 desktop editing in the Plugin Manager: trusted/enabled local manifest plugins can read, edit, apply, and reset metadata-declared settings through Exo-rendered controls, while core/official rows and untrusted/disabled plugins remain non-editable and plugin code is still never executed for settings UI.
 - Added Plugin Enablement v0 in the desktop Plugin Manager: local/developer metadata plugin manifests can now be trusted, enabled, and disabled with state persisted under the Exo runtime root, while core/official plugin rows remain read-only and manifest discovery remains non-executable.
 - Added Plugin Config v0 core contracts: plugin manifests can declare typed metadata-only settings schemas, Exo persists JSON-backed local overrides in `plugin-settings.json`, validates effective settings, preserves config across manifest edits while requiring review, and exposes settings summaries in plugin inventory. Desktop editing UI is still a follow-up.

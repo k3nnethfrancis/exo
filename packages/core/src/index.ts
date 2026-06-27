@@ -28,6 +28,7 @@ export * from "./qmd";
 export * from "./capabilities";
 export * from "./capability-registry";
 export * from "./surface-policy";
+export * from "./surface-descriptor";
 export * from "./search-provider";
 export * from "./search-provider-registry";
 export * from "./command-protocol";

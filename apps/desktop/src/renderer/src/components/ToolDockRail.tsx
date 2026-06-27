@@ -8,6 +8,7 @@ export interface ToolDockAction {
   icon: ReactNode;
   onSelect: () => void;
   testId?: string;
+  disabled?: boolean;
 }
 
 export type ToolDockRailPlacement = "right" | "bottom";
@@ -51,6 +52,7 @@ export function ToolDockActionButtons({ actions }: { actions: ToolDockAction[] }
           testId={action.testId}
           onClick={action.onSelect}
           title={action.title}
+          disabled={action.disabled}
         >
           {action.icon}
         </RailButton>
