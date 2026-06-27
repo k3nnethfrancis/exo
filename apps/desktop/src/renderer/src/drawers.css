@@ -277,11 +277,6 @@
   pointer-events: auto;
 }
 
-.floating-panel--editor {
-  left: 16px;
-  bottom: 16px;
-}
-
 .floating-panel--terminal {
   bottom: 12px;
   left: 12px;
@@ -339,10 +334,6 @@
     0 24px 64px rgba(0, 0, 0, 0.18);
 }
 
-.floating-panel__surface--inspector {
-  width: min(720px, calc(100vw - 120px));
-}
-
 .floating-panel__surface--subagents {
   width: min(360px, calc(100vw - 120px));
 }
@@ -392,10 +383,6 @@
 .floating-panel__body {
   min-height: 0;
   overflow: auto;
-}
-
-.editor-area__main > .floating-panel--editor {
-  position: absolute;
 }
 
 .terminal-dock__content > .floating-panel--terminal {
