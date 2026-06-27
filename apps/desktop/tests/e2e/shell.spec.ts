@@ -141,6 +141,75 @@ test("opens the plugin manager inventory and keeps official rows read-only", asy
   await cleanup();
 });
 
+test("trusts, edits, and resets workspace plugin settings from Plugin Manager", async () => {
+  const { page, runtimeRoot, cleanup } = await launchExoFixture({
+    mutable: true,
+    prepareWorkspace: async (workspaceRoot) => {
+      const pluginRoot = path.join(workspaceRoot, ".exo/plugins/settings-plugin");
+      await mkdir(pluginRoot, { recursive: true });
+      await writeFile(
+        path.join(pluginRoot, "exo.plugin.json"),
+        JSON.stringify({
+          id: "settings-plugin",
+          name: "Settings Plugin",
+          version: "0.0.1",
+          exoApiVersion: "0.1",
+          capabilities: [{
+            id: "settings-plugin.template",
+            kind: "routineTemplate",
+            label: "Settings Plugin",
+            description: "Fixture plugin with editable settings.",
+            lifecycle: "experimental",
+            owner: "settings-plugin",
+            surfaces: ["desktop"],
+            permissions: ["workspace:read"],
+          }],
+          permissions: ["workspace:read"],
+          surfaces: ["desktop"],
+          settingsSchema: {
+            version: 1,
+            sections: [{ id: "general", label: "General", fields: ["enabled", "name", "limit", "mode"] }],
+            fields: [
+              { id: "enabled", label: "Enabled", type: "boolean", default: true },
+              { id: "name", label: "Name", type: "string", default: "daily" },
+              { id: "limit", label: "Limit", type: "number", default: 3 },
+              { id: "mode", label: "Mode", type: "select", default: "safe", options: [{ value: "safe", label: "Safe" }, { value: "fast", label: "Fast" }] },
+            ],
+          },
+        }, null, 2),
+        "utf8",
+      );
+    },
+  });
+
+  await page.getByTestId("open-plugin-manager").click();
+  await page.getByTestId("plugin-manager-category-routineTemplate").click();
+  await page.getByTestId("plugin-inventory-item-settings-plugin.template").click();
+  await expect(page.getByTestId("plugin-manager-settings")).toBeVisible();
+  await expect(page.getByTestId("plugin-manager-settings")).toContainText("Trust this local plugin");
+  await page.getByTestId("plugin-manager-action-trust").click();
+  await expect(page.getByTestId("plugin-manager-settings")).toContainText("Settings can be edited");
+
+  await page.getByTestId("plugin-setting-enabled").setChecked(false);
+  await page.getByTestId("plugin-setting-name").fill("nightly");
+  await page.getByTestId("plugin-setting-limit").fill("10");
+  await page.getByTestId("plugin-setting-mode").selectOption("fast");
+  await page.getByTestId("plugin-manager-settings-apply").click();
+  await expect(page.getByTestId("plugin-manager-settings")).toContainText("Plugin settings applied.");
+  await expect.poll(async () => JSON.parse(await readFile(path.join(runtimeRoot, "plugin-settings.json"), "utf8")).plugins[0].values).toEqual({
+    enabled: false,
+    limit: 10,
+    mode: "fast",
+    name: "nightly",
+  });
+
+  await page.getByTestId("plugin-manager-settings-reset").click();
+  await expect(page.getByTestId("plugin-manager-settings")).toContainText("Plugin settings reset to defaults.");
+  await expect.poll(async () => JSON.parse(await readFile(path.join(runtimeRoot, "plugin-settings.json"), "utf8")).plugins[0].values).toEqual({});
+
+  await cleanup();
+});
+
 test("boots the shell, opens notes, and manages terminal tabs", async () => {
   const { page, cleanup } = await launchExoFixture();
 

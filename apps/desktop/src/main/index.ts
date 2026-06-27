@@ -12,22 +12,27 @@ import {
   listRootTree,
   listPluginInventory,
   applyPluginStateAction,
+  discoverManagedPlugins,
   readIndexDocument,
+  readManagedPluginSettings,
   readWorkspaceDocument,
   renameWorkspacePath,
+  resetManagedPluginSettings,
   resolveRuntimeConfig,
   resolveWorkspaceModel,
   saveWorkspaceDocument,
   searchIndex,
   searchNotes,
   searchWorkspace,
+  updateManagedPluginSettings,
+  type DiscoveredPlugin,
   type ManagedAgentKind,
   type PluginStateAction,
   type WorkspaceModel,
   type WorkspaceSettings,
 } from "@exo/core";
 
-import type { WorkspacePluginActionInput } from "../shared/api";
+import type { WorkspacePluginActionInput, WorkspacePluginSettingsInput } from "../shared/api";
 import type { DesktopEventChannel, DesktopEventPayloads } from "../shared/desktop-ipc";
 import { AgentInstructionsService } from "./agent-instructions-service";
 import { AgentSkillsService } from "./agent-skills-service";
@@ -322,6 +327,9 @@ function registerIpcHandlers() {
     enablePlugin: (input) => updatePluginState("enable", input),
     disablePlugin: (input) => updatePluginState("disable", input),
     trustPlugin: (input) => updatePluginState("trust", input),
+    readPluginSettings: (input) => readPluginSettings(input),
+    updatePluginSettings: (input) => updatePluginSettings(input),
+    resetPluginSettings: (input) => resetPluginSettings(input),
     getBranchFamily: (filePath) => workspaceNotesService.getBranchFamily(filePath),
     getGitStatus: (rootPath) => projectReviewService.getGitStatus(rootPath),
     getIndexStatus: () => indexingService.getMeasuredStatus(),
@@ -397,6 +405,91 @@ async function updatePluginState(
     env: pluginDiscoveryEnv(),
   });
   return readPluginInventory();
+}
+
+async function readPluginSettings(input: WorkspacePluginActionInput) {
+  const options = pluginSettingsOptions(input);
+  const result = await readManagedPluginSettings(options);
+  return {
+    ...result,
+    schema: await requirePluginSettingsSchema(input),
+    inventory: await readPluginInventory(),
+  };
+}
+
+async function updatePluginSettings(input: WorkspacePluginSettingsInput) {
+  const options = pluginSettingsOptions(input);
+  const schema = await requireMutablePluginSettingsSchema(input);
+  const result = await updateManagedPluginSettings({
+    ...options,
+    values: input.values ?? {},
+  });
+  return {
+    ...result,
+    schema,
+    inventory: await readPluginInventory(),
+  };
+}
+
+async function resetPluginSettings(input: WorkspacePluginActionInput) {
+  const options = pluginSettingsOptions(input);
+  const schema = await requireMutablePluginSettingsSchema(input);
+  const result = await resetManagedPluginSettings(options);
+  return {
+    ...result,
+    schema,
+    inventory: await readPluginInventory(),
+  };
+}
+
+function pluginSettingsOptions(input: WorkspacePluginActionInput) {
+  return {
+    workspaceRoot: workspaceModel.workspaceRoot,
+    runtimeRoot: terminalManager.getRuntimeConfig().runtimeRoot,
+    pluginId: input.capabilityId ?? input.pluginId,
+    source: input.source,
+    manifestPath: input.manifestPath,
+    rootDirectory: input.rootDirectory,
+    env: pluginDiscoveryEnv(),
+  };
+}
+
+async function requirePluginSettingsSchema(input: WorkspacePluginActionInput) {
+  const plugin = await requirePluginSettingsManifest(input);
+  if (!plugin.manifest.settingsSchema || plugin.manifest.settingsSchema.fields.length === 0) {
+    throw new Error(`Plugin does not declare settings: ${input.pluginId}`);
+  }
+  return plugin.manifest.settingsSchema;
+}
+
+async function requireMutablePluginSettingsSchema(input: WorkspacePluginActionInput) {
+  const plugin = await requirePluginSettingsManifest(input);
+  if (plugin.source === "built-in") {
+    throw new Error(`Official plugin settings are read-only in Plugin Config v0: ${plugin.manifest.id}`);
+  }
+  if (!plugin.manifest.settingsSchema || plugin.manifest.settingsSchema.fields.length === 0) {
+    throw new Error(`Plugin does not declare settings: ${input.pluginId}`);
+  }
+  return plugin.manifest.settingsSchema;
+}
+
+async function requirePluginSettingsManifest(input: WorkspacePluginActionInput) {
+  const plugins = await discoverManagedPlugins({
+    workspaceRoot: workspaceModel.workspaceRoot,
+    env: pluginDiscoveryEnv(),
+  });
+  const plugin = plugins.find((candidate) => matchesPluginSettingsInput(candidate, input));
+  if (!plugin) {
+    throw new Error(`Plugin not found: ${input.pluginId}`);
+  }
+  return plugin;
+}
+
+function matchesPluginSettingsInput(plugin: DiscoveredPlugin, input: WorkspacePluginActionInput): boolean {
+  return (plugin.manifest.id === input.pluginId || plugin.manifest.capabilities.some((capability) => capability.id === input.capabilityId))
+    && (!input.source || plugin.source === input.source)
+    && plugin.manifestPath === input.manifestPath
+    && plugin.rootDirectory === input.rootDirectory;
 }
 
 function pluginDiscoveryEnv(): NodeJS.ProcessEnv {

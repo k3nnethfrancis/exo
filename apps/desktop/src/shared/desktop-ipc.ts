@@ -29,6 +29,9 @@ export interface DesktopInvokeHandlers {
   "workspace:enable-plugin": WorkspaceApi["enablePlugin"];
   "workspace:disable-plugin": WorkspaceApi["disablePlugin"];
   "workspace:trust-plugin": WorkspaceApi["trustPlugin"];
+  "workspace:read-plugin-settings": WorkspaceApi["readPluginSettings"];
+  "workspace:update-plugin-settings": WorkspaceApi["updatePluginSettings"];
+  "workspace:reset-plugin-settings": WorkspaceApi["resetPluginSettings"];
   "workspace:save-agent-instruction-config": WorkspaceApi["saveAgentInstructionConfig"];
   "workspace:list-agent-instruction-overlays": WorkspaceApi["listAgentInstructionOverlays"];
   "workspace:list-agent-skills": WorkspaceApi["listAgentSkills"];

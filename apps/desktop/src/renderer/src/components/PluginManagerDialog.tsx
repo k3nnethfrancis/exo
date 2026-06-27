@@ -1,15 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
-import type { PluginInventory, PluginInventoryItem } from "@exo/core";
-import { Power, PowerOff, ShieldCheck, X } from "lucide-react";
+import type { PluginInventory, PluginInventoryItem, PluginSettingField, PluginSettingsSchema, ResolvedPluginSettings } from "@exo/core";
+import { Power, PowerOff, RotateCcw, Save, ShieldCheck, X } from "lucide-react";
 
 import {
   buildPluginCategoryFilters,
   buildPluginDetailSections,
+  createPluginSettingsDraft,
   filterPluginInventoryItems,
+  pluginSettingsAvailability,
+  pluginSettingsValuesFromDraft,
   pluginActionAvailability,
   pluginActionInput,
   type PluginManagerAction,
+  type PluginSettingsDraft,
 } from "../pluginManagerModel";
+import type { WorkspacePluginSettingsResponse } from "../../../shared/api";
 
 interface PluginManagerDialogProps {
   onClose: () => void;
@@ -21,6 +26,11 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
+  const [settingsState, setSettingsState] = useState<"idle" | "loading" | "error">("idle");
+  const [settingsResponse, setSettingsResponse] = useState<WorkspacePluginSettingsResponse | null>(null);
+  const [settingsDraft, setSettingsDraft] = useState<PluginSettingsDraft>({});
+  const [settingsMessage, setSettingsMessage] = useState<string | null>(null);
+  const [pendingSettingsAction, setPendingSettingsAction] = useState<"apply" | "reset" | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState("core");
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
 
@@ -66,7 +76,48 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
     () => selectedItem ? pluginActionAvailability(selectedItem) : null,
     [selectedItem],
   );
+  const settingsAvailability = useMemo(
+    () => selectedItem ? pluginSettingsAvailability(selectedItem) : null,
+    [selectedItem],
+  );
+  const selectedSettingsKey = selectedItem
+    ? `${selectedItem.pluginId ?? selectedItem.id}:${selectedItem.pluginSource ?? selectedItem.source}:${selectedItem.manifestPath ?? ""}:${selectedItem.rootDirectory ?? ""}`
+    : "";
   const detailHeadingId = selectedItem ? `plugin-manager-detail-heading-${selectedItem.id}` : undefined;
+
+  useEffect(() => {
+    let cancelled = false;
+    setSettingsResponse(null);
+    setSettingsDraft({});
+    setSettingsMessage(null);
+    setSettingsState("idle");
+
+    if (!selectedItem || !settingsAvailability?.canRead) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setSettingsState("loading");
+    window.exo.workspace.readPluginSettings(pluginActionInput(selectedItem))
+      .then((response) => {
+        if (!cancelled) {
+          setSettingsResponse(response);
+          setSettingsDraft(createPluginSettingsDraft(response.schema, response.settings));
+          setSettingsState("idle");
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setSettingsState("error");
+          setSettingsMessage(error instanceof Error ? error.message : String(error));
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedSettingsKey, settingsAvailability?.canRead]);
 
   function selectCategory(categoryId: string) {
     setSelectedCategoryId(categoryId);
@@ -94,6 +145,48 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
       setLoadState("error");
     } finally {
       setPendingAction(null);
+    }
+  }
+
+  async function applyPluginSettings(item: PluginInventoryItem, schema: PluginSettingsSchema) {
+    setPendingSettingsAction("apply");
+    setSettingsMessage(null);
+    setErrorMessage(null);
+    try {
+      const values = pluginSettingsValuesFromDraft(schema, settingsDraft);
+      const response = await window.exo.workspace.updatePluginSettings({
+        ...pluginActionInput(item),
+        values,
+      });
+      setInventory(response.inventory);
+      setSettingsResponse(response);
+      setSettingsDraft(createPluginSettingsDraft(response.schema, response.settings));
+      setSettingsState("idle");
+      setSettingsMessage("Plugin settings applied.");
+    } catch (error) {
+      setSettingsState("error");
+      setSettingsMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setPendingSettingsAction(null);
+    }
+  }
+
+  async function resetPluginSettings(item: PluginInventoryItem) {
+    setPendingSettingsAction("reset");
+    setSettingsMessage(null);
+    setErrorMessage(null);
+    try {
+      const response = await window.exo.workspace.resetPluginSettings(pluginActionInput(item));
+      setInventory(response.inventory);
+      setSettingsResponse(response);
+      setSettingsDraft(createPluginSettingsDraft(response.schema, response.settings));
+      setSettingsState("idle");
+      setSettingsMessage("Plugin settings reset to defaults.");
+    } catch (error) {
+      setSettingsState("error");
+      setSettingsMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setPendingSettingsAction(null);
     }
   }
 
@@ -223,6 +316,22 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
                         </dl>
                       </section>
                     ))}
+                    {settingsAvailability?.visible ? (
+                      <PluginSettingsSection
+                        availabilityReason={settingsAvailability.reason}
+                        draft={settingsDraft}
+                        editable={settingsAvailability.editable && settingsState !== "loading"}
+                        item={selectedItem}
+                        message={settingsMessage}
+                        onApply={applyPluginSettings}
+                        onDraftChange={(fieldId, value) => setSettingsDraft((current) => ({ ...current, [fieldId]: value }))}
+                        onReset={resetPluginSettings}
+                        pendingAction={pendingSettingsAction}
+                        schema={settingsResponse?.schema ?? null}
+                        settings={settingsResponse?.settings ?? null}
+                        state={settingsState}
+                      />
+                    ) : null}
                   </>
                 ) : (
                   <p>Select a plugin or core surface to inspect.</p>
@@ -234,6 +343,182 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
       </div>
     </div>
   );
+}
+
+export function PluginSettingsSection({
+  availabilityReason,
+  draft,
+  editable,
+  item,
+  message,
+  onApply,
+  onDraftChange,
+  onReset,
+  pendingAction,
+  schema,
+  settings,
+  state,
+}: {
+  availabilityReason: string;
+  draft: PluginSettingsDraft;
+  editable: boolean;
+  item: PluginInventoryItem;
+  message: string | null;
+  onApply: (item: PluginInventoryItem, schema: PluginSettingsSchema) => void;
+  onDraftChange: (fieldId: string, value: boolean | string) => void;
+  onReset: (item: PluginInventoryItem) => void;
+  pendingAction: "apply" | "reset" | null;
+  schema: PluginSettingsSchema | null;
+  settings: ResolvedPluginSettings | null;
+  state: "idle" | "loading" | "error";
+}) {
+  const canEdit = editable && Boolean(schema);
+  return (
+    <section className="plugin-manager__settings" data-testid="plugin-manager-settings">
+      <div className="plugin-manager__settings-header">
+        <h4>Settings</h4>
+        {settings ? (
+          <span>
+            {settings.configuredCount} of {settings.fieldCount} configured
+          </span>
+        ) : null}
+      </div>
+      <p>{availabilityReason}</p>
+      {state === "loading" ? <p>Loading plugin settings...</p> : null}
+      {message ? (
+        <div className={`plugin-manager__settings-message ${state === "error" ? "plugin-manager__settings-message--error" : ""}`}>
+          {message}
+        </div>
+      ) : null}
+      {settings?.validationErrors.length ? (
+        <div className="plugin-manager__settings-message plugin-manager__settings-message--error">
+          {settings.validationErrors.join(" ")}
+        </div>
+      ) : null}
+      {settings?.configReviewRequired ? (
+        <div className="plugin-manager__settings-message plugin-manager__settings-message--warning">
+          The manifest changed after these settings were saved. Review values before applying changes.
+        </div>
+      ) : null}
+      {schema ? (
+        <div className="plugin-manager__settings-fields">
+          {settingsFieldsBySection(schema).map((section) => (
+            <div className="plugin-manager__settings-group" key={section.id}>
+              {section.label ? <div className="plugin-manager__settings-group-title">{section.label}</div> : null}
+              {section.description ? <p>{section.description}</p> : null}
+              {section.fields.map((field) => (
+                <PluginSettingsFieldControl
+                  disabled={!canEdit || pendingAction !== null}
+                  draft={draft}
+                  field={field}
+                  key={field.id}
+                  onDraftChange={onDraftChange}
+                />
+              ))}
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {schema ? (
+        <div className="plugin-manager__settings-actions">
+          <button
+            className="plugin-manager__action plugin-manager__action--enable"
+            data-testid="plugin-manager-settings-apply"
+            disabled={!canEdit || pendingAction !== null}
+            onClick={() => onApply(item, schema)}
+            type="button"
+          >
+            <Save size={14} />
+            {pendingAction === "apply" ? "Applying..." : "Apply"}
+          </button>
+          <button
+            className="plugin-manager__action"
+            data-testid="plugin-manager-settings-reset"
+            disabled={!canEdit || pendingAction !== null}
+            onClick={() => onReset(item)}
+            type="button"
+          >
+            <RotateCcw size={14} />
+            {pendingAction === "reset" ? "Resetting..." : "Reset"}
+          </button>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function PluginSettingsFieldControl({
+  disabled,
+  draft,
+  field,
+  onDraftChange,
+}: {
+  disabled: boolean;
+  draft: PluginSettingsDraft;
+  field: PluginSettingField;
+  onDraftChange: (fieldId: string, value: boolean | string) => void;
+}) {
+  const value = draft[field.id];
+  return (
+    <label className={`plugin-manager__settings-field plugin-manager__settings-field--${field.type}`}>
+      <span>
+        <strong>{field.label}</strong>
+        {field.description ? <small>{field.description}</small> : null}
+      </span>
+      {field.type === "boolean" ? (
+        <input
+          checked={value === true}
+          data-testid={`plugin-setting-${field.id}`}
+          disabled={disabled}
+          onChange={(event) => onDraftChange(field.id, event.currentTarget.checked)}
+          type="checkbox"
+        />
+      ) : field.type === "select" ? (
+        <select
+          data-testid={`plugin-setting-${field.id}`}
+          disabled={disabled}
+          onChange={(event) => onDraftChange(field.id, event.currentTarget.value)}
+          value={typeof value === "string" ? value : ""}
+        >
+          {field.options.map((option) => (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          ))}
+        </select>
+      ) : (
+        <input
+          data-testid={`plugin-setting-${field.id}`}
+          disabled={disabled}
+          onChange={(event) => onDraftChange(field.id, event.currentTarget.value)}
+          type={field.type === "number" ? "number" : "text"}
+          value={typeof value === "string" ? value : ""}
+        />
+      )}
+    </label>
+  );
+}
+
+function settingsFieldsBySection(schema: PluginSettingsSchema): Array<{
+  id: string;
+  label?: string;
+  description?: string;
+  fields: PluginSettingField[];
+}> {
+  const fieldsById = new Map(schema.fields.map((field) => [field.id, field]));
+  if (!schema.sections?.length) {
+    return [{ id: "default", fields: schema.fields }];
+  }
+  const seen = new Set<string>();
+  const sections = schema.sections.map((section) => {
+    const fields = (section.fields ?? [])
+      .map((fieldId) => fieldsById.get(fieldId))
+      .filter((field): field is PluginSettingField => Boolean(field));
+    for (const field of fields) {
+      seen.add(field.id);
+    }
+    return { ...section, fields };
+  }).filter((section) => section.fields.length > 0);
+  const unsectioned = schema.fields.filter((field) => !seen.has(field.id));
+  return unsectioned.length ? [...sections, { id: "other", label: "Other", fields: unsectioned }] : sections;
 }
 
 function SummaryTile({ label, value }: { label: string; value: number }) {

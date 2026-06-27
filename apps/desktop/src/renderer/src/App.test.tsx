@@ -3,7 +3,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { EditorState } from "@codemirror/state";
-import type { AgentHarnessDetection, ManagedAgentKind, NoteKnowledge, PluginInventory, PluginInventoryItem, TreeNode, WorkspaceModel } from "@exo/core";
+import { renderToStaticMarkup } from "react-dom/server";
+import type { AgentHarnessDetection, ManagedAgentKind, NoteKnowledge, PluginInventory, PluginInventoryItem, PluginSettingsSchema, ResolvedPluginSettings, TreeNode, WorkspaceModel } from "@exo/core";
 
 import {
   DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS,
@@ -48,11 +49,15 @@ import { isReconnectableSession, isTerminalInputEnabled, terminalSessionsEqual }
 import {
   buildPluginCategoryFilters,
   buildPluginDetailSections,
+  createPluginSettingsDraft,
   filterPluginInventoryItems,
   groupPluginInventoryItems,
   pluginActionAvailability,
   pluginActionInput,
+  pluginSettingsAvailability,
+  pluginSettingsValuesFromDraft,
 } from "./pluginManagerModel";
+import { PluginSettingsSection } from "./components/PluginManagerDialog";
 import { applyTheme } from "./theme/applyTheme";
 import { contrastRatio } from "./theme/contrast";
 import { THEME_FAMILIES, resolveTheme } from "./theme/registry";
@@ -336,6 +341,136 @@ describe("plugin manager model", () => {
       rootDirectory: "/workspace/.exo/plugins/graph-health",
     });
   });
+
+  it("allows plugin settings editing only for trusted enabled mutable local manifests", () => {
+    const baseSettings = {
+      hasSettings: true,
+      fieldCount: 2,
+      configuredCount: 1,
+      reviewRequired: false,
+      configReviewRequired: false,
+      validationErrors: [],
+    };
+    const trusted = {
+      ...pluginInventoryItem("dev-health.template", "Dev Health", "routineTemplate", "Routine templates", "localManifest"),
+      enabled: true,
+      trust: "trusted" as const,
+      pluginId: "dev-health.plugin",
+      pluginSource: "dev" as const,
+      manifestPath: "/dev/plugins/health/exo.plugin.json",
+      rootDirectory: "/dev/plugins/health",
+      settings: baseSettings,
+    };
+    const untrusted = { ...trusted, trust: "untrusted" as const };
+    const disabled = { ...trusted, enabled: false };
+    const noSchema = { ...trusted, settings: { ...baseSettings, hasSettings: false, fieldCount: 0 } };
+    const official = pluginInventoryItem("qmd", "QMD", "searchProvider", "Search providers", "bundled");
+
+    expect(pluginSettingsAvailability(trusted)).toMatchObject({ visible: true, editable: true, canRead: true });
+    expect(pluginSettingsAvailability(untrusted)).toMatchObject({
+      visible: true,
+      editable: false,
+      canRead: false,
+      reason: "Trust this local plugin before editing its settings.",
+    });
+    expect(pluginSettingsAvailability(disabled)).toMatchObject({
+      visible: true,
+      editable: false,
+      canRead: false,
+      reason: "Enable this plugin before editing its settings.",
+    });
+    expect(pluginSettingsAvailability(noSchema)).toMatchObject({
+      visible: true,
+      editable: false,
+      canRead: false,
+      reason: "This plugin manifest does not declare configurable settings.",
+    });
+    expect(pluginSettingsAvailability(official)).toMatchObject({ visible: false, editable: false, canRead: false });
+  });
+
+  it("converts plugin settings drafts through simple host-owned controls", () => {
+    const schema: PluginSettingsSchema = {
+      version: 1,
+      fields: [
+        { id: "enabled", label: "Enabled", type: "boolean", default: true },
+        { id: "name", label: "Name", type: "string", default: "daily" },
+        { id: "limit", label: "Limit", type: "number", default: 3 },
+        { id: "mode", label: "Mode", type: "select", default: "safe", options: [{ value: "safe", label: "Safe" }, { value: "fast", label: "Fast" }] },
+      ],
+    };
+    const settings = resolvedPluginSettings({
+      values: { enabled: false, name: "weekly", limit: 8, mode: "fast" },
+    });
+    const draft = createPluginSettingsDraft(schema, settings);
+
+    expect(draft).toEqual({ enabled: false, name: "weekly", limit: "8", mode: "fast" });
+    expect(pluginSettingsValuesFromDraft(schema, { enabled: true, name: "nightly", limit: "10", mode: "safe" })).toEqual({
+      enabled: true,
+      name: "nightly",
+      limit: 10,
+      mode: "safe",
+    });
+    expect(() => pluginSettingsValuesFromDraft(schema, { enabled: true, name: "nightly", limit: "many", mode: "safe" })).toThrow("Limit must be a number.");
+  });
+
+  it("renders plugin settings controls without executing plugin-rendered UI", () => {
+    const schema: PluginSettingsSchema = {
+      version: 1,
+      sections: [{ id: "general", label: "General", fields: ["enabled", "mode", "limit", "label"] }],
+      fields: [
+        { id: "enabled", label: "Enabled", type: "boolean", default: true },
+        { id: "mode", label: "Mode", type: "select", default: "safe", options: [{ value: "safe", label: "Safe" }, { value: "fast", label: "Fast" }] },
+        { id: "limit", label: "Limit", type: "number", default: 5 },
+        { id: "label", label: "Label", type: "string", default: "Daily" },
+      ],
+    };
+    const item = {
+      ...pluginInventoryItem("dev-health.template", "Dev Health", "routineTemplate", "Routine templates", "localManifest"),
+      pluginId: "dev-health.plugin",
+      pluginSource: "dev" as const,
+      manifestPath: "/dev/plugins/health/exo.plugin.json",
+      rootDirectory: "/dev/plugins/health",
+    };
+    const html = renderToStaticMarkup(
+      <PluginSettingsSection
+        availabilityReason="Settings can be edited for trusted and enabled local or developer plugins."
+        draft={{ enabled: true, mode: "fast", limit: "9", label: "Nightly" }}
+        editable={true}
+        item={item}
+        message={null}
+        onApply={vi.fn()}
+        onDraftChange={vi.fn()}
+        onReset={vi.fn()}
+        pendingAction={null}
+        schema={schema}
+        settings={resolvedPluginSettings({ fieldCount: 4, configuredCount: 2 })}
+        state="idle"
+      />,
+    );
+    const disabledHtml = renderToStaticMarkup(
+      <PluginSettingsSection
+        availabilityReason="Trust this local plugin before editing its settings."
+        draft={{ enabled: true, mode: "fast", limit: "9", label: "Nightly" }}
+        editable={false}
+        item={item}
+        message={null}
+        onApply={vi.fn()}
+        onDraftChange={vi.fn()}
+        onReset={vi.fn()}
+        pendingAction={null}
+        schema={schema}
+        settings={resolvedPluginSettings({ fieldCount: 4, configuredCount: 2 })}
+        state="idle"
+      />,
+    );
+
+    expect(html).toContain("type=\"checkbox\"");
+    expect(html).toContain("<select");
+    expect(html).toContain("type=\"number\"");
+    expect(html).toContain("type=\"text\"");
+    expect(html).toContain("plugin-manager-settings-apply");
+    expect(disabledHtml).toContain("disabled=\"\"");
+  });
 });
 
 function pluginInventoryItem(
@@ -383,6 +518,22 @@ function pluginInventory(items: PluginInventoryItem[]): PluginInventory {
       disabled: items.filter((item) => !item.enabled).length,
       untrusted: items.filter((item) => item.trust === "untrusted").length,
     },
+  };
+}
+
+function resolvedPluginSettings(overrides: Partial<ResolvedPluginSettings> = {}): ResolvedPluginSettings {
+  return {
+    pluginId: "dev-health.plugin",
+    hasSettings: true,
+    fieldCount: 0,
+    configuredCount: 0,
+    values: {},
+    defaults: {},
+    userValues: {},
+    reviewRequired: false,
+    configReviewRequired: false,
+    validationErrors: [],
+    ...overrides,
   };
 }
 

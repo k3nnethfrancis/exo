@@ -9,7 +9,10 @@ import type {
   NoteDocument,
   NoteKnowledge,
   PluginInventory,
+  PluginSettingsSchema,
+  PluginSettingValue,
   PluginSource,
+  ResolvedPluginSettings,
   SearchResult,
   TreeNode,
   WorkspaceModel,
@@ -241,6 +244,17 @@ export interface WorkspacePluginActionInput {
   rootDirectory: string;
 }
 
+export interface WorkspacePluginSettingsInput extends WorkspacePluginActionInput {
+  values?: Record<string, PluginSettingValue>;
+}
+
+export interface WorkspacePluginSettingsResponse {
+  pluginId: string;
+  schema: PluginSettingsSchema;
+  settings: ResolvedPluginSettings;
+  inventory: PluginInventory;
+}
+
 export interface IndexSyncStateEvent {
   state: "running" | "idle" | "error";
   reason: string;
@@ -276,6 +290,9 @@ export interface DesktopApi {
     enablePlugin: (input: WorkspacePluginActionInput) => Promise<PluginInventory>;
     disablePlugin: (input: WorkspacePluginActionInput) => Promise<PluginInventory>;
     trustPlugin: (input: WorkspacePluginActionInput) => Promise<PluginInventory>;
+    readPluginSettings: (input: WorkspacePluginActionInput) => Promise<WorkspacePluginSettingsResponse>;
+    updatePluginSettings: (input: WorkspacePluginSettingsInput) => Promise<WorkspacePluginSettingsResponse>;
+    resetPluginSettings: (input: WorkspacePluginActionInput) => Promise<WorkspacePluginSettingsResponse>;
     saveAgentInstructionConfig: (input: {
       scopeId: AgentInstructionScopeId;
       body: string;

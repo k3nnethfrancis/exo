@@ -1,4 +1,4 @@
-import type { PluginInventory, PluginInventoryItem } from "@exo/core";
+import type { PluginInventory, PluginInventoryItem, PluginSettingsSchema, PluginSettingValue, ResolvedPluginSettings } from "@exo/core";
 import type { WorkspacePluginActionInput } from "../../shared/api";
 
 export interface PluginInventoryGroup {
@@ -31,6 +31,15 @@ export interface PluginActionAvailability {
   reason: string;
   actions: PluginManagerAction[];
 }
+
+export interface PluginSettingsAvailability {
+  visible: boolean;
+  editable: boolean;
+  canRead: boolean;
+  reason: string;
+}
+
+export type PluginSettingsDraft = Record<string, boolean | string>;
 
 const SOURCE_ORDER: Record<PluginInventoryItem["source"], number> = {
   core: 0,
@@ -210,6 +219,98 @@ export function pluginActionInput(item: PluginInventoryItem): WorkspacePluginAct
     manifestPath: item.manifestPath,
     rootDirectory: item.rootDirectory,
   };
+}
+
+export function pluginSettingsAvailability(item: PluginInventoryItem): PluginSettingsAvailability {
+  if (item.source !== "localManifest" || item.distribution === "official" || !item.pluginId || !item.manifestPath || !item.rootDirectory) {
+    return {
+      visible: false,
+      editable: false,
+      canRead: false,
+      reason: "Plugin settings are available for local and developer manifests only.",
+    };
+  }
+  if (!item.settings?.hasSettings) {
+    return {
+      visible: true,
+      editable: false,
+      canRead: false,
+      reason: "This plugin manifest does not declare configurable settings.",
+    };
+  }
+  if (item.trust !== "trusted") {
+    return {
+      visible: true,
+      editable: false,
+      canRead: false,
+      reason: "Trust this local plugin before editing its settings.",
+    };
+  }
+  if (!item.enabled) {
+    return {
+      visible: true,
+      editable: false,
+      canRead: false,
+      reason: "Enable this plugin before editing its settings.",
+    };
+  }
+  const actionAvailability = pluginActionAvailability(item);
+  if (!actionAvailability.mutable) {
+    return {
+      visible: true,
+      editable: false,
+      canRead: true,
+      reason: actionAvailability.reason,
+    };
+  }
+  return {
+    visible: true,
+    editable: true,
+    canRead: true,
+    reason: "Settings can be edited for trusted and enabled local or developer plugins.",
+  };
+}
+
+export function createPluginSettingsDraft(
+  schema: PluginSettingsSchema,
+  settings: ResolvedPluginSettings,
+): PluginSettingsDraft {
+  const draft: PluginSettingsDraft = {};
+  for (const field of schema.fields) {
+    const value = settings.values[field.id] ?? "";
+    draft[field.id] = field.type === "boolean" ? value === true : String(value);
+  }
+  return draft;
+}
+
+export function pluginSettingsValuesFromDraft(
+  schema: PluginSettingsSchema,
+  draft: PluginSettingsDraft,
+): Record<string, PluginSettingValue> {
+  const values: Record<string, PluginSettingValue> = {};
+  for (const field of schema.fields) {
+    const rawValue = draft[field.id];
+    switch (field.type) {
+      case "boolean":
+        values[field.id] = rawValue === true;
+        break;
+      case "number": {
+        const parsed = Number(rawValue);
+        if (!Number.isFinite(parsed)) {
+          throw new Error(`${field.label} must be a number.`);
+        }
+        values[field.id] = parsed;
+        break;
+      }
+      case "select":
+        values[field.id] = typeof rawValue === "string" ? rawValue : "";
+        break;
+      case "string":
+        values[field.id] = typeof rawValue === "string" ? rawValue : "";
+        break;
+    }
+  }
+  return values;
 }
 
 function searchProviderDetailSections(item: PluginInventoryItem): PluginDetailSection[] {

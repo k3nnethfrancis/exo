@@ -253,15 +253,16 @@ This phase should be kept narrow. Avoid adding a broad core automation UI until 
 
 ## Phase 4.5: Plugin Config V0
 
-Status: core contract implemented. Plugin manifests can declare metadata-only
+Status: core contract and desktop editor implemented. Plugin manifests can declare metadata-only
 settings schemas with simple boolean, string, number, and select fields. Exo
 persists local overrides in `.exo/plugin-settings.json`, validates effective
 settings, preserves user configuration across manifest edits, and marks changed
 manifest configuration for review. Plugin inventory exposes settings summaries.
 
 This does not execute plugin code and does not add plugin-owned renderer
-components. The next step is desktop Plugin Manager editing UI over the core
-settings API.
+components. The desktop Plugin Manager renders the supported setting controls
+itself for trusted/enabled local manifest plugins and keeps core/official,
+untrusted, disabled, and schema-less plugins non-editable.
 
 ## Phase 5: External Reference Workload Contracts
 
