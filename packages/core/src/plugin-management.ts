@@ -1,10 +1,21 @@
 import {
   discoverPluginManifests,
   type DiscoveredPlugin,
+  isActivePlugin,
+  type PluginSettingValue,
 } from "./plugin";
 import { resolvePluginLocations, type PluginLocation } from "./plugin-locations";
 import {
+  readPluginSettingsStore,
+  resetPluginSettingsStore,
+  resolvePluginSettings,
+  updatePluginSettingsStore,
+  writePluginSettingsStore,
+  type ResolvedPluginSettings,
+} from "./plugin-settings";
+import {
   readPluginStateStore,
+  applyPluginState,
   resolvePluginState,
   upsertPluginStateRecord,
   writePluginStateStore,
@@ -33,6 +44,24 @@ export interface PluginStateActionOptions {
   now?: () => string;
 }
 
+export interface PluginSettingsActionOptions {
+  workspaceRoot: string;
+  runtimeRoot: string;
+  pluginId: string;
+  source?: DiscoveredPlugin["source"];
+  manifestPath?: string;
+  rootDirectory?: string;
+  values?: Record<string, PluginSettingValue>;
+  env?: Record<string, string | undefined>;
+  pluginDirectories?: PluginLocation[];
+  now?: () => string;
+}
+
+export interface PluginSettingsActionResult {
+  pluginId: string;
+  settings: ResolvedPluginSettings;
+}
+
 export async function applyPluginStateAction(options: PluginStateActionOptions): Promise<PluginStateActionResult> {
   const plugins = await discoverManagedPlugins(options);
   const plugin = findPlugin(plugins, options);
@@ -52,6 +81,37 @@ export async function applyPluginStateAction(options: PluginStateActionOptions):
     pluginId: plugin.manifest.id,
     capabilityIds: plugin.manifest.capabilities.map((capability) => capability.id),
     state: resolvePluginState(plugin, nextStore),
+  };
+}
+
+export async function updateManagedPluginSettings(options: PluginSettingsActionOptions): Promise<PluginSettingsActionResult> {
+  const plugin = await requireConfigurablePlugin(options);
+  const store = await readPluginSettingsStore(options.runtimeRoot);
+  const nextStore = updatePluginSettingsStore(store, plugin, options.values ?? {}, options.now?.() ?? new Date().toISOString());
+  await writePluginSettingsStore(options.runtimeRoot, nextStore);
+  return {
+    pluginId: plugin.manifest.id,
+    settings: resolvePluginSettings(plugin, nextStore),
+  };
+}
+
+export async function readManagedPluginSettings(options: Omit<PluginSettingsActionOptions, "values">): Promise<PluginSettingsActionResult> {
+  const plugin = await requireConfigurablePlugin(options);
+  const store = await readPluginSettingsStore(options.runtimeRoot);
+  return {
+    pluginId: plugin.manifest.id,
+    settings: resolvePluginSettings(plugin, store),
+  };
+}
+
+export async function resetManagedPluginSettings(options: Omit<PluginSettingsActionOptions, "values">): Promise<PluginSettingsActionResult> {
+  const plugin = await requireConfigurablePlugin(options);
+  const store = await readPluginSettingsStore(options.runtimeRoot);
+  const nextStore = resetPluginSettingsStore(store, plugin, options.now?.() ?? new Date().toISOString());
+  await writePluginSettingsStore(options.runtimeRoot, nextStore);
+  return {
+    pluginId: plugin.manifest.id,
+    settings: resolvePluginSettings(plugin, nextStore),
   };
 }
 
@@ -81,6 +141,23 @@ function findPlugin(plugins: DiscoveredPlugin[], options: Pick<PluginStateAction
     && (!options.manifestPath || plugin.manifestPath === options.manifestPath)
     && (!options.rootDirectory || plugin.rootDirectory === options.rootDirectory),
   );
+}
+
+async function requireConfigurablePlugin(options: PluginSettingsActionOptions | Omit<PluginSettingsActionOptions, "values">): Promise<DiscoveredPlugin> {
+  const plugins = await discoverManagedPlugins(options);
+  const discoveredPlugin = findPlugin(plugins, options);
+  if (!discoveredPlugin) {
+    throw new Error(`Plugin not found: ${options.pluginId}`);
+  }
+  const pluginStateStore = await readPluginStateStore(options.runtimeRoot);
+  const plugin = applyPluginState(discoveredPlugin, pluginStateStore);
+  if (!isActivePlugin(plugin)) {
+    throw new Error(`Plugin settings require a trusted and enabled plugin: ${plugin.manifest.id}`);
+  }
+  if (!plugin.manifest.settingsSchema || plugin.manifest.settingsSchema.fields.length === 0) {
+    throw new Error(`Plugin does not declare settings: ${plugin.manifest.id}`);
+  }
+  return plugin;
 }
 
 function patchForAction(action: PluginStateAction, reviewedAt: string) {

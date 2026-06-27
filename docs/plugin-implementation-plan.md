@@ -1,6 +1,6 @@
 # Plugin Architecture Implementation Plan
 
-Last updated: 2026-06-26
+Last updated: 2026-06-27
 
 This plan turns Exo's plugin architecture into code without prematurely loading arbitrary user code. The first goal is internal extensibility: Exo core should use typed registries and contracts for the capabilities that are already plugin-shaped.
 
@@ -250,6 +250,18 @@ Storage:
   - `.exo/artifacts/{runId}/{artifactFileName}`
 
 This phase should be kept narrow. Avoid adding a broad core automation UI until multiple plugins prove which scheduler/activity fields are actually universal.
+
+## Phase 4.5: Plugin Config V0
+
+Status: core contract implemented. Plugin manifests can declare metadata-only
+settings schemas with simple boolean, string, number, and select fields. Exo
+persists local overrides in `.exo/plugin-settings.json`, validates effective
+settings, preserves user configuration across manifest edits, and marks changed
+manifest configuration for review. Plugin inventory exposes settings summaries.
+
+This does not execute plugin code and does not add plugin-owned renderer
+components. The next step is desktop Plugin Manager editing UI over the core
+settings API.
 
 ## Phase 5: External Reference Workload Contracts
 

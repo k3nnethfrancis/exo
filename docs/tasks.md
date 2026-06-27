@@ -226,7 +226,10 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Keep plugin manifests metadata-only and reject unsafe entrypoint paths before any future executable plugin loading exists.
 - [x] Make harness readiness the canonical launchability model for Claude, Codex, Pi-compatible, Hermes, and future adapters.
 - [x] Add a final launch gate so non-shell agent terminals cannot be created from raw launch plans when the harness is not launchable.
-- [x] Keep Plugin Manager read-only for this phase while improving category navigation, detail inspection, and setup/readiness explanations.
+- [x] Keep Plugin Manager read-only for the foundation pass while improving category navigation, detail inspection, and setup/readiness explanations.
+- [x] Add Plugin Enablement v0: desktop Plugin Manager can trust, enable, and disable local/developer metadata plugins while keeping official/core rows read-only and without executing plugin code.
+- [x] Add Plugin Config v0 core state: metadata-only plugin settings schemas, JSON-backed overrides, validation, reset, and inventory summaries without executing plugin code.
+- [ ] Add Plugin Config desktop UI in Plugin Manager so trusted/enabled local plugins can edit reviewed settings without bloating Workspace Settings.
 
 ## Next: Multi-Agent Coordination
 
@@ -282,14 +285,17 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Define initial plugin discovery sources and trust states: built-in, dev, user, workspace; trusted, untrusted, disabled.
 - [x] Keep first-pass plugin manifests non-executable: no entrypoint loading, permission grants, UI contributions, CLI commands, or MCP tools.
 - [x] Add architecture/harness checks that discourage direct implementation imports outside the provider/harness facade path.
-- [ ] Define concrete install/load directories for built-in, dev, user, and workspace plugins in the desktop runtime.
+- [x] Define concrete discovery locations for built-in, dev, user, and workspace plugin manifests in the desktop runtime.
+- [ ] Define concrete install/load directories and lifecycle rules for future executable plugins.
 - [x] Convert the current terminal rail into a general tool/plugin dock without moving terminal rendering, scrollback, reconnect, or diagnostics out of core.
 - [ ] Add renderer surface descriptors for official/local tool actions: terminal launcher, harness launcher, agent config, routines, graph tools, and future plugin panels.
 - [x] Add core web viewer open/focus/close endpoints for URL/path/artifact preview; plugin outputs should call those endpoints rather than require a special WebView plugin API.
 - [ ] Add onboarding capability selection for official/local plugins: QMD, Claude/Codex/Pi/Hermes harness adapters, and future routine/profile packs; web viewer remains core.
 - [ ] Add trust prompts and permission grants before any plugin entrypoint execution.
 - [x] Add the first read-only Plugin Manager UI after manifests, trust, and permissions survived the metadata-only pass.
-- [ ] Add Plugin Manager mutation flows only after install paths, trust prompts, permission grants, and plugin-owned settings are explicit.
+- [x] Add Plugin Manager mutation flows for metadata-only local/developer plugins: trust, enable, and disable.
+- [x] Add plugin-owned settings/config core contracts after the metadata-only enablement path.
+- [ ] Add plugin-owned settings/config UI after the core settings contract has enough real plugin configuration to validate.
 
 ## Later: Graph, Memory, Workcells, Training
 

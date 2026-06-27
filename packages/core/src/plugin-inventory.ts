@@ -9,6 +9,11 @@ import {
 } from "./plugin";
 import { resolvePluginLocations, type PluginLocation } from "./plugin-locations";
 import {
+  readPluginSettingsStore,
+  resolvePluginSettings,
+  type PluginSettingsStore,
+} from "./plugin-settings";
+import {
   applyPluginState,
   readPluginStateStore,
   type PluginStateStore,
@@ -24,6 +29,15 @@ export interface PluginInventoryDependency {
   status: string;
   statusLabel: string;
   detail?: string;
+}
+
+export interface PluginInventorySettingsSummary {
+  hasSettings: boolean;
+  fieldCount: number;
+  configuredCount: number;
+  reviewRequired: boolean;
+  configReviewRequired: boolean;
+  validationErrors: string[];
 }
 
 export interface PluginInventoryItem {
@@ -52,6 +66,7 @@ export interface PluginInventoryItem {
   rootDirectory?: string;
   dependencies?: PluginInventoryDependency[];
   compatibility?: Record<string, unknown>;
+  settings?: PluginInventorySettingsSummary;
 }
 
 export interface PluginInventoryError {
@@ -84,6 +99,7 @@ export interface PluginInventoryOptions {
   builtIns?: CapabilityMetadata[];
   pluginDirectories?: PluginLocation[];
   pluginStateStore?: PluginStateStore;
+  pluginSettingsStore?: PluginSettingsStore;
   clock?: () => string;
 }
 
@@ -99,6 +115,7 @@ export async function listPluginInventory(options: PluginInventoryOptions): Prom
   const directories = options.pluginDirectories ?? resolvePluginLocations({ workspaceRoot: options.workspaceRoot, env: options.env ?? process.env });
   const { plugins, errors } = await discoverInventoryPlugins(directories);
   const pluginStateStore = options.pluginStateStore ?? (options.runtimeRoot ? await readPluginStateStore(options.runtimeRoot) : undefined);
+  const pluginSettingsStore = options.pluginSettingsStore ?? (options.runtimeRoot ? await readPluginSettingsStore(options.runtimeRoot) : undefined);
   return buildPluginInventory({
     builtIns: options.builtIns ?? builtInCapabilities,
     errors,
@@ -106,6 +123,7 @@ export async function listPluginInventory(options: PluginInventoryOptions): Prom
     now: options.clock?.() ?? new Date().toISOString(),
     plugins,
     pluginStateStore,
+    pluginSettingsStore,
   });
 }
 
@@ -116,6 +134,7 @@ export function buildPluginInventory(input: {
   now?: string;
   plugins?: DiscoveredPlugin[];
   pluginStateStore?: PluginStateStore;
+  pluginSettingsStore?: PluginSettingsStore;
 }): PluginInventory {
   const harnessById = new Map((input.harnesses ?? []).map((harness) => [harness.id, harness]));
   const bundledItems = (input.builtIns ?? builtInCapabilities).map((capability) => {
@@ -123,7 +142,7 @@ export function buildPluginInventory(input: {
     return bundledCapabilityItem(capability, harnessKind ? harnessById.get(harnessKind) : undefined);
   });
   const plugins = (input.plugins ?? []).map((plugin) => applyPluginState(plugin, input.pluginStateStore));
-  const localItems = plugins.flatMap(pluginInventoryItems);
+  const localItems = plugins.flatMap((plugin) => pluginInventoryItems(plugin, input.pluginSettingsStore));
   const items = [...CORE_INVENTORY_ITEMS, ...bundledItems, ...localItems].sort(compareInventoryItems);
   return {
     generatedAt: input.now ?? new Date().toISOString(),
@@ -235,7 +254,8 @@ function bundledCapabilityItem(
   };
 }
 
-function pluginInventoryItems(plugin: DiscoveredPlugin): PluginInventoryItem[] {
+function pluginInventoryItems(plugin: DiscoveredPlugin, pluginSettingsStore: PluginSettingsStore | undefined): PluginInventoryItem[] {
+  const settings = settingsSummary(plugin, pluginSettingsStore);
   return plugin.manifest.capabilities.map((capability) => {
     const enabled = isActivePlugin(plugin) && capability.lifecycle !== "disabled";
     return {
@@ -263,8 +283,21 @@ function pluginInventoryItems(plugin: DiscoveredPlugin): PluginInventoryItem[] {
       manifestPath: plugin.manifestPath,
       rootDirectory: plugin.rootDirectory,
       compatibility: capability.compatibility,
+      settings,
     };
   });
+}
+
+function settingsSummary(plugin: DiscoveredPlugin, pluginSettingsStore: PluginSettingsStore | undefined): PluginInventorySettingsSummary {
+  const settings = resolvePluginSettings(plugin, pluginSettingsStore);
+  return {
+    hasSettings: settings.hasSettings,
+    fieldCount: settings.fieldCount,
+    configuredCount: settings.configuredCount,
+    reviewRequired: settings.reviewRequired,
+    configReviewRequired: settings.configReviewRequired,
+    validationErrors: settings.validationErrors,
+  };
 }
 
 function capabilityKindLabel(kind: CapabilityMetadata["kind"]): string {

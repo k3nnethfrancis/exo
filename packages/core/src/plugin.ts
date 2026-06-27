@@ -31,7 +31,62 @@ export interface PluginManifest {
   capabilities: CapabilityMetadata[];
   permissions: CapabilityPermission[];
   surfaces: CapabilitySurface[];
-  settingsSchema?: Record<string, unknown>;
+  settingsSchema?: PluginSettingsSchema;
+}
+
+export type PluginSettingFieldType = "boolean" | "string" | "number" | "select";
+export type PluginSettingValue = boolean | string | number;
+
+export interface PluginSettingsSchema {
+  version: 1;
+  sections?: PluginSettingsSection[];
+  fields: PluginSettingField[];
+}
+
+export interface PluginSettingsSection {
+  id: string;
+  label: string;
+  description?: string;
+  fields?: string[];
+}
+
+export type PluginSettingField =
+  | PluginBooleanSettingField
+  | PluginStringSettingField
+  | PluginNumberSettingField
+  | PluginSelectSettingField;
+
+export interface PluginSettingFieldBase {
+  id: string;
+  label: string;
+  description?: string;
+}
+
+export interface PluginBooleanSettingField extends PluginSettingFieldBase {
+  type: "boolean";
+  default?: boolean;
+}
+
+export interface PluginStringSettingField extends PluginSettingFieldBase {
+  type: "string";
+  default?: string;
+}
+
+export interface PluginNumberSettingField extends PluginSettingFieldBase {
+  type: "number";
+  default?: number;
+}
+
+export interface PluginSelectSettingField extends PluginSettingFieldBase {
+  type: "select";
+  options: PluginSelectSettingOption[];
+  default?: string;
+}
+
+export interface PluginSelectSettingOption {
+  value: string;
+  label: string;
+  description?: string;
 }
 
 export interface DiscoveredPlugin {
@@ -204,7 +259,7 @@ export function validatePluginManifest(input: unknown): PluginManifest {
     capabilities: validateCapabilities(input.capabilities),
     permissions: validatePermissions(input.permissions, "permissions"),
     surfaces: validateSurfaces(input.surfaces, "surfaces"),
-    settingsSchema: isRecord(input.settingsSchema) ? input.settingsSchema : undefined,
+    settingsSchema: validateSettingsSchema(input.settingsSchema),
   };
 
   assertIdentifier(manifest.id, "Plugin id");
@@ -344,6 +399,132 @@ function validateSurfaces(input: unknown, field: string): CapabilitySurface[] {
 
 function validatePermissions(input: unknown, field: string): CapabilityPermission[] {
   return validateStringArray(input, field).map((value) => validateEnum(value, CAPABILITY_PERMISSIONS, field));
+}
+
+function validateSettingsSchema(input: unknown): PluginSettingsSchema | undefined {
+  if (input === undefined) {
+    return undefined;
+  }
+  if (!isRecord(input)) {
+    throw new Error("Plugin manifest settingsSchema must be an object.");
+  }
+  const fieldsInput = input.fields;
+  if (!Array.isArray(fieldsInput)) {
+    throw new Error("Plugin manifest settingsSchema.fields must be an array.");
+  }
+  if (input.version !== 1) {
+    throw new Error("Plugin manifest settingsSchema.version must be 1.");
+  }
+  const fields = fieldsInput.map(validateSettingField);
+  const fieldIds = new Set<string>();
+  for (const field of fields) {
+    if (fieldIds.has(field.id)) {
+      throw new Error(`Plugin manifest settingsSchema declares duplicate field: ${field.id}`);
+    }
+    fieldIds.add(field.id);
+  }
+
+  const sections = validateSettingsSections(input.sections, fieldIds);
+  return sections ? { version: 1, sections, fields } : { version: 1, fields };
+}
+
+function validateSettingsSections(input: unknown, fieldIds: Set<string>): PluginSettingsSection[] | undefined {
+  if (input === undefined) {
+    return undefined;
+  }
+  if (!Array.isArray(input)) {
+    throw new Error("Plugin manifest settingsSchema.sections must be an array when provided.");
+  }
+  const sectionIds = new Set<string>();
+  return input.map((sectionInput) => {
+    if (!isRecord(sectionInput)) {
+      throw new Error("Plugin manifest settingsSchema section must be an object.");
+    }
+    const section: PluginSettingsSection = {
+      id: requiredString(sectionInput, "id"),
+      label: requiredString(sectionInput, "label"),
+      description: optionalString(sectionInput, "description"),
+      fields: sectionInput.fields === undefined ? undefined : validateStringArray(sectionInput.fields, "settingsSchema.sections.fields"),
+    };
+    assertIdentifier(section.id, "Plugin settings section id");
+    if (sectionIds.has(section.id)) {
+      throw new Error(`Plugin manifest settingsSchema declares duplicate section: ${section.id}`);
+    }
+    sectionIds.add(section.id);
+    for (const fieldId of section.fields ?? []) {
+      if (!fieldIds.has(fieldId)) {
+        throw new Error(`Plugin manifest settingsSchema section ${section.id} references unknown field: ${fieldId}`);
+      }
+    }
+    return section;
+  });
+}
+
+function validateSettingField(input: unknown): PluginSettingField {
+  if (!isRecord(input)) {
+    throw new Error("Plugin manifest settingsSchema field must be an object.");
+  }
+  const id = requiredString(input, "id");
+  assertIdentifier(id, "Plugin settings field id");
+  const base = {
+    id,
+    label: requiredString(input, "label"),
+    description: optionalString(input, "description"),
+  };
+  const type = validateEnum(requiredString(input, "type"), ["boolean", "string", "number", "select"] as const, "settingsSchema.field.type");
+  switch (type) {
+    case "boolean":
+      return { ...base, type, default: optionalSettingDefault(input, id, type) };
+    case "string":
+      return { ...base, type, default: optionalSettingDefault(input, id, type) };
+    case "number":
+      return { ...base, type, default: optionalSettingDefault(input, id, type) };
+    case "select": {
+      const options = validateSelectOptions(input.options, id);
+      const defaultValue = optionalSettingDefault(input, id, type);
+      if (defaultValue !== undefined && !options.some((option) => option.value === defaultValue)) {
+        throw new Error(`Plugin manifest settingsSchema field ${id} default must match one of its select options.`);
+      }
+      return { ...base, type, options, default: defaultValue };
+    }
+  }
+}
+
+function validateSelectOptions(input: unknown, fieldId: string): PluginSelectSettingOption[] {
+  if (!Array.isArray(input) || input.length === 0) {
+    throw new Error(`Plugin manifest settingsSchema field ${fieldId} options must be a non-empty array.`);
+  }
+  const values = new Set<string>();
+  return input.map((optionInput) => {
+    if (!isRecord(optionInput)) {
+      throw new Error(`Plugin manifest settingsSchema field ${fieldId} option must be an object.`);
+    }
+    const option: PluginSelectSettingOption = {
+      value: requiredString(optionInput, "value"),
+      label: requiredString(optionInput, "label"),
+      description: optionalString(optionInput, "description"),
+    };
+    if (values.has(option.value)) {
+      throw new Error(`Plugin manifest settingsSchema field ${fieldId} declares duplicate select option: ${option.value}`);
+    }
+    values.add(option.value);
+    return option;
+  });
+}
+
+function optionalSettingDefault<T extends PluginSettingFieldType>(
+  record: Record<string, unknown>,
+  fieldId: string,
+  type: T,
+): T extends "boolean" ? boolean | undefined : T extends "number" ? number | undefined : string | undefined {
+  const value = record.default;
+  if (value === undefined) {
+    return undefined as T extends "boolean" ? boolean | undefined : T extends "number" ? number | undefined : string | undefined;
+  }
+  if ((type === "boolean" && typeof value !== "boolean") || (type === "string" && typeof value !== "string") || (type === "select" && typeof value !== "string") || (type === "number" && typeof value !== "number")) {
+    throw new Error(`Plugin manifest settingsSchema field ${fieldId} default must match its ${type} type.`);
+  }
+  return value as T extends "boolean" ? boolean | undefined : T extends "number" ? number | undefined : string | undefined;
 }
 
 function validateEnum<const T extends string>(value: string, allowed: readonly T[], field: string): T {

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { buildPluginInventory, type PluginInventoryItem } from "../plugin-inventory";
 import type { DiscoveredPlugin, PluginManifest } from "../plugin";
+import { updatePluginSettingsStore, emptyPluginSettingsStore } from "../plugin-settings";
 import type { AgentHarnessDetection } from "../types";
 
 const graphHealthManifest: PluginManifest = {
@@ -205,6 +206,43 @@ describe("plugin inventory", () => {
       statusLabel: "Disabled",
     });
     expect(inventory.counts.untrusted).toBe(0);
+  });
+
+  it("includes plugin settings summaries on local manifest rows", () => {
+    const plugin = discovered({
+      ...graphHealthManifest,
+      settingsSchema: {
+        version: 1,
+        fields: [
+          { id: "enabled", type: "boolean", label: "Enabled", default: true },
+          {
+            id: "mode",
+            type: "select",
+            label: "Mode",
+            options: [
+              { value: "fast", label: "Fast" },
+              { value: "careful", label: "Careful" },
+            ],
+            default: "fast",
+          },
+        ],
+      },
+    }, "trusted");
+    const pluginSettingsStore = updatePluginSettingsStore(emptyPluginSettingsStore(), plugin, { mode: "careful" });
+
+    const inventory = buildPluginInventory({
+      plugins: [{ ...plugin, manifestHash: "hash-changed" }],
+      pluginSettingsStore,
+    });
+
+    expect(find(inventory.items, "graph-health.template").settings).toEqual({
+      hasSettings: true,
+      fieldCount: 2,
+      configuredCount: 1,
+      reviewRequired: true,
+      configReviewRequired: true,
+      validationErrors: [],
+    });
   });
 });
 

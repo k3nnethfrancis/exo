@@ -1,6 +1,11 @@
 # Plugin Manager Foundation
 
-Last updated: 2026-06-26
+Last updated: 2026-06-27
+
+Status: completed as the foundation pass. Plugin Enablement v0 now extends this
+surface with metadata-only trust/enable/disable actions for local/developer
+plugin manifests. Official/core rows remain read-only, and Exo still does not
+execute plugin code from manifests.
 
 ## Goal
 

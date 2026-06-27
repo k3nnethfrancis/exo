@@ -1,6 +1,6 @@
 # Exo Ledger
 
-Last updated: 2026-06-22
+Last updated: 2026-06-27
 
 This is the fastest current-state handoff for Exo. It records what exists now, what changed recently, and what is next. Active tasks live in `docs/tasks.md`; future systems live in `docs/roadmap.md`; product/system strategy lives in `docs/strategy.md`.
 
@@ -53,6 +53,8 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 
 ## Recent Completed Work
 
+- Added Plugin Enablement v0 in the desktop Plugin Manager: local/developer metadata plugin manifests can now be trusted, enabled, and disabled with state persisted under the Exo runtime root, while core/official plugin rows remain read-only and manifest discovery remains non-executable.
+- Added Plugin Config v0 core contracts: plugin manifests can declare typed metadata-only settings schemas, Exo persists JSON-backed local overrides in `plugin-settings.json`, validates effective settings, preserves config across manifest edits while requiring review, and exposes settings summaries in plugin inventory. Desktop editing UI is still a follow-up.
 - Fixed harness inference configuration readiness: Pi is now a generic Pi-compatible harness instance with local executable/repo/backend config, launch is blocked with a missing inference-backend status until `EXO_PI_BACKEND_URL` or `EXO_PI_BACKEND_COMMAND` is configured, Agent Config Editor separates enabled/launch/dependency status, and Hermes is hidden from normal harness lists unless explicitly configured.
 - Ran a context-evolution pass after the terminal/cmux/harness discussions: updated repo guidance away from stale node-pty attach-bridge language, captured the current terminal simplification question, reframed vanilla Exo as core plus bundled/recommended plugins, and clarified that local forks such as GA Pi are configured instances of generic harness plugins rather than OSS source defaults.
 - Added metadata-only local plugin manifests in `@exo/core`: `exo.plugin.json` discovery, strict manifest validation, source/trust metadata, duplicate-safe plugin/capability registration, and tests. This does not execute plugin code or grant plugin permissions.

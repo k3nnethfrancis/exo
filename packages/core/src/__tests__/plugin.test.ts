@@ -114,6 +114,57 @@ describe("plugin manifest contracts", () => {
     }
   });
 
+  it("validates manifest-declared settings schemas", () => {
+    const settingsSchema = {
+      version: 1,
+      sections: [{ id: "general", label: "General", fields: ["enabled", "mode"] }],
+      fields: [
+        { id: "enabled", type: "boolean", label: "Enabled", default: true },
+        { id: "name", type: "string", label: "Name", default: "Exo" },
+        { id: "limit", type: "number", label: "Limit", default: 3 },
+        {
+          id: "mode",
+          type: "select",
+          label: "Mode",
+          options: [
+            { value: "fast", label: "Fast" },
+            { value: "careful", label: "Careful" },
+          ],
+          default: "fast",
+        },
+      ],
+    };
+
+    expect(validatePluginManifest({ ...manifest, settingsSchema })).toMatchObject({ settingsSchema });
+  });
+
+  it("rejects malformed settings schemas", () => {
+    expect(() => validatePluginManifest({
+      ...manifest,
+      settingsSchema: { fields: [] },
+    })).toThrow("settingsSchema.version must be 1");
+    expect(() => validatePluginManifest({
+      ...manifest,
+      settingsSchema: { version: 1, fields: [{ id: "Bad Field", type: "boolean", label: "Bad" }] },
+    })).toThrow("Plugin settings field id must be lowercase");
+    expect(() => validatePluginManifest({
+      ...manifest,
+      settingsSchema: { version: 1, fields: [{ id: "flag", type: "boolean", label: "Flag" }, { id: "flag", type: "string", label: "Flag" }] },
+    })).toThrow("declares duplicate field");
+    expect(() => validatePluginManifest({
+      ...manifest,
+      settingsSchema: { version: 1, fields: [{ id: "flag", type: "boolean", label: "Flag", default: "yes" }] },
+    })).toThrow("default must match");
+    expect(() => validatePluginManifest({
+      ...manifest,
+      settingsSchema: { version: 1, fields: [{ id: "mode", type: "select", label: "Mode", options: [{ value: "a", label: "A" }], default: "b" }] },
+    })).toThrow("default must match one of its select options");
+    expect(() => validatePluginManifest({
+      ...manifest,
+      settingsSchema: { version: 1, sections: [{ id: "general", label: "General", fields: ["missing"] }], fields: [] },
+    })).toThrow("references unknown field");
+  });
+
   it("discovers manifests from plugin directories without loading code", async () => {
     const root = await mkdirTempPluginRoot();
     try {
