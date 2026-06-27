@@ -42,7 +42,6 @@ const api: DesktopApi = {
     searchNotes: (query) => invokeDesktop("workspace:search-notes", query),
     searchWorkspace: (query) => invokeDesktop("workspace:search-workspace", query),
     searchIndex: (query, options) => invokeDesktop("workspace:search-index", query, options),
-    searchTag: (tag) => invokeDesktop("workspace:search-tag", tag),
     getGitStatus: (rootPath) => invokeDesktop("workspace:get-git-status", rootPath),
     getAgentInstructionConfig: () => invokeDesktop("workspace:get-agent-instruction-config"),
     listAgentHarnesses: () => invokeDesktop("workspace:list-agent-harnesses"),

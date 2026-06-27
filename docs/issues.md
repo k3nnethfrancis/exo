@@ -573,10 +573,12 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
   - Raw mode hides the section.
   - Clicking a backlink opens the target page.
   - Editing/saving the document does not include generated backlinks text.
+  - Page chrome no longer exposes the old Inspect action.
 - Resolution:
   - Added a generated CodeMirror widget below live-rendered Markdown pages for backlinks and outgoing note references.
   - The generated section is read-only, hidden in raw Markdown mode, and uses existing link-click navigation data attributes.
   - Added focused renderer tests for raw-mode hiding and backlink target mapping.
+  - 2026-06-27: Removed the old Inspector dock, its persisted layout field, and the inspector-only tag-search IPC route; e2e coverage now opens backlinks through the inline section and asserts the Inspect action is absent while raw/source mode remains available.
 
 ### EXO-ISSUE-051: Wikilink hover preview is missing
 

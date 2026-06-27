@@ -49,7 +49,6 @@ export interface WorkspaceIpcHandlers {
   saveSettings: WorkspaceApi["saveSettings"];
   searchIndex: WorkspaceApi["searchIndex"];
   searchNotes: WorkspaceApi["searchNotes"];
-  searchTag: WorkspaceApi["searchTag"];
   searchWorkspace: WorkspaceApi["searchWorkspace"];
   setAgentSkillEnabled: WorkspaceApi["setAgentSkillEnabled"];
   installAgentLibrarySkill: WorkspaceApi["installAgentLibrarySkill"];
@@ -140,7 +139,6 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
   handleDesktopInvoke("workspace:create-directory", async (_event, targetPath) => handlers.createDirectory(targetPath));
   handleDesktopInvoke("workspace:rename-path", async (_event, sourcePath, nextPath) => handlers.renamePath(sourcePath, nextPath));
   handleDesktopInvoke("workspace:delete-path", async (_event, targetPath) => handlers.deletePath(targetPath));
-  handleDesktopInvoke("workspace:search-tag", async (_event, tag) => handlers.searchTag(tag));
   handleDesktopInvoke("notes:read", async (_event, filePath) => handlers.readNote(filePath));
   handleDesktopInvoke("notes:save", async (_event, filePath, frontmatter, body) =>
     handlers.saveNote(filePath, frontmatter, body),

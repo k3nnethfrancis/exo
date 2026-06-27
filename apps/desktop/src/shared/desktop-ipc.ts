@@ -21,7 +21,6 @@ export interface DesktopInvokeHandlers {
   "workspace:search-notes": WorkspaceApi["searchNotes"];
   "workspace:search-workspace": WorkspaceApi["searchWorkspace"];
   "workspace:search-index": WorkspaceApi["searchIndex"];
-  "workspace:search-tag": WorkspaceApi["searchTag"];
   "workspace:get-git-status": WorkspaceApi["getGitStatus"];
   "workspace:get-agent-instruction-config": WorkspaceApi["getAgentInstructionConfig"];
   "workspace:list-agent-harnesses": WorkspaceApi["listAgentHarnesses"];

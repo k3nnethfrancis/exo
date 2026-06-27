@@ -749,7 +749,7 @@ class GraphReferencesWidget extends WidgetType {
       wrap.appendChild(this.renderGroup("Backlinks", this.references.backlinks, "backlinks"));
     }
     if (this.references.references.length > 0) {
-      wrap.appendChild(this.renderGroup("References", this.references.references, "references"));
+      wrap.appendChild(this.renderGroup("References", this.references.references, "reference-links"));
     }
 
     return wrap;
