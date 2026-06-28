@@ -63,8 +63,10 @@ import {
   buildPluginDetailSections,
   buildPluginManagementSummary,
   buildPluginRowIndicators,
+  buildPluginStateFilters,
   createPluginSettingsDraft,
   filterPluginInventoryItems,
+  filterPluginInventoryItemsByState,
   groupPluginInventoryItems,
   pluginActionAvailability,
   pluginActionInput,
@@ -377,6 +379,41 @@ describe("plugin manager model", () => {
       { id: "other", label: "Other", count: 0 },
     ]);
     expect(filterPluginInventoryItems(items, "searchProvider").map((item) => item.id)).toEqual(["qmd"]);
+  });
+
+  it("filters inventory rows by management state within a selected category", () => {
+    const active = pluginInventoryItem("qmd", "QMD", "searchProvider", "Search providers", "bundled");
+    const disabled = {
+      ...pluginInventoryItem("local-disabled", "Local Disabled", "searchProvider", "Search providers", "localManifest"),
+      enabled: false,
+      status: "disabled" as const,
+      statusLabel: "Disabled",
+    };
+    const needsTrust = {
+      ...pluginInventoryItem("local-untrusted", "Local Untrusted", "searchProvider", "Search providers", "localManifest"),
+      trust: "untrusted" as const,
+    };
+    const configurable = {
+      ...pluginInventoryItem("local-config", "Local Config", "searchProvider", "Search providers", "localManifest"),
+      settings: resolvedPluginSettings(),
+    };
+    const setupIssue = {
+      ...pluginInventoryItem("broken-search", "Broken Search", "searchProvider", "Search providers", "localManifest"),
+      status: "missing-dependency" as const,
+      statusLabel: "Missing dependency",
+    };
+    const categoryItems = filterPluginInventoryItems([active, disabled, needsTrust, configurable, setupIssue], "searchProvider");
+
+    expect(buildPluginStateFilters(categoryItems).map((filter) => [filter.id, filter.count])).toEqual([
+      ["all", 5],
+      ["active", 2],
+      ["attention", 2],
+      ["disabled", 1],
+      ["local", 4],
+      ["configurable", 1],
+    ]);
+    expect(filterPluginInventoryItemsByState(categoryItems, "attention").map((item) => item.id)).toEqual(["broken-search", "local-untrusted"]);
+    expect(filterPluginInventoryItemsByState(categoryItems, "configurable").map((item) => item.id)).toEqual(["local-config"]);
   });
 
   it("builds management summary buckets and row indicators from lifecycle state", () => {

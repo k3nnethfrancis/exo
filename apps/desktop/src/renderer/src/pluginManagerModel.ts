@@ -13,6 +13,15 @@ export interface PluginCategoryFilter {
   count: number;
 }
 
+export type PluginStateFilterId = "all" | "active" | "attention" | "disabled" | "local" | "configurable";
+
+export interface PluginStateFilter {
+  id: PluginStateFilterId;
+  label: string;
+  count: number;
+  detail: string;
+}
+
 export interface PluginManagementSummaryBucket {
   id: string;
   label: string;
@@ -141,6 +150,55 @@ export function filterPluginInventoryItems(
   const knownIds = new Set(CATEGORY_ORDER.map(([id]) => id));
   return items
     .filter((item) => categoryId === "other" ? !knownIds.has(item.categoryId as (typeof CATEGORY_ORDER)[number][0]) : item.categoryId === categoryId)
+    .sort(compareInventoryItems);
+}
+
+export function buildPluginStateFilters(items: PluginInventoryItem[]): PluginStateFilter[] {
+  const filters: Omit<PluginStateFilter, "count">[] = [
+    {
+      id: "all",
+      label: "All",
+      detail: "Every capability in the selected category.",
+    },
+    {
+      id: "active",
+      label: "Active",
+      detail: "Trusted, enabled, and ready/configured.",
+    },
+    {
+      id: "attention",
+      label: "Needs attention",
+      detail: "Untrusted, missing setup, missing permissions, or settings review required.",
+    },
+    {
+      id: "disabled",
+      label: "Disabled",
+      detail: "Known capabilities that are currently off.",
+    },
+    {
+      id: "local",
+      label: "Local/dev",
+      detail: "User, workspace, or developer manifest plugins.",
+    },
+    {
+      id: "configurable",
+      label: "Has settings",
+      detail: "Plugins declaring plugin-owned settings.",
+    },
+  ];
+
+  return filters.map((filter) => ({
+    ...filter,
+    count: filterPluginInventoryItemsByState(items, filter.id).length,
+  }));
+}
+
+export function filterPluginInventoryItemsByState(
+  items: PluginInventoryItem[],
+  stateFilterId: PluginStateFilterId,
+): PluginInventoryItem[] {
+  return items
+    .filter((item) => matchesPluginStateFilter(item, stateFilterId))
     .sort(compareInventoryItems);
 }
 
@@ -828,6 +886,23 @@ function hasSetupIssue(item: PluginInventoryItem): boolean {
     || item.settings?.reviewRequired === true
     || item.settings?.configReviewRequired === true
     || (item.settings?.validationErrors.length ?? 0) > 0;
+}
+
+function matchesPluginStateFilter(item: PluginInventoryItem, stateFilterId: PluginStateFilterId): boolean {
+  switch (stateFilterId) {
+    case "all":
+      return true;
+    case "active":
+      return isActivePluginRow(item);
+    case "attention":
+      return item.trust === "untrusted" || hasSetupIssue(item) || missingPermissions(item).length > 0;
+    case "disabled":
+      return !item.enabled || item.status === "disabled";
+    case "local":
+      return item.source === "localManifest";
+    case "configurable":
+      return item.settings?.hasSettings === true;
+  }
 }
 
 function readinessTone(item: PluginInventoryItem): PluginRowIndicator["tone"] {

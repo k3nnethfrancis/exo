@@ -27,6 +27,7 @@ Already implemented:
 - Plugin inventory API exposes core, official, local, developer, trust, enablement, dependency, settings, runtime, and permission-grant metadata.
 - Plugin Manager can inspect categories, details, local trust/enable/disable, local plugin settings, and Exo-managed local plugin add/remove/swap actions.
 - Plugin Manager now surfaces Exograph Baseline versus official, local, and developer plugin layers so users can tell what is core, what is optional, and which plugin rows are actually manageable there.
+- Plugin Manager now includes category-scoped state filters for all, active, needs-attention, disabled, local/developer, and plugin-settings rows, so it reads more like a management surface than a manifest browser.
 - Onboarding shows a read-only capability review.
 - Profiles can be parsed, dry-run previewed, activated as workspace state, and copied into trusted workspace-local metadata profile plugins.
 - Exograph Baseline exists as a bundled metadata-only profile plugin at `plugins/exograph-baseline/exo.plugin.json`.

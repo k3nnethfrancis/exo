@@ -1844,7 +1844,7 @@ button svg,
 .plugin-manager__inventory {
   min-height: 0;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   gap: 10px;
   overflow: hidden;
 }
@@ -1898,6 +1898,58 @@ button svg,
   border-radius: 999px;
   color: var(--muted);
   font-size: 11px;
+}
+
+.plugin-manager__state-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.plugin-manager__state-filter {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.plugin-manager__state-filter:hover:not(:disabled) {
+  border-color: var(--surface-border);
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.plugin-manager__state-filter--selected {
+  border-color: color-mix(in srgb, var(--accent) 54%, var(--surface-border));
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  color: var(--text);
+}
+
+.plugin-manager__state-filter:disabled {
+  cursor: default;
+  opacity: 0.48;
+}
+
+.plugin-manager__state-filter span {
+  font-size: 12px;
+}
+
+.plugin-manager__state-filter strong {
+  min-width: 18px;
+  min-height: 18px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 5px;
+  border: 1px solid var(--surface-border);
+  border-radius: 999px;
+  color: inherit;
+  font-size: 10px;
 }
 
 .plugin-manager__items {

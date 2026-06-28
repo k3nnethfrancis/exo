@@ -8,8 +8,10 @@ import {
   buildPluginDetailSections,
   buildPluginManagementSummary,
   buildPluginRowIndicators,
+  buildPluginStateFilters,
   createPluginSettingsDraft,
   filterPluginInventoryItems,
+  filterPluginInventoryItemsByState,
   pluginSettingsAvailability,
   pluginSettingsValuesFromDraft,
   pluginActionAvailability,
@@ -19,6 +21,7 @@ import {
   pluginManagementLane,
   type PluginManagerAction,
   type PluginSettingsDraft,
+  type PluginStateFilterId,
 } from "../pluginManagerModel";
 import type { WorkspacePluginSettingsResponse } from "../../../shared/api";
 
@@ -38,6 +41,7 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
   const [settingsMessage, setSettingsMessage] = useState<string | null>(null);
   const [pendingSettingsAction, setPendingSettingsAction] = useState<"apply" | "reset" | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState("core");
+  const [selectedStateFilterId, setSelectedStateFilterId] = useState<PluginStateFilterId>("all");
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -66,9 +70,14 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
   const categoryFilters = useMemo(() => buildPluginCategoryFilters(inventory?.items ?? []), [inventory]);
   const boundarySummary = useMemo(() => buildPluginBoundarySummary(inventory?.items ?? []), [inventory]);
   const summaryBuckets = useMemo(() => buildPluginManagementSummary(inventory?.items ?? []), [inventory]);
-  const visibleItems = useMemo(
+  const categoryItems = useMemo(
     () => filterPluginInventoryItems(inventory?.items ?? [], selectedCategoryId),
     [inventory, selectedCategoryId],
+  );
+  const stateFilters = useMemo(() => buildPluginStateFilters(categoryItems), [categoryItems]);
+  const visibleItems = useMemo(
+    () => filterPluginInventoryItemsByState(categoryItems, selectedStateFilterId),
+    [categoryItems, selectedStateFilterId],
   );
   const selectedItem = useMemo(() => {
     if (!inventory || visibleItems.length === 0) {
@@ -133,6 +142,12 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
 
   function selectCategory(categoryId: string) {
     setSelectedCategoryId(categoryId);
+    setSelectedStateFilterId("all");
+    setSelectedItemId(null);
+  }
+
+  function selectStateFilter(stateFilterId: PluginStateFilterId) {
+    setSelectedStateFilterId(stateFilterId);
     setSelectedItemId(null);
   }
 
@@ -401,6 +416,25 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
                     </button>
                   ))}
                 </div>
+                <div className="plugin-manager__state-filters" aria-label="Plugin state filters" data-testid="plugin-manager-state-filters" role="tablist">
+                  {stateFilters.map((filter) => (
+                    <button
+                      aria-controls="plugin-manager-item-list"
+                      aria-selected={selectedStateFilterId === filter.id}
+                      className={`plugin-manager__state-filter ${selectedStateFilterId === filter.id ? "plugin-manager__state-filter--selected" : ""}`}
+                      data-testid={`plugin-manager-state-filter-${filter.id}`}
+                      disabled={filter.count === 0 && filter.id !== "all"}
+                      key={filter.id}
+                      onClick={() => selectStateFilter(filter.id)}
+                      role="tab"
+                      title={filter.detail}
+                      type="button"
+                    >
+                      <span>{filter.label}</span>
+                      <strong>{filter.count}</strong>
+                    </button>
+                  ))}
+                </div>
                 <div
                   aria-activedescendant={selectedItem ? `plugin-inventory-option-${selectedItem.id}` : undefined}
                   aria-label="Plugin inventory"
@@ -419,7 +453,7 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
                       pendingAction={pendingAction}
                     />
                   ))}
-                  {visibleItems.length === 0 ? <p className="plugin-manager__empty">No capabilities in this category.</p> : null}
+                  {visibleItems.length === 0 ? <p className="plugin-manager__empty">No capabilities match this category and state filter.</p> : null}
                 </div>
               </div>
               <aside

@@ -124,9 +124,13 @@ test("opens the plugin manager inventory and keeps official rows read-only", asy
   await expect(page.getByTestId("plugin-manager-summary")).toContainText("Review");
   await expect(page.getByTestId("plugin-manager-summary")).toContainText("Setup issues");
   await expect(page.getByTestId("plugin-manager-summary")).toContainText("Permissions");
+  await expect(page.getByTestId("plugin-manager-state-filters")).toContainText("All");
+  await expect(page.getByTestId("plugin-manager-state-filters")).toContainText("Active");
+  await expect(page.getByTestId("plugin-manager-state-filters")).toContainText("Needs attention");
   await expect(page.getByTestId("plugin-manager-group-core")).toContainText("Terminal host");
   await page.getByTestId("plugin-manager-category-searchProvider").click();
   await expect(page.getByTestId("plugin-manager-group-searchProvider")).toContainText("QMD");
+  await page.screenshot({ path: "/tmp/exo-plugin-manager-state-filters.png", fullPage: false });
   await page.getByTestId("plugin-inventory-item-qmd").click();
   await expect(page.getByTestId("plugin-manager-detail")).toContainText("Search Provider");
   await expect(page.getByTestId("plugin-manager-detail")).toContainText("Readiness");
