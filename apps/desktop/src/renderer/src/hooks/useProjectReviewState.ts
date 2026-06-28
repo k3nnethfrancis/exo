@@ -10,6 +10,7 @@ export function useProjectReviewState(
 ) {
   const [workspaceGitStatus, setWorkspaceGitStatus] = useState<WorkspaceGitStatus | null>(null);
   const [projectGitChanges, setProjectGitChanges] = useState<Array<WorkspaceGitChange & { rootPath: string; rootLabel: string }>>([]);
+  const [noteGitChanges, setNoteGitChanges] = useState<Array<WorkspaceGitChange & { rootPath: string; rootLabel: string }>>([]);
   const [observedWorkspaceWrites, setObservedWorkspaceWrites] = useState<ObservedWorkspaceWrite[]>([]);
   const terminalSessionsRef = useRef<TerminalSessionInfo[]>(terminalSessions);
 
@@ -19,12 +20,13 @@ export function useProjectReviewState(
 
   useEffect(() => {
     let cancelled = false;
-    void refreshProjectGitStatus(workspaceModel, (nextStatus, nextChanges) => {
+    void refreshWorkspaceGitStatus(workspaceModel, (nextStatus, nextProjectChanges, nextNoteChanges) => {
       if (cancelled) {
         return;
       }
       setWorkspaceGitStatus(nextStatus);
-      setProjectGitChanges(nextChanges);
+      setProjectGitChanges(nextProjectChanges);
+      setNoteGitChanges(nextNoteChanges);
     });
     return () => {
       cancelled = true;
@@ -37,9 +39,10 @@ export function useProjectReviewState(
   );
 
   async function reload(model = workspaceModel): Promise<void> {
-    await refreshProjectGitStatus(model, (nextStatus, nextChanges) => {
+    await refreshWorkspaceGitStatus(model, (nextStatus, nextProjectChanges, nextNoteChanges) => {
       setWorkspaceGitStatus(nextStatus);
-      setProjectGitChanges(nextChanges);
+      setProjectGitChanges(nextProjectChanges);
+      setNoteGitChanges(nextNoteChanges);
     });
   }
 
@@ -69,27 +72,40 @@ export function useProjectReviewState(
   return {
     workspaceGitStatus,
     projectReviewChanges,
+    noteGitChanges,
     recordObservedWorkspaceWrite,
     refreshProjectGitStatus: reload,
   };
 }
 
-async function refreshProjectGitStatus(
+async function refreshWorkspaceGitStatus(
   model: WorkspaceModel | null,
   apply: (
     status: WorkspaceGitStatus | null,
-    changes: Array<WorkspaceGitChange & { rootPath: string; rootLabel: string }>,
+    projectChanges: Array<WorkspaceGitChange & { rootPath: string; rootLabel: string }>,
+    noteChanges: Array<WorkspaceGitChange & { rootPath: string; rootLabel: string }>,
   ) => void,
 ): Promise<void> {
   const projectRoots = model?.projectRoots ?? [];
-  if (projectRoots.length === 0) {
-    apply(null, []);
+  const noteRoots = model?.noteRoots ?? [];
+  if (projectRoots.length === 0 && noteRoots.length === 0) {
+    apply(null, [], []);
     return;
   }
-  const results = await loadProjectGitChanges(projectRoots).catch(() => []);
+  const [projectResults, noteResults] = await Promise.all([
+    loadRootGitChanges(projectRoots).catch(() => []),
+    loadRootGitChanges(noteRoots).catch(() => []),
+  ]);
   apply(
-    results[0]?.status ?? null,
-    results.flatMap(({ root, status }) =>
+    projectResults[0]?.status ?? noteResults[0]?.status ?? null,
+    projectResults.flatMap(({ root, status }) =>
+      (status?.changes ?? []).map((change) => ({
+        ...change,
+        rootPath: root.path,
+        rootLabel: root.label,
+      })),
+    ),
+    noteResults.flatMap(({ root, status }) =>
       (status?.changes ?? []).map((change) => ({
         ...change,
         rootPath: root.path,
@@ -99,9 +115,9 @@ async function refreshProjectGitStatus(
   );
 }
 
-async function loadProjectGitChanges(projectRoots: WorkspaceModel["projectRoots"]) {
+async function loadRootGitChanges(roots: WorkspaceModel["projectRoots"]) {
   return Promise.all(
-    projectRoots.map(async (root) => ({
+    roots.map(async (root) => ({
       root,
       status: await window.exo.workspace.getGitStatus(root.path).catch(() => null),
     })),

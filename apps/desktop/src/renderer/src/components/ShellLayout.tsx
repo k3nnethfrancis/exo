@@ -47,6 +47,9 @@ interface ShellLayoutProps {
     gitBranch: string | null;
     gitDirty: boolean;
     changedFiles: number;
+    changedNotes: number;
+    profileReviewRequired: boolean;
+    profileLabel: string | null;
     index: IndexStatusLine;
   };
   shellLayout: {
@@ -85,6 +88,8 @@ interface ShellLayoutProps {
   onOpenPluginManager: () => void;
   onOpenIndexSettings: () => void;
   onOpenProjectChanges: () => void;
+  onOpenNoteChanges: () => void;
+  onOpenProfileSettings: () => void;
   onSearchQueryChange: (value: string) => void;
   onSearchSubmit: () => void;
   onOpenFile: (filePath: string, line?: number | null) => void;
@@ -126,6 +131,8 @@ export function ShellLayout(props: ShellLayoutProps) {
     onOpenPluginManager,
     onOpenIndexSettings,
     onOpenProjectChanges,
+    onOpenNoteChanges,
+    onOpenProfileSettings,
     onSearchQueryChange,
     onSearchSubmit,
     onOpenFile,
@@ -378,6 +385,28 @@ export function ShellLayout(props: ShellLayoutProps) {
               {statusLine.gitBranch}
               {statusLine.gitDirty ? "*" : ""}
             </span>
+          ) : null}
+          {statusLine.profileReviewRequired ? (
+            <button
+              className="statusbar__changes statusbar__changes--profile"
+              data-testid="statusbar-profile-review"
+              onClick={onOpenProfileSettings}
+              title={statusLine.profileLabel ? `${statusLine.profileLabel} has changes to review` : "Profile has changes to review"}
+              type="button"
+            >
+              Profile review
+            </button>
+          ) : null}
+          {statusLine.changedNotes > 0 ? (
+            <button
+              className="statusbar__changes statusbar__changes--notes"
+              data-testid="statusbar-note-changes"
+              onClick={onOpenNoteChanges}
+              title="Open changed notes"
+              type="button"
+            >
+              {statusLine.changedNotes} note{statusLine.changedNotes === 1 ? "" : "s"}
+            </button>
           ) : null}
           {statusLine.changedFiles > 0 ? (
             <button

@@ -257,15 +257,15 @@ Already aligned:
 Not yet aligned:
 
 - renderer still mounts a terminal-named rail/dock component, even though its actions now pass through typed tool surface descriptors
-- settings are organized as fixed horizontal product tabs rather than scalable vertical settings pages with a dedicated Profile page
+- settings use scalable vertical navigation and include a dedicated Profile page, but deeper profile editing remains read-only/preview-oriented
 - terminal launch controls are partly hardwired UI even though harness metadata exists
 - current Routine/Run naming is compatibility terminology for the first CLI/store MVP; the durable contract is the smaller activity/artifact/provenance/review substrate documented in `activity-plugin-contract.md`
 - shared CLI/MCP/session types still expose fixed official harness ids in places where they should eventually derive policy-approved choices from the harness registry
 - plugin manager exists and onboarding now has a first-pass read-only capability review, but onboarding does not yet apply profile/plugin recommendations or grant permissions
-- active workspace profile state does not yet exist outside profile capability inventory; users cannot see "this workspace uses profile X" from Settings or the status bar
+- active workspace profile state exists under Exo runtime metadata and is visible from Settings and the status bar when review is required
 - plugin manager can inspect and mutate local/developer metadata plugins, but it still reads closer to inventory than a quick management surface for active, disabled, untrusted, missing, and misconfigured capabilities
 - plugin manifests do not yet contribute UI, commands, settings, or MCP/CLI surfaces
-- profile packs have a metadata shape for recommended plugins, schemas, context files, skills, routines, graph views, and policies, but there is no active-profile store, copy/customize flow, or permissioned apply flow
+- profile packs have a metadata shape for recommended plugins, schemas, context files, skills, routines, graph views, and policies, plus active-profile state and copy/customize metadata flows; the permissioned apply flow is not implemented
 - graph visualization does not yet have a stable plugin surface or core graph-data API
 - core versus official/local plugin language is still being normalized across docs and code names
 

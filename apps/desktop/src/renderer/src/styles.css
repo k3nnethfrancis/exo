@@ -1489,6 +1489,12 @@ button svg,
   overflow: hidden;
 }
 
+.dialog-card--changed-notes {
+  width: min(720px, calc(100vw - 48px));
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
 .dialog-card--agent-context-manager .dialog-tabs {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
@@ -1528,6 +1534,63 @@ button svg,
 .dialog-card__message {
   color: var(--muted);
   line-height: 1.5;
+}
+
+.changed-notes-list {
+  display: grid;
+  gap: 8px;
+  min-height: 0;
+  overflow: auto;
+}
+
+.changed-notes-list__item {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--surface-border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.changed-notes-list__item:hover {
+  border-color: var(--surface-border-strong);
+  background: var(--surface-hover);
+}
+
+.changed-notes-list__status {
+  display: inline-grid;
+  place-items: center;
+  min-width: 28px;
+  min-height: 22px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--warning-strong) 14%, transparent);
+  color: var(--warning-strong);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.changed-notes-list__body {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.changed-notes-list__body strong,
+.changed-notes-list__body small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.changed-notes-list__body small {
+  color: var(--muted);
 }
 
 .agent-harnesses {

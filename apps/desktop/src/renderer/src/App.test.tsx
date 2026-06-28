@@ -61,6 +61,7 @@ import {
 } from "./pluginManagerModel";
 import { buildProfileSettingsModel, PROFILE_SETTINGS_DISABLED_REASON } from "./profileSettingsModel";
 import { PluginSettingsSection } from "./components/PluginManagerDialog";
+import { ChangedNotesDialog } from "./components/ChangedNotesDialog";
 import { ProfileEditPanel, buildProfileEditPanelSections } from "./components/ProfileEditPanel";
 import { OnboardingCapabilityReviewContent } from "./components/OnboardingCapabilityReview";
 import {
@@ -111,6 +112,38 @@ describe("workspace settings footer copy", () => {
   it("only mentions Apply when structural changes are pending", () => {
     expect(workspaceSettingsSavedFooterCopy(true)).toContain("Apply");
     expect(workspaceSettingsSavedFooterCopy(false)).toBe("Settings saved.");
+  });
+});
+
+describe("changed notes dialog", () => {
+  it("lists changed notes with root and changed line context", () => {
+    const html = renderToStaticMarkup(
+      <ChangedNotesDialog
+        changes={[
+          {
+            rootPath: "/workspace/notes",
+            rootLabel: "notes",
+            path: "daily/2026-06-28.md",
+            absolutePath: "/workspace/notes/daily/2026-06-28.md",
+            status: "M",
+            firstChangedLine: 12,
+          },
+        ]}
+        onClose={() => {}}
+        onOpenChange={() => {}}
+      />,
+    );
+
+    expect(html).toContain("Changed Notes");
+    expect(html).toContain("daily/2026-06-28.md");
+    expect(html).toContain("notes · line 12");
+    expect(html).toContain("Diff and commit actions will live here later.");
+  });
+
+  it("shows an empty state when no notes are changed", () => {
+    const html = renderToStaticMarkup(<ChangedNotesDialog changes={[]} onClose={() => {}} onOpenChange={() => {}} />);
+
+    expect(html).toContain("No changed notes detected.");
   });
 });
 

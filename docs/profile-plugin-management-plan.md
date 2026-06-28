@@ -30,13 +30,15 @@ Already implemented:
 - Profiles can be parsed, dry-run previewed, activated as workspace state, and copied into trusted workspace-local metadata profile plugins.
 - Exograph Baseline exists as a bundled metadata-only profile plugin at `plugins/exograph-baseline/exo.plugin.json`.
 - Settings uses vertical navigation and includes a workspace Profile page plus a read-only Profile Customize screen.
+- The bottom status bar shows profile review state and changed notes state.
+- Changed notes open a read-only modal listing note-root git changes with path, status, root label, changed line when known, and an open-note action.
 
 Gaps:
 
 - Profile component edits are centralized visually but not yet editable.
 - Templatize, profile apply, permission review, profile-linked file writes, and AI/headless harness calls are not implemented.
-- There is no profile modified indicator in the status bar.
-- Notes repo git state is not surfaced as a first-class review affordance.
+- Profile modified/review state is visible, but there is no diff against profile-owned component refs yet.
+- Notes repo git state is visible, but there are no inline diffs, stage/commit actions, or provenance links yet.
 - Local plugin add/remove/swap flows are not implemented beyond trust/enable/disable/configure for discovered metadata plugins.
 
 ## Target UX
@@ -244,6 +246,12 @@ Deliverables:
 - Edit Profile screen can edit metadata/profile-state fields and link to specialized editors
 - Plugin Manager uses permission summaries and setup states prominently
 - bottom-bar profile modified and notes changes indicators open useful modals
+
+Completed in this phase:
+
+- profile review state appears as a bottom-bar affordance and opens Profile Settings
+- changed note-root git state appears as a bottom-bar affordance and opens a read-only changed-notes modal
+- the changed-notes modal can open changed notes and carries future diff/commit copy without exposing commit actions yet
 
 Verification:
 

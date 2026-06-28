@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Plus, X } from "lucide-react";
 import type {
   IndexStatus,
+  ProfileStateStore,
   SearchResult,
   WorkspaceModel,
   WorkspaceSettings,
@@ -11,6 +12,7 @@ import type { TerminalSessionInfo } from "../../shared/api";
 
 import type { AppearanceMode, ResolvedAppearance } from "./appearance";
 import { AgentConfigEditorDialog } from "./components/AgentConfigEditorDialog";
+import { ChangedNotesDialog, type ChangedNote } from "./components/ChangedNotesDialog";
 import { EditorPane, type EditorPaneState } from "./components/EditorPane";
 import { BrowserPane } from "./components/BrowserPane";
 import { InspectorDock } from "./components/InspectorDock";
@@ -78,6 +80,8 @@ export function App() {
   const [editorRevealLineRequest, setEditorRevealLineRequest] = useState<{ filePath: string; line: number; nonce: number } | null>(null);
   const [agentContextManagerOpen, setAgentContextManagerOpen] = useState(false);
   const [pluginManagerOpen, setPluginManagerOpen] = useState(false);
+  const [profileState, setProfileState] = useState<ProfileStateStore | null>(null);
+  const [noteChangesOpen, setNoteChangesOpen] = useState(false);
   const agentInstructionEditor = useAgentInstructionEditor();
   const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null);
   const [appearanceMode, setAppearanceMode] = useState<AppearanceMode>("system");
@@ -154,6 +158,7 @@ export function App() {
     indexBusy,
   } = workspaceSettingsController;
   const projectReviewState = useProjectReviewState(workspaceModel, terminalSessions);
+  const noteGitChanges = projectReviewState.noteGitChanges;
   const openDocumentsState = useOpenDocuments({
     workspaceModel,
     getOpenEditorPaths: () => collectOpenEditorPaths(shellLayout.editorPaneTree.tree),
@@ -208,6 +213,34 @@ export function App() {
   useEffect(() => {
     terminalRuntimeScrollbackLinesRef.current = terminalRuntimeScrollbackLines;
   }, [terminalRuntimeScrollbackLines]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void window.exo.workspace.getProfileState()
+      .then((nextState) => {
+        if (!cancelled) {
+          setProfileState(nextState);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setProfileState(null);
+        }
+      });
+
+    function handleProfileStateChanged(event: Event) {
+      const detail = event instanceof CustomEvent ? event.detail : null;
+      if (detail) {
+        setProfileState(detail as ProfileStateStore);
+      }
+    }
+
+    window.addEventListener("exo:profile-state-changed", handleProfileStateChanged);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("exo:profile-state-changed", handleProfileStateChanged);
+    };
+  }, []);
 
   useEffect(() => {
     const openPaths = collectOpenEditorPaths(editorTree);
@@ -459,6 +492,12 @@ export function App() {
         nonce: Date.now(),
       });
     }
+  }
+
+  async function openNoteChange(change: ChangedNote) {
+    await ensureDocumentLoaded(change.absolutePath);
+    await openFile(change.absolutePath, undefined, { line: change.firstChangedLine });
+    setNoteChangesOpen(false);
   }
 
   async function reloadTreesForModel(model: WorkspaceModel) {
@@ -1014,6 +1053,9 @@ export function App() {
         gitBranch: projectReviewState.workspaceGitStatus?.branch ?? null,
         gitDirty: projectReviewState.workspaceGitStatus?.dirty ?? false,
         changedFiles: projectReviewChanges.length,
+        changedNotes: noteGitChanges.length,
+        profileReviewRequired: profileState?.reviewRequired ?? false,
+        profileLabel: profileState?.activeProfile?.profileId ?? null,
         index: indexStatusLine,
       }}
       shellLayout={shellLayout}
@@ -1177,6 +1219,8 @@ export function App() {
       onOpenPluginManager={() => setPluginManagerOpen(true)}
       onOpenIndexSettings={() => void workspaceSettingsController.openDialog("index")}
       onOpenProjectChanges={() => void openProjectChangesFromStatus()}
+      onOpenNoteChanges={() => setNoteChangesOpen(true)}
+      onOpenProfileSettings={() => void workspaceSettingsController.openDialog("profile")}
       onSearchQueryChange={(value) => {
         workspaceSearch.setQuery(value);
         workspaceSearch.setSubmittedQuery(value.trim());
@@ -1266,6 +1310,13 @@ export function App() {
       ) : null}
       {pluginManagerOpen ? (
         <PluginManagerDialog onClose={() => setPluginManagerOpen(false)} />
+      ) : null}
+      {noteChangesOpen ? (
+        <ChangedNotesDialog
+          changes={noteGitChanges}
+          onClose={() => setNoteChangesOpen(false)}
+          onOpenChange={(change) => void openNoteChange(change)}
+        />
       ) : null}
     </>
   );

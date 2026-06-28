@@ -228,6 +228,14 @@
   color: var(--text);
 }
 
+.statusbar__changes--notes {
+  color: var(--warning-strong);
+}
+
+.statusbar__changes--profile {
+  color: var(--accent);
+}
+
 .statusbar__index-dot {
   width: 6px;
   height: 6px;

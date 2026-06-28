@@ -67,6 +67,7 @@ export function ProfileSettingsSection() {
     try {
       const nextState = await action();
       setProfileState(nextState);
+      announceProfileStateChanged(nextState);
       setActionStatus("saved");
     } catch (error) {
       setActionError(error instanceof Error ? error.message : "Unable to update profile state.");
@@ -81,6 +82,7 @@ export function ProfileSettingsSection() {
       const result = await window.exo.workspace.copyProfile(candidate.identity);
       setInventory(result.inventory);
       setProfileState(result.profileState);
+      announceProfileStateChanged(result.profileState);
       setEditingCandidate(null);
       setActionStatus("saved");
     } catch (error) {
@@ -102,6 +104,10 @@ export function ProfileSettingsSection() {
       onToggleAutoUpdate={(autoUpdate) => void runProfileAction(() => window.exo.workspace.setProfileAutoUpdate({ autoUpdate }))}
     />
   );
+}
+
+function announceProfileStateChanged(profileState: ProfileStateStore): void {
+  window.dispatchEvent(new CustomEvent("exo:profile-state-changed", { detail: profileState }));
 }
 
 export function ProfileSettingsContent({

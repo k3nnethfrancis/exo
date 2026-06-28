@@ -525,6 +525,37 @@ test("shows changed project files in the project drawer", async () => {
   await cleanup();
 });
 
+test("shows profile review and changed notes in the status bar", async () => {
+  const { page, workspaceRoot, cleanup } = await launchExoFixture({
+    mutable: true,
+    prepareWorkspace: async (workspaceRoot) => {
+      const notesRoot = path.join(workspaceRoot, "notes/test-notes");
+      spawnSync("git", ["init"], { cwd: notesRoot, stdio: "ignore" });
+      spawnSync("git", ["config", "user.email", "exo@example.test"], { cwd: notesRoot, stdio: "ignore" });
+      spawnSync("git", ["config", "user.name", "Exo Test"], { cwd: notesRoot, stdio: "ignore" });
+      spawnSync("git", ["add", "."], { cwd: notesRoot, stdio: "ignore" });
+      spawnSync("git", ["commit", "-m", "fixture notes"], { cwd: notesRoot, stdio: "ignore" });
+      await writeFile(path.join(notesRoot, "focus-note.md"), "# Focus Note\n\nChanged for status bar review.\n");
+    },
+  });
+
+  await page.evaluate(async () => {
+    const nextState = await window.exo.workspace.markProfileReviewRequired({ reviewRequired: true });
+    window.dispatchEvent(new CustomEvent("exo:profile-state-changed", { detail: nextState }));
+  });
+
+  await expect(page.getByTestId("statusbar-profile-review")).toBeVisible();
+  await expect(page.getByTestId("statusbar-note-changes")).toHaveText("1 note");
+  await page.getByTestId("statusbar-note-changes").click();
+  await expect(page.getByTestId("changed-notes-dialog")).toContainText("focus-note.md");
+  await expect(page.getByTestId("changed-notes-dialog")).toContainText("test-notes");
+  await page.screenshot({ path: "/tmp/exo-profile-notes-status-ui.png", fullPage: false });
+  await page.getByTestId("changed-notes-item").click();
+  await expect(page.getByTestId("editor-title")).toHaveText("focus-note");
+
+  await cleanup();
+});
+
 async function activeEditorLine(page: import("@playwright/test").Page) {
   return page.evaluate(() => {
     const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
