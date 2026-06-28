@@ -215,7 +215,7 @@ Not yet aligned:
 - terminal launch controls are partly hardwired UI even though harness metadata exists
 - current Routine/Run naming risks implying a larger core automation product than the target substrate requires
 - shared CLI/MCP/session types still expose fixed official harness ids in places where they should eventually derive policy-approved choices from the harness registry
-- plugin manager/onboarding capability selection does not exist
+- plugin manager exists and onboarding now has a first-pass read-only capability review, but onboarding does not yet apply profile/plugin recommendations or grant permissions
 - plugin manifests do not yet contribute UI, commands, settings, or MCP/CLI surfaces
 - profile packs do not yet have a concrete manifest shape for recommended plugins, schemas, context files, skills, or routines
 - graph visualization does not yet have a stable plugin surface or core graph-data API

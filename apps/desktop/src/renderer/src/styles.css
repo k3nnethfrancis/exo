@@ -2883,6 +2883,136 @@ select.dialog-card__input {
   width: 170px;
 }
 
+.onboarding-review-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.onboarding-review-summary > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--surface-border);
+  border-radius: 8px;
+  background: var(--surface-1);
+}
+
+.onboarding-review-summary span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.onboarding-review-summary strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.onboarding-capability-sections {
+  display: grid;
+  gap: 12px;
+}
+
+.onboarding-capability-section {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--surface-border);
+  border-radius: 8px;
+  background: var(--surface-1);
+}
+
+.onboarding-capability-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.onboarding-capability-list {
+  display: grid;
+  gap: 8px;
+}
+
+.onboarding-capability-row {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 10px;
+  border: 1px solid var(--surface-border);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.onboarding-capability-row--locked svg,
+.onboarding-capability-row--ready svg {
+  color: var(--accent);
+}
+
+.onboarding-capability-row--warning svg {
+  color: var(--warning);
+}
+
+.onboarding-capability-row--disabled {
+  opacity: 0.72;
+}
+
+.onboarding-capability-row__body {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.onboarding-capability-row__title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.onboarding-capability-row__title span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.onboarding-capability-row__title strong {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.onboarding-capability-row__description {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+@media (max-width: 760px) {
+  .onboarding-review-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .onboarding-capability-row__title {
+    display: grid;
+    gap: 3px;
+  }
+
+  .onboarding-capability-row__title strong {
+    justify-self: start;
+  }
+}
+
 .workspace-picker {
   display: grid;
   gap: 8px;

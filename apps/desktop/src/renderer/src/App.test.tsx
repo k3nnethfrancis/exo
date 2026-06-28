@@ -58,6 +58,12 @@ import {
   pluginSettingsValuesFromDraft,
 } from "./pluginManagerModel";
 import { PluginSettingsSection } from "./components/PluginManagerDialog";
+import { OnboardingCapabilityReviewContent } from "./components/OnboardingCapabilityReview";
+import {
+  buildOnboardingCapabilitySections,
+  onboardingCapabilityStatus,
+  onboardingCapabilityTone,
+} from "./onboardingCapabilities";
 import { applyTheme } from "./theme/applyTheme";
 import { contrastRatio } from "./theme/contrast";
 import { THEME_FAMILIES, resolveTheme } from "./theme/registry";
@@ -1029,6 +1035,63 @@ describe("workspace onboarding model", () => {
     expect(defaultTerminalCwdForNotesFolder("/Users/tester/lab/notes")).toBe("/Users/tester/lab");
     expect(defaultTerminalCwdForNotesFolder("/Users/tester/lab/notes/")).toBe("/Users/tester/lab");
     expect(defaultTerminalCwdForNotesFolder("/notes")).toBe("/notes");
+  });
+
+  it("builds a capability review from plugin inventory without a separate source of truth", () => {
+    const core = pluginInventoryItem("core.markdown-graph", "Markdown graph", "core", "Core", "core");
+    const qmd = pluginInventoryItem("qmd", "QMD advanced search", "searchProvider", "Search providers", "bundled");
+    const codex = {
+      ...pluginInventoryItem("codex", "Codex", "agentHarness", "Agent harnesses", "bundled"),
+      status: "not-found",
+      statusLabel: "Not found",
+    };
+    const localProfile = {
+      ...pluginInventoryItem("lab.profile", "Lab profile", "profile", "Profiles", "localManifest"),
+      distribution: "local" as const,
+      distributionLabel: "Local",
+      trust: "untrusted" as const,
+    };
+    const sections = buildOnboardingCapabilitySections(pluginInventory([codex, localProfile, qmd, core]));
+
+    expect(sections.map((section) => section.id)).toEqual(["core", "searchProvider", "agentHarness", "profile"]);
+    expect(sections.find((section) => section.id === "searchProvider")?.rows.map((row) => row.id)).toEqual(["qmd"]);
+    expect(onboardingCapabilityStatus(core)).toBe("Core, locked");
+    expect(onboardingCapabilityStatus(qmd)).toBe("Official, available");
+    expect(onboardingCapabilityStatus(localProfile)).toBe("Local, review needed");
+    expect(onboardingCapabilityTone(codex)).toBe("warning");
+  });
+
+  it("renders the capability review with core and optional plugin categories", () => {
+    const inventory = pluginInventory([
+      pluginInventoryItem("core.markdown-graph", "Markdown graph", "core", "Core", "core"),
+      pluginInventoryItem("qmd", "QMD advanced search", "searchProvider", "Search providers", "bundled"),
+      {
+        ...pluginInventoryItem("codex", "Codex", "agentHarness", "Agent harnesses", "bundled"),
+        status: "not-found",
+        statusLabel: "Not found",
+      },
+    ]);
+    const html = renderToStaticMarkup(
+      <OnboardingCapabilityReviewContent
+        errorMessage={null}
+        indexMode="hybrid"
+        inventory={inventory}
+        loadState="idle"
+        notesFolder="/workspace/notes"
+        onBack={vi.fn()}
+        onEnterWorkspace={vi.fn()}
+        sections={buildOnboardingCapabilitySections(inventory)}
+      />,
+    );
+
+    expect(html).toContain("Review capabilities");
+    expect(html).toContain("Markdown graph");
+    expect(html).toContain("Core, locked");
+    expect(html).toContain("QMD advanced search");
+    expect(html).toContain("Agent harness readiness");
+    expect(html).toContain("Official, not found");
+    expect(html).toContain("QMD hybrid");
+    expect(html).toContain("Enter workspace");
   });
 });
 

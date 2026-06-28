@@ -289,9 +289,10 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Define concrete discovery locations for built-in, dev, user, and workspace plugin manifests in the desktop runtime.
 - [ ] Define concrete install/load directories and lifecycle rules for future executable plugins.
 - [x] Convert the current terminal rail into a general tool/plugin dock without moving terminal rendering, scrollback, reconnect, or diagnostics out of core.
-- [ ] Add renderer surface descriptors for official/local tool actions: terminal launcher, harness launcher, agent config, routines, graph tools, and future plugin panels.
+- [x] Add renderer surface descriptors for official/local tool actions: terminal launcher, harness launcher, agent config, routines, graph tools, and future plugin panels.
 - [x] Add core web viewer open/focus/close endpoints for URL/path/artifact preview; plugin outputs should call those endpoints rather than require a special WebView plugin API.
-- [ ] Add onboarding capability selection for official/local plugins: QMD, Claude/Codex/Pi/Hermes harness adapters, and future routine/profile packs; web viewer remains core.
+- [x] Add first-pass onboarding capability review for official/local plugins after workspace selection: core locked rows, QMD/search provider rows, agent harness readiness rows, and local/profile/routine inventory from the existing Plugin Inventory API; web viewer remains core.
+- [ ] Add a future onboarding apply flow for profile/plugin recommendations after trust prompts and permission grants exist.
 - [ ] Add trust prompts and permission grants before any plugin entrypoint execution.
 - [x] Add the first read-only Plugin Manager UI after manifests, trust, and permissions survived the metadata-only pass.
 - [x] Add Plugin Manager mutation flows for metadata-only local/developer plugins: trust, enable, and disable.

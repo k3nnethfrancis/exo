@@ -8,7 +8,7 @@ import { pathLabel, pickInitialNote, uniquePaths } from "../workspaceTree";
 
 export interface OnboardingState {
   mode: "first-run" | "switch";
-  step: "select" | "configure";
+  step: "select" | "configure" | "capabilities";
   workspaces: WorkspaceRegistryEntry[];
   selectedWorkspaceId: string | null;
   notesFolder: string;
@@ -267,7 +267,18 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
     try {
       const saved = await window.exo.workspace.activateWorkspace(current.selectedWorkspaceId);
       workspaceSettingsRef.current = saved;
-      window.location.reload();
+      setOnboardingState({
+        ...current,
+        notesFolder: saved.noteRoots[0] ?? current.notesFolder,
+        projectFolders: saved.projectRoots,
+        defaultTerminalCwd: saved.defaultTerminalCwd,
+        indexMode: saved.indexing.mode,
+        exploreIndexSearchOnEnter: saved.exploreIndexSearchOnEnter,
+        indexUpdateStrategy: saved.indexUpdateStrategy,
+        step: "capabilities",
+        status: "idle",
+        errorMessage: null,
+      });
     } catch (error) {
       setOnboardingState({
         ...current,
@@ -314,7 +325,18 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
       };
       const saved = await window.exo.workspace.saveSettings(nextSettings);
       workspaceSettingsRef.current = saved;
-      window.location.reload();
+      setOnboardingState({
+        ...current,
+        notesFolder,
+        defaultTerminalCwd: nextSettings.defaultTerminalCwd,
+        projectFolders: nextSettings.projectRoots,
+        indexMode: nextSettings.indexing.mode,
+        exploreIndexSearchOnEnter: nextSettings.exploreIndexSearchOnEnter,
+        indexUpdateStrategy: nextSettings.indexUpdateStrategy,
+        step: "capabilities",
+        status: "idle",
+        errorMessage: null,
+      });
     } catch (error) {
       setOnboardingState({
         ...current,
@@ -322,6 +344,10 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
         errorMessage: error instanceof Error ? error.message : "Unable to save setup.",
       });
     }
+  }
+
+  function enterWorkspaceAfterCapabilityReview() {
+    window.location.reload();
   }
 
   return {
@@ -340,6 +366,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
     startNewWorkspaceSetup,
     activateSelectedWorkspace,
     completeOnboarding,
+    enterWorkspaceAfterCapabilityReview,
   };
 }
 

@@ -14,6 +14,7 @@ import { AgentConfigEditorDialog } from "./components/AgentConfigEditorDialog";
 import { EditorPane, type EditorPaneState } from "./components/EditorPane";
 import { BrowserPane } from "./components/BrowserPane";
 import { InspectorDock } from "./components/InspectorDock";
+import { OnboardingCapabilityReview } from "./components/OnboardingCapabilityReview";
 import { PathList } from "./components/PathList";
 import { PluginManagerDialog } from "./components/PluginManagerDialog";
 import { ShellLayout } from "./components/ShellLayout";
@@ -813,6 +814,24 @@ export function App() {
                 </button>
               </div>
             </>
+          ) : onboardingState.step === "capabilities" ? (
+            <OnboardingCapabilityReview
+              indexMode={onboardingState.indexMode}
+              notesFolder={onboardingState.notesFolder}
+              onBack={() =>
+                setOnboardingState((current) =>
+                  current
+                    ? {
+                        ...current,
+                        step: current.selectedWorkspaceId && current.workspaces.length > 0 ? "select" : "configure",
+                        status: "idle",
+                        errorMessage: null,
+                      }
+                    : current,
+                )
+              }
+              onEnterWorkspace={workspaceBootstrap.enterWorkspaceAfterCapabilityReview}
+            />
           ) : (
             <>
               <h1 className="onboarding-card__title">
@@ -961,7 +980,7 @@ export function App() {
                   onClick={() => void workspaceBootstrap.completeOnboarding()}
                   type="button"
                 >
-                  {onboardingState.status === "saving" ? "Opening…" : "Open workspace"}
+                  {onboardingState.status === "saving" ? "Saving…" : "Review capabilities"}
                 </button>
               </div>
             </>

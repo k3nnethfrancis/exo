@@ -53,6 +53,7 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 
 ## Recent Completed Work
 
+- Added first-pass onboarding capability review after notes/workspace configuration: setup now saves workspace defaults, shows core locked capabilities plus optional official/local plugin inventory from the existing Plugin Inventory API, highlights QMD/search and agent harness readiness, and lets users enter the workspace without applying profiles, executing plugins, or granting permissions.
 - Added the first typed tool surface descriptor layer for the desktop right rail/tool dock: core now describes terminal dock toggles, core terminal launch, official harness launchers, Agent Config, Plugin Manager, side-pane controls, and future routine-template/graph-visualization tool targets, while the renderer maps descriptors to existing icons and callbacks without moving terminal runtime/rendering into plugins.
 - Added Plugin Config v0 desktop editing in the Plugin Manager: trusted/enabled local manifest plugins can read, edit, apply, and reset metadata-declared settings through Exo-rendered controls, while core/official rows and untrusted/disabled plugins remain non-editable and plugin code is still never executed for settings UI.
 - Added Plugin Enablement v0 in the desktop Plugin Manager: local/developer metadata plugin manifests can now be trusted, enabled, and disabled with state persisted under the Exo runtime root, while core/official plugin rows remain read-only and manifest discovery remains non-executable.
