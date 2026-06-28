@@ -2915,6 +2915,20 @@ select.dialog-card__input {
   white-space: nowrap;
 }
 
+.profile-settings__metric input {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  opacity: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .profile-settings__recommendations {
   display: grid;
   gap: 6px;

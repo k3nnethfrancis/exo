@@ -7,6 +7,7 @@ import {
   type ProfileSettingsCandidate,
   type ProfileSettingsModel,
 } from "../profileSettingsModel";
+import { ProfileEditPanel } from "./ProfileEditPanel";
 
 type ProfileInventoryLoadState = "loading" | "ready" | "error";
 
@@ -17,6 +18,7 @@ export function ProfileSettingsSection() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionStatus, setActionStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [actionError, setActionError] = useState<string | null>(null);
+  const [editingCandidate, setEditingCandidate] = useState<ProfileSettingsCandidate | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -45,6 +47,17 @@ export function ProfileSettingsSection() {
   }, []);
 
   const model = useMemo(() => buildProfileSettingsModel(inventory, profileState), [inventory, profileState]);
+  const editableCandidate = model.detectedProfiles.find((candidate) => candidate.isActive) ?? model.baselineCandidate;
+
+  if (editingCandidate) {
+    return (
+      <ProfileEditPanel
+        candidate={editingCandidate}
+        disabledReason={PROFILE_SETTINGS_DISABLED_REASON}
+        onBack={() => setEditingCandidate(null)}
+      />
+    );
+  }
 
   async function runProfileAction(action: () => Promise<ProfileStateStore>) {
     setActionStatus("saving");
@@ -68,6 +81,7 @@ export function ProfileSettingsSection() {
       model={model}
       onClearActive={() => void runProfileAction(() => window.exo.workspace.clearActiveProfile())}
       onSetActive={(candidate) => void runProfileAction(() => window.exo.workspace.setActiveProfile(candidate.identity))}
+      onCustomize={editableCandidate ? () => setEditingCandidate(editableCandidate) : null}
       onToggleAutoUpdate={(autoUpdate) => void runProfileAction(() => window.exo.workspace.setProfileAutoUpdate({ autoUpdate }))}
     />
   );
@@ -80,6 +94,7 @@ export function ProfileSettingsContent({
   loadState,
   model,
   onClearActive,
+  onCustomize,
   onSetActive,
   onToggleAutoUpdate,
 }: {
@@ -89,6 +104,7 @@ export function ProfileSettingsContent({
   loadState: ProfileInventoryLoadState;
   model: ProfileSettingsModel;
   onClearActive: () => void;
+  onCustomize: (() => void) | null;
   onSetActive: (candidate: ProfileSettingsCandidate) => void;
   onToggleAutoUpdate: (autoUpdate: boolean) => void;
 }) {
@@ -112,6 +128,9 @@ export function ProfileSettingsContent({
           </button>
           <button className="toolbar-button" disabled={!model.activeProfile || actionStatus === "saving"} onClick={onClearActive} type="button">
             Clear active
+          </button>
+          <button className="toolbar-button" disabled={!onCustomize} onClick={() => onCustomize?.()} type="button">
+            Customize
           </button>
           <button className="toolbar-button" disabled title={PROFILE_SETTINGS_DISABLED_REASON} type="button">
             Apply

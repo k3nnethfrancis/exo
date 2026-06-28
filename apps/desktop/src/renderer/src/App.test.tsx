@@ -61,6 +61,7 @@ import {
 } from "./pluginManagerModel";
 import { buildProfileSettingsModel, PROFILE_SETTINGS_DISABLED_REASON } from "./profileSettingsModel";
 import { PluginSettingsSection } from "./components/PluginManagerDialog";
+import { ProfileEditPanel, buildProfileEditPanelSections } from "./components/ProfileEditPanel";
 import { OnboardingCapabilityReviewContent } from "./components/OnboardingCapabilityReview";
 import {
   buildOnboardingCapabilitySections,
@@ -180,6 +181,49 @@ describe("profile settings model", () => {
     expect(model.autoUpdate).toBe(true);
     expect(model.reviewRequired).toBe(true);
     expect(model.baselineCandidate?.isActive).toBe(true);
+  });
+
+  it("builds a centralized read-only profile edit surface from profile sections", () => {
+    const baseline: PluginInventoryItem = {
+      ...pluginInventoryItem("exograph-baseline.profile", "Exograph Baseline", "profile", "Profiles", "bundled"),
+      pluginId: "exograph-baseline.plugin",
+      compatibility: {
+        profile: {
+          recommendedPlugins: [{ id: "qmd", required: false }],
+          metadataSchemas: [{ id: "markdown-note", label: "Markdown note", scope: { paths: ["**/*.md"] }, frontmatter: { title: { type: "string" } } }],
+          instructionTemplates: [{ id: "agents-md", label: "AGENTS.md" }],
+          skills: [{ id: "terminal-stability", label: "Terminal Stability" }],
+          routineTemplateIds: ["graph-health.template"],
+          reviewPolicy: { fileChanges: "propose" },
+          outputPolicy: { artifacts: "record" },
+        },
+      },
+    };
+    const candidate = buildProfileSettingsModel(pluginInventory([baseline])).baselineCandidate;
+
+    expect(candidate).not.toBeNull();
+    expect(buildProfileEditPanelSections(candidate!).map((section) => section.id)).toEqual([
+      "metadata",
+      "recommendedPlugins",
+      "instructions",
+      "skills",
+      "schemas",
+      "routines",
+      "graph",
+      "policies",
+    ]);
+
+    const markup = renderToStaticMarkup(
+      <ProfileEditPanel
+        candidate={candidate!}
+        disabledReason={PROFILE_SETTINGS_DISABLED_REASON}
+        onBack={() => {}}
+      />,
+    );
+    expect(markup).toContain("Customize profile");
+    expect(markup).toContain("Templatize");
+    expect(markup).toContain("disabled=");
+    expect(markup).toContain("AGENTS.md");
   });
 
   it("keeps Exograph Baseline visible even when inventory is unavailable", () => {

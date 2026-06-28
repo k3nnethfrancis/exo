@@ -1218,6 +1218,10 @@ test("opens workspace settings from the sidebar", async () => {
   await expect(page.getByLabel("Auto-update profile metadata on safe state changes")).toBeChecked();
   const updatedProfileState = JSON.parse(await readFile(path.join(runtimeRoot, "profile-state.json"), "utf8"));
   expect(updatedProfileState.autoUpdate).toBe(true);
+  await page.getByRole("button", { name: "Customize" }).click();
+  await expect(page.getByTestId("profile-edit-panel")).toBeVisible();
+  await expect(page.getByTestId("profile-edit-panel")).toContainText("Review and output policies");
+  await page.getByTestId("profile-edit-back").click();
   await page.getByTestId("workspace-settings-tab-terminal").click();
   await expect(page.getByTestId("workspace-settings-dialog")).toContainText("Live terminal scrollback lines");
   await expect(page.getByTestId("workspace-settings-terminal-history-lines")).toBeVisible();

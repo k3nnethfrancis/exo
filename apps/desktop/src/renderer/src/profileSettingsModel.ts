@@ -25,6 +25,7 @@ export interface ProfileSettingsCandidate {
   plan: ProfileSettingsPlanPreview | null;
   componentRows: ProfileSettingsRow[];
   recommendationRows: ProfileSettingsRow[];
+  editSections: ProfileSettingsSectionGroup[];
 }
 
 export interface ProfileSettingsPlanPreview {
@@ -38,6 +39,13 @@ export interface ProfileSettingsPlanPreview {
 export interface ProfileSettingsRow {
   label: string;
   value: string;
+}
+
+export interface ProfileSettingsSectionGroup {
+  id: string;
+  label: string;
+  description: string;
+  rows: ProfileSettingsRow[];
 }
 
 export const PROFILE_SETTINGS_DISABLED_REASON =
@@ -96,6 +104,7 @@ function profileCandidate(item: PluginInventoryItem, inventory: PluginInventory,
     plan,
     componentRows: profile ? componentRows(profile, plan) : [],
     recommendationRows: profile ? recommendationRows(profile, inventory) : [],
+    editSections: profile ? profileEditSections(profile, item, inventory) : [],
   };
 }
 
@@ -185,6 +194,102 @@ function recommendationRows(profile: Record<string, unknown>, inventory: PluginI
   });
 }
 
+function profileEditSections(profile: Record<string, unknown>, item: PluginInventoryItem, inventory: PluginInventory): ProfileSettingsSectionGroup[] {
+  return [
+    {
+      id: "metadata",
+      label: "Profile metadata",
+      description: "Identity, source, and profile package references.",
+      rows: [
+        { label: "Capability id", value: item.id },
+        { label: "Plugin", value: item.pluginName ?? item.pluginId ?? "none" },
+        { label: "Source", value: uniqueLabels(item.distributionLabel, item.sourceLabel).join(" ") || "unknown" },
+        { label: "Scope", value: "Workspace profile" },
+      ],
+    },
+    {
+      id: "recommendedPlugins",
+      label: "Recommended plugins",
+      description: "Capabilities this profile expects or benefits from.",
+      rows: recommendationRows(profile, inventory),
+    },
+    {
+      id: "instructions",
+      label: "Agent context and instructions",
+      description: "Templates and config references that later apply flows can review.",
+      rows: [
+        ...namedRows("Context template", readRecordArray(profile.contextTemplates)),
+        ...namedRows("Instruction template", readRecordArray(profile.instructionTemplates)),
+        ...namedRows("MCP config template", readRecordArray(profile.mcpConfigTemplates)),
+      ],
+    },
+    {
+      id: "skills",
+      label: "Skills and harness mappings",
+      description: "Skill bundles the profile can recommend for configured harnesses.",
+      rows: namedRows("Skill", readRecordArray(profile.skills)),
+    },
+    {
+      id: "schemas",
+      label: "Metadata and frontmatter schemas",
+      description: "Advisory graph/property conventions for Markdown files.",
+      rows: schemaRows(readRecordArray(profile.metadataSchemas)),
+    },
+    {
+      id: "routines",
+      label: "Routines and templates",
+      description: "Routine template ids that can be instantiated later.",
+      rows: readStringArray(profile.routineTemplateIds).map((id) => ({ label: "Routine template", value: id })),
+    },
+    {
+      id: "graph",
+      label: "Graph views and analyzers",
+      description: "Graph visualization and analyzer defaults supplied by the profile.",
+      rows: [
+        ...namedRows("Graph view", readRecordArray(profile.graphViews)),
+        ...namedRows("Analyzer", readRecordArray(profile.analyzerSettings)),
+      ],
+    },
+    {
+      id: "policies",
+      label: "Review and output policies",
+      description: "How future apply flows should stage file changes and artifacts.",
+      rows: [
+        ...policyRows("Review", profile.reviewPolicy),
+        ...policyRows("Output", profile.outputPolicy),
+      ],
+    },
+  ];
+}
+
+function namedRows(label: string, records: Array<Record<string, unknown>>): ProfileSettingsRow[] {
+  return records.map((record, index) => ({
+    label,
+    value: optionalString(record, "label") ?? optionalString(record, "id") ?? optionalString(record, "path") ?? `${label} ${index + 1}`,
+  }));
+}
+
+function schemaRows(records: Array<Record<string, unknown>>): ProfileSettingsRow[] {
+  return records.map((record, index) => {
+    const scope = isRecord(record.scope) ? readStringArray(record.scope.paths).join(", ") : "";
+    const fields = isRecord(record.frontmatter) ? Object.keys(record.frontmatter).join(", ") : "";
+    return {
+      label: optionalString(record, "label") ?? optionalString(record, "id") ?? `Schema ${index + 1}`,
+      value: [scope, fields ? `fields: ${fields}` : ""].filter(Boolean).join(" · ") || "No fields declared",
+    };
+  });
+}
+
+function policyRows(prefix: string, policy: unknown): ProfileSettingsRow[] {
+  if (!isRecord(policy)) {
+    return [];
+  }
+  return Object.entries(policy).map(([key, value]) => ({
+    label: `${prefix}: ${key}`,
+    value: Array.isArray(value) ? value.join(", ") : String(value),
+  }));
+}
+
 function row(label: string, count: number): ProfileSettingsRow {
   return { label, value: String(count) };
 }
@@ -224,10 +329,18 @@ function uniqueLabels(...labels: Array<string | null | undefined>): string[] {
   const seen = new Set<string>();
   return labels.flatMap((label) => {
     const trimmed = label?.trim();
-    if (!trimmed || seen.has(trimmed.toLowerCase())) {
+    if (!trimmed) {
       return [];
     }
-    seen.add(trimmed.toLowerCase());
+    const key = labelKey(trimmed);
+    if (seen.has(key)) {
+      return [];
+    }
+    seen.add(key);
     return [trimmed];
   });
+}
+
+function labelKey(label: string): string {
+  return label.toLowerCase().replace(/\s+plugin$/, "");
 }
