@@ -1655,9 +1655,44 @@ button svg,
 .plugin-manager {
   min-height: 0;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   gap: 14px;
   overflow: hidden;
+}
+
+.plugin-manager__local-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--surface-border);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.plugin-manager__local-toolbar > div:first-child {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.plugin-manager__local-toolbar strong {
+  font-size: 13px;
+}
+
+.plugin-manager__local-toolbar span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.plugin-manager__local-toolbar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .plugin-manager__summary {

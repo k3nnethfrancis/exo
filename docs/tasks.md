@@ -245,7 +245,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Improve Plugin Manager into a quick management surface with active/disabled/untrusted/missing setup/permissions-needed buckets, inline mutable actions, same-category alternatives, and clear locks for official/core rows.
 - [x] Add profile review and notes-repo changes indicators to the bottom bar, with a changed-notes modal that opens changed Markdown files from note roots.
 - [ ] Add permission prompts and a staged profile apply review flow before any profile can write `AGENTS.md`, `CLAUDE.md`, MCP config, skills, routines, plugin settings, or permission grants.
-- [ ] Add local plugin add/remove/swap primitives for metadata plugin directories without loading executable plugin entrypoints.
+- [x] Add local plugin add/remove/swap primitives for metadata plugin directories without loading executable plugin entrypoints.
 - [ ] Add provider-neutral search readiness metadata so Plugin Manager can show QMD and future search-provider state without treating QMD as core search.
 
 ## Next: Multi-Agent Coordination

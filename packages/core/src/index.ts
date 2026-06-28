@@ -8,6 +8,7 @@ export * from "./plugin";
 export * from "./plugin-inventory";
 export * from "./plugin-locations";
 export * from "./plugin-management";
+export * from "./plugin-local-management";
 export * from "./plugin-settings";
 export * from "./plugin-state";
 export * from "./plugin-permissions";

@@ -57,7 +57,7 @@ Plugin management, profile management, and onboarding are related but separate p
 
 - **Onboarding** is the first-run selection and review flow. It helps the user pick notes, review the default Exograph Baseline or another profile, understand recommended official plugins, and enter the workspace. It should not become the long-term place for changing configuration.
 - **Settings / Profile** is the workspace-level profile surface. It owns the active profile record, profile scope, auto-update preference, profile drift/review state, and profile component summaries such as schemas, recommended plugins, context templates, skills, routines, graph views, and review/output policy.
-- **Plugin Manager** is the capability lifecycle surface. It owns plugin discovery, trust, enablement, dependency/setup state, requested versus granted permissions, plugin-owned configuration, local/developer plugin add/remove/swap flows, and links into deeper plugin-specific settings.
+- **Plugin Manager** is the capability lifecycle surface. It owns plugin discovery, trust, enablement, dependency/setup state, requested versus granted permissions, plugin-owned configuration, managed local plugin add/remove/swap flows, and links into deeper plugin-specific settings. Developer/operator plugin directories remain explicit read-only source paths rather than Plugin Manager install targets.
 - **Agent Config Editor** remains a specialized harness-adjacent editor for instruction files, skills, and provider config. Profile Settings can deep-link there, but it should not duplicate the full skill/instruction editing UI.
 
 This split keeps each screen legible:
@@ -262,6 +262,7 @@ Not yet aligned:
 - current Routine/Run naming is compatibility terminology for the first CLI/store MVP; the durable contract is the smaller activity/artifact/provenance/review substrate documented in `activity-plugin-contract.md`
 - shared CLI/MCP/session types still expose fixed official harness ids in places where they should eventually derive policy-approved choices from the harness registry
 - plugin manager exists and onboarding now has a first-pass read-only capability review, but onboarding does not yet apply profile/plugin recommendations or grant permissions
+- Plugin Manager can add, remove, and swap metadata-only local plugins in managed user/workspace plugin roots without loading executable entrypoints
 - active workspace profile state exists under Exo runtime metadata and is visible from Settings and the status bar when review is required
 - plugin manager can inspect and mutate local/developer metadata plugins, but it still reads closer to inventory than a quick management surface for active, disabled, untrusted, missing, and misconfigured capabilities
 - plugin manifests do not yet contribute UI, commands, settings, or MCP/CLI surfaces

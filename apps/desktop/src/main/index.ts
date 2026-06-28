@@ -11,6 +11,7 @@ import {
   deleteWorkspacePath,
   listRootTree,
   listPluginInventory,
+  addLocalPlugin,
   applyPluginStateAction,
   copyProfileToWorkspacePlugin,
   discoverManagedPlugins,
@@ -20,6 +21,8 @@ import {
   readWorkspaceDocument,
   renameWorkspacePath,
   resetManagedPluginSettings,
+  removeLocalPlugin,
+  replaceLocalPlugin,
   resolveRuntimeConfig,
   resolveWorkspaceModel,
   saveWorkspaceDocument,
@@ -335,6 +338,9 @@ function registerIpcHandlers() {
     enablePlugin: (input) => updatePluginState("enable", input),
     disablePlugin: (input) => updatePluginState("disable", input),
     trustPlugin: (input) => updatePluginState("trust", input),
+    addLocalPlugin: (input) => addWorkspaceLocalPlugin(input),
+    removeLocalPlugin: (input) => removeWorkspaceLocalPlugin(input),
+    replaceLocalPlugin: (input) => replaceWorkspaceLocalPlugin(input),
     readPluginSettings: (input) => readPluginSettings(input),
     updatePluginSettings: (input) => updatePluginSettings(input),
     resetPluginSettings: (input) => resetPluginSettings(input),
@@ -416,6 +422,50 @@ async function updatePluginState(
     source: input.source,
     manifestPath: input.manifestPath,
     rootDirectory: input.rootDirectory,
+    env: pluginDiscoveryEnv(),
+  });
+  return readPluginInventory();
+}
+
+async function addWorkspaceLocalPlugin(input: { sourceDirectory: string; target: "user" | "workspace" }) {
+  await addLocalPlugin({
+    workspaceRoot: workspaceModel.workspaceRoot,
+    sourceDirectory: input.sourceDirectory,
+    target: input.target,
+    env: pluginDiscoveryEnv(),
+  });
+  return readPluginInventory();
+}
+
+async function removeWorkspaceLocalPlugin(input: WorkspacePluginActionInput) {
+  await removeLocalPlugin({
+    workspaceRoot: workspaceModel.workspaceRoot,
+    plugin: {
+      pluginId: input.pluginId,
+      source: input.source,
+      manifestPath: input.manifestPath,
+      rootDirectory: input.rootDirectory,
+    },
+    env: pluginDiscoveryEnv(),
+  });
+  return readPluginInventory();
+}
+
+async function replaceWorkspaceLocalPlugin(input: {
+  sourceDirectory: string;
+  target: "user" | "workspace";
+  existing: WorkspacePluginActionInput;
+}) {
+  await replaceLocalPlugin({
+    workspaceRoot: workspaceModel.workspaceRoot,
+    sourceDirectory: input.sourceDirectory,
+    target: input.target,
+    existing: {
+      pluginId: input.existing.pluginId,
+      source: input.existing.source,
+      manifestPath: input.existing.manifestPath,
+      rootDirectory: input.existing.rootDirectory,
+    },
     env: pluginDiscoveryEnv(),
   });
   return readPluginInventory();

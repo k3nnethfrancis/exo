@@ -35,6 +35,9 @@ export interface DesktopInvokeHandlers {
   "workspace:enable-plugin": WorkspaceApi["enablePlugin"];
   "workspace:disable-plugin": WorkspaceApi["disablePlugin"];
   "workspace:trust-plugin": WorkspaceApi["trustPlugin"];
+  "workspace:add-local-plugin": WorkspaceApi["addLocalPlugin"];
+  "workspace:remove-local-plugin": WorkspaceApi["removeLocalPlugin"];
+  "workspace:replace-local-plugin": WorkspaceApi["replaceLocalPlugin"];
   "workspace:read-plugin-settings": WorkspaceApi["readPluginSettings"];
   "workspace:update-plugin-settings": WorkspaceApi["updatePluginSettings"];
   "workspace:reset-plugin-settings": WorkspaceApi["resetPluginSettings"];

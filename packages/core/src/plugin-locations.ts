@@ -74,6 +74,14 @@ export function splitPluginPathList(rawValue: string | undefined): string[] {
   return splitPathList(rawValue);
 }
 
+export function resolveUserPluginRoot(env: Record<string, string | undefined> = process.env): string | null {
+  return env.EXO_USER_DATA_PATH ? path.join(env.EXO_USER_DATA_PATH, EXO_PLUGIN_DIRECTORY_NAME) : null;
+}
+
+export function resolveWorkspacePluginRoot(workspaceRoot: string): string {
+  return path.join(workspaceRoot, EXO_WORKSPACE_PLUGIN_DIRECTORY);
+}
+
 function trustedLocation(
   directory: string,
   source: PluginSource,

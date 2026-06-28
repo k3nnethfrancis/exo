@@ -270,6 +270,33 @@ components. The desktop Plugin Manager renders the supported setting controls
 itself for trusted/enabled local manifest plugins and keeps core/official,
 untrusted, disabled, and schema-less plugins non-editable.
 
+## Phase 4.6: Local Plugin Directory Management V0
+
+Status: metadata-only local add/remove/swap implemented. Exo can copy a valid
+plugin directory into an Exo-managed user plugin root or workspace plugin root,
+remove managed local plugin copies, and replace a managed local plugin copy after
+validating the replacement manifest. These actions refresh Plugin Manager
+inventory and keep trust, enablement, settings, and permission state separate
+from the plugin directory itself.
+
+This is still not executable plugin loading. Add/swap validates
+`exo.plugin.json` and copies files, but Exo does not run install scripts, import
+entrypoints, register renderer panels, add MCP/CLI tools, launch terminals, open
+web views, or grant permissions from the manifest. User/workspace plugin copies
+remain untrusted until explicitly reviewed.
+
+Safety rules:
+
+- source plugin manifests cannot choose install destinations
+- writes are constrained to `${EXO_USER_DATA_PATH}/plugins/{plugin}/` or
+  `${workspaceRoot}/.exo/plugins/{plugin}/`
+- official, source-tree, operator, and developer plugin directories are
+  read-only from Plugin Manager
+- replacement validates the new manifest before moving the existing managed
+  plugin copy aside
+- changed manifest hashes naturally require trust/settings/permission review
+  through existing state stores
+
 ## Phase 5: External Reference Workload Contracts
 
 Use downstream workloads to pressure-test the plugin boundary, but do not build workload-specific behavior into Exo core.

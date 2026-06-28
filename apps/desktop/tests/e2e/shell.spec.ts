@@ -111,6 +111,9 @@ test("opens the plugin manager inventory and keeps official rows read-only", asy
 
   await page.getByTestId("open-plugin-manager").click();
   await expect(page.getByTestId("plugin-manager")).toBeVisible();
+  await expect(page.getByTestId("plugin-manager-local-toolbar")).toContainText("Local plugins");
+  await expect(page.getByTestId("plugin-manager-add-workspace-plugin")).toBeVisible();
+  await expect(page.getByTestId("plugin-manager-add-user-plugin")).toBeVisible();
   await expect(page.getByTestId("plugin-manager-summary")).toContainText("Active");
   await expect(page.getByTestId("plugin-manager-summary")).toContainText("Disabled");
   await expect(page.getByTestId("plugin-manager-summary")).toContainText("Review");
@@ -122,6 +125,9 @@ test("opens the plugin manager inventory and keeps official rows read-only", asy
   await page.getByTestId("plugin-inventory-item-qmd").click();
   await expect(page.getByTestId("plugin-manager-detail")).toContainText("Search Provider");
   await expect(page.getByTestId("plugin-manager-detail")).toContainText("Official");
+  for (const mutationLabel of ["Enable", "Disable", "Trust", "Grant", "Apply profile", "Launch"]) {
+    await expect(page.getByTestId("plugin-manager-detail").getByRole("button", { name: new RegExp(`^${mutationLabel}$`, "i") })).toHaveCount(0);
+  }
   await page.getByTestId("plugin-manager-category-agentHarness").click();
   await expect(page.getByTestId("plugin-manager-group-agentHarness")).toContainText("Claude");
   await page.getByTestId("plugin-inventory-item-claude").click();
@@ -134,9 +140,6 @@ test("opens the plugin manager inventory and keeps official rows read-only", asy
   await expect(page.getByTestId("plugin-manager-detail")).toContainText("Profile Plan Preview");
   await expect(page.getByTestId("plugin-manager-detail")).toContainText("qmd");
   await expect(page.getByTestId("plugin-manager-detail")).toContainText("Review paths");
-  for (const mutationLabel of ["Install", "Enable", "Disable", "Trust", "Grant", "Apply profile", "Launch"]) {
-    await expect(page.getByRole("button", { name: new RegExp(`^${mutationLabel}$`, "i") })).toHaveCount(0);
-  }
   await page.getByTestId("plugin-manager-close").click();
   await expect(page.getByTestId("plugin-manager")).toHaveCount(0);
 

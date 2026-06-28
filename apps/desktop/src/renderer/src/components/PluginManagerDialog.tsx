@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import type { PluginInventory, PluginInventoryItem, PluginSettingField, PluginSettingsSchema, ResolvedPluginSettings } from "@exo/core";
-import { LockKeyhole, Power, PowerOff, RotateCcw, Save, ShieldCheck, X } from "lucide-react";
+import { FolderPlus, LockKeyhole, Power, PowerOff, RefreshCw, RotateCcw, Save, ShieldCheck, Trash2, X } from "lucide-react";
 
 import {
   buildPluginCategoryFilters,
@@ -13,6 +13,7 @@ import {
   pluginSettingsValuesFromDraft,
   pluginActionAvailability,
   pluginActionInput,
+  pluginLocalManagementAvailability,
   type PluginManagerAction,
   type PluginSettingsDraft,
 } from "../pluginManagerModel";
@@ -83,6 +84,10 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
     () => selectedItem ? pluginSettingsAvailability(selectedItem) : null,
     [selectedItem],
   );
+  const localManagementAvailability = useMemo(
+    () => selectedItem ? pluginLocalManagementAvailability(selectedItem) : null,
+    [selectedItem],
+  );
   const selectedSettingsKey = selectedItem
     ? `${selectedItem.pluginId ?? selectedItem.id}:${selectedItem.pluginSource ?? selectedItem.source}:${selectedItem.manifestPath ?? ""}:${selectedItem.rootDirectory ?? ""}`
     : "";
@@ -143,6 +148,86 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
       setLoadState("idle");
       setSelectedItemId(item.id);
       setActionMessage(pluginActionSuccessMessage(action, item));
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : String(error));
+      setLoadState("error");
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
+  async function addLocalPlugin(target: "user" | "workspace") {
+    setPendingAction(`add:${target}`);
+    setActionMessage(null);
+    setErrorMessage(null);
+    try {
+      const [sourceDirectory] = await window.exo.workspace.selectFolder({
+        title: target === "workspace" ? "Select a plugin folder to add to this workspace" : "Select a plugin folder to add to your user plugins",
+        buttonLabel: "Add plugin",
+      });
+      if (!sourceDirectory) {
+        return;
+      }
+      const nextInventory = await window.exo.workspace.addLocalPlugin({ sourceDirectory, target });
+      setInventory(nextInventory);
+      setSelectedCategoryId("profile");
+      setSelectedItemId(null);
+      setActionMessage(`Local plugin added to ${target === "workspace" ? "workspace" : "user"} plugins. Review and trust it before use.`);
+      setLoadState("idle");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : String(error));
+      setLoadState("error");
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
+  async function replaceLocalPlugin(item: PluginInventoryItem) {
+    if (!localManagementAvailability?.target) {
+      return;
+    }
+    setPendingAction(`${item.pluginId ?? item.id}:replace`);
+    setActionMessage(null);
+    setErrorMessage(null);
+    try {
+      const [sourceDirectory] = await window.exo.workspace.selectFolder({
+        title: "Select the replacement plugin folder",
+        buttonLabel: "Replace plugin",
+      });
+      if (!sourceDirectory) {
+        return;
+      }
+      const nextInventory = await window.exo.workspace.replaceLocalPlugin({
+        sourceDirectory,
+        target: localManagementAvailability.target,
+        existing: pluginActionInput(item),
+      });
+      setInventory(nextInventory);
+      setSelectedItemId(item.id);
+      setActionMessage(`${item.pluginName ?? item.label} replaced. Review trust and permissions before use.`);
+      setLoadState("idle");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : String(error));
+      setLoadState("error");
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
+  async function removeLocalPlugin(item: PluginInventoryItem) {
+    const pluginName = item.pluginName ?? item.label;
+    if (!window.confirm(`Remove local plugin "${pluginName}" from this Exo-managed plugin directory? This does not remove official plugins or runtime state.`)) {
+      return;
+    }
+    setPendingAction(`${item.pluginId ?? item.id}:remove`);
+    setActionMessage(null);
+    setErrorMessage(null);
+    try {
+      const nextInventory = await window.exo.workspace.removeLocalPlugin(pluginActionInput(item));
+      setInventory(nextInventory);
+      setSelectedItemId(null);
+      setActionMessage(`${pluginName} removed from local plugin inventory.`);
+      setLoadState("idle");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : String(error));
       setLoadState("error");
@@ -229,6 +314,34 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
 
         {inventory ? (
           <div className="plugin-manager">
+            <div className="plugin-manager__local-toolbar" data-testid="plugin-manager-local-toolbar">
+              <div>
+                <strong>Local plugins</strong>
+                <span>Add metadata plugin folders without executing plugin code. New local plugins require review before use.</span>
+              </div>
+              <div className="plugin-manager__local-toolbar-actions">
+                <button
+                  className="plugin-manager__action"
+                  data-testid="plugin-manager-add-workspace-plugin"
+                  disabled={pendingAction !== null}
+                  onClick={() => addLocalPlugin("workspace")}
+                  type="button"
+                >
+                  <FolderPlus size={15} />
+                  <span>{pendingAction === "add:workspace" ? "Adding..." : "Add workspace plugin"}</span>
+                </button>
+                <button
+                  className="plugin-manager__action"
+                  data-testid="plugin-manager-add-user-plugin"
+                  disabled={pendingAction !== null}
+                  onClick={() => addLocalPlugin("user")}
+                  type="button"
+                >
+                  <FolderPlus size={15} />
+                  <span>{pendingAction === "add:user" ? "Adding..." : "Add user plugin"}</span>
+                </button>
+              </div>
+            </div>
             <div className="plugin-manager__summary" data-testid="plugin-manager-summary">
               {summaryBuckets.map((bucket) => (
                 <SummaryTile
@@ -311,6 +424,29 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
                         {actionAvailability.actions.length === 0 ? (
                           <small>{actionAvailability.reason}</small>
                         ) : null}
+                      </div>
+                    ) : null}
+                    {localManagementAvailability && selectedItem.source === "localManifest" ? (
+                      <div className="plugin-manager__actions plugin-manager__actions--local" data-testid="plugin-manager-local-actions">
+                        {localManagementAvailability.actions.map((action) => (
+                          <button
+                            className={`plugin-manager__action plugin-manager__action--${action === "replace" ? "enable" : "disable"}`}
+                            data-testid={`plugin-manager-local-action-${action}`}
+                            disabled={!localManagementAvailability.manageable || pendingAction !== null}
+                            key={action}
+                            onClick={() => action === "replace" ? replaceLocalPlugin(selectedItem) : removeLocalPlugin(selectedItem)}
+                            title={localManagementAvailability.reason}
+                            type="button"
+                          >
+                            {action === "replace" ? <RefreshCw size={15} /> : <Trash2 size={15} />}
+                            <span>
+                              {pendingAction === `${selectedItem.pluginId ?? selectedItem.id}:${action}`
+                                ? "Working..."
+                                : action === "replace" ? "Swap local copy" : "Remove local copy"}
+                            </span>
+                          </button>
+                        ))}
+                        {!localManagementAvailability.manageable ? <small>{localManagementAvailability.reason}</small> : null}
                       </div>
                     ) : null}
                     {detailSections.map((section) => (

@@ -257,6 +257,15 @@ export interface WorkspacePluginSettingsResponse {
   inventory: PluginInventory;
 }
 
+export interface WorkspaceLocalPluginInput {
+  sourceDirectory: string;
+  target: "user" | "workspace";
+}
+
+export interface WorkspaceReplaceLocalPluginInput extends WorkspaceLocalPluginInput {
+  existing: WorkspacePluginActionInput;
+}
+
 export interface WorkspaceProfileCopyResponse {
   identity: ActiveProfileIdentity;
   profileState: ProfileStateStore;
@@ -306,6 +315,9 @@ export interface DesktopApi {
     enablePlugin: (input: WorkspacePluginActionInput) => Promise<PluginInventory>;
     disablePlugin: (input: WorkspacePluginActionInput) => Promise<PluginInventory>;
     trustPlugin: (input: WorkspacePluginActionInput) => Promise<PluginInventory>;
+    addLocalPlugin: (input: WorkspaceLocalPluginInput) => Promise<PluginInventory>;
+    removeLocalPlugin: (input: WorkspacePluginActionInput) => Promise<PluginInventory>;
+    replaceLocalPlugin: (input: WorkspaceReplaceLocalPluginInput) => Promise<PluginInventory>;
     readPluginSettings: (input: WorkspacePluginActionInput) => Promise<WorkspacePluginSettingsResponse>;
     updatePluginSettings: (input: WorkspacePluginSettingsInput) => Promise<WorkspacePluginSettingsResponse>;
     resetPluginSettings: (input: WorkspacePluginActionInput) => Promise<WorkspacePluginSettingsResponse>;

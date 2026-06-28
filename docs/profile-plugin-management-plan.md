@@ -25,7 +25,7 @@ The user should be able to answer three questions without reading manifests:
 Already implemented:
 
 - Plugin inventory API exposes core, official, local, developer, trust, enablement, dependency, settings, runtime, and permission-grant metadata.
-- Plugin Manager can inspect categories, details, local trust/enable/disable, and local plugin settings.
+- Plugin Manager can inspect categories, details, local trust/enable/disable, local plugin settings, and Exo-managed local plugin add/remove/swap actions.
 - Onboarding shows a read-only capability review.
 - Profiles can be parsed, dry-run previewed, activated as workspace state, and copied into trusted workspace-local metadata profile plugins.
 - Exograph Baseline exists as a bundled metadata-only profile plugin at `plugins/exograph-baseline/exo.plugin.json`.
@@ -39,7 +39,7 @@ Gaps:
 - Templatize, profile apply, permission review, profile-linked file writes, and AI/headless harness calls are not implemented.
 - Profile modified/review state is visible, but there is no diff against profile-owned component refs yet.
 - Notes repo git state is visible, but there are no inline diffs, stage/commit actions, or provenance links yet.
-- Local plugin add/remove/swap flows are not implemented beyond trust/enable/disable/configure for discovered metadata plugins.
+- Local plugin add/remove/swap flows exist for Exo-managed user/workspace plugin directories, but not for remote install/update flows or marketplace-style distribution.
 
 ## Target UX
 
@@ -56,7 +56,7 @@ The right-rail Plugin Manager should become a quick management surface:
 - visible plugin-owned settings for trusted/enabled local plugins
 - links/buttons to open deeper settings pages for complex configuration
 - open manifest/root folder actions
-- eventually add/remove/swap local plugins from configured plugin directories
+- add/remove/swap local metadata plugin directories from managed user/workspace plugin roots
 
 The Plugin Manager is not the profile editor. It can show profile packages and whether they are available, but active profile editing belongs in Settings.
 

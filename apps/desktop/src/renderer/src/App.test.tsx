@@ -56,6 +56,7 @@ import {
   groupPluginInventoryItems,
   pluginActionAvailability,
   pluginActionInput,
+  pluginLocalManagementAvailability,
   pluginSettingsAvailability,
   pluginSettingsValuesFromDraft,
 } from "./pluginManagerModel";
@@ -571,6 +572,50 @@ describe("plugin manager model", () => {
       source: "workspace",
       manifestPath: "/workspace/.exo/plugins/graph-health/exo.plugin.json",
       rootDirectory: "/workspace/.exo/plugins/graph-health",
+    });
+  });
+
+  it("exposes remove and swap only for managed local plugin sources", () => {
+    const workspaceLocal = {
+      ...pluginInventoryItem("graph-health.template", "Graph Health", "routineTemplate", "Routine templates", "localManifest"),
+      pluginId: "graph-health.plugin",
+      pluginSource: "workspace" as const,
+      manifestPath: "/workspace/.exo/plugins/graph-health/exo.plugin.json",
+      rootDirectory: "/workspace/.exo/plugins/graph-health",
+    };
+    const userLocal = {
+      ...workspaceLocal,
+      pluginSource: "user" as const,
+      manifestPath: "/user-data/plugins/graph-health/exo.plugin.json",
+      rootDirectory: "/user-data/plugins/graph-health",
+    };
+    const developerLocal = {
+      ...workspaceLocal,
+      pluginSource: "dev" as const,
+      manifestPath: "/dev/plugins/graph-health/exo.plugin.json",
+      rootDirectory: "/dev/plugins/graph-health",
+    };
+    const official = pluginInventoryItem("qmd", "QMD", "searchProvider", "Search providers", "bundled");
+
+    expect(pluginLocalManagementAvailability(workspaceLocal)).toMatchObject({
+      manageable: true,
+      target: "workspace",
+      actions: ["replace", "remove"],
+    });
+    expect(pluginLocalManagementAvailability(userLocal)).toMatchObject({
+      manageable: true,
+      target: "user",
+      actions: ["replace", "remove"],
+    });
+    expect(pluginLocalManagementAvailability(developerLocal)).toMatchObject({
+      manageable: false,
+      actions: [],
+      target: null,
+    });
+    expect(pluginLocalManagementAvailability(official)).toMatchObject({
+      manageable: false,
+      actions: [],
+      target: null,
     });
   });
 

@@ -36,6 +36,9 @@ export interface WorkspaceIpcHandlers {
   markProfileReviewRequired: WorkspaceApi["markProfileReviewRequired"];
   copyProfile: WorkspaceApi["copyProfile"];
   trustPlugin: WorkspaceApi["trustPlugin"];
+  addLocalPlugin: WorkspaceApi["addLocalPlugin"];
+  removeLocalPlugin: WorkspaceApi["removeLocalPlugin"];
+  replaceLocalPlugin: WorkspaceApi["replaceLocalPlugin"];
   readPluginSettings: WorkspaceApi["readPluginSettings"];
   updatePluginSettings: WorkspaceApi["updatePluginSettings"];
   resetPluginSettings: WorkspaceApi["resetPluginSettings"];
@@ -130,6 +133,9 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
   handleDesktopInvoke("workspace:enable-plugin", async (_event, input) => handlers.enablePlugin(input));
   handleDesktopInvoke("workspace:disable-plugin", async (_event, input) => handlers.disablePlugin(input));
   handleDesktopInvoke("workspace:trust-plugin", async (_event, input) => handlers.trustPlugin(input));
+  handleDesktopInvoke("workspace:add-local-plugin", async (_event, input) => handlers.addLocalPlugin(input));
+  handleDesktopInvoke("workspace:remove-local-plugin", async (_event, input) => handlers.removeLocalPlugin(input));
+  handleDesktopInvoke("workspace:replace-local-plugin", async (_event, input) => handlers.replaceLocalPlugin(input));
   handleDesktopInvoke("workspace:read-plugin-settings", async (_event, input) => handlers.readPluginSettings(input));
   handleDesktopInvoke("workspace:update-plugin-settings", async (_event, input) => handlers.updatePluginSettings(input));
   handleDesktopInvoke("workspace:reset-plugin-settings", async (_event, input) => handlers.resetPluginSettings(input));

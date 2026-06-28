@@ -33,6 +33,7 @@ export interface PluginDetailRow {
 }
 
 export type PluginManagerAction = "trust" | "enable" | "disable";
+export type PluginLocalManagementAction = "remove" | "replace";
 
 export interface PluginActionAvailability {
   mutable: boolean;
@@ -51,6 +52,13 @@ export interface PluginSettingsAvailability {
   editable: boolean;
   canRead: boolean;
   reason: string;
+}
+
+export interface PluginLocalManagementAvailability {
+  manageable: boolean;
+  reason: string;
+  actions: PluginLocalManagementAction[];
+  target: "user" | "workspace" | null;
 }
 
 export type PluginSettingsDraft = Record<string, boolean | string>;
@@ -346,6 +354,31 @@ export function pluginActionInput(item: PluginInventoryItem): WorkspacePluginAct
     source: item.pluginSource,
     manifestPath: item.manifestPath,
     rootDirectory: item.rootDirectory,
+  };
+}
+
+export function pluginLocalManagementAvailability(item: PluginInventoryItem): PluginLocalManagementAvailability {
+  if (item.source !== "localManifest" || !item.pluginId || !item.manifestPath || !item.rootDirectory) {
+    return {
+      manageable: false,
+      reason: "Only discovered local plugin directories can be removed or replaced.",
+      actions: [],
+      target: null,
+    };
+  }
+  if (item.pluginSource !== "user" && item.pluginSource !== "workspace") {
+    return {
+      manageable: false,
+      reason: "Developer and official plugin directories are read-only from Plugin Manager.",
+      actions: [],
+      target: null,
+    };
+  }
+  return {
+    manageable: true,
+    reason: "This plugin is installed in an Exo-managed local plugin directory.",
+    actions: ["replace", "remove"],
+    target: item.pluginSource,
   };
 }
 
