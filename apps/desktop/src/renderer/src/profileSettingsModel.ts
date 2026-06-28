@@ -1,4 +1,11 @@
-import type { ActiveProfileIdentity, PluginInventory, PluginInventoryItem, ProfileStateStore } from "@exo/core";
+import type {
+  ActiveProfileIdentity,
+  PluginInventory,
+  PluginInventoryItem,
+  ProfilePlanAction,
+  ProfilePlanPreview,
+  ProfileStateStore,
+} from "@exo/core";
 
 export interface ProfileSettingsModel {
   activeProfileLabel: string;
@@ -22,18 +29,16 @@ export interface ProfileSettingsCandidate {
   pluginName: string | null;
   identity: ActiveProfileIdentity;
   isActive: boolean;
-  plan: ProfileSettingsPlanPreview | null;
+  plan: ProfilePlanPreview | null;
+  planLoadError: string | null;
   componentRows: ProfileSettingsRow[];
   recommendationRows: ProfileSettingsRow[];
   editSections: ProfileSettingsSectionGroup[];
 }
 
-export interface ProfileSettingsPlanPreview {
-  apply: {
-    available: false;
-    label: "Review only";
-  };
-  totalActions: number;
+export interface ProfilePreviewLoadEntry {
+  plan: ProfilePlanPreview | null;
+  error: string | null;
 }
 
 export interface ProfileSettingsRow {
@@ -51,8 +56,12 @@ export interface ProfileSettingsSectionGroup {
 export const PROFILE_SETTINGS_DISABLED_REASON =
   "Profile apply review, profile field editing, file writes, skill installs, routine scheduling, plugin enablement, templatize, and permission grants are not wired in this pass.";
 
-export function buildProfileSettingsModel(inventory: PluginInventory | null, state: ProfileStateStore | null = null): ProfileSettingsModel {
-  const detectedProfiles = inventory ? profileCandidatesFromInventory(inventory, state) : [];
+export function buildProfileSettingsModel(
+  inventory: PluginInventory | null,
+  state: ProfileStateStore | null = null,
+  profilePreviews: Record<string, ProfilePreviewLoadEntry> = {},
+): ProfileSettingsModel {
+  const detectedProfiles = inventory ? profileCandidatesFromInventory(inventory, state, profilePreviews) : [];
   const baselineCandidate = detectedProfiles.find((candidate) => candidate.id === "exograph-baseline.profile" || candidate.label === "Exograph Baseline") ?? null;
   const activeCandidate = detectedProfiles.find((candidate) => candidate.isActive) ?? null;
   const activeProfile = state?.activeProfile ?? null;
@@ -73,10 +82,14 @@ export function buildProfileSettingsModel(inventory: PluginInventory | null, sta
   };
 }
 
-function profileCandidatesFromInventory(inventory: PluginInventory, state: ProfileStateStore | null): ProfileSettingsCandidate[] {
+function profileCandidatesFromInventory(
+  inventory: PluginInventory,
+  state: ProfileStateStore | null,
+  profilePreviews: Record<string, ProfilePreviewLoadEntry>,
+): ProfileSettingsCandidate[] {
   return inventory.items
     .filter((item) => item.kind === "profile")
-    .map((item) => profileCandidate(item, inventory, state))
+    .map((item) => profileCandidate(item, inventory, state, profilePreviews[item.id]))
     .sort((a, b) => {
       const aBaseline = a.id === "exograph-baseline.profile" || a.label === "Exograph Baseline";
       const bBaseline = b.id === "exograph-baseline.profile" || b.label === "Exograph Baseline";
@@ -87,9 +100,14 @@ function profileCandidatesFromInventory(inventory: PluginInventory, state: Profi
     });
 }
 
-function profileCandidate(item: PluginInventoryItem, inventory: PluginInventory, state: ProfileStateStore | null): ProfileSettingsCandidate {
+function profileCandidate(
+  item: PluginInventoryItem,
+  inventory: PluginInventory,
+  state: ProfileStateStore | null,
+  previewEntry: ProfilePreviewLoadEntry | undefined,
+): ProfileSettingsCandidate {
   const profile = readProfilePayload(item);
-  const plan = profile ? profilePlanPreview(profile) : null;
+  const plan = previewEntry?.plan ?? null;
   const identity = profileIdentity(item, profile);
   return {
     id: item.id,
@@ -102,9 +120,10 @@ function profileCandidate(item: PluginInventoryItem, inventory: PluginInventory,
     identity,
     isActive: activeProfileMatches(state?.activeProfile ?? null, identity),
     plan,
-    componentRows: profile ? componentRows(profile, plan) : [],
-    recommendationRows: profile ? recommendationRows(profile, inventory) : [],
-    editSections: profile ? profileEditSections(profile, item, inventory) : [],
+    planLoadError: previewEntry?.error ?? null,
+    componentRows: profile ? componentRows(profile, plan, previewEntry) : [],
+    recommendationRows: profile ? recommendationRows(profile, inventory, plan) : [],
+    editSections: profile ? profileEditSections(profile, item, inventory, plan, previewEntry) : [],
   };
 }
 
@@ -135,29 +154,18 @@ function optionalCompare(left: string | undefined, right: string | undefined): b
   return !left || !right || left === right;
 }
 
-// Keep this renderer model metadata-only. Importing core profile planning functions pulls
-// Node-only modules into the browser bundle through @exo/core.
+// Keep this renderer model metadata-only. Core planning runs in main and arrives
+// as serialized data so the browser bundle does not pull Node-only modules.
 function readProfilePayload(item: PluginInventoryItem): Record<string, unknown> | null {
   const profile = item.compatibility?.profile;
   return isRecord(profile) ? profile : null;
 }
 
-function profilePlanPreview(profile: Record<string, unknown>): ProfileSettingsPlanPreview {
-  return {
-    apply: {
-      available: false,
-      label: "Review only",
-    },
-    totalActions: readRecordArray(profile.recommendedPlugins).length
-      + readRecordArray(profile.contextTemplates).length
-      + readRecordArray(profile.instructionTemplates).length
-      + readRecordArray(profile.mcpConfigTemplates).length
-      + readRecordArray(profile.skills).length
-      + readStringArray(profile.routineTemplateIds).length,
-  };
-}
-
-function componentRows(profile: Record<string, unknown>, plan: ProfileSettingsPlanPreview | null): ProfileSettingsRow[] {
+function componentRows(
+  profile: Record<string, unknown>,
+  plan: ProfilePlanPreview | null,
+  previewEntry: ProfilePreviewLoadEntry | undefined,
+): ProfileSettingsRow[] {
   const rows = [
     row("Recommended plugins", readRecordArray(profile.recommendedPlugins).length),
     row("Metadata schemas", readRecordArray(profile.metadataSchemas).length),
@@ -173,14 +181,34 @@ function componentRows(profile: Record<string, unknown>, plan: ProfileSettingsPl
   ];
   if (plan) {
     rows.unshift(
-      { label: "Preview actions", value: String(plan.totalActions) },
+      { label: "Preview actions", value: String(plan.summary.totalActions) },
       { label: "Apply mode", value: plan.apply.label },
+      { label: "Warnings", value: String(plan.summary.warningCount) },
+      { label: "Blockers", value: String(plan.summary.blockerCount) },
     );
+  } else if (previewEntry?.error) {
+    rows.unshift({ label: "Plan preview", value: `error: ${previewEntry.error}` });
+  } else if (previewEntry) {
+    rows.unshift({ label: "Plan preview", value: "loading" });
   }
   return rows;
 }
 
-function recommendationRows(profile: Record<string, unknown>, inventory: PluginInventory): ProfileSettingsRow[] {
+function recommendationRows(
+  profile: Record<string, unknown>,
+  inventory: PluginInventory,
+  plan: ProfilePlanPreview | null,
+): ProfileSettingsRow[] {
+  if (plan) {
+    return plan.actions.flatMap((action) => {
+      if (action.kind !== "pluginRecommendation") {
+        return [];
+      }
+      const required = action.recommendation.required ? "required" : "optional";
+      const reason = action.recommendation.reason ? ` · ${action.recommendation.reason}` : "";
+      return [{ label: action.recommendation.id, value: `${action.pluginStatus} (${required})${reason}` }];
+    });
+  }
   return readRecordArray(profile.recommendedPlugins).map((recommendation) => {
     const id = optionalString(recommendation, "id") ?? "unknown";
     const required = recommendation.required === true;
@@ -194,7 +222,16 @@ function recommendationRows(profile: Record<string, unknown>, inventory: PluginI
   });
 }
 
-function profileEditSections(profile: Record<string, unknown>, item: PluginInventoryItem, inventory: PluginInventory): ProfileSettingsSectionGroup[] {
+function profileEditSections(
+  profile: Record<string, unknown>,
+  item: PluginInventoryItem,
+  inventory: PluginInventory,
+  plan: ProfilePlanPreview | null,
+  previewEntry: ProfilePreviewLoadEntry | undefined,
+): ProfileSettingsSectionGroup[] {
+  if (plan) {
+    return profileEditSectionsFromPlan(profile, item, plan);
+  }
   return [
     {
       id: "metadata",
@@ -211,7 +248,15 @@ function profileEditSections(profile: Record<string, unknown>, item: PluginInven
       id: "recommendedPlugins",
       label: "Recommended plugins",
       description: "Capabilities this profile expects or benefits from.",
-      rows: recommendationRows(profile, inventory),
+      rows: recommendationRows(profile, inventory, plan),
+    },
+    {
+      id: "plan",
+      label: "Backend plan preview",
+      description: "Read-only plan state loaded from the main process.",
+      rows: previewEntry?.error
+        ? [{ label: "Plan preview", value: previewEntry.error }]
+        : [{ label: "Plan preview", value: previewEntry ? "Loading" : "Not requested" }],
     },
     {
       id: "instructions",
@@ -260,6 +305,145 @@ function profileEditSections(profile: Record<string, unknown>, item: PluginInven
       ],
     },
   ];
+}
+
+function profileEditSectionsFromPlan(
+  profile: Record<string, unknown>,
+  item: PluginInventoryItem,
+  plan: ProfilePlanPreview,
+): ProfileSettingsSectionGroup[] {
+  return [
+    {
+      id: "metadata",
+      label: "Profile metadata",
+      description: "Identity, source, and profile package references.",
+      rows: [
+        { label: "Capability id", value: item.id },
+        { label: "Profile id", value: plan.profile.id },
+        { label: "Plugin", value: item.pluginName ?? item.pluginId ?? "none" },
+        { label: "Source", value: uniqueLabels(item.distributionLabel, item.sourceLabel).join(" ") || "unknown" },
+        { label: "Lifecycle", value: plan.profile.lifecycle },
+      ],
+    },
+    {
+      id: "planSummary",
+      label: "Plan review",
+      description: plan.apply.reason,
+      rows: [
+        { label: "Apply mode", value: plan.apply.label },
+        { label: "Total actions", value: String(plan.summary.totalActions) },
+        { label: "Ready plugins", value: String(plan.summary.readyPluginRecommendations) },
+        { label: "Warnings", value: String(plan.summary.warningCount) },
+        { label: "Blockers", value: String(plan.summary.blockerCount) },
+        { label: "Would write files", value: String(plan.summary.wouldWriteCount) },
+        { label: "Would install skills", value: String(plan.summary.wouldInstallSkillCount) },
+        { label: "Would schedule routines", value: String(plan.summary.wouldScheduleRoutineCount) },
+      ],
+    },
+    {
+      id: "recommendedPlugins",
+      label: "Recommended plugins",
+      description: "Capabilities this profile expects or benefits from.",
+      rows: rowsForActions(plan.actions, "pluginRecommendation"),
+    },
+    {
+      id: "templates",
+      label: "Templates and config refs",
+      description: "Context, instruction, and MCP templates. Future apply flows would require explicit file-write review.",
+      rows: [
+        ...rowsForActions(plan.actions, "contextTemplate"),
+        ...rowsForActions(plan.actions, "instructionTemplate"),
+        ...rowsForActions(plan.actions, "mcpConfigTemplate"),
+      ],
+    },
+    {
+      id: "skills",
+      label: "Skills and harness mappings",
+      description: "Skill bundles the profile can recommend for configured harnesses.",
+      rows: rowsForActions(plan.actions, "skill"),
+    },
+    {
+      id: "schemas",
+      label: "Metadata and frontmatter schemas",
+      description: "Advisory graph/property conventions for Markdown files.",
+      rows: rowsForActions(plan.actions, "metadataSchema"),
+    },
+    {
+      id: "routines",
+      label: "Routines and templates",
+      description: "Routine template ids that can be instantiated later.",
+      rows: rowsForActions(plan.actions, "routineTemplate"),
+    },
+    {
+      id: "graph",
+      label: "Graph views and analyzers",
+      description: "Graph visualization and analyzer defaults supplied by the profile.",
+      rows: [
+        ...rowsForActions(plan.actions, "graphView"),
+        ...rowsForActions(plan.actions, "analyzerSetting"),
+      ],
+    },
+    {
+      id: "policies",
+      label: "Review and output policies",
+      description: "How future apply flows should stage file changes and artifacts.",
+      rows: [
+        ...rowsForActions(plan.actions, "reviewPolicy"),
+        ...rowsForActions(plan.actions, "outputPolicy"),
+      ],
+    },
+    {
+      id: "blockers",
+      label: "Apply blockers and warnings",
+      description: "Reasons this profile is review-only today.",
+      rows: [
+        ...plan.apply.blockedBy.map((blocker) => ({ label: blocker.kind, value: blocker.message })),
+        ...plan.warnings.map((issue) => ({ label: `${issue.actionKind}: ${issue.actionId}`, value: issue.message })),
+      ],
+    },
+  ].map((section) => ({
+    ...section,
+    rows: section.rows.length > 0 ? section.rows : [{ label: "Status", value: "No entries declared" }],
+  }));
+}
+
+function rowsForActions(actions: ProfilePlanAction[], kind: ProfilePlanAction["kind"]): ProfileSettingsRow[] {
+  return actions.filter((action) => action.kind === kind).map((action) => ({
+    label: action.label || action.id,
+    value: actionSummary(action),
+  }));
+}
+
+function actionSummary(action: ProfilePlanAction): string {
+  if (action.kind === "pluginRecommendation") {
+    return `${action.pluginStatus}${action.required ? " · required" : " · optional"}`;
+  }
+  if (action.kind === "skill") {
+    return `${action.skill.harnesses.join(", ") || "configured harnesses"}${action.required ? " · required" : ""}`;
+  }
+  if (action.kind === "contextTemplate" || action.kind === "instructionTemplate" || action.kind === "mcpConfigTemplate") {
+    return [action.template.target, action.template.templatePath].filter(Boolean).join(" ← ") || action.template.id;
+  }
+  if (action.kind === "metadataSchema") {
+    const fields = Object.keys(action.schema.frontmatter).join(", ");
+    return [action.schema.scope.paths.join(", "), fields ? `fields: ${fields}` : ""].filter(Boolean).join(" · ") || "No scope declared";
+  }
+  if (action.kind === "routineTemplate") {
+    return action.routineTemplateId;
+  }
+  if (action.kind === "graphView") {
+    return `${action.graphView.pluginId}:${action.graphView.viewId}`;
+  }
+  if (action.kind === "analyzerSetting") {
+    return Object.keys(action.analyzerSetting.settings).join(", ") || "Configured";
+  }
+  if (action.kind === "reviewPolicy") {
+    return `file changes: ${action.reviewPolicy.fileChanges}; human review: ${action.reviewPolicy.requireHumanReview}`;
+  }
+  if (action.kind === "outputPolicy") {
+    return `file changes: ${action.outputPolicy.fileChanges}`;
+  }
+  return action.id;
 }
 
 function namedRows(label: string, records: Array<Record<string, unknown>>): ProfileSettingsRow[] {

@@ -4,7 +4,18 @@ import os from "node:os";
 import path from "node:path";
 import { EditorState } from "@codemirror/state";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { AgentHarnessDetection, ManagedAgentKind, NoteKnowledge, PluginInventory, PluginInventoryItem, PluginSettingsSchema, ResolvedPluginSettings, TreeNode, WorkspaceModel } from "@exo/core";
+import type {
+  AgentHarnessDetection,
+  ManagedAgentKind,
+  NoteKnowledge,
+  PluginInventory,
+  PluginInventoryItem,
+  PluginSettingsSchema,
+  ProfilePlanPreview,
+  ResolvedPluginSettings,
+  TreeNode,
+  WorkspaceModel,
+} from "@exo/core";
 
 import {
   DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS,
@@ -171,14 +182,18 @@ describe("profile settings model", () => {
         },
       },
     };
-    const model = buildProfileSettingsModel(pluginInventory([
+    const inventory = pluginInventory([
       baseline,
       pluginInventoryItem("qmd", "QMD advanced search", "searchProvider", "Search providers", "bundled"),
-    ]));
+    ]);
+    const model = buildProfileSettingsModel(inventory, null, {
+      "exograph-baseline.profile": { plan: profilePlanFixture(), error: null },
+    });
 
     expect(model.activeProfileLabel).toBe("No active profile");
     expect(model.baselineCandidate?.label).toBe("Exograph Baseline");
     expect(model.baselineCandidate?.plan?.apply).toMatchObject({ available: false, label: "Review only" });
+    expect(model.baselineCandidate?.componentRows).toContainEqual({ label: "Blockers", value: "1" });
     expect(model.baselineCandidate?.recommendationRows).toEqual([{ label: "qmd", value: "ready (optional)" }]);
     expect(PROFILE_SETTINGS_DISABLED_REASON).toContain("not wired");
   });
@@ -233,18 +248,22 @@ describe("profile settings model", () => {
         },
       },
     };
-    const candidate = buildProfileSettingsModel(pluginInventory([baseline])).baselineCandidate;
+    const candidate = buildProfileSettingsModel(pluginInventory([baseline]), null, {
+      "exograph-baseline.profile": { plan: profilePlanFixture(), error: null },
+    }).baselineCandidate;
 
     expect(candidate).not.toBeNull();
     expect(buildProfileEditPanelSections(candidate!).map((section) => section.id)).toEqual([
       "metadata",
+      "planSummary",
       "recommendedPlugins",
-      "instructions",
+      "templates",
       "skills",
       "schemas",
       "routines",
       "graph",
       "policies",
+      "blockers",
     ]);
 
     const markup = renderToStaticMarkup(
@@ -259,8 +278,10 @@ describe("profile settings model", () => {
     expect(markup).toContain("Customize profile");
     expect(markup).toContain("Templatize");
     expect(markup).toContain("Create a trusted workspace-local metadata profile copy");
+    expect(markup).toContain("Plan review");
+    expect(markup).toContain("Apply blockers and warnings");
     expect(markup).toContain("disabled=");
-    expect(markup).toContain("AGENTS.md");
+    expect(markup).toContain("agents-md");
   });
 
   it("keeps Exograph Baseline visible even when inventory is unavailable", () => {
@@ -749,6 +770,119 @@ describe("plugin manager model", () => {
     expect(disabledHtml).toContain("disabled=\"\"");
   });
 });
+
+function profilePlanFixture(): ProfilePlanPreview {
+  return {
+    mode: "preview",
+    writeCapable: false,
+    profile: {
+      id: "exograph-baseline.profile",
+      label: "Exograph Baseline",
+      lifecycle: "built-in",
+    },
+    apply: {
+      available: false,
+      label: "Review only",
+      reason: "Profile application is read-only until explicit apply gates exist.",
+      blockedBy: [
+        {
+          kind: "permissionModel",
+          message: "Permission prompts and trust grants are not implemented for profile application.",
+          actionIds: ["qmd", "agents-md"],
+        },
+      ],
+    },
+    summary: {
+      totalActions: 6,
+      readyPluginRecommendations: 1,
+      warningCount: 0,
+      blockerCount: 1,
+      wouldWriteCount: 1,
+      wouldInstallSkillCount: 1,
+      wouldScheduleRoutineCount: 1,
+    },
+    safety: {
+      writesEnabled: false,
+      pluginEnableEnabled: false,
+      skillInstallEnabled: false,
+      routineSchedulingEnabled: false,
+      mcpConfigMutationEnabled: false,
+    },
+    blockers: [
+      {
+        severity: "blocker",
+        actionKind: "pluginRecommendation",
+        actionId: "qmd",
+        message: "Required plugin qmd is missing.",
+      },
+    ],
+    warnings: [],
+    actions: [
+      {
+        kind: "pluginRecommendation",
+        id: "qmd",
+        label: "QMD advanced search",
+        severity: "info",
+        required: false,
+        recommendation: { id: "qmd", required: false },
+        pluginStatus: "ready",
+        effect: { previewOnly: true, mutates: false },
+      },
+      {
+        kind: "instructionTemplate",
+        id: "agents-md",
+        label: "AGENTS.md",
+        severity: "info",
+        template: { id: "agents-md", label: "AGENTS.md", target: "AGENTS.md", templatePath: "templates/AGENTS.md" },
+        effect: { previewOnly: true, mutates: false, wouldWrite: "Would write AGENTS.md." },
+      },
+      {
+        kind: "skill",
+        id: "terminal-stability",
+        label: "Terminal Stability",
+        severity: "info",
+        skill: {
+          id: "terminal-stability",
+          label: "Terminal Stability",
+          harnesses: ["claude", "codex"],
+          sourcePath: "skills/terminal-stability",
+          required: false,
+        },
+        effect: { previewOnly: true, mutates: false, wouldInstallSkills: "Would install terminal-stability." },
+      },
+      {
+        kind: "metadataSchema",
+        id: "markdown-note",
+        label: "Markdown note",
+        severity: "info",
+        schema: {
+          id: "markdown-note",
+          label: "Markdown note",
+          scope: { paths: ["**/*.md"] },
+          frontmatter: { title: { type: "string", required: false } },
+          tags: [],
+        },
+        effect: { previewOnly: true, mutates: false },
+      },
+      {
+        kind: "routineTemplate",
+        id: "graph-health.template",
+        label: "graph-health.template",
+        severity: "info",
+        routineTemplateId: "graph-health.template",
+        effect: { previewOnly: true, mutates: false, wouldScheduleRoutines: "Would schedule graph-health.template." },
+      },
+      {
+        kind: "reviewPolicy",
+        id: "reviewPolicy",
+        label: "Review policy",
+        severity: "info",
+        reviewPolicy: { fileChanges: "propose", requireHumanReview: true, allowedPaths: ["**/*.md"] },
+        effect: { previewOnly: true, mutates: false },
+      },
+    ],
+  };
+}
 
 function pluginInventoryItem(
   id: string,

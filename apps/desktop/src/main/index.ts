@@ -15,6 +15,8 @@ import {
   applyPluginStateAction,
   copyProfileToWorkspacePlugin,
   discoverManagedPlugins,
+  planProfilePreview,
+  profileFromCapability,
   readIndexDocument,
   readManagedPluginSettings,
   readProfileStateStore,
@@ -38,6 +40,8 @@ import {
   type DiscoveredPlugin,
   type ManagedAgentKind,
   type ActiveProfileIdentity,
+  type CapabilityMetadata,
+  type PluginInventoryItem,
   type PluginStateAction,
   type WorkspaceModel,
   type WorkspaceSettings,
@@ -368,6 +372,7 @@ function registerIpcHandlers() {
     clearActiveProfile: () => clearWorkspaceActiveProfile(),
     setProfileAutoUpdate: (input) => setWorkspaceProfileAutoUpdate(input.autoUpdate),
     markProfileReviewRequired: (input) => markWorkspaceProfileReviewRequired(input.reviewRequired),
+    previewProfile: (input) => previewWorkspaceProfile(input),
     copyProfile: (input) => copyWorkspaceProfile(input),
     readNote: readWorkspaceDocument,
     renamePath: renameWorkspacePath,
@@ -556,6 +561,61 @@ async function copyWorkspaceProfile(input: ActiveProfileIdentity) {
   return {
     ...result,
     inventory: await readPluginInventory(),
+  };
+}
+
+async function previewWorkspaceProfile(input: ActiveProfileIdentity) {
+  const inventory = await readPluginInventory();
+  const item = inventory.items.find((candidate) => profileInventoryItemMatches(candidate, input));
+  if (!item) {
+    throw new Error(`Unable to find profile in current plugin inventory: ${input.profileId}`);
+  }
+  if (item.kind !== "profile") {
+    throw new Error(`Selected capability is not a profile: ${input.capabilityId}`);
+  }
+  const profile = profileFromCapability(capabilityFromInventoryItem(item));
+  if (!profile) {
+    throw new Error(`Selected capability cannot be parsed as a profile: ${input.capabilityId}`);
+  }
+  return planProfilePreview(profile, inventory);
+}
+
+function profileInventoryItemMatches(item: PluginInventoryItem, identity: ActiveProfileIdentity): boolean {
+  if (item.kind !== "profile") {
+    return false;
+  }
+  const profileId = profileIdFromInventoryItem(item);
+  return item.id === identity.capabilityId
+    && profileId === identity.profileId
+    && optionalIdentityMatch(item.pluginId, identity.pluginId)
+    && optionalIdentityMatch(item.pluginSource, identity.source)
+    && optionalIdentityMatch(item.manifestPath, identity.manifestPath)
+    && optionalIdentityMatch(item.rootDirectory, identity.rootDirectory);
+}
+
+function profileIdFromInventoryItem(item: PluginInventoryItem): string {
+  const profile = item.compatibility?.profile;
+  if (profile && typeof profile === "object" && !Array.isArray(profile) && "id" in profile && typeof profile.id === "string") {
+    return profile.id;
+  }
+  return item.id;
+}
+
+function optionalIdentityMatch(left: string | undefined, right: string | undefined): boolean {
+  return !left || !right || left === right;
+}
+
+function capabilityFromInventoryItem(item: PluginInventoryItem): CapabilityMetadata {
+  return {
+    id: item.id,
+    kind: "profile",
+    label: item.label,
+    description: item.description,
+    lifecycle: item.lifecycle,
+    owner: item.owner,
+    surfaces: item.surfaces,
+    permissions: item.permissions,
+    compatibility: item.compatibility,
   };
 }
 

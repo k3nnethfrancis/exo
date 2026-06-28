@@ -31,6 +31,7 @@ export interface DesktopInvokeHandlers {
   "workspace:clear-active-profile": WorkspaceApi["clearActiveProfile"];
   "workspace:set-profile-auto-update": WorkspaceApi["setProfileAutoUpdate"];
   "workspace:mark-profile-review-required": WorkspaceApi["markProfileReviewRequired"];
+  "workspace:preview-profile": WorkspaceApi["previewProfile"];
   "workspace:copy-profile": WorkspaceApi["copyProfile"];
   "workspace:enable-plugin": WorkspaceApi["enablePlugin"];
   "workspace:disable-plugin": WorkspaceApi["disablePlugin"];

@@ -30,6 +30,7 @@ Already implemented:
 - Profiles can be parsed, dry-run previewed, activated as workspace state, and copied into trusted workspace-local metadata profile plugins.
 - Exograph Baseline exists as a bundled metadata-only profile plugin at `plugins/exograph-baseline/exo.plugin.json`.
 - Settings uses vertical navigation and includes a workspace Profile page plus a read-only Profile Customize screen.
+- Profile Settings now asks the main process for the canonical `ProfilePlanPreview` so the UI can show real profile actions, warnings, blockers, and future effects without importing Node-only core planning code into the renderer.
 - The bottom status bar shows profile review state and changed notes state.
 - Changed notes open a read-only modal listing note-root git changes with path, status, root label, changed line when known, and an open-note action.
 
@@ -252,6 +253,8 @@ Completed in this phase:
 - profile review state appears as a bottom-bar affordance and opens Profile Settings
 - changed note-root git state appears as a bottom-bar affordance and opens a read-only changed-notes modal
 - the changed-notes modal can open changed notes and carries future diff/commit copy without exposing commit actions yet
+- Profile Settings and Customize show backend profile plan sections: recommended plugins, templates/config refs, skills, schemas, routines, graph/analyzer defaults, policies, warnings, blockers, and apply-safety state.
+- Top-level Review and Copy actions use safe existing behavior: review opens the read-only plan view, and copy creates a workspace-local metadata profile. Apply, Save draft, and Templatize remain disabled until explicit permissioned flows exist.
 
 Verification:
 

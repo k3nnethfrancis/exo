@@ -12,6 +12,7 @@ import type {
   PluginInventory,
   PluginSettingsSchema,
   PluginSettingValue,
+  ProfilePlanPreview,
   PluginSource,
   ResolvedPluginSettings,
   SearchResult,
@@ -311,6 +312,7 @@ export interface DesktopApi {
     clearActiveProfile: () => Promise<ProfileStateStore>;
     setProfileAutoUpdate: (input: { autoUpdate: boolean }) => Promise<ProfileStateStore>;
     markProfileReviewRequired: (input: { reviewRequired: boolean }) => Promise<ProfileStateStore>;
+    previewProfile: (input: ActiveProfileIdentity) => Promise<ProfilePlanPreview>;
     copyProfile: (input: ActiveProfileIdentity) => Promise<WorkspaceProfileCopyResponse>;
     enablePlugin: (input: WorkspacePluginActionInput) => Promise<PluginInventory>;
     disablePlugin: (input: WorkspacePluginActionInput) => Promise<PluginInventory>;

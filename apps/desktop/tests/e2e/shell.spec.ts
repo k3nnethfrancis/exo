@@ -1254,31 +1254,24 @@ test("opens workspace settings from the sidebar", async () => {
   expect(updatedProfileState.autoUpdate).toBe(true);
   await page.getByRole("button", { name: "Customize" }).click();
   await expect(page.getByTestId("profile-edit-panel")).toBeVisible();
+  await expect(page.getByTestId("profile-edit-panel")).toContainText("Plan review");
+  await expect(page.getByTestId("profile-edit-panel")).toContainText("Apply blockers and warnings");
+  await expect(page.getByTestId("profile-edit-panel")).toContainText("Recommended plugins");
   await expect(page.getByTestId("profile-edit-panel")).toContainText("Review and output policies");
+  await page.screenshot({ path: "/tmp/exo-profile-plan-preview.png", fullPage: false });
   await page.getByTestId("profile-edit-copy").click();
   await expect(page.getByTestId("workspace-settings-profile")).toContainText("Profile state saved.");
   await expect(page.getByTestId("workspace-settings-profile")).toContainText("Exograph Baseline Copy");
   const copiedProfileState = JSON.parse(await readFile(path.join(runtimeRoot, "profile-state.json"), "utf8"));
   expect(copiedProfileState.reviewRequired).toBe(true);
-  expect(copiedProfileState.activeProfile).toMatchObject({
-    profileId: "exograph-baseline.profile-copy.profile",
-    source: "workspace",
-  });
-  const copiedManifestPath = path.join(workspaceRoot, ".exo", "plugins", "exograph-baseline.profile-copy", "exo.plugin.json");
+  expect(copiedProfileState.activeProfile?.profileId).toMatch(/^exograph-baseline\.profile-copy(?:-\d+)?\.profile$/);
+  expect(copiedProfileState.activeProfile).toMatchObject({ source: "workspace" });
+  const copiedManifestPath = copiedProfileState.activeProfile.manifestPath
+    ?? path.join(workspaceRoot, ".exo", "plugins", "exograph-baseline.profile-copy", "exo.plugin.json");
   const copiedManifest = JSON.parse(await readFile(copiedManifestPath, "utf8"));
-  expect(copiedManifest).toMatchObject({
-    id: "exograph-baseline.profile-copy.plugin",
-    capabilities: [
-      {
-        id: "exograph-baseline.profile-copy.profile",
-        compatibility: {
-          profile: {
-            label: "Exograph Baseline Copy",
-          },
-        },
-      },
-    ],
-  });
+  expect(copiedManifest.id).toMatch(/^exograph-baseline\.profile-copy(?:-\d+)?\.plugin$/);
+  expect(copiedManifest.capabilities[0].id).toMatch(/^exograph-baseline\.profile-copy(?:-\d+)?\.profile$/);
+  expect(copiedManifest.capabilities[0].compatibility.profile.label).toBe("Exograph Baseline Copy");
   await page.getByTestId("workspace-settings-tab-terminal").click();
   await expect(page.getByTestId("workspace-settings-dialog")).toContainText("Live terminal scrollback lines");
   await expect(page.getByTestId("workspace-settings-terminal-history-lines")).toBeVisible();

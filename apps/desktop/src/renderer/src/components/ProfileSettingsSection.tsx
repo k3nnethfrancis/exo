@@ -4,6 +4,7 @@ import type { PluginInventory, ProfileStateStore } from "@exo/core";
 import {
   buildProfileSettingsModel,
   PROFILE_SETTINGS_DISABLED_REASON,
+  type ProfilePreviewLoadEntry,
   type ProfileSettingsCandidate,
   type ProfileSettingsModel,
 } from "../profileSettingsModel";
@@ -19,19 +20,18 @@ export function ProfileSettingsSection() {
   const [actionStatus, setActionStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [actionError, setActionError] = useState<string | null>(null);
   const [editingCandidate, setEditingCandidate] = useState<ProfileSettingsCandidate | null>(null);
+  const [profilePreviews, setProfilePreviews] = useState<Record<string, ProfilePreviewLoadEntry>>({});
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([
-      window.exo.workspace.listPluginInventory(),
-      window.exo.workspace.getProfileState(),
-    ])
-      .then(([nextInventory, nextProfileState]) => {
+    loadWorkspaceProfileData()
+      .then(({ inventory: nextInventory, profileState: nextProfileState, previews }) => {
         if (cancelled) {
           return;
         }
         setInventory(nextInventory);
         setProfileState(nextProfileState);
+        setProfilePreviews(previews);
         setLoadState("ready");
       })
       .catch((error) => {
@@ -46,7 +46,7 @@ export function ProfileSettingsSection() {
     };
   }, []);
 
-  const model = useMemo(() => buildProfileSettingsModel(inventory, profileState), [inventory, profileState]);
+  const model = useMemo(() => buildProfileSettingsModel(inventory, profileState, profilePreviews), [inventory, profileState, profilePreviews]);
   const editableCandidate = model.detectedProfiles.find((candidate) => candidate.isActive) ?? model.baselineCandidate;
 
   if (editingCandidate) {
@@ -82,6 +82,7 @@ export function ProfileSettingsSection() {
       const result = await window.exo.workspace.copyProfile(candidate.identity);
       setInventory(result.inventory);
       setProfileState(result.profileState);
+      setProfilePreviews(await loadProfilePreviews(result.inventory, result.profileState));
       announceProfileStateChanged(result.profileState);
       setEditingCandidate(null);
       setActionStatus("saved");
@@ -101,9 +102,42 @@ export function ProfileSettingsSection() {
       onClearActive={() => void runProfileAction(() => window.exo.workspace.clearActiveProfile())}
       onSetActive={(candidate) => void runProfileAction(() => window.exo.workspace.setActiveProfile(candidate.identity))}
       onCustomize={editableCandidate ? () => setEditingCandidate(editableCandidate) : null}
+      onReview={editableCandidate ? () => setEditingCandidate(editableCandidate) : null}
+      onCopy={editableCandidate ? () => void copyProfile(editableCandidate) : null}
       onToggleAutoUpdate={(autoUpdate) => void runProfileAction(() => window.exo.workspace.setProfileAutoUpdate({ autoUpdate }))}
     />
   );
+}
+
+async function loadWorkspaceProfileData(): Promise<{
+  inventory: PluginInventory;
+  profileState: ProfileStateStore;
+  previews: Record<string, ProfilePreviewLoadEntry>;
+}> {
+  const [inventory, profileState] = await Promise.all([
+    window.exo.workspace.listPluginInventory(),
+    window.exo.workspace.getProfileState(),
+  ]);
+  return {
+    inventory,
+    profileState,
+    previews: await loadProfilePreviews(inventory, profileState),
+  };
+}
+
+async function loadProfilePreviews(
+  inventory: PluginInventory,
+  profileState: ProfileStateStore,
+): Promise<Record<string, ProfilePreviewLoadEntry>> {
+  const candidates = buildProfileSettingsModel(inventory, profileState).detectedProfiles;
+  const entries = await Promise.all(candidates.map(async (candidate): Promise<[string, ProfilePreviewLoadEntry]> => {
+    try {
+      return [candidate.id, { plan: await window.exo.workspace.previewProfile(candidate.identity), error: null }];
+    } catch (error) {
+      return [candidate.id, { plan: null, error: error instanceof Error ? error.message : "Unable to preview profile." }];
+    }
+  }));
+  return Object.fromEntries(entries);
 }
 
 function announceProfileStateChanged(profileState: ProfileStateStore): void {
@@ -117,7 +151,9 @@ export function ProfileSettingsContent({
   loadState,
   model,
   onClearActive,
+  onCopy,
   onCustomize,
+  onReview,
   onSetActive,
   onToggleAutoUpdate,
 }: {
@@ -127,7 +163,9 @@ export function ProfileSettingsContent({
   loadState: ProfileInventoryLoadState;
   model: ProfileSettingsModel;
   onClearActive: () => void;
+  onCopy: (() => void) | null;
   onCustomize: (() => void) | null;
+  onReview: (() => void) | null;
   onSetActive: (candidate: ProfileSettingsCandidate) => void;
   onToggleAutoUpdate: (autoUpdate: boolean) => void;
 }) {
@@ -145,8 +183,8 @@ export function ProfileSettingsContent({
           <div className="profile-settings__muted">{model.activeProfileDetail}</div>
           {model.updatedAt ? <div className="profile-settings__muted">Updated {new Date(model.updatedAt).toLocaleString()}</div> : null}
         </div>
-        <div className="profile-settings__actions" aria-label="Disabled profile actions">
-          <button className="toolbar-button" disabled title={PROFILE_SETTINGS_DISABLED_REASON} type="button">
+        <div className="profile-settings__actions" aria-label="Profile actions">
+          <button className="toolbar-button" disabled={!onReview} onClick={() => onReview?.()} type="button">
             Review change
           </button>
           <button className="toolbar-button" disabled={!model.activeProfile || actionStatus === "saving"} onClick={onClearActive} type="button">
@@ -158,7 +196,13 @@ export function ProfileSettingsContent({
           <button className="toolbar-button" disabled title={PROFILE_SETTINGS_DISABLED_REASON} type="button">
             Apply
           </button>
-          <button className="toolbar-button" disabled title={PROFILE_SETTINGS_DISABLED_REASON} type="button">
+          <button
+            className="toolbar-button"
+            disabled={!onCopy || actionStatus === "saving"}
+            onClick={() => onCopy?.()}
+            title="Create a trusted workspace-local metadata profile copy and select it. This does not apply templates or write user content."
+            type="button"
+          >
             Copy
           </button>
         </div>
