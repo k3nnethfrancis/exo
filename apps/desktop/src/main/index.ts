@@ -12,6 +12,7 @@ import {
   listRootTree,
   listPluginInventory,
   applyPluginStateAction,
+  copyProfileToWorkspacePlugin,
   discoverManagedPlugins,
   readIndexDocument,
   readManagedPluginSettings,
@@ -361,6 +362,7 @@ function registerIpcHandlers() {
     clearActiveProfile: () => clearWorkspaceActiveProfile(),
     setProfileAutoUpdate: (input) => setWorkspaceProfileAutoUpdate(input.autoUpdate),
     markProfileReviewRequired: (input) => markWorkspaceProfileReviewRequired(input.reviewRequired),
+    copyProfile: (input) => copyWorkspaceProfile(input),
     readNote: readWorkspaceDocument,
     renamePath: renameWorkspacePath,
     resolveTarget: (sourceFilePath, target) => workspaceNotesService.resolveTarget(sourceFilePath, target),
@@ -492,6 +494,19 @@ async function markWorkspaceProfileReviewRequired(reviewRequired: boolean) {
   const nextStore = markProfileReviewRequired(store, reviewRequired, profileStateNow());
   await writeProfileStateStore(profileRuntimeRoot(), nextStore);
   return nextStore;
+}
+
+async function copyWorkspaceProfile(input: ActiveProfileIdentity) {
+  const result = await copyProfileToWorkspacePlugin({
+    workspaceRoot: workspaceModel.workspaceRoot,
+    runtimeRoot: profileRuntimeRoot(),
+    sourceProfile: input,
+    env: pluginDiscoveryEnv(),
+  });
+  return {
+    ...result,
+    inventory: await readPluginInventory(),
+  };
 }
 
 function pluginSettingsOptions(input: WorkspacePluginActionInput) {

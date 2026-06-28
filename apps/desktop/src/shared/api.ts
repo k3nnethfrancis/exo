@@ -257,6 +257,14 @@ export interface WorkspacePluginSettingsResponse {
   inventory: PluginInventory;
 }
 
+export interface WorkspaceProfileCopyResponse {
+  identity: ActiveProfileIdentity;
+  profileState: ProfileStateStore;
+  inventory: PluginInventory;
+  manifestPath: string;
+  rootDirectory: string;
+}
+
 export interface IndexSyncStateEvent {
   state: "running" | "idle" | "error";
   reason: string;
@@ -294,6 +302,7 @@ export interface DesktopApi {
     clearActiveProfile: () => Promise<ProfileStateStore>;
     setProfileAutoUpdate: (input: { autoUpdate: boolean }) => Promise<ProfileStateStore>;
     markProfileReviewRequired: (input: { reviewRequired: boolean }) => Promise<ProfileStateStore>;
+    copyProfile: (input: ActiveProfileIdentity) => Promise<WorkspaceProfileCopyResponse>;
     enablePlugin: (input: WorkspacePluginActionInput) => Promise<PluginInventory>;
     disablePlugin: (input: WorkspacePluginActionInput) => Promise<PluginInventory>;
     trustPlugin: (input: WorkspacePluginActionInput) => Promise<PluginInventory>;

@@ -240,8 +240,8 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Add shared/main/preload APIs for listing profiles, reading active profile state, setting/clearing active profile state, and toggling profile auto-update without applying profile writes.
 - [x] Refactor Workspace Settings from horizontal tabs to vertical settings navigation and add a Profile page.
 - [x] Add a read-only Profile Settings page showing active profile, profile candidates, recommended plugins, schemas, context/instruction templates, skills, routines, graph views, review/output policies, and disabled write actions with reasons.
-- [x] Add a read-only Profile Customize/Edit screen shell that centralizes profile metadata, recommended plugins, instruction templates, skills, schemas, routines, graph views, analyzers, and policies while keeping copy/templatize/save disabled.
-- [ ] Add a Profile copy/customize path that creates local editable metadata without mutating official profile packages or writing user instruction files.
+- [x] Add a read-only Profile Customize/Edit screen shell that centralizes profile metadata, recommended plugins, instruction templates, skills, schemas, routines, graph views, analyzers, and policies while keeping templatize/save disabled.
+- [x] Add a Profile copy/customize path that creates trusted workspace-local profile metadata, selects it, and marks review required without mutating official profile packages or writing user instruction files.
 - [x] Improve Plugin Manager into a quick management surface with active/disabled/untrusted/missing setup/permissions-needed buckets, inline mutable actions, same-category alternatives, and clear locks for official/core rows.
 - [ ] Add profile review and notes-repo changes indicators to the bottom bar, with a changed-notes modal that opens changed Markdown files from note roots.
 - [ ] Add permission prompts and a staged profile apply review flow before any profile can write `AGENTS.md`, `CLAUDE.md`, MCP config, skills, routines, plugin settings, or permission grants.

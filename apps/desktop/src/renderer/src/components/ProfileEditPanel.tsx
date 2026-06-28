@@ -2,8 +2,10 @@ import type { ProfileSettingsCandidate, ProfileSettingsRow, ProfileSettingsSecti
 
 export interface ProfileEditPanelProps {
   candidate: ProfileSettingsCandidate;
+  actionStatus: "idle" | "saving" | "saved" | "error";
   disabledReason: string;
   onBack: () => void;
+  onCopy: () => void;
 }
 
 export interface ProfileEditPanelSection {
@@ -13,8 +15,9 @@ export interface ProfileEditPanelSection {
   rows: ProfileSettingsRow[];
 }
 
-export function ProfileEditPanel({ candidate, disabledReason, onBack }: ProfileEditPanelProps) {
+export function ProfileEditPanel({ actionStatus, candidate, disabledReason, onBack, onCopy }: ProfileEditPanelProps) {
   const sections = buildProfileEditPanelSections(candidate);
+  const isSaving = actionStatus === "saving";
 
   return (
     <section className="profile-settings" data-testid="profile-edit-panel">
@@ -28,7 +31,14 @@ export function ProfileEditPanel({ candidate, disabledReason, onBack }: ProfileE
           <button className="toolbar-button" data-testid="profile-edit-back" onClick={onBack} type="button">
             Back
           </button>
-          <button className="toolbar-button" data-testid="profile-edit-copy" disabled title={disabledReason} type="button">
+          <button
+            className="toolbar-button"
+            data-testid="profile-edit-copy"
+            disabled={isSaving}
+            onClick={onCopy}
+            title="Create a trusted workspace-local metadata profile copy and select it. This does not apply templates or write user content."
+            type="button"
+          >
             Copy
           </button>
           <button className="toolbar-button" data-testid="profile-edit-templatize" disabled title={disabledReason} type="button">

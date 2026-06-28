@@ -34,6 +34,7 @@ export interface WorkspaceIpcHandlers {
   clearActiveProfile: WorkspaceApi["clearActiveProfile"];
   setProfileAutoUpdate: WorkspaceApi["setProfileAutoUpdate"];
   markProfileReviewRequired: WorkspaceApi["markProfileReviewRequired"];
+  copyProfile: WorkspaceApi["copyProfile"];
   trustPlugin: WorkspaceApi["trustPlugin"];
   readPluginSettings: WorkspaceApi["readPluginSettings"];
   updatePluginSettings: WorkspaceApi["updatePluginSettings"];
@@ -125,6 +126,7 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
   handleDesktopInvoke("workspace:clear-active-profile", async () => handlers.clearActiveProfile());
   handleDesktopInvoke("workspace:set-profile-auto-update", async (_event, input) => handlers.setProfileAutoUpdate(input));
   handleDesktopInvoke("workspace:mark-profile-review-required", async (_event, input) => handlers.markProfileReviewRequired(input));
+  handleDesktopInvoke("workspace:copy-profile", async (_event, input) => handlers.copyProfile(input));
   handleDesktopInvoke("workspace:enable-plugin", async (_event, input) => handlers.enablePlugin(input));
   handleDesktopInvoke("workspace:disable-plugin", async (_event, input) => handlers.disablePlugin(input));
   handleDesktopInvoke("workspace:trust-plugin", async (_event, input) => handlers.trustPlugin(input));

@@ -49,7 +49,7 @@ export interface ProfileSettingsSectionGroup {
 }
 
 export const PROFILE_SETTINGS_DISABLED_REASON =
-  "Profile apply review, copy/customize, file writes, skill installs, routine scheduling, plugin enablement, and permission grants are not wired in this UI pass.";
+  "Profile apply review, profile field editing, file writes, skill installs, routine scheduling, plugin enablement, templatize, and permission grants are not wired in this pass.";
 
 export function buildProfileSettingsModel(inventory: PluginInventory | null, state: ProfileStateStore | null = null): ProfileSettingsModel {
   const detectedProfiles = inventory ? profileCandidatesFromInventory(inventory, state) : [];

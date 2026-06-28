@@ -27,18 +27,17 @@ Already implemented:
 - Plugin inventory API exposes core, official, local, developer, trust, enablement, dependency, settings, runtime, and permission-grant metadata.
 - Plugin Manager can inspect categories, details, local trust/enable/disable, and local plugin settings.
 - Onboarding shows a read-only capability review.
-- Profiles can be parsed and dry-run previewed, but applying/activating a profile is not implemented.
+- Profiles can be parsed, dry-run previewed, activated as workspace state, and copied into trusted workspace-local metadata profile plugins.
 - Exograph Baseline exists as a bundled metadata-only profile plugin at `plugins/exograph-baseline/exo.plugin.json`.
+- Settings uses vertical navigation and includes a workspace Profile page plus a read-only Profile Customize screen.
 
 Gaps:
 
-- There is no persistent active workspace profile state.
-- Plugin Manager reads more like inventory than management.
-- Profile details are visible only as a plugin detail panel, not as workspace-level state.
-- Settings still uses horizontal tabs and has no Profile page.
-- Profile component edits are not centralized.
+- Profile component edits are centralized visually but not yet editable.
+- Templatize, profile apply, permission review, profile-linked file writes, and AI/headless harness calls are not implemented.
 - There is no profile modified indicator in the status bar.
 - Notes repo git state is not surfaced as a first-class review affordance.
+- Local plugin add/remove/swap flows are not implemented beyond trust/enable/disable/configure for discovered metadata plugins.
 
 ## Target UX
 

@@ -52,9 +52,11 @@ export function ProfileSettingsSection() {
   if (editingCandidate) {
     return (
       <ProfileEditPanel
+        actionStatus={actionStatus}
         candidate={editingCandidate}
         disabledReason={PROFILE_SETTINGS_DISABLED_REASON}
         onBack={() => setEditingCandidate(null)}
+        onCopy={() => void copyProfile(editingCandidate)}
       />
     );
   }
@@ -68,6 +70,21 @@ export function ProfileSettingsSection() {
       setActionStatus("saved");
     } catch (error) {
       setActionError(error instanceof Error ? error.message : "Unable to update profile state.");
+      setActionStatus("error");
+    }
+  }
+
+  async function copyProfile(candidate: ProfileSettingsCandidate) {
+    setActionStatus("saving");
+    setActionError(null);
+    try {
+      const result = await window.exo.workspace.copyProfile(candidate.identity);
+      setInventory(result.inventory);
+      setProfileState(result.profileState);
+      setEditingCandidate(null);
+      setActionStatus("saved");
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Unable to copy profile.");
       setActionStatus("error");
     }
   }

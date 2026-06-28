@@ -215,13 +215,16 @@ describe("profile settings model", () => {
 
     const markup = renderToStaticMarkup(
       <ProfileEditPanel
+        actionStatus="idle"
         candidate={candidate!}
         disabledReason={PROFILE_SETTINGS_DISABLED_REASON}
         onBack={() => {}}
+        onCopy={() => {}}
       />,
     );
     expect(markup).toContain("Customize profile");
     expect(markup).toContain("Templatize");
+    expect(markup).toContain("Create a trusted workspace-local metadata profile copy");
     expect(markup).toContain("disabled=");
     expect(markup).toContain("AGENTS.md");
   });
