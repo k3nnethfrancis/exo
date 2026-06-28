@@ -1,6 +1,6 @@
 # Graph Visualization Plugin Contract
 
-Last updated: 2026-06-27
+Last updated: 2026-06-28
 
 This document defines the first concrete boundary between Exo core graph data and future graph visualization plugins.
 
@@ -88,8 +88,11 @@ Tool surface descriptors for graph visualizations include:
 - `action.graphVisualizationId`
 - `graphVisualization.data`
 - `graphVisualization.surface`
+- `webViewer` endpoint metadata when `hostSurface` is `webPreview`
 
 This descriptor metadata is placement and compatibility information only. It is not runtime authorization, plugin loading, or permission grant.
+
+Graph visualizations that choose `hostSurface: "webPreview"` must use the core web viewer contract in `docs/plugin-surface-contract.md`. They do not own the WebView, preload bridge, pane mutation, or preview target validation.
 
 ## Non-Goals
 

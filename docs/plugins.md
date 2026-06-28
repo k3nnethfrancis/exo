@@ -1,6 +1,6 @@
 # Plugin Architecture
 
-Last updated: 2026-06-26
+Last updated: 2026-06-28
 
 Exo should support a plugin path so users can extend their local AI workstation without requiring every feature to land in core.
 
@@ -10,10 +10,12 @@ Plugin architecture is now the next platform workstream after terminal/runtime u
 
 The target core-versus-plugin boundary lives in `plugin-system-architecture.md`. The detailed implementation sequence lives in `plugin-implementation-plan.md`. This document names the product model and boundaries; the implementation plan is the source of truth for the next refactor phases.
 
+The safe renderer/web-viewer surface contract lives in `plugin-surface-contract.md`. It defines metadata-only native plugin panels and the current core web viewer endpoint usage for plugin-produced local apps and artifacts.
+
 That keeps Exo from overbuilding while still moving toward the long-term shape:
 
 - QMD becomes the official advanced search provider behind a search-provider registry.
-- Shell, Claude Code, Codex, Pi-compatible, Hermes, and future agents become official or local agent-harness plugins behind an agent-harness registry.
+- Shell, Claude Code, Codex, Pi-compatible, Hermes, Aider, Goose, OpenCode, and local/open-source agents become official or local agent-harness plugins behind an agent-harness registry.
 - MCP and CLI stay separate product surfaces, with plugin contributions admitted only through policy.
 - Terminal remains a core platform service; harnesses plug into it.
 - The web viewer host and open/focus/close endpoints stay core; plugins can generate local content or services and ask Exo to open them.
@@ -43,6 +45,8 @@ Pi is represented as a generic Pi-compatible harness instance. Local builds are 
 
 Hermes remains a registered adapter, but it is hidden from normal harness lists by default so it does not appear as a dead launcher. It appears only when explicitly configured with `EXO_HERMES_COMMAND` or `EXO_HERMES_ENABLED`.
 
+The full harness adapter extension contract is documented in `agent-harness-plugin-contract.md`. It defines the shared API for official and local harnesses: adapter metadata, availability detection, launch planning, semantic message behavior, skill and config inventory, dependency/setup guidance, and the rule that terminal rendering/session durability remain core.
+
 ## Non-Goals For The First Pass
 
 - Do not load arbitrary user JavaScript or native code.
@@ -54,7 +58,7 @@ Hermes remains a registered adapter, but it is hidden from normal harness lists 
 - Do not move unstable services into `packages/runtime` only to create a cleaner diagram.
 - Do not use plugins as a dumping ground for behavior that should be a stable Exo primitive.
 
-The first pass should produce the stable contracts that later plugin loading can use.
+The first pass should produce the stable contracts that later plugin loading can use. The activity workload contract is documented in `activity-plugin-contract.md`: core records minimal activity/artifact/provenance/review references, while plugins own trace, eval, dataset, dashboard, and export schemas.
 
 ## Why Plugins Matter
 
@@ -113,6 +117,8 @@ Not every plugin has the same relationship to Exo. The plugin model should suppo
 - Profile plugins: ship use-case conventions and default bundles. Examples: LM Wiki, Shoshin, Guardian Angel, OKF-compatible graph, or a project/domain-specific exograph profile.
 
 The terminal and web viewer hosts are core primitives, not merely plugins. Many unrelated workflows need a safe terminal/session service and a safe way to show local web apps, documentation previews, dashboards, and artifacts. Plugins can target those primitives, but they do not own the underlying terminal or web viewer security boundary.
+
+The preferred path for rich plugin UI today is an app plugin that emits a local HTML artifact or runs a local service and asks core to open it with `exo preview open <url-or-html-path>` or `POST /preview/open`. Native plugin panels are defined only as inert, core-hosted descriptors with renderer entrypoint loading disabled until a future permissioned renderer contract exists.
 
 Graph data is core substrate. Graph visualization is plugin-shaped: Exo should ship a useful default graph explorer, but users should be able to swap in a 3D graph, metadata-focused graph, or domain-specific graph dashboard without changing the core graph model.
 
@@ -227,7 +233,7 @@ Skills are capabilities available inside a harness. A prompt may ask the harness
 
 The first implementation can be metadata-only. Full cross-provider skill management comes later.
 
-Status: first-pass Routine, Run, artifact, trace, store, manual executor, and plugin-declared routine-template contracts are implemented in core. Treat this as provisional substrate, not permission to keep expanding core automation. Scheduler, UI, and real harness execution hosts remain future work.
+Status: first-pass Routine, Run/activity, artifact-reference, trace JSONL artifact helper, store, manual executor, and plugin-declared routine-template contracts are implemented in core. Treat this as provisional substrate, not permission to keep expanding core automation. Scheduler, UI, and real harness execution hosts remain future work.
 
 Plugin routine templates are metadata, not live jobs. A plugin can declare a `routineTemplate` capability with `compatibility.routineTemplate`, including:
 

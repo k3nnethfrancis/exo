@@ -231,7 +231,7 @@ describe("routine run store layout", () => {
     }
   });
 
-  it("appends trace packets to JSONL and mirrors them on the run record", async () => {
+  it("appends trace packets to JSONL and records a trace artifact ref on the run", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "exo-routine-run-store-"));
     try {
       const store = new RoutineRunStore(path.join(root, ".exo"));
@@ -257,7 +257,19 @@ describe("routine run store layout", () => {
 
       expect(packet.runId).toBe("run-trace");
       expect(await store.readTracePackets("run-trace")).toEqual([packet]);
-      expect((await store.readRun("run-trace"))?.tracePackets).toEqual([packet]);
+      expect((await store.readRun("run-trace"))?.artifacts).toEqual([
+        {
+          id: "trace-jsonl",
+          activityId: "run-trace",
+          runId: "run-trace",
+          kind: "trace",
+          path: runTraceLogPath(store.layout, "run-trace"),
+          title: "Trace JSONL",
+          mimeType: "application/jsonl",
+          sourceCapabilityId: "alignment-routine",
+          createdAt: "2026-06-14T00:02:00.000Z",
+        },
+      ]);
       expect(await readFile(runTraceLogPath(store.layout, "run-trace"), "utf8")).toBe(`${JSON.stringify(packet)}\n`);
     } finally {
       await rm(root, { recursive: true, force: true });

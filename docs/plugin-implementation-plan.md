@@ -1,6 +1,6 @@
 # Plugin Architecture Implementation Plan
 
-Last updated: 2026-06-27
+Last updated: 2026-06-28
 
 This plan turns Exo's plugin architecture into code without prematurely loading arbitrary user code. The first goal is internal extensibility: Exo core should use typed registries and contracts for the capabilities that are already plugin-shaped.
 
@@ -19,7 +19,7 @@ Core owns the substrate:
 
 Plugins and profiles own variation. Vanilla Exo should be treated as core plus official/recommended plugins, not core plus hardcoded permanent defaults:
 
-- agent harnesses such as shell, Claude Code, Codex, Pi-compatible, Hermes, Aider, OpenCode, or local agents
+- agent harnesses such as shell, Claude Code, Codex, Pi-compatible, Hermes, Aider, Goose, OpenCode, or local/open-source agents
 - advanced search providers such as QMD, graph search, local vector stores, rerankers, or remote retrieval
 - dashboards, local web apps, and artifact producers that use Exo's core web viewer endpoints
 - exograph/profile packs such as OKF, Shoshin, LM Wiki, domain-specific workbenches, or project-specific mappings
@@ -147,6 +147,8 @@ Move shell/Claude/Codex/Pi-compatible/Hermes launch planning behind a typed `Age
 
 Status: first-pass implementation exists. Official shell/Claude/Codex/Pi-compatible/Hermes harnesses implement `AgentHarness`, and runtime launcher resolution goes through `AgentHarnessRegistry`. Pi custom builds are local configuration of the Pi-compatible adapter; GA Pi must not become an OSS source default. Pi launchability now requires an explicit compatible inference backend config, and Hermes is hidden from normal lists unless explicitly configured.
 
+The v1 adapter extension contract is now documented in `docs/agent-harness-plugin-contract.md` and represented in `packages/core/src/agent-harness.ts`. It covers official and local adapters for Claude Code, Codex, Pi-compatible builds, Aider, Goose, OpenCode, and local/open-source agents. The contract names adapter metadata, availability detection, launch planning, semantic messages, skill/config inventory, dependency/setup guidance, and core terminal ownership.
+
 Remaining cleanup: keep the terminal substrate core while reducing fixed official harness ids in CLI/MCP/session types. `exo terminals` should remain the low-level terminal/admin surface; `exo agents create` and MCP `create_agent` should choose from registered, enabled, policy-approved harnesses.
 
 Suggested files:
@@ -167,6 +169,8 @@ Contract should cover:
 - message submission semantics
 - optional skill inventory metadata
 - required runtime dependency metadata, including inference backends
+
+Contract note: the current terminal creation path still uses fixed `ManagedAgentKind` values. Future cleanup should split terminal/session substrate ids from policy-approved harness ids so local harness plugins can be addressed by plugin capability id without pretending to be a built-in kind.
 
 Migration approach:
 
@@ -234,7 +238,7 @@ Activity/run record:
 
 - one execution of a plugin routine, manual job, agent handoff, or future scheduled activity
 - minimal status, timestamps, references, errors, and review state
-- rich traces, evaluation results, labels, dashboards, and export schemas remain plugin-owned
+- rich traces, evaluation results, labels, dashboards, and export schemas remain plugin-owned artifacts/provenance refs
 
 Storage:
 
@@ -250,6 +254,8 @@ Storage:
   - `.exo/artifacts/{runId}/{artifactFileName}`
 
 This phase should be kept narrow. Avoid adding a broad core automation UI until multiple plugins prove which scheduler/activity fields are actually universal.
+
+The stable external workload contract lives in `activity-plugin-contract.md`: `RunRecord` is a compatibility projection over this substrate, not permission to add workflow-specific fields to core.
 
 ## Phase 4.5: Plugin Config V0
 
@@ -268,7 +274,7 @@ untrusted, disabled, and schema-less plugins non-editable.
 
 Use downstream workloads to pressure-test the plugin boundary, but do not build workload-specific behavior into Exo core.
 
-Status: generic Exo primitives exist for first-pass Routines, Run/activity records, artifacts, traces, injected execution hosts, provider registries, and harness registries. No workload-specific trace collector, exporter, eval runner, review UI, or schema should ship in core without explicit approval.
+Status: generic Exo primitives exist for first-pass Routines, Run/activity records, artifact references, trace JSONL artifact helpers, injected execution hosts, provider registries, and harness registries. No workload-specific trace collector, exporter, eval runner, review UI, or schema should ship in core without explicit approval.
 
 The generic plugin contracts must support downstream workloads that need:
 
@@ -280,6 +286,8 @@ The generic plugin contracts must support downstream workloads that need:
 - JSONL export artifacts
 - optional OKF concept outputs for curated project/domain knowledge
 - raw traces and labels as `.exo/` artifacts linked back to Markdown/OKF concepts
+
+The contract is intentionally reference-based: core stores activity, artifact, provenance, and review references; plugins own trace/eval/export schemas.
 
 This phase should produce:
 
@@ -303,7 +311,9 @@ Only after registry contracts survive built-in migrations, define how capabiliti
 
 MCP exposure must remain narrow and agent-safe. CLI remains the broad operator/admin/debug surface.
 
-Status: policy-level contract plus first desktop tool descriptor slice implemented. Capabilities can describe intended surfaces and surface policies can validate desktop, CLI, MCP, command-server, and internal exposure. The desktop right rail/tool dock now has typed descriptors for current core/official actions and future routine-template/graph-visualization tool targets, but descriptor metadata is still not authorization and no public command/tool registration API exists yet.
+Status: policy-level contract plus first desktop tool descriptor slice implemented. Capabilities can describe intended surfaces and surface policies can validate desktop, CLI, MCP, command-server, and internal exposure. The desktop right rail/tool dock now has typed descriptors for current core/official actions, future routine-template/graph-visualization tool targets, metadata-only native plugin panels, and core web viewer endpoint requests. Descriptor metadata is still not authorization, renderer plugin loading, or public command/tool registration.
+
+The safe surface contract is documented in `docs/plugin-surface-contract.md`. Plugin-produced local apps and artifacts should use the existing core preview routes (`/preview/open`, `/preview/focus`, `/preview/close`) as the web viewer API. Native plugin panels remain inert descriptors with renderer entrypoint loading disabled until a later permissioned renderer contract exists.
 
 ## Phase 7: Local Plugin Manifest V0
 
@@ -334,6 +344,21 @@ The runtime root stores local policy, not plugin code: `plugin-state.json` recor
 
 Lifecycle status is explicit in core types: `trusted + enabled` exposes metadata capabilities and settings only; `untrusted` or `disabled` keeps capabilities inactive; executable entrypoint loading remains `disabled` for every source. Capability permissions remain requested metadata, not grants.
 
+### Metadata-Only Permission Grants
+
+Status: core contract implemented in `packages/core/src/plugin-permissions.ts`.
+
+Plugin manifests and capabilities still declare requested permissions only. Exo now has a separate local `plugin-permissions.json` policy store for grant and revoke decisions keyed by plugin id, source, root directory, manifest path, and manifest hash. Effective grants are computed from the decision log, but they are active only when the plugin is currently trusted and enabled and the specific capability is not disabled. A changed manifest hash does not inherit prior grants.
+
+Inventory rows expose requested, granted, and missing permission summaries for local manifest capabilities. This is read-only metadata for Plugin Manager and onboarding review; it does not execute plugin entrypoints, register renderer panels, add CLI or MCP tools, open web-viewer targets, launch terminals/agents, or write files.
+
+Tests prove:
+
+- requested permissions are distinct from granted permissions
+- grants can be revoked
+- untrusted plugins, disabled plugins, disabled capabilities, and changed manifest hashes cannot be considered granted/active
+- grant records cannot include permissions that the manifest did not request
+
 ### Profile Capability Payload
 
 Status: first metadata contract implemented in `packages/core/src/profile.ts`.
@@ -359,7 +384,7 @@ Status: first metadata contract implemented in `packages/core/src/graph.ts`, wit
 
 Graph data is core substrate. A `GraphSnapshot` is a read-only representation of notes, tags, unresolved references, and outgoing graph edges. It carries a deterministic `snapshotId`, explicit schema metadata, sorted nodes/edges/warnings, and scope metadata. Backlinks are a derived view over outgoing edges, not separately stored graph facts.
 
-Graph visualization is plugin-shaped. A `graphVisualization` capability may declare accepted graph data version, node kinds, edge kinds, host surface, render mode, and preferred placement under `capability.compatibility.graphVisualization`. Tool surface descriptors carry the graph data and surface contribution metadata needed by future 2D/3D/domain graph views to consume the same core snapshot.
+Graph visualization is plugin-shaped. A `graphVisualization` capability may declare accepted graph data version, node kinds, edge kinds, host surface, render mode, and preferred placement under `capability.compatibility.graphVisualization`. Tool surface descriptors carry the graph data and surface contribution metadata needed by future 2D/3D/domain graph views to consume the same core snapshot. When `hostSurface` is `webPreview`, descriptors also carry core web viewer endpoint metadata instead of granting plugin ownership of a WebView.
 
 This pass does not implement graph extraction, graph rendering, renderer plugin loading, or default graph explorer UI.
 
@@ -371,7 +396,7 @@ Future work:
 
 - install/uninstall flows that copy or remove plugin directories from the user/workspace roots
 - trust prompts and trust revocation UX for user/workspace roots
-- permission grants and revocation records separate from requested permissions
+- permission prompt UX on top of the metadata-only grant/revocation records
 - entrypoint loading, sandbox policy, process isolation, and lifecycle error handling
 - command, settings, pane, web viewer request, CLI, and MCP registration APIs
 - logs/errors

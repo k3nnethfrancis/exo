@@ -140,7 +140,17 @@ export class RoutineRunStore {
     await appendFile(target, `${JSON.stringify(saved)}\n`, "utf8");
     await this.writeRun({
       ...run,
-      tracePackets: [...(run.tracePackets ?? []).filter((existing) => existing.id !== saved.id), saved],
+      artifacts: replaceById(run.artifacts, {
+        id: "trace-jsonl",
+        activityId: run.id,
+        runId,
+        kind: "trace",
+        path: target,
+        title: "Trace JSONL",
+        mimeType: "application/jsonl",
+        sourceCapabilityId: saved.actor,
+        createdAt: saved.timestamp,
+      }),
     });
     return saved;
   }

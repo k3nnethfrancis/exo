@@ -1,6 +1,6 @@
 # Plugin System Architecture
 
-Last updated: 2026-06-26
+Last updated: 2026-06-28
 
 This document defines the target plugin boundary for Exo.
 
@@ -21,7 +21,7 @@ Core owns the substrate that must be coherent, reliable, and security-reviewed:
 
 Plugins own replaceable capability variation:
 
-- agent harness adapters for Claude Code, Codex, Pi, Hermes, Aider, OpenCode, local agents, and future harnesses
+- agent harness adapters for Claude Code, Codex, Pi, Hermes, Aider, Goose, OpenCode, local/open-source agents, and future harnesses
 - advanced search/index providers such as QMD, graph search, vector search, rerankers, or remote retrieval
 - graph visualization surfaces such as 2D/3D graph explorers, metadata lenses, relationship maps, and custom graph dashboards
 - dashboards, local web apps, and artifact producers that use Exo's core web viewer endpoints
@@ -93,6 +93,8 @@ Graph visualization plugins should use these surface contracts. Core should expo
 
 The first graph contract is a read-only `GraphSnapshot` core type plus metadata-only `graphVisualization` capability declarations. The snapshot stores outgoing edges as canonical graph facts; backlinks are derived views over those edges so graph consumers do not double-count relationships. The concrete graph visualization plugin contract lives in `docs/graph-visualization-plugin-contract.md`.
 
+The first safe renderer surface contract lives in `docs/plugin-surface-contract.md`. Native plugin panels are metadata-only descriptors hosted by core renderer panels with renderer entrypoint loading disabled. Plugin-produced local apps, dashboards, reports, and HTML artifacts should use the core web viewer endpoints (`/preview/open`, `/preview/focus`, `/preview/close`) rather than owning a WebView or mutating panes directly.
+
 ### Terminal Core
 
 Core owns:
@@ -106,7 +108,7 @@ Core owns:
 - session diagnostics and health states
 - terminal CLI/MCP/app APIs
 
-Harness plugins do not implement terminal rendering. They provide launch plans and harness semantics:
+Harness plugins do not implement terminal rendering. They provide launch plans and harness semantics. The concrete adapter contract lives in `docs/agent-harness-plugin-contract.md` and covers Claude Code, Codex, Pi-compatible builds, Aider, Goose, OpenCode, and local/open-source agents.
 
 - command, args, env, cwd, and readiness hints
 - display metadata and availability checks
@@ -134,6 +136,8 @@ Core should own only the scheduler and minimal automation substrate that multipl
 
 Core should not grow a large opinionated automation product by default. A graph-health routine, eval workflow, LM Wiki maintenance run, GA trace exporter, or Exo-on-Exo maintenance loop should be implemented as a plugin on top of this substrate.
 
+The concrete workload contract is documented in `activity-plugin-contract.md`. Core records references; plugin-owned artifacts carry rich trace, eval, dataset, dashboard, export, and review schemas.
+
 ## Plugin Distribution
 
 Exo's plugin model is official versus local, not marketplace versus first-party.
@@ -153,7 +157,7 @@ Concrete manifest roots:
 - User-installed local plugins: `${EXO_USER_DATA_PATH}/plugins/{plugin}/exo.plugin.json`.
 - Workspace-local plugins: `${workspaceRoot}/.exo/plugins/{plugin}/exo.plugin.json`.
 
-Runtime state is not stored in plugin directories. Trust and enablement live under the current Exo runtime root as `plugin-state.json`; metadata-only plugin settings live beside it as `plugin-settings.json`. Workspace-local plugin manifests may be committed or copied with a workspace, but their trust records are local runtime policy and do not self-authorize on another machine.
+Runtime state is not stored in plugin directories. Trust and enablement live under the current Exo runtime root as `plugin-state.json`; metadata-only plugin settings live beside it as `plugin-settings.json`; metadata-only permission grant/revocation decisions live beside them as `plugin-permissions.json`. Workspace-local plugin manifests may be committed or copied with a workspace, but their trust and grant records are local runtime policy and do not self-authorize on another machine.
 
 Lifecycle rules for the foundation slice:
 
@@ -161,13 +165,15 @@ Lifecycle rules for the foundation slice:
 - `trusted + enabled` means Exo may expose non-disabled capability metadata and metadata-owned settings through core surfaces.
 - `untrusted` or `disabled` means the manifest remains inspectable, but its capabilities are inactive.
 - Manifest `entrypoints` are accepted only as inert future metadata. They must be relative, traversal-free paths, and Exo must report executable loading as disabled.
-- Capability `permissions` are requested permissions, not grants. No plugin receives file, terminal, network, CLI, MCP, command-server, renderer, or web-viewer execution rights from a manifest in this slice.
+- Capability `permissions` are requested permissions, not grants. Local grant records are keyed by plugin id, source, root path, manifest path, and manifest hash; a changed manifest must be reviewed again before prior grants can apply.
+- Granted permissions are considered active only when the plugin is trusted and enabled and the specific capability is not disabled. Untrusted or disabled plugins remain inspectable, but their requested permissions and stored grant records cannot make capabilities active.
+- No plugin receives file, terminal, network, CLI, MCP, command-server, renderer, or web-viewer execution rights from a manifest or grant record in this slice.
 - A future executable loader must add a separate sandbox, explicit permission grants, revocation, logging, lifecycle errors, and tests before any entrypoint can run.
 
 Initial official plugin families:
 
 - Terminal tool surfaces: shell launcher, terminal commands, terminal status widgets, and terminal debug surfaces.
-- Agent harness adapters: shell, Claude Code, Codex, Pi, Hermes.
+- Agent harness adapters: shell, Claude Code, Codex, Pi, Hermes, Aider, Goose, OpenCode, and local/open-source agents.
 - Advanced search provider: QMD.
 - Routine templates and automations: graph-health and future first-party maintenance workflows, implemented as plugins.
 - Graph/profile helpers: starter profiles and graph diagnostics once the exograph model lands.
@@ -222,7 +228,9 @@ Already aligned:
 - capability metadata registry exists in `@exo/core`
 - QMD sits behind a search-provider contract
 - shell/Claude/Codex/Pi/Hermes launch planning sits behind an agent-harness contract
+- the agent-harness plugin contract now names availability detection, launch planning, semantic messages, skill/config inventory, dependency/setup guidance, and the terminal-core boundary
 - the desktop right rail/tool dock has a first typed descriptor layer for core terminal actions, official harness launchers, Agent Config, Plugin Manager, side-pane controls, and future routine/graph plugin targets
+- core surface descriptors now name metadata-only plugin panels and web viewer endpoint metadata for plugin-produced local apps/artifacts without renderer plugin loading
 - first-pass Routine, Run, artifact, trace, and routine-template primitives exist in core, but the target boundary should keep rich automation semantics plugin-owned
 - plugin manifests are metadata-only and non-executable
 - command server, CLI, and MCP share core protocol types
@@ -233,7 +241,7 @@ Not yet aligned:
 - renderer still mounts a terminal-named rail/dock component, even though its actions now pass through typed tool surface descriptors
 - settings are organized as fixed product tabs rather than core plus plugin-owned settings sections
 - terminal launch controls are partly hardwired UI even though harness metadata exists
-- current Routine/Run naming risks implying a larger core automation product than the target substrate requires
+- current Routine/Run naming is compatibility terminology for the first CLI/store MVP; the durable contract is the smaller activity/artifact/provenance/review substrate documented in `activity-plugin-contract.md`
 - shared CLI/MCP/session types still expose fixed official harness ids in places where they should eventually derive policy-approved choices from the harness registry
 - plugin manager exists and onboarding now has a first-pass read-only capability review, but onboarding does not yet apply profile/plugin recommendations or grant permissions
 - plugin manifests do not yet contribute UI, commands, settings, or MCP/CLI surfaces
@@ -262,6 +270,7 @@ Not yet aligned:
 - No plugin bypass of preload/main-process security boundaries.
 - No plugin-owned terminal rendering.
 - No plugin-owned web viewer host.
+- No plugin-owned renderer panel loading from manifest metadata.
 - No hidden fallback terminal transports.
 - No public plugin marketplace before official capabilities prove the contracts.
 - No large core automation system until repeated product use proves which job/activity primitives are universal.

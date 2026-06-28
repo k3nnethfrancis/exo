@@ -1,6 +1,6 @@
 # Exo Tasks
 
-Last updated: 2026-06-24
+Last updated: 2026-06-28
 
 This is the active task tracker for Exo. It is intentionally not a history file; completed implementation history belongs in `ledger.md`. Tasks here should be concrete, current, and ordered by practical priority.
 
@@ -164,7 +164,8 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [ ] Define the feed/event item model for incoming and generated context: quick capture, RSS/bookmark/web clip, voice transcript, file change, terminal-agent output, MCP message, workflow result, git event, plugin response, eval result, and training artifact.
 - [ ] Define feed item review/promote/archive semantics without requiring an `/inbox/` folder.
 - [x] Define the first-pass Routine/activity model: prompt, selected harness, optional required harness skills, manual trigger or schedule, scope, permissions, output policy, logs, traces, artifacts, review state, and recovery.
-- [ ] Reassess the current Routine/Run core model and shrink future expansion toward a minimal activity substrate: ids, status, timestamps, actor, scope, permission checks, artifact references, transcript/log references, optional provenance links, and optional review state.
+- [x] Reassess the current Routine/Run core model and shrink future expansion toward a minimal activity substrate: ids, status, timestamps, actor, scope, permission checks, artifact references, transcript/log references, optional provenance links, and optional review state.
+  - 2026-06-27: Added `docs/activity-plugin-contract.md` and narrowed `RunRecord` away from embedded rich trace/eval/file-change schemas. Trace JSONL remains an artifact-backed helper; rich workload schemas stay plugin-owned.
 - [x] Define how harness skill inventory is represented so Exo can warn when a Routine prompt references a skill the selected harness does not expose.
 - [x] Define plugin routine templates as metadata that can be instantiated into concrete user/workspace Routines.
 - [x] Add the first Routine CLI MVP: list plugin templates, create concrete routines, list routines, record dry-run executions, and inspect run records/artifacts.
@@ -226,12 +227,14 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Keep plugin manifests metadata-only and reject unsafe entrypoint paths before any future executable plugin loading exists.
 - [x] Make harness readiness the canonical launchability model for Claude, Codex, Pi-compatible, Hermes, and future adapters.
 - [x] Add a final launch gate so non-shell agent terminals cannot be created from raw launch plans when the harness is not launchable.
+- [x] Define the agent-harness plugin contract for Claude, Codex, Pi, Aider, Goose, OpenCode, and local/open-source agents: adapter metadata, availability detection, launch planning, semantic messages, skill/config inventory, dependency/setup guidance, and core terminal ownership.
 - [x] Keep Plugin Manager read-only for the foundation pass while improving category navigation, detail inspection, and setup/readiness explanations.
 - [x] Add Plugin Enablement v0: desktop Plugin Manager can trust, enable, and disable local/developer metadata plugins while keeping official/core rows read-only and without executing plugin code.
 - [x] Add Plugin Config v0 core state: metadata-only plugin settings schemas, JSON-backed overrides, validation, reset, and inventory summaries without executing plugin code.
 - [x] Add Plugin Config desktop UI in Plugin Manager so trusted/enabled local plugins can edit reviewed settings without bloating Workspace Settings.
 - [x] Add typed tool surface descriptors for the right rail/tool dock so terminal launchers, harness launchers, Agent Config, Plugin Manager, side-pane controls, and future routine/graph plugin surfaces are described before renderer callback wiring.
 - [x] Sharpen the graph visualization plugin boundary with deterministic `GraphSnapshot` metadata, derived backlinks, nested `graphVisualization` compatibility payloads, graph-aware surface descriptor metadata, and focused contract docs.
+- [x] Define safe renderer panel extension points and core web viewer endpoint usage for plugin-produced local apps/artifacts without implementing renderer plugin loading.
 
 ## Next: Multi-Agent Coordination
 
@@ -286,6 +289,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Add a duplicate-safe plugin registry for discovered plugin manifests and declared capabilities.
 - [x] Define initial plugin discovery sources and trust states: built-in, dev, user, workspace; trusted, untrusted, disabled.
 - [x] Keep first-pass plugin manifests non-executable: no entrypoint loading, permission grants, UI contributions, CLI commands, or MCP tools.
+- [x] Add metadata-only plugin permission grant/revocation state and policy helpers that distinguish requested permissions from active grants.
 - [x] Add architecture/harness checks that discourage direct implementation imports outside the provider/harness facade path.
 - [x] Define concrete discovery locations for built-in, dev, user, and workspace plugin manifests in the desktop runtime.
 - [x] Define concrete install/load directories and lifecycle rules for future executable plugins.
@@ -294,7 +298,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Add core web viewer open/focus/close endpoints for URL/path/artifact preview; plugin outputs should call those endpoints rather than require a special WebView plugin API.
 - [x] Add first-pass onboarding capability review for official/local plugins after workspace selection: core locked rows, QMD/search provider rows, agent harness readiness rows, and local/profile/routine inventory from the existing Plugin Inventory API; web viewer remains core.
 - [ ] Add a future onboarding apply flow for profile/plugin recommendations after trust prompts and permission grants exist.
-- [ ] Add trust prompts and permission grants before any plugin entrypoint execution.
+- [ ] Add trust prompts and permission prompt UX before any plugin entrypoint execution.
 - [x] Add the first read-only Plugin Manager UI after manifests, trust, and permissions survived the metadata-only pass.
 - [x] Add Plugin Manager mutation flows for metadata-only local/developer plugins: trust, enable, and disable.
 - [x] Add plugin-owned settings/config core contracts after the metadata-only enablement path.
@@ -321,7 +325,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [ ] Define safe renderer panel extension points and core web viewer endpoint usage for plugin-produced local apps/artifacts.
 - [ ] Define command registration API.
 - [x] Define settings API for plugin-owned state.
-- [ ] Define agent harness adapter API for Claude, Codex, Pi, Aider, Goose, OpenCode, and local/open-source agents.
+- [x] Define agent harness adapter API for Claude, Codex, Pi, Aider, Goose, OpenCode, and local/open-source agents.
 - [ ] Decide how plugins can add MCP tools or CLI commands under explicit permissions.
 - [x] Define initial capability permissions for workspace/notes/project reads and writes, terminal/agent launch, network access, and artifact writes.
 - [x] Define search provider, trace collector, eval runner, exporter, and routine-template extension points.

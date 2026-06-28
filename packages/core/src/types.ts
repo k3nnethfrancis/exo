@@ -14,9 +14,28 @@ export function formatManagedAgentKindUsage(): string {
   return MANAGED_AGENT_KINDS.join("|");
 }
 
-export type AgentHarnessAdapterId = "shell" | "claude-code" | "codex" | "pi" | "hermes";
+export type AgentHarnessAdapterId =
+  | "shell"
+  | "claude-code"
+  | "codex"
+  | "pi"
+  | "hermes"
+  | "aider"
+  | "goose"
+  | "opencode"
+  | "local"
+  | "open-source"
+  | `local:${string}`
+  | `open-source:${string}`;
 export type AgentHarnessStatus = "available" | "configured" | "not-found" | "disabled" | "broken" | "missing-dependency";
-export type AgentHarnessDependencyKind = "inference-backend" | "runtime";
+export type AgentHarnessDependencyKind =
+  | "binary"
+  | "runtime"
+  | "package-manager"
+  | "auth"
+  | "config"
+  | "model"
+  | "inference-backend";
 export type ColorThemeId = "exo-neutral" | "exo-solar";
 
 export interface AttachedRoot {

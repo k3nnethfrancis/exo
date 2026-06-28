@@ -9,7 +9,6 @@ import {
   runHasPendingReview,
   runTraceHasEvidence,
   type ActivityRecord,
-  type RunEvaluationResult,
   type RunRecord,
   type RunTracePacket,
 } from "../run";
@@ -76,27 +75,31 @@ describe("run primitives", () => {
     expect(runTraceHasEvidence(packet)).toBe(true);
   });
 
-  it("models evaluation results as run-linked artifacts and metrics", () => {
-    const result: RunEvaluationResult = {
-      id: "eval-1",
-      runId: "run-1",
-      evaluatorId: "alignment-evaluator-v0",
-      status: "warning",
-      metrics: [
+  it("keeps evaluation results plugin-owned behind artifact refs", () => {
+    const run: RunRecord = {
+      ...baseRun,
+      artifacts: [
+        ...baseRun.artifacts,
         {
-          name: "operator_agreement",
-          value: 0.74,
-          unit: "ratio",
-          higherIsBetter: true,
+          id: "eval-results",
+          runId: "run-1",
+          kind: "evaluation",
+          path: ".exo/artifacts/run-1/eval-results.json",
+          title: "Alignment Evaluation Results",
+          mimeType: "application/json",
+          sourceCapabilityId: "alignment-evaluator-v0",
+          createdAt: "2026-06-14T00:03:00.000Z",
         },
       ],
-      artifactIds: ["artifact-2"],
-      createdAt: "2026-06-14T00:03:00.000Z",
-      summary: "Alignment is directionally correct but needs boundary review.",
+      pluginMetadata: {
+        "alignment-evaluator-v0": {
+          schema: "plugin-owned",
+        },
+      },
     };
 
-    expect(result.metrics[0]).toMatchObject({ name: "operator_agreement", value: 0.74 });
-    expect(result.artifactIds).toEqual(["artifact-2"]);
+    expect(runArtifactPaths(run, "evaluation")).toEqual([".exo/artifacts/run-1/eval-results.json"]);
+    expect(run.pluginMetadata).toEqual({ "alignment-evaluator-v0": { schema: "plugin-owned" } });
   });
 
   it("projects legacy run records into the generic activity substrate", () => {

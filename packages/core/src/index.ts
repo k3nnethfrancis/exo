@@ -10,6 +10,7 @@ export * from "./plugin-locations";
 export * from "./plugin-management";
 export * from "./plugin-settings";
 export * from "./plugin-state";
+export * from "./plugin-permissions";
 export * from "./profile";
 export * from "./profile-plan";
 export * from "./graph";

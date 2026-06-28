@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { buildPluginInventory, type PluginInventoryItem } from "../plugin-inventory";
 import type { DiscoveredPlugin, PluginManifest } from "../plugin";
 import { updatePluginSettingsStore, emptyPluginSettingsStore } from "../plugin-settings";
+import { emptyPluginPermissionStore, grantPluginPermissions } from "../plugin-permissions";
 import type { AgentHarnessDetection } from "../types";
 
 const graphHealthManifest: PluginManifest = {
@@ -81,6 +82,12 @@ describe("plugin inventory", () => {
       source: "localManifest",
       distribution: "developer",
       categoryLabel: "Routine templates",
+      permissionGrants: {
+        requested: ["artifacts:write", "notes:read", "workspace:read"],
+        granted: [],
+        missing: ["artifacts:write", "notes:read", "workspace:read"],
+        status: "none",
+      },
       pluginId: "graph-health.plugin",
       pluginName: "Graph Health",
       runtime: {
@@ -175,6 +182,11 @@ describe("plugin inventory", () => {
       enabled: false,
       trust: "trusted",
       statusLabel: "Disabled",
+      permissionGrants: {
+        requested: ["artifacts:write", "notes:read", "workspace:read"],
+        granted: [],
+        status: "inactive",
+      },
     });
     expect(inventory.counts.untrusted).toBe(3);
     expect(inventory.counts.disabled).toBe(4);
@@ -248,6 +260,38 @@ describe("plugin inventory", () => {
       reviewRequired: true,
       configReviewRequired: true,
       validationErrors: [],
+    });
+  });
+
+  it("includes granted permission summaries without activating untrusted rows", () => {
+    const plugin = discovered(graphHealthManifest, "trusted");
+    const pluginPermissionStore = grantPluginPermissions(
+      emptyPluginPermissionStore(),
+      plugin,
+      ["workspace:read", "notes:read"],
+      "2026-06-27T00:00:00.000Z",
+    );
+
+    const trustedInventory = buildPluginInventory({
+      plugins: [plugin],
+      pluginPermissionStore,
+    });
+    const untrustedInventory = buildPluginInventory({
+      plugins: [{ ...plugin, trust: "untrusted" }],
+      pluginPermissionStore,
+    });
+
+    expect(find(trustedInventory.items, "graph-health.template").permissionGrants).toEqual({
+      requested: ["artifacts:write", "notes:read", "workspace:read"],
+      granted: ["notes:read", "workspace:read"],
+      missing: ["artifacts:write"],
+      status: "partial",
+    });
+    expect(find(untrustedInventory.items, "graph-health.template").permissionGrants).toEqual({
+      requested: ["artifacts:write", "notes:read", "workspace:read"],
+      granted: [],
+      missing: ["artifacts:write", "notes:read", "workspace:read"],
+      status: "inactive",
     });
   });
 });

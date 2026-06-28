@@ -78,8 +78,7 @@ describe("routine executor", () => {
         startedAt: "2026-06-14T00:00:00.000Z",
         completedAt: "2026-06-14T00:00:01.000Z",
       });
-      expect(run.artifacts).toHaveLength(1);
-      expect(run.tracePackets).toHaveLength(1);
+      expect(run.artifacts.map((artifact) => artifact.kind).sort()).toEqual(["report", "trace"]);
       expect(await readFile(run.artifacts[0]!.path, "utf8")).toBe("# Alignment Report\n");
     } finally {
       await rm(root, { recursive: true, force: true });

@@ -126,6 +126,86 @@ describe("agent harness registry", () => {
     expect(registry.get("test-shell")).toBe(testHarness);
   });
 
+  it("accepts the richer adapter contract needed by local and open-source harness plugins", () => {
+    const localHarness: AgentHarness = {
+      contractVersion: "agent-harness.v1",
+      metadata: {
+        ...builtInAgentHarnesses.shell.metadata,
+        id: "local.llama-agent",
+        label: "Local Llama Agent",
+        owner: "local.plugin",
+      },
+      kind: "shell",
+      title: "Local Llama Agent",
+      adapter: {
+        id: "local:llama-agent",
+        family: "local",
+        productName: "Local Llama Agent",
+        executableNames: ["llama-agent"],
+      },
+      terminalOwnership: "core",
+      skills: [
+        {
+          id: "repo-edit",
+          label: "Repository editing",
+          source: "filesystem",
+          enabled: true,
+          required: true,
+          configPaths: [".llama-agent/skills/repo-edit"],
+        },
+      ],
+      configs: [
+        {
+          id: "model-path",
+          label: "Model path",
+          source: "environment",
+          valueKind: "path",
+          required: true,
+          configured: true,
+          envVar: "LLAMA_AGENT_MODEL",
+        },
+      ],
+      semanticMessages: {
+        modes: ["paste-enter", "file"],
+        defaultMode: "paste-enter",
+        supportsMultiline: true,
+        submitOnEnter: true,
+        readiness: {
+          signal: "prompt-pattern",
+          pattern: "Ready",
+          timeoutMs: 10_000,
+        },
+      },
+      setup: {
+        summary: "Install the local agent binary and configure LLAMA_AGENT_MODEL.",
+        actions: [
+          {
+            id: "configure-model",
+            kind: "configure",
+            label: "Set LLAMA_AGENT_MODEL",
+            required: true,
+          },
+        ],
+      },
+      resolveLauncher: () => ({
+        kind: "shell",
+        title: "Local Llama Agent",
+        command: "llama-agent",
+        args: ["--interactive"],
+      }),
+    };
+
+    const registry = new AgentHarnessRegistry([localHarness]);
+
+    expect(registry.get("local.llama-agent")).toMatchObject({
+      contractVersion: "agent-harness.v1",
+      adapter: { family: "local", id: "local:llama-agent" },
+      semanticMessages: { defaultMode: "paste-enter", supportsMultiline: true },
+      terminalOwnership: "core",
+    });
+    expect(registry.list().map((harness) => harness.metadata.id)).toEqual(["local.llama-agent"]);
+  });
+
   it("blocks a configured Pi executable when no inference backend is configured", () => {
     const tempRoot = mkdtempSync(path.join(os.tmpdir(), "exo-pi-missing-backend-"));
     const piCommand = path.join(tempRoot, "pi");

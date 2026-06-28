@@ -9,6 +9,10 @@ This directory contains committed, public-facing project context. It should be u
 - `strategy.md` - product direction and system model.
 - `architecture.md` - current package, runtime, terminal, CLI/MCP, pane, search, and plugin boundaries.
 - `plugin-system-architecture.md` - canonical core-versus-plugin target architecture.
+- `activity-plugin-contract.md` - minimal activity/artifact/provenance/review substrate boundary for plugin workloads.
+- `agent-harness-plugin-contract.md` - harness adapter contract for Claude, Codex, Pi-compatible, and future local/open-source agents.
+- `plugin-surface-contract.md` - safe plugin surface and core web viewer endpoint contribution contract.
+- `graph-visualization-plugin-contract.md` - core graph snapshot and future graph visualization plugin contract.
 - `terminal-architecture-v4.md` - current terminal architecture and module-boundary target.
 - `terminal-runtime-decision.md` - current tmux-backed terminal runtime decision and constraints.
 - `terminal-quality-standard.md` - terminal useability, configuration, and QA standard.
@@ -45,13 +49,17 @@ These remain in place for traceability but should not be treated as the latest a
 11. `plugin-system-architecture.md` - core-versus-plugin target architecture
 12. `plugins.md` - plugin architecture direction
 13. `plugin-implementation-plan.md` - phased implementation plan for capability registries, search providers, agent harnesses, activity substrate, plugin manifests, and future permissioned loading
-14. `open-source.md` - release and platform support notes
-15. `terminal-architecture-v4.md` - current terminal architecture and module-boundary target
-16. `terminal-runtime-decision.md` - terminal runtime decision
-17. `terminal-quality-standard.md` - terminal useability and QA standard
-18. `terminal-fallback-audit.md` - terminal fallback/recovery policy and current decisions
-19. `terminal-refactor-plan.md` - historical tmux migration plan
-20. `qmd-integration-notes.md` - live QMD dependency boundary and upgrade checklist
+14. `activity-plugin-contract.md` - activity/artifact/provenance/review substrate contract
+15. `agent-harness-plugin-contract.md` - harness adapter contract
+16. `plugin-surface-contract.md` - safe plugin surface and web viewer endpoint contract
+17. `graph-visualization-plugin-contract.md` - graph visualization plugin contract
+18. `open-source.md` - release and platform support notes
+19. `terminal-architecture-v4.md` - current terminal architecture and module-boundary target
+20. `terminal-runtime-decision.md` - terminal runtime decision
+21. `terminal-quality-standard.md` - terminal useability and QA standard
+22. `terminal-fallback-audit.md` - terminal fallback/recovery policy and current decisions
+23. `terminal-refactor-plan.md` - historical tmux migration plan
+24. `qmd-integration-notes.md` - live QMD dependency boundary and upgrade checklist
 
 ## File Roles
 
@@ -65,6 +73,10 @@ These remain in place for traceability but should not be treated as the latest a
 - `plugin-system-architecture.md` defines which platform surfaces stay core versus become bundled/external plugins.
 - `plugins.md` tracks the intended extension model.
 - `plugin-implementation-plan.md` tracks the concrete refactor/implementation order for the first plugin architecture phases.
+- `activity-plugin-contract.md` defines the minimal activity substrate and keeps rich workload schemas plugin-owned.
+- `agent-harness-plugin-contract.md` defines how harness adapters plug into Exo's core terminal/session service.
+- `plugin-surface-contract.md` defines safe plugin surface descriptors and core web viewer endpoint usage.
+- `graph-visualization-plugin-contract.md` defines graph snapshot data and graph visualization metadata contracts.
 - `open-source.md` tracks public release hygiene.
 - `terminal-architecture-v4.md` is the current terminal simplification and extraction proposal.
 - `terminal-runtime-decision.md` records the tmux-backed terminal runtime decision.

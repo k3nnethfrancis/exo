@@ -115,8 +115,7 @@ describe("routine service", () => {
       const { run } = await service.runManualDryRun("graph-health-manual");
 
       expect(run.status).toBe("succeeded");
-      expect(run.artifacts).toHaveLength(1);
-      expect(run.tracePackets?.map((packet) => packet.id)).toEqual(["dry-run-start"]);
+      expect(run.artifacts.map((artifact) => artifact.kind).sort()).toEqual(["report", "trace"]);
       await expect(service.listRuns({ routineId: "graph-health-manual" })).resolves.toEqual([run]);
       await expect(service.requireRun(run.id)).resolves.toEqual(run);
       await expect(service.readArtifact(run.id, "dry-run-report")).resolves.toMatchObject({

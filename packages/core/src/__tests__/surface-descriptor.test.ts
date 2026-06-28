@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import type { AgentHarnessDetection, ManagedAgentKind, PluginInventoryItem } from "../index";
 import {
+  buildCoreWebViewerDescriptor,
   buildCoreToolSurfaceDescriptors,
+  buildSafePluginPanelDescriptor,
+  coreWebViewerToolMetadata,
   launchableToolSurfaceHarnesses,
   toolSurfaceDescriptorsFromInventory,
 } from "../surface-descriptor";
@@ -96,6 +99,110 @@ describe("tool surface descriptors", () => {
         },
       },
     ]);
+  });
+
+  it("attaches core web viewer endpoint metadata to web-preview graph descriptors", () => {
+    const descriptors = toolSurfaceDescriptorsFromInventory([
+      inventoryItem("web-graph.view", "graphVisualization", "local", {
+        compatibility: {
+          graphVisualization: {
+            graphDataVersion: "0.1",
+            hostSurface: "webPreview",
+            renderMode: "3d",
+          },
+        },
+      }),
+    ]);
+
+    expect(descriptors[0]).toMatchObject({
+      id: "web-graph.view",
+      graphVisualization: {
+        surface: {
+          hostSurface: "webPreview",
+          preferredPlacement: "webPreview",
+        },
+      },
+      webViewer: {
+        contractVersion: "0.1",
+        targetPolicy: {
+          allowedTargetKinds: ["localFile", "localhostUrl", "artifact", "trustedUrl"],
+          validationOwner: "core",
+        },
+        endpoints: {
+          open: "/preview/open",
+          focus: "/preview/focus",
+          close: "/preview/close",
+        },
+      },
+    });
+  });
+
+  it("describes plugin-produced local apps through core web viewer requests", () => {
+    const descriptor = buildCoreWebViewerDescriptor({
+      id: "eval-dashboard.open",
+      label: "Eval dashboard",
+      title: "Open generated eval dashboard",
+      owner: "localPlugin",
+      capabilityId: "eval-dashboard.app",
+      pluginId: "eval-dashboard.plugin",
+      request: {
+        target: ".exo/artifacts/run-1/dashboard.html",
+        targetKind: "artifact",
+        sourcePluginId: "eval-dashboard.plugin",
+        sourceCapabilityId: "eval-dashboard.app",
+      },
+    });
+
+    expect(descriptor).toMatchObject({
+      kind: "toolDockPane",
+      owner: "localPlugin",
+      action: {
+        type: "webViewer.open",
+        request: {
+          target: ".exo/artifacts/run-1/dashboard.html",
+          targetKind: "artifact",
+        },
+      },
+      webViewer: coreWebViewerToolMetadata(),
+    });
+  });
+
+  it("keeps native plugin panel descriptors metadata-only and policy gated", () => {
+    expect(
+      buildSafePluginPanelDescriptor({
+        id: "blocked.panel",
+        label: "Blocked",
+        title: "Blocked panel",
+        panelId: "blocked.panel",
+        owner: "localPlugin",
+        enabled: true,
+        trusted: false,
+        desktopSurface: true,
+      }),
+    ).toBeUndefined();
+
+    expect(
+      buildSafePluginPanelDescriptor({
+        id: "safe.panel",
+        label: "Safe",
+        title: "Safe panel",
+        panelId: "safe.panel",
+        owner: "officialPlugin",
+        capabilityId: "safe.panel",
+        pluginId: "safe.plugin",
+        enabled: true,
+        trusted: true,
+        desktopSurface: true,
+      }),
+    ).toMatchObject({
+      kind: "pluginPanel",
+      action: { type: "pluginPanel.open", panelId: "safe.panel" },
+      pluginPanel: {
+        contractVersion: "0.1",
+        hostKind: "coreRendererPanel",
+        rendererEntrypointLoading: "disabled",
+      },
+    });
   });
 });
 

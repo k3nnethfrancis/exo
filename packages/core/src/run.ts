@@ -4,6 +4,11 @@ export type RunStatus = ActivityStatus;
 export type ActivityReviewState = "notRequired" | "pending" | "accepted" | "rejected" | "corrected";
 export type RunReviewState = ActivityReviewState;
 
+/**
+ * Core owns only references to activity outputs. Plugin-owned trace, eval,
+ * export, and review schemas should live behind these artifact refs, usually
+ * as files under `.exo/artifacts/{activityId}/`.
+ */
 export type ActivityArtifactKind =
   | "transcript"
   | "log"
@@ -93,19 +98,6 @@ export interface RunArtifact extends ActivityArtifactRef {
   runId: string;
 }
 
-export interface RunFileChangeProposal {
-  id: string;
-  runId: string;
-  path: string;
-  action: "create" | "update" | "delete" | "move";
-  status: "proposed" | "accepted" | "rejected" | "applied";
-  title?: string;
-  diffPath?: string;
-  fromPath?: string;
-  createdAt: string;
-  metadata?: Record<string, unknown>;
-}
-
 export interface ActivityTracePacket {
   id: string;
   activityId?: string;
@@ -121,25 +113,6 @@ export interface ActivityTracePacket {
 export interface RunTracePacket extends Omit<ActivityTracePacket, "evidence"> {
   runId: string;
   evidence: RunEvidenceRef[];
-}
-
-export interface RunEvaluationMetric {
-  name: string;
-  value: number | string | boolean;
-  unit?: string;
-  higherIsBetter?: boolean;
-}
-
-export interface RunEvaluationResult {
-  id: string;
-  runId: string;
-  evaluatorId: string;
-  status: "passed" | "failed" | "warning" | "skipped";
-  metrics: RunEvaluationMetric[];
-  artifactIds: string[];
-  createdAt: string;
-  summary?: string;
-  metadata?: Record<string, unknown>;
 }
 
 export interface RunError {
@@ -183,11 +156,6 @@ export interface RunRecord extends ActivityRecord<RunArtifact> {
   logPath?: string;
   artifacts: RunArtifact[];
   proposedFileChanges: string[];
-  // Legacy rich routine-run fields. Core stores and returns them for compatibility;
-  // future workflow/eval/file-change detail should live in plugin metadata/artifacts.
-  fileChangeProposals?: RunFileChangeProposal[];
-  tracePackets?: RunTracePacket[];
-  evaluationResults?: RunEvaluationResult[];
   errors: RunError[];
 }
 

@@ -15,6 +15,11 @@ import {
   type PluginSettingsStore,
 } from "./plugin-settings";
 import {
+  readPluginPermissionStore,
+  resolveCapabilityPermissionGrants,
+  type PluginPermissionStore,
+} from "./plugin-permissions";
+import {
   applyPluginState,
   readPluginStateStore,
   type PluginStateStore,
@@ -48,6 +53,13 @@ export interface PluginInventoryRuntimeSummary {
   reason: string;
 }
 
+export interface PluginInventoryPermissionSummary {
+  requested: CapabilityMetadata["permissions"];
+  granted: CapabilityMetadata["permissions"];
+  missing: CapabilityMetadata["permissions"];
+  status: "inactive" | "none" | "partial" | "granted";
+}
+
 export interface PluginInventoryItem {
   id: string;
   label: string;
@@ -75,6 +87,7 @@ export interface PluginInventoryItem {
   dependencies?: PluginInventoryDependency[];
   compatibility?: Record<string, unknown>;
   settings?: PluginInventorySettingsSummary;
+  permissionGrants?: PluginInventoryPermissionSummary;
   runtime?: PluginInventoryRuntimeSummary;
 }
 
@@ -109,6 +122,7 @@ export interface PluginInventoryOptions {
   pluginDirectories?: PluginLocation[];
   pluginStateStore?: PluginStateStore;
   pluginSettingsStore?: PluginSettingsStore;
+  pluginPermissionStore?: PluginPermissionStore;
   clock?: () => string;
 }
 
@@ -125,6 +139,7 @@ export async function listPluginInventory(options: PluginInventoryOptions): Prom
   const { plugins, errors } = await discoverInventoryPlugins(directories);
   const pluginStateStore = options.pluginStateStore ?? (options.runtimeRoot ? await readPluginStateStore(options.runtimeRoot) : undefined);
   const pluginSettingsStore = options.pluginSettingsStore ?? (options.runtimeRoot ? await readPluginSettingsStore(options.runtimeRoot) : undefined);
+  const pluginPermissionStore = options.pluginPermissionStore ?? (options.runtimeRoot ? await readPluginPermissionStore(options.runtimeRoot) : undefined);
   return buildPluginInventory({
     builtIns: options.builtIns ?? builtInCapabilities,
     errors,
@@ -133,6 +148,7 @@ export async function listPluginInventory(options: PluginInventoryOptions): Prom
     plugins,
     pluginStateStore,
     pluginSettingsStore,
+    pluginPermissionStore,
   });
 }
 
@@ -144,6 +160,7 @@ export function buildPluginInventory(input: {
   plugins?: DiscoveredPlugin[];
   pluginStateStore?: PluginStateStore;
   pluginSettingsStore?: PluginSettingsStore;
+  pluginPermissionStore?: PluginPermissionStore;
 }): PluginInventory {
   const harnessById = new Map((input.harnesses ?? []).map((harness) => [harness.id, harness]));
   const bundledItems = (input.builtIns ?? builtInCapabilities).map((capability) => {
@@ -151,7 +168,7 @@ export function buildPluginInventory(input: {
     return bundledCapabilityItem(capability, harnessKind ? harnessById.get(harnessKind) : undefined);
   });
   const plugins = (input.plugins ?? []).map((plugin) => applyPluginState(plugin, input.pluginStateStore));
-  const localItems = plugins.flatMap((plugin) => pluginInventoryItems(plugin, input.pluginSettingsStore));
+  const localItems = plugins.flatMap((plugin) => pluginInventoryItems(plugin, input.pluginSettingsStore, input.pluginPermissionStore));
   const items = [...CORE_INVENTORY_ITEMS, ...bundledItems, ...localItems].sort(compareInventoryItems);
   return {
     generatedAt: input.now ?? new Date().toISOString(),
@@ -263,11 +280,16 @@ function bundledCapabilityItem(
   };
 }
 
-function pluginInventoryItems(plugin: DiscoveredPlugin, pluginSettingsStore: PluginSettingsStore | undefined): PluginInventoryItem[] {
+function pluginInventoryItems(
+  plugin: DiscoveredPlugin,
+  pluginSettingsStore: PluginSettingsStore | undefined,
+  pluginPermissionStore: PluginPermissionStore | undefined,
+): PluginInventoryItem[] {
   const settings = settingsSummary(plugin, pluginSettingsStore);
   const runtime = runtimeSummary(plugin);
   return plugin.manifest.capabilities.map((capability) => {
     const enabled = isActivePlugin(plugin) && capability.lifecycle !== "disabled";
+    const permissionGrants = permissionSummary(plugin, capability.id, pluginPermissionStore);
     return {
       id: capability.id,
       label: capability.label,
@@ -294,6 +316,7 @@ function pluginInventoryItems(plugin: DiscoveredPlugin, pluginSettingsStore: Plu
       rootDirectory: plugin.rootDirectory,
       compatibility: capability.compatibility,
       settings,
+      permissionGrants,
       runtime,
     };
   });
@@ -318,6 +341,20 @@ function settingsSummary(plugin: DiscoveredPlugin, pluginSettingsStore: PluginSe
     reviewRequired: settings.reviewRequired,
     configReviewRequired: settings.configReviewRequired,
     validationErrors: settings.validationErrors,
+  };
+}
+
+function permissionSummary(
+  plugin: DiscoveredPlugin,
+  capabilityId: string,
+  pluginPermissionStore: PluginPermissionStore | undefined,
+): PluginInventoryPermissionSummary {
+  const grants = resolveCapabilityPermissionGrants(plugin, capabilityId, pluginPermissionStore);
+  return {
+    requested: grants.requestedPermissions,
+    granted: grants.grantedPermissions,
+    missing: grants.missingPermissions,
+    status: grants.status,
   };
 }
 
