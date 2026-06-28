@@ -49,6 +49,8 @@ import { isReconnectableSession, isTerminalInputEnabled, terminalSessionsEqual }
 import {
   buildPluginCategoryFilters,
   buildPluginDetailSections,
+  buildPluginManagementSummary,
+  buildPluginRowIndicators,
   createPluginSettingsDraft,
   filterPluginInventoryItems,
   groupPluginInventoryItems,
@@ -57,6 +59,7 @@ import {
   pluginSettingsAvailability,
   pluginSettingsValuesFromDraft,
 } from "./pluginManagerModel";
+import { buildProfileSettingsModel, PROFILE_SETTINGS_DISABLED_REASON } from "./profileSettingsModel";
 import { PluginSettingsSection } from "./components/PluginManagerDialog";
 import { OnboardingCapabilityReviewContent } from "./components/OnboardingCapabilityReview";
 import {
@@ -107,6 +110,50 @@ describe("workspace settings footer copy", () => {
   it("only mentions Apply when structural changes are pending", () => {
     expect(workspaceSettingsSavedFooterCopy(true)).toContain("Apply");
     expect(workspaceSettingsSavedFooterCopy(false)).toBe("Settings saved.");
+  });
+});
+
+describe("profile settings model", () => {
+  it("shows active profile state as unwired and surfaces Exograph Baseline as the baseline candidate", () => {
+    const baseline: PluginInventoryItem = {
+      ...pluginInventoryItem("exograph-baseline.profile", "Exograph Baseline", "profile", "Profiles", "bundled"),
+      pluginId: "exograph-baseline.plugin",
+      pluginName: "Exograph Baseline Profile",
+      manifestPath: "/plugins/exograph-baseline/exo.plugin.json",
+      compatibility: {
+        profile: {
+          recommendedPlugins: [{ id: "qmd", required: false }],
+          metadataSchemas: [{ id: "markdown-note", label: "Markdown note", scope: { paths: ["**/*.md"] }, frontmatter: {}, tags: [] }],
+          contextTemplates: [],
+          instructionTemplates: [],
+          mcpConfigTemplates: [],
+          skills: [],
+          routineTemplateIds: ["graph-health.template"],
+          graphViews: [],
+          analyzerSettings: [],
+          reviewPolicy: { fileChanges: "propose", requireHumanReview: true, allowedPaths: ["**/*.md"] },
+          outputPolicy: { fileChanges: "propose", artifacts: "record", allowedPaths: [".exo/artifacts/**"] },
+        },
+      },
+    };
+    const model = buildProfileSettingsModel(pluginInventory([
+      baseline,
+      pluginInventoryItem("qmd", "QMD advanced search", "searchProvider", "Search providers", "bundled"),
+    ]));
+
+    expect(model.activeProfileLabel).toBe("Not wired yet");
+    expect(model.baselineCandidate?.label).toBe("Exograph Baseline");
+    expect(model.baselineCandidate?.plan?.apply).toMatchObject({ available: false, label: "Review only" });
+    expect(model.baselineCandidate?.recommendationRows).toEqual([{ label: "qmd", value: "ready (optional)" }]);
+    expect(PROFILE_SETTINGS_DISABLED_REASON).toContain("not wired");
+  });
+
+  it("keeps Exograph Baseline visible even when inventory is unavailable", () => {
+    const model = buildProfileSettingsModel(null);
+
+    expect(model.activeProfileLabel).toBe("Not wired yet");
+    expect(model.baselineCandidate).toBeNull();
+    expect(model.detectedProfiles).toEqual([]);
   });
 });
 
@@ -187,6 +234,40 @@ describe("plugin manager model", () => {
     expect(filterPluginInventoryItems(items, "searchProvider").map((item) => item.id)).toEqual(["qmd"]);
   });
 
+  it("builds management summary buckets and row indicators from lifecycle state", () => {
+    const active = pluginInventoryItem("qmd", "QMD", "searchProvider", "Search providers", "bundled");
+    const disabled = { ...pluginInventoryItem("dev-search", "Dev Search", "searchProvider", "Search providers", "localManifest"), enabled: false, status: "disabled", statusLabel: "Disabled" };
+    const untrusted = { ...pluginInventoryItem("local-harness", "Local Harness", "agentHarness", "Agent harnesses", "localManifest"), trust: "untrusted" as const };
+    const setupIssue = {
+      ...pluginInventoryItem("pi", "Pi", "agentHarness", "Agent harnesses", "bundled"),
+      status: "missing-dependency",
+      statusLabel: "Needs backend",
+      dependencies: [{ id: "backend", label: "Backend", required: true, status: "missing", statusLabel: "Missing" }],
+    };
+    const permissionsNeeded: PluginInventoryItem = {
+      ...pluginInventoryItem("routine", "Routine", "routineTemplate", "Routine templates", "localManifest"),
+      permissions: ["notes:read", "projects:write"] as PluginInventoryItem["permissions"],
+      permissionGrants: {
+        requested: ["notes:read", "projects:write"] as PluginInventoryItem["permissions"],
+        granted: ["notes:read"] as PluginInventoryItem["permissions"],
+        missing: ["projects:write"] as PluginInventoryItem["permissions"],
+        status: "partial" as const,
+      },
+    };
+    const summary = buildPluginManagementSummary([active, disabled, untrusted, setupIssue, permissionsNeeded]);
+
+    expect(summary.map((bucket) => [bucket.id, bucket.value])).toEqual([
+      ["active", 2],
+      ["disabled", 1],
+      ["review", 1],
+      ["setup", 1],
+      ["permissions", "1/1"],
+    ]);
+    expect(buildPluginRowIndicators(untrusted).map((indicator) => indicator.label)).toContain("Needs trust");
+    expect(buildPluginRowIndicators(setupIssue).map((indicator) => indicator.label)).toContain("Setup issue");
+    expect(buildPluginRowIndicators(permissionsNeeded).map((indicator) => indicator.label)).toContain("Permissions needed");
+  });
+
   it("summarizes search provider and harness metadata for read-only details", () => {
     const searchSections = buildPluginDetailSections({
       ...pluginInventoryItem("local-search", "Local Search", "searchProvider", "Search providers", "localManifest"),
@@ -227,6 +308,34 @@ describe("plugin manager model", () => {
         { label: "Readiness", value: "Needs inference backend" },
         { label: "Launchability", value: "Not launchable until setup/trust/dependencies are satisfied" },
         { label: "Setup", value: "Configure a compatible inference backend." },
+      ]),
+    );
+  });
+
+  it("shows permissions and same-category alternatives in detail sections", () => {
+    const qmd: PluginInventoryItem = {
+      ...pluginInventoryItem("qmd", "QMD", "searchProvider", "Search providers", "bundled"),
+      permissionGrants: {
+        requested: ["notes:read", "workspace:read"] as PluginInventoryItem["permissions"],
+        granted: ["notes:read"] as PluginInventoryItem["permissions"],
+        missing: ["workspace:read"] as PluginInventoryItem["permissions"],
+        status: "partial" as const,
+      },
+    };
+    const localSearch = pluginInventoryItem("local-search", "Local Search", "searchProvider", "Search providers", "localManifest");
+    const sections = buildPluginDetailSections(qmd, pluginInventory([qmd, localSearch]));
+
+    expect(sections.find((section) => section.id === "permissions")?.rows).toEqual(
+      expect.arrayContaining([
+        { label: "Requested", value: "notes:read, workspace:read" },
+        { label: "Needed", value: "workspace:read" },
+        { label: "Safety", value: "Permission requests are metadata only; this screen does not grant permissions or load executable plugin code" },
+      ]),
+    );
+    expect(sections.find((section) => section.id === "alternatives")?.rows).toEqual(
+      expect.arrayContaining([
+        { label: "Compatible ready", value: "Local Search (Developer, Available)" },
+        { label: "Same category", value: "Local Search (Developer, Available)" },
       ]),
     );
   });

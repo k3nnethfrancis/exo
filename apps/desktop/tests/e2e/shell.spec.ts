@@ -111,9 +111,11 @@ test("opens the plugin manager inventory and keeps official rows read-only", asy
 
   await page.getByTestId("open-plugin-manager").click();
   await expect(page.getByTestId("plugin-manager")).toBeVisible();
-  await expect(page.getByTestId("plugin-manager-summary")).toContainText("Core");
-  await expect(page.getByTestId("plugin-manager-summary")).toContainText("Official");
-  await expect(page.getByTestId("plugin-manager-summary")).toContainText("Local");
+  await expect(page.getByTestId("plugin-manager-summary")).toContainText("Active");
+  await expect(page.getByTestId("plugin-manager-summary")).toContainText("Disabled");
+  await expect(page.getByTestId("plugin-manager-summary")).toContainText("Review");
+  await expect(page.getByTestId("plugin-manager-summary")).toContainText("Setup issues");
+  await expect(page.getByTestId("plugin-manager-summary")).toContainText("Permissions");
   await expect(page.getByTestId("plugin-manager-group-core")).toContainText("Terminal host");
   await page.getByTestId("plugin-manager-category-searchProvider").click();
   await expect(page.getByTestId("plugin-manager-group-searchProvider")).toContainText("QMD");
@@ -1202,7 +1204,7 @@ test("opens workspace settings from the sidebar", async () => {
   await expect(page.getByTestId("workspace-settings-note-roots")).toContainText("test-notes");
   await page.getByTestId("workspace-settings-tab-index").click();
   await expect(page.getByTestId("workspace-settings-index-mode")).toHaveValue("off");
-  await expect(page.getByTestId("workspace-settings-dialog")).toContainText("Local QMD Index");
+  await expect(page.getByTestId("workspace-settings-dialog")).toContainText("Local QMD advanced search provider");
   await page.getByTestId("workspace-settings-tab-terminal").click();
   await expect(page.getByTestId("workspace-settings-dialog")).toContainText("Live terminal scrollback lines");
   await expect(page.getByTestId("workspace-settings-terminal-history-lines")).toBeVisible();
@@ -1273,7 +1275,7 @@ test("keeps the command server available while the window is hidden", async () =
     BrowserWindow.getAllWindows()[0]?.webContents.send("command:open-settings", { section: "terminal" });
   });
   await expect(page.getByTestId("workspace-settings-dialog")).toBeVisible();
-  await expect(page.getByTestId("workspace-settings-tab-terminal")).toHaveClass(/dialog-tabs__button--active/);
+  await expect(page.getByTestId("workspace-settings-tab-terminal")).toHaveClass(/settings-nav__button--active/);
 
   await cleanup();
 });
@@ -1490,21 +1492,21 @@ test("opens agent config editor with partial agent instruction discovery errors"
     await page.getByTestId("workspace-settings").click();
     await expect(page.getByTestId("workspace-settings-dialog")).toBeVisible();
     await expect(page.getByTestId("workspace-settings-tab-agents")).toHaveCount(0);
-    await expect(page.getByTestId("workspace-settings-dialog").locator(".dialog-tabs__button")).toHaveCount(4);
+    await expect(page.getByTestId("workspace-settings-dialog").locator(".settings-nav__button")).toHaveCount(5);
     const settingsLayout = await page.getByTestId("workspace-settings-dialog").evaluate((dialog) => {
       const overlay = document.querySelector<HTMLElement>('[data-testid="workspace-settings-overlay"]');
-      const tabs = dialog.querySelector<HTMLElement>(".dialog-tabs");
-      const lastTab = dialog.querySelector<HTMLElement>(".dialog-tabs__button:last-child");
+      const nav = dialog.querySelector<HTMLElement>(".settings-nav");
+      const lastNavItem = dialog.querySelector<HTMLElement>(".settings-nav__button:last-child");
       return {
         backdropFilter: overlay ? getComputedStyle(overlay).backdropFilter : "",
-        lastTabRight: lastTab?.getBoundingClientRect().right ?? 0,
-        tabsRight: tabs?.getBoundingClientRect().right ?? 0,
+        lastNavItemBottom: lastNavItem?.getBoundingClientRect().bottom ?? 0,
+        navBottom: nav?.getBoundingClientRect().bottom ?? 0,
         width: dialog.getBoundingClientRect().width,
       };
     });
-    expect(settingsLayout.width).toBeGreaterThanOrEqual(680);
+    expect(settingsLayout.width).toBeGreaterThanOrEqual(900);
     expect(settingsLayout.backdropFilter === "" || settingsLayout.backdropFilter === "none").toBe(true);
-    expect(settingsLayout.tabsRight - settingsLayout.lastTabRight).toBeLessThanOrEqual(6);
+    expect(settingsLayout.navBottom - settingsLayout.lastNavItemBottom).toBeGreaterThanOrEqual(0);
     await page.getByTestId("workspace-settings-close").click();
     await page.getByTestId("open-agent-config").click();
     await expect(page.getByTestId("agent-context-manager")).toBeVisible();

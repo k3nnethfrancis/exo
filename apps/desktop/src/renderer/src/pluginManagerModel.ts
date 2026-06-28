@@ -13,6 +13,14 @@ export interface PluginCategoryFilter {
   count: number;
 }
 
+export interface PluginManagementSummaryBucket {
+  id: string;
+  label: string;
+  value: number | string;
+  detail: string;
+  tone: "neutral" | "ok" | "warning" | "danger";
+}
+
 export interface PluginDetailSection {
   id: string;
   label: string;
@@ -30,6 +38,12 @@ export interface PluginActionAvailability {
   mutable: boolean;
   reason: string;
   actions: PluginManagerAction[];
+}
+
+export interface PluginRowIndicator {
+  id: string;
+  label: string;
+  tone: "neutral" | "ok" | "warning" | "danger";
 }
 
 export interface PluginSettingsAvailability {
@@ -107,6 +121,89 @@ export function filterPluginInventoryItems(
     .sort(compareInventoryItems);
 }
 
+export function buildPluginManagementSummary(items: PluginInventoryItem[]): PluginManagementSummaryBucket[] {
+  const activeCount = items.filter(isActivePluginRow).length;
+  const disabledCount = items.filter((item) => !item.enabled || item.status === "disabled").length;
+  const reviewCount = items.filter((item) => item.trust === "untrusted").length;
+  const setupIssueCount = items.filter(hasSetupIssue).length;
+  const permissionRequestedCount = items.filter((item) => requestedPermissions(item).length > 0).length;
+  const permissionNeededCount = items.filter((item) => missingPermissions(item).length > 0).length;
+
+  return [
+    {
+      id: "active",
+      label: "Active",
+      value: activeCount,
+      detail: "Trusted, enabled, and currently available/configured.",
+      tone: "ok",
+    },
+    {
+      id: "disabled",
+      label: "Disabled",
+      value: disabledCount,
+      detail: "Installed or known capabilities that are currently off.",
+      tone: disabledCount > 0 ? "neutral" : "ok",
+    },
+    {
+      id: "review",
+      label: "Review",
+      value: reviewCount,
+      detail: "Untrusted local or developer manifests waiting for review.",
+      tone: reviewCount > 0 ? "warning" : "ok",
+    },
+    {
+      id: "setup",
+      label: "Setup issues",
+      value: setupIssueCount,
+      detail: "Rows with missing dependencies, broken status, or settings review.",
+      tone: setupIssueCount > 0 ? "danger" : "ok",
+    },
+    {
+      id: "permissions",
+      label: "Permissions",
+      value: permissionNeededCount > 0 ? `${permissionNeededCount}/${permissionRequestedCount}` : permissionRequestedCount,
+      detail: permissionNeededCount > 0
+        ? "Rows with missing requested permission grants over rows requesting permissions."
+        : "Rows requesting permissions. Manifest requests are metadata only in this slice.",
+      tone: permissionNeededCount > 0 ? "warning" : "neutral",
+    },
+  ];
+}
+
+export function buildPluginRowIndicators(item: PluginInventoryItem): PluginRowIndicator[] {
+  const indicators: PluginRowIndicator[] = [];
+  if (item.source === "core" || item.distribution === "official" || item.source === "bundled") {
+    indicators.push({ id: "locked", label: "Read-only", tone: "neutral" });
+  }
+  if (item.trust === "untrusted") {
+    indicators.push({ id: "untrusted", label: "Needs trust", tone: "warning" });
+  }
+  if (!item.enabled || item.status === "disabled") {
+    indicators.push({ id: "disabled", label: "Disabled", tone: "neutral" });
+  }
+  if (hasSetupIssue(item)) {
+    indicators.push({ id: "setup", label: "Setup issue", tone: "danger" });
+  }
+  if (requestedPermissions(item).length > 0) {
+    indicators.push({
+      id: "permissions",
+      label: missingPermissions(item).length > 0 ? "Permissions needed" : "Permissions requested",
+      tone: missingPermissions(item).length > 0 ? "warning" : "neutral",
+    });
+  }
+  if (item.settings?.hasSettings) {
+    indicators.push({
+      id: "settings",
+      label: item.settings.reviewRequired || item.settings.configReviewRequired ? "Settings review" : "Configurable",
+      tone: item.settings.reviewRequired || item.settings.configReviewRequired ? "warning" : "neutral",
+    });
+  }
+  if (indicators.length === 0 && isActivePluginRow(item)) {
+    indicators.push({ id: "active", label: "Active", tone: "ok" });
+  }
+  return indicators;
+}
+
 function compareInventoryItems(a: PluginInventoryItem, b: PluginInventoryItem): number {
   return `${SOURCE_ORDER[a.source]}:${a.label}`.localeCompare(`${SOURCE_ORDER[b.source]}:${b.label}`);
 }
@@ -160,6 +257,15 @@ export function buildPluginDetailSections(
     });
   }
 
+  const permissionRows = pluginPermissionRows(item);
+  if (permissionRows.length > 0) {
+    sections.push({
+      id: "permissions",
+      label: "Permissions",
+      rows: permissionRows,
+    });
+  }
+
   if (item.kind === "searchProvider") {
     sections.push(...searchProviderDetailSections(item));
   }
@@ -180,6 +286,28 @@ export function buildPluginDetailSections(
       id: "paths",
       label: "Paths",
       rows: compactRows([row("Manifest", item.manifestPath), row("Root", item.rootDirectory)]),
+    });
+  }
+
+  if (item.runtime) {
+    sections.push({
+      id: "runtime-boundary",
+      label: "Runtime Boundary",
+      rows: compactRows([
+        row("Entrypoints", item.runtime.executableLoading),
+        row("Can load entrypoints", item.runtime.canLoadEntrypoints ? "yes" : "no"),
+        row("Can grant permissions", item.runtime.canGrantPermissions ? "yes" : "no"),
+        row("Reason", item.runtime.reason),
+      ]),
+    });
+  }
+
+  const alternativeRows = alternativeDetailRows(item, inventory);
+  if (alternativeRows.length > 0) {
+    sections.push({
+      id: "alternatives",
+      label: "Same-Category Alternatives",
+      rows: alternativeRows,
     });
   }
   return sections.filter((section) => section.rows.length > 0);
@@ -532,6 +660,71 @@ function resolveRecommendedPlugin(id: string, inventory: PluginInventory): "read
     return "disabled";
   }
   return "unavailable";
+}
+
+function isActivePluginRow(item: PluginInventoryItem): boolean {
+  return item.enabled
+    && item.trust === "trusted"
+    && !hasSetupIssue(item)
+    && (item.status === "available" || item.status === "configured");
+}
+
+function hasSetupIssue(item: PluginInventoryItem): boolean {
+  return item.status === "broken"
+    || item.status === "missing-dependency"
+    || item.dependencies?.some((dependency) => dependency.required && dependency.status !== "satisfied") === true
+    || item.settings?.reviewRequired === true
+    || item.settings?.configReviewRequired === true
+    || (item.settings?.validationErrors.length ?? 0) > 0;
+}
+
+function requestedPermissions(item: PluginInventoryItem): string[] {
+  return item.permissionGrants?.requested ?? item.permissions ?? [];
+}
+
+function grantedPermissions(item: PluginInventoryItem): string[] {
+  return item.permissionGrants?.granted ?? [];
+}
+
+function missingPermissions(item: PluginInventoryItem): string[] {
+  return item.permissionGrants?.missing ?? [];
+}
+
+function pluginPermissionRows(item: PluginInventoryItem): PluginDetailRow[] {
+  const requested = requestedPermissions(item);
+  const granted = grantedPermissions(item);
+  const missing = missingPermissions(item);
+  if (requested.length === 0 && granted.length === 0 && missing.length === 0) {
+    return [];
+  }
+  return compactRows([
+    row("Requested", summarizeList(requested) ?? "none"),
+    row("Granted", summarizeList(granted) ?? "none"),
+    row("Needed", summarizeList(missing) ?? "none"),
+    row("Grant state", item.permissionGrants?.status ?? "none"),
+    row("Safety", "Permission requests are metadata only; this screen does not grant permissions or load executable plugin code"),
+  ]);
+}
+
+function alternativeDetailRows(item: PluginInventoryItem, inventory: PluginInventory | undefined): PluginDetailRow[] {
+  if (!inventory) {
+    return [];
+  }
+  const alternatives = inventory.items
+    .filter((candidate) => candidate.id !== item.id && candidate.categoryId === item.categoryId)
+    .sort(compareInventoryItems);
+  if (alternatives.length === 0) {
+    return [];
+  }
+  const ready = alternatives.filter(isActivePluginRow);
+  return compactRows([
+    row("Compatible ready", summarizeList(ready.slice(0, 6).map(alternativeLabel))),
+    row("Same category", summarizeList(alternatives.slice(0, 8).map(alternativeLabel))),
+  ]);
+}
+
+function alternativeLabel(item: PluginInventoryItem): string {
+  return `${item.label} (${item.distributionLabel}, ${item.statusLabel})`;
 }
 
 function row(label: string, value: string | undefined): PluginDetailRow {

@@ -22,7 +22,7 @@ import type {
 
 export type TerminalKind = ManagedAgentKind;
 export type TerminalHealthState = "healthy" | "idle" | "unhealthy" | "exited";
-export type WorkspaceSettingsSection = "workspace" | "index" | "appearance" | "terminal";
+export type WorkspaceSettingsSection = "workspace" | "profile" | "index" | "appearance" | "terminal";
 
 export interface TerminalSessionInfo {
   id: string;

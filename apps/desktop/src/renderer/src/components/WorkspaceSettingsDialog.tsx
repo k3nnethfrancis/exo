@@ -1,5 +1,5 @@
 import type { Dispatch, SetStateAction } from "react";
-import { Plus, X } from "lucide-react";
+import { FolderOpen, Palette, Plus, Search, TerminalSquare, UserRound, X } from "lucide-react";
 import type { IndexStatus, WorkspaceSettings } from "@exo/core";
 
 import type { AppearanceMode } from "../appearance";
@@ -8,6 +8,7 @@ import type { ColorThemeId } from "../theme/types";
 import type { IndexBusyState, WorkspaceSettingsDialogState, WorkspaceSettingsSection } from "../workspaceSettingsDialogTypes";
 import { HelpTooltip } from "./HelpTooltip";
 import { PathList } from "./PathList";
+import { ProfileSettingsSection } from "./ProfileSettingsSection";
 
 interface WorkspaceSettingsDialogProps {
   indexBusy: IndexBusyState;
@@ -22,7 +23,13 @@ interface WorkspaceSettingsDialogProps {
   structuralDraftKey: (settings: WorkspaceSettingsDialogState) => string;
 }
 
-const SETTINGS_SECTIONS: WorkspaceSettingsSection[] = ["workspace", "index", "appearance", "terminal"];
+const SETTINGS_SECTIONS: Array<{ id: WorkspaceSettingsSection; label: string; description: string; icon: typeof FolderOpen }> = [
+  { id: "workspace", label: "Workspace", description: "Folders and roots", icon: FolderOpen },
+  { id: "profile", label: "Profile", description: "Read-only profile state", icon: UserRound },
+  { id: "index", label: "Index/Search", description: "QMD and search", icon: Search },
+  { id: "appearance", label: "Appearance", description: "Theme and editor", icon: Palette },
+  { id: "terminal", label: "Terminal", description: "Runtime defaults", icon: TerminalSquare },
+];
 
 export function WorkspaceSettingsDialog({
   indexBusy,
@@ -55,29 +62,40 @@ export function WorkspaceSettingsDialog({
           </button>
         </div>
         <div className="dialog-card__message">Appearance and terminal preferences save immediately. Workspace paths and advanced search settings take effect when you press Apply.</div>
-        <div className="dialog-tabs" role="tablist" aria-label="Workspace settings sections">
-          {SETTINGS_SECTIONS.map((section) => (
-            <button
-              className={`dialog-tabs__button ${settings.section === section ? "dialog-tabs__button--active" : ""}`}
-              data-testid={`workspace-settings-tab-${section}`}
-              key={section}
-              onClick={() => setSettings((current) => (current ? { ...current, section } : current))}
-              role="tab"
-              type="button"
-            >
-              {section[0].toUpperCase() + section.slice(1)}
-            </button>
-          ))}
-        </div>
-        <div className="dialog-form">
-          {settings.section === "workspace" ? (
-            <WorkspaceSection settings={settings} setSettings={setSettings} onChooseFolder={onChooseFolder} onOpenWorkspaceSwitcher={onOpenWorkspaceSwitcher} />
-          ) : null}
-          {settings.section === "index" ? (
-            <IndexSection indexBusy={indexBusy} indexStatus={indexStatus} settings={settings} setSettings={setSettings} onRunIndexUpdate={onRunIndexUpdate} />
-          ) : null}
-          {settings.section === "appearance" ? <AppearanceSection settings={settings} setSettings={setSettings} /> : null}
-          {settings.section === "terminal" ? <TerminalSection settings={settings} setSettings={setSettings} /> : null}
+        <div className="workspace-settings-layout">
+          <nav className="settings-nav" role="tablist" aria-label="Workspace settings sections">
+            {SETTINGS_SECTIONS.map((section) => {
+              const Icon = section.icon;
+              return (
+                <button
+                  aria-selected={settings.section === section.id}
+                  className={`settings-nav__button ${settings.section === section.id ? "settings-nav__button--active" : ""}`}
+                  data-testid={`workspace-settings-tab-${section.id}`}
+                  key={section.id}
+                  onClick={() => setSettings((current) => (current ? { ...current, section: section.id } : current))}
+                  role="tab"
+                  type="button"
+                >
+                  <Icon size={16} />
+                  <span>
+                    <strong>{section.label}</strong>
+                    <small>{section.description}</small>
+                  </span>
+                </button>
+              );
+            })}
+          </nav>
+          <div className="dialog-form workspace-settings-panel">
+            {settings.section === "workspace" ? (
+              <WorkspaceSection settings={settings} setSettings={setSettings} onChooseFolder={onChooseFolder} onOpenWorkspaceSwitcher={onOpenWorkspaceSwitcher} />
+            ) : null}
+            {settings.section === "profile" ? <ProfileSettingsSection /> : null}
+            {settings.section === "index" ? (
+              <IndexSection indexBusy={indexBusy} indexStatus={indexStatus} settings={settings} setSettings={setSettings} onRunIndexUpdate={onRunIndexUpdate} />
+            ) : null}
+            {settings.section === "appearance" ? <AppearanceSection settings={settings} setSettings={setSettings} /> : null}
+            {settings.section === "terminal" ? <TerminalSection settings={settings} setSettings={setSettings} /> : null}
+          </div>
         </div>
         {hasStructuralChanges ? (
           <div className="dialog-card__apply-row">

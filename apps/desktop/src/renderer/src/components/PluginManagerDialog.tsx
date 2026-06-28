@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import type { PluginInventory, PluginInventoryItem, PluginSettingField, PluginSettingsSchema, ResolvedPluginSettings } from "@exo/core";
-import { Power, PowerOff, RotateCcw, Save, ShieldCheck, X } from "lucide-react";
+import { LockKeyhole, Power, PowerOff, RotateCcw, Save, ShieldCheck, X } from "lucide-react";
 
 import {
   buildPluginCategoryFilters,
   buildPluginDetailSections,
+  buildPluginManagementSummary,
+  buildPluginRowIndicators,
   createPluginSettingsDraft,
   filterPluginInventoryItems,
   pluginSettingsAvailability,
@@ -58,6 +60,7 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
   }, []);
 
   const categoryFilters = useMemo(() => buildPluginCategoryFilters(inventory?.items ?? []), [inventory]);
+  const summaryBuckets = useMemo(() => buildPluginManagementSummary(inventory?.items ?? []), [inventory]);
   const visibleItems = useMemo(
     () => filterPluginInventoryItems(inventory?.items ?? [], selectedCategoryId),
     [inventory, selectedCategoryId],
@@ -227,10 +230,15 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
         {inventory ? (
           <div className="plugin-manager">
             <div className="plugin-manager__summary" data-testid="plugin-manager-summary">
-              <SummaryTile label="Core" value={inventory.counts.core} />
-              <SummaryTile label="Official" value={inventory.counts.official} />
-              <SummaryTile label="Local" value={inventory.counts.local} />
-              <SummaryTile label="Review needed" value={inventory.counts.untrusted} />
+              {summaryBuckets.map((bucket) => (
+                <SummaryTile
+                  detail={bucket.detail}
+                  key={bucket.id}
+                  label={bucket.label}
+                  tone={bucket.tone}
+                  value={bucket.value}
+                />
+              ))}
             </div>
             <div className="plugin-manager__body">
               <div className="plugin-manager__inventory">
@@ -266,6 +274,8 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
                       item={item}
                       key={`${item.source}:${item.id}`}
                       onSelect={() => setSelectedItemId(item.id)}
+                      onRunAction={runPluginAction}
+                      pendingAction={pendingAction}
                     />
                   ))}
                   {visibleItems.length === 0 ? <p className="plugin-manager__empty">No capabilities in this category.</p> : null}
@@ -521,11 +531,22 @@ function settingsFieldsBySection(schema: PluginSettingsSchema): Array<{
   return unsectioned.length ? [...sections, { id: "other", label: "Other", fields: unsectioned }] : sections;
 }
 
-function SummaryTile({ label, value }: { label: string; value: number }) {
+function SummaryTile({
+  detail,
+  label,
+  tone,
+  value,
+}: {
+  detail: string;
+  label: string;
+  tone: "neutral" | "ok" | "warning" | "danger";
+  value: number | string;
+}) {
   return (
-    <div className="plugin-manager__summary-tile">
+    <div className={`plugin-manager__summary-tile plugin-manager__summary-tile--${tone}`} title={detail}>
       <span>{label}</span>
       <strong>{value}</strong>
+      <small>{detail}</small>
     </div>
   );
 }
@@ -534,20 +555,35 @@ function PluginInventoryRow({
   isSelected,
   item,
   onSelect,
+  onRunAction,
+  pendingAction,
 }: {
   isSelected: boolean;
   item: PluginInventoryItem;
   onSelect: () => void;
+  onRunAction: (item: PluginInventoryItem, action: PluginManagerAction) => void;
+  pendingAction: string | null;
 }) {
+  const actionAvailability = pluginActionAvailability(item);
+  const indicators = buildPluginRowIndicators(item);
+  const isReadOnly = item.source === "core" || item.distribution === "official" || item.source === "bundled";
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onSelect();
+    }
+  }
+
   return (
-    <button
+    <div
       aria-selected={isSelected}
-      className={`plugin-manager__row ${isSelected ? "plugin-manager__row--selected" : ""}`}
+      className={`plugin-manager__row ${isSelected ? "plugin-manager__row--selected" : ""} ${isReadOnly ? "plugin-manager__row--readonly" : ""}`}
       data-testid={`plugin-inventory-item-${item.id}`}
       id={`plugin-inventory-option-${item.id}`}
       onClick={onSelect}
+      onKeyDown={handleKeyDown}
       role="option"
-      type="button"
+      tabIndex={0}
     >
       <div className="plugin-manager__row-main">
         <div className="plugin-manager__row-title">
@@ -561,6 +597,15 @@ function PluginInventoryRow({
           <span>{item.trust}</span>
           {item.pluginName ? <span>{item.pluginName}</span> : null}
         </div>
+        {indicators.length ? (
+          <div className="plugin-manager__row-indicators" aria-label="Plugin row statuses">
+            {indicators.map((indicator) => (
+              <span className={`plugin-manager__indicator plugin-manager__indicator--${indicator.tone}`} key={indicator.id}>
+                {indicator.label}
+              </span>
+            ))}
+          </div>
+        ) : null}
       </div>
       <div className="plugin-manager__row-detail">
         {item.dependencies?.length ? (
@@ -572,19 +617,49 @@ function PluginInventoryRow({
         {item.dependencies?.length ? (
           <small>Setup: review dependencies in the detail panel</small>
         ) : null}
+        {item.permissionGrants?.requested.length ? (
+          <small>
+            Permissions: {item.permissionGrants.missing.length > 0
+              ? `${item.permissionGrants.missing.length} needed`
+              : `${item.permissionGrants.requested.length} requested`}
+          </small>
+        ) : item.permissions.length ? (
+          <small>Permissions: {item.permissions.length} requested</small>
+        ) : null}
+        <div className="plugin-manager__row-actions">
+          {actionAvailability.actions.map((action) => (
+            <PluginActionButton
+              action={action}
+              compact
+              disabled={pendingAction !== null}
+              isPending={pendingAction === `${item.pluginId ?? item.id}:${action}`}
+              item={item}
+              key={action}
+              onRun={onRunAction}
+            />
+          ))}
+          {isReadOnly ? (
+            <span className="plugin-manager__row-lock" title={actionAvailability.reason}>
+              <LockKeyhole size={13} />
+              Read-only
+            </span>
+          ) : null}
+        </div>
       </div>
-    </button>
+    </div>
   );
 }
 
 function PluginActionButton({
   action,
+  compact = false,
   disabled,
   isPending,
   item,
   onRun,
 }: {
   action: PluginManagerAction;
+  compact?: boolean;
   disabled: boolean;
   isPending: boolean;
   item: PluginInventoryItem;
@@ -599,10 +674,13 @@ function PluginActionButton({
       : "Disable this plugin";
   return (
     <button
-      className={`plugin-manager__action plugin-manager__action--${action}`}
+      className={`plugin-manager__action plugin-manager__action--${action} ${compact ? "plugin-manager__action--compact" : ""}`}
       data-testid={`plugin-manager-action-${action}`}
       disabled={disabled}
-      onClick={() => onRun(item, action)}
+      onClick={(event) => {
+        event.stopPropagation();
+        onRun(item, action);
+      }}
       title={title}
       type="button"
     >
