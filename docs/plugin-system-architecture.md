@@ -51,6 +51,24 @@ If a user disables every optional plugin, Exo should still open notes, edit Mark
 
 Official plugins may feel native during everyday use, but they should not be invisible. Onboarding, plugin management, settings, and diagnostics must make the plugin boundary clear: users should see which capabilities are core, which are official plugins, which are local plugins, which plugin category they belong to, whether they are enabled, and what configuration or dependency state controls them.
 
+## Product Management Surfaces
+
+Plugin management, profile management, and onboarding are related but separate product surfaces:
+
+- **Onboarding** is the first-run selection and review flow. It helps the user pick notes, review the default Exograph Baseline or another profile, understand recommended official plugins, and enter the workspace. It should not become the long-term place for changing configuration.
+- **Settings / Profile** is the workspace-level profile surface. It owns the active profile record, profile scope, auto-update preference, profile drift/review state, and profile component summaries such as schemas, recommended plugins, context templates, skills, routines, graph views, and review/output policy.
+- **Plugin Manager** is the capability lifecycle surface. It owns plugin discovery, trust, enablement, dependency/setup state, requested versus granted permissions, plugin-owned configuration, local/developer plugin add/remove/swap flows, and links into deeper plugin-specific settings.
+- **Agent Config Editor** remains a specialized harness-adjacent editor for instruction files, skills, and provider config. Profile Settings can deep-link there, but it should not duplicate the full skill/instruction editing UI.
+
+This split keeps each screen legible:
+
+- Onboarding answers "What should this workspace start with?"
+- Settings / Profile answers "What exograph profile is this workspace using, and what does that mean?"
+- Plugin Manager answers "What capabilities are installed, trusted, enabled, configured, or blocked?"
+- Agent Config Editor answers "What do my harnesses and terminal agents actually read?"
+
+The active profile is workspace state, not just another plugin row. A profile may be supplied by a profile plugin, but once selected it should be visible from Settings, status-bar review affordances, and onboarding summaries. Selecting a profile must not silently apply templates, enable plugins, install skills, grant permissions, or schedule routines; those writes require an explicit future review/apply flow.
+
 ## Core Services
 
 ## Plugin Layers
@@ -239,13 +257,15 @@ Already aligned:
 Not yet aligned:
 
 - renderer still mounts a terminal-named rail/dock component, even though its actions now pass through typed tool surface descriptors
-- settings are organized as fixed product tabs rather than core plus plugin-owned settings sections
+- settings are organized as fixed horizontal product tabs rather than scalable vertical settings pages with a dedicated Profile page
 - terminal launch controls are partly hardwired UI even though harness metadata exists
 - current Routine/Run naming is compatibility terminology for the first CLI/store MVP; the durable contract is the smaller activity/artifact/provenance/review substrate documented in `activity-plugin-contract.md`
 - shared CLI/MCP/session types still expose fixed official harness ids in places where they should eventually derive policy-approved choices from the harness registry
 - plugin manager exists and onboarding now has a first-pass read-only capability review, but onboarding does not yet apply profile/plugin recommendations or grant permissions
+- active workspace profile state does not yet exist outside profile capability inventory; users cannot see "this workspace uses profile X" from Settings or the status bar
+- plugin manager can inspect and mutate local/developer metadata plugins, but it still reads closer to inventory than a quick management surface for active, disabled, untrusted, missing, and misconfigured capabilities
 - plugin manifests do not yet contribute UI, commands, settings, or MCP/CLI surfaces
-- profile packs do not yet have a concrete manifest shape for recommended plugins, schemas, context files, skills, or routines
+- profile packs have a metadata shape for recommended plugins, schemas, context files, skills, routines, graph views, and policies, but there is no active-profile store, copy/customize flow, or permissioned apply flow
 - graph visualization does not yet have a stable plugin surface or core graph-data API
 - core versus official/local plugin language is still being normalized across docs and code names
 

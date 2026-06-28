@@ -235,6 +235,17 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Add typed tool surface descriptors for the right rail/tool dock so terminal launchers, harness launchers, Agent Config, Plugin Manager, side-pane controls, and future routine/graph plugin surfaces are described before renderer callback wiring.
 - [x] Sharpen the graph visualization plugin boundary with deterministic `GraphSnapshot` metadata, derived backlinks, nested `graphVisualization` compatibility payloads, graph-aware surface descriptor metadata, and focused contract docs.
 - [x] Define safe renderer panel extension points and core web viewer endpoint usage for plugin-produced local apps/artifacts without implementing renderer plugin loading.
+- [x] Write the near-term Profile and Plugin Management plan that distinguishes Onboarding, Settings/Profile, Plugin Manager, Agent Config, and status-bar review affordances.
+- [ ] Add active workspace profile state under the runtime root: active profile id/source/hash, scope, auto-update flag, and review-required status.
+- [ ] Add shared/main/preload APIs for listing profiles, reading active profile state, setting/clearing active profile state, and toggling profile auto-update without applying profile writes.
+- [ ] Refactor Workspace Settings from horizontal tabs to vertical settings navigation and add a Profile page.
+- [ ] Add a read-only Profile Settings page showing active profile, profile candidates, recommended plugins, schemas, context/instruction templates, skills, routines, graph views, review/output policies, and disabled write actions with reasons.
+- [ ] Add a Profile copy/customize path that creates local editable metadata without mutating official profile packages or writing user instruction files.
+- [ ] Improve Plugin Manager into a quick management surface with active/disabled/untrusted/missing setup/permissions-needed buckets, inline mutable actions, same-category alternatives, and clear locks for official/core rows.
+- [ ] Add profile review and notes-repo changes indicators to the bottom bar, with a changed-notes modal that opens changed Markdown files from note roots.
+- [ ] Add permission prompts and a staged profile apply review flow before any profile can write `AGENTS.md`, `CLAUDE.md`, MCP config, skills, routines, plugin settings, or permission grants.
+- [ ] Add local plugin add/remove/swap primitives for metadata plugin directories without loading executable plugin entrypoints.
+- [ ] Add provider-neutral search readiness metadata so Plugin Manager can show QMD and future search-provider state without treating QMD as core search.
 
 ## Next: Multi-Agent Coordination
 

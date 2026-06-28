@@ -9,6 +9,7 @@ This directory contains committed, public-facing project context. It should be u
 - `strategy.md` - product direction and system model.
 - `architecture.md` - current package, runtime, terminal, CLI/MCP, pane, search, and plugin boundaries.
 - `plugin-system-architecture.md` - canonical core-versus-plugin target architecture.
+- `profile-plugin-management-plan.md` - near-term plan for active profiles, Plugin Manager, Settings/Profile, and plugin lifecycle UX.
 - `activity-plugin-contract.md` - minimal activity/artifact/provenance/review substrate boundary for plugin workloads.
 - `agent-harness-plugin-contract.md` - harness adapter contract for Claude, Codex, Pi-compatible, and future local/open-source agents.
 - `plugin-surface-contract.md` - safe plugin surface and core web viewer endpoint contribution contract.
@@ -47,19 +48,20 @@ These remain in place for traceability but should not be treated as the latest a
 9. `architecture.md` - package boundaries and runtime contracts
 10. `roadmap.md` - future product systems
 11. `plugin-system-architecture.md` - core-versus-plugin target architecture
-12. `plugins.md` - plugin architecture direction
-13. `plugin-implementation-plan.md` - phased implementation plan for capability registries, search providers, agent harnesses, activity substrate, plugin manifests, and future permissioned loading
-14. `activity-plugin-contract.md` - activity/artifact/provenance/review substrate contract
-15. `agent-harness-plugin-contract.md` - harness adapter contract
-16. `plugin-surface-contract.md` - safe plugin surface and web viewer endpoint contract
-17. `graph-visualization-plugin-contract.md` - graph visualization plugin contract
-18. `open-source.md` - release and platform support notes
-19. `terminal-architecture-v4.md` - current terminal architecture and module-boundary target
-20. `terminal-runtime-decision.md` - terminal runtime decision
-21. `terminal-quality-standard.md` - terminal useability and QA standard
-22. `terminal-fallback-audit.md` - terminal fallback/recovery policy and current decisions
-23. `terminal-refactor-plan.md` - historical tmux migration plan
-24. `qmd-integration-notes.md` - live QMD dependency boundary and upgrade checklist
+12. `profile-plugin-management-plan.md` - current product and implementation plan for profile/plugin management UX
+13. `plugins.md` - plugin architecture direction
+14. `plugin-implementation-plan.md` - phased implementation plan for capability registries, search providers, agent harnesses, activity substrate, plugin manifests, and future permissioned loading
+15. `activity-plugin-contract.md` - activity/artifact/provenance/review substrate contract
+16. `agent-harness-plugin-contract.md` - harness adapter contract
+17. `plugin-surface-contract.md` - safe plugin surface and web viewer endpoint contract
+18. `graph-visualization-plugin-contract.md` - graph visualization plugin contract
+19. `open-source.md` - release and platform support notes
+20. `terminal-architecture-v4.md` - current terminal architecture and module-boundary target
+21. `terminal-runtime-decision.md` - terminal runtime decision
+22. `terminal-quality-standard.md` - terminal useability and QA standard
+23. `terminal-fallback-audit.md` - terminal fallback/recovery policy and current decisions
+24. `terminal-refactor-plan.md` - historical tmux migration plan
+25. `qmd-integration-notes.md` - live QMD dependency boundary and upgrade checklist
 
 ## File Roles
 
@@ -71,6 +73,7 @@ These remain in place for traceability but should not be treated as the latest a
 - `harness.md` explains how changes should be validated.
 - `github-issue-fix-loop.md` defines the conservative scheduled GitHub issue-to-draft-PR loop.
 - `plugin-system-architecture.md` defines which platform surfaces stay core versus become bundled/external plugins.
+- `profile-plugin-management-plan.md` defines how onboarding, Settings/Profile, Plugin Manager, active profile state, and status-bar review affordances should fit together.
 - `plugins.md` tracks the intended extension model.
 - `plugin-implementation-plan.md` tracks the concrete refactor/implementation order for the first plugin architecture phases.
 - `activity-plugin-contract.md` defines the minimal activity substrate and keeps rich workload schemas plugin-owned.
