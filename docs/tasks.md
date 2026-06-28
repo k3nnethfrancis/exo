@@ -200,7 +200,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Design the search-provider interface for capability discovery, status, search, read/resolve, sync/update, and future diagnostics.
 - [x] Move QMD behind the internal `SearchProvider` contract while preserving current UI/CLI/MCP behavior.
 - [x] Reframe QMD in settings, Plugin Manager, CLI, and MCP copy as an official advanced search provider plugin while preserving core filename/path/text search when QMD is disabled or degraded.
-- [ ] Add provider-neutral search status and capability metadata so Plugin Manager can show QMD readiness without treating QMD as core search.
+- [x] Add provider-neutral search status and capability metadata so Plugin Manager can show QMD readiness without treating QMD as core search.
 - [ ] Add note traversal and graph context primitives: files/folders, document metadata, headings/outline, outgoing links, backlinks, unresolved links, orphans, and related documents.
 - [ ] Add scoped note write primitives after graph/read primitives are stable: create, append, and guarded patch within selected note roots.
 - [ ] Add LM Wiki maintenance reports for stale pages, orphan pages, unresolved links, missing cross-links, contradiction candidates, and missing source questions.
@@ -249,7 +249,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Add profile review and notes-repo changes indicators to the bottom bar, with a changed-notes modal that opens changed Markdown files from note roots.
 - [ ] Add permission prompts and a staged profile apply review flow before any profile can write `AGENTS.md`, `CLAUDE.md`, MCP config, skills, routines, plugin settings, or permission grants.
 - [x] Add local plugin add/remove/swap primitives for metadata plugin directories without loading executable plugin entrypoints.
-- [ ] Add provider-neutral search readiness metadata so Plugin Manager can show QMD and future search-provider state without treating QMD as core search.
+- [x] Add provider-neutral search readiness metadata so Plugin Manager can show QMD and future search-provider state without treating QMD as core search.
 
 ## Next: Multi-Agent Coordination
 

@@ -459,6 +459,15 @@ describe("plugin manager model", () => {
       kind: "searchProvider",
       permissions: ["workspace:read", "notes:read"],
       surfaces: ["desktop", "mcp"],
+      readiness: {
+        state: "indexing",
+        label: "Embeddings needed",
+        detail: "12 documents still need embeddings.",
+        metrics: [
+          { label: "Mode", value: "hybrid" },
+          { label: "Documents", value: 42 },
+        ],
+      },
       compatibility: {
         provider: "local",
         backend: "sqlite",
@@ -483,6 +492,9 @@ describe("plugin manager model", () => {
       expect.arrayContaining([
         { label: "Provider", value: "local" },
         { label: "Backend", value: "sqlite" },
+        { label: "Readiness", value: "Embeddings needed · 12 documents still need embeddings." },
+        { label: "Mode", value: "hybrid" },
+        { label: "Documents", value: "42" },
         { label: "Surfaces", value: "desktop, mcp" },
         { label: "Permissions", value: "workspace:read, notes:read" },
       ]),

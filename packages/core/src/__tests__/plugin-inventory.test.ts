@@ -116,6 +116,34 @@ describe("plugin inventory", () => {
     });
   });
 
+  it("attaches provider-neutral readiness metadata to official search providers", () => {
+    const inventory = buildPluginInventory({
+      readinessByCapabilityId: {
+        qmd: {
+          state: "indexing",
+          label: "Embeddings needed",
+          detail: "12 documents still need embeddings.",
+          metrics: [
+            { label: "Mode", value: "hybrid" },
+            { label: "Documents", value: 42 },
+          ],
+        },
+      },
+    });
+
+    expect(find(inventory.items, "qmd")).toMatchObject({
+      readiness: {
+        state: "indexing",
+        label: "Embeddings needed",
+        detail: "12 documents still need embeddings.",
+        metrics: [
+          { label: "Mode", value: "hybrid" },
+          { label: "Documents", value: 42 },
+        ],
+      },
+    });
+  });
+
   it("enriches official harnesses with live readiness metadata", () => {
     const inventory = buildPluginInventory({
       harnesses: [

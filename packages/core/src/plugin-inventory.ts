@@ -60,6 +60,18 @@ export interface PluginInventoryPermissionSummary {
   status: "inactive" | "none" | "partial" | "granted";
 }
 
+export interface PluginInventoryReadinessMetric {
+  label: string;
+  value: string | number | boolean;
+}
+
+export interface PluginInventoryReadinessSummary {
+  state: "ready" | "disabled" | "needsSetup" | "degraded" | "indexing" | "error" | "unknown";
+  label: string;
+  detail?: string;
+  metrics?: PluginInventoryReadinessMetric[];
+}
+
 export interface PluginInventoryItem {
   id: string;
   label: string;
@@ -86,6 +98,7 @@ export interface PluginInventoryItem {
   rootDirectory?: string;
   dependencies?: PluginInventoryDependency[];
   compatibility?: Record<string, unknown>;
+  readiness?: PluginInventoryReadinessSummary;
   settings?: PluginInventorySettingsSummary;
   permissionGrants?: PluginInventoryPermissionSummary;
   runtime?: PluginInventoryRuntimeSummary;
@@ -123,6 +136,7 @@ export interface PluginInventoryOptions {
   pluginStateStore?: PluginStateStore;
   pluginSettingsStore?: PluginSettingsStore;
   pluginPermissionStore?: PluginPermissionStore;
+  readinessByCapabilityId?: Record<string, PluginInventoryReadinessSummary | undefined>;
   clock?: () => string;
 }
 
@@ -149,6 +163,7 @@ export async function listPluginInventory(options: PluginInventoryOptions): Prom
     pluginStateStore,
     pluginSettingsStore,
     pluginPermissionStore,
+    readinessByCapabilityId: options.readinessByCapabilityId,
   });
 }
 
@@ -161,11 +176,12 @@ export function buildPluginInventory(input: {
   pluginStateStore?: PluginStateStore;
   pluginSettingsStore?: PluginSettingsStore;
   pluginPermissionStore?: PluginPermissionStore;
+  readinessByCapabilityId?: Record<string, PluginInventoryReadinessSummary | undefined>;
 }): PluginInventory {
   const harnessById = new Map((input.harnesses ?? []).map((harness) => [harness.id, harness]));
   const bundledItems = (input.builtIns ?? builtInCapabilities).map((capability) => {
     const harnessKind = managedAgentKindFromCapability(capability);
-    return bundledCapabilityItem(capability, harnessKind ? harnessById.get(harnessKind) : undefined);
+    return bundledCapabilityItem(capability, harnessKind ? harnessById.get(harnessKind) : undefined, input.readinessByCapabilityId?.[capability.id]);
   });
   const plugins = (input.plugins ?? []).map((plugin) => applyPluginState(plugin, input.pluginStateStore));
   const localItems = plugins.flatMap((plugin) => pluginInventoryItems(plugin, input.pluginSettingsStore, input.pluginPermissionStore));
@@ -246,6 +262,7 @@ function coreItem(id: string, label: string, description: string): PluginInvento
 function bundledCapabilityItem(
   capability: CapabilityMetadata,
   harness: AgentHarnessDetection | undefined,
+  readiness: PluginInventoryReadinessSummary | undefined,
 ): PluginInventoryItem {
   const isHarness = capability.kind === "agentHarness";
   const enabled = capability.lifecycle !== "disabled" && (!isHarness || harness?.enabled !== false);
@@ -277,6 +294,7 @@ function bundledCapabilityItem(
       detail: dependency.detail,
     })),
     compatibility: capability.compatibility,
+    readiness,
   };
 }
 

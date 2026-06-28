@@ -129,6 +129,7 @@ test("opens the plugin manager inventory and keeps official rows read-only", asy
   await expect(page.getByTestId("plugin-manager-group-searchProvider")).toContainText("QMD");
   await page.getByTestId("plugin-inventory-item-qmd").click();
   await expect(page.getByTestId("plugin-manager-detail")).toContainText("Search Provider");
+  await expect(page.getByTestId("plugin-manager-detail")).toContainText("Readiness");
   await expect(page.getByTestId("plugin-manager-detail")).toContainText("Official");
   for (const mutationLabel of ["Enable", "Disable", "Trust", "Grant", "Apply profile", "Launch"]) {
     await expect(page.getByTestId("plugin-manager-detail").getByRole("button", { name: new RegExp(`^${mutationLabel}$`, "i") })).toHaveCount(0);

@@ -262,6 +262,7 @@ Completed in this phase:
 - Profile Settings and Customize show backend profile plan sections: recommended plugins, templates/config refs, skills, schemas, routines, graph/analyzer defaults, policies, warnings, blockers, and apply-safety state.
 - Profile Customize links plugin recommendations to Plugin Manager and agent instruction/template/skill components to Agent Config Editor while keeping direct profile writes disabled.
 - Top-level Review and Copy actions use safe existing behavior: review opens the read-only plan view, and copy creates a workspace-local metadata profile. Apply, Save draft, and Templatize remain disabled until explicit permissioned flows exist.
+- Plugin Manager rows can now show provider-neutral readiness metadata. QMD is the first producer, but the UI reads a generic readiness state, label, detail, and metrics so future search providers can report setup/indexing/degraded/error states without becoming core-specific.
 
 Verification:
 
@@ -277,10 +278,13 @@ Deliverables:
 
 - permission prompt UX/backend integration for metadata grants
 - profile apply review model that can stage planned changes but still requires explicit confirmation
-- local plugin add/remove/swap primitives for metadata plugin directories
 - plugin install/remove state cleanup
-- provider-neutral search readiness metadata in Plugin Manager
 - split remaining terminal/session substrate ids from harness-adapter ids where needed for arbitrary registered harnesses
+
+Completed foundation pieces:
+
+- local plugin add/remove/swap primitives for metadata plugin directories
+- provider-neutral search readiness metadata in Plugin Manager
 
 Deferred beyond this phase:
 

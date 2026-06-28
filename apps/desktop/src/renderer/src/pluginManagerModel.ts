@@ -263,7 +263,9 @@ export function buildPluginRowIndicators(item: PluginInventoryItem): PluginRowIn
     indicators.push({ id: "disabled", label: "Disabled", tone: "neutral" });
   }
   if (hasSetupIssue(item)) {
-    indicators.push({ id: "setup", label: "Setup issue", tone: "danger" });
+    indicators.push({ id: "setup", label: item.readiness?.label ?? "Setup issue", tone: readinessTone(item) });
+  } else if (item.readiness) {
+    indicators.push({ id: "readiness", label: item.readiness.label, tone: readinessTone(item) });
   }
   if (requestedPermissions(item).length > 0) {
     indicators.push({
@@ -357,6 +359,8 @@ export function buildPluginDetailSections(
         row("Lifecycle", item.lifecycle),
         row("Trust", item.trust),
         row("State", item.statusLabel),
+        row("Readiness", item.readiness?.label),
+        row("Readiness detail", item.readiness?.detail),
         row("Management lane", pluginManagementLane(item)),
         row("Management", pluginManagementGuidance(item)),
         row("Plugin", item.pluginName),
@@ -593,6 +597,8 @@ function searchProviderDetailSections(item: PluginInventoryItem): PluginDetailSe
       rows: compactRows([
         row("Provider", firstString(compatibility, ["provider", "searchProvider", "indexProvider"]) ?? item.label),
         row("Backend", firstString(compatibility, ["backend", "indexBackend", "engine"])),
+        row("Readiness", item.readiness ? `${item.readiness.label}${item.readiness.detail ? ` · ${item.readiness.detail}` : ""}` : undefined),
+        ...readinessMetricRows(item),
         row("Compatibility", summarizeCompatibility(compatibility, ["provider", "searchProvider", "indexProvider", "backend", "indexBackend", "engine"])),
         row("Surfaces", summarizeList(item.surfaces) ?? "none"),
         row("Permissions", summarizeList(item.permissions) ?? "none"),
@@ -815,10 +821,35 @@ function isActivePluginRow(item: PluginInventoryItem): boolean {
 function hasSetupIssue(item: PluginInventoryItem): boolean {
   return item.status === "broken"
     || item.status === "missing-dependency"
+    || item.readiness?.state === "needsSetup"
+    || item.readiness?.state === "degraded"
+    || item.readiness?.state === "error"
     || item.dependencies?.some((dependency) => dependency.required && dependency.status !== "satisfied") === true
     || item.settings?.reviewRequired === true
     || item.settings?.configReviewRequired === true
     || (item.settings?.validationErrors.length ?? 0) > 0;
+}
+
+function readinessTone(item: PluginInventoryItem): PluginRowIndicator["tone"] {
+  switch (item.readiness?.state) {
+    case "ready":
+      return "ok";
+    case "disabled":
+    case "unknown":
+      return "neutral";
+    case "indexing":
+    case "needsSetup":
+    case "degraded":
+      return "warning";
+    case "error":
+      return "danger";
+    default:
+      return hasSetupIssue(item) ? "danger" : "neutral";
+  }
+}
+
+function readinessMetricRows(item: PluginInventoryItem): PluginDetailRow[] {
+  return item.readiness?.metrics?.map((metric) => row(metric.label, String(metric.value))) ?? [];
 }
 
 function requestedPermissions(item: PluginInventoryItem): string[] {

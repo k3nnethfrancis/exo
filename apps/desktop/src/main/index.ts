@@ -38,10 +38,12 @@ import {
   updateManagedPluginSettings,
   writeProfileStateStore,
   type DiscoveredPlugin,
+  type IndexStatus,
   type ManagedAgentKind,
   type ActiveProfileIdentity,
   type CapabilityMetadata,
   type PluginInventoryItem,
+  type PluginInventoryReadinessSummary,
   type PluginStateAction,
   type WorkspaceModel,
   type WorkspaceSettings,
@@ -406,13 +408,89 @@ function registerIpcHandlers() {
   registerTerminalIpcHandlers(terminalManager);
 }
 
-function readPluginInventory() {
+async function readPluginInventory() {
+  const readinessByCapabilityId = await pluginReadinessByCapabilityId();
   return listPluginInventory({
     workspaceRoot: workspaceModel.workspaceRoot,
     runtimeRoot: terminalManager.getRuntimeConfig().runtimeRoot,
     env: pluginDiscoveryEnv(),
     harnesses: terminalManager.getRuntimeConfig().harnesses,
+    readinessByCapabilityId,
   });
+}
+
+async function pluginReadinessByCapabilityId(): Promise<Record<string, PluginInventoryReadinessSummary>> {
+  try {
+    const status = await indexingService.getMeasuredStatus();
+    return { qmd: qmdReadinessSummary(status) };
+  } catch (error) {
+    return {
+      qmd: {
+        state: "error",
+        label: "Status unavailable",
+        detail: errorMessage(error),
+      },
+    };
+  }
+}
+
+function qmdReadinessSummary(status: IndexStatus): PluginInventoryReadinessSummary {
+  if (!status.enabled || status.mode === "off") {
+    return {
+      state: "disabled",
+      label: "Off",
+      detail: "Advanced QMD search is disabled. Core filename/path/text search remains available.",
+      metrics: qmdReadinessMetrics(status),
+    };
+  }
+  if (status.indexedRoots.length === 0) {
+    return {
+      state: "needsSetup",
+      label: "Needs indexed roots",
+      detail: "Add at least one notes or project root to use this advanced search provider.",
+      metrics: qmdReadinessMetrics(status),
+    };
+  }
+  if (status.errors.length > 0) {
+    return {
+      state: "error",
+      label: "Index error",
+      detail: status.errors[0],
+      metrics: qmdReadinessMetrics(status),
+    };
+  }
+  if (status.pendingEmbeddings > 0) {
+    return {
+      state: "indexing",
+      label: "Embeddings needed",
+      detail: `${status.pendingEmbeddings} documents still need embeddings for semantic or hybrid search quality.`,
+      metrics: qmdReadinessMetrics(status),
+    };
+  }
+  if (status.warnings.length > 0 || (status.mode !== "lexical" && !status.hasVectorIndex)) {
+    return {
+      state: "degraded",
+      label: "Degraded",
+      detail: status.warnings[0] ?? "Vector search is not ready; lexical behavior may still work.",
+      metrics: qmdReadinessMetrics(status),
+    };
+  }
+  return {
+    state: "ready",
+    label: "Ready",
+    detail: "Advanced QMD search is configured for this workspace.",
+    metrics: qmdReadinessMetrics(status),
+  };
+}
+
+function qmdReadinessMetrics(status: IndexStatus): PluginInventoryReadinessSummary["metrics"] {
+  return [
+    { label: "Mode", value: status.mode },
+    { label: "Roots", value: status.indexedRoots.length },
+    { label: "Documents", value: status.documentCount },
+    { label: "Pending embeddings", value: status.pendingEmbeddings },
+    { label: "Vector index", value: status.hasVectorIndex ? "ready" : "not ready" },
+  ];
 }
 
 async function updatePluginState(
