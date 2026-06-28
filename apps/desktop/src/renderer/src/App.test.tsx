@@ -58,6 +58,7 @@ import {
 import { defaultTerminalCwdForNotesFolder } from "./hooks/useWorkspaceBootstrap";
 import { isReconnectableSession, isTerminalInputEnabled, terminalSessionsEqual } from "./terminalSessions";
 import {
+  buildPluginBoundarySummary,
   buildPluginCategoryFilters,
   buildPluginDetailSections,
   buildPluginManagementSummary,
@@ -68,6 +69,8 @@ import {
   pluginActionAvailability,
   pluginActionInput,
   pluginLocalManagementAvailability,
+  pluginManagementGuidance,
+  pluginManagementLane,
   pluginSettingsAvailability,
   pluginSettingsValuesFromDraft,
 } from "./pluginManagerModel";
@@ -402,6 +405,46 @@ describe("plugin manager model", () => {
     expect(buildPluginRowIndicators(untrusted).map((indicator) => indicator.label)).toContain("Needs trust");
     expect(buildPluginRowIndicators(setupIssue).map((indicator) => indicator.label)).toContain("Setup issue");
     expect(buildPluginRowIndicators(permissionsNeeded).map((indicator) => indicator.label)).toContain("Permissions needed");
+  });
+
+  it("separates the exograph baseline from official, local, and developer plugin layers", () => {
+    const core = pluginInventoryItem("core.terminal", "Terminal host", "core", "Core", "core");
+    const official = pluginInventoryItem("qmd", "QMD", "searchProvider", "Search providers", "bundled");
+    const workspaceLocal = {
+      ...pluginInventoryItem("graph-health.template", "Graph Health", "routineTemplate", "Routine templates", "localManifest"),
+      distribution: "local" as const,
+      distributionLabel: "Local",
+      pluginId: "graph-health.plugin",
+      pluginSource: "workspace" as const,
+      manifestPath: "/workspace/.exo/plugins/graph-health/exo.plugin.json",
+      rootDirectory: "/workspace/.exo/plugins/graph-health",
+    };
+    const developer = {
+      ...pluginInventoryItem("dev-search", "Dev Search", "searchProvider", "Search providers", "localManifest"),
+      pluginId: "dev-search.plugin",
+      pluginSource: "dev" as const,
+      manifestPath: "/dev/plugins/search/exo.plugin.json",
+      rootDirectory: "/dev/plugins/search",
+      enabled: false,
+      status: "disabled" as const,
+      statusLabel: "Disabled",
+    };
+    const summary = buildPluginBoundarySummary([core, official, workspaceLocal, developer]);
+
+    expect(summary.coreSummary).toContain("Core stays available");
+    expect(summary.layers.map((layer) => [layer.id, layer.value])).toEqual([
+      ["core", 1],
+      ["official", 1],
+      ["local", 1],
+      ["developer", 1],
+    ]);
+    expect(summary.manageableLocalCount).toBe(1);
+    expect(summary.blockedCount).toBe(1);
+    expect(pluginManagementLane(core)).toBe("Exograph baseline");
+    expect(pluginManagementLane(official)).toBe("Official plugin");
+    expect(pluginManagementLane(workspaceLocal)).toBe("Workspace plugin");
+    expect(pluginManagementLane(developer)).toBe("Developer plugin");
+    expect(pluginManagementGuidance(workspaceLocal)).toContain("Review trust");
   });
 
   it("summarizes search provider and harness metadata for read-only details", () => {

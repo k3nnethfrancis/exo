@@ -21,6 +21,21 @@ export interface PluginManagementSummaryBucket {
   tone: "neutral" | "ok" | "warning" | "danger";
 }
 
+export interface PluginBoundaryLayer {
+  id: "core" | "official" | "local" | "developer";
+  label: string;
+  value: number;
+  detail: string;
+  management: string;
+}
+
+export interface PluginBoundarySummary {
+  layers: PluginBoundaryLayer[];
+  manageableLocalCount: number;
+  blockedCount: number;
+  coreSummary: string;
+}
+
 export interface PluginDetailSection {
   id: string;
   label: string;
@@ -178,6 +193,64 @@ export function buildPluginManagementSummary(items: PluginInventoryItem[]): Plug
   ];
 }
 
+export function buildPluginBoundarySummary(items: PluginInventoryItem[]): PluginBoundarySummary {
+  const coreCount = items.filter((item) => item.source === "core").length;
+  const officialCount = items.filter((item) => item.source === "bundled" || item.distribution === "official").length;
+  const localCount = items.filter((item) =>
+    item.source === "localManifest" && (item.pluginSource === "user" || item.pluginSource === "workspace" || item.distribution === "local")
+  ).length;
+  const developerCount = items.filter((item) =>
+    item.source === "localManifest"
+    && item.pluginSource !== "user"
+    && item.pluginSource !== "workspace"
+    && item.distribution !== "local"
+  ).length;
+  const manageableLocalCount = items.filter((item) => pluginLocalManagementAvailability(item).manageable).length;
+  const blockedCount = items.filter((item) =>
+    !item.enabled
+    || item.trust === "untrusted"
+    || item.status === "broken"
+    || item.status === "missing-dependency"
+    || hasSetupIssue(item)
+  ).length;
+
+  return {
+    layers: [
+      {
+        id: "core",
+        label: "Exograph baseline",
+        value: coreCount,
+        detail: "Markdown graph, editor, files, basic search, terminal host, web viewer host, settings, and plugin registry.",
+        management: "Always on. Configure related behavior in Settings.",
+      },
+      {
+        id: "official",
+        label: "Official plugins",
+        value: officialCount,
+        detail: "Reviewed capabilities shipped with Exo, such as QMD and default harness adapters.",
+        management: "Read-only here. Setup/config appears in Plugin Manager or specialized settings.",
+      },
+      {
+        id: "local",
+        label: "Local plugins",
+        value: localCount,
+        detail: "User or workspace plugin manifests installed into Exo-managed plugin directories.",
+        management: "Trust, enable, disable, configure, swap, or remove here when Exo manages the directory.",
+      },
+      {
+        id: "developer",
+        label: "Developer plugins",
+        value: developerCount,
+        detail: "Explicit development/operator plugin paths for local experiments.",
+        management: "Inspect and toggle here; remove or move them outside Plugin Manager.",
+      },
+    ],
+    manageableLocalCount,
+    blockedCount,
+    coreSummary: "Core stays available even when optional plugins are disabled. Plugins add replaceable capabilities on top of the Exograph baseline.",
+  };
+}
+
 export function buildPluginRowIndicators(item: PluginInventoryItem): PluginRowIndicator[] {
   const indicators: PluginRowIndicator[] = [];
   if (item.source === "core" || item.distribution === "official" || item.source === "bundled") {
@@ -210,6 +283,41 @@ export function buildPluginRowIndicators(item: PluginInventoryItem): PluginRowIn
     indicators.push({ id: "active", label: "Active", tone: "ok" });
   }
   return indicators;
+}
+
+export function pluginManagementLane(item: PluginInventoryItem): string {
+  if (item.source === "core") {
+    return "Exograph baseline";
+  }
+  if (item.source === "bundled" || item.distribution === "official") {
+    return "Official plugin";
+  }
+  if (item.source === "localManifest" && item.pluginSource === "workspace") {
+    return "Workspace plugin";
+  }
+  if (item.source === "localManifest" && item.pluginSource === "user") {
+    return "User plugin";
+  }
+  if (item.source === "localManifest") {
+    return "Developer plugin";
+  }
+  return item.sourceLabel;
+}
+
+export function pluginManagementGuidance(item: PluginInventoryItem): string {
+  if (item.source === "core") {
+    return "Core baseline capability. It remains available even when optional plugins are disabled.";
+  }
+  if (item.source === "bundled" || item.distribution === "official") {
+    return "Reviewed plugin shipped with Exo. Plugin Manager shows setup and state, but this row is read-only in v0.";
+  }
+  if (item.source === "localManifest" && (item.pluginSource === "workspace" || item.pluginSource === "user")) {
+    return "Exo-managed local plugin. Review trust, enablement, settings, and local copy actions here.";
+  }
+  if (item.source === "localManifest") {
+    return "Developer/operator plugin path. Toggle and inspect it here; manage the source directory outside Plugin Manager.";
+  }
+  return "Plugin capability discovered by Exo.";
 }
 
 function compareInventoryItems(a: PluginInventoryItem, b: PluginInventoryItem): number {
@@ -249,6 +357,8 @@ export function buildPluginDetailSections(
         row("Lifecycle", item.lifecycle),
         row("Trust", item.trust),
         row("State", item.statusLabel),
+        row("Management lane", pluginManagementLane(item)),
+        row("Management", pluginManagementGuidance(item)),
         row("Plugin", item.pluginName),
         row("Owner", item.owner),
       ]),

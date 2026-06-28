@@ -111,6 +111,11 @@ test("opens the plugin manager inventory and keeps official rows read-only", asy
 
   await page.getByTestId("open-plugin-manager").click();
   await expect(page.getByTestId("plugin-manager")).toBeVisible();
+  await expect(page.getByTestId("plugin-manager-boundary")).toContainText("Exograph baseline");
+  await expect(page.getByTestId("plugin-manager-boundary")).toContainText("Official plugins");
+  await expect(page.getByTestId("plugin-manager-boundary")).toContainText("Local plugins");
+  await expect(page.getByTestId("plugin-manager-boundary")).toContainText("Developer plugins");
+  await page.screenshot({ path: "/tmp/exo-plugin-manager-boundary.png", fullPage: false });
   await expect(page.getByTestId("plugin-manager-local-toolbar")).toContainText("Local plugins");
   await expect(page.getByTestId("plugin-manager-add-workspace-plugin")).toBeVisible();
   await expect(page.getByTestId("plugin-manager-add-user-plugin")).toBeVisible();

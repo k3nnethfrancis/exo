@@ -3,6 +3,7 @@ import type { PluginInventory, PluginInventoryItem, PluginSettingField, PluginSe
 import { FolderPlus, LockKeyhole, Power, PowerOff, RefreshCw, RotateCcw, Save, ShieldCheck, Trash2, X } from "lucide-react";
 
 import {
+  buildPluginBoundarySummary,
   buildPluginCategoryFilters,
   buildPluginDetailSections,
   buildPluginManagementSummary,
@@ -14,6 +15,8 @@ import {
   pluginActionAvailability,
   pluginActionInput,
   pluginLocalManagementAvailability,
+  pluginManagementGuidance,
+  pluginManagementLane,
   type PluginManagerAction,
   type PluginSettingsDraft,
 } from "../pluginManagerModel";
@@ -61,6 +64,7 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
   }, []);
 
   const categoryFilters = useMemo(() => buildPluginCategoryFilters(inventory?.items ?? []), [inventory]);
+  const boundarySummary = useMemo(() => buildPluginBoundarySummary(inventory?.items ?? []), [inventory]);
   const summaryBuckets = useMemo(() => buildPluginManagementSummary(inventory?.items ?? []), [inventory]);
   const visibleItems = useMemo(
     () => filterPluginInventoryItems(inventory?.items ?? [], selectedCategoryId),
@@ -314,6 +318,30 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
 
         {inventory ? (
           <div className="plugin-manager">
+            <section className="plugin-manager__boundary" data-testid="plugin-manager-boundary">
+              <div className="plugin-manager__boundary-header">
+                <div>
+                  <strong>Exograph baseline and plugin layers</strong>
+                  <span>{boundarySummary.coreSummary}</span>
+                </div>
+                <div className="plugin-manager__boundary-status" title="Local plugin folders installed into Exo-managed user or workspace plugin roots can be swapped or removed here.">
+                  {boundarySummary.manageableLocalCount} manageable local
+                  {boundarySummary.blockedCount > 0 ? ` · ${boundarySummary.blockedCount} need attention` : ""}
+                </div>
+              </div>
+              <div className="plugin-manager__boundary-grid">
+                {boundarySummary.layers.map((layer) => (
+                  <div className={`plugin-manager__boundary-layer plugin-manager__boundary-layer--${layer.id}`} key={layer.id}>
+                    <div>
+                      <span>{layer.label}</span>
+                      <strong>{layer.value}</strong>
+                    </div>
+                    <p>{layer.detail}</p>
+                    <small>{layer.management}</small>
+                  </div>
+                ))}
+              </div>
+            </section>
             <div className="plugin-manager__local-toolbar" data-testid="plugin-manager-local-toolbar">
               <div>
                 <strong>Local plugins</strong>
@@ -728,6 +756,7 @@ function PluginInventoryRow({
         </div>
         <p>{item.description}</p>
         <div className="plugin-manager__meta">
+          <span>{pluginManagementLane(item)}</span>
           <span>{item.sourceLabel}</span>
           <span>{item.lifecycle}</span>
           <span>{item.trust}</span>
@@ -744,6 +773,7 @@ function PluginInventoryRow({
         ) : null}
       </div>
       <div className="plugin-manager__row-detail">
+        <small>{pluginManagementGuidance(item)}</small>
         {item.dependencies?.length ? (
           <small>
             Diagnostics: {item.dependencies.map((dependency) => `${dependency.label}: ${dependency.statusLabel}`).join(" · ")}

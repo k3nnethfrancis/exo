@@ -248,6 +248,7 @@ Already aligned:
 - shell/Claude/Codex/Pi/Hermes launch planning sits behind an agent-harness contract
 - the agent-harness plugin contract now names availability detection, launch planning, semantic messages, skill/config inventory, dependency/setup guidance, and the terminal-core boundary
 - the desktop right rail/tool dock has a first typed descriptor layer for core terminal actions, official harness launchers, Agent Config, Plugin Manager, side-pane controls, and future routine/graph plugin targets
+- Plugin Manager distinguishes Exograph Baseline, official plugins, local plugins, and developer plugins before showing inventory rows, so users can see what is core versus optional and which rows are locally manageable.
 - core surface descriptors now name metadata-only plugin panels and web viewer endpoint metadata for plugin-produced local apps/artifacts without renderer plugin loading
 - first-pass Routine, Run, artifact, trace, and routine-template primitives exist in core, but the target boundary should keep rich automation semantics plugin-owned
 - plugin manifests are metadata-only and non-executable

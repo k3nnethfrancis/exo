@@ -1671,6 +1671,98 @@ button svg,
   background: var(--surface-2);
 }
 
+.plugin-manager__boundary {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--surface-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-2) 82%, var(--surface-1));
+}
+
+.plugin-manager__boundary-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.plugin-manager__boundary-header > div:first-child {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.plugin-manager__boundary-header strong {
+  font-size: 13px;
+}
+
+.plugin-manager__boundary-header span,
+.plugin-manager__boundary-status {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.plugin-manager__boundary-status {
+  flex: 0 0 auto;
+  max-width: 260px;
+  text-align: right;
+}
+
+.plugin-manager__boundary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.plugin-manager__boundary-layer {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--surface-border);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.plugin-manager__boundary-layer > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.plugin-manager__boundary-layer span {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.plugin-manager__boundary-layer strong {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.plugin-manager__boundary-layer p,
+.plugin-manager__boundary-layer small {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.plugin-manager__boundary-layer small {
+  color: var(--text);
+}
+
+.plugin-manager__boundary-layer--core {
+  border-color: color-mix(in srgb, var(--accent-strong) 32%, var(--surface-border));
+}
+
 .plugin-manager__local-toolbar > div:first-child {
   min-width: 0;
   display: grid;
@@ -2238,6 +2330,19 @@ button svg,
 }
 
 @media (max-width: 920px) {
+  .plugin-manager__boundary-header {
+    display: grid;
+  }
+
+  .plugin-manager__boundary-status {
+    max-width: none;
+    text-align: left;
+  }
+
+  .plugin-manager__boundary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .plugin-manager__summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

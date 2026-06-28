@@ -243,6 +243,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Add a read-only Profile Customize/Edit screen shell that centralizes profile metadata, recommended plugins, instruction templates, skills, schemas, routines, graph views, analyzers, and policies while keeping templatize/save disabled.
 - [x] Add a Profile copy/customize path that creates trusted workspace-local profile metadata, selects it, and marks review required without mutating official profile packages or writing user instruction files.
 - [x] Improve Plugin Manager into a quick management surface with active/disabled/untrusted/missing setup/permissions-needed buckets, inline mutable actions, same-category alternatives, and clear locks for official/core rows.
+- [x] Add Plugin Manager baseline/layer orientation so users can distinguish always-on Exograph core, official plugins, local plugins, developer plugins, and which local plugins can be swapped or removed.
 - [x] Expose backend `ProfilePlanPreview` data to Profile Settings so Review/Customize screens show canonical profile actions, blockers, warnings, and future write/install/schedule effects without renderer-side duplicate planning.
 - [x] Add profile review and notes-repo changes indicators to the bottom bar, with a changed-notes modal that opens changed Markdown files from note roots.
 - [ ] Add permission prompts and a staged profile apply review flow before any profile can write `AGENTS.md`, `CLAUDE.md`, MCP config, skills, routines, plugin settings, or permission grants.
