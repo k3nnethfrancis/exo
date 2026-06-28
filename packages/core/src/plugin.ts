@@ -14,6 +14,7 @@ export const EXO_PLUGIN_MANIFEST_FILE = "exo.plugin.json";
 
 export type PluginSource = "built-in" | "dev" | "user" | "workspace";
 export type PluginTrustState = "trusted" | "untrusted";
+export type PluginExecutableLoadingState = "disabled";
 
 export interface PluginEntrypoints {
   main?: string;
@@ -97,6 +98,21 @@ export interface DiscoveredPlugin {
   trust: PluginTrustState;
   enabled: boolean;
   manifestHash: string;
+}
+
+export interface PluginLifecycleStatus {
+  pluginId: string;
+  source: PluginSource;
+  trust: PluginTrustState;
+  enabled: boolean;
+  active: boolean;
+  entrypoints?: PluginEntrypoints;
+  capabilityIds: string[];
+  exposedCapabilityIds: string[];
+  executableLoading: PluginExecutableLoadingState;
+  canLoadEntrypoints: false;
+  canGrantPermissions: false;
+  reason: string;
 }
 
 const CAPABILITY_KINDS = [
@@ -291,6 +307,33 @@ export function isActivePlugin(plugin: DiscoveredPlugin): boolean {
   return plugin.enabled && plugin.trust === "trusted";
 }
 
+export function resolvePluginLifecycle(plugin: DiscoveredPlugin): PluginLifecycleStatus {
+  const active = isActivePlugin(plugin);
+  const exposedCapabilityIds = active
+    ? plugin.manifest.capabilities
+      .filter((capability) => capability.lifecycle !== "disabled")
+      .map((capability) => capability.id)
+    : [];
+  return {
+    pluginId: plugin.manifest.id,
+    source: plugin.source,
+    trust: plugin.trust,
+    enabled: plugin.enabled,
+    active,
+    entrypoints: plugin.manifest.entrypoints,
+    capabilityIds: plugin.manifest.capabilities.map((capability) => capability.id),
+    exposedCapabilityIds,
+    executableLoading: "disabled",
+    canLoadEntrypoints: false,
+    canGrantPermissions: false,
+    reason: lifecycleReason(plugin, active),
+  };
+}
+
+export function canLoadPluginEntrypoints(_plugin: DiscoveredPlugin): false {
+  return false;
+}
+
 async function readPluginManifestWithHash(manifestPath: string): Promise<{ manifest: PluginManifest; manifestHash: string } | null> {
   try {
     const rawManifest = await readFile(manifestPath, "utf8");
@@ -319,6 +362,21 @@ async function safeReadDirectories(directory: string): Promise<string[]> {
     }
     throw error;
   }
+}
+
+function lifecycleReason(plugin: DiscoveredPlugin, active: boolean): string {
+  if (!plugin.enabled) {
+    return "Plugin is disabled; manifest remains inspectable but capabilities and entrypoints stay inactive.";
+  }
+  if (plugin.trust !== "trusted") {
+    return "Plugin is untrusted; manifest remains inspectable but capabilities and entrypoints stay inactive.";
+  }
+  if (active) {
+    // Trust and enablement expose metadata only. Entrypoints stay inert until a future
+    // loader has a sandbox, explicit grants, revocation, logging, and tests.
+    return "Plugin metadata is active; arbitrary plugin entrypoint execution is disabled in this foundation slice.";
+  }
+  return "Plugin metadata is inactive; arbitrary plugin entrypoint execution is disabled.";
 }
 
 function validateEntrypoints(input: unknown): PluginEntrypoints | undefined {

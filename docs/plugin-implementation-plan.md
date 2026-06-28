@@ -321,6 +321,19 @@ The first manifest pass supports:
 
 This is intentionally not arbitrary plugin loading. A manifest can declare what a plugin would contribute, but Exo does not yet execute plugin entrypoints, grant permissions, add UI, add CLI commands, or add MCP tools from manifests.
 
+Concrete manifest collection roots are now part of the core contract:
+
+- `${EXO_RESOURCES_PATH}/plugins/` for packaged official plugin manifests
+- `${EXO_PROJECT_ROOT}/plugins/` for source-tree official plugin manifests
+- each `EXO_DEV_PLUGIN_DIRS` entry for trusted developer-session manifests
+- each `EXO_PLUGIN_DIRS` entry for trusted operator override manifests
+- `${EXO_USER_DATA_PATH}/plugins/` for untrusted user-installed manifests
+- `${workspaceRoot}/.exo/plugins/` for untrusted workspace-local manifests
+
+The runtime root stores local policy, not plugin code: `plugin-state.json` records trust/enablement decisions keyed by manifest identity and hash, and `plugin-settings.json` stores metadata-only configuration overrides. Trust records are intentionally local machine/runtime state so a workspace manifest cannot self-trust by being copied or cloned.
+
+Lifecycle status is explicit in core types: `trusted + enabled` exposes metadata capabilities and settings only; `untrusted` or `disabled` keeps capabilities inactive; executable entrypoint loading remains `disabled` for every source. Capability permissions remain requested metadata, not grants.
+
 ### Profile Capability Payload
 
 Status: first metadata contract implemented in `packages/core/src/profile.ts`.
@@ -342,11 +355,11 @@ Official example: `plugins/exograph-baseline/exo.plugin.json` declares the first
 
 ### Graph Snapshot And Visualization Payload
 
-Status: first metadata contract implemented in `packages/core/src/graph.ts`.
+Status: first metadata contract implemented in `packages/core/src/graph.ts`, with build support in `packages/core/src/graph-snapshot.ts` and the plugin-facing contract documented in `docs/graph-visualization-plugin-contract.md`.
 
-Graph data is core substrate. A `GraphSnapshot` is a read-only representation of notes, tags, unresolved references, and outgoing graph edges. Backlinks are a derived view over outgoing edges, not separately stored graph facts.
+Graph data is core substrate. A `GraphSnapshot` is a read-only representation of notes, tags, unresolved references, and outgoing graph edges. It carries a deterministic `snapshotId`, explicit schema metadata, sorted nodes/edges/warnings, and scope metadata. Backlinks are a derived view over outgoing edges, not separately stored graph facts.
 
-Graph visualization is plugin-shaped. A `graphVisualization` capability may declare accepted graph data version, node kinds, edge kinds, and host surface under capability compatibility metadata. This lets Exo eventually ship one default graph explorer while allowing alternative 2D/3D/domain graph views to consume the same core snapshot.
+Graph visualization is plugin-shaped. A `graphVisualization` capability may declare accepted graph data version, node kinds, edge kinds, host surface, render mode, and preferred placement under `capability.compatibility.graphVisualization`. Tool surface descriptors carry the graph data and surface contribution metadata needed by future 2D/3D/domain graph views to consume the same core snapshot.
 
 This pass does not implement graph extraction, graph rendering, renderer plugin loading, or default graph explorer UI.
 
@@ -356,13 +369,12 @@ Defer until the manifest model survives real use.
 
 Future work:
 
-- user/workspace/repo plugin locations
-- trust prompts
-- permission grants
-- entrypoint loading and sandbox policy
+- install/uninstall flows that copy or remove plugin directories from the user/workspace roots
+- trust prompts and trust revocation UX for user/workspace roots
+- permission grants and revocation records separate from requested permissions
+- entrypoint loading, sandbox policy, process isolation, and lifecycle error handling
 - command, settings, pane, web viewer request, CLI, and MCP registration APIs
 - logs/errors
-- Plugin Manager UI
 - uninstall and state cleanup
 
 ## Implementation Order

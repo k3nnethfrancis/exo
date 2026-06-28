@@ -6,7 +6,10 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./agent-harness-registry": "./src/agent-harness-registry.ts",
     "./command-protocol": "./src/command-protocol.ts",
+    "./profile": "./src/profile.ts",
+    "./profile-plan": "./src/profile-plan.ts",
     "./surface-descriptor": "./src/surface-descriptor.ts",
     "./types": "./src/types.ts",
     "./terminal-settings": "./src/terminal-settings.ts",

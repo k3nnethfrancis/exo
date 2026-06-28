@@ -91,7 +91,7 @@ Surface contribution types should include:
 
 Graph visualization plugins should use these surface contracts. Core should expose graph data and host the pane/web preview surface; a graph visualization plugin owns the layout, rendering strategy, and interaction model. This allows Exo to ship one useful default graph explorer while letting users replace it with a 3D graph, metadata-specific view, or domain-specific explorer.
 
-The first graph contract is a read-only `GraphSnapshot` core type plus metadata-only `graphVisualization` capability declarations. The snapshot stores outgoing edges as canonical graph facts; backlinks are derived views over those edges so graph consumers do not double-count relationships.
+The first graph contract is a read-only `GraphSnapshot` core type plus metadata-only `graphVisualization` capability declarations. The snapshot stores outgoing edges as canonical graph facts; backlinks are derived views over those edges so graph consumers do not double-count relationships. The concrete graph visualization plugin contract lives in `docs/graph-visualization-plugin-contract.md`.
 
 ### Terminal Core
 
@@ -143,6 +143,26 @@ Exo's plugin model is official versus local, not marketplace versus first-party.
 - Developer plugins are explicit development/operator paths such as `EXO_DEV_PLUGIN_DIRS` and `EXO_PLUGIN_DIRS`. They are trusted for the current developer/operator session, but they are not part of Exo's official distribution unless committed under `plugins/` and reviewed.
 
 Official plugins are first-party capabilities shipped with Exo but still registered through plugin/capability contracts where practical.
+
+Concrete manifest roots:
+
+- Packaged official plugins: `${EXO_RESOURCES_PATH}/plugins/{plugin}/exo.plugin.json`.
+- Source-tree official plugins during development: `${EXO_PROJECT_ROOT}/plugins/{plugin}/exo.plugin.json`.
+- Developer session plugins: each `EXO_DEV_PLUGIN_DIRS` entry is a plugin collection root containing `{plugin}/exo.plugin.json`.
+- Operator override plugins: each `EXO_PLUGIN_DIRS` entry is a trusted developer/operator collection root containing `{plugin}/exo.plugin.json`.
+- User-installed local plugins: `${EXO_USER_DATA_PATH}/plugins/{plugin}/exo.plugin.json`.
+- Workspace-local plugins: `${workspaceRoot}/.exo/plugins/{plugin}/exo.plugin.json`.
+
+Runtime state is not stored in plugin directories. Trust and enablement live under the current Exo runtime root as `plugin-state.json`; metadata-only plugin settings live beside it as `plugin-settings.json`. Workspace-local plugin manifests may be committed or copied with a workspace, but their trust records are local runtime policy and do not self-authorize on another machine.
+
+Lifecycle rules for the foundation slice:
+
+- Discovery reads only `exo.plugin.json`; it does not import, spawn, bundle, or evaluate plugin code.
+- `trusted + enabled` means Exo may expose non-disabled capability metadata and metadata-owned settings through core surfaces.
+- `untrusted` or `disabled` means the manifest remains inspectable, but its capabilities are inactive.
+- Manifest `entrypoints` are accepted only as inert future metadata. They must be relative, traversal-free paths, and Exo must report executable loading as disabled.
+- Capability `permissions` are requested permissions, not grants. No plugin receives file, terminal, network, CLI, MCP, command-server, renderer, or web-viewer execution rights from a manifest in this slice.
+- A future executable loader must add a separate sandbox, explicit permission grants, revocation, logging, lifecycle errors, and tests before any entrypoint can run.
 
 Initial official plugin families:
 

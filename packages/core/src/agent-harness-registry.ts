@@ -6,6 +6,7 @@ import {
   type AgentLauncherConfig,
   type ManagedAgentKind,
 } from "./types";
+import type { CapabilitySurface } from "./capabilities";
 
 export class AgentHarnessRegistry {
   private readonly harnesses = new Map<string, AgentHarness>();
@@ -43,6 +44,11 @@ export class AgentHarnessRegistry {
   list(): AgentHarness[] {
     return [...this.harnesses.values()];
   }
+}
+
+export interface AgentHarnessSurfaceFilter {
+  surface: CapabilitySurface;
+  requireLaunchable?: boolean;
 }
 
 export function createBuiltInAgentHarnessRegistry(): AgentHarnessRegistry {
@@ -117,4 +123,53 @@ export function resolveRegisteredAgentHarnesses(env: NodeJS.ProcessEnv = process
       }
       return detection.visible !== false;
     });
+}
+
+export function resolveRegisteredAgentHarnessesForSurface(
+  filter: AgentHarnessSurfaceFilter,
+  env: NodeJS.ProcessEnv = process.env,
+): AgentHarnessDetection[] {
+  const seen = new Set<ManagedAgentKind>();
+  const harnesses: AgentHarnessDetection[] = [];
+  for (const harness of agentHarnessRegistry.list()) {
+    if (
+      harness.metadata.lifecycle === "disabled" ||
+      !harness.metadata.surfaces.includes(filter.surface) ||
+      !harness.metadata.permissions.includes("agents:launch")
+    ) {
+      continue;
+    }
+
+    const detection = resolveRegisteredAgentHarnessDetection(harness.kind, env);
+    if (
+      !detection ||
+      !detection.enabled ||
+      detection.visible === false ||
+      (filter.requireLaunchable && !detection.launchable) ||
+      seen.has(detection.id)
+    ) {
+      continue;
+    }
+    seen.add(detection.id);
+    harnesses.push(detection);
+  }
+  return harnesses;
+}
+
+export function formatRegisteredAgentHarnessUsage(
+  filter: AgentHarnessSurfaceFilter,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  return resolveRegisteredAgentHarnessesForSurface(filter, env).map((harness) => harness.id).join("|");
+}
+
+export function normalizeRegisteredAgentHarnessKindForSurface(
+  value: string | undefined,
+  filter: AgentHarnessSurfaceFilter,
+  env: NodeJS.ProcessEnv = process.env,
+): ManagedAgentKind | null {
+  if (!value) {
+    return null;
+  }
+  return resolveRegisteredAgentHarnessesForSurface(filter, env).find((harness) => harness.id === value)?.id ?? null;
 }

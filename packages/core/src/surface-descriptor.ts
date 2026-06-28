@@ -1,4 +1,9 @@
 import type { AgentHarnessDetection, ManagedAgentKind } from "./types";
+import {
+  graphVisualizationFromCapability,
+  type GraphVisualizationDataContract,
+  type GraphVisualizationSurfaceContribution,
+} from "./graph";
 import { isCapabilityAvailableOnSurface } from "./surface-policy";
 import type { CapabilityMetadata } from "./capabilities";
 import type { PluginInventoryItem } from "./plugin-inventory";
@@ -30,6 +35,12 @@ export interface ToolSurfaceDescriptor {
   pluginId?: string;
   enabled: boolean;
   visible: boolean;
+  graphVisualization?: GraphVisualizationToolMetadata;
+}
+
+export interface GraphVisualizationToolMetadata {
+  data: GraphVisualizationDataContract;
+  surface: GraphVisualizationSurfaceContribution;
 }
 
 export interface CoreToolSurfaceDescriptorOptions {
@@ -122,7 +133,11 @@ export function toolSurfaceDescriptorsFromInventory(items: PluginInventoryItem[]
         case "routineTemplate":
           return [capabilityToolDescriptor(item, { type: "routineTemplate.open", routineTemplateId: item.id }, "toolDockPane")];
         case "graphVisualization":
-          return [capabilityToolDescriptor(item, { type: "graphVisualization.open", graphVisualizationId: item.id }, "toolDockPane")];
+          return [
+            capabilityToolDescriptor(item, { type: "graphVisualization.open", graphVisualizationId: item.id }, "toolDockPane", {
+              graphVisualization: graphVisualizationMetadataFromInventoryItem(item),
+            }),
+          ];
         default:
           return [];
       }
@@ -168,6 +183,9 @@ export function toolSurfaceDescriptorsFromCapabilities(capabilities: CapabilityM
               },
               { type: "graphVisualization.open", graphVisualizationId: capability.id },
               "toolDockPane",
+              {
+                graphVisualization: graphVisualizationMetadataFromCapability(capability),
+              },
             ),
           ];
         default:
@@ -203,6 +221,7 @@ function capabilityToolDescriptor(
   item: Pick<PluginInventoryItem, "id" | "label" | "description" | "kind" | "enabled" | "trust" | "surfaces" | "distribution" | "pluginId">,
   action: ToolSurfaceAction,
   kind: ToolSurfaceDescriptorKind,
+  metadata: Pick<ToolSurfaceDescriptor, "graphVisualization"> = {},
 ): ToolSurfaceDescriptor {
   return {
     id: item.id,
@@ -217,5 +236,28 @@ function capabilityToolDescriptor(
     pluginId: item.pluginId,
     enabled: item.enabled,
     visible: item.enabled && item.trust === "trusted" && item.surfaces.includes("desktop"),
+    ...metadata,
   };
+}
+
+function graphVisualizationMetadataFromCapability(capability: CapabilityMetadata): GraphVisualizationToolMetadata | undefined {
+  const definition = graphVisualizationFromCapability(capability);
+  return definition ? { data: definition.data, surface: definition.surface } : undefined;
+}
+
+function graphVisualizationMetadataFromInventoryItem(item: PluginInventoryItem): GraphVisualizationToolMetadata | undefined {
+  if (item.kind !== "graphVisualization") {
+    return undefined;
+  }
+  return graphVisualizationMetadataFromCapability({
+    id: item.id,
+    kind: "graphVisualization",
+    label: item.label,
+    description: item.description,
+    lifecycle: item.lifecycle,
+    owner: item.owner,
+    surfaces: item.surfaces,
+    permissions: item.permissions,
+    compatibility: item.compatibility,
+  });
 }

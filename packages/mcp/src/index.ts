@@ -9,7 +9,10 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { DEFAULT_TERMINAL_MAX_READ_TAIL_CHARS, DEFAULT_TERMINAL_READ_TAIL_CHARS } from "@exo/core/terminal-settings";
-import { MANAGED_AGENT_KINDS, formatManagedAgentKindUsage } from "@exo/core/types";
+import {
+  formatRegisteredAgentHarnessUsage,
+  normalizeRegisteredAgentHarnessKindForSurface,
+} from "@exo/core/agent-harness-registry";
 import * as z from "zod/v4";
 
 import { ExoCommandClient, formatAgents, stripAnsi } from "./exo-client";
@@ -234,9 +237,9 @@ server.registerTool(
   {
     title: "Create Exo Agent",
     description:
-      `Create a new Exo-managed terminal session for any registered launchable harness. Built-in kinds: ${formatManagedAgentKindUsage()}. Unavailable harnesses return clear command-server errors.`,
+      `Create a new Exo-managed terminal session for a registered agent harness exposed to MCP. Available kinds: ${mcpAgentKindUsage()}. Unavailable harnesses return clear command-server errors.`,
     inputSchema: {
-      kind: z.enum(MANAGED_AGENT_KINDS).describe("Registered launchable harness to create."),
+      kind: z.string().min(1).describe("Registered MCP-exposed agent harness to create."),
       cwd: z.string().min(1).optional().describe("Optional working directory. Defaults to Exo's default terminal cwd."),
     },
     annotations: {
@@ -247,8 +250,17 @@ server.registerTool(
     },
   },
   async ({ kind, cwd }) => {
+    const normalizedKind = normalizeMcpAgentKind(kind);
+    if (!normalizedKind) {
+      const usage = mcpAgentKindUsage();
+      return {
+        isError: true,
+        content: [{ type: "text", text: `Agent harness is not exposed to MCP: ${kind}. Expected one of: ${usage}.` }],
+        structuredContent: { ok: false, error: "unsupported-agent-harness", kind, expected: usage },
+      };
+    }
     const client = await ExoCommandClient.connect();
-    const agent = await client.createAgent(kind, cwd);
+    const agent = await client.createAgent(normalizedKind, cwd);
     return {
       content: [{ type: "text", text: `Created ${agent.kind} agent ${agent.id} in ${agent.cwd}.` }],
       structuredContent: { agent },
@@ -533,6 +545,14 @@ function formatAgentMessageDelivery(
     return `Sent ${submit ? "message plus Enter" : "message without Enter"} to ${agentId}.`;
   }
   return `Could not send message to ${agentId}: terminal is missing, exited, or detached.`;
+}
+
+function mcpAgentKindUsage(env: NodeJS.ProcessEnv = process.env): string {
+  return formatRegisteredAgentHarnessUsage({ surface: "mcp" }, env) || "(none)";
+}
+
+function normalizeMcpAgentKind(kind: string | undefined, env: NodeJS.ProcessEnv = process.env) {
+  return normalizeRegisteredAgentHarnessKindForSurface(kind, { surface: "mcp" }, env);
 }
 
 function readNonNegativeInteger(value: unknown, fallback: number): number {

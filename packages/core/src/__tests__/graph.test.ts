@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { CapabilityMetadata } from "../capabilities";
-import { graphVisualizationFromCapability, graphVisualizationsFromPlugin, type GraphSnapshot } from "../graph";
+import { deriveGraphBacklinks, graphVisualizationFromCapability, graphVisualizationsFromPlugin, type GraphSnapshot } from "../graph";
 import type { DiscoveredPlugin, PluginManifest } from "../plugin";
 
 const graphCapability: CapabilityMetadata = {
@@ -14,10 +14,14 @@ const graphCapability: CapabilityMetadata = {
   surfaces: ["desktop"],
   permissions: ["workspace:read", "notes:read"],
   compatibility: {
-    graphDataVersion: "0.1",
-    acceptedNodeKinds: ["note", "tag", "unresolved"],
-    acceptedEdgeKinds: ["wikilink", "hasTag"],
-    hostSurface: "editorPane",
+    graphVisualization: {
+      graphDataVersion: "0.1",
+      acceptedNodeKinds: ["note", "tag", "unresolved"],
+      acceptedEdgeKinds: ["wikilink", "hasTag"],
+      hostSurface: "editorPane",
+      renderMode: "2d",
+      preferredPlacement: "editorGrid",
+    },
   },
 };
 
@@ -25,7 +29,15 @@ describe("graph contracts", () => {
   it("defines read-only graph snapshots with outgoing edges as canonical facts", () => {
     const snapshot: GraphSnapshot = {
       version: "0.1",
+      snapshotId: "graph-snapshot:0.1:test",
       generatedAt: "2026-06-26T00:00:00.000Z",
+      schema: {
+        version: "0.1",
+        nodeKinds: ["note", "tag", "external", "unresolved"],
+        edgeKinds: ["wikilink", "markdownLink", "hasTag"],
+        canonicalEdgeDirection: "outgoing",
+        backlinks: "derived",
+      },
       scope: { noteRootIds: ["notes"], projectRootIds: [], paths: ["notes/**/*.md"] },
       nodes: [
         {
@@ -59,6 +71,15 @@ describe("graph contracts", () => {
 
     expect(snapshot.edges).toHaveLength(1);
     expect(snapshot.edges[0]?.kind).toBe("wikilink");
+    expect(deriveGraphBacklinks(snapshot)).toEqual([
+      {
+        source: "note:/vault/B.md",
+        target: "note:/vault/A.md",
+        edgeId: "note:/vault/A.md->note:/vault/B.md#wikilink:0",
+        kind: "wikilink",
+        resolution: "resolved",
+      },
+    ]);
   });
 
   it("extracts graph visualization metadata from capabilities", () => {
@@ -68,6 +89,18 @@ describe("graph contracts", () => {
       acceptedNodeKinds: ["note", "tag", "unresolved"],
       acceptedEdgeKinds: ["wikilink", "hasTag"],
       hostSurface: "editorPane",
+      renderMode: "2d",
+      preferredPlacement: "editorGrid",
+      data: {
+        snapshotVersion: "0.1",
+        acceptedNodeKinds: ["note", "tag", "unresolved"],
+        acceptedEdgeKinds: ["wikilink", "hasTag"],
+      },
+      surface: {
+        hostSurface: "editorPane",
+        renderMode: "2d",
+        preferredPlacement: "editorGrid",
+      },
       sourceCapabilityId: "default-graph.view",
     });
   });
@@ -76,12 +109,26 @@ describe("graph contracts", () => {
     expect(
       graphVisualizationFromCapability({
         ...graphCapability,
-        compatibility: { graphDataVersion: "0.1", hostSurface: "webPreview" },
+        compatibility: { graphVisualization: { graphDataVersion: "0.1", hostSurface: "webPreview", renderMode: "3d" } },
       }),
     ).toMatchObject({
       acceptedNodeKinds: ["note", "tag", "external", "unresolved"],
       acceptedEdgeKinds: ["wikilink", "markdownLink", "hasTag"],
       hostSurface: "webPreview",
+      renderMode: "3d",
+      preferredPlacement: "webPreview",
+    });
+  });
+
+  it("accepts the legacy flat graph visualization payload during manifest migration", () => {
+    expect(
+      graphVisualizationFromCapability({
+        ...graphCapability,
+        compatibility: { graphDataVersion: "0.1", hostSurface: "editorPane" },
+      }),
+    ).toMatchObject({
+      graphDataVersion: "0.1",
+      hostSurface: "editorPane",
     });
   });
 
@@ -109,21 +156,27 @@ describe("graph contracts", () => {
     expect(() =>
       graphVisualizationFromCapability({
         ...graphCapability,
-        compatibility: { graphDataVersion: "9.9", hostSurface: "editorPane" },
+        compatibility: { graphVisualization: { graphDataVersion: "9.9", hostSurface: "editorPane" } },
       }),
     ).toThrow("graphDataVersion is unsupported");
     expect(() =>
       graphVisualizationFromCapability({
         ...graphCapability,
-        compatibility: { graphDataVersion: "0.1", hostSurface: "floatingPortal" },
+        compatibility: { graphVisualization: { graphDataVersion: "0.1", hostSurface: "floatingPortal" } },
       }),
     ).toThrow("hostSurface is unsupported");
     expect(() =>
       graphVisualizationFromCapability({
         ...graphCapability,
-        compatibility: { graphDataVersion: "0.1", acceptedNodeKinds: ["person"] },
+        compatibility: { graphVisualization: { graphDataVersion: "0.1", acceptedNodeKinds: ["person"] } },
       }),
     ).toThrow("acceptedNodeKinds contains unsupported value");
+    expect(() =>
+      graphVisualizationFromCapability({
+        ...graphCapability,
+        compatibility: { graphVisualization: { graphDataVersion: "0.1", renderMode: "immersive-vr" } },
+      }),
+    ).toThrow("renderMode is unsupported");
   });
 });
 

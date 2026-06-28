@@ -82,6 +82,18 @@ describe("tool surface descriptors", () => {
         id: "default-graph.view",
         owner: "localPlugin",
         action: { type: "graphVisualization.open", graphVisualizationId: "default-graph.view" },
+        graphVisualization: {
+          data: {
+            snapshotVersion: "0.1",
+            acceptedNodeKinds: ["note", "tag", "external", "unresolved"],
+            acceptedEdgeKinds: ["wikilink", "markdownLink", "hasTag"],
+          },
+          surface: {
+            hostSurface: "editorPane",
+            renderMode: "3d",
+            preferredPlacement: "editorGrid",
+          },
+        },
       },
     ]);
   });
@@ -108,6 +120,16 @@ function inventoryItem(
     owner: "test",
     surfaces: ["desktop"],
     permissions: [],
+    compatibility:
+      kind === "graphVisualization"
+        ? {
+            graphVisualization: {
+              graphDataVersion: "0.1",
+              hostSurface: "editorPane",
+              renderMode: "3d",
+            },
+          }
+        : undefined,
     enabled: true,
     trust: "trusted",
     status: "available",

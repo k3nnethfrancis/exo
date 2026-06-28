@@ -21,6 +21,7 @@ describe("graph snapshot", () => {
 
     const snapshot = await buildGraphSnapshot(model, { generatedAt: "2026-06-26T00:00:00.000Z" });
     const secondSnapshot = await buildGraphSnapshot(model, { generatedAt: "2026-06-26T00:00:00.000Z" });
+    const laterSnapshot = await buildGraphSnapshot(model, { generatedAt: "2026-06-27T00:00:00.000Z" });
 
     const alphaPath = path.join(notesRoot, "alpha.md");
     const betaPath = path.join(notesRoot, "folder", "beta.md");
@@ -30,6 +31,15 @@ describe("graph snapshot", () => {
     const betaId = `note:${betaPath}`;
 
     expect(snapshot).toEqual(secondSnapshot);
+    expect(snapshot.snapshotId).toMatch(/^graph-snapshot:0\.1:[a-f0-9]{16}$/);
+    expect(laterSnapshot.snapshotId).toBe(snapshot.snapshotId);
+    expect(snapshot.schema).toEqual({
+      version: "0.1",
+      nodeKinds: ["note", "tag", "external", "unresolved"],
+      edgeKinds: ["wikilink", "markdownLink", "hasTag"],
+      canonicalEdgeDirection: "outgoing",
+      backlinks: "derived",
+    });
     expect(snapshot.nodes.map((node) => node.id)).toEqual([...snapshot.nodes.map((node) => node.id)].sort());
     expect(snapshot.edges.map((edge) => edge.id)).toEqual([...snapshot.edges.map((edge) => edge.id)].sort());
 

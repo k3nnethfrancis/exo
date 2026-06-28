@@ -9,6 +9,7 @@ import {
   EXO_PLUGIN_MANIFEST_FILE,
   parsePluginManifest,
   PluginRegistry,
+  resolvePluginLifecycle,
   validatePluginManifest,
   type DiscoveredPlugin,
   type PluginManifest,
@@ -206,6 +207,43 @@ describe("plugin manifest contracts", () => {
       "example.graph-view",
     ]);
     expect(registry.list({ trustedOnly: true }).map((plugin) => plugin.manifest.id)).toEqual(["example.plugin"]);
+  });
+
+  it("keeps executable entrypoints disabled even for trusted enabled manifests", () => {
+    const plugin = discovered(manifest, "trusted");
+
+    expect(resolvePluginLifecycle(plugin)).toMatchObject({
+      pluginId: "example.plugin",
+      active: true,
+      entrypoints: { main: "dist/main.js" },
+      exposedCapabilityIds: [
+        "example.trace",
+        "example.routine",
+        "example.profile",
+        "example.graph-view",
+      ],
+      executableLoading: "disabled",
+      canLoadEntrypoints: false,
+      canGrantPermissions: false,
+      reason: expect.stringContaining("arbitrary plugin entrypoint execution is disabled"),
+    });
+  });
+
+  it("keeps untrusted or disabled plugin capabilities and entrypoints inactive", () => {
+    expect(resolvePluginLifecycle(discovered(manifest, "untrusted"))).toMatchObject({
+      active: false,
+      exposedCapabilityIds: [],
+      executableLoading: "disabled",
+      canLoadEntrypoints: false,
+      reason: expect.stringContaining("untrusted"),
+    });
+    expect(resolvePluginLifecycle(discovered(manifest, "trusted", false))).toMatchObject({
+      active: false,
+      exposedCapabilityIds: [],
+      executableLoading: "disabled",
+      canLoadEntrypoints: false,
+      reason: expect.stringContaining("disabled"),
+    });
   });
 
   it("filters disabled and untrusted plugins", () => {

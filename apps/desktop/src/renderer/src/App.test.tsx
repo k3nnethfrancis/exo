@@ -61,6 +61,7 @@ import { PluginSettingsSection } from "./components/PluginManagerDialog";
 import { OnboardingCapabilityReviewContent } from "./components/OnboardingCapabilityReview";
 import {
   buildOnboardingCapabilitySections,
+  buildOnboardingProfileReviews,
   onboardingCapabilityStatus,
   onboardingCapabilityTone,
 } from "./onboardingCapabilities";
@@ -1061,6 +1062,34 @@ describe("workspace onboarding model", () => {
     expect(onboardingCapabilityTone(codex)).toBe("warning");
   });
 
+  it("builds profile apply reviews as read-only plans with explicit blockers", () => {
+    const profileItem: PluginInventoryItem = {
+      ...pluginInventoryItem("lab.profile", "Lab profile", "profile", "Profiles", "localManifest"),
+      kind: "profile",
+      compatibility: {
+        profile: {
+          recommendedPlugins: [{ id: "qmd", required: false }],
+          contextTemplates: [{ id: "agents", label: "Agent instructions", target: "AGENTS.md", templatePath: "templates/AGENTS.md" }],
+          skills: [{ id: "graph-skill", label: "Graph Skill", harnesses: ["codex"], sourcePath: "skills/graph-skill" }],
+          routineTemplateIds: ["graph-health.template"],
+        },
+      },
+    };
+    const reviews = buildOnboardingProfileReviews(pluginInventory([
+      profileItem,
+      pluginInventoryItem("qmd", "QMD advanced search", "searchProvider", "Search providers", "bundled"),
+    ]));
+
+    expect(reviews).toHaveLength(1);
+    expect(reviews[0].plan?.apply).toMatchObject({ available: false, label: "Review only" });
+    expect(reviews[0].plan?.apply.blockedBy.map((blocker) => blocker.kind)).toEqual([
+      "permissionModel",
+      "fileWrite",
+      "skillInstall",
+      "routineScheduling",
+    ]);
+  });
+
   it("renders the capability review with core and optional plugin categories", () => {
     const inventory = pluginInventory([
       pluginInventoryItem("core.markdown-graph", "Markdown graph", "core", "Core", "core"),
@@ -1069,6 +1098,16 @@ describe("workspace onboarding model", () => {
         ...pluginInventoryItem("codex", "Codex", "agentHarness", "Agent harnesses", "bundled"),
         status: "not-found",
         statusLabel: "Not found",
+      },
+      {
+        ...pluginInventoryItem("lab.profile", "Lab profile", "profile", "Profiles", "localManifest"),
+        kind: "profile",
+        compatibility: {
+          profile: {
+            recommendedPlugins: [{ id: "qmd", required: false }],
+            contextTemplates: [{ id: "agents", label: "Agent instructions", target: "AGENTS.md", templatePath: "templates/AGENTS.md" }],
+          },
+        },
       },
     ]);
     const html = renderToStaticMarkup(
@@ -1091,6 +1130,9 @@ describe("workspace onboarding model", () => {
     expect(html).toContain("Agent harness readiness");
     expect(html).toContain("Official, not found");
     expect(html).toContain("QMD hybrid");
+    expect(html).toContain("Profile apply review");
+    expect(html).toContain("Review only");
+    expect(html).toContain("apply blockers");
     expect(html).toContain("Enter workspace");
   });
 });

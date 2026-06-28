@@ -77,6 +77,12 @@ describe("exo-mcp stdio launcher", () => {
         | undefined;
       const maxLinesSchema = readAgentSchema?.properties?.maxLines ?? {};
       expect(maxLinesSchema.maximum).not.toBe(1000);
+      const createAgentTool = tools.tools.find((tool) => tool.name === "create_agent");
+      const createAgentSchema = createAgentTool?.inputSchema as
+        | { properties?: Record<string, Record<string, unknown>> }
+        | undefined;
+      expect(createAgentSchema?.properties?.kind).toMatchObject({ type: "string" });
+      expect(createAgentSchema?.properties?.kind?.enum).toBeUndefined();
     } catch (error) {
       throw new Error(`${error instanceof Error ? error.message : String(error)}\nMCP stderr:\n${stderr}`);
     } finally {

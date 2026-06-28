@@ -91,7 +91,7 @@ Equivalent env vars are `EXO_MCP_HTTP_HOST`, `EXO_MCP_HTTP_PORT`, and `EXO_MCP_H
 - `focus_preview` — focus Exo's in-app browser preview, creating an empty preview pane if none is open.
 - `close_preview` — close the focused preview pane, or the first open preview pane when focus is elsewhere.
 - `list_agents` — list live Exo terminal agents.
-- `create_agent` — create a new terminal from a registered launchable harness: shell, Claude, Codex, Pi, or Hermes. Unavailable or unconfigured harnesses return a command-server error instead of launching a dead process.
+- `create_agent` — create a new terminal from a registered MCP-exposed harness. The default visible built-ins are shell, Claude, Codex, and Pi; Hermes appears when explicitly configured. Unavailable or unconfigured harnesses return a clear error instead of launching a dead process.
 - `read_agent` — read bounded live terminal tail output. Prefer `maxLines` for line-bounded live tails; `tailChars` reads transcript tails. ANSI cleanup is enabled by default.
 - `send_agent_message` — send text to a live agent. `submit` defaults to `true`, so the message is submitted with Enter unless explicitly disabled. Codex startup sends may be queued until normal chat input is ready.
 - `interrupt_agent` — send Escape or Ctrl-C to a live agent.

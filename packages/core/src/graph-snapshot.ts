@@ -1,7 +1,18 @@
+import { createHash } from "node:crypto";
 import path from "node:path";
 
 import { extractMarkdownLinks, extractTags, extractWikilinks, readWorkspaceDocument } from "./notes";
-import type { GraphEdge, GraphEdgeKind, GraphEdgeResolution, GraphNode, GraphSnapshot } from "./graph";
+import {
+  GRAPH_EDGE_KINDS,
+  GRAPH_NODE_KINDS,
+  GRAPH_SNAPSHOT_VERSION,
+  type GraphEdge,
+  type GraphEdgeKind,
+  type GraphEdgeResolution,
+  type GraphNode,
+  type GraphScope,
+  type GraphSnapshot,
+} from "./graph";
 import type { WorkspaceModel } from "./types";
 import { listMarkdownFiles } from "./workspace";
 
@@ -117,18 +128,31 @@ export async function buildGraphSnapshot(
     });
   }
 
+  const scope: GraphScope = {
+    workspaceRoot: model.workspaceRoot,
+    noteRootIds: noteRoots.map((root) => root.id).sort(),
+    projectRootIds: model.projectRoots.map((root) => root.id).sort(),
+    paths: files.map((file) => file.filePath),
+  };
+  const sortedNodes = Array.from(nodesById.values()).sort(compareById);
+  const sortedEdges = edges.sort(compareById);
+  const sortedWarnings = Array.from(new Set(warnings)).sort();
+
   return {
-    version: "0.1",
+    version: GRAPH_SNAPSHOT_VERSION,
+    snapshotId: snapshotId(scope, sortedNodes, sortedEdges, sortedWarnings),
     generatedAt: generatedAt(options.generatedAt),
-    scope: {
-      workspaceRoot: model.workspaceRoot,
-      noteRootIds: noteRoots.map((root) => root.id).sort(),
-      projectRootIds: model.projectRoots.map((root) => root.id).sort(),
-      paths: files.map((file) => file.filePath),
+    schema: {
+      version: GRAPH_SNAPSHOT_VERSION,
+      nodeKinds: GRAPH_NODE_KINDS,
+      edgeKinds: GRAPH_EDGE_KINDS,
+      canonicalEdgeDirection: "outgoing",
+      backlinks: "derived",
     },
-    nodes: Array.from(nodesById.values()).sort(compareById),
-    edges: edges.sort(compareById),
-    warnings: Array.from(new Set(warnings)).sort(),
+    scope,
+    nodes: sortedNodes,
+    edges: sortedEdges,
+    warnings: sortedWarnings,
   };
 }
 
@@ -298,6 +322,28 @@ function generatedAt(value: string | Date | undefined): string {
     return value.toISOString();
   }
   return value ?? new Date().toISOString();
+}
+
+function snapshotId(
+  scope: GraphScope,
+  nodes: readonly GraphNode[],
+  edges: readonly GraphEdge[],
+  warnings: readonly string[],
+): string {
+  const stablePayload = JSON.stringify({
+    version: GRAPH_SNAPSHOT_VERSION,
+    schema: {
+      nodeKinds: GRAPH_NODE_KINDS,
+      edgeKinds: GRAPH_EDGE_KINDS,
+      canonicalEdgeDirection: "outgoing",
+      backlinks: "derived",
+    },
+    scope,
+    nodes,
+    edges,
+    warnings,
+  });
+  return `graph-snapshot:${GRAPH_SNAPSHOT_VERSION}:${createHash("sha256").update(stablePayload).digest("hex").slice(0, 16)}`;
 }
 
 function compareById(left: { id: string }, right: { id: string }): number {

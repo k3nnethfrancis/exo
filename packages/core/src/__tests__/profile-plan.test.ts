@@ -129,13 +129,41 @@ describe("profile plan preview", () => {
   });
 
   it("explicitly disables all mutation in the safety object", () => {
-    expect(planProfilePreview(profile, inventory()).safety).toEqual({
+    const preview = planProfilePreview(profile, inventory());
+
+    expect(preview.safety).toEqual({
       writesEnabled: false,
       pluginEnableEnabled: false,
       skillInstallEnabled: false,
       routineSchedulingEnabled: false,
       mcpConfigMutationEnabled: false,
     });
+    expect(preview.apply).toMatchObject({
+      available: false,
+      label: "Review only",
+    });
+  });
+
+  it("reports exact apply blockers for trust, enablement, writes, skills, routines, and MCP config", () => {
+    const preview = planProfilePreview(profile, inventory());
+
+    expect(preview.apply.blockedBy.map((blocker) => blocker.kind)).toEqual([
+      "permissionModel",
+      "pluginTrust",
+      "pluginEnable",
+      "fileWrite",
+      "skillInstall",
+      "routineScheduling",
+      "mcpConfig",
+    ]);
+    expect(preview.apply.blockedBy.find((blocker) => blocker.kind === "pluginTrust")?.actionIds).toEqual([
+      "untrusted.plugin",
+    ]);
+    expect(preview.apply.blockedBy.find((blocker) => blocker.kind === "pluginEnable")?.actionIds).toEqual([
+      "missing-required.plugin",
+      "missing-optional.plugin",
+      "disabled.plugin",
+    ]);
   });
 
   it("accepts plain data and does not require referenced files to exist", () => {

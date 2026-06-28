@@ -4,6 +4,7 @@ import {
   discoverPluginManifests,
   type DiscoveredPlugin,
   isActivePlugin,
+  resolvePluginLifecycle,
   type PluginSource,
   type PluginTrustState,
 } from "./plugin";
@@ -40,6 +41,13 @@ export interface PluginInventorySettingsSummary {
   validationErrors: string[];
 }
 
+export interface PluginInventoryRuntimeSummary {
+  executableLoading: "disabled";
+  canLoadEntrypoints: false;
+  canGrantPermissions: false;
+  reason: string;
+}
+
 export interface PluginInventoryItem {
   id: string;
   label: string;
@@ -67,6 +75,7 @@ export interface PluginInventoryItem {
   dependencies?: PluginInventoryDependency[];
   compatibility?: Record<string, unknown>;
   settings?: PluginInventorySettingsSummary;
+  runtime?: PluginInventoryRuntimeSummary;
 }
 
 export interface PluginInventoryError {
@@ -256,6 +265,7 @@ function bundledCapabilityItem(
 
 function pluginInventoryItems(plugin: DiscoveredPlugin, pluginSettingsStore: PluginSettingsStore | undefined): PluginInventoryItem[] {
   const settings = settingsSummary(plugin, pluginSettingsStore);
+  const runtime = runtimeSummary(plugin);
   return plugin.manifest.capabilities.map((capability) => {
     const enabled = isActivePlugin(plugin) && capability.lifecycle !== "disabled";
     return {
@@ -284,8 +294,19 @@ function pluginInventoryItems(plugin: DiscoveredPlugin, pluginSettingsStore: Plu
       rootDirectory: plugin.rootDirectory,
       compatibility: capability.compatibility,
       settings,
+      runtime,
     };
   });
+}
+
+function runtimeSummary(plugin: DiscoveredPlugin): PluginInventoryRuntimeSummary {
+  const lifecycle = resolvePluginLifecycle(plugin);
+  return {
+    executableLoading: lifecycle.executableLoading,
+    canLoadEntrypoints: lifecycle.canLoadEntrypoints,
+    canGrantPermissions: lifecycle.canGrantPermissions,
+    reason: lifecycle.reason,
+  };
 }
 
 function settingsSummary(plugin: DiscoveredPlugin, pluginSettingsStore: PluginSettingsStore | undefined): PluginInventorySettingsSummary {

@@ -30,6 +30,7 @@ export type ProfilePlanSeverity = "info" | "warning" | "blocker";
 export interface ProfilePlanPreview {
   mode: "preview";
   writeCapable: false;
+  apply: ProfilePlanApplyState;
   profile: {
     id: string;
     label: string;
@@ -40,6 +41,28 @@ export interface ProfilePlanPreview {
   blockers: ProfilePlanIssue[];
   warnings: ProfilePlanIssue[];
   safety: ProfilePlanSafety;
+}
+
+export interface ProfilePlanApplyState {
+  available: false;
+  label: "Review only";
+  reason: string;
+  blockedBy: ProfilePlanApplyBlocker[];
+}
+
+export type ProfilePlanApplyBlockerKind =
+  | "permissionModel"
+  | "pluginTrust"
+  | "pluginEnable"
+  | "fileWrite"
+  | "skillInstall"
+  | "routineScheduling"
+  | "mcpConfig";
+
+export interface ProfilePlanApplyBlocker {
+  kind: ProfilePlanApplyBlockerKind;
+  message: string;
+  actionIds: string[];
 }
 
 export interface ProfilePlanSummary {
@@ -175,6 +198,7 @@ export function planProfilePreview(profile: ProfileDefinition, inventory: Plugin
   return {
     mode: "preview",
     writeCapable: false,
+    apply: planApplyState(actions),
     profile: {
       id: profile.id,
       label: profile.label,
@@ -203,6 +227,58 @@ export function planProfilePreview(profile: ProfileDefinition, inventory: Plugin
       mcpConfigMutationEnabled: false,
     },
   };
+}
+
+function planApplyState(actions: ProfilePlanAction[]): ProfilePlanApplyState {
+  const blockedBy = applyBlockers(actions);
+  return {
+    available: false,
+    label: "Review only",
+    reason: "Profile application is read-only until trust grants, permission prompts, file writes, skill installation, and routine scheduling have explicit apply gates.",
+    blockedBy,
+  };
+}
+
+function applyBlockers(actions: ProfilePlanAction[]): ProfilePlanApplyBlocker[] {
+  const blockers: ProfilePlanApplyBlocker[] = [
+    {
+      kind: "permissionModel",
+      message: "Permission prompts and trust grants are not implemented for profile application.",
+      actionIds: actions.map((action) => action.id),
+    },
+  ];
+  pushBlocker(blockers, "pluginTrust", "Some recommended plugins require trust review before they can be used.", actions, (action) =>
+    action.kind === "pluginRecommendation" && action.pluginStatus === "untrusted",
+  );
+  pushBlocker(blockers, "pluginEnable", "Some recommended plugins would need to be enabled or installed.", actions, (action) =>
+    action.kind === "pluginRecommendation" && action.pluginStatus !== "ready" && action.pluginStatus !== "untrusted",
+  );
+  pushBlocker(blockers, "fileWrite", "Profile templates and schema changes would need an explicit file-write confirmation.", actions, (action) =>
+    Boolean(action.effect.wouldWrite),
+  );
+  pushBlocker(blockers, "skillInstall", "Profile skills would need an explicit skill install/enable flow.", actions, (action) =>
+    Boolean(action.effect.wouldInstallSkills),
+  );
+  pushBlocker(blockers, "routineScheduling", "Profile routines would need an explicit routine instantiation or scheduling flow.", actions, (action) =>
+    Boolean(action.effect.wouldScheduleRoutines),
+  );
+  pushBlocker(blockers, "mcpConfig", "MCP config templates would need an explicit MCP configuration mutation flow.", actions, (action) =>
+    Boolean(action.effect.wouldMutateMcpConfig),
+  );
+  return blockers;
+}
+
+function pushBlocker(
+  blockers: ProfilePlanApplyBlocker[],
+  kind: ProfilePlanApplyBlockerKind,
+  message: string,
+  actions: ProfilePlanAction[],
+  predicate: (action: ProfilePlanAction) => boolean,
+): void {
+  const actionIds = actions.filter(predicate).map((action) => action.id);
+  if (actionIds.length > 0) {
+    blockers.push({ kind, message, actionIds });
+  }
 }
 
 function pluginRecommendationAction(

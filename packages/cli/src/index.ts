@@ -11,10 +11,12 @@ import {
   formatMcpServerJson,
   formatShellCommand,
   formatManagedAgentKindUsage,
+  formatRegisteredAgentHarnessUsage,
   parseMcpListOutput,
   createBranchFile,
   getBranchFamily,
   normalizeManagedAgentKind,
+  normalizeRegisteredAgentHarnessKindForSurface,
   readWorkspaceDocument,
   readIndexDocument,
   renderPrimaryAgentInstructions,
@@ -46,8 +48,8 @@ import {
   type RunRecord,
 } from "@exo/core";
 
-const AGENT_KIND_USAGE = formatManagedAgentKindUsage();
-const AGENT_KIND_EXPECTED = `Expected one of: ${AGENT_KIND_USAGE.replaceAll("|", ", ")}.`;
+const TERMINAL_KIND_USAGE = formatManagedAgentKindUsage();
+const TERMINAL_KIND_EXPECTED = `Expected one of: ${TERMINAL_KIND_USAGE.replaceAll("|", ", ")}.`;
 
 import { AppClient, formatAppClientDiscoveryFailure, type AppClientWriteResult } from "./app-client";
 
@@ -438,7 +440,7 @@ export async function runCli(
       const kind = args[0];
       const normalizedKind = normalizeAgentKind(kind);
       if (!normalizedKind) {
-        throw new Error(AGENT_KIND_EXPECTED);
+        throw new Error(TERMINAL_KIND_EXPECTED);
       }
       const terminal = await client.createTerminal(normalizedKind, args[1]);
       stdout.write(`${JSON.stringify(terminal, null, 2)}\n`);
@@ -504,18 +506,18 @@ export async function runCli(
       return 0;
     }
 
-    stderr.write(`Usage: exo terminals [list | diagnostics | create <${AGENT_KIND_USAGE}> [cwd] | read <id> [--lines n] | transcript <id> [--tail chars] [--full] | write <id> <text> | send <id> <text> | reconnect <id> | kill <id>]\n`);
+    stderr.write(`Usage: exo terminals [list | diagnostics | create <${TERMINAL_KIND_USAGE}> [cwd] | read <id> [--lines n] | transcript <id> [--tail chars] [--full] | write <id> <text> | send <id> <text> | reconnect <id> | kill <id>]\n`);
     return 1;
   }
 
   if (command === "agents") {
     if (isHelpFlag(subcommand)) {
-      stdout.write(formatAgentsHelp());
+      stdout.write(formatAgentsHelp(env));
       return 0;
     }
 
     if (subcommand === "create" && args.some(isHelpFlag)) {
-      stdout.write(formatAgentsCreateHelp());
+      stdout.write(formatAgentsCreateHelp(env));
       return 0;
     }
 
@@ -530,14 +532,15 @@ export async function runCli(
 
     if (subcommand === "create") {
       const kind = args[0];
-      if (!normalizeAgentKind(kind)) {
-        throw new Error(`Usage: exo agents create <${AGENT_KIND_USAGE}> [cwd]`);
+      const normalizedKind = normalizeAgentCreateKind(kind, env);
+      if (!normalizedKind) {
+        throw new Error(`Usage: exo agents create <${agentKindUsage(env)}> [cwd]`);
       }
       const cwdArg = args[1];
       if (cwdArg?.startsWith("-")) {
         throw new Error(`Invalid cwd for exo agents create: ${cwdArg}`);
       }
-      const agent = await client.createTerminal(kind, cwdArg);
+      const agent = await client.createTerminal(normalizedKind, cwdArg);
       stdout.write(`${JSON.stringify(agent, null, 2)}\n`);
       return 0;
     }
@@ -601,7 +604,7 @@ export async function runCli(
       return 0;
     }
 
-    stderr.write(`Usage: exo agents [list | create <${AGENT_KIND_USAGE}> [cwd] | read <id> [--tail chars] [--full] [--raw] | send <id> <text> [--raw|--no-submit] | interrupt <id> [escape|ctrl-c] | terminate <id>]\n`);
+    stderr.write(`Usage: exo agents [list | create <${agentKindUsage(env)}> [cwd] | read <id> [--tail chars] [--full] [--raw] | send <id> <text> [--raw|--no-submit] | interrupt <id> [escape|ctrl-c] | terminate <id>]\n`);
     return 1;
   }
 
@@ -716,7 +719,7 @@ export async function runCli(
   if (command === "runtime" && subcommand === "context") {
     const kind = normalizeAgentKind(args[0]);
     if (!kind) {
-      throw new Error(AGENT_KIND_EXPECTED);
+      throw new Error(TERMINAL_KIND_EXPECTED);
     }
 
     const config = await resolveCliRuntimeConfig(env);
@@ -728,7 +731,7 @@ export async function runCli(
   if (command === "runtime" && subcommand === "launch-plan") {
     const kind = normalizeAgentKind(args[0]);
     if (!kind) {
-      throw new Error(AGENT_KIND_EXPECTED);
+      throw new Error(TERMINAL_KIND_EXPECTED);
     }
 
     const config = await resolveCliRuntimeConfig(env);
@@ -822,7 +825,7 @@ export async function runCli(
       const { values, positionals } = parseInlineOptions(args);
       const routineId = positionals[0];
       if (!routineId || (values["dry-run"] !== "1" && values.agent !== "1")) {
-        throw new Error(`Usage: exo routines run <routine-id> (--dry-run | --agent) [--harness ${AGENT_KIND_USAGE}] [--cwd <path>] [--no-submit]`);
+        throw new Error(`Usage: exo routines run <routine-id> (--dry-run | --agent) [--harness ${TERMINAL_KIND_USAGE}] [--cwd <path>] [--no-submit]`);
       }
       if (values.agent === "1") {
         const routine = await service.readRoutine(routineId);
@@ -831,7 +834,7 @@ export async function runCli(
         }
         const harness = normalizeAgentKind(values.harness ?? routine.harnessId);
         if (!harness) {
-          throw new Error(`Routine harness must be one of ${AGENT_KIND_USAGE}: ${values.harness ?? routine.harnessId}`);
+          throw new Error(`Routine harness must be one of ${TERMINAL_KIND_USAGE}: ${values.harness ?? routine.harnessId}`);
         }
         const agentHarness = agentHarnessRegistry.require(harness);
         assertRoutineAgentPolicy(routine, { harness: agentHarness });
@@ -888,7 +891,7 @@ export async function runCli(
   if (command === "launch") {
     const kind = normalizeAgentKind(subcommand);
     if (!kind) {
-      throw new Error(AGENT_KIND_EXPECTED);
+      throw new Error(TERMINAL_KIND_EXPECTED);
     }
 
     const config = await resolveCliRuntimeConfig(env);
@@ -934,19 +937,19 @@ export async function runCli(
       "  exo project-roots add <path>               Attach a project root (app)",
       "  exo project-roots remove <path>            Detach a project root (app)",
       "  exo terminals [list]                       List terminals (app)",
-      `  exo terminals create <${AGENT_KIND_USAGE}>  Create terminal (app)`,
+      `  exo terminals create <${TERMINAL_KIND_USAGE}>  Create terminal (app)`,
       "  exo terminals read <id> [--lines n]        Read bounded live terminal tail (app)",
       "  exo terminals transcript <id> [--tail n]   Read disk-backed terminal transcript (app)",
       "  exo terminals write <id> <text>            Write raw input to terminal (app)",
       "  exo terminals send <id> <text>             Send input plus Enter to terminal (app)",
       "  exo terminals reconnect <id>               Reattach Exo to a live tmux terminal (app)",
       "  exo agents [list]                          List live Exo agents (app)",
-      `  exo agents create <${AGENT_KIND_USAGE}>     Create Exo agent (app)`,
+      `  exo agents create <${agentKindUsage(env)}>     Create Exo agent (app)`,
       "  exo agents read <id> [--tail n] [--full] [--raw] Read agent transcript tail (app)",
       "  exo agents send <id> <text> [--raw|--no-submit] Send message to agent (app)",
       "  exo agents interrupt <id> [escape|ctrl-c]  Interrupt agent (app)",
       "  exo agents terminate <id>                  Terminate agent (app)",
-      `  exo launch <${AGENT_KIND_USAGE}> [cwd]`,
+      `  exo launch <${TERMINAL_KIND_USAGE}> [cwd]`,
       "  exo workspace status",
       "  exo workspace current",
       "  exo workspace list",
@@ -961,8 +964,8 @@ export async function runCli(
       "  exo integrations install <codex|claude|all> [--dry-run]",
       "  exo integrations test <codex|claude|all>",
       "  exo runtime status",
-      `  exo runtime context <${AGENT_KIND_USAGE}>`,
-      `  exo runtime launch-plan <${AGENT_KIND_USAGE}> [cwd]`,
+      `  exo runtime context <${TERMINAL_KIND_USAGE}>`,
+      `  exo runtime launch-plan <${TERMINAL_KIND_USAGE}> [cwd]`,
       "  exo runtime sync",
       "",
       "Developer source QA:",
@@ -1213,17 +1216,26 @@ function normalizeAgentKind(value?: string): ManagedAgentKind | null {
   return normalizeManagedAgentKind(value);
 }
 
+function normalizeAgentCreateKind(value: string | undefined, env: NodeJS.ProcessEnv): ManagedAgentKind | null {
+  return normalizeRegisteredAgentHarnessKindForSurface(value, { surface: "cli" }, env);
+}
+
+function agentKindUsage(env: NodeJS.ProcessEnv): string {
+  return formatRegisteredAgentHarnessUsage({ surface: "cli" }, env) || "(none)";
+}
+
 function isHelpFlag(value: string | undefined): boolean {
   return value === "--help" || value === "-h";
 }
 
-function formatAgentsHelp(): string {
+function formatAgentsHelp(env: NodeJS.ProcessEnv): string {
+  const usage = agentKindUsage(env);
   return [
-    `Usage: exo agents [list | create <${AGENT_KIND_USAGE}> [cwd] | read <id> [--tail chars] [--full] [--raw] | send <id> <text> [--raw|--no-submit] | interrupt <id> [escape|ctrl-c] | terminate <id>]`,
+    `Usage: exo agents [list | create <${usage}> [cwd] | read <id> [--tail chars] [--full] [--raw] | send <id> <text> [--raw|--no-submit] | interrupt <id> [escape|ctrl-c] | terminate <id>]`,
     "",
     "Commands:",
     "  list                                      List live Exo agents",
-    `  create <${AGENT_KIND_USAGE}> [cwd]        Create an Exo agent`,
+    `  create <${usage}> [cwd]        Create an Exo agent`,
     "  read <id> [--tail chars] [--full] [--raw] Read an agent transcript tail",
     "  send <id> <text> [--raw|--no-submit]     Send a semantic message, or raw terminal input with --raw",
     "  interrupt <id> [escape|ctrl-c]           Interrupt an agent",
@@ -1232,14 +1244,15 @@ function formatAgentsHelp(): string {
   ].join("\n");
 }
 
-function formatAgentsCreateHelp(): string {
+function formatAgentsCreateHelp(env: NodeJS.ProcessEnv): string {
+  const usage = agentKindUsage(env);
   return [
-    `Usage: exo agents create <${AGENT_KIND_USAGE}> [cwd]`,
+    `Usage: exo agents create <${usage}> [cwd]`,
     "",
     "Create an Exo-managed agent terminal in the running app.",
     "",
     "Arguments:",
-    `  ${AGENT_KIND_USAGE}                       Agent provider to launch`,
+    `  ${usage}                       Agent provider to launch`,
     "  cwd                                      Optional working directory for the agent",
     "",
   ].join("\n");

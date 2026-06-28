@@ -4,7 +4,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { EXO_COMMAND_ROUTES, type ExoCommandServerInfo, type ExoOpenPreviewResponse } from "@exo/core/command-protocol";
-import type { ManagedAgentKind } from "@exo/core/types";
 import { loadActiveWorkspaceSettings, workspaceEnvOverrides, workspaceSettingsToEnv } from "@exo/core/workspace-settings";
 
 export interface ExoAgent {
@@ -17,7 +16,7 @@ export interface ExoAgent {
   exitCode?: number;
 }
 
-export type ExoAgentKind = ManagedAgentKind;
+export type ExoAgentKind = string;
 
 export interface ExoAgentInputResult {
   ok: boolean;

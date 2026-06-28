@@ -4,6 +4,7 @@ import { LockKeyhole, ShieldAlert, ShieldCheck } from "lucide-react";
 
 import {
   buildOnboardingCapabilitySections,
+  buildOnboardingProfileReviews,
   onboardingCapabilityStatus,
   onboardingCapabilityTone,
 } from "../onboardingCapabilities";
@@ -83,6 +84,7 @@ export function OnboardingCapabilityReviewContent({
   onEnterWorkspace: () => void;
   sections: ReturnType<typeof buildOnboardingCapabilitySections>;
 }) {
+  const profileReviews = buildOnboardingProfileReviews(inventory);
   return (
     <>
       <h1 className="onboarding-card__title">Review capabilities</h1>
@@ -115,6 +117,26 @@ export function OnboardingCapabilityReviewContent({
         <div className="dialog-card__status dialog-card__status--warning" data-testid="onboarding-capability-errors">
           Some local plugin manifests need review in Plugin Manager.
         </div>
+      ) : null}
+      {profileReviews.length > 0 ? (
+        <section className="onboarding-section onboarding-section--summary" data-testid="onboarding-profile-apply-review">
+          <div className="dialog-field__label">Profile apply review</div>
+          {profileReviews.map((review) => (
+            <div className="onboarding-profile-review" key={review.id}>
+              <div className="onboarding-capability-row__title">
+                <span>{review.label}</span>
+                <strong>{review.plan?.apply.label ?? "Review unavailable"}</strong>
+              </div>
+              <div className="onboarding-capability-row__description">
+                {review.errorMessage
+                  ? `Profile payload needs review: ${review.errorMessage}`
+                  : review.plan
+                    ? `${review.plan.summary.totalActions} recommendations, ${review.plan.summary.readyPluginRecommendations} ready plugins, ${review.plan.apply.blockedBy.length} apply blockers. ${review.plan.apply.reason}`
+                    : `${review.status}. Profile payload is unavailable.`}
+              </div>
+            </div>
+          ))}
+        </section>
       ) : null}
       <div className="onboarding-capability-sections" data-testid="onboarding-capability-review">
         {sections.map((section) => (

@@ -7,8 +7,11 @@ import type { AgentHarness } from "../agent-harness";
 import {
   agentHarnessRegistry,
   AgentHarnessRegistry,
+  formatRegisteredAgentHarnessUsage,
+  normalizeRegisteredAgentHarnessKindForSurface,
   resolveRegisteredAgentHarnessDetection,
   resolveRegisteredAgentHarnesses,
+  resolveRegisteredAgentHarnessesForSurface,
   resolveRegisteredAgentLauncher,
   resolveRegisteredAgentLaunchers,
   validateRegisteredAgentHarnessLaunch,
@@ -248,6 +251,20 @@ describe("agent harness registry", () => {
     });
   });
 
+  it("derives CLI/MCP agent creation choices from registered visible harnesses", () => {
+    const env = { PATH: "/tmp/does-not-exist", SHELL: "/bin/zsh" };
+
+    expect(resolveRegisteredAgentHarnessesForSurface({ surface: "cli" }, env).map((harness) => harness.id)).toEqual([
+      "shell",
+      "claude",
+      "codex",
+      "pi",
+    ]);
+    expect(formatRegisteredAgentHarnessUsage({ surface: "mcp" }, env)).toBe("shell|claude|codex|pi");
+    expect(normalizeRegisteredAgentHarnessKindForSurface("codex", { surface: "cli" }, env)).toBe("codex");
+    expect(normalizeRegisteredAgentHarnessKindForSurface("hermes", { surface: "cli" }, env)).toBeNull();
+  });
+
   it("surfaces explicitly configured Hermes without making it a default launcher", () => {
     const tempRoot = mkdtempSync(path.join(os.tmpdir(), "exo-hermes-harness-"));
     const hermesCommand = path.join(tempRoot, "hermes");
@@ -267,6 +284,10 @@ describe("agent harness registry", () => {
         status: "configured",
         executablePath: hermesCommand,
       });
+      expect(formatRegisteredAgentHarnessUsage({ surface: "cli" }, {
+        PATH: "/usr/bin",
+        EXO_HERMES_COMMAND: hermesCommand,
+      })).toBe("shell|claude|codex|pi|hermes");
     } finally {
       rmSync(tempRoot, { recursive: true, force: true });
     }

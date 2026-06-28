@@ -6,21 +6,36 @@ export type GraphNodeKind = "note" | "tag" | "external" | "unresolved";
 export type GraphEdgeKind = "wikilink" | "markdownLink" | "hasTag";
 export type GraphEdgeResolution = "resolved" | "unresolved" | "external";
 export type GraphVisualizationHostSurface = "editorPane" | "webPreview";
+export type GraphVisualizationRenderMode = "2d" | "3d" | "custom";
+
+export const GRAPH_SNAPSHOT_VERSION: GraphSnapshotVersion = "0.1";
+export const GRAPH_NODE_KINDS = ["note", "tag", "external", "unresolved"] satisfies GraphNodeKind[];
+export const GRAPH_EDGE_KINDS = ["wikilink", "markdownLink", "hasTag"] satisfies GraphEdgeKind[];
 
 export interface GraphScope {
   workspaceRoot?: string;
-  noteRootIds: string[];
-  projectRootIds: string[];
-  paths: string[];
+  noteRootIds: readonly string[];
+  projectRootIds: readonly string[];
+  paths: readonly string[];
+}
+
+export interface GraphSnapshotSchema {
+  version: GraphSnapshotVersion;
+  nodeKinds: readonly GraphNodeKind[];
+  edgeKinds: readonly GraphEdgeKind[];
+  canonicalEdgeDirection: "outgoing";
+  backlinks: "derived";
 }
 
 export interface GraphSnapshot {
   version: GraphSnapshotVersion;
+  snapshotId: string;
   generatedAt: string;
+  schema: GraphSnapshotSchema;
   scope: GraphScope;
-  nodes: GraphNode[];
-  edges: GraphEdge[];
-  warnings: string[];
+  nodes: readonly GraphNode[];
+  edges: readonly GraphEdge[];
+  warnings: readonly string[];
 }
 
 export interface GraphNode {
@@ -54,14 +69,38 @@ export interface GraphEdgeMetadata {
   sourceFilePath?: string;
 }
 
+export interface GraphBacklink {
+  source: string;
+  target: string;
+  edgeId: string;
+  kind: GraphEdgeKind;
+  resolution: GraphEdgeResolution;
+}
+
+export interface GraphVisualizationDataContract {
+  snapshotVersion: GraphSnapshotVersion;
+  acceptedNodeKinds: readonly GraphNodeKind[];
+  acceptedEdgeKinds: readonly GraphEdgeKind[];
+}
+
+export interface GraphVisualizationSurfaceContribution {
+  hostSurface: GraphVisualizationHostSurface;
+  renderMode: GraphVisualizationRenderMode;
+  preferredPlacement: "toolDock" | "editorGrid" | "webPreview";
+}
+
 export interface GraphVisualizationDefinition {
   id: string;
   label: string;
   description: string;
+  data: GraphVisualizationDataContract;
+  surface: GraphVisualizationSurfaceContribution;
   graphDataVersion: GraphSnapshotVersion;
-  acceptedNodeKinds: GraphNodeKind[];
-  acceptedEdgeKinds: GraphEdgeKind[];
+  acceptedNodeKinds: readonly GraphNodeKind[];
+  acceptedEdgeKinds: readonly GraphEdgeKind[];
   hostSurface: GraphVisualizationHostSurface;
+  renderMode: GraphVisualizationRenderMode;
+  preferredPlacement: GraphVisualizationSurfaceContribution["preferredPlacement"];
   sourceCapabilityId?: string;
   sourcePluginId?: string;
 }
@@ -100,20 +139,50 @@ export function graphVisualizationFromCapability(capability: CapabilityMetadata)
   if (capability.kind !== "graphVisualization") {
     return null;
   }
-  const payload = capability.compatibility;
+  const payload = graphVisualizationPayload(capability);
   if (!isRecord(payload)) {
-    throw new Error(`Graph visualization capability ${capability.id} must define compatibility metadata.`);
+    throw new Error(`Graph visualization capability ${capability.id} must define compatibility.graphVisualization.`);
   }
+  const graphDataVersion = validateGraphDataVersion(optionalString(payload, "graphDataVersion") ?? optionalString(payload, "snapshotVersion") ?? "0.1");
+  const acceptedNodeKinds = validateNodeKinds(payload.acceptedNodeKinds);
+  const acceptedEdgeKinds = validateEdgeKinds(payload.acceptedEdgeKinds);
+  const hostSurface = validateHostSurface(optionalString(payload, "hostSurface") ?? "editorPane");
+  const renderMode = validateRenderMode(optionalString(payload, "renderMode") ?? "2d");
+  const preferredPlacement = validatePreferredPlacement(optionalString(payload, "preferredPlacement") ?? defaultPlacementForHostSurface(hostSurface));
   return {
     id: optionalString(payload, "id") ?? capability.id,
     label: optionalString(payload, "label") ?? capability.label,
     description: optionalString(payload, "description") ?? capability.description,
-    graphDataVersion: validateGraphDataVersion(optionalString(payload, "graphDataVersion") ?? "0.1"),
-    acceptedNodeKinds: validateNodeKinds(payload.acceptedNodeKinds),
-    acceptedEdgeKinds: validateEdgeKinds(payload.acceptedEdgeKinds),
-    hostSurface: validateHostSurface(optionalString(payload, "hostSurface") ?? "editorPane"),
+    data: {
+      snapshotVersion: graphDataVersion,
+      acceptedNodeKinds,
+      acceptedEdgeKinds,
+    },
+    surface: {
+      hostSurface,
+      renderMode,
+      preferredPlacement,
+    },
+    graphDataVersion,
+    acceptedNodeKinds,
+    acceptedEdgeKinds,
+    hostSurface,
+    renderMode,
+    preferredPlacement,
     sourceCapabilityId: capability.id,
   };
+}
+
+export function deriveGraphBacklinks(snapshot: GraphSnapshot): GraphBacklink[] {
+  return snapshot.edges
+    .map((edge) => ({
+      source: edge.target,
+      target: edge.source,
+      edgeId: edge.id,
+      kind: edge.kind,
+      resolution: edge.resolution,
+    }))
+    .sort((left, right) => `${left.source}:${left.target}:${left.edgeId}`.localeCompare(`${right.source}:${right.target}:${right.edgeId}`));
 }
 
 function matchesGraphVisualizationFilter(capability: CapabilityMetadata, filter: GraphVisualizationFilter): boolean {
@@ -138,7 +207,7 @@ function validateGraphDataVersion(value: string): GraphSnapshotVersion {
 
 function validateNodeKinds(input: unknown): GraphNodeKind[] {
   if (input === undefined) {
-    return ["note", "tag", "external", "unresolved"];
+    return [...GRAPH_NODE_KINDS];
   }
   if (!Array.isArray(input)) {
     throw new Error("Graph visualization acceptedNodeKinds must be an array.");
@@ -148,7 +217,7 @@ function validateNodeKinds(input: unknown): GraphNodeKind[] {
 
 function validateEdgeKinds(input: unknown): GraphEdgeKind[] {
   if (input === undefined) {
-    return ["wikilink", "markdownLink", "hasTag"];
+    return [...GRAPH_EDGE_KINDS];
   }
   if (!Array.isArray(input)) {
     throw new Error("Graph visualization acceptedEdgeKinds must be an array.");
@@ -184,6 +253,32 @@ function validateHostSurface(value: string): GraphVisualizationHostSurface {
     throw new Error(`Graph visualization hostSurface is unsupported: ${value}`);
   }
   return value;
+}
+
+function validateRenderMode(value: string): GraphVisualizationRenderMode {
+  if (value !== "2d" && value !== "3d" && value !== "custom") {
+    throw new Error(`Graph visualization renderMode is unsupported: ${value}`);
+  }
+  return value;
+}
+
+function validatePreferredPlacement(value: string): GraphVisualizationSurfaceContribution["preferredPlacement"] {
+  if (value !== "toolDock" && value !== "editorGrid" && value !== "webPreview") {
+    throw new Error(`Graph visualization preferredPlacement is unsupported: ${value}`);
+  }
+  return value;
+}
+
+function defaultPlacementForHostSurface(hostSurface: GraphVisualizationHostSurface): GraphVisualizationSurfaceContribution["preferredPlacement"] {
+  return hostSurface === "webPreview" ? "webPreview" : "editorGrid";
+}
+
+function graphVisualizationPayload(capability: CapabilityMetadata): unknown {
+  const compatibility = capability.compatibility;
+  if (!isRecord(compatibility)) {
+    return undefined;
+  }
+  return compatibility.graphVisualization ?? compatibility;
 }
 
 function optionalString(record: Record<string, unknown>, key: string): string | undefined {

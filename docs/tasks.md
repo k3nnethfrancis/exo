@@ -231,6 +231,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Add Plugin Config v0 core state: metadata-only plugin settings schemas, JSON-backed overrides, validation, reset, and inventory summaries without executing plugin code.
 - [x] Add Plugin Config desktop UI in Plugin Manager so trusted/enabled local plugins can edit reviewed settings without bloating Workspace Settings.
 - [x] Add typed tool surface descriptors for the right rail/tool dock so terminal launchers, harness launchers, Agent Config, Plugin Manager, side-pane controls, and future routine/graph plugin surfaces are described before renderer callback wiring.
+- [x] Sharpen the graph visualization plugin boundary with deterministic `GraphSnapshot` metadata, derived backlinks, nested `graphVisualization` compatibility payloads, graph-aware surface descriptor metadata, and focused contract docs.
 
 ## Next: Multi-Agent Coordination
 
@@ -287,7 +288,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Keep first-pass plugin manifests non-executable: no entrypoint loading, permission grants, UI contributions, CLI commands, or MCP tools.
 - [x] Add architecture/harness checks that discourage direct implementation imports outside the provider/harness facade path.
 - [x] Define concrete discovery locations for built-in, dev, user, and workspace plugin manifests in the desktop runtime.
-- [ ] Define concrete install/load directories and lifecycle rules for future executable plugins.
+- [x] Define concrete install/load directories and lifecycle rules for future executable plugins.
 - [x] Convert the current terminal rail into a general tool/plugin dock without moving terminal rendering, scrollback, reconnect, or diagnostics out of core.
 - [x] Add renderer surface descriptors for official/local tool actions: terminal launcher, harness launcher, agent config, routines, graph tools, and future plugin panels.
 - [x] Add core web viewer open/focus/close endpoints for URL/path/artifact preview; plugin outputs should call those endpoints rather than require a special WebView plugin API.
@@ -297,7 +298,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Add the first read-only Plugin Manager UI after manifests, trust, and permissions survived the metadata-only pass.
 - [x] Add Plugin Manager mutation flows for metadata-only local/developer plugins: trust, enable, and disable.
 - [x] Add plugin-owned settings/config core contracts after the metadata-only enablement path.
-- [ ] Add plugin-owned settings/config UI after the core settings contract has enough real plugin configuration to validate.
+- [x] Add plugin-owned settings/config UI after the core settings contract has enough real plugin configuration to validate.
 
 ## Later: Graph, Memory, Workcells, Training
 
@@ -315,11 +316,11 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 ## Later: Plugin Architecture
 
 - [x] Define plugin manifest shape and version policy.
-- [ ] Define plugin install/load locations.
+- [x] Define plugin install/load locations.
 - [x] Define plugin extension depths: app plugins, surface plugins, capability plugins, and routine/template plugins.
 - [ ] Define safe renderer panel extension points and core web viewer endpoint usage for plugin-produced local apps/artifacts.
 - [ ] Define command registration API.
-- [ ] Define settings API for plugin-owned state.
+- [x] Define settings API for plugin-owned state.
 - [ ] Define agent harness adapter API for Claude, Codex, Pi, Aider, Goose, OpenCode, and local/open-source agents.
 - [ ] Decide how plugins can add MCP tools or CLI commands under explicit permissions.
 - [x] Define initial capability permissions for workspace/notes/project reads and writes, terminal/agent launch, network access, and artifact writes.

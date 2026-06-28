@@ -83,6 +83,12 @@ describe("plugin inventory", () => {
       categoryLabel: "Routine templates",
       pluginId: "graph-health.plugin",
       pluginName: "Graph Health",
+      runtime: {
+        executableLoading: "disabled",
+        canLoadEntrypoints: false,
+        canGrantPermissions: false,
+        reason: expect.stringContaining("arbitrary plugin entrypoint execution is disabled"),
+      },
     });
     expect(find(inventory.items, "shoshin.profile")).toMatchObject({
       source: "localManifest",
