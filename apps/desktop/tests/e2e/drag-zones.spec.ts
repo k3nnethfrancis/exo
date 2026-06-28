@@ -68,6 +68,11 @@ async function getBoundingBox(page: Page, selector: string) {
   return box;
 }
 
+async function openRelatedNoteFromSidebar(page: Page) {
+  await page.getByTestId("sidebar").getByRole("button", { name: "related-note" }).click();
+  await expect(page.getByTestId("editor-title")).toHaveText("related-note");
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -165,9 +170,7 @@ test.describe("Drag editor tab over terminal pane", () => {
     const { page, cleanup } = await launchExoFixture();
 
     // Open a second note so we have a tab to drag
-    await page.getByTestId("inspector-toggle").click();
-    await page.getByTestId("backlinks-panel").getByText("Related Note").click();
-    await expect(page.getByTestId("editor-title")).toHaveText("related-note");
+    await openRelatedNoteFromSidebar(page);
 
     // Get the editor tab position (the "related-note" tab)
     const editorTabBox = await page.locator(".chrome-tab--active").first().boundingBox();
@@ -207,8 +210,7 @@ test.describe("Drag editor tab over terminal pane", () => {
     const { page, cleanup } = await launchExoFixture();
 
     // Open a second note
-    await page.getByTestId("inspector-toggle").click();
-    await page.getByTestId("backlinks-panel").getByText("Related Note").click();
+    await openRelatedNoteFromSidebar(page);
 
     const editorTabBox = await page.locator(".chrome-tab--active").first().boundingBox();
     const terminalCenter = await getCenter(page, ".pane-leaf--terminal");
@@ -237,8 +239,7 @@ test.describe("Drag within editor zone", () => {
     const { page, cleanup } = await launchExoFixture();
 
     // Open a second note so we have a tab to drag
-    await page.getByTestId("inspector-toggle").click();
-    await page.getByTestId("backlinks-panel").getByText("Related Note").click();
+    await openRelatedNoteFromSidebar(page);
 
     const editorTabBox = await page.locator(".chrome-tab--active").first().boundingBox();
     const editorBox = await getBoundingBox(page, ".pane-leaf--editor");
@@ -268,9 +269,7 @@ test.describe("Within-zone splits", () => {
     const { page, cleanup } = await launchExoFixture();
 
     // Open a second note so we have a tab to drag
-    await page.getByTestId("inspector-toggle").click();
-    await page.getByTestId("backlinks-panel").getByText("Related Note").click();
-    await expect(page.getByTestId("editor-title")).toHaveText("related-note");
+    await openRelatedNoteFromSidebar(page);
 
     // Verify we start with 1 editor pane
     const editorPanesBefore = await page.locator(".pane-leaf--editor").count();
@@ -607,8 +606,7 @@ test.describe("Post-drag app stability", () => {
     const { page, cleanup } = await launchExoFixture();
 
     // Open a second note
-    await page.getByTestId("inspector-toggle").click();
-    await page.getByTestId("backlinks-panel").getByText("Related Note").click();
+    await openRelatedNoteFromSidebar(page);
 
     const editorTabBox = await page.locator(".chrome-tab--active").first().boundingBox();
 
@@ -639,8 +637,7 @@ test.describe("Post-drag app stability", () => {
     const { page, cleanup } = await launchExoFixture();
 
     // Open a second note
-    await page.getByTestId("inspector-toggle").click();
-    await page.getByTestId("backlinks-panel").getByText("Related Note").click();
+    await openRelatedNoteFromSidebar(page);
 
     const editorTabBox = await page.locator(".chrome-tab--active").first().boundingBox();
 

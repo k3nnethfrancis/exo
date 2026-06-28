@@ -766,7 +766,7 @@ class GraphReferencesWidget extends WidgetType {
   private renderGroup(title: string, items: MarkdownGraphReferenceItem[], testId: string) {
     const group = document.createElement("div");
     group.className = "markdown-graph-references__group";
-    group.dataset.testid = `markdown-graph-${testId}`;
+    group.dataset.testid = `markdown-graph-${testId}-group`;
 
     const heading = document.createElement("div");
     heading.className = "markdown-graph-references__title";
