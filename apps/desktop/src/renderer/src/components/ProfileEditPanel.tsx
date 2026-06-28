@@ -6,6 +6,8 @@ export interface ProfileEditPanelProps {
   disabledReason: string;
   onBack: () => void;
   onCopy: () => void;
+  onOpenAgentConfigEditor?: () => void;
+  onOpenPluginManager?: () => void;
 }
 
 export interface ProfileEditPanelSection {
@@ -15,7 +17,15 @@ export interface ProfileEditPanelSection {
   rows: ProfileSettingsRow[];
 }
 
-export function ProfileEditPanel({ actionStatus, candidate, disabledReason, onBack, onCopy }: ProfileEditPanelProps) {
+export function ProfileEditPanel({
+  actionStatus,
+  candidate,
+  disabledReason,
+  onBack,
+  onCopy,
+  onOpenAgentConfigEditor,
+  onOpenPluginManager,
+}: ProfileEditPanelProps) {
   const sections = buildProfileEditPanelSections(candidate);
   const isSaving = actionStatus === "saving";
 
@@ -57,7 +67,13 @@ export function ProfileEditPanel({ actionStatus, candidate, disabledReason, onBa
 
       <div className="profile-settings__list" data-testid="profile-edit-sections">
         {sections.map((section) => (
-          <ProfileEditPanelSectionView disabledReason={disabledReason} key={section.id} section={section} />
+          <ProfileEditPanelSectionView
+            disabledReason={disabledReason}
+            key={section.id}
+            onOpenAgentConfigEditor={onOpenAgentConfigEditor}
+            onOpenPluginManager={onOpenPluginManager}
+            section={section}
+          />
         ))}
       </div>
     </section>
@@ -96,15 +112,33 @@ function editSection(section: ProfileSettingsSectionGroup): ProfileEditPanelSect
 
 function ProfileEditPanelSectionView({
   disabledReason,
+  onOpenAgentConfigEditor,
+  onOpenPluginManager,
   section,
 }: {
   disabledReason: string;
+  onOpenAgentConfigEditor?: () => void;
+  onOpenPluginManager?: () => void;
   section: ProfileEditPanelSection;
 }) {
+  const action = sectionAction(section, { onOpenAgentConfigEditor, onOpenPluginManager });
   return (
-    <fieldset className="profile-settings__candidate" data-testid={`profile-edit-section-${section.id}`} disabled title={disabledReason}>
+    <fieldset className="profile-settings__candidate" data-testid={`profile-edit-section-${section.id}`} title={action.enabled ? action.title : disabledReason}>
       <legend className="dialog-field__label">{section.label}</legend>
       <div className="profile-settings__muted">{section.description}</div>
+      <div className="profile-settings__component-toolbar">
+        <span>{action.detail}</span>
+        <button
+          className="toolbar-button"
+          data-testid={`profile-edit-action-${section.id}`}
+          disabled={!action.enabled}
+          onClick={action.onClick}
+          title={action.enabled ? action.title : disabledReason}
+          type="button"
+        >
+          {action.label}
+        </button>
+      </div>
       <div className="profile-settings__grid">
         {section.rows.map((entry) => (
           <label className="profile-settings__metric" data-testid={`profile-edit-row-${section.id}-${testIdPart(entry.label)}`} key={`${entry.label}:${entry.value}`}>
@@ -115,6 +149,53 @@ function ProfileEditPanelSectionView({
       </div>
     </fieldset>
   );
+}
+
+function sectionAction(
+  section: ProfileEditPanelSection,
+  handlers: {
+    onOpenAgentConfigEditor?: () => void;
+    onOpenPluginManager?: () => void;
+  },
+): {
+  label: string;
+  detail: string;
+  title: string;
+  enabled: boolean;
+  onClick?: () => void;
+} {
+  if (section.id === "recommendedPlugins") {
+    return {
+      label: "Open Plugin Manager",
+      detail: "Plugin enablement, trust, setup, and configuration live in Plugin Manager.",
+      title: "Open Plugin Manager for recommended plugin setup.",
+      enabled: Boolean(handlers.onOpenPluginManager),
+      onClick: handlers.onOpenPluginManager,
+    };
+  }
+  if (section.id === "templates" || section.id === "skills") {
+    return {
+      label: "Open Agent Config",
+      detail: "Agent instructions and skills use the specialized Agent Config Editor.",
+      title: "Open Agent Config Editor for instruction files and skills.",
+      enabled: Boolean(handlers.onOpenAgentConfigEditor),
+      onClick: handlers.onOpenAgentConfigEditor,
+    };
+  }
+  if (section.id === "metadata" || section.id === "planSummary" || section.id === "blockers") {
+    return {
+      label: "Review only",
+      detail: "This section explains the active profile and planned effects.",
+      title: "This section is read-only in the current profile pass.",
+      enabled: false,
+    };
+  }
+  return {
+    label: "Edit later",
+    detail: "Direct profile component editing waits for the staged profile apply and permission model.",
+    title: "Direct editing is not wired in this pass.",
+    enabled: false,
+  };
 }
 
 function compactRows(rows: Array<ProfileSettingsRow | null>): ProfileSettingsRow[] {

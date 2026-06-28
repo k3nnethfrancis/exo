@@ -1263,6 +1263,8 @@ test("opens workspace settings from the sidebar", async () => {
   await expect(page.getByTestId("profile-edit-panel")).toContainText("Apply blockers and warnings");
   await expect(page.getByTestId("profile-edit-panel")).toContainText("Recommended plugins");
   await expect(page.getByTestId("profile-edit-panel")).toContainText("Review and output policies");
+  await expect(page.getByTestId("profile-edit-panel")).toContainText("Open Plugin Manager");
+  await expect(page.getByTestId("profile-edit-panel")).toContainText("Open Agent Config");
   await page.screenshot({ path: "/tmp/exo-profile-plan-preview.png", fullPage: false });
   await page.getByTestId("profile-edit-copy").click();
   await expect(page.getByTestId("workspace-settings-profile")).toContainText("Profile state saved.");

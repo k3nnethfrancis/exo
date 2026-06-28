@@ -525,6 +525,11 @@ export function App() {
     void agentInstructionEditor.load();
   }
 
+  function openPluginManagerFromSettings() {
+    setWorkspaceSettingsDialog(null);
+    setPluginManagerOpen(true);
+  }
+
   function focusEditorPane(leafId: PaneNodeId) {
     editorActions.focusLeaf(leafId);
     const leaf = findNode(editorTree, (n) => n.id === leafId) as PaneLeaf | undefined;
@@ -1294,6 +1299,8 @@ export function App() {
           structuralDraftKey={workspaceSettingsStructuralDraftKey}
           onChooseFolder={(target) => void workspaceSettingsController.chooseFolder(target)}
           onClose={workspaceSettingsController.closeDialog}
+          onOpenAgentConfigEditor={() => void openAgentContextManager()}
+          onOpenPluginManager={openPluginManagerFromSettings}
           onOpenWorkspaceSwitcher={() => {
             setWorkspaceSettingsDialog(null);
             void workspaceBootstrap.openWorkspaceSwitcher();

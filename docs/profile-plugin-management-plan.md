@@ -32,12 +32,14 @@ Already implemented:
 - Exograph Baseline exists as a bundled metadata-only profile plugin at `plugins/exograph-baseline/exo.plugin.json`.
 - Settings uses vertical navigation and includes a workspace Profile page plus a read-only Profile Customize screen.
 - Profile Settings now asks the main process for the canonical `ProfilePlanPreview` so the UI can show real profile actions, warnings, blockers, and future effects without importing Node-only core planning code into the renderer.
+- Profile Customize now reads as a component edit hub: recommended plugins link to Plugin Manager, instruction/templates/skills link to Agent Config, and direct profile writes remain disabled until the staged apply/permission model exists.
 - The bottom status bar shows profile review state and changed notes state.
 - Changed notes open a read-only modal listing note-root git changes with path, status, root label, changed line when known, and an open-note action.
 
 Gaps:
 
 - Profile component edits are centralized visually but not yet editable.
+- Profile component hub links to existing specialized managers, but it does not yet provide inline editors for profile JSON, instruction files, skills, routines, schemas, or graph views.
 - Templatize, profile apply, permission review, profile-linked file writes, and AI/headless harness calls are not implemented.
 - Profile modified/review state is visible, but there is no diff against profile-owned component refs yet.
 - Notes repo git state is visible, but there are no inline diffs, stage/commit actions, or provenance links yet.
@@ -126,6 +128,8 @@ The first version can edit only JSON-backed profile state and link out to specia
 - Agent Config Editor for `AGENTS.md` / `CLAUDE.md`
 - Plugin Manager for plugin lifecycle/config
 - Routine UI/CLI for routine instantiation
+
+Current implementation keeps this screen read-only but already uses that routing model: plugin recommendations open Plugin Manager, and instruction/template/skill sections open Agent Config Editor. Inline profile field editing remains behind the staged apply and permission model.
 
 ### Status Bar Indicators
 
@@ -256,6 +260,7 @@ Completed in this phase:
 - changed note-root git state appears as a bottom-bar affordance and opens a read-only changed-notes modal
 - the changed-notes modal can open changed notes and carries future diff/commit copy without exposing commit actions yet
 - Profile Settings and Customize show backend profile plan sections: recommended plugins, templates/config refs, skills, schemas, routines, graph/analyzer defaults, policies, warnings, blockers, and apply-safety state.
+- Profile Customize links plugin recommendations to Plugin Manager and agent instruction/template/skill components to Agent Config Editor while keeping direct profile writes disabled.
 - Top-level Review and Copy actions use safe existing behavior: review opens the read-only plan view, and copy creates a workspace-local metadata profile. Apply, Save draft, and Templatize remain disabled until explicit permissioned flows exist.
 
 Verification:

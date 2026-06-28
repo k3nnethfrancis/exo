@@ -241,6 +241,7 @@ This is the active task tracker for Exo. It is intentionally not a history file;
 - [x] Refactor Workspace Settings from horizontal tabs to vertical settings navigation and add a Profile page.
 - [x] Add a read-only Profile Settings page showing active profile, profile candidates, recommended plugins, schemas, context/instruction templates, skills, routines, graph views, review/output policies, and disabled write actions with reasons.
 - [x] Add a read-only Profile Customize/Edit screen shell that centralizes profile metadata, recommended plugins, instruction templates, skills, schemas, routines, graph views, analyzers, and policies while keeping templatize/save disabled.
+- [x] Route Profile Customize component sections to existing specialized managers: recommended plugins open Plugin Manager, and instructions/templates/skills open Agent Config Editor while inline writes remain disabled.
 - [x] Add a Profile copy/customize path that creates trusted workspace-local profile metadata, selects it, and marks review required without mutating official profile packages or writing user instruction files.
 - [x] Improve Plugin Manager into a quick management surface with active/disabled/untrusted/missing setup/permissions-needed buckets, inline mutable actions, same-category alternatives, and clear locks for official/core rows.
 - [x] Add Plugin Manager baseline/layer orientation so users can distinguish always-on Exograph core, official plugins, local plugins, developer plugins, and which local plugins can be swapped or removed.

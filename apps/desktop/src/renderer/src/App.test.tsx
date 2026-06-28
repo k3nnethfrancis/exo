@@ -276,11 +276,17 @@ describe("profile settings model", () => {
         disabledReason={PROFILE_SETTINGS_DISABLED_REASON}
         onBack={() => {}}
         onCopy={() => {}}
+        onOpenAgentConfigEditor={() => {}}
+        onOpenPluginManager={() => {}}
       />,
     );
     expect(markup).toContain("Customize profile");
     expect(markup).toContain("Templatize");
     expect(markup).toContain("Create a trusted workspace-local metadata profile copy");
+    expect(markup).toContain("Open Plugin Manager");
+    expect(markup).toContain("Open Agent Config");
+    expect(markup).toContain("Plugin enablement, trust, setup, and configuration live in Plugin Manager.");
+    expect(markup).toContain("Agent instructions and skills use the specialized Agent Config Editor.");
     expect(markup).toContain("Plan review");
     expect(markup).toContain("Apply blockers and warnings");
     expect(markup).toContain("disabled=");

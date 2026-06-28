@@ -15,6 +15,8 @@ interface WorkspaceSettingsDialogProps {
   indexStatus: IndexStatus | null;
   onChooseFolder: (target: "workspaceRoot" | "defaultTerminalCwd" | "projectRoot") => void | Promise<void>;
   onClose: () => void;
+  onOpenAgentConfigEditor: () => void;
+  onOpenPluginManager: () => void;
   onOpenWorkspaceSwitcher: () => void | Promise<void>;
   onRunIndexUpdate: (kind: Exclude<IndexBusyState, null>) => void | Promise<void>;
   onSave: (settingsDialog: WorkspaceSettingsDialogState, options: { includeStructural: boolean }) => void | Promise<void>;
@@ -36,6 +38,8 @@ export function WorkspaceSettingsDialog({
   indexStatus,
   onChooseFolder,
   onClose,
+  onOpenAgentConfigEditor,
+  onOpenPluginManager,
   onOpenWorkspaceSwitcher,
   onRunIndexUpdate,
   onSave,
@@ -89,7 +93,12 @@ export function WorkspaceSettingsDialog({
             {settings.section === "workspace" ? (
               <WorkspaceSection settings={settings} setSettings={setSettings} onChooseFolder={onChooseFolder} onOpenWorkspaceSwitcher={onOpenWorkspaceSwitcher} />
             ) : null}
-            {settings.section === "profile" ? <ProfileSettingsSection /> : null}
+            {settings.section === "profile" ? (
+              <ProfileSettingsSection
+                onOpenAgentConfigEditor={onOpenAgentConfigEditor}
+                onOpenPluginManager={onOpenPluginManager}
+              />
+            ) : null}
             {settings.section === "index" ? (
               <IndexSection indexBusy={indexBusy} indexStatus={indexStatus} settings={settings} setSettings={setSettings} onRunIndexUpdate={onRunIndexUpdate} />
             ) : null}

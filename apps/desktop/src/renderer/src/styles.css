@@ -3044,6 +3044,24 @@ select.dialog-card__input {
   gap: 8px;
 }
 
+.profile-settings__component-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--surface-border);
+  border-radius: 8px;
+  background: var(--surface-3);
+}
+
+.profile-settings__component-toolbar span {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 .profile-settings__candidate-header,
 .profile-settings__row,
 .profile-settings__meta,
@@ -3165,6 +3183,10 @@ select.dialog-card__input {
 
   .profile-settings__actions {
     justify-content: flex-start;
+  }
+
+  .profile-settings__component-toolbar {
+    display: grid;
   }
 }
 

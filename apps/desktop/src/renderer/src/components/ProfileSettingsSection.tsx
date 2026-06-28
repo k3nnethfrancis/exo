@@ -12,7 +12,13 @@ import { ProfileEditPanel } from "./ProfileEditPanel";
 
 type ProfileInventoryLoadState = "loading" | "ready" | "error";
 
-export function ProfileSettingsSection() {
+export function ProfileSettingsSection({
+  onOpenAgentConfigEditor,
+  onOpenPluginManager,
+}: {
+  onOpenAgentConfigEditor?: () => void;
+  onOpenPluginManager?: () => void;
+} = {}) {
   const [inventory, setInventory] = useState<PluginInventory | null>(null);
   const [profileState, setProfileState] = useState<ProfileStateStore | null>(null);
   const [loadState, setLoadState] = useState<ProfileInventoryLoadState>("loading");
@@ -57,6 +63,8 @@ export function ProfileSettingsSection() {
         disabledReason={PROFILE_SETTINGS_DISABLED_REASON}
         onBack={() => setEditingCandidate(null)}
         onCopy={() => void copyProfile(editingCandidate)}
+        onOpenAgentConfigEditor={onOpenAgentConfigEditor}
+        onOpenPluginManager={onOpenPluginManager}
       />
     );
   }
