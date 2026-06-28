@@ -1,4 +1,4 @@
-import type { DesktopApi, IndexSyncStateEvent, TerminalDataEvent, TerminalSessionInfo } from "./api";
+import type { DesktopApi, IndexSyncStateEvent, TerminalDataEvent, TerminalSessionInfo, WorkspaceSettingsSection } from "./api";
 
 type WorkspaceApi = DesktopApi["workspace"];
 type NotesApi = DesktopApi["notes"];
@@ -26,6 +26,11 @@ export interface DesktopInvokeHandlers {
   "workspace:get-agent-instruction-config": WorkspaceApi["getAgentInstructionConfig"];
   "workspace:list-agent-harnesses": WorkspaceApi["listAgentHarnesses"];
   "workspace:list-plugin-inventory": WorkspaceApi["listPluginInventory"];
+  "workspace:get-profile-state": WorkspaceApi["getProfileState"];
+  "workspace:set-active-profile": WorkspaceApi["setActiveProfile"];
+  "workspace:clear-active-profile": WorkspaceApi["clearActiveProfile"];
+  "workspace:set-profile-auto-update": WorkspaceApi["setProfileAutoUpdate"];
+  "workspace:mark-profile-review-required": WorkspaceApi["markProfileReviewRequired"];
   "workspace:enable-plugin": WorkspaceApi["enablePlugin"];
   "workspace:disable-plugin": WorkspaceApi["disablePlugin"];
   "workspace:trust-plugin": WorkspaceApi["trustPlugin"];
@@ -78,7 +83,7 @@ export interface DesktopEventPayloads {
   "command:open-preview": { url: string };
   "command:focus-preview": undefined;
   "command:close-preview": undefined;
-  "command:open-settings": { section: "workspace" | "index" | "appearance" | "terminal" };
+  "command:open-settings": { section: WorkspaceSettingsSection };
   "terminal:created": TerminalSessionInfo;
   "terminal:data": TerminalDataEvent;
   "terminal:exit": { id: string; exitCode?: number };

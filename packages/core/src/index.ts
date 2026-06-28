@@ -13,6 +13,7 @@ export * from "./plugin-state";
 export * from "./plugin-permissions";
 export * from "./profile";
 export * from "./profile-plan";
+export * from "./profile-state";
 export * from "./graph";
 export * from "./graph-snapshot";
 export * from "./runtime";

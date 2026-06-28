@@ -2762,6 +2762,7 @@ select.dialog-card__input {
 .profile-settings__notice,
 .profile-settings__summary,
 .profile-settings__candidate,
+.profile-settings__toggle,
 .profile-settings__detected,
 .profile-settings__errors {
   display: grid;
@@ -2807,6 +2808,35 @@ select.dialog-card__input {
 .profile-settings__actions {
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.profile-settings__toggle {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  color: var(--text);
+}
+
+.profile-settings__toggle input {
+  margin-top: 2px;
+}
+
+.profile-settings__toggle span {
+  display: grid;
+  gap: 3px;
+}
+
+.profile-settings__toggle small {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.profile-settings__candidate-actions,
+.profile-settings__row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
   gap: 8px;
 }

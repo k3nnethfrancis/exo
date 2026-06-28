@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { PluginInventory } from "@exo/core";
+import type { PluginInventory, ProfileStateStore } from "@exo/core";
 
 import {
   buildProfileSettingsModel,
@@ -12,17 +12,24 @@ type ProfileInventoryLoadState = "loading" | "ready" | "error";
 
 export function ProfileSettingsSection() {
   const [inventory, setInventory] = useState<PluginInventory | null>(null);
+  const [profileState, setProfileState] = useState<ProfileStateStore | null>(null);
   const [loadState, setLoadState] = useState<ProfileInventoryLoadState>("loading");
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [actionStatus, setActionStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    window.exo.workspace.listPluginInventory()
-      .then((nextInventory) => {
+    Promise.all([
+      window.exo.workspace.listPluginInventory(),
+      window.exo.workspace.getProfileState(),
+    ])
+      .then(([nextInventory, nextProfileState]) => {
         if (cancelled) {
           return;
         }
         setInventory(nextInventory);
+        setProfileState(nextProfileState);
         setLoadState("ready");
       })
       .catch((error) => {
@@ -37,19 +44,53 @@ export function ProfileSettingsSection() {
     };
   }, []);
 
-  const model = useMemo(() => buildProfileSettingsModel(inventory), [inventory]);
+  const model = useMemo(() => buildProfileSettingsModel(inventory, profileState), [inventory, profileState]);
 
-  return <ProfileSettingsContent loadError={loadError} loadState={loadState} model={model} />;
+  async function runProfileAction(action: () => Promise<ProfileStateStore>) {
+    setActionStatus("saving");
+    setActionError(null);
+    try {
+      const nextState = await action();
+      setProfileState(nextState);
+      setActionStatus("saved");
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Unable to update profile state.");
+      setActionStatus("error");
+    }
+  }
+
+  return (
+    <ProfileSettingsContent
+      actionError={actionError}
+      actionStatus={actionStatus}
+      loadError={loadError}
+      loadState={loadState}
+      model={model}
+      onClearActive={() => void runProfileAction(() => window.exo.workspace.clearActiveProfile())}
+      onSetActive={(candidate) => void runProfileAction(() => window.exo.workspace.setActiveProfile(candidate.identity))}
+      onToggleAutoUpdate={(autoUpdate) => void runProfileAction(() => window.exo.workspace.setProfileAutoUpdate({ autoUpdate }))}
+    />
+  );
 }
 
 export function ProfileSettingsContent({
+  actionError,
+  actionStatus,
   loadError,
   loadState,
   model,
+  onClearActive,
+  onSetActive,
+  onToggleAutoUpdate,
 }: {
+  actionError: string | null;
+  actionStatus: "idle" | "saving" | "saved" | "error";
   loadError: string | null;
   loadState: ProfileInventoryLoadState;
   model: ProfileSettingsModel;
+  onClearActive: () => void;
+  onSetActive: (candidate: ProfileSettingsCandidate) => void;
+  onToggleAutoUpdate: (autoUpdate: boolean) => void;
 }) {
   return (
     <section className="profile-settings" data-testid="workspace-settings-profile">
@@ -63,10 +104,14 @@ export function ProfileSettingsContent({
           <div className="dialog-field__label">Active profile</div>
           <div className="profile-settings__active">{model.activeProfileLabel}</div>
           <div className="profile-settings__muted">{model.activeProfileDetail}</div>
+          {model.updatedAt ? <div className="profile-settings__muted">Updated {new Date(model.updatedAt).toLocaleString()}</div> : null}
         </div>
         <div className="profile-settings__actions" aria-label="Disabled profile actions">
           <button className="toolbar-button" disabled title={PROFILE_SETTINGS_DISABLED_REASON} type="button">
             Review change
+          </button>
+          <button className="toolbar-button" disabled={!model.activeProfile || actionStatus === "saving"} onClick={onClearActive} type="button">
+            Clear active
           </button>
           <button className="toolbar-button" disabled title={PROFILE_SETTINGS_DISABLED_REASON} type="button">
             Apply
@@ -76,6 +121,23 @@ export function ProfileSettingsContent({
           </button>
         </div>
       </div>
+
+      <label className="profile-settings__toggle">
+        <input
+          checked={model.autoUpdate}
+          disabled={actionStatus === "saving"}
+          onChange={(event) => onToggleAutoUpdate(event.target.checked)}
+          type="checkbox"
+        />
+        <span>
+          <strong>Auto-update profile metadata on safe state changes</strong>
+          <small>Records profile drift and config-linked changes only. It does not write instruction files, install skills, grant permissions, or schedule routines.</small>
+        </span>
+      </label>
+      {model.reviewRequired ? <div className="dialog-card__status">Profile review required before future apply actions.</div> : null}
+      {actionStatus === "saving" ? <div className="dialog-card__status">Saving profile state...</div> : null}
+      {actionStatus === "saved" ? <div className="dialog-card__status">Profile state saved.</div> : null}
+      {actionStatus === "error" ? <div className="dialog-card__status dialog-card__status--error">{actionError ?? "Unable to update profile state."}</div> : null}
 
       {loadState === "loading" ? <div className="dialog-card__status">Loading plugin inventory...</div> : null}
       {loadState === "error" ? <div className="dialog-card__status dialog-card__status--error">{loadError ?? "Unable to load plugin inventory."}</div> : null}
@@ -89,7 +151,7 @@ export function ProfileSettingsContent({
           <span className="profile-settings__pill">{model.baselineCandidate?.statusLabel ?? "Not detected"}</span>
         </div>
         {model.baselineCandidate ? (
-          <ProfileCandidateDetails candidate={model.baselineCandidate} />
+          <ProfileCandidateDetails actionStatus={actionStatus} candidate={model.baselineCandidate} onSetActive={onSetActive} />
         ) : (
           <div className="profile-settings__muted">
             Exograph Baseline is expected as a bundled metadata-only profile. It was not present in the loaded inventory.
@@ -102,7 +164,7 @@ export function ProfileSettingsContent({
         {model.detectedProfiles.length > 0 ? (
           <div className="profile-settings__list">
             {model.detectedProfiles.map((candidate) => (
-              <ProfileCandidateSummary candidate={candidate} key={candidate.id} />
+              <ProfileCandidateSummary actionStatus={actionStatus} candidate={candidate} key={candidate.id} onSetActive={onSetActive} />
             ))}
           </div>
         ) : (
@@ -122,22 +184,48 @@ export function ProfileSettingsContent({
   );
 }
 
-function ProfileCandidateSummary({ candidate }: { candidate: ProfileSettingsCandidate }) {
+function ProfileCandidateSummary({
+  actionStatus,
+  candidate,
+  onSetActive,
+}: {
+  actionStatus: "idle" | "saving" | "saved" | "error";
+  candidate: ProfileSettingsCandidate;
+  onSetActive: (candidate: ProfileSettingsCandidate) => void;
+}) {
   return (
     <div className="profile-settings__row">
       <div>
         <div className="profile-settings__row-title">{candidate.label}</div>
         <div className="profile-settings__muted">{candidate.description}</div>
       </div>
-      <span className="profile-settings__pill">{candidate.statusLabel}</span>
+      <div className="profile-settings__row-actions">
+        <span className="profile-settings__pill">{candidate.isActive ? "Active" : candidate.statusLabel}</span>
+        <button className="toolbar-button" disabled={candidate.isActive || actionStatus === "saving"} onClick={() => onSetActive(candidate)} type="button">
+          {candidate.isActive ? "Selected" : "Set active"}
+        </button>
+      </div>
     </div>
   );
 }
 
-function ProfileCandidateDetails({ candidate }: { candidate: ProfileSettingsCandidate }) {
+function ProfileCandidateDetails({
+  actionStatus,
+  candidate,
+  onSetActive,
+}: {
+  actionStatus: "idle" | "saving" | "saved" | "error";
+  candidate: ProfileSettingsCandidate;
+  onSetActive: (candidate: ProfileSettingsCandidate) => void;
+}) {
   return (
     <div className="profile-settings__details">
       <div className="profile-settings__muted">{candidate.description}</div>
+      <div className="profile-settings__candidate-actions">
+        <button className="toolbar-button" disabled={candidate.isActive || actionStatus === "saving"} onClick={() => onSetActive(candidate)} type="button">
+          {candidate.isActive ? "Active profile" : "Set active profile"}
+        </button>
+      </div>
       <div className="profile-settings__meta">
         <span>{candidate.sourceLabel}</span>
         {candidate.pluginName ? <span>{candidate.pluginName}</span> : null}

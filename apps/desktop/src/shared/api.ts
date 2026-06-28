@@ -5,6 +5,7 @@ import type {
   IndexSyncResult,
   IndexStatus,
   AgentHarnessDetection,
+  ActiveProfileIdentity,
   ManagedAgentKind,
   NoteDocument,
   NoteKnowledge,
@@ -15,6 +16,7 @@ import type {
   ResolvedPluginSettings,
   SearchResult,
   TreeNode,
+  ProfileStateStore,
   WorkspaceModel,
   WorkspaceSettings,
   WorkspaceSearchResults,
@@ -287,6 +289,11 @@ export interface DesktopApi {
     getAgentInstructionConfig: () => Promise<AgentInstructionConfig>;
     listAgentHarnesses: () => Promise<AgentHarnessDetection[]>;
     listPluginInventory: () => Promise<PluginInventory>;
+    getProfileState: () => Promise<ProfileStateStore>;
+    setActiveProfile: (input: ActiveProfileIdentity) => Promise<ProfileStateStore>;
+    clearActiveProfile: () => Promise<ProfileStateStore>;
+    setProfileAutoUpdate: (input: { autoUpdate: boolean }) => Promise<ProfileStateStore>;
+    markProfileReviewRequired: (input: { reviewRequired: boolean }) => Promise<ProfileStateStore>;
     enablePlugin: (input: WorkspacePluginActionInput) => Promise<PluginInventory>;
     disablePlugin: (input: WorkspacePluginActionInput) => Promise<PluginInventory>;
     trustPlugin: (input: WorkspacePluginActionInput) => Promise<PluginInventory>;

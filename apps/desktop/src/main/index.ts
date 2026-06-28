@@ -15,6 +15,7 @@ import {
   discoverManagedPlugins,
   readIndexDocument,
   readManagedPluginSettings,
+  readProfileStateStore,
   readWorkspaceDocument,
   renameWorkspacePath,
   resetManagedPluginSettings,
@@ -24,9 +25,15 @@ import {
   searchIndex,
   searchNotes,
   searchWorkspace,
+  clearActiveProfile,
+  markProfileReviewRequired,
+  setActiveProfile,
+  setProfileAutoUpdate,
   updateManagedPluginSettings,
+  writeProfileStateStore,
   type DiscoveredPlugin,
   type ManagedAgentKind,
+  type ActiveProfileIdentity,
   type PluginStateAction,
   type WorkspaceModel,
   type WorkspaceSettings,
@@ -349,6 +356,11 @@ function registerIpcHandlers() {
     listTree: listRootTree,
     listWorkspaces: () => workspaceSettingsStore.listWorkspaces(workspaceSettings),
     readAgentSkillFile: (skillId, relativePath) => agentSkillsService.readSkillFile(skillId, relativePath),
+    getProfileState: () => readWorkspaceProfileState(),
+    setActiveProfile: (input) => setWorkspaceActiveProfile(input),
+    clearActiveProfile: () => clearWorkspaceActiveProfile(),
+    setProfileAutoUpdate: (input) => setWorkspaceProfileAutoUpdate(input.autoUpdate),
+    markProfileReviewRequired: (input) => markWorkspaceProfileReviewRequired(input.reviewRequired),
     readNote: readWorkspaceDocument,
     renamePath: renameWorkspacePath,
     resolveTarget: (sourceFilePath, target) => workspaceNotesService.resolveTarget(sourceFilePath, target),
@@ -440,6 +452,46 @@ async function resetPluginSettings(input: WorkspacePluginActionInput) {
     schema,
     inventory: await readPluginInventory(),
   };
+}
+
+function profileRuntimeRoot(): string {
+  return terminalManager.getRuntimeConfig().runtimeRoot;
+}
+
+function profileStateNow(): string {
+  return new Date().toISOString();
+}
+
+async function readWorkspaceProfileState() {
+  return readProfileStateStore(profileRuntimeRoot());
+}
+
+async function setWorkspaceActiveProfile(input: ActiveProfileIdentity) {
+  const store = await readWorkspaceProfileState();
+  const nextStore = setActiveProfile(store, input, profileStateNow());
+  await writeProfileStateStore(profileRuntimeRoot(), nextStore);
+  return nextStore;
+}
+
+async function clearWorkspaceActiveProfile() {
+  const store = await readWorkspaceProfileState();
+  const nextStore = clearActiveProfile(store, profileStateNow());
+  await writeProfileStateStore(profileRuntimeRoot(), nextStore);
+  return nextStore;
+}
+
+async function setWorkspaceProfileAutoUpdate(autoUpdate: boolean) {
+  const store = await readWorkspaceProfileState();
+  const nextStore = setProfileAutoUpdate(store, autoUpdate, profileStateNow());
+  await writeProfileStateStore(profileRuntimeRoot(), nextStore);
+  return nextStore;
+}
+
+async function markWorkspaceProfileReviewRequired(reviewRequired: boolean) {
+  const store = await readWorkspaceProfileState();
+  const nextStore = markProfileReviewRequired(store, reviewRequired, profileStateNow());
+  await writeProfileStateStore(profileRuntimeRoot(), nextStore);
+  return nextStore;
 }
 
 function pluginSettingsOptions(input: WorkspacePluginActionInput) {

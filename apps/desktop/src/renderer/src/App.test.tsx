@@ -114,7 +114,7 @@ describe("workspace settings footer copy", () => {
 });
 
 describe("profile settings model", () => {
-  it("shows active profile state as unwired and surfaces Exograph Baseline as the baseline candidate", () => {
+  it("surfaces Exograph Baseline as the baseline candidate before an active profile is selected", () => {
     const baseline: PluginInventoryItem = {
       ...pluginInventoryItem("exograph-baseline.profile", "Exograph Baseline", "profile", "Profiles", "bundled"),
       pluginId: "exograph-baseline.plugin",
@@ -141,17 +141,51 @@ describe("profile settings model", () => {
       pluginInventoryItem("qmd", "QMD advanced search", "searchProvider", "Search providers", "bundled"),
     ]));
 
-    expect(model.activeProfileLabel).toBe("Not wired yet");
+    expect(model.activeProfileLabel).toBe("No active profile");
     expect(model.baselineCandidate?.label).toBe("Exograph Baseline");
     expect(model.baselineCandidate?.plan?.apply).toMatchObject({ available: false, label: "Review only" });
     expect(model.baselineCandidate?.recommendationRows).toEqual([{ label: "qmd", value: "ready (optional)" }]);
     expect(PROFILE_SETTINGS_DISABLED_REASON).toContain("not wired");
   });
 
+  it("resolves active profile state against detected profile candidates", () => {
+    const baseline: PluginInventoryItem = {
+      ...pluginInventoryItem("exograph-baseline.profile", "Exograph Baseline", "profile", "Profiles", "bundled"),
+      pluginId: "exograph-baseline.plugin",
+      pluginName: "Exograph Baseline Profile",
+      manifestPath: "/plugins/exograph-baseline/exo.plugin.json",
+      compatibility: {
+        profile: {
+          id: "exograph-baseline.profile",
+          label: "Exograph Baseline",
+          recommendedPlugins: [],
+        },
+      },
+    };
+
+    const model = buildProfileSettingsModel(pluginInventory([baseline]), {
+      version: 1,
+      activeProfile: {
+        profileId: "exograph-baseline.profile",
+        capabilityId: "exograph-baseline.profile",
+        pluginId: "exograph-baseline.plugin",
+        manifestPath: "/plugins/exograph-baseline/exo.plugin.json",
+      },
+      autoUpdate: true,
+      reviewRequired: true,
+      updatedAt: "2026-06-28T12:00:00.000Z",
+    });
+
+    expect(model.activeProfileLabel).toBe("Exograph Baseline");
+    expect(model.autoUpdate).toBe(true);
+    expect(model.reviewRequired).toBe(true);
+    expect(model.baselineCandidate?.isActive).toBe(true);
+  });
+
   it("keeps Exograph Baseline visible even when inventory is unavailable", () => {
     const model = buildProfileSettingsModel(null);
 
-    expect(model.activeProfileLabel).toBe("Not wired yet");
+    expect(model.activeProfileLabel).toBe("No active profile");
     expect(model.baselineCandidate).toBeNull();
     expect(model.detectedProfiles).toEqual([]);
   });

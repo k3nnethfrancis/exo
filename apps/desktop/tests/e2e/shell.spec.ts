@@ -1191,7 +1191,7 @@ test("renders inspector content when expanded", async () => {
 });
 
 test("opens workspace settings from the sidebar", async () => {
-  const { page, cleanup } = await launchExoFixture({
+  const { page, runtimeRoot, cleanup } = await launchExoFixture({
     env: {
       EXO_INDEX_ENABLED: "0",
       EXO_INDEX_MODE: "off",
@@ -1205,6 +1205,19 @@ test("opens workspace settings from the sidebar", async () => {
   await page.getByTestId("workspace-settings-tab-index").click();
   await expect(page.getByTestId("workspace-settings-index-mode")).toHaveValue("off");
   await expect(page.getByTestId("workspace-settings-dialog")).toContainText("Local QMD advanced search provider");
+  await page.getByTestId("workspace-settings-tab-profile").click();
+  await expect(page.getByTestId("workspace-settings-profile")).toContainText("No active profile");
+  await page.getByRole("button", { name: "Set active profile" }).click();
+  await expect(page.getByTestId("workspace-settings-profile")).toContainText("Profile state saved.");
+  const profileState = JSON.parse(await readFile(path.join(runtimeRoot, "profile-state.json"), "utf8"));
+  expect(profileState.activeProfile).toMatchObject({
+    profileId: "exograph-baseline.profile",
+    capabilityId: "exograph-baseline.profile",
+  });
+  await page.getByLabel("Auto-update profile metadata on safe state changes").click();
+  await expect(page.getByLabel("Auto-update profile metadata on safe state changes")).toBeChecked();
+  const updatedProfileState = JSON.parse(await readFile(path.join(runtimeRoot, "profile-state.json"), "utf8"));
+  expect(updatedProfileState.autoUpdate).toBe(true);
   await page.getByTestId("workspace-settings-tab-terminal").click();
   await expect(page.getByTestId("workspace-settings-dialog")).toContainText("Live terminal scrollback lines");
   await expect(page.getByTestId("workspace-settings-terminal-history-lines")).toBeVisible();

@@ -24,11 +24,16 @@ export interface WorkspaceIpcHandlers {
   getKnowledge: NotesApi["getKnowledge"];
   getMainWindow: () => BrowserWindow | null;
   getModel: () => WorkspaceModel;
+  getProfileState: WorkspaceApi["getProfileState"];
   getRuntimeStatus: () => Promise<unknown> | unknown;
   getSettings: () => WorkspaceSettings;
   getSetupState: () => { complete: boolean; settingsPath: string };
   enablePlugin: WorkspaceApi["enablePlugin"];
   disablePlugin: WorkspaceApi["disablePlugin"];
+  setActiveProfile: WorkspaceApi["setActiveProfile"];
+  clearActiveProfile: WorkspaceApi["clearActiveProfile"];
+  setProfileAutoUpdate: WorkspaceApi["setProfileAutoUpdate"];
+  markProfileReviewRequired: WorkspaceApi["markProfileReviewRequired"];
   trustPlugin: WorkspaceApi["trustPlugin"];
   readPluginSettings: WorkspaceApi["readPluginSettings"];
   updatePluginSettings: WorkspaceApi["updatePluginSettings"];
@@ -115,6 +120,11 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
   handleDesktopInvoke("workspace:get-agent-instruction-config", async () => handlers.getAgentInstructionConfig());
   handleDesktopInvoke("workspace:list-agent-harnesses", async () => handlers.listAgentHarnesses());
   handleDesktopInvoke("workspace:list-plugin-inventory", async () => handlers.listPluginInventory());
+  handleDesktopInvoke("workspace:get-profile-state", async () => handlers.getProfileState());
+  handleDesktopInvoke("workspace:set-active-profile", async (_event, input) => handlers.setActiveProfile(input));
+  handleDesktopInvoke("workspace:clear-active-profile", async () => handlers.clearActiveProfile());
+  handleDesktopInvoke("workspace:set-profile-auto-update", async (_event, input) => handlers.setProfileAutoUpdate(input));
+  handleDesktopInvoke("workspace:mark-profile-review-required", async (_event, input) => handlers.markProfileReviewRequired(input));
   handleDesktopInvoke("workspace:enable-plugin", async (_event, input) => handlers.enablePlugin(input));
   handleDesktopInvoke("workspace:disable-plugin", async (_event, input) => handlers.disablePlugin(input));
   handleDesktopInvoke("workspace:trust-plugin", async (_event, input) => handlers.trustPlugin(input));

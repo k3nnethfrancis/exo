@@ -1,8 +1,12 @@
-import type { PluginInventory, PluginInventoryItem } from "@exo/core";
+import type { ActiveProfileIdentity, PluginInventory, PluginInventoryItem, ProfileStateStore } from "@exo/core";
 
 export interface ProfileSettingsModel {
   activeProfileLabel: string;
   activeProfileDetail: string;
+  activeProfile: ActiveProfileIdentity | null;
+  autoUpdate: boolean;
+  reviewRequired: boolean;
+  updatedAt: string | null;
   baselineCandidate: ProfileSettingsCandidate | null;
   detectedProfiles: ProfileSettingsCandidate[];
   inventoryErrors: string[];
@@ -16,6 +20,8 @@ export interface ProfileSettingsCandidate {
   statusLabel: string;
   manifestPath: string | null;
   pluginName: string | null;
+  identity: ActiveProfileIdentity;
+  isActive: boolean;
   plan: ProfileSettingsPlanPreview | null;
   componentRows: ProfileSettingsRow[];
   recommendationRows: ProfileSettingsRow[];
@@ -35,24 +41,34 @@ export interface ProfileSettingsRow {
 }
 
 export const PROFILE_SETTINGS_DISABLED_REASON =
-  "Profile activation, apply review, copy/customize, plugin enablement, file writes, skill installs, routine scheduling, and permission grants are not wired in this UI pass.";
+  "Profile apply review, copy/customize, file writes, skill installs, routine scheduling, plugin enablement, and permission grants are not wired in this UI pass.";
 
-export function buildProfileSettingsModel(inventory: PluginInventory | null): ProfileSettingsModel {
-  const detectedProfiles = inventory ? profileCandidatesFromInventory(inventory) : [];
+export function buildProfileSettingsModel(inventory: PluginInventory | null, state: ProfileStateStore | null = null): ProfileSettingsModel {
+  const detectedProfiles = inventory ? profileCandidatesFromInventory(inventory, state) : [];
   const baselineCandidate = detectedProfiles.find((candidate) => candidate.id === "exograph-baseline.profile" || candidate.label === "Exograph Baseline") ?? null;
+  const activeCandidate = detectedProfiles.find((candidate) => candidate.isActive) ?? null;
+  const activeProfile = state?.activeProfile ?? null;
   return {
-    activeProfileLabel: "Not wired yet",
-    activeProfileDetail: "No active workspace profile state is persisted yet. Detected profile packages are shown as read-only candidates.",
+    activeProfile,
+    activeProfileLabel: activeCandidate?.label ?? activeProfile?.profileId ?? "No active profile",
+    activeProfileDetail: activeCandidate
+      ? `${activeCandidate.sourceLabel}; ${activeCandidate.statusLabel}`
+      : activeProfile
+        ? "The saved profile is not currently present in plugin inventory."
+        : "Choose a detected profile to record it as this workspace's active profile. This does not write files or apply templates.",
+    autoUpdate: state?.autoUpdate ?? false,
+    reviewRequired: state?.reviewRequired ?? false,
+    updatedAt: state?.updatedAt ?? null,
     baselineCandidate,
     detectedProfiles,
     inventoryErrors: inventory?.errors.map((error) => `${error.directory}: ${error.message}`) ?? [],
   };
 }
 
-function profileCandidatesFromInventory(inventory: PluginInventory): ProfileSettingsCandidate[] {
+function profileCandidatesFromInventory(inventory: PluginInventory, state: ProfileStateStore | null): ProfileSettingsCandidate[] {
   return inventory.items
     .filter((item) => item.kind === "profile")
-    .map((item) => profileCandidate(item, inventory))
+    .map((item) => profileCandidate(item, inventory, state))
     .sort((a, b) => {
       const aBaseline = a.id === "exograph-baseline.profile" || a.label === "Exograph Baseline";
       const bBaseline = b.id === "exograph-baseline.profile" || b.label === "Exograph Baseline";
@@ -63,9 +79,10 @@ function profileCandidatesFromInventory(inventory: PluginInventory): ProfileSett
     });
 }
 
-function profileCandidate(item: PluginInventoryItem, inventory: PluginInventory): ProfileSettingsCandidate {
+function profileCandidate(item: PluginInventoryItem, inventory: PluginInventory, state: ProfileStateStore | null): ProfileSettingsCandidate {
   const profile = readProfilePayload(item);
   const plan = profile ? profilePlanPreview(profile) : null;
+  const identity = profileIdentity(item, profile);
   return {
     id: item.id,
     label: optionalString(profile, "label") ?? item.label,
@@ -74,10 +91,39 @@ function profileCandidate(item: PluginInventoryItem, inventory: PluginInventory)
     statusLabel: profileStatusLabel(item),
     manifestPath: item.manifestPath ?? null,
     pluginName: item.pluginName ?? item.pluginId ?? null,
+    identity,
+    isActive: activeProfileMatches(state?.activeProfile ?? null, identity),
     plan,
     componentRows: profile ? componentRows(profile, plan) : [],
     recommendationRows: profile ? recommendationRows(profile, inventory) : [],
   };
+}
+
+function profileIdentity(item: PluginInventoryItem, profile: Record<string, unknown> | null): ActiveProfileIdentity {
+  return {
+    profileId: optionalString(profile, "id") ?? item.id,
+    capabilityId: item.id,
+    pluginId: item.pluginId,
+    source: item.pluginSource,
+    manifestPath: item.manifestPath,
+    rootDirectory: item.rootDirectory,
+  };
+}
+
+function activeProfileMatches(active: ActiveProfileIdentity | null, identity: ActiveProfileIdentity): boolean {
+  if (!active) {
+    return false;
+  }
+  return active.capabilityId === identity.capabilityId
+    && active.profileId === identity.profileId
+    && optionalCompare(active.pluginId, identity.pluginId)
+    && optionalCompare(active.source, identity.source)
+    && optionalCompare(active.manifestPath, identity.manifestPath)
+    && optionalCompare(active.rootDirectory, identity.rootDirectory);
+}
+
+function optionalCompare(left: string | undefined, right: string | undefined): boolean {
+  return !left || !right || left === right;
 }
 
 // Keep this renderer model metadata-only. Importing core profile planning functions pulls
