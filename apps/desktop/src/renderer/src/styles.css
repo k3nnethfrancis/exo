@@ -1245,11 +1245,6 @@ button svg,
   padding: 6px 10px;
 }
 
-.tag-results {
-  display: grid;
-  gap: 8px;
-}
-
 .search-results {
   display: grid;
   gap: 8px;
