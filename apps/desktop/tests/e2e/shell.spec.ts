@@ -22,6 +22,14 @@ function boxesOverlap(a: { x: number; y: number; width: number; height: number }
   return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
 }
 
+async function expectTestIdsDoNotOverlap(page: import("@playwright/test").Page, firstTestId: string, secondTestId: string) {
+  const firstBox = await page.getByTestId(firstTestId).boundingBox();
+  const secondBox = await page.getByTestId(secondTestId).boundingBox();
+  expect(firstBox).not.toBeNull();
+  expect(secondBox).not.toBeNull();
+  expect(boxesOverlap(firstBox!, secondBox!)).toBe(false);
+}
+
 async function cycleAppearanceTo(page: import("@playwright/test").Page, targetMode: "system" | "light" | "dark") {
   for (let attempt = 0; attempt < 4; attempt += 1) {
     const currentMode = await page.locator("html").getAttribute("data-appearance-mode");
@@ -1251,11 +1259,15 @@ test("opens workspace settings from the sidebar", async () => {
   await page.getByTestId("workspace-settings").click();
   await expect(page.getByTestId("workspace-settings-dialog")).toBeVisible();
   await expect(page.getByTestId("workspace-settings-note-roots")).toContainText("test-notes");
+  await page.screenshot({ path: "/tmp/exo-workspace-settings-workspace.png", fullPage: false });
+  await expectTestIdsDoNotOverlap(page, "workspace-settings-note-roots", "workspace-settings-project-roots");
   await page.getByTestId("workspace-settings-tab-index").click();
   await expect(page.getByTestId("workspace-settings-index-mode")).toHaveValue("off");
   await expect(page.getByTestId("workspace-settings-dialog")).toContainText("Local QMD advanced search provider");
+  await page.screenshot({ path: "/tmp/exo-workspace-settings-index.png", fullPage: false });
   await page.getByTestId("workspace-settings-tab-profile").click();
   await expect(page.getByTestId("workspace-settings-profile")).toContainText("No active profile");
+  await page.screenshot({ path: "/tmp/exo-workspace-settings-profile.png", fullPage: false });
   await page.getByRole("button", { name: "Set active profile" }).click();
   await expect(page.getByTestId("workspace-settings-profile")).toContainText("Profile state saved.");
   const profileState = JSON.parse(await readFile(path.join(runtimeRoot, "profile-state.json"), "utf8"));
@@ -1293,6 +1305,7 @@ test("opens workspace settings from the sidebar", async () => {
   await expect(page.getByTestId("workspace-settings-dialog")).toContainText("Live terminal scrollback lines");
   await expect(page.getByTestId("workspace-settings-terminal-history-lines")).toBeVisible();
   await expect(page.getByTestId("workspace-settings-terminal-history-lines")).toHaveValue("100000");
+  await page.screenshot({ path: "/tmp/exo-workspace-settings-terminal.png", fullPage: false });
   await page.getByTestId("workspace-settings-terminal-history-lines").fill("250000");
   await expect(page.getByTestId("workspace-settings-terminal-history-lines")).toHaveValue("250000");
   await expect(page.getByTestId("workspace-settings-terminal-transcript-retention")).toHaveValue("forever");
@@ -1594,9 +1607,11 @@ test("opens agent config editor with partial agent instruction discovery errors"
     await page.getByTestId("workspace-settings-close").click();
     await page.getByTestId("open-agent-config").click();
     await expect(page.getByTestId("agent-context-manager")).toBeVisible();
-    await expect(page.getByTestId("agent-context-manager").locator(".dialog-tabs__button")).toHaveCount(3);
+    await expect(page.getByTestId("agent-context-manager").locator(".dialog-tabs__button")).toHaveCount(4);
     await expect(page.getByTestId("agent-context-manager-partial-errors")).toContainText("Notes AGENTS.md");
     await expect(page.getByTestId("agent-context-manager-body")).toContainText("Scope");
+    await page.screenshot({ path: "/tmp/exo-agent-config-instructions.png", fullPage: false });
+    await expectTestIdsDoNotOverlap(page, "agent-context-manager-partial-errors", "agent-context-manager-body");
   } finally {
     await cleanup();
   }
@@ -1712,6 +1727,8 @@ test("manages harness skill files from the agent config editor", async () => {
     await expect(page.getByTestId("agent-skill-files").locator(".agent-skills__file").first()).toHaveText("SKILL.md");
     await expect(page.getByTestId("agent-skill-file-references")).toHaveText(/▾ references/);
     await expect(page.getByTestId("agent-skill-file-references/example.md")).toBeVisible();
+    await page.screenshot({ path: "/tmp/exo-agent-config-skills.png", fullPage: false });
+    await expectTestIdsDoNotOverlap(page, "agent-skill-files", "agent-skill-file-editor");
     await page.getByTestId("agent-skill-file-references").click();
     await expect(page.getByTestId("agent-skill-file-references")).toHaveText(/▸ references/);
     await expect(page.getByTestId("agent-skill-file-references/example.md")).toHaveCount(0);
@@ -1754,6 +1771,7 @@ test("shows missing Pi backend status and hides unconfigured Hermes launchers", 
     await expect(page.getByTestId("agent-harness-pi")).toContainText("Launch unavailable");
     await expect(page.getByTestId("agent-harness-pi")).toContainText("Pi inference backend: Missing");
     await expect(page.getByTestId("agent-harness-hermes")).toHaveCount(0);
+    await page.screenshot({ path: "/tmp/exo-agent-config-harnesses.png", fullPage: false });
   } finally {
     await cleanup();
   }

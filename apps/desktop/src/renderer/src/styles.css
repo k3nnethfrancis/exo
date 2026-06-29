@@ -2753,7 +2753,7 @@ select.dialog-card__input {
 
 .agent-skills__file--directory {
   color: var(--text);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .agent-skills__file:not(:disabled):hover,
