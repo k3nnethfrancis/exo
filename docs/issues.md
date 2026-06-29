@@ -577,6 +577,7 @@ Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin
   - Added a generated CodeMirror widget below live-rendered Markdown pages for backlinks and outgoing note references.
   - The generated section is read-only, hidden in raw Markdown mode, and uses existing link-click navigation data attributes.
   - Added focused renderer tests for raw-mode hiding and backlink target mapping.
+  - 2026-06-29: Removed the old Inspector footer panel/action now that backlinks and references render inline; updated e2e coverage to assert the inspector chrome is gone while inline graph references remain navigable.
 
 ### EXO-ISSUE-051: Wikilink hover preview is missing
 
