@@ -127,6 +127,11 @@ test("opens the plugin manager inventory and keeps official rows read-only", asy
   await expect(page.getByTestId("plugin-manager-state-filters")).toContainText("All");
   await expect(page.getByTestId("plugin-manager-state-filters")).toContainText("Active");
   await expect(page.getByTestId("plugin-manager-state-filters")).toContainText("Needs attention");
+  const summaryBox = await page.getByTestId("plugin-manager-summary").boundingBox();
+  const bodyBox = await page.getByTestId("plugin-manager-body").boundingBox();
+  expect(summaryBox).not.toBeNull();
+  expect(bodyBox).not.toBeNull();
+  expect(summaryBox!.y + summaryBox!.height).toBeLessThanOrEqual(bodyBox!.y);
   await expect(page.getByTestId("plugin-manager-group-core")).toContainText("Terminal host");
   await page.getByTestId("plugin-manager-category-searchProvider").click();
   await expect(page.getByTestId("plugin-manager-group-searchProvider")).toContainText("QMD");

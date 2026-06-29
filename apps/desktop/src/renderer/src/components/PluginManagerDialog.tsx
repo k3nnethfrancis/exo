@@ -396,7 +396,7 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
                 />
               ))}
             </div>
-            <div className="plugin-manager__body">
+            <div className="plugin-manager__body" data-testid="plugin-manager-body">
               <div className="plugin-manager__inventory">
                 <div className="plugin-manager__categories" aria-label="Plugin categories" role="tablist">
                   {categoryFilters.map((category) => (
