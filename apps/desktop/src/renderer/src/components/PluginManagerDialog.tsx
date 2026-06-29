@@ -346,7 +346,11 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
               </div>
               <div className="plugin-manager__boundary-grid">
                 {boundarySummary.layers.map((layer) => (
-                  <div className={`plugin-manager__boundary-layer plugin-manager__boundary-layer--${layer.id}`} key={layer.id}>
+                  <div
+                    className={`plugin-manager__boundary-layer plugin-manager__boundary-layer--${layer.id}`}
+                    key={layer.id}
+                    title={`${layer.detail} ${layer.management}`}
+                  >
                     <div>
                       <span>{layer.label}</span>
                       <strong>{layer.value}</strong>
