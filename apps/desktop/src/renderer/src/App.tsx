@@ -3,7 +3,6 @@ import { Plus, X } from "lucide-react";
 import type {
   IndexStatus,
   ProfileStateStore,
-  SearchResult,
   WorkspaceModel,
   WorkspaceSettings,
 } from "@exo/core";
@@ -15,7 +14,6 @@ import { AgentConfigEditorDialog } from "./components/AgentConfigEditorDialog";
 import { ChangedNotesDialog, type ChangedNote } from "./components/ChangedNotesDialog";
 import { EditorPane, type EditorPaneState } from "./components/EditorPane";
 import { BrowserPane } from "./components/BrowserPane";
-import { InspectorDock } from "./components/InspectorDock";
 import { OnboardingCapabilityReview } from "./components/OnboardingCapabilityReview";
 import { PathList } from "./components/PathList";
 import { PluginManagerDialog } from "./components/PluginManagerDialog";
@@ -74,8 +72,6 @@ export function App() {
   const [exploreIndexSearchOnEnter, setExploreIndexSearchOnEnter] = useState(false);
   const workspaceSearch = useWorkspaceSearch({ indexedOnEnter: exploreIndexSearchOnEnter });
   const [propertiesCollapsed, setPropertiesCollapsed] = useState(true);
-  const [tagResults, setTagResults] = useState<SearchResult[]>([]);
-  const [activeTag, setActiveTag] = useState<string | null>(null);
   const [revealExplorerPathRequest, setRevealExplorerPathRequest] = useState<{ path: string; nonce: number } | null>(null);
   const [editorRevealLineRequest, setEditorRevealLineRequest] = useState<{ filePath: string; line: number; nonce: number } | null>(null);
   const [agentContextManagerOpen, setAgentContextManagerOpen] = useState(false);
@@ -170,8 +166,6 @@ export function App() {
     documentSaveStatuses,
     branchFamiliesByPath,
     activeDocumentPath,
-    activeDocument,
-    activeKnowledge,
     scrollRestoreRequest: editorScrollRestoreRequest,
     setActiveDocumentPath,
     ensureDocumentLoaded,
@@ -288,7 +282,6 @@ export function App() {
     zoneSplitRatio: shellLayout.zoneSplitRatio,
     sidebarCollapsed: shellLayout.sidebarCollapsed,
     sidebarWidth: shellLayout.sidebarWidth,
-    inspectorCollapsed: shellLayout.inspectorCollapsed,
     layoutPersistenceReady,
     onboardingActive: Boolean(onboardingState),
     workspaceModel,
@@ -483,8 +476,6 @@ export function App() {
       editorActions.focusLeaf(editorLeafId);
     }
     setActiveDocumentPath(changesToOpen[0].absolutePath);
-    setActiveTag(null);
-    setTagResults([]);
     if (changesToOpen[0].firstChangedLine && changesToOpen[0].firstChangedLine > 0) {
       setEditorRevealLineRequest({
         filePath: changesToOpen[0].absolutePath,
@@ -535,10 +526,6 @@ export function App() {
     const leaf = findNode(editorTree, (n) => n.id === leafId) as PaneLeaf | undefined;
     const nextActivePath = leaf?.content.kind === "editor" ? leaf.content.activePath : null;
     setActiveDocumentPath(nextActivePath);
-    setActiveTag(null);
-    if (!nextActivePath) {
-      setTagResults([]);
-    }
   }
 
   function setPaneActivePath(leafId: PaneNodeId, filePath: string) {
@@ -552,8 +539,6 @@ export function App() {
     });
     editorActions.focusLeaf(leafId);
     setActiveDocumentPath(filePath);
-    setActiveTag(null);
-    setTagResults([]);
   }
 
   function closeDocumentInPane(leafId: PaneNodeId, filePath: string) {
@@ -577,8 +562,6 @@ export function App() {
     const nextPath = nextLeaf?.content.kind === "editor" ? nextLeaf.content.activePath : null;
     setActiveDocumentPath(nextPath);
     if (!nextPath) {
-      setActiveTag(null);
-      setTagResults([]);
       const editorLeavesNow = collectLeaves(nextTree).filter((leaf) => leaf.content.kind === "editor");
       const allEmpty = editorLeavesNow.every(
         (leaf) => leaf.content.kind === "editor" && leaf.content.openPaths.length === 0,
@@ -614,8 +597,6 @@ export function App() {
       editorActions.focusLeaf(editorLeafId);
     }
     setActiveDocumentPath(filePath);
-    setActiveTag(null);
-    setTagResults([]);
     if (options?.line && options.line > 0) {
       setEditorRevealLineRequest({ filePath, line: options.line, nonce: Date.now() });
     }
@@ -648,10 +629,10 @@ export function App() {
         return;
       }
     }
-
-    setActiveTag(tag);
     const results = await window.exo.workspace.searchTag(tag);
-    setTagResults(results);
+    if (results[0]) {
+      await openFile(results[0].filePath, editorFocusedLeafId);
+    }
   }
 
   async function suggestNoteTargets(query: string) {
@@ -1168,17 +1149,6 @@ export function App() {
               revealLineRequest={editorRevealLineRequest}
               scrollRestoreRequest={editorScrollRestoreRequest}
               isNoteDocument={(filePath) => workspaceModel ? workspaceModel.noteRoots.some((root) => isPathWithin(root.path, filePath)) : true}
-            />
-            <InspectorDock
-              document={activeDocument}
-              knowledge={activeKnowledge}
-              open={!shellLayout.inspectorCollapsed}
-              activeTag={activeTag}
-              tagResults={tagResults}
-              onToggle={() => shellLayout.setInspectorCollapsed((c) => !c)}
-              onOpenTarget={(target) => void openKnowledgeTarget(target)}
-              onOpenExternal={(target) => void window.exo.shell.openExternal(target)}
-              onOpenTag={(tag) => void openTag(tag)}
             />
           </>
         );
