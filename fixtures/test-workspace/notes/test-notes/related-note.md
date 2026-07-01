@@ -6,5 +6,4 @@ tags: ux testing
 
 # Related Note
 
-This note links back to [[focus-note]] so the backlink panel has a deterministic result.
-
+This note links back to [[focus-note]] so inline backlinks have a deterministic result.
