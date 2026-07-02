@@ -30,6 +30,7 @@ Remaining work:
 - Make plugin setup tangible: local plugin add/remove/swap, official-vs-local distinction, trust state, readiness state, dependency hints, disabled/missing handling, and clear "what changed" review.
 - Split terminal/session substrate types from harness adapter ids so `exo agents` derives launchable harnesses from the registry while `exo terminals` remains the low-level core terminal surface.
 - Define the external plugin contracts for workload-specific traces, review labels, dataset exports, eval packets, and instrumented runtimes.
+- Define a Project Knowledge Sync plugin/profile contract for mapping project-local Markdown control files into the central exograph. It should support canonical file names and user-defined patterns, but all sync/mirror/symlink/proposal behavior must be explicit and reviewable.
 - Keep GA/Shoshin-specific behavior out of OSS core; represent it as local/private plugin configuration or downstream reference plugins.
 
 QA after Phase A:
@@ -121,6 +122,7 @@ Goal: build from stable core and plugin surfaces toward the exograph vision with
 Work after ship-readiness:
 
 - Read-only graph extraction for links, backlinks, headings, tags, frontmatter/properties, paths, and file metadata.
+- Project knowledge sync views that show how project-local trackers, plans, specs, issues, and context files relate to the user's central exograph, including drift/conflict state and proposed reconciliation.
 - Optional OKF-compatible import/export/profile diagnostics without enforcing OKF on arbitrary Markdown.
 - Profile-driven graph semantics: node types, edge types, path/property mappings, folder roles, authorship/mutability, templates, maintenance workflows, and review policy.
 - Graph visualization plugin(s), metadata profile plugins, graph-health analyzer plugins, and reviewable maintenance proposals.

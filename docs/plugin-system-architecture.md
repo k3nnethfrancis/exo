@@ -27,6 +27,7 @@ Plugins own replaceable capability variation:
 - dashboards, local web apps, and artifact producers that use Exo's core web viewer endpoints
 - exograph profile packs such as OKF, Shoshin, LM Wiki, Guardian Angel, or domain/project profiles
 - metadata schema/profile capabilities that describe frontmatter, properties, paths, tags, relationship fields, and graph conventions without forcing those fields into raw Markdown files
+- project knowledge sync/profile capabilities that map project-local canonical files such as `issues.md`, `tasks.md`, `roadmap.md`, plans, specs, `AGENTS.md`, and `CLAUDE.md` into a central exograph through explicit links, symlinks, copies, generated indexes, or reviewable sync proposals
 - automations, Routines, analyzers, trace collectors, dataset exporters, eval runners, scorers, training/export flows, and Routine templates
 - plugin-owned commands, settings panels, status widgets, editor decorations, and tool surfaces where explicitly permissioned
 
@@ -83,6 +84,8 @@ Near-term Exo should prove the first two layers with official and local metadata
 
 Profiles are bundles, not individual runtime capabilities. A profile can declare recommended plugins, graph metadata conventions, AGENTS.md/CLAUDE.md templates, MCP config templates, skills to install or enable, routine templates, default graph views, analyzer settings, and output/review policies. A profile may depend on plugins, but it should not hide executable code inside configuration. If a profile needs executable behavior, it should depend on an explicit plugin capability.
 
+Project knowledge sync belongs in this same family. Many projects have useful local Markdown control files while the user also has a central exograph. Exo should not assume one side always wins. A profile or sync plugin can declare which file names or regex patterns matter, what scopes they apply to, whether the relationship is symlink/copy/index/proposal/remote-sync, and what conflict policy applies. Core should provide roots, file observation, graph references, provenance, and review surfaces; the plugin/profile owns the convention.
+
 The first implemented profile contract is metadata-only: `profile` capabilities store a typed payload under `capability.compatibility.profile`. Exo may list and inspect that payload, but it must not apply a profile, write instructions, install skills, enable plugins, or schedule routines without an explicit future permissioned flow.
 
 ### Markdown And Exograph Core
@@ -90,6 +93,8 @@ The first implemented profile contract is metadata-only: `profile` capabilities 
 Core treats Markdown files as canonical user-owned state. Graph semantics come from links, tags, paths, properties/frontmatter, profile mappings, and explicit user choices. Core can store derived indexes, proposals, runs, traces, and plugin state under `.exo/`, but durable approved knowledge stays in the user's files.
 
 Metadata schemas and profiles should be advisory and composable. Exo can use profile-declared frontmatter/property conventions to enrich search, graph views, validation, and maintenance routines, but users remain free to edit Markdown directly and to use different schemas in different scopes.
+
+Project control files are also Markdown graph material. `issues.md`, `tasks.md`, `roadmap.md`, plans, specs, and context files may live in a project repo for portability and in the central exograph for personal continuity. Exo's job is to make that relationship visible, searchable, and reviewable; sync plugins decide whether to symlink, mirror, index, or propose changes.
 
 ### Pane And Surface Core
 

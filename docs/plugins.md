@@ -72,6 +72,7 @@ Examples that likely belong in plugins:
 - graph visualization surfaces such as a 3D graph explorer or metadata-specific relationship view
 - metadata/frontmatter schema helpers
 - profile packs that bundle recommended plugins, config, skills, routines, and graph conventions
+- project knowledge sync plugins that map project-local `issues.md`, `tasks.md`, `roadmap.md`, plans, specs, and context files into the central exograph with explicit conflict/review policy
 - local research/workcell surfaces
 - extra agent harnesses
 - custom memory/index visualizations
@@ -115,6 +116,7 @@ Not every plugin has the same relationship to Exo. The plugin model should suppo
 - Capability plugins: add backend abilities. Examples: agent harnesses, MCP tools, CLI commands, search providers, trace collectors, eval runners.
 - Routine/template plugins: ship prompts, templates, default schedules, and review/output policies that Exo can run through a selected harness. Examples: run eval, collect traces, score results, produce a report, and prepare a PR.
 - Profile plugins: ship use-case conventions and default bundles. Examples: LM Wiki, Shoshin, Guardian Angel, OKF-compatible graph, or a project/domain-specific exograph profile.
+- Sync/profile plugins: declare canonical file patterns, scope mappings, symlink/copy/index/proposal behavior, and conflict policy for keeping project-local Markdown and central exograph Markdown coherent.
 
 The terminal and web viewer hosts are core primitives, not merely plugins. Many unrelated workflows need a safe terminal/session service and a safe way to show local web apps, documentation previews, dashboards, and artifacts. Plugins can target those primitives, but they do not own the underlying terminal or web viewer security boundary.
 

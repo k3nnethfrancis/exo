@@ -6,11 +6,13 @@ This is the strategy document for Exo. `README.md` explains the product publicly
 
 ## Product Direction
 
-Exo is a local-first AI workstation for applied AI engineers and researchers building personal AI systems over their own Markdown-first exograph.
+Exo is a local-first AI workstation for applied AI engineers, researchers, and hackers building personal AI systems over their own Markdown-first exograph.
 
 The core idea is simple: your Markdown notes, project context, terminal sessions, agent messages, changed files, activity records, and artifact references become a user-defined knowledge/work graph. You can write and organize your own knowledge, while terminal agents, search providers, routines, plugins, evals, and future training loops operate over the same exograph using Exo-controlled tools.
 
 Exo should be flexible enough to support many workflows. A person might use it as a research IDE, a note-taking system, an agent control room, a code-review surface, or an evaluation/training workspace. The product identity is broader than any one of those use cases: Exo is the local workstation for configuring, running, observing, evaluating, and improving personal AI systems.
+
+Put more concretely: Exo is an open-source, local-first workbench for building a custom LLM wiki and AI-at-home training workstation. It should let users keep full control of Markdown, local models, harnesses, search providers, routines, graph profiles, and training/eval artifacts while still giving agents a coherent interface to that system.
 
 ## System Model
 
@@ -26,6 +28,7 @@ Exo is organized around:
 - `exograph_proposals[]` - inferred schema/graph/file changes that remain reviewable until accepted.
 - `notes_index` - Exo-managed QMD-backed index for optional notes search and future memory.
 - `search_providers[]` - the provider-backed retrieval layer behind Exo search. QMD is the default local provider, but the Exo contract should allow alternate local, custom, or remote retrieval implementations later.
+- `project_knowledge_sync[]` - future plugin/profile-managed mappings between project-local canonical Markdown files such as `tasks.md`, `roadmap.md`, `issues.md`, `AGENTS.md`, plans, specs, and the user's central exograph. These mappings can use symlinks, copies, generated indexes, proposals, or remote GitHub state, but they must remain explicit and reviewable.
 - `agent_communication` - future inspectable message transport for multi-agent coordination.
 - `activities[]` - minimal records for plugin/manual work: what ran, by whom, against what scope, and where outputs live.
 - `workcells[]` - future plugin-defined bounded development/research loops with artifacts, metrics, and replay.
@@ -47,6 +50,7 @@ Local/private paths belong in settings or environment examples, not source defau
 - Markdown-on-disk is canonical.
 - The exograph is user-defined; Exo may detect, recommend, and maintain structure, but should not impose one vault schema.
 - Durable approved graph facts live in user-owned files and properties. Inferred facts, activity records, artifact references, and proposals stay in `.exo/` until accepted.
+- Project-local Markdown and central exograph Markdown can both be canonical in their own scopes. Exo should make sync relationships explicit instead of silently duplicating or overwriting project trackers, plans, roadmaps, issues, specs, and context files.
 - First-run setup and workspace switching use the same workspace create/select surface.
 - First-run setup requires an explicit notes folder choice before the app shell appears.
 - Notebook mode is a projection over Markdown, not a separate data model.

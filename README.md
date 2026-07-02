@@ -12,6 +12,8 @@ AI agents are most useful when they can work from the same context you use: your
 
 Exo is for people building their own applied AI systems locally: people who want terminal agents, search providers, routines, skills, graph views, evals, and review workflows to compose around their actual working context through clean core APIs and plugins instead of living as separate tools.
 
+Another way to say it: Exo is a workbench for building a custom LLM wiki and personal AI training workstation at home. Markdown stays yours, models and harnesses can be local or swappable, and Exo provides the interface where agents, search, graph structure, project trackers, artifacts, and review loops meet.
+
 ## What Exo Is
 
 - A local AI workstation over notes, tasks, drafts, logs, projects, agents, sessions, and artifacts.

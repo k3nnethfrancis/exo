@@ -13,6 +13,7 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
   - [ ] Tighten Plugin Manager into a management surface: active/disabled/untrusted/missing states, local plugin add/remove/swap, plugin-owned settings, readiness/dependency guidance, and no dense-layout overlap.
   - [ ] Split terminal/session substrate types from harness-adapter ids so `exo agents` derives launchable harnesses from registered harness plugins while `exo terminals` remains the low-level core terminal surface.
   - [ ] Define external plugin contracts for workload-specific trace collection, review labels, dataset export, eval packets, and instrumented agent runtimes.
+  - [ ] Define a Project Knowledge Sync plugin/profile contract for project-local canonical Markdown files: default names such as `issues.md`, `tasks.md`, `roadmap.md`, plans, specs, `AGENTS.md`, and `CLAUDE.md`; custom user patterns; sync mode; conflict policy; remote GitHub state; and reviewable proposals.
   - [ ] Keep GA/Shoshin-specific behavior out of OSS core; represent local variants as local/private plugin configuration or downstream plugins.
 - [ ] Run Plugin Architecture QA after the next plugin slice:
   - [ ] Plugin Manager app QA: official rows locked, local/dev rows trust/enable/disable correctly, settings validation works, missing dependency states are legible, and dense layouts do not overlap.
@@ -42,6 +43,7 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
   - [ ] Run a passive dogfooding period while using Exo for non-Exo work.
 - [ ] Defer larger exograph work until the plugin/CLI/MCP/daily-use ship path is stable:
   - [ ] Read-only graph extraction and graph visualization plugins.
+  - [ ] Project knowledge sync views for drift/conflict state between project-local Markdown and central exograph Markdown.
   - [ ] Optional OKF-compatible profile diagnostics/import/export.
   - [ ] Scoped note write primitives with reviewable, reversible proposals.
 
