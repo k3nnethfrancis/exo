@@ -1,6 +1,6 @@
 # Staff Code Review - 2026-05-27
 
-Status: historical review snapshot. Use `architecture.md`, `terminal-architecture-v4.md`, `terminal-runtime-decision.md`, and `tasks.md` for current implementation direction.
+Status: historical review snapshot. Use `architecture.md`, `terminal-architecture-v4.md`, `terminal-runtime-decision.md`, and `../tasks.md` for current implementation direction.
 
 Scope: post-modularization review of `apps/desktop/src/renderer/src/App.tsx`, `apps/desktop/src/main/index.ts`, workspace IPC, terminal runtime, workspace settings, agent config modules, AGENTS/docs, and tests.
 

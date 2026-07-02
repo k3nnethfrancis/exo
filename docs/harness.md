@@ -56,7 +56,7 @@ Desktop e2e/visual gates build the desktop app before running Playwright.
 
 ## Current Harness Coverage
 
-- Identity/context: `AGENTS.md`, `docs/strategy.md`, `docs/roadmap.md`, `docs/tasks.md`, and `ledger.md` describe the current exograph and Exo-on-Exo operating model.
+- Identity/context: `AGENTS.md`, `docs/strategy.md`, `../roadmap.md`, `../tasks.md`, and `ledger.md` describe the current exograph and Exo-on-Exo operating model.
 - Coordination: `docs/harness.md`, work-chunk rules, app-QA expectations, and Exo CLI/MCP agent commands give agents a shared development loop.
 - Control: `pnpm ci:check` is the canonical CI/local gate, but mechanical architecture controls are still incomplete.
 - Audit: issue tracking and manual review catch drift today; automated entropy scans are not yet implemented.
@@ -67,7 +67,7 @@ Desktop e2e/visual gates build the desktop app before running Playwright.
 - Desktop interaction behavior: `pnpm test:e2e`.
 - Visual shell behavior: `pnpm test:visual`.
 - MCP/CLI contracts: package tests plus CLI smoke commands.
-- Docs/context: reviewed manually through `README.md`, `AGENTS.md`, `ledger.md`, `docs/architecture.md`, `docs/tasks.md`, and `docs/roadmap.md`.
+- Docs/context: reviewed manually through `README.md`, `AGENTS.md`, `ledger.md`, `docs/architecture.md`, `../tasks.md`, and `../roadmap.md`.
 - CLI app-route tests: isolated temporary command server and runtime roots so a live Exo app cannot affect results.
 
 ## Missing Harness Layers

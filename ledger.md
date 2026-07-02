@@ -2,12 +2,12 @@
 
 Last updated: 2026-07-02
 
-This is the fastest current-state handoff for Exo. It records what exists now, what changed recently, and what is next. Active bugs and QA findings live in root `issues.md`; active tasks live in `docs/tasks.md`; future systems live in `docs/roadmap.md`; product/system strategy lives in `docs/strategy.md`.
+This is the fastest current-state handoff for Exo. It records what exists now, what changed recently, and what is next. Active bugs and QA findings live in root `issues.md`; active tasks live in `tasks.md`; future systems live in `roadmap.md`; product/system strategy lives in `docs/strategy.md`.
 
 ## Current Handoff
 
 - Root `issues.md` is now the canonical Exo bug, QA, and field-report tracker. The old `docs/issues.md` path was moved; the vault dogfooding note should be treated as intake/history only.
-- The current ship path is documented at the top of `docs/roadmap.md` and mirrored as concrete checklist items in `docs/tasks.md`.
+- The current ship path is documented at the top of `roadmap.md` and mirrored as concrete checklist items in `tasks.md`.
 - The near-term focus remains Plugin Architecture Completion: staged profile apply, permission/trust prompts, Plugin Manager as a real management UI, local plugin setup, harness adapter cleanup, and keeping GA/Shoshin-specific behavior out of OSS core.
 - After the next plugin slice, run an explicit QA block across Plugin Manager, onboarding plugin review, QMD/search readiness, and harness launch/readiness states.
 - In parallel, keep clearing root `issues.md` daily-use blockers: terminal/preview interaction, editor/graph UX, explorer polish, settings/profile/plugin UI, install/onboarding, and dev launch.
@@ -111,7 +111,7 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Added MCP setup/install helpers through `exo integrations`.
 - Added canonical `pnpm check` harness and CI alignment.
 - Rewrote README around shared-exocortex / agentic-development positioning.
-- Rewrote `AGENTS.md`, `docs/strategy.md`, `docs/tasks.md`, and `docs/roadmap.md` to remove stale phase-first framing.
+- Rewrote `AGENTS.md`, `docs/strategy.md`, `tasks.md`, and `roadmap.md` to remove stale phase-first framing.
 - Completed first-time setup hardening on a fresh machine: pnpm build-script allowlist, portable workspace defaults, note-root creation, renderer crash fix, settings scroll/Apply behavior, and empty folder display.
 - Added Exo-managed QMD indexing UX: footer status, Settings Index panel, sync/apply flows, Explore lexical-on-Enter, CLI/MCP parity, and conservative save-triggered refreshes.
 - Added `docs/qmd-integration-notes.md` to track the QMD adapter boundary, current workarounds, and upstream upgrade checklist.
@@ -182,7 +182,7 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 ## Operating Rules
 
 - Keep README, AGENTS, architecture, roadmap, tasks, ledger, and MCP docs aligned when changing product behavior or public interfaces.
-- Use `docs/tasks.md` for active tasks and `docs/roadmap.md` for future systems.
+- Use `tasks.md` for active tasks and `roadmap.md` for future systems.
 - Do not put private local paths in source defaults.
 - Do not infer provenance with AI detection; track it through observable workflows.
 - Keep QMD focused on notes unless project indexing is explicitly designed later.

@@ -2,7 +2,7 @@
 
 Last updated: 2026-07-02
 
-Exo is a local-first AI workstation for applied AI engineers and researchers building personal AI systems over a Markdown-first exograph. This roadmap names the practical path from the current app to Kenneth using Exo to build Exo by default, then to a more general local AI workbench. `docs/tasks.md` is the active execution list; `ledger.md` records shipped history.
+Exo is a local-first AI workstation for applied AI engineers and researchers building personal AI systems over a Markdown-first exograph. This roadmap names the practical path from the current app to Kenneth using Exo to build Exo by default, then to a more general local AI workbench. `tasks.md` is the active execution list; `ledger.md` records shipped history.
 
 ## Current Ship Path
 
@@ -10,10 +10,10 @@ The current objective is not to finish every long-term Exo idea. It is to reach 
 
 Canonical work tracking:
 
-- `../issues.md` is the only canonical active bug, QA, and field-report tracker.
-- `docs/tasks.md` tracks implementation tasks and workstream sequencing.
+- `issues.md` is the only canonical active bug, QA, and field-report tracker.
+- `tasks.md` tracks implementation tasks and workstream sequencing.
 - `ledger.md` records shipped state and handoff notes.
-- GitHub issues can feed the scheduled Codex issue-fix loop, but accepted implementation bugs should still land in `../issues.md` with an `EXO-ISSUE-*` id.
+- GitHub issues can feed the scheduled Codex issue-fix loop, but accepted implementation bugs should still land in `issues.md` with an `EXO-ISSUE-*` id.
 
 ### Phase A: Plugin Architecture Completion
 
@@ -41,7 +41,7 @@ QA after Phase A:
 
 ### Phase B: Daily-Use Bug Bash And UI Fit
 
-Goal: fix the active user-facing friction in `../issues.md` that blocks Exo from feeling like a normal daily workspace.
+Goal: fix the active user-facing friction in `issues.md` that blocks Exo from feeling like a normal daily workspace.
 
 Current priority clusters:
 

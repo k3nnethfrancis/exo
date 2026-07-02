@@ -2,7 +2,7 @@
 
 Last updated: 2026-06-21
 
-This is the strategy document for Exo. `README.md` explains the product publicly, `docs/roadmap.md` describes future systems, `docs/tasks.md` tracks concrete work, and `ledger.md` records shipped history.
+This is the strategy document for Exo. `README.md` explains the product publicly, `../roadmap.md` describes future systems, `../tasks.md` tracks concrete work, and `ledger.md` records shipped history.
 
 ## Product Direction
 
@@ -196,7 +196,7 @@ This was superseded by the 2026-05-31 exograph framing.
 
 ### 2026-05-12 — Tasks Are Active Backlog, Not History
 
-`docs/tasks.md` now tracks current work by priority and product system. Completed historical phase lists moved out of task tracking; `ledger.md` is the handoff/history file.
+`../tasks.md` now tracks current work by priority and product system. Completed historical phase lists moved out of task tracking; `ledger.md` is the handoff/history file.
 
 ### 2026-05-11 — Search Lives In The Explorer Pane
 

@@ -59,7 +59,7 @@ Exo is early. The immediate product test is whether Kenneth can use Exo to build
 - Add an agent roster with names, roles, objectives, message routing, and communication logs.
 - Add a plugin architecture for optional workflows, search providers, harness adapters, graph analyzers, eval/training tools, and shareable extensions without bloating core. Core should stay boring substrate; plugins provide interesting behavior.
 
-See `docs/roadmap.md` and `docs/tasks.md` for the active plan.
+See `roadmap.md` and `tasks.md` for the active plan.
 
 The immediate readiness gate is captured in `docs/usability-readiness.md`: finish the daily-use and harness standard, clean up the commit stack, push, install the packaged macOS app as the stable runtime, then bug bash from real use before starting larger roadmap phases.
 
@@ -335,8 +335,8 @@ See `docs/harness.md` for work-chunk rules, validation evidence, and agent-frien
 - `docs/harness.md` - developer harness, gates, and agent workflow.
 - `docs/usability-readiness.md` - near-term standard for installed daily use.
 - `docs/plugins.md` - future extension model.
-- `docs/tasks.md` - active execution tracker.
-- `docs/roadmap.md` - future work and sequencing.
+- `tasks.md` - active execution tracker.
+- `roadmap.md` - future work and sequencing.
 - `docs/qmd-integration-notes.md` - current QMD adapter contract and upgrade checklist.
 - `ledger.md` - fastest current-state handoff.
 
@@ -388,8 +388,8 @@ ls "$HOME/Library/Logs/DiagnosticReports"/Electron-*.ips
 6. `docs/architecture.md` - runtime and package architecture
 7. `docs/harness.md` - contribution harness and validation gates
 8. `docs/usability-readiness.md` - installed-app readiness standard
-9. `docs/tasks.md` - active execution tracker
-10. `docs/roadmap.md` - future plans
+9. `tasks.md` - active execution tracker
+10. `roadmap.md` - future plans
 11. `docs/plugin-system-architecture.md` - core-versus-plugin target architecture
 12. `docs/terminal-architecture-v4.md` - current terminal simplification proposal
 13. `docs/plugins.md` - future extension model

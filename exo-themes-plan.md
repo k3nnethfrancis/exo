@@ -2,7 +2,7 @@
 
 Date: 2026-06-20
 
-Status: active planning note, not a shipped feature contract. Use `README.md`, `architecture.md`, and `tasks.md` for current product/runtime behavior.
+Status: active planning note, not a shipped feature contract. Use `README.md`, `docs/architecture.md`, and `tasks.md` for current product/runtime behavior.
 
 ## Goal
 

@@ -27,7 +27,7 @@ pnpm test:e2e
 - `packages/core` owns workspace, search, runtime, and shared protocol logic.
 - `packages/cli` owns the `bin/exo` command surface.
 - `packages/mcp` owns the MCP server for local agents.
-- `docs/README.md`, `docs/strategy.md`, `docs/architecture.md`, `docs/harness.md`, `docs/tasks.md`, `docs/roadmap.md`, and `ledger.md` are part of the source of truth for agent/human handoff.
+- `docs/README.md`, `docs/strategy.md`, `docs/architecture.md`, `docs/harness.md`, `tasks.md`, `roadmap.md`, and `ledger.md` are part of the source of truth for agent/human handoff.
 
 ## Work Chunks
 

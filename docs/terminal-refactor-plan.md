@@ -233,7 +233,7 @@ Each phase should land as a reviewable work chunk. Do not merge a later phase by
 - Add `docs/terminal-quality-standard.md`.
 - Update `docs/terminal-runtime-decision.md` with the tmux-backed direction.
 - Add this refactor plan.
-- Update `docs/tasks.md`, root `issues.md`, `AGENTS.md`, README, architecture, and roadmap references away from direct-pty as the future standard.
+- Update `../tasks.md`, root `issues.md`, `AGENTS.md`, README, architecture, and roadmap references away from direct-pty as the future standard.
 
 Exit gate:
 

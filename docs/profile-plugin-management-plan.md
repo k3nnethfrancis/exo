@@ -163,7 +163,7 @@ Done when:
 
 - this plan exists and is linked from `docs/README.md`
 - `docs/plugin-system-architecture.md` distinguishes Plugin Manager, Profile Settings, and Onboarding
-- `docs/tasks.md` has concrete UI/backend tasks for profile/plugin management
+- `../tasks.md` has concrete UI/backend tasks for profile/plugin management
 
 Verification:
 

@@ -39,7 +39,7 @@ The goal is not public-release polish. The goal is a stable local app that can s
 - Installed-app dry run or real install evidence for packaging changes.
 - In-app QA notes for affected workflows.
 - `git status --short` clean except intentionally untracked local artifacts.
-- Docs agree across `README.md`, `AGENTS.md`, `docs/tasks.md`, `docs/roadmap.md`, `docs/harness.md`, and `ledger.md`.
+- Docs agree across `README.md`, `AGENTS.md`, `../tasks.md`, `../roadmap.md`, `docs/harness.md`, and `ledger.md`.
 
 ## Live Bug-Bash Backlog
 

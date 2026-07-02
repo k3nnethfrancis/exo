@@ -7,6 +7,9 @@ This directory contains committed, public-facing project context. It should be u
 - `../README.md` - product overview, setup, commands, build/install caveats, and repository map.
 - `../AGENTS.md` - concise coding-agent map and runtime rules.
 - `../issues.md` - canonical active bug, QA, and field-issue tracker.
+- `../tasks.md` - active execution tracker.
+- `../roadmap.md` - future product systems and sequencing.
+- `../exo-themes-plan.md` - active planning note for named theme work.
 - `strategy.md` - product direction and system model.
 - `architecture.md` - current package, runtime, terminal, CLI/MCP, pane, search, and plugin boundaries.
 - `plugin-system-architecture.md` - canonical core-versus-plugin target architecture.
@@ -19,8 +22,6 @@ This directory contains committed, public-facing project context. It should be u
 - `terminal-runtime-decision.md` - current tmux-backed terminal runtime decision and constraints.
 - `terminal-quality-standard.md` - terminal useability, configuration, and QA standard.
 - `terminal-fallback-audit.md` - current terminal fallback/recovery decisions, steelman objections, and hardening backlog.
-- `tasks.md` - active execution tracker.
-- `roadmap.md` - future product systems and sequencing.
 - `harness.md` - validation gates and agent-friendly development workflow.
 - `github-issue-fix-loop.md` - scheduled Codex loop rules for turning labeled GitHub issues into tested draft PRs.
 - `qmd-integration-notes.md` - live QMD adapter contract and upgrade checklist.
@@ -34,7 +35,6 @@ These remain in place for traceability but should not be treated as the latest a
 - `qmd-integration-plan.md` - longer-term QMD product plan; live adapter details are in `qmd-integration-notes.md`.
 - `staff-code-review-2026-05-27.md` - dated code review; terminal guidance inside it has been superseded.
 - `mcp-nde-test-2026-06-20.md` - dated MCP non-destructive QA audit.
-- `exo-themes-plan.md` - planning document for the named theme system, not a shipped feature contract.
 
 ## Read Order
 
@@ -44,11 +44,11 @@ These remain in place for traceability but should not be treated as the latest a
 4. `../CHANGELOG.md` - release notes
 5. `strategy.md` - product/system direction
 6. `usability-readiness.md` - near-term standard for installed daily use
-7. `tasks.md` - active priority backlog
+7. `../tasks.md` - active priority backlog
 8. `harness.md` - validation gates and agent-friendly development workflow
 9. `github-issue-fix-loop.md` - scheduled Codex issue-to-PR loop rules
 10. `architecture.md` - package boundaries and runtime contracts
-11. `roadmap.md` - future product systems
+11. `../roadmap.md` - future product systems
 12. `plugin-system-architecture.md` - core-versus-plugin target architecture
 13. `profile-plugin-management-plan.md` - current product and implementation plan for profile/plugin management UX
 14. `plugins.md` - plugin architecture direction
@@ -70,9 +70,9 @@ These remain in place for traceability but should not be treated as the latest a
 - `architecture.md` explains how Exo is built today.
 - `strategy.md` explains why the system exists and where it is going.
 - `usability-readiness.md` defines the gate before installed Exo becomes the stable daily runtime.
-- `roadmap.md` groups future product systems.
+- `../roadmap.md` groups future product systems.
 - `../issues.md` tracks active bugs, QA findings, and field reports with `EXO-ISSUE-*` ids.
-- `tasks.md` tracks the next concrete work.
+- `../tasks.md` tracks the next concrete work.
 - `harness.md` explains how changes should be validated.
 - `github-issue-fix-loop.md` defines the conservative scheduled GitHub issue-to-draft-PR loop.
 - `plugin-system-architecture.md` defines which platform surfaces stay core versus become bundled/external plugins.

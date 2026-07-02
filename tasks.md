@@ -4,7 +4,7 @@ Last updated: 2026-07-02
 
 This is the active task tracker for Exo. It is intentionally not a history file; completed implementation history belongs in `ledger.md`. Tasks here should be concrete, current, and ordered by practical priority.
 
-Canonical issue intake is root `../issues.md`. Do not add new Exo issue trackers under `docs/` or the notes vault.
+Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers under `docs/` or the notes vault.
 
 ## Current Ship Roadmap Tasks
 
@@ -19,7 +19,7 @@ Canonical issue intake is root `../issues.md`. Do not add new Exo issue trackers
   - [ ] Onboarding plugin review QA: clean workspace selection shows core rows, official plugins, local profile/plugin inventory, and no destructive apply path without review.
   - [ ] Search QA: QMD enabled/degraded/disabled states preserve core filename/path/basic text search and do not block Explore.
   - [ ] Harness QA: unavailable harnesses do not show dead launch buttons; shell/Claude/Codex still launch through the registered harness path.
-- [ ] Clear the daily-use bug-bash cluster from root `../issues.md` before treating the build as ship-ready:
+- [ ] Clear the daily-use bug-bash cluster from root `issues.md` before treating the build as ship-ready:
   - [ ] Terminal/preview interaction: `EXO-ISSUE-056`, `EXO-ISSUE-062`, `EXO-ISSUE-069`, `EXO-ISSUE-072`, plus any new render/focus regressions.
   - [ ] Editor/graph UX: `EXO-ISSUE-051`, `EXO-ISSUE-052`, `EXO-ISSUE-053`, `EXO-ISSUE-057`.
   - [ ] Explorer/UI polish: `EXO-ISSUE-043`, `EXO-ISSUE-044`, `EXO-ISSUE-055`, `EXO-ISSUE-058`.
