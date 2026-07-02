@@ -1,8 +1,136 @@
 # Exo Roadmap
 
-Last updated: 2026-06-21
+Last updated: 2026-07-02
 
 Exo is a local-first AI workstation for applied AI engineers and researchers building personal AI systems over a Markdown-first exograph. This roadmap names the practical path from the current app to Kenneth using Exo to build Exo by default, then to a more general local AI workbench. `docs/tasks.md` is the active execution list; `ledger.md` records shipped history.
+
+## Current Ship Path
+
+The current objective is not to finish every long-term Exo idea. It is to reach a stable local build where Kenneth can use Exo daily, develop mostly through plugins, and coordinate agents through robust CLI/MCP surfaces.
+
+Canonical work tracking:
+
+- `../issues.md` is the only canonical active bug, QA, and field-report tracker.
+- `docs/tasks.md` tracks implementation tasks and workstream sequencing.
+- `ledger.md` records shipped state and handoff notes.
+- GitHub issues can feed the scheduled Codex issue-fix loop, but accepted implementation bugs should still land in `../issues.md` with an `EXO-ISSUE-*` id.
+
+### Phase A: Plugin Architecture Completion
+
+Goal: make plugins practical to set up, inspect, configure, trust, enable, disable, and develop without turning Exo core into a grab bag.
+
+Core stays responsible for Markdown graph/editor, basic file/path search, pane/webview hosts, terminal runtime, minimal activity/artifact/provenance/review references, permission/trust substrate, plugin registry, and official plugin discovery.
+
+Plugins own harness adapters, advanced search providers such as QMD, profiles, routines/templates, graph visualizations, analyzers, eval/export tools, dashboards, and domain workflows.
+
+Remaining work:
+
+- Finish the staged profile apply flow with permission prompts before profile/plugin recommendations can write `AGENTS.md`, `CLAUDE.md`, MCP config, skills, routines, plugin settings, or permission grants.
+- Tighten plugin-owned settings and Plugin Manager UX so it reads as "manage my plugin stack", not only "inspect current metadata".
+- Make plugin setup tangible: local plugin add/remove/swap, official-vs-local distinction, trust state, readiness state, dependency hints, disabled/missing handling, and clear "what changed" review.
+- Split terminal/session substrate types from harness adapter ids so `exo agents` derives launchable harnesses from the registry while `exo terminals` remains the low-level core terminal surface.
+- Define the external plugin contracts for workload-specific traces, review labels, dataset exports, eval packets, and instrumented runtimes.
+- Keep GA/Shoshin-specific behavior out of OSS core; represent it as local/private plugin configuration or downstream reference plugins.
+
+QA after Phase A:
+
+- Plugin Manager app QA: official rows locked, local/dev rows trust/enable/disable correctly, settings validation works, missing dependency states are legible, no overlap in dense layouts.
+- Onboarding plugin review QA: clean workspace selection shows core rows, official plugins, local profile/plugin inventory, and no destructive apply path without review.
+- Search QA: QMD enabled/degraded/disabled states still preserve core filename/path/basic text search and do not block Explore.
+- Harness QA: unavailable harnesses do not show dead launch buttons; Claude/Codex/shell still launch through the registered harness path.
+
+### Phase B: Daily-Use Bug Bash And UI Fit
+
+Goal: fix the active user-facing friction in `../issues.md` that blocks Exo from feeling like a normal daily workspace.
+
+Current priority clusters:
+
+- Terminal and preview interaction: render corruption, preview focus stealing input, blank terminal hydration, long scrollback, sleep/wake field dogfooding.
+- Editor and graph UX: wikilink suggestions/hover, backlinks/references replacing inspect mode, project Markdown rendering, task-list/list behavior, thinner editor chrome.
+- Explorer polish: file/folder differentiation, no duplicate disclosure controls, smaller warm changed-state badges, less harsh folder typography.
+- Settings/profile/plugin UI: roomy settings layout, no modal blur weirdness, no duplicate agent settings, clear Apply/save semantics.
+- Install/onboarding: first-run open-notes flow, packaged first launch, clear logs, user-vs-developer persona split.
+
+QA after Phase B:
+
+- Manual installed-app pass on a real workspace: notes, project files, plugin manager, agent config, settings, preview, terminal, CLI status, MCP status.
+- Playwright/e2e smoke for the affected flows before any push.
+- Screenshot review for dense UI surfaces: Settings, Plugin Manager, Agent Config/Skills, explorer, editor, terminal/preview split.
+
+### Phase C: CLI/MCP Multi-Agent Coordination
+
+Goal: make Exo useful as the control plane for humans and supervising agents coordinating work across local terminal agents.
+
+CLI philosophy: broad operator/admin/debug surface.
+
+MCP philosophy: narrow agent work plane.
+
+Remaining work:
+
+- Keep MCP compact but robust: workspace status, search/read, list/create/read/send/interrupt/terminate agents, plus preview/artifact open if approved through the core web viewer endpoint.
+- Make `workspace_status` the reliable orientation tool: workspace roots, plugin/search readiness, live agents, index status summary, command-server health, and actionable degraded-state diagnostics.
+- Harden command-server discovery so stale runtime, unreachable app, sandbox-blocked process checks, and deleted MCP launcher paths are distinguishable.
+- Add NDE-style MCP testing: functionality, latency, result quality, ease-of-use, stale config diagnostics, and security/permission review.
+- Keep the scheduled GitHub issue-fix loop conservative: only labeled issues, one issue max per run, isolated branch/worktree, tests/app QA, draft PR, no direct main push, no auto-merge.
+
+QA after Phase C:
+
+- CLI QA: workspace, index, project roots, plugin inventory, agents, terminals diagnostics, transcript reads, preview open.
+- MCP QA: tool listing, workspace status, search/read, agent lifecycle, send/interrupt/terminate, stale-launcher diagnostics.
+- Exo-on-Exo QA: supervising Codex can use Exo MCP to create/read/message agents and report results without raw filesystem orientation as the first path.
+
+### Phase D: Routine Substrate POC
+
+Goal: prove scheduled/local routines without prematurely turning every workflow into core.
+
+Near-term proof:
+
+- Use the GitHub issue-fix loop as the first practical routine-like workflow.
+- Model a routine as prompt, harness, trigger/schedule, scope, permissions, and output policy.
+- Keep rich workload schemas plugin-owned. Core stores minimal activity, artifact-reference, provenance-reference, and review-reference records.
+- Do not run destructive or write-capable routines without explicit trust/permission/review gates.
+
+QA after Phase D:
+
+- Dry-run routine execution shows planned prompt, harness, scope, permissions, outputs, and blocked actions.
+- Manual run records activity/artifacts/traces and review state without mutating user notes unless approved.
+- Scheduled run cannot exceed issue/worktree/permission limits.
+
+### Phase E: Installable Stable Runtime
+
+Goal: use the installed macOS app as the stable daily Exo while source builds remain QA/dev surfaces.
+
+Remaining work:
+
+- Clean first-run install path: no source-run prerequisite, no workspace-root `/` fallback, no silent packaged-app exit.
+- Keep `exo start` focused on last known workspace; keep developer commands explicit.
+- Menu bar resident behavior: show/hide/status/settings/quit, clear agent shutdown warning, readable icon treatment.
+- README/changelog/release notes describe user install versus developer setup.
+- Packaging and CI gates are deterministic enough that a fresh clone can build, install, and launch.
+
+QA after Phase E:
+
+- Clean reinstall from no app data.
+- `pnpm install`, build, package, install to user Applications, first launch, notes folder selection, restart, CLI/MCP integration.
+- Long passive dogfooding period while using Exo for non-Exo work.
+
+### Phase F: Graph And Exograph Workbench
+
+Goal: build from stable core and plugin surfaces toward the exograph vision without imposing one vault schema.
+
+Work after ship-readiness:
+
+- Read-only graph extraction for links, backlinks, headings, tags, frontmatter/properties, paths, and file metadata.
+- Optional OKF-compatible import/export/profile diagnostics without enforcing OKF on arbitrary Markdown.
+- Profile-driven graph semantics: node types, edge types, path/property mappings, folder roles, authorship/mutability, templates, maintenance workflows, and review policy.
+- Graph visualization plugin(s), metadata profile plugins, graph-health analyzer plugins, and reviewable maintenance proposals.
+- Scoped note write primitives only after graph/read primitives are stable: create, append, guarded patch within selected note roots.
+
+QA after Phase F:
+
+- Graph extraction snapshots are deterministic and schema-neutral.
+- Plugin graph views cannot mutate notes.
+- Any proposed note/file mutation is reviewable, scoped, reversible, and tied to provenance.
 
 ## Product North Star
 

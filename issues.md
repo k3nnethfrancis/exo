@@ -1,12 +1,58 @@
 # Exo Issues
 
-Last updated: 2026-06-24
+Last updated: 2026-07-02
 
 This is the canonical active bug/QA tracker for Exo implementation work. It captures user-observed issues that need investigation before the next push/release pass.
 
-Related field notes may be captured in `/Users/kenneth/Desktop/lab/notes/shoshin-codex/exo-issues.md`, but actionable implementation items should be promoted here with an `EXO-ISSUE-*` id before assignment.
+This root file is the only canonical Exo issue tracker. Field notes from daily dogfooding, GitHub issues, screenshots, or agent sessions should be promoted here with an `EXO-ISSUE-*` id before assignment.
 
 ## Open
+
+### EXO-ISSUE-074: Computer Use visual QA can fail to inspect the running Exo app
+
+- Status: open
+- Severity: medium
+- Area: QA harness, Exo-on-Exo workflow, visual app review
+- Source:
+  - 2026-06-27 field note from the lab vault: Computer Use visual QA could not inspect Exo during a Plugin Manager/settings/agent-config review pass.
+- Observed:
+  - A delegated visual QA pass tried to inspect the installed Exo app with Computer Use.
+  - `get_app_state` timed out twice, including after a clean Exo relaunch.
+  - One retry surfaced the Mac lock screen instead of Exo, so the reviewer could not interact with the app.
+  - The affected UI work still had Playwright/e2e coverage and launch/status smoke, but it did not receive the intended "actually use the app" visual QA pass.
+- Expected:
+  - The app-QA workflow should detect locked desktop, hidden app, wrong Space/window, or uninspectable app state and return a clear blocker instead of silently consuming review time.
+  - Exo should remain inspectable enough for subagent visual QA of Settings, Plugin Manager, Agent Config, explorer, preview, and terminal surfaces.
+  - If Computer Use cannot inspect Exo, the fallback QA path and evidence requirements should be explicit.
+- Acceptance:
+  - Add an app-QA checklist or harness note that distinguishes app unavailable, desktop locked, window hidden, renderer blank, and tool timeout.
+  - Add a lightweight smoke path for visual QA agents to verify Exo is visible before attempting detailed UI review.
+  - Document any remaining Computer Use limitations in `docs/harness.md` or the app-QA skill/checklist.
+
+### EXO-ISSUE-073: Evaluate mechanical architecture rules for agent-safe code changes
+
+- Status: open
+- Severity: medium
+- Area: developer harness, architecture enforcement, CI, agent workflow
+- Source:
+  - 2026-07-02 field note from the lab vault: evaluate Vercel `konsistent` for mechanical Exo architecture rules.
+- Observed:
+  - Exo now has several architecture rules that agents must preserve: CLI/MCP command contracts, plugin and harness adapter shape, preload/main/renderer boundaries, package exports, terminal test/docs adjacency, and provider-agnostic agent configuration.
+  - Many of these rules still live mostly in prose. That makes drift likely when subagents or scheduled issue-fix loops work in parallel.
+- Expected:
+  - Do a narrow spike before adding any new structural linter to the full gate.
+  - Start with warning-level or report-only checks that protect stable contracts, not broad style preferences.
+  - Candidate rules:
+    - MCP tool modules expose expected metadata, schema, handler shape, and focused tests.
+    - CLI command modules have registration, argument parsing/schema, and tests.
+    - Plugin/harness adapters include manifest/config contract, runtime implementation, and docs/tests.
+    - Package barrel exports expose the expected public symbols.
+    - Fragile runtime modules, especially terminal/runtime services, have corresponding tests or explicit documented exclusions.
+- Acceptance:
+  - A short spike report records whether `konsistent` or another structural-rule tool is worth adopting.
+  - Any adopted rules are low-noise and initially scoped to stable package/plugin/terminal boundaries.
+  - `pnpm ci:check` is not expanded until the rule set has proven signal in local runs.
+  - Docs and agent skills are updated if structural checks become part of the standard harness.
 
 ### EXO-ISSUE-072: Preview clipping and repeated Claude screen after preview/focus fix
 

@@ -6,6 +6,7 @@ This directory contains committed, public-facing project context. It should be u
 
 - `../README.md` - product overview, setup, commands, build/install caveats, and repository map.
 - `../AGENTS.md` - concise coding-agent map and runtime rules.
+- `../issues.md` - canonical active bug, QA, and field-issue tracker.
 - `strategy.md` - product direction and system model.
 - `architecture.md` - current package, runtime, terminal, CLI/MCP, pane, search, and plugin boundaries.
 - `plugin-system-architecture.md` - canonical core-versus-plugin target architecture.
@@ -39,29 +40,30 @@ These remain in place for traceability but should not be treated as the latest a
 
 1. `../README.md` - product overview, setup, current capabilities
 2. `../AGENTS.md` - concise map for coding agents
-3. `../CHANGELOG.md` - release notes
-4. `strategy.md` - product/system direction
-5. `usability-readiness.md` - near-term standard for installed daily use
-6. `tasks.md` - active priority backlog
-7. `harness.md` - validation gates and agent-friendly development workflow
-8. `github-issue-fix-loop.md` - scheduled Codex issue-to-PR loop rules
-9. `architecture.md` - package boundaries and runtime contracts
-10. `roadmap.md` - future product systems
-11. `plugin-system-architecture.md` - core-versus-plugin target architecture
-12. `profile-plugin-management-plan.md` - current product and implementation plan for profile/plugin management UX
-13. `plugins.md` - plugin architecture direction
-14. `plugin-implementation-plan.md` - phased implementation plan for capability registries, search providers, agent harnesses, activity substrate, plugin manifests, and future permissioned loading
-15. `activity-plugin-contract.md` - activity/artifact/provenance/review substrate contract
-16. `agent-harness-plugin-contract.md` - harness adapter contract
-17. `plugin-surface-contract.md` - safe plugin surface and web viewer endpoint contract
-18. `graph-visualization-plugin-contract.md` - graph visualization plugin contract
-19. `open-source.md` - release and platform support notes
-20. `terminal-architecture-v4.md` - current terminal architecture and module-boundary target
-21. `terminal-runtime-decision.md` - terminal runtime decision
-22. `terminal-quality-standard.md` - terminal useability and QA standard
-23. `terminal-fallback-audit.md` - terminal fallback/recovery policy and current decisions
-24. `terminal-refactor-plan.md` - historical tmux migration plan
-25. `qmd-integration-notes.md` - live QMD dependency boundary and upgrade checklist
+3. `../issues.md` - active bug, QA, and field-issue tracker
+4. `../CHANGELOG.md` - release notes
+5. `strategy.md` - product/system direction
+6. `usability-readiness.md` - near-term standard for installed daily use
+7. `tasks.md` - active priority backlog
+8. `harness.md` - validation gates and agent-friendly development workflow
+9. `github-issue-fix-loop.md` - scheduled Codex issue-to-PR loop rules
+10. `architecture.md` - package boundaries and runtime contracts
+11. `roadmap.md` - future product systems
+12. `plugin-system-architecture.md` - core-versus-plugin target architecture
+13. `profile-plugin-management-plan.md` - current product and implementation plan for profile/plugin management UX
+14. `plugins.md` - plugin architecture direction
+15. `plugin-implementation-plan.md` - phased implementation plan for capability registries, search providers, agent harnesses, activity substrate, plugin manifests, and future permissioned loading
+16. `activity-plugin-contract.md` - activity/artifact/provenance/review substrate contract
+17. `agent-harness-plugin-contract.md` - harness adapter contract
+18. `plugin-surface-contract.md` - safe plugin surface and web viewer endpoint contract
+19. `graph-visualization-plugin-contract.md` - graph visualization plugin contract
+20. `open-source.md` - release and platform support notes
+21. `terminal-architecture-v4.md` - current terminal architecture and module-boundary target
+22. `terminal-runtime-decision.md` - terminal runtime decision
+23. `terminal-quality-standard.md` - terminal useability and QA standard
+24. `terminal-fallback-audit.md` - terminal fallback/recovery policy and current decisions
+25. `terminal-refactor-plan.md` - historical tmux migration plan
+26. `qmd-integration-notes.md` - live QMD dependency boundary and upgrade checklist
 
 ## File Roles
 
@@ -69,6 +71,7 @@ These remain in place for traceability but should not be treated as the latest a
 - `strategy.md` explains why the system exists and where it is going.
 - `usability-readiness.md` defines the gate before installed Exo becomes the stable daily runtime.
 - `roadmap.md` groups future product systems.
+- `../issues.md` tracks active bugs, QA findings, and field reports with `EXO-ISSUE-*` ids.
 - `tasks.md` tracks the next concrete work.
 - `harness.md` explains how changes should be validated.
 - `github-issue-fix-loop.md` defines the conservative scheduled GitHub issue-to-draft-PR loop.

@@ -1,8 +1,18 @@
 # Exo Ledger
 
-Last updated: 2026-06-27
+Last updated: 2026-07-02
 
-This is the fastest current-state handoff for Exo. It records what exists now, what changed recently, and what is next. Active tasks live in `docs/tasks.md`; future systems live in `docs/roadmap.md`; product/system strategy lives in `docs/strategy.md`.
+This is the fastest current-state handoff for Exo. It records what exists now, what changed recently, and what is next. Active bugs and QA findings live in root `issues.md`; active tasks live in `docs/tasks.md`; future systems live in `docs/roadmap.md`; product/system strategy lives in `docs/strategy.md`.
+
+## Current Handoff
+
+- Root `issues.md` is now the canonical Exo bug, QA, and field-report tracker. The old `docs/issues.md` path was moved; the vault dogfooding note should be treated as intake/history only.
+- The current ship path is documented at the top of `docs/roadmap.md` and mirrored as concrete checklist items in `docs/tasks.md`.
+- The near-term focus remains Plugin Architecture Completion: staged profile apply, permission/trust prompts, Plugin Manager as a real management UI, local plugin setup, harness adapter cleanup, and keeping GA/Shoshin-specific behavior out of OSS core.
+- After the next plugin slice, run an explicit QA block across Plugin Manager, onboarding plugin review, QMD/search readiness, and harness launch/readiness states.
+- In parallel, keep clearing root `issues.md` daily-use blockers: terminal/preview interaction, editor/graph UX, explorer polish, settings/profile/plugin UI, install/onboarding, and dev launch.
+- CLI/MCP readiness is the next major non-plugin track: reliable `workspace_status`, preview/artifact open through the core web viewer endpoint, NDE-style MCP testing, stale command-server diagnostics, and the conservative scheduled Codex issue-fix loop.
+- Routine work should remain a POC until the plugin/CLI/MCP ship path is stable. The GitHub issue-fix loop is the first routine-like proof, not a reason to move rich workflow schemas into core.
 
 ## Product Thesis
 

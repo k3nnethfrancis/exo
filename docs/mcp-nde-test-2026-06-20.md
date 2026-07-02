@@ -8,7 +8,7 @@ This was a non-destructive QA/audit pass over Exo MCP in `/Users/kenneth/Desktop
 
 Result: the MCP surface contract is correct and narrow, but the live command-server path was blocked by stale discovery in `/Users/kenneth/Desktop/lab/.exo/server.json`. Stdio MCP initialized quickly and listed the expected tools, but all live app-backed MCP calls returned `isError: true` with stale command-server errors. The configured autostart path did not recover the app within the tested 12 second connection window.
 
-No app/runtime code was edited. One product issue was added to `docs/issues.md`: `EXO-ISSUE-046`.
+No app/runtime code was edited. One product issue was added to the canonical Exo issue tracker, now root `issues.md`: `EXO-ISSUE-046`.
 
 ## Environment
 

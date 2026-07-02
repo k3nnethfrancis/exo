@@ -233,7 +233,7 @@ Each phase should land as a reviewable work chunk. Do not merge a later phase by
 - Add `docs/terminal-quality-standard.md`.
 - Update `docs/terminal-runtime-decision.md` with the tmux-backed direction.
 - Add this refactor plan.
-- Update `docs/tasks.md`, `docs/issues.md`, `AGENTS.md`, README, architecture, and roadmap references away from direct-pty as the future standard.
+- Update `docs/tasks.md`, root `issues.md`, `AGENTS.md`, README, architecture, and roadmap references away from direct-pty as the future standard.
 
 Exit gate:
 
@@ -378,7 +378,7 @@ The terminal refactor is complete only when:
 2. Land tmux create/attach/terminate behind the existing terminal APIs.
 3. Dogfood with fake agents and shell sessions before real Claude/Codex.
 4. Add reattach and sleep/wake recovery.
-5. Use Exo for a bounded Exo-on-Exo task and record every terminal friction point in `docs/issues.md`.
+5. Use Exo for a bounded Exo-on-Exo task and record every terminal friction point in root `issues.md`.
 6. Only then treat the terminal runtime as ready for the broader installed-app QA pass.
 
 ## Test Plan

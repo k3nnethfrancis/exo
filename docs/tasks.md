@@ -1,8 +1,49 @@
 # Exo Tasks
 
-Last updated: 2026-06-28
+Last updated: 2026-07-02
 
 This is the active task tracker for Exo. It is intentionally not a history file; completed implementation history belongs in `ledger.md`. Tasks here should be concrete, current, and ordered by practical priority.
+
+Canonical issue intake is root `../issues.md`. Do not add new Exo issue trackers under `docs/` or the notes vault.
+
+## Current Ship Roadmap Tasks
+
+- [ ] Finish Plugin Architecture Completion:
+  - [ ] Add staged profile apply review with trust prompts and permission grants before any profile/plugin recommendation can write instructions, MCP config, skills, routines, settings, or grants.
+  - [ ] Tighten Plugin Manager into a management surface: active/disabled/untrusted/missing states, local plugin add/remove/swap, plugin-owned settings, readiness/dependency guidance, and no dense-layout overlap.
+  - [ ] Split terminal/session substrate types from harness-adapter ids so `exo agents` derives launchable harnesses from registered harness plugins while `exo terminals` remains the low-level core terminal surface.
+  - [ ] Define external plugin contracts for workload-specific trace collection, review labels, dataset export, eval packets, and instrumented agent runtimes.
+  - [ ] Keep GA/Shoshin-specific behavior out of OSS core; represent local variants as local/private plugin configuration or downstream plugins.
+- [ ] Run Plugin Architecture QA after the next plugin slice:
+  - [ ] Plugin Manager app QA: official rows locked, local/dev rows trust/enable/disable correctly, settings validation works, missing dependency states are legible, and dense layouts do not overlap.
+  - [ ] Onboarding plugin review QA: clean workspace selection shows core rows, official plugins, local profile/plugin inventory, and no destructive apply path without review.
+  - [ ] Search QA: QMD enabled/degraded/disabled states preserve core filename/path/basic text search and do not block Explore.
+  - [ ] Harness QA: unavailable harnesses do not show dead launch buttons; shell/Claude/Codex still launch through the registered harness path.
+- [ ] Clear the daily-use bug-bash cluster from root `../issues.md` before treating the build as ship-ready:
+  - [ ] Terminal/preview interaction: `EXO-ISSUE-056`, `EXO-ISSUE-062`, `EXO-ISSUE-069`, `EXO-ISSUE-072`, plus any new render/focus regressions.
+  - [ ] Editor/graph UX: `EXO-ISSUE-051`, `EXO-ISSUE-052`, `EXO-ISSUE-053`, `EXO-ISSUE-057`.
+  - [ ] Explorer/UI polish: `EXO-ISSUE-043`, `EXO-ISSUE-044`, `EXO-ISSUE-055`, `EXO-ISSUE-058`.
+  - [ ] Settings/profile/plugin UI: `EXO-ISSUE-047`, `EXO-ISSUE-048`, `EXO-ISSUE-049`.
+  - [ ] Install/onboarding/dev launch: `EXO-ISSUE-027`, `EXO-ISSUE-028`, `EXO-ISSUE-029`, `EXO-ISSUE-031`.
+  - [ ] QA workflow: `EXO-ISSUE-074` so visual app QA has a clear preflight/fallback path when Computer Use cannot inspect Exo.
+- [ ] Harden CLI/MCP for multi-agent coordination:
+  - [ ] Make `workspace_status` a reliable orientation tool with workspace roots, plugin/search readiness, live agents, index summary, command-server health, and degraded-state diagnostics.
+  - [ ] Add or finalize the core preview/artifact-open command path for CLI/MCP through the core web viewer endpoint.
+  - [ ] Add NDE-style MCP tests covering functionality, latency, result quality, stale config diagnostics, and permission/security behavior.
+  - [ ] Harden stale command-server and MCP launcher diagnostics, including deleted launcher paths and sandbox-blocked process probes.
+  - [ ] Keep the scheduled GitHub issue-fix loop conservative and documented: labeled issues only, one issue max, isolated branch/worktree, tests/app QA, draft PR, no main push, no auto-merge.
+- [ ] Prove the first Routine substrate path without expanding core:
+  - [ ] Use the GitHub issue-fix loop as the first routine-like POC.
+  - [ ] Model routine definitions as prompt, harness, trigger/schedule, scope, permissions, and output policy.
+  - [ ] Keep rich workload schemas plugin-owned; core stores minimal activity, artifact-reference, provenance-reference, and review-reference records.
+- [ ] Complete installable stable-runtime readiness:
+  - [ ] Clean reinstall from no app data, package, install to user Applications, first launch, notes folder selection, restart, CLI/MCP integration.
+  - [ ] Update README, changelog, and release notes for user install versus developer setup.
+  - [ ] Run a passive dogfooding period while using Exo for non-Exo work.
+- [ ] Defer larger exograph work until the plugin/CLI/MCP/daily-use ship path is stable:
+  - [ ] Read-only graph extraction and graph visualization plugins.
+  - [ ] Optional OKF-compatible profile diagnostics/import/export.
+  - [ ] Scoped note write primitives with reviewable, reversible proposals.
 
 ## Now: Useability And Exo-On-Exo Readiness
 

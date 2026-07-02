@@ -12,20 +12,21 @@ The immediate product proving loop is Exo-on-Exo: finish usability/harness readi
 4. `ledger.md` - fastest current-state handoff
 5. `docs/architecture.md` - runtime and package boundaries
 6. `docs/harness.md` - gates, work chunks, agent workflow
-7. `docs/tasks.md` - active execution tracker
-8. `docs/usability-readiness.md` - near-term standard before installed daily use
-9. `docs/terminal-architecture-v4.md` - current terminal architecture and module-boundary target
-10. `docs/terminal-runtime-decision.md` - current terminal runtime decision and open simplification questions
-11. `docs/terminal-quality-standard.md` - terminal useability and QA standard
-12. `docs/terminal-fallback-audit.md` - terminal fallback/recovery policy, steelman objections, and hardening backlog
-13. `docs/terminal-refactor-plan.md` - historical tmux migration plan; use the v4/decision/quality/fallback docs for current rules
-14. `docs/qmd-integration-notes.md` - current QMD adapter contract and upgrade notes
-15. `docs/roadmap.md` - future plans
-16. `docs/plugin-system-architecture.md` - core-versus-plugin target architecture
-17. `docs/plugin-architecture-audit.md` - plugin decision/fallback audit and hardening policy
-18. `docs/plugins.md` - future extension model
-19. `docs/plugin-implementation-plan.md` - implementation sequence for capability registries, providers, harnesses, activity substrate, artifact references, and plugin templates
-20. `packages/mcp/README.md` - MCP setup and tool contract
+7. `issues.md` - canonical active bug, QA, and field-issue tracker
+8. `docs/tasks.md` - active execution tracker
+9. `docs/usability-readiness.md` - near-term standard before installed daily use
+10. `docs/terminal-architecture-v4.md` - current terminal architecture and module-boundary target
+11. `docs/terminal-runtime-decision.md` - current terminal runtime decision and open simplification questions
+12. `docs/terminal-quality-standard.md` - terminal useability and QA standard
+13. `docs/terminal-fallback-audit.md` - terminal fallback/recovery policy, steelman objections, and hardening backlog
+14. `docs/terminal-refactor-plan.md` - historical tmux migration plan; use the v4/decision/quality/fallback docs for current rules
+15. `docs/qmd-integration-notes.md` - current QMD adapter contract and upgrade notes
+16. `docs/roadmap.md` - future plans
+17. `docs/plugin-system-architecture.md` - core-versus-plugin target architecture
+18. `docs/plugin-architecture-audit.md` - plugin decision/fallback audit and hardening policy
+19. `docs/plugins.md` - future extension model
+20. `docs/plugin-implementation-plan.md` - implementation sequence for capability registries, providers, harnesses, activity substrate, artifact references, and plugin templates
+21. `packages/mcp/README.md` - MCP setup and tool contract
 
 ## Repository Map
 
@@ -112,6 +113,7 @@ CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build 
 - Plugin architecture starts as typed internal capability registries, not arbitrary third-party code loading. Think of vanilla Exo as core plus bundled/recommended plugins. Search providers, harness adapters, routines, graph analyzers, evals, dashboards, and maintenance workflows should go through registry/contracts where practical; local forks such as GA Pi are configured instances of a generic harness plugin, not OSS source defaults.
 - Future provenance work should track human vs agent-authored changes by source, session, and task.
 - Project-root mutation belongs in UI/CLI operator surfaces; MCP may inspect attached roots through workspace status but should stay a narrow agent work plane.
+- Root `issues.md` is the canonical Exo bug, QA, and field-report tracker. Do not create parallel Exo issue trackers under `docs/` or the notes vault.
 - Workcells/evals/training/search-optimization harnesses should probably be plugin sets unless they become necessary for the default Exo-on-Exo loop.
 - Optional or personal workflows should go through the plugin architecture rather than becoming core by default.
 - CLI-first operator surfaces come before deep UI.
@@ -125,7 +127,7 @@ CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build 
 
 - Keep changes small enough that a failed gate points to one cause.
 - Update docs in the same chunk when public commands, architecture, settings, runtime behavior, or agent workflow changes.
-- Record future work in `docs/tasks.md` or `docs/roadmap.md`; record shipped current state in `ledger.md`.
+- Record active bugs and QA findings in root `issues.md`; record future roadmap work in `docs/tasks.md` or `docs/roadmap.md`; record shipped current state in `ledger.md`.
 - Do not include local secrets, private paths as source defaults, transcripts, logs, or `.exo/` runtime files.
 - Preserve unrelated local edits. Before staging, inspect `git status` and include only files that belong to the current task.
 - UI and terminal changes require app QA in the real Electron app, not only browser or unit tests. Use focused automated tests first, then manually exercise the affected workflow.

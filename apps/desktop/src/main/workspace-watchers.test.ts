@@ -7,7 +7,7 @@ describe("workspace watcher filtering", () => {
 
   it("keeps source and note changes visible to the workspace", () => {
     expect(shouldIgnoreWorkspaceChange(rootPath, "/workspace/exo/src/App.tsx")).toBe(false);
-    expect(shouldIgnoreWorkspaceChange(rootPath, "/workspace/exo/docs/issues.md")).toBe(false);
+    expect(shouldIgnoreWorkspaceChange(rootPath, "/workspace/exo/issues.md")).toBe(false);
     expect(shouldIgnoreWorkspaceChange(rootPath, null)).toBe(false);
   });
 
