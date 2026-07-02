@@ -154,7 +154,7 @@ export class TmuxControlModeProcess {
     try {
       const paste = unwrapBracketedPaste(data);
       if (paste !== null) {
-        this.sendLiteral(paste);
+        this.pasteLiteral(paste);
         return;
       }
 
@@ -191,11 +191,10 @@ export class TmuxControlModeProcess {
       return;
     }
 
-    if (/[\s]/.test(value)) {
-      this.pasteLiteral(value);
-      return;
-    }
-
+    // Ordinary interactive typing must stay on tmux's key path. Routing every
+    // space through paste-buffer makes basic shell editing depend on paste mode
+    // and can break expected terminal behavior. Real multiline/semantic pastes
+    // still arrive through the bracketed-paste branch above.
     this.sendKeys(["-l", value]);
   }
 

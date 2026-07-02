@@ -269,14 +269,15 @@ describe("terminal tmux runtime helpers", () => {
       rows: 30,
     });
 
-    process.write("abc\u001b[A\u007f\r");
+    process.write("hello world\u001b[A\u007f\r");
 
     expect(childProcess.execFileSync.mock.calls.map((call) => call[1])).toEqual([
-      ["-u", "send-keys", "-t", "%3", "-l", "abc"],
+      ["-u", "send-keys", "-t", "%3", "-l", "hello world"],
       ["-u", "send-keys", "-t", "%3", "Up"],
       ["-u", "send-keys", "-t", "%3", "BSpace"],
       ["-u", "send-keys", "-t", "%3", "Enter"],
     ]);
+    expect(childProcess.execFileSync.mock.calls.map((call) => call[1])).not.toContainEqual(["-u", "load-buffer", "-b", "exo-3", "-"]);
   });
 
   it("detaches instead of throwing when tmux send-keys fails", () => {
