@@ -11,7 +11,6 @@ interface UseWorkspaceLayoutPersistenceOptions {
   zoneSplitRatio: number;
   sidebarCollapsed: boolean;
   sidebarWidth: number;
-  inspectorCollapsed: boolean;
   layoutPersistenceReady: boolean;
   onboardingActive: boolean;
   workspaceModel: WorkspaceModel | null;
@@ -38,7 +37,6 @@ export function useWorkspaceLayoutPersistence(options: UseWorkspaceLayoutPersist
         zoneSplitRatio: options.zoneSplitRatio,
         sidebarCollapsed: options.sidebarCollapsed,
         sidebarWidth: options.sidebarWidth,
-        inspectorCollapsed: options.inspectorCollapsed,
       });
       if (stableJson(currentSettings.layout ?? null) === stableJson(layout)) {
         return;
@@ -60,7 +58,6 @@ export function useWorkspaceLayoutPersistence(options: UseWorkspaceLayoutPersist
     options.zoneSplitRatio,
     options.sidebarCollapsed,
     options.sidebarWidth,
-    options.inspectorCollapsed,
     options.layoutPersistenceReady,
     options.onboardingActive,
     options.workspaceModel,
@@ -68,7 +65,7 @@ export function useWorkspaceLayoutPersistence(options: UseWorkspaceLayoutPersist
   ]);
 }
 
-function createWorkspaceLayoutSnapshot(input: WorkspaceLayoutSettings): WorkspaceLayoutSettings {
+function createWorkspaceLayoutSnapshot(input: Omit<WorkspaceLayoutSettings, "inspectorCollapsed">): WorkspaceLayoutSettings {
   return {
     editorTree: input.editorTree,
     terminalTree: input.terminalTree,
@@ -77,7 +74,7 @@ function createWorkspaceLayoutSnapshot(input: WorkspaceLayoutSettings): Workspac
     zoneSplitRatio: roundLayoutNumber(input.zoneSplitRatio),
     sidebarCollapsed: input.sidebarCollapsed,
     sidebarWidth: Math.round(input.sidebarWidth),
-    inspectorCollapsed: input.inspectorCollapsed,
+    inspectorCollapsed: true,
   };
 }
 
