@@ -313,6 +313,9 @@ export function App() {
     zoomSurface,
     saveDocument,
     openOrCreateDailyNote,
+    createShellTerminal: async () => {
+      await terminalPaneController.createTerminal("shell");
+    },
     updateFocusedSurfaceZoom,
   });
 

@@ -7,6 +7,7 @@ interface UseAppKeybindingsOptions {
   zoomSurface: ZoomSurface;
   saveDocument: (filePath: string) => Promise<void>;
   openOrCreateDailyNote: () => Promise<void>;
+  createShellTerminal: () => Promise<void>;
   updateFocusedSurfaceZoom: (direction: -1 | 0 | 1, surface?: ZoomSurface) => void;
 }
 
@@ -28,6 +29,11 @@ export function useAppKeybindings(options: UseAppKeybindingsOptions) {
       if (mod && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "n") {
         event.preventDefault();
         void options.openOrCreateDailyNote();
+        return;
+      }
+      if (isNewTerminalShortcut(event)) {
+        event.preventDefault();
+        void options.createShellTerminal();
       }
     }
 
@@ -38,8 +44,14 @@ export function useAppKeybindings(options: UseAppKeybindingsOptions) {
     options.zoomSurface,
     options.saveDocument,
     options.openOrCreateDailyNote,
+    options.createShellTerminal,
     options.updateFocusedSurfaceZoom,
   ]);
+}
+
+export function isNewTerminalShortcut(event: Pick<KeyboardEvent, "key" | "metaKey" | "ctrlKey" | "shiftKey" | "altKey" | "repeat">): boolean {
+  const mod = event.metaKey || event.ctrlKey;
+  return mod && !event.shiftKey && !event.altKey && !event.repeat && event.key.toLowerCase() === "t";
 }
 
 function isZoomKey(key: string): boolean {

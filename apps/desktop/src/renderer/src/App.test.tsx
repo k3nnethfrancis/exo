@@ -101,6 +101,7 @@ import {
 } from "./workspaceSettingsModel";
 import { buildExplorerChangeState } from "./explorerChangeState";
 import { collectLeaves, openOrUpdateBrowserPane, type PaneNode } from "./hooks/usePaneTree";
+import { isNewTerminalShortcut } from "./hooks/useAppKeybindings";
 import {
   getWikilinkCompletionContext,
   graphReferencesForMarkdownMode,
@@ -114,6 +115,20 @@ import type { ToolSurfaceDescriptor } from "@exo/core/surface-descriptor";
 describe("desktop shell", () => {
   it("keeps a renderer test surface in place", () => {
     expect(true).toBe(true);
+  });
+});
+
+describe("app keybindings", () => {
+  it("recognizes Mod+T as the new terminal shortcut", () => {
+    expect(isNewTerminalShortcut({ key: "t", metaKey: true, ctrlKey: false, shiftKey: false, altKey: false, repeat: false })).toBe(true);
+    expect(isNewTerminalShortcut({ key: "T", metaKey: false, ctrlKey: true, shiftKey: false, altKey: false, repeat: false })).toBe(true);
+  });
+
+  it("ignores modified or repeated Mod+T events", () => {
+    expect(isNewTerminalShortcut({ key: "t", metaKey: true, ctrlKey: false, shiftKey: true, altKey: false, repeat: false })).toBe(false);
+    expect(isNewTerminalShortcut({ key: "t", metaKey: true, ctrlKey: false, shiftKey: false, altKey: true, repeat: false })).toBe(false);
+    expect(isNewTerminalShortcut({ key: "t", metaKey: true, ctrlKey: false, shiftKey: false, altKey: false, repeat: true })).toBe(false);
+    expect(isNewTerminalShortcut({ key: "n", metaKey: true, ctrlKey: false, shiftKey: false, altKey: false, repeat: false })).toBe(false);
   });
 });
 
