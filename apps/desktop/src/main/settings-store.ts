@@ -60,6 +60,27 @@ export interface WorkspaceSettingsStoreOptions {
   env?: NodeJS.ProcessEnv;
 }
 
+const PI_HARNESS_ENV_KEYS = [
+  "EXO_PI_ENABLED",
+  "EXO_PI_LABEL",
+  "EXO_PI_COMMAND",
+  "EXO_PI_REPO_PATH",
+  "EXO_PI_ARGS",
+  "EXO_PI_CHANNEL",
+  "EXO_PI_BUILD",
+  "EXO_PI_BACKEND_URL",
+  "EXO_PI_BACKEND_COMMAND",
+  "EXO_PI_BACKEND_LABEL",
+  "EXO_PI_BACKEND_KIND",
+  "EXO_PI_BACKEND_READY",
+] as const;
+
+const initialPiHarnessEnvOverrides = new Map(
+  PI_HARNESS_ENV_KEYS
+    .filter((key) => process.env[key] !== undefined)
+    .map((key) => [key, process.env[key] as string]),
+);
+
 export interface TerminalRuntimePolicy {
   scrollbackLines: number;
   bufferLineLimit: number | null;
@@ -150,7 +171,16 @@ export function applyWorkspaceSettingsToEnv(settings: WorkspaceSettings | null, 
     return;
   }
 
-  Object.assign(env, workspaceSettingsToEnv(settings));
+  const settingsEnv = workspaceSettingsToEnv(settings);
+  Object.assign(env, settingsEnv);
+  for (const key of PI_HARNESS_ENV_KEYS) {
+    const operatorValue = env === process.env ? initialPiHarnessEnvOverrides.get(key) : undefined;
+    if (operatorValue !== undefined) {
+      env[key] = operatorValue;
+    } else if (!(key in settingsEnv)) {
+      delete env[key];
+    }
+  }
 }
 
 export function isForcedTheme(value: string | undefined): value is WorkspaceSettings["appearanceMode"] {

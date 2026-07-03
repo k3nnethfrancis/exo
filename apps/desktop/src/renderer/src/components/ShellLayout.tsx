@@ -7,7 +7,7 @@ import type { PaneLeaf, PaneNodeId, PaneTreeActions, PaneNode } from "../hooks/u
 import type { DragManager, DragPayload } from "../hooks/useDragManager";
 import type { WorkspaceSearchResultMode } from "../hooks/useWorkspaceSearch";
 import type { AppearanceMode, ResolvedAppearance } from "../appearance";
-import type { TreeNode, WorkspaceSearchResults } from "@exo/core";
+import type { AgentHarnessDetection, TreeNode, WorkspaceSearchResults } from "@exo/core";
 import type { TerminalKind, WorkspaceGitChange } from "../../../shared/api";
 import exoGlyph from "../assets/exo-glyph.svg";
 
@@ -106,6 +106,7 @@ interface ShellLayoutProps {
   onRenamePath: (targetPath: string) => void;
   onDeletePath: (targetPath: string) => void;
   onCreateTerminal: (kind: TerminalKind) => void;
+  agentHarnesses: AgentHarnessDetection[];
   onCreateBrowserPane: () => void;
 }
 
@@ -150,6 +151,7 @@ export function ShellLayout(props: ShellLayoutProps) {
     onRenamePath,
     onDeletePath,
     onCreateTerminal,
+    agentHarnesses,
     onCreateBrowserPane,
   } = props;
 
@@ -197,6 +199,7 @@ export function ShellLayout(props: ShellLayoutProps) {
       onToggleCollapsed={() => setTerminalCollapsed((current) => !current)}
       onOpenAgentConfigEditor={onOpenAgentConfigEditor}
       onCreateTerminal={onCreateTerminal}
+      harnesses={agentHarnesses}
     />
   );
 

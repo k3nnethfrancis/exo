@@ -38,6 +38,10 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - `exo runtime launch-plan pi /Users/kenneth/Desktop/lab` uses workspace cwd and the configured Pi-compatible command/repo.
   - Missing backend still shows setup detail and does not render a dead launcher button.
   - Tests cover persisted config, env override precedence, missing-backend launcher hiding, configured-backend launcher visibility, source-checkout detection, and workspace-cwd launch plans.
+- Notes:
+  - 2026-07-03: Added typed persisted `piHarness` workspace settings with normalization and projection to the existing `EXO_PI_*` adapter vocabulary. CLI, MCP, and desktop settings application now merge persisted Pi settings while preserving explicit operator env overrides.
+  - 2026-07-03: Added Pi-compatible setup editing/status surfaces in Agent Config and Workspace Settings. Missing backend remains visible as setup detail, while normal launcher surfaces still use launchability filtering and avoid dead Pi buttons.
+  - 2026-07-03: Added focused coverage for Pi settings normalization/env projection, operator override precedence, persisted workspace-cwd launch plans, launcher filtering, and renderer setup controls.
 
 ### EXO-ISSUE-075: Terminal geometry divergence causes render drift and hard-refresh recovery loops
 

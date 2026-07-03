@@ -38,6 +38,7 @@ interface UseWorkspaceSettingsControllerOptions {
   applyWorkspaceSettings: (settings: WorkspaceSettings) => void;
   refreshWorkspaceModel: () => Promise<void>;
   setIndexStatus: Dispatch<SetStateAction<IndexStatus | null>>;
+  onSettingsSaved?: () => void | Promise<void>;
 }
 
 export function useWorkspaceSettingsController(options: UseWorkspaceSettingsControllerOptions) {
@@ -95,6 +96,7 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
     optionsRef.current.workspaceSettingsRef.current = nextSettings;
     const saved = await window.exo.workspace.saveSettings(nextSettings);
     optionsRef.current.workspaceSettingsRef.current = saved;
+    void optionsRef.current.onSettingsSaved?.();
   }
 
   async function openDialog(section: WorkspaceSettingsSection = "workspace") {
@@ -126,6 +128,18 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
       terminalMaxReadTailChars: String(settings.terminalMaxReadTailChars ?? DEFAULT_TERMINAL_MAX_READ_TAIL_CHARS),
       terminalUnresponsiveThresholdMs: String(settings.terminalUnresponsiveThresholdMs ?? DEFAULT_TERMINAL_UNRESPONSIVE_THRESHOLD_MS),
       terminalIdleThresholdMs: String(settings.terminalIdleThresholdMs ?? DEFAULT_TERMINAL_IDLE_THRESHOLD_MS),
+      piHarnessEnabled: settings.piHarness?.enabled ?? true,
+      piHarnessLabel: settings.piHarness?.label ?? "",
+      piHarnessCommand: settings.piHarness?.command ?? "",
+      piHarnessRepoPath: settings.piHarness?.repoPath ?? "",
+      piHarnessArgs: settings.piHarness?.args?.join(", ") ?? "",
+      piHarnessBackendUrl: settings.piHarness?.backendUrl ?? "",
+      piHarnessBackendCommand: settings.piHarness?.backendCommand ?? "",
+      piHarnessBackendLabel: settings.piHarness?.backendLabel ?? "",
+      piHarnessBackendKind: settings.piHarness?.backendKind ?? "",
+      piHarnessBackendReady: typeof settings.piHarness?.backendReady === "boolean"
+        ? settings.piHarness.backendReady ? "ready" : "not-ready"
+        : "auto",
       explorerScale: String(settings.explorerScale),
       exploreIndexSearchOnEnter: settings.exploreIndexSearchOnEnter,
       indexUpdateStrategy: settings.indexUpdateStrategy,
@@ -246,6 +260,7 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
       const saved = await window.exo.workspace.saveSettings(nextSettings);
       optionsRef.current.workspaceSettingsRef.current = saved;
       optionsRef.current.applyWorkspaceSettings(saved);
+      void optionsRef.current.onSettingsSaved?.();
       setDialog((current) =>
         current && (saveOptions.includeStructural ? workspaceSettingsStructuralDraftKey(current) : workspaceSettingsImmediateDraftKey(current)) === snapshotKey
           ? {
@@ -377,9 +392,59 @@ function workspaceSettingsFromDialog(
     explorerScale: clampNumber(Number(settingsDialog.explorerScale), 0.82, 1.35),
     exploreIndexSearchOnEnter: settingsDialog.exploreIndexSearchOnEnter,
     indexUpdateStrategy: settingsDialog.indexUpdateStrategy,
+    piHarness: piHarnessSettingsFromDialog(settingsDialog),
   };
 }
 
 function integerAtLeast(value: number, fallback: number, min: number): number {
   return Number.isFinite(value) ? Math.max(min, Math.floor(value)) : fallback;
+}
+
+function piHarnessSettingsFromDialog(
+  settingsDialog: WorkspaceSettingsDialogState,
+): WorkspaceSettings["piHarness"] {
+  const args = settingsDialog.piHarnessArgs
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  const backendReady = settingsDialog.piHarnessBackendReady === "auto"
+    ? undefined
+    : settingsDialog.piHarnessBackendReady === "ready";
+  const next = {
+    enabled: settingsDialog.piHarnessEnabled,
+    label: settingsDialog.piHarnessLabel.trim(),
+    command: settingsDialog.piHarnessCommand.trim(),
+    repoPath: settingsDialog.piHarnessRepoPath.trim(),
+    args,
+    backendUrl: settingsDialog.piHarnessBackendUrl.trim(),
+    backendCommand: settingsDialog.piHarnessBackendCommand.trim(),
+    backendLabel: settingsDialog.piHarnessBackendLabel.trim(),
+    backendKind: settingsDialog.piHarnessBackendKind.trim(),
+    backendReady,
+  };
+  const hasConfig = !next.enabled
+    || Boolean(next.label)
+    || Boolean(next.command)
+    || Boolean(next.repoPath)
+    || next.args.length > 0
+    || Boolean(next.backendUrl)
+    || Boolean(next.backendCommand)
+    || Boolean(next.backendLabel)
+    || Boolean(next.backendKind)
+    || typeof next.backendReady === "boolean";
+  if (!hasConfig) {
+    return undefined;
+  }
+  return {
+    ...(typeof next.enabled === "boolean" ? { enabled: next.enabled } : {}),
+    ...(next.label ? { label: next.label } : {}),
+    ...(next.command ? { command: next.command } : {}),
+    ...(next.repoPath ? { repoPath: next.repoPath } : {}),
+    ...(next.args.length > 0 ? { args: next.args } : {}),
+    ...(next.backendUrl ? { backendUrl: next.backendUrl } : {}),
+    ...(next.backendCommand ? { backendCommand: next.backendCommand } : {}),
+    ...(next.backendLabel ? { backendLabel: next.backendLabel } : {}),
+    ...(next.backendKind ? { backendKind: next.backendKind } : {}),
+    ...(typeof next.backendReady === "boolean" ? { backendReady: next.backendReady } : {}),
+  };
 }

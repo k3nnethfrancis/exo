@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { AgentHarnessDetection } from "@exo/core";
+import type { AgentHarnessDetection, PiHarnessSettings, WorkspaceSettings } from "@exo/core";
 import { X } from "lucide-react";
 
 import type { AgentLibrarySkill, AgentSkillFile, AgentSkillInventory, AgentSkillSummary } from "../../../shared/api";
@@ -96,15 +96,24 @@ export function AgentConfigEditorDialog({ editor, onClose }: AgentConfigEditorDi
 
 function AgentHarnessesPanel() {
   const [harnesses, setHarnesses] = useState<AgentHarnessDetection[]>([]);
+  const [settings, setSettings] = useState<WorkspaceSettings | null>(null);
+  const [piDraft, setPiDraft] = useState<PiHarnessDraft>(createPiHarnessDraft());
   const [loadState, setLoadState] = useState<"loading" | "idle" | "error">("loading");
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    window.exo.workspace.listAgentHarnesses()
-      .then((nextHarnesses) => {
+    Promise.all([
+      window.exo.workspace.listAgentHarnesses(),
+      window.exo.workspace.getSettings(),
+    ])
+      .then(([nextHarnesses, nextSettings]) => {
         if (!cancelled) {
           setHarnesses(nextHarnesses);
+          setSettings(nextSettings);
+          setPiDraft(createPiHarnessDraft(nextSettings.piHarness));
           setLoadState("idle");
         }
       })
@@ -120,10 +129,46 @@ function AgentHarnessesPanel() {
     };
   }, []);
 
+  async function refreshHarnesses() {
+    setHarnesses(await window.exo.workspace.listAgentHarnesses());
+  }
+
+  async function savePiHarnessSettings() {
+    const currentSettings = settings ?? await window.exo.workspace.getSettings();
+    setSaveState("saving");
+    setSaveMessage(null);
+    try {
+      const saved = await window.exo.workspace.saveSettings({
+        ...currentSettings,
+        piHarness: piHarnessSettingsFromDraft(piDraft),
+      });
+      setSettings(saved);
+      setPiDraft(createPiHarnessDraft(saved.piHarness));
+      await refreshHarnesses();
+      setSaveState("idle");
+      setSaveMessage("Pi configuration saved.");
+    } catch (error) {
+      setSaveState("error");
+      setSaveMessage(error instanceof Error ? error.message : "Unable to save Pi configuration.");
+    }
+  }
+
+  const piHarness = harnesses.find((harness) => harness.id === "pi");
+
   return (
     <div className="agent-harnesses" data-testid="agent-harnesses-manager">
       {loadState === "loading" ? <div className="dialog-card__status">Loading harnesses...</div> : null}
       {loadState === "error" ? <div className="dialog-card__status dialog-card__status--error">{errorMessage}</div> : null}
+      {piHarness ? (
+        <PiHarnessSettingsPanel
+          draft={piDraft}
+          harness={piHarness}
+          onChange={setPiDraft}
+          onSave={savePiHarnessSettings}
+          saveMessage={saveMessage}
+          saveState={saveState}
+        />
+      ) : null}
       {harnesses.map((harness) => (
         <div className="agent-harnesses__row" data-testid={`agent-harness-${harness.id}`} key={harness.id}>
           <div>
@@ -157,6 +202,157 @@ function AgentHarnessesPanel() {
       ))}
     </div>
   );
+}
+
+export interface PiHarnessDraft {
+  enabled: boolean;
+  label: string;
+  command: string;
+  repoPath: string;
+  args: string;
+  backendUrl: string;
+  backendCommand: string;
+  backendLabel: string;
+  backendKind: string;
+  backendReady: "" | "true" | "false";
+}
+
+export function PiHarnessSettingsPanel({
+  draft,
+  harness,
+  onChange,
+  onSave,
+  saveMessage,
+  saveState,
+}: {
+  draft: PiHarnessDraft;
+  harness: AgentHarnessDetection;
+  onChange: (draft: PiHarnessDraft) => void;
+  onSave: () => void | Promise<void>;
+  saveMessage: string | null;
+  saveState: "idle" | "saving" | "error";
+}) {
+  return (
+    <section className="agent-harnesses__settings" data-testid="pi-harness-settings">
+      <div className="agent-harnesses__settings-header">
+        <div>
+          <div className="dialog-field__label">Pi-compatible setup</div>
+          <div className="agent-config-editor__path">
+            {harness.statusLabel}
+            {harness.setupSummary ? ` · ${harness.setupSummary}` : ""}
+          </div>
+        </div>
+        <button className="toolbar-button" data-testid="pi-harness-save" disabled={saveState === "saving"} onClick={onSave} type="button">
+          {saveState === "saving" ? "Saving..." : "Save"}
+        </button>
+      </div>
+      {saveMessage ? (
+        <div className={`dialog-card__status ${saveState === "error" ? "dialog-card__status--error" : ""}`} data-testid="pi-harness-save-message">
+          {saveMessage}
+        </div>
+      ) : null}
+      <label className="dialog-field agent-harnesses__checkbox">
+        <input
+          checked={draft.enabled}
+          data-testid="pi-harness-enabled"
+          onChange={(event) => onChange({ ...draft, enabled: event.target.checked })}
+          type="checkbox"
+        />
+        <span>Enabled</span>
+      </label>
+      <div className="agent-harnesses__settings-grid">
+        <PiTextField draftKey="label" label="Label" draft={draft} onChange={onChange} testId="pi-harness-label" />
+        <PiTextField draftKey="repoPath" label="Repo path" draft={draft} onChange={onChange} testId="pi-harness-repo-path" />
+        <PiTextField draftKey="command" label="Command" draft={draft} onChange={onChange} testId="pi-harness-command" />
+        <PiTextField draftKey="args" label="Args" draft={draft} onChange={onChange} testId="pi-harness-args" />
+        <PiTextField draftKey="backendUrl" label="Backend URL" draft={draft} onChange={onChange} testId="pi-harness-backend-url" />
+        <PiTextField draftKey="backendCommand" label="Backend command" draft={draft} onChange={onChange} testId="pi-harness-backend-command" />
+        <PiTextField draftKey="backendLabel" label="Backend label" draft={draft} onChange={onChange} testId="pi-harness-backend-label" />
+        <PiTextField draftKey="backendKind" label="Backend kind" draft={draft} onChange={onChange} testId="pi-harness-backend-kind" />
+        <label className="dialog-field">
+          <span className="dialog-field__label">Backend ready</span>
+          <select
+            className="dialog-card__input"
+            data-testid="pi-harness-backend-ready"
+            onChange={(event) => onChange({ ...draft, backendReady: event.target.value as PiHarnessDraft["backendReady"] })}
+            value={draft.backendReady}
+          >
+            <option value="">Auto</option>
+            <option value="true">Ready</option>
+            <option value="false">Blocked</option>
+          </select>
+        </label>
+      </div>
+    </section>
+  );
+}
+
+function PiTextField({
+  draft,
+  draftKey,
+  label,
+  onChange,
+  testId,
+}: {
+  draft: PiHarnessDraft;
+  draftKey: keyof Pick<PiHarnessDraft, "label" | "command" | "repoPath" | "args" | "backendUrl" | "backendCommand" | "backendLabel" | "backendKind">;
+  label: string;
+  onChange: (draft: PiHarnessDraft) => void;
+  testId: string;
+}) {
+  return (
+    <label className="dialog-field">
+      <span className="dialog-field__label">{label}</span>
+      <input
+        className="dialog-card__input"
+        data-testid={testId}
+        onChange={(event) => onChange({ ...draft, [draftKey]: event.target.value })}
+        value={draft[draftKey]}
+      />
+    </label>
+  );
+}
+
+export function createPiHarnessDraft(settings?: PiHarnessSettings): PiHarnessDraft {
+  return {
+    enabled: settings?.enabled ?? true,
+    label: settings?.label ?? "",
+    command: settings?.command ?? "",
+    repoPath: settings?.repoPath ?? "",
+    args: settings?.args?.join(", ") ?? "",
+    backendUrl: settings?.backendUrl ?? "",
+    backendCommand: settings?.backendCommand ?? "",
+    backendLabel: settings?.backendLabel ?? "",
+    backendKind: settings?.backendKind ?? "",
+    backendReady: typeof settings?.backendReady === "boolean" ? (settings.backendReady ? "true" : "false") : "",
+  };
+}
+
+export function piHarnessSettingsFromDraft(draft: PiHarnessDraft): PiHarnessSettings | undefined {
+  const settings: PiHarnessSettings = {};
+  settings.enabled = draft.enabled;
+  assignDraftString(settings, "label", draft.label);
+  assignDraftString(settings, "command", draft.command);
+  assignDraftString(settings, "repoPath", draft.repoPath);
+  assignDraftString(settings, "backendUrl", draft.backendUrl);
+  assignDraftString(settings, "backendCommand", draft.backendCommand);
+  assignDraftString(settings, "backendLabel", draft.backendLabel);
+  assignDraftString(settings, "backendKind", draft.backendKind);
+  const args = draft.args.split(",").map((arg) => arg.trim()).filter(Boolean);
+  if (args.length > 0) {
+    settings.args = args;
+  }
+  if (draft.backendReady) {
+    settings.backendReady = draft.backendReady === "true";
+  }
+  return Object.keys(settings).length > 0 ? settings : undefined;
+}
+
+function assignDraftString(settings: PiHarnessSettings, key: keyof PiHarnessSettings, value: string): void {
+  const trimmed = value.trim();
+  if (trimmed) {
+    (settings as Record<string, unknown>)[key] = trimmed;
+  }
 }
 
 function AgentInstructionsPanel({ editor }: { editor: AgentInstructionEditor }) {

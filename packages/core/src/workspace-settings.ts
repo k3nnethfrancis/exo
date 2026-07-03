@@ -2,7 +2,7 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import type { IndexMode, WorkspaceLayoutSettings, WorkspacePaneContent, WorkspacePaneNode, WorkspaceSettings } from "./types";
+import type { IndexMode, PiHarnessSettings, WorkspaceLayoutSettings, WorkspacePaneContent, WorkspacePaneNode, WorkspaceSettings } from "./types";
 import {
   DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS,
   DEFAULT_TERMINAL_AGENT_SUBMIT_DELAY_MS,
@@ -184,6 +184,7 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
     defaultTerminalCwd,
     noteRoots,
     projectRoots,
+    piHarness: normalizePiHarnessSettings(input.piHarness),
     indexedRoots,
     indexing,
     appearanceMode: input.appearanceMode === "light" || input.appearanceMode === "dark" || input.appearanceMode === "system" ? input.appearanceMode : DEFAULT_APPEARANCE_MODE,
@@ -218,6 +219,64 @@ function normalizeColorThemeId(value: unknown): WorkspaceSettings["colorThemeId"
   return value === "exo-solar" || value === "exo-neutral" ? value : DEFAULT_COLOR_THEME_ID;
 }
 
+export function normalizePiHarnessSettings(input: unknown): PiHarnessSettings | undefined {
+  if (!input || typeof input !== "object") {
+    return undefined;
+  }
+  const candidate = input as Partial<PiHarnessSettings>;
+  const settings: PiHarnessSettings = {};
+  assignOptionalString(settings, "label", candidate.label);
+  assignOptionalString(settings, "command", candidate.command);
+  assignOptionalString(settings, "repoPath", candidate.repoPath);
+  assignOptionalString(settings, "channel", candidate.channel);
+  assignOptionalString(settings, "build", candidate.build);
+  assignOptionalString(settings, "backendUrl", candidate.backendUrl);
+  assignOptionalString(settings, "backendCommand", candidate.backendCommand);
+  assignOptionalString(settings, "backendLabel", candidate.backendLabel);
+  assignOptionalString(settings, "backendKind", candidate.backendKind);
+  if (typeof candidate.enabled === "boolean") {
+    settings.enabled = candidate.enabled;
+  }
+  if (typeof candidate.backendReady === "boolean") {
+    settings.backendReady = candidate.backendReady;
+  }
+  const args = normalizePiHarnessArgs(candidate.args);
+  if (args.length > 0) {
+    settings.args = args;
+  }
+  return Object.keys(settings).length > 0 ? settings : undefined;
+}
+
+function normalizePiHarnessArgs(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((entry) => (typeof entry === "string" ? entry.trim() : "")).filter(Boolean);
+  }
+  if (typeof value === "string") {
+    return value.split(",").map((entry) => entry.trim()).filter(Boolean);
+  }
+  return [];
+}
+
+type PiHarnessStringSettingKey = {
+  [Key in keyof PiHarnessSettings]: PiHarnessSettings[Key] extends string | undefined ? Key : never;
+}[keyof PiHarnessSettings] & string;
+
+function assignOptionalString(target: PiHarnessSettings, key: PiHarnessStringSettingKey, value: unknown): void {
+  if (typeof value !== "string") {
+    return;
+  }
+  const trimmed = value.trim();
+  if (trimmed) {
+    target[key] = trimmed;
+  }
+}
+
+function assignOptionalEnv(target: Record<string, string>, key: string, value: string | undefined): void {
+  if (value?.trim()) {
+    target[key] = value.trim();
+  }
+}
+
 export function workspaceEntryFromSettings(settings: WorkspaceSettings): WorkspaceRegistryEntry {
   const notesFolder = settings.noteRoots[0] || settings.workspaceRoot;
   return {
@@ -229,16 +288,52 @@ export function workspaceEntryFromSettings(settings: WorkspaceSettings): Workspa
   };
 }
 
-export function workspaceSettingsToEnv(settings: WorkspaceSettings): Record<string, string> {
+export interface WorkspaceSettingsEnvOptions {
+  includeWorkspace?: boolean;
+  includePiHarness?: boolean;
+}
+
+export function workspaceSettingsToEnv(settings: WorkspaceSettings, options: WorkspaceSettingsEnvOptions = {}): Record<string, string> {
+  const includeWorkspace = options.includeWorkspace ?? true;
+  const includePiHarness = options.includePiHarness ?? true;
   return {
-    EXO_WORKSPACE_ROOT: settings.workspaceRoot,
-    EXO_DEFAULT_TERMINAL_CWD: settings.defaultTerminalCwd,
-    EXO_NOTE_ROOTS: settings.noteRoots.join(path.delimiter),
-    EXO_PROJECT_ROOTS: settings.projectRoots.join(path.delimiter),
-    EXO_INDEXED_ROOTS: JSON.stringify(settings.indexedRoots),
-    EXO_INDEX_ENABLED: settings.indexing.enabled ? "1" : "0",
-    EXO_INDEX_MODE: settings.indexing.mode,
+    ...(includeWorkspace
+      ? {
+          EXO_WORKSPACE_ROOT: settings.workspaceRoot,
+          EXO_DEFAULT_TERMINAL_CWD: settings.defaultTerminalCwd,
+          EXO_NOTE_ROOTS: settings.noteRoots.join(path.delimiter),
+          EXO_PROJECT_ROOTS: settings.projectRoots.join(path.delimiter),
+          EXO_INDEXED_ROOTS: JSON.stringify(settings.indexedRoots),
+          EXO_INDEX_ENABLED: settings.indexing.enabled ? "1" : "0",
+          EXO_INDEX_MODE: settings.indexing.mode,
+        }
+      : {}),
+    ...(includePiHarness ? piHarnessSettingsToEnv(settings.piHarness) : {}),
   };
+}
+
+export function piHarnessSettingsToEnv(settings: PiHarnessSettings | undefined): Record<string, string> {
+  if (!settings) {
+    return {};
+  }
+  const env: Record<string, string> = {};
+  assignOptionalEnv(env, "EXO_PI_LABEL", settings.label);
+  assignOptionalEnv(env, "EXO_PI_COMMAND", settings.command);
+  assignOptionalEnv(env, "EXO_PI_REPO_PATH", settings.repoPath);
+  assignOptionalEnv(env, "EXO_PI_ARGS", settings.args?.join(","));
+  assignOptionalEnv(env, "EXO_PI_CHANNEL", settings.channel);
+  assignOptionalEnv(env, "EXO_PI_BUILD", settings.build);
+  assignOptionalEnv(env, "EXO_PI_BACKEND_URL", settings.backendUrl);
+  assignOptionalEnv(env, "EXO_PI_BACKEND_COMMAND", settings.backendCommand);
+  assignOptionalEnv(env, "EXO_PI_BACKEND_LABEL", settings.backendLabel);
+  assignOptionalEnv(env, "EXO_PI_BACKEND_KIND", settings.backendKind);
+  if (typeof settings.enabled === "boolean") {
+    env.EXO_PI_ENABLED = settings.enabled ? "1" : "0";
+  }
+  if (typeof settings.backendReady === "boolean") {
+    env.EXO_PI_BACKEND_READY = settings.backendReady ? "1" : "0";
+  }
+  return env;
 }
 
 function normalizeRegistryEntry(value: unknown): WorkspaceRegistryEntry | null {

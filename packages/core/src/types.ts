@@ -66,6 +66,7 @@ export interface WorkspaceSettings {
   defaultTerminalCwd: string;
   noteRoots: string[];
   projectRoots: string[];
+  piHarness?: PiHarnessSettings;
   indexedRoots: IndexedRoot[];
   indexing: IndexingConfig;
   appearanceMode: "system" | "light" | "dark";
@@ -90,6 +91,21 @@ export interface WorkspaceSettings {
   exploreIndexSearchOnEnter: boolean;
   indexUpdateStrategy: IndexUpdateStrategy;
   layout?: WorkspaceLayoutSettings;
+}
+
+export interface PiHarnessSettings {
+  enabled?: boolean;
+  label?: string;
+  command?: string;
+  repoPath?: string;
+  args?: string[];
+  channel?: string;
+  build?: string;
+  backendUrl?: string;
+  backendCommand?: string;
+  backendLabel?: string;
+  backendKind?: string;
+  backendReady?: boolean;
 }
 
 export interface WorkspaceLayoutSettings {

@@ -21,6 +21,16 @@ export function workspaceSettingsImmediateDraftKey(settings: WorkspaceSettingsDi
     explorerScale: settings.explorerScale,
     exploreIndexSearchOnEnter: settings.exploreIndexSearchOnEnter,
     indexUpdateStrategy: settings.indexUpdateStrategy,
+    piHarnessEnabled: settings.piHarnessEnabled,
+    piHarnessLabel: settings.piHarnessLabel,
+    piHarnessCommand: settings.piHarnessCommand,
+    piHarnessRepoPath: settings.piHarnessRepoPath,
+    piHarnessArgs: settings.piHarnessArgs,
+    piHarnessBackendUrl: settings.piHarnessBackendUrl,
+    piHarnessBackendCommand: settings.piHarnessBackendCommand,
+    piHarnessBackendLabel: settings.piHarnessBackendLabel,
+    piHarnessBackendKind: settings.piHarnessBackendKind,
+    piHarnessBackendReady: settings.piHarnessBackendReady,
   });
 }
 

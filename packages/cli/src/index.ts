@@ -675,8 +675,8 @@ export async function runCli(
   }
 
   if (command === "workspace" && subcommand === "current") {
-    const settings = workspaceEnvOverrides(env) ? null : await loadActiveWorkspaceSettings(env);
-    const model = resolveWorkspaceModel(settings ? { ...env, ...workspaceSettingsToEnv(settings) } : env);
+    const settings = await loadActiveWorkspaceSettings(env);
+    const model = resolveWorkspaceModel(settings ? { ...workspaceSettingsToEnv(settings, { includeWorkspace: !workspaceEnvOverrides(env) }), ...env } : env);
     stdout.write(`${JSON.stringify({ workspace: model, settingsPath: resolveWorkspaceSettingsPath(env), source: settings ? "registry" : "env" }, null, 2)}\n`);
     return 0;
   }
@@ -1139,11 +1139,14 @@ async function connectOrFail(
 }
 
 async function resolveCliWorkspaceEnv(env: NodeJS.ProcessEnv): Promise<NodeJS.ProcessEnv> {
-  if (workspaceEnvOverrides(env)) {
+  const settings = await loadActiveWorkspaceSettings(env);
+  if (!settings) {
     return env;
   }
-  const settings = await loadActiveWorkspaceSettings(env);
-  return settings ? { ...env, ...workspaceSettingsToEnv(settings) } : env;
+  return {
+    ...workspaceSettingsToEnv(settings, { includeWorkspace: !workspaceEnvOverrides(env) }),
+    ...env,
+  };
 }
 
 async function resolveCliRuntimeConfig(env: NodeJS.ProcessEnv) {

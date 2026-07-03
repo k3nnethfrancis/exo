@@ -34,6 +34,16 @@ export interface WorkspaceSettingsDialogState {
   terminalMaxReadTailChars: string;
   terminalUnresponsiveThresholdMs: string;
   terminalIdleThresholdMs: string;
+  piHarnessEnabled: boolean;
+  piHarnessLabel: string;
+  piHarnessCommand: string;
+  piHarnessRepoPath: string;
+  piHarnessArgs: string;
+  piHarnessBackendUrl: string;
+  piHarnessBackendCommand: string;
+  piHarnessBackendLabel: string;
+  piHarnessBackendKind: string;
+  piHarnessBackendReady: "auto" | "ready" | "not-ready";
   explorerScale: string;
   exploreIndexSearchOnEnter: boolean;
   indexUpdateStrategy: WorkspaceSettings["indexUpdateStrategy"];

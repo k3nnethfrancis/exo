@@ -92,6 +92,116 @@ describe("cli package", () => {
     }
   });
 
+  it("uses persisted Pi-compatible harness settings for runtime status and launch plans", async () => {
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-cli-pi-settings-"));
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-pi-workspace-"));
+    const piRepo = await mkdtemp(path.join(os.tmpdir(), "exo-cli-pi-repo-"));
+    const cliPath = path.join(piRepo, "packages", "coding-agent", "dist", "cli.js");
+    let statusStdout = "";
+    let planStdout = "";
+
+    try {
+      await mkdir(path.dirname(cliPath), { recursive: true });
+      await writeFile(cliPath, "#!/usr/bin/env node\n", "utf8");
+      await saveWorkspaceSettings({
+        workspaceRoot,
+        defaultTerminalCwd: workspaceRoot,
+        noteRoots: [path.join(workspaceRoot, "notes")],
+        projectRoots: [],
+        indexedRoots: [],
+        indexing: { enabled: false, mode: "off", backend: "qmd" },
+        appearanceMode: "system",
+        colorThemeId: "exo-neutral",
+        editorFontSize: 15,
+        terminalFontSize: 13,
+        terminalHistoryLines: 1_000_000,
+        terminalTranscriptRetention: "forever",
+        terminalTranscriptRetentionDays: 14,
+        explorerScale: 1,
+        exploreIndexSearchOnEnter: false,
+        indexUpdateStrategy: "on-save",
+        piHarness: {
+          label: "Persisted Pi",
+          repoPath: piRepo,
+          backendUrl: "http://127.0.0.1:8080",
+          backendLabel: "llama.cpp",
+        },
+      }, { EXO_USER_DATA_PATH: userDataPath });
+
+      const statusExitCode = await runCli(["node", "exo-cli", "runtime", "status"], {
+        env: { EXO_USER_DATA_PATH: userDataPath },
+        stdout: { write: (text) => { statusStdout += text; } },
+        stderr: { write: () => {} },
+      });
+      const planExitCode = await runCli(["node", "exo-cli", "runtime", "launch-plan", "pi", workspaceRoot], {
+        env: { EXO_USER_DATA_PATH: userDataPath },
+        stdout: { write: (text) => { planStdout += text; } },
+        stderr: { write: () => {} },
+      });
+
+      expect(statusExitCode).toBe(0);
+      expect(statusStdout).toContain('"label": "Persisted Pi"');
+      expect(statusStdout).toContain('"launchable": true');
+      expect(statusStdout).toContain('"label": "llama.cpp"');
+      expect(planExitCode).toBe(0);
+      expect(planStdout).toContain(`"cwd": "${workspaceRoot}"`);
+      expect(planStdout).toContain(`"command": "${process.execPath}"`);
+      expect(planStdout).toContain(cliPath);
+    } finally {
+      await rm(userDataPath, { recursive: true, force: true });
+      await rm(workspaceRoot, { recursive: true, force: true });
+      await rm(piRepo, { recursive: true, force: true });
+    }
+  });
+
+  it("lets Pi process env override persisted Pi-compatible harness settings", async () => {
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-cli-pi-env-override-"));
+    let stdout = "";
+
+    try {
+      await saveWorkspaceSettings({
+        workspaceRoot: "/tmp/exo-pi-env/notes",
+        defaultTerminalCwd: "/tmp/exo-pi-env",
+        noteRoots: ["/tmp/exo-pi-env/notes"],
+        projectRoots: [],
+        indexedRoots: [],
+        indexing: { enabled: false, mode: "off", backend: "qmd" },
+        appearanceMode: "system",
+        colorThemeId: "exo-neutral",
+        editorFontSize: 15,
+        terminalFontSize: 13,
+        terminalHistoryLines: 1_000_000,
+        terminalTranscriptRetention: "forever",
+        terminalTranscriptRetentionDays: 14,
+        explorerScale: 1,
+        exploreIndexSearchOnEnter: false,
+        indexUpdateStrategy: "on-save",
+        piHarness: {
+          label: "Persisted Pi",
+          command: "/bin/sh",
+          backendUrl: "http://127.0.0.1:8080",
+        },
+      }, { EXO_USER_DATA_PATH: userDataPath });
+
+      const exitCode = await runCli(["node", "exo-cli", "runtime", "launch-plan", "pi"], {
+        env: {
+          EXO_USER_DATA_PATH: userDataPath,
+          EXO_PI_LABEL: "Env Pi",
+          EXO_PI_COMMAND: "/usr/bin/env",
+        },
+        stdout: { write: (text) => { stdout += text; } },
+        stderr: { write: () => {} },
+      });
+
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('"title": "Env Pi"');
+      expect(stdout).toContain('"command": "/usr/bin/env"');
+      expect(stdout).not.toContain('"title": "Persisted Pi"');
+    } finally {
+      await rm(userDataPath, { recursive: true, force: true });
+    }
+  });
+
   it("reads notes by paths relative to configured note roots", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "exo-cli-notes-read-"));
     let stdout = "";

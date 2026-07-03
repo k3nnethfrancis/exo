@@ -12,6 +12,7 @@ import {
   resolveRuntimeConfig,
   syncRuntimeContextFiles,
 } from "../runtime";
+import { workspaceSettingsToEnv } from "../workspace-settings";
 
 const tempPaths: string[] = [];
 
@@ -160,6 +161,93 @@ describe("runtime", () => {
     expect(plan.command).toBe(process.execPath);
     expect(plan.args).toEqual([cliPath]);
     expect(plan.env.EXO_AGENT_KIND).toBe("pi");
+  });
+
+  it("projects persisted Pi-compatible settings into workspace-cwd launch plans", async () => {
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-pi-workspace-"));
+    const piRepo = await mkdtemp(path.join(os.tmpdir(), "exo-pi-persisted-runtime-"));
+    tempPaths.push(workspaceRoot, piRepo);
+    const cliPath = path.join(piRepo, "packages", "coding-agent", "dist", "cli.js");
+    await mkdir(path.dirname(cliPath), { recursive: true });
+    await writeFile(cliPath, "#!/usr/bin/env node\n", "utf8");
+
+    const env = workspaceSettingsToEnv({
+      workspaceRoot,
+      defaultTerminalCwd: workspaceRoot,
+      noteRoots: [path.join(workspaceRoot, "notes")],
+      projectRoots: [],
+      indexedRoots: [],
+      indexing: { enabled: false, mode: "off", backend: "qmd" },
+      appearanceMode: "system",
+      colorThemeId: "exo-neutral",
+      editorFontSize: 15,
+      terminalFontSize: 13,
+      terminalHistoryLines: 100_000,
+      terminalTranscriptRetention: "forever",
+      terminalTranscriptRetentionDays: 14,
+      explorerScale: 1,
+      exploreIndexSearchOnEnter: false,
+      indexUpdateStrategy: "on-save",
+      piHarness: {
+        label: "Configured Pi",
+        repoPath: piRepo,
+        backendUrl: "http://127.0.0.1:8080",
+      },
+    });
+    const config = resolveRuntimeConfig(env);
+    const plan = resolveLaunchableAgentLaunchPlan(config, "pi", workspaceRoot, env);
+
+    expect(plan.title).toBe("Configured Pi");
+    expect(plan.cwd).toBe(workspaceRoot);
+    expect(plan.command).toBe(process.execPath);
+    expect(plan.args).toEqual([cliPath]);
+  });
+
+  it("keeps operator Pi env overrides ahead of persisted settings in launch planning", async () => {
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-pi-override-workspace-"));
+    const persistedRepo = await mkdtemp(path.join(os.tmpdir(), "exo-pi-persisted-repo-"));
+    const overrideRepo = await mkdtemp(path.join(os.tmpdir(), "exo-pi-override-repo-"));
+    tempPaths.push(workspaceRoot, persistedRepo, overrideRepo);
+    const persistedCliPath = path.join(persistedRepo, "packages", "coding-agent", "dist", "cli.js");
+    const overrideCliPath = path.join(overrideRepo, "packages", "coding-agent", "dist", "cli.js");
+    await mkdir(path.dirname(persistedCliPath), { recursive: true });
+    await mkdir(path.dirname(overrideCliPath), { recursive: true });
+    await writeFile(persistedCliPath, "#!/usr/bin/env node\n", "utf8");
+    await writeFile(overrideCliPath, "#!/usr/bin/env node\n", "utf8");
+
+    const persistedEnv = workspaceSettingsToEnv({
+      workspaceRoot,
+      defaultTerminalCwd: workspaceRoot,
+      noteRoots: [path.join(workspaceRoot, "notes")],
+      projectRoots: [],
+      indexedRoots: [],
+      indexing: { enabled: false, mode: "off", backend: "qmd" },
+      appearanceMode: "system",
+      colorThemeId: "exo-neutral",
+      editorFontSize: 15,
+      terminalFontSize: 13,
+      terminalHistoryLines: 100_000,
+      terminalTranscriptRetention: "forever",
+      terminalTranscriptRetentionDays: 14,
+      explorerScale: 1,
+      exploreIndexSearchOnEnter: false,
+      indexUpdateStrategy: "on-save",
+      piHarness: {
+        label: "Persisted Pi",
+        repoPath: persistedRepo,
+        backendUrl: "http://127.0.0.1:8080",
+      },
+    });
+    const env = {
+      ...persistedEnv,
+      EXO_PI_LABEL: "Operator Pi",
+      EXO_PI_REPO_PATH: overrideRepo,
+    };
+    const config = resolveRuntimeConfig(env);
+    const plan = resolveLaunchableAgentLaunchPlan(config, "pi", workspaceRoot, env);
+
+    expect(plan.title).toBe("Operator Pi");
+    expect(plan.args).toEqual([overrideCliPath]);
   });
 
   it("writes generated instruction files", async () => {

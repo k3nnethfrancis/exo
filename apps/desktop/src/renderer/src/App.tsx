@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Plus, X } from "lucide-react";
 import type {
   IndexStatus,
+  AgentHarnessDetection,
   ProfileStateStore,
   SearchResult,
   WorkspaceModel,
@@ -81,6 +82,7 @@ export function App() {
   const [revealExplorerPathRequest, setRevealExplorerPathRequest] = useState<{ path: string; nonce: number } | null>(null);
   const [editorRevealLineRequest, setEditorRevealLineRequest] = useState<{ filePath: string; line: number; nonce: number } | null>(null);
   const [agentContextManagerOpen, setAgentContextManagerOpen] = useState(false);
+  const [agentHarnesses, setAgentHarnesses] = useState<AgentHarnessDetection[]>([]);
   const [pluginManagerOpen, setPluginManagerOpen] = useState(false);
   const [proposalReviewOpen, setProposalReviewOpen] = useState(false);
   const [profileState, setProfileState] = useState<ProfileStateStore | null>(null);
@@ -154,6 +156,7 @@ export function App() {
     applyWorkspaceSettings,
     refreshWorkspaceModel,
     setIndexStatus,
+    onSettingsSaved: refreshAgentHarnesses,
   });
   const {
     dialog: workspaceSettingsDialog,
@@ -213,6 +216,10 @@ export function App() {
   const compactEditorChrome = collectLeaves(editorTree).length > 1;
   const resolvedAppearance: ResolvedAppearance = appearanceMode === "system" ? (systemPrefersDark ? "dark" : "light") : appearanceMode;
   const resolvedTheme = useMemo(() => resolveTheme(colorThemeId, resolvedAppearance), [colorThemeId, resolvedAppearance]);
+
+  useEffect(() => {
+    void refreshAgentHarnesses();
+  }, []);
 
   useEffect(() => {
     terminalRuntimeScrollbackLinesRef.current = terminalRuntimeScrollbackLines;
@@ -524,6 +531,14 @@ export function App() {
     const status = await window.exo.workspace.getIndexStatus();
     setIndexStatus(status);
     return status;
+  }
+
+  async function refreshAgentHarnesses() {
+    try {
+      setAgentHarnesses(await window.exo.workspace.listAgentHarnesses());
+    } catch {
+      setAgentHarnesses([]);
+    }
   }
 
   async function openAgentContextManager() {
@@ -1261,6 +1276,7 @@ export function App() {
       onRenamePath={(targetPath) => workspaceMutations.renameWorkspacePath(targetPath)}
       onDeletePath={(targetPath) => workspaceMutations.deleteWorkspacePath(targetPath)}
       onCreateTerminal={(kind) => void terminalPaneController.createTerminal(kind)}
+      agentHarnesses={agentHarnesses}
       onCreateBrowserPane={() => createBrowserPane()}
       />
 
@@ -1309,6 +1325,7 @@ export function App() {
 
       {workspaceSettingsDialog ? (
         <WorkspaceSettingsDialog
+          agentHarnesses={agentHarnesses}
           indexBusy={indexBusy}
           indexStatus={indexStatus}
           settings={workspaceSettingsDialog}

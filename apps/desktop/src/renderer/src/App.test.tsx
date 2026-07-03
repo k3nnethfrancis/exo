@@ -48,7 +48,7 @@ import { normalizeTerminalPresentation } from "./components/terminalPresentation
 import { focusTerminal, registerTerminal, unregisterTerminal, writeTerminalData } from "./components/terminalRegistry";
 import { createTerminalToolDockActions, launchableTerminalAgentHarnesses } from "./components/TerminalRail";
 import { shouldUseMarkdownRenderer } from "./components/NoteEditor";
-import { workspaceSettingsSavedFooterCopy } from "./components/WorkspaceSettingsDialog";
+import { WorkspaceSettingsDialog, workspaceSettingsSavedFooterCopy } from "./components/WorkspaceSettingsDialog";
 import { listEnterEdit, shouldSuppressGeneratedTitleLine, wikilinkExitEdit } from "./components/markdownLivePreview";
 import {
   appendPendingTerminalData,
@@ -80,6 +80,7 @@ import {
 } from "./pluginManagerModel";
 import { buildProfileSettingsModel, PROFILE_SETTINGS_DISABLED_REASON } from "./profileSettingsModel";
 import { PluginInventoryRow, PluginSettingsSection } from "./components/PluginManagerDialog";
+import { PiHarnessSettingsPanel, createPiHarnessDraft, piHarnessSettingsFromDraft } from "./components/AgentConfigEditorDialog";
 import { ChangedNotesDialog } from "./components/ChangedNotesDialog";
 import { ProposalReviewDialog } from "./components/ProposalReviewDialog";
 import { ProfileEditPanel, buildProfileEditPanelSections } from "./components/ProfileEditPanel";
@@ -114,6 +115,7 @@ import {
 } from "./graphAffordances";
 import { runToolSurfaceAction } from "./toolDockModel";
 import type { ToolSurfaceDescriptor } from "@exo/core/surface-descriptor";
+import type { WorkspaceSettingsDialogState } from "./workspaceSettingsDialogTypes";
 
 describe("desktop shell", () => {
   it("keeps a renderer test surface in place", () => {
@@ -1232,6 +1234,57 @@ function harness(id: ManagedAgentKind, launchable: boolean, overrides: Partial<A
   };
 }
 
+function workspaceSettingsDialogFixture(
+  overrides: Partial<WorkspaceSettingsDialogState> = {},
+): WorkspaceSettingsDialogState {
+  return {
+    section: "workspace",
+    workspaceRoot: "/workspace",
+    defaultTerminalCwd: "/workspace",
+    noteRoots: ["/workspace/notes"],
+    projectRoots: [],
+    indexedRoots: [],
+    indexMode: "off",
+    appearanceMode: "system",
+    colorThemeId: "exo-neutral",
+    editorFontSize: "15",
+    terminalFontSize: "13",
+    terminalHistoryLines: String(RENDERER_DEFAULT_TERMINAL_HISTORY_LINES),
+    terminalTranscriptRetention: "forever",
+    terminalTranscriptRetentionDays: "14",
+    terminalInputCoalesceMs: String(DEFAULT_TERMINAL_INPUT_COALESCE_MS),
+    terminalAgentStartupGraceMs: String(DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS),
+    terminalAgentSubmitDelayMs: String(DEFAULT_TERMINAL_AGENT_SUBMIT_DELAY_MS),
+    terminalInitialColumns: String(DEFAULT_TERMINAL_INITIAL_COLUMNS),
+    terminalInitialRows: String(DEFAULT_TERMINAL_INITIAL_ROWS),
+    terminalMinimumColumns: String(DEFAULT_TERMINAL_MINIMUM_COLUMNS),
+    terminalMinimumRows: String(DEFAULT_TERMINAL_MINIMUM_ROWS),
+    terminalReadTailChars: String(DEFAULT_TERMINAL_READ_TAIL_CHARS),
+    terminalMaxReadTailChars: String(DEFAULT_TERMINAL_MAX_READ_TAIL_CHARS),
+    terminalUnresponsiveThresholdMs: String(DEFAULT_TERMINAL_UNRESPONSIVE_THRESHOLD_MS),
+    terminalIdleThresholdMs: String(DEFAULT_TERMINAL_IDLE_THRESHOLD_MS),
+    piHarnessEnabled: true,
+    piHarnessLabel: "",
+    piHarnessCommand: "",
+    piHarnessRepoPath: "",
+    piHarnessArgs: "",
+    piHarnessBackendUrl: "",
+    piHarnessBackendCommand: "",
+    piHarnessBackendLabel: "",
+    piHarnessBackendKind: "",
+    piHarnessBackendReady: "auto",
+    explorerScale: "1",
+    exploreIndexSearchOnEnter: false,
+    indexUpdateStrategy: "on-save",
+    saveStatus: "idle",
+    errorMessage: null,
+    appliedWorkspaceKey: "",
+    applyStatus: "idle",
+    applyErrorMessage: null,
+    ...overrides,
+  };
+}
+
 function toolSurfaceDescriptor(action: ToolSurfaceDescriptor["action"]): ToolSurfaceDescriptor {
   return {
     id: "test-tool",
@@ -1293,6 +1346,93 @@ describe("terminal harness launchers", () => {
     expect(onCreateTerminal).toHaveBeenNthCalledWith(1, "shell");
     expect(onCreateTerminal).toHaveBeenNthCalledWith(2, "pi");
     expect(onOpenAgentConfigEditor).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders persisted Pi-compatible setup controls in Agent Config", () => {
+    const draft = createPiHarnessDraft({
+      label: "GA Pi",
+      repoPath: "/workspace/projects/ga-pi",
+      backendUrl: "http://127.0.0.1:8080",
+      backendLabel: "llama.cpp",
+    });
+    const markup = renderToStaticMarkup(
+      <PiHarnessSettingsPanel
+        draft={draft}
+        harness={harness("pi", false, {
+          label: "GA Pi",
+          status: "missing-dependency",
+          statusLabel: "Missing dependency",
+          setupSummary: "Configure EXO_PI_BACKEND_URL or EXO_PI_BACKEND_COMMAND for a compatible local inference backend.",
+        })}
+        onChange={vi.fn()}
+        onSave={vi.fn()}
+        saveMessage={null}
+        saveState="idle"
+      />,
+    );
+
+    expect(markup).toContain("Pi-compatible setup");
+    expect(markup).toContain("Missing dependency");
+    expect(markup).toContain("pi-harness-backend-url");
+    expect(markup).toContain("http://127.0.0.1:8080");
+    expect(piHarnessSettingsFromDraft({ ...draft, args: "--model, local", backendReady: "true" })).toMatchObject({
+      label: "GA Pi",
+      repoPath: "/workspace/projects/ga-pi",
+      args: ["--model", "local"],
+      backendUrl: "http://127.0.0.1:8080",
+      backendLabel: "llama.cpp",
+      backendReady: true,
+    });
+  });
+
+  it("renders persisted Pi-compatible setup controls in Workspace Settings", () => {
+    const markup = renderToStaticMarkup(
+      <WorkspaceSettingsDialog
+        agentHarnesses={[
+          harness("pi", false, {
+            label: "GA Pi",
+            status: "missing-dependency",
+            statusLabel: "Missing dependency",
+            setupSummary: "Configure a compatible local inference backend before launch.",
+            dependencies: [
+              {
+                id: "pi-inference-backend",
+                kind: "inference-backend",
+                label: "llama.cpp",
+                required: true,
+                configured: false,
+                detected: false,
+                satisfied: false,
+                statusLabel: "Missing",
+              },
+            ],
+          }),
+        ]}
+        indexBusy={null}
+        indexStatus={null}
+        onChooseFolder={() => {}}
+        onClose={() => {}}
+        onOpenAgentConfigEditor={() => {}}
+        onOpenPluginManager={() => {}}
+        onOpenWorkspaceSwitcher={() => {}}
+        onRunIndexUpdate={() => {}}
+        onSave={() => {}}
+        settings={workspaceSettingsDialogFixture({
+          section: "harnesses",
+          piHarnessLabel: "GA Pi",
+          piHarnessRepoPath: "/workspace/projects/ga-pi",
+          piHarnessBackendLabel: "llama.cpp",
+        })}
+        setSettings={() => {}}
+        structuralDraftKey={() => ""}
+      />,
+    );
+
+    expect(markup).toContain("Pi-compatible harness");
+    expect(markup).toContain("Missing dependency");
+    expect(markup).toContain("Configure a compatible local inference backend before launch.");
+    expect(markup).toContain("workspace-settings-pi-repo-path");
+    expect(markup).toContain("/workspace/projects/ga-pi");
   });
 });
 
@@ -1563,6 +1703,16 @@ describe("workspace settings renderer model", () => {
       terminalMaxReadTailChars: String(DEFAULT_TERMINAL_MAX_READ_TAIL_CHARS),
       terminalUnresponsiveThresholdMs: String(DEFAULT_TERMINAL_UNRESPONSIVE_THRESHOLD_MS),
       terminalIdleThresholdMs: String(DEFAULT_TERMINAL_IDLE_THRESHOLD_MS),
+      piHarnessEnabled: true,
+      piHarnessLabel: "",
+      piHarnessCommand: "",
+      piHarnessRepoPath: "",
+      piHarnessArgs: "",
+      piHarnessBackendUrl: "",
+      piHarnessBackendCommand: "",
+      piHarnessBackendLabel: "",
+      piHarnessBackendKind: "",
+      piHarnessBackendReady: "auto",
       explorerScale: "1",
       exploreIndexSearchOnEnter: true,
       indexUpdateStrategy: "on-save",
@@ -1601,6 +1751,16 @@ describe("workspace settings renderer model", () => {
       terminalMaxReadTailChars: String(DEFAULT_TERMINAL_MAX_READ_TAIL_CHARS),
       terminalUnresponsiveThresholdMs: String(DEFAULT_TERMINAL_UNRESPONSIVE_THRESHOLD_MS),
       terminalIdleThresholdMs: String(DEFAULT_TERMINAL_IDLE_THRESHOLD_MS),
+      piHarnessEnabled: true,
+      piHarnessLabel: "",
+      piHarnessCommand: "",
+      piHarnessRepoPath: "",
+      piHarnessArgs: "",
+      piHarnessBackendUrl: "",
+      piHarnessBackendCommand: "",
+      piHarnessBackendLabel: "",
+      piHarnessBackendKind: "",
+      piHarnessBackendReady: "auto" as const,
       explorerScale: "1",
       exploreIndexSearchOnEnter: false,
       indexUpdateStrategy: "on-save" as const,

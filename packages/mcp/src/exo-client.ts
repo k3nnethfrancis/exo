@@ -303,11 +303,14 @@ async function resolveMcpRuntimeRoot(env: NodeJS.ProcessEnv): Promise<string> {
 }
 
 async function resolveMcpWorkspaceEnv(env: NodeJS.ProcessEnv): Promise<NodeJS.ProcessEnv> {
-  if (workspaceEnvOverrides(env)) {
+  const settings = await loadActiveWorkspaceSettings(env);
+  if (!settings) {
     return env;
   }
-  const settings = await loadActiveWorkspaceSettings(env);
-  return settings ? { ...env, ...workspaceSettingsToEnv(settings) } : env;
+  return {
+    ...workspaceSettingsToEnv(settings, { includeWorkspace: !workspaceEnvOverrides(env) }),
+    ...env,
+  };
 }
 
 async function readServerInfo(serverJsonPath: string): Promise<ExoCommandServerInfo | null> {

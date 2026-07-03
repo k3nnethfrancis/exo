@@ -1767,6 +1767,38 @@ button svg,
   background: var(--surface-2);
 }
 
+.agent-harnesses__settings {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--surface-border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-2) 82%, var(--accent) 8%);
+}
+
+.agent-harnesses__settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.agent-harnesses__settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.agent-harnesses__checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-size: 12px;
+}
+
 .agent-harnesses__title {
   display: flex;
   align-items: center;
@@ -3105,6 +3137,8 @@ select.dialog-card__input {
   .agent-context-summary__grid,
   .agent-config-editor__scope-buttons,
   .agent-config-editor__files,
+  .agent-harnesses__row,
+  .agent-harnesses__settings-grid,
   .agent-skills,
   .agent-skills__workspace,
   .agent-sources__form,
