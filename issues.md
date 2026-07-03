@@ -8,9 +8,33 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ## Open
 
+### EXO-ISSUE-078: Pi agent session launches but transcript/read does not expose generated answer text
+
+- Status: open
+- Severity: medium
+- Area: Pi-compatible harness, agent transcripts, terminal read path, Exo MCP/CLI agent APIs
+- Source:
+  - 2026-07-03 subagent live QA of `GA Pi` through installed Exo.
+- Observed:
+  - `exo agents create pi` created a `GA Pi` terminal backed by `/opt/homebrew/bin/node /Users/kenneth/Desktop/lab/projects/ga-pi/packages/coding-agent/dist/cli.js`.
+  - The configured `GA llama.cpp` backend at `http://127.0.0.1:8082` loaded and completed generation work.
+  - `exo agents read <id> --tail 120 --raw` showed the GA model/status line, but did not expose the visible generated answer text after sending `Reply exactly OK. Do not use tools.`
+  - Direct non-interactive GA-Pi CLI smoke with the same backend returned `OK` with exit code `0`.
+- Expected:
+  - Exo's agent read/transcript APIs expose the generated visible answer text for a Pi-compatible harness session, just as they do for other interactive harnesses.
+  - A successful backend generation should not be hidden behind TUI/status-only transcript output.
+- Suspected:
+  - The Pi-compatible TUI may render answer text through an alternate output path or screen update pattern that Exo's current read/tail/transcript path is not capturing as expected.
+  - This may be a harness adapter/read-transcript issue rather than a launch-detection issue.
+- Acceptance:
+  - Reproduce with a deterministic fake or low-risk Pi-compatible fixture without requiring live model inference.
+  - Confirm whether the answer is absent from tmux capture, Exo transcript persistence, or only `exo agents read`.
+  - Add coverage so Pi-compatible harness sessions expose generated answer text through the expected CLI/MCP/app read path.
+  - Keep the fix generic for Pi-compatible harnesses; do not add GA-specific behavior.
+
 ### EXO-ISSUE-077: Pi-compatible harness detection shows wrong executable and remains unlaunchable in packaged app
 
-- Status: fixed in `main`; live GA-Pi model session QA pending
+- Status: fixed in `main`
 - Severity: high
 - Area: Pi-compatible harness, plugin architecture, packaged app, Agent Config UI
 - Source:
@@ -41,11 +65,12 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - Explicit Pi commands pointing at Codex or packaged `Exo.app` are rejected as invalid Pi commands.
   - Local app settings now configure Kenneth's `GA Pi` source checkout with `GA llama.cpp` backend metadata; this is intentionally machine-local and not committed as a repo default.
   - Installed app QA verified the Agent Config Harnesses tab shows `GA Pi` as configured/launchable with `/opt/homebrew/bin/node`, `/Users/kenneth/Desktop/lab/projects/ga-pi`, and `http://127.0.0.1:8082`.
-  - Remaining QA: start the actual llama.cpp backend and launch a real GA-Pi session from Exo.
+  - Subagent live QA started the configured llama.cpp backend, verified `exo runtime status` and `exo runtime launch-plan pi`, launched `exo agents create pi`, and confirmed there was no Codex or packaged `Exo.app` command leakage.
+  - The live QA found a separate read/transcript visibility issue after launch; follow-up tracked as `EXO-ISSUE-078`.
 
 ### EXO-ISSUE-076: Persist custom Pi-compatible harness configuration
 
-- Status: fixed in `main`; real Pi backend/session QA pending
+- Status: fixed in `main`; live session read follow-up tracked by `EXO-ISSUE-078`
 - Severity: high
 - Area: agent harnesses, plugin architecture, settings, packaged app launch, local/open-source agents
 - Canonical implementation brief:
@@ -78,6 +103,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - 2026-07-03: Added Pi-compatible setup editing/status surfaces in Agent Config and Workspace Settings. Missing backend remains visible as setup detail, while normal launcher surfaces still use launchability filtering and avoid dead Pi buttons.
   - 2026-07-03: Added focused coverage for Pi settings normalization/env projection, operator override precedence, persisted workspace-cwd launch plans, launcher filtering, and renderer setup controls.
   - 2026-07-03: Integrated in `e4e34c9`. Remaining work is live QA with an actual configured Pi-compatible backend, not the persisted configuration model.
+  - 2026-07-03: Live QA verified the configured backend and Exo launch path. The remaining issue is generated answer visibility in Exo read/transcript APIs, now tracked by `EXO-ISSUE-078`.
 
 ### EXO-ISSUE-075: Terminal geometry divergence causes render drift and hard-refresh recovery loops
 
