@@ -763,7 +763,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-049: Index settings show stale embeddings and misleading Apply copy
 
-- Status: open; footer copy fixed locally
+- Status: resolved locally; focused renderer verification passed
 - Severity: medium
 - Area: workspace settings, indexing UX, embeddings status
 - Observed:
@@ -780,7 +780,12 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - Review `WorkspaceSettingsDialog` footer state because save status is global while Apply is conditional on `structuralDraftKey(settings) !== settings.appliedWorkspaceKey`.
 - Partial resolution:
   - Footer save copy now only says to press Apply when structural workspace/index changes are pending and the Apply action is relevant.
-  - Stale embeddings/status semantics remain open in this issue.
+- Resolution:
+  - Workspace Settings intro copy is section/state-aware and does not mention Apply when no structural workspace/index changes are pending.
+  - Index settings now labels pending counts as pending embeddings, shows in-progress status for Sync / Refresh documents / Build embeddings, and explains pending embeddings after a failed sync/embed instead of leaving the user with only `Embeddings needed`.
+  - The old “Embeddings needed but Sync now doesn’t fix it” case is treated as a refreshed status with a visible embedding-failure/pending-embedding note; lexical search availability remains clear.
+  - Focused renderer tests cover the Apply copy, index in-progress states, and pending-embedding guidance.
+  - Focused Workspace Settings e2e reached the Index tab after a fresh desktop build, then failed later on an unrelated Profile copy assertion (`Profile state saved.` missing).
 
 ### EXO-ISSUE-048: Workspace Settings modal feels cramped after theme/settings updates
 

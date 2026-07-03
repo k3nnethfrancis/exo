@@ -68,7 +68,7 @@ export function WorkspaceSettingsDialog({
             <X size={16} />
           </button>
         </div>
-        <div className="dialog-card__message">Appearance and terminal preferences save immediately. Workspace paths and advanced search settings take effect when you press Apply.</div>
+        <div className="dialog-card__message">{workspaceSettingsDialogIntroCopy(settings.section, hasStructuralChanges)}</div>
         <div className="workspace-settings-layout">
           <nav className="settings-nav" role="tablist" aria-label="Workspace settings sections">
             {SETTINGS_SECTIONS.map((section) => {
@@ -152,6 +152,24 @@ export function WorkspaceSettingsDialog({
 
 export function workspaceSettingsSavedFooterCopy(hasStructuralChanges: boolean): string {
   return hasStructuralChanges ? "Draft saved. Press Apply for workspace path or advanced search changes." : "Settings saved.";
+}
+
+export function workspaceSettingsDialogIntroCopy(section: WorkspaceSettingsSection, hasStructuralChanges: boolean): string {
+  if (hasStructuralChanges) {
+    return section === "index"
+      ? "Advanced search provider changes are saved as a draft. Press Apply to make them active."
+      : "Workspace path or advanced search changes are saved as a draft. Press Apply to make them active.";
+  }
+
+  if (section === "index") {
+    return "QMD update preferences save immediately. Manual sync actions run when pressed and refresh status when they finish.";
+  }
+
+  if (section === "workspace") {
+    return "Workspace folder edits are saved as a draft before they become active.";
+  }
+
+  return "Settings in this section save immediately.";
 }
 
 function WorkspaceSection({
@@ -254,6 +272,8 @@ function IndexSection({
   settings,
   setSettings,
 }: Pick<WorkspaceSettingsDialogProps, "indexBusy" | "indexStatus" | "onRunIndexUpdate" | "settings" | "setSettings">) {
+  const statusCopy = indexSettingsStatusCopy(indexStatus, indexBusy);
+
   return (
     <>
       <div className="index-summary">
@@ -273,9 +293,14 @@ function IndexSection({
             {(indexStatus?.indexedRoots.length ?? settings.indexedRoots.length) === 1 ? "" : "s"}
           </span>
           <span>{indexStatus?.documentCount ?? 0} docs</span>
-          <span>{indexStatus?.pendingEmbeddings ?? 0} pending</span>
+          <span>{indexStatus?.pendingEmbeddings ?? 0} pending embeddings</span>
         </div>
       </div>
+      {statusCopy ? (
+        <div className={`onboarding-section__hint ${statusCopy.tone === "error" ? "dialog-card__status--error" : ""}`} data-testid="workspace-settings-index-status-note">
+          {statusCopy.text}
+        </div>
+      ) : null}
       {indexStatus?.recentJobs?.length ? (
         <div className="index-activity" data-testid="workspace-settings-index-activity">
           <div className="index-activity__title">Recent QMD activity</div>
@@ -285,7 +310,7 @@ function IndexSection({
               <span>{job.reason}</span>
               <span>{formatDuration(job.durationMs)}</span>
               <span>{formatRelativeTime(job.completedAt)}</span>
-              <span>{job.status === "failed" ? "failed" : `${job.pendingEmbeddings ?? 0} pending`}</span>
+              <span>{job.status === "failed" ? "failed" : `${job.pendingEmbeddings ?? 0} pending embeddings`}</span>
             </div>
           ))}
         </div>
@@ -391,6 +416,50 @@ function IndexSection({
       </details>
     </>
   );
+}
+
+export function indexSettingsStatusCopy(
+  indexStatus: IndexStatus | null,
+  indexBusy: IndexBusyState,
+): { text: string; tone: "info" | "warn" | "error" } | null {
+  if (indexBusy === "syncing") {
+    return { tone: "info", text: "Sync is refreshing documents and rebuilding embeddings. Status will refresh when it finishes." };
+  }
+  if (indexBusy === "updating") {
+    return { tone: "info", text: "Refresh documents only is re-reading Markdown into QMD. Embedding status will refresh when it finishes." };
+  }
+  if (indexBusy === "embedding") {
+    return { tone: "info", text: "Build embeddings only is creating semantic embeddings for documents already in QMD. Status will refresh when it finishes." };
+  }
+  if (!indexStatus) {
+    return null;
+  }
+  if (indexStatus.errors.length > 0) {
+    return { tone: "error", text: `QMD status error: ${indexStatus.errors.join(" ")}` };
+  }
+  if (!indexStatus.enabled || indexStatus.mode === "off" || indexStatus.indexedRoots.length === 0) {
+    return null;
+  }
+  if ((indexStatus.mode === "semantic" || indexStatus.mode === "hybrid") && indexStatus.pendingEmbeddings > 0) {
+    const lastJob = indexStatus.recentJobs?.[0];
+    const failedEmbeddingJob = lastJob && (lastJob.kind === "sync" || lastJob.kind === "embed") && (
+      lastJob.status === "failed" ||
+      lastJob.error ||
+      lastJob.warnings?.some((warning) => warning.toLowerCase().includes("embedding failed"))
+    );
+    if (failedEmbeddingJob) {
+      const detail = lastJob.error ?? lastJob.warnings?.find((warning) => warning.toLowerCase().includes("embedding failed"));
+      return {
+        tone: "warn",
+        text: `Documents were refreshed, but embeddings did not complete${detail ? `: ${detail}` : ""}. Build embeddings only can retry semantic embeddings; lexical search remains available.`,
+      };
+    }
+    return {
+      tone: "warn",
+      text: "Embeddings are pending. Sync now refreshes documents and embeddings; Build embeddings only retries embeddings for documents already in QMD.",
+    };
+  }
+  return null;
 }
 
 function HarnessesSection({

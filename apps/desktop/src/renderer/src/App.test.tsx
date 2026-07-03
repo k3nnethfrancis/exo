@@ -6,6 +6,7 @@ import { EditorState } from "@codemirror/state";
 import { renderToStaticMarkup } from "react-dom/server";
 import type {
   AgentHarnessDetection,
+  IndexStatus,
   ManagedAgentKind,
   NoteKnowledge,
   PluginInventory,
@@ -48,7 +49,12 @@ import { normalizeTerminalPresentation } from "./components/terminalPresentation
 import { focusTerminal, registerTerminal, unregisterTerminal, writeTerminalData } from "./components/terminalRegistry";
 import { createTerminalToolDockActions, launchableTerminalAgentHarnesses } from "./components/TerminalRail";
 import { shouldUseMarkdownRenderer } from "./components/NoteEditor";
-import { WorkspaceSettingsDialog, workspaceSettingsSavedFooterCopy } from "./components/WorkspaceSettingsDialog";
+import {
+  WorkspaceSettingsDialog,
+  indexSettingsStatusCopy,
+  workspaceSettingsDialogIntroCopy,
+  workspaceSettingsSavedFooterCopy,
+} from "./components/WorkspaceSettingsDialog";
 import { listEnterEdit, shouldSuppressGeneratedTitleLine, wikilinkExitEdit } from "./components/markdownLivePreview";
 import {
   appendPendingTerminalData,
@@ -149,6 +155,90 @@ describe("workspace settings footer copy", () => {
   it("only mentions Apply when structural changes are pending", () => {
     expect(workspaceSettingsSavedFooterCopy(true)).toContain("Apply");
     expect(workspaceSettingsSavedFooterCopy(false)).toBe("Settings saved.");
+  });
+
+  it("keeps the dialog intro from mentioning Apply when no Apply action is visible", () => {
+    expect(workspaceSettingsDialogIntroCopy("index", false)).not.toContain("Apply");
+    expect(workspaceSettingsDialogIntroCopy("appearance", false)).not.toContain("Apply");
+    expect(workspaceSettingsDialogIntroCopy("index", true)).toContain("Apply");
+  });
+
+  it("explains pending embeddings after a failed sync instead of only saying pending", () => {
+    const copy = indexSettingsStatusCopy(indexStatusFixture({
+      pendingEmbeddings: 12,
+      recentJobs: [
+        {
+          id: "index-job-1",
+          kind: "sync",
+          reason: "settings",
+          status: "completed",
+          startedAt: "2026-07-03T10:00:00.000Z",
+          completedAt: "2026-07-03T10:00:02.000Z",
+          durationMs: 2_000,
+          documentCount: 42,
+          pendingEmbeddings: 12,
+          warnings: ["Embedding failed (no such module: vec0); lexical search remains available."],
+        },
+      ],
+    }), null);
+
+    expect(copy?.text).toContain("Documents were refreshed");
+    expect(copy?.text).toContain("Build embeddings only");
+    expect(copy?.text).toContain("lexical search remains available");
+  });
+
+  it("shows in-progress index action status before a fresh status arrives", () => {
+    expect(indexSettingsStatusCopy(null, "syncing")?.text).toContain("Status will refresh when it finishes");
+    expect(indexSettingsStatusCopy(indexStatusFixture(), "updating")?.text).toContain("Embedding status will refresh");
+    expect(indexSettingsStatusCopy(indexStatusFixture(), "embedding")?.text).toContain("documents already in QMD");
+  });
+
+  it("renders index guidance and precise activity labels", () => {
+    const html = renderToStaticMarkup(
+      <WorkspaceSettingsDialog
+        agentHarnesses={[]}
+        indexBusy={null}
+        indexStatus={indexStatusFixture({
+          pendingEmbeddings: 3,
+          recentJobs: [
+            {
+              id: "index-job-1",
+              kind: "sync",
+              reason: "settings",
+              status: "completed",
+              startedAt: "2026-07-03T10:00:00.000Z",
+              completedAt: "2026-07-03T10:00:02.000Z",
+              durationMs: 2_000,
+              documentCount: 10,
+              pendingEmbeddings: 3,
+              warnings: [],
+            },
+          ],
+        })}
+        onChooseFolder={() => {}}
+        onClose={() => {}}
+        onOpenAgentConfigEditor={() => {}}
+        onOpenPluginManager={() => {}}
+        onOpenWorkspaceSwitcher={() => {}}
+        onRunIndexUpdate={() => {}}
+        onSave={() => {}}
+        settings={workspaceSettingsDialogFixture({
+          section: "index",
+          indexedRoots: ["/workspace/notes"],
+          indexMode: "hybrid",
+          appliedWorkspaceKey: workspaceSettingsStructuralDraftKey(workspaceSettingsDialogFixture({
+            indexedRoots: ["/workspace/notes"],
+            indexMode: "hybrid",
+          })),
+        })}
+        setSettings={() => {}}
+        structuralDraftKey={workspaceSettingsStructuralDraftKey}
+      />,
+    );
+
+    expect(html).toContain("Sync now refreshes documents and embeddings");
+    expect(html).toContain("3 pending embeddings");
+    expect(html).not.toContain("Press Apply");
   });
 });
 
@@ -1230,6 +1320,34 @@ function harness(id: ManagedAgentKind, launchable: boolean, overrides: Partial<A
     launchable,
     status: launchable ? "configured" : "not-found",
     statusLabel: launchable ? "Configured" : "Not found",
+    ...overrides,
+  };
+}
+
+function indexStatusFixture(overrides: Partial<IndexStatus> = {}): IndexStatus {
+  return {
+    enabled: true,
+    mode: "hybrid",
+    backend: "qmd",
+    dbPath: "/workspace/.exo/qmd/index.sqlite",
+    runtimePath: "/workspace/.exo/qmd",
+    indexedRoots: [
+      {
+        id: "index-root-1",
+        label: "notes",
+        path: "/workspace/notes",
+        kind: "mixed",
+        pattern: "**/*.md",
+        ignore: [],
+        backend: "qmd",
+      },
+    ],
+    documentCount: 10,
+    pendingEmbeddings: 0,
+    hasVectorIndex: true,
+    lastUpdated: "2026-07-03T10:00:00.000Z",
+    warnings: [],
+    errors: [],
     ...overrides,
   };
 }
