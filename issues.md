@@ -8,6 +8,37 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ## Open
 
+### EXO-ISSUE-080: Pi-compatible harness should auto-start configured inference backend before launch
+
+- Status: fixed in `main`
+- Severity: high
+- Area: Pi-compatible harness, backend readiness, terminal launch, CLI/MCP parity
+- Source:
+  - 2026-07-03 user QA request after EXO-ISSUE-079 blocked false-ready launches.
+- Observed:
+  - Exo can store a Pi-compatible backend URL and backend command, but after EXO-ISSUE-079 the harness correctly remains unlaunchable until the backend is already marked ready.
+  - This avoids connection-error launches, but it leaves the user responsible for manually starting the backend even when Exo already has the command.
+- Expected:
+  - Launching Pi should start the configured backend command when a probe URL is also configured.
+  - Exo should probe readiness before launching the harness.
+  - The launch path should work through desktop, CLI, and MCP because those surfaces converge on the same terminal creation path.
+  - The implementation should remain provider-neutral: Pi declares an auto-startable dependency; desktop main starts/probes it.
+- Acceptance:
+  - [x] Add typed auto-start dependency metadata to harness detection.
+  - [x] Have the Pi-compatible adapter advertise auto-start metadata when backend command and probe URL are configured but readiness is not confirmed.
+  - [x] Add a desktop-main dependency starter that probes first, starts once, polls readiness, and returns per-launch ready env without mutating `process.env`.
+  - [x] Allow command-server to pass through auto-startable dependencies while still rejecting genuinely non-launchable harnesses.
+  - [x] Verify with real GA-Pi + configured llama.cpp backend that launch starts the backend, Pi opens, and a low-risk prompt receives a response.
+  - [x] Verify MCP list/create/send/read path or document any remaining MCP read-path issue under EXO-ISSUE-078.
+  - [x] Complete Computer Use QA for new terminal creation and Pi launch/response.
+- Resolution:
+  - `exo agents create pi` cold-started the configured `npm --prefix /Users/kenneth/Desktop/lab/projects/ga-pi run ga:llama:start` backend; `llama-server` then listened on `127.0.0.1:8082`.
+  - Fresh shell and Pi terminals opened in the installed app.
+  - Computer Use QA confirmed a shell terminal accepted `echo exo-terminal-qa` and rendered the output.
+  - Computer Use QA confirmed the Pi terminal rendered the prompt and visible `OK.` answer.
+  - MCP SDK smoke confirmed tool listing, `list_agents`, `create_agent` for shell, `create_agent` for Pi, and `send_agent_message` for Pi.
+  - MCP/CLI read-path still does not reliably expose Pi's generated answer text; that remains tracked under EXO-ISSUE-078.
+
 ### EXO-ISSUE-079: Pi-compatible harness marks configured backend as ready and launches into connection errors
 
 - Status: fixed in `main`
@@ -51,6 +82,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - The configured `GA llama.cpp` backend at `http://127.0.0.1:8082` loaded and completed generation work.
   - `exo agents read <id> --tail 120 --raw` showed the GA model/status line, but did not expose the visible generated answer text after sending `Reply exactly OK. Do not use tools.`
   - Direct non-interactive GA-Pi CLI smoke with the same backend returned `OK` with exit code `0`.
+  - 2026-07-03 follow-up QA: installed Exo UI visibly showed Pi answering `OK.` after the same prompt, while CLI/MCP `read_agent` still returned startup/prompt/status text without the answer.
 - Expected:
   - Exo's agent read/transcript APIs expose the generated visible answer text for a Pi-compatible harness session, just as they do for other interactive harnesses.
   - A successful backend generation should not be hidden behind TUI/status-only transcript output.

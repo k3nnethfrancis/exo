@@ -589,6 +589,13 @@ function resolvePiBackendDependency(env: NodeJS.ProcessEnv): AgentHarnessDepende
   const satisfied = configured && ready;
   const statusLabel = satisfied ? "Ready" : configured ? "Not ready" : "Missing";
   const detail = satisfied ? backendDetail(env) : missingPiBackendDetail(env, configured);
+  const autoStart = !satisfied && env.EXO_PI_BACKEND_COMMAND && env.EXO_PI_BACKEND_URL
+    ? {
+      command: env.EXO_PI_BACKEND_COMMAND,
+      probeUrl: env.EXO_PI_BACKEND_URL,
+      readyEnv: { EXO_PI_BACKEND_READY: "1" },
+    }
+    : undefined;
 
   return {
     id: "pi-inference-backend",
@@ -600,6 +607,7 @@ function resolvePiBackendDependency(env: NodeJS.ProcessEnv): AgentHarnessDepende
     satisfied,
     statusLabel,
     detail,
+    ...(autoStart ? { autoStart } : {}),
   };
 }
 

@@ -378,14 +378,18 @@ export class CommandServer {
         try {
           const callerLaunch = validateRegisteredAgentHarnessLaunchForSurface(requestedHarnessId, {
             surface: launchSurface,
-            requireLaunchable: true,
+            requireLaunchable: false,
           });
           const launch = launchSurface === "commandServer"
             ? callerLaunch
             : validateRegisteredAgentHarnessLaunchForSurface(requestedHarnessId, {
               surface: "commandServer",
-              requireLaunchable: true,
+              requireLaunchable: false,
             });
+          if (!launch.detection.launchable && !hasAutoStartableDependency(launch.detection.dependencies)) {
+            const detail = launch.detection.detail ? ` ${launch.detection.detail}` : "";
+            throw new Error(`Agent harness is not launchable: ${requestedHarnessId} (${launch.detection.statusLabel}).${detail}`);
+          }
           terminalKind = launch.terminalKind;
           resolvedHarnessId = launch.harnessId;
         } catch (error) {
@@ -397,8 +401,17 @@ export class CommandServer {
           }, 400);
           return;
         }
-        const terminal = await this.options.onCreateTerminal(terminalKind, resolvedHarnessId, cwd, "commandServer");
-        json(res, terminal);
+        try {
+          const terminal = await this.options.onCreateTerminal(terminalKind, resolvedHarnessId, cwd, "commandServer");
+          json(res, terminal);
+        } catch (error) {
+          json(res, {
+            ok: false,
+            code: "unsupported-agent-harness",
+            harnessId: requestedHarnessId,
+            error: error instanceof Error ? error.message : String(error),
+          }, 400);
+        }
         return;
       }
 
@@ -482,6 +495,10 @@ export class CommandServer {
       json(res, { error: error instanceof Error ? error.message : String(error) }, 500);
     }
   }
+}
+
+function hasAutoStartableDependency(dependencies: Array<{ required: boolean; satisfied: boolean; autoStart?: unknown }> | undefined): boolean {
+  return Boolean(dependencies?.some((dependency) => dependency.required && !dependency.satisfied && dependency.autoStart));
 }
 
 function parseTailChars(value: string | null): number {

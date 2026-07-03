@@ -359,6 +359,11 @@ describe("agent harness registry", () => {
             statusLabel: "Not ready",
             detail:
               "Pi backend is configured but not confirmed ready. Set EXO_PI_BACKEND_READY=1 after starting it. URL: http://127.0.0.1:8080 Start command: pi-backend --port 8080",
+            autoStart: {
+              command: "pi-backend --port 8080",
+              probeUrl: "http://127.0.0.1:8080",
+              readyEnv: { EXO_PI_BACKEND_READY: "1" },
+            },
           }),
         ],
       });

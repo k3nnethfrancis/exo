@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 
 import {
+  resolveRegisteredAgentHarnessDetection,
   resolveLaunchableAgentLaunchPlan,
   resolveRuntimeConfig,
   syncRuntimeContextFiles,
@@ -24,6 +25,7 @@ import {
 import type { TerminalCreateOptions, TerminalHealthState, TerminalSessionInfo, TerminalKind, TerminalWriteResult } from "../shared/api";
 import { agentInstructionOverlayEnv, writeAgentInstructionOverlaysSync } from "./agent-instruction-overlays";
 import { terminalDiagnosticsFromRecord } from "./terminal-diagnostics";
+import { DefaultHarnessDependencyStarter, type HarnessDependencyStarter } from "./harness-dependency-starter";
 import {
   harnessLaunchArgs,
   initialHarnessReadiness,
@@ -118,6 +120,7 @@ export class TerminalManager extends EventEmitter {
     transcriptRetentionDays = 0,
     terminalRuntimeOptions: TerminalRuntimeOptions = {},
     private readonly terminalRuntime: TerminalRuntime = new TmuxTerminalRuntime(),
+    private readonly harnessDependencyStarter: HarnessDependencyStarter = new DefaultHarnessDependencyStarter(),
   ) {
     super();
     this.bufferLineLimit = normalizeBufferLineLimit(bufferLineLimit);
@@ -241,13 +244,7 @@ export class TerminalManager extends EventEmitter {
 
   async create(options: TerminalCreateOptions): Promise<TerminalSessionInfo> {
     const cwd = options.cwd ?? this.defaultCwd;
-    const launch = resolveLaunchableAgentLaunchPlan(
-      this.runtimeConfig,
-      options.harnessId ?? options.kind,
-      cwd,
-      process.env,
-      options.callerSurface ?? "desktop",
-    );
+    const { launch, dependencyEnv } = await this.resolveLaunchAfterDependencyStart(options, cwd);
     if (launch.kind !== options.kind) {
       throw new Error(
         `Agent harness terminal kind mismatch: ${options.harnessId ?? options.kind} resolves to ${launch.kind}, not ${options.kind}.`,
@@ -267,6 +264,7 @@ export class TerminalManager extends EventEmitter {
       LANG: process.env.LANG ?? "en_US.UTF-8",
       LC_CTYPE: process.env.LC_CTYPE ?? process.env.LANG ?? "en_US.UTF-8",
       SHELL_SESSIONS_DISABLE: "1",
+      ...dependencyEnv,
       ...launch.env,
       ...overlayEnv,
     };
@@ -340,6 +338,30 @@ export class TerminalManager extends EventEmitter {
 
     this.emit("created", info);
     return info;
+  }
+
+  private async resolveLaunchAfterDependencyStart(
+    options: TerminalCreateOptions,
+    cwd: string,
+  ): Promise<{ launch: ReturnType<typeof resolveLaunchableAgentLaunchPlan>; dependencyEnv: Record<string, string> }> {
+    const harnessId = options.harnessId ?? options.kind;
+    const detection = resolveRegisteredAgentHarnessDetection(harnessId, process.env);
+    const dependencyEnv = detection?.dependencies
+      ? await this.harnessDependencyStarter.ensureStarted(detection.dependencies)
+      : {};
+    const launchEnv = Object.keys(dependencyEnv).length > 0
+      ? { ...process.env, ...dependencyEnv }
+      : process.env;
+    return {
+      dependencyEnv,
+      launch: resolveLaunchableAgentLaunchPlan(
+        this.runtimeConfig,
+        harnessId,
+        cwd,
+        launchEnv,
+        options.callerSurface ?? "desktop",
+      ),
+    };
   }
 
   async write(id: string, data: string): Promise<TerminalWriteResult> {

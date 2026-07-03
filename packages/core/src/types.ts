@@ -371,6 +371,16 @@ export interface AgentHarnessDependencyStatus {
   satisfied: boolean;
   statusLabel: string;
   detail?: string;
+  autoStart?: AgentHarnessDependencyAutoStart;
+}
+
+export interface AgentHarnessDependencyAutoStart {
+  command: string;
+  cwd?: string;
+  probeUrl?: string;
+  timeoutMs?: number;
+  intervalMs?: number;
+  readyEnv?: Record<string, string>;
 }
 
 export interface AgentHarnessDetection {

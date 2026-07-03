@@ -30,6 +30,7 @@ const defaultConnectTimeoutMs = 20_000;
 const defaultRequestTimeoutMs = 2_000;
 const defaultSearchRequestTimeoutMs = 30_000;
 const defaultMaintenanceRequestTimeoutMs = 30 * 60_000;
+const defaultTerminalCreateTimeoutMs = 60_000;
 const pollIntervalMs = 250;
 
 export type ProcessCheckResult =
@@ -97,6 +98,7 @@ export class ExoCommandClient {
     private readonly requestTimeoutMs = defaultRequestTimeoutMs,
     private readonly searchRequestTimeoutMs = defaultSearchRequestTimeoutMs,
     private readonly maintenanceRequestTimeoutMs = defaultMaintenanceRequestTimeoutMs,
+    private readonly terminalCreateTimeoutMs = defaultTerminalCreateTimeoutMs,
   ) {}
 
   static async connect(env: NodeJS.ProcessEnv = process.env): Promise<ExoCommandClient> {
@@ -108,6 +110,7 @@ export class ExoCommandClient {
     const searchRequestTimeoutMs = parsePositiveInt(env.EXO_MCP_SEARCH_TIMEOUT_MS) ?? defaultSearchRequestTimeoutMs;
     const maintenanceRequestTimeoutMs =
       parsePositiveInt(env.EXO_MCP_MAINTENANCE_TIMEOUT_MS) ?? defaultMaintenanceRequestTimeoutMs;
+    const terminalCreateTimeoutMs = parsePositiveInt(env.EXO_MCP_TERMINAL_CREATE_TIMEOUT_MS) ?? defaultTerminalCreateTimeoutMs;
     let snapshot = await readServerSnapshot(serverJsonPath);
 
     const startEnv = await resolveMcpWorkspaceEnv(env);
@@ -123,6 +126,7 @@ export class ExoCommandClient {
         requestTimeoutMs,
         searchRequestTimeoutMs,
         maintenanceRequestTimeoutMs,
+        terminalCreateTimeoutMs,
         autostart: autostartState,
         ignoreSnapshot: snapshot,
       });
@@ -143,7 +147,7 @@ export class ExoCommandClient {
       });
     }
 
-    const client = new ExoCommandClient(snapshot.baseUrl, requestTimeoutMs, searchRequestTimeoutMs, maintenanceRequestTimeoutMs);
+    const client = new ExoCommandClient(snapshot.baseUrl, requestTimeoutMs, searchRequestTimeoutMs, maintenanceRequestTimeoutMs, terminalCreateTimeoutMs);
     const reachability = await checkReachability(client);
     if (reachability.ok) {
       return client;
@@ -171,6 +175,7 @@ export class ExoCommandClient {
       requestTimeoutMs,
       searchRequestTimeoutMs,
       maintenanceRequestTimeoutMs,
+      terminalCreateTimeoutMs,
       autostart: autostartState,
       initialReachabilityFailure: lastReachabilityFailure,
       ignoreSnapshot: snapshot.processCheck.status === "dead" ? snapshot : undefined,
@@ -236,7 +241,7 @@ export class ExoCommandClient {
   }
 
   async createAgent(kind: ExoAgentKind, cwd?: string): Promise<ExoAgent> {
-    return this.post(EXO_COMMAND_ROUTES.terminals, { harnessId: kind, kind, cwd, callerSurface: "mcp" });
+    return this.post(EXO_COMMAND_ROUTES.terminals, { harnessId: kind, kind, cwd, callerSurface: "mcp" }, this.terminalCreateTimeoutMs);
   }
 
   async readAgent(id: string, tailChars: number): Promise<string> {
@@ -392,6 +397,7 @@ async function waitForReachableClient(options: {
   requestTimeoutMs: number;
   searchRequestTimeoutMs: number;
   maintenanceRequestTimeoutMs: number;
+  terminalCreateTimeoutMs: number;
   autostart: AutostartState;
   initialReachabilityFailure?: ReachabilityFailure;
   ignoreSnapshot?: ServerDiscoverySnapshot;
@@ -404,6 +410,7 @@ async function waitForReachableClient(options: {
     requestTimeoutMs,
     searchRequestTimeoutMs,
     maintenanceRequestTimeoutMs,
+    terminalCreateTimeoutMs,
     autostart,
     initialReachabilityFailure,
     ignoreSnapshot,
@@ -419,7 +426,7 @@ async function waitForReachableClient(options: {
         await sleep(pollIntervalMs);
         continue;
       }
-      const client = new ExoCommandClient(snapshot.baseUrl, requestTimeoutMs, searchRequestTimeoutMs, maintenanceRequestTimeoutMs);
+      const client = new ExoCommandClient(snapshot.baseUrl, requestTimeoutMs, searchRequestTimeoutMs, maintenanceRequestTimeoutMs, terminalCreateTimeoutMs);
       const reachability = await checkReachability(client);
       if (reachability.ok) {
         return client;

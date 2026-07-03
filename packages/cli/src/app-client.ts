@@ -14,6 +14,7 @@ export interface AppClientWriteResult {
 const defaultRequestTimeoutMs = 2_000;
 const defaultSearchRequestTimeoutMs = 30_000;
 const defaultMaintenanceRequestTimeoutMs = 30 * 60_000;
+const defaultTerminalCreateTimeoutMs = 60_000;
 
 export type AppClientDiscoveryFailureCode =
   | "runtime-root-missing"
@@ -58,6 +59,7 @@ export class AppClient {
     private readonly requestTimeoutMs = defaultRequestTimeoutMs,
     private readonly searchRequestTimeoutMs = defaultSearchRequestTimeoutMs,
     private readonly maintenanceRequestTimeoutMs = defaultMaintenanceRequestTimeoutMs,
+    private readonly terminalCreateTimeoutMs = defaultTerminalCreateTimeoutMs,
   ) {}
 
   /**
@@ -100,8 +102,10 @@ export class AppClient {
     const searchRequestTimeoutMs = parsePositiveInt(env.EXO_APP_CLIENT_SEARCH_TIMEOUT_MS) ?? defaultSearchRequestTimeoutMs;
     const maintenanceRequestTimeoutMs =
       parsePositiveInt(env.EXO_APP_CLIENT_MAINTENANCE_TIMEOUT_MS) ?? defaultMaintenanceRequestTimeoutMs;
+    const terminalCreateTimeoutMs =
+      parsePositiveInt(env.EXO_APP_CLIENT_TERMINAL_CREATE_TIMEOUT_MS) ?? defaultTerminalCreateTimeoutMs;
     const discovery = { runtimeRoot, serverJsonPath, port: info.port, pid: info.pid };
-    const client = new AppClient(baseUrl, discovery, requestTimeoutMs, searchRequestTimeoutMs, maintenanceRequestTimeoutMs);
+    const client = new AppClient(baseUrl, discovery, requestTimeoutMs, searchRequestTimeoutMs, maintenanceRequestTimeoutMs, terminalCreateTimeoutMs);
 
     const initialProcessCheck = checkProcessLiveness(info.pid);
     if (initialProcessCheck.status === "dead") {
@@ -237,7 +241,7 @@ export class AppClient {
   }
 
   async createTerminal(kind: string, cwd?: string): Promise<Record<string, unknown>> {
-    return this.post(EXO_COMMAND_ROUTES.terminals, { harnessId: kind, kind, cwd, callerSurface: "cli" });
+    return this.post(EXO_COMMAND_ROUTES.terminals, { harnessId: kind, kind, cwd, callerSurface: "cli" }, this.terminalCreateTimeoutMs);
   }
 
   async readTerminal(id: string, options: { maxLines?: number } = {}): Promise<string> {

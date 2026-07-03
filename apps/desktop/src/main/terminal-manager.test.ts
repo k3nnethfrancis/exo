@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { AgentHarnessDependencyStatus } from "@exo/core";
 
 const ptyState = vi.hoisted(() => ({
   spawned: [] as Array<{
@@ -720,6 +721,53 @@ describe("TerminalManager Codex readiness", () => {
     await expect(readFile(path.join(workspaceRoot, ".exo", "instructions", "AGENTS.md"), "utf8")).rejects.toMatchObject({
       code: "ENOENT",
     });
+  });
+
+  it("auto-starts configured Pi backend dependencies before validating launchability", async () => {
+    const workspaceRoot = await workspaceFixture();
+    const piCommand = path.join(workspaceRoot, "pi");
+    await writeFile(piCommand, "#!/bin/sh\nexit 0\n", "utf8");
+    await chmodExecutable(piCommand);
+    stubWorkspaceEnv(workspaceRoot);
+    vi.stubEnv("EXO_PI_COMMAND", piCommand);
+    vi.stubEnv("EXO_PI_REPO_PATH", workspaceRoot);
+    vi.stubEnv("EXO_PI_BACKEND_URL", "http://127.0.0.1:18080");
+    vi.stubEnv("EXO_PI_BACKEND_COMMAND", "pi-backend --port 18080");
+    const runtime = fakeRuntime();
+    const starter = {
+      calls: [] as unknown[],
+      ensureStarted: vi.fn(async (dependencies: AgentHarnessDependencyStatus[]) => {
+        starter.calls.push(dependencies);
+        return { EXO_PI_BACKEND_READY: "1" };
+      }),
+    };
+    const manager = new TerminalManager(workspaceRoot, 500, 0, {}, runtime, starter);
+
+    const terminal = await manager.create({ kind: "pi", cwd: workspaceRoot });
+
+    expect(terminal.kind).toBe("pi");
+    expect(starter.ensureStarted).toHaveBeenCalledTimes(1);
+    expect(starter.calls[0]).toEqual([
+      expect.objectContaining({
+        id: "pi-inference-backend",
+        satisfied: false,
+        autoStart: expect.objectContaining({
+          command: "pi-backend --port 18080",
+          probeUrl: "http://127.0.0.1:18080",
+          readyEnv: { EXO_PI_BACKEND_READY: "1" },
+        }),
+      }),
+    ]);
+    expect(process.env.EXO_PI_BACKEND_READY).toBeUndefined();
+    expect(runtime.calls.createSession).toHaveLength(1);
+    expect(runtime.calls.createSession[0]).toMatchObject({
+      command: piCommand,
+      env: expect.objectContaining({
+        EXO_PI_BACKEND_READY: "1",
+        EXO_AGENT_KIND: "pi",
+      }),
+    });
+    await expect(readFile(path.join(workspaceRoot, ".exo", "instructions", "AGENTS.md"), "utf8")).resolves.toContain("# Exo Runtime");
   });
 
   it("terminates the tmux session when killing a terminal", async () => {
