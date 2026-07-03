@@ -7,11 +7,17 @@ import {
   validateRegisteredAgentHarnessLaunch,
   type ExoCommandServerInfo,
   type ExoCommandTerminalDiagnostics,
+  type ExoCreateProposalRequest,
+  type ExoCreateProposalResponse,
+  type ExoDecideProposalRequest,
+  type ExoDecideProposalResponse,
   type ExoReconnectTerminalResponse,
   type ExoIndexRootRequest,
+  type ExoListProposalsResponse,
   type ExoCommandTerminalInfo,
   type ExoCreateTerminalRequest,
   type ExoProjectRootRequest,
+  type ExoReadProposalResponse,
   type ExoReadDocumentRequest,
   type ExoOpenFileRequest,
   type ExoOpenPreviewRequest,
@@ -27,6 +33,8 @@ import {
   type IndexStatus,
   type WorkspaceSearchResults,
   type WorkspaceSettings,
+  type ProposalApplyResult,
+  type ProposalBatch,
 } from "@exo/core";
 
 export interface CommandServerOptions {
@@ -36,6 +44,10 @@ export interface CommandServerOptions {
   onOpenPreview: (target: string) => Promise<ExoOpenPreviewResponse>;
   onFocusPreview: () => ExoPreviewCommandResponse;
   onClosePreview: () => ExoPreviewCommandResponse;
+  onCreateProposal: (proposal: ProposalBatch) => Promise<ProposalBatch>;
+  onListProposals: () => Promise<ProposalBatch[]>;
+  onReadProposal: (id: string) => Promise<ProposalBatch | null>;
+  onDecideProposal: (id: string, input: { decision: "accept" | "reject"; itemId?: string }) => Promise<ProposalApplyResult>;
   onSearch: (query: string) => Promise<WorkspaceSearchResults>;
   onIndexSearch: (query: string, options: { limit?: number; intent?: string; includeContent?: boolean; maxLinesPerResult?: number }) => Promise<IndexSearchResponse>;
   onReadDocument: (target: string, options: { fromLine?: number; maxLines?: number }) => Promise<IndexReadResponse>;
@@ -257,6 +269,46 @@ export class CommandServer {
 
       if (method === "POST" && pathname === EXO_COMMAND_ROUTES.closePreview) {
         json(res, this.options.onClosePreview());
+        return;
+      }
+
+      if (method === "GET" && pathname === EXO_COMMAND_ROUTES.proposals) {
+        json(res, { proposals: await this.options.onListProposals() } satisfies ExoListProposalsResponse);
+        return;
+      }
+
+      if (method === "POST" && pathname === EXO_COMMAND_ROUTES.proposals) {
+        const body = await readBody(req);
+        const { proposal } = body as ExoCreateProposalRequest;
+        if (!proposal) {
+          json(res, { error: "Missing proposal in body" }, 400);
+          return;
+        }
+        json(res, { ok: true, proposal: await this.options.onCreateProposal(proposal) } satisfies ExoCreateProposalResponse);
+        return;
+      }
+
+      const proposalMatch = pathname.match(/^\/proposals\/([^/]+)$/);
+      if (method === "GET" && proposalMatch) {
+        const proposal = await this.options.onReadProposal(decodeURIComponent(proposalMatch[1]));
+        if (!proposal) {
+          json(res, { error: "Proposal not found" }, 404);
+          return;
+        }
+        json(res, { proposal } satisfies ExoReadProposalResponse);
+        return;
+      }
+
+      const proposalDecisionMatch = pathname.match(/^\/proposals\/([^/]+)\/decision$/);
+      if (method === "POST" && proposalDecisionMatch) {
+        const body = await readBody(req);
+        const { decision, itemId } = body as ExoDecideProposalRequest;
+        if (decision !== "accept" && decision !== "reject") {
+          json(res, { error: "Missing decision in body" }, 400);
+          return;
+        }
+        const result = await this.options.onDecideProposal(decodeURIComponent(proposalDecisionMatch[1]), { decision, itemId });
+        json(res, { ok: true, proposal: result.proposal, appliedItems: result.appliedItems } satisfies ExoDecideProposalResponse);
         return;
       }
 

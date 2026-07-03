@@ -18,7 +18,9 @@ import {
   planProfilePreview,
   profileFromCapability,
   readIndexDocument,
+  applyProposalToWorkspace,
   readManagedPluginSettings,
+  ProposalReviewStore,
   readProfileStateStore,
   readWorkspaceDocument,
   renameWorkspacePath,
@@ -143,6 +145,31 @@ function startCommandServer() {
     onClosePreview: () => {
       sendToRenderer("command:close-preview", undefined);
       return { ok: true };
+    },
+    onCreateProposal: async (proposal) => {
+      const store = new ProposalReviewStore(resolveRuntimeConfig().runtimeRoot);
+      await store.writeProposal(proposal);
+      return proposal;
+    },
+    onListProposals: () => new ProposalReviewStore(resolveRuntimeConfig().runtimeRoot).listProposals(),
+    onReadProposal: (id) => new ProposalReviewStore(resolveRuntimeConfig().runtimeRoot).readProposal(id),
+    onDecideProposal: async (id, input) => {
+      const store = new ProposalReviewStore(resolveRuntimeConfig().runtimeRoot);
+      let appliedResult: Awaited<ReturnType<typeof applyProposalToWorkspace>> | null = null;
+      await store.updateProposal(id, async (proposal) => {
+        appliedResult = await applyProposalToWorkspace(proposal, {
+          workspaceRoot: workspaceModel.workspaceRoot,
+          decision: input.decision,
+          itemId: input.itemId,
+          surface: "cli",
+          decidedAt: new Date().toISOString(),
+        });
+        return appliedResult.proposal;
+      });
+      if (!appliedResult) {
+        throw new Error(`Proposal not found: ${id}`);
+      }
+      return appliedResult;
     },
     onSearch: (query: string) => searchWorkspace(workspaceModel, query),
     onIndexSearch: (query, options) => searchIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot, query, options),

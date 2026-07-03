@@ -375,6 +375,71 @@ describe("CommandServer terminal routes", () => {
       server.stop();
     }
   });
+
+  it("creates, reads, lists, and decides proposals over HTTP", async () => {
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-command-server-"));
+    tempPaths.push(runtimeRoot);
+    const proposals = new Map<string, any>();
+    const server = new CommandServer({
+      ...commandServerOptions(runtimeRoot),
+      onCreateProposal: async (proposal) => {
+        proposals.set(proposal.id, proposal);
+        return proposal;
+      },
+      onListProposals: async () => [...proposals.values()],
+      onReadProposal: async (id) => proposals.get(id) ?? null,
+      onDecideProposal: async (id, input) => {
+        const proposal = {
+          ...proposals.get(id),
+          status: input.decision === "accept" ? "accepted" : "rejected",
+          items: proposals.get(id).items.map((item: any) => ({
+            ...item,
+            itemStatus: input.decision === "accept" ? "accepted" : "rejected",
+          })),
+        };
+        proposals.set(id, proposal);
+        return {
+          proposal,
+          appliedItems: input.decision === "accept"
+            ? [{ id: "create-1", kind: "fileCreate", path: "notes/new.md", action: "created" }]
+            : [],
+        };
+      },
+    });
+    const proposal = {
+      id: "proposal-1",
+      status: "pending",
+      provenance: { activityId: "activity-1" },
+      items: [{ id: "create-1", kind: "fileCreate", path: "notes/new.md", contents: "# New\n", itemStatus: "pending" }],
+    };
+
+    try {
+      const port = await server.start();
+      const createResponse = await fetch(`http://127.0.0.1:${port}/proposals`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ proposal }),
+      });
+      const listResponse = await fetchJson(`http://127.0.0.1:${port}/proposals`);
+      const readResponse = await fetchJson(`http://127.0.0.1:${port}/proposals/proposal-1`);
+      const decideResponse = await fetch(`http://127.0.0.1:${port}/proposals/proposal-1/decision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision: "accept" }),
+      });
+
+      await expect(createResponse.json()).resolves.toMatchObject({ ok: true, proposal: { id: "proposal-1" } });
+      expect(listResponse.proposals).toHaveLength(1);
+      expect(readResponse.proposal.id).toBe("proposal-1");
+      await expect(decideResponse.json()).resolves.toMatchObject({
+        ok: true,
+        proposal: { status: "accepted" },
+        appliedItems: [{ id: "create-1", action: "created" }],
+      });
+    } finally {
+      server.stop();
+    }
+  });
 });
 
 async function fetchJson(url: string): Promise<any> {
@@ -395,6 +460,12 @@ function commandServerOptions(runtimeRoot: string): CommandServerOptions {
     onOpenPreview: async (target) => ({ ok: true, url: target, source: "url" }),
     onFocusPreview: () => ({ ok: true }),
     onClosePreview: () => ({ ok: true }),
+    onCreateProposal: async (proposal) => proposal,
+    onListProposals: async () => [],
+    onReadProposal: async () => null,
+    onDecideProposal: async () => {
+      throw new Error("Unexpected proposal decision");
+    },
     onSearch: async () => ({ notes: [], projectFiles: [], tags: [] }),
     onIndexSearch: async () => ({ mode: "lexical", source: "filesystem", query: "", results: [], warnings: [] }),
     onReadDocument: async () => ({ target: "", filePath: "", title: "", body: "", source: "filesystem" }),

@@ -157,6 +157,22 @@ export class AppClient {
     return this.post(EXO_COMMAND_ROUTES.closePreview, {});
   }
 
+  async createProposal(proposal: Record<string, unknown>): Promise<Record<string, unknown>> {
+    return this.post(EXO_COMMAND_ROUTES.proposals, { proposal });
+  }
+
+  async listProposals(): Promise<Record<string, unknown>> {
+    return this.get(EXO_COMMAND_ROUTES.proposals);
+  }
+
+  async readProposal(id: string): Promise<Record<string, unknown>> {
+    return this.get(EXO_COMMAND_ROUTES.proposal(id));
+  }
+
+  async decideProposal(id: string, decision: "accept" | "reject", itemId?: string): Promise<Record<string, unknown>> {
+    return this.post(EXO_COMMAND_ROUTES.proposalDecision(id), { decision, itemId });
+  }
+
   async showWindow(): Promise<void> {
     await this.post(EXO_COMMAND_ROUTES.show, {});
   }

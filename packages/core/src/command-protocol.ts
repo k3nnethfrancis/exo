@@ -1,3 +1,5 @@
+import type { ProposalBatch, ProposalDecision } from "./proposal-review";
+
 export const EXO_COMMAND_ROUTES = {
   status: "/status",
   show: "/show",
@@ -12,6 +14,9 @@ export const EXO_COMMAND_ROUTES = {
   openPreview: "/preview/open",
   focusPreview: "/preview/focus",
   closePreview: "/preview/close",
+  proposals: "/proposals",
+  proposal: (id: string) => `/proposals/${encodeURIComponent(id)}`,
+  proposalDecision: (id: string) => `/proposals/${encodeURIComponent(id)}/decision`,
   config: "/config",
   projectRoots: "/project-roots",
   projectRoot: (target: string) => `/project-roots/${encodeURIComponent(target)}`,
@@ -105,6 +110,39 @@ export interface ExoOpenPreviewResponse {
 
 export interface ExoPreviewCommandResponse {
   ok: true;
+}
+
+export interface ExoCreateProposalRequest {
+  proposal?: ProposalBatch;
+}
+
+export interface ExoCreateProposalResponse {
+  ok: true;
+  proposal: ProposalBatch;
+}
+
+export interface ExoListProposalsResponse {
+  proposals: ProposalBatch[];
+}
+
+export interface ExoReadProposalResponse {
+  proposal: ProposalBatch;
+}
+
+export interface ExoDecideProposalRequest {
+  decision?: ProposalDecision;
+  itemId?: string;
+}
+
+export interface ExoDecideProposalResponse {
+  ok: true;
+  proposal: ProposalBatch;
+  appliedItems: Array<{
+    id: string;
+    kind: string;
+    path: string;
+    action: string;
+  }>;
 }
 
 export interface ExoReconnectRecoverableTerminalsResponse {

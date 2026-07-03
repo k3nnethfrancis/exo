@@ -220,6 +220,42 @@ describe("AppClient", () => {
     ]);
   });
 
+  it("calls proposal review endpoints", async () => {
+    const runtimeRoot = await runtimeFixture();
+    const calls: Array<{ path: string; method: string; body: unknown }> = [];
+    stubCommandServer(async (targetUrl, init) => {
+      if (targetUrl.pathname === "/status") {
+        return json({ ok: true });
+      }
+      calls.push({
+        path: targetUrl.pathname,
+        method: init?.method ?? "GET",
+        body: init?.body ? JSON.parse(String(init.body)) : null,
+      });
+      const method = init?.method ?? "GET";
+      if (targetUrl.pathname === "/proposals" && method === "GET") {
+        return json({ proposals: [] });
+      }
+      if (targetUrl.pathname === "/proposals/proposal-1" && method === "GET") {
+        return json({ proposal: { id: "proposal-1" } });
+      }
+      return json({ ok: true, proposal: { id: "proposal-1" }, appliedItems: [] });
+    });
+
+    const client = await AppClient.connect(runtimeRoot);
+
+    await expect(client?.listProposals()).resolves.toEqual({ proposals: [] });
+    await expect(client?.readProposal("proposal-1")).resolves.toEqual({ proposal: { id: "proposal-1" } });
+    await expect(client?.createProposal({ id: "proposal-1" })).resolves.toMatchObject({ ok: true });
+    await expect(client?.decideProposal("proposal-1", "accept", "item-1")).resolves.toMatchObject({ ok: true });
+    expect(calls).toEqual([
+      { path: "/proposals", method: "GET", body: null },
+      { path: "/proposals/proposal-1", method: "GET", body: null },
+      { path: "/proposals", method: "POST", body: { proposal: { id: "proposal-1" } } },
+      { path: "/proposals/proposal-1/decision", method: "POST", body: { decision: "accept", itemId: "item-1" } },
+    ]);
+  });
+
   it("reports search timeout details", async () => {
     const runtimeRoot = await runtimeFixture();
     stubCommandServer(async (targetUrl, init) => {

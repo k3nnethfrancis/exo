@@ -27,6 +27,8 @@ export * from "./routine-service";
 export * from "./routine-template";
 export * from "./run";
 export * from "./proposal-review";
+export * from "./proposal-review-store";
+export * from "./proposal-apply-host";
 export * from "./routine-run-store";
 export * from "./trace-collector";
 export * from "./qmd";

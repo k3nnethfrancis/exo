@@ -139,6 +139,8 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - Added `docs/plugin-architecture-audit.md` with core/plugin decisions, steelmanned reasons, accepted fallbacks, rejected fallbacks, inline-comment targets, and hardening backlog.
   - Added `.claude/skills/plugin-development/SKILL.md` and referenced it from `AGENTS.md`.
   - Added concise inline comments for metadata-only plugin discovery, disabled plugin capability handling, trusted dev plugin dirs, surface policy limits, QMD degraded search fallbacks, harness detection compatibility, and Pi backend readiness.
+  - 2026-07-03: Removed legacy bare capability-kind aliases; official manifests now use namespaced capability ids directly.
+  - 2026-07-03: Added the first proposal/review apply host and `exo proposals` CLI/app command surface. Native proposal review UI remains open.
 
 ### EXO-ISSUE-070: Terminal code-review residuals from 2026-06-23
 

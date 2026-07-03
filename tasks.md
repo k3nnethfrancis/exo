@@ -26,7 +26,8 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
   - [x] Add scoped plugin permission parsing/grants with `propose` distinct from direct `write`.
   - [ ] Add staged profile apply review with trust prompts and permission grants before any profile/plugin recommendation can write instructions, MCP config, skills, routines, settings, or grants.
   - [x] Design and implement the metadata-only proposal/review write contract as the shared substrate for profile apply, project knowledge sync, graph maintenance, skill/config writes, and agent-suggested note edits.
-  - [ ] Add the proposal/review apply host and UI/CLI review surface; keep MCP create/list-only.
+  - [x] Add the proposal/review apply host and CLI/app command review surface; keep MCP without decision tools.
+  - [ ] Add the native UI review surface for proposal batches.
   - [ ] Design semantic trace contract early enough that harness adapters do not need another terminal-service re-plumb.
   - [ ] Tighten Plugin Manager into a management surface: active/disabled/untrusted/missing states, local plugin add/remove/swap, plugin-owned settings, readiness/dependency guidance, and no dense-layout overlap.
   - [ ] Split terminal/session substrate types from harness-adapter ids so `exo agents` derives launchable harnesses from registered harness plugins while `exo terminals` remains the low-level core terminal surface.

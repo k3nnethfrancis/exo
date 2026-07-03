@@ -269,6 +269,68 @@ describe("cli package", () => {
     expect(calls).toEqual(["open:http://localhost:3000", "focus", "close"]);
   });
 
+  it("routes proposal review commands through the app client", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-cli-proposals-"));
+    const proposalPath = path.join(root, "proposal.json");
+    await writeFile(proposalPath, JSON.stringify({
+      id: "proposal-1",
+      status: "pending",
+      provenance: { activityId: "activity-1" },
+      items: [{ id: "create-1", kind: "fileCreate", path: "notes/new.md", contents: "# New\n", itemStatus: "pending" }],
+    }), "utf8");
+    const calls: string[] = [];
+    const client = fakeAppClient({
+      listProposals: async () => ({ proposals: [{ id: "proposal-1" }] }),
+      readProposal: async (id) => {
+        calls.push(`show:${id}`);
+        return { proposal: { id } };
+      },
+      createProposal: async (proposal) => {
+        calls.push(`create:${proposal.id}`);
+        return { ok: true, proposal };
+      },
+      decideProposal: async (id, decision, itemId) => {
+        calls.push(`${decision}:${id}:${itemId ?? ""}`);
+        return { ok: true, proposal: { id, status: decision === "accept" ? "accepted" : "rejected" }, appliedItems: [] };
+      },
+    });
+
+    try {
+      const listExitCode = await runCli(["node", "exo-cli", "proposals", "list"], {
+        env: testRuntimeEnv(),
+        stdout: { write: () => {} },
+        stderr: { write: () => {} },
+        connectAppClient: async () => client,
+      });
+      const showExitCode = await runCli(["node", "exo-cli", "proposals", "show", "proposal-1"], {
+        env: testRuntimeEnv(),
+        stdout: { write: () => {} },
+        stderr: { write: () => {} },
+        connectAppClient: async () => client,
+      });
+      const createExitCode = await runCli(["node", "exo-cli", "proposals", "create", proposalPath], {
+        env: testRuntimeEnv(),
+        stdout: { write: () => {} },
+        stderr: { write: () => {} },
+        connectAppClient: async () => client,
+      });
+      const acceptExitCode = await runCli(["node", "exo-cli", "proposals", "accept", "proposal-1", "create-1"], {
+        env: testRuntimeEnv(),
+        stdout: { write: () => {} },
+        stderr: { write: () => {} },
+        connectAppClient: async () => client,
+      });
+
+      expect(listExitCode).toBe(0);
+      expect(showExitCode).toBe(0);
+      expect(createExitCode).toBe(0);
+      expect(acceptExitCode).toBe(0);
+      expect(calls).toEqual(["show:proposal-1", "create:proposal-1", "accept:proposal-1:create-1"]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("submits agent messages by default", async () => {
     let receivedMessage = "";
     let receivedSubmit: boolean | undefined;
@@ -1152,6 +1214,10 @@ function fakeAppClient(overrides: Partial<{
   openPreview: (target: string) => Promise<Record<string, unknown>>;
   focusPreview: () => Promise<Record<string, unknown>>;
   closePreview: () => Promise<Record<string, unknown>>;
+  createProposal: (proposal: Record<string, unknown>) => Promise<Record<string, unknown>>;
+  listProposals: () => Promise<Record<string, unknown>>;
+  readProposal: (id: string) => Promise<Record<string, unknown>>;
+  decideProposal: (id: string, decision: "accept" | "reject", itemId?: string) => Promise<Record<string, unknown>>;
   showWindow: () => Promise<void>;
   getConfig: () => Promise<Record<string, unknown>>;
   listProjectRoots: () => Promise<string[]>;
@@ -1185,6 +1251,10 @@ function fakeAppClient(overrides: Partial<{
     openPreview: missing,
     focusPreview: missing,
     closePreview: missing,
+    createProposal: missing,
+    listProposals: missing,
+    readProposal: missing,
+    decideProposal: missing,
     showWindow: missing,
     getConfig: missing,
     listProjectRoots: missing,

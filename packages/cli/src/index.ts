@@ -2,6 +2,7 @@
 
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -65,6 +66,10 @@ interface AppClientLike {
   openPreview(target: string): Promise<Record<string, unknown>>;
   focusPreview(): Promise<Record<string, unknown>>;
   closePreview(): Promise<Record<string, unknown>>;
+  createProposal(proposal: Record<string, unknown>): Promise<Record<string, unknown>>;
+  listProposals(): Promise<Record<string, unknown>>;
+  readProposal(id: string): Promise<Record<string, unknown>>;
+  decideProposal(id: string, decision: "accept" | "reject", itemId?: string): Promise<Record<string, unknown>>;
   showWindow(): Promise<void>;
   getConfig(): Promise<Record<string, unknown>>;
   listProjectRoots(): Promise<string[]>;
@@ -418,6 +423,47 @@ export async function runCli(
     }
 
     stderr.write("Usage: exo project-roots [list | add <path> | remove <path>]\n");
+    return 1;
+  }
+
+  if (command === "proposals") {
+    const client = await connectOrFail(env, stderr, connectAppClient);
+    if (!client) return 1;
+
+    if (subcommand === "list" || !subcommand) {
+      stdout.write(`${JSON.stringify(await client.listProposals(), null, 2)}\n`);
+      return 0;
+    }
+
+    if (subcommand === "show") {
+      const id = args[0];
+      if (!id) {
+        throw new Error("Usage: exo proposals show <proposal-id>");
+      }
+      stdout.write(`${JSON.stringify(await client.readProposal(id), null, 2)}\n`);
+      return 0;
+    }
+
+    if (subcommand === "create") {
+      const filePath = args[0];
+      if (!filePath) {
+        throw new Error("Usage: exo proposals create <proposal-json>");
+      }
+      const proposal = JSON.parse(await readFile(path.resolve(cwd, filePath), "utf8")) as Record<string, unknown>;
+      stdout.write(`${JSON.stringify(await client.createProposal(proposal), null, 2)}\n`);
+      return 0;
+    }
+
+    if (subcommand === "accept" || subcommand === "reject") {
+      const id = args[0];
+      if (!id) {
+        throw new Error(`Usage: exo proposals ${subcommand} <proposal-id> [item-id]`);
+      }
+      stdout.write(`${JSON.stringify(await client.decideProposal(id, subcommand, args[1]), null, 2)}\n`);
+      return 0;
+    }
+
+    stderr.write("Usage: exo proposals [list | show <id> | create <proposal-json> | accept <id> [item-id] | reject <id> [item-id]]\n");
     return 1;
   }
 
@@ -946,6 +992,10 @@ export async function runCli(
       "  exo project-roots [list]                   List attached project roots (app)",
       "  exo project-roots add <path>               Attach a project root (app)",
       "  exo project-roots remove <path>            Detach a project root (app)",
+      "  exo proposals [list]                       List reviewable proposal batches (app)",
+      "  exo proposals show <id>                    Show a proposal batch (app)",
+      "  exo proposals create <json>                Store a proposal batch for review (app)",
+      "  exo proposals accept|reject <id> [item]    Decide proposal changes (app)",
       "  exo terminals [list]                       List terminals (app)",
       `  exo terminals create <${TERMINAL_KIND_USAGE}>  Create terminal (app)`,
       "  exo terminals read <id> [--lines n]        Read bounded live terminal tail (app)",
