@@ -11,11 +11,10 @@ import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { DEFAULT_TERMINAL_MAX_READ_TAIL_CHARS, DEFAULT_TERMINAL_READ_TAIL_CHARS } from "@exo/core/terminal-settings";
 import {
   formatRegisteredAgentHarnessUsage,
-  normalizeRegisteredAgentHarnessKindForSurface,
 } from "@exo/core/agent-harness-registry";
 import * as z from "zod/v4";
 
-import { ExoCommandClient, ExoCommandDiscoveryError, formatAgents, stripAnsi } from "./exo-client";
+import { ExoCommandClient, ExoCommandDiscoveryError, ExoCommandServerHttpError, formatAgents, stripAnsi } from "./exo-client";
 
 const DEFAULT_HTTP_HOST = "127.0.0.1";
 const DEFAULT_HTTP_PORT = 3333;
@@ -255,18 +254,9 @@ server.registerTool(
     },
   },
   async ({ kind, cwd }) => {
-    const normalizedKind = normalizeMcpAgentKind(kind);
-    if (!normalizedKind) {
-      const usage = mcpAgentKindUsage();
-      return {
-        isError: true,
-        content: [{ type: "text", text: `Agent harness is not exposed to MCP: ${kind}. Expected one of: ${usage}.` }],
-        structuredContent: { ok: false, error: "unsupported-agent-harness", kind, expected: usage },
-      };
-    }
     return runAppBackedTool(async () => {
       const client = await ExoCommandClient.connect();
-      const agent = await client.createAgent(normalizedKind, cwd);
+      const agent = await client.createAgent(kind, cwd);
       return {
         content: [{ type: "text", text: `Created ${agent.kind} agent ${agent.id} in ${agent.cwd}.` }],
         structuredContent: { agent },
@@ -423,6 +413,12 @@ function mcpToolError(error: unknown): McpToolResult {
   if (error instanceof ExoCommandDiscoveryError) {
     structuredContent.error = "exo-command-server-unavailable";
     structuredContent.runtimeDiagnostic = error.diagnostic;
+  }
+  if (error instanceof ExoCommandServerHttpError && error.payload?.code === "unsupported-agent-harness") {
+    structuredContent.error = "unsupported-agent-harness";
+    structuredContent.harnessId = error.payload.harnessId;
+    structuredContent.commandServerStatus = error.status;
+    structuredContent.commandServerError = error.payload.error ?? message;
   }
   return {
     isError: true,
@@ -597,10 +593,6 @@ function formatAgentMessageDelivery(
 
 function mcpAgentKindUsage(env: NodeJS.ProcessEnv = process.env): string {
   return formatRegisteredAgentHarnessUsage({ surface: "mcp" }, env) || "(none)";
-}
-
-function normalizeMcpAgentKind(kind: string | undefined, env: NodeJS.ProcessEnv = process.env) {
-  return normalizeRegisteredAgentHarnessKindForSurface(kind, { surface: "mcp" }, env);
 }
 
 function readNonNegativeInteger(value: unknown, fallback: number): number {

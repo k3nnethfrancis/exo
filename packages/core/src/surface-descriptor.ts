@@ -1,4 +1,4 @@
-import type { AgentHarnessDetection, ManagedAgentKind } from "./types";
+import { isManagedAgentKind, type AgentHarnessDetection, type AgentHarnessId, type ManagedAgentKind } from "./types";
 import { EXO_COMMAND_ROUTES } from "./command-protocol";
 import {
   graphVisualizationFromCapability,
@@ -17,7 +17,7 @@ export type PluginPanelHostPlacement = "toolDock" | "editorGrid" | "modal";
 
 export type ToolSurfaceAction =
   | { type: "terminal.toggleDock" }
-  | { type: "terminal.launch"; terminalKind: ManagedAgentKind }
+  | { type: "terminal.launch"; terminalKind: ManagedAgentKind; harnessId?: AgentHarnessId }
   | { type: "agentConfig.open" }
   | { type: "pluginManager.open" }
   | { type: "sidePanes.toggle" }
@@ -103,6 +103,7 @@ export function buildCoreToolSurfaceDescriptors(options: CoreToolSurfaceDescript
       label: "New terminal",
       title: "New terminal",
       terminalKind: "shell",
+      harnessId: "shell",
       owner: "core",
       capabilityId: "shell",
     }),
@@ -111,7 +112,8 @@ export function buildCoreToolSurfaceDescriptors(options: CoreToolSurfaceDescript
         id: `launch-${harness.id}`,
         label: `Launch ${harness.label}`,
         title: `Launch ${harness.label}`,
-        terminalKind: harness.id,
+        terminalKind: harness.launcher?.kind ?? managedAgentKindFromHarnessId(harness.id) ?? "shell",
+        harnessId: harness.id,
         owner: "officialPlugin",
         capabilityId: harness.id,
       }),
@@ -317,6 +319,7 @@ function terminalLaunchDescriptor(input: {
   label: string;
   title: string;
   terminalKind: ManagedAgentKind;
+  harnessId?: AgentHarnessId;
   owner: ToolSurfaceOwnerKind;
   capabilityId: string;
 }): ToolSurfaceDescriptor {
@@ -329,10 +332,14 @@ function terminalLaunchDescriptor(input: {
     placement: "rightRail",
     owner: input.owner,
     capabilityId: input.capabilityId,
-    action: { type: "terminal.launch", terminalKind: input.terminalKind },
+    action: { type: "terminal.launch", terminalKind: input.terminalKind, harnessId: input.harnessId },
     enabled: true,
     visible: true,
   };
+}
+
+function managedAgentKindFromHarnessId(harnessId: AgentHarnessId): ManagedAgentKind | undefined {
+  return isManagedAgentKind(harnessId) ? harnessId : undefined;
 }
 
 function capabilityToolDescriptor(

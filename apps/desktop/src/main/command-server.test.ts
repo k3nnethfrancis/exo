@@ -2,11 +2,43 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { agentHarnessRegistry, type AgentHarness } from "@exo/core";
 
 import { CommandServer, type CommandServerOptions } from "./command-server";
 
 const tempPaths: string[] = [];
+const COMMAND_SERVER_ONLY_HARNESS_ID = "test.command-server-only";
+
+beforeAll(() => {
+  if (agentHarnessRegistry.get(COMMAND_SERVER_ONLY_HARNESS_ID)) {
+    return;
+  }
+  const harness: AgentHarness = {
+    contractVersion: "agent-harness.v1",
+    metadata: {
+      id: COMMAND_SERVER_ONLY_HARNESS_ID,
+      kind: "core:agentHarness",
+      label: "Command Server Only",
+      description: "Test harness exposed only to command-server launch policy.",
+      lifecycle: "built-in",
+      owner: "@exo/test",
+      surfaces: ["commandServer"],
+      permissions: ["agents:launch"],
+    },
+    kind: "shell",
+    title: "Command Server Only",
+    skills: [],
+    terminalOwnership: "core",
+    resolveLauncher: () => ({
+      kind: "shell",
+      title: "Command Server Only",
+      command: "/bin/sh",
+      args: [],
+    }),
+  };
+  agentHarnessRegistry.register(harness);
+});
 
 afterEach(async () => {
   await Promise.all(tempPaths.splice(0).map((target) => rm(target, { recursive: true, force: true })));
@@ -106,6 +138,169 @@ describe("CommandServer preview routes", () => {
 });
 
 describe("CommandServer terminal routes", () => {
+  it("creates launchable public agent harness ids through the compatibility terminal kind", async () => {
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-command-server-"));
+    tempPaths.push(runtimeRoot);
+    const previousCodexCommand = process.env.EXO_CODEX_COMMAND;
+    process.env.EXO_CODEX_COMMAND = "/bin/sh";
+    let receivedKind = "";
+    let receivedCallerSurface = "";
+    const server = new CommandServer({
+      ...commandServerOptions(runtimeRoot),
+      onCreateTerminal: async (kind, _harnessId, _cwd, callerSurface) => {
+        receivedKind = kind;
+        receivedCallerSurface = callerSurface ?? "";
+        return {
+          id: "terminal-1",
+          terminalKind: "agent",
+          harnessId: "codex",
+          kind: "codex",
+          title: "Codex",
+          cwd: runtimeRoot,
+          command: "codex",
+          status: "running",
+        };
+      },
+    });
+
+    try {
+      const port = await server.start();
+      const response = await fetch(`http://127.0.0.1:${port}/terminals`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ harnessId: "codex", kind: "codex", callerSurface: "cli" }),
+      });
+
+      expect(response.ok).toBe(true);
+      await expect(response.json()).resolves.toMatchObject({ id: "terminal-1", kind: "codex" });
+      expect(receivedKind).toBe("codex");
+      expect(receivedCallerSurface).toBe("commandServer");
+    } finally {
+      if (previousCodexCommand === undefined) {
+        delete process.env.EXO_CODEX_COMMAND;
+      } else {
+        process.env.EXO_CODEX_COMMAND = previousCodexCommand;
+      }
+      server.stop();
+    }
+  });
+
+  it("does not treat metadata-only local plugin ids as launchable harnesses", async () => {
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-command-server-"));
+    tempPaths.push(runtimeRoot);
+    let created = false;
+    const server = new CommandServer({
+      ...commandServerOptions(runtimeRoot),
+      onCreateTerminal: async () => {
+        created = true;
+        return {
+          id: "terminal-1",
+          terminalKind: "shell",
+          harnessId: null,
+          kind: "shell",
+          title: "Terminal",
+          cwd: runtimeRoot,
+          command: "zsh",
+          status: "running",
+        };
+      },
+    });
+
+    try {
+      const port = await server.start();
+      const response = await fetch(`http://127.0.0.1:${port}/terminals`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ harnessId: "local.llama-agent", kind: "shell" }),
+      });
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toMatchObject({
+        ok: false,
+        code: "unsupported-agent-harness",
+        harnessId: "local.llama-agent",
+        error: expect.stringContaining("Agent harness is not registered: local.llama-agent"),
+      });
+      expect(created).toBe(false);
+    } finally {
+      server.stop();
+    }
+  });
+
+  it("rejects command-server-only harnesses for CLI callers", async () => {
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-command-server-"));
+    tempPaths.push(runtimeRoot);
+    let created = false;
+    const server = new CommandServer({
+      ...commandServerOptions(runtimeRoot),
+      onCreateTerminal: async () => {
+        created = true;
+        throw new Error("Unexpected terminal creation");
+      },
+    });
+
+    try {
+      const port = await server.start();
+      const response = await fetch(`http://127.0.0.1:${port}/terminals`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          harnessId: COMMAND_SERVER_ONLY_HARNESS_ID,
+          kind: "shell",
+          callerSurface: "cli",
+        }),
+      });
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toMatchObject({
+        ok: false,
+        code: "unsupported-agent-harness",
+        harnessId: COMMAND_SERVER_ONLY_HARNESS_ID,
+        error: expect.stringContaining(`Agent harness is not approved for cli launch: ${COMMAND_SERVER_ONLY_HARNESS_ID}`),
+      });
+      expect(created).toBe(false);
+    } finally {
+      server.stop();
+    }
+  });
+
+  it("rejects command-server-only harnesses for MCP callers", async () => {
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-command-server-"));
+    tempPaths.push(runtimeRoot);
+    let created = false;
+    const server = new CommandServer({
+      ...commandServerOptions(runtimeRoot),
+      onCreateTerminal: async () => {
+        created = true;
+        throw new Error("Unexpected terminal creation");
+      },
+    });
+
+    try {
+      const port = await server.start();
+      const response = await fetch(`http://127.0.0.1:${port}/terminals`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          harnessId: COMMAND_SERVER_ONLY_HARNESS_ID,
+          kind: "shell",
+          callerSurface: "mcp",
+        }),
+      });
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toMatchObject({
+        ok: false,
+        code: "unsupported-agent-harness",
+        harnessId: COMMAND_SERVER_ONLY_HARNESS_ID,
+        error: expect.stringContaining(`Agent harness is not approved for mcp launch: ${COMMAND_SERVER_ONLY_HARNESS_ID}`),
+      });
+      expect(created).toBe(false);
+    } finally {
+      server.stop();
+    }
+  });
+
   it("passes terminal tail line limits from query params", async () => {
     const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-command-server-"));
     tempPaths.push(runtimeRoot);
@@ -156,11 +351,14 @@ describe("CommandServer terminal routes", () => {
       const response = await fetch(`http://127.0.0.1:${port}/terminals`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind: "hermes" }),
+        body: JSON.stringify({ harnessId: "hermes", kind: "hermes" }),
       });
 
       expect(response.status).toBe(400);
       await expect(response.json()).resolves.toMatchObject({
+        ok: false,
+        code: "unsupported-agent-harness",
+        harnessId: "hermes",
         error: expect.stringContaining("Agent harness is not launchable: hermes"),
       });
       expect(created).toBe(false);

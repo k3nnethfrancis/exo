@@ -105,7 +105,7 @@ interface ShellLayoutProps {
   onCreateTerminalInDirectory: (directoryPath: string) => void;
   onRenamePath: (targetPath: string) => void;
   onDeletePath: (targetPath: string) => void;
-  onCreateTerminal: (kind: TerminalKind) => void;
+  onCreateTerminal: (kind: TerminalKind, harnessId?: string) => void;
   agentHarnesses: AgentHarnessDetection[];
   onCreateBrowserPane: () => void;
 }

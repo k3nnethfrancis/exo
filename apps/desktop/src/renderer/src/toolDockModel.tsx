@@ -11,7 +11,7 @@ export interface ToolSurfaceActionHandlers {
   onToggleSidePanes: () => void;
   onOpenAgentConfigEditor: () => void;
   onOpenPluginManager: () => void;
-  onCreateTerminal: (kind: TerminalKind) => void;
+  onCreateTerminal: (kind: TerminalKind, harnessId?: string) => void;
 }
 
 export function toolDockActionsFromDescriptors(
@@ -39,7 +39,7 @@ export function runToolSurfaceAction(descriptor: ToolSurfaceDescriptor, handlers
       handlers.onToggleTerminalCollapsed();
       return;
     case "terminal.launch":
-      handlers.onCreateTerminal(descriptor.action.terminalKind);
+      handlers.onCreateTerminal(descriptor.action.terminalKind, descriptor.action.harnessId);
       return;
     case "agentConfig.open":
       handlers.onOpenAgentConfigEditor();

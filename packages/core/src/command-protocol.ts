@@ -1,4 +1,5 @@
 import type { ProposalBatch, ProposalDecision } from "./proposal-review";
+import type { CapabilitySurface } from "./capabilities";
 
 export const EXO_COMMAND_ROUTES = {
   status: "/status",
@@ -154,8 +155,10 @@ export interface ExoReconnectRecoverableTerminalsResponse {
 }
 
 export interface ExoCreateTerminalRequest {
+  harnessId?: string;
   kind?: string;
   cwd?: string;
+  callerSurface?: CapabilitySurface;
 }
 
 export interface ExoWriteTerminalRequest {

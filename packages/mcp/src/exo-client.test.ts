@@ -28,12 +28,14 @@ afterEach(async () => {
 describe("ExoCommandClient", () => {
   it("lists and reads agents through Exo command server discovery", async () => {
     const runtimeRoot = await runtimeFixture();
+    let createBody = "";
     stubCommandServer(async (targetUrl, init) => {
       if (targetUrl.pathname === "/status") {
         return json({ ok: true });
       }
       if (targetUrl.pathname === "/terminals") {
         if (init?.method === "POST") {
+          createBody = String(init.body ?? "");
           return json({ id: "term-2", kind: "codex", status: "running", cwd: "/tmp", title: "Codex", command: "codex" });
         }
         return json([{ id: "term-1", kind: "claude", status: "running", cwd: "/tmp", title: "Claude", command: "claude" }]);
@@ -56,6 +58,7 @@ describe("ExoCommandClient", () => {
     expect(await client.readAgent("term-1", 5)).toBe("laude");
     expect(await client.readAgentTail("term-1", 2)).toBe("line-2\nline-3");
     expect(await client.createAgent("codex", "/tmp")).toMatchObject({ id: "term-2", kind: "codex" });
+    expect(JSON.parse(createBody)).toEqual({ harnessId: "codex", kind: "codex", cwd: "/tmp", callerSurface: "mcp" });
     await expect(client.killAgent("term-2")).resolves.toBeUndefined();
   });
 

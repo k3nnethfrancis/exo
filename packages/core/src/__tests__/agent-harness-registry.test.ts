@@ -15,6 +15,7 @@ import {
   resolveRegisteredAgentLauncher,
   resolveRegisteredAgentLaunchers,
   validateRegisteredAgentHarnessLaunch,
+  validateRegisteredAgentHarnessLaunchForSurface,
 } from "../agent-harness-registry";
 import { builtInAgentHarnesses } from "../agent-harnesses/builtins";
 import {
@@ -306,6 +307,13 @@ describe("agent harness registry", () => {
       expect(() => validateRegisteredAgentHarnessLaunch("pi", { EXO_PI_COMMAND: piCommand, EXO_PI_REPO_PATH: tempRoot })).toThrow(
         "Agent harness is not launchable: pi (Missing dependency).",
       );
+      expect(() =>
+        validateRegisteredAgentHarnessLaunchForSurface(
+          "pi",
+          { surface: "commandServer", requireLaunchable: true },
+          { EXO_PI_COMMAND: piCommand, EXO_PI_REPO_PATH: tempRoot },
+        ),
+      ).toThrow("Approved launchable harnesses for commandServer:");
     } finally {
       rmSync(tempRoot, { recursive: true, force: true });
     }
@@ -346,6 +354,16 @@ describe("agent harness registry", () => {
             detail: "http://127.0.0.1:8080",
           }),
         ],
+      });
+      expect(validateRegisteredAgentHarnessLaunchForSurface("pi", { surface: "commandServer", requireLaunchable: true }, {
+        PATH: "/usr/bin",
+        EXO_PI_COMMAND: piCommand,
+        EXO_PI_REPO_PATH: tempRoot,
+        EXO_PI_BACKEND_URL: "http://127.0.0.1:8080",
+      })).toMatchObject({
+        harnessId: "pi",
+        terminalKind: "pi",
+        launcher: { kind: "pi", command: piCommand },
       });
     } finally {
       rmSync(tempRoot, { recursive: true, force: true });
@@ -394,6 +412,9 @@ describe("agent harness registry", () => {
       setupSummary: "Disabled.",
       visible: false,
     });
+    expect(() =>
+      validateRegisteredAgentHarnessLaunchForSurface("hermes", { surface: "commandServer", requireLaunchable: true }, { PATH: "/tmp/does-not-exist" }),
+    ).toThrow("Agent harness is registered but not enabled for commandServer launch: hermes");
   });
 
   it("derives CLI/MCP agent creation choices from registered visible harnesses", () => {
@@ -441,6 +462,18 @@ describe("agent harness registry", () => {
   it("rejects unavailable registered harnesses before launch", () => {
     expect(() => validateRegisteredAgentHarnessLaunch("hermes", { PATH: "/tmp/does-not-exist" })).toThrow(
       "Agent harness is not launchable: hermes (Disabled).",
+    );
+  });
+
+  it("reports registered, approved, and launchable public harness choices for invalid ids", () => {
+    expect(() =>
+      validateRegisteredAgentHarnessLaunchForSurface(
+        "aider",
+        { surface: "commandServer", requireLaunchable: true },
+        { PATH: "/bin:/usr/bin", EXO_CODEX_COMMAND: "/bin/sh", EXO_CLAUDE_COMMAND: "/bin/sh" },
+      ),
+    ).toThrow(
+      "Agent harness is not registered: aider. Registered harnesses: shell|claude|codex|pi|hermes. Approved launchable harnesses for commandServer: shell|claude|codex.",
     );
   });
 });

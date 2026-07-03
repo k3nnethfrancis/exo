@@ -62,4 +62,52 @@ describe("Exo MCP server tools", () => {
       },
     });
   });
+
+  it("returns structured unsupported-harness errors from create_agent", async () => {
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-mcp-create-agent-"));
+    tempPaths.push(runtimeRoot);
+    await writeFile(path.join(runtimeRoot, "server.json"), JSON.stringify({ port: 55433, pid: process.pid }), "utf8");
+    let createBody: Record<string, unknown> | undefined;
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const targetUrl = new URL(String(input));
+      if (targetUrl.pathname === "/status") {
+        return Promise.resolve(jsonResponse({ ok: true }));
+      }
+      if (targetUrl.pathname === "/terminals" && init?.method === "POST") {
+        createBody = JSON.parse(String(init.body ?? "{}")) as Record<string, unknown>;
+        return Promise.resolve(jsonResponse({
+          ok: false,
+          code: "unsupported-agent-harness",
+          harnessId: "test.command-server-only",
+          error: "Agent harness is not approved for mcp launch: test.command-server-only. Approved launchable harnesses for mcp: shell|claude|codex.",
+        }, 400));
+      }
+      return Promise.resolve(jsonResponse({ error: "not found" }, 404));
+    }));
+    vi.stubEnv("EXO_RUNTIME_ROOT", runtimeRoot);
+
+    const server = createExoMcpServer() as unknown as {
+      _registeredTools: Record<string, { handler?: (args: Record<string, unknown>) => Promise<unknown> }>;
+    };
+    const result = await server._registeredTools.create_agent.handler?.({ kind: "test.command-server-only" });
+
+    expect(createBody).toMatchObject({ harnessId: "test.command-server-only", kind: "test.command-server-only", callerSurface: "mcp" });
+    expect(result).toMatchObject({
+      isError: true,
+      structuredContent: {
+        ok: false,
+        error: "unsupported-agent-harness",
+        harnessId: "test.command-server-only",
+        commandServerStatus: 400,
+        commandServerError: expect.stringContaining("Agent harness is not approved for mcp launch"),
+      },
+    });
+  });
 });
+
+function jsonResponse(body: Record<string, unknown>, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}

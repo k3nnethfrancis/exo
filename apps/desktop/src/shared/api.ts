@@ -7,6 +7,7 @@ import type {
   AgentHarnessDetection,
   AgentHarnessId,
   ActiveProfileIdentity,
+  CapabilitySurface,
   ManagedAgentKind,
   NoteDocument,
   NoteKnowledge,
@@ -62,6 +63,8 @@ export interface TerminalSessionInfo {
 
 export interface TerminalCreateOptions {
   kind: TerminalKind;
+  harnessId?: AgentHarnessId;
+  callerSurface?: CapabilitySurface;
   cwd?: string;
 }
 

@@ -374,7 +374,7 @@ export interface AgentHarnessDependencyStatus {
 }
 
 export interface AgentHarnessDetection {
-  id: ManagedAgentKind;
+  id: AgentHarnessId;
   adapterId: AgentHarnessAdapterId;
   family: AgentHarnessAdapterId;
   label: string;
@@ -409,6 +409,7 @@ export interface RuntimeConfig {
 
 export interface AgentLaunchPlan {
   kind: ManagedAgentKind;
+  harnessId: AgentHarnessId;
   title: string;
   cwd: string;
   command: string;

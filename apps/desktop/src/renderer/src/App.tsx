@@ -1275,7 +1275,7 @@ export function App() {
       onCreateTerminalInDirectory={(directoryPath) => void terminalPaneController.createTerminal("shell", directoryPath)}
       onRenamePath={(targetPath) => workspaceMutations.renameWorkspacePath(targetPath)}
       onDeletePath={(targetPath) => workspaceMutations.deleteWorkspacePath(targetPath)}
-      onCreateTerminal={(kind) => void terminalPaneController.createTerminal(kind)}
+      onCreateTerminal={(kind, harnessId) => void terminalPaneController.createTerminal(kind, undefined, true, harnessId)}
       agentHarnesses={agentHarnesses}
       onCreateBrowserPane={() => createBrowserPane()}
       />

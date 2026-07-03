@@ -78,6 +78,19 @@ export class ExoCommandDiscoveryError extends Error {
   }
 }
 
+export class ExoCommandServerHttpError extends Error {
+  constructor(
+    readonly status: number,
+    readonly method: string,
+    readonly targetPath: string,
+    readonly body: string,
+    readonly payload?: Record<string, unknown>,
+  ) {
+    super(formatCommandServerHttpError(status, method, targetPath, body, payload));
+    this.name = "ExoCommandServerHttpError";
+  }
+}
+
 export class ExoCommandClient {
   constructor(
     readonly baseUrl: string,
@@ -223,7 +236,7 @@ export class ExoCommandClient {
   }
 
   async createAgent(kind: ExoAgentKind, cwd?: string): Promise<ExoAgent> {
-    return this.post(EXO_COMMAND_ROUTES.terminals, { kind, cwd });
+    return this.post(EXO_COMMAND_ROUTES.terminals, { harnessId: kind, kind, cwd, callerSurface: "mcp" });
   }
 
   async readAgent(id: string, tailChars: number): Promise<string> {
@@ -252,7 +265,7 @@ export class ExoCommandClient {
     try {
       const response = await fetch(`${this.baseUrl}${targetPath}`, { signal: AbortSignal.timeout(timeoutMs) });
       if (!response.ok) {
-        throw new Error(`Exo command server returned HTTP ${response.status}: ${await response.text()}`);
+        throw await commandServerHttpError(response, "GET", targetPath);
       }
       return response.json();
     } catch (error) {
@@ -269,7 +282,7 @@ export class ExoCommandClient {
         signal: AbortSignal.timeout(timeoutMs),
       });
       if (!response.ok) {
-        throw new Error(`Exo command server returned HTTP ${response.status}: ${await response.text()}`);
+        throw await commandServerHttpError(response, "POST", targetPath);
       }
       return response.json();
     } catch (error) {
@@ -281,7 +294,7 @@ export class ExoCommandClient {
     try {
       const response = await fetch(`${this.baseUrl}${targetPath}`, { method: "DELETE", signal: AbortSignal.timeout(this.requestTimeoutMs) });
       if (!response.ok) {
-        throw new Error(`Exo command server returned HTTP ${response.status}: ${await response.text()}`);
+        throw await commandServerHttpError(response, "DELETE", targetPath);
       }
       return response.json();
     } catch (error) {
@@ -292,6 +305,32 @@ export class ExoCommandClient {
   async isReachable(): Promise<boolean> {
     return (await checkReachability(this)).ok;
   }
+}
+
+async function commandServerHttpError(response: Response, method: string, targetPath: string): Promise<ExoCommandServerHttpError> {
+  const body = await response.text();
+  const payload = parseJsonObject(body);
+  return new ExoCommandServerHttpError(response.status, method, targetPath, body, payload);
+}
+
+function parseJsonObject(body: string): Record<string, unknown> | undefined {
+  try {
+    const value = JSON.parse(body);
+    return typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function formatCommandServerHttpError(
+  status: number,
+  method: string,
+  targetPath: string,
+  body: string,
+  payload?: Record<string, unknown>,
+): string {
+  const payloadError = typeof payload?.error === "string" ? payload.error : undefined;
+  return `Exo command server returned HTTP ${status} for ${method} ${targetPath}: ${payloadError ?? body}`;
 }
 
 async function resolveMcpRuntimeRoot(env: NodeJS.ProcessEnv): Promise<string> {

@@ -170,8 +170,8 @@ function startCommandServer() {
     onRemoveProjectRoot: (target) => workspaceSettingsService.removeProjectRoot(target),
     onListTerminals: () => terminalManager.list(),
     onTerminalDiagnostics: () => terminalManager.diagnostics(),
-    onCreateTerminal: (kind: string, cwd?: string) =>
-      terminalManager.create({ kind: kind as ManagedAgentKind, cwd }),
+    onCreateTerminal: (kind: string, harnessId?: string, cwd?: string, callerSurface = "commandServer") =>
+      terminalManager.create({ kind: kind as ManagedAgentKind, harnessId, cwd, callerSurface }),
     onReadTerminalTail: (id: string, options?: { maxLines?: number }) => terminalManager.readTail(id, options),
     onReadTerminalTranscript: (id: string, tailChars: number) => terminalManager.readTranscript(id, tailChars),
     onWriteTerminal: (id: string, data: string) => terminalManager.write(id, data),

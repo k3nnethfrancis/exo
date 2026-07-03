@@ -190,6 +190,20 @@ describe("TerminalManager session identity", () => {
       harnessId: "codex",
     });
   });
+
+  it("rejects mismatched terminal kind and harness id before launching", async () => {
+    const workspaceRoot = await workspaceFixture();
+    const runtime = fakeRuntime();
+    stubWorkspaceEnv(workspaceRoot);
+    const manager = new TerminalManager(workspaceRoot, 500, 0, {}, runtime);
+
+    await expect(manager.create({ kind: "shell", harnessId: "codex", cwd: workspaceRoot })).rejects.toThrow(
+      "Agent harness terminal kind mismatch: codex resolves to codex, not shell.",
+    );
+
+    expect(manager.list()).toEqual([]);
+    expect(runtime.calls.createSession).toEqual([]);
+  });
 });
 
 describe("TerminalManager Codex readiness", () => {

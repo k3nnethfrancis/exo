@@ -220,6 +220,26 @@ describe("AppClient", () => {
     ]);
   });
 
+  it("marks terminal creation requests as CLI caller surface", async () => {
+    const runtimeRoot = await runtimeFixture();
+    let createBody: unknown;
+    stubCommandServer(async (targetUrl, init) => {
+      if (targetUrl.pathname === "/status") {
+        return json({ ok: true });
+      }
+      if (targetUrl.pathname === "/terminals" && init?.method === "POST") {
+        createBody = init.body ? JSON.parse(String(init.body)) : null;
+        return json({ id: "term-1", kind: "codex", status: "running" });
+      }
+      return json({ error: "not found" }, 404);
+    });
+
+    const client = await AppClient.connect(runtimeRoot);
+
+    await expect(client?.createTerminal("codex", "/tmp")).resolves.toMatchObject({ id: "term-1" });
+    expect(createBody).toEqual({ harnessId: "codex", kind: "codex", cwd: "/tmp", callerSurface: "cli" });
+  });
+
   it("calls proposal review endpoints", async () => {
     const runtimeRoot = await runtimeFixture();
     const calls: Array<{ path: string; method: string; body: unknown }> = [];

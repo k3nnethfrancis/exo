@@ -17,7 +17,6 @@ import {
   createBranchFile,
   getBranchFamily,
   normalizeManagedAgentKind,
-  normalizeRegisteredAgentHarnessKindForSurface,
   readWorkspaceDocument,
   readIndexDocument,
   renderPrimaryAgentInstructions,
@@ -589,16 +588,15 @@ export async function runCli(
     }
 
     if (subcommand === "create") {
-      const kind = args[0];
-      const normalizedKind = normalizeAgentCreateKind(kind, env);
-      if (!normalizedKind) {
+      const harnessId = args[0];
+      if (!harnessId) {
         throw new Error(`Usage: exo agents create <${agentKindUsage(env)}> [cwd]`);
       }
       const cwdArg = args[1];
       if (cwdArg?.startsWith("-")) {
         throw new Error(`Invalid cwd for exo agents create: ${cwdArg}`);
       }
-      const agent = await client.createTerminal(normalizedKind, cwdArg);
+      const agent = await client.createTerminal(harnessId, cwdArg);
       stdout.write(`${JSON.stringify(agent, null, 2)}\n`);
       return 0;
     }
@@ -1313,10 +1311,6 @@ async function launchAgent(
 
 function normalizeAgentKind(value?: string): ManagedAgentKind | null {
   return normalizeManagedAgentKind(value);
-}
-
-function normalizeAgentCreateKind(value: string | undefined, env: NodeJS.ProcessEnv): ManagedAgentKind | null {
-  return normalizeRegisteredAgentHarnessKindForSurface(value, { surface: "cli" }, env);
 }
 
 function agentKindUsage(env: NodeJS.ProcessEnv): string {

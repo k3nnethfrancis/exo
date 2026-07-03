@@ -4,7 +4,7 @@ import path from "node:path";
 
 import {
   EXO_COMMAND_ROUTES,
-  validateRegisteredAgentHarnessLaunch,
+  validateRegisteredAgentHarnessLaunchForSurface,
   type ExoCommandServerInfo,
   type ExoCommandTerminalDiagnostics,
   type ExoCreateProposalRequest,
@@ -62,7 +62,7 @@ export interface CommandServerOptions {
   onRemoveProjectRoot: (target: string) => Promise<WorkspaceSettings>;
   onListTerminals: () => ExoCommandTerminalInfo[];
   onTerminalDiagnostics: () => ExoCommandTerminalDiagnostics[];
-  onCreateTerminal: (kind: string, cwd?: string) => Promise<ExoCommandTerminalInfo>;
+  onCreateTerminal: (kind: string, harnessId?: string, cwd?: string, callerSurface?: ExoCreateTerminalRequest["callerSurface"]) => Promise<ExoCommandTerminalInfo>;
   onReadTerminalTail: (id: string, options?: { maxLines?: number }) => string | null;
   onReadTerminalTranscript: (id: string, tailChars: number) => string | null;
   onWriteTerminal: (id: string, data: string) => Promise<ExoWriteTerminalResponse>;
@@ -357,20 +357,47 @@ export class CommandServer {
 
       if (method === "POST" && pathname === EXO_COMMAND_ROUTES.terminals) {
         const body = await readBody(req);
-        const { kind, cwd } = body as ExoCreateTerminalRequest;
-        if (!kind) {
-          json(res, { error: "Missing kind in body" }, 400);
+        const { harnessId, kind, cwd, callerSurface } = body as ExoCreateTerminalRequest;
+        const requestedHarnessId = harnessId ?? kind;
+        if (!requestedHarnessId) {
+          json(res, { error: "Missing harnessId in body", code: "missing-agent-harness" }, 400);
           return;
         }
-        if (kind !== "shell") {
-          try {
-            validateRegisteredAgentHarnessLaunch(kind);
-          } catch (error) {
-            json(res, { error: error instanceof Error ? error.message : String(error) }, 400);
-            return;
-          }
+        const launchSurface = callerSurface ?? "commandServer";
+        if (!isAgentLaunchCallerSurface(launchSurface)) {
+          json(res, {
+            ok: false,
+            code: "unsupported-agent-launch-surface",
+            callerSurface: launchSurface,
+            error: `Unsupported agent launch caller surface: ${String(launchSurface)}`,
+          }, 400);
+          return;
         }
-        const terminal = await this.options.onCreateTerminal(kind, cwd);
+        let terminalKind = "shell";
+        let resolvedHarnessId = requestedHarnessId;
+        try {
+          const callerLaunch = validateRegisteredAgentHarnessLaunchForSurface(requestedHarnessId, {
+            surface: launchSurface,
+            requireLaunchable: true,
+          });
+          const launch = launchSurface === "commandServer"
+            ? callerLaunch
+            : validateRegisteredAgentHarnessLaunchForSurface(requestedHarnessId, {
+              surface: "commandServer",
+              requireLaunchable: true,
+            });
+          terminalKind = launch.terminalKind;
+          resolvedHarnessId = launch.harnessId;
+        } catch (error) {
+          json(res, {
+            ok: false,
+            code: "unsupported-agent-harness",
+            harnessId: requestedHarnessId,
+            error: error instanceof Error ? error.message : String(error),
+          }, 400);
+          return;
+        }
+        const terminal = await this.options.onCreateTerminal(terminalKind, resolvedHarnessId, cwd, "commandServer");
         json(res, terminal);
         return;
       }
@@ -479,6 +506,10 @@ function parseOptionalNumber(value: string | null): number | undefined {
   }
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function isAgentLaunchCallerSurface(value: unknown): value is ExoCreateTerminalRequest["callerSurface"] {
+  return value === "cli" || value === "mcp" || value === "desktop" || value === "commandServer" || value === "internal";
 }
 
 function json(res: ServerResponse, data: unknown, status = 200): void {

@@ -2,16 +2,17 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import {
-  resolveRegisteredAgentHarnessDetection,
   resolveRegisteredAgentHarnesses,
   resolveRegisteredAgentLaunchers,
-  validateRegisteredAgentHarnessLaunch,
+  validateRegisteredAgentHarnessLaunchForSurface,
 } from "./agent-harness-registry";
 import type {
   AgentLaunchPlan,
+  AgentHarnessId,
   ManagedAgentKind,
   RuntimeConfig,
 } from "./types";
+import type { CapabilitySurface } from "./capabilities";
 import { formatManagedAgentKindUsage } from "./types";
 import { resolveWorkspaceModel } from "./workspace";
 
@@ -134,17 +135,17 @@ export function resolveDebugAgentLaunchPlan(
 
 export function resolveLaunchableAgentLaunchPlan(
   config: RuntimeConfig,
-  kind: ManagedAgentKind,
+  harnessId: AgentHarnessId,
   cwd = config.workspace.defaultTerminalCwd,
   env: NodeJS.ProcessEnv = process.env,
+  surface: CapabilitySurface = "commandServer",
 ): AgentLaunchPlan {
-  const detection = validateRegisteredAgentHarnessLaunch(kind, env);
-  const launcher = detection.launcher ?? resolveRegisteredAgentHarnessDetection(kind, env)?.launcher;
-  if (!launcher) {
-    throw new Error(`Agent harness is not launchable: ${kind} (${detection.statusLabel}).`);
-  }
-
-  return buildAgentLaunchPlan(config, kind, launcher, cwd);
+  const launch = validateRegisteredAgentHarnessLaunchForSurface(
+    harnessId,
+    { surface, requireLaunchable: true },
+    env,
+  );
+  return buildAgentLaunchPlan(config, launch.terminalKind, launch.launcher, cwd, launch.harnessId);
 }
 
 function buildAgentLaunchPlan(
@@ -152,9 +153,11 @@ function buildAgentLaunchPlan(
   kind: ManagedAgentKind,
   launcher: RuntimeConfig["launchers"][ManagedAgentKind],
   cwd: string,
+  harnessId: AgentHarnessId = kind,
 ): AgentLaunchPlan {
   return {
     kind,
+    harnessId,
     title: launcher.title,
     cwd,
     command: launcher.command,
@@ -175,6 +178,7 @@ function buildAgentLaunchPlan(
       EXO_AGENT_MESSAGES_DIR: config.communication.messagesDirectory,
       EXO_AGENT_SQLITE_PATH: config.communication.sqlitePath,
       EXO_AGENT_KIND: kind,
+      EXO_AGENT_HARNESS_ID: harnessId,
     },
   };
 }

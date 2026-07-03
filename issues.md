@@ -432,9 +432,18 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
     - Kept plugin manifests metadata-only; desktop only honors callable launch/readiness hooks for reviewed built-in harnesses.
     - Preserved shell plain-stdin semantic messages and Claude/Codex bracketed paste behavior.
     - Verified with focused core harness tests, desktop terminal readiness/manager tests, and desktop typecheck.
+  - 2026-07-03 public agent-create routing slice:
+    - Moved `exo agents create` and MCP `create_agent` requests to send public `harnessId` values while retaining `kind` as built-in terminal compatibility.
+    - Made the command server authoritative for registered, enabled, surface-approved, visible, launchable harness validation before terminal creation.
+    - Added structured command-server/MCP unsupported-harness errors that name registered and approved launchable choices.
+    - Preserved shell/Claude/Codex/Pi compatibility behavior, kept Pi gated on executable plus persisted/env backend readiness, and kept Hermes unavailable unless explicitly configured.
+    - Kept metadata-only local plugin manifests non-executable by rejecting unregistered local harness ids at the launch boundary.
+  - 2026-07-03 blocker follow-up:
+    - Added `callerSurface` to terminal-create requests so command-server validates CLI/MCP exposure in addition to command-server launchability.
+    - Preserved renderer `harnessId` through terminal-launch descriptors, tool-dock actions, pane controller, and desktop IPC terminal creation.
+    - Made `TerminalManager.create` reject mismatched compatibility `kind` / public `harnessId` pairs before runtime creation.
   - Remaining next patch:
-    - Move `exo agents create` and MCP `create_agent` launch requests from fixed `ManagedAgentKind` values to registered, enabled, policy-approved harness ids.
-    - Persist Pi-compatible harness configuration so Finder-launched packaged apps can resolve local/open-source harness setup without shell env.
+    - Continue splitting renderer terminal-launch descriptors from compatibility `ManagedAgentKind` once renderer/API surfaces can consume `harnessId` directly.
 - QA coverage needed:
   - Agent creation derives from registered/launchable harness metadata.
   - Codex-specific startup behavior remains covered by harness adapter tests, not terminal-manager-only tests.

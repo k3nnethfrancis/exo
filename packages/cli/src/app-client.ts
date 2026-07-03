@@ -237,7 +237,7 @@ export class AppClient {
   }
 
   async createTerminal(kind: string, cwd?: string): Promise<Record<string, unknown>> {
-    return this.post(EXO_COMMAND_ROUTES.terminals, { kind, cwd });
+    return this.post(EXO_COMMAND_ROUTES.terminals, { harnessId: kind, kind, cwd, callerSurface: "cli" });
   }
 
   async readTerminal(id: string, options: { maxLines?: number } = {}): Promise<string> {

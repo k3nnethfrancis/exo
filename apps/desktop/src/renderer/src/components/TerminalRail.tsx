@@ -18,7 +18,7 @@ interface TerminalRailProps {
   onToggleSidePanes: () => void;
   onOpenAgentConfigEditor: () => void;
   onOpenPluginManager: () => void;
-  onCreateTerminal: (kind: TerminalKind) => void;
+  onCreateTerminal: (kind: TerminalKind, harnessId?: string) => void;
   style?: CSSProperties;
 }
 
@@ -61,7 +61,7 @@ export function TerminalRailTopControls(props: {
   collapsed: boolean;
   onToggleCollapsed: () => void;
   onOpenAgentConfigEditor: () => void;
-  onCreateTerminal: (kind: TerminalKind) => void;
+  onCreateTerminal: (kind: TerminalKind, harnessId?: string) => void;
   harnesses?: AgentHarnessDetection[];
 }) {
   const { collapsed, onToggleCollapsed, onOpenAgentConfigEditor, onCreateTerminal } = props;
@@ -85,7 +85,7 @@ export function createTerminalToolDockActions(input: {
   harnesses: AgentHarnessDetection[];
   onToggleCollapsed: () => void;
   onOpenAgentConfigEditor: () => void;
-  onCreateTerminal: (kind: TerminalKind) => void;
+  onCreateTerminal: (kind: TerminalKind, harnessId?: string) => void;
 }): ToolDockAction[] {
   return toolDockActionsFromDescriptors(
     buildCoreToolSurfaceDescriptors({

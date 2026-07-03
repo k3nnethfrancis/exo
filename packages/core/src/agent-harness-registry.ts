@@ -2,6 +2,7 @@ import { builtInAgentHarnesses } from "./agent-harnesses/builtins";
 import type { AgentHarness } from "./agent-harness";
 import {
   MANAGED_AGENT_KINDS,
+  type AgentHarnessId,
   type AgentHarnessDetection,
   type AgentLauncherConfig,
   type ManagedAgentKind,
@@ -33,7 +34,7 @@ export class AgentHarnessRegistry {
     return this.harnesses.get(id);
   }
 
-  require(id: ManagedAgentKind): AgentHarness {
+  require(id: string): AgentHarness {
     const harness = this.get(id);
     if (!harness) {
       throw new Error(`Agent harness is not registered: ${id}`);
@@ -49,6 +50,13 @@ export class AgentHarnessRegistry {
 export interface AgentHarnessSurfaceFilter {
   surface: CapabilitySurface;
   requireLaunchable?: boolean;
+}
+
+export interface ValidatedAgentHarnessLaunch {
+  harnessId: AgentHarnessId;
+  terminalKind: ManagedAgentKind;
+  detection: AgentHarnessDetection;
+  launcher: AgentLauncherConfig;
 }
 
 export function createBuiltInAgentHarnessRegistry(): AgentHarnessRegistry {
@@ -85,11 +93,11 @@ export function resolveRegisteredAgentHarnessDetection(
   // look launchable just because a launcher can be described.
   const launcher = harness.resolveLauncher(env);
   return {
-    id: harness.kind,
-    adapterId: harness.kind === "claude" ? "claude-code" : harness.kind,
-    family: harness.kind === "claude" ? "claude-code" : harness.kind,
+    id: harness.metadata.id,
+    adapterId: harness.adapter?.id ?? (harness.kind === "claude" ? "claude-code" : harness.kind),
+    family: harness.adapter?.family ?? (harness.kind === "claude" ? "claude-code" : harness.kind),
     label: harness.title,
-    productName: harness.title,
+    productName: harness.adapter?.productName ?? harness.title,
     enabled: true,
     configured: false,
     detected: true,
@@ -104,7 +112,7 @@ export function resolveRegisteredAgentHarnessDetection(
 export function validateRegisteredAgentHarnessLaunch(kind: string, env: NodeJS.ProcessEnv = process.env): AgentHarnessDetection {
   const detection = resolveRegisteredAgentHarnessDetection(kind, env);
   if (!detection) {
-    throw new Error(`Agent harness is not registered: ${kind}`);
+    throw new Error(`Agent harness is not registered: ${kind}. Registered harnesses: ${registeredHarnessIds() || "(none)"}.`);
   }
   if (!detection.launchable) {
     const detail = detection.detail ? ` ${detection.detail}` : "";
@@ -113,10 +121,55 @@ export function validateRegisteredAgentHarnessLaunch(kind: string, env: NodeJS.P
   return detection;
 }
 
+export function validateRegisteredAgentHarnessLaunchForSurface(
+  harnessId: string,
+  filter: AgentHarnessSurfaceFilter,
+  env: NodeJS.ProcessEnv = process.env,
+): ValidatedAgentHarnessLaunch {
+  const harness = agentHarnessRegistry.get(harnessId);
+  const launchableIds = formatRegisteredAgentHarnessUsage({ ...filter, requireLaunchable: true }, env) || "(none)";
+  if (!harness) {
+    throw new Error(
+      `Agent harness is not registered: ${harnessId}. Registered harnesses: ${registeredHarnessIds() || "(none)"}. Approved launchable harnesses for ${filter.surface}: ${launchableIds}.`,
+    );
+  }
+  if (
+    harness.metadata.lifecycle === "disabled" ||
+    !harness.metadata.surfaces.includes(filter.surface) ||
+    !harness.metadata.permissions.includes("agents:launch")
+  ) {
+    throw new Error(
+      `Agent harness is not approved for ${filter.surface} launch: ${harnessId}. Approved launchable harnesses for ${filter.surface}: ${launchableIds}.`,
+    );
+  }
+
+  const detection = resolveRegisteredAgentHarnessDetection(harnessId, env);
+  if (!detection || !detection.enabled || detection.visible === false) {
+    const status = detection ? `${detection.statusLabel}${detection.detail ? `. ${detection.detail}` : ""}` : "No detection metadata.";
+    throw new Error(
+      `Agent harness is registered but not enabled for ${filter.surface} launch: ${harnessId} (${status}). Approved launchable harnesses for ${filter.surface}: ${launchableIds}.`,
+    );
+  }
+  if (filter.requireLaunchable && !detection.launchable) {
+    const detail = detection.detail ? ` ${detection.detail}` : "";
+    throw new Error(
+      `Agent harness is not launchable: ${harnessId} (${detection.statusLabel}).${detail} Approved launchable harnesses for ${filter.surface}: ${launchableIds}.`,
+    );
+  }
+
+  const launcher = detection.launcher ?? harness.resolveLauncher(env);
+  return {
+    harnessId: detection.id,
+    terminalKind: launcher.kind,
+    detection,
+    launcher,
+  };
+}
+
 export function resolveRegisteredAgentHarnesses(env: NodeJS.ProcessEnv = process.env): AgentHarnessDetection[] {
   return agentHarnessRegistry
     .list()
-    .map((harness) => resolveRegisteredAgentHarnessDetection(harness.kind, env))
+    .map((harness) => resolveRegisteredAgentHarnessDetection(harness.metadata.id, env))
     .filter((detection): detection is AgentHarnessDetection => {
       if (!detection) {
         return false;
@@ -129,7 +182,7 @@ export function resolveRegisteredAgentHarnessesForSurface(
   filter: AgentHarnessSurfaceFilter,
   env: NodeJS.ProcessEnv = process.env,
 ): AgentHarnessDetection[] {
-  const seen = new Set<ManagedAgentKind>();
+  const seen = new Set<AgentHarnessId>();
   const harnesses: AgentHarnessDetection[] = [];
   for (const harness of agentHarnessRegistry.list()) {
     if (
@@ -140,7 +193,7 @@ export function resolveRegisteredAgentHarnessesForSurface(
       continue;
     }
 
-    const detection = resolveRegisteredAgentHarnessDetection(harness.kind, env);
+    const detection = resolveRegisteredAgentHarnessDetection(harness.metadata.id, env);
     if (
       !detection ||
       !detection.enabled ||
@@ -167,9 +220,13 @@ export function normalizeRegisteredAgentHarnessKindForSurface(
   value: string | undefined,
   filter: AgentHarnessSurfaceFilter,
   env: NodeJS.ProcessEnv = process.env,
-): ManagedAgentKind | null {
+): AgentHarnessId | null {
   if (!value) {
     return null;
   }
   return resolveRegisteredAgentHarnessesForSurface(filter, env).find((harness) => harness.id === value)?.id ?? null;
+}
+
+function registeredHarnessIds(): string {
+  return agentHarnessRegistry.list().map((harness) => harness.metadata.id).join("|");
 }

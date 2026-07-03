@@ -1461,8 +1461,8 @@ describe("terminal harness launchers", () => {
     actions.find((action) => action.testId === "open-agent-config")?.onSelect();
 
     expect(onToggleCollapsed).toHaveBeenCalledTimes(1);
-    expect(onCreateTerminal).toHaveBeenNthCalledWith(1, "shell");
-    expect(onCreateTerminal).toHaveBeenNthCalledWith(2, "pi");
+    expect(onCreateTerminal).toHaveBeenNthCalledWith(1, "shell", "shell");
+    expect(onCreateTerminal).toHaveBeenNthCalledWith(2, "pi", "pi");
     expect(onOpenAgentConfigEditor).toHaveBeenCalledTimes(1);
   });
 

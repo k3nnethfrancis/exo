@@ -241,7 +241,18 @@ export class TerminalManager extends EventEmitter {
 
   async create(options: TerminalCreateOptions): Promise<TerminalSessionInfo> {
     const cwd = options.cwd ?? this.defaultCwd;
-    const launch = resolveLaunchableAgentLaunchPlan(this.runtimeConfig, options.kind, cwd);
+    const launch = resolveLaunchableAgentLaunchPlan(
+      this.runtimeConfig,
+      options.harnessId ?? options.kind,
+      cwd,
+      process.env,
+      options.callerSurface ?? "desktop",
+    );
+    if (launch.kind !== options.kind) {
+      throw new Error(
+        `Agent harness terminal kind mismatch: ${options.harnessId ?? options.kind} resolves to ${launch.kind}, not ${options.kind}.`,
+      );
+    }
     await this.syncRuntimeContext();
     const id = this.allocateTerminalId();
     const isAgent = isAgentHarnessKind(options.kind);
@@ -285,7 +296,7 @@ export class TerminalManager extends EventEmitter {
       id,
       title: launch.title,
       cwd: launch.cwd,
-      ...terminalSessionIdentity(options.kind),
+      ...terminalSessionIdentity(options.kind, launch.harnessId),
       kind: options.kind,
       command: launch.command,
       instructionOverlayPath: overlayEnv.EXO_INSTRUCTIONS ?? null,
@@ -1274,10 +1285,10 @@ function canDeliverInput(record: TerminalRecord): boolean {
   return record.info.status === "running" && !record.bridgeDetached;
 }
 
-function terminalSessionIdentity(kind: TerminalKind): Pick<TerminalSessionInfo, "terminalKind" | "harnessId"> {
+function terminalSessionIdentity(kind: TerminalKind, harnessId: string = kind): Pick<TerminalSessionInfo, "terminalKind" | "harnessId"> {
   return {
     terminalKind: terminalSubstrateKindForManagedAgentKind(kind),
-    harnessId: kind === "shell" ? null : kind,
+    harnessId: kind === "shell" && harnessId === "shell" ? null : harnessId,
   };
 }
 

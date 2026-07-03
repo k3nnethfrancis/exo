@@ -256,8 +256,8 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
     setHydratingTerminalIds((current) => new Set([...current].filter((id) => activeIds.has(id))));
   }
 
-  async function createTerminal(kind: TerminalKind, cwd?: string): Promise<TerminalSessionInfo> {
-    const session = await window.exo.terminals.create({ kind, cwd });
+  async function createTerminal(kind: TerminalKind, cwd?: string, harnessId?: string): Promise<TerminalSessionInfo> {
+    const session = await window.exo.terminals.create({ kind, cwd, harnessId, callerSurface: "desktop" });
     const nextSessions = sessionsRef.current.some((existing) => existing.id === session.id)
       ? sessionsRef.current
       : [...sessionsRef.current, session];
