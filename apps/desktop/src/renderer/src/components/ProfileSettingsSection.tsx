@@ -25,6 +25,7 @@ export function ProfileSettingsSection({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionStatus, setActionStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [actionError, setActionError] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [editingCandidate, setEditingCandidate] = useState<ProfileSettingsCandidate | null>(null);
   const [profilePreviews, setProfilePreviews] = useState<Record<string, ProfilePreviewLoadEntry>>({});
 
@@ -72,10 +73,12 @@ export function ProfileSettingsSection({
   async function runProfileAction(action: () => Promise<ProfileStateStore>) {
     setActionStatus("saving");
     setActionError(null);
+    setActionMessage(null);
     try {
       const nextState = await action();
       setProfileState(nextState);
       announceProfileStateChanged(nextState);
+      setActionMessage("Profile state saved.");
       setActionStatus("saved");
     } catch (error) {
       setActionError(error instanceof Error ? error.message : "Unable to update profile state.");
@@ -86,6 +89,7 @@ export function ProfileSettingsSection({
   async function copyProfile(candidate: ProfileSettingsCandidate) {
     setActionStatus("saving");
     setActionError(null);
+    setActionMessage(null);
     try {
       const result = await window.exo.workspace.copyProfile(candidate.identity);
       setInventory(result.inventory);
@@ -93,6 +97,7 @@ export function ProfileSettingsSection({
       setProfilePreviews(await loadProfilePreviews(result.inventory, result.profileState));
       announceProfileStateChanged(result.profileState);
       setEditingCandidate(null);
+      setActionMessage("Profile copied.");
       setActionStatus("saved");
     } catch (error) {
       setActionError(error instanceof Error ? error.message : "Unable to copy profile.");
@@ -100,9 +105,25 @@ export function ProfileSettingsSection({
     }
   }
 
+  async function stageProfileApply(candidate: ProfileSettingsCandidate) {
+    setActionStatus("saving");
+    setActionError(null);
+    setActionMessage(null);
+    try {
+      const proposal = await window.exo.workspace.createProfileApplyProposal(candidate.identity);
+      setActionMessage(proposal ? "Profile apply proposal staged for review." : "Profile templates already match the workspace.");
+      window.dispatchEvent(new Event("exo:proposals-changed"));
+      setActionStatus("saved");
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Unable to stage profile apply proposal.");
+      setActionStatus("error");
+    }
+  }
+
   return (
     <ProfileSettingsContent
       actionError={actionError}
+      actionMessage={actionMessage}
       actionStatus={actionStatus}
       loadError={loadError}
       loadState={loadState}
@@ -112,6 +133,7 @@ export function ProfileSettingsSection({
       onCustomize={editableCandidate ? () => setEditingCandidate(editableCandidate) : null}
       onReview={editableCandidate ? () => setEditingCandidate(editableCandidate) : null}
       onCopy={editableCandidate ? () => void copyProfile(editableCandidate) : null}
+      onStageApply={editableCandidate ? () => void stageProfileApply(editableCandidate) : null}
       onToggleAutoUpdate={(autoUpdate) => void runProfileAction(() => window.exo.workspace.setProfileAutoUpdate({ autoUpdate }))}
     />
   );
@@ -154,6 +176,7 @@ function announceProfileStateChanged(profileState: ProfileStateStore): void {
 
 export function ProfileSettingsContent({
   actionError,
+  actionMessage,
   actionStatus,
   loadError,
   loadState,
@@ -163,9 +186,11 @@ export function ProfileSettingsContent({
   onCustomize,
   onReview,
   onSetActive,
+  onStageApply,
   onToggleAutoUpdate,
 }: {
   actionError: string | null;
+  actionMessage: string | null;
   actionStatus: "idle" | "saving" | "saved" | "error";
   loadError: string | null;
   loadState: ProfileInventoryLoadState;
@@ -175,6 +200,7 @@ export function ProfileSettingsContent({
   onCustomize: (() => void) | null;
   onReview: (() => void) | null;
   onSetActive: (candidate: ProfileSettingsCandidate) => void;
+  onStageApply: (() => void) | null;
   onToggleAutoUpdate: (autoUpdate: boolean) => void;
 }) {
   return (
@@ -201,8 +227,14 @@ export function ProfileSettingsContent({
           <button className="toolbar-button" disabled={!onCustomize} onClick={() => onCustomize?.()} type="button">
             Customize
           </button>
-          <button className="toolbar-button" disabled title={PROFILE_SETTINGS_DISABLED_REASON} type="button">
-            Apply
+          <button
+            className="toolbar-button"
+            disabled={!onStageApply || actionStatus === "saving"}
+            onClick={() => onStageApply?.()}
+            title="Create a reviewable proposal for profile-owned file templates. Plugins, skills, routines, settings, and permissions remain blocked."
+            type="button"
+          >
+            Stage apply
           </button>
           <button
             className="toolbar-button"
@@ -230,7 +262,7 @@ export function ProfileSettingsContent({
       </label>
       {model.reviewRequired ? <div className="dialog-card__status">Profile review required before future apply actions.</div> : null}
       {actionStatus === "saving" ? <div className="dialog-card__status">Saving profile state...</div> : null}
-      {actionStatus === "saved" ? <div className="dialog-card__status">Profile state saved.</div> : null}
+      {actionStatus === "saved" ? <div className="dialog-card__status">{actionMessage ?? "Profile state saved."}</div> : null}
       {actionStatus === "error" ? <div className="dialog-card__status dialog-card__status--error">{actionError ?? "Unable to update profile state."}</div> : null}
 
       {loadState === "loading" ? <div className="dialog-card__status">Loading plugin inventory...</div> : null}

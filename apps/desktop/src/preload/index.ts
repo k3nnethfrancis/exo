@@ -54,6 +54,7 @@ const api: DesktopApi = {
     markProfileReviewRequired: (input) => invokeDesktop("workspace:mark-profile-review-required", input),
     previewProfile: (input) => invokeDesktop("workspace:preview-profile", input),
     copyProfile: (input) => invokeDesktop("workspace:copy-profile", input),
+    createProfileApplyProposal: (input) => invokeDesktop("workspace:create-profile-apply-proposal", input),
     enablePlugin: (input) => invokeDesktop("workspace:enable-plugin", input),
     disablePlugin: (input) => invokeDesktop("workspace:disable-plugin", input),
     trustPlugin: (input) => invokeDesktop("workspace:trust-plugin", input),

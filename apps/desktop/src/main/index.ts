@@ -13,6 +13,7 @@ import {
   listPluginInventory,
   addLocalPlugin,
   applyPluginStateAction,
+  createProfileApplyProposal,
   copyProfileToWorkspacePlugin,
   discoverManagedPlugins,
   planProfilePreview,
@@ -394,6 +395,7 @@ function registerIpcHandlers() {
     markProfileReviewRequired: (input) => markWorkspaceProfileReviewRequired(input.reviewRequired),
     previewProfile: (input) => previewWorkspaceProfile(input),
     copyProfile: (input) => copyWorkspaceProfile(input),
+    createProfileApplyProposal: (input) => createWorkspaceProfileApplyProposal(input),
     readNote: readWorkspaceDocument,
     renamePath: renameWorkspacePath,
     resolveTarget: (sourceFilePath, target) => workspaceNotesService.resolveTarget(sourceFilePath, target),
@@ -700,6 +702,29 @@ async function copyWorkspaceProfile(input: ActiveProfileIdentity) {
 }
 
 async function previewWorkspaceProfile(input: ActiveProfileIdentity) {
+  const { inventory, profile } = await resolveWorkspaceProfile(input);
+  return planProfilePreview(profile, inventory);
+}
+
+async function createWorkspaceProfileApplyProposal(input: ActiveProfileIdentity) {
+  const { item, profile } = await resolveWorkspaceProfile(input);
+  if (!item.rootDirectory) {
+    throw new Error(`Selected profile does not have a plugin root directory: ${input.capabilityId}`);
+  }
+  const proposal = await createProfileApplyProposal({
+    profile,
+    pluginRoot: item.rootDirectory,
+    workspaceRoot: workspaceModel.workspaceRoot,
+    activityId: `profile-apply:${profile.id}`,
+  });
+  if (!proposal) {
+    return null;
+  }
+  await writeWorkspaceProposal(proposal);
+  return proposal;
+}
+
+async function resolveWorkspaceProfile(input: ActiveProfileIdentity) {
   const inventory = await readPluginInventory();
   const item = inventory.items.find((candidate) => profileInventoryItemMatches(candidate, input));
   if (!item) {
@@ -712,7 +737,7 @@ async function previewWorkspaceProfile(input: ActiveProfileIdentity) {
   if (!profile) {
     throw new Error(`Selected capability cannot be parsed as a profile: ${input.capabilityId}`);
   }
-  return planProfilePreview(profile, inventory);
+  return { inventory, item, profile };
 }
 
 function profileInventoryItemMatches(item: PluginInventoryItem, identity: ActiveProfileIdentity): boolean {

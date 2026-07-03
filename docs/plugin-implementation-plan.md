@@ -401,7 +401,7 @@ Profiles are bundles of recommendations and conventions, not executable capabili
 - analyzer settings
 - review and output policy defaults
 
-The profile extractor validates shape and rejects unsafe absolute or traversal paths, but it does not read template files, install skills, write `AGENTS.md`/`CLAUDE.md`, enable plugins, schedule routines, or mutate user Markdown. Applying a profile is a separate future UX and permission flow.
+The profile extractor validates shape and rejects unsafe absolute or traversal paths, but it does not install skills, enable plugins, schedule routines, change settings, grant permissions, or mutate user Markdown directly. Profile-owned context, instruction, and MCP config templates can now be staged as proposal batches for explicit Desktop/CLI review. Applying plugins, skills, routines, settings, permission grants, or AI-generated profile changes remains a future UX and permission flow.
 
 Official example: `plugins/exograph-baseline/exo.plugin.json` declares the first read-only baseline profile so Plugin Manager can display profile metadata during QA.
 

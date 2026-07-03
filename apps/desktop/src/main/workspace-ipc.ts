@@ -36,6 +36,7 @@ export interface WorkspaceIpcHandlers {
   markProfileReviewRequired: WorkspaceApi["markProfileReviewRequired"];
   previewProfile: WorkspaceApi["previewProfile"];
   copyProfile: WorkspaceApi["copyProfile"];
+  createProfileApplyProposal: WorkspaceApi["createProfileApplyProposal"];
   trustPlugin: WorkspaceApi["trustPlugin"];
   addLocalPlugin: WorkspaceApi["addLocalPlugin"];
   removeLocalPlugin: WorkspaceApi["removeLocalPlugin"];
@@ -135,6 +136,7 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
   handleDesktopInvoke("workspace:mark-profile-review-required", async (_event, input) => handlers.markProfileReviewRequired(input));
   handleDesktopInvoke("workspace:preview-profile", async (_event, input) => handlers.previewProfile(input));
   handleDesktopInvoke("workspace:copy-profile", async (_event, input) => handlers.copyProfile(input));
+  handleDesktopInvoke("workspace:create-profile-apply-proposal", async (_event, input) => handlers.createProfileApplyProposal(input));
   handleDesktopInvoke("workspace:enable-plugin", async (_event, input) => handlers.enablePlugin(input));
   handleDesktopInvoke("workspace:disable-plugin", async (_event, input) => handlers.disablePlugin(input));
   handleDesktopInvoke("workspace:trust-plugin", async (_event, input) => handlers.trustPlugin(input));

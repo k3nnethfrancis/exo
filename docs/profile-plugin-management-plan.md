@@ -41,7 +41,8 @@ Gaps:
 
 - Profile component edits are centralized visually but not yet editable.
 - Profile component hub links to existing specialized managers, but it does not yet provide inline editors for profile JSON, instruction files, skills, routines, schemas, or graph views.
-- Templatize, profile apply, permission review, profile-linked file writes, and AI/headless harness calls are not implemented.
+- Templatize, permission review, AI/headless harness calls, and broad profile apply are not implemented.
+- Profile-owned context, instruction, and MCP config templates can be staged as reviewable proposal batches; they still require explicit Desktop/CLI acceptance before any file write.
 - Profile modified/review state is visible, but there is no diff against profile-owned component refs yet.
 - Notes repo git state is visible, but there are no inline diffs, stage/commit actions, or provenance links yet.
 - Local plugin add/remove/swap flows exist for Exo-managed user/workspace plugin directories, but not for remote install/update flows or marketplace-style distribution.
@@ -234,7 +235,8 @@ Deliverables:
 
 Non-goals:
 
-- no profile apply flow that writes instructions/plugins/routines
+- no profile apply flow that writes plugins/routines/settings/permission grants
+- profile-owned instruction/context/MCP file templates may be staged as reviewable proposals only
 - no headless harness templatize call yet
 - no git commit/write actions
 
@@ -278,7 +280,7 @@ Goal: finish the documented plugin/profile management foundation before GA-speci
 Deliverables:
 
 - permission prompt UX/backend integration for metadata grants
-- profile apply review model that can stage planned changes but still requires explicit confirmation
+- profile apply review model that can stage planned file-template changes but still requires explicit confirmation
 - plugin install/remove state cleanup
 - split remaining terminal/session substrate ids from harness-adapter ids where needed for arbitrary registered harnesses
 
@@ -320,7 +322,7 @@ This cycle is finished when:
 ## Risks
 
 - Overloading Plugin Manager with profile editing would blur product concepts. Keep profiles in Settings.
-- Adding profile apply before permission prompts would create hidden mutations. Keep apply review-only until grants and confirmation exist.
+- Adding broad profile apply before permission prompts would create hidden mutations. Keep plugin enables, skills, routines, settings, and grants disabled until their confirmation model exists; profile-owned file templates may use the proposal review queue.
 - Adding git commit flows too early would expand scope. Start with read-only changed-note listing.
 - Templatize via AI is valuable, but it should wait until headless routine/harness execution and review artifacts are stronger.
 

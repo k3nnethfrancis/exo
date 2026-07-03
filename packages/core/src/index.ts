@@ -14,6 +14,7 @@ export * from "./plugin-state";
 export * from "./plugin-permissions";
 export * from "./profile";
 export * from "./profile-copy";
+export * from "./profile-apply-proposal";
 export * from "./profile-plan";
 export * from "./profile-state";
 export * from "./graph";

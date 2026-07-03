@@ -337,6 +337,7 @@ export interface DesktopApi {
     markProfileReviewRequired: (input: { reviewRequired: boolean }) => Promise<ProfileStateStore>;
     previewProfile: (input: ActiveProfileIdentity) => Promise<ProfilePlanPreview>;
     copyProfile: (input: ActiveProfileIdentity) => Promise<WorkspaceProfileCopyResponse>;
+    createProfileApplyProposal: (input: ActiveProfileIdentity) => Promise<ProposalBatch | null>;
     enablePlugin: (input: WorkspacePluginActionInput) => Promise<PluginInventory>;
     disablePlugin: (input: WorkspacePluginActionInput) => Promise<PluginInventory>;
     trustPlugin: (input: WorkspacePluginActionInput) => Promise<PluginInventory>;

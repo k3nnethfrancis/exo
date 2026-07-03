@@ -64,6 +64,16 @@ export function useProposalReviewState() {
   }, [refreshProposals]);
 
   useEffect(() => {
+    function handleProposalsChanged() {
+      void refreshProposals();
+    }
+    window.addEventListener("exo:proposals-changed", handleProposalsChanged);
+    return () => {
+      window.removeEventListener("exo:proposals-changed", handleProposalsChanged);
+    };
+  }, [refreshProposals]);
+
+  useEffect(() => {
     if (!selectedProposalId) {
       setSelectedProposal(null);
       return;

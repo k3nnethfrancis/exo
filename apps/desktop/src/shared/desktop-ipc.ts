@@ -33,6 +33,7 @@ export interface DesktopInvokeHandlers {
   "workspace:mark-profile-review-required": WorkspaceApi["markProfileReviewRequired"];
   "workspace:preview-profile": WorkspaceApi["previewProfile"];
   "workspace:copy-profile": WorkspaceApi["copyProfile"];
+  "workspace:create-profile-apply-proposal": WorkspaceApi["createProfileApplyProposal"];
   "workspace:enable-plugin": WorkspaceApi["enablePlugin"];
   "workspace:disable-plugin": WorkspaceApi["disablePlugin"];
   "workspace:trust-plugin": WorkspaceApi["trustPlugin"];
