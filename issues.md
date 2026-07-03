@@ -654,6 +654,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - Added a generated CodeMirror widget below live-rendered Markdown pages for backlinks and outgoing note references.
   - The generated section is read-only, hidden in raw Markdown mode, and uses existing link-click navigation data attributes.
   - Added focused renderer tests for raw-mode hiding and backlink target mapping.
+  - 2026-07-03 GitHub issue #2 follow-up: removed the old Inspect dock/action and retargeted app navigation coverage to the inline backlinks/references section.
 
 ### EXO-ISSUE-051: Wikilink hover preview is missing
 
