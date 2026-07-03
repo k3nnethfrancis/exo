@@ -33,6 +33,8 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
   - [x] Design semantic trace contract early enough that harness adapters do not need another terminal-service re-plumb.
   - [ ] Tighten Plugin Manager into a management surface: active/disabled/untrusted/missing states, local plugin add/remove/swap, plugin-owned settings, readiness/dependency guidance, and no dense-layout overlap.
   - [ ] Split terminal/session substrate types from harness-adapter ids so `exo agents` derives launchable harnesses from registered harness plugins while `exo terminals` remains the low-level core terminal surface.
+    - [x] Add backward-compatible `terminalKind`/`harnessId` fields to terminal session info, diagnostics, command protocol terminal info, and persisted terminal session records.
+    - [ ] Move CLI/MCP/app `agents create` launch requests to registered, enabled, policy-approved harness ids instead of fixed `ManagedAgentKind` values.
   - [ ] Define external plugin contracts for workload-specific trace collection, review labels, dataset export, eval packets, and instrumented agent runtimes.
   - [ ] Define a Project Knowledge Sync plugin/profile contract for project-local canonical Markdown files: default names such as `issues.md`, `tasks.md`, `roadmap.md`, plans, specs, `AGENTS.md`, and `CLAUDE.md`; custom user patterns; sync mode; conflict policy; remote GitHub state; and reviewable proposals.
   - [ ] Keep GA/Shoshin-specific behavior out of OSS core; represent local variants as local/private plugin configuration or downstream plugins.
@@ -363,6 +365,8 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
 - [ ] Define external plugin contracts for workload-specific trace collection, review labels, dataset export, eval packets, and instrumented agent runtimes.
 - [x] Review the first-pass official harness plugin/config work for shell, Claude Code, Codex, Pi, and Hermes; ensure missing harnesses are configuration items, not dead launch buttons, and local GA Pi is represented only as a local custom Pi instance.
 - [ ] Split terminal/session substrate types from harness-adapter ids so CLI/MCP agent creation derives allowed choices from the registered harnesses while `exo terminals` stays the low-level core terminal surface.
+  - [x] Add backward-compatible `terminalKind`/`harnessId` fields to terminal session info, diagnostics, command protocol terminal info, and persisted terminal session records.
+  - [ ] Move CLI/MCP/app `agents create` launch requests to registered, enabled, policy-approved harness ids instead of fixed `ManagedAgentKind` values.
 - [ ] Define how downstream plugins can use OKF-compatible concept documents for curated knowledge while storing raw traces, labels, eval packets, and training exports as linked local artifacts.
 - [x] Define permissioned surface-contribution policy for desktop, CLI, MCP, and command-server exposure.
 - [x] Define plugin manifest shape and first Exo API version policy.

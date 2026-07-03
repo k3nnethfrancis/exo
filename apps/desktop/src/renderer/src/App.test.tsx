@@ -2057,6 +2057,8 @@ describe("terminal session sync", () => {
         id: "term-a",
         title: "Shell",
         cwd: "/workspace",
+        terminalKind: "shell",
+        harnessId: null,
         kind: "shell",
         command: "zsh",
         status: "running",
@@ -2075,6 +2077,8 @@ describe("terminal session sync", () => {
       id: "term-a",
       title: "Claude",
       cwd: "/workspace",
+      terminalKind: "agent",
+      harnessId: "claude",
       kind: "claude",
       command: "claude",
       status: "running",
@@ -2153,8 +2157,28 @@ describe("terminal session sync", () => {
 describe("changed file review attribution", () => {
   it("does not associate ambiguous same-cwd file changes with every terminal", () => {
     const sessions = [
-      { id: "term-a", title: "Shell A", cwd: "/workspace/project", kind: "shell", command: "zsh", status: "running", attachGeneration: 1 },
-      { id: "term-b", title: "Shell B", cwd: "/workspace/project", kind: "shell", command: "zsh", status: "running", attachGeneration: 1 },
+      {
+        id: "term-a",
+        title: "Shell A",
+        cwd: "/workspace/project",
+        terminalKind: "shell",
+        harnessId: null,
+        kind: "shell",
+        command: "zsh",
+        status: "running",
+        attachGeneration: 1,
+      },
+      {
+        id: "term-b",
+        title: "Shell B",
+        cwd: "/workspace/project",
+        terminalKind: "shell",
+        harnessId: null,
+        kind: "shell",
+        command: "zsh",
+        status: "running",
+        attachGeneration: 1,
+      },
     ] as const;
     const change = {
       rootPath: "/workspace/project",

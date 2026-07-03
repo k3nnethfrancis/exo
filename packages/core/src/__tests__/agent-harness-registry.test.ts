@@ -17,7 +17,12 @@ import {
   validateRegisteredAgentHarnessLaunch,
 } from "../agent-harness-registry";
 import { builtInAgentHarnesses } from "../agent-harnesses/builtins";
-import { formatManagedAgentKindUsage, MANAGED_AGENT_KINDS, normalizeManagedAgentKind } from "../types";
+import {
+  formatManagedAgentKindUsage,
+  MANAGED_AGENT_KINDS,
+  normalizeManagedAgentKind,
+  terminalSubstrateKindForManagedAgentKind,
+} from "../types";
 
 describe("agent harness registry", () => {
   it("keeps built-in harness kind parsing and usage in one core boundary", () => {
@@ -25,6 +30,8 @@ describe("agent harness registry", () => {
     expect(formatManagedAgentKindUsage()).toBe("shell|claude|codex|pi|hermes");
     expect(normalizeManagedAgentKind("codex")).toBe("codex");
     expect(normalizeManagedAgentKind("unknown")).toBeNull();
+    expect(terminalSubstrateKindForManagedAgentKind("shell")).toBe("shell");
+    expect(terminalSubstrateKindForManagedAgentKind("codex")).toBe("agent");
   });
 
   it("registers built-in harnesses", () => {

@@ -1,6 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
+import { terminalSubstrateKindForManagedAgentKind } from "@exo/core";
+
 import type { TerminalGeometryRecord, TerminalKind, TerminalSessionInfo } from "../shared/api";
 import { isTerminalGeometryRecord } from "./terminal-geometry-service";
 
@@ -8,6 +10,8 @@ export interface PersistedTerminalSession {
   id: string;
   title: string;
   cwd: string;
+  terminalKind?: TerminalSessionInfo["terminalKind"];
+  harnessId?: string | null;
   kind: TerminalKind;
   command: string;
   instructionOverlayPath?: string | null;
@@ -72,6 +76,8 @@ export class TerminalSessionRegistry {
       id: entry.info.id,
       title: entry.info.title,
       cwd: entry.info.cwd,
+      terminalKind: entry.info.terminalKind,
+      harnessId: entry.info.harnessId,
       kind: entry.info.kind,
       command: entry.info.command,
       instructionOverlayPath: entry.info.instructionOverlayPath ?? null,
@@ -115,8 +121,19 @@ function normalizePersistedTerminalSession(value: unknown): PersistedTerminalSes
   if (!valid) {
     return null;
   }
+  const kind = session.kind as TerminalKind;
   return {
     ...session,
+    terminalKind:
+      session.terminalKind === "shell" || session.terminalKind === "agent"
+        ? session.terminalKind
+        : terminalSubstrateKindForManagedAgentKind(kind),
+    harnessId:
+      typeof session.harnessId === "string" || session.harnessId === null
+        ? session.harnessId
+        : kind === "shell"
+          ? null
+          : kind,
     geometry: isTerminalGeometryRecord(session.geometry) ? session.geometry : undefined,
   } as PersistedTerminalSession;
 }

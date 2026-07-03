@@ -45,6 +45,8 @@ export interface ExoCommandTerminalInfo {
   id: string;
   title: string;
   cwd: string;
+  terminalKind?: "shell" | "agent";
+  harnessId?: string | null;
   kind: string;
   command?: string;
   status: string;

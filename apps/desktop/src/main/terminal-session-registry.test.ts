@@ -97,6 +97,8 @@ describe("TerminalSessionRegistry", () => {
           id: "term-2",
           title: "Codex",
           cwd: "/tmp/work",
+          terminalKind: "agent",
+          harnessId: "codex",
           kind: "codex",
           command: "codex",
           instructionOverlayPath: null,
@@ -127,6 +129,8 @@ describe("TerminalSessionRegistry", () => {
       sessions: [
         {
           id: "term-2",
+          terminalKind: "agent",
+          harnessId: "codex",
           kind: "codex",
           status: "exited",
           tmuxPaneId: "%1",

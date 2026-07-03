@@ -5,6 +5,7 @@ import type {
   IndexSyncResult,
   IndexStatus,
   AgentHarnessDetection,
+  AgentHarnessId,
   ActiveProfileIdentity,
   ManagedAgentKind,
   NoteDocument,
@@ -24,6 +25,7 @@ import type {
   WorkspaceModel,
   WorkspaceSettings,
   WorkspaceSearchResults,
+  TerminalSubstrateKind,
 } from "@exo/core";
 
 export type TerminalKind = ManagedAgentKind;
@@ -41,6 +43,8 @@ export interface TerminalSessionInfo {
   id: string;
   title: string;
   cwd: string;
+  terminalKind: TerminalSubstrateKind;
+  harnessId: AgentHarnessId | null;
   kind: TerminalKind;
   command: string;
   instructionOverlayPath?: string | null;
@@ -95,6 +99,8 @@ export interface TerminalDiagnosticsGeometry {
 
 export interface TerminalDiagnostics {
   id: string;
+  terminalKind: TerminalSubstrateKind;
+  harnessId: AgentHarnessId | null;
   kind: TerminalKind;
   status: TerminalSessionInfo["status"];
   exitCode?: number;

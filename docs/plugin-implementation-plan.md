@@ -1,6 +1,6 @@
 # Plugin Architecture Implementation Plan
 
-Last updated: 2026-06-28
+Last updated: 2026-07-03
 
 This plan turns Exo's plugin architecture into code without prematurely loading arbitrary user code. The first goal is internal extensibility: Exo core should use typed registries and contracts for the capabilities that are already plugin-shaped.
 
@@ -149,7 +149,7 @@ Status: first-pass implementation exists. Official shell/Claude/Codex/Pi-compati
 
 The v1 adapter extension contract is now documented in `docs/agent-harness-plugin-contract.md` and represented in `packages/core/src/agent-harness.ts`. It covers official and local adapters for Claude Code, Codex, Pi-compatible builds, Aider, Goose, OpenCode, and local/open-source agents. The contract names adapter metadata, availability detection, launch planning, semantic messages, semantic trace declarations, skill/config inventory, dependency/setup guidance, and core terminal ownership.
 
-Remaining cleanup: keep the terminal substrate core while reducing fixed official harness ids in CLI/MCP/session types. `exo terminals` should remain the low-level terminal/admin surface; `exo agents create` and MCP `create_agent` should choose from registered, enabled, policy-approved harnesses.
+Remaining cleanup: keep the terminal substrate core while reducing fixed official harness ids in CLI/MCP launch paths. Terminal sessions and diagnostics now expose additive `terminalKind` plus `harnessId` fields while preserving legacy `kind`; `exo terminals` should remain the low-level terminal/admin surface, while `exo agents create` and MCP `create_agent` should move to registered, enabled, policy-approved harness ids.
 
 Suggested files:
 
@@ -170,7 +170,7 @@ Contract should cover:
 - optional skill inventory metadata
 - required runtime dependency metadata, including inference backends
 
-Contract note: the current terminal creation path still uses fixed `ManagedAgentKind` values. Future cleanup should split terminal/session substrate ids from policy-approved harness ids so local harness plugins can be addressed by plugin capability id without pretending to be a built-in kind.
+Contract note: the terminal/session metadata split has started. `TerminalSessionInfo`, diagnostics, persisted session records, and command-protocol terminal info can distinguish core substrate (`terminalKind: "shell" | "agent"`) from harness identity (`harnessId`). The current creation path still accepts fixed `ManagedAgentKind` values, so future cleanup must let local harness plugins launch by plugin capability id without pretending to be a built-in kind.
 
 Migration approach:
 

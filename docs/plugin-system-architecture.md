@@ -1,6 +1,6 @@
 # Plugin System Architecture
 
-Last updated: 2026-06-28
+Last updated: 2026-07-03
 
 This document defines the target plugin boundary for Exo.
 
@@ -285,7 +285,7 @@ Not yet aligned:
 - settings use scalable vertical navigation and include a dedicated Profile page, but deeper profile editing remains read-only/preview-oriented
 - terminal launch controls are partly hardwired UI even though harness metadata exists
 - current Routine/Run naming is compatibility terminology for the first CLI/store MVP; the durable contract is the smaller activity/artifact/provenance/review substrate documented in `activity-plugin-contract.md`
-- shared CLI/MCP/session types still expose fixed official harness ids in places where they should eventually derive policy-approved choices from the harness registry
+- terminal sessions now expose additive substrate/harness identity fields, but CLI/MCP launch paths still accept fixed official harness ids where they should eventually derive policy-approved choices from the harness registry
 - plugin manager exists and onboarding now has a first-pass read-only capability review, but onboarding does not yet apply profile/plugin recommendations or grant permissions
 - Plugin Manager can add, remove, and swap metadata-only local plugins in managed user/workspace plugin roots without loading executable entrypoints
 - active workspace profile state exists under Exo runtime metadata and is visible from Settings and the status bar when review is required
@@ -303,7 +303,7 @@ Not yet aligned:
 4. Move harness launchers, agent config, routine/plugin actions, and graph tools onto surface descriptors.
 5. Keep the web viewer as a core endpoint surface rather than a plugin API.
 6. Reassess current Routine/Run core types and keep only the minimal activity/artifact/review substrate needed for plugins to compose.
-7. Split terminal/session substrate types from harness-adapter ids so `exo terminals` remains a low-level terminal surface while `exo agents create` chooses policy-approved registered harnesses.
+7. Finish splitting terminal/session substrate types from harness-adapter ids: session metadata now has the compatibility fields, but `exo agents create` still needs to choose policy-approved registered harness ids while `exo terminals` remains a low-level terminal surface.
 8. Add Plugin Manager and onboarding capability selection after manifests, trust, permissions, and official plugin metadata are stable.
 9. Add settings section contributions for plugin-owned settings.
 10. Add explicit policy and tests before any plugin can contribute MCP tools, CLI commands, or executable code.

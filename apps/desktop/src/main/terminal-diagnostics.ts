@@ -31,6 +31,8 @@ export function terminalDiagnosticsFromRecord(record: TerminalDiagnosticRecord):
   const debugAttach = terminalDebugAttachInfo(record.tmuxSessionName, record.tmuxPaneId);
   return {
     id: record.info.id,
+    terminalKind: record.info.terminalKind,
+    harnessId: record.info.harnessId,
     kind: record.kind,
     status: record.status,
     exitCode: record.exitCode,

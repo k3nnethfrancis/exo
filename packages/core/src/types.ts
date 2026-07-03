@@ -2,6 +2,8 @@ export type RootKind = "notes" | "projects";
 export type DocumentKind = "markdown" | "text";
 export const MANAGED_AGENT_KINDS = ["shell", "claude", "codex", "pi", "hermes"] as const;
 export type ManagedAgentKind = (typeof MANAGED_AGENT_KINDS)[number];
+export type TerminalSubstrateKind = "shell" | "agent";
+export type AgentHarnessId = string;
 export function isManagedAgentKind(value: string | undefined): value is ManagedAgentKind {
   return MANAGED_AGENT_KINDS.includes(value as ManagedAgentKind);
 }
@@ -12,6 +14,10 @@ export function normalizeManagedAgentKind(value: string | undefined): ManagedAge
 
 export function formatManagedAgentKindUsage(): string {
   return MANAGED_AGENT_KINDS.join("|");
+}
+
+export function terminalSubstrateKindForManagedAgentKind(kind: ManagedAgentKind): TerminalSubstrateKind {
+  return kind === "shell" ? "shell" : "agent";
 }
 
 export type AgentHarnessAdapterId =

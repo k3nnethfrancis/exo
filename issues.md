@@ -379,9 +379,15 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
     - Derived the built-in harness registry and runtime launcher record from that core boundary instead of spelling every harness id again.
     - Pointed CLI validation/help and MCP `create_agent` schema/description at the shared core boundary.
     - Added focused core/CLI tests for the boundary and invalid-harness validation.
+  - 2026-07-03 compatibility slice:
+    - Added core `TerminalSubstrateKind` and `AgentHarnessId` identity types.
+    - Added additive `terminalKind` and `harnessId` fields to terminal session info, diagnostics, command protocol terminal info, and persisted terminal session records.
+    - Backfilled old persisted session records from legacy `kind` without dropping recoverable tmux sessions.
+    - Added focused core, terminal-manager, registry, command-server, and renderer helper coverage for the compatibility shape.
   - Remaining next patch:
     - Introduce harness-owned launch/readiness metadata for Codex startup gating, MCP launch overrides, prompt readiness scanning, and semantic message submit behavior.
     - Keep that next patch isolated to `agent-harness*` plus the narrow `TerminalManager` call sites that currently branch on `kind === "codex"`.
+    - Move `exo agents create` and MCP `create_agent` launch requests from fixed `ManagedAgentKind` values to registered, enabled, policy-approved harness ids.
 - QA coverage needed:
   - Agent creation derives from registered/launchable harness metadata.
   - Codex-specific startup behavior is covered by harness adapter tests, not terminal-manager-only tests.

@@ -216,6 +216,8 @@ describe("CommandServer terminal routes", () => {
       onListTerminals: () => [
         {
           id: "term-1",
+          terminalKind: "agent",
+          harnessId: "codex",
           kind: "codex",
           title: "Codex",
           cwd: runtimeRoot,
@@ -226,6 +228,8 @@ describe("CommandServer terminal routes", () => {
       onTerminalDiagnostics: () => [
         {
           id: "term-1",
+          terminalKind: "agent",
+          harnessId: "codex",
           kind: "codex",
           title: "Codex",
           cwd: runtimeRoot,
@@ -262,8 +266,16 @@ describe("CommandServer terminal routes", () => {
 
       expect(terminals[0]).not.toHaveProperty("transport");
       expect(terminals[0]).not.toHaveProperty("tmuxSession");
+      expect(terminals[0]).toMatchObject({
+        kind: "codex",
+        terminalKind: "agent",
+        harnessId: "codex",
+      });
       expect(diagnostics[0]).not.toHaveProperty("transport");
       expect(diagnostics[0]).toMatchObject({
+        kind: "codex",
+        terminalKind: "agent",
+        harnessId: "codex",
         runtime: "tmux",
         tmuxSessionName: "exo-test-term-1",
         tmuxPaneId: "%1",
@@ -486,6 +498,8 @@ function commandServerOptions(runtimeRoot: string): CommandServerOptions {
     onTerminalDiagnostics: () => [],
     onCreateTerminal: async () => ({
       id: "terminal-1",
+      terminalKind: "shell",
+      harnessId: null,
       kind: "shell",
       title: "Terminal",
       cwd: runtimeRoot,

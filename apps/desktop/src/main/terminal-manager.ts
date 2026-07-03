@@ -6,6 +6,7 @@ import {
   resolveLaunchableAgentLaunchPlan,
   resolveRuntimeConfig,
   syncRuntimeContextFiles,
+  terminalSubstrateKindForManagedAgentKind,
   type RuntimeConfig,
 } from "@exo/core";
 import {
@@ -284,6 +285,7 @@ export class TerminalManager extends EventEmitter {
       id,
       title: launch.title,
       cwd: launch.cwd,
+      ...terminalSessionIdentity(options.kind),
       kind: options.kind,
       command: launch.command,
       instructionOverlayPath: overlayEnv.EXO_INSTRUCTIONS ?? null,
@@ -971,6 +973,7 @@ export class TerminalManager extends EventEmitter {
             id: session.id,
             title: session.title,
             cwd: session.cwd,
+            ...terminalSessionIdentity(session.kind),
             kind: session.kind,
             command: session.command,
             instructionOverlayPath: session.instructionOverlayPath ?? null,
@@ -1027,6 +1030,7 @@ export class TerminalManager extends EventEmitter {
         id: session.id,
         title: session.title,
         cwd: session.cwd,
+        ...terminalSessionIdentity(session.kind),
         kind: session.kind,
         command: session.command,
         instructionOverlayPath: session.instructionOverlayPath ?? null,
@@ -1268,6 +1272,13 @@ function terminalGeometryDiverges(record: TerminalRecord): boolean {
 
 function canDeliverInput(record: TerminalRecord): boolean {
   return record.info.status === "running" && !record.bridgeDetached;
+}
+
+function terminalSessionIdentity(kind: TerminalKind): Pick<TerminalSessionInfo, "terminalKind" | "harnessId"> {
+  return {
+    terminalKind: terminalSubstrateKindForManagedAgentKind(kind),
+    harnessId: kind === "shell" ? null : kind,
+  };
 }
 
 function normalizeBufferLineLimit(value: number | null | undefined): number | null {

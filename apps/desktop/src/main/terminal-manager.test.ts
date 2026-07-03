@@ -171,6 +171,27 @@ afterEach(async () => {
   await Promise.all(tempPaths.splice(0).map((target) => rm(target, { recursive: true, force: true })));
 });
 
+describe("TerminalManager session identity", () => {
+  it("exposes terminal substrate and harness identity separately from the legacy kind field", async () => {
+    const workspaceRoot = await workspaceFixture();
+    const manager = managerForWorkspace(workspaceRoot);
+
+    const shell = await manager.create({ kind: "shell", cwd: workspaceRoot });
+    const codex = await manager.create({ kind: "codex", cwd: workspaceRoot });
+
+    expect(shell).toMatchObject({
+      kind: "shell",
+      terminalKind: "shell",
+      harnessId: null,
+    });
+    expect(codex).toMatchObject({
+      kind: "codex",
+      terminalKind: "agent",
+      harnessId: "codex",
+    });
+  });
+});
+
 describe("TerminalManager Codex readiness", () => {
   it("queues submitted Codex task text across startup trust prompts", async () => {
     vi.useFakeTimers();

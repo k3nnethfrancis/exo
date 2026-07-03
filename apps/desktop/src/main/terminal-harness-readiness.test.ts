@@ -60,6 +60,8 @@ function terminalInfo(overrides: Partial<TerminalSessionInfo>): TerminalSessionI
     id: "term-1",
     title: "Codex",
     cwd: "/workspace",
+    terminalKind: "agent",
+    harnessId: "codex",
     kind: "codex",
     command: "codex",
     status: "running",
