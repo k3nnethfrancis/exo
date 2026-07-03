@@ -1,6 +1,6 @@
 # Agent Harness Plugin Contract
 
-Last updated: 2026-06-28
+Last updated: 2026-07-03
 
 This document defines the adapter contract for official and local Exo agent harness plugins.
 
@@ -21,6 +21,7 @@ An `AgentHarness` exposes:
 - launch planning: command, args, title, and the current terminal runtime kind
 - availability detection: enabled, configured, detected, launchable, status, executable path, repo path, install help, and dependency status
 - semantic message behavior: paste/enter, stdin, command, or file-based submission, multiline support, readiness signals, and submit delay
+- semantic trace declaration: optional sources, event kinds, default visibility, and trace artifact filename
 - skill inventory: harness-visible skills, source, enabled state, required state, and config paths
 - config inventory: env vars, config files, commands, services, value kind, required state, redaction, and setup detail
 - setup guidance: install, configure, authenticate, start-service, and verify actions
@@ -81,6 +82,19 @@ Harnesses must declare how Exo should submit semantic messages:
 - readiness signal, pattern, timeout, grace period, and failure patterns
 
 Provider-specific startup heuristics should live in harness readiness policy, not in the generic terminal renderer. Core still performs the actual terminal write so transcripts, diagnostics, and user-visible delivery state remain consistent.
+
+## Semantic Traces
+
+Harnesses may declare whether they can produce structured semantic trace events. The contract is metadata-only in v1:
+
+- source: stdout JSONL, stderr JSONL, sidecar JSONL, hooks, command log, ANSI transcript, or none
+- supported event kinds from `exo.semantic-trace.v1`
+- default visibility for emitted events
+- optional trace artifact filename
+
+Semantic traces are separate from terminal output. Core terminal services still own tmux, xterm, scrollback, transcripts, reconnect, and input delivery. Harness adapters may later tee provider-native JSON streams, hooks, or sidecar logs into `.exo/artifacts/{activityId}/semantic-trace.jsonl`, but they must not use semantic traces as a second live terminal screen source.
+
+Trace payloads remain plugin/provider-owned. Core only defines the envelope and reference model so later trace collectors, eval exporters, dataset builders, and review tools can consume events without another terminal-service re-plumb.
 
 ## Skills And Config
 

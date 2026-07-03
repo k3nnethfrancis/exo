@@ -176,6 +176,13 @@ describe("agent harness registry", () => {
           timeoutMs: 10_000,
         },
       },
+      semanticTrace: {
+        schemaVersion: "exo.semantic-trace.v1",
+        sources: ["stdout-jsonl", "hooks"],
+        eventKinds: ["session.started", "message", "tool.call", "tool.result", "file.change"],
+        defaultVisibility: "private",
+        artifactFileName: "semantic-trace.jsonl",
+      },
       setup: {
         summary: "Install the local agent binary and configure LLAMA_AGENT_MODEL.",
         actions: [
@@ -201,6 +208,11 @@ describe("agent harness registry", () => {
       contractVersion: "agent-harness.v1",
       adapter: { family: "local", id: "local:llama-agent" },
       semanticMessages: { defaultMode: "paste-enter", supportsMultiline: true },
+      semanticTrace: {
+        schemaVersion: "exo.semantic-trace.v1",
+        sources: ["stdout-jsonl", "hooks"],
+        eventKinds: ["session.started", "message", "tool.call", "tool.result", "file.change"],
+      },
       terminalOwnership: "core",
     });
     expect(registry.list().map((harness) => harness.metadata.id)).toEqual(["local.llama-agent"]);

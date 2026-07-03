@@ -1,6 +1,6 @@
 # Activity Plugin Contract
 
-Last updated: 2026-06-27
+Last updated: 2026-07-03
 
 This document defines the minimum core substrate that plugin workloads can rely on. It is intentionally smaller than a workflow, eval, trace, or export product.
 
@@ -30,6 +30,24 @@ Plugins own workload semantics, including:
 - OKF, Shoshin, LM Wiki, Guardian Angel, or project-specific schemas
 
 Plugins should write those details as artifacts under `.exo/artifacts/{activityId}/` or plugin state under `.exo/`, then link them from the activity record with artifact/provenance refs.
+
+## Semantic Trace Envelope
+
+Core now defines a small semantic trace envelope in `packages/core/src/semantic-trace.ts`. It exists so harness adapters, routines, trace collectors, and exporters can agree on the outer shape of a trace event without forcing Claude/Codex/Pi/eval-specific schemas into `RunRecord`.
+
+The envelope names:
+
+- schema version: `exo.semantic-trace.v1`
+- event kind: session, turn, message, tool call/result, file change, artifact, metric, or error
+- actor: human, agent, harness, tool, plugin, or system
+- harness/session/run ids
+- visibility: public, private, or redacted
+- references to transcripts, artifacts, files, tools, and evidence
+- plugin-owned payload
+
+Core may normalize this envelope and project it into the existing `RunTracePacket` JSONL helper. Core must not interpret provider-specific payloads. A Claude Code tool event, Codex JSON event, Pi trace, eval packet, or graph-health observation should put rich meaning in `payload` or a plugin-owned artifact and use refs for transcript/artifact/file evidence.
+
+Semantic traces are not terminal rendering. The terminal transcript remains durable byte-level evidence. Semantic traces can reference transcript ranges, but they should not be reconstructed from xterm screen state or used to hydrate live terminals.
 
 ## Minimal Run Compatibility
 
@@ -68,6 +86,6 @@ Canonical first-pass paths:
 - `.exo/runs/{runId}/run.log`
 - `.exo/artifacts/{runId}/{artifactFileName}`
 
-Trace JSONL is a plugin-owned artifact. Core may provide append/read helpers for convenience, but the run record should reference the trace artifact rather than embedding packets.
+Trace JSONL is a plugin-owned artifact. Core may provide append/read helpers for convenience, including the semantic trace envelope, but the run record should reference the trace artifact rather than embedding packets.
 
--- Exo | 2026-06-27
+-- Exo | 2026-07-03

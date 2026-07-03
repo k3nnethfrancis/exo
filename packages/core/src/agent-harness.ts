@@ -1,4 +1,5 @@
 import type { CapabilityMetadata } from "./capabilities";
+import type { SemanticTraceEventKind } from "./semantic-trace";
 import type {
   AgentHarnessAdapterId,
   AgentHarnessDependencyStatus,
@@ -13,6 +14,7 @@ export type HarnessConfigValueKind = "string" | "path" | "url" | "boolean" | "nu
 export type HarnessSemanticMessageMode = "paste-enter" | "stdin" | "command" | "file";
 export type HarnessReadinessSignal = "none" | "process-started" | "stdout-pattern" | "stderr-pattern" | "prompt-pattern" | "external-probe";
 export type HarnessSetupActionKind = "install" | "configure" | "authenticate" | "start-service" | "verify";
+export type HarnessSemanticTraceSource = "none" | "ansi-transcript" | "stdout-jsonl" | "stderr-jsonl" | "sidecar-jsonl" | "hooks" | "command-log";
 export type AgentHarnessPluginContractVersion = "agent-harness.v1";
 
 export interface AgentHarnessAdapterMetadata {
@@ -85,6 +87,15 @@ export interface HarnessSetupGuide {
   dependencies?: readonly AgentHarnessDependencyStatus[];
 }
 
+export interface HarnessSemanticTraceContract {
+  schemaVersion: "exo.semantic-trace.v1";
+  sources: readonly HarnessSemanticTraceSource[];
+  eventKinds: readonly SemanticTraceEventKind[];
+  defaultVisibility: "public" | "private" | "redacted";
+  artifactFileName?: string;
+  detail?: string;
+}
+
 export interface AgentHarness {
   readonly contractVersion?: AgentHarnessPluginContractVersion;
   metadata: CapabilityMetadata;
@@ -94,6 +105,7 @@ export interface AgentHarness {
   skills: readonly HarnessSkillMetadata[];
   configs?: readonly HarnessConfigInventoryItem[];
   semanticMessages?: HarnessSemanticMessageContract;
+  semanticTrace?: HarnessSemanticTraceContract;
   setup?: HarnessSetupGuide;
   terminalOwnership?: "core";
   resolveLauncher(env: NodeJS.ProcessEnv): AgentLauncherConfig;

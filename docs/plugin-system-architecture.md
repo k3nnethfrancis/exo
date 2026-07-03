@@ -151,7 +151,7 @@ Harness plugins do not implement terminal rendering. They provide launch plans a
 - display metadata and availability checks
 - skill inventory/config locations
 - semantic message behavior
-- optional tracing/provenance hooks
+- optional semantic trace declarations/provenance hooks
 - setup/configuration help when missing
 
 This split keeps terminal correctness centralized while allowing agent systems to be swapped.
@@ -175,7 +175,7 @@ The first proposal/review write contract is implemented in `@exo/core`: proposal
 
 Core should not grow a large opinionated automation product by default. A graph-health routine, eval workflow, LM Wiki maintenance run, GA trace exporter, or Exo-on-Exo maintenance loop should be implemented as a plugin on top of this substrate.
 
-The concrete workload contract is documented in `activity-plugin-contract.md`. Core records references; plugin-owned artifacts carry rich trace, eval, dataset, dashboard, export, and review schemas.
+The concrete workload contract is documented in `activity-plugin-contract.md`. Core records references and defines a small `exo.semantic-trace.v1` envelope; plugin-owned artifacts carry rich trace, eval, dataset, dashboard, export, and review schemas. Semantic traces are not terminal rendering and must not become a second live screen source.
 
 ## Plugin Distribution
 
@@ -270,6 +270,7 @@ Already aligned:
 - QMD sits behind a search-provider contract
 - shell/Claude/Codex/Pi/Hermes launch planning sits behind an agent-harness contract
 - the agent-harness plugin contract now names availability detection, launch planning, semantic messages, skill/config inventory, dependency/setup guidance, and the terminal-core boundary
+- the semantic trace contract now names a stable event envelope and optional harness trace declarations while keeping provider payloads plugin-owned
 - the desktop right rail/tool dock has a first typed descriptor layer for core terminal actions, official harness launchers, Agent Config, Plugin Manager, side-pane controls, and future routine/graph plugin targets
 - Plugin Manager distinguishes Exograph Baseline, official plugins, local plugins, and developer plugins before showing inventory rows, so users can see what is core versus optional and which rows are locally manageable.
 - core surface descriptors now name metadata-only plugin panels and web viewer endpoint metadata for plugin-produced local apps/artifacts without renderer plugin loading

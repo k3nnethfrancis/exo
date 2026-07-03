@@ -144,6 +144,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - 2026-07-03: Added the first proposal/review apply host and `exo proposals` CLI/app command surface.
   - 2026-07-03: Added the native proposal review UI. Desktop and CLI can accept/reject proposal batches or individual non-atomic items; MCP remains read/propose-only and cannot make review decisions.
   - 2026-07-03: Added profile apply proposal staging for profile-owned context, instruction, and MCP config file templates. Plugin enables, permission grants, skills, routines, settings, and AI-generated profile changes remain blocked until future prompts/grants exist.
+  - 2026-07-03: Added the semantic trace v1 envelope and optional harness trace declarations so future harness capture/export plugins can emit structured events without touching terminal rendering.
 
 ### EXO-ISSUE-070: Terminal code-review residuals from 2026-06-23
 
