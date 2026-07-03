@@ -171,6 +171,8 @@ Core should own only the scheduler and minimal automation substrate that multipl
 - optional review state for proposed changes when Exo mediates acceptance or rejection
 - cancellation/status surfaces for running jobs
 
+The first proposal/review write contract is metadata-only in `@exo/core`: proposal batches contain ordered items with independent item statuses unless `atomic: true`, required activity provenance, optional session/trace refs, and review decisions that can mark items accepted, rejected, or stale. It does not write files, expose MCP accept/reject tools, or apply move/delete mutations; `fileMove` and `fileDelete` remain v2 design-only item kinds.
+
 Core should not grow a large opinionated automation product by default. A graph-health routine, eval workflow, LM Wiki maintenance run, GA trace exporter, or Exo-on-Exo maintenance loop should be implemented as a plugin on top of this substrate.
 
 The concrete workload contract is documented in `activity-plugin-contract.md`. Core records references; plugin-owned artifacts carry rich trace, eval, dataset, dashboard, export, and review schemas.

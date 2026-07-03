@@ -63,6 +63,7 @@ interface TerminalRecord {
   lastWriteLatencyMs?: number;
   bridgeDetached?: boolean;
   paneStatus?: "alive" | "dead" | "missing" | "unknown";
+  tmuxPaneGeometry?: { width: number; height: number };
   reconnecting?: boolean;
   terminating?: boolean;
 }
@@ -151,6 +152,7 @@ export class TerminalManager extends EventEmitter {
           tmuxPaneId: record.tmuxPaneId,
           bridgeDetached: record.bridgeDetached,
           paneStatus: record.paneStatus,
+          tmuxPaneGeometry: record.tmuxPaneGeometry,
           cwd: record.info.cwd,
           title: record.info.title,
           command: record.info.command,
@@ -864,17 +866,20 @@ export class TerminalManager extends EventEmitter {
       const pane = panes.get(record.tmuxSessionName);
       if (!pane) {
         record.paneStatus = "missing";
+        record.tmuxPaneGeometry = undefined;
         record.info.health = "unhealthy";
         record.info.healthDetail = "Tmux session is missing; transcript remains available.";
         continue;
       }
       if (pane.dead) {
         record.paneStatus = "dead";
+        record.tmuxPaneGeometry = paneGeometry(pane);
         record.info.health = "unhealthy";
         record.info.healthDetail = "Tmux pane is dead; restart or open transcript.";
         continue;
       }
       record.paneStatus = "alive";
+      record.tmuxPaneGeometry = paneGeometry(pane);
     }
   }
 
@@ -1208,6 +1213,13 @@ function terminalHealthInput(record: TerminalRecord) {
     lastInputAt: record.lastInputAt,
     lastOutputAt: record.lastOutputAt,
   };
+}
+
+function paneGeometry(pane: TerminalRuntimePaneInfo): { width: number; height: number } | undefined {
+  if (pane.width === undefined || pane.height === undefined) {
+    return undefined;
+  }
+  return { width: pane.width, height: pane.height };
 }
 
 function canDeliverInput(record: TerminalRecord): boolean {

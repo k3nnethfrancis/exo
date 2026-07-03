@@ -9,20 +9,24 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
 ## Current Ship Roadmap Tasks
 
 - [ ] Execute Terminal V4.1 geometry convergence work from Fable's proposal before treating terminal render bugs as isolated symptoms:
-  - [ ] Wave 1 fan-out in progress from `fable-exo-preflight-spec.md`: red geometry tests, geometry service base, terminal input escape pass, plain-attach spike, and plugin P1 namespaced capabilities.
-  - [ ] Write the reconnect-at-wrong-size red test before implementation.
-  - [ ] Write the wake/reconnect simulation red test before implementation.
-  - [ ] Implement recorded renderer geometry and attach/reconnect size assertion (`EXO-ISSUE-075`).
-  - [ ] Remove asymmetric tmux-only resize clamping or replace it with symmetric renderer-source enforcement.
-  - [ ] Add attach generations so renderer resize dedupe cannot suppress lifecycle geometry reassertion.
-  - [ ] Add geometry divergence diagnostics and a resync action.
-  - [ ] Implement byte-faithful live reconnect snapshots after size assertion.
-  - [ ] Run the plain tmux-attach spike in parallel as evidence, not as a product-path switch.
+  - [x] Wave 1 fan-out from `fable-exo-preflight-spec.md`: red geometry tests, geometry service base, terminal input escape pass, plain-attach spike, and plugin P1 namespaced capabilities.
+  - [x] Write the reconnect-at-wrong-size red test before implementation.
+  - [x] Write the wake/reconnect simulation red test before implementation.
+  - [x] Implement recorded renderer geometry and attach/reconnect size assertion (`EXO-ISSUE-075`).
+  - [x] Remove asymmetric tmux-only resize clamping or replace it with symmetric renderer-source enforcement.
+  - [x] Add attach generations so renderer resize dedupe cannot suppress lifecycle geometry reassertion.
+  - [x] Add structured geometry divergence diagnostics.
+  - [ ] Add a user-visible geometry resync action.
+  - [x] Implement byte-faithful live reconnect snapshots after size assertion.
+  - [x] Run the plain tmux-attach spike in parallel as evidence, not as a product-path switch.
+  - [ ] Complete the remaining V4.1 audit: confirm WP-T4/T5 coverage, close any diagnostics gaps, and keep `pnpm terminal:check` green.
 - [ ] Finish Plugin Architecture Completion:
-  - [ ] Wave 1 plugin package in progress: migrate capability kinds to namespaced ids with legacy manifest alias shim and status-visible deprecation.
+  - [x] Wave 1 plugin package: migrate capability kinds to namespaced ids with legacy manifest alias shim and status-visible deprecation.
   - [x] Accept Fable's sequencing amendment: namespaced capabilities and scoped permissions land before the proposal/review write contract.
+  - [x] Add scoped plugin permission parsing/grants with `propose` distinct from direct `write`.
   - [ ] Add staged profile apply review with trust prompts and permission grants before any profile/plugin recommendation can write instructions, MCP config, skills, routines, settings, or grants.
-  - [ ] Design proposal/review write contract as the shared substrate for profile apply, project knowledge sync, graph maintenance, skill/config writes, and agent-suggested note edits.
+  - [x] Design and implement the metadata-only proposal/review write contract as the shared substrate for profile apply, project knowledge sync, graph maintenance, skill/config writes, and agent-suggested note edits.
+  - [ ] Add the proposal/review apply host and UI/CLI review surface; keep MCP create/list-only.
   - [ ] Design semantic trace contract early enough that harness adapters do not need another terminal-service re-plumb.
   - [ ] Tighten Plugin Manager into a management surface: active/disabled/untrusted/missing states, local plugin add/remove/swap, plugin-owned settings, readiness/dependency guidance, and no dense-layout overlap.
   - [ ] Split terminal/session substrate types from harness-adapter ids so `exo agents` derives launchable harnesses from registered harness plugins while `exo terminals` remains the low-level core terminal surface.

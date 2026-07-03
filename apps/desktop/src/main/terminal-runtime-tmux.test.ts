@@ -59,7 +59,7 @@ describe("TmuxTerminalRuntime", () => {
         throw new Error("unsupported option");
       }
       if (args.includes("list-panes")) {
-        return `${createdSessionName}\t@1\t%1\t0\tzsh\t/tmp/workspace\n`;
+        return `${createdSessionName}\t@1\t%1\t0\t80\t24\tzsh\t/tmp/workspace\n`;
       }
       return "";
     });

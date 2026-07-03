@@ -22,6 +22,8 @@ export interface TmuxPaneInfo {
   windowId: string;
   paneId: string;
   dead: boolean;
+  width?: number;
+  height?: number;
   currentCommand: string;
   currentPath: string;
 }
@@ -76,12 +78,23 @@ export function parseTmuxPaneList(raw: string): TmuxPaneInfo[] {
     .split(/\r?\n/)
     .filter((line) => line.trim().length > 0)
     .map((line) => {
-      const [sessionName = "", windowId = "", paneId = "", paneDead = "0", currentCommand = "", currentPath = ""] = line.split("\t");
+      const [
+        sessionName = "",
+        windowId = "",
+        paneId = "",
+        paneDead = "0",
+        paneWidth = "",
+        paneHeight = "",
+        currentCommand = "",
+        currentPath = "",
+      ] = line.split("\t");
       return {
         sessionName,
         windowId,
         paneId,
         dead: paneDead === "1",
+        width: positiveIntegerOrUndefined(paneWidth),
+        height: positiveIntegerOrUndefined(paneHeight),
         currentCommand,
         currentPath,
       };
@@ -104,6 +117,11 @@ export class TmuxCommandRunner {
       throw new TmuxCommandError(`tmux command failed: ${this.tmuxPath} ${args.join(" ")}`, this.tmuxPath, args, stderr);
     }
   }
+}
+
+function positiveIntegerOrUndefined(value: string): number | undefined {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 1 ? parsed : undefined;
 }
 
 export interface TmuxControlModeProcessOptions {

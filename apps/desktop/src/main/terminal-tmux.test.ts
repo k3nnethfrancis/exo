@@ -65,7 +65,7 @@ describe("terminal tmux runtime helpers", () => {
   });
 
   it("parses tmux pane list output", () => {
-    const panes = parseTmuxPaneList("exo-a\t@1\t%2\t0\tzsh\t/tmp/work\nexo-b\t@3\t%4\t1\tclaude\t/tmp/other\n");
+    const panes = parseTmuxPaneList("exo-a\t@1\t%2\t0\t120\t32\tzsh\t/tmp/work\nexo-b\t@3\t%4\t1\t80\t24\tclaude\t/tmp/other\n");
 
     expect(panes).toEqual([
       {
@@ -73,6 +73,8 @@ describe("terminal tmux runtime helpers", () => {
         windowId: "@1",
         paneId: "%2",
         dead: false,
+        width: 120,
+        height: 32,
         currentCommand: "zsh",
         currentPath: "/tmp/work",
       },
@@ -81,6 +83,8 @@ describe("terminal tmux runtime helpers", () => {
         windowId: "@3",
         paneId: "%4",
         dead: true,
+        width: 80,
+        height: 24,
         currentCommand: "claude",
         currentPath: "/tmp/other",
       },

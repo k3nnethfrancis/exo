@@ -11,6 +11,7 @@ export interface TerminalDiagnosticRecord {
   tmuxPaneId?: string | null;
   bridgeDetached?: boolean;
   paneStatus?: TerminalDiagnostics["paneStatus"];
+  tmuxPaneGeometry?: { width: number; height: number };
   cwd: string;
   title: string;
   command: string;
@@ -39,6 +40,7 @@ export function terminalDiagnosticsFromRecord(record: TerminalDiagnosticRecord):
     debugAttach,
     bridgeStatus: record.bridgeDetached ? "detached" : "attached",
     paneStatus: record.paneStatus ?? "unknown",
+    geometry: terminalDiagnosticsGeometry(record),
     cwd: record.cwd,
     title: record.title,
     command: record.command,
@@ -49,6 +51,21 @@ export function terminalDiagnosticsFromRecord(record: TerminalDiagnosticRecord):
     lastOutputAt: record.lastOutputAt ? new Date(record.lastOutputAt).toISOString() : null,
     lastWriteId: record.lastWriteId,
     lastWriteLatencyMs: record.lastWriteLatencyMs ?? null,
+  };
+}
+
+function terminalDiagnosticsGeometry(record: TerminalDiagnosticRecord): TerminalDiagnostics["geometry"] {
+  const renderer = record.info.geometry ?? null;
+  const tmuxPane = record.tmuxPaneGeometry ?? null;
+  const divergent =
+    renderer !== null &&
+    tmuxPane !== null &&
+    (renderer.cols !== tmuxPane.width || renderer.rows !== tmuxPane.height);
+  return {
+    renderer,
+    tmuxPane,
+    divergent,
+    attachGeneration: record.info.attachGeneration,
   };
 }
 

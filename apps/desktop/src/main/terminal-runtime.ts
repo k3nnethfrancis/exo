@@ -22,6 +22,8 @@ export interface TerminalRuntimePaneInfo {
   sessionName: string;
   paneId: string;
   dead: boolean;
+  width?: number;
+  height?: number;
   currentCommand: string;
   currentPath: string;
 }

@@ -819,7 +819,7 @@ describe("TerminalManager Codex readiness", () => {
     childProcess.execFileSync.mockImplementation((command: string, args: string[]) => {
       if (args.includes("list-panes")) {
         const generated = childProcess.defaultExecFileSync(command, args);
-        return `${tmuxSessionName}\t@1\t%2\t0\tzsh\t${workspaceRoot}\n${generated}`;
+        return `${tmuxSessionName}\t@1\t%2\t0\t181\t47\tzsh\t${workspaceRoot}\n${generated}`;
       }
       return childProcess.defaultExecFileSync(command, args);
     });
@@ -871,7 +871,7 @@ describe("TerminalManager Codex readiness", () => {
     );
     childProcess.execFileSync.mockImplementation((command: string, args: string[]) => {
       if (args.includes("list-panes")) {
-        return `${tmuxSessionName}\t@1\t%2\t0\tzsh\t${workspaceRoot}\n`;
+        return `${tmuxSessionName}\t@1\t%2\t0\t120\t32\tzsh\t${workspaceRoot}\n`;
       }
       if (args.includes("capture-pane")) {
         return args[args.indexOf("-t") + 1] === "%2" ? "restored-history-001\nrestored-history-002\n" : "";
@@ -984,10 +984,34 @@ describe("TerminalManager Codex readiness", () => {
       },
       bridgeStatus: "attached",
       paneStatus: "alive",
+      geometry: {
+        renderer: expect.objectContaining({ cols: 120, rows: 32, source: "initial-default" }),
+        tmuxPane: { width: 120, height: 32 },
+        divergent: false,
+        attachGeneration: expect.any(Number),
+      },
       command: expect.any(String),
       transcriptPath: expect.stringContaining("terminal-transcripts"),
     });
     expect(diagnostic).not.toHaveProperty("transport");
+  });
+
+  it("surfaces terminal geometry divergence in diagnostics", async () => {
+    const workspaceRoot = await workspaceFixture();
+    const manager = managerForWorkspace(workspaceRoot);
+
+    const terminal = await manager.create({ kind: "shell", cwd: workspaceRoot });
+    await manager.resize(terminal.id, 181, 47);
+    mockLiveTmuxPanes(workspaceRoot, [spawnedTmuxSessionName(0)], { width: 120, height: 32 });
+
+    expect(manager.diagnostics()[0]).toMatchObject({
+      geometry: {
+        renderer: expect.objectContaining({ cols: 181, rows: 47, source: "renderer-fit" }),
+        tmuxPane: { width: 120, height: 32 },
+        divergent: true,
+        attachGeneration: expect.any(Number),
+      },
+    });
   });
 
   it("marks missing tmux sessions as unhealthy in diagnostics", async () => {
@@ -1365,13 +1389,13 @@ function spawnedTmuxSessionName(index: number): string {
   return sessionName;
 }
 
-function mockLiveTmuxPanes(workspaceRoot: string, tmuxSessionNames: string[]) {
+function mockLiveTmuxPanes(workspaceRoot: string, tmuxSessionNames: string[], geometry = { width: 120, height: 32 }) {
   childProcess.execFileSync.mockImplementation((_command: string, args: string[]) => {
     if (!args.includes("list-panes")) {
       return "";
     }
     return tmuxSessionNames
-      .map((sessionName) => `${sessionName}\t@1\t%2\t0\tzsh\t${workspaceRoot}`)
+      .map((sessionName) => `${sessionName}\t@1\t%2\t0\t${geometry.width}\t${geometry.height}\tzsh\t${workspaceRoot}`)
       .join("\n");
   });
 }
@@ -1413,6 +1437,8 @@ function fakeRuntime(capturedTail = "runtime-captured\r\n"): TerminalRuntime & {
         sessionName: "runtime-session-1",
         paneId: "%runtime-1",
         dead: false,
+        width: 120,
+        height: 32,
         currentCommand: "zsh",
         currentPath: "/tmp/work",
       },

@@ -81,6 +81,13 @@ export interface TerminalDebugAttachInfo {
   safeAttachCommand: string;
 }
 
+export interface TerminalDiagnosticsGeometry {
+  renderer: TerminalGeometryRecord | null;
+  tmuxPane: { width: number; height: number } | null;
+  divergent: boolean;
+  attachGeneration: number;
+}
+
 export interface TerminalDiagnostics {
   id: string;
   kind: TerminalKind;
@@ -95,6 +102,7 @@ export interface TerminalDiagnostics {
   debugAttach: TerminalDebugAttachInfo;
   bridgeStatus: "attached" | "detached";
   paneStatus: "alive" | "dead" | "missing" | "unknown";
+  geometry: TerminalDiagnosticsGeometry;
   cwd: string;
   title: string;
   command: string;
