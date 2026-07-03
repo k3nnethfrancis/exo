@@ -125,6 +125,9 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - Any adopted rules are low-noise and initially scoped to stable package/plugin/terminal boundaries.
   - `pnpm ci:check` is not expanded until the rule set has proven signal in local runs.
   - Docs and agent skills are updated if structural checks become part of the standard harness.
+- Progress:
+  - 2026-07-03: Added the first zero-dependency structural checks to `scripts/check-repo.mjs` and kept them in the existing `pnpm check:repo` gate. The checks block non-test renderer imports of Electron and Node built-ins, keep plugin manifest entrypoints metadata-only/non-executable, and constrain direct reads of `manifest.permissions` to parser/resolver/copy/test/checker code so requested permissions do not become grants by accident.
+  - 2026-07-03: Intentionally deferred adding beta `konsistent`, expanding `pnpm ci:check`, broad core/provider boundary rules, and terminal/docs adjacency rules until the custom checks prove low-noise in local runs.
 
 ### EXO-ISSUE-072: Preview clipping and repeated Claude screen after preview/focus fix
 
