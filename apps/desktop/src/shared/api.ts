@@ -87,7 +87,9 @@ export interface TerminalDebugAttachInfo {
 export interface TerminalDiagnosticsGeometry {
   renderer: TerminalGeometryRecord | null;
   tmuxPane: { width: number; height: number } | null;
+  tmuxClient: { width: number; height: number } | null;
   divergent: boolean;
+  divergentSinceMs: number | null;
   attachGeneration: number;
 }
 

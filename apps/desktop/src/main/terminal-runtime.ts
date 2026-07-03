@@ -24,6 +24,8 @@ export interface TerminalRuntimePaneInfo {
   dead: boolean;
   width?: number;
   height?: number;
+  clientWidth?: number;
+  clientHeight?: number;
   currentCommand: string;
   currentPath: string;
 }

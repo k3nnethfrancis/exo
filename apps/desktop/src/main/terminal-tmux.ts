@@ -24,6 +24,8 @@ export interface TmuxPaneInfo {
   dead: boolean;
   width?: number;
   height?: number;
+  clientWidth?: number;
+  clientHeight?: number;
   currentCommand: string;
   currentPath: string;
 }
@@ -85,6 +87,8 @@ export function parseTmuxPaneList(raw: string): TmuxPaneInfo[] {
         paneDead = "0",
         paneWidth = "",
         paneHeight = "",
+        clientWidth = "",
+        clientHeight = "",
         currentCommand = "",
         currentPath = "",
       ] = line.split("\t");
@@ -95,6 +99,8 @@ export function parseTmuxPaneList(raw: string): TmuxPaneInfo[] {
         dead: paneDead === "1",
         width: positiveIntegerOrUndefined(paneWidth),
         height: positiveIntegerOrUndefined(paneHeight),
+        clientWidth: positiveIntegerOrUndefined(clientWidth),
+        clientHeight: positiveIntegerOrUndefined(clientHeight),
         currentCommand,
         currentPath,
       };

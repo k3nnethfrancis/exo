@@ -38,7 +38,7 @@ const childProcess = vi.hoisted(() => {
       return "";
     }
     if (args.includes("list-panes")) {
-      return ptyState.tmuxSessions.map((session) => `${session.sessionName}\t@1\t${session.paneId}\t0\tzsh\t${session.cwd}`).join("\n");
+      return ptyState.tmuxSessions.map((session) => `${session.sessionName}\t@1\t${session.paneId}\t0\t120\t32\t120\t32\tzsh\t${session.cwd}`).join("\n");
     }
     if (args.includes("capture-pane")) {
       const paneId = args[args.indexOf("-t") + 1] ?? "";
@@ -819,7 +819,7 @@ describe("TerminalManager Codex readiness", () => {
     childProcess.execFileSync.mockImplementation((command: string, args: string[]) => {
       if (args.includes("list-panes")) {
         const generated = childProcess.defaultExecFileSync(command, args);
-        return `${tmuxSessionName}\t@1\t%2\t0\t181\t47\tzsh\t${workspaceRoot}\n${generated}`;
+        return `${tmuxSessionName}\t@1\t%2\t0\t181\t47\t181\t47\tzsh\t${workspaceRoot}\n${generated}`;
       }
       return childProcess.defaultExecFileSync(command, args);
     });
@@ -871,7 +871,7 @@ describe("TerminalManager Codex readiness", () => {
     );
     childProcess.execFileSync.mockImplementation((command: string, args: string[]) => {
       if (args.includes("list-panes")) {
-        return `${tmuxSessionName}\t@1\t%2\t0\t120\t32\tzsh\t${workspaceRoot}\n`;
+        return `${tmuxSessionName}\t@1\t%2\t0\t120\t32\t120\t32\tzsh\t${workspaceRoot}\n`;
       }
       if (args.includes("capture-pane")) {
         return args[args.indexOf("-t") + 1] === "%2" ? "restored-history-001\nrestored-history-002\n" : "";
@@ -987,7 +987,9 @@ describe("TerminalManager Codex readiness", () => {
       geometry: {
         renderer: expect.objectContaining({ cols: 120, rows: 32, source: "initial-default" }),
         tmuxPane: { width: 120, height: 32 },
+        tmuxClient: { width: 120, height: 32 },
         divergent: false,
+        divergentSinceMs: null,
         attachGeneration: expect.any(Number),
       },
       command: expect.any(String),
@@ -1008,7 +1010,9 @@ describe("TerminalManager Codex readiness", () => {
       geometry: {
         renderer: expect.objectContaining({ cols: 181, rows: 47, source: "renderer-fit" }),
         tmuxPane: { width: 120, height: 32 },
+        tmuxClient: { width: 120, height: 32 },
         divergent: true,
+        divergentSinceMs: expect.any(Number),
         attachGeneration: expect.any(Number),
       },
     });
@@ -1389,13 +1393,19 @@ function spawnedTmuxSessionName(index: number): string {
   return sessionName;
 }
 
-function mockLiveTmuxPanes(workspaceRoot: string, tmuxSessionNames: string[], geometry = { width: 120, height: 32 }) {
+function mockLiveTmuxPanes(
+  workspaceRoot: string,
+  tmuxSessionNames: string[],
+  geometry: { width: number; height: number; clientWidth?: number; clientHeight?: number } = { width: 120, height: 32, clientWidth: 120, clientHeight: 32 },
+) {
+  const clientWidth = geometry.clientWidth ?? geometry.width;
+  const clientHeight = geometry.clientHeight ?? geometry.height;
   childProcess.execFileSync.mockImplementation((_command: string, args: string[]) => {
     if (!args.includes("list-panes")) {
       return "";
     }
     return tmuxSessionNames
-      .map((sessionName) => `${sessionName}\t@1\t%2\t0\t${geometry.width}\t${geometry.height}\tzsh\t${workspaceRoot}`)
+      .map((sessionName) => `${sessionName}\t@1\t%2\t0\t${geometry.width}\t${geometry.height}\t${clientWidth}\t${clientHeight}\tzsh\t${workspaceRoot}`)
       .join("\n");
   });
 }
@@ -1439,6 +1449,8 @@ function fakeRuntime(capturedTail = "runtime-captured\r\n"): TerminalRuntime & {
         dead: false,
         width: 120,
         height: 32,
+        clientWidth: 120,
+        clientHeight: 32,
         currentCommand: "zsh",
         currentPath: "/tmp/work",
       },

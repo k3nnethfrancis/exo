@@ -12,6 +12,8 @@ export interface TerminalDiagnosticRecord {
   bridgeDetached?: boolean;
   paneStatus?: TerminalDiagnostics["paneStatus"];
   tmuxPaneGeometry?: { width: number; height: number };
+  tmuxClientGeometry?: { width: number; height: number };
+  geometryDivergentSince?: number;
   cwd: string;
   title: string;
   command: string;
@@ -22,6 +24,7 @@ export interface TerminalDiagnosticRecord {
   lastOutputAt?: number;
   lastWriteId: number;
   lastWriteLatencyMs?: number;
+  now: number;
 }
 
 export function terminalDiagnosticsFromRecord(record: TerminalDiagnosticRecord): TerminalDiagnostics {
@@ -57,14 +60,17 @@ export function terminalDiagnosticsFromRecord(record: TerminalDiagnosticRecord):
 function terminalDiagnosticsGeometry(record: TerminalDiagnosticRecord): TerminalDiagnostics["geometry"] {
   const renderer = record.info.geometry ?? null;
   const tmuxPane = record.tmuxPaneGeometry ?? null;
+  const tmuxClient = record.tmuxClientGeometry ?? null;
   const divergent =
     renderer !== null &&
-    tmuxPane !== null &&
-    (renderer.cols !== tmuxPane.width || renderer.rows !== tmuxPane.height);
+    ((tmuxPane !== null && (renderer.cols !== tmuxPane.width || renderer.rows !== tmuxPane.height)) ||
+      (tmuxClient !== null && (renderer.cols !== tmuxClient.width || renderer.rows !== tmuxClient.height)));
   return {
     renderer,
     tmuxPane,
+    tmuxClient,
     divergent,
+    divergentSinceMs: divergent && record.geometryDivergentSince ? Math.max(0, record.now - record.geometryDivergentSince) : null,
     attachGeneration: record.info.attachGeneration,
   };
 }

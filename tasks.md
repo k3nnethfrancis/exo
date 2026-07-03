@@ -8,7 +8,7 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
 
 ## Current Ship Roadmap Tasks
 
-- [ ] Execute Terminal V4.1 geometry convergence work from Fable's proposal before treating terminal render bugs as isolated symptoms:
+- [x] Execute Terminal V4.1 geometry convergence work from Fable's proposal before treating terminal render bugs as isolated symptoms:
   - [x] Wave 1 fan-out from `fable-exo-preflight-spec.md`: red geometry tests, geometry service base, terminal input escape pass, plain-attach spike, and plugin P1 namespaced capabilities.
   - [x] Write the reconnect-at-wrong-size red test before implementation.
   - [x] Write the wake/reconnect simulation red test before implementation.
@@ -19,7 +19,7 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
   - [x] Add a user-visible geometry resync action.
   - [x] Implement byte-faithful live reconnect snapshots after size assertion.
   - [x] Run the plain tmux-attach spike in parallel as evidence, not as a product-path switch.
-  - [ ] Complete the remaining V4.1 audit: confirm WP-T4/T5 coverage, close any diagnostics gaps, and keep `pnpm terminal:check` green.
+  - [x] Complete the remaining V4.1 audit: confirm WP-T4/T5 coverage, close any diagnostics gaps, and keep `pnpm terminal:check` green.
 - [ ] Finish Plugin Architecture Completion:
   - [x] Wave 1 plugin package: migrate capability kinds to namespaced ids with legacy manifest alias shim and status-visible deprecation.
   - [x] Accept Fable's sequencing amendment: namespaced capabilities and scoped permissions land before the proposal/review write contract.

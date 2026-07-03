@@ -64,6 +64,8 @@ interface TerminalRecord {
   bridgeDetached?: boolean;
   paneStatus?: "alive" | "dead" | "missing" | "unknown";
   tmuxPaneGeometry?: { width: number; height: number };
+  tmuxClientGeometry?: { width: number; height: number };
+  geometryDivergentSince?: number;
   reconnecting?: boolean;
   terminating?: boolean;
 }
@@ -153,6 +155,8 @@ export class TerminalManager extends EventEmitter {
           bridgeDetached: record.bridgeDetached,
           paneStatus: record.paneStatus,
           tmuxPaneGeometry: record.tmuxPaneGeometry,
+          tmuxClientGeometry: record.tmuxClientGeometry,
+          geometryDivergentSince: record.geometryDivergentSince,
           cwd: record.info.cwd,
           title: record.info.title,
           command: record.info.command,
@@ -163,6 +167,7 @@ export class TerminalManager extends EventEmitter {
           lastOutputAt: record.lastOutputAt,
           lastWriteId: record.lastWriteId,
           lastWriteLatencyMs: record.lastWriteLatencyMs,
+          now,
         }),
       )
       .sort((left, right) => left.id.localeCompare(right.id));
@@ -851,6 +856,9 @@ export class TerminalManager extends EventEmitter {
           continue;
         }
         record.paneStatus = "unknown";
+        record.tmuxPaneGeometry = undefined;
+        record.tmuxClientGeometry = undefined;
+        record.geometryDivergentSince = undefined;
         record.info.health = "unhealthy";
         record.info.healthDetail = availability.reason;
       }
@@ -867,6 +875,8 @@ export class TerminalManager extends EventEmitter {
       if (!pane) {
         record.paneStatus = "missing";
         record.tmuxPaneGeometry = undefined;
+        record.tmuxClientGeometry = undefined;
+        record.geometryDivergentSince = undefined;
         record.info.health = "unhealthy";
         record.info.healthDetail = "Tmux session is missing; transcript remains available.";
         continue;
@@ -874,12 +884,25 @@ export class TerminalManager extends EventEmitter {
       if (pane.dead) {
         record.paneStatus = "dead";
         record.tmuxPaneGeometry = paneGeometry(pane);
+        record.tmuxClientGeometry = clientGeometry(pane);
+        this.updateGeometryDivergence(record);
         record.info.health = "unhealthy";
         record.info.healthDetail = "Tmux pane is dead; restart or open transcript.";
         continue;
       }
       record.paneStatus = "alive";
       record.tmuxPaneGeometry = paneGeometry(pane);
+      record.tmuxClientGeometry = clientGeometry(pane);
+      this.updateGeometryDivergence(record);
+    }
+  }
+
+  private updateGeometryDivergence(record: TerminalRecord): void {
+    const divergent = terminalGeometryDiverges(record);
+    if (divergent && record.geometryDivergentSince === undefined) {
+      record.geometryDivergentSince = Date.now();
+    } else if (!divergent) {
+      record.geometryDivergentSince = undefined;
     }
   }
 
@@ -1220,6 +1243,27 @@ function paneGeometry(pane: TerminalRuntimePaneInfo): { width: number; height: n
     return undefined;
   }
   return { width: pane.width, height: pane.height };
+}
+
+function clientGeometry(pane: TerminalRuntimePaneInfo): { width: number; height: number } | undefined {
+  if (pane.clientWidth === undefined || pane.clientHeight === undefined) {
+    return undefined;
+  }
+  return { width: pane.clientWidth, height: pane.clientHeight };
+}
+
+function terminalGeometryDiverges(record: TerminalRecord): boolean {
+  const renderer = record.info.geometry;
+  if (!renderer) {
+    return false;
+  }
+  const paneDiverges =
+    record.tmuxPaneGeometry !== undefined &&
+    (renderer.cols !== record.tmuxPaneGeometry.width || renderer.rows !== record.tmuxPaneGeometry.height);
+  const clientDiverges =
+    record.tmuxClientGeometry !== undefined &&
+    (renderer.cols !== record.tmuxClientGeometry.width || renderer.rows !== record.tmuxClientGeometry.height);
+  return paneDiverges || clientDiverges;
 }
 
 function canDeliverInput(record: TerminalRecord): boolean {

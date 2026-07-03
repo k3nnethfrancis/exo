@@ -72,7 +72,9 @@ export interface ExoCommandTerminalGeometryRecord {
 export interface ExoCommandTerminalDiagnosticsGeometry {
   renderer: ExoCommandTerminalGeometryRecord | null;
   tmuxPane: { width: number; height: number } | null;
+  tmuxClient: { width: number; height: number } | null;
   divergent: boolean;
+  divergentSinceMs: number | null;
   attachGeneration: number;
 }
 
