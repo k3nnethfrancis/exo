@@ -16,7 +16,7 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
   - [x] Remove asymmetric tmux-only resize clamping or replace it with symmetric renderer-source enforcement.
   - [x] Add attach generations so renderer resize dedupe cannot suppress lifecycle geometry reassertion.
   - [x] Add structured geometry divergence diagnostics.
-  - [ ] Add a user-visible geometry resync action.
+  - [x] Add a user-visible geometry resync action.
   - [x] Implement byte-faithful live reconnect snapshots after size assertion.
   - [x] Run the plain tmux-attach spike in parallel as evidence, not as a product-path switch.
   - [ ] Complete the remaining V4.1 audit: confirm WP-T4/T5 coverage, close any diagnostics gaps, and keep `pnpm terminal:check` green.

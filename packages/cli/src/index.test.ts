@@ -662,6 +662,10 @@ describe("cli package", () => {
         calls.push(`reconnect:${id}`);
         return { ok: true, terminal: { id, status: "running" } };
       },
+      resyncTerminal: async (id) => {
+        calls.push(`resync:${id}`);
+        return { ok: true, terminal: { id, status: "running" } };
+      },
     });
 
     const diagnosticsExitCode = await runCli(["node", "exo-cli", "terminals", "diagnostics"], {
@@ -682,12 +686,19 @@ describe("cli package", () => {
       stderr: { write: () => {} },
       connectAppClient: async () => client,
     });
+    const resyncExitCode = await runCli(["node", "exo-cli", "terminals", "resync", "term-1"], {
+      env: testRuntimeEnv(),
+      stdout: { write: () => {} },
+      stderr: { write: () => {} },
+      connectAppClient: async () => client,
+    });
 
     expect(diagnosticsExitCode).toBe(0);
     expect(sendExitCode).toBe(0);
     expect(reconnectExitCode).toBe(0);
+    expect(resyncExitCode).toBe(0);
     expect(stdout).toContain('"health": "healthy"');
-    expect(calls).toEqual(["raw command:true", "reconnect:term-1"]);
+    expect(calls).toEqual(["raw command:true", "reconnect:term-1", "resync:term-1"]);
   });
 
   it("lists routine templates from plugin manifests and creates routines", async () => {
@@ -1100,7 +1111,7 @@ async function writeRoutinePlugin(root: string, options: { templateOverrides?: R
         capabilities: [
           {
             id: "graph-health.template",
-            kind: "routineTemplate",
+            kind: "core:routineTemplate",
             label: "Graph Health",
             description: "Audit graph structure and write a report.",
             lifecycle: "experimental",
@@ -1162,6 +1173,7 @@ function fakeAppClient(overrides: Partial<{
   writeTerminal: (id: string, data: string) => Promise<{ ok: boolean; delivery: "sent" | "queued" | "not-found"; queuedInputCount?: number }>;
   sendTerminalMessage: (id: string, message: string, submit?: boolean) => Promise<{ ok: boolean; delivery: "sent" | "queued" | "not-found"; queuedInputCount?: number }>;
   reconnectTerminal: (id: string) => Promise<Record<string, unknown>>;
+  resyncTerminal: (id: string) => Promise<Record<string, unknown>>;
   killTerminal: (id: string) => Promise<void>;
 }> = {}) {
   const missing = async (..._args: unknown[]) => {
@@ -1200,6 +1212,7 @@ function fakeAppClient(overrides: Partial<{
       return { ok: false, delivery: "not-found" as const };
     },
     reconnectTerminal: missing,
+    resyncTerminal: missing,
     killTerminal: missing,
     ...overrides,
   };

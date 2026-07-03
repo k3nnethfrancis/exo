@@ -185,7 +185,7 @@ test("trusts, edits, and resets workspace plugin settings from Plugin Manager", 
           exoApiVersion: "0.1",
           capabilities: [{
             id: "settings-plugin.template",
-            kind: "routineTemplate",
+            kind: "core:routineTemplate",
             label: "Settings Plugin",
             description: "Fixture plugin with editable settings.",
             lifecycle: "experimental",

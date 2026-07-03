@@ -86,6 +86,7 @@ interface AppClientLike {
   writeTerminal(id: string, data: string): Promise<AppClientWriteResult>;
   sendTerminalMessage(id: string, message: string, submit?: boolean): Promise<AppClientWriteResult>;
   reconnectTerminal(id: string): Promise<Record<string, unknown>>;
+  resyncTerminal(id: string): Promise<Record<string, unknown>>;
   killTerminal(id: string): Promise<void>;
 }
 
@@ -506,7 +507,16 @@ export async function runCli(
       return 0;
     }
 
-    stderr.write(`Usage: exo terminals [list | diagnostics | create <${TERMINAL_KIND_USAGE}> [cwd] | read <id> [--lines n] | transcript <id> [--tail chars] [--full] | write <id> <text> | send <id> <text> | reconnect <id> | kill <id>]\n`);
+    if (subcommand === "resync") {
+      const id = args[0];
+      if (!id) {
+        throw new Error("Usage: exo terminals resync <terminal-id>");
+      }
+      stdout.write(`${JSON.stringify(await client.resyncTerminal(id), null, 2)}\n`);
+      return 0;
+    }
+
+    stderr.write(`Usage: exo terminals [list | diagnostics | create <${TERMINAL_KIND_USAGE}> [cwd] | read <id> [--lines n] | transcript <id> [--tail chars] [--full] | write <id> <text> | send <id> <text> | reconnect <id> | resync <id> | kill <id>]\n`);
     return 1;
   }
 
@@ -943,6 +953,7 @@ export async function runCli(
       "  exo terminals write <id> <text>            Write raw input to terminal (app)",
       "  exo terminals send <id> <text>             Send input plus Enter to terminal (app)",
       "  exo terminals reconnect <id>               Reattach Exo to a live tmux terminal (app)",
+      "  exo terminals resync <id>                  Reattach and resize a divergent terminal (app)",
       "  exo agents [list]                          List live Exo agents (app)",
       `  exo agents create <${agentKindUsage(env)}>     Create Exo agent (app)`,
       "  exo agents read <id> [--tail n] [--full] [--raw] Read agent transcript tail (app)",

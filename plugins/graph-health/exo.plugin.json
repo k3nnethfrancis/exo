@@ -7,7 +7,7 @@
   "capabilities": [
     {
       "id": "graph-health.template",
-      "kind": "routineTemplate",
+      "kind": "core:routineTemplate",
       "label": "Graph Health",
       "description": "Audit selected notes for orphaned pages, stale markers, unresolved links, and missing source context.",
       "lifecycle": "experimental",

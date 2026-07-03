@@ -156,6 +156,8 @@ Live reconnect/bootstrap restore uses a typed tmux restore snapshot, not the CLI
 
 Alt-screen restore is a v1 limitation: if tmux reports `alternate_on`, Exo returns an empty restore snapshot with `altScreen: true` and relies on the running TUI to repaint after reconnect/resize. Full alt-screen grid restore is deferred until a concrete harness needs it.
 
+CLI/app geometry resync is a user-visible operator action for divergence diagnostics. It intentionally calls the same reconnect implementation used for bridge recovery so Exo has one attach/resize/snapshot recovery path instead of a second resize-only fallback that can drift from reconnect behavior.
+
 ## What To Delete Or Simplify Now
 
 1. Remove `terminalHistoryMode` from product thinking and keep settings/tests on explicit fields:

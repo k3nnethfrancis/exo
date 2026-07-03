@@ -146,15 +146,15 @@ Create an internal registry model in `packages/core` for Exo-owned capabilities.
 
 Initial registry kinds:
 
-- `searchProvider`
-- `agentHarness`
-- `profile`
-- `analyzer`
-- `traceCollector`
-- `datasetExporter`
-- `evalRunner`
-- `routineTemplate`
-- `graphVisualization`
+- `core:searchProvider`
+- `core:agentHarness`
+- `core:profile`
+- `core:routineTemplate`
+- `exo.graph:analyzer`
+- `exo.graph:visualization`
+- `exo.training:traceCollector`
+- `exo.training:datasetExporter`
+- `exo.training:evalRunner`
 
 Each registration should have:
 

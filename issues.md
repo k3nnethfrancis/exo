@@ -40,7 +40,8 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - Existing terminal render corruption issues are either resolved by this causal fix or reclassified with new deterministic fixtures.
 - Notes:
   - 2026-07-03: `pnpm terminal:check` passes with the V4.1 geometry e2e suite, including reconnect-at-wrong-size and reconnect-recoverable with preview open.
-  - 2026-07-03: Terminal diagnostics now expose structured geometry state: recorded renderer geometry, tmux pane geometry, divergence boolean, and attach generation. A user-visible resync action remains open.
+  - 2026-07-03: Terminal diagnostics now expose structured geometry state: recorded renderer geometry, tmux pane geometry, divergence boolean, and attach generation.
+  - 2026-07-03: Added `exo terminals resync <id>` and `/terminals/:id/resync` as user-visible/operator geometry recovery. It intentionally uses the existing reconnect implementation so geometry repair does not create a second fallback path.
 
 ### EXO-ISSUE-074: Computer Use visual QA can fail to inspect the running Exo app
 

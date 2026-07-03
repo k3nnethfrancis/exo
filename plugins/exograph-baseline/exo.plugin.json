@@ -7,7 +7,7 @@
   "capabilities": [
     {
       "id": "exograph-baseline.profile",
-      "kind": "profile",
+      "kind": "core:profile",
       "label": "Exograph Baseline",
       "description": "Recommended Markdown graph conventions and bundled capability references for a local exograph.",
       "lifecycle": "experimental",

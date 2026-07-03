@@ -82,19 +82,19 @@ The active profile is workspace state, not just another plugin row. A profile ma
 
 Near-term Exo should prove the first two layers with official and local metadata plugins. Arbitrary executable plugin loading is a later security/product decision, not a prerequisite for making QMD, agent harnesses, routines, analyzers, and dashboards plugin-shaped.
 
-Capability kinds are namespaced ids. Legacy bare manifest kinds are accepted only at parse time, normalized to the namespaced id, and surfaced with a deprecation status note for one release cycle.
+Capability kinds are namespaced ids. Bare legacy names are rejected so manifests and internal registries use one vocabulary during active development.
 
-| Legacy kind | Namespaced id | Status |
+| Capability kind | Status |
 |---|---|---|
-| `searchProvider` | `core:searchProvider` | hosted by core |
-| `agentHarness` | `core:agentHarness` | hosted by core |
-| `profile` | `core:profile` | hosted by core |
-| `routineTemplate` | `core:routineTemplate` | hosted by core |
-| `analyzer` | `exo.graph:analyzer` | inert (no host) |
-| `graphVisualization` | `exo.graph:visualization` | inert |
-| `traceCollector` | `exo.training:traceCollector` | inert |
-| `datasetExporter` | `exo.training:datasetExporter` | inert |
-| `evalRunner` | `exo.training:evalRunner` | inert |
+| `core:searchProvider` | hosted by core |
+| `core:agentHarness` | hosted by core |
+| `core:profile` | hosted by core |
+| `core:routineTemplate` | hosted by core |
+| `exo.graph:analyzer` | inert (no host) |
+| `exo.graph:visualization` | inert |
+| `exo.training:traceCollector` | inert |
+| `exo.training:datasetExporter` | inert |
+| `exo.training:evalRunner` | inert |
 
 Profiles are bundles, not individual runtime capabilities. A profile can declare recommended plugins, graph metadata conventions, AGENTS.md/CLAUDE.md templates, MCP config templates, skills to install or enable, routine templates, default graph views, analyzer settings, and output/review policies. A profile may depend on plugins, but it should not hide executable code inside configuration. If a profile needs executable behavior, it should depend on an explicit plugin capability.
 

@@ -7,7 +7,7 @@
   "capabilities": [
     {
       "id": "local-profile.profile",
-      "kind": "profile",
+      "kind": "core:profile",
       "label": "Local Profile",
       "description": "Recommended plugins, metadata conventions, and review/output policies for a workspace profile.",
       "lifecycle": "experimental",

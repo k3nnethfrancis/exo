@@ -159,7 +159,8 @@ Terminal diagnostics should expose:
 - configured terminal runtime values
 - transcript path and write status
 - last resize dimensions and timestamp
+- renderer/tmux geometry divergence and the current attach generation
 
-The UI should surface unhealthy states without requiring users to inspect logs.
+The UI and CLI should surface unhealthy states without requiring users to inspect logs. Geometry divergence recovery should use the explicit reconnect/resync path rather than hidden refreshes.
 
 -- Shoshin | 2026-06-18

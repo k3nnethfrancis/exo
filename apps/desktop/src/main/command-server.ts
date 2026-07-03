@@ -382,6 +382,15 @@ export class CommandServer {
         return;
       }
 
+      const terminalResyncMatch = pathname.match(/^\/terminals\/([^/]+)\/resync$/);
+      if (method === "POST" && terminalResyncMatch) {
+        // Geometry resync deliberately uses the reconnect implementation so there is one tested
+        // tmux reattach/resize recovery path instead of a parallel "just resize" fallback.
+        const terminal = await this.options.onReconnectTerminal(decodeURIComponent(terminalResyncMatch[1]));
+        json(res, { ok: true, terminal } satisfies ExoReconnectTerminalResponse);
+        return;
+      }
+
       const terminalKillMatch = pathname.match(/^\/terminals\/([^/]+)$/);
       if (method === "DELETE" && terminalKillMatch) {
         await this.options.onKillTerminal(decodeURIComponent(terminalKillMatch[1]));

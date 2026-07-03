@@ -340,6 +340,41 @@ describe("CommandServer terminal routes", () => {
       server.stop();
     }
   });
+
+  it("resyncs a terminal over the reconnect recovery path", async () => {
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-command-server-"));
+    tempPaths.push(runtimeRoot);
+    let receivedId = "";
+    const server = new CommandServer({
+      ...commandServerOptions(runtimeRoot),
+      onReconnectTerminal: async (id) => {
+        receivedId = id;
+        return {
+          id,
+          kind: "shell",
+          title: "Terminal",
+          cwd: runtimeRoot,
+          command: "zsh",
+          status: "running",
+        };
+      },
+    });
+
+    try {
+      const port = await server.start();
+      const response = await fetch(`http://127.0.0.1:${port}/terminals/term-1/resync`, {
+        method: "POST",
+      });
+
+      await expect(response.json()).resolves.toMatchObject({
+        ok: true,
+        terminal: { id: "term-1", status: "running" },
+      });
+      expect(receivedId).toBe("term-1");
+    } finally {
+      server.stop();
+    }
+  });
 });
 
 async function fetchJson(url: string): Promise<any> {

@@ -246,6 +246,10 @@ export class AppClient {
     return this.post(EXO_COMMAND_ROUTES.terminalReconnect(id), {});
   }
 
+  async resyncTerminal(id: string): Promise<Record<string, unknown>> {
+    return this.post(EXO_COMMAND_ROUTES.terminalResync(id), {});
+  }
+
   async killTerminal(id: string): Promise<void> {
     await this.delete(EXO_COMMAND_ROUTES.terminal(id));
   }

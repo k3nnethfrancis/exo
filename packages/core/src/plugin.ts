@@ -399,7 +399,6 @@ function validateCapabilityMetadata(input: unknown): CapabilityMetadata {
     surfaces: validateSurfaces(input.surfaces, "capability.surfaces"),
     permissions: validatePermissions(input.permissions, "capability.permissions"),
     compatibility: isRecord(input.compatibility) ? input.compatibility : undefined,
-    statusNotes: parsedKind.deprecationNote ? [parsedKind.deprecationNote] : undefined,
   };
   assertIdentifier(capability.id, "Capability id");
   return capability;

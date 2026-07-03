@@ -42,14 +42,14 @@ Current edge kinds:
 
 ## Graph Visualization Capability
 
-A plugin declares a graph visualization through a `graphVisualization` capability. New manifests should put the payload under `capability.compatibility.graphVisualization`.
+A plugin declares a graph visualization through an `exo.graph:visualization` capability. Manifests should put the payload under `capability.compatibility.graphVisualization`.
 
 Example:
 
 ```json
 {
   "id": "example-3d-graph.view",
-  "kind": "graphVisualization",
+  "kind": "exo.graph:visualization",
   "label": "Example 3D Graph",
   "description": "Renders Exo graph snapshots as a 3D relationship map.",
   "lifecycle": "experimental",

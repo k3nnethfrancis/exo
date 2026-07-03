@@ -7,7 +7,7 @@
   "capabilities": [
     {
       "id": "local-routine-template.template",
-      "kind": "routineTemplate",
+      "kind": "core:routineTemplate",
       "label": "Local Routine Template",
       "description": "Reusable prompt and policy metadata for a manually instantiated workspace routine.",
       "lifecycle": "experimental",

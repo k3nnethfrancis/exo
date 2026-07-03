@@ -320,20 +320,6 @@ export const builtInCapabilities = [
   },
 ] satisfies CapabilityMetadata[];
 
-const LEGACY_CAPABILITY_KIND_ALIASES = {
-  searchProvider: "core:searchProvider",
-  agentHarness: "core:agentHarness",
-  profile: "core:profile",
-  routineTemplate: "core:routineTemplate",
-  analyzer: "exo.graph:analyzer",
-  graphVisualization: "exo.graph:visualization",
-  traceCollector: "exo.training:traceCollector",
-  datasetExporter: "exo.training:datasetExporter",
-  evalRunner: "exo.training:evalRunner",
-} satisfies Record<string, CapabilityKind>;
-
-type LegacyCapabilityKind = keyof typeof LEGACY_CAPABILITY_KIND_ALIASES;
-
 export const capabilityKinds = [
   "core:searchProvider",
   "core:agentHarness",
@@ -348,27 +334,15 @@ export const capabilityKinds = [
 
 export interface ParsedCapabilityKind {
   kind: CapabilityKind;
-  deprecationNote?: string;
 }
 
 export function parseCapabilityKind(rawKind: string): ParsedCapabilityKind {
   if (isCapabilityKind(rawKind)) {
     return { kind: rawKind };
   }
-  if (isLegacyCapabilityKind(rawKind)) {
-    const alias = LEGACY_CAPABILITY_KIND_ALIASES[rawKind];
-    return {
-      kind: alias,
-      deprecationNote: `Capability kind "${rawKind}" is deprecated; use "${alias}". TODO: remove legacy capability kind aliases after one release cycle.`,
-    };
-  }
   throw new Error(`capability.kind contains unsupported value: ${rawKind}`);
 }
 
 export function isCapabilityKind(value: string): value is CapabilityKind {
   return (capabilityKinds as readonly string[]).includes(value);
-}
-
-function isLegacyCapabilityKind(value: string): value is LegacyCapabilityKind {
-  return Object.prototype.hasOwnProperty.call(LEGACY_CAPABILITY_KIND_ALIASES, value);
 }

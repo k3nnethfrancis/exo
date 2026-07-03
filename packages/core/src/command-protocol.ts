@@ -27,6 +27,7 @@ export const EXO_COMMAND_ROUTES = {
   terminalWrite: (id: string) => `/terminals/${encodeURIComponent(id)}/write`,
   terminalMessage: (id: string) => `/terminals/${encodeURIComponent(id)}/message`,
   terminalReconnect: (id: string) => `/terminals/${encodeURIComponent(id)}/reconnect`,
+  terminalResync: (id: string) => `/terminals/${encodeURIComponent(id)}/resync`,
   terminal: (id: string) => `/terminals/${encodeURIComponent(id)}`,
 } as const;
 
@@ -56,6 +57,20 @@ export interface ExoCommandTerminalDebugAttachInfo {
   safeAttachCommand: string;
 }
 
+export interface ExoCommandTerminalGeometryRecord {
+  cols: number;
+  rows: number;
+  reportedAt: string;
+  source: "renderer-fit" | "initial-default";
+}
+
+export interface ExoCommandTerminalDiagnosticsGeometry {
+  renderer: ExoCommandTerminalGeometryRecord | null;
+  tmuxPane: { width: number; height: number } | null;
+  divergent: boolean;
+  attachGeneration: number;
+}
+
 export interface ExoCommandTerminalDiagnostics extends ExoCommandTerminalInfo {
   runtime?: "tmux";
   tmuxSessionName?: string;
@@ -64,6 +79,7 @@ export interface ExoCommandTerminalDiagnostics extends ExoCommandTerminalInfo {
   debugAttach?: ExoCommandTerminalDebugAttachInfo;
   bridgeStatus?: "attached" | "detached";
   paneStatus?: "alive" | "dead" | "missing" | "unknown";
+  geometry?: ExoCommandTerminalDiagnosticsGeometry;
   bufferedLines: number;
   bufferedChars: number;
   transcriptPath: string;

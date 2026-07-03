@@ -84,8 +84,8 @@ describe("plugin manifest contracts", () => {
     expect(parsePluginManifest(JSON.stringify(manifest))).toEqual(manifest);
   });
 
-  it("normalizes legacy bare capability kinds with a deprecation status note", () => {
-    const parsed = validatePluginManifest({
+  it("requires namespaced capability kinds", () => {
+    expect(() => validatePluginManifest({
       ...manifest,
       capabilities: [
         {
@@ -93,18 +93,7 @@ describe("plugin manifest contracts", () => {
           kind: "routineTemplate",
         },
       ],
-    });
-
-    expect(parsed.capabilities[0]).toMatchObject({
-      id: "example.routine",
-      kind: "core:routineTemplate",
-      statusNotes: [
-        expect.stringContaining('Capability kind "routineTemplate" is deprecated; use "core:routineTemplate"'),
-      ],
-    });
-    expect(resolvePluginLifecycle(discovered(parsed, "trusted")).statusNotes).toEqual([
-      expect.stringContaining("remove legacy capability kind aliases after one release cycle"),
-    ]);
+    })).toThrow("capability.kind contains unsupported value: routineTemplate");
   });
 
   it("rejects malformed manifests", () => {
