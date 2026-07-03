@@ -19,7 +19,7 @@ const tracePacket: RunTracePacket = {
 const testCollector: TraceCollector = {
   metadata: {
     id: "alignment-trace-collector",
-    kind: "traceCollector",
+    kind: "exo.training:traceCollector",
     label: "Alignment Trace Collector",
     description: "Test trace collector.",
     lifecycle: "experimental",

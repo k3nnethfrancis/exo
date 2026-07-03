@@ -100,7 +100,7 @@ function findSourceProfile(
     }
     const capability = plugin.manifest.capabilities.find((candidate) => {
       const payload = candidate.compatibility?.profile;
-      return candidate.kind === "profile"
+      return candidate.kind === "core:profile"
         && (candidate.id === identity.capabilityId || (isRecord(payload) && payload.id === identity.profileId));
     });
     if (capability) {
@@ -177,7 +177,7 @@ async function exists(targetPath: string): Promise<boolean> {
 
 function slugifyProfileId(profileId: string): string {
   const slug = profileId.toLowerCase().replace(/[^a-z0-9.-]+/g, "-").replace(/^-+|-+$/g, "");
-  return slug || "profile";
+  return slug || "core:profile";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

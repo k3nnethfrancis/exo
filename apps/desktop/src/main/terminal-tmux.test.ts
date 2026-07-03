@@ -280,6 +280,56 @@ describe("terminal tmux runtime helpers", () => {
     expect(childProcess.execFileSync.mock.calls.map((call) => call[1])).not.toContainEqual(["-u", "load-buffer", "-b", "exo-3", "-"]);
   });
 
+  it("passes unknown escape sequences through as literal bytes instead of shredding them into typed text", () => {
+    const fake = fakeControlProcess();
+    childProcess.spawn.mockReturnValue(fake.child);
+    childProcess.execFileSync.mockReturnValue("");
+
+    const process = new TmuxControlModeProcess({
+      tmuxPath: "/opt/homebrew/bin/tmux",
+      sessionName: "exo-session",
+      paneId: "%3",
+      cwd: "/tmp/work",
+      env: { PATH: "/bin" },
+      cols: 100,
+      rows: 30,
+    });
+
+    process.write("a\u001b[15~b\u001bb\u001b]1337;SetMark\u0007c\u001b");
+
+    expect(childProcess.execFileSync.mock.calls.map((call) => call[1])).toEqual([
+      ["-u", "send-keys", "-t", "%3", "-l", "a\u001b[15~b\u001bb\u001b]1337;SetMark\u0007c"],
+      ["-u", "send-keys", "-t", "%3", "Escape"],
+    ]);
+  });
+
+  it("keeps whitespace, Unicode, backspace, delete, and modifier keys on the tmux send-keys path", () => {
+    const fake = fakeControlProcess();
+    childProcess.spawn.mockReturnValue(fake.child);
+    childProcess.execFileSync.mockReturnValue("");
+
+    const process = new TmuxControlModeProcess({
+      tmuxPath: "/opt/homebrew/bin/tmux",
+      sessionName: "exo-session",
+      paneId: "%3",
+      cwd: "/tmp/work",
+      env: { PATH: "/bin" },
+      cols: 100,
+      rows: 30,
+    });
+
+    process.write("  λ🙂\t\u007f\u001b[3~\u001b[1;5D\u001b[1;2C");
+
+    expect(childProcess.execFileSync.mock.calls.map((call) => call[1])).toEqual([
+      ["-u", "send-keys", "-t", "%3", "-l", "  λ🙂\t"],
+      ["-u", "send-keys", "-t", "%3", "BSpace"],
+      ["-u", "send-keys", "-t", "%3", "Delete"],
+      ["-u", "send-keys", "-t", "%3", "C-Left"],
+      ["-u", "send-keys", "-t", "%3", "S-Right"],
+    ]);
+    expect(childProcess.execFileSync.mock.calls.map((call) => call[1])).not.toContainEqual(["-u", "load-buffer", "-b", "exo-3", "-"]);
+  });
+
   it("detaches instead of throwing when tmux send-keys fails", () => {
     const fake = fakeControlProcess();
     childProcess.spawn.mockReturnValue(fake.child);
@@ -327,6 +377,32 @@ describe("terminal tmux runtime helpers", () => {
     expect(childProcess.execFileSync.mock.calls.map((call) => call[1])).toContainEqual(["-u", "load-buffer", "-b", "exo-3", "-"]);
     expect(childProcess.execFileSync.mock.calls.find((call) => call[1]?.includes("load-buffer"))?.[2]).toMatchObject({ input: "line one\n  line two" });
     expect(childProcess.execFileSync.mock.calls.map((call) => call[1])).toContainEqual(["-u", "paste-buffer", "-b", "exo-3", "-t", "%3", "-d"]);
+  });
+
+  it("can paste bracketed content embedded between ordinary typed literals", () => {
+    const fake = fakeControlProcess();
+    childProcess.spawn.mockReturnValue(fake.child);
+    childProcess.execFileSync.mockReturnValue("");
+
+    const process = new TmuxControlModeProcess({
+      tmuxPath: "/opt/homebrew/bin/tmux",
+      sessionName: "exo-session",
+      paneId: "%3",
+      cwd: "/tmp/work",
+      env: { PATH: "/bin" },
+      cols: 100,
+      rows: 30,
+    });
+
+    process.write("prefix \u001b[200~line one\n  line two\u001b[201~ suffix");
+
+    expect(childProcess.execFileSync.mock.calls.map((call) => call[1])).toEqual([
+      ["-u", "send-keys", "-t", "%3", "-l", "prefix "],
+      ["-u", "load-buffer", "-b", "exo-3", "-"],
+      ["-u", "paste-buffer", "-b", "exo-3", "-t", "%3", "-d"],
+      ["-u", "send-keys", "-t", "%3", "-l", " suffix"],
+    ]);
+    expect(childProcess.execFileSync.mock.calls.find((call) => call[1]?.includes("load-buffer"))?.[2]).toMatchObject({ input: "line one\n  line two" });
   });
 
   it.each(["load-buffer", "paste-buffer"])("detaches instead of throwing when tmux %s fails", (failingCommand) => {

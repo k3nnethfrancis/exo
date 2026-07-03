@@ -174,7 +174,7 @@ async function writePlugin(root: string, pluginId: string, name = "Example Profi
     capabilities: [
       {
         id: `${pluginId}.capability`,
-        kind: "profile",
+        kind: "core:profile",
         label: name,
         description: "Profile capability.",
         lifecycle: "experimental",

@@ -44,7 +44,7 @@ describe("profile copy", () => {
         capabilities: [
           {
             id: "source-profile.profile-copy.profile",
-            kind: "profile",
+            kind: "core:profile",
             owner: "source-profile.profile-copy.plugin",
             compatibility: {
               profile: {
@@ -143,7 +143,7 @@ async function writeProfilePlugin(sourceRoot: string, pluginId: string, capabili
     capabilities: [
       {
         id: capabilityId,
-        kind: "profile",
+        kind: "core:profile",
         label: "Source Profile",
         description: "Source profile capability.",
         lifecycle: "experimental",

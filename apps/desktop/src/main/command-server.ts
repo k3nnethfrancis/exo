@@ -17,6 +17,7 @@ import {
   type ExoOpenPreviewRequest,
   type ExoOpenPreviewResponse,
   type ExoPreviewCommandResponse,
+  type ExoReconnectRecoverableTerminalsResponse,
   type ExoSendTerminalMessageRequest,
   type ExoWriteTerminalRequest,
   type ExoWriteTerminalResponse,
@@ -55,6 +56,7 @@ export interface CommandServerOptions {
   onWriteTerminal: (id: string, data: string) => Promise<ExoWriteTerminalResponse>;
   onSendTerminalMessage: (id: string, message: string, submit: boolean) => Promise<ExoWriteTerminalResponse>;
   onReconnectTerminal: (id: string) => Promise<ExoCommandTerminalInfo | null>;
+  onReconnectRecoverableTerminals: () => void;
   onKillTerminal: (id: string) => Promise<void>;
   onGetSettings: () => WorkspaceSettings;
   onGetStatus: () => object;
@@ -292,6 +294,12 @@ export class CommandServer {
 
       if (method === "GET" && pathname === EXO_COMMAND_ROUTES.terminalDiagnostics) {
         json(res, this.options.onTerminalDiagnostics());
+        return;
+      }
+
+      if (method === "POST" && pathname === EXO_COMMAND_ROUTES.terminalReconnectRecoverable) {
+        this.options.onReconnectRecoverableTerminals();
+        json(res, { ok: true } satisfies ExoReconnectRecoverableTerminalsResponse);
         return;
       }
 

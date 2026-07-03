@@ -27,7 +27,7 @@ const manifest: PluginManifest = {
   capabilities: [
     {
       id: "permissions.template",
-      kind: "routineTemplate",
+      kind: "core:routineTemplate",
       label: "Permissions Template",
       description: "Requests routine permissions.",
       lifecycle: "experimental",
@@ -37,7 +37,7 @@ const manifest: PluginManifest = {
     },
     {
       id: "permissions.disabled",
-      kind: "routineTemplate",
+      kind: "core:routineTemplate",
       label: "Disabled Template",
       description: "Disabled capability.",
       lifecycle: "disabled",

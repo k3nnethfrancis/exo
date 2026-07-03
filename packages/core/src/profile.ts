@@ -108,7 +108,7 @@ export function profilesFromPlugin(plugin: DiscoveredPlugin, filter: ProfileFilt
 }
 
 export function profileFromCapability(capability: CapabilityMetadata): ProfileDefinition | null {
-  if (capability.kind !== "profile") {
+  if (capability.kind !== "core:profile") {
     return null;
   }
   const profile = readProfilePayload(capability);
@@ -123,7 +123,7 @@ export function profileFromCapability(capability: CapabilityMetadata): ProfileDe
 }
 
 function matchesProfileFilter(capability: CapabilityMetadata, filter: ProfileFilter): boolean {
-  if (capability.kind !== "profile") {
+  if (capability.kind !== "core:profile") {
     return false;
   }
   if (!filter.includeDisabled && capability.lifecycle === "disabled") {

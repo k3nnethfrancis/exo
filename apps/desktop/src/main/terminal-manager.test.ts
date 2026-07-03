@@ -720,9 +720,42 @@ describe("TerminalManager Codex readiness", () => {
         tmuxSessionName: expect.stringMatching(/^exo-[a-f0-9]{10}-term-1-\d{4}-/i),
         transcriptPath: expect.stringContaining("terminal-transcripts"),
         status: "running",
+        geometry: expect.objectContaining({
+          cols: 120,
+          rows: 32,
+          source: "initial-default",
+        }),
       }),
     ]);
     expect(registry.sessions[0]?.transcriptPath).toMatch(/term-1-shell-\d{4}-/);
+  });
+
+  it("records renderer geometry exactly and uses it on reconnect", async () => {
+    const workspaceRoot = await workspaceFixture();
+    const manager = managerForWorkspace(workspaceRoot);
+
+    const terminal = await manager.create({ kind: "shell", cwd: workspaceRoot });
+    await manager.resize(terminal.id, 12, 4);
+    const registryPath = path.join(workspaceRoot, ".exo", "terminal-sessions.json");
+    const registry = JSON.parse(await readFile(registryPath, "utf8")) as { sessions: Array<Record<string, unknown>> };
+
+    expect(ptyState.spawned[0]?.stdinWrites).toContain("refresh-client -C 12x4\n");
+    expect(manager.getInfo(terminal.id)?.geometry).toMatchObject({
+      cols: 12,
+      rows: 4,
+      source: "renderer-fit",
+    });
+    expect(registry.sessions[0]?.geometry).toMatchObject({
+      cols: 12,
+      rows: 4,
+      source: "renderer-fit",
+    });
+
+    mockLiveTmuxPanes(workspaceRoot, [spawnedTmuxSessionName(0)]);
+    ptyState.spawned[0].emitExit(1);
+    await manager.reconnect(terminal.id);
+
+    expect(ptyState.spawned[1]?.stdinWrites[0]).toBe("refresh-client -C 12x4\n");
   });
 
   it("does not reuse terminal display ids across app launches after explicit close", async () => {
@@ -770,6 +803,12 @@ describe("TerminalManager Codex readiness", () => {
             createdAt: new Date().toISOString(),
             lastAttachedAt: null,
             status: "running",
+            geometry: {
+              cols: 181,
+              rows: 47,
+              reportedAt: "2026-07-02T12:00:00.000Z",
+              source: "renderer-fit",
+            },
           },
         ],
       }),
@@ -793,6 +832,7 @@ describe("TerminalManager Codex readiness", () => {
     ]);
     expect(ptyState.spawned[0]?.command).toBe("tmux");
     expect(ptyState.spawned[0]?.args).toEqual(["-u", "-C", "attach-session", "-t", tmuxSessionName]);
+    expect(ptyState.spawned[0]?.stdinWrites[0]).toBe("refresh-client -C 181x47\n");
 
     await manager.create({ kind: "shell", cwd: workspaceRoot });
     expect(manager.list().map((session) => session.id)).toContain("term-8");
@@ -835,6 +875,12 @@ describe("TerminalManager Codex readiness", () => {
 
     const manager = managerForWorkspace(workspaceRoot);
 
+    expect(manager.getInfo("term-7")?.geometry).toMatchObject({
+      cols: 120,
+      rows: 32,
+      source: "initial-default",
+    });
+    expect(ptyState.spawned[0]?.stdinWrites[0]).toBe("refresh-client -C 120x32\n");
     expect(manager.readTail("term-7")).toContain("restored-history-001\r\nrestored-history-002");
     expect(childProcess.execFileSync.mock.calls).toContainEqual([
       "tmux",

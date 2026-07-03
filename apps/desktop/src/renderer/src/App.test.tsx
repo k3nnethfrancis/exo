@@ -382,18 +382,18 @@ describe("plugin manager model", () => {
     ];
     const groups = groupPluginInventoryItems(items);
 
-    expect(groups.map((group) => group.id)).toEqual(["core", "searchProvider", "agentHarness", "routineTemplate"]);
-    expect(groups.find((group) => group.id === "agentHarness")?.items.map((item) => item.id)).toEqual(["codex"]);
+    expect(groups.map((group) => group.id)).toEqual(["core", "core:searchProvider", "core:agentHarness", "core:routineTemplate"]);
+    expect(groups.find((group) => group.id === "core:agentHarness")?.items.map((item) => item.id)).toEqual(["codex"]);
     expect(buildPluginCategoryFilters(items)).toEqual([
       { id: "core", label: "Core", count: 1 },
-      { id: "searchProvider", label: "Search providers", count: 1 },
-      { id: "agentHarness", label: "Agent harnesses", count: 1 },
-      { id: "routineTemplate", label: "Routine templates", count: 1 },
-      { id: "profile", label: "Profiles", count: 0 },
-      { id: "graphVisualization", label: "Graph visualizations", count: 0 },
+      { id: "core:searchProvider", label: "Search providers", count: 1 },
+      { id: "core:agentHarness", label: "Agent harnesses", count: 1 },
+      { id: "core:routineTemplate", label: "Routine templates", count: 1 },
+      { id: "core:profile", label: "Profiles", count: 0 },
+      { id: "exo.graph:visualization", label: "Graph visualizations", count: 0 },
       { id: "other", label: "Other", count: 0 },
     ]);
-    expect(filterPluginInventoryItems(items, "searchProvider").map((item) => item.id)).toEqual(["qmd"]);
+    expect(filterPluginInventoryItems(items, "core:searchProvider").map((item) => item.id)).toEqual(["qmd"]);
   });
 
   it("filters inventory rows by management state within a selected category", () => {
@@ -417,7 +417,7 @@ describe("plugin manager model", () => {
       status: "missing-dependency" as const,
       statusLabel: "Missing dependency",
     };
-    const categoryItems = filterPluginInventoryItems([active, disabled, needsTrust, configurable, setupIssue], "searchProvider");
+    const categoryItems = filterPluginInventoryItems([active, disabled, needsTrust, configurable, setupIssue], "core:searchProvider");
 
     expect(buildPluginStateFilters(categoryItems).map((filter) => [filter.id, filter.count])).toEqual([
       ["all", 5],
@@ -508,7 +508,7 @@ describe("plugin manager model", () => {
   it("summarizes search provider and harness metadata for read-only details", () => {
     const searchSections = buildPluginDetailSections({
       ...pluginInventoryItem("local-search", "Local Search", "searchProvider", "Search providers", "localManifest"),
-      kind: "searchProvider",
+      kind: "core:searchProvider",
       permissions: ["workspace:read", "notes:read"],
       surfaces: ["desktop", "mcp"],
       readiness: {
@@ -528,7 +528,7 @@ describe("plugin manager model", () => {
     });
     const harnessSections = buildPluginDetailSections({
       ...pluginInventoryItem("pi", "Pi", "agentHarness", "Agent harnesses", "bundled"),
-      kind: "agentHarness",
+      kind: "core:agentHarness",
       status: "missing-dependency",
       statusLabel: "Needs inference backend",
       compatibility: {
@@ -592,7 +592,7 @@ describe("plugin manager model", () => {
   it("summarizes profile metadata for the read-only detail panel", () => {
     const profileItem: PluginInventoryItem = {
       ...pluginInventoryItem("exograph-baseline.profile", "Exograph Baseline", "profile", "Profiles", "localManifest"),
-      kind: "profile",
+      kind: "core:profile",
       compatibility: {
         profile: {
           recommendedPlugins: [{ id: "qmd", required: false }],
@@ -628,7 +628,7 @@ describe("plugin manager model", () => {
   it("summarizes routine template metadata for the read-only detail panel", () => {
     const sections = buildPluginDetailSections({
       ...pluginInventoryItem("graph-health.template", "Graph Health", "routineTemplate", "Routine templates", "localManifest"),
-      kind: "routineTemplate",
+      kind: "core:routineTemplate",
       compatibility: {
         routineTemplate: {
           harnessId: "claude",
@@ -654,7 +654,7 @@ describe("plugin manager model", () => {
   it("summarizes graph visualization metadata for the read-only detail panel", () => {
     const sections = buildPluginDetailSections({
       ...pluginInventoryItem("default-graph.view", "Default Graph", "graphVisualization", "Graph visualizations", "localManifest"),
-      kind: "graphVisualization",
+      kind: "exo.graph:visualization",
       compatibility: {
         graphDataVersion: "0.1",
         acceptedNodeKinds: ["note", "tag"],
@@ -1004,12 +1004,13 @@ function pluginInventoryItem(
   categoryLabel: string,
   source: PluginInventoryItem["source"],
 ): PluginInventoryItem {
+  const normalizedCategoryId = normalizeTestCapabilityCategory(categoryId);
   return {
     id,
     label,
     description: `${label} description`,
-    kind: categoryId === "core" ? "core" : categoryId as PluginInventoryItem["kind"],
-    categoryId,
+    kind: normalizedCategoryId === "core" ? "core" : normalizedCategoryId as PluginInventoryItem["kind"],
+    categoryId: normalizedCategoryId,
     categoryLabel,
     source,
     sourceLabel: source,
@@ -1024,6 +1025,23 @@ function pluginInventoryItem(
     status: "available",
     statusLabel: "Available",
   };
+}
+
+function normalizeTestCapabilityCategory(categoryId: string): string {
+  switch (categoryId) {
+    case "searchProvider":
+      return "core:searchProvider";
+    case "agentHarness":
+      return "core:agentHarness";
+    case "profile":
+      return "core:profile";
+    case "routineTemplate":
+      return "core:routineTemplate";
+    case "graphVisualization":
+      return "exo.graph:visualization";
+    default:
+      return categoryId;
+  }
 }
 
 function pluginInventory(items: PluginInventoryItem[]): PluginInventory {
@@ -1569,8 +1587,8 @@ describe("workspace onboarding model", () => {
     };
     const sections = buildOnboardingCapabilitySections(pluginInventory([codex, localProfile, qmd, core]));
 
-    expect(sections.map((section) => section.id)).toEqual(["core", "searchProvider", "agentHarness", "profile"]);
-    expect(sections.find((section) => section.id === "searchProvider")?.rows.map((row) => row.id)).toEqual(["qmd"]);
+    expect(sections.map((section) => section.id)).toEqual(["core", "core:searchProvider", "core:agentHarness", "core:profile"]);
+    expect(sections.find((section) => section.id === "core:searchProvider")?.rows.map((row) => row.id)).toEqual(["qmd"]);
     expect(onboardingCapabilityStatus(core)).toBe("Core, locked");
     expect(onboardingCapabilityStatus(qmd)).toBe("Official, available");
     expect(onboardingCapabilityStatus(localProfile)).toBe("Local, review needed");
@@ -1580,7 +1598,7 @@ describe("workspace onboarding model", () => {
   it("builds profile apply reviews as read-only plans with explicit blockers", () => {
     const profileItem: PluginInventoryItem = {
       ...pluginInventoryItem("lab.profile", "Lab profile", "profile", "Profiles", "localManifest"),
-      kind: "profile",
+      kind: "core:profile",
       compatibility: {
         profile: {
           recommendedPlugins: [{ id: "qmd", required: false }],
@@ -1616,7 +1634,7 @@ describe("workspace onboarding model", () => {
       },
       {
         ...pluginInventoryItem("lab.profile", "Lab profile", "profile", "Profiles", "localManifest"),
-        kind: "profile",
+        kind: "core:profile",
         compatibility: {
           profile: {
             recommendedPlugins: [{ id: "qmd", required: false }],

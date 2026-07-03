@@ -24,7 +24,7 @@ const manifest: PluginManifest = {
   capabilities: [
     {
       id: "workspace.template",
-      kind: "routineTemplate",
+      kind: "core:routineTemplate",
       label: "Workspace Template",
       description: "Workspace-owned routine template.",
       lifecycle: "experimental",

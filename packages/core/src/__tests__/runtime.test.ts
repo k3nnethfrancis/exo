@@ -23,17 +23,17 @@ describe("runtime", () => {
   it("exposes built-in agent harness metadata", () => {
     expect(builtInAgentHarnesses.shell.metadata).toMatchObject({
       id: "shell",
-      kind: "agentHarness",
+      kind: "core:agentHarness",
       lifecycle: "built-in",
     });
     expect(builtInAgentHarnesses.claude.metadata).toMatchObject({
       id: "claude",
-      kind: "agentHarness",
+      kind: "core:agentHarness",
       lifecycle: "built-in",
     });
     expect(builtInAgentHarnesses.codex.metadata).toMatchObject({
       id: "codex",
-      kind: "agentHarness",
+      kind: "core:agentHarness",
       lifecycle: "built-in",
     });
   });

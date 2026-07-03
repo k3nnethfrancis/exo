@@ -69,10 +69,10 @@ describe("tool surface descriptors", () => {
 
   it("turns trusted desktop routine and graph capabilities into future tool descriptors", () => {
     const descriptors = toolSurfaceDescriptorsFromInventory([
-      inventoryItem("graph-health.template", "routineTemplate", "official"),
-      inventoryItem("default-graph.view", "graphVisualization", "local"),
-      inventoryItem("blocked.template", "routineTemplate", "local", { trust: "untrusted" }),
-      inventoryItem("cli-only.view", "graphVisualization", "local", { surfaces: ["cli"] }),
+      inventoryItem("graph-health.template", "core:routineTemplate", "official"),
+      inventoryItem("default-graph.view", "exo.graph:visualization", "local"),
+      inventoryItem("blocked.template", "core:routineTemplate", "local", { trust: "untrusted" }),
+      inventoryItem("cli-only.view", "exo.graph:visualization", "local", { surfaces: ["cli"] }),
     ]);
 
     expect(descriptors).toMatchObject([
@@ -103,7 +103,7 @@ describe("tool surface descriptors", () => {
 
   it("attaches core web viewer endpoint metadata to web-preview graph descriptors", () => {
     const descriptors = toolSurfaceDescriptorsFromInventory([
-      inventoryItem("web-graph.view", "graphVisualization", "local", {
+      inventoryItem("web-graph.view", "exo.graph:visualization", "local", {
         compatibility: {
           graphVisualization: {
             graphDataVersion: "0.1",
@@ -228,7 +228,7 @@ function inventoryItem(
     surfaces: ["desktop"],
     permissions: [],
     compatibility:
-      kind === "graphVisualization"
+      kind === "exo.graph:visualization"
         ? {
             graphVisualization: {
               graphDataVersion: "0.1",

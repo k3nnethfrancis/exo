@@ -5,7 +5,7 @@ import { CapabilityRegistry, capabilityRegistry, createBuiltInCapabilityRegistry
 
 const disabledCapability: CapabilityMetadata = {
   id: "disabled-test",
-  kind: "analyzer",
+  kind: "exo.graph:analyzer",
   label: "Disabled Test",
   description: "Disabled test capability.",
   lifecycle: "disabled",
@@ -20,13 +20,13 @@ describe("capability registry", () => {
 
     expect(ids).toEqual(expect.arrayContaining(["qmd", "shell", "claude", "codex", "pi", "hermes"]));
     expect(capabilityRegistry.get("qmd")).toMatchObject({
-      kind: "searchProvider",
+      kind: "core:searchProvider",
       label: "QMD advanced search",
       description: expect.stringContaining("Core filename, path, and text search remains available"),
       lifecycle: "built-in",
     });
     expect(capabilityRegistry.get("claude")).toMatchObject({
-      kind: "agentHarness",
+      kind: "core:agentHarness",
       lifecycle: "built-in",
     });
   });
@@ -43,9 +43,9 @@ describe("capability registry", () => {
   it("filters capabilities by kind", () => {
     const registry = createBuiltInCapabilityRegistry();
 
-    expect(registry.listActive({ kind: "searchProvider" }).map((capability) => capability.id)).toEqual(["qmd"]);
-    expect(registry.listActive({ kind: "agentHarness" }).map((capability) => capability.id)).toEqual(["shell", "claude", "codex", "pi", "hermes"]);
-    expect(registry.listActive({ kind: "traceCollector" }).map((capability) => capability.id)).toEqual([]);
+    expect(registry.listActive({ kind: "core:searchProvider" }).map((capability) => capability.id)).toEqual(["qmd"]);
+    expect(registry.listActive({ kind: "core:agentHarness" }).map((capability) => capability.id)).toEqual(["shell", "claude", "codex", "pi", "hermes"]);
+    expect(registry.listActive({ kind: "exo.training:traceCollector" }).map((capability) => capability.id)).toEqual([]);
   });
 
   it("excludes disabled capabilities from active lists", () => {
@@ -61,7 +61,7 @@ describe("capability registry", () => {
       ...builtInCapabilities,
       {
         id: "internal-only-test",
-        kind: "routineTemplate",
+        kind: "core:routineTemplate",
         label: "Internal Only Test",
         description: "Internal-only test capability.",
         lifecycle: "experimental",

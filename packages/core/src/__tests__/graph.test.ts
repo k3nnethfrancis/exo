@@ -6,7 +6,7 @@ import type { DiscoveredPlugin, PluginManifest } from "../plugin";
 
 const graphCapability: CapabilityMetadata = {
   id: "default-graph.view",
-  kind: "graphVisualization",
+  kind: "exo.graph:visualization",
   label: "Default Graph",
   description: "Renders a core graph snapshot.",
   lifecycle: "experimental",

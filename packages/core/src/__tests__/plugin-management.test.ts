@@ -182,7 +182,7 @@ async function writePlugin(root: string, pluginId: string, capabilityId: string,
     capabilities: [
       {
         id: capabilityId,
-        kind: "profile",
+        kind: "core:profile",
         label: "Workspace Tools",
         description: "Workspace profile capability.",
         lifecycle: "experimental",

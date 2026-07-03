@@ -8,8 +8,22 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
 
 ## Current Ship Roadmap Tasks
 
+- [ ] Execute Terminal V4.1 geometry convergence work from Fable's proposal before treating terminal render bugs as isolated symptoms:
+  - [ ] Wave 1 fan-out in progress from `fable-exo-preflight-spec.md`: red geometry tests, geometry service base, terminal input escape pass, plain-attach spike, and plugin P1 namespaced capabilities.
+  - [ ] Write the reconnect-at-wrong-size red test before implementation.
+  - [ ] Write the wake/reconnect simulation red test before implementation.
+  - [ ] Implement recorded renderer geometry and attach/reconnect size assertion (`EXO-ISSUE-075`).
+  - [ ] Remove asymmetric tmux-only resize clamping or replace it with symmetric renderer-source enforcement.
+  - [ ] Add attach generations so renderer resize dedupe cannot suppress lifecycle geometry reassertion.
+  - [ ] Add geometry divergence diagnostics and a resync action.
+  - [ ] Implement byte-faithful live reconnect snapshots after size assertion.
+  - [ ] Run the plain tmux-attach spike in parallel as evidence, not as a product-path switch.
 - [ ] Finish Plugin Architecture Completion:
+  - [ ] Wave 1 plugin package in progress: migrate capability kinds to namespaced ids with legacy manifest alias shim and status-visible deprecation.
+  - [ ] Accept Fable's sequencing amendment: namespaced capabilities and scoped permissions land before the proposal/review write contract.
   - [ ] Add staged profile apply review with trust prompts and permission grants before any profile/plugin recommendation can write instructions, MCP config, skills, routines, settings, or grants.
+  - [ ] Design proposal/review write contract as the shared substrate for profile apply, project knowledge sync, graph maintenance, skill/config writes, and agent-suggested note edits.
+  - [ ] Design semantic trace contract early enough that harness adapters do not need another terminal-service re-plumb.
   - [ ] Tighten Plugin Manager into a management surface: active/disabled/untrusted/missing states, local plugin add/remove/swap, plugin-owned settings, readiness/dependency guidance, and no dense-layout overlap.
   - [ ] Split terminal/session substrate types from harness-adapter ids so `exo agents` derives launchable harnesses from registered harness plugins while `exo terminals` remains the low-level core terminal surface.
   - [ ] Define external plugin contracts for workload-specific trace collection, review labels, dataset export, eval packets, and instrumented agent runtimes.

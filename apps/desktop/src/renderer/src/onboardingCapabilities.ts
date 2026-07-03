@@ -18,10 +18,10 @@ export interface OnboardingProfileReview {
 
 const SECTION_ORDER = [
   ["core", "Core"],
-  ["searchProvider", "Search providers"],
-  ["agentHarness", "Agent harness readiness"],
-  ["profile", "Profiles"],
-  ["routineTemplate", "Routine templates"],
+  ["core:searchProvider", "Search providers"],
+  ["core:agentHarness", "Agent harness readiness"],
+  ["core:profile", "Profiles"],
+  ["core:routineTemplate", "Routine templates"],
 ] as const;
 
 export function buildOnboardingCapabilitySections(inventory: PluginInventory | null): OnboardingCapabilitySection[] {
@@ -73,7 +73,7 @@ export function buildOnboardingProfileReviews(inventory: PluginInventory | null)
     return [];
   }
   return inventory.items
-    .filter((item) => item.kind === "profile")
+    .filter((item) => item.kind === "core:profile")
     .map((item) => profileReview(item, inventory))
     .sort((a, b) => a.label.localeCompare(b.label));
 }
@@ -97,7 +97,7 @@ function profileReview(item: PluginInventoryItem, inventory: PluginInventory): O
   try {
     const profile = profileFromCapability({
       id: item.id,
-      kind: "profile",
+      kind: "core:profile",
       label: item.label,
       description: item.description,
       lifecycle: item.lifecycle,

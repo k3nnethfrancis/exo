@@ -161,6 +161,8 @@ export class TmuxControlModeProcess {
       for (const action of splitTmuxInput(data)) {
         if (action.kind === "key") {
           this.sendKeys([action.key]);
+        } else if (action.kind === "paste") {
+          this.pasteLiteral(action.value);
         } else if (action.value.length > 0) {
           this.sendLiteral(action.value);
         }
@@ -343,7 +345,7 @@ function tmuxUtf8Args(args: string[]): string[] {
   return ["-u", ...args];
 }
 
-type TmuxInputAction = { kind: "literal"; value: string } | { kind: "key"; key: string };
+type TmuxInputAction = { kind: "literal"; value: string } | { kind: "key"; key: string } | { kind: "paste"; value: string };
 
 const TMUX_KEY_SEQUENCES: Array<[string, string]> = [
   ["\u001b[A", "Up"],
@@ -382,6 +384,17 @@ function splitTmuxInput(data: string): TmuxInputAction[] {
   };
 
   for (let index = 0; index < data.length;) {
+    if (data.startsWith("\u001b[200~", index)) {
+      const pasteStart = index + "\u001b[200~".length;
+      const pasteEnd = data.indexOf("\u001b[201~", pasteStart);
+      if (pasteEnd >= 0) {
+        pushLiteral();
+        chunks.push({ kind: "paste", value: data.slice(pasteStart, pasteEnd) });
+        index = pasteEnd + "\u001b[201~".length;
+        continue;
+      }
+    }
+
     const sequence = TMUX_KEY_SEQUENCES.find(([candidate]) => data.startsWith(candidate, index));
     if (sequence) {
       pushLiteral();
@@ -398,6 +411,12 @@ function splitTmuxInput(data: string): TmuxInputAction[] {
       pushLiteral();
       chunks.push({ kind: "key", key: "C-c" });
     } else if (char === "\u001b") {
+      const escapeSequenceEnd = unknownEscapeSequenceEnd(data, index);
+      if (escapeSequenceEnd > index + 1) {
+        literal += data.slice(index, escapeSequenceEnd);
+        index = escapeSequenceEnd;
+        continue;
+      }
       pushLiteral();
       chunks.push({ kind: "key", key: "Escape" });
     } else if (char === "\u007f") {
@@ -412,6 +431,41 @@ function splitTmuxInput(data: string): TmuxInputAction[] {
   }
   pushLiteral();
   return chunks;
+}
+
+function unknownEscapeSequenceEnd(data: string, start: number): number {
+  const next = data[start + 1];
+  if (next === undefined) {
+    return start + 1;
+  }
+
+  if (next === "[") {
+    for (let index = start + 2; index < data.length; index += 1) {
+      const code = data.charCodeAt(index);
+      if (code >= 0x40 && code <= 0x7e) {
+        return index + 1;
+      }
+    }
+    return data.length;
+  }
+
+  if (next === "]") {
+    for (let index = start + 2; index < data.length; index += 1) {
+      if (data[index] === "\u0007") {
+        return index + 1;
+      }
+      if (data[index] === "\u001b" && data[index + 1] === "\\") {
+        return index + 2;
+      }
+    }
+    return data.length;
+  }
+
+  const codePoint = data.codePointAt(start + 1);
+  if (codePoint === undefined) {
+    return start + 1;
+  }
+  return start + 1 + (codePoint > 0xffff ? 2 : 1);
 }
 
 function sanitizeTmuxName(value: string): string {

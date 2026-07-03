@@ -88,7 +88,7 @@ function profileCandidatesFromInventory(
   profilePreviews: Record<string, ProfilePreviewLoadEntry>,
 ): ProfileSettingsCandidate[] {
   return inventory.items
-    .filter((item) => item.kind === "profile")
+    .filter((item) => item.kind === "core:profile")
     .map((item) => profileCandidate(item, inventory, state, profilePreviews[item.id]))
     .sort((a, b) => {
       const aBaseline = a.id === "exograph-baseline.profile" || a.label === "Exograph Baseline";

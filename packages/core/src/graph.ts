@@ -136,7 +136,7 @@ export function graphVisualizationsFromPlugin(
 }
 
 export function graphVisualizationFromCapability(capability: CapabilityMetadata): GraphVisualizationDefinition | null {
-  if (capability.kind !== "graphVisualization") {
+  if (capability.kind !== "exo.graph:visualization") {
     return null;
   }
   const payload = graphVisualizationPayload(capability);
@@ -186,7 +186,7 @@ export function deriveGraphBacklinks(snapshot: GraphSnapshot): GraphBacklink[] {
 }
 
 function matchesGraphVisualizationFilter(capability: CapabilityMetadata, filter: GraphVisualizationFilter): boolean {
-  if (capability.kind !== "graphVisualization") {
+  if (capability.kind !== "exo.graph:visualization") {
     return false;
   }
   if (!filter.includeDisabled && capability.lifecycle === "disabled") {

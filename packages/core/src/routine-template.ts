@@ -98,7 +98,7 @@ export function routineTemplatesFromPlugin(plugin: DiscoveredPlugin, filter: Rou
 }
 
 function matchesRoutineTemplateFilter(capability: CapabilityMetadata, filter: RoutineTemplateFilter): boolean {
-  if (capability.kind !== "routineTemplate") {
+  if (capability.kind !== "core:routineTemplate") {
     return false;
   }
   if (!filter.includeDisabled && capability.lifecycle === "disabled") {
@@ -111,7 +111,7 @@ function matchesRoutineTemplateFilter(capability: CapabilityMetadata, filter: Ro
 }
 
 export function routineTemplateFromCapability(capability: CapabilityMetadata): RoutineTemplateDefinition | null {
-  if (capability.kind !== "routineTemplate") {
+  if (capability.kind !== "core:routineTemplate") {
     return null;
   }
   const template = readRoutineTemplatePayload(capability);

@@ -2,12 +2,12 @@ import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 
 import type {
-  CapabilityKind,
   CapabilityLifecycle,
   CapabilityMetadata,
   CapabilityPermission,
   CapabilitySurface,
 } from "./capabilities";
+import { parseCapabilityKind } from "./capabilities";
 import { hashPluginManifest } from "./plugin-state";
 
 export const EXO_PLUGIN_MANIFEST_FILE = "exo.plugin.json";
@@ -113,19 +113,8 @@ export interface PluginLifecycleStatus {
   canLoadEntrypoints: false;
   canGrantPermissions: false;
   reason: string;
+  statusNotes: string[];
 }
-
-const CAPABILITY_KINDS = [
-  "searchProvider",
-  "agentHarness",
-  "profile",
-  "analyzer",
-  "traceCollector",
-  "datasetExporter",
-  "evalRunner",
-  "routineTemplate",
-  "graphVisualization",
-] satisfies CapabilityKind[];
 
 const CAPABILITY_LIFECYCLES = ["built-in", "experimental", "disabled"] satisfies CapabilityLifecycle[];
 
@@ -327,6 +316,7 @@ export function resolvePluginLifecycle(plugin: DiscoveredPlugin): PluginLifecycl
     canLoadEntrypoints: false,
     canGrantPermissions: false,
     reason: lifecycleReason(plugin, active),
+    statusNotes: plugin.manifest.capabilities.flatMap((capability) => capability.statusNotes ?? []),
   };
 }
 
@@ -410,9 +400,10 @@ function validateCapabilityMetadata(input: unknown): CapabilityMetadata {
   if (!isRecord(input)) {
     throw new Error("Plugin capability must be an object.");
   }
+  const parsedKind = parseCapabilityKind(requiredString(input, "kind"));
   const capability: CapabilityMetadata = {
     id: requiredString(input, "id"),
-    kind: validateEnum(requiredString(input, "kind"), CAPABILITY_KINDS, "capability.kind"),
+    kind: parsedKind.kind,
     label: requiredString(input, "label"),
     description: requiredString(input, "description"),
     lifecycle: validateEnum(requiredString(input, "lifecycle"), CAPABILITY_LIFECYCLES, "capability.lifecycle"),
@@ -420,6 +411,7 @@ function validateCapabilityMetadata(input: unknown): CapabilityMetadata {
     surfaces: validateSurfaces(input.surfaces, "capability.surfaces"),
     permissions: validatePermissions(input.permissions, "capability.permissions"),
     compatibility: isRecord(input.compatibility) ? input.compatibility : undefined,
+    statusNotes: parsedKind.deprecationNote ? [parsedKind.deprecationNote] : undefined,
   };
   assertIdentifier(capability.id, "Capability id");
   return capability;

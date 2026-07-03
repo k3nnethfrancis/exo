@@ -165,6 +165,7 @@ function startCommandServer() {
     onWriteTerminal: (id: string, data: string) => terminalManager.write(id, data),
     onSendTerminalMessage: (id: string, message: string, submit: boolean) => terminalManager.sendMessage(id, message, submit),
     onReconnectTerminal: (id: string) => terminalManager.reconnect(id),
+    onReconnectRecoverableTerminals: () => terminalManager.reconnectRecoverableTerminals(),
     onKillTerminal: (id: string) => terminalManager.kill(id),
     onGetSettings: () => workspaceSettingsService.currentSettings(),
     onGetStatus: () => ({
@@ -648,7 +649,7 @@ async function previewWorkspaceProfile(input: ActiveProfileIdentity) {
   if (!item) {
     throw new Error(`Unable to find profile in current plugin inventory: ${input.profileId}`);
   }
-  if (item.kind !== "profile") {
+  if (item.kind !== "core:profile") {
     throw new Error(`Selected capability is not a profile: ${input.capabilityId}`);
   }
   const profile = profileFromCapability(capabilityFromInventoryItem(item));
@@ -659,7 +660,7 @@ async function previewWorkspaceProfile(input: ActiveProfileIdentity) {
 }
 
 function profileInventoryItemMatches(item: PluginInventoryItem, identity: ActiveProfileIdentity): boolean {
-  if (item.kind !== "profile") {
+  if (item.kind !== "core:profile") {
     return false;
   }
   const profileId = profileIdFromInventoryItem(item);
@@ -686,7 +687,7 @@ function optionalIdentityMatch(left: string | undefined, right: string | undefin
 function capabilityFromInventoryItem(item: PluginInventoryItem): CapabilityMetadata {
   return {
     id: item.id,
-    kind: "profile",
+    kind: "core:profile",
     label: item.label,
     description: item.description,
     lifecycle: item.lifecycle,

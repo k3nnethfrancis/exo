@@ -51,6 +51,7 @@ export interface PluginInventoryRuntimeSummary {
   canLoadEntrypoints: false;
   canGrantPermissions: false;
   reason: string;
+  statusNotes: string[];
 }
 
 export interface PluginInventoryPermissionSummary {
@@ -102,6 +103,7 @@ export interface PluginInventoryItem {
   settings?: PluginInventorySettingsSummary;
   permissionGrants?: PluginInventoryPermissionSummary;
   runtime?: PluginInventoryRuntimeSummary;
+  statusNotes?: string[];
 }
 
 export interface PluginInventoryError {
@@ -264,7 +266,7 @@ function bundledCapabilityItem(
   harness: AgentHarnessDetection | undefined,
   readiness: PluginInventoryReadinessSummary | undefined,
 ): PluginInventoryItem {
-  const isHarness = capability.kind === "agentHarness";
+  const isHarness = capability.kind === "core:agentHarness";
   const enabled = capability.lifecycle !== "disabled" && (!isHarness || harness?.enabled !== false);
   return {
     id: capability.id,
@@ -295,6 +297,7 @@ function bundledCapabilityItem(
     })),
     compatibility: capability.compatibility,
     readiness,
+    statusNotes: capability.statusNotes,
   };
 }
 
@@ -336,6 +339,7 @@ function pluginInventoryItems(
       settings,
       permissionGrants,
       runtime,
+      statusNotes: capability.statusNotes,
     };
   });
 }
@@ -347,6 +351,7 @@ function runtimeSummary(plugin: DiscoveredPlugin): PluginInventoryRuntimeSummary
     canLoadEntrypoints: lifecycle.canLoadEntrypoints,
     canGrantPermissions: lifecycle.canGrantPermissions,
     reason: lifecycle.reason,
+    statusNotes: lifecycle.statusNotes,
   };
 }
 
@@ -378,23 +383,23 @@ function permissionSummary(
 
 function capabilityKindLabel(kind: CapabilityMetadata["kind"]): string {
   switch (kind) {
-    case "agentHarness":
+    case "core:agentHarness":
       return "Agent harnesses";
-    case "analyzer":
+    case "exo.graph:analyzer":
       return "Analyzers";
-    case "datasetExporter":
+    case "exo.training:datasetExporter":
       return "Dataset exporters";
-    case "evalRunner":
+    case "exo.training:evalRunner":
       return "Eval runners";
-    case "profile":
+    case "core:profile":
       return "Profiles";
-    case "routineTemplate":
+    case "core:routineTemplate":
       return "Routine templates";
-    case "searchProvider":
+    case "core:searchProvider":
       return "Search providers";
-    case "traceCollector":
+    case "exo.training:traceCollector":
       return "Trace collectors";
-    case "graphVisualization":
+    case "exo.graph:visualization":
       return "Graph visualizations";
   }
 }

@@ -1,7 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-import type { TerminalKind, TerminalSessionInfo } from "../shared/api";
+import type { TerminalGeometryRecord, TerminalKind, TerminalSessionInfo } from "../shared/api";
+import { isTerminalGeometryRecord } from "./terminal-geometry-service";
 
 export interface PersistedTerminalSession {
   id: string;
@@ -20,6 +21,7 @@ export interface PersistedTerminalSession {
   readiness?: TerminalSessionInfo["readiness"];
   readinessDetail?: string;
   healthDetail?: string;
+  geometry?: TerminalGeometryRecord;
 }
 
 export interface PersistedTerminalRegistry {
@@ -44,7 +46,15 @@ export class TerminalSessionRegistry {
     }
     try {
       const parsed = JSON.parse(readFileSync(this.filePath, "utf8")) as { sessions?: unknown; nextId?: unknown };
-      const sessions = Array.isArray(parsed.sessions) ? parsed.sessions.filter(isPersistedTerminalSession) : [];
+      const sessions = Array.isArray(parsed.sessions)
+        ? parsed.sessions.reduce<PersistedTerminalSession[]>((entries, value) => {
+            const session = normalizePersistedTerminalSession(value);
+            if (session) {
+              entries.push(session);
+            }
+            return entries;
+          }, [])
+        : [];
       const sessionNextId = sessions.reduce((next, session) => Math.max(next, terminalNumericId(session.id) + 1), 1);
       const persistedNextId = typeof parsed.nextId === "number" && Number.isFinite(parsed.nextId) ? Math.floor(parsed.nextId) : 1;
       return { sessions, nextId: Math.max(1, sessionNextId, persistedNextId) };
@@ -75,6 +85,7 @@ export class TerminalSessionRegistry {
       readiness: entry.info.readiness,
       readinessDetail: entry.info.readinessDetail,
       healthDetail: entry.info.healthDetail,
+      geometry: entry.info.geometry,
     }));
     mkdirSync(path.dirname(this.filePath), { recursive: true });
     writeFileSync(this.filePath, JSON.stringify({ version: 1, nextId, sessions }, null, 2));
@@ -86,12 +97,12 @@ export function terminalNumericId(id: string): number {
   return match ? Number(match[1]) : 0;
 }
 
-function isPersistedTerminalSession(value: unknown): value is PersistedTerminalSession {
+function normalizePersistedTerminalSession(value: unknown): PersistedTerminalSession | null {
   if (!value || typeof value !== "object") {
-    return false;
+    return null;
   }
   const session = value as Partial<PersistedTerminalSession>;
-  return (
+  const valid = (
     typeof session.id === "string" &&
     typeof session.title === "string" &&
     typeof session.cwd === "string" &&
@@ -101,4 +112,11 @@ function isPersistedTerminalSession(value: unknown): value is PersistedTerminalS
     typeof session.transcriptPath === "string" &&
     (session.status === "running" || session.status === "exited" || session.status === "missing" || session.status === "unhealthy")
   );
+  if (!valid) {
+    return null;
+  }
+  return {
+    ...session,
+    geometry: isTerminalGeometryRecord(session.geometry) ? session.geometry : undefined,
+  } as PersistedTerminalSession;
 }

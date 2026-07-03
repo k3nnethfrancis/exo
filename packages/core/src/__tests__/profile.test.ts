@@ -6,7 +6,7 @@ import type { DiscoveredPlugin, PluginManifest } from "../plugin";
 
 const profileCapability: CapabilityMetadata = {
   id: "shoshin.profile",
-  kind: "profile",
+  kind: "core:profile",
   label: "Shoshin Profile",
   description: "Shoshin exograph conventions.",
   lifecycle: "experimental",
@@ -116,7 +116,7 @@ describe("profile capability metadata", () => {
   });
 
   it("returns null for non-profile capabilities", () => {
-    expect(profileFromCapability({ ...profileCapability, kind: "routineTemplate" })).toBeNull();
+    expect(profileFromCapability({ ...profileCapability, kind: "core:routineTemplate" })).toBeNull();
   });
 
   it("filters profiles by disabled lifecycle and surface", () => {

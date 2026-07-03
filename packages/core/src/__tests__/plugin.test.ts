@@ -27,7 +27,7 @@ const manifest: PluginManifest = {
   capabilities: [
     {
       id: "example.trace",
-      kind: "traceCollector",
+      kind: "exo.training:traceCollector",
       label: "Example Trace Collector",
       description: "Collects example traces.",
       lifecycle: "experimental",
@@ -37,7 +37,7 @@ const manifest: PluginManifest = {
     },
     {
       id: "example.routine",
-      kind: "routineTemplate",
+      kind: "core:routineTemplate",
       label: "Example Routine",
       description: "Ships an example routine template.",
       lifecycle: "experimental",
@@ -47,7 +47,7 @@ const manifest: PluginManifest = {
     },
     {
       id: "example.profile",
-      kind: "profile",
+      kind: "core:profile",
       label: "Example Profile",
       description: "Ships an example profile bundle.",
       lifecycle: "experimental",
@@ -62,7 +62,7 @@ const manifest: PluginManifest = {
     },
     {
       id: "example.graph-view",
-      kind: "graphVisualization",
+      kind: "exo.graph:visualization",
       label: "Example Graph View",
       description: "Renders graph snapshots.",
       lifecycle: "experimental",
@@ -82,6 +82,29 @@ const manifest: PluginManifest = {
 describe("plugin manifest contracts", () => {
   it("parses and validates plugin manifests", () => {
     expect(parsePluginManifest(JSON.stringify(manifest))).toEqual(manifest);
+  });
+
+  it("normalizes legacy bare capability kinds with a deprecation status note", () => {
+    const parsed = validatePluginManifest({
+      ...manifest,
+      capabilities: [
+        {
+          ...manifest.capabilities[1]!,
+          kind: "routineTemplate",
+        },
+      ],
+    });
+
+    expect(parsed.capabilities[0]).toMatchObject({
+      id: "example.routine",
+      kind: "core:routineTemplate",
+      statusNotes: [
+        expect.stringContaining('Capability kind "routineTemplate" is deprecated; use "core:routineTemplate"'),
+      ],
+    });
+    expect(resolvePluginLifecycle(discovered(parsed, "trusted")).statusNotes).toEqual([
+      expect.stringContaining("remove legacy capability kind aliases after one release cycle"),
+    ]);
   });
 
   it("rejects malformed manifests", () => {

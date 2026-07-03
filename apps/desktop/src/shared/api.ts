@@ -27,6 +27,13 @@ export type TerminalKind = ManagedAgentKind;
 export type TerminalHealthState = "healthy" | "idle" | "unhealthy" | "exited";
 export type WorkspaceSettingsSection = "workspace" | "profile" | "index" | "appearance" | "terminal";
 
+export interface TerminalGeometryRecord {
+  cols: number;
+  rows: number;
+  reportedAt: string;
+  source: "renderer-fit" | "initial-default";
+}
+
 export interface TerminalSessionInfo {
   id: string;
   title: string;
@@ -42,6 +49,7 @@ export interface TerminalSessionInfo {
   queuedInputCount?: number;
   health?: TerminalHealthState;
   healthDetail?: string;
+  geometry?: TerminalGeometryRecord;
 }
 
 export interface TerminalCreateOptions {

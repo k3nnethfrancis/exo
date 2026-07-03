@@ -56,6 +56,37 @@ describe("TerminalSessionRegistry", () => {
     });
   });
 
+  it("keeps otherwise valid older sessions when optional geometry is malformed", async () => {
+    const filePath = await registryFixture({
+      sessions: [
+        {
+          id: "term-7",
+          title: "Shell",
+          cwd: "/tmp/work",
+          kind: "shell",
+          command: "/bin/zsh",
+          tmuxSessionName: "exo-session",
+          transcriptPath: "/tmp/work/.exo/terminal-transcripts/term-7.ansi.log",
+          createdAt: "2026-06-21T00:00:00.000Z",
+          lastAttachedAt: null,
+          status: "running",
+          geometry: { cols: 0, rows: "bad", reportedAt: "not-a-date", source: "renderer-fit" },
+        },
+      ],
+    });
+
+    const loaded = new TerminalSessionRegistry(filePath).load();
+    expect(loaded).toMatchObject({
+      nextId: 8,
+      sessions: [
+        {
+          id: "term-7",
+        },
+      ],
+    });
+    expect(loaded.sessions[0]?.geometry).toBeUndefined();
+  });
+
   it("saves the byte-compatible terminal registry shape", async () => {
     const filePath = await registryFixture({ sessions: [], nextId: 1 });
     const registry = new TerminalSessionRegistry(filePath);
@@ -74,6 +105,12 @@ describe("TerminalSessionRegistry", () => {
           readiness: "starting",
           readinessDetail: "Waiting briefly for Codex startup interstitials.",
           healthDetail: "Process exited with code 1.",
+          geometry: {
+            cols: 144,
+            rows: 45,
+            reportedAt: "2026-07-02T12:00:00.000Z",
+            source: "renderer-fit",
+          },
         },
         tmuxSessionName: "exo-session",
         tmuxPaneId: "%1",
@@ -93,6 +130,11 @@ describe("TerminalSessionRegistry", () => {
           status: "exited",
           tmuxPaneId: "%1",
           readiness: "starting",
+          geometry: {
+            cols: 144,
+            rows: 45,
+            source: "renderer-fit",
+          },
         },
       ],
     });

@@ -20,8 +20,16 @@ export function terminalSessionsEqual(left: TerminalSessionInfo[], right: Termin
       leftSession.queuedInputCount === rightSession.queuedInputCount &&
       leftSession.health === rightSession.health &&
       leftSession.healthDetail === rightSession.healthDetail &&
-      leftSession.instructionOverlayPath === rightSession.instructionOverlayPath;
+      leftSession.instructionOverlayPath === rightSession.instructionOverlayPath &&
+      terminalGeometryEqual(leftSession.geometry, rightSession.geometry);
   });
+}
+
+function terminalGeometryEqual(left: TerminalSessionInfo["geometry"], right: TerminalSessionInfo["geometry"]): boolean {
+  return left?.cols === right?.cols &&
+    left?.rows === right?.rows &&
+    left?.reportedAt === right?.reportedAt &&
+    left?.source === right?.source;
 }
 
 export function isReconnectableSession(session: TerminalSessionInfo): boolean {

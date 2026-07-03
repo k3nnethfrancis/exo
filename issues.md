@@ -8,6 +8,37 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ## Open
 
+### EXO-ISSUE-075: Terminal geometry divergence causes render drift and hard-refresh recovery loops
+
+- Status: open
+- Severity: critical
+- Area: terminal architecture, tmux control-mode bridge, xterm rendering, reconnect/sleep-wake
+- Source:
+  - `fable-exo-review.md`
+  - `fable-exo-architecture-proposal.md`
+  - Field reports previously tracked under `EXO-ISSUE-056`, `EXO-ISSUE-062`, `EXO-ISSUE-067`, `EXO-ISSUE-069`, and `EXO-ISSUE-072`
+- Observed:
+  - Claude/Codex terminal output can drift, duplicate headers, corrupt borders/glyphs, lose visible scrollback, or require hard refresh to recover.
+  - Preview/focus/reconnect/sleep-wake paths can leave xterm and tmux disagreeing about the pane geometry.
+  - The current implementation creates and reconnects tmux control-mode bridges using default dimensions when a live renderer size may already exist.
+  - Renderer resize dedupe can suppress the one resize that should reassert geometry after attach/reconnect.
+  - Main-process resize clamps tmux dimensions independently from xterm, creating possible permanent width/height disagreement.
+- Expected:
+  - Renderer measurement is the authoritative terminal geometry source.
+  - Main stores last-known geometry per terminal session and uses it for every create/attach/reconnect/restore path.
+  - tmux follows the recorded renderer geometry; diagnostics compare tmux pane/client size against the recorded size and surface divergence as an unhealthy state.
+  - Resize dedupe is invalidated by attach/reconnect generations.
+  - Live reconnect snapshots are byte-faithful and captured after size assertion.
+  - No terminal render fix merges unless it preserves Terminal V4/V4.1 invariants and adds deterministic coverage for the failure class.
+- Acceptance:
+  - Add red→green reconnect-at-wrong-size coverage to `pnpm terminal:check`.
+  - Add wake/reconnect simulation coverage to `pnpm terminal:check`.
+  - Add a `TerminalGeometryService` or equivalent owner for recorded renderer geometry.
+  - All attach/reconnect/restore paths use recorded geometry when available.
+  - Main-side asymmetric resize clamping is removed or replaced with symmetric renderer-source enforcement.
+  - Geometry divergence appears in diagnostics/health with a clear resync path.
+  - Existing terminal render corruption issues are either resolved by this causal fix or reclassified with new deterministic fixtures.
+
 ### EXO-ISSUE-074: Computer Use visual QA can fail to inspect the running Exo app
 
 - Status: open

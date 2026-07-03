@@ -15,7 +15,7 @@ const graphHealthManifest: PluginManifest = {
   capabilities: [
     {
       id: "graph-health.template",
-      kind: "routineTemplate",
+      kind: "core:routineTemplate",
       label: "Graph Health",
       description: "Audit graph health.",
       lifecycle: "experimental",
@@ -25,7 +25,7 @@ const graphHealthManifest: PluginManifest = {
     },
     {
       id: "shoshin.profile",
-      kind: "profile",
+      kind: "core:profile",
       label: "Shoshin Profile",
       description: "Shoshin graph conventions.",
       lifecycle: "experimental",
@@ -40,7 +40,7 @@ const graphHealthManifest: PluginManifest = {
     },
     {
       id: "graph-health.view",
-      kind: "graphVisualization",
+      kind: "exo.graph:visualization",
       label: "Graph Health View",
       description: "Visualizes graph-health snapshots.",
       lifecycle: "experimental",

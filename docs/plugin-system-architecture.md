@@ -82,6 +82,20 @@ The active profile is workspace state, not just another plugin row. A profile ma
 
 Near-term Exo should prove the first two layers with official and local metadata plugins. Arbitrary executable plugin loading is a later security/product decision, not a prerequisite for making QMD, agent harnesses, routines, analyzers, and dashboards plugin-shaped.
 
+Capability kinds are namespaced ids. Legacy bare manifest kinds are accepted only at parse time, normalized to the namespaced id, and surfaced with a deprecation status note for one release cycle.
+
+| Legacy kind | Namespaced id | Status |
+|---|---|---|
+| `searchProvider` | `core:searchProvider` | hosted by core |
+| `agentHarness` | `core:agentHarness` | hosted by core |
+| `profile` | `core:profile` | hosted by core |
+| `routineTemplate` | `core:routineTemplate` | hosted by core |
+| `analyzer` | `exo.graph:analyzer` | inert (no host) |
+| `graphVisualization` | `exo.graph:visualization` | inert |
+| `traceCollector` | `exo.training:traceCollector` | inert |
+| `datasetExporter` | `exo.training:datasetExporter` | inert |
+| `evalRunner` | `exo.training:evalRunner` | inert |
+
 Profiles are bundles, not individual runtime capabilities. A profile can declare recommended plugins, graph metadata conventions, AGENTS.md/CLAUDE.md templates, MCP config templates, skills to install or enable, routine templates, default graph views, analyzer settings, and output/review policies. A profile may depend on plugins, but it should not hide executable code inside configuration. If a profile needs executable behavior, it should depend on an explicit plugin capability.
 
 Project knowledge sync belongs in this same family. Many projects have useful local Markdown control files while the user also has a central exograph. Exo should not assume one side always wins. A profile or sync plugin can declare which file names or regex patterns matter, what scopes they apply to, whether the relationship is symlink/copy/index/proposal/remote-sync, and what conflict policy applies. Core should provide roots, file observation, graph references, provenance, and review surfaces; the plugin/profile owns the convention.

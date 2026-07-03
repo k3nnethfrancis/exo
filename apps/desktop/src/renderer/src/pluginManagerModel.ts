@@ -95,11 +95,11 @@ const SOURCE_ORDER: Record<PluginInventoryItem["source"], number> = {
 
 const CATEGORY_ORDER = [
   ["core", "Core"],
-  ["searchProvider", "Search providers"],
-  ["agentHarness", "Agent harnesses"],
-  ["routineTemplate", "Routine templates"],
-  ["profile", "Profiles"],
-  ["graphVisualization", "Graph visualizations"],
+  ["core:searchProvider", "Search providers"],
+  ["core:agentHarness", "Agent harnesses"],
+  ["core:routineTemplate", "Routine templates"],
+  ["core:profile", "Profiles"],
+  ["exo.graph:visualization", "Graph visualizations"],
 ] as const;
 
 export function groupPluginInventoryItems(items: PluginInventoryItem[]): PluginInventoryGroup[] {
@@ -388,15 +388,15 @@ function categorySort(categoryId: string): number {
   switch (categoryId) {
     case "core":
       return 0;
-    case "searchProvider":
+    case "core:searchProvider":
       return 1;
-    case "agentHarness":
+    case "core:agentHarness":
       return 2;
-    case "routineTemplate":
+    case "core:routineTemplate":
       return 3;
-    case "profile":
+    case "core:profile":
       return 4;
-    case "graphVisualization":
+    case "exo.graph:visualization":
       return 5;
     default:
       return 10;
@@ -446,19 +446,19 @@ export function buildPluginDetailSections(
     });
   }
 
-  if (item.kind === "searchProvider") {
+  if (item.kind === "core:searchProvider") {
     sections.push(...searchProviderDetailSections(item));
   }
-  if (item.kind === "agentHarness") {
+  if (item.kind === "core:agentHarness") {
     sections.push(...agentHarnessDetailSections(item));
   }
-  if (item.kind === "profile") {
+  if (item.kind === "core:profile") {
     sections.push(...profileDetailSections(item, inventory));
   }
-  if (item.kind === "routineTemplate") {
+  if (item.kind === "core:routineTemplate") {
     sections.push(...routineTemplateDetailSections(item));
   }
-  if (item.kind === "graphVisualization") {
+  if (item.kind === "exo.graph:visualization") {
     sections.push(...graphVisualizationDetailSections(item));
   }
   if (item.manifestPath || item.rootDirectory) {

@@ -17,6 +17,7 @@ export const EXO_COMMAND_ROUTES = {
   projectRoot: (target: string) => `/project-roots/${encodeURIComponent(target)}`,
   terminals: "/terminals",
   terminalDiagnostics: "/terminals/diagnostics",
+  terminalReconnectRecoverable: "/terminals/reconnect-recoverable",
   terminalTail: (id: string, lines?: number) => {
     const query = lines && lines > 0 ? `?lines=${encodeURIComponent(String(lines))}` : "";
     return `/terminals/${encodeURIComponent(id)}/tail${query}`;
@@ -87,6 +88,10 @@ export interface ExoOpenPreviewResponse {
 }
 
 export interface ExoPreviewCommandResponse {
+  ok: true;
+}
+
+export interface ExoReconnectRecoverableTerminalsResponse {
   ok: true;
 }
 

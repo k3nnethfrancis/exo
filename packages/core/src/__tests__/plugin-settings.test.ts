@@ -21,7 +21,7 @@ const manifest: PluginManifest = {
   capabilities: [
     {
       id: "settings.profile",
-      kind: "profile",
+      kind: "core:profile",
       label: "Settings Profile",
       description: "Profile with settings.",
       lifecycle: "experimental",

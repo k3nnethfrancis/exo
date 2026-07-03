@@ -11,7 +11,7 @@ import {
 
 const templateCapability: CapabilityMetadata = {
   id: "graph-health.template",
-  kind: "routineTemplate",
+  kind: "core:routineTemplate",
   label: "Graph Health",
   description: "Audit graph structure and write a review artifact.",
   lifecycle: "experimental",
@@ -67,7 +67,7 @@ describe("routine template contracts", () => {
       routineTemplateFromCapability({
         ...templateCapability,
         id: "qmd",
-        kind: "searchProvider",
+        kind: "core:searchProvider",
       }),
     ).toBeNull();
   });

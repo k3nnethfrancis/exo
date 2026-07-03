@@ -33,7 +33,7 @@ describe("QMD index adapter", () => {
   it("exposes QMD search-provider metadata", () => {
     expect(qmdSearchProvider.metadata).toMatchObject({
       id: "qmd",
-      kind: "searchProvider",
+      kind: "core:searchProvider",
       label: "QMD advanced search",
       description: expect.stringContaining("Bundled advanced local Markdown search provider plugin"),
       lifecycle: "built-in",

@@ -315,6 +315,31 @@ describe("CommandServer terminal routes", () => {
       server.stop();
     }
   });
+
+  it("reconnects recoverable terminal bridges over HTTP", async () => {
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-command-server-"));
+    tempPaths.push(runtimeRoot);
+    let reconnected = false;
+    const server = new CommandServer({
+      ...commandServerOptions(runtimeRoot),
+      onReconnectRecoverableTerminals: () => {
+        reconnected = true;
+      },
+    });
+
+    try {
+      const port = await server.start();
+      const response = await fetch(`http://127.0.0.1:${port}/terminals/reconnect-recoverable`, {
+        method: "POST",
+      });
+
+      expect(response.ok).toBe(true);
+      await expect(response.json()).resolves.toEqual({ ok: true });
+      expect(reconnected).toBe(true);
+    } finally {
+      server.stop();
+    }
+  });
 });
 
 async function fetchJson(url: string): Promise<any> {
@@ -366,6 +391,7 @@ function commandServerOptions(runtimeRoot: string): CommandServerOptions {
     onWriteTerminal: async () => ({ ok: true, delivery: "sent" }),
     onSendTerminalMessage: async () => ({ ok: true, delivery: "sent" }),
     onReconnectTerminal: async () => null,
+    onReconnectRecoverableTerminals: () => {},
     onKillTerminal: async () => {},
     onGetSettings: () => workspaceSettings(),
     onGetStatus: () => ({ ok: true }),

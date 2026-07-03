@@ -32,7 +32,7 @@ describe("surface contribution policy", () => {
   it("hides disabled capabilities from every surface", () => {
     const disabled: CapabilityMetadata = {
       id: "disabled-surface-test",
-      kind: "analyzer",
+      kind: "exo.graph:analyzer",
       label: "Disabled Surface Test",
       description: "Disabled test capability.",
       lifecycle: "disabled",

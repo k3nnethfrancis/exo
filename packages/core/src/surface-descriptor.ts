@@ -164,9 +164,9 @@ export function toolSurfaceDescriptorsFromInventory(items: PluginInventoryItem[]
     .filter((item) => item.enabled && item.trust === "trusted" && item.surfaces.includes("desktop"))
     .flatMap((item) => {
       switch (item.kind) {
-        case "routineTemplate":
+        case "core:routineTemplate":
           return [capabilityToolDescriptor(item, { type: "routineTemplate.open", routineTemplateId: item.id }, "toolDockPane")];
-        case "graphVisualization":
+        case "exo.graph:visualization":
           return [
             capabilityToolDescriptor(item, { type: "graphVisualization.open", graphVisualizationId: item.id }, "toolDockPane", {
               graphVisualization: graphVisualizationMetadataFromInventoryItem(item),
@@ -184,7 +184,7 @@ export function toolSurfaceDescriptorsFromCapabilities(capabilities: CapabilityM
     .filter((capability) => isCapabilityAvailableOnSurface(capability, "desktop"))
     .flatMap((capability) => {
       switch (capability.kind) {
-        case "routineTemplate":
+        case "core:routineTemplate":
           return [
             capabilityToolDescriptor(
               {
@@ -202,7 +202,7 @@ export function toolSurfaceDescriptorsFromCapabilities(capabilities: CapabilityM
               "toolDockPane",
             ),
           ];
-        case "graphVisualization":
+        case "exo.graph:visualization":
           return [
             capabilityToolDescriptor(
               {
@@ -369,12 +369,12 @@ function graphVisualizationWebViewerMetadataFromCapability(capability: Capabilit
 }
 
 function graphVisualizationMetadataFromInventoryItem(item: PluginInventoryItem): GraphVisualizationToolMetadata | undefined {
-  if (item.kind !== "graphVisualization") {
+  if (item.kind !== "exo.graph:visualization") {
     return undefined;
   }
   return graphVisualizationMetadataFromCapability({
     id: item.id,
-    kind: "graphVisualization",
+    kind: "exo.graph:visualization",
     label: item.label,
     description: item.description,
     lifecycle: item.lifecycle,
@@ -386,12 +386,12 @@ function graphVisualizationMetadataFromInventoryItem(item: PluginInventoryItem):
 }
 
 function graphVisualizationWebViewerMetadataFromInventoryItem(item: PluginInventoryItem): CoreWebViewerToolMetadata | undefined {
-  if (item.kind !== "graphVisualization") {
+  if (item.kind !== "exo.graph:visualization") {
     return undefined;
   }
   return graphVisualizationWebViewerMetadataFromCapability({
     id: item.id,
-    kind: "graphVisualization",
+    kind: "exo.graph:visualization",
     label: item.label,
     description: item.description,
     lifecycle: item.lifecycle,

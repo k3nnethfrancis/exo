@@ -285,7 +285,7 @@ async function writeRoutinePlugin(root: string, options: { capabilities?: unknow
 function routineTemplateCapability(overrides: Record<string, unknown> = {}, templateOverrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     id: "graph-health.template",
-    kind: "routineTemplate",
+    kind: "core:routineTemplate",
     label: "Graph Health",
     description: "Audit graph structure and write a report.",
     lifecycle: "experimental",

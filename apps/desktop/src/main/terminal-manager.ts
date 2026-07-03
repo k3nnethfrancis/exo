@@ -40,6 +40,7 @@ import { terminalHealth, terminalHealthDetail } from "./terminal-health";
 import { selectTerminalLiveTail } from "./terminal-live-tail-policy";
 import type { TerminalRuntime, TerminalRuntimePaneInfo, TerminalRuntimeProcess } from "./terminal-runtime";
 import { TmuxTerminalRuntime } from "./terminal-runtime-tmux";
+import { TerminalGeometryService } from "./terminal-geometry-service";
 import { TerminalSessionRegistry, type PersistedTerminalSession } from "./terminal-session-registry";
 import { TerminalTailCache, normalizeTailLineLimit } from "./terminal-tail-cache";
 import { sanitizeTranscriptName, TerminalTranscriptStore } from "./terminal-transcripts";
@@ -104,6 +105,7 @@ export class TerminalManager extends EventEmitter {
   private nextWriteId = 1;
   private sessionRegistry = this.createSessionRegistry();
   private terminalRuntimeOptions: Required<TerminalRuntimeOptions>;
+  private geometryService: TerminalGeometryService;
 
   constructor(
     private defaultCwd: string,
@@ -116,6 +118,7 @@ export class TerminalManager extends EventEmitter {
     this.bufferLineLimit = normalizeBufferLineLimit(bufferLineLimit);
     this.transcriptRetentionDays = normalizeTranscriptRetentionDays(transcriptRetentionDays);
     this.terminalRuntimeOptions = normalizeTerminalRuntimeOptions(terminalRuntimeOptions);
+    this.geometryService = this.createGeometryService();
     this.transcripts = this.createTranscriptStore();
     this.restorePersistedSessions();
   }
@@ -212,6 +215,7 @@ export class TerminalManager extends EventEmitter {
 
   setTerminalRuntimeOptions(options: TerminalRuntimeOptions) {
     this.terminalRuntimeOptions = normalizeTerminalRuntimeOptions(options);
+    this.geometryService = this.createGeometryService();
   }
 
   private terminalHealth(record: TerminalRecord, now = Date.now()): TerminalHealthState {
@@ -250,6 +254,8 @@ export class TerminalManager extends EventEmitter {
     const spawnArgs = harnessLaunchArgs(options.kind, launch.args, this.runtimeConfig, launch.cwd);
     const createdAt = new Date().toISOString();
     const launchToken = `${id}-${createdAt}-${randomUUID().slice(0, 8)}`;
+    const geometry = this.geometryService.initialDefault(createdAt);
+    const attachSize = this.geometryService.attachSize(geometry);
     const runtimeSession = this.terminalRuntime.createSession({
       sessionToken: launchToken,
       workspaceRoot: this.runtimeConfig.workspace.workspaceRoot,
@@ -257,8 +263,8 @@ export class TerminalManager extends EventEmitter {
       args: spawnArgs,
       cwd: launch.cwd,
       env,
-      cols: this.terminalRuntimeOptions.initialColumns,
-      rows: this.terminalRuntimeOptions.initialRows,
+      cols: attachSize.cols,
+      rows: attachSize.rows,
       historyLimit: this.tmuxHistoryLimit(),
     });
     const tmuxSessionName = runtimeSession.sessionName;
@@ -278,6 +284,7 @@ export class TerminalManager extends EventEmitter {
       readiness: initialHarnessReadiness(options.kind),
       readinessDetail: initialHarnessReadinessDetail(options.kind),
       queuedInputCount: 0,
+      geometry,
     };
 
     const record: TerminalRecord = {
@@ -355,6 +362,7 @@ export class TerminalManager extends EventEmitter {
     }
 
     record.reconnecting = true;
+    const attachSize = this.geometryService.attachSize(record.info.geometry ?? this.geometryService.initialDefault());
     try {
       record.process.kill();
     } catch {
@@ -368,8 +376,8 @@ export class TerminalManager extends EventEmitter {
         sessionName: record.tmuxSessionName,
         paneId: record.tmuxPaneId,
         cwd: record.info.cwd,
-        cols: this.terminalRuntimeOptions.initialColumns,
-        rows: this.terminalRuntimeOptions.initialRows,
+        cols: attachSize.cols,
+        rows: attachSize.rows,
       });
     } catch (error) {
       record.reconnecting = false;
@@ -434,11 +442,11 @@ export class TerminalManager extends EventEmitter {
       return;
     }
 
+    const geometry = this.geometryService.rendererFit(cols, rows);
+    record.info.geometry = geometry;
+    this.persistSessions();
     try {
-      record.process.resize(
-        Math.max(this.terminalRuntimeOptions.minimumColumns, cols),
-        Math.max(this.terminalRuntimeOptions.minimumRows, rows),
-      );
+      record.process.resize(geometry.cols, geometry.rows);
     } catch (error) {
       record.bridgeDetached = true;
       record.info.health = "unhealthy";
@@ -723,6 +731,10 @@ export class TerminalManager extends EventEmitter {
     return new TerminalSessionRegistry(path.join(this.runtimeConfig.runtimeRoot, "terminal-sessions.json"));
   }
 
+  private createGeometryService(): TerminalGeometryService {
+    return new TerminalGeometryService(this.terminalRuntimeOptions.initialColumns, this.terminalRuntimeOptions.initialRows);
+  }
+
   private allocateTerminalId(): string {
     const id = `term-${this.nextId}`;
     this.nextId += 1;
@@ -898,12 +910,14 @@ export class TerminalManager extends EventEmitter {
 
       try {
         const tmuxPaneId = session.tmuxPaneId ?? livePane.paneId;
+        const geometry = this.geometryService.fromPersisted(session.geometry);
+        const attachSize = this.geometryService.attachSize(geometry);
         const processHandle = this.terminalRuntime.attachSession({
           sessionName: session.tmuxSessionName,
           paneId: tmuxPaneId,
           cwd: session.cwd,
-          cols: this.terminalRuntimeOptions.initialColumns,
-          rows: this.terminalRuntimeOptions.initialRows,
+          cols: attachSize.cols,
+          rows: attachSize.rows,
         });
         const record: TerminalRecord = {
           info: {
@@ -917,6 +931,7 @@ export class TerminalManager extends EventEmitter {
             status: "running",
             readiness: "ready",
             queuedInputCount: 0,
+            geometry,
           },
           process: processHandle,
           tmuxSessionName: session.tmuxSessionName,
@@ -975,6 +990,7 @@ export class TerminalManager extends EventEmitter {
         health: state.health,
         healthDetail: state.healthDetail,
         exitCode: session.exitCode,
+        geometry: this.geometryService.fromPersisted(session.geometry),
       },
       process: noopTerminalProcess(),
       tmuxSessionName: session.tmuxSessionName,
