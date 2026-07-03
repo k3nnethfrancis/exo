@@ -19,6 +19,7 @@ import { InspectorDock } from "./components/InspectorDock";
 import { OnboardingCapabilityReview } from "./components/OnboardingCapabilityReview";
 import { PathList } from "./components/PathList";
 import { PluginManagerDialog } from "./components/PluginManagerDialog";
+import { ProposalReviewDialog } from "./components/ProposalReviewDialog";
 import { ShellLayout } from "./components/ShellLayout";
 import { TerminalDock } from "./components/TerminalDock";
 import { WorkspaceSettingsDialog } from "./components/WorkspaceSettingsDialog";
@@ -27,6 +28,7 @@ import { useAppKeybindings } from "./hooks/useAppKeybindings";
 import { useOpenDocuments } from "./hooks/useOpenDocuments";
 import { usePaneDropOrchestration } from "./hooks/usePaneDropOrchestration";
 import { useProjectReviewState } from "./hooks/useProjectReviewState";
+import { useProposalReviewState } from "./hooks/useProposalReviewState";
 import { useShellLayout } from "./hooks/useShellLayout";
 import { useTerminalPaneController, type TerminalPaneController } from "./hooks/useTerminalPaneController";
 import { useTerminalSessions } from "./hooks/useTerminalSessions";
@@ -80,6 +82,7 @@ export function App() {
   const [editorRevealLineRequest, setEditorRevealLineRequest] = useState<{ filePath: string; line: number; nonce: number } | null>(null);
   const [agentContextManagerOpen, setAgentContextManagerOpen] = useState(false);
   const [pluginManagerOpen, setPluginManagerOpen] = useState(false);
+  const [proposalReviewOpen, setProposalReviewOpen] = useState(false);
   const [profileState, setProfileState] = useState<ProfileStateStore | null>(null);
   const [noteChangesOpen, setNoteChangesOpen] = useState(false);
   const agentInstructionEditor = useAgentInstructionEditor();
@@ -158,6 +161,7 @@ export function App() {
     indexBusy,
   } = workspaceSettingsController;
   const projectReviewState = useProjectReviewState(workspaceModel, terminalSessions);
+  const proposalReviewState = useProposalReviewState();
   const noteGitChanges = projectReviewState.noteGitChanges;
   const openDocumentsState = useOpenDocuments({
     workspaceModel,
@@ -1062,6 +1066,7 @@ export function App() {
         gitDirty: projectReviewState.workspaceGitStatus?.dirty ?? false,
         changedFiles: projectReviewChanges.length,
         changedNotes: noteGitChanges.length,
+        pendingProposals: proposalReviewState.pendingProposalCount,
         profileReviewRequired: profileState?.reviewRequired ?? false,
         profileLabel: profileState?.activeProfile?.profileId ?? null,
         index: indexStatusLine,
@@ -1229,6 +1234,11 @@ export function App() {
       onAppearanceModeChange={updateAppearanceMode}
       onOpenWorkspaceSettings={() => void workspaceSettingsController.openDialog()}
       onOpenPluginManager={() => setPluginManagerOpen(true)}
+      onOpenProposalReview={() => {
+        proposalReviewState.clearLastApplyResult();
+        setProposalReviewOpen(true);
+        void proposalReviewState.refreshProposals();
+      }}
       onOpenIndexSettings={() => void workspaceSettingsController.openDialog("index")}
       onOpenProjectChanges={() => void openProjectChangesFromStatus()}
       onOpenNoteChanges={() => setNoteChangesOpen(true)}
@@ -1324,6 +1334,12 @@ export function App() {
       ) : null}
       {pluginManagerOpen ? (
         <PluginManagerDialog onClose={() => setPluginManagerOpen(false)} />
+      ) : null}
+      {proposalReviewOpen ? (
+        <ProposalReviewDialog
+          review={proposalReviewState}
+          onClose={() => setProposalReviewOpen(false)}
+        />
       ) : null}
       {noteChangesOpen ? (
         <ChangedNotesDialog

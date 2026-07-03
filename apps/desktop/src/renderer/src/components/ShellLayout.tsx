@@ -48,6 +48,7 @@ interface ShellLayoutProps {
     gitDirty: boolean;
     changedFiles: number;
     changedNotes: number;
+    pendingProposals: number;
     profileReviewRequired: boolean;
     profileLabel: string | null;
     index: IndexStatusLine;
@@ -86,6 +87,7 @@ interface ShellLayoutProps {
   onOpenWorkspaceSettings: () => void;
   onOpenAgentConfigEditor: () => void;
   onOpenPluginManager: () => void;
+  onOpenProposalReview: () => void;
   onOpenIndexSettings: () => void;
   onOpenProjectChanges: () => void;
   onOpenNoteChanges: () => void;
@@ -129,6 +131,7 @@ export function ShellLayout(props: ShellLayoutProps) {
     onOpenWorkspaceSettings,
     onOpenAgentConfigEditor,
     onOpenPluginManager,
+    onOpenProposalReview,
     onOpenIndexSettings,
     onOpenProjectChanges,
     onOpenNoteChanges,
@@ -395,6 +398,17 @@ export function ShellLayout(props: ShellLayoutProps) {
               type="button"
             >
               Profile review
+            </button>
+          ) : null}
+          {statusLine.pendingProposals > 0 ? (
+            <button
+              className="statusbar__changes statusbar__changes--proposals"
+              data-testid="statusbar-proposals"
+              onClick={onOpenProposalReview}
+              title="Review proposed workspace changes"
+              type="button"
+            >
+              {statusLine.pendingProposals} proposal{statusLine.pendingProposals === 1 ? "" : "s"}
             </button>
           ) : null}
           {statusLine.changedNotes > 0 ? (

@@ -12,6 +12,9 @@ import type {
   PluginInventory,
   PluginSettingsSchema,
   PluginSettingValue,
+  ProposalApplyResult,
+  ProposalBatch,
+  ProposalDecision,
   ProfilePlanPreview,
   PluginSource,
   ResolvedPluginSettings,
@@ -341,6 +344,9 @@ export interface DesktopApi {
     readPluginSettings: (input: WorkspacePluginActionInput) => Promise<WorkspacePluginSettingsResponse>;
     updatePluginSettings: (input: WorkspacePluginSettingsInput) => Promise<WorkspacePluginSettingsResponse>;
     resetPluginSettings: (input: WorkspacePluginActionInput) => Promise<WorkspacePluginSettingsResponse>;
+    listProposals: () => Promise<ProposalBatch[]>;
+    readProposal: (id: string) => Promise<ProposalBatch | null>;
+    decideProposal: (id: string, input: { decision: ProposalDecision; itemId?: string }) => Promise<ProposalApplyResult>;
     saveAgentInstructionConfig: (input: {
       scopeId: AgentInstructionScopeId;
       body: string;

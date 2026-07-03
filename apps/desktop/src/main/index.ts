@@ -47,6 +47,8 @@ import {
   type PluginInventoryItem,
   type PluginInventoryReadinessSummary,
   type PluginStateAction,
+  type ProposalApplyResult,
+  type ProposalDecision,
   type WorkspaceModel,
   type WorkspaceSettings,
 } from "@exo/core";
@@ -147,30 +149,12 @@ function startCommandServer() {
       return { ok: true };
     },
     onCreateProposal: async (proposal) => {
-      const store = new ProposalReviewStore(resolveRuntimeConfig().runtimeRoot);
-      await store.writeProposal(proposal);
+      await writeWorkspaceProposal(proposal);
       return proposal;
     },
-    onListProposals: () => new ProposalReviewStore(resolveRuntimeConfig().runtimeRoot).listProposals(),
-    onReadProposal: (id) => new ProposalReviewStore(resolveRuntimeConfig().runtimeRoot).readProposal(id),
-    onDecideProposal: async (id, input) => {
-      const store = new ProposalReviewStore(resolveRuntimeConfig().runtimeRoot);
-      let appliedResult: Awaited<ReturnType<typeof applyProposalToWorkspace>> | null = null;
-      await store.updateProposal(id, async (proposal) => {
-        appliedResult = await applyProposalToWorkspace(proposal, {
-          workspaceRoot: workspaceModel.workspaceRoot,
-          decision: input.decision,
-          itemId: input.itemId,
-          surface: "cli",
-          decidedAt: new Date().toISOString(),
-        });
-        return appliedResult.proposal;
-      });
-      if (!appliedResult) {
-        throw new Error(`Proposal not found: ${id}`);
-      }
-      return appliedResult;
-    },
+    onListProposals: () => listWorkspaceProposals(),
+    onReadProposal: (id) => readWorkspaceProposal(id),
+    onDecideProposal: (id, input) => decideWorkspaceProposal(id, input, "cli"),
     onSearch: (query: string) => searchWorkspace(workspaceModel, query),
     onIndexSearch: (query, options) => searchIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot, query, options),
     onReadDocument: (target, options) => readIndexDocument(workspaceModel, resolveRuntimeConfig().runtimeRoot, target, options),
@@ -381,6 +365,9 @@ function registerIpcHandlers() {
     readPluginSettings: (input) => readPluginSettings(input),
     updatePluginSettings: (input) => updatePluginSettings(input),
     resetPluginSettings: (input) => resetPluginSettings(input),
+    listProposals: () => listWorkspaceProposals(),
+    readProposal: (id) => readWorkspaceProposal(id),
+    decideProposal: (id, input) => decideWorkspaceProposal(id, input, "ui"),
     getBranchFamily: (filePath) => workspaceNotesService.getBranchFamily(filePath),
     getGitStatus: (rootPath) => projectReviewService.getGitStatus(rootPath),
     getIndexStatus: () => indexingService.getMeasuredStatus(),
@@ -448,6 +435,45 @@ async function readPluginInventory() {
     harnesses: terminalManager.getRuntimeConfig().harnesses,
     readinessByCapabilityId,
   });
+}
+
+function proposalStore(): ProposalReviewStore {
+  return new ProposalReviewStore(resolveRuntimeConfig().runtimeRoot);
+}
+
+async function writeWorkspaceProposal(proposal: Parameters<ProposalReviewStore["writeProposal"]>[0]): Promise<string> {
+  return proposalStore().writeProposal(proposal);
+}
+
+async function listWorkspaceProposals() {
+  return proposalStore().listProposals();
+}
+
+async function readWorkspaceProposal(id: string) {
+  return proposalStore().readProposal(id);
+}
+
+async function decideWorkspaceProposal(
+  id: string,
+  input: { decision: ProposalDecision; itemId?: string },
+  surface: "ui" | "cli",
+): Promise<ProposalApplyResult> {
+  const store = proposalStore();
+  let appliedResult: ProposalApplyResult | null = null;
+  await store.updateProposal(id, async (proposal) => {
+    appliedResult = await applyProposalToWorkspace(proposal, {
+      workspaceRoot: workspaceModel.workspaceRoot,
+      decision: input.decision,
+      itemId: input.itemId,
+      surface,
+      decidedAt: new Date().toISOString(),
+    });
+    return appliedResult.proposal;
+  });
+  if (!appliedResult) {
+    throw new Error(`Proposal not found: ${id}`);
+  }
+  return appliedResult;
 }
 
 async function pluginReadinessByCapabilityId(): Promise<Record<string, PluginInventoryReadinessSummary>> {

@@ -43,6 +43,9 @@ export interface WorkspaceIpcHandlers {
   readPluginSettings: WorkspaceApi["readPluginSettings"];
   updatePluginSettings: WorkspaceApi["updatePluginSettings"];
   resetPluginSettings: WorkspaceApi["resetPluginSettings"];
+  listProposals: WorkspaceApi["listProposals"];
+  readProposal: WorkspaceApi["readProposal"];
+  decideProposal: WorkspaceApi["decideProposal"];
   listAgentHarnesses: WorkspaceApi["listAgentHarnesses"];
   listAgentInstructionOverlays: WorkspaceApi["listAgentInstructionOverlays"];
   listAgentSkills: WorkspaceApi["listAgentSkills"];
@@ -141,6 +144,9 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
   handleDesktopInvoke("workspace:read-plugin-settings", async (_event, input) => handlers.readPluginSettings(input));
   handleDesktopInvoke("workspace:update-plugin-settings", async (_event, input) => handlers.updatePluginSettings(input));
   handleDesktopInvoke("workspace:reset-plugin-settings", async (_event, input) => handlers.resetPluginSettings(input));
+  handleDesktopInvoke("workspace:list-proposals", async () => handlers.listProposals());
+  handleDesktopInvoke("workspace:read-proposal", async (_event, id) => handlers.readProposal(id));
+  handleDesktopInvoke("workspace:decide-proposal", async (_event, id, input) => handlers.decideProposal(id, input));
   handleDesktopInvoke("workspace:save-agent-instruction-config", async (_event, input) =>
     handlers.saveAgentInstructionConfig(input),
   );
