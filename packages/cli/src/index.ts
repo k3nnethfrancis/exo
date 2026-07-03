@@ -51,8 +51,10 @@ import {
 
 const TERMINAL_KIND_USAGE = formatManagedAgentKindUsage();
 const TERMINAL_KIND_EXPECTED = `Expected one of: ${TERMINAL_KIND_USAGE.replaceAll("|", ", ")}.`;
+const defaultStartWaitTimeoutMs = 20_000;
+const startWaitPollIntervalMs = 250;
 
-import { AppClient, formatAppClientDiscoveryFailure, type AppClientWriteResult } from "./app-client";
+import { AppClient, formatAppClientDiscoveryFailure, type AppClientDiscoveryFailure, type AppClientWriteResult } from "./app-client";
 
 interface CommandRunResult {
   code: number;
@@ -1070,10 +1072,43 @@ async function startExoApp(options: {
     child.on("exit", (code) => {
       if (code) {
         options.stderr.write(`Unable to start Exo app at ${appPath}.\n`);
+        resolve(code ?? 1);
+        return;
       }
-      resolve(code ?? 0);
+      waitForStartedApp(options.env, options.stderr).then(resolve, reject);
     });
   });
+}
+
+async function waitForStartedApp(
+  env: NodeJS.ProcessEnv,
+  stderr: { write: (text: string) => void },
+): Promise<number> {
+  const timeoutMs = parsePositiveInt(env.EXO_START_TIMEOUT_MS) ?? defaultStartWaitTimeoutMs;
+  const deadline = Date.now() + timeoutMs;
+  const config = await resolveCliRuntimeConfig(env);
+  let lastFailure: AppClientDiscoveryFailure | undefined;
+
+  while (Date.now() < deadline) {
+    const result = await AppClient.connectDetailed(config.runtimeRoot, env);
+    if (result.ok) {
+      return 0;
+    }
+    lastFailure = result.failure;
+    await sleep(startWaitPollIntervalMs);
+  }
+
+  stderr.write(`Timed out waiting ${timeoutMs}ms for Exo command server after launching the app.\n`);
+  if (lastFailure) {
+    stderr.write(formatAppClientDiscoveryFailure(lastFailure));
+  } else {
+    stderr.write([
+      `Runtime root: ${config.runtimeRoot}`,
+      `Discovery file: ${path.join(config.runtimeRoot, "server.json")}`,
+      "",
+    ].join("\n"));
+  }
+  return 1;
 }
 
 async function connectOrFail(
@@ -1399,6 +1434,10 @@ function parsePositiveInt(value: string | undefined): number | undefined {
   }
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function stripAnsi(input: string): string {

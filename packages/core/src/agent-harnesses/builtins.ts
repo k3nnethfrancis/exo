@@ -1,8 +1,9 @@
 import path from "node:path";
-import { accessSync, constants, existsSync } from "node:fs";
+import { accessSync, constants, existsSync, readFileSync } from "node:fs";
 
 import { builtInCapabilities, type CapabilityMetadata } from "../capabilities";
-import type { AgentHarness, AgentHarnessMap } from "../agent-harness";
+import type { AgentHarness, AgentHarnessMap, HarnessLaunchArgsContext } from "../agent-harness";
+import { buildExoMcpServerSpec } from "../integrations";
 import type {
   AgentHarnessAdapterId,
   AgentHarnessDependencyStatus,
@@ -10,6 +11,64 @@ import type {
   AgentLauncherConfig,
   ManagedAgentKind,
 } from "../types";
+import type { RuntimeConfig } from "../types";
+
+const SHELL_SEMANTIC_MESSAGES = {
+  modes: ["stdin"],
+  defaultMode: "stdin",
+  supportsMultiline: true,
+  submitOnEnter: true,
+  detail: "Shell semantic messages are written as plain stdin text.",
+} as const;
+
+const PASTE_ENTER_SEMANTIC_MESSAGES = {
+  modes: ["paste-enter"],
+  defaultMode: "paste-enter",
+  supportsMultiline: true,
+  submitOnEnter: true,
+  detail: "Agent semantic messages use bracketed paste, then Enter when submitted.",
+} as const;
+
+const CODEX_SEMANTIC_MESSAGES = {
+  ...PASTE_ENTER_SEMANTIC_MESSAGES,
+  queueSubmittedInputUntilReady: true,
+  readiness: {
+    signal: "prompt-pattern",
+    patterns: [
+      "\\bask codex\\b",
+      "\\bopenai codex\\b",
+      "\\btype (?:a )?message\\b",
+      "\\bwhat can i help\\b",
+      "\\bcodex is ready\\b",
+    ],
+    initialReadiness: "starting",
+    initialDetail: "Waiting briefly for Codex startup interstitials.",
+    readyDetail: "Codex chat input is ready.",
+    graceReadyDetail: "Codex startup grace elapsed.",
+    blockedPatterns: [
+      {
+        id: "trust",
+        readiness: "blocked",
+        patterns: [
+          "\\bdo you trust\\b",
+          "\\btrust (?:the )?(?:files|folder|directory|workspace|repo|repository)\\b",
+          "\\b(?:folder|directory|workspace|repo|repository).{0,80}\\btrust\\b",
+        ],
+        detail: "Codex startup trust prompt is waiting for interactive confirmation.",
+      },
+      {
+        id: "update",
+        readiness: "blocked",
+        patterns: [
+          "\\bupdate available\\b(?=.*\\bskip until next version\\b)",
+          "\\bskip until next version\\b(?=.*\\bupdate available\\b)",
+        ],
+        detail: "Codex startup update prompt is waiting for Skip, Skip until next version, or Update.",
+      },
+    ],
+    detail: "Codex startup readiness waits for chat-input prompt text and blocks queued sends at trust/update interstitials.",
+  },
+} as const;
 
 function splitEnvArgs(rawValue?: string): string[] {
   if (!rawValue) {
@@ -212,6 +271,90 @@ function withCodexReasoningEffortOverride(args: string[], env: NodeJS.ProcessEnv
   return configuredArgs;
 }
 
+function withCodexMcpOverrides(args: readonly string[], config: RuntimeConfig, cwd: string): string[] {
+  const exoRoot = findExoRepoRoot(config, cwd);
+  if (!exoRoot) {
+    return [...args];
+  }
+
+  const spec = buildExoMcpServerSpec({
+    exoRoot,
+    workspaceRoot: config.workspace.workspaceRoot,
+  });
+
+  return [
+    ...args,
+    "-c",
+    `mcp_servers.${spec.serverName}.command=${tomlString(spec.command)}`,
+    "-c",
+    `mcp_servers.${spec.serverName}.args=${tomlStringArray(spec.args)}`,
+    "-c",
+    `mcp_servers.${spec.serverName}.env=${tomlInlineTable(spec.env)}`,
+  ];
+}
+
+function findExoRepoRoot(config: RuntimeConfig, cwd: string): string | null {
+  const candidates = [
+    cwd,
+    process.cwd(),
+    config.workspace.workspaceRoot,
+    config.workspace.defaultTerminalCwd,
+    ...config.workspace.projectRoots.map((root) => root.path),
+  ];
+
+  for (const candidate of candidates) {
+    const root = findExoRepoRootFrom(candidate);
+    if (root) {
+      return root;
+    }
+  }
+
+  return null;
+}
+
+function findExoRepoRootFrom(startPath: string): string | null {
+  let current = path.resolve(startPath);
+  while (true) {
+    if (isExoRepoRoot(current)) {
+      return current;
+    }
+    const parent = path.dirname(current);
+    if (parent === current) {
+      return null;
+    }
+    current = parent;
+  }
+}
+
+function isExoRepoRoot(candidate: string): boolean {
+  const packageJsonPath = path.join(candidate, "package.json");
+  const mcpLauncherPath = path.join(candidate, "packages", "mcp", "bin", "exo-mcp.mjs");
+  if (!existsSync(packageJsonPath) || !existsSync(mcpLauncherPath)) {
+    return false;
+  }
+
+  try {
+    const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as { name?: string };
+    return packageJson.name === "exo";
+  } catch {
+    return false;
+  }
+}
+
+function tomlString(value: string): string {
+  return JSON.stringify(value);
+}
+
+function tomlStringArray(values: string[]): string {
+  return `[${values.map(tomlString).join(", ")}]`;
+}
+
+function tomlInlineTable(values: Record<string, string>): string {
+  return `{${Object.entries(values)
+    .map(([key, value]) => `${key}=${tomlString(value)}`)
+    .join(", ")}}`;
+}
+
 function normalizeCodexReasoningEffort(rawValue?: string): "minimal" | "low" | "medium" | "high" {
   switch (rawValue) {
     case "minimal":
@@ -225,10 +368,19 @@ function normalizeCodexReasoningEffort(rawValue?: string): "minimal" | "low" | "
 }
 
 class ShellAgentHarness implements AgentHarness {
+  readonly contractVersion = "agent-harness.v1";
   readonly kind = "shell";
   readonly title = "Terminal";
   readonly metadata = resolveCapabilityMetadata(this.kind);
+  readonly adapter = {
+    id: "shell",
+    family: "shell",
+    productName: "Shell",
+    executableNames: ["zsh", "bash", "sh"],
+  } as const;
   readonly skills = [];
+  readonly semanticMessages = SHELL_SEMANTIC_MESSAGES;
+  readonly terminalOwnership = "core";
 
   resolveLauncher(env: NodeJS.ProcessEnv): AgentLauncherConfig {
     const command = env.EXO_SHELL ?? env.SHELL ?? "/bin/zsh";
@@ -256,10 +408,20 @@ class ShellAgentHarness implements AgentHarness {
 }
 
 class ClaudeAgentHarness implements AgentHarness {
+  readonly contractVersion = "agent-harness.v1";
   readonly kind = "claude";
   readonly title = "Claude";
   readonly metadata = resolveCapabilityMetadata(this.kind);
+  readonly adapter = {
+    id: "claude-code",
+    family: "claude-code",
+    productName: "Claude Code",
+    executableNames: ["claude"],
+    documentationUrl: "https://docs.anthropic.com/en/docs/claude-code",
+  } as const;
   readonly skills = [];
+  readonly semanticMessages = PASTE_ENTER_SEMANTIC_MESSAGES;
+  readonly terminalOwnership = "core";
 
   resolveLauncher(env: NodeJS.ProcessEnv): AgentLauncherConfig {
     return {
@@ -289,10 +451,20 @@ class ClaudeAgentHarness implements AgentHarness {
 }
 
 class CodexAgentHarness implements AgentHarness {
+  readonly contractVersion = "agent-harness.v1";
   readonly kind = "codex";
   readonly title = "Codex";
   readonly metadata = resolveCapabilityMetadata(this.kind);
+  readonly adapter = {
+    id: "codex",
+    family: "codex",
+    productName: "Codex CLI",
+    executableNames: ["codex"],
+    documentationUrl: "https://developers.openai.com/codex/cli/",
+  } as const;
   readonly skills = [];
+  readonly semanticMessages = CODEX_SEMANTIC_MESSAGES;
+  readonly terminalOwnership = "core";
 
   resolveLauncher(env: NodeJS.ProcessEnv): AgentLauncherConfig {
     return {
@@ -317,6 +489,10 @@ class CodexAgentHarness implements AgentHarness {
         url: "https://developers.openai.com/codex/cli/",
       },
     });
+  }
+
+  prepareLaunchArgs(context: HarnessLaunchArgsContext): string[] {
+    return withCodexMcpOverrides(context.args, context.runtimeConfig, context.cwd);
   }
 }
 

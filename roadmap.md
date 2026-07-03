@@ -254,6 +254,7 @@ Exo should provide a small core feed/event stream and activity substrate. It sho
 - Feed items are incoming or generated context, not necessarily notes: quick captures, RSS/bookmarks, voice transcripts, file changes, terminal-agent outputs, MCP messages, workflow results, git events, plugin responses, eval results, and training artifacts.
 - The feed replaces a hardcoded inbox. Inbox-style workflows can be built on top, but Exo should not require an `/inbox/` folder or processing ritual.
 - Feed items can be linked, archived, promoted into notes/entities/tasks, used as source evidence, converted into trace records, or dismissed.
+- Personal AI feeds should support configurable source policies, AI-tailored summaries/ranking, queryable feed history, and explicit indexing controls. See `docs/feature-ideas.md#personal-ai-feeds`.
 - Core may own scheduler hooks or job registration so plugins do not each invent process supervision.
 - A core activity record should capture id, status, timestamps, actor, harness, scope, permissions, output policy, and references to artifacts/transcripts/logs.
 - Routines, workflows, graph-health jobs, eval runs, and training exports are plugin concepts by default.

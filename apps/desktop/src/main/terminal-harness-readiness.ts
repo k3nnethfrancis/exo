@@ -1,7 +1,11 @@
-import { existsSync, readFileSync } from "node:fs";
-import path from "node:path";
-
-import { buildExoMcpServerSpec, type RuntimeConfig } from "@exo/core";
+import {
+  agentHarnessRegistry,
+  type AgentHarness,
+  type HarnessReadinessBlockPattern,
+  type HarnessReadinessContract,
+  type HarnessSemanticMessageContract,
+  type RuntimeConfig,
+} from "@exo/core";
 
 import type { TerminalKind, TerminalSessionInfo } from "../shared/api";
 
@@ -18,28 +22,29 @@ export interface HarnessReadinessTransition {
 }
 
 export function harnessLaunchArgs(kind: TerminalKind, args: string[], config: RuntimeConfig, cwd: string): string[] {
-  return kind === "codex" ? withCodexMcpOverrides(args, config, cwd) : args;
+  const harness = builtInHarness(kind);
+  return harness?.prepareLaunchArgs ? harness.prepareLaunchArgs({ args, runtimeConfig: config, cwd, env: process.env }) : args;
 }
 
 export function initialHarnessReadiness(kind: TerminalKind): TerminalSessionInfo["readiness"] {
-  return kind === "codex" ? "starting" : "ready";
+  return readinessContract(kind)?.initialReadiness ?? "ready";
 }
 
 export function initialHarnessReadinessDetail(kind: TerminalKind): string | undefined {
-  return kind === "codex" ? "Waiting briefly for Codex startup interstitials." : undefined;
+  return readinessContract(kind)?.initialDetail;
 }
 
 export function shouldGateHarnessStartupInput(info: TerminalSessionInfo): boolean {
-  return info.kind === "codex" && info.status === "running" && info.readiness === "starting";
+  return shouldQueueUntilReady(info) && info.status === "running" && info.readiness === "starting";
 }
 
 export function startupGraceReadyDetail(kind: TerminalKind): string {
-  return kind === "codex" ? "Codex startup grace elapsed." : "Agent startup grace elapsed.";
+  return readinessContract(kind)?.graceReadyDetail ?? "Agent startup grace elapsed.";
 }
 
 export function shouldQueueRawWrite(info: TerminalSessionInfo, data: string): boolean {
   return (
-    info.kind === "codex" &&
+    shouldQueueUntilReady(info) &&
     info.status === "running" &&
     info.readiness !== "ready" &&
     looksLikeSubmittedChatMessage(data)
@@ -47,44 +52,45 @@ export function shouldQueueRawWrite(info: TerminalSessionInfo, data: string): bo
 }
 
 export function shouldQueueSemanticMessage(info: TerminalSessionInfo, submit: boolean): boolean {
-  return submit && info.kind === "codex" && info.status === "running" && info.readiness !== "ready";
+  return submit && shouldQueueUntilReady(info) && info.status === "running" && info.readiness !== "ready";
 }
 
 export function semanticMessageWrite(kind: TerminalKind, message: string): string {
-  return kind === "shell" ? message : bracketedPaste(message);
+  const semanticMessages = semanticMessageContract(kind);
+  switch (semanticMessages?.defaultMode) {
+    case "paste-enter":
+      return bracketedPaste(message);
+    case "stdin":
+    case "command":
+    case "file":
+    case undefined:
+      return message;
+  }
 }
 
 export function observeHarnessReadiness(
   info: TerminalSessionInfo,
   terminalTail: string,
 ): HarnessReadinessTransition | null {
-  if (info.kind !== "codex" || info.readiness === "ready") {
+  const readiness = readinessContract(info.kind);
+  if (!readiness || info.readiness === "ready") {
     return null;
   }
 
-  const startupState = getCodexStartupState(terminalTail);
-  if (startupState === "ready") {
+  const startupState = getHarnessStartupState(terminalTail, readiness);
+  if (startupState.kind === "ready") {
     return {
       readiness: "ready",
-      readinessDetail: "Codex chat input is ready.",
+      readinessDetail: readiness.readyDetail ?? "Agent input is ready.",
       flushQueued: true,
       clearTimer: true,
     };
   }
 
-  if (startupState === "trust-blocked") {
+  if (startupState.kind === "blocked") {
     return {
       readiness: "blocked",
-      readinessDetail: "Codex startup trust prompt is waiting for interactive confirmation.",
-      flushQueued: false,
-      clearTimer: true,
-    };
-  }
-
-  if (startupState === "update-blocked") {
-    return {
-      readiness: "blocked",
-      readinessDetail: "Codex startup update prompt is waiting for Skip, Skip until next version, or Update.",
+      readinessDetail: startupState.block.detail,
       flushQueued: false,
       clearTimer: true,
     };
@@ -110,32 +116,20 @@ function bracketedPaste(data: string): string {
   return `\x1b[200~${data}\x1b[201~`;
 }
 
-type CodexStartupState = "ready" | "trust-blocked" | "update-blocked" | "unknown";
+type HarnessStartupState =
+  | { kind: "ready" }
+  | { kind: "blocked"; block: HarnessReadinessBlockPattern }
+  | { kind: "unknown" };
 
-function getCodexStartupState(buffer: string): CodexStartupState {
+function getHarnessStartupState(buffer: string, readiness: HarnessReadinessContract): HarnessStartupState {
   const text = normalizeTerminalText(buffer);
-  const readyIndex = latestRegexIndex(text, [
-    /\bask codex\b/g,
-    /\bopenai codex\b/g,
-    /\btype (?:a )?message\b/g,
-    /\bwhat can i help\b/g,
-    /\bcodex is ready\b/g,
-  ]);
-  const trustIndex = latestRegexIndex(text, [
-    /\bdo you trust\b/g,
-    /\btrust (?:the )?(?:files|folder|directory|workspace|repo|repository)\b/g,
-    /\b(?:folder|directory|workspace|repo|repository).{0,80}\btrust\b/g,
-  ]);
-  const updateIndex =
-    /\bskip until next version\b/.test(text) ? latestRegexIndex(text, [/\bupdate available\b/g]) : -1;
+  const readyIndex = latestPatternIndex(text, readinessPatterns(readiness));
+  const blocked = latestBlockedPattern(text, readiness.blockedPatterns ?? []);
 
-  if (trustIndex > readyIndex) {
-    return "trust-blocked";
+  if (blocked && blocked.index > readyIndex) {
+    return { kind: "blocked", block: blocked.block };
   }
-  if (updateIndex > readyIndex) {
-    return "update-blocked";
-  }
-  return readyIndex >= 0 ? "ready" : "unknown";
+  return readyIndex >= 0 ? { kind: "ready" } : { kind: "unknown" };
 }
 
 function normalizeTerminalText(buffer: string): string {
@@ -144,6 +138,24 @@ function normalizeTerminalText(buffer: string): string {
     .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, "")
     .replace(/\s+/g, " ")
     .toLowerCase();
+}
+
+function latestPatternIndex(text: string, patterns: readonly string[]): number {
+  return latestRegexIndex(text, patterns.map((pattern) => new RegExp(pattern, "g")));
+}
+
+function latestBlockedPattern(
+  text: string,
+  blocks: readonly HarnessReadinessBlockPattern[],
+): { block: HarnessReadinessBlockPattern; index: number } | null {
+  let latest: { block: HarnessReadinessBlockPattern; index: number } | null = null;
+  for (const block of blocks) {
+    const index = latestPatternIndex(text, block.patterns);
+    if (index >= 0 && (!latest || index > latest.index)) {
+      latest = { block, index };
+    }
+  }
+  return latest;
 }
 
 function latestRegexIndex(text: string, patterns: RegExp[]): number {
@@ -161,86 +173,31 @@ function latestRegexIndex(text: string, patterns: RegExp[]): number {
   return latest;
 }
 
-function withCodexMcpOverrides(args: string[], config: RuntimeConfig, cwd: string): string[] {
-  const exoRoot = findExoRepoRoot(config, cwd);
-  if (!exoRoot) {
-    return args;
+function readinessPatterns(readiness: HarnessReadinessContract): readonly string[] {
+  if (readiness.patterns && readiness.patterns.length > 0) {
+    return readiness.patterns;
   }
-
-  const spec = buildExoMcpServerSpec({
-    exoRoot,
-    workspaceRoot: config.workspace.workspaceRoot,
-  });
-
-  return [
-    ...args,
-    "-c",
-    `mcp_servers.${spec.serverName}.command=${tomlString(spec.command)}`,
-    "-c",
-    `mcp_servers.${spec.serverName}.args=${tomlStringArray(spec.args)}`,
-    "-c",
-    `mcp_servers.${spec.serverName}.env=${tomlInlineTable(spec.env)}`,
-  ];
+  return readiness.pattern ? [readiness.pattern] : [];
 }
 
-function findExoRepoRoot(config: RuntimeConfig, cwd: string): string | null {
-  const candidates = [
-    cwd,
-    process.cwd(),
-    config.workspace.workspaceRoot,
-    config.workspace.defaultTerminalCwd,
-    ...config.workspace.projectRoots.map((root) => root.path),
-  ];
+function shouldQueueUntilReady(info: TerminalSessionInfo): boolean {
+  return semanticMessageContract(info.kind)?.queueSubmittedInputUntilReady === true;
+}
 
-  for (const candidate of candidates) {
-    const root = findExoRepoRootFrom(candidate);
-    if (root) {
-      return root;
-    }
+function semanticMessageContract(kind: TerminalKind): HarnessSemanticMessageContract | undefined {
+  return builtInHarness(kind)?.semanticMessages;
+}
+
+function readinessContract(kind: TerminalKind): HarnessReadinessContract | undefined {
+  return semanticMessageContract(kind)?.readiness;
+}
+
+function builtInHarness(kind: TerminalKind): AgentHarness | undefined {
+  const harness = agentHarnessRegistry.get(kind);
+  // Manifest-discovered harnesses are metadata-only in this slice; only reviewed
+  // built-ins may expose callable launch/readiness hooks.
+  if (harness?.metadata.lifecycle !== "built-in") {
+    return undefined;
   }
-
-  return null;
-}
-
-function findExoRepoRootFrom(startPath: string): string | null {
-  let current = path.resolve(startPath);
-  while (true) {
-    if (isExoRepoRoot(current)) {
-      return current;
-    }
-    const parent = path.dirname(current);
-    if (parent === current) {
-      return null;
-    }
-    current = parent;
-  }
-}
-
-function isExoRepoRoot(candidate: string): boolean {
-  const packageJsonPath = path.join(candidate, "package.json");
-  const mcpLauncherPath = path.join(candidate, "packages", "mcp", "bin", "exo-mcp.mjs");
-  if (!existsSync(packageJsonPath) || !existsSync(mcpLauncherPath)) {
-    return false;
-  }
-
-  try {
-    const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as { name?: string };
-    return packageJson.name === "exo";
-  } catch {
-    return false;
-  }
-}
-
-function tomlString(value: string): string {
-  return JSON.stringify(value);
-}
-
-function tomlStringArray(values: string[]): string {
-  return `[${values.map(tomlString).join(", ")}]`;
-}
-
-function tomlInlineTable(values: Record<string, string>): string {
-  return `{${Object.entries(values)
-    .map(([key, value]) => `${key}=${tomlString(value)}`)
-    .join(", ")}}`;
+  return harness;
 }

@@ -15,7 +15,7 @@ import {
 } from "@exo/core/agent-harness-registry";
 import * as z from "zod/v4";
 
-import { ExoCommandClient, formatAgents, stripAnsi } from "./exo-client";
+import { ExoCommandClient, ExoCommandDiscoveryError, formatAgents, stripAnsi } from "./exo-client";
 
 const DEFAULT_HTTP_HOST = "127.0.0.1";
 const DEFAULT_HTTP_PORT = 3333;
@@ -58,19 +58,21 @@ function registerExoTools(server: McpServer) {
     },
   },
   async () => {
-    const client = await ExoCommandClient.connect();
-    const status = await client.getStatus();
-    const indexStatus = await client.getIndexStatus();
-    const terminals = (status as { terminals?: unknown }).terminals;
-    const workspaceStatus = {
-      ...status,
-      agents: Array.isArray(terminals) ? terminals : [],
-      indexStatus,
-    };
-    return {
-      content: [{ type: "text", text: JSON.stringify(workspaceStatus, null, 2) }],
-      structuredContent: workspaceStatus,
-    };
+    return runAppBackedTool(async () => {
+      const client = await ExoCommandClient.connect();
+      const status = await client.getStatus();
+      const indexStatus = await client.getIndexStatus();
+      const terminals = (status as { terminals?: unknown }).terminals;
+      const workspaceStatus = {
+        ...status,
+        agents: Array.isArray(terminals) ? terminals : [],
+        indexStatus,
+      };
+      return {
+        content: [{ type: "text", text: JSON.stringify(workspaceStatus, null, 2) }],
+        structuredContent: workspaceStatus,
+      };
+    });
   },
 );
 
@@ -93,12 +95,14 @@ server.registerTool(
     },
   },
   async ({ query, limit, intent, includeContent, maxLinesPerResult }) => {
-    const client = await ExoCommandClient.connect();
-    const results = await client.search(query, { limit, intent, includeContent, maxLinesPerResult });
-    return {
-      content: [{ type: "text", text: JSON.stringify(results, null, 2) }],
-      structuredContent: results,
-    };
+    return runAppBackedTool(async () => {
+      const client = await ExoCommandClient.connect();
+      const results = await client.search(query, { limit, intent, includeContent, maxLinesPerResult });
+      return {
+        content: [{ type: "text", text: JSON.stringify(results, null, 2) }],
+        structuredContent: results,
+      };
+    });
   },
 );
 
@@ -119,12 +123,14 @@ server.registerTool(
     },
   },
   async ({ target, fromLine, maxLines }) => {
-    const client = await ExoCommandClient.connect();
-    const document = await client.readDocument(target, { fromLine, maxLines });
-    return {
-      content: [{ type: "text", text: JSON.stringify(document, null, 2) }],
-      structuredContent: document,
-    };
+    return runAppBackedTool(async () => {
+      const client = await ExoCommandClient.connect();
+      const document = await client.readDocument(target, { fromLine, maxLines });
+      return {
+        content: [{ type: "text", text: JSON.stringify(document, null, 2) }],
+        structuredContent: document,
+      };
+    });
   },
 );
 
@@ -145,7 +151,7 @@ server.registerTool(
     },
   },
   async ({ target }) => {
-    try {
+    return runAppBackedTool(async () => {
       const client = await ExoCommandClient.connect();
       const result = await client.openPreview(target);
       const structuredContent: Record<string, unknown> = {
@@ -157,14 +163,7 @@ server.registerTool(
         content: [{ type: "text", text: `Opened preview: ${result.url}` }],
         structuredContent,
       };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      return {
-        isError: true,
-        content: [{ type: "text", text: message }],
-        structuredContent: { ok: false, error: message },
-      };
-    }
+    });
   },
 );
 
@@ -181,12 +180,14 @@ server.registerTool(
     },
   },
   async () => {
-    const client = await ExoCommandClient.connect();
-    const result = await client.focusPreview();
-    return {
-      content: [{ type: "text", text: "Focused preview pane." }],
-      structuredContent: result,
-    };
+    return runAppBackedTool(async () => {
+      const client = await ExoCommandClient.connect();
+      const result = await client.focusPreview();
+      return {
+        content: [{ type: "text", text: "Focused preview pane." }],
+        structuredContent: result,
+      };
+    });
   },
 );
 
@@ -202,12 +203,14 @@ server.registerTool(
     },
   },
   async () => {
-    const client = await ExoCommandClient.connect();
-    const result = await client.closePreview();
-    return {
-      content: [{ type: "text", text: "Closed preview pane." }],
-      structuredContent: result,
-    };
+    return runAppBackedTool(async () => {
+      const client = await ExoCommandClient.connect();
+      const result = await client.closePreview();
+      return {
+        content: [{ type: "text", text: "Closed preview pane." }],
+        structuredContent: result,
+      };
+    });
   },
 );
 
@@ -223,12 +226,14 @@ server.registerTool(
     },
   },
   async () => {
-    const client = await ExoCommandClient.connect();
-    const agents = await client.listAgents();
-    return {
-      content: [{ type: "text", text: formatAgents(agents) }],
-      structuredContent: { agents },
-    };
+    return runAppBackedTool(async () => {
+      const client = await ExoCommandClient.connect();
+      const agents = await client.listAgents();
+      return {
+        content: [{ type: "text", text: formatAgents(agents) }],
+        structuredContent: { agents },
+      };
+    });
   },
 );
 
@@ -259,12 +264,14 @@ server.registerTool(
         structuredContent: { ok: false, error: "unsupported-agent-harness", kind, expected: usage },
       };
     }
-    const client = await ExoCommandClient.connect();
-    const agent = await client.createAgent(normalizedKind, cwd);
-    return {
-      content: [{ type: "text", text: `Created ${agent.kind} agent ${agent.id} in ${agent.cwd}.` }],
-      structuredContent: { agent },
-    };
+    return runAppBackedTool(async () => {
+      const client = await ExoCommandClient.connect();
+      const agent = await client.createAgent(normalizedKind, cwd);
+      return {
+        content: [{ type: "text", text: `Created ${agent.kind} agent ${agent.id} in ${agent.cwd}.` }],
+        structuredContent: { agent },
+      };
+    });
   },
 );
 
@@ -286,20 +293,22 @@ server.registerTool(
     },
   },
   async ({ agentId, maxLines, tailChars, clean }) => {
-    const client = await ExoCommandClient.connect();
-    const config = await client.getConfig();
-    const configuredDefault = readNonNegativeInteger(config.terminalReadTailChars, DEFAULT_TERMINAL_READ_TAIL_CHARS);
-    const configuredMax = readNonNegativeInteger(config.terminalMaxReadTailChars, DEFAULT_TERMINAL_MAX_READ_TAIL_CHARS);
-    const requestedTailChars = tailChars ?? configuredDefault;
-    const effectiveTailChars = configuredMax > 0 && requestedTailChars > 0
-      ? Math.min(requestedTailChars, configuredMax)
-      : requestedTailChars;
-    const rawOutput = maxLines ? await client.readAgentTail(agentId, maxLines) : await client.readAgent(agentId, effectiveTailChars);
-    const output = clean ? stripAnsi(rawOutput) : rawOutput;
-    return {
-      content: [{ type: "text", text: output || "(no buffered output)" }],
-      structuredContent: { agentId, output, maxLines, tailChars: maxLines ? undefined : effectiveTailChars },
-    };
+    return runAppBackedTool(async () => {
+      const client = await ExoCommandClient.connect();
+      const config = await client.getConfig();
+      const configuredDefault = readNonNegativeInteger(config.terminalReadTailChars, DEFAULT_TERMINAL_READ_TAIL_CHARS);
+      const configuredMax = readNonNegativeInteger(config.terminalMaxReadTailChars, DEFAULT_TERMINAL_MAX_READ_TAIL_CHARS);
+      const requestedTailChars = tailChars ?? configuredDefault;
+      const effectiveTailChars = configuredMax > 0 && requestedTailChars > 0
+        ? Math.min(requestedTailChars, configuredMax)
+        : requestedTailChars;
+      const rawOutput = maxLines ? await client.readAgentTail(agentId, maxLines) : await client.readAgent(agentId, effectiveTailChars);
+      const output = clean ? stripAnsi(rawOutput) : rawOutput;
+      return {
+        content: [{ type: "text", text: output || "(no buffered output)" }],
+        structuredContent: { agentId, output, maxLines, tailChars: maxLines ? undefined : effectiveTailChars },
+      };
+    });
   },
 );
 
@@ -322,14 +331,16 @@ server.registerTool(
     },
   },
   async ({ agentId, message, submit }) => {
-    const client = await ExoCommandClient.connect();
-    const result = await client.sendAgentMessage(agentId, message, submit);
-    const text = formatAgentMessageDelivery(agentId, submit, result);
-    return {
-      content: [{ type: "text", text }],
-      structuredContent: { agentId, submitted: submit, delivery: result.delivery, queuedInputCount: result.queuedInputCount ?? 0 },
-      isError: result.delivery === "not-found" || result.ok === false,
-    };
+    return runAppBackedTool(async () => {
+      const client = await ExoCommandClient.connect();
+      const result = await client.sendAgentMessage(agentId, message, submit);
+      const text = formatAgentMessageDelivery(agentId, submit, result);
+      return {
+        content: [{ type: "text", text }],
+        structuredContent: { agentId, submitted: submit, delivery: result.delivery, queuedInputCount: result.queuedInputCount ?? 0 },
+        isError: result.delivery === "not-found" || result.ok === false,
+      };
+    });
   },
 );
 
@@ -348,12 +359,14 @@ server.registerTool(
     },
   },
   async ({ agentId }) => {
-    const client = await ExoCommandClient.connect();
-    await client.killAgent(agentId);
-    return {
-      content: [{ type: "text", text: `Terminated ${agentId}.` }],
-      structuredContent: { agentId, terminated: true },
-    };
+    return runAppBackedTool(async () => {
+      const client = await ExoCommandClient.connect();
+      await client.killAgent(agentId);
+      return {
+        content: [{ type: "text", text: `Terminated ${agentId}.` }],
+        structuredContent: { agentId, terminated: true },
+      };
+    });
   },
 );
 
@@ -373,14 +386,49 @@ server.registerTool(
     },
   },
   async ({ agentId, signal }) => {
-    const client = await ExoCommandClient.connect();
-    await client.sendAgentInput(agentId, signal === "ctrl-c" ? "\u0003" : "\u001b");
-    return {
-      content: [{ type: "text", text: `Sent ${signal} to ${agentId}.` }],
-      structuredContent: { agentId, signal },
-    };
+    return runAppBackedTool(async () => {
+      const client = await ExoCommandClient.connect();
+      await client.sendAgentInput(agentId, signal === "ctrl-c" ? "\u0003" : "\u001b");
+      return {
+        content: [{ type: "text", text: `Sent ${signal} to ${agentId}.` }],
+        structuredContent: { agentId, signal },
+      };
+    });
   },
 );
+}
+
+type McpToolContent = { type: "text"; text: string };
+
+type McpToolResult = {
+  content: McpToolContent[];
+  structuredContent?: Record<string, unknown>;
+  isError?: boolean;
+};
+
+async function runAppBackedTool(work: () => Promise<McpToolResult>): Promise<McpToolResult> {
+  try {
+    return await work();
+  } catch (error) {
+    return mcpToolError(error);
+  }
+}
+
+function mcpToolError(error: unknown): McpToolResult {
+  const message = error instanceof Error ? error.message : String(error);
+  const structuredContent: Record<string, unknown> = {
+    ok: false,
+    error: message,
+  };
+  if (error instanceof ExoCommandDiscoveryError) {
+    structuredContent.error = "exo-command-server-unavailable";
+    structuredContent.runtimeDiagnostic = error.diagnostic;
+  }
+  return {
+    isError: true,
+    content: [{ type: "text", text: message }],
+    structuredContent,
+  };
 }
 
 export async function runServer() {

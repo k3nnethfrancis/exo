@@ -13,7 +13,7 @@ export interface PluginCategoryFilter {
   count: number;
 }
 
-export type PluginStateFilterId = "all" | "active" | "attention" | "disabled" | "local" | "configurable";
+export type PluginStateFilterId = "all" | "active" | "disabled" | "untrusted" | "missing" | "attention" | "local" | "configurable";
 
 export interface PluginStateFilter {
   id: PluginStateFilterId;
@@ -174,6 +174,16 @@ export function buildPluginStateFilters(items: PluginInventoryItem[]): PluginSta
       id: "disabled",
       label: "Disabled",
       detail: "Known capabilities that are currently off.",
+    },
+    {
+      id: "untrusted",
+      label: "Untrusted",
+      detail: "Local or developer manifests that need trust review before use.",
+    },
+    {
+      id: "missing",
+      label: "Missing",
+      detail: "Rows blocked by missing dependencies, setup, invalid settings, or broken readiness.",
     },
     {
       id: "local",
@@ -343,6 +353,28 @@ export function buildPluginRowIndicators(item: PluginInventoryItem): PluginRowIn
     indicators.push({ id: "active", label: "Active", tone: "ok" });
   }
   return indicators;
+}
+
+export function pluginDisplayStatus(item: PluginInventoryItem): { label: string; tone: "ok" | "warning" | "danger" | "disabled" } {
+  if (!item.enabled || item.status === "disabled") {
+    return { label: "Disabled", tone: "disabled" };
+  }
+  if (item.trust === "untrusted") {
+    return { label: "Untrusted", tone: "warning" };
+  }
+  if (item.status === "missing-dependency") {
+    return { label: "Missing dependency", tone: "danger" };
+  }
+  if (item.status === "broken") {
+    return { label: "Broken", tone: "danger" };
+  }
+  if (hasSetupIssue(item)) {
+    return { label: item.readiness?.label ?? "Needs setup", tone: readinessTone(item) === "danger" ? "danger" : "warning" };
+  }
+  if (isActivePluginRow(item)) {
+    return { label: "Active", tone: "ok" };
+  }
+  return { label: item.statusLabel, tone: "warning" };
 }
 
 export function pluginManagementLane(item: PluginInventoryItem): string {
@@ -898,6 +930,10 @@ function matchesPluginStateFilter(item: PluginInventoryItem, stateFilterId: Plug
       return item.trust === "untrusted" || hasSetupIssue(item) || missingPermissions(item).length > 0;
     case "disabled":
       return !item.enabled || item.status === "disabled";
+    case "untrusted":
+      return item.trust === "untrusted";
+    case "missing":
+      return hasSetupIssue(item);
     case "local":
       return item.source === "localManifest";
     case "configurable":

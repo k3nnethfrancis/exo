@@ -31,9 +31,10 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
   - [x] Add the proposal/review apply host and CLI/app command review surface; keep MCP without decision tools.
   - [x] Add the native UI review surface for proposal batches.
   - [x] Design semantic trace contract early enough that harness adapters do not need another terminal-service re-plumb.
-  - [ ] Tighten Plugin Manager into a management surface: active/disabled/untrusted/missing states, local plugin add/remove/swap, plugin-owned settings, readiness/dependency guidance, and no dense-layout overlap.
+  - [x] Tighten Plugin Manager into a management surface: active/disabled/untrusted/missing states, local plugin add/remove/swap, plugin-owned settings, readiness/dependency guidance, and no dense-layout overlap.
   - [ ] Split terminal/session substrate types from harness-adapter ids so `exo agents` derives launchable harnesses from registered harness plugins while `exo terminals` remains the low-level core terminal surface.
     - [x] Add backward-compatible `terminalKind`/`harnessId` fields to terminal session info, diagnostics, command protocol terminal info, and persisted terminal session records.
+    - [x] Move Codex startup readiness, blocked prompt metadata, semantic queue policy, and MCP launch-arg augmentation behind the built-in harness contract while keeping terminal rendering/session ownership in core.
     - [ ] Move CLI/MCP/app `agents create` launch requests to registered, enabled, policy-approved harness ids instead of fixed `ManagedAgentKind` values.
   - [ ] Define external plugin contracts for workload-specific trace collection, review labels, dataset export, eval packets, and instrumented agent runtimes.
   - [ ] Define a Project Knowledge Sync plugin/profile contract for project-local canonical Markdown files: default names such as `issues.md`, `tasks.md`, `roadmap.md`, plans, specs, `AGENTS.md`, and `CLAUDE.md`; custom user patterns; sync mode; conflict policy; remote GitHub state; and reviewable proposals.
@@ -227,8 +228,9 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
 
 ## Next: Feed, Activity Substrate, And Plugin Routines
 
-- [ ] Define the feed/event item model for incoming and generated context: quick capture, RSS/bookmark/web clip, voice transcript, file change, terminal-agent output, MCP message, workflow result, git event, plugin response, eval result, and training artifact.
-- [ ] Define feed item review/promote/archive semantics without requiring an `/inbox/` folder.
+- [ ] Define the feed/event item model for incoming and generated context; use `docs/feature-ideas.md#personal-ai-feeds` as the starting product note.
+- [ ] Define per-source and per-feed indexing policy: auto-index, never-index, action-gated indexing, summary-only indexing, or source-metadata-only indexing.
+- [ ] Define feed item review/promote/archive semantics without requiring an `/inbox/` folder: like/preference signal, add note/create page, research, link to existing node, archive, dismiss, mute source/topic, and explain/rewrite.
 - [x] Define the first-pass Routine/activity model: prompt, selected harness, optional required harness skills, manual trigger or schedule, scope, permissions, output policy, logs, traces, artifacts, review state, and recovery.
 - [x] Reassess the current Routine/Run core model and shrink future expansion toward a minimal activity substrate: ids, status, timestamps, actor, scope, permission checks, artifact references, transcript/log references, optional provenance links, and optional review state.
   - 2026-06-27: Added `docs/activity-plugin-contract.md` and narrowed `RunRecord` away from embedded rich trace/eval/file-change schemas. Trace JSONL remains an artifact-backed helper; rich workload schemas stay plugin-owned.

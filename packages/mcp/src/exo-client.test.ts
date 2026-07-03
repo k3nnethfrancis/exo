@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -289,12 +289,83 @@ describe("ExoCommandClient", () => {
     expect(message).toContain("Recorded port: 54322");
     expect(message).toContain("Recorded baseUrl: http://127.0.0.1:54322");
     expect(message).toContain("Process check: dead (ESRCH: kill ESRCH)");
-    expect(message).toContain("Last reachability failure: http://127.0.0.1:54322 - fetch failed");
+    expect(message).not.toContain("Last reachability failure: http://127.0.0.1:54322 - fetch failed");
     expect(spawnMock).toHaveBeenCalledWith("exo start --test", expect.objectContaining({
       detached: true,
       shell: true,
       stdio: "ignore",
     }));
+  });
+
+  it("quarantines a definitely stale discovery file before autostart", async () => {
+    const runtimeRoot = await runtimeFixture({ port: 54324, pid: 999_996 });
+    stubCommandServer(() => {
+      throw new Error("fetch failed");
+    });
+    stubProcessKillFailure("ESRCH", "kill ESRCH");
+
+    await connectErrorMessage({
+      ...testRuntimeEnv(runtimeRoot),
+      EXO_MCP_AUTOSTART: "1",
+      EXO_MCP_CONNECT_TIMEOUT_MS: "5",
+      EXO_MCP_START_COMMAND: "exo start --test",
+    });
+
+    const entries = await readdir(runtimeRoot);
+    expect(entries).not.toContain("server.json");
+    expect(entries.some((entry) => entry.startsWith("server.json.stale-"))).toBe(true);
+  });
+
+  it("does not quarantine discovery when process checks are permission-blocked", async () => {
+    const runtimeRoot = await runtimeFixture({ port: 54325, pid: 999_995 });
+    stubCommandServer(() => {
+      throw new Error("fetch failed");
+    });
+    stubProcessKillFailure("EPERM", "operation not permitted");
+
+    await connectErrorMessage({
+      ...testRuntimeEnv(runtimeRoot),
+      EXO_MCP_AUTOSTART: "1",
+      EXO_MCP_CONNECT_TIMEOUT_MS: "5",
+      EXO_MCP_START_COMMAND: "exo start --test",
+    });
+
+    const entries = await readdir(runtimeRoot);
+    expect(entries).toContain("server.json");
+    expect(entries.some((entry) => entry.startsWith("server.json.stale-"))).toBe(false);
+  });
+
+  it("autostart waits for a fresh reachable discovery file after quarantining stale discovery", async () => {
+    const runtimeRoot = await runtimeFixture({ port: 54326, pid: 999_994 });
+    const freshPort = 54327;
+    const freshPid = process.pid;
+    spawnMock.mockImplementationOnce(() => {
+      void writeFile(path.join(runtimeRoot, "server.json"), JSON.stringify({ port: freshPort, pid: freshPid }), "utf8");
+      return { unref: vi.fn() };
+    });
+    vi.spyOn(process, "kill").mockImplementation((pid) => {
+      if (pid === 999_994) {
+        const error = new Error("kill ESRCH") as NodeJS.ErrnoException;
+        error.code = "ESRCH";
+        throw error;
+      }
+      return true;
+    });
+    stubCommandServer((targetUrl) => {
+      if (targetUrl.port === String(freshPort) && targetUrl.pathname === "/status") {
+        return json({ ok: true });
+      }
+      throw new Error(`unexpected stale command-server request: ${targetUrl.toString()}`);
+    });
+
+    const client = await ExoCommandClient.connect({
+      ...testRuntimeEnv(runtimeRoot),
+      EXO_MCP_AUTOSTART: "1",
+      EXO_MCP_CONNECT_TIMEOUT_MS: "1000",
+      EXO_MCP_START_COMMAND: "exo start --test",
+    });
+
+    expect(await client.isReachable()).toBe(true);
   });
 
   it("reports permission-blocked process checks separately from dead pids", async () => {

@@ -12,6 +12,7 @@ import {
   createPluginSettingsDraft,
   filterPluginInventoryItems,
   filterPluginInventoryItemsByState,
+  pluginDisplayStatus,
   pluginSettingsAvailability,
   pluginSettingsValuesFromDraft,
   pluginActionAvailability,
@@ -753,7 +754,7 @@ function SummaryTile({
   );
 }
 
-function PluginInventoryRow({
+export function PluginInventoryRow({
   isSelected,
   item,
   onSelect,
@@ -769,6 +770,7 @@ function PluginInventoryRow({
   const actionAvailability = pluginActionAvailability(item);
   const indicators = buildPluginRowIndicators(item);
   const isReadOnly = item.source === "core" || item.distribution === "official" || item.source === "bundled";
+  const displayStatus = pluginDisplayStatus(item);
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
@@ -779,8 +781,9 @@ function PluginInventoryRow({
   return (
     <div
       aria-selected={isSelected}
-      className={`plugin-manager__row ${isSelected ? "plugin-manager__row--selected" : ""} ${isReadOnly ? "plugin-manager__row--readonly" : ""}`}
+      className={`plugin-manager__row plugin-manager__row--${displayStatus.tone} ${isSelected ? "plugin-manager__row--selected" : ""} ${isReadOnly ? "plugin-manager__row--readonly" : ""}`}
       data-testid={`plugin-inventory-item-${item.id}`}
+      data-state={displayStatus.label}
       id={`plugin-inventory-option-${item.id}`}
       onClick={onSelect}
       onKeyDown={handleKeyDown}
@@ -810,26 +813,26 @@ function PluginInventoryRow({
           </div>
         ) : null}
       </div>
-      <div className="plugin-manager__row-detail">
-        <small>{pluginManagementGuidance(item)}</small>
-        {item.dependencies?.length ? (
-          <small>
-            Diagnostics: {item.dependencies.map((dependency) => `${dependency.label}: ${dependency.statusLabel}`).join(" · ")}
-          </small>
-        ) : null}
-        {item.status !== "available" && item.status !== "configured" ? <small>State: {item.statusLabel}</small> : null}
-        {item.dependencies?.length ? (
-          <small>Setup: review dependencies in the detail panel</small>
-        ) : null}
-        {item.permissionGrants?.requested.length ? (
-          <small>
-            Permissions: {item.permissionGrants.missing.length > 0
-              ? `${item.permissionGrants.missing.length} needed`
-              : `${item.permissionGrants.requested.length} requested`}
-          </small>
-        ) : item.permissions.length ? (
-          <small>Permissions: {item.permissions.length} requested</small>
-        ) : null}
+      <div className="plugin-manager__row-management" aria-label={`Management actions for ${item.label}`}>
+        <div className="plugin-manager__row-management-copy">
+          <span>Manage</span>
+          <small>{pluginManagementGuidance(item)}</small>
+          {item.dependencies?.length ? (
+            <small>
+              Dependencies: {item.dependencies.map((dependency) => `${dependency.label}: ${dependency.statusLabel}`).join(" · ")}
+            </small>
+          ) : null}
+          {item.status !== "available" && item.status !== "configured" ? <small>State: {item.statusLabel}</small> : null}
+          {item.permissionGrants?.requested.length ? (
+            <small>
+              Permissions: {item.permissionGrants.missing.length > 0
+                ? `${item.permissionGrants.missing.length} needed`
+                : `${item.permissionGrants.requested.length} requested`}
+            </small>
+          ) : item.permissions.length ? (
+            <small>Permissions: {item.permissions.length} requested</small>
+          ) : null}
+        </div>
         <div className="plugin-manager__row-actions">
           {actionAvailability.actions.map((action) => (
             <PluginActionButton
@@ -895,14 +898,8 @@ function PluginActionButton({
 }
 
 function StatusPill({ item }: { item: PluginInventoryItem }) {
-  const tone = !item.enabled
-    ? "disabled"
-    : item.trust === "untrusted"
-      ? "warning"
-      : item.status === "broken" || item.status === "missing-dependency"
-        ? "danger"
-        : "ok";
-  return <span className={`plugin-manager__status plugin-manager__status--${tone}`}>{item.statusLabel}</span>;
+  const status = pluginDisplayStatus(item);
+  return <span className={`plugin-manager__status plugin-manager__status--${status.tone}`}>{status.label}</span>;
 }
 
 function pluginActionSuccessMessage(action: PluginManagerAction, item: PluginInventoryItem): string {

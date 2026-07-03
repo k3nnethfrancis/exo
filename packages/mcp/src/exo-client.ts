@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { readFile, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -32,31 +32,31 @@ const defaultSearchRequestTimeoutMs = 30_000;
 const defaultMaintenanceRequestTimeoutMs = 30 * 60_000;
 const pollIntervalMs = 250;
 
-type ProcessCheckResult =
+export type ProcessCheckResult =
   | { status: "alive" }
   | { status: "dead"; code?: string; message: string }
   | { status: "blocked"; code?: string; message: string }
   | { status: "unknown"; code?: string; message: string };
 
-type ServerDiscoverySnapshot = {
+export type ServerDiscoverySnapshot = {
   info: ExoCommandServerInfo;
   baseUrl: string;
   processCheck: ProcessCheckResult;
 };
 
-type ReachabilityFailure = {
+export type ReachabilityFailure = {
   baseUrl: string;
   message: string;
 };
 
-type AutostartState = {
+export type AutostartState = {
   attempted: boolean;
   command?: string;
   failed?: boolean;
   errorMessage?: string;
 };
 
-type DiscoveryDiagnostic = {
+export type DiscoveryDiagnostic = {
   kind:
     | "missing-discovery"
     | "stale-pid"
@@ -70,6 +70,13 @@ type DiscoveryDiagnostic = {
   autostart: AutostartState;
   lastReachabilityFailure?: ReachabilityFailure;
 };
+
+export class ExoCommandDiscoveryError extends Error {
+  constructor(readonly diagnostic: DiscoveryDiagnostic) {
+    super(formatDiscoveryDiagnostic(diagnostic));
+    this.name = "ExoCommandDiscoveryError";
+  }
+}
 
 export class ExoCommandClient {
   constructor(
@@ -92,6 +99,22 @@ export class ExoCommandClient {
 
     const startEnv = await resolveMcpWorkspaceEnv(env);
     const autostartState: AutostartState = { attempted: false };
+    if (snapshot?.processCheck.status === "dead" && autostart) {
+      await quarantineStaleDiscoveryFile(serverJsonPath);
+      Object.assign(autostartState, startExo(startEnv));
+      return waitForReachableClient({
+        serverJsonPath,
+        runtimeRoot,
+        initialSnapshot: snapshot,
+        timeoutMs,
+        requestTimeoutMs,
+        searchRequestTimeoutMs,
+        maintenanceRequestTimeoutMs,
+        autostart: autostartState,
+        ignoreSnapshot: snapshot,
+      });
+    }
+
     if (!snapshot && autostart) {
       Object.assign(autostartState, startExo(startEnv));
       snapshot = await waitForServerSnapshot(serverJsonPath, timeoutMs);
@@ -137,6 +160,7 @@ export class ExoCommandClient {
       maintenanceRequestTimeoutMs,
       autostart: autostartState,
       initialReachabilityFailure: lastReachabilityFailure,
+      ignoreSnapshot: snapshot.processCheck.status === "dead" ? snapshot : undefined,
     });
   }
 
@@ -327,7 +351,8 @@ async function waitForReachableClient(options: {
   searchRequestTimeoutMs: number;
   maintenanceRequestTimeoutMs: number;
   autostart: AutostartState;
-  initialReachabilityFailure: ReachabilityFailure;
+  initialReachabilityFailure?: ReachabilityFailure;
+  ignoreSnapshot?: ServerDiscoverySnapshot;
 }): Promise<ExoCommandClient> {
   const {
     serverJsonPath,
@@ -339,6 +364,7 @@ async function waitForReachableClient(options: {
     maintenanceRequestTimeoutMs,
     autostart,
     initialReachabilityFailure,
+    ignoreSnapshot,
   } = options;
   const deadline = Date.now() + timeoutMs;
   let lastSnapshot = initialSnapshot;
@@ -347,6 +373,10 @@ async function waitForReachableClient(options: {
     const snapshot = await readServerSnapshot(serverJsonPath);
     if (snapshot) {
       lastSnapshot = snapshot;
+      if (ignoreSnapshot && isSameServerSnapshot(snapshot, ignoreSnapshot) && snapshot.processCheck.status === "dead") {
+        await sleep(pollIntervalMs);
+        continue;
+      }
       const client = new ExoCommandClient(snapshot.baseUrl, requestTimeoutMs, searchRequestTimeoutMs, maintenanceRequestTimeoutMs);
       const reachability = await checkReachability(client);
       if (reachability.ok) {
@@ -365,6 +395,10 @@ async function waitForReachableClient(options: {
     autostart,
     lastReachabilityFailure,
   });
+}
+
+function isSameServerSnapshot(left: ServerDiscoverySnapshot, right: ServerDiscoverySnapshot): boolean {
+  return left.info.pid === right.info.pid && left.info.port === right.info.port;
 }
 
 function startExo(env: NodeJS.ProcessEnv): AutostartState {
@@ -451,8 +485,17 @@ function classifyUnreachableSnapshot(snapshot: ServerDiscoverySnapshot): Discove
   return "server-unreachable";
 }
 
+async function quarantineStaleDiscoveryFile(serverJsonPath: string): Promise<void> {
+  const stalePath = `${serverJsonPath}.stale-${Date.now()}`;
+  try {
+    await rename(serverJsonPath, stalePath);
+  } catch {
+    await rm(serverJsonPath, { force: true }).catch(() => {});
+  }
+}
+
 function discoveryDiagnosticError(diagnostic: DiscoveryDiagnostic): Error {
-  return new Error(formatDiscoveryDiagnostic(diagnostic));
+  return new ExoCommandDiscoveryError(diagnostic);
 }
 
 function formatDiscoveryDiagnostic(diagnostic: DiscoveryDiagnostic): string {

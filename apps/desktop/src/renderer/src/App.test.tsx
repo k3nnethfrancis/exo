@@ -71,6 +71,7 @@ import {
   groupPluginInventoryItems,
   pluginActionAvailability,
   pluginActionInput,
+  pluginDisplayStatus,
   pluginLocalManagementAvailability,
   pluginManagementGuidance,
   pluginManagementLane,
@@ -78,7 +79,7 @@ import {
   pluginSettingsValuesFromDraft,
 } from "./pluginManagerModel";
 import { buildProfileSettingsModel, PROFILE_SETTINGS_DISABLED_REASON } from "./profileSettingsModel";
-import { PluginSettingsSection } from "./components/PluginManagerDialog";
+import { PluginInventoryRow, PluginSettingsSection } from "./components/PluginManagerDialog";
 import { ChangedNotesDialog } from "./components/ChangedNotesDialog";
 import { ProposalReviewDialog } from "./components/ProposalReviewDialog";
 import { ProfileEditPanel, buildProfileEditPanelSections } from "./components/ProfileEditPanel";
@@ -482,10 +483,14 @@ describe("plugin manager model", () => {
       ["active", 2],
       ["attention", 2],
       ["disabled", 1],
+      ["untrusted", 1],
+      ["missing", 1],
       ["local", 4],
       ["configurable", 1],
     ]);
     expect(filterPluginInventoryItemsByState(categoryItems, "attention").map((item) => item.id)).toEqual(["broken-search", "local-untrusted"]);
+    expect(filterPluginInventoryItemsByState(categoryItems, "untrusted").map((item) => item.id)).toEqual(["local-untrusted"]);
+    expect(filterPluginInventoryItemsByState(categoryItems, "missing").map((item) => item.id)).toEqual(["broken-search"]);
     expect(filterPluginInventoryItemsByState(categoryItems, "configurable").map((item) => item.id)).toEqual(["local-config"]);
   });
 
@@ -521,6 +526,57 @@ describe("plugin manager model", () => {
     expect(buildPluginRowIndicators(untrusted).map((indicator) => indicator.label)).toContain("Needs trust");
     expect(buildPluginRowIndicators(setupIssue).map((indicator) => indicator.label)).toContain("Setup issue");
     expect(buildPluginRowIndicators(permissionsNeeded).map((indicator) => indicator.label)).toContain("Permissions needed");
+    expect(pluginDisplayStatus(active)).toEqual({ label: "Active", tone: "ok" });
+    expect(pluginDisplayStatus(disabled)).toEqual({ label: "Disabled", tone: "disabled" });
+    expect(pluginDisplayStatus(untrusted)).toEqual({ label: "Untrusted", tone: "warning" });
+    expect(pluginDisplayStatus(setupIssue)).toEqual({ label: "Missing dependency", tone: "danger" });
+  });
+
+  it("renders plugin manager rows as management controls with scan-friendly state labels", () => {
+    const local = {
+      ...pluginInventoryItem("graph-health.template", "Graph Health", "routineTemplate", "Routine templates", "localManifest"),
+      enabled: false,
+      trust: "untrusted" as const,
+      pluginId: "graph-health.plugin",
+      pluginSource: "workspace" as const,
+      manifestPath: "/workspace/.exo/plugins/graph-health/exo.plugin.json",
+      rootDirectory: "/workspace/.exo/plugins/graph-health",
+      permissions: ["notes:propose"] as PluginInventoryItem["permissions"],
+    };
+    const missing = {
+      ...pluginInventoryItem("pi", "Pi", "agentHarness", "Agent harnesses", "bundled"),
+      status: "missing-dependency" as const,
+      statusLabel: "Needs inference backend",
+      dependencies: [{ id: "backend", label: "Inference backend", required: true, status: "missing", statusLabel: "Missing" }],
+    };
+    const localHtml = renderToStaticMarkup(
+      <PluginInventoryRow
+        isSelected={false}
+        item={local}
+        onRunAction={vi.fn()}
+        onSelect={vi.fn()}
+        pendingAction={null}
+      />,
+    );
+    const missingHtml = renderToStaticMarkup(
+      <PluginInventoryRow
+        isSelected={false}
+        item={missing}
+        onRunAction={vi.fn()}
+        onSelect={vi.fn()}
+        pendingAction={null}
+      />,
+    );
+
+    expect(localHtml).toContain("data-state=\"Disabled\"");
+    expect(localHtml).toContain("plugin-manager__row-management");
+    expect(localHtml).toContain("Manage");
+    expect(localHtml).toContain("Trust");
+    expect(localHtml).toContain("Enable");
+    expect(localHtml).toContain("Permissions: 1 requested");
+    expect(missingHtml).toContain("data-state=\"Missing dependency\"");
+    expect(missingHtml).toContain("Dependencies: Inference backend: Missing");
+    expect(missingHtml).toContain("Read-only");
   });
 
   it("separates the exograph baseline from official, local, and developer plugin layers", () => {

@@ -9,6 +9,7 @@ This directory contains committed, public-facing project context. It should be u
 - `../issues.md` - canonical active bug, QA, and field-issue tracker.
 - `../tasks.md` - active execution tracker.
 - `../roadmap.md` - future product systems and sequencing.
+- `feature-ideas.md` - parked product ideas that are not yet active implementation plans.
 - `../exo-themes-plan.md` - active planning note for named theme work.
 - `strategy.md` - product direction and system model.
 - `architecture.md` - current package, runtime, terminal, CLI/MCP, pane, search, and plugin boundaries.
@@ -49,21 +50,22 @@ These remain in place for traceability but should not be treated as the latest a
 9. `github-issue-fix-loop.md` - scheduled Codex issue-to-PR loop rules
 10. `architecture.md` - package boundaries and runtime contracts
 11. `../roadmap.md` - future product systems
-12. `plugin-system-architecture.md` - core-versus-plugin target architecture
-13. `profile-plugin-management-plan.md` - current product and implementation plan for profile/plugin management UX
-14. `plugins.md` - plugin architecture direction
-15. `plugin-implementation-plan.md` - phased implementation plan for capability registries, search providers, agent harnesses, activity substrate, plugin manifests, and future permissioned loading
-16. `activity-plugin-contract.md` - activity/artifact/provenance/review substrate contract
-17. `agent-harness-plugin-contract.md` - harness adapter contract
-18. `plugin-surface-contract.md` - safe plugin surface and web viewer endpoint contract
-19. `graph-visualization-plugin-contract.md` - graph visualization plugin contract
-20. `open-source.md` - release and platform support notes
-21. `terminal-architecture-v4.md` - current terminal architecture and module-boundary target
-22. `terminal-runtime-decision.md` - terminal runtime decision
-23. `terminal-quality-standard.md` - terminal useability and QA standard
-24. `terminal-fallback-audit.md` - terminal fallback/recovery policy and current decisions
-25. `terminal-refactor-plan.md` - historical tmux migration plan
-26. `qmd-integration-notes.md` - live QMD dependency boundary and upgrade checklist
+12. `feature-ideas.md` - parked product ideas and graduation criteria
+13. `plugin-system-architecture.md` - core-versus-plugin target architecture
+14. `profile-plugin-management-plan.md` - current product and implementation plan for profile/plugin management UX
+15. `plugins.md` - plugin architecture direction
+16. `plugin-implementation-plan.md` - phased implementation plan for capability registries, search providers, agent harnesses, activity substrate, plugin manifests, and future permissioned loading
+17. `activity-plugin-contract.md` - activity/artifact/provenance/review substrate contract
+18. `agent-harness-plugin-contract.md` - harness adapter contract
+19. `plugin-surface-contract.md` - safe plugin surface and web viewer endpoint contract
+20. `graph-visualization-plugin-contract.md` - graph visualization plugin contract
+21. `open-source.md` - release and platform support notes
+22. `terminal-architecture-v4.md` - current terminal architecture and module-boundary target
+23. `terminal-runtime-decision.md` - terminal runtime decision
+24. `terminal-quality-standard.md` - terminal useability and QA standard
+25. `terminal-fallback-audit.md` - terminal fallback/recovery policy and current decisions
+26. `terminal-refactor-plan.md` - historical tmux migration plan
+27. `qmd-integration-notes.md` - live QMD dependency boundary and upgrade checklist
 
 ## File Roles
 
@@ -73,6 +75,7 @@ These remain in place for traceability but should not be treated as the latest a
 - `../roadmap.md` groups future product systems.
 - `../issues.md` tracks active bugs, QA findings, and field reports with `EXO-ISSUE-*` ids.
 - `../tasks.md` tracks the next concrete work.
+- `feature-ideas.md` captures future ideas before they are ready for active sequencing.
 - `harness.md` explains how changes should be validated.
 - `github-issue-fix-loop.md` defines the conservative scheduled GitHub issue-to-draft-PR loop.
 - `plugin-system-architecture.md` defines which platform surfaces stay core versus become bundled/external plugins.

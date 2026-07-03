@@ -2059,15 +2059,17 @@ button svg,
 }
 
 .plugin-manager__state-filters {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
   gap: 6px;
 }
 
 .plugin-manager__state-filter {
   min-height: 28px;
-  display: inline-flex;
+  min-width: 0;
+  display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 6px;
   padding: 4px 8px;
   border: 1px solid transparent;
@@ -2095,7 +2097,11 @@ button svg,
 }
 
 .plugin-manager__state-filter span {
+  min-width: 0;
   font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .plugin-manager__state-filter strong {
@@ -2121,8 +2127,9 @@ button svg,
 
 .plugin-manager__row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 14px;
+  grid-template-columns: minmax(0, 1fr) minmax(190px, 0.42fr);
+  align-items: start;
+  gap: 12px;
   width: 100%;
   padding: 12px;
   border: 1px solid var(--surface-border);
@@ -2152,8 +2159,25 @@ button svg,
   background: color-mix(in srgb, var(--surface-2) 88%, var(--surface-1));
 }
 
+.plugin-manager__row--ok {
+  border-left: 3px solid color-mix(in srgb, var(--accent-strong) 58%, var(--surface-border));
+}
+
+.plugin-manager__row--warning {
+  border-left: 3px solid var(--warning-border);
+}
+
+.plugin-manager__row--danger {
+  border-left: 3px solid var(--danger-border);
+}
+
+.plugin-manager__row--disabled {
+  border-left: 3px solid var(--surface-border-strong);
+}
+
 .plugin-manager__row-main,
-.plugin-manager__row-detail {
+.plugin-manager__row-management,
+.plugin-manager__row-management-copy {
   min-width: 0;
   display: grid;
   align-content: start;
@@ -2226,10 +2250,10 @@ button svg,
   border-color: var(--danger-border);
 }
 
-.plugin-manager__row-detail {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 12px;
+.plugin-manager__row-management {
+  height: 100%;
+  padding-left: 12px;
+  border-left: 1px solid var(--surface-border);
   color: var(--muted);
 }
 
@@ -2241,8 +2265,17 @@ button svg,
   gap: 6px;
 }
 
-.plugin-manager__row-detail small {
+.plugin-manager__row-management-copy > span {
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.plugin-manager__row-management-copy small {
   min-width: 0;
+  line-height: 1.35;
   overflow-wrap: anywhere;
 }
 
@@ -2559,6 +2592,17 @@ button svg,
 
   .plugin-manager__body {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .plugin-manager__row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .plugin-manager__row-management {
+    padding-left: 0;
+    padding-top: 10px;
+    border-left: 0;
+    border-top: 1px solid var(--surface-border);
   }
 
   .plugin-manager__settings-field {

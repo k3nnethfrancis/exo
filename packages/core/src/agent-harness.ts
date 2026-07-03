@@ -6,6 +6,7 @@ import type {
   AgentHarnessDetection,
   AgentLauncherConfig,
   ManagedAgentKind,
+  RuntimeConfig,
 } from "./types";
 
 export type HarnessSkillSource = "built-in" | "filesystem" | "external";
@@ -55,10 +56,23 @@ export interface HarnessConfigInventoryItem {
 export interface HarnessReadinessContract {
   signal: HarnessReadinessSignal;
   pattern?: string;
+  patterns?: readonly string[];
+  readyDetail?: string;
+  initialReadiness?: "ready" | "starting";
+  initialDetail?: string;
+  graceReadyDetail?: string;
+  blockedPatterns?: readonly HarnessReadinessBlockPattern[];
   timeoutMs?: number;
   graceMs?: number;
   failurePatterns?: readonly string[];
   detail?: string;
+}
+
+export interface HarnessReadinessBlockPattern {
+  id: string;
+  patterns: readonly string[];
+  readiness: "blocked";
+  detail: string;
 }
 
 export interface HarnessSemanticMessageContract {
@@ -66,9 +80,17 @@ export interface HarnessSemanticMessageContract {
   defaultMode: HarnessSemanticMessageMode;
   supportsMultiline: boolean;
   submitOnEnter: boolean;
+  queueSubmittedInputUntilReady?: boolean;
   submitDelayMs?: number;
   readiness?: HarnessReadinessContract;
   detail?: string;
+}
+
+export interface HarnessLaunchArgsContext {
+  args: readonly string[];
+  runtimeConfig: RuntimeConfig;
+  cwd: string;
+  env: NodeJS.ProcessEnv;
 }
 
 export interface HarnessSetupAction {
@@ -110,6 +132,7 @@ export interface AgentHarness {
   terminalOwnership?: "core";
   resolveLauncher(env: NodeJS.ProcessEnv): AgentLauncherConfig;
   resolveDetection?(env: NodeJS.ProcessEnv): AgentHarnessDetection;
+  prepareLaunchArgs?(context: HarnessLaunchArgsContext): string[];
 }
 
 export type AgentHarnessMap = Record<ManagedAgentKind, AgentHarness>;

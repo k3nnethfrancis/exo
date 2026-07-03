@@ -1,6 +1,6 @@
 # Exo Harness
 
-Last updated: 2026-05-31
+Last updated: 2026-07-03
 
 Exo's harness is the set of commands, docs, and evidence habits that keep fast agent-driven development from turning into drift. The near-term goal is practical: make it easy for humans, Codex, Claude Code, and Exo-hosted agents to contribute safely.
 
@@ -53,6 +53,37 @@ pnpm test:visual
 ```
 
 Desktop e2e/visual gates build the desktop app before running Playwright.
+
+## App Visual QA Preflight
+
+UI, terminal, preview, editor, onboarding, plugin, settings, CLI/MCP, and resident-runtime changes need real Electron app QA when they affect visible behavior. Computer Use visual QA is preferred because it checks the same installed or dev app surface a user sees, but inability to inspect the app is itself a blocker signal. Do not replace a failed visual inspection with a vague "not checked" note.
+
+Before detailed review, run a short visibility smoke:
+
+1. Launch or foreground the intended app target: installed `Exo.app` for installed-app QA, or `pnpm dev:qa` for source-build QA.
+2. Confirm the desktop is unlocked and Computer Use can inspect the screen.
+3. Confirm an Exo window or menu-bar-controlled resident app is visible, foregroundable, and showing nonblank renderer content.
+4. Confirm the target surface for the change is reachable before starting workflow-specific assertions.
+
+Classify preflight failures explicitly:
+
+- App unavailable: Exo is not running, launch failed, or the intended dev/installed target cannot be foregrounded.
+- Desktop locked: Computer Use sees the macOS lock screen, login prompt, or any state that prevents app interaction.
+- Window hidden or wrong Space: Exo appears to be running, but no inspectable Exo window can be brought forward.
+- Renderer blank: an Exo window is visible, but the renderer is empty, crashed, or stuck before meaningful content.
+- Tool timeout: Computer Use cannot return app or screen state after retry, even though process-level checks suggest Exo may be running.
+
+If any preflight failure remains after one clean relaunch or foreground retry, stop the visual QA pass and report it as a blocker. The change may still have automated tests, Playwright evidence, CLI/MCP smoke, or logs, but it has not passed app visual QA.
+
+Fallback evidence is acceptable only as a labeled substitute while the visual blocker is tracked. Capture all of the following:
+
+- the preflight failure class, attempted target, retry count, and whether the desktop was locked, hidden, blank, or timed out
+- process or command-server evidence such as `./bin/exo status`, `./bin/exo agents list`, or relevant app launch logs
+- an alternate visual artifact when possible, such as a Playwright screenshot/video, a macOS screenshot, or a CDP screenshot from the real Electron renderer
+- focused automated coverage for the affected surface, such as a named Playwright/e2e/visual spec or package test
+- a remaining-risk note that says Computer Use did not inspect the app and names the missing human-visible workflow
+
+A PR or handoff may say "fallback app evidence collected" only when that bundle is present. It must not say "app QA passed" unless Computer Use or a human actually inspected the running Exo app.
 
 ## Current Harness Coverage
 

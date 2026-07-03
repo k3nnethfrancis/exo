@@ -1,12 +1,43 @@
 # Exo Issues
 
-Last updated: 2026-07-02
+Last updated: 2026-07-03
 
 This is the canonical active bug/QA tracker for Exo implementation work. It captures user-observed issues that need investigation before the next push/release pass.
 
 This root file is the only canonical Exo issue tracker. Field notes from daily dogfooding, GitHub issues, screenshots, or agent sessions should be promoted here with an `EXO-ISSUE-*` id before assignment.
 
 ## Open
+
+### EXO-ISSUE-076: Persist custom Pi-compatible harness configuration
+
+- Status: open
+- Severity: high
+- Area: agent harnesses, plugin architecture, settings, packaged app launch, local/open-source agents
+- Canonical implementation brief:
+  - `custom-pi-implementation.md`
+- Source:
+  - 2026-07-03 GA Pi / Exo integration investigation.
+- Observed:
+  - Exo can detect the local `projects/ga-pi` source checkout as a Pi-compatible harness through the generic Pi adapter.
+  - `exo runtime launch-plan pi /Users/kenneth/Desktop/lab` resolves to `node /Users/kenneth/Desktop/lab/projects/ga-pi/packages/coding-agent/dist/cli.js` with cwd `/Users/kenneth/Desktop/lab`.
+  - Pi is still marked `Missing dependency` unless `EXO_PI_BACKEND_URL` or `EXO_PI_BACKEND_COMMAND` is present in the Exo process environment.
+  - Finder-launched packaged Mac apps do not reliably inherit shell env, so env-only Pi backend configuration is not a viable product path.
+  - The normal launcher hides Pi while it is not launchable, which is correct, but there is no durable settings surface to make it launchable.
+- Expected:
+  - Exo supports any Pi-compatible build through persisted generic Pi harness configuration, not GA Pi-specific core behavior.
+  - GA Pi remains a local configured instance of the Pi-compatible adapter.
+  - Users can configure command or repo path, display label, args, and backend URL/command/label/kind from Exo settings or plugin settings.
+  - Process env remains an operator/developer override and wins over persisted settings.
+  - The packaged app can be opened normally and still resolve Pi launchability from saved config.
+- Acceptance:
+  - Add a typed persisted Pi harness settings model and normalize/save/load path.
+  - Project persisted settings into the existing `EXO_PI_*` resolution vocabulary or equivalent typed adapter input.
+  - Keep source defaults free of Kenneth/local/private paths.
+  - Add Agent Config or Plugin Manager UI for viewing and editing Pi-compatible harness setup.
+  - `exo runtime status` shows configured Pi backend without shell env.
+  - `exo runtime launch-plan pi /Users/kenneth/Desktop/lab` uses workspace cwd and the configured Pi-compatible command/repo.
+  - Missing backend still shows setup detail and does not render a dead launcher button.
+  - Tests cover persisted config, env override precedence, missing-backend launcher hiding, configured-backend launcher visibility, source-checkout detection, and workspace-cwd launch plans.
 
 ### EXO-ISSUE-075: Terminal geometry divergence causes render drift and hard-refresh recovery loops
 
@@ -46,7 +77,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-074: Computer Use visual QA can fail to inspect the running Exo app
 
-- Status: open
+- Status: fixed locally; awaiting integration commit
 - Severity: medium
 - Area: QA harness, Exo-on-Exo workflow, visual app review
 - Source:
@@ -64,6 +95,11 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - Add an app-QA checklist or harness note that distinguishes app unavailable, desktop locked, window hidden, renderer blank, and tool timeout.
   - Add a lightweight smoke path for visual QA agents to verify Exo is visible before attempting detailed UI review.
   - Document any remaining Computer Use limitations in `docs/harness.md` or the app-QA skill/checklist.
+- Resolution:
+  - 2026-07-03: Added an App Visual QA Preflight section to `docs/harness.md`.
+  - The preflight distinguishes app unavailable, desktop locked, hidden/wrong Space, blank renderer, and Computer Use timeout states.
+  - The harness now requires explicit fallback evidence and forbids claiming "app QA passed" unless Computer Use or a human actually inspected the running Exo app.
+  - No mechanical smoke helper was added in this slice; that remains optional future enforcement if the documented preflight is not enough.
 
 ### EXO-ISSUE-073: Evaluate mechanical architecture rules for agent-safe code changes
 
@@ -357,7 +393,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-065: Harness plugin model is still partially hardcoded into terminal and public APIs
 
-- Status: open; first implementation slice landed in `main`
+- Status: open; terminal identity and readiness/semantic-message slices landed locally
 - Severity: medium-high
 - Area: plugin architecture, harness adapters, terminal boundary, CLI/MCP APIs
 - Observed:
@@ -384,13 +420,17 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
     - Added additive `terminalKind` and `harnessId` fields to terminal session info, diagnostics, command protocol terminal info, and persisted terminal session records.
     - Backfilled old persisted session records from legacy `kind` without dropping recoverable tmux sessions.
     - Added focused core, terminal-manager, registry, command-server, and renderer helper coverage for the compatibility shape.
+  - 2026-07-03 harness contract slice:
+    - Moved Codex readiness patterns, blocked prompt metadata, semantic queue policy, and MCP launch-arg augmentation behind the built-in `AgentHarness` contract.
+    - Kept plugin manifests metadata-only; desktop only honors callable launch/readiness hooks for reviewed built-in harnesses.
+    - Preserved shell plain-stdin semantic messages and Claude/Codex bracketed paste behavior.
+    - Verified with focused core harness tests, desktop terminal readiness/manager tests, and desktop typecheck.
   - Remaining next patch:
-    - Introduce harness-owned launch/readiness metadata for Codex startup gating, MCP launch overrides, prompt readiness scanning, and semantic message submit behavior.
-    - Keep that next patch isolated to `agent-harness*` plus the narrow `TerminalManager` call sites that currently branch on `kind === "codex"`.
     - Move `exo agents create` and MCP `create_agent` launch requests from fixed `ManagedAgentKind` values to registered, enabled, policy-approved harness ids.
+    - Persist Pi-compatible harness configuration so Finder-launched packaged apps can resolve local/open-source harness setup without shell env.
 - QA coverage needed:
   - Agent creation derives from registered/launchable harness metadata.
-  - Codex-specific startup behavior is covered by harness adapter tests, not terminal-manager-only tests.
+  - Codex-specific startup behavior remains covered by harness adapter tests, not terminal-manager-only tests.
   - Pi launch button remains disabled unless executable and backend dependency are actually satisfied.
 
 ### EXO-ISSUE-066: Stable workstation gate and architecture cleanup residuals
@@ -771,7 +811,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-046: MCP autostart and tool calls can stay pinned to stale command-server discovery
 
-- Status: open
+- Status: fixed locally; awaiting integration commit and live installed-app MCP smoke
 - Severity: high
 - Area: MCP, command-server discovery, autostart, Exo-on-Exo reliability
 - Observed:
@@ -802,6 +842,11 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - Sandboxed diagnostic fixture where pid/port checks are blocked but unsandboxed checks would reach a healthy command server.
   - MCP fixture without autostart that verifies structured stale-runtime error output.
   - End-to-end smoke for configured Codex/Claude MCP startup after stale discovery, asserting `workspace_status` either succeeds or returns actionable structured diagnostics.
+- Resolution notes:
+  - 2026-07-03: MCP discovery now raises typed stale-runtime diagnostics and app-backed MCP tools return structured `{ ok: false, error: "exo-command-server-unavailable", runtimeDiagnostic }` content instead of plain thrown text.
+  - 2026-07-03: MCP autostart quarantines only definitely dead `server.json` discovery, preserves permission-blocked pid probes, and waits for a fresh reachable discovery record instead of staying pinned to the stale pid/port.
+  - 2026-07-03: `exo start` now waits for the resolved command server to become reachable after launching `Exo.app` and exits nonzero with existing discovery diagnostics if the app never publishes a reachable server.
+  - Remaining QA: run a live installed-app MCP smoke against the packaged app after the next build/install/restart.
 
 ### EXO-ISSUE-045: Restart can leave stale command-server discovery with visible broken terminal UI
 

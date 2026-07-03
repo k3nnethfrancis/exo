@@ -106,6 +106,52 @@ describe("agent harness registry", () => {
     }
   });
 
+  it("declares built-in semantic message and readiness behavior as harness contract metadata", () => {
+    expect(builtInAgentHarnesses.shell).toMatchObject({
+      contractVersion: "agent-harness.v1",
+      terminalOwnership: "core",
+      semanticMessages: {
+        defaultMode: "stdin",
+        submitOnEnter: true,
+      },
+    });
+    expect(builtInAgentHarnesses.claude).toMatchObject({
+      contractVersion: "agent-harness.v1",
+      terminalOwnership: "core",
+      adapter: {
+        family: "claude-code",
+        productName: "Claude Code",
+      },
+      semanticMessages: {
+        defaultMode: "paste-enter",
+        supportsMultiline: true,
+      },
+    });
+    expect(builtInAgentHarnesses.codex).toMatchObject({
+      contractVersion: "agent-harness.v1",
+      terminalOwnership: "core",
+      adapter: {
+        family: "codex",
+        productName: "Codex CLI",
+      },
+      semanticMessages: {
+        defaultMode: "paste-enter",
+        queueSubmittedInputUntilReady: true,
+        readiness: {
+          signal: "prompt-pattern",
+          initialReadiness: "starting",
+          initialDetail: "Waiting briefly for Codex startup interstitials.",
+          readyDetail: "Codex chat input is ready.",
+          graceReadyDetail: "Codex startup grace elapsed.",
+          blockedPatterns: [
+            expect.objectContaining({ id: "trust", readiness: "blocked" }),
+            expect.objectContaining({ id: "update", readiness: "blocked" }),
+          ],
+        },
+      },
+    });
+  });
+
   it("rejects duplicate harness ids", () => {
     const registry = new AgentHarnessRegistry([builtInAgentHarnesses.shell]);
 
