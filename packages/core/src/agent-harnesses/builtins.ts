@@ -583,15 +583,12 @@ class PiAgentHarness implements AgentHarness {
 
 function resolvePiBackendDependency(env: NodeJS.ProcessEnv): AgentHarnessDependencyStatus {
   const backendLabel = env.EXO_PI_BACKEND_LABEL ?? env.EXO_PI_BACKEND_KIND ?? "Pi inference backend";
-  const configured = Boolean(env.EXO_PI_BACKEND_URL || env.EXO_PI_BACKEND_COMMAND || env.EXO_PI_BACKEND_READY);
-  // URL/command means the user configured a backend contract; EXO_PI_BACKEND_READY
-  // is the stricter opt-in probe when a local fork wants Exo to gate on live readiness.
-  const detected = env.EXO_PI_BACKEND_READY ? envFlagEnabled(env.EXO_PI_BACKEND_READY) : configured;
-  const satisfied = configured && detected;
-  const statusLabel = satisfied ? "Configured" : "Missing";
-  const detail = satisfied
-    ? backendDetail(env)
-    : "Configure EXO_PI_BACKEND_URL or EXO_PI_BACKEND_COMMAND for a compatible local inference backend.";
+  const configured = Boolean(env.EXO_PI_BACKEND_URL || env.EXO_PI_BACKEND_COMMAND);
+  const ready = Boolean(env.EXO_PI_BACKEND_READY) && envFlagEnabled(env.EXO_PI_BACKEND_READY);
+  const detected = ready;
+  const satisfied = configured && ready;
+  const statusLabel = satisfied ? "Ready" : configured ? "Not ready" : "Missing";
+  const detail = satisfied ? backendDetail(env) : missingPiBackendDetail(env, configured);
 
   return {
     id: "pi-inference-backend",
@@ -614,6 +611,24 @@ function backendDetail(env: NodeJS.ProcessEnv): string | undefined {
     return env.EXO_PI_BACKEND_COMMAND;
   }
   return undefined;
+}
+
+function missingPiBackendDetail(env: NodeJS.ProcessEnv, configured: boolean): string {
+  if (!configured) {
+    return "Configure EXO_PI_BACKEND_URL or EXO_PI_BACKEND_COMMAND for a compatible local inference backend.";
+  }
+
+  const details = ["Pi backend is configured but not confirmed ready. Set EXO_PI_BACKEND_READY=1 after starting it."];
+  if (env.EXO_PI_BACKEND_URL) {
+    details.push(`URL: ${env.EXO_PI_BACKEND_URL}`);
+  }
+  if (env.EXO_PI_BACKEND_COMMAND) {
+    details.push(`Start command: ${env.EXO_PI_BACKEND_COMMAND}`);
+  }
+  if (!env.EXO_PI_BACKEND_COMMAND) {
+    details.push("Start command: set EXO_PI_BACKEND_COMMAND or start the backend separately.");
+  }
+  return details.join(" ");
 }
 
 function piHarnessDetail(input: {

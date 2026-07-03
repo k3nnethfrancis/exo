@@ -1784,12 +1784,13 @@ test("shows missing Pi backend status and hides unconfigured Hermes launchers", 
   }
 });
 
-test("shows a configured generic Pi-compatible launcher when backend config exists", async () => {
+test("shows a configured generic Pi-compatible launcher when backend is marked ready", async () => {
   const { page, cleanup } = await launchExoFixture({
     env: {
       EXO_PI_COMMAND: "/bin/sh",
       EXO_PI_LABEL: "Custom Pi build",
       EXO_PI_BACKEND_URL: "http://127.0.0.1:8080",
+      EXO_PI_BACKEND_READY: "1",
     },
   });
 
@@ -1801,7 +1802,7 @@ test("shows a configured generic Pi-compatible launcher when backend config exis
 
     await expect(page.getByTestId("agent-harness-pi")).toContainText("Configured");
     await expect(page.getByTestId("agent-harness-pi")).toContainText("Launchable");
-    await expect(page.getByTestId("agent-harness-pi")).toContainText("Pi inference backend: Configured");
+    await expect(page.getByTestId("agent-harness-pi")).toContainText("Pi inference backend: Ready");
     await expect(page.getByTestId("agent-harness-pi")).toContainText("http://127.0.0.1:8080");
   } finally {
     await cleanup();

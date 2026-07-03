@@ -156,6 +156,7 @@ describe("runtime", () => {
       EXO_NOTE_ROOTS: "/tmp/exo-test-workspace/notes",
       EXO_PROJECT_ROOTS: tempRoot,
       EXO_PI_BACKEND_URL: "http://127.0.0.1:8080",
+      EXO_PI_BACKEND_READY: "1",
     };
     const config = resolveRuntimeConfig(env);
     const plan = resolveLaunchableAgentLaunchPlan(config, "pi", "/tmp/exo-test-workspace/projects/ga-pi", env);
@@ -195,6 +196,7 @@ describe("runtime", () => {
         label: "Configured Pi",
         repoPath: piRepo,
         backendUrl: "http://127.0.0.1:8080",
+        backendReady: true,
       },
     });
     const config = resolveRuntimeConfig(env);
@@ -241,6 +243,7 @@ describe("runtime", () => {
         label: "Persisted Pi",
         repoPath: persistedRepo,
         backendUrl: "http://127.0.0.1:8080",
+        backendReady: true,
       },
     });
     const env = {

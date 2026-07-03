@@ -80,6 +80,7 @@ describe("agent harness registry", () => {
         EXO_PI_COMMAND: piCommand,
         EXO_PI_REPO_PATH: tempRoot,
         EXO_PI_BACKEND_URL: "http://127.0.0.1:8080",
+        EXO_PI_BACKEND_READY: "1",
         EXO_HERMES_COMMAND: hermesCommand,
       };
       const harnesses = resolveRegisteredAgentHarnesses(env);
@@ -319,7 +320,7 @@ describe("agent harness registry", () => {
     }
   });
 
-  it("surfaces a configured custom Pi-compatible build without committing local defaults", () => {
+  it("blocks a configured custom Pi-compatible build until backend readiness is confirmed", () => {
     const tempRoot = mkdtempSync(path.join(os.tmpdir(), "exo-pi-harness-"));
     const piCommand = path.join(tempRoot, "pi");
     writeFileSync(piCommand, "#!/bin/sh\nexit 0\n", "utf8");
@@ -333,7 +334,64 @@ describe("agent harness registry", () => {
         EXO_PI_LABEL: "Custom Pi build",
         EXO_PI_CHANNEL: "custom",
         EXO_PI_BACKEND_URL: "http://127.0.0.1:8080",
+        EXO_PI_BACKEND_COMMAND: "pi-backend --port 8080",
       });
+
+      expect(harnesses.find((harness) => harness.id === "pi")).toMatchObject({
+        id: "pi",
+        adapterId: "pi",
+        label: "Custom Pi build",
+        productName: "Pi-compatible harness",
+        configured: true,
+        launchable: false,
+        status: "missing-dependency",
+        setupSummary:
+          "Pi backend is configured but not confirmed ready. Set EXO_PI_BACKEND_READY=1 after starting it. URL: http://127.0.0.1:8080 Start command: pi-backend --port 8080",
+        channel: "custom",
+        executablePath: piCommand,
+        repoPath: tempRoot,
+        dependencies: [
+          expect.objectContaining({
+            id: "pi-inference-backend",
+            configured: true,
+            detected: false,
+            satisfied: false,
+            statusLabel: "Not ready",
+            detail:
+              "Pi backend is configured but not confirmed ready. Set EXO_PI_BACKEND_READY=1 after starting it. URL: http://127.0.0.1:8080 Start command: pi-backend --port 8080",
+          }),
+        ],
+      });
+      expect(() =>
+        validateRegisteredAgentHarnessLaunchForSurface("pi", { surface: "commandServer", requireLaunchable: true }, {
+          PATH: "/usr/bin",
+          EXO_PI_COMMAND: piCommand,
+          EXO_PI_REPO_PATH: tempRoot,
+          EXO_PI_BACKEND_URL: "http://127.0.0.1:8080",
+        }),
+      ).toThrow("Approved launchable harnesses for commandServer:");
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("surfaces a ready custom Pi-compatible build without committing local defaults", () => {
+    const tempRoot = mkdtempSync(path.join(os.tmpdir(), "exo-pi-ready-harness-"));
+    const piCommand = path.join(tempRoot, "pi");
+    writeFileSync(piCommand, "#!/bin/sh\nexit 0\n", "utf8");
+    chmodSync(piCommand, 0o755);
+
+    try {
+      const env = {
+        PATH: "/usr/bin",
+        EXO_PI_COMMAND: piCommand,
+        EXO_PI_REPO_PATH: tempRoot,
+        EXO_PI_LABEL: "Custom Pi build",
+        EXO_PI_CHANNEL: "custom",
+        EXO_PI_BACKEND_URL: "http://127.0.0.1:8080",
+        EXO_PI_BACKEND_READY: "1",
+      };
+      const harnesses = resolveRegisteredAgentHarnesses(env);
 
       expect(harnesses.find((harness) => harness.id === "pi")).toMatchObject({
         id: "pi",
@@ -350,17 +408,14 @@ describe("agent harness registry", () => {
           expect.objectContaining({
             id: "pi-inference-backend",
             configured: true,
+            detected: true,
             satisfied: true,
+            statusLabel: "Ready",
             detail: "http://127.0.0.1:8080",
           }),
         ],
       });
-      expect(validateRegisteredAgentHarnessLaunchForSurface("pi", { surface: "commandServer", requireLaunchable: true }, {
-        PATH: "/usr/bin",
-        EXO_PI_COMMAND: piCommand,
-        EXO_PI_REPO_PATH: tempRoot,
-        EXO_PI_BACKEND_URL: "http://127.0.0.1:8080",
-      })).toMatchObject({
+      expect(validateRegisteredAgentHarnessLaunchForSurface("pi", { surface: "commandServer", requireLaunchable: true }, env)).toMatchObject({
         harnessId: "pi",
         terminalKind: "pi",
         launcher: { kind: "pi", command: piCommand },

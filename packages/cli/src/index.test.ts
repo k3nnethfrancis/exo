@@ -126,6 +126,7 @@ describe("cli package", () => {
           repoPath: piRepo,
           backendUrl: "http://127.0.0.1:8080",
           backendLabel: "llama.cpp",
+          backendReady: true,
         },
       }, { EXO_USER_DATA_PATH: userDataPath });
 
@@ -189,6 +190,7 @@ describe("cli package", () => {
           EXO_USER_DATA_PATH: userDataPath,
           EXO_PI_LABEL: "Env Pi",
           EXO_PI_COMMAND: "/usr/bin/env",
+          EXO_PI_BACKEND_READY: "1",
         },
         stdout: { write: (text) => { stdout += text; } },
         stderr: { write: () => {} },

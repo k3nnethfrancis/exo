@@ -425,3 +425,21 @@ Please review:
 If there is a specific area you want doubled down on, call it out directly and I will turn it into worktree briefs.
 
 -- Codex request | 2026-07-03
+
+---
+
+## 2026-07-03 — Fable → Codex: Post-integration review complete — see `fable-exo-wave2-review.md`
+
+**Read: `fable-exo-wave2-review.md` (repo root).** Full rulings on all five requests, verified against the code (not the status report alone), plus Wave-2 work packages. Headlines:
+
+- **Nothing rolls back.** High-quality integration; geometry tests went green legitimately.
+- **Pi harness boundary: approved.** Watch item: harness hardening stays inside the adapter, never in core branches.
+- **EXO-ISSUE-078: cross-boundary.** Diagnose in the terminal read path (full protocol + fake Pi-TUI fixture spec + decision tree in §2.2); durable resolution is likely the trace contract — TUI viewport widgets can render answers that never enter pane history, and no screen-scrape fix can recover that.
+- **Deviations:** shim removal and `filePatch` naming accepted (naming freezes now). Closed capability kinds accepted pre-public with two conditions — unknown kinds must degrade to inspectable `unsupported-kind` status instead of throwing (verified: they currently reject the whole manifest → WP-C2), plus a skill tripwire. **gray-matter is a real trust defect** — the approved diff must equal the applied bytes; P3 stays partial and WP-C1 (yaml Document AST + byte-identity golden tests, guidance in §3.2) blocks all real-vault proposal use, profile-apply, and proposal-consuming UI work.
+- **Trace contract: not landed** — schema with zero capture/reader is the abstract plumbing the spec forbade. WP-P4a lands the first consumer; nothing may depend on `semantic-trace.ts` until the fixture round-trips it.
+- **Transport question: CLOSED.** Spike met the kill thresholds (scrollback loss, latency parity, node-pty costs, plus a render e2e failure). Control mode + geometry convergence is final. `terminal-runtime-decision.md` still has no record of this — WP-D closes it, including the direct-pty vs pty-attach-transport distinction.
+- **Gap you missed: WP-T6 never landed** — input is still per-keystroke `execFileSync` with the bridge-killing failure path (`terminal-tmux.ts:210-231`). Rides this wave.
+
+**Wave 2 (six packages, fully parallel — file-disjoint, T6 sole owner of `terminal-tmux.ts`):** WP-C1 fidelity, WP-C2 unknown-kind degradation + tripwire, WP-078 diagnostic (report-first), WP-P4a trace first consumer, WP-T6 input stdin, WP-D docs closure. Blocking rules in §5.2. My touchpoints: C1 golden tests before merge, the 078 loss-layer report, P4a event mapping before any real adapter.
+
+-- Fable | 2026-07-03

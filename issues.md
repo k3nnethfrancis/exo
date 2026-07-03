@@ -8,6 +8,37 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ## Open
 
+### EXO-ISSUE-079: Pi-compatible harness marks configured backend as ready and launches into connection errors
+
+- Status: fixed in `main`
+- Severity: high
+- Area: Pi-compatible harness, plugin architecture, backend readiness, Agent Config UI
+- Source:
+  - 2026-07-03 user QA of Pi v0.79.3 inside Exo.
+- Observed:
+  - Pi launches and shows normal startup UI, but after sending `hello` it repeatedly prints `Error: Connection error.` and `Retry failed after 3 attempts: Retry cancelled`.
+  - Local checks showed `127.0.0.1:8082` was not listening while `exo runtime status` still reported the Pi backend dependency as `satisfied: true` and the harness as `launchable: true`.
+  - The configured backend command exists in settings, but Exo does not currently auto-start or supervise that backend process before launching Pi.
+- Expected:
+  - Exo should not present a Pi-compatible harness as launchable when the required backend is only configured but not confirmed ready.
+  - If Exo does not own backend supervision yet, the UI/CLI should clearly say the backend is configured but not confirmed ready and show the start command or URL.
+  - Launch should be blocked or gated unless readiness is explicitly confirmed.
+- Suspected:
+  - `EXO_PI_BACKEND_URL` / `EXO_PI_BACKEND_COMMAND` is currently treated as both configuration and readiness.
+  - `EXO_PI_BACKEND_READY` exists, but absence of the flag defaults to satisfied instead of not ready.
+- Acceptance:
+  - [x] Change the Pi backend dependency contract so configured backend URL/command alone is not sufficient for `launchable: true`.
+  - [x] Require explicit readiness for this slice, for example `EXO_PI_BACKEND_READY=1` / persisted `backendReady: true`.
+  - [x] Update setup/detail copy to distinguish configured backend from ready backend.
+  - [x] Add focused tests proving URL/command-only Pi config is not launchable and explicit ready config is launchable.
+  - [x] Keep this generic to Pi-compatible harnesses; do not hardcode GA-Pi behavior.
+  - [x] Defer backend process supervision/probing to a separate design if needed.
+- Resolution:
+  - Pi backend URL/command now declares configuration only. It no longer marks the dependency satisfied by itself.
+  - Pi launchability now requires both a configured backend target and an explicit ready marker (`EXO_PI_BACKEND_READY=1` or persisted `backendReady: true`).
+  - The not-ready detail explains that the backend is configured but not confirmed ready and includes the URL/start command when available.
+  - Validation: `pnpm --filter @exo/core test`, `pnpm --filter @exo/cli test -- --run packages/cli/src/index.test.ts`, `pnpm --filter @exo/desktop test -- --run apps/desktop/src/renderer/src/App.test.tsx`, `pnpm check:repo`, `pnpm --filter @exo/desktop build`, and focused Playwright Pi launcher QA all passed.
+
 ### EXO-ISSUE-078: Pi agent session launches but transcript/read does not expose generated answer text
 
 - Status: open

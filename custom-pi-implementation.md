@@ -2,7 +2,9 @@
 
 Last updated: 2026-07-03
 
-This document explains how Exo should support custom Pi-compatible harnesses correctly. It is written from the current GA Pi setup, but the implementation must remain generic: GA Pi is one local configured instance of the generic Pi-compatible adapter, not a special Exo core feature.
+This document explains how Exo should support custom Pi-compatible harnesses correctly. It is written from the current Guardian Pi setup, but the implementation must remain generic: Guardian Pi is one local configured instance of the generic Pi-compatible adapter, not a special Exo core feature.
+
+Naming convention: call Kenneth's project **Guardian**. Use "Guardian Angels" only when referring to Gwern's original essay or idea. The local repo is still named `ga-pi`.
 
 ## Goal
 
@@ -12,10 +14,10 @@ For Kenneth's workspace, that means:
 
 - Exo launches `projects/ga-pi/packages/coding-agent/dist/cli.js`
 - Exo launches it from `/Users/kenneth/Desktop/lab`
-- GA Pi discovers scoped context from that cwd, including `AGENTS.md`, `CLAUDE.md`, and `principal.md`
-- Exo declares the local inference backend, currently llama.cpp, so the Pi harness is launchable
+- Guardian Pi discovers scoped context from that cwd, including `AGENTS.md`, `CLAUDE.md`, and `principal.md`
+- Exo declares the local inference backend, currently llama.cpp, and only makes Pi launchable after that backend is explicitly marked ready
 
-For other users, the same mechanism should support vanilla Pi, a local Pi fork, or another Pi-compatible build without hardcoding Kenneth, Shoshin, Guardian Angel, or local machine paths into Exo source defaults.
+For other users, the same mechanism should support vanilla Pi, a local Pi fork, or another Pi-compatible build without hardcoding Kenneth, Shoshin, Guardian, or local machine paths into Exo source defaults.
 
 ## Current State
 
@@ -34,7 +36,7 @@ Current env knobs:
 - `EXO_PI_BACKEND_COMMAND`: declares a backend command
 - `EXO_PI_BACKEND_LABEL`: display label for the backend
 - `EXO_PI_BACKEND_KIND`: backend kind label
-- `EXO_PI_BACKEND_READY`: optional strict readiness flag
+- `EXO_PI_BACKEND_READY`: readiness gate; set truthy only after the configured backend is actually running
 
 Source checkout auto-detection can discover a Pi repo under `EXO_PROJECT_ROOTS` when it contains:
 
@@ -50,7 +52,7 @@ args: /Users/kenneth/Desktop/lab/projects/ga-pi/packages/coding-agent/dist/cli.j
 cwd: /Users/kenneth/Desktop/lab
 ```
 
-The missing piece is durable Exo-side configuration. Exo currently marks Pi as not launchable unless a backend is declared through process env. A Finder-launched packaged Mac app does not reliably inherit shell env, so this cannot be the long-term user experience.
+The missing piece is durable Exo-side configuration. Exo currently marks Pi as not launchable unless a backend is declared and explicitly marked ready. A Finder-launched packaged Mac app does not reliably inherit shell env, so this cannot be the long-term user experience.
 
 ## Boundary Decision
 
@@ -66,11 +68,11 @@ Generic Pi-compatible adapter
 Pi or Pi fork
   owns provider/model config, prompt/context loading, tools, memory, principal.md behavior, and agent internals
 
-GA Pi
+Guardian Pi
   is a local configured Pi-compatible instance, not a new hardcoded Exo harness
 ```
 
-Do not add `ga-pi` as a core Exo managed agent kind unless GA Pi stops being Pi-compatible at the terminal contract layer.
+Do not add `ga-pi` as a core Exo managed agent kind unless Guardian Pi stops being Pi-compatible at the terminal contract layer.
 
 ## Compatibility Contract
 
@@ -178,15 +180,16 @@ Editing can be basic:
 
 Do not add a dead launcher button when Pi is detected but missing backend config. The current launcher behavior is correct: only enabled, visible, launchable harnesses appear in the tool surface.
 
-## GA Pi Local Configuration
+## Guardian Pi Local Configuration
 
 Kenneth's desired persisted config should be equivalent to:
 
 ```text
-EXO_PI_LABEL=GA Pi
+EXO_PI_LABEL=Guardian Pi
 EXO_PI_REPO_PATH=/Users/kenneth/Desktop/lab/projects/ga-pi
 EXO_PI_BACKEND_URL=http://127.0.0.1:8080
 EXO_PI_BACKEND_LABEL=llama.cpp
+EXO_PI_BACKEND_READY=1
 ```
 
 Exo should launch the harness from the active workspace cwd:
@@ -195,7 +198,7 @@ Exo should launch the harness from the active workspace cwd:
 /Users/kenneth/Desktop/lab
 ```
 
-Do not force cwd to the `ga-pi` repo. GA Pi should discover context from the cwd and ancestors, like Pi does for `AGENTS.md`, with the GA fork additionally reading `principal.md`.
+Do not force cwd to the `ga-pi` repo. Guardian Pi should discover context from the cwd and ancestors, like Pi does for `AGENTS.md`, with the Guardian fork additionally reading `principal.md`.
 
 ## Tests
 
@@ -204,7 +207,8 @@ Add focused coverage for:
 - persisted Pi settings make Pi launchable without process env
 - env overrides still win over persisted settings
 - missing backend hides Pi from launcher surfaces and shows setup detail in Agent Config / Plugin Manager
-- configured backend makes Pi visible in launcher surfaces
+- configured but unready backend keeps Pi hidden from launcher surfaces and shows start/readiness guidance
+- configured and ready backend makes Pi visible in launcher surfaces
 - source checkout detection still works from project roots
 - launch plan uses workspace cwd, not repo cwd
 - no source default points to Kenneth's local paths
@@ -220,9 +224,9 @@ Useful existing test areas:
 ## Acceptance
 
 - A packaged Exo app can be opened normally and still show configured Pi-compatible harness status.
-- A configured Pi-compatible harness appears in the launcher when backend config is present.
+- A configured Pi-compatible harness appears in the launcher only when backend config is present and explicitly ready.
 - A missing backend shows a clear missing dependency state and does not render a dead launcher.
-- Kenneth can configure GA Pi without hardcoding GA Pi into Exo source defaults.
+- Kenneth can configure Guardian Pi without hardcoding Guardian Pi into Exo source defaults.
 - `exo runtime status` and `exo runtime launch-plan pi` reflect the persisted config.
 - The implementation preserves the plugin/harness boundary: metadata and settings are persisted, but no arbitrary plugin code is executed.
 
