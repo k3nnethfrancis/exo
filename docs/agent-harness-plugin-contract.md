@@ -27,7 +27,7 @@ An `AgentHarness` exposes:
 - setup guidance: install, configure, authenticate, start-service, and verify actions
 - terminal ownership: always `core`
 
-The current runtime still uses fixed `ManagedAgentKind` values for actual terminal creation. Future work should split terminal/session substrate ids from policy-approved harness ids before arbitrary local harness plugins can be launched by id.
+The public agent-create path now uses harness ids and validates them against registered, enabled, surface-approved, visible, launchable harnesses. The lower-level terminal runtime still carries compatibility `ManagedAgentKind` fields for built-in creation and persisted-session backfill; future cleanup should keep removing those from renderer/API launch descriptors without weakening terminal/session recovery.
 
 ## Adapter Families
 

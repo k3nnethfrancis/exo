@@ -1,6 +1,6 @@
 # Terminal Architecture V4
 
-Last updated: 2026-06-23
+Last updated: 2026-07-03
 
 This is the current Exo terminal architecture target: embedded-first, tmux-durable, and xterm-owned. It applies the simplification algorithm to the tmux-backed terminal stack and supersedes the V3 planning snapshot.
 
@@ -125,14 +125,19 @@ Automation must cover:
 
 ## Current Architecture Inventory
 
-- `apps/desktop/src/main/terminal-manager.ts`: app-facing terminal service plus tmux session creation, attach/reconnect, read tail, transcript append, line buffer, readiness queues, health, diagnostics, registry persistence, and Codex MCP launch overrides.
+The V4.1 geometry-convergence slice is now implemented on `main`. Current terminal code records renderer-measured geometry, uses it for create/attach/reconnect/restore, tags attach generations so stale renderer events are dropped, reports tmux/client/renderer geometry divergence in diagnostics, and exposes `exo terminals resync <id>` as the operator recovery action.
+
+The plain attach spike is closed. It remains useful as evidence, but it is not a product runtime and must not be revived as a hidden fallback. Exo's product path stays tmux control mode into xterm.
+
+- `apps/desktop/src/main/terminal-manager.ts`: app-facing facade for create/list/diagnostics/write/send/reconnect/resize/kill/read-tail/read-transcript. It should keep shrinking as runtime, registry, health, readiness, geometry, and transcript ownership move behind named modules.
 - `apps/desktop/src/main/terminal-tmux.ts`: tmux detection, command runner, Exo session naming, pane parsing, control-mode process, control-output decoding, tmux key/input mapping, bracketed paste handling.
+- `apps/desktop/src/main/terminal-geometry.ts`: renderer geometry records, tmux/client comparison, divergence timing, and resync/reconnect inputs.
 - `apps/desktop/src/main/terminal-transcripts.ts`: append-buffered `.ansi.log` transcript store, retention cleanup, tail reads, transcript filename sanitization.
 - `apps/desktop/src/main/terminal-ipc.ts`: preload IPC handlers mapped to `TerminalManager`.
 - `apps/desktop/src/main/terminal-recovery-service.ts`: power resume hook that calls `reconnectRecoverableTerminals()`.
 - `apps/desktop/src/renderer/src/components/TerminalView.tsx`: xterm instance, fit addon, focus, input filtering, drag/drop path paste, resize reporting, hydration reset/replay, write chunk queue.
-- `apps/desktop/src/renderer/src/hooks/useTerminalSessions.ts`: session list state, active id, hydration snapshots/versions, pending live data while unmounted/hydrating, 1.5s list polling, create/activate/reconnect/kill actions.
-- `apps/desktop/src/renderer/src/components/TerminalDock.tsx`: terminal tabs, active session rendering, forced hydration on active session or pane change, health overlay, reconnect action.
+- `apps/desktop/src/renderer/src/hooks/useTerminalSessions.ts`: session list state, active id, generation-aware hydration snapshots, pending live data while unmounted/hydrating, metadata polling, create/activate/reconnect/kill actions. It must not make normal tab/focus/pane changes reset mounted xterms.
+- `apps/desktop/src/renderer/src/components/TerminalDock.tsx`: terminal tabs, active session rendering, health overlay, reconnect/resync actions, and active terminal container. It must not force hydration on ordinary active session or pane changes.
 - `apps/desktop/src/renderer/src/components/terminalRegistry.ts`: global imperative registry from session id to xterm write/focus/refresh.
 - `apps/desktop/src/renderer/src/components/terminalOutputChunks.ts`: xterm write chunking and surrogate-pair preservation.
 - `apps/desktop/src/renderer/src/components/terminalInputFilters.ts`: xterm-generated CSI/OSC response filter.
@@ -157,6 +162,17 @@ Live reconnect/bootstrap restore uses a typed tmux restore snapshot, not the CLI
 Alt-screen restore is a v1 limitation: if tmux reports `alternate_on`, Exo returns an empty restore snapshot with `altScreen: true` and relies on the running TUI to repaint after reconnect/resize. Full alt-screen grid restore is deferred until a concrete harness needs it.
 
 CLI/app geometry resync is a user-visible operator action for divergence diagnostics. It intentionally calls the same reconnect implementation used for bridge recovery so Exo has one attach/resize/snapshot recovery path instead of a second resize-only fallback that can drift from reconnect behavior.
+
+## V4.1 Invariants
+
+- Renderer measurement is the source of truth for visible terminal geometry.
+- Main records geometry per Exo terminal session and tmux follows that record on create, attach, reconnect, and restore.
+- Renderer resize dedupe is scoped by attach generation; a new attach/reconnect generation must be allowed to reassert geometry even when dimensions appear unchanged.
+- Restore snapshots are byte-faithful live tmux captures taken after size assertion; display tails are normalized for humans and must never hydrate xterm.
+- Stale generation output, readiness, or resize events are dropped rather than replayed into the current xterm.
+- Input delivery must fail visibly when the bridge/session is unhealthy; do not report missing or detached writes as delivered.
+- Escape/control output is passed through the decoder unless a test proves it is an xterm-generated response that must be filtered before tmux.
+- Any new render corruption report becomes field evidence, then a fixture, then a narrow fix guarded by `pnpm terminal:check`.
 
 ## What To Delete Or Simplify Now
 

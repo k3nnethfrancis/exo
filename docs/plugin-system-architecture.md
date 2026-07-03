@@ -84,6 +84,8 @@ Near-term Exo should prove the first two layers with official and local metadata
 
 Capability kinds are namespaced ids. Bare legacy names are rejected so manifests and internal registries use one vocabulary during active development.
 
+This intentionally differs from Fable's July 2026 preflight recommendation for a one-release parse-time alias shim. Exo has not shipped a public plugin manifest ecosystem yet, so the current product choice is a hard migration with less compatibility code. Revisit this before any public third-party plugin release, package registry, or documented manifest stability promise.
+
 | Capability kind | Status |
 |---|---|---|
 | `core:searchProvider` | hosted by core |
@@ -95,6 +97,8 @@ Capability kinds are namespaced ids. Bare legacy names are rejected so manifests
 | `exo.training:traceCollector` | inert |
 | `exo.training:datasetExporter` | inert |
 | `exo.training:evalRunner` | inert |
+
+Unknown capability kinds are currently rejected during manifest parsing rather than accepted as inert capabilities. That keeps today's official/local plugin inventory mechanically bounded while the host contracts are still forming. If Exo starts supporting user-defined capability namespaces, this should change to an open `CapabilityKindId` model with inert unknown kinds and explicit host negotiation.
 
 Profiles are bundles, not individual runtime capabilities. A profile can declare recommended plugins, graph metadata conventions, AGENTS.md/CLAUDE.md templates, MCP config templates, skills to install or enable, routine templates, default graph views, analyzer settings, and output/review policies. A profile may depend on plugins, but it should not hide executable code inside configuration. If a profile needs executable behavior, it should depend on an explicit plugin capability.
 

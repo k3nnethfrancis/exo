@@ -149,7 +149,7 @@ Status: first-pass implementation exists. Official shell/Claude/Codex/Pi-compati
 
 The v1 adapter extension contract is now documented in `docs/agent-harness-plugin-contract.md` and represented in `packages/core/src/agent-harness.ts`. It covers official and local adapters for Claude Code, Codex, Pi-compatible builds, Aider, Goose, OpenCode, and local/open-source agents. The contract names adapter metadata, availability detection, launch planning, semantic messages, semantic trace declarations, skill/config inventory, dependency/setup guidance, and core terminal ownership.
 
-Remaining cleanup: keep the terminal substrate core while reducing fixed official harness ids in CLI/MCP launch paths. Terminal sessions and diagnostics now expose additive `terminalKind` plus `harnessId` fields while preserving legacy `kind`; `exo terminals` should remain the low-level terminal/admin surface, while `exo agents create` and MCP `create_agent` should move to registered, enabled, policy-approved harness ids.
+Remaining cleanup: keep the terminal substrate core while removing the remaining compatibility official harness ids from renderer/API launch descriptors. Terminal sessions and diagnostics expose additive `terminalKind` plus `harnessId` fields while preserving legacy `kind`; `exo terminals` remains the low-level terminal/admin surface, while `exo agents create` and MCP `create_agent` now validate registered, enabled, surface-approved harness ids before terminal creation.
 
 Suggested files:
 

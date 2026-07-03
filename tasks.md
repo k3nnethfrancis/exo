@@ -1,6 +1,6 @@
 # Exo Tasks
 
-Last updated: 2026-07-02
+Last updated: 2026-07-03
 
 This is the active task tracker for Exo. It is intentionally not a history file; completed implementation history belongs in `ledger.md`. Tasks here should be concrete, current, and ordered by practical priority.
 
@@ -32,10 +32,11 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
   - [x] Add the native UI review surface for proposal batches.
   - [x] Design semantic trace contract early enough that harness adapters do not need another terminal-service re-plumb.
   - [x] Tighten Plugin Manager into a management surface: active/disabled/untrusted/missing states, local plugin add/remove/swap, plugin-owned settings, readiness/dependency guidance, and no dense-layout overlap.
-  - [ ] Split terminal/session substrate types from harness-adapter ids so `exo agents` derives launchable harnesses from registered harness plugins while `exo terminals` remains the low-level core terminal surface.
+  - [ ] Finish removing compatibility harness ids from internal renderer/API launch descriptors while keeping `exo terminals` as the low-level core terminal surface.
     - [x] Add backward-compatible `terminalKind`/`harnessId` fields to terminal session info, diagnostics, command protocol terminal info, and persisted terminal session records.
     - [x] Move Codex startup readiness, blocked prompt metadata, semantic queue policy, and MCP launch-arg augmentation behind the built-in harness contract while keeping terminal rendering/session ownership in core.
-    - [ ] Move CLI/MCP/app `agents create` launch requests to registered, enabled, policy-approved harness ids instead of fixed `ManagedAgentKind` values.
+    - [x] Move CLI/MCP/app `agents create` launch requests to registered, enabled, policy-approved harness ids instead of fixed `ManagedAgentKind` values.
+    - [ ] Continue the internal cleanup so renderer/API descriptors no longer need built-in `ManagedAgentKind` compatibility fields except for persisted-session backfill.
   - [ ] Define external plugin contracts for workload-specific trace collection, review labels, dataset export, eval packets, and instrumented agent runtimes.
   - [ ] Define a Project Knowledge Sync plugin/profile contract for project-local canonical Markdown files: default names such as `issues.md`, `tasks.md`, `roadmap.md`, plans, specs, `AGENTS.md`, and `CLAUDE.md`; custom user patterns; sync mode; conflict policy; remote GitHub state; and reviewable proposals.
   - [ ] Keep GA/Shoshin-specific behavior out of OSS core; represent local variants as local/private plugin configuration or downstream plugins.
@@ -45,12 +46,12 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
   - [ ] Search QA: QMD enabled/degraded/disabled states preserve core filename/path/basic text search and do not block Explore.
   - [ ] Harness QA: unavailable harnesses do not show dead launch buttons; shell/Claude/Codex still launch through the registered harness path.
 - [ ] Clear the daily-use bug-bash cluster from root `issues.md` before treating the build as ship-ready:
-  - [ ] Terminal/preview interaction: `EXO-ISSUE-056`, `EXO-ISSUE-062`, `EXO-ISSUE-069`, `EXO-ISSUE-072`, plus any new render/focus regressions.
-  - [ ] Editor/graph UX: `EXO-ISSUE-051`, `EXO-ISSUE-052`, `EXO-ISSUE-053`, `EXO-ISSUE-057`.
-  - [ ] Explorer/UI polish: `EXO-ISSUE-043`, `EXO-ISSUE-044`, `EXO-ISSUE-055`, `EXO-ISSUE-058`.
-  - [ ] Settings/profile/plugin UI: `EXO-ISSUE-047`, `EXO-ISSUE-048`, `EXO-ISSUE-049`.
+  - [ ] Terminal field-watch and preview interaction: `EXO-ISSUE-062`, `EXO-ISSUE-069`, plus any new render/focus regressions with deterministic fixtures.
+  - [ ] Editor/graph UX: open issues such as project Markdown/rendering regressions, wikilink hover/search regressions, backlinks/references polish, and task/list QoL only if new field evidence appears.
+  - [ ] Explorer/UI polish: open issues such as duplicate controls, changed-state badges, folder typography, and dense modal overlap only if new field evidence appears.
+  - [ ] Settings/profile/plugin UI: active profile/plugin/onboarding QA, Apply/save semantics, and dense Plugin Manager/Agent Config/Settings layout checks.
   - [ ] Install/onboarding/dev launch: `EXO-ISSUE-027`, `EXO-ISSUE-028`, `EXO-ISSUE-029`, `EXO-ISSUE-031`.
-  - [ ] QA workflow: `EXO-ISSUE-074` so visual app QA has a clear preflight/fallback path when Computer Use cannot inspect Exo.
+  - [x] QA workflow: `EXO-ISSUE-074` visual app QA preflight/fallback documentation.
 - [ ] Harden CLI/MCP for multi-agent coordination:
   - [ ] Make `workspace_status` a reliable orientation tool with workspace roots, plugin/search readiness, live agents, index summary, command-server health, and degraded-state diagnostics.
   - [ ] Add or finalize the core preview/artifact-open command path for CLI/MCP through the core web viewer endpoint.

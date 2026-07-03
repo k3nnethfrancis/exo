@@ -1,6 +1,6 @@
 # Plugin Architecture Audit
 
-Last updated: 2026-06-24
+Last updated: 2026-07-03
 
 This document applies the same discipline used for terminal architecture to Exo's plugin architecture: steelman the decisions, keep only fallbacks that preserve a real user capability, and document the reasoning before the system grows.
 
@@ -16,6 +16,18 @@ The plugin architecture should make these questions mechanical:
 - Which surface owns enforcement: core service, plugin adapter, UI, CLI, MCP, or routine runner?
 
 ## Current Decisions
+
+### July 2026 State
+
+Since the first audit, Exo has landed namespaced built-in capability kinds, scoped `propose` versus `write` permission parsing, proposal/review substrate, native proposal review UI, semantic trace metadata, Plugin Manager hardening, Pi-compatible persisted configuration, and registered-harness validation for CLI/MCP/app agent creation.
+
+Still open:
+
+- public profile apply that can stage plugin enables, permission grants, skills, routines, settings, and AI-generated profile changes as reviewable proposals;
+- external plugin contracts for trace collection, review labels, dataset export, eval packets, and instrumented runtimes;
+- project knowledge sync plugin/profile contract;
+- richer plugin QA across onboarding, Plugin Manager, QMD/search, and harness launch states;
+- possible Fable alignment decisions around open capability kind ids, legacy alias shims, and comment-preserving frontmatter patching.
 
 ### Core Owns Substrate; Plugins Own Variation
 

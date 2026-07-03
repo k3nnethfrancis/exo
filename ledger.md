@@ -1,6 +1,6 @@
 # Exo Ledger
 
-Last updated: 2026-07-02
+Last updated: 2026-07-03
 
 This is the fastest current-state handoff for Exo. It records what exists now, what changed recently, and what is next. Active bugs and QA findings live in root `issues.md`; active tasks live in `tasks.md`; future systems live in `roadmap.md`; product/system strategy lives in `docs/strategy.md`.
 
@@ -8,11 +8,26 @@ This is the fastest current-state handoff for Exo. It records what exists now, w
 
 - Root `issues.md` is now the canonical Exo bug, QA, and field-report tracker. The old `docs/issues.md` path was moved; the vault dogfooding note should be treated as intake/history only.
 - The current ship path is documented at the top of `roadmap.md` and mirrored as concrete checklist items in `tasks.md`.
-- The near-term focus remains Plugin Architecture Completion: staged profile apply, permission/trust prompts, Plugin Manager as a real management UI, local plugin setup, harness adapter cleanup, and keeping GA/Shoshin-specific behavior out of OSS core.
+- The near-term focus remains Plugin Architecture Completion: staged profile apply, permission/trust prompts, deeper Plugin Manager/profile management, local plugin setup, harness adapter cleanup, project knowledge sync, and keeping GA/Shoshin-specific behavior out of OSS core.
 - After the next plugin slice, run an explicit QA block across Plugin Manager, onboarding plugin review, QMD/search readiness, and harness launch/readiness states.
 - In parallel, keep clearing root `issues.md` daily-use blockers: terminal/preview interaction, editor/graph UX, explorer polish, settings/profile/plugin UI, install/onboarding, and dev launch.
 - CLI/MCP readiness is the next major non-plugin track: reliable `workspace_status`, preview/artifact open through the core web viewer endpoint, NDE-style MCP testing, stale command-server diagnostics, and the conservative scheduled Codex issue-fix loop.
 - Routine work should remain a POC until the plugin/CLI/MCP ship path is stable. The GitHub issue-fix loop is the first routine-like proof, not a reason to move rich workflow schemas into core.
+
+## Recent Progress
+
+- Terminal V4.1 geometry convergence landed: renderer-recorded geometry drives create/attach/reconnect/restore; diagnostics expose renderer/tmux/client divergence and divergence age; `exo terminals resync <id>` uses the same reconnect path as bridge recovery; the plain attach spike was rejected as a product runtime.
+- Plugin architecture slices landed: namespaced core capability kinds, scoped `propose` versus `write` permissions, proposal/review substrate, native proposal review UI, semantic trace metadata, Plugin Manager hardening, and first structural guardrails in `pnpm check:repo`.
+- Harness architecture moved forward: terminal sessions now carry substrate identity plus public `harnessId`; Codex readiness/semantic-send/MCP launch augmentation moved behind the built-in harness contract; CLI/MCP/app agent creation now validates registered, enabled, surface-approved, launchable harness ids through the command server.
+- Pi-compatible harness configuration is persisted through workspace settings and projected to the existing Pi adapter vocabulary, with environment overrides still winning for operator/developer use.
+- Index settings now explain pending embeddings and only mention Apply when structural workspace/index changes actually require Apply.
+
+## Current Open Architecture Questions
+
+- Whether to keep the current closed/namespaced `CapabilityKind` allowlist through first public plugin work, or adopt Fable's open/inert unknown kind model before external plugin authors exist.
+- Whether the proposal apply host must switch from `gray-matter` frontmatter rewrite to a comment/key-order-preserving YAML AST before P3 can be called complete.
+- Whether semantic trace work needs a fake-harness plus Claude-adapter consumer and `exo traces read` before it is more than a contract.
+- How profile apply should stage plugin enables, grants, skills, routines, settings, and AI-generated profile changes without turning profile selection into silent writes.
 
 ## Product Thesis
 
@@ -167,15 +182,15 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Started cleanup-plan doc sync by removing stale tmux prerequisite language and documenting that current open QA includes the e2e launch harness and broader terminal bug-bash.
 - Clarified the plugin architecture handoff: Exo core owns baseline workstation substrate, terminal, web viewer, scheduler, command server, settings, plugin registry/trust, and core graph data; plugins own replaceable capabilities such as harness adapters, QMD/other search providers, graph visualizations, analyzers, exporters, eval runners, dashboards, and routine templates.
 - Added the plugin/profile distinction to durable context: a plugin is a replaceable capability; a profile is an opinionated bundle of recommended plugins, metadata/frontmatter conventions, context templates, AGENTS/CLAUDE templates, MCP config, skills, routine templates, graph views, analyzer settings, and review/output policies. Profiles may depend on plugins, but executable behavior should live in explicit plugin capabilities.
-- Next plugin implementation resume point: build the Plugin Manager foundation first, as a read-only inventory/config surface over current core capabilities, bundled plugin-shaped capabilities, and metadata-only local manifests. Defer arbitrary executable plugin loading, native component plugins, and broad plugin-contributed surfaces until manifests/trust/permissions survive real use.
+- Next plugin implementation resume point: complete the profile/apply and plugin-management path on top of the Plugin Manager foundation. Defer arbitrary executable plugin loading, native component plugins, and broad plugin-contributed surfaces until manifests/trust/permissions survive real use.
 - Proposed background product-quality loop: a scheduled Codex automation can poll GitHub issues labeled `codex-loop` and `ready-for-codex`, take at most one actionable issue per run, fix in an isolated worktree/branch, run focused tests and app QA, then open a draft PR instead of pushing directly to `main`.
 
 ## Next Priorities
 
 1. Use installed Exo as the default environment for daily work and record every friction point as live bug-bash input.
 2. Stand up the GitHub issue-fix loop with conservative labels, isolated worktrees, test/app-QA requirements, and draft PR output.
-3. Resume plugin architecture with the Plugin Manager foundation: expose current capability/plugin inventory to the desktop, group by category, and show Core vs Bundled Plugin vs Local Manifest without executable loading.
-4. After Plugin Manager foundation, define the profile manifest extension, graph-data API, and graph visualization surface contract.
+3. Resume plugin architecture with profile apply, permission grants, plugin-owned settings, project knowledge sync, and remaining harness compatibility cleanup.
+4. Define the profile manifest extension, graph-data API, graph visualization surface contract, and first semantic trace consumer.
 5. Continue multi-agent coordination: roster, objectives, direct messages, changed-file/review links, file+SQLite transport, CLI/MCP access.
 6. Exograph architecture: write the profile/schema/proposal spec, add read-only graph/document context primitives, then add scoped maintainer writes.
 

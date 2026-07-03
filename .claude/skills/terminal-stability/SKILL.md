@@ -37,6 +37,18 @@ Do not reintroduce direct `node-pty` as a fallback path or user-facing transport
 - Reconnect is explicit recovery and may force a snapshot; ordinary focus is not recovery.
 - Fake local agents should be used for automated tests. Do not depend on live Claude/Codex inference in CI.
 
+## V4.1 Geometry And Render Invariants
+
+- Renderer measurement is the source of truth for visible terminal geometry.
+- Main records last-known geometry per Exo terminal session and uses that record for create, attach, reconnect, and restore.
+- tmux follows renderer-recorded geometry; diagnostics compare tmux pane/client size against the recorded renderer size and surface divergence.
+- Resize dedupe must be scoped by attach generation. A fresh attach/reconnect generation must be allowed to reassert geometry even if the width/height equal the previous renderer event.
+- Restore snapshots are byte-faithful tmux captures taken after geometry assertion. Display/read tails may be normalized for humans, but they must never hydrate xterm.
+- Stale-generation output, readiness, or resize events should be dropped instead of replayed into the current xterm.
+- Input delivery must fail visibly when a bridge/session is unhealthy. Do not report missing, detached, or dead-pane writes as delivered.
+- Escape/control output should pass through faithfully unless a focused test proves it is an xterm-generated response that must be filtered before tmux.
+- Any new `???`, `�`, tofu-box, smear, duplicated-frame, blank-viewport, or width-drift field report must become a fixture before a broad terminal patch merges.
+
 ## Fallback Discipline
 
 Before adding, preserving, or modifying fallback behavior, read `docs/terminal-fallback-audit.md`.
@@ -71,7 +83,7 @@ Forbidden fallback patterns:
 Read these first:
 
 - `docs/terminal-quality-standard.md`
-- `docs/terminal-architecture-v3.md`
+- `docs/terminal-architecture-v4.md`
 - `docs/terminal-runtime-decision.md`
 - `docs/terminal-fallback-audit.md`
 - `apps/desktop/src/main/terminal-manager.ts`

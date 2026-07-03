@@ -1,6 +1,6 @@
 # Exo Roadmap
 
-Last updated: 2026-07-02
+Last updated: 2026-07-03
 
 Exo is a local-first AI workstation for applied AI engineers and researchers building personal AI systems over a Markdown-first exograph. This roadmap names the practical path from the current app to Kenneth using Exo to build Exo by default, then to a more general local AI workbench. `tasks.md` is the active execution list; `ledger.md` records shipped history.
 
@@ -28,7 +28,7 @@ Remaining work:
 - Finish the staged profile apply flow with permission prompts before profile/plugin recommendations can write `AGENTS.md`, `CLAUDE.md`, MCP config, skills, routines, plugin settings, or permission grants.
 - Tighten plugin-owned settings and Plugin Manager UX so it reads as "manage my plugin stack", not only "inspect current metadata".
 - Make plugin setup tangible: local plugin add/remove/swap, official-vs-local distinction, trust state, readiness state, dependency hints, disabled/missing handling, and clear "what changed" review.
-- Split terminal/session substrate types from harness adapter ids so `exo agents` derives launchable harnesses from the registry while `exo terminals` remains the low-level core terminal surface.
+- Finish the harness-id migration: `exo agents create`, MCP `create_agent`, and desktop launch actions now validate registered, enabled, surface-approved harness ids; remaining work is removing built-in compatibility `ManagedAgentKind` fields from renderer/API launch descriptors where possible.
 - Define the external plugin contracts for workload-specific traces, review labels, dataset exports, eval packets, and instrumented runtimes.
 - Define a Project Knowledge Sync plugin/profile contract for mapping project-local Markdown control files into the central exograph. It should support canonical file names and user-defined patterns, but all sync/mirror/symlink/proposal behavior must be explicit and reviewable.
 - Keep GA/Shoshin-specific behavior out of OSS core; represent it as local/private plugin configuration or downstream reference plugins.

@@ -10,7 +10,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-076: Persist custom Pi-compatible harness configuration
 
-- Status: open
+- Status: fixed in `main`; real Pi backend/session QA pending
 - Severity: high
 - Area: agent harnesses, plugin architecture, settings, packaged app launch, local/open-source agents
 - Canonical implementation brief:
@@ -42,10 +42,11 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - 2026-07-03: Added typed persisted `piHarness` workspace settings with normalization and projection to the existing `EXO_PI_*` adapter vocabulary. CLI, MCP, and desktop settings application now merge persisted Pi settings while preserving explicit operator env overrides.
   - 2026-07-03: Added Pi-compatible setup editing/status surfaces in Agent Config and Workspace Settings. Missing backend remains visible as setup detail, while normal launcher surfaces still use launchability filtering and avoid dead Pi buttons.
   - 2026-07-03: Added focused coverage for Pi settings normalization/env projection, operator override precedence, persisted workspace-cwd launch plans, launcher filtering, and renderer setup controls.
+  - 2026-07-03: Integrated in `e4e34c9`. Remaining work is live QA with an actual configured Pi-compatible backend, not the persisted configuration model.
 
 ### EXO-ISSUE-075: Terminal geometry divergence causes render drift and hard-refresh recovery loops
 
-- Status: open
+- Status: fixed in `main`; field regressions continue under `EXO-ISSUE-069` and `EXO-ISSUE-062`
 - Severity: critical
 - Area: terminal architecture, tmux control-mode bridge, xterm rendering, reconnect/sleep-wake
 - Source:
@@ -78,10 +79,11 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - 2026-07-03: Terminal diagnostics now expose structured geometry state: recorded renderer geometry, tmux pane geometry, divergence boolean, and attach generation.
   - 2026-07-03: Added `exo terminals resync <id>` and `/terminals/:id/resync` as user-visible/operator geometry recovery. It intentionally uses the existing reconnect implementation so geometry repair does not create a second fallback path.
   - 2026-07-03: Completed the V4.1 diagnostics audit by adding tmux client geometry and divergence age to terminal diagnostics. `pnpm terminal:check` remains green.
+  - 2026-07-03: Treat the V4.1 geometry-convergence implementation as complete. New real-world sleep/wake, long-session, or glyph-corruption evidence should stay in the field-watch issues unless a new deterministic geometry failure is found.
 
 ### EXO-ISSUE-074: Computer Use visual QA can fail to inspect the running Exo app
 
-- Status: fixed locally; awaiting integration commit
+- Status: fixed in `main`
 - Severity: medium
 - Area: QA harness, Exo-on-Exo workflow, visual app review
 - Source:
@@ -107,7 +109,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-073: Evaluate mechanical architecture rules for agent-safe code changes
 
-- Status: open
+- Status: partially fixed in `main`; broader structural rules deferred
 - Severity: medium
 - Area: developer harness, architecture enforcement, CI, agent workflow
 - Source:
@@ -135,7 +137,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-072: Preview clipping and repeated Claude screen after preview/focus fix
 
-- Status: fixed locally
+- Status: fixed in `main`
 - Severity: high
 - Area: browser preview, terminal rendering, pane focus/layout
 - Observed:
@@ -158,7 +160,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-071: Plugin architecture needs decision/fallback audit and plugin-development skill
 
-- Status: fixed locally
+- Status: fixed in `main`
 - Severity: medium-high
 - Area: plugin architecture, docs, developer workflow, future extensibility
 - Observed:
@@ -400,7 +402,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-065: Harness plugin model is still partially hardcoded into terminal and public APIs
 
-- Status: open; terminal identity and readiness/semantic-message slices landed locally
+- Status: partially fixed in `main`; renderer/API compatibility cleanup remains
 - Severity: medium-high
 - Area: plugin architecture, harness adapters, terminal boundary, CLI/MCP APIs
 - Observed:
@@ -443,7 +445,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
     - Preserved renderer `harnessId` through terminal-launch descriptors, tool-dock actions, pane controller, and desktop IPC terminal creation.
     - Made `TerminalManager.create` reject mismatched compatibility `kind` / public `harnessId` pairs before runtime creation.
   - Remaining next patch:
-    - Continue splitting renderer terminal-launch descriptors from compatibility `ManagedAgentKind` once renderer/API surfaces can consume `harnessId` directly.
+    - Continue splitting renderer/API terminal-launch descriptors from compatibility `ManagedAgentKind`; the public CLI/MCP/app create path now routes by registered `harnessId`, but some internal compatibility fields remain for built-in terminal creation and persisted-session backfill.
 - QA coverage needed:
   - Agent creation derives from registered/launchable harness metadata.
   - Codex-specific startup behavior remains covered by harness adapter tests, not terminal-manager-only tests.
@@ -505,7 +507,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-060: `exo terminals read --lines` can ignore bounded read limits
 
-- Status: fixed in local branch
+- Status: fixed in `main`
 - Severity: high
 - Area: terminal CLI, MCP read surfaces, bounded tails
 - Observed:
@@ -530,7 +532,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-059: Harness plugins need inference-engine configuration and Hermes should be hidden for now
 
-- Status: open
+- Status: fixed in `main`; Pi persisted config follow-up tracked by `EXO-ISSUE-076`
 - Severity: high
 - Area: plugin architecture, harness adapters, Pi integration, agent config
 - Observed:
@@ -558,7 +560,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-058: Explorer uses duplicate folder open/close affordances
 
-- Status: fixed locally
+- Status: fixed in `main`
 - Severity: medium
 - Area: explorer, navigation hierarchy, visual design
 - Observed:
@@ -579,7 +581,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-057: Markdown files in project folders should render with the Markdown renderer
 
-- Status: fixed locally
+- Status: fixed in `main`
 - Severity: medium
 - Area: editor, project files, Markdown rendering
 - Observed:
@@ -603,7 +605,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-056: Terminal input can stop rendering while browser preview is open
 
-- Status: fixed locally; manual app QA pending
+- Status: fixed in `main`; manual app QA and field watch pending
 - Severity: high
 - Area: terminal rendering, browser preview, pane focus/resize
 - Observed:
@@ -633,7 +635,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-055: Explorer folder labels are too bold
 
-- Status: fixed locally
+- Status: fixed in `main`
 - Severity: low
 - Area: explorer, visual design
 - Observed:
@@ -649,7 +651,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-054: Exo MCP needs a tool to open preview window URLs or local HTML artifacts
 
-- Status: fixed locally
+- Status: fixed in `main`
 - Severity: medium
 - Area: MCP, browser preview, command server, Exo-on-Exo workflows
 - Observed:
@@ -677,7 +679,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-053: Live wikilink search is missing while typing `[[...]]`
 
-- Status: fixed locally
+- Status: fixed in `main`
 - Severity: medium
 - Area: editor, backlinks, graph navigation
 - Observed:
@@ -702,7 +704,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-052: Inspect mode should be replaced by read-only backlinks/references below rendered pages
 
-- Status: fixed locally
+- Status: fixed in `main`
 - Severity: medium
 - Area: editor, backlinks, references, inspect mode
 - Observed:
@@ -729,7 +731,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-051: Wikilink hover preview is missing
 
-- Status: fixed locally
+- Status: fixed in `main`
 - Severity: medium
 - Area: editor, backlinks, page preview
 - Observed:
@@ -753,7 +755,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-050: Agent rail shows dead harness launcher buttons for unavailable adapters
 
-- Status: fixed locally
+- Status: fixed in `main`
 - Severity: medium
 - Area: agent harnesses, terminal launcher rail, agent config editor
 - Observed:
@@ -772,7 +774,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-049: Index settings show stale embeddings and misleading Apply copy
 
-- Status: resolved locally; focused renderer verification passed
+- Status: fixed in `main`; focused renderer verification passed
 - Severity: medium
 - Area: workspace settings, indexing UX, embeddings status
 - Observed:
@@ -798,7 +800,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-048: Workspace Settings modal feels cramped after theme/settings updates
 
-- Status: fixed locally
+- Status: fixed in `main`
 - Severity: low
 - Area: settings, themes, modal layout
 - Observed:
@@ -816,7 +818,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-047: Workspace Settings still shows duplicate agent config surface
 
-- Status: fixed locally
+- Status: fixed in `main`
 - Severity: low
 - Area: settings, agent config editor, navigation
 - Observed:
@@ -832,7 +834,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-046: MCP autostart and tool calls can stay pinned to stale command-server discovery
 
-- Status: fixed locally; awaiting integration commit and live installed-app MCP smoke
+- Status: fixed in `main`; live installed-app MCP smoke remains useful
 - Severity: high
 - Area: MCP, command-server discovery, autostart, Exo-on-Exo reliability
 - Observed:
@@ -909,7 +911,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-044: Editor header chrome is too tall and daily notes repeat the title as an H1
 
-- Status: fixed in local branch
+- Status: fixed in `main`
 - Severity: medium
 - Area: editor chrome, document rendering, daily notes
 - Observed:
@@ -934,7 +936,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-043: Explorer file and folder rows lack enough visual differentiation
 
-- Status: fixed in local branch
+- Status: fixed in `main`
 - Severity: medium
 - Area: project explorer, navigation hierarchy, visual design
 - Observed:
@@ -957,7 +959,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-042: Projects sidebar duplicates changed files in a separate Changes section
 
-- Status: fixed in local branch
+- Status: fixed in `main`
 - Severity: medium
 - Area: projects sidebar, file explorer, changed-file indicators
 - Observed:
@@ -982,7 +984,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-041: Terminal panes can blank, hydrate at stale width, or leak generated OSC responses
 
-- Status: implemented locally; pending real-app QA
+- Status: fixed in `main`; ongoing real-app QA covered by `EXO-ISSUE-062` and `EXO-ISSUE-069`
 - Severity: critical
 - Area: terminal renderer, xterm hydration, pane moves, refresh/reload recovery
 - Observed:
@@ -1023,7 +1025,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-040: Agent-facing Exo orientation requires sandbox escalation and raw repo search
 
-- Status: fixed in local branch
+- Status: fixed in `main`
 - Severity: high
 - Area: CLI/MCP control plane, sandbox compatibility, Exo-on-Exo orientation
 - Observed:
@@ -1046,7 +1048,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-039: Exo search/read fallback is too low-recall for agent orientation
 
-- Status: fixed in local branch
+- Status: fixed in `main`
 - Severity: high
 - Area: search, note read, QMD fallback, lexical retrieval
 - Observed:
@@ -1067,7 +1069,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-038: Exo-managed Claude/Codex lifecycle can exit immediately and mix stale transcripts
 
-- Status: fixed in local branch
+- Status: fixed in `main`
 - Severity: critical
 - Area: agent lifecycle, terminal transcripts, Exo-on-Exo orchestration
 - Observed:
@@ -1217,7 +1219,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-030: Direct pty terminals can break after macOS sleep and need tmux-backed persistence
 
-- Status: open
+- Status: fixed in `main`; sleep/wake field dogfooding continues under `EXO-ISSUE-069`
 - Severity: critical
 - Area: terminal runtime, macOS sleep/wake, process persistence, agent session reliability
 - Observed:
@@ -1350,7 +1352,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-024: Installed Exo menu bar icon is not visible enough for daily resident use
 
-- Status: fixed locally
+- Status: fixed in `main`
 - Severity: high
 - Area: macOS packaging, resident runtime, menu bar control surface, Exo-on-Exo workflow
 - Observed:
