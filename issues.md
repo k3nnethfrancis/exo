@@ -8,6 +8,41 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ## Open
 
+### EXO-ISSUE-077: Pi-compatible harness detection shows wrong executable and remains unlaunchable in packaged app
+
+- Status: fixed in `main`; live GA-Pi model session QA pending
+- Severity: high
+- Area: Pi-compatible harness, plugin architecture, packaged app, Agent Config UI
+- Source:
+  - 2026-07-03 user QA of the Agent Config/Plugin Manager harness status.
+- Observed:
+  - The UI shows confusing Pi-compatible harness state:
+    - one row reports `Enabled`, `Launchable`, `/opt/homebrew/bin/codex`, and `Pi-compatible harness`;
+    - another row reports `Enabled`, `Launch unavailable`, `/Users/kenneth/Applications/Exo.app/Contents/MacOS/Exo`, `Pi-compatible harness · source`;
+    - Pi dependency text says `Pi inference backend: Missing · Configure EXO_PI_BACKEND_URL or EXO_PI_BACKEND_COMMAND...`.
+  - The packaged app should not present the Exo executable itself as the Pi-compatible command.
+  - Pi-compatible status should reflect the configured local/custom Pi build and backend configuration clearly.
+- Expected:
+  - A configured local Pi-compatible build such as `projects/ga-pi` appears as one coherent Pi-compatible harness row.
+  - The executable/command shown is the configured Pi CLI command or source-checkout launch plan, not Codex and not the packaged Exo binary.
+  - If a backend is missing, the setup state clearly says what needs to be configured and where, without implying the harness itself is launchable.
+  - If a backend is configured through persisted settings, a Finder-launched packaged Exo app resolves Pi as launchable without shell env.
+- Suspected:
+  - Source-checkout Pi launch uses `process.execPath` as the command, which becomes the packaged `Exo.app` binary instead of a Node runtime in installed app context.
+  - UI may be conflating Codex executable/config rows with Pi-compatible setup rows.
+- Acceptance:
+  - [x] Fix Pi source-checkout launch/detection so packaged Exo never shows `Exo.app/Contents/MacOS/Exo` as the Pi executable.
+  - [x] Confirm Codex and Pi rows cannot cross-report each other's executable paths or labels.
+  - [x] Persisted `piHarness` command/repo/backend settings drive status without requiring shell env.
+  - [x] Add focused tests for packaged `process.execPath` behavior, source-checkout command resolution, and UI row labeling/status.
+  - [x] Run focused core/renderer tests, `pnpm check:repo`, package/install/restart Exo, and verify the Pi row in the app.
+- Resolution:
+  - Source-checkout Pi launch now resolves a real Node runtime and passes the Pi CLI entrypoint as an argument.
+  - Explicit Pi commands pointing at Codex or packaged `Exo.app` are rejected as invalid Pi commands.
+  - Local app settings now configure Kenneth's `GA Pi` source checkout with `GA llama.cpp` backend metadata; this is intentionally machine-local and not committed as a repo default.
+  - Installed app QA verified the Agent Config Harnesses tab shows `GA Pi` as configured/launchable with `/opt/homebrew/bin/node`, `/Users/kenneth/Desktop/lab/projects/ga-pi`, and `http://127.0.0.1:8082`.
+  - Remaining QA: start the actual llama.cpp backend and launch a real GA-Pi session from Exo.
+
 ### EXO-ISSUE-076: Persist custom Pi-compatible harness configuration
 
 - Status: fixed in `main`; real Pi backend/session QA pending

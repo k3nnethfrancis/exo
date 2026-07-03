@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -103,6 +103,7 @@ describe("cli package", () => {
     try {
       await mkdir(path.dirname(cliPath), { recursive: true });
       await writeFile(cliPath, "#!/usr/bin/env node\n", "utf8");
+      await chmod(cliPath, 0o755);
       await saveWorkspaceSettings({
         workspaceRoot,
         defaultTerminalCwd: workspaceRoot,
@@ -145,7 +146,7 @@ describe("cli package", () => {
       expect(statusStdout).toContain('"label": "llama.cpp"');
       expect(planExitCode).toBe(0);
       expect(planStdout).toContain(`"cwd": "${workspaceRoot}"`);
-      expect(planStdout).toContain(`"command": "${process.execPath}"`);
+      expect(planStdout).toMatch(/"command": ".*\/node"/);
       expect(planStdout).toContain(cliPath);
     } finally {
       await rm(userDataPath, { recursive: true, force: true });

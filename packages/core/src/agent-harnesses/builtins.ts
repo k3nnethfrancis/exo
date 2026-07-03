@@ -138,6 +138,44 @@ function discoverPiSourceCheckout(env: NodeJS.ProcessEnv): { repoPath: string; c
   return undefined;
 }
 
+function invalidPiCommandDetail(command?: string): string | undefined {
+  if (!command) {
+    return undefined;
+  }
+
+  const basename = path.basename(command).toLowerCase();
+  if (basename === "codex") {
+    return "Configured Pi command points at Codex. Choose a Pi-compatible command or source checkout.";
+  }
+
+  if (basename === "exo" && command.includes(`${path.sep}Contents${path.sep}MacOS${path.sep}Exo`)) {
+    return "Configured Pi command points at the packaged Exo app. Choose a Pi-compatible command or source checkout.";
+  }
+
+  return undefined;
+}
+
+function validPiCommand(env: NodeJS.ProcessEnv): string | undefined {
+  return invalidPiCommandDetail(env.EXO_PI_COMMAND) ? undefined : env.EXO_PI_COMMAND;
+}
+
+function resolveNodeCommand(env: NodeJS.ProcessEnv): string | undefined {
+  const fromPath = resolvePathCommand("node", env);
+  if (fromPath) {
+    return fromPath;
+  }
+
+  // Source-checkout Pi launches through Node so packaged Exo never treats its
+  // own app binary as the harness runtime. `process.execPath` is safe only when
+  // this process is actually Node, which is true for CLI/tests but false for
+  // Finder-launched Exo.app.
+  if (path.basename(process.execPath).toLowerCase() === "node" && isExecutable(process.execPath)) {
+    return process.execPath;
+  }
+
+  return undefined;
+}
+
 function detectionFor(input: {
   id: ManagedAgentKind;
   adapterId: AgentHarnessAdapterId;
@@ -503,20 +541,24 @@ class PiAgentHarness implements AgentHarness {
   readonly skills = [];
 
   resolveLauncher(env: NodeJS.ProcessEnv): AgentLauncherConfig {
-    const sourceCheckout = env.EXO_PI_COMMAND ? undefined : discoverPiSourceCheckout(env);
+    const command = validPiCommand(env);
+    const sourceCheckout = command ? undefined : discoverPiSourceCheckout(env);
+    const sourceCheckoutNode = sourceCheckout ? resolveNodeCommand(env) : undefined;
     return {
       kind: this.kind,
       title: env.EXO_PI_LABEL ?? "Pi-compatible harness",
-      command: env.EXO_PI_COMMAND ?? (sourceCheckout ? process.execPath : "pi"),
-      args: sourceCheckout ? [sourceCheckout.cliPath, ...splitEnvArgs(env.EXO_PI_ARGS)] : splitEnvArgs(env.EXO_PI_ARGS),
+      command: command ?? sourceCheckoutNode ?? "pi",
+      args: sourceCheckout && sourceCheckoutNode ? [sourceCheckout.cliPath, ...splitEnvArgs(env.EXO_PI_ARGS)] : splitEnvArgs(env.EXO_PI_ARGS),
     };
   }
 
   resolveDetection(env: NodeJS.ProcessEnv): AgentHarnessDetection {
     const launcher = this.resolveLauncher(env);
-    const sourceCheckout = env.EXO_PI_COMMAND ? undefined : discoverPiSourceCheckout(env);
+    const command = validPiCommand(env);
+    const invalidCommandDetail = invalidPiCommandDetail(env.EXO_PI_COMMAND);
+    const sourceCheckout = command ? undefined : discoverPiSourceCheckout(env);
     const configured = Boolean(env.EXO_PI_COMMAND || env.EXO_PI_REPO_PATH);
-    const executablePath = env.EXO_PI_COMMAND ? resolvePathCommand(env.EXO_PI_COMMAND, env) : resolvePathCommand(launcher.command, env);
+    const executablePath = command ? resolvePathCommand(command, env) : resolvePathCommand(launcher.command, env);
     const backendDependency = resolvePiBackendDependency(env);
     return detectionFor({
       id: this.kind,
@@ -533,7 +575,7 @@ class PiAgentHarness implements AgentHarness {
       install: {
         label: "Configure a local Pi build",
       },
-      detail: piHarnessDetail({ configured, executablePath, backendDependency }),
+      detail: piHarnessDetail({ configured, executablePath, invalidCommandDetail, backendDependency }),
       dependencies: [backendDependency],
     });
   }
@@ -577,8 +619,12 @@ function backendDetail(env: NodeJS.ProcessEnv): string | undefined {
 function piHarnessDetail(input: {
   configured: boolean;
   executablePath?: string;
+  invalidCommandDetail?: string;
   backendDependency: AgentHarnessDependencyStatus;
 }): string | undefined {
+  if (input.invalidCommandDetail) {
+    return input.invalidCommandDetail;
+  }
   if (input.configured && !input.executablePath) {
     return "Pi is configured, but no executable command was found.";
   }

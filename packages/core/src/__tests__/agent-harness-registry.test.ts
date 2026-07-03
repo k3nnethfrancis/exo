@@ -375,6 +375,7 @@ describe("agent harness registry", () => {
     const cliPath = path.join(tempRoot, "packages", "coding-agent", "dist", "cli.js");
     mkdirSync(path.dirname(cliPath), { recursive: true });
     writeFileSync(cliPath, "#!/usr/bin/env node\n", "utf8");
+    chmodSync(cliPath, 0o755);
 
     try {
       const harnesses = resolveRegisteredAgentHarnesses({
@@ -390,10 +391,42 @@ describe("agent harness registry", () => {
         status: "missing-dependency",
         channel: "source",
         repoPath: tempRoot,
+        executablePath: expect.stringMatching(/\/node$/),
         launcher: undefined,
         setupSummary: "Configure EXO_PI_BACKEND_URL or EXO_PI_BACKEND_COMMAND for a compatible local inference backend.",
         dependencies: [expect.objectContaining({ id: "pi-inference-backend", satisfied: false })],
       });
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("does not expose Codex or packaged Exo commands as Pi-compatible executables", () => {
+    const tempRoot = mkdtempSync(path.join(os.tmpdir(), "exo-pi-cross-command-"));
+    const codexPath = path.join(tempRoot, "codex");
+    const exoPath = path.join(tempRoot, "Exo.app", "Contents", "MacOS", "Exo");
+    mkdirSync(path.dirname(exoPath), { recursive: true });
+    writeFileSync(codexPath, "#!/bin/sh\nexit 0\n", "utf8");
+    writeFileSync(exoPath, "#!/bin/sh\nexit 0\n", "utf8");
+    chmodSync(codexPath, 0o755);
+    chmodSync(exoPath, 0o755);
+
+    try {
+      for (const command of [codexPath, exoPath]) {
+        const pi = resolveRegisteredAgentHarnessDetection("pi", {
+          PATH: tempRoot,
+          EXO_PI_COMMAND: command,
+          EXO_PI_BACKEND_URL: "http://127.0.0.1:8080",
+        });
+
+        expect(pi.id).toBe("pi");
+        expect(pi.launchable).toBe(false);
+        expect(pi.executablePath).toBeUndefined();
+        expect(pi.launcher).toBeUndefined();
+        expect(JSON.stringify(pi)).not.toContain(command);
+        expect(JSON.stringify(pi)).not.toContain("codex");
+        expect(JSON.stringify(pi)).not.toContain("Contents/MacOS/Exo");
+      }
     } finally {
       rmSync(tempRoot, { recursive: true, force: true });
     }

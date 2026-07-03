@@ -1,6 +1,6 @@
 import os from "node:os";
 import path from "node:path";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -120,6 +120,7 @@ describe("runtime", () => {
     const cliPath = path.join(tempRoot, "packages", "coding-agent", "dist", "cli.js");
     await mkdir(path.dirname(cliPath), { recursive: true });
     await writeFile(cliPath, "#!/usr/bin/env node\n", "utf8");
+    await chmod(cliPath, 0o755);
 
     const config = resolveRuntimeConfig({
       EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
@@ -129,7 +130,7 @@ describe("runtime", () => {
 
     const plan = resolveDebugAgentLaunchPlan(config, "pi", "/tmp/exo-test-workspace/projects/ga-pi");
 
-    expect(plan.command).toBe(process.execPath);
+    expect(path.basename(plan.command)).toBe("node");
     expect(plan.args).toEqual([cliPath]);
     expect(plan.env.EXO_AGENT_KIND).toBe("pi");
     expect(plan.env.EXO_RUNTIME_PRIMARY_INSTRUCTIONS).toBe(config.instructions.primary);
@@ -148,6 +149,7 @@ describe("runtime", () => {
     const cliPath = path.join(tempRoot, "packages", "coding-agent", "dist", "cli.js");
     await mkdir(path.dirname(cliPath), { recursive: true });
     await writeFile(cliPath, "#!/usr/bin/env node\n", "utf8");
+    await chmod(cliPath, 0o755);
 
     const env = {
       EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
@@ -158,7 +160,7 @@ describe("runtime", () => {
     const config = resolveRuntimeConfig(env);
     const plan = resolveLaunchableAgentLaunchPlan(config, "pi", "/tmp/exo-test-workspace/projects/ga-pi", env);
 
-    expect(plan.command).toBe(process.execPath);
+    expect(path.basename(plan.command)).toBe("node");
     expect(plan.args).toEqual([cliPath]);
     expect(plan.env.EXO_AGENT_KIND).toBe("pi");
   });
@@ -170,6 +172,7 @@ describe("runtime", () => {
     const cliPath = path.join(piRepo, "packages", "coding-agent", "dist", "cli.js");
     await mkdir(path.dirname(cliPath), { recursive: true });
     await writeFile(cliPath, "#!/usr/bin/env node\n", "utf8");
+    await chmod(cliPath, 0o755);
 
     const env = workspaceSettingsToEnv({
       workspaceRoot,
@@ -199,7 +202,7 @@ describe("runtime", () => {
 
     expect(plan.title).toBe("Configured Pi");
     expect(plan.cwd).toBe(workspaceRoot);
-    expect(plan.command).toBe(process.execPath);
+    expect(path.basename(plan.command)).toBe("node");
     expect(plan.args).toEqual([cliPath]);
   });
 
@@ -214,6 +217,8 @@ describe("runtime", () => {
     await mkdir(path.dirname(overrideCliPath), { recursive: true });
     await writeFile(persistedCliPath, "#!/usr/bin/env node\n", "utf8");
     await writeFile(overrideCliPath, "#!/usr/bin/env node\n", "utf8");
+    await chmod(persistedCliPath, 0o755);
+    await chmod(overrideCliPath, 0o755);
 
     const persistedEnv = workspaceSettingsToEnv({
       workspaceRoot,
@@ -247,6 +252,7 @@ describe("runtime", () => {
     const plan = resolveLaunchableAgentLaunchPlan(config, "pi", workspaceRoot, env);
 
     expect(plan.title).toBe("Operator Pi");
+    expect(path.basename(plan.command)).toBe("node");
     expect(plan.args).toEqual([overrideCliPath]);
   });
 
