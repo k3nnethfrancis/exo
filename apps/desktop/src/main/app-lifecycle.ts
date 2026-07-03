@@ -52,7 +52,6 @@ export class AppLifecycleController {
       },
       webPreferences: {
         preload: preloadPath,
-        webviewTag: true,
       },
     });
 

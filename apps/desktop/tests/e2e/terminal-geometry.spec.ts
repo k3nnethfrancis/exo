@@ -37,7 +37,6 @@ test("Terminal V4.1 reconnect-at-wrong-size keeps fixture width aligned after re
     await startFakeInkAgent(page, shell.id);
     const baseline = await expectGeometryFrame(page, { minCols: 180 });
 
-    test.fail(true, "Current main can reattach tmux control mode at the wrong size or leave the bridge detached after reconnect.");
     await page.evaluate(async (id) => {
       await window.exo.terminals.reconnect(id);
     }, shell.id);
@@ -49,7 +48,6 @@ test("Terminal V4.1 reconnect-at-wrong-size keeps fixture width aligned after re
       rulerLength: baseline.cols,
       boxLength: baseline.cols,
     });
-
     await page.getByTestId("terminal-surface").click();
     await page.keyboard.type("hello-after-reconnect\n");
     await expect.poll(async () => currentGeometryFrame(page, baseline.cols), { timeout: 5_000 }).toMatchObject({
@@ -75,7 +73,6 @@ test("Terminal V4.1 reconnect-recoverable route restores a detached fake Ink bri
 
     await killAttachBridgeForTerminal(page, shell.id);
     await waitForTerminalHealth(page, shell.id, { bridgeStatus: "detached", health: "unhealthy" }, 5_000);
-    test.fail(true, "Current main resume recovery can reattach at the default terminal size or fail to restore a healthy bridge.");
     await postReconnectRecoverable(runtimeRoot);
     await waitForTerminalHealth(page, shell.id, { bridgeStatus: "attached", paneStatus: "alive" }, 10_000);
 
@@ -100,7 +97,7 @@ test("Terminal V4.1 @quarantine-preview reconnect-recoverable route restores fak
     await page.getByTestId("launch-browser").click();
     await page.getByTestId("browser-url-input").fill(`file://${path.join(workspaceRoot, "fake-ink-preview.html")}`);
     await page.getByTestId("browser-load-url").click();
-    await expect(page.getByTestId("browser-webview")).toHaveAttribute("src", /^file:\/\/.*fake-ink-preview\.html$/);
+    await expect(page.getByTestId("browser-preview-frame")).toHaveAttribute("src", /^file:\/\/.*fake-ink-preview\.html$/);
 
     const shell = await pageShellSession(page);
     await page.getByTestId("terminal-surface").click();
@@ -110,7 +107,6 @@ test("Terminal V4.1 @quarantine-preview reconnect-recoverable route restores fak
     await page.getByTestId("browser-pane").click();
     await killAttachBridgeForTerminal(page, shell.id);
     await waitForTerminalHealth(page, shell.id, { bridgeStatus: "detached", health: "unhealthy" }, 5_000);
-    test.fail(true, "Preview-open recovery currently shares the default-size reconnect/bridge recovery bug; this quarantine-tagged case keeps the interaction class executable.");
     await postReconnectRecoverable(runtimeRoot);
     await waitForTerminalHealth(page, shell.id, { bridgeStatus: "attached", paneStatus: "alive" }, 10_000);
 
@@ -177,8 +173,7 @@ async function pageShellSession(page: Page) {
 }
 
 async function startFakeInkAgent(page: Page, terminalId: string): Promise<void> {
-  await waitForRendererGeometry(page, terminalId, { minCols: 180 });
-  await waitForTmuxPaneGeometry(page, terminalId, { minCols: 180 });
+  await waitForSettledTerminalGeometry(page, terminalId, { minCols: 180 });
   await page.evaluate(async ({ id, command }) => {
     await window.exo.terminals.write(id, `${command}\n`);
   }, {
@@ -190,28 +185,49 @@ async function startFakeInkAgent(page: Page, terminalId: string): Promise<void> 
   });
 }
 
-async function waitForRendererGeometry(page: Page, terminalId: string, options: { minCols: number }): Promise<void> {
-  await expect.poll(async () => {
+async function waitForSettledTerminalGeometry(page: Page, terminalId: string, options: { minCols: number }): Promise<void> {
+  const deadline = Date.now() + 5_000;
+  let stableKey = "";
+  let stableSince = 0;
+  let lastSample: { rendererCols: number; rendererRows: number; tmuxCols: number } | null = null;
+
+  while (Date.now() < deadline) {
     const session = await page.evaluate(async (id) => {
       const sessions = await window.exo.terminals.list();
       return sessions.find((candidate) => candidate.id === id) ?? null;
     }, terminalId);
-    return Boolean(session?.geometry?.source === "renderer-fit" && session.geometry.cols >= options.minCols);
-  }, { timeout: 5_000 }).toBe(true);
+    const tmuxCols = session ? await tmuxPaneWidthForTerminal(page, terminalId) : 0;
+    const rendererCols = session?.geometry?.source === "renderer-fit" ? session.geometry.cols : 0;
+    const rendererRows = session?.geometry?.source === "renderer-fit" ? session.geometry.rows : 0;
+    lastSample = { rendererCols, rendererRows, tmuxCols };
+
+    if (rendererCols >= options.minCols && rendererCols === tmuxCols && rendererRows > 0) {
+      const key = `${rendererCols}x${rendererRows}`;
+      if (key !== stableKey) {
+        stableKey = key;
+        stableSince = Date.now();
+      } else if (Date.now() - stableSince >= 250) {
+        return;
+      }
+    } else {
+      stableKey = "";
+      stableSince = 0;
+    }
+    await page.waitForTimeout(50);
+  }
+
+  throw new Error(`Timed out waiting for settled terminal geometry: ${JSON.stringify(lastSample)}`);
 }
 
-async function waitForTmuxPaneGeometry(page: Page, terminalId: string, options: { minCols: number }): Promise<void> {
-  await expect.poll(async () => {
-    const diagnostic = await page.evaluate(async (id) => {
-      const diagnostics = await window.exo.terminals.diagnostics();
-      return diagnostics.find((candidate) => candidate.id === id) ?? null;
-    }, terminalId);
-    if (!diagnostic?.tmuxSessionName) {
-      return 0;
-    }
-    const width = tmuxPaneWidth(diagnostic.tmuxSessionName);
-    return width ?? 0;
-  }, { timeout: 5_000 }).toBeGreaterThanOrEqual(options.minCols);
+async function tmuxPaneWidthForTerminal(page: Page, terminalId: string): Promise<number> {
+  const diagnostic = await page.evaluate(async (id) => {
+    const diagnostics = await window.exo.terminals.diagnostics();
+    return diagnostics.find((candidate) => candidate.id === id) ?? null;
+  }, terminalId);
+  if (!diagnostic?.tmuxSessionName) {
+    return 0;
+  }
+  return tmuxPaneWidth(diagnostic.tmuxSessionName) ?? 0;
 }
 
 async function expectGeometryFrame(page: Page, options: { minCols: number }) {
@@ -228,6 +244,9 @@ async function expectGeometryFrame(page: Page, options: { minCols: number }) {
 
 async function assertRecoveredFakeInk(page: Page, expectedCols: number, input: string): Promise<void> {
   await page.getByTestId("terminal-surface").click();
+  await expect.poll(async () =>
+    page.getByTestId("terminal-surface").evaluate((element) => element.className),
+  { timeout: 5_000 }).not.toContain("terminal-surface--input-disabled");
   await page.keyboard.type(`${input}\n`);
   await expect.poll(async () => currentGeometryFrame(page, expectedCols), { timeout: 10_000 }).toMatchObject({
     frameCount: 1,

@@ -26,7 +26,7 @@ describe("TmuxTerminalRuntime", () => {
 
     expect(runtime.availability()).toEqual({ available: true });
     expect(runtime.listPanes()).toEqual([]);
-    expect(runtime.captureTail({
+    expect(runtime.captureTailForDisplay({
       sessionName: "exo-test",
       paneId: "%1",
       historyLimit: 500,
@@ -82,6 +82,9 @@ describe("TmuxTerminalRuntime", () => {
       sessionName: createdSessionName,
       paneId: "%1",
     });
+    const tmuxArgs = childProcess.execFileSync.mock.calls.map((call) => call[1] as string[]);
+    expect(tmuxArgs[0]).toEqual(expect.arrayContaining(["new-session", "-x", "80", "-y", "24"]));
+    expect(tmuxArgs).toContainEqual(["-u", "resize-window", "-t", createdSessionName, "-x", "80", "-y", "24"]);
     expect(childProcess.spawn).toHaveBeenCalledWith("/custom/tmux", ["-u", "-C", "attach-session", "-t", createdSessionName], expect.any(Object));
     expect(childProcess.execFileSync.mock.calls.map((call) => call[1] as string[])).not.toContainEqual(expect.arrayContaining(["kill-session"]));
     expect(warnSpy).toHaveBeenCalledWith(
@@ -124,6 +127,115 @@ describe("TmuxTerminalRuntime", () => {
     expect(tmuxArgs.at(-1)).toEqual(expect.arrayContaining(["kill-session"]));
     expect(childProcess.spawn).not.toHaveBeenCalled();
   });
+
+  it("resizes the detached tmux window before control-mode attach", () => {
+    childProcess.execFileSync.mockReturnValue("");
+    childProcess.spawn.mockReturnValue(fakeControlProcess());
+
+    const runtime = new TmuxTerminalRuntime();
+    runtime.attachSession({
+      sessionName: "exo-existing",
+      paneId: "%3",
+      cwd: "/tmp/workspace",
+      env: { PATH: "/bin" },
+      cols: 181.9,
+      rows: 47.2,
+    });
+
+    const resizeOrder = childProcess.execFileSync.mock.invocationCallOrder[0];
+    const attachOrder = childProcess.spawn.mock.invocationCallOrder[0];
+    expect(resizeOrder).toBeLessThan(attachOrder);
+    expect(childProcess.execFileSync).toHaveBeenCalledWith(
+      "/custom/tmux",
+      ["-u", "resize-window", "-t", "exo-existing", "-x", "181", "-y", "47"],
+      expect.objectContaining({
+        cwd: "/tmp/workspace",
+        env: { PATH: "/bin" },
+      }),
+    );
+    expect(childProcess.spawn).toHaveBeenCalledWith("/custom/tmux", ["-u", "-C", "attach-session", "-t", "exo-existing"], expect.any(Object));
+  });
+
+  it("captures restore snapshots byte-faithfully and appends cursor position in the same string", () => {
+    childProcess.execFileSync.mockImplementation((_command: string, args: string[]) => {
+      if (args.includes("display-message")) {
+        return "181	47	0	default	2	4\n";
+      }
+      if (args.includes("capture-pane")) {
+        return "line with trailing spaces   \n\n";
+      }
+      return "";
+    });
+
+    const runtime = new TmuxTerminalRuntime();
+    const snapshot = runtime.captureRestoreSnapshot({
+      sessionName: "exo-existing",
+      paneId: "%3",
+      historyLimit: 500,
+      liveScrollbackLines: 80,
+    });
+
+    expect(snapshot).toEqual({
+      content: "line with trailing spaces   \n\n\x1b[5;3H",
+      cols: 181,
+      rows: 47,
+      altScreen: false,
+    });
+    expect(childProcess.execFileSync).toHaveBeenCalledWith(
+      "/custom/tmux",
+      ["-u", "capture-pane", "-e", "-p", "-J", "-t", "%3", "-S", "-80"],
+      expect.any(Object),
+    );
+  });
+
+  it("skips restore content for alternate-screen panes", () => {
+    childProcess.execFileSync.mockImplementation((_command: string, args: string[]) => {
+      if (args.includes("display-message")) {
+        return "120	32	1	default	0	0\n";
+      }
+      if (args.includes("capture-pane")) {
+        throw new Error("alternate screen should not be captured");
+      }
+      return "";
+    });
+
+    const runtime = new TmuxTerminalRuntime();
+
+    expect(runtime.captureRestoreSnapshot({
+      sessionName: "exo-existing",
+      paneId: "%3",
+      historyLimit: 500,
+      liveScrollbackLines: 500,
+    })).toEqual({
+      content: "",
+      cols: 120,
+      rows: 32,
+      altScreen: true,
+    });
+    expect(childProcess.execFileSync.mock.calls.map((call) => call[1] as string[]).some((args) => args.includes("capture-pane"))).toBe(false);
+  });
+
+  it("keeps tmux virtual right-edge cursor state usable for restore snapshots", () => {
+    childProcess.execFileSync.mockImplementation((_command: string, args: string[]) => {
+      if (args.includes("display-message")) {
+        return "120	32	0	default	120	5\n";
+      }
+      if (args.includes("capture-pane")) {
+        return "full-width-final-line";
+      }
+      return "";
+    });
+
+    const runtime = new TmuxTerminalRuntime();
+
+    expect(runtime.captureRestoreSnapshot({
+      sessionName: "exo-existing",
+      paneId: "%3",
+      historyLimit: 500,
+      liveScrollbackLines: 500,
+    }).content).toBe("full-width-final-line\x1b[3;120H");
+  });
+
 });
 
 function fakeControlProcess() {

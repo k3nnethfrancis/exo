@@ -13,10 +13,12 @@ import type {
   TerminalRuntime,
   TerminalRuntimeAttachOptions,
   TerminalRuntimeAvailability,
+  TerminalRuntimeCaptureRestoreSnapshotOptions,
   TerminalRuntimeCaptureTailOptions,
   TerminalRuntimeCreateSessionOptions,
   TerminalRuntimePaneInfo,
   TerminalRuntimeProcess,
+  TerminalRuntimeRestoreSnapshot,
   TerminalRuntimeSession,
   TerminalRuntimeSessionOptions,
 } from "./terminal-runtime";
@@ -47,6 +49,10 @@ export class TmuxTerminalRuntime implements TerminalRuntime {
         "-d",
         "-s",
         sessionName,
+        "-x",
+        String(tmuxCellCount(options.cols)),
+        "-y",
+        String(tmuxCellCount(options.rows)),
         "-c",
         options.cwd,
         ...tmuxEnvironmentArgs(options.env),
@@ -61,6 +67,13 @@ export class TmuxTerminalRuntime implements TerminalRuntime {
     try {
       this.applySessionOptionsWithRunner(runner, { sessionName, historyLimit: options.historyLimit });
       const paneId = this.requirePaneId(runner, sessionName);
+      this.resizeWindowBeforeAttach(runner, {
+        sessionName,
+        cols: options.cols,
+        rows: options.rows,
+        cwd: options.cwd,
+        env: options.env,
+      });
       return {
         sessionName,
         paneId,
@@ -83,6 +96,13 @@ export class TmuxTerminalRuntime implements TerminalRuntime {
 
   attachSession(options: TerminalRuntimeAttachOptions): TerminalRuntimeProcess {
     const tmux = this.requireTmux();
+    this.resizeWindowBeforeAttach(new TmuxCommandRunner(tmux.path), {
+      sessionName: options.sessionName,
+      cols: options.cols,
+      rows: options.rows,
+      cwd: options.cwd,
+      env: options.env,
+    });
     return this.attachSessionWithTmux(tmux, options);
   }
 
@@ -119,14 +139,14 @@ export class TmuxTerminalRuntime implements TerminalRuntime {
     }
   }
 
-  captureTail(options: TerminalRuntimeCaptureTailOptions): string {
+  captureTailForDisplay(options: TerminalRuntimeCaptureTailOptions): string {
     const runner = this.runnerOrNull();
     if (!runner) {
       // Tail reads should not crash the app if tmux disappears between startup
       // and diagnostics/CLI reads; callers can fall back to their bounded cache.
       return "";
     }
-    return normalizeCapturedTmuxPane(runner.run([
+    return normalizeCapturedTailForDisplay(runner.run([
       "capture-pane",
       "-p",
       "-e",
@@ -135,6 +155,49 @@ export class TmuxTerminalRuntime implements TerminalRuntime {
       "-S",
       `-${options.lineLimit && options.lineLimit > 0 ? Math.min(options.lineLimit, options.historyLimit) : options.historyLimit}`,
     ]));
+  }
+
+  captureRestoreSnapshot(options: TerminalRuntimeCaptureRestoreSnapshotOptions): TerminalRuntimeRestoreSnapshot {
+    const runner = this.runnerOrNull();
+    if (!runner) {
+      return { content: "", cols: 0, rows: 0, altScreen: false };
+    }
+
+    const paneTarget = options.paneId || options.sessionName;
+    const state = parseRestorePaneState(runner.run([
+      "display-message",
+      "-p",
+      "-t",
+      paneTarget,
+      "#{pane_width}\t#{pane_height}\t#{alternate_on}\t#{pane_mode}\t#{cursor_x}\t#{cursor_y}",
+    ]));
+    if (state.paneMode === "copy-mode") {
+      console.warn("[exo] captured terminal restore snapshot while tmux pane is in copy-mode", {
+        sessionName: options.sessionName,
+        paneId: options.paneId,
+      });
+    }
+    if (state.altScreen) {
+      return { content: "", cols: state.cols, rows: state.rows, altScreen: true };
+    }
+
+    const captureLines = Math.min(options.liveScrollbackLines, options.historyLimit);
+    const content = runner.run([
+      "capture-pane",
+      "-e",
+      "-p",
+      "-J",
+      "-t",
+      paneTarget,
+      "-S",
+      `-${captureLines}`,
+    ]);
+    return {
+      content: `${content}${cursorPositionEscape(state.cursorX, state.cursorY, state.cols)}`,
+      cols: state.cols,
+      rows: state.rows,
+      altScreen: false,
+    };
   }
 
   terminate(sessionName: string): void {
@@ -181,6 +244,27 @@ export class TmuxTerminalRuntime implements TerminalRuntime {
         SHELL_SESSIONS_DISABLE: "1",
         ...options.env,
       },
+    });
+  }
+
+  private resizeWindowBeforeAttach(
+    runner: TmuxCommandRunner,
+    options: { sessionName: string; cols: number; rows: number; cwd?: string; env?: NodeJS.ProcessEnv },
+  ): void {
+    // Tmux may collapse a detached window to its default size before a new
+    // control client exists. Assert the renderer-recorded geometry before
+    // attach so cursor-relative repaint apps receive the right SIGWINCH size.
+    runner.run([
+      "resize-window",
+      "-t",
+      options.sessionName,
+      "-x",
+      String(tmuxCellCount(options.cols)),
+      "-y",
+      String(tmuxCellCount(options.rows)),
+    ], {
+      cwd: options.cwd,
+      env: options.env,
     });
   }
 
@@ -240,7 +324,48 @@ function tmuxSessionOptions(historyLimit: number): Array<[string, string]> {
   ];
 }
 
-function normalizeCapturedTmuxPane(data: string): string {
+function tmuxCellCount(value: number): number {
+  return Number.isFinite(value) ? Math.max(1, Math.floor(value)) : 1;
+}
+
+/**
+ * Display-only. Never use for live restore -- trimming desynchronizes xterm's
+ * grid from tmux's (see EXO-ISSUE-075).
+ */
+function normalizeCapturedTailForDisplay(data: string): string {
   const trimmed = data.replace(/[ \t]+\r?\n/g, "\n").replace(/\s+$/g, "");
   return trimmed.length > 0 ? `${trimmed.replace(/\r?\n/g, "\r\n")}\r\n` : "";
+}
+
+function parseRestorePaneState(raw: string): {
+  cols: number;
+  rows: number;
+  altScreen: boolean;
+  paneMode: string;
+  cursorX: number;
+  cursorY: number;
+} {
+  const [cols, rows, alternateOn, paneMode = "", cursorX, cursorY] = raw.replace(/\r?\n$/, "").split("\t");
+  return {
+    cols: tmuxCellCount(Number(cols)),
+    rows: tmuxCellCount(Number(rows)),
+    altScreen: alternateOn === "1",
+    paneMode,
+    cursorX: tmuxCellIndex(Number(cursorX)),
+    cursorY: tmuxCellIndex(Number(cursorY)),
+  };
+}
+
+function cursorPositionEscape(cursorX: number, cursorY: number, cols: number): string {
+  if (cursorX >= cols) {
+    // tmux can report the virtual column just past a full-width final line.
+    // CUP cannot encode that wrap-pending state, so place xterm at the right
+    // edge one row up; the next printable cell advances to tmux's effective row.
+    return `\x1b[${Math.max(1, cursorY - 2)};${cols}H`;
+  }
+  return `\x1b[${cursorY + 1};${Math.min(cursorX + 1, cols)}H`;
+}
+
+function tmuxCellIndex(value: number): number {
+  return Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
 }

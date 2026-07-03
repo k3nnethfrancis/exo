@@ -1105,6 +1105,7 @@ export function App() {
               hydrationSnapshots={terminalHydrationSnapshots}
               hydrationVersions={terminalHydrationVersions}
               hydrationReasons={terminalHydrationReasons}
+              hydratingTerminalIds={terminalState.hydratingTerminalIds}
               theme={resolvedTheme}
               fontSize={terminalFontSize}
               scrollbackLines={terminalRuntimeScrollbackLines}
@@ -1113,6 +1114,7 @@ export function App() {
                 editorActions.focusLeaf(leaf.id);
               }}
               onHydrate={(id, options) => void terminalState.hydrateTerminal(id, options)}
+              onHydrated={(id) => terminalState.markTerminalHydrated(id)}
               onSetActiveTerminal={(id) => {
                 setZoomSurface("terminal");
                 editorActions.updateLeafContent(leaf.id, (content) =>
@@ -1121,7 +1123,7 @@ export function App() {
                 void terminalState.activateTerminal(id);
               }}
               onWrite={(id, data) => void window.exo.terminals.write(id, data)}
-              onResize={(id, cols, rows) => void window.exo.terminals.resize(id, cols, rows)}
+              onGeometryMeasured={(id, cols, rows) => void window.exo.terminals.resize(id, cols, rows)}
               onKill={(id) => void terminalPaneController.closeTerminal(id)}
               onReconnect={(id) => void terminalState.reconnectTerminal(id)}
               dragManager={dragManager}
@@ -1203,17 +1205,19 @@ export function App() {
             hydrationSnapshots={terminalHydrationSnapshots}
             hydrationVersions={terminalHydrationVersions}
             hydrationReasons={terminalHydrationReasons}
+            hydratingTerminalIds={terminalState.hydratingTerminalIds}
             theme={resolvedTheme}
             fontSize={terminalFontSize}
             scrollbackLines={terminalRuntimeScrollbackLines}
             onFocus={() => setZoomSurface("terminal")}
             onHydrate={(id, options) => void terminalState.hydrateTerminal(id, options)}
+            onHydrated={(id) => terminalState.markTerminalHydrated(id)}
             onSetActiveTerminal={(id) => {
               setZoomSurface("terminal");
               void terminalPaneController.activateTerminal(leaf.id, id);
             }}
             onWrite={(id, data) => void window.exo.terminals.write(id, data)}
-            onResize={(id, cols, rows) => void window.exo.terminals.resize(id, cols, rows)}
+            onGeometryMeasured={(id, cols, rows) => void window.exo.terminals.resize(id, cols, rows)}
             onKill={(id) => void terminalPaneController.closeTerminal(id)}
             onReconnect={(id) => void terminalState.reconnectTerminal(id)}
             dragManager={dragManager}

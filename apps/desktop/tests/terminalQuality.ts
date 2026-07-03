@@ -31,6 +31,15 @@ export async function waitForTerminalText(page: Page, text: string, timeout = 5_
   );
 }
 
+export async function waitForTerminalInputEnabled(page: Page, timeout = 5_000): Promise<void> {
+  await expect
+    .poll(
+      async () => page.getByTestId("terminal-surface").evaluate((element) => element.className),
+      { timeout },
+    )
+    .not.toContain("terminal-surface--input-disabled");
+}
+
 export async function visibleTerminalText(page: Page): Promise<string> {
   return page.evaluate(() => Array.from(document.querySelectorAll(".xterm-rows")).map((rows) => rows.textContent ?? "").join("\n"));
 }

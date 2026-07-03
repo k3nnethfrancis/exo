@@ -9,6 +9,8 @@ import {
   grantPluginPermissions,
   hasGrantedCapabilityPermission,
   hasGrantedPluginPermission,
+  normalizePluginPermission,
+  parsePluginPermission,
   pluginPermissionIdentity,
   pluginPermissionKey,
   readPluginPermissionStore,
@@ -33,7 +35,7 @@ const manifest: PluginManifest = {
       lifecycle: "experimental",
       owner: "permissions.plugin",
       surfaces: ["cli"],
-      permissions: ["workspace:read", "artifacts:write"],
+      permissions: ["workspace:read", "notes:propose:root:shoshin-codex", "artifacts:write"],
     },
     {
       id: "permissions.disabled",
@@ -46,11 +48,51 @@ const manifest: PluginManifest = {
       permissions: ["workspace:read"],
     },
   ],
-  permissions: ["workspace:read"],
+  permissions: ["workspace:read", "projects:read:path:projects/exo"],
   surfaces: ["cli"],
 };
 
 describe("plugin permissions", () => {
+  it("parses and normalizes scoped permission strings", () => {
+    expect(normalizePluginPermission("notes:propose:root:shoshin-codex")).toBe("notes:propose:root:shoshin-codex");
+    expect(parsePluginPermission("projects:read:path:projects/exo")).toMatchObject({
+      permission: "projects:read:path:projects/exo",
+      resource: "projects",
+      action: "read",
+      scope: { kind: "path", workspaceRelativePrefix: "projects/exo" },
+      compatibilityStatus: "current",
+    });
+    expect(parsePluginPermission("agents:launch:harness:core.claude")).toMatchObject({
+      permission: "agents:launch:harness:core.claude",
+      resource: "agents",
+      action: "launch",
+      scope: { kind: "harness", harnessId: "core.claude" },
+    });
+    expect(() => normalizePluginPermission("notes:read:root:shoshin:extra")).toThrow("<resource>:<action>");
+    expect(() => normalizePluginPermission("projects:read:path:../outside")).toThrow("workspace-relative prefix");
+  });
+
+  it("describes propose separately from direct write", () => {
+    expect(parsePluginPermission("notes:propose:root:shoshin-codex")).toMatchObject({
+      action: "propose",
+      actionMetadata: {
+        label: "Suggest changes",
+        reviewCopy: "The plugin drafts edits; nothing is written until you review and accept.",
+        risk: "reviewed-write",
+      },
+    });
+    expect(parsePluginPermission("notes:write")).toMatchObject({
+      action: "write",
+      compatibilityStatus: "broad-write",
+      breadthCopy: "Can edit any file in your vault, without review.",
+      actionMetadata: {
+        label: "Edit files directly",
+        reviewCopy: "Changes are applied immediately, without review.",
+        risk: "direct-write",
+      },
+    });
+  });
+
   it("keys grants by plugin id, source, root path, manifest path, and manifest hash", () => {
     const plugin = discovered("hash-a", "trusted");
     const identity = pluginPermissionIdentity(plugin);
@@ -73,16 +115,16 @@ describe("plugin permissions", () => {
 
     expect(resolvePluginPermissionGrants(plugin, store)).toMatchObject({
       active: true,
-      requestedPermissions: ["artifacts:write", "workspace:read"],
+      requestedPermissions: ["artifacts:write", "notes:propose:root:shoshin-codex", "projects:read:path:projects/exo", "workspace:read"],
       grantedPermissions: ["workspace:read"],
-      missingPermissions: ["artifacts:write"],
+      missingPermissions: ["artifacts:write", "notes:propose:root:shoshin-codex", "projects:read:path:projects/exo"],
       status: "partial",
     });
     expect(resolveCapabilityPermissionGrants(plugin, "permissions.template", store)).toMatchObject({
       capabilityId: "permissions.template",
-      requestedPermissions: ["artifacts:write", "workspace:read"],
+      requestedPermissions: ["artifacts:write", "notes:propose:root:shoshin-codex", "workspace:read"],
       grantedPermissions: ["workspace:read"],
-      missingPermissions: ["artifacts:write"],
+      missingPermissions: ["artifacts:write", "notes:propose:root:shoshin-codex"],
       status: "partial",
     });
     expect(hasGrantedPluginPermission(plugin, store, "workspace:read")).toBe(true);
@@ -94,18 +136,19 @@ describe("plugin permissions", () => {
     const granted = grantPluginPermissions(
       emptyPluginPermissionStore(),
       plugin,
-      ["workspace:read", "artifacts:write"],
+      ["workspace:read", "artifacts:write", "notes:propose:root:shoshin-codex"],
       "2026-06-27T00:00:00.000Z",
     );
     const revoked = revokePluginPermissions(granted, plugin, ["workspace:read"], "2026-06-27T01:00:00.000Z", "User revoked access");
 
     expect(resolvePluginPermissionGrants(plugin, revoked)).toMatchObject({
-      grantedPermissions: ["artifacts:write"],
-      missingPermissions: ["workspace:read"],
+      grantedPermissions: ["artifacts:write", "notes:propose:root:shoshin-codex"],
+      missingPermissions: ["projects:read:path:projects/exo", "workspace:read"],
       status: "partial",
     });
     expect(revoked.plugins[0]?.decisions).toEqual([
       { permission: "artifacts:write", action: "grant", decidedAt: "2026-06-27T00:00:00.000Z" },
+      { permission: "notes:propose:root:shoshin-codex", action: "grant", decidedAt: "2026-06-27T00:00:00.000Z" },
       { permission: "workspace:read", action: "grant", decidedAt: "2026-06-27T00:00:00.000Z" },
       { permission: "workspace:read", action: "revoke", decidedAt: "2026-06-27T01:00:00.000Z", reason: "User revoked access" },
     ]);
@@ -141,6 +184,9 @@ describe("plugin permissions", () => {
   it("rejects grants that were not requested by the manifest or inactive plugins", () => {
     expect(() =>
       grantPluginPermissions(emptyPluginPermissionStore(), discovered("hash-a", "trusted"), ["network:access"]),
+    ).toThrow("Cannot grant permissions not requested");
+    expect(() =>
+      grantPluginPermissions(emptyPluginPermissionStore(), discovered("hash-a", "trusted"), ["notes:propose:root:other-root"]),
     ).toThrow("Cannot grant permissions not requested");
     expect(() =>
       grantPluginPermissions(emptyPluginPermissionStore(), discovered("hash-a", "untrusted"), ["workspace:read"]),

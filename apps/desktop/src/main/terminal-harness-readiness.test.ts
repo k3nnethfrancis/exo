@@ -65,6 +65,7 @@ function terminalInfo(overrides: Partial<TerminalSessionInfo>): TerminalSessionI
     status: "running",
     readiness: "ready",
     queuedInputCount: 0,
+    attachGeneration: 1,
     ...overrides,
   };
 }

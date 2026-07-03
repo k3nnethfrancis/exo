@@ -12,6 +12,7 @@ import {
   scrollTerminalToBottom,
   scrollTerminalToTop,
   visibleTerminalText,
+  waitForTerminalInputEnabled,
   waitForTerminalText,
 } from "../terminalQuality";
 
@@ -331,7 +332,7 @@ test("opens a browser preview pane in the workspace", async () => {
   await page.getByTestId("browser-url-input").fill("localhost:4321");
   await page.getByTestId("browser-load-url").click();
   await expect(page.getByTestId("browser-url-input")).toHaveValue("http://localhost:4321");
-  await expect(page.getByTestId("browser-webview")).toHaveAttribute("src", "http://localhost:4321");
+  await expect(page.getByTestId("browser-preview-frame")).toHaveAttribute("src", "http://localhost:4321");
   await expect(page.locator(".pane-leaf--browser")).toBeVisible();
 
   await cleanup();
@@ -624,8 +625,8 @@ test("opens a new terminal from a project folder context menu", async () => {
 test("shows terminals created outside renderer controls", async () => {
   const { page, cleanup } = await launchExoFixture({
     env: {
-      EXO_SHELL: "/bin/pwd",
-      EXO_SHELL_ARGS: "",
+      EXO_SHELL: "/bin/sh",
+      EXO_SHELL_ARGS: "-lc,pwd; cat",
     },
   });
 
@@ -656,9 +657,10 @@ test("passes Exo instruction overlays to launched terminal agents", async () => 
 
   await expect.poll(async () => page.evaluate((id) => window.exo.terminals.read(id), sessionId)).toContain("EXO_INSTRUCTIONS=");
   const buffer = await page.evaluate((id) => window.exo.terminals.read(id), sessionId);
+  const unwrappedBuffer = buffer.replace(/\r?\n/g, "");
   expect(buffer).toContain("Exo Runtime Context");
-  expect(buffer).toContain(`EXO_WORKSPACE_ROOT=${workspaceRoot}`);
-  expect(buffer).toContain(projectRoot);
+  expect(unwrappedBuffer).toContain(`EXO_WORKSPACE_ROOT=${workspaceRoot}`);
+  expect(unwrappedBuffer).toContain(projectRoot);
 
   const sessions = await page.evaluate(() => window.exo.terminals.list());
   const claude = sessions.find((session) => session.id === sessionId);
@@ -804,6 +806,7 @@ test("keeps terminal input latency within targets while another terminal streams
     });
 
     await page.getByTestId("terminal-surface").click();
+    await waitForTerminalInputEnabled(page);
     await page.keyboard.type("cat\n");
     await page.evaluate(async () => {
       const streamingShell = await window.exo.terminals.create({ kind: "shell" });
@@ -819,8 +822,8 @@ test("keeps terminal input latency within targets while another terminal streams
       return streamingShell ? page.evaluate((id) => window.exo.terminals.read(id), streamingShell.id) : "";
     }).toContain("stream-latency-010");
 
-    await page.getByTestId("terminal-tab-shell").first().click();
-    await waitForTerminalText(page, "cat");
+    await page.locator(`[data-tab-item-id="${activeShellId}"]`).click();
+    await waitForTerminalInputEnabled(page);
 
     const samples: number[] = [];
     for (let index = 0; index < 20; index += 1) {
@@ -984,7 +987,7 @@ test("keeps /bin/cat terminal input visible while a loaded preview is focused an
     await page.getByTestId("launch-browser").click();
     await page.getByTestId("browser-url-input").fill(`file://${path.join(workspaceRoot, "preview-terminal-focus.html")}`);
     await page.getByTestId("browser-load-url").click();
-    await expect(page.getByTestId("browser-webview")).toHaveAttribute("src", /^file:\/\/.*preview-terminal-focus\.html$/);
+    await expect(page.getByTestId("browser-preview-frame")).toHaveAttribute("src", /^file:\/\/.*preview-terminal-focus\.html$/);
 
     await page.getByTestId("terminal-surface").click();
     await page.keyboard.type(previewFirstInput);

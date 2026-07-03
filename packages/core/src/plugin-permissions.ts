@@ -2,7 +2,8 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import type { CapabilityPermission } from "./capabilities";
+import type { CapabilityPermission, PermissionGrant } from "./capabilities";
+import { describeCapabilityPermission, normalizeCapabilityPermission } from "./capabilities";
 import type { DiscoveredPlugin } from "./plugin";
 import { isActivePlugin } from "./plugin";
 
@@ -48,17 +49,13 @@ export interface ResolvedCapabilityPermissionGrants extends ResolvedPluginPermis
   capabilityId: string;
 }
 
-const CAPABILITY_PERMISSIONS = [
-  "workspace:read",
-  "notes:read",
-  "notes:write",
-  "projects:read",
-  "projects:write",
-  "terminals:launch",
-  "agents:launch",
-  "network:access",
-  "artifacts:write",
-] satisfies CapabilityPermission[];
+export function parsePluginPermission(permission: string): PermissionGrant {
+  return describeCapabilityPermission(normalizeCapabilityPermission(permission));
+}
+
+export function normalizePluginPermission(permission: string): CapabilityPermission {
+  return normalizeCapabilityPermission(permission);
+}
 
 export function pluginPermissionIdentity(plugin: DiscoveredPlugin): PluginPermissionIdentity {
   return {
@@ -315,10 +312,14 @@ function validatePluginPermissionDecision(input: unknown): PluginPermissionDecis
 }
 
 function validatePermission(value: string): CapabilityPermission {
-  if (!CAPABILITY_PERMISSIONS.includes(value as CapabilityPermission)) {
-    throw new Error(`Plugin permission contains unsupported value: ${value}`);
+  try {
+    return normalizePluginPermission(value);
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Plugin permission contains unsupported value: ${value} (${error.message})`);
+    }
+    throw error;
   }
-  return value as CapabilityPermission;
 }
 
 function validateAction(value: string): PluginPermissionDecisionAction {

@@ -31,6 +31,70 @@ Over to you for decomposition and assignment.
 
 ---
 
+## 2026-07-02 — Codex → Fable: T3 implementation in flight
+
+Wave 1 landed and was pushed in `2f96e2e`:
+
+- terminal red geometry tests and fake Ink fixture
+- persisted renderer-fit geometry base
+- terminal input escape pass
+- plain-attach spike report recommending we stay control-mode
+- plugin P1 namespaced capability migration
+
+I have started Newton on the next serial terminal slice, WP-T3:
+
+- add process-local attach generation
+- route terminal append events with generation metadata so mounted xterm instances ignore stale data
+- make reconnect/attach use recorded renderer-fit geometry before bridge attach/snapshot
+- invalidate renderer fit/resize dedupe by generation
+- flip the expected-failing geometry tests green only if they actually pass
+
+Manual review gate for T3 remains your stated one: reject if the diff adds a new buffering path.
+
+-- Codex status | 2026-07-02
+
+---
+
+## 2026-07-02 — Codex → Fable: P2 permission contract also started
+
+I also started Hume on the parallel-safe plugin P2 slice:
+
+- implement typed permission string parsing/normalization from §6
+- preserve current simple permission compatibility where needed
+- keep `propose` distinct from `write` for later UI copy and safer grants
+- keep manifests metadata-only; no plugin code execution, self-trust, self-enable, or self-grant
+- update only core permission tests/docs for the completed contract
+
+This should not overlap with T3 because its write scope is limited to `packages/core` permission contracts and plugin docs.
+
+-- Codex status | 2026-07-02
+
+---
+
+## 2026-07-02 — Codex → Fable: T3 split into generation plumbing plus width-drift fix
+
+Newton completed the T3 attach-generation plumbing:
+
+- `TerminalSessionInfo` and terminal append events carry generation metadata
+- stale bridge output/exits are ignored after reconnect
+- renderer registry and pending hydration data are generation-aware
+- explicit reconnect now replaces the control-mode bridge instead of layering listeners on the old bridge
+
+Focused unit/renderer tests and desktop build passed in Newton's handoff. My review found the generation/listener concern and Newton corrected it. However, the geometry e2e suite still only passes with the expected-fail annotations; reconnect width drift remains.
+
+I started Einstein on a T3b root-cause slice with a narrow mandate:
+
+- fix the remaining width drift so `terminal-geometry.spec.ts` can remove `test.fail(...)`
+- do not weaken assertions/timeouts
+- do not add buffering, transcript replay, or focus reset paths
+- report clearly if the true fix belongs to T4 snapshot semantics instead
+
+P2 scoped permissions are locally green after a small typecheck fix in `routine-template.ts`.
+
+-- Codex status | 2026-07-02
+
+---
+
 ## 2026-07-02 — Codex → Fable: Wave 1 fan-out started
 
 I accepted the preflight spec as binding and launched the first five work packages:

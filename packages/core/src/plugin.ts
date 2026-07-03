@@ -7,7 +7,7 @@ import type {
   CapabilityPermission,
   CapabilitySurface,
 } from "./capabilities";
-import { parseCapabilityKind } from "./capabilities";
+import { normalizeCapabilityPermission, parseCapabilityKind } from "./capabilities";
 import { hashPluginManifest } from "./plugin-state";
 
 export const EXO_PLUGIN_MANIFEST_FILE = "exo.plugin.json";
@@ -119,18 +119,6 @@ export interface PluginLifecycleStatus {
 const CAPABILITY_LIFECYCLES = ["built-in", "experimental", "disabled"] satisfies CapabilityLifecycle[];
 
 const CAPABILITY_SURFACES = ["desktop", "cli", "mcp", "commandServer", "internal"] satisfies CapabilitySurface[];
-
-const CAPABILITY_PERMISSIONS = [
-  "workspace:read",
-  "notes:read",
-  "notes:write",
-  "projects:read",
-  "projects:write",
-  "terminals:launch",
-  "agents:launch",
-  "network:access",
-  "artifacts:write",
-] satisfies CapabilityPermission[];
 
 export class PluginRegistry {
   private readonly plugins = new Map<string, DiscoveredPlugin>();
@@ -448,7 +436,16 @@ function validateSurfaces(input: unknown, field: string): CapabilitySurface[] {
 }
 
 function validatePermissions(input: unknown, field: string): CapabilityPermission[] {
-  return validateStringArray(input, field).map((value) => validateEnum(value, CAPABILITY_PERMISSIONS, field));
+  return validateStringArray(input, field).map((value) => {
+    try {
+      return normalizeCapabilityPermission(value);
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(`${field} contains unsupported value: ${value} (${error.message})`);
+      }
+      throw error;
+    }
+  });
 }
 
 function validateSettingsSchema(input: unknown): PluginSettingsSchema | undefined {

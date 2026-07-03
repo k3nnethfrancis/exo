@@ -50,6 +50,7 @@ export interface TerminalSessionInfo {
   health?: TerminalHealthState;
   healthDetail?: string;
   geometry?: TerminalGeometryRecord;
+  attachGeneration: number;
 }
 
 export interface TerminalCreateOptions {
@@ -59,6 +60,7 @@ export interface TerminalCreateOptions {
 
 export interface TerminalDataEvent {
   id: string;
+  generation: number;
   data: string;
 }
 
@@ -375,6 +377,7 @@ export interface DesktopApi {
     diagnostics: () => Promise<TerminalDiagnostics[]>;
     create: (options: TerminalCreateOptions) => Promise<TerminalSessionInfo>;
     read: (id: string, options?: { maxLines?: number }) => Promise<string>;
+    restoreSnapshot: (id: string) => Promise<string>;
     readTranscript: (id: string, tailChars?: number) => Promise<string>;
     write: (id: string, data: string) => Promise<TerminalWriteResult>;
     sendMessage: (id: string, message: string, submit?: boolean) => Promise<TerminalMessageResult>;
@@ -383,6 +386,7 @@ export interface DesktopApi {
     kill: (id: string) => Promise<void>;
     resolveDroppedFilePaths: (files: File[]) => string[];
     onCreated: (callback: (session: TerminalSessionInfo) => void) => () => void;
+    onUpdated: (callback: (session: TerminalSessionInfo) => void) => () => void;
     onData: (callback: (event: TerminalDataEvent) => void) => () => void;
     onExit: (callback: (event: { id: string; exitCode?: number }) => void) => () => void;
   };

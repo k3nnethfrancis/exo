@@ -106,7 +106,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
       const firstNote = pickInitialNote(Object.entries(nextNoteTrees));
       const defaultTerminal = await window.exo.terminals.ensureDefault();
       const sessions = await window.exo.terminals.list();
-      const defaultTerminalSnapshot = await window.exo.terminals.read(defaultTerminal.id);
+      const defaultTerminalSnapshot = await window.exo.terminals.restoreSnapshot(defaultTerminal.id);
 
       if (cancelled || bootstrapRun !== bootstrapRunRef.current) {
         return;

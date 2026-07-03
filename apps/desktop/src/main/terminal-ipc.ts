@@ -9,6 +9,7 @@ export function registerTerminalIpcHandlers(
   handleDesktopInvoke("terminals:diagnostics", async () => terminalManager.diagnostics());
   handleDesktopInvoke("terminals:create", async (_event, options) => terminalManager.create(options));
   handleDesktopInvoke("terminals:read", async (_event, id, options) => terminalManager.readTail(id, options) ?? "");
+  handleDesktopInvoke("terminals:restore-snapshot", async (_event, id) => terminalManager.readRestoreSnapshot(id) ?? "");
   handleDesktopInvoke("terminals:read-transcript", async (_event, id, tailChars) =>
     terminalManager.readTranscript(id, typeof tailChars === "number" ? tailChars : 0) ?? "",
   );

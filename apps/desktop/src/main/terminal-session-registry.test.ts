@@ -105,6 +105,7 @@ describe("TerminalSessionRegistry", () => {
           readiness: "starting",
           readinessDetail: "Waiting briefly for Codex startup interstitials.",
           healthDetail: "Process exited with code 1.",
+          attachGeneration: 42,
           geometry: {
             cols: 144,
             rows: 45,
@@ -139,6 +140,7 @@ describe("TerminalSessionRegistry", () => {
       ],
     });
     expect(typeof saved.sessions[0].lastAttachedAt).toBe("string");
+    expect(saved.sessions[0].attachGeneration).toBeUndefined();
   });
 });
 

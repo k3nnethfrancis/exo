@@ -44,7 +44,7 @@ import {
 import { isTerminalGeneratedResponse } from "./components/terminalInputFilters";
 import { TerminalOutputChunker, chunkTerminalData } from "./components/terminalOutputChunks";
 import { normalizeTerminalPresentation } from "./components/terminalPresentation";
-import { focusTerminal, registerTerminal, unregisterTerminal } from "./components/terminalRegistry";
+import { focusTerminal, registerTerminal, unregisterTerminal, writeTerminalData } from "./components/terminalRegistry";
 import { createTerminalToolDockActions, launchableTerminalAgentHarnesses } from "./components/TerminalRail";
 import { shouldUseMarkdownRenderer } from "./components/NoteEditor";
 import { workspaceSettingsSavedFooterCopy } from "./components/WorkspaceSettingsDialog";
@@ -1181,7 +1181,7 @@ describe("terminal renderer registry", () => {
     const terminal = { focus: vi.fn() };
     const refresh = vi.fn();
 
-    registerTerminal("terminal-1", terminal as never, vi.fn(), refresh);
+    registerTerminal("terminal-1", 1, terminal as never, vi.fn(), refresh);
     try {
       expect(focusTerminal("terminal-1")).toBe(true);
       expect(refresh).toHaveBeenCalledBefore(terminal.focus);
@@ -1195,8 +1195,8 @@ describe("terminal renderer registry", () => {
     const refreshOne = vi.fn();
     const refreshTwo = vi.fn();
 
-    registerTerminal("terminal-1", { focus: vi.fn() } as never, vi.fn(), refreshOne);
-    registerTerminal("terminal-2", { focus: vi.fn() } as never, vi.fn(), refreshTwo);
+    registerTerminal("terminal-1", 1, { focus: vi.fn() } as never, vi.fn(), refreshOne);
+    registerTerminal("terminal-2", 1, { focus: vi.fn() } as never, vi.fn(), refreshTwo);
     try {
       expect(focusTerminal("terminal-1")).toBe(true);
       expect(refreshOne).toHaveBeenCalledTimes(1);
@@ -1204,6 +1204,22 @@ describe("terminal renderer registry", () => {
     } finally {
       unregisterTerminal("terminal-1");
       unregisterTerminal("terminal-2");
+    }
+  });
+
+  it("accepts only the registered attach generation for mounted terminal writes", () => {
+    const write = vi.fn();
+
+    registerTerminal("terminal-1", 1, { focus: vi.fn() } as never, write);
+    try {
+      expect(writeTerminalData("terminal-1", 2, "new generation")).toBe(false);
+      expect(writeTerminalData("terminal-1", 1, "current generation")).toBe(true);
+      registerTerminal("terminal-1", 2, { focus: vi.fn() } as never, write);
+      expect(writeTerminalData("terminal-1", 1, "stale generation")).toBe(false);
+      expect(write).toHaveBeenCalledTimes(1);
+      expect(write).toHaveBeenCalledWith("current generation");
+    } finally {
+      unregisterTerminal("terminal-1");
     }
   });
 });
@@ -1718,6 +1734,20 @@ describe("terminal output chunking", () => {
     expect(chunks.every((chunk) => !endsWithHighSurrogate(chunk) && !startsWithLowSurrogate(chunk))).toBe(true);
   });
 
+  it("does not split CSI cursor-position sequences across xterm write chunks", () => {
+    const chunks = chunkTerminalData("abcd\x1b[12;34Hef", 7);
+
+    expect(chunks).toEqual(["abcd", "\x1b[12;34H", "ef"]);
+    expect(chunks.join("")).toBe("abcd\x1b[12;34Hef");
+  });
+
+  it("does not split OSC sequences across xterm write chunks", () => {
+    const chunks = chunkTerminalData("ab\x1b]10;rgb:ffff/ffff/ffff\x1b\\cd", 8);
+
+    expect(chunks).toEqual(["ab", "\x1b]10;rgb:ffff/ffff/ffff\x1b\\", "cd"]);
+    expect(chunks.join("")).toBe("ab\x1b]10;rgb:ffff/ffff/ffff\x1b\\cd");
+  });
+
   it("carries surrogate pairs split across terminal data events", () => {
     const chunker = new TerminalOutputChunker();
     const emoji = "🙂";
@@ -1952,6 +1982,7 @@ describe("terminal session sync", () => {
         status: "running",
         health: "healthy",
         healthDetail: "running",
+        attachGeneration: 1,
       },
     ] as const;
 
@@ -1969,6 +2000,7 @@ describe("terminal session sync", () => {
       status: "running",
       health: "unhealthy",
       healthDetail: "Tmux session is alive but Exo's attach bridge is detached; reconnect the terminal.",
+      attachGeneration: 1,
     } as const;
 
     expect(isTerminalInputEnabled(unhealthySession)).toBe(false);
@@ -1984,7 +2016,14 @@ describe("terminal session sync", () => {
   });
 
   it("caps pending terminal data to the newest content", () => {
-    expect(appendPendingTerminalData("abcdef", "ghij", 6)).toBe("efghij");
+    expect(appendPendingTerminalData({ generation: 1, data: "abcdef" }, 1, "ghij", 6)).toEqual({
+      generation: 1,
+      data: "efghij",
+    });
+    expect(appendPendingTerminalData({ generation: 1, data: "abcdef" }, 2, "ghij", 6)).toEqual({
+      generation: 2,
+      data: "ghij",
+    });
   });
 
   it("does not split terminal Unicode while capping pending hydration data", () => {
@@ -1992,10 +2031,10 @@ describe("terminal session sync", () => {
     const high = emoji.charAt(0);
     const low = emoji.charAt(1);
 
-    expect(appendPendingTerminalData(`abc${high}`, low, 4)).toBe(`bc${emoji}`);
-    expect(appendPendingTerminalData(`abc${emoji}`, "de", 4)).toBe(`${emoji}de`);
-    expect(appendPendingTerminalData(`abc${emoji}`, "de", 3)).toBe("de");
-    expect(appendPendingTerminalData(`abc${high}`, "", 1)).toBe("");
+    expect(appendPendingTerminalData({ generation: 1, data: `abc${high}` }, 1, low, 4).data).toBe(`bc${emoji}`);
+    expect(appendPendingTerminalData({ generation: 1, data: `abc${emoji}` }, 1, "de", 4).data).toBe(`${emoji}de`);
+    expect(appendPendingTerminalData({ generation: 1, data: `abc${emoji}` }, 1, "de", 3).data).toBe("de");
+    expect(appendPendingTerminalData({ generation: 1, data: `abc${high}` }, 1, "", 1).data).toBe("");
   });
 
   it("skips mounted hydrated terminal reads unless reconnect forces a snapshot", () => {
@@ -2027,15 +2066,15 @@ describe("terminal session sync", () => {
     expect(shouldBufferTerminalDataForHydration(true, undefined, true)).toBe(false);
     expect(shouldBufferTerminalDataForHydration(true, "bootstrap", false)).toBe(false);
     expect(shouldBufferTerminalDataForHydration(true, "bootstrap", true)).toBe(false);
-    expect(shouldBufferTerminalDataForHydration(true, "reconnect", true)).toBe(true);
+    expect(shouldBufferTerminalDataForHydration(true, "reconnect", true)).toBe(false);
   });
 });
 
 describe("changed file review attribution", () => {
   it("does not associate ambiguous same-cwd file changes with every terminal", () => {
     const sessions = [
-      { id: "term-a", title: "Shell A", cwd: "/workspace/project", kind: "shell", command: "zsh", status: "running" },
-      { id: "term-b", title: "Shell B", cwd: "/workspace/project", kind: "shell", command: "zsh", status: "running" },
+      { id: "term-a", title: "Shell A", cwd: "/workspace/project", kind: "shell", command: "zsh", status: "running", attachGeneration: 1 },
+      { id: "term-b", title: "Shell B", cwd: "/workspace/project", kind: "shell", command: "zsh", status: "running", attachGeneration: 1 },
     ] as const;
     const change = {
       rootPath: "/workspace/project",

@@ -38,7 +38,7 @@ import {
 } from "./terminal-harness-readiness";
 import { terminalHealth, terminalHealthDetail } from "./terminal-health";
 import { selectTerminalLiveTail } from "./terminal-live-tail-policy";
-import type { TerminalRuntime, TerminalRuntimePaneInfo, TerminalRuntimeProcess } from "./terminal-runtime";
+import type { TerminalRuntime, TerminalRuntimePaneInfo, TerminalRuntimeProcess, TerminalRuntimeRestoreSnapshot } from "./terminal-runtime";
 import { TmuxTerminalRuntime } from "./terminal-runtime-tmux";
 import { TerminalGeometryService } from "./terminal-geometry-service";
 import { TerminalSessionRegistry, type PersistedTerminalSession } from "./terminal-session-registry";
@@ -103,6 +103,7 @@ export class TerminalManager extends EventEmitter {
   private runtimeConfig = resolveRuntimeConfig();
   private transcripts: TerminalTranscriptStore;
   private nextWriteId = 1;
+  private nextAttachGeneration = 1;
   private sessionRegistry = this.createSessionRegistry();
   private terminalRuntimeOptions: Required<TerminalRuntimeOptions>;
   private geometryService: TerminalGeometryService;
@@ -285,6 +286,7 @@ export class TerminalManager extends EventEmitter {
       readinessDetail: initialHarnessReadinessDetail(options.kind),
       queuedInputCount: 0,
       geometry,
+      attachGeneration: this.allocateAttachGeneration(),
     };
 
     const record: TerminalRecord = {
@@ -313,7 +315,7 @@ export class TerminalManager extends EventEmitter {
     this.sessions.set(id, record);
 
     this.appendTranscript(id, this.transcriptHeader(info));
-    this.wireProcess(id, processHandle);
+    this.wireProcess(id, processHandle, info.attachGeneration);
     this.persistSessions();
 
     this.emit("created", info);
@@ -363,13 +365,9 @@ export class TerminalManager extends EventEmitter {
 
     record.reconnecting = true;
     const attachSize = this.geometryService.attachSize(record.info.geometry ?? this.geometryService.initialDefault());
-    try {
-      record.process.kill();
-    } catch {
-      // Reconnect replaces only Exo's control-mode bridge. The durable process
-      // lives in tmux, so a missing old bridge is expected after sleep, crash,
-      // or manual detach and should not block reattach.
-    }
+    const attachGeneration = this.allocateAttachGeneration();
+    record.info.attachGeneration = attachGeneration;
+    await killAndWaitForBridgeExit(record.process);
     let processHandle: TerminalRuntimeProcess;
     try {
       processHandle = this.terminalRuntime.attachSession({
@@ -392,8 +390,9 @@ export class TerminalManager extends EventEmitter {
     record.paneStatus = "alive";
     record.info.health = this.terminalHealth(record, Date.now());
     record.info.healthDetail = "Reattached to live tmux session.";
-    this.wireProcess(id, processHandle);
+    this.wireProcess(id, processHandle, attachGeneration);
     this.persistSessions();
+    this.emit("updated", record.info);
     return record.info;
   }
 
@@ -434,6 +433,14 @@ export class TerminalManager extends EventEmitter {
     }
     this.flushTranscript(id);
     return this.transcripts.read(record.transcriptPath, tailChars);
+  }
+
+  readRestoreSnapshot(id: string): string | null {
+    const record = this.sessions.get(id);
+    if (!record) {
+      return null;
+    }
+    return this.captureRestoreSnapshot(record);
   }
 
   async resize(id: string, cols: number, rows: number): Promise<void> {
@@ -602,11 +609,14 @@ export class TerminalManager extends EventEmitter {
     return true;
   }
 
-  private wireProcess(id: string, processHandle: TerminalRuntimeProcess) {
+  private wireProcess(id: string, processHandle: TerminalRuntimeProcess, attachGeneration: number) {
     processHandle.onData((data) => {
       const record = this.sessions.get(id);
       const sanitizedData = stripMouseTrackingModes(data);
       if (record) {
+        if (record.info.attachGeneration !== attachGeneration) {
+          return;
+        }
         record.bridgeDetached = false;
         this.appendTranscript(id, sanitizedData);
         record.lastOutputAt = Date.now();
@@ -617,13 +627,16 @@ export class TerminalManager extends EventEmitter {
         this.updateAgentReadiness(record);
         record.info.health = this.terminalHealth(record, Date.now());
         record.info.healthDetail = this.terminalHealthDetail(record, Date.now());
-        this.emit("data", { id, data: sanitizedData });
+        this.emit("data", { id, generation: attachGeneration, data: sanitizedData });
       }
     });
 
     processHandle.onExit(({ exitCode }) => {
       const record = this.sessions.get(id);
       if (!record) {
+        return;
+      }
+      if (record.info.attachGeneration !== attachGeneration) {
         return;
       }
 
@@ -740,6 +753,12 @@ export class TerminalManager extends EventEmitter {
     this.nextId += 1;
     this.persistSessions();
     return id;
+  }
+
+  private allocateAttachGeneration(): number {
+    const generation = this.nextAttachGeneration;
+    this.nextAttachGeneration += 1;
+    return generation;
   }
 
   private updateAgentReadiness(record: TerminalRecord): void {
@@ -932,6 +951,7 @@ export class TerminalManager extends EventEmitter {
             readiness: "ready",
             queuedInputCount: 0,
             geometry,
+            attachGeneration: this.allocateAttachGeneration(),
           },
           process: processHandle,
           tmuxSessionName: session.tmuxSessionName,
@@ -946,7 +966,7 @@ export class TerminalManager extends EventEmitter {
         };
         this.sessions.set(session.id, record);
         this.applyRuntimeSessionOptions(record);
-        this.wireProcess(session.id, processHandle);
+        this.wireProcess(session.id, processHandle, record.info.attachGeneration);
         restored += 1;
       } catch (error) {
         console.warn("[exo] failed to restore tmux terminal session", {
@@ -991,6 +1011,7 @@ export class TerminalManager extends EventEmitter {
         healthDetail: state.healthDetail,
         exitCode: session.exitCode,
         geometry: this.geometryService.fromPersisted(session.geometry),
+        attachGeneration: 0,
       },
       process: noopTerminalProcess(),
       tmuxSessionName: session.tmuxSessionName,
@@ -1047,7 +1068,7 @@ export class TerminalManager extends EventEmitter {
         paneId: record.tmuxPaneId,
         historyLimit: this.tmuxHistoryLimit(),
       };
-      return this.terminalRuntime.captureTail(lineLimit ? { ...options, lineLimit } : options);
+      return this.terminalRuntime.captureTailForDisplay(lineLimit ? { ...options, lineLimit } : options);
     } catch (error) {
       console.warn("[exo] failed to capture tmux terminal history", {
         id: record.info.id,
@@ -1067,6 +1088,63 @@ export class TerminalManager extends EventEmitter {
     this.updateAgentReadiness(record);
   }
 
+  private captureRestoreSnapshot(record: TerminalRecord): string | null {
+    let snapshot: TerminalRuntimeRestoreSnapshot;
+    try {
+      // Capture after tmux has been sized for this attach generation. Ink-style
+      // cursor-relative redraws need the grid and final CUP to come from the
+      // same post-geometry snapshot string.
+      snapshot = this.terminalRuntime.captureRestoreSnapshot({
+        sessionName: record.tmuxSessionName,
+        paneId: record.tmuxPaneId,
+        historyLimit: this.tmuxHistoryLimit(),
+        liveScrollbackLines: this.tmuxHistoryLimit(),
+      });
+    } catch (error) {
+      console.warn("[exo] failed to capture tmux terminal restore snapshot", {
+        id: record.info.id,
+        tmuxSessionName: record.tmuxSessionName,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    }
+
+    if (!this.restoreSnapshotGeometryMatches(record, snapshot)) {
+      return "";
+    }
+    if (snapshot.altScreen) {
+      console.info("[exo] skipping terminal restore snapshot for alternate-screen pane", {
+        id: record.info.id,
+        tmuxSessionName: record.tmuxSessionName,
+        cols: snapshot.cols,
+        rows: snapshot.rows,
+      });
+    }
+    return snapshot.content;
+  }
+
+  private restoreSnapshotGeometryMatches(record: TerminalRecord, snapshot: TerminalRuntimeRestoreSnapshot): boolean {
+    const geometry = record.info.geometry;
+    if (!geometry || snapshot.cols <= 0 || snapshot.rows <= 0) {
+      return true;
+    }
+    if (snapshot.cols === geometry.cols && snapshot.rows === geometry.rows) {
+      return true;
+    }
+    record.info.health = "unhealthy";
+    record.info.healthDetail = `Skipped terminal restore snapshot because tmux geometry ${snapshot.cols}x${snapshot.rows} did not match renderer geometry ${geometry.cols}x${geometry.rows}.`;
+    console.warn("[exo] terminal restore snapshot geometry mismatch", {
+      id: record.info.id,
+      tmuxSessionName: record.tmuxSessionName,
+      tmuxCols: snapshot.cols,
+      tmuxRows: snapshot.rows,
+      rendererCols: geometry.cols,
+      rendererRows: geometry.rows,
+      geometrySource: geometry.source,
+    });
+    return false;
+  }
+
   private persistSessions(): void {
     this.sessionRegistry.save(this.nextId, Array.from(this.sessions.values()));
   }
@@ -1080,6 +1158,33 @@ function noopTerminalProcess(): TerminalRuntimeProcess {
     resize: () => {},
     kill: () => {},
   };
+}
+
+function killAndWaitForBridgeExit(processHandle: TerminalRuntimeProcess): Promise<void> {
+  return new Promise((resolve) => {
+    let settled = false;
+    let timer: NodeJS.Timeout | undefined;
+    const done = () => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      if (timer) {
+        clearTimeout(timer);
+      }
+      resolve();
+    };
+    timer = setTimeout(done, 250);
+    processHandle.onExit(done);
+    try {
+      processHandle.kill();
+    } catch {
+      // Reconnect replaces only Exo's control-mode bridge. The durable process
+      // lives in tmux, so a missing old bridge is expected after sleep, crash,
+      // or manual detach and should not block reattach.
+      done();
+    }
+  });
 }
 
 function isAgentTerminal(record: TerminalRecord): boolean {

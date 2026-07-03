@@ -136,7 +136,7 @@ Automation must cover:
 - `apps/desktop/src/renderer/src/components/terminalRegistry.ts`: global imperative registry from session id to xterm write/focus/refresh.
 - `apps/desktop/src/renderer/src/components/terminalOutputChunks.ts`: xterm write chunking and surrogate-pair preservation.
 - `apps/desktop/src/renderer/src/components/terminalInputFilters.ts`: xterm-generated CSI/OSC response filter.
-- `apps/desktop/src/renderer/src/components/BrowserPane.tsx`: preview webview and temporary terminal refresh calls around preview layout/focus.
+- `apps/desktop/src/renderer/src/components/BrowserPane.tsx`: preview iframe for local/artifact URLs. Exo intentionally avoids Electron `<webview>` here because Electron documents webview event-routing instability, and terminal input is the higher-priority work surface.
 - Settings: `packages/core/src/terminal-settings.ts`, `packages/core/src/workspace-settings.ts`, `apps/desktop/src/main/settings-store.ts`, `WorkspaceSettingsDialog.tsx`, and `workspaceSettingsModel.ts` expose most terminal caps/timing values.
 - CLI/MCP: `packages/cli/src/index.ts`, `packages/cli/src/app-client.ts`, `packages/mcp/src/index.ts`, and `packages/core/src/command-protocol.ts` expose terminal create/read/send/reconnect/diagnostics contracts.
 - Tests: `terminal-manager.test.ts`, `terminal-tmux.test.ts`, renderer `App.test.tsx`, and `apps/desktop/tests/e2e/shell.spec.ts` already cover many known regressions.
@@ -149,6 +149,12 @@ Automation must cover:
 - Exo renderer owns visible layout, active session selection, xterm mount lifecycle, focus, fit/resize measurement, and live append delivery.
 - Transcripts own durable append-only session history and agent-readable bounded transcript tails.
 - React state owns metadata only: sessions, active ids, health, hydration status, and layout placement. It must not own live terminal output.
+
+## V4.1 Restore Snapshots
+
+Live reconnect/bootstrap restore uses a typed tmux restore snapshot, not the CLI/MCP display tail. The restore snapshot is byte-faithful `capture-pane -e -p -J` content plus an in-band cursor-position escape appended to the same string, after tmux has been asserted to the renderer-recorded geometry. Display tails may trim and normalize for readability; they must never hydrate a live xterm.
+
+Alt-screen restore is a v1 limitation: if tmux reports `alternate_on`, Exo returns an empty restore snapshot with `altScreen: true` and relies on the running TUI to repaint after reconnect/resize. Full alt-screen grid restore is deferred until a concrete harness needs it.
 
 ## What To Delete Or Simplify Now
 
@@ -301,7 +307,7 @@ Manual QA:
   Detection: command-server `/tail`, CLI `terminals read`, MCP `read_agent`, and transcript tests.
 - Risk: stricter hydration leaves blank xterm after reload.
   Detection: reload/relaunch e2e must assert history visible before input.
-- Risk: preview webview steals focus or leaves stale geometry.
+- Risk: preview panes steal focus or leave stale geometry.
   Detection: new preview terminal typing/resize e2e.
 - Risk: Unicode or terminal-agent TUI corruption returns at either tmux or browser boundary.
   Detection: shared Terminal Render Stability corpus in tmux split-byte tests, renderer chunking tests, and fake-agent e2e; emoji-heavy e2e remains a burst-size check.

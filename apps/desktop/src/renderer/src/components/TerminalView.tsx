@@ -31,25 +31,28 @@ interface TerminalViewProps {
   scrollbackLines: number;
   onFocus: () => void;
   onInput: (id: string, data: string) => void;
-  onResize: (id: string, cols: number, rows: number) => void;
+  onGeometryMeasured: (id: string, cols: number, rows: number) => void;
   onReady?: (id: string) => void;
+  onHydrated?: (id: string) => void;
   inputEnabled?: boolean;
 }
 
 export function TerminalView(props: TerminalViewProps) {
-  const { theme, session, focused, hydrationSnapshot, hydrationVersion, hydrationReason, fontSize, scrollbackLines, onFocus, onInput, onResize, onReady, inputEnabled = true } = props;
+  const { theme, session, focused, hydrationSnapshot, hydrationVersion, hydrationReason, fontSize, scrollbackLines, onFocus, onInput, onGeometryMeasured, onReady, onHydrated, inputEnabled = true } = props;
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const hydrationStateRef = useRef(initialTerminalHydrationViewState());
   const writeQueueRef = useRef<string[]>([]);
+  const writeDrainCallbacksRef = useRef<Array<() => void>>([]);
   const outputChunkerRef = useRef(new TerminalOutputChunker());
   const writingRef = useRef(false);
   const disposedRef = useRef(false);
   const inputHandlerRef = useRef(onInput);
   const inputEnabledRef = useRef(inputEnabled);
-  const resizeHandlerRef = useRef(onResize);
+  const hydratedHandlerRef = useRef(onHydrated);
+  const geometryMeasuredHandlerRef = useRef(onGeometryMeasured);
   const focusedRef = useRef(focused);
   const sizeRef = useRef({ width: 0, height: 0, cols: 0, rows: 0, resizeTimer: 0 });
 
@@ -62,8 +65,12 @@ export function TerminalView(props: TerminalViewProps) {
   }, [inputEnabled]);
 
   useEffect(() => {
-    resizeHandlerRef.current = onResize;
-  }, [onResize]);
+    hydratedHandlerRef.current = onHydrated;
+  }, [onHydrated]);
+
+  useEffect(() => {
+    geometryMeasuredHandlerRef.current = onGeometryMeasured;
+  }, [onGeometryMeasured]);
 
   useEffect(() => {
     focusedRef.current = focused;
@@ -85,16 +92,16 @@ export function TerminalView(props: TerminalViewProps) {
     terminal.loadAddon(fitAddon);
     terminal.open(viewportRef.current!);
     requestAnimationFrame(() => {
-      safeFit(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef);
+      safeFit(viewportRef.current, terminal, fitAddon, session.id, geometryMeasuredHandlerRef.current, sizeRef);
       if (focusedRef.current) {
         terminal.focus();
       }
     });
 
     const disposeData = terminal.onData((data) => {
-      if (!inputEnabledRef.current) {
-        return;
-      }
+      // Main owns terminal writability. Renderer inputEnabled can briefly lag
+      // after reconnect/hydration, and dropping keystrokes here caused live
+      // tmux panes to accept input only after a hard refresh.
       if (isTerminalGeneratedResponse(data)) {
         return;
       }
@@ -102,7 +109,7 @@ export function TerminalView(props: TerminalViewProps) {
     });
 
     const observer = new ResizeObserver(() => {
-      refreshTerminalSurface(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef, disposedRef);
+      refreshTerminalSurface(viewportRef.current, terminal, fitAddon, session.id, geometryMeasuredHandlerRef.current, sizeRef, disposedRef);
     });
     observer.observe(viewportRef.current!);
 
@@ -110,16 +117,16 @@ export function TerminalView(props: TerminalViewProps) {
       ? null
       : new IntersectionObserver((entries) => {
         if (entries.some((entry) => entry.isIntersecting)) {
-          refreshTerminalSurface(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef, disposedRef);
+          refreshTerminalSurface(viewportRef.current, terminal, fitAddon, session.id, geometryMeasuredHandlerRef.current, sizeRef, disposedRef);
         }
       }, { threshold: 0.01 });
     visibilityObserver?.observe(surfaceRef.current!);
 
     const reconcileSurface = () => {
-      refreshTerminalSurface(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef, disposedRef);
+      refreshTerminalSurface(viewportRef.current, terminal, fitAddon, session.id, geometryMeasuredHandlerRef.current, sizeRef, disposedRef);
     };
     const fitSurface = () => {
-      fitTerminalSurface(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef, disposedRef);
+      fitTerminalSurface(viewportRef.current, terminal, fitAddon, session.id, geometryMeasuredHandlerRef.current, sizeRef, disposedRef);
     };
     const eventNames: Array<"focus" | "resize" | "pageshow" | "visibilitychange"> = [
       "focus",
@@ -183,10 +190,10 @@ export function TerminalView(props: TerminalViewProps) {
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
     sizeRef.current = { width: 0, height: 0, cols: 0, rows: 0, resizeTimer: 0 };
-    registerTerminal(session.id, terminal, (data) => {
-      enqueueTerminalWrite(terminal, data, writeQueueRef, outputChunkerRef, writingRef, disposedRef);
+    registerTerminal(session.id, session.attachGeneration, terminal, (data) => {
+      enqueueTerminalWrite(terminal, data, writeQueueRef, writeDrainCallbacksRef, outputChunkerRef, writingRef, disposedRef);
     }, () => {
-      fitTerminalSurface(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef, disposedRef);
+      fitTerminalSurface(viewportRef.current, terminal, fitAddon, session.id, geometryMeasuredHandlerRef.current, sizeRef, disposedRef);
     });
     onReady?.(session.id);
 
@@ -215,14 +222,33 @@ export function TerminalView(props: TerminalViewProps) {
   useEffect(() => {
     const terminal = terminalRef.current;
     const fitAddon = fitAddonRef.current;
+    if (!terminal || !fitAddon) {
+      return;
+    }
+    if (sizeRef.current.resizeTimer) {
+      window.clearTimeout(sizeRef.current.resizeTimer);
+    }
+    sizeRef.current = { width: 0, height: 0, cols: 0, rows: 0, resizeTimer: 0 };
+    registerTerminal(session.id, session.attachGeneration, terminal, (data) => {
+      enqueueTerminalWrite(terminal, data, writeQueueRef, writeDrainCallbacksRef, outputChunkerRef, writingRef, disposedRef);
+    }, () => {
+      fitTerminalSurface(viewportRef.current, terminal, fitAddon, session.id, geometryMeasuredHandlerRef.current, sizeRef, disposedRef);
+    });
+    safeFit(viewportRef.current, terminal, fitAddon, session.id, geometryMeasuredHandlerRef.current, sizeRef);
+    onReady?.(session.id);
+  }, [session.id, session.attachGeneration]);
+
+  useEffect(() => {
+    const terminal = terminalRef.current;
+    const fitAddon = fitAddonRef.current;
     if (!focused || !terminal || !fitAddon) {
       return;
     }
 
-    fitTerminalSurface(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef, disposedRef);
+    fitTerminalSurface(viewportRef.current, terminal, fitAddon, session.id, geometryMeasuredHandlerRef.current, sizeRef, disposedRef);
     focusTerminalElement(surfaceRef.current, viewportRef.current, terminal);
     window.requestAnimationFrame(() => {
-      fitTerminalSurface(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef, disposedRef);
+      fitTerminalSurface(viewportRef.current, terminal, fitAddon, session.id, geometryMeasuredHandlerRef.current, sizeRef, disposedRef);
       focusTerminalElement(surfaceRef.current, viewportRef.current, terminal);
     });
   }, [focused, session.id]);
@@ -245,7 +271,7 @@ export function TerminalView(props: TerminalViewProps) {
 
     terminal.options.fontSize = fontSize;
     requestAnimationFrame(() => {
-      safeFit(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef);
+      safeFit(viewportRef.current, terminal, fitAddon, session.id, geometryMeasuredHandlerRef.current, sizeRef);
     });
   }, [fontSize, session.id]);
 
@@ -256,7 +282,7 @@ export function TerminalView(props: TerminalViewProps) {
       return;
     }
     requestAnimationFrame(() => {
-      safeFit(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef);
+      safeFit(viewportRef.current, terminal, fitAddon, session.id, geometryMeasuredHandlerRef.current, sizeRef);
     });
   }, [session.health, session.healthDetail, session.id]);
 
@@ -276,8 +302,6 @@ export function TerminalView(props: TerminalViewProps) {
       return;
     }
 
-    const shouldFollowOutput = isScrolledToBottom(terminal);
-
     const hydrationFrame = {
       snapshot: hydrationSnapshot,
       version: hydrationVersion,
@@ -293,12 +317,27 @@ export function TerminalView(props: TerminalViewProps) {
     // versions are metadata/pending-data churn and must stay append-only.
     terminal.reset();
     writeQueueRef.current = [];
+    writeDrainCallbacksRef.current = [];
     outputChunkerRef.current.reset();
     writingRef.current = false;
-    safeFit(viewportRef.current, terminal, fitAddon, session.id, resizeHandlerRef.current, sizeRef);
-    enqueueTerminalWrite(terminal, hydrationSnapshot, writeQueueRef, outputChunkerRef, writingRef, disposedRef);
-    if (shouldFollowOutput) {
+    safeFit(viewportRef.current, terminal, fitAddon, session.id, geometryMeasuredHandlerRef.current, sizeRef);
+    const previousConvertEol = terminal.options.convertEol;
+    terminal.options.convertEol = true;
+    const markHydrated = () => {
+      hydratedHandlerRef.current?.(session.id);
+    };
+    if (hydrationSnapshot.length === 0) {
+      terminal.options.convertEol = previousConvertEol;
+      markHydrated();
+      return;
+    }
+    enqueueTerminalWrite(terminal, hydrationSnapshot, writeQueueRef, writeDrainCallbacksRef, outputChunkerRef, writingRef, disposedRef, () => {
+      terminal.options.convertEol = previousConvertEol;
       terminal.scrollToBottom();
+      markHydrated();
+    });
+    if (focusedRef.current) {
+      focusTerminalElement(surfaceRef.current, viewportRef.current, terminal);
     }
   }, [hydrationReason, hydrationSnapshot, hydrationVersion, session.id]);
 
@@ -319,9 +358,11 @@ function enqueueTerminalWrite(
   terminal: Terminal,
   data: string,
   queueRef: MutableRefObject<string[]>,
+  drainCallbacksRef: MutableRefObject<Array<() => void>>,
   outputChunkerRef: MutableRefObject<TerminalOutputChunker>,
   writingRef: MutableRefObject<boolean>,
   disposedRef: MutableRefObject<boolean>,
+  onDrained?: () => void,
 ) {
   if (data.length === 0 || disposedRef.current) {
     return;
@@ -334,13 +375,17 @@ function enqueueTerminalWrite(
   for (const chunk of outputChunkerRef.current.chunks(displayData, TERMINAL_WRITE_CHUNK_SIZE)) {
     queueRef.current.push(chunk);
   }
+  if (onDrained) {
+    drainCallbacksRef.current.push(onDrained);
+  }
 
-  drainTerminalWriteQueue(terminal, queueRef, writingRef, disposedRef);
+  drainTerminalWriteQueue(terminal, queueRef, drainCallbacksRef, writingRef, disposedRef);
 }
 
 function drainTerminalWriteQueue(
   terminal: Terminal,
   queueRef: MutableRefObject<string[]>,
+  drainCallbacksRef: MutableRefObject<Array<() => void>>,
   writingRef: MutableRefObject<boolean>,
   disposedRef: MutableRefObject<boolean>,
 ) {
@@ -350,6 +395,10 @@ function drainTerminalWriteQueue(
 
   const next = queueRef.current.shift();
   if (next === undefined) {
+    const callbacks = drainCallbacksRef.current.splice(0);
+    for (const callback of callbacks) {
+      callback();
+    }
     return;
   }
 
@@ -359,7 +408,7 @@ function drainTerminalWriteQueue(
       writingRef.current = false;
       if (!disposedRef.current) {
         window.requestAnimationFrame(() => {
-          drainTerminalWriteQueue(terminal, queueRef, writingRef, disposedRef);
+          drainTerminalWriteQueue(terminal, queueRef, drainCallbacksRef, writingRef, disposedRef);
         });
       }
     });
@@ -374,7 +423,7 @@ function safeFit(
   terminal: Terminal,
   fitAddon: FitAddon,
   sessionId: string,
-  onResize: (id: string, cols: number, rows: number) => void,
+  onGeometryMeasured: (id: string, cols: number, rows: number) => void,
   sizeRef: MutableRefObject<{ width: number; height: number; cols: number; rows: number; resizeTimer: number }>,
 ) {
   const rect = host?.getBoundingClientRect();
@@ -384,6 +433,9 @@ function safeFit(
 
   fitAddon.fit();
 
+  // This dedupe is scoped to one TerminalView attach generation. The
+  // attachGeneration effect clears sizeRef so a new attach reports its first
+  // renderer-fit geometry back to tmux.
   if (
     sizeRef.current.width === rect.width &&
     sizeRef.current.height === rect.height &&
@@ -403,7 +455,7 @@ function safeFit(
   };
 
   if (isInitialMeasurement) {
-    onResize(sessionId, terminal.cols, terminal.rows);
+    onGeometryMeasured(sessionId, terminal.cols, terminal.rows);
     return;
   }
 
@@ -412,7 +464,7 @@ function safeFit(
   }
   sizeRef.current.resizeTimer = window.setTimeout(() => {
     sizeRef.current.resizeTimer = 0;
-    onResize(sessionId, terminal.cols, terminal.rows);
+    onGeometryMeasured(sessionId, terminal.cols, terminal.rows);
   }, TERMINAL_RESIZE_DEBOUNCE_MS);
 }
 
@@ -421,7 +473,7 @@ function refreshTerminalSurface(
   terminal: Terminal,
   fitAddon: FitAddon,
   sessionId: string,
-  onResize: (id: string, cols: number, rows: number) => void,
+  onGeometryMeasured: (id: string, cols: number, rows: number) => void,
   sizeRef: MutableRefObject<{ width: number; height: number; cols: number; rows: number; resizeTimer: number }>,
   disposedRef: MutableRefObject<boolean>,
 ) {
@@ -433,7 +485,7 @@ function refreshTerminalSurface(
     if (disposedRef.current) {
       return;
     }
-    safeFit(host, terminal, fitAddon, sessionId, onResize, sizeRef);
+    safeFit(host, terminal, fitAddon, sessionId, onGeometryMeasured, sizeRef);
     if (terminal.rows > 0) {
       terminal.refresh(0, terminal.rows - 1);
     }
@@ -445,7 +497,7 @@ function fitTerminalSurface(
   terminal: Terminal,
   fitAddon: FitAddon,
   sessionId: string,
-  onResize: (id: string, cols: number, rows: number) => void,
+  onGeometryMeasured: (id: string, cols: number, rows: number) => void,
   sizeRef: MutableRefObject<{ width: number; height: number; cols: number; rows: number; resizeTimer: number }>,
   disposedRef: MutableRefObject<boolean>,
 ) {
@@ -455,7 +507,7 @@ function fitTerminalSurface(
 
   window.requestAnimationFrame(() => {
     if (!disposedRef.current) {
-      safeFit(host, terminal, fitAddon, sessionId, onResize, sizeRef);
+      safeFit(host, terminal, fitAddon, sessionId, onGeometryMeasured, sizeRef);
     }
   });
 }
@@ -467,11 +519,6 @@ function focusTerminalElement(
 ) {
   void window.exo.shell.focusWindow().catch(() => {});
   window.focus();
-  for (const webview of Array.from(document.querySelectorAll("webview"))) {
-    if (webview instanceof HTMLElement) {
-      webview.blur();
-    }
-  }
   if (document.activeElement instanceof HTMLElement) {
     document.activeElement.blur();
   }
@@ -484,8 +531,4 @@ function focusTerminalElement(
 function shellEscape(path: string): string {
   // Single-quote the path, escaping any embedded single quotes
   return "'" + path.replace(/'/g, "'\\''") + "'";
-}
-
-function isScrolledToBottom(terminal: Terminal): boolean {
-  return terminal.buffer.active.viewportY >= terminal.buffer.active.baseY;
 }

@@ -16,13 +16,15 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
   const [hydrationSnapshots, setHydrationSnapshots] = useState<Record<string, string>>({});
   const [hydrationVersions, setHydrationVersions] = useState<Record<string, number>>({});
   const [hydrationReasons, setHydrationReasons] = useState<Record<string, TerminalHydrationReason>>({});
+  const [hydratingTerminalIds, setHydratingTerminalIds] = useState<ReadonlySet<string>>(() => new Set());
   const [, setAgentAnnotations] = useState<Record<string, { runLabel: string; parentId: string | null }>>({});
   const sessionsRef = useRef<TerminalSessionInfo[]>([]);
   const activeTerminalIdRef = useRef<string | null>(null);
   const hydratedSessionIdsRef = useRef(new Set<string>());
   const pendingHydrationIdsRef = useRef(new Set<string>());
+  const generationSyncIdsRef = useRef(new Set<string>());
   const pendingHydrationReasonsRef = useRef<Record<string, TerminalHydrationReason>>({});
-  const pendingTerminalDataRef = useRef<Record<string, string>>({});
+  const pendingTerminalDataRef = useRef<Record<string, { generation: number; data: string }>>({});
   const hydrationSnapshotsRef = useRef<Record<string, string>>({});
   const optionsRef = useRef(options);
 
@@ -69,8 +71,22 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
   }, [sessions]);
 
   useEffect(() => {
-    const removeDataListener = window.exo.terminals.onData(({ id, data }) => {
-      const rendered = writeTerminalData(id, data);
+    const removeDataListener = window.exo.terminals.onData(({ id, generation, data }) => {
+      const knownGeneration = sessionsRef.current.find((session) => session.id === id)?.attachGeneration ?? 0;
+      if (knownGeneration > generation) {
+        return;
+      }
+      if (generation > knownGeneration) {
+        pendingTerminalDataRef.current[id] = appendPendingTerminalData(
+          pendingTerminalDataRef.current[id],
+          generation,
+          data,
+          optionsRef.current.maxPendingDataChars,
+        );
+        void hydrateTerminalAfterGenerationSync(id, generation);
+        return;
+      }
+      const rendered = writeTerminalData(id, generation, data);
       if (
         shouldBufferTerminalDataForHydration(
           rendered,
@@ -79,7 +95,8 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
         )
       ) {
         pendingTerminalDataRef.current[id] = appendPendingTerminalData(
-          pendingTerminalDataRef.current[id] ?? "",
+          pendingTerminalDataRef.current[id],
+          generation,
           data,
           optionsRef.current.maxPendingDataChars,
         );
@@ -94,13 +111,37 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
     const removeCreatedListener = window.exo.terminals.onCreated((session) => {
       adoptExternalSessions([session], { activateLatest: true });
     });
+    const removeUpdatedListener = window.exo.terminals.onUpdated((session) => {
+      const previousSession = sessionsRef.current.find((candidate) => candidate.id === session.id);
+      const nextSessions = replaceTerminalSession(sessionsRef.current, session);
+      sessionsRef.current = nextSessions;
+      setSessions(nextSessions);
+      if (
+        activeTerminalIdRef.current === session.id &&
+        previousSession &&
+        session.attachGeneration > previousSession.attachGeneration
+      ) {
+        void hydrateTerminal(session.id, { force: true });
+      }
+    });
     const syncInterval = window.setInterval(() => {
       void window.exo.terminals.list().then((nextSessions) => {
-        const knownIds = new Set(sessionsRef.current.map((session) => session.id));
+        const previousSessions = syncTerminalSessions(nextSessions);
+        const knownIds = new Set(previousSessions.map((session) => session.id));
         const unseenSessions = nextSessions.filter((session) => !knownIds.has(session.id));
-        setSessions((current) => (terminalSessionsEqual(current, nextSessions) ? current : nextSessions));
         if (unseenSessions.length > 0) {
           adoptExternalSessions(unseenSessions, { activateLatest: true });
+        }
+        const activeId = activeTerminalIdRef.current;
+        const previousActive = activeId ? previousSessions.find((session) => session.id === activeId) : null;
+        const nextActive = activeId ? nextSessions.find((session) => session.id === activeId) : null;
+        if (
+          activeId &&
+          previousActive &&
+          nextActive &&
+          nextActive.attachGeneration > previousActive.attachGeneration
+        ) {
+          void hydrateTerminal(activeId, { force: true });
         }
       });
     }, 1500);
@@ -109,11 +150,13 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
       removeDataListener();
       removeExitListener();
       removeCreatedListener();
+      removeUpdatedListener();
       window.clearInterval(syncInterval);
     };
   }, []);
 
   function initialize(nextSessions: TerminalSessionInfo[], activeId: string | null, activeSnapshot?: string): void {
+    sessionsRef.current = nextSessions;
     setSessions(nextSessions);
     setActiveTerminalIdState(activeId);
     if (activeId && activeSnapshot !== undefined) {
@@ -122,8 +165,10 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
   }
 
   function setHydrationSnapshot(id: string, snapshot: string, reason: TerminalHydrationReason) {
-    const pendingData = pendingTerminalDataRef.current[id] ?? "";
-    if (pendingData.length > 0) {
+    const sessionGeneration = sessionsRef.current.find((session) => session.id === id)?.attachGeneration ?? 0;
+    const pendingEntry = pendingTerminalDataRef.current[id];
+    const pendingData = pendingEntry && pendingEntry.generation === sessionGeneration ? pendingEntry.data : "";
+    if (pendingEntry) {
       delete pendingTerminalDataRef.current[id];
     }
     // Data can arrive after the tail snapshot is requested but before xterm is
@@ -138,13 +183,16 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
     setHydrationVersions((current) => ({ ...current, [id]: (current[id] ?? 0) + 1 }));
   }
 
-  async function hydrateTerminal(id: string, options?: { force?: boolean }) {
-    const reason: TerminalHydrationReason = options?.force ? "reconnect" : "bootstrap";
-    if (!options?.force && hydratedSessionIdsRef.current.has(id) && (pendingTerminalDataRef.current[id]?.length ?? 0) > 0) {
+  async function hydrateTerminal(id: string, options?: { force?: boolean; reason?: TerminalHydrationReason }) {
+    const reason: TerminalHydrationReason = options?.reason ?? (options?.force ? "reconnect" : "bootstrap");
+    if (!options?.force && hydratedSessionIdsRef.current.has(id) && (pendingTerminalDataRef.current[id]?.data.length ?? 0) > 0) {
       // A terminal may be marked hydrated before its xterm instance registers.
-      // Flush pending appends without calling terminals.read() again; routine
-      // focus/tab changes must not reset or replay mounted terminal state.
-      setHydrationSnapshot(id, hydrationSnapshotsRef.current[id] ?? "", reason);
+      // Flush pending appends directly once the matching generation is live;
+      // routine focus/tab changes must not reset or replay mounted terminal state.
+      const pendingEntry = pendingTerminalDataRef.current[id];
+      if (pendingEntry && writeTerminalData(id, pendingEntry.generation, pendingEntry.data)) {
+        delete pendingTerminalDataRef.current[id];
+      }
       return;
     }
     if (shouldSkipTerminalHydration(id, hydratedSessionIdsRef.current, pendingHydrationIdsRef.current, options)) {
@@ -152,13 +200,48 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
     }
     pendingHydrationIdsRef.current.add(id);
     pendingHydrationReasonsRef.current[id] = reason;
+    setHydratingTerminalIds((current) => withSetEntry(current, id));
+    let snapshotQueued = false;
     try {
-      const snapshot = await window.exo.terminals.read(id);
+      const snapshot = await window.exo.terminals.restoreSnapshot(id);
       setHydrationSnapshot(id, snapshot, reason);
+      snapshotQueued = true;
     } finally {
       pendingHydrationIdsRef.current.delete(id);
       delete pendingHydrationReasonsRef.current[id];
+      if (!snapshotQueued) {
+        setHydratingTerminalIds((current) => withoutSetEntry(current, id));
+      }
     }
+  }
+
+  function markTerminalHydrated(id: string): void {
+    setHydratingTerminalIds((current) => withoutSetEntry(current, id));
+  }
+
+  async function hydrateTerminalAfterGenerationSync(id: string, generation: number): Promise<void> {
+    if (generationSyncIdsRef.current.has(id)) {
+      return;
+    }
+    generationSyncIdsRef.current.add(id);
+    try {
+      const nextSessions = await window.exo.terminals.list();
+      syncTerminalSessions(nextSessions);
+      const knownGeneration = sessionsRef.current.find((session) => session.id === id)?.attachGeneration ?? 0;
+      if (knownGeneration >= generation) {
+        await hydrateTerminal(id, { force: true });
+      }
+    } finally {
+      generationSyncIdsRef.current.delete(id);
+    }
+  }
+
+  function syncTerminalSessions(nextSessions: TerminalSessionInfo[]): TerminalSessionInfo[] {
+    const previousSessions = sessionsRef.current;
+    const next = terminalSessionsEqual(previousSessions, nextSessions) ? previousSessions : nextSessions;
+    sessionsRef.current = next;
+    setSessions((current) => (terminalSessionsEqual(current, nextSessions) ? current : nextSessions));
+    return previousSessions;
   }
 
   function pruneHydration(activeIds: Set<string>) {
@@ -167,15 +250,19 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
     setHydrationReasons((current) => pruneRecordToKeys(current, activeIds));
     hydratedSessionIdsRef.current = new Set([...hydratedSessionIdsRef.current].filter((id) => activeIds.has(id)));
     pendingHydrationIdsRef.current = new Set([...pendingHydrationIdsRef.current].filter((id) => activeIds.has(id)));
+    generationSyncIdsRef.current = new Set([...generationSyncIdsRef.current].filter((id) => activeIds.has(id)));
     pendingHydrationReasonsRef.current = pruneRecordToKeys(pendingHydrationReasonsRef.current, activeIds);
     pendingTerminalDataRef.current = pruneRecordToKeys(pendingTerminalDataRef.current, activeIds);
+    setHydratingTerminalIds((current) => new Set([...current].filter((id) => activeIds.has(id))));
   }
 
   async function createTerminal(kind: TerminalKind, cwd?: string): Promise<TerminalSessionInfo> {
     const session = await window.exo.terminals.create({ kind, cwd });
-    setSessions((current) =>
-      current.some((existing) => existing.id === session.id) ? current : [...current, session],
-    );
+    const nextSessions = sessionsRef.current.some((existing) => existing.id === session.id)
+      ? sessionsRef.current
+      : [...sessionsRef.current, session];
+    sessionsRef.current = nextSessions;
+    setSessions(nextSessions);
     return session;
   }
 
@@ -186,7 +273,9 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
     if (nextSessions.length === 0) {
       return;
     }
-    setSessions((current) => mergeSessions(current, nextSessions));
+    const mergedSessions = mergeSessions(sessionsRef.current, nextSessions);
+    sessionsRef.current = mergedSessions;
+    setSessions(mergedSessions);
     optionsRef.current.onExternalSessions(nextSessions, adoptOptions);
 
     if (!adoptOptions.activateLatest) {
@@ -209,9 +298,9 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
     if (!session) {
       return null;
     }
-    setSessions((current) =>
-      current.map((existing) => (existing.id === session.id ? session : existing)),
-    );
+    const nextSessions = sessionsRef.current.map((existing) => (existing.id === session.id ? session : existing));
+    sessionsRef.current = nextSessions;
+    setSessions(nextSessions);
     await hydrateTerminal(id, { force: true });
     return session;
   }
@@ -219,6 +308,7 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
   async function killTerminal(id: string): Promise<TerminalSessionInfo[]> {
     await window.exo.terminals.kill(id);
     const remainingSessions = sessionsRef.current.filter((session) => session.id !== id);
+    sessionsRef.current = remainingSessions;
     setSessions(remainingSessions);
     setHydrationSnapshots((current) => {
       const next = { ...current };
@@ -237,8 +327,10 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
     });
     hydratedSessionIdsRef.current.delete(id);
     pendingHydrationIdsRef.current.delete(id);
+    generationSyncIdsRef.current.delete(id);
     delete pendingHydrationReasonsRef.current[id];
     delete pendingTerminalDataRef.current[id];
+    setHydratingTerminalIds((current) => withoutSetEntry(current, id));
     setAgentAnnotations((current) => {
       const next = { ...current };
       delete next[id];
@@ -270,9 +362,27 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
     activateTerminal,
     reconnectTerminal,
     hydrateTerminal,
+    markTerminalHydrated,
+    hydratingTerminalIds,
     killTerminal,
     setActiveTerminalId: setActiveTerminalIdState,
   };
+}
+
+function withSetEntry(current: ReadonlySet<string>, id: string): ReadonlySet<string> {
+  if (current.has(id)) {
+    return current;
+  }
+  return new Set([...current, id]);
+}
+
+function withoutSetEntry(current: ReadonlySet<string>, id: string): ReadonlySet<string> {
+  if (!current.has(id)) {
+    return current;
+  }
+  const next = new Set(current);
+  next.delete(id);
+  return next;
 }
 
 function mergeSessions(current: TerminalSessionInfo[], nextSessions: TerminalSessionInfo[]): TerminalSessionInfo[] {
@@ -286,14 +396,29 @@ function mergeSessions(current: TerminalSessionInfo[], nextSessions: TerminalSes
   return next;
 }
 
+function replaceTerminalSession(current: TerminalSessionInfo[], session: TerminalSessionInfo): TerminalSessionInfo[] {
+  if (!current.some((existing) => existing.id === session.id)) {
+    return [...current, session];
+  }
+  return current.map((existing) => (existing.id === session.id ? session : existing));
+}
+
 function pruneRecordToKeys<T>(record: Record<string, T>, keys: Set<string>): Record<string, T> {
   const entries = Object.entries(record).filter(([key]) => keys.has(key));
   return entries.length === Object.keys(record).length ? record : Object.fromEntries(entries);
 }
 
-export function appendPendingTerminalData(current: string, data: string, maxChars: number): string {
-  const next = `${current}${data}`;
-  return unicodeSafeTail(next, maxChars);
+export function appendPendingTerminalData(
+  current: { generation: number; data: string } | undefined,
+  generation: number,
+  data: string,
+  maxChars: number,
+): { generation: number; data: string } {
+  const currentData = current?.generation === generation ? current.data : "";
+  return {
+    generation,
+    data: unicodeSafeTail(`${currentData}${data}`, maxChars),
+  };
 }
 
 export function mergeHydrationSnapshot(snapshot: string, pendingData: string): string {
@@ -323,7 +448,7 @@ export function shouldBufferTerminalDataForHydration(
     return true;
   }
   if (pendingReason === "reconnect") {
-    return true;
+    return false;
   }
   // Rendered bootstrap data already reached xterm. Buffering it for the pending
   // snapshot would replay provider splash/status output after TerminalView resets.

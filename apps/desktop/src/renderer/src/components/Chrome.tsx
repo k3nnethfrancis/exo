@@ -16,6 +16,7 @@ interface ChromeTabProps {
   className?: string;
   dropPaneId?: string;
   dropKind?: "editor" | "terminal" | "browser";
+  itemId?: string;
   onClick: MouseEventHandler<HTMLElement>;
   onDoubleClick?: MouseEventHandler<HTMLElement>;
   onMouseDown?: MouseEventHandler<HTMLElement>;
@@ -52,6 +53,7 @@ export function ChromeTab(props: ChromeTabProps) {
     className,
     dropPaneId,
     dropKind,
+    itemId,
     onClick,
     onDoubleClick,
     onMouseDown,
@@ -68,6 +70,7 @@ export function ChromeTab(props: ChromeTabProps) {
     <div
       className={`chrome-tab ${active ? "chrome-tab--active" : ""} ${className ?? ""}`.trim()}
       data-testid={testId}
+      data-tab-item-id={itemId}
       data-tab-drop-pane-id={dropPaneId}
       data-tab-drop-kind={dropKind}
       onClick={onClick}

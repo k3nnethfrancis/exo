@@ -65,6 +65,20 @@ export interface TerminalRuntimeCaptureTailOptions {
   lineLimit?: number;
 }
 
+export interface TerminalRuntimeCaptureRestoreSnapshotOptions {
+  sessionName: string;
+  paneId: string;
+  historyLimit: number;
+  liveScrollbackLines: number;
+}
+
+export interface TerminalRuntimeRestoreSnapshot {
+  content: string;
+  cols: number;
+  rows: number;
+  altScreen: boolean;
+}
+
 export interface TerminalRuntime {
   readonly kind: "tmux";
   availability(): TerminalRuntimeAvailability;
@@ -72,6 +86,7 @@ export interface TerminalRuntime {
   attachSession(options: TerminalRuntimeAttachOptions): TerminalRuntimeProcess;
   listPanes(): TerminalRuntimePaneInfo[];
   applySessionOptions(options: TerminalRuntimeSessionOptions): void;
-  captureTail(options: TerminalRuntimeCaptureTailOptions): string;
+  captureTailForDisplay(options: TerminalRuntimeCaptureTailOptions): string;
+  captureRestoreSnapshot(options: TerminalRuntimeCaptureRestoreSnapshotOptions): TerminalRuntimeRestoreSnapshot;
   terminate(sessionName: string): void;
 }

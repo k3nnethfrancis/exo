@@ -1,4 +1,5 @@
 import type { CapabilityMetadata, CapabilityPermission, CapabilitySurface } from "./capabilities";
+import { normalizeCapabilityPermission } from "./capabilities";
 import type { DiscoveredPlugin } from "./plugin";
 import type {
   HarnessSkillRequirement,
@@ -41,18 +42,6 @@ export interface RoutineTemplateFilter {
   includeDisabled?: boolean;
   surface?: CapabilitySurface;
 }
-
-const ROUTINE_TEMPLATE_PERMISSIONS = [
-  "workspace:read",
-  "notes:read",
-  "notes:write",
-  "projects:read",
-  "projects:write",
-  "terminals:launch",
-  "agents:launch",
-  "network:access",
-  "artifacts:write",
-] satisfies CapabilityPermission[];
 
 export function instantiateRoutineTemplate(
   template: RoutineTemplateDefinition,
@@ -193,10 +182,14 @@ function validatePermissions(input: unknown): RoutinePermissionSet {
   }
   return {
     permissions: permissions.map((permission) => {
-      if (!ROUTINE_TEMPLATE_PERMISSIONS.includes(permission as CapabilityPermission)) {
-        throw new Error(`Routine template permissions.permissions contains unsupported value: ${permission}`);
+      try {
+        return normalizeCapabilityPermission(permission);
+      } catch (error) {
+        if (error instanceof Error) {
+          throw new Error(`Routine template permissions.permissions contains unsupported value: ${permission} (${error.message})`);
+        }
+        throw error;
       }
-      return permission as CapabilityPermission;
     }),
   };
 }

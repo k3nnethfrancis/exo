@@ -77,11 +77,12 @@ export function BrowserPane(props: BrowserPaneProps) {
       {safeUrl === "about:blank" ? (
         <div className="browser-pane__empty">Enter a local URL to preview.</div>
       ) : (
-        <webview
+        <iframe
           key={safeUrl}
-          className="browser-pane__webview"
-          data-testid="browser-webview"
+          className="browser-pane__frame"
+          data-testid="browser-preview-frame"
           src={safeUrl}
+          title="Preview"
         />
       )}
     </section>

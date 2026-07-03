@@ -130,6 +130,7 @@ const api: DesktopApi = {
     diagnostics: () => invokeDesktop("terminals:diagnostics"),
     create: (options) => invokeDesktop("terminals:create", options),
     read: (id, options) => invokeDesktop("terminals:read", id, options),
+    restoreSnapshot: (id) => invokeDesktop("terminals:restore-snapshot", id),
     readTranscript: (id, tailChars) => invokeDesktop("terminals:read-transcript", id, tailChars),
     write: (id, data) => invokeDesktop("terminals:write", id, data),
     sendMessage: (id, message, submit) => invokeDesktop("terminals:send-message", id, message, submit),
@@ -145,6 +146,12 @@ const api: DesktopApi = {
         callback(session);
       ipcRenderer.on("terminal:created", listener);
       return () => ipcRenderer.removeListener("terminal:created", listener);
+    },
+    onUpdated: (callback) => {
+      const listener = (_event: unknown, session: Awaited<ReturnType<DesktopApi["terminals"]["create"]>>) =>
+        callback(session);
+      ipcRenderer.on("terminal:updated", listener);
+      return () => ipcRenderer.removeListener("terminal:updated", listener);
     },
     onData: (callback) => {
       const listener = (_event: unknown, payload: Parameters<typeof callback>[0]) => callback(payload);

@@ -1017,7 +1017,7 @@ body.pane-resize-active * {
   -webkit-user-select: none;
 }
 
-body.pane-resize-active .browser-pane__webview {
+body.pane-resize-active .browser-pane__frame {
   pointer-events: none;
 }
 

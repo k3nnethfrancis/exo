@@ -577,7 +577,7 @@ describe("TerminalManager Codex readiness", () => {
     const terminal = await manager.create({ kind: "shell", cwd: workspaceRoot });
 
     expect(manager.readTail(terminal.id, { maxLines: 4 })).toBe("captured-9\r\ncaptured-10\r\ncaptured-11\r\ncaptured-12");
-    expect(runtime.calls.captureTail).toEqual([
+    expect(runtime.calls.captureTailForDisplay).toEqual([
       {
         sessionName: "runtime-session-1",
         paneId: "%runtime-1",
@@ -755,7 +755,10 @@ describe("TerminalManager Codex readiness", () => {
     ptyState.spawned[0].emitExit(1);
     await manager.reconnect(terminal.id);
 
-    expect(ptyState.spawned[1]?.stdinWrites[0]).toBe("refresh-client -C 12x4\n");
+    expect(ptyState.spawned[1]?.stdinWrites.slice(0, 2)).toEqual([
+      expect.stringMatching(/^resize-window -t .+ -x 12 -y 4\n$/),
+      "refresh-client -C 12x4\n",
+    ]);
   });
 
   it("does not reuse terminal display ids across app launches after explicit close", async () => {
@@ -832,7 +835,10 @@ describe("TerminalManager Codex readiness", () => {
     ]);
     expect(ptyState.spawned[0]?.command).toBe("tmux");
     expect(ptyState.spawned[0]?.args).toEqual(["-u", "-C", "attach-session", "-t", tmuxSessionName]);
-    expect(ptyState.spawned[0]?.stdinWrites[0]).toBe("refresh-client -C 181x47\n");
+    expect(ptyState.spawned[0]?.stdinWrites.slice(0, 2)).toEqual([
+      `resize-window -t ${tmuxSessionName} -x 181 -y 47\n`,
+      "refresh-client -C 181x47\n",
+    ]);
 
     await manager.create({ kind: "shell", cwd: workspaceRoot });
     expect(manager.list().map((session) => session.id)).toContain("term-8");
@@ -880,7 +886,10 @@ describe("TerminalManager Codex readiness", () => {
       rows: 32,
       source: "initial-default",
     });
-    expect(ptyState.spawned[0]?.stdinWrites[0]).toBe("refresh-client -C 120x32\n");
+    expect(ptyState.spawned[0]?.stdinWrites.slice(0, 2)).toEqual([
+      `resize-window -t ${tmuxSessionName} -x 120 -y 32\n`,
+      "refresh-client -C 120x32\n",
+    ]);
     expect(manager.readTail("term-7")).toContain("restored-history-001\r\nrestored-history-002");
     expect(childProcess.execFileSync.mock.calls).toContainEqual([
       "tmux",
@@ -1088,6 +1097,59 @@ describe("TerminalManager Codex readiness", () => {
     });
   });
 
+  it("replaces an attached bridge and emits only current-generation data", async () => {
+    const workspaceRoot = await workspaceFixture();
+    const manager = managerForWorkspace(workspaceRoot);
+    const dataEvents: Array<{ id: string; generation: number; data: string }> = [];
+    manager.on("data", (event) => dataEvents.push(event));
+
+    const terminal = await manager.create({ kind: "shell", cwd: workspaceRoot });
+    const firstGeneration = terminal.attachGeneration;
+    mockLiveTmuxPanes(workspaceRoot, [spawnedTmuxSessionName(0)]);
+
+    await expect(manager.reconnect(terminal.id)).resolves.toMatchObject({
+      id: terminal.id,
+      attachGeneration: firstGeneration + 1,
+      status: "running",
+    });
+    expect(ptyState.spawned).toHaveLength(2);
+    expect(ptyState.spawned[1].args).toEqual(["-u", "-C", "attach-session", "-t", spawnedTmuxSessionName(0)]);
+
+    ptyState.spawned[0].emitData("stale output");
+    ptyState.spawned[1].emitData("after reconnect");
+
+    expect(dataEvents).toEqual([
+      {
+        id: terminal.id,
+        generation: firstGeneration + 1,
+        data: "after reconnect",
+      },
+    ]);
+  });
+
+  it("ignores stale bridge exits after reconnecting a detached bridge", async () => {
+    const workspaceRoot = await workspaceFixture();
+    const manager = managerForWorkspace(workspaceRoot);
+
+    const terminal = await manager.create({ kind: "shell", cwd: workspaceRoot });
+    mockLiveTmuxPanes(workspaceRoot, [spawnedTmuxSessionName(0)]);
+    ptyState.spawned[0].emitExit(1);
+
+    await manager.reconnect(terminal.id);
+    expect(ptyState.spawned).toHaveLength(2);
+    expect(manager.diagnostics()[0]).toMatchObject({
+      bridgeStatus: "attached",
+      paneStatus: "alive",
+    });
+
+    ptyState.spawned[0].emitExit(1);
+
+    expect(manager.diagnostics()[0]).toMatchObject({
+      bridgeStatus: "attached",
+      paneStatus: "alive",
+    });
+  });
+
   it("reattaches live bridges during resume recovery even before they report detached", async () => {
     const workspaceRoot = await workspaceFixture();
     const manager = managerForWorkspace(workspaceRoot);
@@ -1097,7 +1159,7 @@ describe("TerminalManager Codex readiness", () => {
 
     manager.reconnectRecoverableTerminals();
 
-    expect(ptyState.spawned).toHaveLength(2);
+    await vi.waitFor(() => expect(ptyState.spawned).toHaveLength(2));
     expect(ptyState.spawned[1].args).toEqual(["-u", "-C", "attach-session", "-t", spawnedTmuxSessionName(0)]);
     expect(manager.diagnostics()[0]).toMatchObject({
       bridgeStatus: "attached",
@@ -1172,13 +1234,22 @@ describe("TerminalManager Codex readiness", () => {
         historyLimit: 500,
       }),
     ]);
-    expect(runtime.calls.captureTail).toEqual([]);
+    expect(runtime.calls.captureTailForDisplay).toEqual([]);
     expect(manager.readTail(terminal.id)).toContain("runtime-captured");
-    expect(runtime.calls.captureTail).toEqual([
+    expect(runtime.calls.captureTailForDisplay).toEqual([
       {
         sessionName: "runtime-session-1",
         paneId: "%runtime-1",
         historyLimit: 500,
+      },
+    ]);
+    expect(manager.readRestoreSnapshot(terminal.id)).toBe("restore-content\x1b[2;3H");
+    expect(runtime.calls.captureRestoreSnapshot).toEqual([
+      {
+        sessionName: "runtime-session-1",
+        paneId: "%runtime-1",
+        historyLimit: 500,
+        liveScrollbackLines: 500,
       },
     ]);
 
@@ -1190,6 +1261,30 @@ describe("TerminalManager Codex readiness", () => {
         .map((call) => call as unknown as [string, string[]])
         .filter(([command, args]) => command === "tmux" || args.includes("new-session") || args.includes("kill-session") || args.includes("capture-pane")),
     ).toEqual([]);
+  });
+
+  it("does not deliver a live restore snapshot when tmux geometry disagrees with the renderer record", async () => {
+    const workspaceRoot = await workspaceFixture();
+    stubWorkspaceEnv(workspaceRoot);
+    const runtime = fakeRuntime();
+    runtime.captureRestoreSnapshot = (options) => {
+      runtime.calls.captureRestoreSnapshot.push(options);
+      return {
+        content: "wrong-size-content",
+        cols: 99,
+        rows: 12,
+        altScreen: false,
+      };
+    };
+    const manager = new TerminalManager(workspaceRoot, 500, 0, {}, runtime);
+
+    const terminal = await manager.create({ kind: "shell", cwd: workspaceRoot });
+
+    expect(manager.readRestoreSnapshot(terminal.id)).toBe("");
+    expect(manager.getInfo(terminal.id)).toMatchObject({
+      health: "unhealthy",
+      healthDetail: expect.stringContaining("did not match renderer geometry 120x32"),
+    });
   });
 
   it("uses captured runtime tails for diagnostics and readiness without transcript replay", async () => {
@@ -1284,7 +1379,8 @@ function mockLiveTmuxPanes(workspaceRoot: string, tmuxSessionNames: string[]) {
 function fakeRuntime(capturedTail = "runtime-captured\r\n"): TerminalRuntime & {
   calls: {
     createSession: unknown[];
-    captureTail: unknown[];
+    captureTailForDisplay: unknown[];
+    captureRestoreSnapshot: unknown[];
     terminate: string[];
     writes: string[];
   };
@@ -1293,7 +1389,8 @@ function fakeRuntime(capturedTail = "runtime-captured\r\n"): TerminalRuntime & {
 } {
   const calls = {
     createSession: [] as unknown[],
-    captureTail: [] as unknown[],
+    captureTailForDisplay: [] as unknown[],
+    captureRestoreSnapshot: [] as unknown[],
     terminate: [] as string[],
     writes: [] as string[],
   };
@@ -1321,9 +1418,18 @@ function fakeRuntime(capturedTail = "runtime-captured\r\n"): TerminalRuntime & {
       },
     ],
     applySessionOptions: () => {},
-    captureTail: (options) => {
-      calls.captureTail.push(options);
+    captureTailForDisplay: (options) => {
+      calls.captureTailForDisplay.push(options);
       return capturedTail;
+    },
+    captureRestoreSnapshot: (options) => {
+      calls.captureRestoreSnapshot.push(options);
+      return {
+        content: "restore-content\x1b[2;3H",
+        cols: 120,
+        rows: 32,
+        altScreen: false,
+      };
     },
     terminate: (sessionName) => {
       calls.terminate.push(sessionName);

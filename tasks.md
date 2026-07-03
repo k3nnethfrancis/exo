@@ -20,7 +20,7 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
   - [ ] Run the plain tmux-attach spike in parallel as evidence, not as a product-path switch.
 - [ ] Finish Plugin Architecture Completion:
   - [ ] Wave 1 plugin package in progress: migrate capability kinds to namespaced ids with legacy manifest alias shim and status-visible deprecation.
-  - [ ] Accept Fable's sequencing amendment: namespaced capabilities and scoped permissions land before the proposal/review write contract.
+  - [x] Accept Fable's sequencing amendment: namespaced capabilities and scoped permissions land before the proposal/review write contract.
   - [ ] Add staged profile apply review with trust prompts and permission grants before any profile/plugin recommendation can write instructions, MCP config, skills, routines, settings, or grants.
   - [ ] Design proposal/review write contract as the shared substrate for profile apply, project knowledge sync, graph maintenance, skill/config writes, and agent-suggested note edits.
   - [ ] Design semantic trace contract early enough that harness adapters do not need another terminal-service re-plumb.
@@ -399,7 +399,7 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
 - [x] Define settings API for plugin-owned state.
 - [x] Define agent harness adapter API for Claude, Codex, Pi, Aider, Goose, OpenCode, and local/open-source agents.
 - [ ] Decide how plugins can add MCP tools or CLI commands under explicit permissions.
-- [x] Define initial capability permissions for workspace/notes/project reads and writes, terminal/agent launch, network access, and artifact writes.
+- [x] Define initial capability permissions for workspace/notes/project reads and writes, terminal/agent launch, network access, artifact writes, scoped grants, and propose-vs-write metadata.
 - [x] Define search provider, trace collector, eval runner, exporter, and routine-template extension points.
 - [ ] Decide whether the current branch-family file convention remains core or moves behind a plugin boundary.
 - [ ] Keep optional personal/domain workflows out of core until the plugin boundary exists.

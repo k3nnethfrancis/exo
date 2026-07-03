@@ -71,6 +71,7 @@ export interface DesktopInvokeHandlers {
   "terminals:diagnostics": TerminalsApi["diagnostics"];
   "terminals:create": TerminalsApi["create"];
   "terminals:read": TerminalsApi["read"];
+  "terminals:restore-snapshot": TerminalsApi["restoreSnapshot"];
   "terminals:read-transcript": TerminalsApi["readTranscript"];
   "terminals:write": TerminalsApi["write"];
   "terminals:send-message": TerminalsApi["sendMessage"];
@@ -90,6 +91,7 @@ export interface DesktopEventPayloads {
   "command:close-preview": undefined;
   "command:open-settings": { section: WorkspaceSettingsSection };
   "terminal:created": TerminalSessionInfo;
+  "terminal:updated": TerminalSessionInfo;
   "terminal:data": TerminalDataEvent;
   "terminal:exit": { id: string; exitCode?: number };
 }

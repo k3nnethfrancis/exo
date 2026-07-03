@@ -20,6 +20,7 @@ export function terminalSessionsEqual(left: TerminalSessionInfo[], right: Termin
       leftSession.queuedInputCount === rightSession.queuedInputCount &&
       leftSession.health === rightSession.health &&
       leftSession.healthDetail === rightSession.healthDetail &&
+      leftSession.attachGeneration === rightSession.attachGeneration &&
       leftSession.instructionOverlayPath === rightSession.instructionOverlayPath &&
       terminalGeometryEqual(leftSession.geometry, rightSession.geometry);
   });

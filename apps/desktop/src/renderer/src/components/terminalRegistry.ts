@@ -1,18 +1,22 @@
 import { Terminal } from "xterm";
 
-const terminalRegistry = new Map<string, { terminal: Terminal; write: (data: string) => void; refresh: () => void }>();
+const terminalRegistry = new Map<string, { terminal: Terminal; generation: number; write: (data: string) => void; refresh: () => void }>();
 
-export function registerTerminal(sessionId: string, terminal: Terminal, write: (data: string) => void, refresh: () => void = () => {}) {
-  terminalRegistry.set(sessionId, { terminal, write, refresh });
+export function registerTerminal(sessionId: string, generation: number, terminal: Terminal, write: (data: string) => void, refresh: () => void = () => {}) {
+  terminalRegistry.set(sessionId, { terminal, generation, write, refresh });
 }
 
 export function unregisterTerminal(sessionId: string) {
   terminalRegistry.delete(sessionId);
 }
 
-export function writeTerminalData(sessionId: string, data: string): boolean {
+export function writeTerminalData(sessionId: string, generation: number, data: string): boolean {
   const entry = terminalRegistry.get(sessionId);
   if (!entry) return false;
+  if (generation < entry.generation) return false;
+  if (generation > entry.generation) {
+    return false;
+  }
   entry.write(data);
   return true;
 }

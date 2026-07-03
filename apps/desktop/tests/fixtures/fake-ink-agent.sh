@@ -4,6 +4,20 @@ set -euo pipefail
 frame=0
 last_input=""
 painted=0
+original_stty=""
+
+if [[ -t 0 ]]; then
+  original_stty="$(stty -g || true)"
+  stty -echo
+fi
+
+restore_tty() {
+  if [[ -n "$original_stty" ]]; then
+    stty "$original_stty" || true
+  fi
+}
+
+trap restore_tty EXIT
 
 cols() {
   local value
@@ -63,12 +77,12 @@ repaint() {
   fi
   painted=1
 
-  printf '\033[2K%s\r\n' "$(line_to_cols "FAKE-INK v1 frame=${frame} cols=${width}" "$width")"
-  printf '\033[2K%s\r\n' "$(ruler "$width")"
-  printf '\033[2K%s\r\n' "$(box_line "$width")"
-  printf '\033[2K%s\r\n' "$(line_to_cols "input: ${last_input}" "$width")"
-  printf '\033[2K%s\r\n' "$(line_to_cols "status: ⣾ repainting 🧪 stable width oracle" "$width")"
-  printf '\033[2K%s' "$(repeat_to_cols '─' "$width")"
+  printf '\r\033[2K%s\r\n' "$(line_to_cols "FAKE-INK v1 frame=${frame} cols=${width}" "$width")"
+  printf '\r\033[2K%s\r\n' "$(ruler "$width")"
+  printf '\r\033[2K%s\r\n' "$(box_line "$width")"
+  printf '\r\033[2K%s\r\n' "$(line_to_cols "input: ${last_input}" "$width")"
+  printf '\r\033[2K%s\r\n' "$(line_to_cols "status: ⣾ repainting 🧪 stable width oracle" "$width")"
+  printf '\r\033[2K%s' "$(repeat_to_cols '─' "$width")"
 }
 
 trap repaint WINCH

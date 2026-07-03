@@ -173,7 +173,10 @@ export class TmuxControlModeProcess {
   }
 
   resize(cols: number, rows: number): void {
-    this.writeControlCommand(`refresh-client -C ${Math.max(1, Math.floor(cols))}x${Math.max(1, Math.floor(rows))}`);
+    const width = tmuxCellCount(cols);
+    const height = tmuxCellCount(rows);
+    this.writeControlCommand(`resize-window -t ${this.options.sessionName} -x ${width} -y ${height}`);
+    this.writeControlCommand(`refresh-client -C ${width}x${height}`);
   }
 
   kill(): void {
@@ -470,6 +473,10 @@ function unknownEscapeSequenceEnd(data: string, start: number): number {
 
 function sanitizeTmuxName(value: string): string {
   return value.replace(/[^A-Za-z0-9_-]/g, "-").slice(0, 80);
+}
+
+function tmuxCellCount(value: number): number {
+  return Number.isFinite(value) ? Math.max(1, Math.floor(value)) : 1;
 }
 
 function unique(values: string[]): string[] {

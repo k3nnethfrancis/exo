@@ -270,6 +270,9 @@ function broadcastTerminalData() {
   terminalManager.on("created", (session) => {
     sendToRenderer("terminal:created", session);
   });
+  terminalManager.on("updated", (session) => {
+    sendToRenderer("terminal:updated", session);
+  });
   terminalManager.on("data", (event) => {
     sendToRenderer("terminal:data", event);
   });

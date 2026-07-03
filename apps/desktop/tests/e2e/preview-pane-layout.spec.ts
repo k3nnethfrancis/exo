@@ -33,14 +33,14 @@ async function dragPoint(page: Page, source: { x: number; y: number }, target: {
   await page.waitForTimeout(100);
 }
 
-test("resizes preview/editor and preview/terminal splits while a webview is open", async () => {
+test("resizes preview/editor and preview/terminal splits while a preview frame is open", async () => {
   const { page, cleanup } = await launchExoFixture();
 
   try {
     await page.getByTestId("launch-browser").click();
     await page.getByTestId("browser-url-input").fill("localhost:4321");
     await page.getByTestId("browser-load-url").click();
-    await expect(page.getByTestId("browser-webview")).toHaveAttribute("src", "http://localhost:4321");
+    await expect(page.getByTestId("browser-preview-frame")).toHaveAttribute("src", "http://localhost:4321");
 
     const browserPane = page.locator(".pane-leaf--browser").first();
     const terminalPane = page.locator(".workspace__body .pane-leaf--terminal").first();
@@ -131,11 +131,11 @@ test("opens absolute local HTML paths through the command server in the preview 
       url: pathToFileURL(firstPath).toString(),
       source: "file",
     });
-    await expect(page.getByTestId("browser-webview")).toHaveAttribute("src", pathToFileURL(firstPath).toString());
+    await expect(page.getByTestId("browser-preview-frame")).toHaveAttribute("src", pathToFileURL(firstPath).toString());
     await expect.poll(async () => getPreviewLayoutMetrics(page)).toMatchObject({
       title: "Overall",
       bottomMarkerVisibleAtViewportBottom: true,
-      webviewFillsPane: true,
+      frameFillsPane: true,
       guestViewportMatchesElement: true,
     });
 
@@ -148,15 +148,15 @@ test("opens absolute local HTML paths through the command server in the preview 
     await expect(secondResponse.json()).resolves.toMatchObject({ url: secondUrl, source: "file" });
     await expect(page.locator(".pane-leaf--browser")).toHaveCount(1);
     await expect(page.getByTestId("browser-url-input")).toHaveValue(secondUrl);
-    await expect(page.getByTestId("browser-webview")).toHaveAttribute("src", secondUrl);
+    await expect(page.getByTestId("browser-preview-frame")).toHaveAttribute("src", secondUrl);
 
     await page.getByTestId("browser-url-input").fill(firstPath);
     await page.getByTestId("browser-load-url").click();
-    await expect(page.getByTestId("browser-webview")).toHaveAttribute("src", pathToFileURL(firstPath).toString());
+    await expect(page.getByTestId("browser-preview-frame")).toHaveAttribute("src", pathToFileURL(firstPath).toString());
     await expect.poll(async () => getPreviewLayoutMetrics(page)).toMatchObject({
       title: "Overall",
       bottomMarkerVisibleAtViewportBottom: true,
-      webviewFillsPane: true,
+      frameFillsPane: true,
       guestViewportMatchesElement: true,
     });
   } finally {
@@ -167,49 +167,39 @@ test("opens absolute local HTML paths through the command server in the preview 
 async function getPreviewLayoutMetrics(page: Page): Promise<{
   title: string;
   bottomMarkerVisibleAtViewportBottom: boolean;
-  webviewFillsPane: boolean;
+  frameFillsPane: boolean;
   guestViewportMatchesElement: boolean;
   paneHeight: number;
-  webviewHeight: number;
+  frameHeight: number;
   guestInnerHeight: number;
   bottomMarkerBottom: number;
 }> {
   return page.evaluate(async () => {
     const pane = document.querySelector<HTMLElement>("[data-testid='browser-pane']");
-    const webview = document.querySelector<HTMLElement & {
-      executeJavaScript<T>(code: string): Promise<T>;
-    }>("[data-testid='browser-webview']");
-    if (!pane || !webview || typeof webview.executeJavaScript !== "function") {
-      throw new Error("Preview pane/webview is not ready");
+    const frame = document.querySelector<HTMLIFrameElement>("[data-testid='browser-preview-frame']");
+    if (!pane || !frame || !frame.contentWindow || !frame.contentDocument) {
+      throw new Error("Preview pane/frame is not ready");
     }
 
     const paneRect = pane.getBoundingClientRect();
     const headerRect = pane.querySelector<HTMLElement>(".browser-pane__header")?.getBoundingClientRect();
-    const webviewRect = webview.getBoundingClientRect();
-    const guest = await webview.executeJavaScript<{
-      title: string;
-      innerHeight: number;
-      bottomMarkerBottom: number;
-    }>(`
-      (() => {
-        const marker = document.getElementById("viewport-bottom");
-        const markerRect = marker ? marker.getBoundingClientRect() : { bottom: 0 };
-        return {
-          title: document.title,
-          innerHeight: window.innerHeight,
-          bottomMarkerBottom: markerRect.bottom,
-        };
-      })()
-    `);
-    const expectedWebviewHeight = paneRect.height - (headerRect?.height ?? 0);
+    const frameRect = frame.getBoundingClientRect();
+    const marker = frame.contentDocument.getElementById("viewport-bottom");
+    const markerRect = marker ? marker.getBoundingClientRect() : { bottom: 0 };
+    const guest = {
+      title: frame.contentDocument.title,
+      innerHeight: frame.contentWindow.innerHeight,
+      bottomMarkerBottom: markerRect.bottom,
+    };
+    const expectedFrameHeight = paneRect.height - (headerRect?.height ?? 0);
 
     return {
       title: guest.title,
       bottomMarkerVisibleAtViewportBottom: Math.abs(guest.bottomMarkerBottom - guest.innerHeight) <= 2,
-      webviewFillsPane: webviewRect.height >= expectedWebviewHeight - 2,
-      guestViewportMatchesElement: Math.abs(guest.innerHeight - webviewRect.height) <= 2,
+      frameFillsPane: frameRect.height >= expectedFrameHeight - 2,
+      guestViewportMatchesElement: Math.abs(guest.innerHeight - frameRect.height) <= 2,
       paneHeight: paneRect.height,
-      webviewHeight: webviewRect.height,
+      frameHeight: frameRect.height,
       guestInnerHeight: guest.innerHeight,
       bottomMarkerBottom: guest.bottomMarkerBottom,
     };

@@ -21,7 +21,7 @@ That keeps Exo from overbuilding while still moving toward the long-term shape:
 - The web viewer host and open/focus/close endpoints stay core; plugins can generate local content or services and ask Exo to open them.
 - Workload-specific harnesses, workcells, evals, graph analyzers, search optimization, LM Wiki/Shoshin profiles, and personal routines can become plugin-shaped without being forced into core.
 - Product framing stays layered: Exo is the workstation, the exograph is the user-owned graph it operates over, and plugins are how users swap or add harnesses, search providers, routines, profiles, analyzers, eval runners, exporters, and dashboards.
-- Local plugin manifests can now be discovered and validated as metadata, but Exo does not yet execute plugin code or grant plugin permissions. Profile payloads and graph visualization declarations are also metadata-only in the current implementation.
+- Local plugin manifests can now be discovered and validated as metadata. Exo can store metadata-only permission grant/revocation decisions for requested permissions, including scoped forms such as `notes:propose:root:shoshin-codex`, but those grants do not execute plugin code or authorize runtime file, terminal, CLI, MCP, command-server, renderer, or web-viewer behavior. Profile payloads and graph visualization declarations are also metadata-only in the current implementation.
 
 Exo's distribution model is official versus local. Official plugins live under the repo `plugins/` tree or packaged app resources and go through the normal review process before they ship on `main`. Local plugins use the same manifest shape in user/workspace/plugin directories, but they remain user-owned and untrusted until the user explicitly reviews and enables them.
 
