@@ -1,5 +1,5 @@
 import type { AgentHarnessDetection, ManagedAgentKind } from "./types";
-import { builtInCapabilities, type CapabilityMetadata } from "./capabilities";
+import { builtInCapabilities, isSupportedCapability, type CapabilityMetadata } from "./capabilities";
 import {
   discoverPluginManifests,
   type DiscoveredPlugin,
@@ -309,7 +309,8 @@ function pluginInventoryItems(
   const settings = settingsSummary(plugin, pluginSettingsStore);
   const runtime = runtimeSummary(plugin);
   return plugin.manifest.capabilities.map((capability) => {
-    const enabled = isActivePlugin(plugin) && capability.lifecycle !== "disabled";
+    const supported = isSupportedCapability(capability);
+    const enabled = supported && isActivePlugin(plugin) && capability.lifecycle !== "disabled";
     const permissionGrants = permissionSummary(plugin, capability.id, pluginPermissionStore);
     return {
       id: capability.id,
@@ -328,8 +329,8 @@ function pluginInventoryItems(
       permissions: capability.permissions,
       enabled,
       trust: plugin.trust,
-      status: !plugin.enabled ? "disabled" : plugin.trust === "untrusted" ? "review-required" : enabled ? "available" : "disabled",
-      statusLabel: !plugin.enabled ? "Disabled" : plugin.trust === "untrusted" ? "Review required" : enabled ? "Available" : "Disabled",
+      status: !supported ? "unsupported-kind" : !plugin.enabled ? "disabled" : plugin.trust === "untrusted" ? "review-required" : enabled ? "available" : "disabled",
+      statusLabel: !supported ? "Not supported by this Exo version" : !plugin.enabled ? "Disabled" : plugin.trust === "untrusted" ? "Review required" : enabled ? "Available" : "Disabled",
       pluginId: plugin.manifest.id,
       pluginName: plugin.manifest.name,
       pluginSource: plugin.source,
@@ -401,6 +402,8 @@ function capabilityKindLabel(kind: CapabilityMetadata["kind"]): string {
       return "Trace collectors";
     case "exo.graph:visualization":
       return "Graph visualizations";
+    default:
+      return "Unsupported capability kind";
   }
 }
 

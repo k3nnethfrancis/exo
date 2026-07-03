@@ -9,6 +9,8 @@ export type CapabilityKind =
   | "exo.training:datasetExporter"
   | "exo.training:evalRunner";
 
+export type CapabilityKindId = CapabilityKind | (string & {});
+export type CapabilityStatus = "supported" | "unsupported-kind";
 export type CapabilityLifecycle = "built-in" | "experimental" | "disabled";
 export type CapabilitySurface = "desktop" | "cli" | "mcp" | "commandServer" | "internal";
 
@@ -43,7 +45,7 @@ export interface PermissionGrant {
 
 export interface CapabilityMetadata {
   id: string;
-  kind: CapabilityKind;
+  kind: CapabilityKindId;
   label: string;
   description: string;
   lifecycle: CapabilityLifecycle;
@@ -51,6 +53,7 @@ export interface CapabilityMetadata {
   surfaces: CapabilitySurface[];
   permissions: CapabilityPermission[];
   compatibility?: Record<string, unknown>;
+  status?: CapabilityStatus;
   statusNotes?: string[];
 }
 
@@ -333,16 +336,28 @@ export const capabilityKinds = [
 ] satisfies CapabilityKind[];
 
 export interface ParsedCapabilityKind {
-  kind: CapabilityKind;
+  kind: CapabilityKindId;
+  status: CapabilityStatus;
 }
 
 export function parseCapabilityKind(rawKind: string): ParsedCapabilityKind {
   if (isCapabilityKind(rawKind)) {
-    return { kind: rawKind };
+    return { kind: rawKind, status: "supported" };
+  }
+  if (isNamespacedCapabilityKind(rawKind)) {
+    return { kind: rawKind, status: "unsupported-kind" };
   }
   throw new Error(`capability.kind contains unsupported value: ${rawKind}`);
 }
 
 export function isCapabilityKind(value: string): value is CapabilityKind {
   return (capabilityKinds as readonly string[]).includes(value);
+}
+
+export function isSupportedCapability(capability: CapabilityMetadata): capability is CapabilityMetadata & { kind: CapabilityKind } {
+  return capability.status !== "unsupported-kind" && isCapabilityKind(capability.kind);
+}
+
+function isNamespacedCapabilityKind(value: string): boolean {
+  return /^[a-z][a-z0-9.-]*:[A-Za-z][A-Za-z0-9.-]*$/.test(value);
 }

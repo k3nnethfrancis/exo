@@ -10,6 +10,7 @@ export interface TerminalHealthInput {
   exitCode?: number;
   paneStatus?: "alive" | "dead" | "missing" | "unknown";
   bridgeDetached?: boolean;
+  inputDegraded?: boolean;
   lastInputAt?: number;
   lastOutputAt?: number;
 }
@@ -19,6 +20,9 @@ export function terminalHealth(record: TerminalHealthInput, options: TerminalHea
     return "exited";
   }
   if (record.paneStatus === "missing" || record.paneStatus === "dead" || record.bridgeDetached) {
+    return "unhealthy";
+  }
+  if (record.inputDegraded) {
     return "unhealthy";
   }
   if (record.lastInputAt && (!record.lastOutputAt || record.lastOutputAt < record.lastInputAt) && now - record.lastInputAt > options.unresponsiveThresholdMs) {
@@ -43,6 +47,9 @@ export function terminalHealthDetail(record: TerminalHealthInput, options: Termi
   }
   if (record.bridgeDetached) {
     return "Tmux session is alive but Exo's attach bridge is detached; reconnect the terminal.";
+  }
+  if (record.inputDegraded) {
+    return "Terminal output is still attached, but input delivery failed; reconnect the terminal.";
   }
   if (health === "unhealthy") {
     return `Input was sent but no terminal output has been observed for more than ${formatDuration(options.unresponsiveThresholdMs)}.`;

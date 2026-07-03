@@ -10,6 +10,8 @@ export type SemanticTraceEventKind =
   | "message"
   | "tool.call"
   | "tool.result"
+  | "lifecycle"
+  | "harness.raw"
   | "file.change"
   | "artifact"
   | "metric"

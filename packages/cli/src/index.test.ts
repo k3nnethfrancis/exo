@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { runCli } from "./index";
-import { formatManagedAgentKindUsage, saveWorkspaceSettings } from "@exo/core";
+import { SemanticTraceStore, captureFakeHarnessTraceFixture, formatManagedAgentKindUsage, saveWorkspaceSettings } from "@exo/core";
 
 describe("cli package", () => {
   it("renders runtime status", async () => {
@@ -89,6 +89,39 @@ describe("cli package", () => {
       expect(stdout).toContain('"defaultTerminalCwd": "/tmp/exo-active/project"');
     } finally {
       await rm(userDataPath, { recursive: true, force: true });
+    }
+  });
+
+  it("reads persisted semantic traces from the runtime root", async () => {
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-traces-"));
+    let stdout = "";
+
+    try {
+      await captureFakeHarnessTraceFixture(new SemanticTraceStore(runtimeRoot), {
+        sessionId: "fake-session",
+        harnessId: "fake-claude",
+        now: () => "2026-07-03T16:00:00.000Z",
+      });
+
+      const exitCode = await runCli(["node", "exo-cli", "traces", "read", "fake-session", "--limit", "4"], {
+        env: {
+          EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
+          EXO_RUNTIME_ROOT: runtimeRoot,
+        },
+        stdout: { write: (text) => { stdout += text; } },
+        stderr: { write: () => {} },
+        connectAppClient: async () => {
+          throw new Error("traces read should not connect to the app");
+        },
+      });
+
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain("Trace session fake-session: 4 events");
+      expect(stdout).toContain("#3 message agent:fake-claude");
+      expect(stdout).toContain("#4 tool.call name=\"read_file\"");
+      expect(stdout).toContain("#6 lifecycle lifecycle=\"exit\" status=\"succeeded\"");
+    } finally {
+      await rm(runtimeRoot, { recursive: true, force: true });
     }
   });
 

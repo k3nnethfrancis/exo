@@ -20,7 +20,15 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
   - [x] Implement byte-faithful live reconnect snapshots after size assertion.
   - [x] Run the plain tmux-attach spike in parallel as evidence, not as a product-path switch.
   - [x] Complete the remaining V4.1 audit: confirm WP-T4/T5 coverage, close any diagnostics gaps, and keep `pnpm terminal:check` green.
+  - [x] Close WP-D docs: record the 2026-07-03 control-mode decision, killed plain-attach path, and pty terminology in `docs/terminal-runtime-decision.md`; sync terminal-stability guidance.
 - [ ] Finish Plugin Architecture Completion:
+  - [x] Complete Fable Wave-2 correction packages before continuing profile/onboarding/plugin UI expansion:
+    - [x] WP-C1: proposal apply frontmatter fidelity with byte-identity golden tests.
+    - [x] WP-C2: unknown capability kinds degrade to inert inspectable status plus plugin tripwire.
+    - [x] WP-078: Pi answer-visibility diagnostic with deterministic fake Pi-style TUI fixture.
+    - [x] WP-P4a: first semantic trace consumer with trace store, fake harness capture, and `exo traces read`.
+    - [x] WP-T6: tmux control-mode stdin input path with retry-then-degrade failure discipline.
+    - [x] WP-D: terminal runtime decision docs/skills closure after the plain-attach spike.
   - [x] Wave 1 plugin package: migrate capability kinds to namespaced ids with legacy manifest alias shim and status-visible deprecation.
   - [x] Accept Fable's sequencing amendment: namespaced capabilities and scoped permissions land before the proposal/review write contract.
   - [x] Add scoped plugin permission parsing/grants with `propose` distinct from direct `write`.

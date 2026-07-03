@@ -143,13 +143,14 @@ export interface TmuxControlModeProcessOptions {
 export class TmuxControlModeProcess {
   private readonly child: ChildProcessWithoutNullStreams;
   private readonly events = new EventEmitter();
-  private readonly pasteBufferName: string;
   private readonly outputDecoder = new TmuxControlOutputDecoder();
   private stdoutBuffer = "";
   private exited = false;
+  private inputDegraded = false;
+  private inputCommandCount = 0;
+  private inputWriteLatencySamplesMs: number[] = [];
 
   constructor(private readonly options: TmuxControlModeProcessOptions) {
-    this.pasteBufferName = `exo-${options.paneId.replace(/[^A-Za-z0-9_-]/g, "")}`;
     this.child = spawn(options.tmuxPath, tmuxUtf8Args(["-C", "attach-session", "-t", options.sessionName]), {
       cwd: options.cwd,
       env: options.env,
@@ -170,8 +171,21 @@ export class TmuxControlModeProcess {
     this.events.on("exit", handler);
   }
 
+  onInputDegraded(handler: (event: { reason: string; command: string }) => void): void {
+    this.events.on("input-degraded", handler);
+  }
+
+  inputDiagnostics(): { degraded: boolean; commandCount: number; latestWriteLatencyMs: number | null; spikeBaselineP50Ms: number } {
+    return {
+      degraded: this.inputDegraded,
+      commandCount: this.inputCommandCount,
+      latestWriteLatencyMs: this.inputWriteLatencySamplesMs.at(-1) ?? null,
+      spikeBaselineP50Ms: TMUX_CONTROL_INPUT_SPIKE_BASELINE_P50_MS,
+    };
+  }
+
   write(data: string): void {
-    if (this.exited) {
+    if (this.exited || this.inputDegraded) {
       return;
     }
 
@@ -191,8 +205,8 @@ export class TmuxControlModeProcess {
           this.sendLiteral(action.value);
         }
       }
-    } catch {
-      this.detachAfterWriteFailure();
+    } catch (error) {
+      this.degradeInputAfterWriteFailure(error);
     }
   }
 
@@ -208,11 +222,7 @@ export class TmuxControlModeProcess {
   }
 
   private sendKeys(args: string[]): void {
-    execFileSync(this.options.tmuxPath, tmuxUtf8Args(["send-keys", "-t", this.options.paneId, ...args]), {
-      cwd: this.options.cwd,
-      env: this.options.env,
-      stdio: ["ignore", "ignore", "pipe"],
-    });
+    this.writeInputControlCommand(["send-keys", "-t", this.options.paneId, ...args]);
   }
 
   private sendLiteral(value: string): void {
@@ -224,21 +234,17 @@ export class TmuxControlModeProcess {
     // space through paste-buffer makes basic shell editing depend on paste mode
     // and can break expected terminal behavior. Real multiline/semantic pastes
     // still arrive through the bracketed-paste branch above.
-    this.sendKeys(["-l", value]);
+    this.sendHexLiteral(value);
   }
 
   private pasteLiteral(value: string): void {
-    execFileSync(this.options.tmuxPath, tmuxUtf8Args(["load-buffer", "-b", this.pasteBufferName, "-"]), {
-      cwd: this.options.cwd,
-      env: this.options.env,
-      input: value,
-      stdio: ["pipe", "ignore", "pipe"],
-    });
-    execFileSync(this.options.tmuxPath, tmuxUtf8Args(["paste-buffer", "-b", this.pasteBufferName, "-t", this.options.paneId, "-d"]), {
-      cwd: this.options.cwd,
-      env: this.options.env,
-      stdio: ["ignore", "ignore", "pipe"],
-    });
+    this.sendHexLiteral(`\u001b[200~${value}\u001b[201~`);
+  }
+
+  private sendHexLiteral(value: string): void {
+    for (const chunk of tmuxHexLiteralChunks(value)) {
+      this.writeInputControlCommand(["send-keys", "-H", "-t", this.options.paneId, "--", ...chunk]);
+    }
   }
 
   private writeControlCommand(command: string): void {
@@ -247,11 +253,43 @@ export class TmuxControlModeProcess {
     }
   }
 
-  private detachAfterWriteFailure(): void {
-    this.emitExit();
-    if (!this.child.killed) {
-      this.child.kill();
+  private writeInputControlCommand(args: string[]): void {
+    const command = tmuxControlCommand(args);
+    const startedAt = Date.now();
+    this.writeControlCommandWithRetry(command);
+    this.inputCommandCount += 1;
+    this.inputWriteLatencySamplesMs.push(Date.now() - startedAt);
+    if (this.inputWriteLatencySamplesMs.length > 128) {
+      this.inputWriteLatencySamplesMs.shift();
     }
+  }
+
+  private writeControlCommandWithRetry(command: string): void {
+    try {
+      this.writeControlCommandOrThrow(command);
+      return;
+    } catch {
+      this.writeControlCommandOrThrow(command);
+    }
+  }
+
+  private writeControlCommandOrThrow(command: string): void {
+    if (this.exited || this.child.killed || !this.child.stdin.writable) {
+      throw new Error("tmux control input is not writable");
+    }
+    this.child.stdin.write(`${command}\n`);
+  }
+
+  private degradeInputAfterWriteFailure(error: unknown): void {
+    if (this.inputDegraded) {
+      return;
+    }
+    this.inputDegraded = true;
+    const reason = error instanceof Error ? error.message : String(error);
+    // Retry-then-degrade keeps the output bridge alive: a keystroke must not
+    // take down a healthy output stream, because tmux may still be rendering
+    // useful session output while input delivery is temporarily unhealthy.
+    this.events.emit("input-degraded", { reason, command: "tmux control stdin write" });
   }
 
   private handleStdout(chunk: string): void {
@@ -370,6 +408,29 @@ function parseControlOutput(line: string, decoder = new TmuxControlOutputDecoder
 
 function tmuxUtf8Args(args: string[]): string[] {
   return ["-u", ...args];
+}
+
+const TMUX_HEX_LITERAL_CHUNK_SIZE = 256;
+const TMUX_CONTROL_INPUT_SPIKE_BASELINE_P50_MS = 25;
+
+function tmuxControlCommand(args: string[]): string {
+  return args.map(tmuxControlCommandArg).join(" ");
+}
+
+function tmuxControlCommandArg(value: string): string {
+  if (/^[A-Za-z0-9_./:%@+=,-]+$/.test(value)) {
+    return value;
+  }
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+function tmuxHexLiteralChunks(value: string): string[][] {
+  const bytes = Buffer.from(value, "utf8");
+  const chunks: string[][] = [];
+  for (let offset = 0; offset < bytes.length; offset += TMUX_HEX_LITERAL_CHUNK_SIZE) {
+    chunks.push(Array.from(bytes.subarray(offset, offset + TMUX_HEX_LITERAL_CHUNK_SIZE), (byte) => byte.toString(16).padStart(2, "0")));
+  }
+  return chunks;
 }
 
 type TmuxInputAction = { kind: "literal"; value: string } | { kind: "key"; key: string } | { kind: "paste"; value: string };

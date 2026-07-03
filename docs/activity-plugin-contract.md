@@ -86,6 +86,6 @@ Canonical first-pass paths:
 - `.exo/runs/{runId}/run.log`
 - `.exo/artifacts/{runId}/{artifactFileName}`
 
-Trace JSONL is a plugin-owned artifact. Core may provide append/read helpers for convenience, including the semantic trace envelope, but the run record should reference the trace artifact rather than embedding packets.
+Trace JSONL is a plugin-owned artifact. Core provides a first semantic trace store under `.exo/traces/{sessionId}.ndjson`, with a `.exo/traces/{sessionId}.json` metadata sidecar that records the trace artifact reference and sequence bounds. The first consumer is `exo traces read <sessionId>`, a bounded human-readable reader for turns, assistant text, tool calls/results, lifecycle events, and preserved `harness.raw` source events. Run/activity records should still reference the trace artifact rather than embedding packets.
 
 -- Exo | 2026-07-03

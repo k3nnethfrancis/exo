@@ -356,6 +356,9 @@ export function buildPluginRowIndicators(item: PluginInventoryItem): PluginRowIn
 }
 
 export function pluginDisplayStatus(item: PluginInventoryItem): { label: string; tone: "ok" | "warning" | "danger" | "disabled" } {
+  if (item.status === "unsupported-kind") {
+    return { label: "Not supported", tone: "disabled" };
+  }
   if (!item.enabled || item.status === "disabled") {
     return { label: "Disabled", tone: "disabled" };
   }
@@ -526,6 +529,9 @@ export function buildPluginDetailSections(
 }
 
 export function pluginActionAvailability(item: PluginInventoryItem): PluginActionAvailability {
+  if (item.status === "unsupported-kind") {
+    return { mutable: false, reason: "This capability kind is not supported by this Exo version.", actions: [] };
+  }
   if (item.source === "core") {
     return { mutable: false, reason: "Core surfaces are built in and cannot be disabled.", actions: [] };
   }

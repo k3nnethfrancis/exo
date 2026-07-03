@@ -8,6 +8,27 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ## Open
 
+### EXO-ISSUE-081: Non-modal terminal status messages should use the bottom status bar
+
+- Status: open
+- Severity: medium
+- Area: terminal UI, system status messaging, bottom status bar
+- Source:
+  - 2026-07-03 user QA screenshot of a floating `Terminal exited` / `Process exited.` message over terminal output.
+- Observed:
+  - Exo shows terminal/session status as floating popovers or tooltip-like messages over active work content.
+  - Example: a `Terminal exited` / `Process exited.` message appears over Codex terminal output.
+  - Similar refresh, reconnect, terminal health, or system-state messages may be using the same pattern.
+- Expected:
+  - Non-modal system state should use the bottom status/info bar, consistent with existing messages like `Embeddings needed`.
+  - Terminal exit, refresh, reconnect, and background system messages should not obscure editor or terminal content.
+  - If a message needs details or actions, the bottom-bar item can be clickable to open a small detail popover/log.
+- Acceptance:
+  - [ ] Inventory floating status/toast/popover messages used for terminal/session/index/refresh/system state.
+  - [ ] Move non-modal system messages to a bottom status/info bar item.
+  - [ ] Keep only true contextual hover help as tooltips.
+  - [ ] Add UI regression coverage or QA notes for terminal exit and refresh/status messages.
+
 ### EXO-ISSUE-080: Pi-compatible harness should auto-start configured inference backend before launch
 
 - Status: fixed in `main`
@@ -70,29 +91,37 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - The not-ready detail explains that the backend is configured but not confirmed ready and includes the URL/start command when available.
   - Validation: `pnpm --filter @exo/core test`, `pnpm --filter @exo/cli test -- --run packages/cli/src/index.test.ts`, `pnpm --filter @exo/desktop test -- --run apps/desktop/src/renderer/src/App.test.tsx`, `pnpm check:repo`, `pnpm --filter @exo/desktop build`, and focused Playwright Pi launcher QA all passed.
 
-### EXO-ISSUE-078: Pi agent session launches but transcript/read does not expose generated answer text
+### EXO-ISSUE-078: Pi agent session launches but bounded read does not expose generated answer text
 
-- Status: open
+- Status: diagnosed; fix not started
 - Severity: medium
 - Area: Pi-compatible harness, agent transcripts, terminal read path, Exo MCP/CLI agent APIs
 - Source:
   - 2026-07-03 subagent live QA of `GA Pi` through installed Exo.
+  - 2026-07-03 WP-078 fake Pi-style repaint TUI diagnostic: `docs/wp-078-pi-answer-visibility-diagnostic.md`.
 - Observed:
   - `exo agents create pi` created a `GA Pi` terminal backed by `/opt/homebrew/bin/node /Users/kenneth/Desktop/lab/projects/ga-pi/packages/coding-agent/dist/cli.js`.
   - The configured `GA llama.cpp` backend at `http://127.0.0.1:8082` loaded and completed generation work.
   - `exo agents read <id> --tail 120 --raw` showed the GA model/status line, but did not expose the visible generated answer text after sending `Reply exactly OK. Do not use tools.`
   - Direct non-interactive GA-Pi CLI smoke with the same backend returned `OK` with exit code `0`.
   - 2026-07-03 follow-up QA: installed Exo UI visibly showed Pi answering `OK.` after the same prompt, while CLI/MCP `read_agent` still returned startup/prompt/status text without the answer.
+  - WP-078 fixture evidence:
+    - Direct tmux capture while visible contains `PI_FIXTURE_ANSWER OK`.
+    - Direct tmux capture/history after the repaint does not contain the answer.
+    - The `.exo/terminal-transcripts/*.ansi.log` raw bytes do contain the answer.
+    - `exo agents read <id> --tail 120 --raw` after repaint does not contain the answer, while a larger raw transcript tail can contain it.
 - Expected:
   - Exo's agent read/transcript APIs expose the generated visible answer text for a Pi-compatible harness session, just as they do for other interactive harnesses.
   - A successful backend generation should not be hidden behind TUI/status-only transcript output.
 - Suspected:
-  - The Pi-compatible TUI may render answer text through an alternate output path or screen update pattern that Exo's current read/tail/transcript path is not capturing as expected.
-  - This may be a harness adapter/read-transcript issue rather than a launch-detection issue.
+  - Decision-tree outcome: `transcript-present/read-absent => read-tail policy bug` for the reported `exo agents read --tail 120 --raw` symptom.
+  - Secondary terminal-screen outcome: `visible-only/history-absent => viewport-widget limitation`; once a Pi-style TUI repaints its answer region, tmux display/history cannot recover the answer.
+  - Durable "what did the agent say" behavior should come from semantic trace output, not new tmux capture behavior, terminal buffering, or Pi-specific TUI special casing in terminal core.
 - Acceptance:
-  - Reproduce with a deterministic fake or low-risk Pi-compatible fixture without requiring live model inference.
-  - Confirm whether the answer is absent from tmux capture, Exo transcript persistence, or only `exo agents read`.
-  - Add coverage so Pi-compatible harness sessions expose generated answer text through the expected CLI/MCP/app read path.
+  - [x] Reproduce with a deterministic fake or low-risk Pi-compatible fixture without requiring live model inference.
+  - [x] Confirm whether the answer is absent from tmux capture, Exo transcript persistence, or only `exo agents read`.
+  - [ ] Decide whether to make a narrow generic read-tail change, document `agents read --tail` as raw transcript suffix behavior, or defer user-facing answer reads to semantic traces.
+  - [ ] Add coverage so Pi-compatible harness sessions expose generated answer text through the expected CLI/MCP/app read path.
   - Keep the fix generic for Pi-compatible harnesses; do not add GA-specific behavior.
 
 ### EXO-ISSUE-077: Pi-compatible harness detection shows wrong executable and remains unlaunchable in packaged app
@@ -958,7 +987,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-046: MCP autostart and tool calls can stay pinned to stale command-server discovery
 
-- Status: fixed in `main`; live installed-app MCP smoke remains useful
+- Status: reopened; command-server/CLI path fixed, live MCP stdio calls still fail from Codex
 - Severity: high
 - Area: MCP, command-server discovery, autostart, Exo-on-Exo reliability
 - Observed:
@@ -993,7 +1022,8 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - 2026-07-03: MCP discovery now raises typed stale-runtime diagnostics and app-backed MCP tools return structured `{ ok: false, error: "exo-command-server-unavailable", runtimeDiagnostic }` content instead of plain thrown text.
   - 2026-07-03: MCP autostart quarantines only definitely dead `server.json` discovery, preserves permission-blocked pid probes, and waits for a fresh reachable discovery record instead of staying pinned to the stale pid/port.
   - 2026-07-03: `exo start` now waits for the resolved command server to become reachable after launching `Exo.app` and exits nonzero with existing discovery diagnostics if the app never publishes a reachable server.
-  - Remaining QA: run a live installed-app MCP smoke against the packaged app after the next build/install/restart.
+  - 2026-07-03 installed-app QA after Fable Wave-2: direct packaged app launch and `./bin/exo status` succeeded against the lab command server, and CLI create/send/read/terminate for a fresh shell terminal succeeded. However, Codex's `mcp__exo.workspace_status` still failed with `Transport closed`, so the app-backed MCP stdio path remains broken independently of the command-server/CLI path.
+  - Next fix should reproduce the stdio transport close with the packaged app running, then distinguish MCP process startup/handshake failure from command-client failure after initialize.
 
 ### EXO-ISSUE-045: Restart can leave stale command-server discovery with visible broken terminal UI
 

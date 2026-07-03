@@ -354,6 +354,16 @@ export interface AgentLauncherConfig {
   title: string;
   command: string;
   args: string[];
+  traceCapture?: AgentLauncherTraceCaptureConfig;
+}
+
+export interface AgentLauncherTraceCaptureConfig {
+  schemaVersion: "exo.semantic-trace.v1";
+  source: "stdout-jsonl" | "stderr-jsonl" | "sidecar-jsonl";
+  artifactFileName: string;
+  eventFormat: "stream-json";
+  sidecarPath?: string;
+  envVar?: string;
 }
 
 export interface AgentHarnessInstallMetadata {

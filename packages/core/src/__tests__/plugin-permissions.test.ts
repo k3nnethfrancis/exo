@@ -3,7 +3,7 @@ import os from "node:os";
 import { mkdtemp, rm } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
-import { EXO_PLUGIN_MANIFEST_FILE, type DiscoveredPlugin, type PluginManifest } from "../plugin";
+import { EXO_PLUGIN_MANIFEST_FILE, validatePluginManifest, type DiscoveredPlugin, type PluginManifest } from "../plugin";
 import {
   emptyPluginPermissionStore,
   grantPluginPermissions,
@@ -204,6 +204,38 @@ describe("plugin permissions", () => {
     ).toThrow("unsupported value");
   });
 
+  it("does not grant permissions through unsupported capability kinds", () => {
+    const plugin = discovered("hash-a", "trusted", true, validatePluginManifest({
+      ...manifest,
+      capabilities: [
+        ...manifest.capabilities,
+        {
+          id: "permissions.future",
+          kind: "exo.future:widget",
+          label: "Future Widget",
+          description: "Unsupported future capability.",
+          lifecycle: "experimental",
+          owner: "permissions.plugin",
+          surfaces: ["cli"],
+          permissions: ["network:access"],
+        },
+      ],
+    }));
+
+    const store = grantPluginPermissions(emptyPluginPermissionStore(), plugin, ["workspace:read"]);
+
+    expect(resolveCapabilityPermissionGrants(plugin, "permissions.future", store)).toMatchObject({
+      active: false,
+      requestedPermissions: [],
+      grantedPermissions: [],
+      missingPermissions: [],
+      status: "inactive",
+    });
+    expect(() => grantPluginPermissions(emptyPluginPermissionStore(), plugin, ["network:access"])).toThrow(
+      "Cannot grant permissions not requested",
+    );
+  });
+
   it("round-trips plugin-permissions.json", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "exo-plugin-permissions-"));
     try {
@@ -219,9 +251,14 @@ describe("plugin permissions", () => {
   });
 });
 
-function discovered(manifestHash: string, trust: DiscoveredPlugin["trust"], enabled = true): DiscoveredPlugin {
+function discovered(
+  manifestHash: string,
+  trust: DiscoveredPlugin["trust"],
+  enabled = true,
+  discoveredManifest: PluginManifest = manifest,
+): DiscoveredPlugin {
   return {
-    manifest,
+    manifest: discoveredManifest,
     manifestPath: `/workspace/.exo/plugins/permissions/${EXO_PLUGIN_MANIFEST_FILE}`,
     rootDirectory: "/workspace/.exo/plugins/permissions",
     source: "workspace",

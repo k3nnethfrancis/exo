@@ -1,6 +1,6 @@
 import path from "node:path";
 import os from "node:os";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -78,6 +78,25 @@ const manifest: PluginManifest = {
   permissions: ["workspace:read", "artifacts:write"],
   surfaces: ["desktop", "cli", "internal"],
 };
+
+const futureKindManifest = {
+  ...manifest,
+  id: "future-kind.plugin",
+  name: "Future Kind Plugin",
+  capabilities: [
+    {
+      ...manifest.capabilities[0]!,
+      id: "future-kind.widget",
+      kind: "exo.future:widget",
+      label: "Future Widget",
+      permissions: ["workspace:read", "artifacts:write"],
+    },
+    {
+      ...manifest.capabilities[1]!,
+      id: "future-kind.routine",
+    },
+  ],
+} satisfies PluginManifest;
 
 describe("plugin manifest contracts", () => {
   it("parses and validates plugin manifests", () => {
@@ -201,6 +220,45 @@ describe("plugin manifest contracts", () => {
     }
   });
 
+  it("degrades unknown namespaced capability kinds without dropping valid siblings", () => {
+    const parsed = validatePluginManifest(futureKindManifest);
+
+    expect(parsed.capabilities.map((capability) => capability.id)).toEqual([
+      "future-kind.widget",
+      "future-kind.routine",
+    ]);
+    expect(parsed.capabilities[0]).toMatchObject({
+      id: "future-kind.widget",
+      kind: "exo.future:widget",
+      status: "unsupported-kind",
+      permissions: [],
+      statusNotes: ["Capability kind exo.future:widget is not supported by this Exo version."],
+    });
+    expect(parsed.capabilities[1]).toMatchObject({
+      id: "future-kind.routine",
+      kind: "core:routineTemplate",
+      permissions: ["workspace:read"],
+    });
+  });
+
+  it("parses a future-kind fixture manifest as one unsupported row plus supported siblings", async () => {
+    const raw = await readFile(new URL("./fixtures/future-kind-plugin/exo.plugin.json", import.meta.url), "utf8");
+    const parsed = parsePluginManifest(raw);
+
+    expect(parsed.capabilities).toHaveLength(2);
+    expect(parsed.capabilities[0]).toMatchObject({
+      id: "future-kind-fixture.widget",
+      kind: "exo.future:widget",
+      status: "unsupported-kind",
+      permissions: [],
+    });
+    expect(parsed.capabilities[1]).toMatchObject({
+      id: "future-kind-fixture.routine",
+      kind: "core:routineTemplate",
+      permissions: ["workspace:read"],
+    });
+  });
+
   it("uses conservative trust defaults by source", () => {
     expect(defaultPluginTrust("built-in")).toBe("trusted");
     expect(defaultPluginTrust("dev")).toBe("trusted");
@@ -219,6 +277,43 @@ describe("plugin manifest contracts", () => {
       "example.graph-view",
     ]);
     expect(registry.list({ trustedOnly: true }).map((plugin) => plugin.manifest.id)).toEqual(["example.plugin"]);
+  });
+
+  it("keeps unsupported capability kinds inert while exposing valid siblings", () => {
+    const parsed = validatePluginManifest(futureKindManifest);
+    const registry = new PluginRegistry([discovered(parsed, "trusted")]);
+    const lifecycle = resolvePluginLifecycle(discovered(parsed, "trusted"));
+
+    expect(registry.list({ includeDisabled: true }).map((plugin) => plugin.manifest.id)).toEqual(["future-kind.plugin"]);
+    expect(registry.listCapabilities({ includeInactive: true, includeDisabled: true }).map((capability) => capability.id)).toEqual([
+      "future-kind.widget",
+      "future-kind.routine",
+    ]);
+    expect(registry.listCapabilities().map((capability) => capability.id)).toEqual(["future-kind.routine"]);
+    expect(lifecycle).toMatchObject({
+      active: true,
+      capabilityIds: ["future-kind.widget", "future-kind.routine"],
+      exposedCapabilityIds: ["future-kind.routine"],
+      statusNotes: ["Capability kind exo.future:widget is not supported by this Exo version."],
+    });
+  });
+
+  it("does not let unsupported capability kinds reserve active ids", () => {
+    const inactiveUnsupported = discovered(validatePluginManifest(futureKindManifest), "trusted");
+    const activeSupported = discovered(
+      {
+        ...manifest,
+        id: "supported-sibling.plugin",
+        capabilities: [{ ...manifest.capabilities[1]!, id: "future-kind.widget" }],
+      },
+      "trusted",
+    );
+
+    expect(() => new PluginRegistry([inactiveUnsupported, activeSupported])).not.toThrow();
+    expect(new PluginRegistry([inactiveUnsupported, activeSupported]).listCapabilities().map((capability) => capability.id)).toEqual([
+      "future-kind.routine",
+      "future-kind.widget",
+    ]);
   });
 
   it("keeps executable entrypoints disabled even for trusted enabled manifests", () => {

@@ -73,6 +73,36 @@ describe("semantic trace contract", () => {
     });
   });
 
+  it("round-trips lifecycle and raw harness events through compatibility packets", () => {
+    const lifecycle = semanticTraceEventToRunTracePacket(normalizeSemanticTraceEvent({
+      ...baseEvent,
+      id: "event-lifecycle",
+      kind: "lifecycle",
+      payload: { lifecycle: "exit", status: "succeeded" },
+    }));
+    const raw = semanticTraceEventToRunTracePacket(normalizeSemanticTraceEvent({
+      ...baseEvent,
+      id: "event-raw",
+      kind: "harness.raw",
+      payload: { rawKind: "provider-specific", raw: { type: "provider-specific" } },
+    }));
+
+    expect(lifecycle).toMatchObject({
+      kind: "event",
+      payload: {
+        semanticKind: "lifecycle",
+        payload: { lifecycle: "exit", status: "succeeded" },
+      },
+    });
+    expect(raw).toMatchObject({
+      kind: "event",
+      payload: {
+        semanticKind: "harness.raw",
+        payload: { rawKind: "provider-specific", raw: { type: "provider-specific" } },
+      },
+    });
+  });
+
   it("requires identity, harness, and run/activity context before conversion", () => {
     expect(() => normalizeSemanticTraceEvent({ ...baseEvent, id: "" })).toThrow("event id must be non-empty");
     expect(() => normalizeSemanticTraceEvent({ ...baseEvent, harnessId: "" })).toThrow("harnessId must be non-empty");

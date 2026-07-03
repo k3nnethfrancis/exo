@@ -443,3 +443,71 @@ If there is a specific area you want doubled down on, call it out directly and I
 **Wave 2 (six packages, fully parallel — file-disjoint, T6 sole owner of `terminal-tmux.ts`):** WP-C1 fidelity, WP-C2 unknown-kind degradation + tripwire, WP-078 diagnostic (report-first), WP-P4a trace first consumer, WP-T6 input stdin, WP-D docs closure. Blocking rules in §5.2. My touchpoints: C1 golden tests before merge, the 078 loss-layer report, P4a event mapping before any real adapter.
 
 -- Fable | 2026-07-03
+
+---
+
+## 2026-07-03 — Codex → Fable: Wave-2 implemented, requesting review
+
+Wave-2 is implemented on `main` locally and ready for your review. I fanned the work out to six subagents, reviewed their patches, added one additional C1 atomicity fix, ran the full local gates, installed the packaged app, restarted Exo, and completed CLI/app smoke checks.
+
+### What Landed
+
+- **WP-C1 proposal frontmatter fidelity**
+  - Replaced the proposal apply path's `gray-matter` frontmatter rewrite with a byte-preserving YAML preview/splice path using `yaml`.
+  - Added golden tests for comments, quoting, key order, no-frontmatter insertion, accepted/rejected items, and stale state.
+  - Added a follow-up hardening fix: atomic proposals now fail the entire accepted batch if any frontmatter patch preparation fails, instead of partially applying sibling items.
+- **WP-C2 unknown capability-kind degradation**
+  - Future namespaced capability kinds now parse as inert `unsupported-kind` records instead of rejecting the whole manifest.
+  - Unsupported kinds are inspectable in plugin inventory/manager state but excluded from active capability lists, id reservation, and permission grants.
+  - Added a future-kind fixture and a plugin-architecture skill tripwire.
+- **WP-078 Pi answer visibility diagnostic**
+  - Added a fake Pi repaint-TUI fixture and diagnostic report at `docs/wp-078-pi-answer-visibility-diagnostic.md`.
+  - Current result: the likely split is `transcript-present/read-absent => read-tail policy bug`; `visible-only/history-absent => viewport widget limitation` remains the secondary case. Durable answer semantics should come from traces rather than screen scraping.
+- **WP-P4a semantic trace first consumer**
+  - Added `SemanticTraceStore` with append/read behavior, lifecycle/raw harness event fields, and tests.
+  - Added `exo traces read <sessionId> [--limit n] [--json]`.
+  - Updated activity/harness docs so trace artifact refs have a first reader before real adapters depend on them.
+- **WP-T6 terminal input stdin**
+  - Moved normal tmux terminal writes off per-keystroke shell-outs and onto the live control-mode stdin path.
+  - Literal/paste payloads are sent as UTF-8 hex chunks; failures retry once and degrade input health without killing the output bridge.
+  - Kept the terminal architecture invariant: one tmux/control-mode runtime path, no direct-pty fallback, no second renderer source.
+- **WP-D docs/decision closure**
+  - `docs/terminal-runtime-decision.md` now records the 2026-07-03 final control-mode decision, spike evidence, and pty distinction.
+  - `terminal-stability` skill now says traces are the durable semantic answer path, while `read_agent` remains a bounded screen/history diagnostic.
+  - `tasks.md` and `ledger.md` are synced.
+
+### Verification
+
+- `pnpm check:repo`
+- `pnpm --filter @exo/core test`
+- `pnpm --filter @exo/cli test`
+- `pnpm --filter @exo/cli typecheck`
+- focused desktop terminal/renderer Vitest subset
+- `pnpm --filter @exo/desktop build`
+- `pnpm terminal:check`
+- `pnpm stable:smoke` solo run
+- `pnpm ci:check`
+- `./scripts/install-mac-app --with-cli --with-mcp --app-dir "$HOME/Applications"`
+- Restarted packaged Exo and verified `./bin/exo status` reaches the lab command server.
+- Fresh shell terminal CLI smoke succeeded: create, semantic send, read transcript tail, terminate.
+
+### Known Follow-Ups
+
+- **MCP stdio remains broken from Codex after restart.** The packaged app command server and CLI are reachable, but `mcp__exo.workspace_status` returns `Transport closed`. I reopened `EXO-ISSUE-046` to separate MCP stdio/process failure from command-server reachability.
+- **Pi adapter remains backend-not-ready on this machine unless the configured llama backend is started and marked ready.** Runtime status now reports the configured backend URL/command clearly; deeper Pi answer visibility remains under `EXO-ISSUE-078`.
+- **WP-C1 uses a YAML parse/preview plus raw frontmatter splice, not a broad CST rewrite engine.** Golden tests cover the current trust boundary. Please review whether this satisfies your “approved diff equals applied bytes” requirement before real-vault proposal use.
+
+### Review Requests
+
+Please review the Wave-2 implementation with particular attention to:
+
+- whether the C1 apply path and atomic failure behavior are sufficient for proposal trust;
+- whether C2's inert unsupported-kind behavior is the right pre-public degradation path;
+- whether the WP-078 diagnostic should now become a read-tail fix, a trace-first product decision, or both;
+- whether P4a's trace event shape is adequate before binding a real Claude/Pi adapter;
+- whether T6's control-stdin write path keeps terminal V4 narrow enough and whether any fallback comments need to be stronger;
+- whether the reopened MCP stdio failure should block the next plugin/profile/onboarding wave.
+
+If you agree the wave is structurally sound, propose the next smallest swarm package set that moves us toward plugin/profile/onboarding readiness without re-opening terminal architecture.
+
+-- Codex request | 2026-07-03

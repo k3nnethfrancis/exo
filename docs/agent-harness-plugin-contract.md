@@ -92,6 +92,8 @@ Harnesses may declare whether they can produce structured semantic trace events.
 - default visibility for emitted events
 - optional trace artifact filename
 
+The first implemented capture seam is the launch-plan `traceCapture` declaration for `stream-json`-shaped stdout/stderr/sidecar JSONL. The deterministic fake harness fixture maps `session-start`, `turn-start`, `assistant-text`, `tool-call`, `tool-result`, and `lifecycle` packets into the core envelope, stores them at `.exo/traces/{sessionId}.ndjson`, and links the artifact through the metadata sidecar. Unknown packets are kept as `harness.raw`.
+
 Semantic traces are separate from terminal output. Core terminal services still own tmux, xterm, scrollback, transcripts, reconnect, and input delivery. Harness adapters may later tee provider-native JSON streams, hooks, or sidecar logs into `.exo/artifacts/{activityId}/semantic-trace.jsonl`, but they must not use semantic traces as a second live terminal screen source.
 
 Trace payloads remain plugin/provider-owned. Core only defines the envelope and reference model so later trace collectors, eval exporters, dataset builders, and review tools can consume events without another terminal-service re-plumb.

@@ -39,6 +39,7 @@ import {
   workspaceEnvOverrides,
   workspaceSettingsToEnv,
   agentHarnessRegistry,
+  SemanticTraceStore,
   assertRoutineAgentPolicy,
   type ManagedAgentKind,
   type ExoMcpIntegrationClient,
@@ -46,6 +47,7 @@ import {
   type RoutineExecutionHost,
   type RoutineTrigger,
   type RunRecord,
+  type SemanticTraceEvent,
 } from "@exo/core";
 
 const TERMINAL_KIND_USAGE = formatManagedAgentKindUsage();
@@ -911,6 +913,26 @@ export async function runCli(
     throw new Error("Usage: exo routines [templates | list | runs | read <run-id> | artifacts <run-id> | artifact <run-id> <artifact-id> | create <template-id> <routine-id> | run <routine-id> (--dry-run | --agent)]");
   }
 
+  if (command === "traces") {
+    if (subcommand !== "read") {
+      throw new Error("Usage: exo traces read <session-id> [--limit n] [--json]");
+    }
+    const { values, positionals } = parseInlineOptions(args);
+    const sessionId = positionals[0];
+    if (!sessionId) {
+      throw new Error("Usage: exo traces read <session-id> [--limit n] [--json]");
+    }
+    const config = await resolveCliRuntimeConfig(env);
+    const store = new SemanticTraceStore(config.runtimeRoot);
+    const events = await store.readEvents(sessionId, { limit: parsePositiveInt(values.limit) ?? 100 });
+    if (values.json === "1") {
+      stdout.write(`${JSON.stringify(events, null, 2)}\n`);
+      return 0;
+    }
+    stdout.write(renderSemanticTraceEvents(sessionId, events));
+    return 0;
+  }
+
   // ─── Launch commands ─────────────────────────────────────────────────
 
   if (!command || command === "start") {
@@ -977,6 +999,7 @@ export async function runCli(
       "  exo routines create <template-id> <id>     Create a routine from a template",
       "  exo routines run <id> --dry-run            Record a dry-run routine execution",
       "  exo routines run <id> --agent              Launch an Exo app agent and send the routine prompt",
+      "  exo traces read <session-id> [--limit n]   Read persisted semantic trace events",
       "  exo index status                           Show QMD advanced search provider status (app)",
       "  exo index sync                             Sync documents and embeddings for configured mode (app)",
       "  exo index add <path> [--name n] [--kind k] [--force]",
@@ -1431,6 +1454,52 @@ function parsePositiveInt(value: string | undefined): number | undefined {
   }
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function renderSemanticTraceEvents(sessionId: string, events: readonly SemanticTraceEvent[]): string {
+  if (events.length === 0) {
+    return `Trace session ${sessionId}: no events\n`;
+  }
+  const lines = [`Trace session ${sessionId}: ${events.length} event${events.length === 1 ? "" : "s"}`];
+  for (const event of events) {
+    lines.push(renderSemanticTraceEvent(event));
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+function renderSemanticTraceEvent(event: SemanticTraceEvent): string {
+  const prefix = `#${event.sequence ?? "?"} ${event.kind}`;
+  const payload = event.payload;
+  switch (event.kind) {
+    case "session.started":
+      return `${prefix} harness=${event.harnessId}${formatPayloadField(payload, "command")}${formatPayloadField(payload, "cwd")}`;
+    case "turn.started":
+      return `${prefix}${formatPayloadField(payload, "turnId")}`;
+    case "message":
+      return `${prefix} ${event.actor.kind}:${event.actor.id}${formatPayloadField(payload, "turnId")} text=${formatTraceText(payload.text)}`;
+    case "tool.call":
+      return `${prefix} name=${formatTraceText(payload.name)}${formatPayloadField(payload, "toolCallId")}${formatPayloadField(payload, "inputDigest")}`;
+    case "tool.result":
+      return `${prefix} name=${formatTraceText(payload.name)}${formatPayloadField(payload, "toolCallId")}${formatPayloadField(payload, "status")}${formatPayloadField(payload, "outputDigest")}`;
+    case "lifecycle":
+      return `${prefix}${formatPayloadField(payload, "lifecycle")}${formatPayloadField(payload, "status")}`;
+    case "harness.raw":
+      return `${prefix} rawKind=${formatTraceText(payload.rawKind)}`;
+    default:
+      return `${prefix} actor=${event.actor.id}`;
+  }
+}
+
+function formatPayloadField(payload: Record<string, unknown>, key: string): string {
+  const value = payload[key];
+  return value === undefined ? "" : ` ${key}=${formatTraceText(value)}`;
+}
+
+function formatTraceText(value: unknown): string {
+  if (typeof value === "string") {
+    return JSON.stringify(value.length > 240 ? `${value.slice(0, 237)}...` : value);
+  }
+  return JSON.stringify(value);
 }
 
 function sleep(ms: number): Promise<void> {

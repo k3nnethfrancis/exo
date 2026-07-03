@@ -622,6 +622,10 @@ describe("plugin manager model", () => {
     expect(pluginDisplayStatus(disabled)).toEqual({ label: "Disabled", tone: "disabled" });
     expect(pluginDisplayStatus(untrusted)).toEqual({ label: "Untrusted", tone: "warning" });
     expect(pluginDisplayStatus(setupIssue)).toEqual({ label: "Missing dependency", tone: "danger" });
+    expect(pluginDisplayStatus({ ...active, status: "unsupported-kind", statusLabel: "Not supported by this Exo version", enabled: false })).toEqual({
+      label: "Not supported",
+      tone: "disabled",
+    });
   });
 
   it("renders plugin manager rows as management controls with scan-friendly state labels", () => {
@@ -906,6 +910,12 @@ describe("plugin manager model", () => {
     expect(pluginActionAvailability(official)).toMatchObject({ mutable: false, actions: [] });
     expect(pluginActionAvailability(local)).toMatchObject({ mutable: true, actions: ["trust", "enable"] });
     expect(pluginActionAvailability(trustedDeveloper)).toMatchObject({ mutable: true, actions: ["disable"] });
+    expect(pluginActionAvailability({
+      ...local,
+      status: "unsupported-kind",
+      statusLabel: "Not supported by this Exo version",
+      enabled: false,
+    })).toMatchObject({ mutable: false, actions: [] });
     expect(pluginActionInput(local)).toEqual({
       pluginId: "graph-health.plugin",
       capabilityId: "graph-health.template",

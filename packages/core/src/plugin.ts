@@ -7,7 +7,7 @@ import type {
   CapabilityPermission,
   CapabilitySurface,
 } from "./capabilities";
-import { normalizeCapabilityPermission, parseCapabilityKind } from "./capabilities";
+import { isSupportedCapability, normalizeCapabilityPermission, parseCapabilityKind } from "./capabilities";
 import { hashPluginManifest } from "./plugin-state";
 
 export const EXO_PLUGIN_MANIFEST_FILE = "exo.plugin.json";
@@ -136,7 +136,7 @@ export class PluginRegistry {
     // Inactive plugins remain inspectable for management UI, but their capabilities
     // must not reserve ids or appear active until they are both trusted and enabled.
     if (isActivePlugin(plugin)) {
-      for (const capability of plugin.manifest.capabilities) {
+      for (const capability of plugin.manifest.capabilities.filter(isSupportedCapability)) {
         const existingPluginId = this.capabilityIds.get(capability.id);
         if (existingPluginId) {
           throw new Error(`Plugin capability already registered: ${capability.id} (${existingPluginId})`);
@@ -145,7 +145,7 @@ export class PluginRegistry {
     }
     this.plugins.set(id, plugin);
     if (isActivePlugin(plugin)) {
-      for (const capability of plugin.manifest.capabilities) {
+      for (const capability of plugin.manifest.capabilities.filter(isSupportedCapability)) {
         this.capabilityIds.set(capability.id, id);
       }
     }
@@ -187,7 +187,9 @@ export class PluginRegistry {
     }
     return this.list({ ...options, trustedOnly: true }).flatMap((plugin) =>
       isActivePlugin(plugin)
-        ? plugin.manifest.capabilities.filter((capability) => options.includeDisabled || capability.lifecycle !== "disabled")
+        ? plugin.manifest.capabilities.filter((capability) =>
+          isSupportedCapability(capability) && (options.includeDisabled || capability.lifecycle !== "disabled")
+        )
         : [],
     );
   }
@@ -288,7 +290,7 @@ export function resolvePluginLifecycle(plugin: DiscoveredPlugin): PluginLifecycl
   const active = isActivePlugin(plugin);
   const exposedCapabilityIds = active
     ? plugin.manifest.capabilities
-      .filter((capability) => capability.lifecycle !== "disabled")
+      .filter((capability) => isSupportedCapability(capability) && capability.lifecycle !== "disabled")
       .map((capability) => capability.id)
     : [];
   return {
@@ -389,6 +391,12 @@ function validateCapabilityMetadata(input: unknown): CapabilityMetadata {
     throw new Error("Plugin capability must be an object.");
   }
   const parsedKind = parseCapabilityKind(requiredString(input, "kind"));
+  const permissions = parsedKind.status === "unsupported-kind"
+    ? validateUnsupportedCapabilityPermissions(input.permissions)
+    : validatePermissions(input.permissions, "capability.permissions");
+  const statusNotes = parsedKind.status === "unsupported-kind"
+    ? [`Capability kind ${parsedKind.kind} is not supported by this Exo version.`]
+    : undefined;
   const capability: CapabilityMetadata = {
     id: requiredString(input, "id"),
     kind: parsedKind.kind,
@@ -397,8 +405,10 @@ function validateCapabilityMetadata(input: unknown): CapabilityMetadata {
     lifecycle: validateEnum(requiredString(input, "lifecycle"), CAPABILITY_LIFECYCLES, "capability.lifecycle"),
     owner: requiredString(input, "owner"),
     surfaces: validateSurfaces(input.surfaces, "capability.surfaces"),
-    permissions: validatePermissions(input.permissions, "capability.permissions"),
+    permissions,
     compatibility: isRecord(input.compatibility) ? input.compatibility : undefined,
+    status: parsedKind.status === "unsupported-kind" ? parsedKind.status : undefined,
+    statusNotes,
   };
   assertIdentifier(capability.id, "Capability id");
   return capability;
@@ -445,6 +455,11 @@ function validatePermissions(input: unknown, field: string): CapabilityPermissio
       throw error;
     }
   });
+}
+
+function validateUnsupportedCapabilityPermissions(input: unknown): CapabilityPermission[] {
+  validateStringArray(input, "capability.permissions");
+  return [];
 }
 
 function validateSettingsSchema(input: unknown): PluginSettingsSchema | undefined {

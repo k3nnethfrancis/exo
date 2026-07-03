@@ -57,6 +57,31 @@ const graphHealthManifest: PluginManifest = {
   surfaces: ["desktop", "cli"],
 };
 
+const futureKindManifest: PluginManifest = {
+  ...graphHealthManifest,
+  id: "future-kind.plugin",
+  name: "Future Kind",
+  capabilities: [
+    {
+      id: "future-kind.widget",
+      kind: "exo.future:widget",
+      label: "Future Widget",
+      description: "Future Exo widget.",
+      lifecycle: "experimental",
+      owner: "future-kind.plugin",
+      surfaces: ["desktop"],
+      permissions: [],
+      status: "unsupported-kind",
+      statusNotes: ["Capability kind exo.future:widget is not supported by this Exo version."],
+    },
+    {
+      ...graphHealthManifest.capabilities[0]!,
+      id: "future-kind.template",
+      owner: "future-kind.plugin",
+    },
+  ],
+};
+
 describe("plugin inventory", () => {
   it("includes core, official capability, and developer manifest rows", () => {
     const inventory = buildPluginInventory({
@@ -218,6 +243,33 @@ describe("plugin inventory", () => {
     });
     expect(inventory.counts.untrusted).toBe(3);
     expect(inventory.counts.disabled).toBe(4);
+  });
+
+  it("surfaces unsupported capability kinds without activating them", () => {
+    const inventory = buildPluginInventory({
+      plugins: [discovered(futureKindManifest, "trusted")],
+    });
+
+    expect(find(inventory.items, "future-kind.widget")).toMatchObject({
+      categoryLabel: "Unsupported capability kind",
+      enabled: false,
+      status: "unsupported-kind",
+      statusLabel: "Not supported by this Exo version",
+      permissionGrants: {
+        requested: [],
+        granted: [],
+        missing: [],
+        status: "inactive",
+      },
+      runtime: {
+        statusNotes: ["Capability kind exo.future:widget is not supported by this Exo version."],
+      },
+    });
+    expect(find(inventory.items, "future-kind.template")).toMatchObject({
+      enabled: true,
+      status: "available",
+      statusLabel: "Available",
+    });
   });
 
   it("applies persisted local plugin state to manifest rows", () => {

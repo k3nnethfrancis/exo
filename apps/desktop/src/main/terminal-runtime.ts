@@ -1,6 +1,7 @@
 export interface TerminalRuntimeProcess {
   onData(handler: (data: string) => void): void;
   onExit(handler: (event: { exitCode?: number }) => void): void;
+  onInputDegraded?(handler: (event: { reason: string; command: string }) => void): void;
   write(data: string): void;
   resize(cols: number, rows: number): void;
   kill(): void;

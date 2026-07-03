@@ -1,11 +1,12 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
-import matter from "gray-matter";
+import { isMap, isScalar, isSeq, parseDocument } from "yaml";
 
 import {
   decideProposalBatch,
   decideProposalItem,
+  proposalStatusForItems,
   validateProposalBatch,
   type FrontmatterPatchOperation,
   type ProposalBatch,
@@ -56,13 +57,14 @@ export async function applyProposalToWorkspace(
     return { proposal: decided, appliedItems: [] };
   }
 
-  const acceptedItems = decided.items.filter((item) => item.itemStatus === "accepted");
+  const prepared = await prepareAcceptedFrontmatterPatches(options.workspaceRoot, decided);
+  const acceptedItems = prepared.proposal.items.filter((item) => item.itemStatus === "accepted");
   const appliedItems: ProposalAppliedItem[] = [];
   for (const item of acceptedItems) {
-    appliedItems.push(await applyAcceptedItem(options.workspaceRoot, item));
+    appliedItems.push(await applyAcceptedItem(options.workspaceRoot, item, prepared.frontmatterPreviews));
   }
 
-  return { proposal: decided, appliedItems };
+  return { proposal: prepared.proposal, appliedItems };
 }
 
 export async function currentHashesForProposal(
@@ -84,7 +86,11 @@ export function contentSha256(contents: string | Uint8Array): string {
   return `sha256:${createHash("sha256").update(contents).digest("hex")}`;
 }
 
-async function applyAcceptedItem(workspaceRoot: string, item: ProposalItem): Promise<ProposalAppliedItem> {
+async function applyAcceptedItem(
+  workspaceRoot: string,
+  item: ProposalItem,
+  frontmatterPreviews: ReadonlyMap<string, string>,
+): Promise<ProposalAppliedItem> {
   if (item.kind === "fileMove" || item.kind === "fileDelete") {
     throw new Error(`${item.kind} proposals are not supported by the v1 apply host.`);
   }
@@ -99,10 +105,57 @@ async function applyAcceptedItem(workspaceRoot: string, item: ProposalItem): Pro
     await writeFile(target, applyUnifiedDiff(existing, item.unifiedDiff), "utf8");
     return { id: item.id, kind: item.kind, path: item.path, action: "patched" };
   }
-  const parsed = matter(existing);
-  const data = applyFrontmatterOperations(parsed.data, item.operations);
-  await writeFile(target, matter.stringify(parsed.content, data), "utf8");
+  await writeFile(target, frontmatterPreviews.get(item.id) ?? previewFrontmatterPatch(existing, item.operations), "utf8");
   return { id: item.id, kind: item.kind, path: item.path, action: "frontmatterPatched" };
+}
+
+async function prepareAcceptedFrontmatterPatches(
+  workspaceRoot: string,
+  proposal: ProposalBatch,
+): Promise<{ proposal: ProposalBatch; frontmatterPreviews: Map<string, string> }> {
+  const frontmatterPreviews = new Map<string, string>();
+  let changed = false;
+  const items = await Promise.all(proposal.items.map(async (item): Promise<ProposalItem> => {
+    if (item.itemStatus !== "accepted" || item.kind !== "frontmatterPatch") {
+      return item;
+    }
+    const target = resolveWorkspaceProposalPath(workspaceRoot, item.path);
+    const existing = await readFile(target, "utf8");
+    try {
+      frontmatterPreviews.set(item.id, previewFrontmatterPatch(existing, item.operations));
+      return item;
+    } catch (error) {
+      changed = true;
+      return {
+        ...item,
+        itemStatus: "stale",
+        statusReason: `frontmatter patch failed: ${errorMessage(error)}`,
+      };
+    }
+  }));
+  if (!changed) {
+    return { proposal, frontmatterPreviews };
+  }
+  const resolvedItems = proposal.atomic
+    ? items.map((item): ProposalItem => {
+      if (item.itemStatus !== "accepted") {
+        return item;
+      }
+      return {
+        ...item,
+        itemStatus: "stale",
+        statusReason: "atomic proposal blocked by a failed frontmatter patch.",
+      };
+    })
+    : items;
+  return {
+    proposal: validateProposalBatch({
+      ...proposal,
+      status: proposalStatusForItems(resolvedItems),
+      items: resolvedItems,
+    }),
+    frontmatterPreviews,
+  };
 }
 
 function resolveWorkspaceProposalPath(workspaceRoot: string, relativePath: string): string {
@@ -180,68 +233,260 @@ function assertOriginalLine(originalLines: string[], cursor: number, expected: s
   }
 }
 
-function applyFrontmatterOperations(
-  data: Record<string, unknown>,
+export function previewFrontmatterPatch(
+  existing: string,
   operations: readonly FrontmatterPatchOperation[],
-): Record<string, unknown> {
-  const next = structuredClone(data) as Record<string, unknown>;
+): string {
+  const block = splitLeadingFrontmatter(existing);
+  const eol = block?.eol ?? inferLineEnding(existing);
+  let yamlText = block?.yamlText ?? "";
   for (const operation of operations) {
-    if (operation.kind === "set") {
-      setPath(next, operation.keyPath, operation.value);
-    } else if (operation.kind === "remove") {
-      removePath(next, operation.keyPath);
-    } else {
-      appendPath(next, operation.keyPath, operation.value);
+    yamlText = applyFrontmatterOperation(yamlText, eol, operation);
+  }
+  if (block) {
+    return `${existing.slice(0, block.yamlStart)}${yamlText}${existing.slice(block.yamlEnd)}`;
+  }
+  return `---${eol}${yamlText}---${eol}${existing}`;
+}
+
+function applyFrontmatterOperation(
+  yamlText: string,
+  eol: "\n" | "\r\n",
+  operation: FrontmatterPatchOperation,
+): string {
+  assertFrontmatterKeyPath(operation.keyPath);
+  const document = parseFrontmatterDocument(yamlText);
+  if (operation.kind === "set") {
+    return setFrontmatterValue(yamlText, eol, document, operation);
+  }
+  if (operation.kind === "remove") {
+    return removeFrontmatterValue(yamlText, document, operation);
+  }
+  return appendFrontmatterList(yamlText, eol, document, operation);
+}
+
+function parseFrontmatterDocument(yamlText: string): ReturnType<typeof parseDocument> {
+  const document = parseDocument(yamlText, {
+    keepSourceTokens: true,
+  });
+  const parseFailure = document.errors[0] ?? document.warnings[0];
+  if (parseFailure) {
+    throw new Error(`invalid frontmatter YAML: ${parseFailure.message}`);
+  }
+  if (document.contents !== null && !isMap(document.contents)) {
+    throw new Error("frontmatter patch requires a YAML mapping document.");
+  }
+  return document;
+}
+
+function setFrontmatterValue(
+  yamlText: string,
+  eol: "\n" | "\r\n",
+  document: ReturnType<typeof parseDocument>,
+  operation: FrontmatterPatchOperation,
+): string {
+  const pair = findFrontmatterPair(document, operation.keyPath);
+  if (!pair) {
+    return appendGeneratedYaml(yamlText, eol, operation.keyPath, operation.value);
+  }
+  const valueRange = nodeValueRange(pair.value);
+  if (!valueRange) {
+    throw new Error(`frontmatter key has no replaceable value: ${operation.keyPath.join(".")}`);
+  }
+  return spliceText(yamlText, valueRange[0], valueRange[1], renderYamlValue(operation.value, eol));
+}
+
+function removeFrontmatterValue(
+  yamlText: string,
+  document: ReturnType<typeof parseDocument>,
+  operation: FrontmatterPatchOperation,
+): string {
+  const pair = findFrontmatterPair(document, operation.keyPath);
+  if (!pair) {
+    return yamlText;
+  }
+  const start = lineStartForOffset(yamlText, pair.key.range?.[0] ?? 0);
+  const end = lineEndForOffset(yamlText, nodeEndOffset(pair.value) ?? pair.key.range?.[2] ?? pair.key.range?.[1] ?? start);
+  return spliceText(yamlText, start, end, "");
+}
+
+function appendFrontmatterList(
+  yamlText: string,
+  eol: "\n" | "\r\n",
+  document: ReturnType<typeof parseDocument>,
+  operation: FrontmatterPatchOperation,
+): string {
+  const pair = findFrontmatterPair(document, operation.keyPath);
+  if (!pair) {
+    return appendGeneratedYaml(yamlText, eol, operation.keyPath, [operation.value]);
+  }
+  const existing = pair.value;
+  if (!isSeq(existing)) {
+    throw new Error(`frontmatter key is not a YAML sequence: ${operation.keyPath.join(".")}`);
+  }
+  if (existing.flow) {
+    const values = existing.items.map((item) => yamlNodeToJson(item)).concat([operation.value]);
+    const valueRange = nodeValueRange(existing);
+    if (!valueRange) {
+      throw new Error(`frontmatter key has no replaceable value: ${operation.keyPath.join(".")}`);
     }
+    return spliceText(yamlText, valueRange[0], valueRange[1], renderYamlValue(values, eol));
   }
-  return next;
+  const insertAt = existing.items.length > 0
+    ? (nodeEndOffset(existing.items[existing.items.length - 1]) ?? nodeEndOffset(existing) ?? yamlText.length)
+    : (nodeEndOffset(existing) ?? lineEndForOffset(yamlText, pair.key.range?.[1] ?? yamlText.length));
+  const indent = sequenceItemIndent(yamlText, existing) ?? `${lineIndentAt(yamlText, pair.key.range?.[0] ?? 0)}  `;
+  const insertion = `${indent}- ${renderYamlValue(operation.value, eol)}${eol}`;
+  return spliceText(yamlText, insertAt, insertAt, insertion);
 }
 
-function setPath(target: Record<string, unknown>, keyPath: readonly string[], value: unknown): void {
-  const parent = ensureParent(target, keyPath);
-  parent[keyPath[keyPath.length - 1]] = value;
-}
-
-function removePath(target: Record<string, unknown>, keyPath: readonly string[]): void {
-  const parent = getParent(target, keyPath);
-  if (parent) {
-    delete parent[keyPath[keyPath.length - 1]];
-  }
-}
-
-function appendPath(target: Record<string, unknown>, keyPath: readonly string[], value: unknown): void {
-  const parent = ensureParent(target, keyPath);
-  const key = keyPath[keyPath.length - 1];
-  const existing = parent[key];
-  parent[key] = Array.isArray(existing) ? [...existing, value] : [value];
-}
-
-function ensureParent(target: Record<string, unknown>, keyPath: readonly string[]): Record<string, unknown> {
+function assertFrontmatterKeyPath(keyPath: readonly string[]): void {
   if (keyPath.length === 0) {
     throw new Error("Frontmatter operation keyPath must not be empty.");
   }
-  let current = target;
-  for (const segment of keyPath.slice(0, -1)) {
-    const child = current[segment];
-    if (!child || typeof child !== "object" || Array.isArray(child)) {
-      current[segment] = {};
-    }
-    current = current[segment] as Record<string, unknown>;
-  }
-  return current;
 }
 
-function getParent(target: Record<string, unknown>, keyPath: readonly string[]): Record<string, unknown> | null {
-  if (keyPath.length === 0) {
-    throw new Error("Frontmatter operation keyPath must not be empty.");
-  }
-  let current: Record<string, unknown> = target;
-  for (const segment of keyPath.slice(0, -1)) {
-    const child = current[segment];
-    if (!child || typeof child !== "object" || Array.isArray(child)) {
+interface FrontmatterPair {
+  key: { range?: [number, number, number]; value?: unknown };
+  value: unknown;
+}
+
+function findFrontmatterPair(
+  document: ReturnType<typeof parseDocument>,
+  keyPath: readonly string[],
+): FrontmatterPair | null {
+  let map: unknown = document.contents;
+  for (const [index, segment] of keyPath.entries()) {
+    if (!isMap(map)) {
       return null;
     }
-    current = child as Record<string, unknown>;
+    const pair = map.items.find((candidate) => isScalar(candidate.key) && candidate.key.value === segment) as FrontmatterPair | undefined;
+    if (!pair) {
+      return null;
+    }
+    if (index === keyPath.length - 1) {
+      return pair;
+    }
+    map = pair.value;
   }
-  return current;
+  return null;
+}
+
+function nodeValueRange(node: unknown): [number, number] | null {
+  const range = nodeRange(node);
+  return range ? [range[0], range[1]] : null;
+}
+
+function nodeEndOffset(node: unknown): number | null {
+  return nodeRange(node)?.[2] ?? null;
+}
+
+function nodeRange(node: unknown): [number, number, number] | null {
+  if (node && typeof node === "object" && "range" in node && Array.isArray(node.range)) {
+    return node.range as [number, number, number];
+  }
+  return null;
+}
+
+function yamlNodeToJson(node: unknown): unknown {
+  return node && typeof node === "object" && "toJSON" in node && typeof node.toJSON === "function"
+    ? node.toJSON()
+    : undefined;
+}
+
+function appendGeneratedYaml(
+  yamlText: string,
+  eol: "\n" | "\r\n",
+  keyPath: readonly string[],
+  value: unknown,
+): string {
+  const document = parseDocument("");
+  document.setIn([...keyPath], value);
+  return `${yamlText}${yamlText.length > 0 && !yamlText.endsWith(eol) ? eol : ""}${normalizeYamlLineEndings(String(document), eol)}`;
+}
+
+function renderYamlValue(value: unknown, eol: "\n" | "\r\n"): string {
+  const document = parseDocument("");
+  return normalizeYamlLineEndings(String(document.createNode(value)), eol);
+}
+
+function spliceText(text: string, start: number, end: number, replacement: string): string {
+  return `${text.slice(0, start)}${replacement}${text.slice(end)}`;
+}
+
+function lineStartForOffset(text: string, offset: number): number {
+  return text.lastIndexOf("\n", Math.max(0, offset - 1)) + 1;
+}
+
+function lineEndForOffset(text: string, offset: number): number {
+  const next = text.indexOf("\n", offset);
+  return next === -1 ? text.length : next + 1;
+}
+
+function lineIndentAt(text: string, offset: number): string {
+  const start = lineStartForOffset(text, offset);
+  const match = /^[ \t]*/.exec(text.slice(start));
+  return match?.[0] ?? "";
+}
+
+function sequenceItemIndent(yamlText: string, sequence: unknown): string | null {
+  if (!isSeq(sequence) || sequence.items.length === 0) {
+    return null;
+  }
+  const firstRange = nodeRange(sequence.items[0]);
+  if (!firstRange) {
+    return null;
+  }
+  return lineIndentAt(yamlText, firstRange[0]);
+}
+
+interface FrontmatterBlock {
+  yamlStart: number;
+  yamlEnd: number;
+  eol: "\n" | "\r\n";
+  yamlText: string;
+}
+
+function splitLeadingFrontmatter(existing: string): FrontmatterBlock | null {
+  const opener = /^(---)(\r?\n)/.exec(existing);
+  if (!opener) {
+    return null;
+  }
+  const eol = opener[2] === "\r\n" ? "\r\n" : "\n";
+  let cursor = opener[0].length;
+  while (cursor <= existing.length) {
+    const nextNewline = existing.indexOf("\n", cursor);
+    const lineEnd = nextNewline === -1 ? existing.length : nextNewline + 1;
+    const line = existing.slice(cursor, lineEnd);
+    const lineWithoutEol = line.endsWith("\r\n")
+      ? line.slice(0, -2)
+      : line.endsWith("\n")
+        ? line.slice(0, -1)
+        : line;
+    if (lineWithoutEol === "---") {
+      return {
+        yamlStart: opener[0].length,
+        yamlEnd: cursor,
+        eol,
+        yamlText: existing.slice(opener[0].length, cursor),
+      };
+    }
+    if (nextNewline === -1) {
+      break;
+    }
+    cursor = lineEnd;
+  }
+  throw new Error("frontmatter block is missing a closing delimiter.");
+}
+
+function inferLineEnding(contents: string): "\n" | "\r\n" {
+  return contents.includes("\r\n") ? "\r\n" : "\n";
+}
+
+function normalizeYamlLineEndings(yaml: string, eol: "\n" | "\r\n"): string {
+  return eol === "\n" ? yaml : yaml.replace(/\n/g, "\r\n");
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

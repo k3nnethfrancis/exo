@@ -1,4 +1,4 @@
-import { builtInCapabilities, type CapabilityKind, type CapabilityLifecycle, type CapabilityMetadata, type CapabilitySurface } from "./capabilities";
+import { builtInCapabilities, isSupportedCapability, type CapabilityKind, type CapabilityLifecycle, type CapabilityMetadata, type CapabilitySurface } from "./capabilities";
 
 export interface CapabilityFilter {
   kind?: CapabilityKind;
@@ -37,7 +37,7 @@ export class CapabilityRegistry {
   }
 
   listActive(filter: Omit<CapabilityFilter, "includeDisabled"> = {}): CapabilityMetadata[] {
-    return this.list({ ...filter, includeDisabled: false });
+    return this.list({ ...filter, includeDisabled: false }).filter(isSupportedCapability);
   }
 }
 

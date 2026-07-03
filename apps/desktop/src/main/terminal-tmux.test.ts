@@ -268,7 +268,6 @@ describe("terminal tmux runtime helpers", () => {
   it("maps terminal input to tmux keys without treating escape sequences as text", () => {
     const fake = fakeControlProcess();
     childProcess.spawn.mockReturnValue(fake.child);
-    childProcess.execFileSync.mockReturnValue("");
 
     const process = new TmuxControlModeProcess({
       tmuxPath: "/opt/homebrew/bin/tmux",
@@ -282,19 +281,18 @@ describe("terminal tmux runtime helpers", () => {
 
     process.write("hello world\u001b[A\u007f\r");
 
-    expect(childProcess.execFileSync.mock.calls.map((call) => call[1])).toEqual([
-      ["-u", "send-keys", "-t", "%3", "-l", "hello world"],
-      ["-u", "send-keys", "-t", "%3", "Up"],
-      ["-u", "send-keys", "-t", "%3", "BSpace"],
-      ["-u", "send-keys", "-t", "%3", "Enter"],
+    expect(childProcess.execFileSync).not.toHaveBeenCalled();
+    expect(inputWrites(fake)).toEqual([
+      sendHexCommand("hello world"),
+      "send-keys -t %3 Up\n",
+      "send-keys -t %3 BSpace\n",
+      "send-keys -t %3 Enter\n",
     ]);
-    expect(childProcess.execFileSync.mock.calls.map((call) => call[1])).not.toContainEqual(["-u", "load-buffer", "-b", "exo-3", "-"]);
   });
 
   it("passes unknown escape sequences through as literal bytes instead of shredding them into typed text", () => {
     const fake = fakeControlProcess();
     childProcess.spawn.mockReturnValue(fake.child);
-    childProcess.execFileSync.mockReturnValue("");
 
     const process = new TmuxControlModeProcess({
       tmuxPath: "/opt/homebrew/bin/tmux",
@@ -308,16 +306,16 @@ describe("terminal tmux runtime helpers", () => {
 
     process.write("a\u001b[15~b\u001bb\u001b]1337;SetMark\u0007c\u001b");
 
-    expect(childProcess.execFileSync.mock.calls.map((call) => call[1])).toEqual([
-      ["-u", "send-keys", "-t", "%3", "-l", "a\u001b[15~b\u001bb\u001b]1337;SetMark\u0007c"],
-      ["-u", "send-keys", "-t", "%3", "Escape"],
+    expect(childProcess.execFileSync).not.toHaveBeenCalled();
+    expect(inputWrites(fake)).toEqual([
+      sendHexCommand("a\u001b[15~b\u001bb\u001b]1337;SetMark\u0007c"),
+      "send-keys -t %3 Escape\n",
     ]);
   });
 
   it("keeps whitespace, Unicode, backspace, delete, and modifier keys on the tmux send-keys path", () => {
     const fake = fakeControlProcess();
     childProcess.spawn.mockReturnValue(fake.child);
-    childProcess.execFileSync.mockReturnValue("");
 
     const process = new TmuxControlModeProcess({
       tmuxPath: "/opt/homebrew/bin/tmux",
@@ -331,23 +329,21 @@ describe("terminal tmux runtime helpers", () => {
 
     process.write("  λ🙂\t\u007f\u001b[3~\u001b[1;5D\u001b[1;2C");
 
-    expect(childProcess.execFileSync.mock.calls.map((call) => call[1])).toEqual([
-      ["-u", "send-keys", "-t", "%3", "-l", "  λ🙂\t"],
-      ["-u", "send-keys", "-t", "%3", "BSpace"],
-      ["-u", "send-keys", "-t", "%3", "Delete"],
-      ["-u", "send-keys", "-t", "%3", "C-Left"],
-      ["-u", "send-keys", "-t", "%3", "S-Right"],
+    expect(childProcess.execFileSync).not.toHaveBeenCalled();
+    expect(inputWrites(fake)).toEqual([
+      sendHexCommand("  λ🙂\t"),
+      "send-keys -t %3 BSpace\n",
+      "send-keys -t %3 Delete\n",
+      "send-keys -t %3 C-Left\n",
+      "send-keys -t %3 S-Right\n",
     ]);
-    expect(childProcess.execFileSync.mock.calls.map((call) => call[1])).not.toContainEqual(["-u", "load-buffer", "-b", "exo-3", "-"]);
   });
 
-  it("detaches instead of throwing when tmux send-keys fails", () => {
+  it("retries and degrades input without detaching the output bridge when control stdin write fails", () => {
     const fake = fakeControlProcess();
     childProcess.spawn.mockReturnValue(fake.child);
-    childProcess.execFileSync.mockImplementation(() => {
-      throw new Error("no server running");
-    });
     const exits: Array<{ exitCode?: number }> = [];
+    const inputFailures: Array<{ reason: string; command: string }> = [];
 
     const process = new TmuxControlModeProcess({
       tmuxPath: "/opt/homebrew/bin/tmux",
@@ -359,19 +355,32 @@ describe("terminal tmux runtime helpers", () => {
       rows: 30,
     });
     process.onExit((event) => exits.push(event));
+    process.onInputDegraded((event) => inputFailures.push(event));
+    fake.failInputWritesAfterResize(() => {
+      throw new Error("no server running");
+    });
 
     expect(() => process.write("abc")).not.toThrow();
     process.write("def");
 
-    expect(exits).toEqual([{ exitCode: undefined }]);
-    expect(fake.child.kill).toHaveBeenCalledTimes(1);
-    expect(childProcess.execFileSync).toHaveBeenCalledTimes(1);
+    expect(exits).toEqual([]);
+    expect(inputFailures).toEqual([{ reason: "no server running", command: "tmux control stdin write" }]);
+    expect(fake.child.kill).not.toHaveBeenCalled();
+    expect(fake.stdinWrites).toEqual([
+      "resize-window -t exo-session -x 100 -y 30\n",
+      "refresh-client -C 100x30\n",
+    ]);
+    expect(process.inputDiagnostics()).toMatchObject({
+      degraded: true,
+      commandCount: 0,
+      latestWriteLatencyMs: null,
+      spikeBaselineP50Ms: 25,
+    });
   });
 
   it("pastes semantic agent messages as literal text", () => {
     const fake = fakeControlProcess();
     childProcess.spawn.mockReturnValue(fake.child);
-    childProcess.execFileSync.mockReturnValue("");
 
     const process = new TmuxControlModeProcess({
       tmuxPath: "/opt/homebrew/bin/tmux",
@@ -385,15 +394,13 @@ describe("terminal tmux runtime helpers", () => {
 
     process.write("\u001b[200~line one\n  line two\u001b[201~");
 
-    expect(childProcess.execFileSync.mock.calls.map((call) => call[1])).toContainEqual(["-u", "load-buffer", "-b", "exo-3", "-"]);
-    expect(childProcess.execFileSync.mock.calls.find((call) => call[1]?.includes("load-buffer"))?.[2]).toMatchObject({ input: "line one\n  line two" });
-    expect(childProcess.execFileSync.mock.calls.map((call) => call[1])).toContainEqual(["-u", "paste-buffer", "-b", "exo-3", "-t", "%3", "-d"]);
+    expect(childProcess.execFileSync).not.toHaveBeenCalled();
+    expect(inputWrites(fake)).toEqual([sendHexCommand("\u001b[200~line one\n  line two\u001b[201~")]);
   });
 
   it("can paste bracketed content embedded between ordinary typed literals", () => {
     const fake = fakeControlProcess();
     childProcess.spawn.mockReturnValue(fake.child);
-    childProcess.execFileSync.mockReturnValue("");
 
     const process = new TmuxControlModeProcess({
       tmuxPath: "/opt/homebrew/bin/tmux",
@@ -407,25 +414,17 @@ describe("terminal tmux runtime helpers", () => {
 
     process.write("prefix \u001b[200~line one\n  line two\u001b[201~ suffix");
 
-    expect(childProcess.execFileSync.mock.calls.map((call) => call[1])).toEqual([
-      ["-u", "send-keys", "-t", "%3", "-l", "prefix "],
-      ["-u", "load-buffer", "-b", "exo-3", "-"],
-      ["-u", "paste-buffer", "-b", "exo-3", "-t", "%3", "-d"],
-      ["-u", "send-keys", "-t", "%3", "-l", " suffix"],
+    expect(childProcess.execFileSync).not.toHaveBeenCalled();
+    expect(inputWrites(fake)).toEqual([
+      sendHexCommand("prefix "),
+      sendHexCommand("\u001b[200~line one\n  line two\u001b[201~"),
+      sendHexCommand(" suffix"),
     ]);
-    expect(childProcess.execFileSync.mock.calls.find((call) => call[1]?.includes("load-buffer"))?.[2]).toMatchObject({ input: "line one\n  line two" });
   });
 
-  it.each(["load-buffer", "paste-buffer"])("detaches instead of throwing when tmux %s fails", (failingCommand) => {
+  it("records stdin write latency diagnostics for successful input commands", () => {
     const fake = fakeControlProcess();
     childProcess.spawn.mockReturnValue(fake.child);
-    childProcess.execFileSync.mockImplementation((_command: string, args: string[]) => {
-      if (args.includes(failingCommand)) {
-        throw new Error("pane not found");
-      }
-      return "";
-    });
-    const exits: Array<{ exitCode?: number }> = [];
 
     const process = new TmuxControlModeProcess({
       tmuxPath: "/opt/homebrew/bin/tmux",
@@ -436,17 +435,15 @@ describe("terminal tmux runtime helpers", () => {
       cols: 100,
       rows: 30,
     });
-    process.onExit((event) => exits.push(event));
 
-    expect(() => process.write("\u001b[200~line one\nline two\u001b[201~")).not.toThrow();
-    process.write("after-failure");
+    process.write("a\u001b[A");
 
-    expect(exits).toEqual([{ exitCode: undefined }]);
-    expect(fake.child.kill).toHaveBeenCalledTimes(1);
-    expect(childProcess.execFileSync.mock.calls.map((call) => call[1])).toContainEqual(["-u", "load-buffer", "-b", "exo-3", "-"]);
-    if (failingCommand === "paste-buffer") {
-      expect(childProcess.execFileSync.mock.calls.map((call) => call[1])).toContainEqual(["-u", "paste-buffer", "-b", "exo-3", "-t", "%3", "-d"]);
-    }
+    expect(process.inputDiagnostics()).toMatchObject({
+      degraded: false,
+      commandCount: 2,
+      spikeBaselineP50Ms: 25,
+    });
+    expect(process.inputDiagnostics().latestWriteLatencyMs).toEqual(expect.any(Number));
   });
 });
 
@@ -462,6 +459,7 @@ function fakeControlProcess() {
   const stderr = new EventEmitter() as EventEmitter & { setEncoding: (encoding: string) => void };
   const stdoutDecoder = new StringDecoder("utf8");
   const stdinWrites: string[] = [];
+  let inputWriteFailure: (() => void) | null = null;
   stdout.setEncoding = vi.fn();
   stderr.setEncoding = vi.fn();
   child.stdout = stdout;
@@ -469,6 +467,9 @@ function fakeControlProcess() {
   child.stdin = {
     writable: true,
     write: (data: string) => {
+      if (inputWriteFailure) {
+        inputWriteFailure();
+      }
       stdinWrites.push(data);
     },
   };
@@ -481,6 +482,9 @@ function fakeControlProcess() {
   return {
     child,
     stdinWrites,
+    failInputWritesAfterResize: (failure: () => void) => {
+      inputWriteFailure = failure;
+    },
     emitStdout: (data: string) => stdout.emit("data", data),
     emitStdoutBytes: (data: Buffer) => {
       const decoded = stdoutDecoder.write(data);
@@ -489,6 +493,14 @@ function fakeControlProcess() {
       }
     },
   };
+}
+
+function inputWrites(fake: ReturnType<typeof fakeControlProcess>): string[] {
+  return fake.stdinWrites.slice(2);
+}
+
+function sendHexCommand(data: string): string {
+  return `send-keys -H -t %3 -- ${Array.from(Buffer.from(data, "utf8"), (byte) => byte.toString(16).padStart(2, "0")).join(" ")}\n`;
 }
 
 function tmuxControlEncode(data: string): string {

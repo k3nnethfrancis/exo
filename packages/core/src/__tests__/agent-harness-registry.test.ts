@@ -479,6 +479,10 @@ describe("agent harness registry", () => {
           EXO_PI_BACKEND_URL: "http://127.0.0.1:8080",
         });
 
+        expect(pi).toBeDefined();
+        if (!pi) {
+          throw new Error("Expected Pi-compatible harness detection.");
+        }
         expect(pi.id).toBe("pi");
         expect(pi.launchable).toBe(false);
         expect(pi.executablePath).toBeUndefined();

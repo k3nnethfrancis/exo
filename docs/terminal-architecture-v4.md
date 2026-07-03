@@ -4,6 +4,8 @@ Last updated: 2026-07-03
 
 This is the current Exo terminal architecture target: embedded-first, tmux-durable, and xterm-owned. It applies the simplification algorithm to the tmux-backed terminal stack and supersedes the V3 planning snapshot.
 
+Canonical runtime decision record: `docs/terminal-runtime-decision.md`.
+
 ## Executive Summary
 
 Exo should keep the hard product decision that terminal processes live in tmux. That is a real requirement because Exo-on-Exo depends on long-running shell and agent sessions surviving window close, renderer reload, app relaunch, and normal laptop lifecycle events.
@@ -127,7 +129,7 @@ Automation must cover:
 
 The V4.1 geometry-convergence slice is now implemented on `main`. Current terminal code records renderer-measured geometry, uses it for create/attach/reconnect/restore, tags attach generations so stale renderer events are dropped, reports tmux/client/renderer geometry divergence in diagnostics, and exposes `exo terminals resync <id>` as the operator recovery action.
 
-The plain attach spike is closed. It remains useful as evidence, but it is not a product runtime and must not be revived as a hidden fallback. Exo's product path stays tmux control mode into xterm.
+The plain attach spike is closed. It remains useful as evidence, but it is not a product runtime and must not be revived as a hidden fallback. Exo's product path stays tmux control mode into xterm. See `docs/terminal-runtime-decision.md` for the 2026-07-03 decision record and the direct-pty versus pty-attach terminology.
 
 - `apps/desktop/src/main/terminal-manager.ts`: app-facing facade for create/list/diagnostics/write/send/reconnect/resize/kill/read-tail/read-transcript. It should keep shrinking as runtime, registry, health, readiness, geometry, and transcript ownership move behind named modules.
 - `apps/desktop/src/main/terminal-tmux.ts`: tmux detection, command runner, Exo session naming, pane parsing, control-mode process, control-output decoding, tmux key/input mapping, bracketed paste handling.

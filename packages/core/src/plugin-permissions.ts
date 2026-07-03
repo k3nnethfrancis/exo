@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import type { CapabilityPermission, PermissionGrant } from "./capabilities";
-import { describeCapabilityPermission, normalizeCapabilityPermission } from "./capabilities";
+import { describeCapabilityPermission, isSupportedCapability, normalizeCapabilityPermission } from "./capabilities";
 import type { DiscoveredPlugin } from "./plugin";
 import { isActivePlugin } from "./plugin";
 
@@ -139,7 +139,7 @@ export function resolveCapabilityPermissionGrants(
   }
   const requestedPermissions = uniquePermissions(capability.permissions);
   const pluginGrants = resolvePluginPermissionGrants(plugin, store);
-  const active = pluginGrants.active && capability.lifecycle !== "disabled";
+  const active = pluginGrants.active && isSupportedCapability(capability) && capability.lifecycle !== "disabled";
   const grantedPermissions = active
     ? requestedPermissions.filter((permission) => pluginGrants.grantedPermissions.includes(permission))
     : [];
@@ -231,7 +231,7 @@ function appendPermissionDecisions(
 function requestedPluginPermissions(plugin: DiscoveredPlugin): CapabilityPermission[] {
   return uniquePermissions([
     ...plugin.manifest.permissions,
-    ...plugin.manifest.capabilities.flatMap((capability) => capability.permissions),
+    ...plugin.manifest.capabilities.filter(isSupportedCapability).flatMap((capability) => capability.permissions),
   ]);
 }
 

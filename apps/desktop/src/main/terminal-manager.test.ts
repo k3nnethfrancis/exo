@@ -119,6 +119,7 @@ const childProcess = vi.hoisted(() => {
       writable: true,
       write: (data: string) => {
         state.stdinWrites.push(data);
+        deliverControlInput(args.at(-1) ?? "", data, state.writes);
       },
     };
     child.killed = false;
@@ -132,6 +133,32 @@ const childProcess = vi.hoisted(() => {
 
   function paneIdForSession(sessionName: string): string {
     return ptyState.tmuxSessions.find((session) => session.sessionName === sessionName)?.paneId ?? "%1";
+  }
+
+  function deliverControlInput(sessionName: string, data: string, writes: string[]) {
+    const paneId = paneIdForSession(sessionName);
+    for (const line of data.split("\n")) {
+      if (!line.trim().startsWith("send-keys ")) {
+        continue;
+      }
+      const tokens = line.trim().split(/\s+/);
+      if (tokens[tokens.indexOf("-t") + 1] !== paneId) {
+        continue;
+      }
+      if (tokens.includes("-H")) {
+        const hexStart = tokens.indexOf("--") + 1;
+        const bytes = tokens.slice(hexStart).map((hex) => Number.parseInt(hex, 16));
+        writes.push(unwrapBracketedPaste(Buffer.from(bytes).toString("utf8")));
+        continue;
+      }
+      const key = tokens.at(-1) ?? "";
+      writes.push(key === "Enter" ? "\r" : key);
+    }
+  }
+
+  function unwrapBracketedPaste(value: string): string {
+    const match = /^\u001b\[200~([\s\S]*)\u001b\[201~$/.exec(value);
+    return match ? match[1] : value;
   }
 
   function tmuxControlEncode(data: string): string {
@@ -520,6 +547,27 @@ describe("TerminalManager Codex readiness", () => {
 
     await expect(manager.write(terminal.id, "input")).resolves.toEqual({ ok: false, delivery: "not-found" });
     await expect(manager.sendMessage(terminal.id, "input", true)).resolves.toEqual({ ok: false, delivery: "not-found" });
+  });
+
+  it("marks input degraded while keeping the output bridge attached", async () => {
+    const workspaceRoot = await workspaceFixture();
+    stubWorkspaceEnv(workspaceRoot);
+    const runtime = fakeRuntime();
+    const manager = new TerminalManager(workspaceRoot, 500, 0, {}, runtime);
+
+    const terminal = await manager.create({ kind: "shell", cwd: workspaceRoot });
+    runtime.emitInputDegraded("control stdin closed");
+
+    expect(manager.diagnostics()[0]).toMatchObject({
+      health: "unhealthy",
+      healthDetail: "Terminal output is still attached, but input delivery failed; reconnect the terminal.",
+      bridgeStatus: "attached",
+    });
+
+    runtime.emitData("output still streams\n");
+
+    expect(manager.readTranscript(terminal.id)).toContain("output still streams");
+    await expect(manager.write(terminal.id, "\r")).resolves.toEqual({ ok: false, delivery: "not-found" });
   });
 
   it("preserves alternate-screen escapes while stripping embedded mouse tracking modes", async () => {
@@ -1503,6 +1551,7 @@ function fakeRuntime(capturedTail = "runtime-captured\r\n"): TerminalRuntime & {
   };
   emitData: (data: string) => void;
   emitExit: (exitCode?: number) => void;
+  emitInputDegraded: (reason: string) => void;
 } {
   const calls = {
     createSession: [] as unknown[],
@@ -1557,21 +1606,25 @@ function fakeRuntime(capturedTail = "runtime-captured\r\n"): TerminalRuntime & {
     },
     emitData: process.emitData,
     emitExit: process.emitExit,
+    emitInputDegraded: process.emitInputDegraded,
   };
 }
 
 function fakeRuntimeProcess(writes: string[]): TerminalRuntimeProcess & {
   emitData: (data: string) => void;
   emitExit: (exitCode?: number) => void;
+  emitInputDegraded: (reason: string) => void;
 } {
   const events = new EventEmitter();
   return {
     onData: (handler) => events.on("data", handler),
     onExit: (handler) => events.on("exit", handler),
+    onInputDegraded: (handler) => events.on("input-degraded", handler),
     write: (data) => writes.push(data),
     resize: () => {},
     kill: () => events.emit("exit", { exitCode: 0 }),
     emitData: (data) => events.emit("data", data),
     emitExit: (exitCode) => events.emit("exit", { exitCode }),
+    emitInputDegraded: (reason) => events.emit("input-degraded", { reason, command: "fake write" }),
   };
 }

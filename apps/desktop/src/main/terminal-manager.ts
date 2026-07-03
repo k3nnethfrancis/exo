@@ -65,6 +65,7 @@ interface TerminalRecord {
   lastWriteId: number;
   lastWriteLatencyMs?: number;
   bridgeDetached?: boolean;
+  inputDegraded?: boolean;
   paneStatus?: "alive" | "dead" | "missing" | "unknown";
   tmuxPaneGeometry?: { width: number; height: number };
   tmuxClientGeometry?: { width: number; height: number };
@@ -366,7 +367,7 @@ export class TerminalManager extends EventEmitter {
 
   async write(id: string, data: string): Promise<TerminalWriteResult> {
     const record = this.sessions.get(id);
-    if (!record || record.info.status === "exited" || record.bridgeDetached) {
+    if (!record || record.info.status === "exited" || record.bridgeDetached || record.inputDegraded) {
       return { ok: false, delivery: "not-found" };
     }
 
@@ -380,7 +381,7 @@ export class TerminalManager extends EventEmitter {
 
   async sendMessage(id: string, message: string, submit = true): Promise<TerminalWriteResult> {
     const record = this.sessions.get(id);
-    if (!record || record.info.status === "exited" || record.bridgeDetached) {
+    if (!record || record.info.status === "exited" || record.bridgeDetached || record.inputDegraded) {
       return { ok: false, delivery: "not-found" };
     }
 
@@ -429,6 +430,7 @@ export class TerminalManager extends EventEmitter {
     record.process = processHandle;
     record.reconnecting = false;
     record.bridgeDetached = false;
+    record.inputDegraded = false;
     record.paneStatus = "alive";
     record.info.health = this.terminalHealth(record, Date.now());
     record.info.healthDetail = "Reattached to live tmux session.";
@@ -551,6 +553,9 @@ export class TerminalManager extends EventEmitter {
     record.lastWriteId = writeId;
     record.lastInputAt = Date.now();
     this.writePendingData(record, pendingWrite);
+    if (record.inputDegraded) {
+      return { ok: false, delivery: "not-found" };
+    }
     return {
       ok: true,
       delivery: "sent",
@@ -646,6 +651,8 @@ export class TerminalManager extends EventEmitter {
       record,
       record.info.status === "exited"
         ? "terminal exited before queued input could be delivered"
+        : record.inputDegraded
+          ? "terminal input delivery is degraded"
         : "terminal bridge is detached",
     );
     return true;
@@ -671,6 +678,21 @@ export class TerminalManager extends EventEmitter {
         record.info.healthDetail = this.terminalHealthDetail(record, Date.now());
         this.emit("data", { id, generation: attachGeneration, data: sanitizedData });
       }
+    });
+
+    processHandle.onInputDegraded?.(({ reason }) => {
+      const record = this.sessions.get(id);
+      if (!record || record.info.attachGeneration !== attachGeneration) {
+        return;
+      }
+      record.inputDegraded = true;
+      record.info.health = this.terminalHealth(record, Date.now());
+      record.info.healthDetail = this.terminalHealthDetail(record, Date.now());
+      console.warn("[exo] terminal input delivery degraded", {
+        id,
+        reason,
+      });
+      this.emit("updated", record.info);
     });
 
     processHandle.onExit(({ exitCode }) => {
@@ -1270,6 +1292,7 @@ function terminalHealthInput(record: TerminalRecord) {
     exitCode: record.info.exitCode,
     paneStatus: record.paneStatus,
     bridgeDetached: record.bridgeDetached,
+    inputDegraded: record.inputDegraded,
     lastInputAt: record.lastInputAt,
     lastOutputAt: record.lastOutputAt,
   };
@@ -1304,7 +1327,7 @@ function terminalGeometryDiverges(record: TerminalRecord): boolean {
 }
 
 function canDeliverInput(record: TerminalRecord): boolean {
-  return record.info.status === "running" && !record.bridgeDetached;
+  return record.info.status === "running" && !record.bridgeDetached && !record.inputDegraded;
 }
 
 function terminalSessionIdentity(kind: TerminalKind, harnessId: string = kind): Pick<TerminalSessionInfo, "terminalKind" | "harnessId"> {
