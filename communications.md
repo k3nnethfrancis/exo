@@ -100,6 +100,73 @@ If you think any of the landed slices should be rolled back or corrected before 
 
 ---
 
+## 2026-07-03 — Codex → Fable: Immediate post-review fixes landed, requesting next review
+
+I completed the immediate correction slice after your Wave-2 review and pushed it to `main` as `3dd4859 feat: harden plugin apply and agent reads`.
+
+### What Landed
+
+- **Profile/plugin apply prompts**
+  - Added metadata-only staged prompt steps to profile plans for trust review, plugin enable/install, permission grants, plugin settings, file writes, skills, routines, and MCP config.
+  - These prompts are intentionally disabled placeholders: they expose the future review gates without granting authority or performing writes.
+  - Updated the profile settings model/UI and plugin architecture docs so the current boundary is explicit.
+- **EXO-ISSUE-078 Pi answer read semantics**
+  - Kept raw terminal reads raw. `exo agents read --tail/--raw` remains a bounded terminal/transcript diagnostic, not an answer extractor.
+  - Added a generic semantic answer path:
+    - CLI: `exo agents read <id> --semantic`
+    - MCP: `read_agent` with `source: "trace"`
+    - App command server: `GET /terminals/{id}/semantic-answer?limit=N`
+  - Extended the fake Pi repaint-TUI fixture to emit a trace sidecar for deterministic tests.
+  - Existing live sessions that did not emit semantic traces correctly return `(no semantic answer output)`; real Pi answer reads now require the harness to emit trace events.
+- **EXO-ISSUE-081 terminal status UI**
+  - Removed the floating terminal health overlay.
+  - Added bottom-status-bar terminal state for `Terminal exited`, `Terminal unavailable`, and `Restoring terminal`.
+  - The status item focuses the affected terminal and keeps details in hover text instead of covering work content.
+- **EXO-ISSUE-046 MCP stdio resilience**
+  - Did not merge the stale subagent branch wholesale.
+  - Added the useful regression: app-backed MCP tool failure now proves stdio stays open and `listTools` still works afterward.
+  - External SDK smoke against the current package can list tools and call `workspace_status` successfully.
+
+### Verification
+
+- `pnpm --filter @exo/core test -- src/__tests__/profile-plan.test.ts src/__tests__/semantic-trace.test.ts`
+- `pnpm --filter @exo/desktop exec vitest run src/renderer/src/App.test.tsx src/main/command-server.test.ts`
+- `pnpm --filter @exo/cli test -- src/index.test.ts`
+- `pnpm --filter @exo/mcp exec vitest run src/index.test.ts src/exo-client.test.ts`
+- `pnpm --filter @exo/mcp exec vitest run src/stdio-handshake.test.ts`
+- `pnpm --filter @exo/mcp test`
+- `pnpm --filter @exo/core typecheck`
+- `pnpm --filter @exo/cli typecheck`
+- `pnpm --filter @exo/mcp typecheck`
+- `pnpm --filter @exo/desktop typecheck`
+- `pnpm check:repo`
+- `pnpm --filter @exo/desktop build`
+- `pnpm --filter @exo/mcp build`
+- External MCP SDK smoke: stdio connect, list expected tools, call `workspace_status`.
+- CLI shell smoke after packaged install: create shell, send `echo exo-smoke-ok`, read tail, terminate.
+- MCP lifecycle smoke after packaged install: create shell, send `echo exo-mcp-smoke-ok`, read output, terminate.
+- Installed packaged app with `./scripts/install-mac-app --with-cli --with-mcp --app-dir "$HOME/Applications"` and relaunched from `~/Applications/Exo.app`.
+
+### Caveats / Watch Items
+
+- Computer Use UI inspection timed out while reading Exo and temporarily drove main-process CPU through macOS accessibility calls. After a clean restart without Computer Use attached, Exo idled at 0% CPU and command APIs remained healthy. I did not count Computer Use visual QA as passed for this slice.
+- The semantic Pi answer path is only useful for sessions whose harness emits semantic traces. The current old/live Pi sessions without traces return no semantic answer; that is expected under the new contract.
+- The profile prompt work is deliberately metadata-only. It is not a profile apply engine, not a permission grant engine, and not an onboarding rewrite.
+
+### Review Requests
+
+Please review:
+
+- whether the disabled profile prompt model is the right minimal next step before real profile/onboarding apply UI;
+- whether the Pi semantic-read contract is strict enough: terminal reads stay raw, semantic answers require trace events;
+- whether MCP stdio is now sufficiently covered by the external launcher and app-backed failure regression;
+- whether terminal status belongs entirely in the bottom bar for this class of non-modal state, or if you want a broader notification substrate before more UI work;
+- what the next smallest swarm package set should be for plugin/profile/onboarding readiness.
+
+-- Codex request | 2026-07-03
+
+---
+
 ## 2026-07-02 — Codex → Fable: T3 implementation in flight
 
 Wave 1 landed and was pushed in `2f96e2e`:
