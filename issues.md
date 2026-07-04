@@ -10,7 +10,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-082: `exo agents read` returns corrupted terminal glyphs during Exo-on-Exo monitoring
 
-- Status: open; prioritize before treating Exo-on-Exo orchestration as reliable
+- Status: fixed in `codex/issue-082-agent-readback`; broad `stable:smoke` app gate timed out across unrelated Electron e2e scenarios and needs separate follow-up before push/release
 - Severity: high
 - Area: CLI agent read path, terminal transcripts, tmux/control-mode capture, Exo-on-Exo observability
 - Source:
@@ -27,12 +27,17 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - The CLI read path may be returning a screen/control-mode/tmux tail that still contains terminal-render control artifacts, or it may be decoding terminal output differently from xterm.
   - This is related to, but not identical with, embedded terminal render corruption: even if the app surface recovers, the CLI readback must be stable for orchestration.
 - Acceptance:
-  - [ ] Reproduce with deterministic fake Codex/Claude output that includes spinner, box drawing, carriage-return updates, and split Unicode/control bytes.
-  - [ ] Identify whether corruption originates in tmux capture, transcript decoding, command-server read sanitization, or CLI rendering.
-  - [ ] Make `exo agents read` default to a clean operator-readable view.
-  - [ ] Keep explicit raw/debug access for transcript or screen bytes where useful.
-  - [ ] Add regression coverage so the Exo-on-Exo monitoring path cannot emit replacement glyphs/control fragments for normal reads.
-  - [ ] Verify with a live Exo-managed Codex worker that `exo agents read <id>` can be used for status monitoring without hard-refreshing the app.
+  - [x] Reproduce with deterministic fake Codex/Claude output that includes spinner, box drawing, carriage-return updates, and split Unicode/control bytes.
+  - [x] Identify whether corruption originates in tmux capture, transcript decoding, command-server read sanitization, or CLI rendering.
+  - [x] Make `exo agents read` default to a clean operator-readable view.
+  - [x] Keep explicit raw/debug access for transcript or screen bytes where useful.
+  - [x] Add regression coverage so the Exo-on-Exo monitoring path cannot emit replacement glyphs/control fragments for normal reads.
+  - [x] Verify with a live Exo-managed Codex worker that `exo agents read <id>` can be used for status monitoring without hard-refreshing the app.
+- Resolution:
+  - Added shared terminal readback cleanup for default CLI/MCP agent reads: DEC special graphics are converted to Unicode box drawing, carriage-return repaint updates collapse to the final display line, ANSI/OSC/control sequences are removed, `U+FFFD` is suppressed, and bounded transcript tails that start inside cursor-position repaint sequences no longer leak fragments like `qqqq`, `0m`, `2H`, or sparse `W` status bytes.
+  - `exo agents read <id> --raw` and MCP `read_agent` with `clean: false` still return raw transcript text for debugging.
+  - Root cause classification: tmux `%output` Unicode decoding already had split-byte coverage; the observed default-read corruption came from transcript/display sanitization and CLI/MCP rendering of terminal control semantics, especially DEC graphics and cursor-addressed TUI repaint tails.
+  - Live Exo-on-Exo readback sampled running Codex workers `term-86` through `term-91`; default reads had no control bytes, no replacement glyphs, and no `q{4,}` line-drawing leaks. Active `term-91` returned `(no buffered output)` when the bounded tail contained only suppressed cursor repaint fragments, which is preferable to emitting artifacts.
 
 ### EXO-ISSUE-081: Non-modal terminal status messages should use the bottom status bar
 

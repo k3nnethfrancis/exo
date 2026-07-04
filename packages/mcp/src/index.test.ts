@@ -133,6 +133,40 @@ describe("Exo MCP server tools", () => {
       },
     });
   });
+
+  it("cleans default terminal reads while preserving clean false raw output", async () => {
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-mcp-read-agent-"));
+    tempPaths.push(runtimeRoot);
+    await writeFile(path.join(runtimeRoot, "server.json"), JSON.stringify({ port: 55434, pid: process.pid }), "utf8");
+    const transcript = "\u001b(0lqqk\u001b(B\r⠋ Thinking\r\u001b[2K\u001b(0x\u001b(B Ready \u001b(0x\u001b(B\n";
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+      const targetUrl = new URL(String(input));
+      if (targetUrl.pathname === "/status") {
+        return Promise.resolve(jsonResponse({ ok: true }));
+      }
+      if (targetUrl.pathname === "/config") {
+        return Promise.resolve(jsonResponse({ terminalReadTailChars: 20_000, terminalMaxReadTailChars: 200_000 }));
+      }
+      if (targetUrl.pathname === "/terminals/term-1/transcript") {
+        return Promise.resolve(jsonResponse({ transcript }));
+      }
+      return Promise.resolve(jsonResponse({ error: "not found" }, 404));
+    }));
+    vi.stubEnv("EXO_RUNTIME_ROOT", runtimeRoot);
+
+    const server = createExoMcpServer() as unknown as {
+      _registeredTools: Record<string, { handler?: (args: Record<string, unknown>) => Promise<unknown> }>;
+    };
+
+    await expect(server._registeredTools.read_agent.handler?.({ agentId: "term-1" })).resolves.toMatchObject({
+      content: [{ type: "text", text: "│ Ready │\n" }],
+      structuredContent: { output: "│ Ready │\n" },
+    });
+    await expect(server._registeredTools.read_agent.handler?.({ agentId: "term-1", clean: false })).resolves.toMatchObject({
+      content: [{ type: "text", text: transcript }],
+      structuredContent: { output: transcript },
+    });
+  });
 });
 
 function jsonResponse(body: Record<string, unknown>, status = 200): Response {

@@ -14,6 +14,7 @@
     "./semantic-trace": "./src/semantic-trace.ts",
     "./semantic-trace-store": "./src/semantic-trace-store.ts",
     "./surface-descriptor": "./src/surface-descriptor.ts",
+    "./terminal-output-cleanup": "./src/terminal-output-cleanup.ts",
     "./types": "./src/types.ts",
     "./terminal-settings": "./src/terminal-settings.ts",
     "./workspace-settings": "./src/workspace-settings.ts"

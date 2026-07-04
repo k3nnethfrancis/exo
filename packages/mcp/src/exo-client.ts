@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { EXO_COMMAND_ROUTES, type ExoCommandServerInfo, type ExoOpenPreviewResponse } from "@exo/core/command-protocol";
+import { cleanTerminalOutput } from "@exo/core/terminal-output-cleanup";
 import { loadActiveWorkspaceSettings, workspaceEnvOverrides, workspaceSettingsToEnv } from "@exo/core/workspace-settings";
 
 export interface ExoAgent {
@@ -615,9 +616,5 @@ export function formatAgents(agents: ExoAgent[]): string {
 }
 
 export function stripAnsi(input: string): string {
-  return input
-    .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, "")
-    .replace(/\x1b[\[\]()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><~]/g, "")
-    .replace(/\r\n/g, "\n")
-    .replace(/\r/g, "\n");
+  return cleanTerminalOutput(input);
 }

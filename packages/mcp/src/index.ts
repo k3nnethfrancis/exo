@@ -306,7 +306,7 @@ server.registerTool(
         ? Math.min(requestedTailChars, configuredMax)
         : requestedTailChars;
       const rawOutput = maxLines ? await client.readAgentTail(agentId, maxLines) : await client.readAgent(agentId, effectiveTailChars);
-      const output = clean ? stripAnsi(rawOutput) : rawOutput;
+      const output = clean !== false ? stripAnsi(rawOutput) : rawOutput;
       return {
         content: [{ type: "text", text: output || "(no buffered output)" }],
         structuredContent: { agentId, output, source: "terminal", maxLines, tailChars: maxLines ? undefined : effectiveTailChars },

@@ -41,6 +41,7 @@ import {
   agentHarnessRegistry,
   SemanticTraceStore,
   semanticTraceEventsToAgentAnswerText,
+  cleanTerminalOutput,
   assertRoutineAgentPolicy,
   type ManagedAgentKind,
   type ExoMcpIntegrationClient,
@@ -635,7 +636,7 @@ export async function runCli(
       const tailChars = parseAgentReadTailChars(args);
       const raw = args.includes("--raw");
       const transcript = await client.readTerminalTranscript(id, tailChars);
-      const output = raw ? transcript : stripAnsi(transcript);
+      const output = raw ? transcript : cleanTerminalOutput(transcript);
       const tailed = tailChars > 0 ? output.slice(-tailChars) : output;
       stdout.write(tailed || "(no buffered output)");
       if (!tailed.endsWith("\n")) {
@@ -1527,14 +1528,6 @@ function formatTraceText(value: unknown): string {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function stripAnsi(input: string): string {
-  return input
-    .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, "")
-    .replace(/\x1b[\[\]()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><~]/g, "")
-    .replace(/\r\n/g, "\n")
-    .replace(/\r/g, "\n");
 }
 
 interface IntegrationStatus {

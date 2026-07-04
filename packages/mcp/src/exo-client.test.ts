@@ -392,6 +392,7 @@ describe("ExoCommandClient", () => {
 
   it("strips terminal escape codes for readable MCP output", () => {
     expect(stripAnsi("\u001b[31mred\u001b[0m\r\nnext")).toBe("red\nnext");
+    expect(stripAnsi("\u001b(0lqqk\u001b(B\r\u001b[2K\u001b(0x\u001b(B Ready \u001b(0x\u001b(B\n")).toBe("│ Ready │\n");
   });
 });
 

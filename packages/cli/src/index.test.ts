@@ -670,6 +670,52 @@ describe("cli package", () => {
     expect(stdout).toBe("old\nfresh\n");
   });
 
+  it("cleans terminal repaint and line-drawing controls from default agent reads", async () => {
+    let stdout = "";
+    const transcript = [
+      "\u001b[?25l\u001b(0lqqqqqqqqk\u001b(B\r⠋ Thinking",
+      "\r⠙ Thinking",
+      "\r\u001b[2K\u001b(0x\u001b(B Codex ready € \u001b(0x\u001b(B\n",
+      "\u001b(0mqqqqqqqqj\u001b(B\n",
+      "\u001b]0;agent-title\u0007done\u001b[?25h\n",
+    ].join("");
+
+    const exitCode = await runCli(["node", "exo-cli", "agents", "read", "term-1"], {
+      env: testRuntimeEnv(),
+      stdout: { write: (text) => { stdout += text; } },
+      stderr: { write: () => {} },
+      connectAppClient: async () => fakeAppClient({
+        readTerminalTranscript: async () => transcript,
+      }),
+    });
+
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain("│ Codex ready € │");
+    expect(stdout).toContain("└────────┘");
+    expect(stdout).toContain("done");
+    expect(stdout).not.toContain("qqqq");
+    expect(stdout).not.toContain("Thinking");
+    expect(stdout).not.toContain("\u001b");
+    expect(stdout).not.toContain("\ufffd");
+  });
+
+  it("preserves raw agent transcript reads behind --raw", async () => {
+    let stdout = "";
+    const transcript = "\u001b(0lqqk\u001b(B\r⠋ Thinking\n";
+
+    const exitCode = await runCli(["node", "exo-cli", "agents", "read", "term-1", "--raw"], {
+      env: testRuntimeEnv(),
+      stdout: { write: (text) => { stdout += text; } },
+      stderr: { write: () => {} },
+      connectAppClient: async () => fakeAppClient({
+        readTerminalTranscript: async () => transcript,
+      }),
+    });
+
+    expect(exitCode).toBe(0);
+    expect(stdout).toBe(transcript);
+  });
+
   it("preserves full agent transcript reads behind --full", async () => {
     let receivedTailChars: number | undefined;
     const exitCode = await runCli(["node", "exo-cli", "agents", "read", "term-1", "--full"], {
