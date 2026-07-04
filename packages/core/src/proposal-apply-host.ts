@@ -21,6 +21,7 @@ export interface ProposalApplyOptions {
   surface: Exclude<ProposalDecisionSurface, "mcp">;
   itemId?: string;
   decidedAt?: string;
+  profileApplyMode?: "fixtureVault";
 }
 
 export interface ProposalApplyResult {
@@ -50,6 +51,7 @@ export async function applyProposalToWorkspace(
   options: ProposalApplyOptions,
 ): Promise<ProposalApplyResult> {
   const current = validateProposalBatch(proposal);
+  assertProfileApplyWriteAllowed(current, options);
   const currentHashes = await currentHashesForProposal(options.workspaceRoot, current.items);
   const decided = options.itemId
     ? decideProposalItem(current, options.itemId, options.decision, {
@@ -75,6 +77,16 @@ export async function applyProposalToWorkspace(
   }
 
   return { proposal: prepared.proposal, appliedItems };
+}
+
+function assertProfileApplyWriteAllowed(proposal: ProposalBatch, options: ProposalApplyOptions): void {
+  if (proposal.metadata?.source !== "profileApply" || options.decision !== "accept") {
+    return;
+  }
+  if (options.profileApplyMode === "fixtureVault" && proposal.metadata.profileApplyTarget === "fixtureVault") {
+    return;
+  }
+  throw new Error("Profile apply file writes are fixture-vault only until WP-C1b enables real-vault proposal review.");
 }
 
 export async function currentHashesForProposal(

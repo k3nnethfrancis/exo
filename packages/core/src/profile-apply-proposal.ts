@@ -11,6 +11,7 @@ export interface ProfileApplyProposalOptions {
   workspaceRoot: string;
   activityId: string;
   sessionId?: string;
+  target?: "fixtureVault";
   now?: string;
 }
 
@@ -36,6 +37,7 @@ export async function createProfileApplyProposal(options: ProfileApplyProposalOp
       source: "profileApply",
       profileId: options.profile.id,
       profileLabel: options.profile.label,
+      ...(options.target ? { profileApplyTarget: options.target } : {}),
     },
   };
 }
@@ -74,7 +76,7 @@ async function proposalItemForTemplate(
       path: targetPath,
       itemStatus: "pending",
       contents,
-      metadata: { profileTemplateId: template.id, profileTemplateLabel: template.label },
+      metadata: { profileTemplateId: template.id, profileTemplateLabel: template.label, profileTemplateKind: prefix },
     };
   }
   if (existing === contents) {
@@ -87,7 +89,7 @@ async function proposalItemForTemplate(
     itemStatus: "pending",
     baseHash: contentSha256(existing),
     unifiedDiff: wholeFileUnifiedDiff(targetPath, existing, contents),
-    metadata: { profileTemplateId: template.id, profileTemplateLabel: template.label },
+    metadata: { profileTemplateId: template.id, profileTemplateLabel: template.label, profileTemplateKind: prefix },
   };
 }
 

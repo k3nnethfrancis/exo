@@ -55,7 +55,7 @@ export interface ProfileSettingsSectionGroup {
 }
 
 export const PROFILE_SETTINGS_DISABLED_REASON =
-  "Profile apply review, profile field editing, file writes, skill installs, routine scheduling, plugin enablement, templatize, and permission grants are not wired in this pass.";
+  "Profile-owned file templates can be staged as proposals for fixture-vault review. Real-vault writes wait for WP-C1b; profile field editing, skill installs, routine scheduling, plugin enablement, plugin settings, MCP config mutation, and permission grants each need their own enabling contract.";
 
 export function buildProfileSettingsModel(
   inventory: PluginInventory | null,
@@ -227,7 +227,7 @@ function recommendationRows(
 function applyPromptRows(plan: ProfilePlanPreview): ProfileSettingsRow[] {
   return plan.apply.promptSteps.map((step) => ({
     label: step.label,
-    value: `${step.required ? "required" : "optional"} · disabled · ${step.actionIds.length} action${step.actionIds.length === 1 ? "" : "s"}`,
+    value: `${step.required ? "required" : "optional"} · disabled · ${step.actionIds.length} action${step.actionIds.length === 1 ? "" : "s"} · ${step.detail}`,
   }));
 }
 
