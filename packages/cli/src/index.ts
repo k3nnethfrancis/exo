@@ -14,6 +14,7 @@ import {
   formatManagedAgentKindUsage,
   formatRegisteredAgentHarnessUsage,
   parseMcpListOutput,
+  parseMcpServerDetailsOutput,
   createBranchFile,
   getBranchFamily,
   normalizeManagedAgentKind,
@@ -277,7 +278,7 @@ export async function runCli(
         clients.map((client) => getIntegrationStatus(client, { exoRoot, workspaceRoot }, runCommand, env)),
       );
       stdout.write(formatIntegrationTest(statuses));
-      return statuses.every((status) => status.installed && status.configured) ? 0 : 1;
+      return statuses.every((status) => status.installed && status.configured && status.configMatches !== false) ? 0 : 1;
     }
 
     if (subcommand === "install") {
@@ -304,6 +305,22 @@ export async function runCli(
         }
 
         if (status.configured) {
+          if (status.configMatches === false) {
+            const remove = await runCommand(client, ["mcp", "remove", spec.server.serverName], { env });
+            if (remove.code !== 0) {
+              ok = false;
+              results.push(`${client}: stale Exo MCP config found, but removal failed.\n${remove.stderr || remove.stdout || `exit code ${remove.code}`}`);
+              continue;
+            }
+            const reinstall = await runCommand(spec.installCommand, spec.installArgs, { env });
+            if (reinstall.code === 0) {
+              results.push(`${client}: replaced stale Exo MCP config. Restart existing ${client} sessions or refresh MCP tools where supported.`);
+            } else {
+              ok = false;
+              results.push(`${client}: reinstall failed after removing stale config.\n${reinstall.stderr || reinstall.stdout || `exit code ${reinstall.code}`}`);
+            }
+            continue;
+          }
           results.push(`${client}: Exo MCP is already configured.`);
           continue;
         }
@@ -1618,6 +1635,11 @@ interface IntegrationStatus {
   executable?: string;
   configured: boolean;
   matchedLine?: string;
+  configMatches?: boolean;
+  configuredCommand?: string;
+  configuredArgs?: string[];
+  expectedCommand?: string;
+  expectedArgs?: string[];
   error?: string;
 }
 
@@ -1666,13 +1688,43 @@ async function getIntegrationStatus(
 
   const spec = buildExoMcpIntegrationSpec(client, config);
   const parsed = parseMcpListOutput(list.stdout, spec.server.serverName);
+  let details: ReturnType<typeof parseMcpServerDetailsOutput> = {};
+  let detailsError: string | undefined;
+  if (parsed.configured) {
+    const get = await runCommand(client, ["mcp", "get", spec.server.serverName], { env });
+    if (get.code === 0) {
+      details = parseMcpServerDetailsOutput(get.stdout);
+    } else {
+      detailsError = get.stderr || get.stdout || `mcp get exited with ${get.code}`;
+    }
+  }
+  const detailsVerified = details.command !== undefined || details.args !== undefined;
+  const configMatches = parsed.configured
+    ? detailsVerified
+      ? integrationDetailsMatch(details, spec.server)
+      : undefined
+    : undefined;
   return {
     client,
     installed: true,
     executable: executable.path,
     configured: parsed.configured,
     matchedLine: parsed.matchedLine,
+    configMatches,
+    configuredCommand: details.command,
+    configuredArgs: details.args,
+    expectedCommand: spec.server.command,
+    expectedArgs: spec.server.args,
+    error: detailsError,
   };
+}
+
+function integrationDetailsMatch(details: { command?: string; args?: string[] }, expected: { command: string; args: string[] }): boolean {
+  return details.command === expected.command && arraysEqual(details.args ?? [], expected.args);
+}
+
+function arraysEqual(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
 async function detectExecutable(
@@ -1707,7 +1759,7 @@ function formatIntegrationDoctor(input: {
     `- pnpm: ${input.pnpmFound ? "found" : "missing"}`,
     ...input.statuses.map((status) => {
       const installState = status.installed ? `found${status.executable ? ` (${status.executable})` : ""}` : "missing";
-      const configState = status.configured ? "configured" : "not configured";
+      const configState = formatIntegrationConfigState(status);
       const detail = status.error && !status.configured ? `; ${status.error.trim()}` : "";
       return `- ${status.client}: ${installState}; Exo MCP ${configState}${detail}`;
     }),
@@ -1724,10 +1776,36 @@ function formatIntegrationTest(statuses: IntegrationStatus[]): string {
       if (!status.configured) {
         return `${status.client}: Exo MCP not configured${status.error ? ` (${status.error.trim()})` : ""}`;
       }
+      if (status.configMatches === false) {
+        return `${status.client}: Exo MCP stale config (${formatConfiguredExpected(status)})`;
+      }
       return `${status.client}: Exo MCP configured${status.matchedLine ? ` (${status.matchedLine})` : ""}`;
     }),
     "",
   ].join("\n");
+}
+
+function formatIntegrationConfigState(status: IntegrationStatus): string {
+  if (!status.configured) {
+    return "not configured";
+  }
+  if (status.configMatches === false) {
+    return `stale config; ${formatConfiguredExpected(status)}; run \`exo integrations install ${status.client}\` and restart existing ${status.client} sessions`;
+  }
+  if (status.configMatches === undefined) {
+    return `configured; unable to verify launcher${status.error ? ` (${status.error.trim()})` : ""}`;
+  }
+  return "configured";
+}
+
+function formatConfiguredExpected(status: IntegrationStatus): string {
+  const configured = formatMcpCommand(status.configuredCommand, status.configuredArgs);
+  const expected = formatMcpCommand(status.expectedCommand, status.expectedArgs);
+  return `configured ${configured}, expected ${expected}`;
+}
+
+function formatMcpCommand(command?: string, args?: string[]): string {
+  return [command, ...(args ?? [])].filter(Boolean).join(" ") || "unknown launcher";
 }
 
 function resolveExoRoot(env: NodeJS.ProcessEnv): string {

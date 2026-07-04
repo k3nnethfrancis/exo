@@ -4,6 +4,7 @@ import {
   buildExoMcpIntegrationSpec,
   formatMcpServerJson,
   parseMcpListOutput,
+  parseMcpServerDetailsOutput,
 } from "../integrations";
 
 describe("integrations", () => {
@@ -68,5 +69,28 @@ describe("integrations", () => {
     expect(parseMcpListOutput("context7 npx -y context7\nexo pnpm --dir /tmp/exo\n").configured).toBe(true);
     expect(parseMcpListOutput("qmd: qmd mcp\nexo: pnpm --dir /tmp/exo\n").configured).toBe(true);
     expect(parseMcpListOutput("qmd: qmd mcp\n").configured).toBe(false);
+  });
+
+  it("parses Codex and Claude MCP server detail output", () => {
+    expect(parseMcpServerDetailsOutput([
+      "exo",
+      "  enabled: true",
+      "  transport: stdio",
+      "  command: node",
+      "  args: /tmp/current/packages/mcp/bin/exo-mcp.mjs",
+    ].join("\n"))).toEqual({
+      command: "node",
+      args: ["/tmp/current/packages/mcp/bin/exo-mcp.mjs"],
+    });
+
+    expect(parseMcpServerDetailsOutput([
+      "exo:",
+      "  Type: stdio",
+      "  Command: node",
+      "  Args: /tmp/current/packages/mcp/bin/exo-mcp.mjs",
+    ].join("\n"))).toEqual({
+      command: "node",
+      args: ["/tmp/current/packages/mcp/bin/exo-mcp.mjs"],
+    });
   });
 });

@@ -1413,7 +1413,20 @@ describe("cli package", () => {
           return { code: 0, stdout: "/opt/bin/pnpm\n", stderr: "" };
         }
         if (command === "codex") {
-          return { code: 0, stdout: "exo pnpm --dir /tmp/exo-test-workspace/projects/exo\n", stderr: "" };
+          if (args.join(" ") === "mcp list") {
+            return { code: 0, stdout: "exo pnpm --dir /tmp/exo-test-workspace/projects/exo\n", stderr: "" };
+          }
+          if (args.join(" ") === "mcp get exo") {
+            return {
+              code: 0,
+              stdout: [
+                "exo",
+                "  command: node",
+                "  args: /tmp/exo-test-workspace/projects/exo/packages/mcp/bin/exo-mcp.mjs",
+              ].join("\n"),
+              stderr: "",
+            };
+          }
         }
         if (command === "claude") {
           return { code: 0, stdout: "qmd: qmd mcp\n", stderr: "" };
@@ -1426,6 +1439,151 @@ describe("cli package", () => {
     expect(stdout).toContain("- pnpm: found");
     expect(stdout).toContain("- codex: found (/opt/bin/codex); Exo MCP configured");
     expect(stdout).toContain("- claude: found (/opt/bin/claude); Exo MCP not configured");
+  });
+
+  it("reports stale MCP launcher config in integration doctor", async () => {
+    let stdout = "";
+    const exitCode = await runCli(["node", "exo-cli", "integrations", "doctor"], {
+      env: {
+        EXO_PROJECT_ROOT: "/tmp/exo-test-workspace/projects/exo-current",
+        EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
+      },
+      stdout: {
+        write: (text) => {
+          stdout += text;
+        },
+      },
+      stderr: {
+        write: () => {},
+      },
+      runCommand: async (command, args) => {
+        if (command === "/bin/sh" && args.join(" ").includes("codex")) {
+          return { code: 0, stdout: "/opt/bin/codex\n", stderr: "" };
+        }
+        if (command === "/bin/sh" && args.join(" ").includes("claude")) {
+          return { code: 1, stdout: "", stderr: "missing" };
+        }
+        if (command === "/bin/sh" && args.join(" ").includes("pnpm")) {
+          return { code: 0, stdout: "/opt/bin/pnpm\n", stderr: "" };
+        }
+        if (command === "codex" && args.join(" ") === "mcp list") {
+          return { code: 0, stdout: "exo node /tmp/exo-old/packages/mcp/bin/exo-mcp.mjs\n", stderr: "" };
+        }
+        if (command === "codex" && args.join(" ") === "mcp get exo") {
+          return {
+            code: 0,
+            stdout: [
+              "exo",
+              "  command: node",
+              "  args: /tmp/exo-old/packages/mcp/bin/exo-mcp.mjs",
+            ].join("\n"),
+            stderr: "",
+          };
+        }
+        return { code: 1, stdout: "", stderr: "unexpected command" };
+      },
+    });
+
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain("- codex: found (/opt/bin/codex); Exo MCP stale config");
+    expect(stdout).toContain("configured node /tmp/exo-old/packages/mcp/bin/exo-mcp.mjs");
+    expect(stdout).toContain("expected node /tmp/exo-test-workspace/projects/exo-current/packages/mcp/bin/exo-mcp.mjs");
+    expect(stdout).toContain("run `exo integrations install codex` and restart existing codex sessions");
+  });
+
+  it("fails integration test when MCP launcher config is stale", async () => {
+    let stdout = "";
+    const exitCode = await runCli(["node", "exo-cli", "integrations", "test", "codex"], {
+      env: {
+        EXO_PROJECT_ROOT: "/tmp/exo-test-workspace/projects/exo-current",
+        EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
+      },
+      stdout: {
+        write: (text) => {
+          stdout += text;
+        },
+      },
+      stderr: {
+        write: () => {},
+      },
+      runCommand: async (command, args) => {
+        if (command === "/bin/sh" && args.join(" ").includes("codex")) {
+          return { code: 0, stdout: "/opt/bin/codex\n", stderr: "" };
+        }
+        if (command === "codex" && args.join(" ") === "mcp list") {
+          return { code: 0, stdout: "exo node /tmp/exo-old/packages/mcp/bin/exo-mcp.mjs\n", stderr: "" };
+        }
+        if (command === "codex" && args.join(" ") === "mcp get exo") {
+          return {
+            code: 0,
+            stdout: [
+              "exo",
+              "  command: node",
+              "  args: /tmp/exo-old/packages/mcp/bin/exo-mcp.mjs",
+            ].join("\n"),
+            stderr: "",
+          };
+        }
+        return { code: 1, stdout: "", stderr: "unexpected command" };
+      },
+    });
+
+    expect(exitCode).toBe(1);
+    expect(stdout).toContain("codex: Exo MCP stale config");
+  });
+
+  it("replaces stale MCP launcher config during integration install", async () => {
+    let stdout = "";
+    const calls: string[] = [];
+    const exitCode = await runCli(["node", "exo-cli", "integrations", "install", "codex"], {
+      env: {
+        EXO_PROJECT_ROOT: "/tmp/exo-test-workspace/projects/exo-current",
+        EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
+      },
+      stdout: {
+        write: (text) => {
+          stdout += text;
+        },
+      },
+      stderr: {
+        write: () => {},
+      },
+      runCommand: async (command, args) => {
+        calls.push([command, ...args].join(" "));
+        if (command === "/bin/sh" && args.join(" ").includes("codex")) {
+          return { code: 0, stdout: "/opt/bin/codex\n", stderr: "" };
+        }
+        if (command === "codex" && args.join(" ") === "mcp list") {
+          return { code: 0, stdout: "exo node /tmp/exo-old/packages/mcp/bin/exo-mcp.mjs\n", stderr: "" };
+        }
+        if (command === "codex" && args.join(" ") === "mcp get exo") {
+          return {
+            code: 0,
+            stdout: [
+              "exo",
+              "  command: node",
+              "  args: /tmp/exo-old/packages/mcp/bin/exo-mcp.mjs",
+            ].join("\n"),
+            stderr: "",
+          };
+        }
+        if (command === "codex" && args.join(" ") === "mcp remove exo") {
+          return { code: 0, stdout: "", stderr: "" };
+        }
+        if (command === "codex" && args[0] === "mcp" && args[1] === "add") {
+          return { code: 0, stdout: "", stderr: "" };
+        }
+        return { code: 1, stdout: "", stderr: "unexpected command" };
+      },
+    });
+
+    expect(exitCode).toBe(0);
+    expect(calls).toContain("/bin/sh -lc command -v codex");
+    expect(calls).toContain("codex mcp list");
+    expect(calls).toContain("codex mcp get exo");
+    expect(calls).toContain("codex mcp remove exo");
+    expect(calls.some((call) => call.includes("codex mcp add exo"))).toBe(true);
+    expect(stdout).toContain("codex: replaced stale Exo MCP config. Restart existing codex sessions or refresh MCP tools where supported.");
   });
 
   it("dry-runs integration install without spawning native installers", async () => {

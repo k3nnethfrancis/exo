@@ -1029,7 +1029,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-046: MCP autostart and tool calls can stay pinned to stale command-server discovery
 
-- Status: reopened; command-server/CLI path fixed, live MCP stdio calls still fail from Codex
+- Status: fixed in working tree; host-config reinstall path now diagnoses stale MCP launchers
 - Severity: high
 - Area: MCP, command-server discovery, autostart, Exo-on-Exo reliability
 - Observed:
@@ -1065,7 +1065,8 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - 2026-07-03: MCP autostart quarantines only definitely dead `server.json` discovery, preserves permission-blocked pid probes, and waits for a fresh reachable discovery record instead of staying pinned to the stale pid/port.
   - 2026-07-03: `exo start` now waits for the resolved command server to become reachable after launching `Exo.app` and exits nonzero with existing discovery diagnostics if the app never publishes a reachable server.
   - 2026-07-03 installed-app QA after Fable Wave-2: direct packaged app launch and `./bin/exo status` succeeded against the lab command server, and CLI create/send/read/terminate for a fresh shell terminal succeeded. However, Codex's `mcp__exo.workspace_status` still failed with `Transport closed`, so the app-backed MCP stdio path remains broken independently of the command-server/CLI path.
-  - Next fix should reproduce the stdio transport close with the packaged app running, then distinguish MCP process startup/handshake failure from command-client failure after initialize.
+  - 2026-07-04 WP-046 diagnosis: the failing layer was host MCP configuration after worktree/reinstall changes. Codex and Claude were configured to launch `/Users/kenneth/Desktop/lab/projects/exo/packages/mcp/bin/exo-mcp.mjs`, while this worktree expects `/Users/kenneth/Desktop/lab/projects/exo-wave3-046/packages/mcp/bin/exo-mcp.mjs`. Direct SDK stdio against the expected launcher initialized, listed tools, called `workspace_status`, and kept the transport open.
+  - 2026-07-04 fix: `exo integrations doctor` now verifies the configured MCP launcher path, `exo integrations test` fails on stale launchers, and `exo integrations install codex|claude|all` removes/re-adds stale entries. The diagnostic tells users to reinstall and restart/refresh existing agent sessions.
 
 ### EXO-ISSUE-045: Restart can leave stale command-server discovery with visible broken terminal UI
 

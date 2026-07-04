@@ -29,6 +29,11 @@ export interface ParsedMcpList {
   matchedLine?: string;
 }
 
+export interface ParsedMcpServerDetails {
+  command?: string;
+  args?: string[];
+}
+
 export function buildExoMcpServerSpec(config: ExoMcpIntegrationConfig): ExoMcpServerSpec {
   const serverName = config.serverName ?? "exo";
   return {
@@ -88,6 +93,27 @@ export function parseMcpListOutput(output: string, serverName = "exo"): ParsedMc
     configured: Boolean(matchedLine),
     matchedLine,
   };
+}
+
+export function parseMcpServerDetailsOutput(output: string): ParsedMcpServerDetails {
+  const details: ParsedMcpServerDetails = {};
+
+  for (const line of output.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    const commandMatch = trimmed.match(/^command:\s*(.+)$/i);
+    if (commandMatch) {
+      details.command = commandMatch[1].trim();
+      continue;
+    }
+
+    const argsMatch = trimmed.match(/^args:\s*(.+)$/i);
+    if (argsMatch) {
+      const rawArgs = argsMatch[1].trim();
+      details.args = rawArgs && rawArgs !== "-" ? rawArgs.split(/\s+/) : [];
+    }
+  }
+
+  return details;
 }
 
 export function formatMcpServerJson(spec: ExoMcpServerSpec): string {

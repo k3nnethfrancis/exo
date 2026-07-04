@@ -26,6 +26,8 @@ This installs Exo MCP into supported local agent clients through their native CL
 
 Use `bin/exo integrations install --dry-run all` or `bin/exo integrations config codex|claude` to inspect the exact commands before changing local MCP config.
 
+`bin/exo integrations doctor` verifies the configured launcher path for each supported client. If it reports a stale Exo MCP config after moving checkouts, reinstalling, or switching worktrees, run `bin/exo integrations install codex|claude|all`; Exo will replace the stale MCP entry. Already-running Codex or Claude sessions still need to restart or refresh MCP tools before they use the new launcher.
+
 Manual config shape:
 
 ```json
