@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
 import {
   SemanticTraceStore,
   captureFakeHarnessTraceFixture,
+  ingestHarnessRawTraceSidecar,
   fakeHarnessTraceCaptureDeclaration,
   mapHarnessRawTraceEvent,
   semanticTraceMetadataPath,
@@ -139,6 +140,54 @@ describe("semantic trace store", () => {
       expect((await store.readMetadata("retained-session"))?.eventCount).toBe(4);
       expect((await store.readEvents("retained-session", { limit: 2 })).map((event) => event.sequence)).toEqual([5, 6]);
       expect((await store.readEvents("retained-session", { sinceSequence: 4 })).map((event) => event.sequence)).toEqual([5, 6]);
+    } finally {
+      await rm(runtimeRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("ingests sidecar JSONL incrementally without duplicating prior raw events", async () => {
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-semantic-trace-sidecar-"));
+    const sidecarPath = path.join(runtimeRoot, "traces", "sidecars", "session-1.ndjson");
+    const store = new SemanticTraceStore(runtimeRoot);
+
+    try {
+      await mkdir(path.dirname(sidecarPath), { recursive: true });
+      await writeFile(
+        sidecarPath,
+        `${JSON.stringify({ type: "assistant-text", text: "first" })}\n${JSON.stringify({ type: "assistant-text", text: "partial" })}`,
+        "utf8",
+      );
+
+      const first = await ingestHarnessRawTraceSidecar(store, {
+        sidecarPath,
+        sessionId: "session-1",
+        harnessId: "pi",
+        traceCapture: fakeHarnessTraceCaptureDeclaration,
+      });
+
+      expect(first.ingestedEvents).toBe(1);
+      expect(first.state.nextSequence).toBe(2);
+      expect((await store.readEvents("session-1")).map((event) => event.payload.text)).toEqual(["first"]);
+
+      await writeFile(
+        sidecarPath,
+        `${JSON.stringify({ type: "assistant-text", text: "first" })}\n${JSON.stringify({ type: "assistant-text", text: "partial" })}\n${JSON.stringify({ type: "assistant-text", text: "third" })}\n`,
+        "utf8",
+      );
+      const second = await ingestHarnessRawTraceSidecar(store, {
+        sidecarPath,
+        sessionId: "session-1",
+        harnessId: "pi",
+        state: first.state,
+        traceCapture: fakeHarnessTraceCaptureDeclaration,
+      });
+
+      expect(second.ingestedEvents).toBe(2);
+      expect((await store.readEvents("session-1")).map((event) => event.payload.text)).toEqual(["first", "partial", "third"]);
+      expect((await store.readMetadata("session-1"))?.metadata).toMatchObject({
+        sidecarPath,
+        traceCapture: fakeHarnessTraceCaptureDeclaration,
+      });
     } finally {
       await rm(runtimeRoot, { recursive: true, force: true });
     }

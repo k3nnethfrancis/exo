@@ -434,6 +434,7 @@ export interface AgentLaunchPlan {
   cwd: string;
   command: string;
   args: string[];
+  traceCapture?: AgentLauncherTraceCaptureConfig;
   env: Record<string, string>;
   primaryInstructionsPath: string;
   secondaryInstructionsPath?: string;

@@ -86,6 +86,8 @@ Canonical first-pass paths:
 - `.exo/runs/{runId}/run.log`
 - `.exo/artifacts/{runId}/{artifactFileName}`
 
-Trace JSONL is a plugin-owned artifact. Core provides a first semantic trace store under `.exo/traces/{sessionId}.ndjson`, with a `.exo/traces/{sessionId}.json` metadata sidecar that records the trace artifact reference and sequence bounds. The first consumer is `exo traces read <sessionId>`, a bounded human-readable reader for turns, assistant text, tool calls/results, lifecycle events, and preserved `harness.raw` source events. Run/activity records should still reference the trace artifact rather than embedding packets.
+Trace JSONL is a plugin-owned artifact. Core provides a first semantic trace store under `.exo/traces/{sessionId}.ndjson`, with a `.exo/traces/{sessionId}.json` metadata sidecar that records the trace artifact reference and sequence bounds. The first production producer is the Pi-compatible harness sidecar declared in the launch plan and ingested by the desktop terminal manager; raw provider packets land first in `.exo/traces/sidecars/{sessionId}.ndjson` and are normalized into the trace store. The first consumers are `exo traces read <sessionId>`, `exo agents read <sessionId> --semantic`, and MCP `read_agent` with `source: "trace"`.
+
+Raw terminal reads remain transcript/live-tail evidence, not semantic answer extraction. UI, CLI, and MCP copy must say whether a read is transcript-backed, live-tail-backed, or trace-backed, and must not imply semantic trace data exists when no trace events have been emitted. Run/activity records should still reference the trace artifact rather than embedding packets.
 
 -- Exo | 2026-07-03

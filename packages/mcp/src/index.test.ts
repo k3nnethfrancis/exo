@@ -167,6 +167,29 @@ describe("Exo MCP server tools", () => {
       structuredContent: { output: transcript },
     });
   });
+
+  it("reports trace-backed absence without implying terminal extraction", async () => {
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-mcp-empty-trace-agent-"));
+    tempPaths.push(runtimeRoot);
+    vi.stubEnv("EXO_RUNTIME_ROOT", runtimeRoot);
+
+    const server = createExoMcpServer() as unknown as {
+      _registeredTools: Record<string, { handler?: (args: Record<string, unknown>) => Promise<unknown> }>;
+    };
+    const result = await server._registeredTools.read_agent.handler?.({
+      agentId: "missing-trace",
+      source: "trace",
+    });
+
+    expect(result).toMatchObject({
+      content: [{ type: "text", text: "(no trace-backed semantic answer output)" }],
+      structuredContent: {
+        agentId: "missing-trace",
+        output: "",
+        source: "trace",
+      },
+    });
+  });
 });
 
 function jsonResponse(body: Record<string, unknown>, status = 200): Response {

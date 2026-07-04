@@ -92,7 +92,9 @@ Harnesses may declare whether they can produce structured semantic trace events.
 - default visibility for emitted events
 - optional trace artifact filename
 
-The first implemented capture seam is the launch-plan `traceCapture` declaration for `stream-json`-shaped stdout/stderr/sidecar JSONL. The deterministic fake harness fixture maps `session-start`, `turn-start`, `assistant-text`, `tool-call`, `tool-result`, and `lifecycle` packets into the core envelope, stores them at `.exo/traces/{sessionId}.ndjson`, and links the artifact through the metadata sidecar. Unknown packets are kept as `harness.raw`.
+The first implemented capture seam is the launch-plan `traceCapture` declaration for `stream-json`-shaped stdout/stderr/sidecar JSONL. Pi-compatible harnesses bind this first through `sidecar-jsonl`: Exo provisions a session-specific sidecar path under `.exo/traces/sidecars/{sessionId}.ndjson`, passes it through the declared `EXO_PI_SEMANTIC_TRACE_PATH` env var, and also supplies generic `EXO_SEMANTIC_TRACE_PATH`, `EXO_SEMANTIC_TRACE_SESSION_ID`, and `EXO_SEMANTIC_TRACE_HARNESS_ID` env vars for compatible adapters.
+
+The stream-json sidecar contract accepts line-delimited packets such as `session-start`, `turn-start`, `assistant-text`, `tool-call`, `tool-result`, and `lifecycle`. Exo follows the declared sidecar and maps packets into `.exo/traces/{sessionId}.ndjson`, with `.exo/traces/{sessionId}.json` linking the trace artifact. Unknown packets are kept as `harness.raw`. Fixture-only direct writes into `.exo/traces/{sessionId}.ndjson` are test setup only, not production trace capture.
 
 Semantic traces are separate from terminal output. Core terminal services still own tmux, xterm, scrollback, transcripts, reconnect, and input delivery. Harness adapters may later tee provider-native JSON streams, hooks, or sidecar logs into `.exo/artifacts/{activityId}/semantic-trace.jsonl`, but they must not use semantic traces as a second live terminal screen source.
 

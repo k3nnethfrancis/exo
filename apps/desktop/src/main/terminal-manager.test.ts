@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AgentHarnessDependencyStatus } from "@exo/core";
+import { SemanticTraceStore, semanticTraceEventsToAgentAnswerText, type AgentHarnessDependencyStatus } from "@exo/core";
 
 const ptyState = vi.hoisted(() => ({
   spawned: [] as Array<{
@@ -806,7 +806,7 @@ describe("TerminalManager Codex readiness", () => {
         }),
       }),
     ]);
-    expect(process.env.EXO_PI_BACKEND_READY).toBeUndefined();
+    expect(process.env.EXO_PI_BACKEND_READY).not.toBe("1");
     expect(runtime.calls.createSession).toHaveLength(1);
     expect(runtime.calls.createSession[0]).toMatchObject({
       command: piCommand,
@@ -816,6 +816,46 @@ describe("TerminalManager Codex readiness", () => {
       }),
     });
     await expect(readFile(path.join(workspaceRoot, ".exo", "instructions", "AGENTS.md"), "utf8")).resolves.toContain("# Exo Runtime");
+  });
+
+  it("provisions Pi-compatible trace sidecars and ingests stream-json events through session wiring", async () => {
+    const workspaceRoot = await workspaceFixture();
+    const piCommand = path.join(workspaceRoot, "pi");
+    await writeFile(piCommand, "#!/bin/sh\nexit 0\n", "utf8");
+    await chmodExecutable(piCommand);
+    stubWorkspaceEnv(workspaceRoot);
+    vi.stubEnv("EXO_PI_COMMAND", piCommand);
+    vi.stubEnv("EXO_PI_REPO_PATH", workspaceRoot);
+    vi.stubEnv("EXO_PI_BACKEND_URL", "http://127.0.0.1:18080");
+    vi.stubEnv("EXO_PI_BACKEND_READY", "1");
+    const runtime = fakeRuntime();
+    const manager = new TerminalManager(workspaceRoot, 500, 0, {}, runtime);
+
+    const terminal = await manager.create({ kind: "pi", cwd: workspaceRoot });
+    const createCall = runtime.calls.createSession[0] as { env: Record<string, string | undefined> };
+    const sidecarPath = createCall.env.EXO_PI_SEMANTIC_TRACE_PATH;
+
+    expect(sidecarPath).toBe(path.join(workspaceRoot, ".exo", "traces", "sidecars", `${terminal.id}.ndjson`));
+    expect(createCall.env.EXO_SEMANTIC_TRACE_PATH).toBe(sidecarPath);
+    expect(createCall.env.EXO_SEMANTIC_TRACE_SESSION_ID).toBe(terminal.id);
+    expect(createCall.env.EXO_SEMANTIC_TRACE_HARNESS_ID).toBe("pi");
+
+    await writeFile(
+      sidecarPath!,
+      `${JSON.stringify({
+        type: "assistant-text",
+        text: "PI_FIXTURE_ANSWER OK",
+        turnId: "turn-1",
+        timestamp: "2026-07-04T12:00:00.000Z",
+      })}\n`,
+      "utf8",
+    );
+    runtime.emitExit(0);
+
+    await vi.waitFor(async () => {
+      const events = await new SemanticTraceStore(path.join(workspaceRoot, ".exo")).readEvents(terminal.id);
+      expect(semanticTraceEventsToAgentAnswerText(events)).toBe("PI_FIXTURE_ANSWER OK");
+    });
   });
 
   it("terminates the tmux session when killing a terminal", async () => {

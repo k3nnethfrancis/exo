@@ -152,6 +152,21 @@ describe("agent harness registry", () => {
         },
       },
     });
+    expect(builtInAgentHarnesses.pi).toMatchObject({
+      contractVersion: "agent-harness.v1",
+      terminalOwnership: "core",
+      adapter: {
+        family: "pi",
+        productName: "Pi-compatible harness",
+      },
+      semanticTrace: {
+        schemaVersion: "exo.semantic-trace.v1",
+        sources: ["sidecar-jsonl"],
+        eventKinds: expect.arrayContaining(["message", "tool.call", "tool.result", "harness.raw"]),
+        defaultVisibility: "private",
+        artifactFileName: "semantic-trace.ndjson",
+      },
+    });
   });
 
   it("rejects duplicate harness ids", () => {

@@ -271,7 +271,7 @@ server.registerTool(
   "read_agent",
   {
     title: "Read Exo Agent",
-    description: "Read the bounded live terminal tail for one Exo agent. This is read-only.",
+    description: "Read terminal live-tail/transcript output by default, or trace-backed semantic answer text with source: \"trace\". This is read-only.",
     inputSchema: {
       agentId: z.string().min(1).describe("Agent id from list_agents, for example term-3."),
       maxLines: z.number().int().positive().optional().describe("Maximum live terminal lines to return, bounded by Exo's configured terminal history lines. Prefer this for reads that should not flood callers."),
@@ -293,7 +293,7 @@ server.registerTool(
         const events = await store.readEvents(agentId, { limit: traceLimit ?? 100 });
         const output = semanticTraceEventsToAgentAnswerText(events);
         return {
-          content: [{ type: "text", text: output || "(no semantic answer output)" }],
+          content: [{ type: "text", text: output || "(no trace-backed semantic answer output)" }],
           structuredContent: { agentId, output, source: "trace", traceLimit: traceLimit ?? 100 },
         };
       }
@@ -308,7 +308,7 @@ server.registerTool(
       const rawOutput = maxLines ? await client.readAgentTail(agentId, maxLines) : await client.readAgent(agentId, effectiveTailChars);
       const output = clean !== false ? stripAnsi(rawOutput) : rawOutput;
       return {
-        content: [{ type: "text", text: output || "(no buffered output)" }],
+        content: [{ type: "text", text: output || "(no terminal transcript/live-tail output)" }],
         structuredContent: { agentId, output, source: "terminal", maxLines, tailChars: maxLines ? undefined : effectiveTailChars },
       };
     });

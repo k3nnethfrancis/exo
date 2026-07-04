@@ -162,6 +162,7 @@ function buildAgentLaunchPlan(
     cwd,
     command: launcher.command,
     args: launcher.args,
+    traceCapture: launcher.traceCapture,
     primaryInstructionsPath: config.instructions.primary,
     secondaryInstructionsPath: undefined,
     env: {

@@ -601,7 +601,7 @@ export async function runCli(
         return 0;
       }
       const answer = semanticTraceEventsToAgentAnswerText(events);
-      stdout.write(answer || "(no semantic answer output)");
+      stdout.write(answer || "(no trace-backed semantic answer output)");
       if (!answer.endsWith("\n")) {
         stdout.write("\n");
       }
@@ -642,6 +642,7 @@ export async function runCli(
       const transcript = await client.readTerminalTranscript(id, tailChars);
       const output = raw ? transcript : cleanTerminalOutput(transcript);
       const tailed = tailChars > 0 ? output.slice(-tailChars) : output;
+      stderr.write(agentTranscriptReadNote({ tailChars, full: args.includes("--full"), raw }));
       stdout.write(tailed || "(no buffered output)");
       if (!tailed.endsWith("\n")) {
         stdout.write("\n");
@@ -1057,7 +1058,7 @@ export async function runCli(
       "  exo terminals resync <id>                  Reattach and resize a divergent terminal (app)",
       "  exo agents [list]                          List live Exo agents (app)",
       `  exo agents create <${agentKindUsage(env)}>     Create Exo agent (app)`,
-      "  exo agents read <id> [--tail n] [--full] [--raw] [--semantic] Read agent transcript tail or semantic trace answer",
+      "  exo agents read <id> [--tail n] [--full] [--raw] [--semantic] Read transcript tail; --semantic reads trace-backed answer text",
       "  exo agents send <id> <text> [--raw|--no-submit] Send message to agent (app)",
       "  exo agents interrupt <id> [escape|ctrl-c]  Interrupt agent (app)",
       "  exo agents terminate <id>                  Terminate agent (app)",
@@ -1375,12 +1376,12 @@ function isHelpFlag(value: string | undefined): boolean {
 function formatAgentsHelp(env: NodeJS.ProcessEnv): string {
   const usage = agentKindUsage(env);
   return [
-    `Usage: exo agents [list | create <${usage}> [cwd] | read <id> [--tail chars] [--full] [--raw] | send <id> <text> [--raw|--no-submit] | interrupt <id> [escape|ctrl-c] | terminate <id>]`,
+    `Usage: exo agents [list | create <${usage}> [cwd] | read <id> [--tail chars] [--full] [--raw] [--semantic] | send <id> <text> [--raw|--no-submit] | interrupt <id> [escape|ctrl-c] | terminate <id>]`,
     "",
     "Commands:",
     "  list                                      List live Exo agents",
     `  create <${usage}> [cwd]        Create an Exo agent`,
-    "  read <id> [--tail chars] [--full] [--raw] Read an agent transcript tail",
+    "  read <id> [--tail chars] [--full] [--raw] Read a disk transcript tail; --semantic reads trace-backed answer text",
     "  send <id> <text> [--raw|--no-submit]     Send a semantic message, or raw terminal input with --raw",
     "  interrupt <id> [escape|ctrl-c]           Interrupt an agent",
     "  terminate <id>                           Terminate an agent",
@@ -1510,6 +1511,15 @@ function parseAgentReadTailChars(args: string[]): number {
   }
   const tailChars = parseTailChars(args);
   return tailChars > 0 ? tailChars : DEFAULT_AGENT_READ_TAIL_CHARS;
+}
+
+function agentTranscriptReadNote(input: { tailChars: number; full: boolean; raw: boolean }): string {
+  const scope = input.full ? "full disk transcript" : `disk transcript tail (${input.tailChars} chars)`;
+  const format = input.raw ? "raw ANSI bytes" : "ANSI-cleaned text";
+  const truncation = input.full
+    ? ""
+    : " If output looks cut off mid-repaint, retry with --full, a larger --tail, or --semantic for trace-backed answer text.";
+  return `Source: ${scope}; format: ${format}; not semantic trace data.${truncation}\n`;
 }
 
 function parseBoundedTerminalReadLines(value: string | undefined): number | undefined {

@@ -29,6 +29,23 @@ const PASTE_ENTER_SEMANTIC_MESSAGES = {
   detail: "Agent semantic messages use bracketed paste, then Enter when submitted.",
 } as const;
 
+const PI_SEMANTIC_TRACE = {
+  schemaVersion: "exo.semantic-trace.v1",
+  sources: ["sidecar-jsonl"],
+  eventKinds: [
+    "session.started",
+    "turn.started",
+    "message",
+    "tool.call",
+    "tool.result",
+    "lifecycle",
+    "harness.raw",
+  ],
+  defaultVisibility: "private",
+  artifactFileName: "semantic-trace.ndjson",
+  detail: "Pi-compatible harnesses may emit stream-json events to the sidecar path declared through EXO_PI_SEMANTIC_TRACE_PATH.",
+} as const;
+
 const CODEX_SEMANTIC_MESSAGES = {
   ...PASTE_ENTER_SEMANTIC_MESSAGES,
   queueSubmittedInputUntilReady: true,
@@ -535,10 +552,18 @@ class CodexAgentHarness implements AgentHarness {
 }
 
 class PiAgentHarness implements AgentHarness {
+  readonly contractVersion = "agent-harness.v1";
   readonly kind = "pi";
   readonly title = "Pi";
   readonly metadata = resolveCapabilityMetadata(this.kind);
+  readonly adapter = {
+    id: "pi",
+    family: "pi",
+    productName: "Pi-compatible harness",
+  } as const;
   readonly skills = [];
+  readonly semanticTrace = PI_SEMANTIC_TRACE;
+  readonly terminalOwnership = "core";
 
   resolveLauncher(env: NodeJS.ProcessEnv): AgentLauncherConfig {
     const command = validPiCommand(env);
@@ -549,6 +574,13 @@ class PiAgentHarness implements AgentHarness {
       title: env.EXO_PI_LABEL ?? "Pi-compatible harness",
       command: command ?? sourceCheckoutNode ?? "pi",
       args: sourceCheckout && sourceCheckoutNode ? [sourceCheckout.cliPath, ...splitEnvArgs(env.EXO_PI_ARGS)] : splitEnvArgs(env.EXO_PI_ARGS),
+      traceCapture: {
+        schemaVersion: "exo.semantic-trace.v1",
+        source: "sidecar-jsonl",
+        artifactFileName: PI_SEMANTIC_TRACE.artifactFileName,
+        eventFormat: "stream-json",
+        envVar: "EXO_PI_SEMANTIC_TRACE_PATH",
+      },
     };
   }
 

@@ -199,6 +199,30 @@ describe("cli package", () => {
     }
   });
 
+  it("says semantic agent reads are trace-backed when no events exist", async () => {
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-empty-trace-"));
+    let stdout = "";
+
+    try {
+      const exitCode = await runCli(["node", "exo-cli", "agents", "read", "empty-session", "--semantic"], {
+        env: {
+          EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
+          EXO_RUNTIME_ROOT: runtimeRoot,
+        },
+        stdout: { write: (text) => { stdout += text; } },
+        stderr: { write: () => {} },
+        connectAppClient: async () => {
+          throw new Error("semantic agent reads should not connect to the app");
+        },
+      });
+
+      expect(exitCode).toBe(0);
+      expect(stdout).toBe("(no trace-backed semantic answer output)\n");
+    } finally {
+      await rm(runtimeRoot, { recursive: true, force: true });
+    }
+  });
+
   it("uses persisted Pi-compatible harness settings for runtime status and launch plans", async () => {
     const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-cli-pi-settings-"));
     const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-pi-workspace-"));
@@ -681,10 +705,11 @@ describe("cli package", () => {
   it("reads a bounded agent transcript tail by default", async () => {
     let receivedTailChars: number | undefined;
     let stdout = "";
+    let stderr = "";
     const exitCode = await runCli(["node", "exo-cli", "agents", "read", "term-1"], {
       env: testRuntimeEnv(),
       stdout: { write: (text) => { stdout += text; } },
-      stderr: { write: () => {} },
+      stderr: { write: (text) => { stderr += text; } },
       connectAppClient: async () => fakeAppClient({
         readTerminalTranscript: async (_id, tailChars) => {
           receivedTailChars = tailChars;
@@ -695,6 +720,7 @@ describe("cli package", () => {
 
     expect(exitCode).toBe(0);
     expect(receivedTailChars).toBe(20_000);
+    expect(stderr).toContain("Source: disk transcript tail (20000 chars); format: ANSI-cleaned text; not semantic trace data.");
     expect(stdout).toBe("old\nfresh\n");
   });
 
@@ -746,10 +772,11 @@ describe("cli package", () => {
 
   it("preserves full agent transcript reads behind --full", async () => {
     let receivedTailChars: number | undefined;
+    let stderr = "";
     const exitCode = await runCli(["node", "exo-cli", "agents", "read", "term-1", "--full"], {
       env: testRuntimeEnv(),
       stdout: { write: () => {} },
-      stderr: { write: () => {} },
+      stderr: { write: (text) => { stderr += text; } },
       connectAppClient: async () => fakeAppClient({
         readTerminalTranscript: async (_id, tailChars) => {
           receivedTailChars = tailChars;
@@ -760,6 +787,7 @@ describe("cli package", () => {
 
     expect(exitCode).toBe(0);
     expect(receivedTailChars).toBe(0);
+    expect(stderr).toContain("Source: full disk transcript; format: ANSI-cleaned text; not semantic trace data.");
   });
 
   it("passes terminal read line limits to the app client", async () => {

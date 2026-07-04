@@ -156,6 +156,8 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - `exo agents read <id> --tail N --raw` remains documented as a bounded raw transcript suffix, not a semantic answer extractor.
   - Added a generic trace-backed answer read path: `exo agents read <id> --semantic`, MCP `read_agent` with `source: "trace"`, and command-server `GET /terminals/{id}/semantic-answer?limit=N`.
   - The fake Pi repaint TUI can now emit a semantic sidecar event for deterministic tests; no live inference is required.
+  - WP-P4b added the production producer for Pi-compatible harnesses: the adapter declares `sidecar-jsonl`, Exo provisions `.exo/traces/sidecars/{sessionId}.ndjson` through `EXO_PI_SEMANTIC_TRACE_PATH`, desktop ingests stream-json packets into `.exo/traces/{sessionId}.ndjson`, and tests cover the path without live Pi inference.
+  - CLI/MCP read copy now distinguishes disk transcript/live-tail output from trace-backed semantic answer output and reports when no trace-backed answer exists.
   - Terminal screen reads/capture tails still report displayed/history text only.
 - Acceptance:
   - [x] Reproduce with a deterministic fake or low-risk Pi-compatible fixture without requiring live model inference.

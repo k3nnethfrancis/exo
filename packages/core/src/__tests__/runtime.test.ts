@@ -164,6 +164,13 @@ describe("runtime", () => {
     expect(path.basename(plan.command)).toBe("node");
     expect(plan.args).toEqual([cliPath]);
     expect(plan.env.EXO_AGENT_KIND).toBe("pi");
+    expect(plan.traceCapture).toEqual({
+      schemaVersion: "exo.semantic-trace.v1",
+      source: "sidecar-jsonl",
+      artifactFileName: "semantic-trace.ndjson",
+      eventFormat: "stream-json",
+      envVar: "EXO_PI_SEMANTIC_TRACE_PATH",
+    });
   });
 
   it("projects persisted Pi-compatible settings into workspace-cwd launch plans", async () => {

@@ -1,13 +1,19 @@
 import { EventEmitter } from "node:events";
 import { randomUUID } from "node:crypto";
+import { mkdirSync } from "node:fs";
 import path from "node:path";
 
 import {
+  defaultHarnessRawTraceSidecarIngestState,
+  ingestHarnessRawTraceSidecar,
   resolveRegisteredAgentHarnessDetection,
   resolveLaunchableAgentLaunchPlan,
   resolveRuntimeConfig,
+  SemanticTraceStore,
   syncRuntimeContextFiles,
   terminalSubstrateKindForManagedAgentKind,
+  type AgentLauncherTraceCaptureConfig,
+  type HarnessRawTraceSidecarIngestState,
   type RuntimeConfig,
 } from "@exo/core";
 import {
@@ -72,6 +78,16 @@ interface TerminalRecord {
   geometryDivergentSince?: number;
   reconnecting?: boolean;
   terminating?: boolean;
+  traceCapture?: ProvisionedTraceCapture;
+  traceCaptureIngesting?: boolean;
+}
+
+interface ProvisionedTraceCapture {
+  config: AgentLauncherTraceCaptureConfig;
+  sidecarPath: string;
+  harnessId: string;
+  state: HarnessRawTraceSidecarIngestState;
+  timer?: NodeJS.Timeout;
 }
 
 const DEFAULT_LIVE_SCROLLBACK_LINES = 100_000;
@@ -255,6 +271,7 @@ export class TerminalManager extends EventEmitter {
     const id = this.allocateTerminalId();
     const isAgent = isAgentHarnessKind(options.kind);
     const overlayEnv = isAgent ? agentInstructionOverlayEnv(this.runtimeConfig.workspace, launch.cwd) : {};
+    const traceCapture = this.provisionTraceCapture(id, launch.harnessId, launch.traceCapture);
     if (isAgent) {
       writeAgentInstructionOverlaysSync(this.runtimeConfig.workspace);
     }
@@ -268,6 +285,7 @@ export class TerminalManager extends EventEmitter {
       ...dependencyEnv,
       ...launch.env,
       ...overlayEnv,
+      ...traceCaptureEnv(id, launch.harnessId, traceCapture),
     };
 
     const spawnArgs = harnessLaunchArgs(options.kind, launch.args, this.runtimeConfig, launch.cwd);
@@ -319,6 +337,7 @@ export class TerminalManager extends EventEmitter {
       pendingWrites: [],
       rawInputBuffer: "",
       lastWriteId: 0,
+      traceCapture,
     };
 
     if (shouldGateHarnessStartupInput(info)) {
@@ -332,6 +351,7 @@ export class TerminalManager extends EventEmitter {
     }
 
     this.sessions.set(id, record);
+    this.startTraceCaptureIngestion(record);
 
     this.appendTranscript(id, this.transcriptHeader(info));
     this.wireProcess(id, processHandle, info.attachGeneration);
@@ -516,6 +536,8 @@ export class TerminalManager extends EventEmitter {
     }
 
     this.flushTranscript(id);
+    await this.flushTraceCapture(record);
+    this.stopTraceCaptureIngestion(record);
     this.clearReadinessTimer(record);
     this.discardRawInputForKill(record);
     this.discardPendingWrites(record, "terminal was killed before queued input could be delivered");
@@ -740,12 +762,16 @@ export class TerminalManager extends EventEmitter {
 
   private retireExitedTerminal(record: TerminalRecord, exitCode?: number): void {
     this.flushTranscript(record.info.id);
+    void this.flushTraceCapture(record);
+    this.stopTraceCaptureIngestion(record);
     this.markExited(record, exitCode);
     this.persistSessions();
     this.emit("exit", { id: record.info.id, exitCode });
   }
 
   private markExited(record: TerminalRecord, exitCode?: number): void {
+    void this.flushTraceCapture(record);
+    this.stopTraceCaptureIngestion(record);
     this.discardRawInputOnExit(record);
     this.discardPendingWrites(record, "terminal exited before queued input could be delivered");
     record.info.status = "exited";
@@ -810,6 +836,72 @@ export class TerminalManager extends EventEmitter {
 
   private createGeometryService(): TerminalGeometryService {
     return new TerminalGeometryService(this.terminalRuntimeOptions.initialColumns, this.terminalRuntimeOptions.initialRows);
+  }
+
+  private provisionTraceCapture(
+    id: string,
+    harnessId: string,
+    declaration?: AgentLauncherTraceCaptureConfig,
+  ): ProvisionedTraceCapture | undefined {
+    if (!declaration || declaration.source !== "sidecar-jsonl") {
+      return undefined;
+    }
+    const sidecarPath = declaration.sidecarPath ?? path.join(this.runtimeConfig.runtimeRoot, "traces", "sidecars", `${sanitizeTranscriptName(id)}.ndjson`);
+    mkdirSync(path.dirname(sidecarPath), { recursive: true });
+    return {
+      config: {
+        ...declaration,
+        sidecarPath,
+      },
+      sidecarPath,
+      harnessId,
+      state: defaultHarnessRawTraceSidecarIngestState(),
+    };
+  }
+
+  private startTraceCaptureIngestion(record: TerminalRecord): void {
+    const capture = record.traceCapture;
+    if (!capture) {
+      return;
+    }
+    capture.timer = setInterval(() => {
+      void this.flushTraceCapture(record);
+    }, 250);
+    capture.timer.unref?.();
+  }
+
+  private stopTraceCaptureIngestion(record: TerminalRecord): void {
+    if (record.traceCapture?.timer) {
+      clearInterval(record.traceCapture.timer);
+      record.traceCapture.timer = undefined;
+    }
+  }
+
+  private async flushTraceCapture(record: TerminalRecord): Promise<void> {
+    const capture = record.traceCapture;
+    if (!capture || record.traceCaptureIngesting) {
+      return;
+    }
+    record.traceCaptureIngesting = true;
+    try {
+      const result = await ingestHarnessRawTraceSidecar(new SemanticTraceStore(this.runtimeConfig.runtimeRoot), {
+        sidecarPath: capture.sidecarPath,
+        state: capture.state,
+        sessionId: record.info.id,
+        harnessId: capture.harnessId,
+        defaultVisibility: "private",
+        traceCapture: capture.config,
+      });
+      capture.state = result.state;
+    } catch (error) {
+      console.warn("[exo] failed to ingest semantic trace sidecar", {
+        id: record.info.id,
+        sidecarPath: capture.sidecarPath,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      record.traceCaptureIngesting = false;
+    }
   }
 
   private allocateTerminalId(): string {
@@ -1334,6 +1426,22 @@ function terminalSessionIdentity(kind: TerminalKind, harnessId: string = kind): 
   return {
     terminalKind: terminalSubstrateKindForManagedAgentKind(kind),
     harnessId: kind === "shell" && harnessId === "shell" ? null : harnessId,
+  };
+}
+
+function traceCaptureEnv(
+  sessionId: string,
+  harnessId: string,
+  capture: ProvisionedTraceCapture | undefined,
+): Record<string, string> {
+  if (!capture) {
+    return {};
+  }
+  return {
+    ...(capture.config.envVar ? { [capture.config.envVar]: capture.sidecarPath } : {}),
+    EXO_SEMANTIC_TRACE_PATH: capture.sidecarPath,
+    EXO_SEMANTIC_TRACE_SESSION_ID: sessionId,
+    EXO_SEMANTIC_TRACE_HARNESS_ID: harnessId,
   };
 }
 

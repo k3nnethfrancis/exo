@@ -80,6 +80,26 @@ export interface HarnessRawTraceContext {
   now?: () => string;
 }
 
+export interface HarnessRawTraceSidecarIngestState {
+  byteOffset: number;
+  pendingText: string;
+  nextSequence: number;
+}
+
+export interface HarnessRawTraceSidecarIngestInput extends HarnessRawTraceContext {
+  sidecarPath: string;
+  state?: HarnessRawTraceSidecarIngestState;
+  retentionLimit?: number;
+  metadata?: Record<string, unknown>;
+  traceCapture?: AgentLauncherTraceCaptureConfig;
+}
+
+export interface HarnessRawTraceSidecarIngestResult {
+  state: HarnessRawTraceSidecarIngestState;
+  ingestedEvents: number;
+  metadata?: SemanticTraceSessionMetadata;
+}
+
 export interface FakeHarnessTraceFixtureInput extends HarnessRawTraceContext {
   rawEvents?: HarnessRawTraceEvent[];
   retentionLimit?: number;
@@ -107,6 +127,10 @@ export function semanticTracePath(layout: SemanticTraceStoreLayout, sessionId: s
 
 export function semanticTraceMetadataPath(layout: SemanticTraceStoreLayout, sessionId: string): string {
   return path.join(layout.tracesDir, `${safeStoreSegment(sessionId)}.json`);
+}
+
+export function defaultHarnessRawTraceSidecarIngestState(): HarnessRawTraceSidecarIngestState {
+  return { byteOffset: 0, pendingText: "", nextSequence: 1 };
 }
 
 export class SemanticTraceStore {
@@ -264,6 +288,64 @@ export async function captureFakeHarnessTraceFixture(
       ...input.metadata,
     },
   });
+}
+
+export async function ingestHarnessRawTraceSidecar(
+  store: SemanticTraceStore,
+  input: HarnessRawTraceSidecarIngestInput,
+): Promise<HarnessRawTraceSidecarIngestResult> {
+  const previousState = input.state ?? defaultHarnessRawTraceSidecarIngestState();
+  let rawBuffer: Buffer;
+  try {
+    rawBuffer = await readFile(input.sidecarPath);
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+      return { state: previousState, ingestedEvents: 0 };
+    }
+    throw error;
+  }
+
+  const byteOffset = Math.min(previousState.byteOffset, rawBuffer.length);
+  const appendedText = rawBuffer.subarray(byteOffset).toString("utf8");
+  const combined = `${previousState.pendingText}${appendedText}`;
+  const lines = combined.split(/\r?\n/);
+  const pendingText = combined.endsWith("\n") || combined.endsWith("\r") ? "" : lines.pop() ?? "";
+  const rawEvents = lines
+    .filter((line) => line.trim().length > 0)
+    .map((line) => JSON.parse(line) as HarnessRawTraceEvent);
+
+  if (rawEvents.length === 0) {
+    return {
+      state: {
+        byteOffset: rawBuffer.length,
+        pendingText,
+        nextSequence: previousState.nextSequence,
+      },
+      ingestedEvents: 0,
+    };
+  }
+
+  const events = rawEvents.map((event, index) =>
+    mapHarnessRawTraceEvent(event, input, previousState.nextSequence + index),
+  );
+  const metadata = await store.appendEvents(input.sessionId, events, {
+    retentionLimit: input.retentionLimit,
+    metadata: {
+      sidecarPath: input.sidecarPath,
+      traceCapture: input.traceCapture,
+      ...input.metadata,
+    },
+  });
+
+  return {
+    state: {
+      byteOffset: rawBuffer.length,
+      pendingText,
+      nextSequence: previousState.nextSequence + events.length,
+    },
+    ingestedEvents: events.length,
+    metadata,
+  };
 }
 
 function semanticKindForRaw(rawKind: string): SemanticTraceEventKind {
