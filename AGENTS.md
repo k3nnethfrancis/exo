@@ -127,6 +127,7 @@ CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build 
 
 - Keep changes small enough that a failed gate points to one cause.
 - Update docs in the same chunk when public commands, architecture, settings, runtime behavior, or agent workflow changes.
+- Public agent/operator contracts require architect review before shipping. Do not add or change command-server routes, CLI commands/flags, MCP tool parameters, or shared command/protocol types without an explicit Fable/architect review note or a user-approved exception. If such a change is necessary, stop after diagnostic/design work and request review before implementation.
 - Record active bugs and QA findings in root `issues.md`; record future roadmap work in `tasks.md` or `roadmap.md`; record shipped current state in `ledger.md`.
 - Do not include local secrets, private paths as source defaults, transcripts, logs, or `.exo/` runtime files.
 - Preserve unrelated local edits. Before staging, inspect `git status` and include only files that belong to the current task.
