@@ -35,6 +35,16 @@ export interface ProposalAppliedItem {
   action: "created" | "patched" | "frontmatterPatched";
 }
 
+export const FRONTMATTER_PREVIEW_METADATA_KEY = "exo.frontmatterPreview.v1";
+
+export interface FrontmatterPatchPreviewEvidence {
+  format: typeof FRONTMATTER_PREVIEW_METADATA_KEY;
+  before: string;
+  after: string;
+  beforeHash: string;
+  afterHash: string;
+}
+
 export async function applyProposalToWorkspace(
   proposal: ProposalBatch,
   options: ProposalApplyOptions,
@@ -86,6 +96,85 @@ export function contentSha256(contents: string | Uint8Array): string {
   return `sha256:${createHash("sha256").update(contents).digest("hex")}`;
 }
 
+export async function enrichProposalFrontmatterPreviews(
+  workspaceRoot: string,
+  proposal: ProposalBatch,
+): Promise<ProposalBatch> {
+  const current = validateProposalBatch(proposal);
+  const items = await Promise.all(current.items.map(async (item): Promise<ProposalItem> => {
+    if (item.kind !== "frontmatterPatch") {
+      return item;
+    }
+    try {
+      const existing = await readFile(resolveWorkspaceProposalPath(workspaceRoot, item.path), "utf8");
+      return withFrontmatterPatchPreviewEvidence(item, buildFrontmatterPatchPreviewEvidence(existing, item.operations));
+    } catch (error) {
+      return withFrontmatterPatchPreviewError(item, errorMessage(error));
+    }
+  }));
+  return validateProposalBatch({ ...current, items });
+}
+
+export function buildFrontmatterPatchPreviewEvidence(
+  existing: string,
+  operations: readonly FrontmatterPatchOperation[],
+): FrontmatterPatchPreviewEvidence {
+  const after = previewFrontmatterPatch(existing, operations);
+  return {
+    format: FRONTMATTER_PREVIEW_METADATA_KEY,
+    before: existing,
+    after,
+    beforeHash: contentSha256(existing),
+    afterHash: contentSha256(after),
+  };
+}
+
+export function getFrontmatterPatchPreviewEvidence(item: ProposalItem): FrontmatterPatchPreviewEvidence | null {
+  if (item.kind !== "frontmatterPatch") {
+    return null;
+  }
+  const evidence = item.metadata?.[FRONTMATTER_PREVIEW_METADATA_KEY];
+  if (!isRecord(evidence) || evidence.format !== FRONTMATTER_PREVIEW_METADATA_KEY) {
+    return null;
+  }
+  if (
+    typeof evidence.before !== "string"
+    || typeof evidence.after !== "string"
+    || typeof evidence.beforeHash !== "string"
+    || typeof evidence.afterHash !== "string"
+  ) {
+    return null;
+  }
+  return {
+    format: FRONTMATTER_PREVIEW_METADATA_KEY,
+    before: evidence.before,
+    after: evidence.after,
+    beforeHash: evidence.beforeHash,
+    afterHash: evidence.afterHash,
+  };
+}
+
+export function renderFrontmatterPatchPreviewEvidence(
+  evidence: FrontmatterPatchPreviewEvidence,
+  options: { baseHash?: string } = {},
+): string {
+  const lines = [
+    "Frontmatter byte preview",
+    `Before hash: ${evidence.beforeHash}`,
+    `After hash: ${evidence.afterHash}`,
+  ];
+  if (options.baseHash && options.baseHash !== evidence.beforeHash) {
+    lines.push(`Base hash mismatch: proposal base is ${options.baseHash}; current file is ${evidence.beforeHash}.`);
+  }
+  lines.push(
+    "--- before bytes (JSON string) ---",
+    JSON.stringify(evidence.before),
+    "--- after bytes (JSON string) ---",
+    JSON.stringify(evidence.after),
+  );
+  return lines.join("\n");
+}
+
 async function applyAcceptedItem(
   workspaceRoot: string,
   item: ProposalItem,
@@ -122,8 +211,9 @@ async function prepareAcceptedFrontmatterPatches(
     const target = resolveWorkspaceProposalPath(workspaceRoot, item.path);
     const existing = await readFile(target, "utf8");
     try {
-      frontmatterPreviews.set(item.id, previewFrontmatterPatch(existing, item.operations));
-      return item;
+      const evidence = buildFrontmatterPatchPreviewEvidence(existing, item.operations);
+      frontmatterPreviews.set(item.id, evidence.after);
+      return withFrontmatterPatchPreviewEvidence(item, evidence);
     } catch (error) {
       changed = true;
       return {
@@ -485,6 +575,39 @@ function inferLineEnding(contents: string): "\n" | "\r\n" {
 
 function normalizeYamlLineEndings(yaml: string, eol: "\n" | "\r\n"): string {
   return eol === "\n" ? yaml : yaml.replace(/\n/g, "\r\n");
+}
+
+function withFrontmatterPatchPreviewEvidence(
+  item: ProposalItem,
+  evidence: FrontmatterPatchPreviewEvidence,
+): ProposalItem {
+  if (item.kind !== "frontmatterPatch") {
+    return item;
+  }
+  return {
+    ...item,
+    metadata: {
+      ...item.metadata,
+      [FRONTMATTER_PREVIEW_METADATA_KEY]: evidence,
+    },
+  };
+}
+
+function withFrontmatterPatchPreviewError(item: ProposalItem, error: string): ProposalItem {
+  if (item.kind !== "frontmatterPatch") {
+    return item;
+  }
+  return {
+    ...item,
+    metadata: {
+      ...item.metadata,
+      "exo.frontmatterPreviewError.v1": error,
+    },
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function errorMessage(error: unknown): string {

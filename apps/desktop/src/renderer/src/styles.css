@@ -1743,6 +1743,12 @@ button svg,
   font-size: 12px;
 }
 
+.proposal-review__frontmatter {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
 @media (max-width: 840px) {
   .proposal-review {
     grid-template-columns: minmax(0, 1fr);

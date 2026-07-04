@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import { runCli } from "./index";
 import {
   SemanticTraceStore,
+  buildFrontmatterPatchPreviewEvidence,
   captureFakeHarnessTraceFixture,
   formatManagedAgentKindUsage,
   mapHarnessRawTraceEvent,
@@ -491,6 +492,9 @@ describe("cli package", () => {
   it("routes proposal review commands through the app client", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "exo-cli-proposals-"));
     const proposalPath = path.join(root, "proposal.json");
+    const frontmatterBefore = "---\r\ntitle: Old\r\npublished: 2026-07-04\r\n---\r\nBody\r\n";
+    const frontmatterOperations = [{ kind: "set" as const, keyPath: ["title"], value: "New" }];
+    const frontmatterEvidence = buildFrontmatterPatchPreviewEvidence(frontmatterBefore, frontmatterOperations);
     await writeFile(proposalPath, JSON.stringify({
       id: "proposal-1",
       status: "pending",
@@ -502,7 +506,26 @@ describe("cli package", () => {
       listProposals: async () => ({ proposals: [{ id: "proposal-1" }] }),
       readProposal: async (id) => {
         calls.push(`show:${id}`);
-        return { proposal: { id } };
+        return {
+          proposal: {
+            id,
+            status: "pending",
+            provenance: { activityId: "activity-1" },
+            items: [
+              {
+                id: "frontmatter-1",
+                kind: "frontmatterPatch",
+                path: "note.md",
+                baseHash: frontmatterEvidence.beforeHash,
+                itemStatus: "pending",
+                operations: frontmatterOperations,
+                metadata: {
+                  "exo.frontmatterPreview.v1": frontmatterEvidence,
+                },
+              },
+            ],
+          },
+        };
       },
       createProposal: async (proposal) => {
         calls.push(`create:${proposal.id}`);
@@ -521,9 +544,10 @@ describe("cli package", () => {
         stderr: { write: () => {} },
         connectAppClient: async () => client,
       });
+      let showStdout = "";
       const showExitCode = await runCli(["node", "exo-cli", "proposals", "show", "proposal-1"], {
         env: testRuntimeEnv(),
-        stdout: { write: () => {} },
+        stdout: { write: (text) => { showStdout += text; } },
         stderr: { write: () => {} },
         connectAppClient: async () => client,
       });
@@ -544,6 +568,10 @@ describe("cli package", () => {
       expect(showExitCode).toBe(0);
       expect(createExitCode).toBe(0);
       expect(acceptExitCode).toBe(0);
+      expect(showStdout).toContain("Frontmatter byte preview");
+      expect(showStdout).toContain(frontmatterEvidence.beforeHash);
+      expect(showStdout).toContain(frontmatterEvidence.afterHash);
+      expect(showStdout).toContain("\\r\\ntitle: New\\r\\npublished: 2026-07-04");
       expect(calls).toEqual(["show:proposal-1", "create:proposal-1", "accept:proposal-1:create-1"]);
     } finally {
       await rm(root, { recursive: true, force: true });

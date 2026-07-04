@@ -2,6 +2,7 @@ import { RefreshCw, X } from "lucide-react";
 import type { ProposalBatch, ProposalItem } from "@exo/core";
 
 import type { useProposalReviewState } from "../hooks/useProposalReviewState";
+import { frontmatterPatchPreviewEvidence, renderFrontmatterPreviewEvidence } from "../proposalFrontmatterPreview";
 
 type ProposalReviewState = ReturnType<typeof useProposalReviewState>;
 
@@ -175,15 +176,25 @@ function ProposalItemPreview({ item }: { item: ProposalItem }) {
     return <pre className="proposal-review__preview">{item.contents}</pre>;
   }
   if (item.kind === "frontmatterPatch") {
+    const preview = frontmatterPatchPreviewEvidence(item);
     return (
-      <ul className="proposal-review__operations">
-        {item.operations.map((operation, index) => (
-          <li key={`${operation.kind}:${operation.keyPath.join(".")}:${index}`}>
-            <code>{operation.kind}</code> {operation.keyPath.join(".") || "(root)"}
-            {operation.kind !== "remove" ? ` = ${JSON.stringify(operation.value)}` : ""}
-          </li>
-        ))}
-      </ul>
+      <div className="proposal-review__frontmatter">
+        <ul className="proposal-review__operations">
+          {item.operations.map((operation, index) => (
+            <li key={`${operation.kind}:${operation.keyPath.join(".")}:${index}`}>
+              <code>{operation.kind}</code> {operation.keyPath.join(".") || "(root)"}
+              {operation.kind !== "remove" ? ` = ${JSON.stringify(operation.value)}` : ""}
+            </li>
+          ))}
+        </ul>
+        {preview ? (
+          <pre className="proposal-review__preview">{renderFrontmatterPreviewEvidence(preview, { baseHash: item.baseHash })}</pre>
+        ) : (
+          <div className="dialog-card__status dialog-card__status--warning">
+            Frontmatter byte preview unavailable; apply will not write this item unless Exo can compute the preview from the current file.
+          </div>
+        )}
+      </div>
     );
   }
   return <div className="dialog-card__status dialog-card__status--warning">{item.kind} proposals are typed but not applied in proposal v1.</div>;

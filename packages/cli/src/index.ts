@@ -43,8 +43,12 @@ import {
   semanticTraceEventsToAgentAnswerText,
   cleanTerminalOutput,
   assertRoutineAgentPolicy,
+  getFrontmatterPatchPreviewEvidence,
+  renderFrontmatterPatchPreviewEvidence,
   type ManagedAgentKind,
   type ExoMcpIntegrationClient,
+  type ProposalBatch,
+  type ProposalItem,
   type RoutineDefinition,
   type RoutineExecutionHost,
   type RoutineTrigger,
@@ -445,7 +449,7 @@ export async function runCli(
       if (!id) {
         throw new Error("Usage: exo proposals show <proposal-id>");
       }
-      stdout.write(`${JSON.stringify(await client.readProposal(id), null, 2)}\n`);
+      stdout.write(`${formatProposalShow(await client.readProposal(id))}\n`);
       return 0;
     }
 
@@ -1413,6 +1417,74 @@ function formatAgents(agents: unknown[]): string {
       String(entry.title ?? ""),
     ].join("\t");
   }).join("\n");
+}
+
+function formatProposalShow(response: Record<string, unknown>): string {
+  const proposal = response.proposal;
+  if (!isProposalBatchLike(proposal)) {
+    return JSON.stringify(response, null, 2);
+  }
+  const lines = [
+    `Proposal ${proposal.id}`,
+    `Status: ${proposal.status}${proposal.atomic ? " (atomic)" : ""}`,
+  ];
+  if (proposal.title) {
+    lines.push(`Title: ${proposal.title}`);
+  }
+  if (proposal.description) {
+    lines.push(`Description: ${proposal.description}`);
+  }
+  lines.push(`Activity: ${proposal.provenance.activityId}${proposal.provenance.sessionId ? ` (${proposal.provenance.sessionId})` : ""}`);
+  for (const item of proposal.items) {
+    lines.push("", formatProposalItemForReview(item));
+  }
+  return lines.join("\n");
+}
+
+function formatProposalItemForReview(item: ProposalItem): string {
+  const lines = [
+    `Item ${item.id}: ${item.kind} ${item.path}`,
+    `Status: ${item.itemStatus}${item.baseHash ? ` (${item.baseHash})` : ""}`,
+  ];
+  if (item.statusReason) {
+    lines.push(`Reason: ${item.statusReason}`);
+  }
+  if (item.kind === "filePatch") {
+    lines.push("--- unified diff ---", item.unifiedDiff);
+    return lines.join("\n");
+  }
+  if (item.kind === "fileCreate") {
+    lines.push("--- created file bytes ---", JSON.stringify(item.contents));
+    return lines.join("\n");
+  }
+  if (item.kind === "frontmatterPatch") {
+    lines.push("--- frontmatter operations ---");
+    for (const operation of item.operations) {
+      lines.push(`${operation.kind} ${operation.keyPath.join(".")}${operation.kind === "remove" ? "" : ` = ${JSON.stringify(operation.value)}`}`);
+    }
+    const evidence = getFrontmatterPatchPreviewEvidence(item);
+    lines.push(
+      "--- reviewer byte preview ---",
+      evidence
+        ? renderFrontmatterPatchPreviewEvidence(evidence, { baseHash: item.baseHash })
+        : "Frontmatter byte preview unavailable; apply will not write this item unless Exo can compute the preview from the current file.",
+    );
+    return lines.join("\n");
+  }
+  lines.push(`${item.kind} proposals are typed but not applied in proposal v1.`);
+  return lines.join("\n");
+}
+
+function isProposalBatchLike(value: unknown): value is ProposalBatch {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  const proposal = value as Partial<ProposalBatch>;
+  return typeof proposal.id === "string"
+    && typeof proposal.status === "string"
+    && !!proposal.provenance
+    && typeof proposal.provenance.activityId === "string"
+    && Array.isArray(proposal.items);
 }
 
 function parseTailChars(args: string[]): number {

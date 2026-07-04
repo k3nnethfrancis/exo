@@ -329,6 +329,62 @@ describe("proposal review dialog", () => {
     expect(html).toContain("notes/new.md");
     expect(html).toContain("baseHash mismatch");
   });
+
+  it("renders frontmatter byte preview evidence for review", () => {
+    const before = "---\r\ntitle: Old\r\npublished: 2026-07-04\r\n---\r\nBody\r\n";
+    const after = "---\r\ntitle: New\r\npublished: 2026-07-04\r\n---\r\nBody\r\n";
+    const operations = [{ kind: "set" as const, keyPath: ["title"], value: "New" }];
+    const evidence = {
+      format: "exo.frontmatterPreview.v1",
+      before,
+      after,
+      beforeHash: "sha256:before",
+      afterHash: "sha256:after",
+    };
+    const proposal = proposalBatchFixture({
+      items: [
+        {
+          id: "frontmatter-1",
+          kind: "frontmatterPatch",
+          path: "note.md",
+          itemStatus: "pending",
+          baseHash: evidence.beforeHash,
+          operations,
+          metadata: {
+            "exo.frontmatterPreview.v1": evidence,
+          },
+        },
+      ],
+    });
+
+    const html = renderToStaticMarkup(
+      <ProposalReviewDialog
+        review={{
+          proposals: [proposal],
+          selectedProposalId: proposal.id,
+          selectedProposal: proposal,
+          loadState: "idle",
+          decisionState: null,
+          errorMessage: null,
+          lastApplyResult: null,
+          pendingProposalCount: 1,
+          refreshProposals: vi.fn(),
+          selectProposal: vi.fn(),
+          acceptProposal: vi.fn(),
+          rejectProposal: vi.fn(),
+          acceptItem: vi.fn(),
+          rejectItem: vi.fn(),
+          clearLastApplyResult: vi.fn(),
+        }}
+        onClose={() => {}}
+      />,
+    );
+
+    expect(html).toContain("Frontmatter byte preview");
+    expect(html).toContain(evidence.beforeHash);
+    expect(html).toContain(evidence.afterHash);
+    expect(html).toContain("\\r\\ntitle: New\\r\\npublished: 2026-07-04");
+  });
 });
 
 describe("profile settings model", () => {

@@ -1503,6 +1503,9 @@ function managerForWorkspace(workspaceRoot: string): TerminalManager {
 }
 
 function stubWorkspaceEnv(workspaceRoot: string): void {
+  for (const key of PI_HARNESS_ENV_KEYS) {
+    vi.stubEnv(key, undefined);
+  }
   vi.stubEnv("EXO_WORKSPACE_ROOT", workspaceRoot);
   vi.stubEnv("EXO_NOTE_ROOTS", path.join(workspaceRoot, "notes"));
   vi.stubEnv("EXO_PROJECT_ROOTS", path.join(workspaceRoot, "projects"));
@@ -1511,6 +1514,21 @@ function stubWorkspaceEnv(workspaceRoot: string): void {
   vi.stubEnv("EXO_CLAUDE_COMMAND", path.join(workspaceRoot, "bin", "claude"));
   vi.stubEnv("EXO_CODEX_COMMAND", path.join(workspaceRoot, "bin", "codex"));
 }
+
+const PI_HARNESS_ENV_KEYS = [
+  "EXO_PI_ENABLED",
+  "EXO_PI_LABEL",
+  "EXO_PI_COMMAND",
+  "EXO_PI_REPO_PATH",
+  "EXO_PI_ARGS",
+  "EXO_PI_CHANNEL",
+  "EXO_PI_BUILD",
+  "EXO_PI_BACKEND_URL",
+  "EXO_PI_BACKEND_COMMAND",
+  "EXO_PI_BACKEND_LABEL",
+  "EXO_PI_BACKEND_KIND",
+  "EXO_PI_BACKEND_READY",
+] as const;
 
 function bracketedPaste(data: string): string {
   return `\x1b[200~${data}\x1b[201~`;

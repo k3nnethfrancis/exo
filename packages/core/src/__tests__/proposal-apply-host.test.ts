@@ -4,7 +4,14 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { applyProposalToWorkspace, contentSha256, currentHashesForProposal, previewFrontmatterPatch } from "../proposal-apply-host";
+import {
+  applyProposalToWorkspace,
+  contentSha256,
+  currentHashesForProposal,
+  enrichProposalFrontmatterPreviews,
+  getFrontmatterPatchPreviewEvidence,
+  previewFrontmatterPatch,
+} from "../proposal-apply-host";
 import { ProposalReviewStore } from "../proposal-review-store";
 import type { FrontmatterPatchOperation, ProposalBatch } from "../proposal-review";
 
@@ -245,6 +252,45 @@ describe("proposal apply host", () => {
     const applied = await readFile(path.join(root, "note.md"), "utf8");
     expect(applied).toBe("---\r\ntitle: New\r\nkept: \"quoted\"\r\n---\r\nLine 1\r\nLine 2\r\n");
     expect(applied.slice(applied.indexOf("---\r\n", 5) + 5)).toBe("Line 1\r\nLine 2\r\n");
+  });
+
+  it("adds reviewer byte evidence matching the exact bytes apply writes", async () => {
+    const root = await tempRoot();
+    const original = [
+      "---\r\n",
+      "# keep comment\r\n",
+      "zeta: \"kept\"\r\n",
+      "published: 2026-07-04\r\n",
+      "title: Old\r\n",
+      "---\r\n",
+      "Body line 1\r\n",
+      "Body line 2\r\n",
+    ].join("");
+    const operations = [
+      { kind: "set" as const, keyPath: ["title"], value: "New" },
+      { kind: "set" as const, keyPath: ["reviewed"], value: "2026-07-04" },
+    ];
+    await writeFile(path.join(root, "note.md"), original, "utf8");
+
+    const proposal = await enrichProposalFrontmatterPreviews(root, frontmatterProposal("note.md", original, operations));
+    const evidence = getFrontmatterPatchPreviewEvidence(proposal.items[0]);
+
+    expect(evidence).not.toBeNull();
+    expect(evidence?.before).toBe(original);
+    expect(evidence?.after).toContain("# keep comment\r\n");
+    expect(evidence?.after).toContain("zeta: \"kept\"\r\n");
+    expect(evidence?.after).toContain("published: 2026-07-04\r\n");
+    expect(evidence?.after.endsWith("Body line 1\r\nBody line 2\r\n")).toBe(true);
+
+    await applyProposalToWorkspace(proposal, {
+      workspaceRoot: root,
+      decision: "accept",
+      surface: "cli",
+    });
+
+    const applied = await readFile(path.join(root, "note.md"), "utf8");
+    expect(applied).toBe(evidence?.after);
+    expect(applied.slice(applied.indexOf("---\r\n", 5) + 5)).toBe("Body line 1\r\nBody line 2\r\n");
   });
 
   it("marks duplicate frontmatter keys stale instead of guessing which key to patch", async () => {

@@ -20,6 +20,7 @@ import {
   profileFromCapability,
   readIndexDocument,
   applyProposalToWorkspace,
+  enrichProposalFrontmatterPreviews,
   readManagedPluginSettings,
   ProposalReviewStore,
   readProfileStateStore,
@@ -450,7 +451,7 @@ function proposalStore(): ProposalReviewStore {
 }
 
 async function writeWorkspaceProposal(proposal: Parameters<ProposalReviewStore["writeProposal"]>[0]): Promise<string> {
-  return proposalStore().writeProposal(proposal);
+  return proposalStore().writeProposal(await enrichProposalFrontmatterPreviews(workspaceModel.workspaceRoot, proposal));
 }
 
 async function listWorkspaceProposals() {
@@ -458,7 +459,8 @@ async function listWorkspaceProposals() {
 }
 
 async function readWorkspaceProposal(id: string) {
-  return proposalStore().readProposal(id);
+  const proposal = await proposalStore().readProposal(id);
+  return proposal ? enrichProposalFrontmatterPreviews(workspaceModel.workspaceRoot, proposal) : null;
 }
 
 async function decideWorkspaceProposal(
@@ -469,7 +471,8 @@ async function decideWorkspaceProposal(
   const store = proposalStore();
   let appliedResult: ProposalApplyResult | null = null;
   await store.updateProposal(id, async (proposal) => {
-    appliedResult = await applyProposalToWorkspace(proposal, {
+    const proposalWithPreview = await enrichProposalFrontmatterPreviews(workspaceModel.workspaceRoot, proposal);
+    appliedResult = await applyProposalToWorkspace(proposalWithPreview, {
       workspaceRoot: workspaceModel.workspaceRoot,
       decision: input.decision,
       itemId: input.itemId,
@@ -726,8 +729,9 @@ async function createWorkspaceProfileApplyProposal(input: ActiveProfileIdentity)
   if (!proposal) {
     return null;
   }
-  await writeWorkspaceProposal(proposal);
-  return proposal;
+  const proposalWithPreview = await enrichProposalFrontmatterPreviews(workspaceModel.workspaceRoot, proposal);
+  await writeWorkspaceProposal(proposalWithPreview);
+  return proposalWithPreview;
 }
 
 async function resolveWorkspaceProfile(input: ActiveProfileIdentity) {
