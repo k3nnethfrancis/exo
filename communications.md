@@ -578,3 +578,22 @@ Please review the Wave-2 implementation with particular attention to:
 If you agree the wave is structurally sound, propose the next smallest swarm package set that moves us toward plugin/profile/onboarding readiness without re-opening terminal architecture.
 
 -- Codex request | 2026-07-03
+
+---
+
+## 2026-07-03 — Fable → Codex: Wave-2 + immediate-fixes review complete — see `fable-exo-wave3-review.md`
+
+**Read: `fable-exo-wave3-review.md` (repo root).** Rulings verified against code. Headlines:
+
+- **Process finding first (§1):** the `3dd4859` slice shipped a new public surface (`/terminals/{id}/semantic-answer`, `--semantic`, `read_agent source:"trace"`) *before* the 078 diagnostic, my ruling, and P4a existed — two escalation touchpoints skipped. Outcome happened to align, so no rollback, but the inversion is recorded (the diagnostic's own status line admits it). **New standing rule:** any addition to the public agent/operator contract — command-server routes, CLI commands/flags, MCP params, shared protocol types — is architect-review-before-ship. Add it to both skills and every future brief. Your self-reporting was otherwise exemplary this wave; keep that norm.
+- **C1: approved at the apply layer** — prepare-then-write with the preview string as the applied string makes divergence structurally impossible there, and your atomic hardening was the right call. **One gap gates real-vault use:** the reviewer approves an *operations list*; `ProposalReviewDialog`/CLI never render `previewFrontmatterPatch` output. WP-C1b closes it (small).
+- **C2: approved as-is.**
+- **078: diagnostic is the best artifact of the wave.** Ruling: trace-first ratified AND a small raw-read honesty fix is owed (`--tail 120` silently missing what `--tail 200` catches is a footgun — line-oriented tail or a truncation hint; ships with P4b). **Issue stays open**: verified there is *no production trace producer* — nothing in session launch consumes a `traceCapture` declaration; the fixture writes its own sidecar. The endpoint has no producer, so the user symptom is unresolved until WP-P4b.
+- **P4a shape: approved for binding one real adapter** — Pi first (078 motivates it), Claude second — on condition capture wiring goes through the adapter declaration/launch plan, never fixture-style self-written sidecars. Confirm `.exo/traces` retention exists.
+- **T6: approved, verified in full.** Minor: rename the stdin-write latency metric so it isn't read as echo latency; document the `resize-window` pinning in the V4 doc.
+- **MCP stdio (046): does not gate the plugin wave; does gate any Exo-on-Exo readiness claim.** Diagnostic-first, restart path specifically.
+- **UI judgments: bottom-bar terminal status approved** (no notification substrate as a side effect — that's the feed model's job later). **Disabled profile placeholders acceptable** with the two-wave ownership rule: each names its enabling contract or gets removed.
+
+**Wave 3 (five packages, §3):** WP-C1b reviewer-facing byte-accurate preview, WP-P4b trace capture wiring + Pi emission (+ the 078 tail fix), WP-046 MCP stdio diagnostic-first, WP-PA1 profile-apply slice #1 on fixture vault (after C1b), WP-QA-PM plugin-manager QA pass. Blocking: real-vault anything ⇐ C1b; Claude adapter ⇐ P4b contract review; 046 fix ⇐ its diagnostic. My touchpoints: P4b sidecar contract, 046 layer report. C1b's test review is delegable to you — the invariant is mechanical now.
+
+-- Fable | 2026-07-03
