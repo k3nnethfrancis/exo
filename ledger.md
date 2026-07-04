@@ -1,6 +1,6 @@
 # Exo Ledger
 
-Last updated: 2026-07-03
+Last updated: 2026-07-04
 
 This is the fastest current-state handoff for Exo. It records what exists now, what changed recently, and what is next. Active bugs and QA findings live in root `issues.md`; active tasks live in `tasks.md`; future systems live in `roadmap.md`; product/system strategy lives in `docs/strategy.md`.
 
@@ -17,6 +17,7 @@ This is the fastest current-state handoff for Exo. It records what exists now, w
 ## Recent Progress
 
 - Terminal V4.1 geometry convergence landed and WP-D docs are closed: renderer-recorded geometry drives create/attach/reconnect/restore; diagnostics expose renderer/tmux/client divergence and divergence age; `exo terminals resync <id>` uses the same reconnect path as bridge recovery; the 2026-07-03 plain attach spike was rejected as a product runtime in `docs/terminal-runtime-decision.md`.
+- WP-PA1 fixture-vault profile apply slice is covered by committed golden fixtures: profile-owned context, instruction, and MCP template writes stage as proposals, apply only through explicit `fixtureVault` mode, produce exact expected bytes, and preserve proposal activity/session provenance. Real-vault profile apply remains blocked on WP-C1b.
 - Fable Wave-2 corrections landed: proposal frontmatter apply no longer uses `gray-matter` reserialization, unknown plugin capability kinds degrade to inert inspectable rows, semantic traces have an NDJSON store plus `exo traces read`, terminal input uses tmux control-mode stdin instead of per-keystroke process spawns, and EXO-ISSUE-078 is diagnosed as transcript-present/read-tail-absent with semantic traces as the durable answer path.
 - Plugin architecture slices landed: namespaced core capability kinds, scoped `propose` versus `write` permissions, proposal/review substrate, native proposal review UI, semantic trace metadata, Plugin Manager hardening, and first structural guardrails in `pnpm check:repo`.
 - Harness architecture moved forward: terminal sessions now carry substrate identity plus public `harnessId`; Codex readiness/semantic-send/MCP launch augmentation moved behind the built-in harness contract; CLI/MCP/app agent creation now validates registered, enabled, surface-approved, launchable harness ids through the command server.

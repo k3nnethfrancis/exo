@@ -1513,6 +1513,9 @@ function stubWorkspaceEnv(workspaceRoot: string): void {
   vi.stubEnv("EXO_RUNTIME_ROOT", path.join(workspaceRoot, ".exo"));
   vi.stubEnv("EXO_CLAUDE_COMMAND", path.join(workspaceRoot, "bin", "claude"));
   vi.stubEnv("EXO_CODEX_COMMAND", path.join(workspaceRoot, "bin", "codex"));
+  vi.stubEnv("EXO_PI_BACKEND_URL", undefined);
+  vi.stubEnv("EXO_PI_BACKEND_COMMAND", undefined);
+  vi.stubEnv("EXO_PI_BACKEND_READY", undefined);
 }
 
 const PI_HARNESS_ENV_KEYS = [

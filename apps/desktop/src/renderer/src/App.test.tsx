@@ -323,6 +323,8 @@ describe("proposal review dialog", () => {
 
     expect(html).toContain("Proposal Review");
     expect(html).toContain("1 pending proposal");
+    expect(html).toContain("activity-1");
+    expect(html).toContain("term-1");
     expect(html).toContain("Atomic batch: decide the full batch.");
     expect(html).toContain("AGENTS.md");
     expect(html).toContain("@@ -1 +1 @@");

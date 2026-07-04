@@ -1,6 +1,7 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { applyProposalToWorkspace } from "../proposal-apply-host";
@@ -65,16 +66,10 @@ describe("createProfileApplyProposal", () => {
     ]);
   });
 
-  it("materializes exact context, instruction, and MCP template bytes through fixture-vault proposal apply", async () => {
+  it("matches the exact fixture-vault proposal, apply result, and output bytes", async () => {
     const { pluginRoot, workspaceRoot, runtimeRoot } = await fixture();
-    const agents = "# Exo Fixture Agents\n\n- Use fixture-only context.\n";
-    const claude = "# Fixture Instructions\n\nUse deterministic profile instructions.\n";
-    const mcp = "{\n  \"mcpServers\": {\n    \"exo-fixture\": {\n      \"command\": \"exo-mcp-fixture\"\n    }\n  }\n}\n";
-    await writeFile(path.join(pluginRoot, "templates/context/AGENTS.md"), agents);
-    await writeFile(path.join(pluginRoot, "templates/instructions/CLAUDE.md"), claude);
-    await writeFile(path.join(pluginRoot, "templates/mcp/exo.json"), mcp);
-    await writeFile(path.join(workspaceRoot, "CLAUDE.md"), "# Old Fixture Instructions\n");
-    await writeFile(path.join(workspaceRoot, "untouched.md"), "# Do not change\n");
+    await copyFixtureDirectory("plugin", pluginRoot);
+    await copyFixtureDirectory("workspace-initial", workspaceRoot);
 
     const staged = await createProfileApplyProposal({
       profile: profile({
@@ -93,6 +88,7 @@ describe("createProfileApplyProposal", () => {
       provenance: { activityId: "profile-apply:fixture-vault", sessionId: "term-fixture" },
       metadata: { source: "profileApply", profileApplyTarget: "fixtureVault" },
     });
+    expect(staged).toEqual(await readFixtureJson("expected/proposal.json"));
 
     const store = new ProposalReviewStore(runtimeRoot);
     await store.writeProposal(staged!);
@@ -106,16 +102,11 @@ describe("createProfileApplyProposal", () => {
     });
     await store.writeProposal(result.proposal);
 
-    expect(result.proposal.status).toBe("accepted");
-    expect(result.appliedItems.map((item) => [item.id, item.kind, item.path, item.action])).toEqual([
-      ["context-agents", "fileCreate", "AGENTS.md", "created"],
-      ["instruction-claude", "filePatch", "CLAUDE.md", "patched"],
-      ["mcp-mcp", "fileCreate", ".exo/mcp/exo.json", "created"],
-    ]);
-    await expect(readFile(path.join(workspaceRoot, "AGENTS.md"), "utf8")).resolves.toBe(agents);
-    await expect(readFile(path.join(workspaceRoot, "CLAUDE.md"), "utf8")).resolves.toBe(claude);
-    await expect(readFile(path.join(workspaceRoot, ".exo/mcp/exo.json"), "utf8")).resolves.toBe(mcp);
-    await expect(readFile(path.join(workspaceRoot, "untouched.md"), "utf8")).resolves.toBe("# Do not change\n");
+    expect(result).toEqual(await readFixtureJson("expected/apply-result.json"));
+    await expect(readFile(path.join(workspaceRoot, "AGENTS.md"), "utf8")).resolves.toBe(await readFixtureText("expected/AGENTS.md"));
+    await expect(readFile(path.join(workspaceRoot, "CLAUDE.md"), "utf8")).resolves.toBe(await readFixtureText("expected/CLAUDE.md"));
+    await expect(readFile(path.join(workspaceRoot, ".exo/mcp/exo.json"), "utf8")).resolves.toBe(await readFixtureText("expected/mcp/exo.json"));
+    await expect(readFile(path.join(workspaceRoot, "untouched.md"), "utf8")).resolves.toBe(await readFixtureText("expected/untouched.md"));
     await expect(store.readProposal(staged!.id)).resolves.toMatchObject({ status: "accepted" });
   });
 
@@ -191,6 +182,22 @@ async function fixture(): Promise<{ pluginRoot: string; workspaceRoot: string; r
   await mkdir(workspaceRoot, { recursive: true });
   await mkdir(runtimeRoot, { recursive: true });
   return { pluginRoot, workspaceRoot, runtimeRoot };
+}
+
+async function copyFixtureDirectory(relativePath: string, target: string): Promise<void> {
+  await cp(profileApplyFixturePath(relativePath), target, { recursive: true });
+}
+
+async function readFixtureText(relativePath: string): Promise<string> {
+  return readFile(profileApplyFixturePath(relativePath), "utf8");
+}
+
+async function readFixtureJson(relativePath: string): Promise<unknown> {
+  return JSON.parse(await readFixtureText(relativePath));
+}
+
+function profileApplyFixturePath(relativePath: string): string {
+  return path.join(fileURLToPath(new URL("./fixtures/profile-apply-vault", import.meta.url)), relativePath);
 }
 
 function profile(overrides: Partial<ProfileDefinition> = {}): ProfileDefinition {

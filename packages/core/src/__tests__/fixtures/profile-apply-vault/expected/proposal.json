@@ -1,0 +1,57 @@
+{
+  "id": "profile-apply-test-profile-2026-07-04T10-00-00-000Z",
+  "title": "Apply Test Profile profile templates",
+  "description": "Review profile-owned instruction/context/config template writes before Exo applies them to disk.",
+  "status": "pending",
+  "provenance": {
+    "activityId": "profile-apply:fixture-vault",
+    "sessionId": "term-fixture"
+  },
+  "items": [
+    {
+      "id": "context-agents",
+      "kind": "fileCreate",
+      "path": "AGENTS.md",
+      "itemStatus": "pending",
+      "contents": "# Exo Fixture Agents\n\n- Use fixture-only context.\n",
+      "metadata": {
+        "profileTemplateId": "agents",
+        "profileTemplateLabel": "Agents",
+        "profileTemplateKind": "context"
+      }
+    },
+    {
+      "id": "instruction-claude",
+      "kind": "filePatch",
+      "path": "CLAUDE.md",
+      "itemStatus": "pending",
+      "baseHash": "sha256:0f0e8af0ef8a5d26fa8037adba807c9e0e91f6b7171fabaeaa2f52313a2ab109",
+      "unifiedDiff": "--- a/CLAUDE.md\n+++ b/CLAUDE.md\n@@ -1,1 +1,3 @@\n-# Old Fixture Instructions\n+# Fixture Instructions\n+\n+Use deterministic profile instructions.\n",
+      "metadata": {
+        "profileTemplateId": "claude",
+        "profileTemplateLabel": "Claude",
+        "profileTemplateKind": "instruction"
+      }
+    },
+    {
+      "id": "mcp-mcp",
+      "kind": "fileCreate",
+      "path": ".exo/mcp/exo.json",
+      "itemStatus": "pending",
+      "contents": "{\n  \"mcpServers\": {\n    \"exo-fixture\": {\n      \"command\": \"exo-mcp-fixture\"\n    }\n  }\n}\n",
+      "metadata": {
+        "profileTemplateId": "mcp",
+        "profileTemplateLabel": "MCP",
+        "profileTemplateKind": "mcp"
+      }
+    }
+  ],
+  "createdAt": "2026-07-04T10:00:00.000Z",
+  "updatedAt": "2026-07-04T10:00:00.000Z",
+  "metadata": {
+    "source": "profileApply",
+    "profileId": "test.profile",
+    "profileLabel": "Test Profile",
+    "profileApplyTarget": "fixtureVault"
+  }
+}
