@@ -31,6 +31,13 @@ async function expectTestIdsDoNotOverlap(page: import("@playwright/test").Page, 
   expect(boxesOverlap(firstBox!, secondBox!)).toBe(false);
 }
 
+async function openInlineBacklink(page: import("@playwright/test").Page, label = "Related Note") {
+  const backlinks = page.getByTestId("markdown-graph-backlinks");
+  await backlinks.scrollIntoViewIfNeeded();
+  await expect(backlinks).toBeVisible();
+  await backlinks.getByRole("button", { name: label }).click();
+}
+
 async function cycleAppearanceTo(page: import("@playwright/test").Page, targetMode: "system" | "light" | "dark") {
   for (let attempt = 0; attempt < 4; attempt += 1) {
     const currentMode = await page.locator("html").getAttribute("data-appearance-mode");
@@ -252,6 +259,7 @@ test("boots the shell, opens notes, and manages terminal tabs", async () => {
   await expect(page.getByTestId("editor-panel")).toContainText("#research");
   await page.getByTestId("toggle-markdown-mode").click();
   await expect(page.getByTestId("editor-panel")).toContainText("[[agent-memory]]");
+  await expect(page.getByTestId("inspector-toggle")).toHaveCount(0);
 
   await expect(page.getByTestId("terminal-tab-shell")).toBeVisible();
 
@@ -274,12 +282,8 @@ test("boots the shell, opens notes, and manages terminal tabs", async () => {
   await page.getByTestId("terminal-tab-shell").dblclick();
   await expect(page.getByTestId("terminal-dock")).toBeVisible();
 
-  await page.getByTestId("inspector-toggle").click();
-  await expect(page.locator('[data-testid="tags-panel"] .tag-pill').first()).toBeVisible();
-  await page.locator('[data-testid="tags-panel"] .tag-pill').first().click();
-  await expect(page.getByTestId("tag-results")).toBeVisible();
-
-  await page.getByTestId("backlinks-panel").getByText("Related Note").click();
+  await page.getByTestId("toggle-markdown-mode").click();
+  await openInlineBacklink(page);
   await expect(page.getByTestId("editor-title")).toHaveText("related-note");
 
   await cleanup();
@@ -1234,8 +1238,7 @@ test("shows a reconnect action when the tmux attach bridge exits", async () => {
 test("lets you close editor tabs", async () => {
   const { page, cleanup } = await launchExoFixture();
 
-  await page.getByTestId("inspector-toggle").click();
-  await page.getByTestId("backlinks-panel").getByText("Related Note").click();
+  await openInlineBacklink(page);
   await expect(page.getByTestId("editor-title")).toHaveText("related-note");
   await page.getByLabel("Close related-note").click();
   await expect(page.getByTestId("editor-title")).toHaveText("focus-note");
@@ -1243,13 +1246,12 @@ test("lets you close editor tabs", async () => {
   await cleanup();
 });
 
-test("renders inspector content when expanded", async () => {
+test("renders inline graph references without the old inspector action", async () => {
   const { page, cleanup } = await launchExoFixture();
 
-  await page.getByTestId("inspector-toggle").click();
-
-  await expect(page.getByTestId("inspector-panel")).toContainText("Backlinks");
-  await expect(page.getByTestId("inspector-panel")).toContainText(/Related Note|\[\[agent-memory\]\]|#research/);
+  await expect(page.getByTestId("inspector-toggle")).toHaveCount(0);
+  await expect(page.getByTestId("markdown-graph-references")).toContainText("Backlinks");
+  await expect(page.getByTestId("markdown-graph-references")).toContainText(/Related Note|\[\[agent-memory\]\]/);
 
   await cleanup();
 });
@@ -2387,7 +2389,7 @@ test("outdents blank list continuation lines in live preview", async () => {
   await cleanup();
 });
 
-test("keeps the inspector pinned while long notes scroll", async () => {
+test("keeps inline graph references at the end of long notes", async () => {
   const longDocument = Array.from({ length: 120 }, (_, index) => `- line ${index + 1}`).join("\n");
   const longFixture = await launchExoFixture({
     prepareWorkspace: async (workspaceRoot) => {
@@ -2399,20 +2401,14 @@ test("keeps the inspector pinned while long notes scroll", async () => {
     },
   });
 
-  await longFixture.page.getByTestId("inspector-toggle").click();
-  const before = await longFixture.page.getByTestId("inspector-panel").boundingBox();
   await longFixture.page.locator(".editor-surface .cm-scroller").evaluate((element) => {
     element.scrollTop = element.scrollHeight;
   });
   await expect
     .poll(() => longFixture.page.locator(".editor-surface .cm-scroller").evaluate((element) => Math.round(element.scrollTop)))
     .toBeGreaterThan(100);
-  const after = await longFixture.page.getByTestId("inspector-panel").boundingBox();
-
-  expect(before).not.toBeNull();
-  expect(after).not.toBeNull();
-  expect(Math.abs((after?.x ?? 0) - (before?.x ?? 0))).toBeLessThan(2);
-  expect(Math.abs((after?.y ?? 0) - (before?.y ?? 0))).toBeLessThan(2);
+  await expect(longFixture.page.getByTestId("inspector-toggle")).toHaveCount(0);
+  await expect(longFixture.page.getByTestId("markdown-graph-references")).toContainText("Backlinks");
 
   await longFixture.cleanup();
 });
