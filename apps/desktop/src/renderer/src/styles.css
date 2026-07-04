@@ -3692,10 +3692,12 @@ select.dialog-card__input {
 .onboarding-shell {
   min-height: 100dvh;
   display: grid;
-  place-items: center;
+  align-items: start;
+  justify-items: center;
   padding: 32px;
   background: var(--bg);
   color: var(--text);
+  overflow: auto;
 }
 
 .onboarding-card {

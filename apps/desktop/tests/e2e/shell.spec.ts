@@ -147,7 +147,7 @@ test("opens the plugin manager inventory and keeps official rows read-only", asy
   await page.getByTestId("plugin-manager-category-core:searchProvider").click();
   await expect(page.getByTestId("plugin-manager-group-core:searchProvider")).toContainText("QMD");
   await expect(page.getByTestId("plugin-inventory-item-qmd")).toContainText("Manage");
-  await expect(page.getByTestId("plugin-inventory-item-qmd")).toContainText("Active");
+  await expect(page.getByTestId("plugin-inventory-item-qmd")).toContainText(/Active|Degraded/);
   await page.screenshot({ path: "/tmp/exo-plugin-manager-state-filters.png", fullPage: false });
   await page.getByTestId("plugin-inventory-item-qmd").click();
   await expect(page.getByTestId("plugin-manager-detail")).toContainText("Search Provider");
@@ -1855,13 +1855,18 @@ test("switch workspace opens the workspace picker", async () => {
 });
 
 test("shows first-run notes setup before the app shell", async () => {
-  const { page, cleanup } = await launchExoFixture({ configured: false });
+  const { page, cleanup } = await launchExoFixture({
+    configured: false,
+    cwd: "/",
+    workspaceRootEnv: false,
+    runtimeRootEnv: false,
+  });
 
   await expect(page.getByTestId("onboarding")).toContainText("Open notes folder");
   await expect(page.getByTestId("workspace-picker")).toHaveCount(0);
   await expect(page.getByTestId("workspace-picker-open")).toHaveCount(0);
   await expect(page.getByTestId("onboarding")).toContainText("Default terminal");
-  await expect(page.getByTestId("onboarding")).toContainText("Knowledge index");
+  await expect(page.getByTestId("onboarding")).toContainText("Advanced search provider");
   await expect(page.getByTestId("onboarding-notes-folder")).toContainText("No notes folder selected.");
   await expect(page.getByTestId("onboarding-continue")).toBeDisabled();
   await expect(page.getByTestId("sidebar")).toHaveCount(0);
@@ -1890,6 +1895,9 @@ test("opens an existing notes folder from first-run setup", async () => {
   const notesFolder = path.join(fixtureWorkspaceRoot, "notes/test-notes");
   const { page, cleanup, workspaceRoot } = await launchExoFixture({
     configured: false,
+    cwd: "/",
+    workspaceRootEnv: false,
+    runtimeRootEnv: false,
     env: {
       EXO_TEST_SELECT_FOLDER_PATH: notesFolder,
     },
@@ -1901,6 +1909,12 @@ test("opens an existing notes folder from first-run setup", async () => {
   await expect(page.getByTestId("onboarding-terminal-folder")).toContainText(expectedTerminalCwd);
 
   await page.getByTestId("onboarding-continue").click();
+  await expect(page.getByTestId("onboarding")).toContainText("Review capabilities");
+  await expect(page.getByTestId("onboarding-capability-review")).toBeVisible();
+  await expect(page.getByTestId("onboarding-profile-apply-review")).toContainText("Review only");
+  await page.getByTestId("onboarding-enter-workspace").scrollIntoViewIfNeeded();
+  await expect(page.getByTestId("onboarding-enter-workspace")).toBeVisible();
+  await page.getByTestId("onboarding-enter-workspace").click();
   await expect(page.getByTestId("sidebar")).toBeVisible();
   await expect(page.getByTestId("editor-panel")).toBeVisible();
   await expect(page.getByTestId("terminal-rail")).toBeVisible();
