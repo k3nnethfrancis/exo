@@ -34,11 +34,7 @@ describe("exo-mcp stdio launcher", () => {
   });
 
   it("responds to MCP initialize through the packaged launcher", async () => {
-    const buildResult = spawnSync("pnpm", ["--dir", packageRoot, "build"], {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    expect(buildResult.status, buildResult.stderr || buildResult.stdout).toBe(0);
+    buildPackage();
 
     const client = new Client({ name: "exo-mcp-handshake-test", version: "0.0.0" });
     const transport = new StdioClientTransport({
@@ -90,12 +86,69 @@ describe("exo-mcp stdio launcher", () => {
     }
   }, 20_000);
 
-  it("responds to MCP initialize through the packaged HTTP transport", async () => {
-    const buildResult = spawnSync("pnpm", ["--dir", packageRoot, "build"], {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
+  it("keeps stdio open when an app-backed tool cannot reach the command server", async () => {
+    buildPackage();
+
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-mcp-runtime-"));
+    await writeFile(path.join(runtimeRoot, "server.json"), JSON.stringify({ port: 9, pid: 999_991 }), "utf8");
+
+    const client = new Client({ name: "exo-mcp-tool-error-test", version: "0.0.0" });
+    const transport = new StdioClientTransport({
+      command: process.execPath,
+      args: [launcherPath],
+      env: {
+        ...process.env,
+        COREPACK_ENABLE_PROJECT_SPEC: "0",
+        EXO_RUNTIME_ROOT: runtimeRoot,
+        EXO_WORKSPACE_ROOT: path.join(runtimeRoot, "workspace"),
+        EXO_NOTE_ROOTS: path.join(runtimeRoot, "workspace", "notes"),
+        EXO_PROJECT_ROOTS: path.join(runtimeRoot, "workspace", "projects"),
+        EXO_SETTINGS_PATH: path.join(runtimeRoot, "settings.json"),
+        EXO_MCP_REQUEST_TIMEOUT_MS: "5",
+      },
+      stderr: "pipe",
     });
-    expect(buildResult.status, buildResult.stderr || buildResult.stdout).toBe(0);
+    let stderr = "";
+    transport.stderr?.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString("utf8");
+    });
+
+    try {
+      await client.connect(transport, { timeout: 15_000 });
+
+      const result = await client.callTool(
+        { name: "workspace_status", arguments: {} },
+        undefined,
+        { timeout: 15_000 },
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({
+        ok: false,
+        error: "exo-command-server-unavailable",
+        runtimeDiagnostic: {
+          kind: "stale-pid",
+          runtimeRoot,
+          serverJsonPath: path.join(runtimeRoot, "server.json"),
+          snapshot: {
+            info: { port: 9, pid: 999_991 },
+            processCheck: { status: "dead", code: "ESRCH" },
+          },
+        },
+      });
+
+      const toolsAfterFailure = await client.listTools();
+      expect(toolsAfterFailure.tools.map((tool) => tool.name)).toContain("workspace_status");
+    } catch (error) {
+      throw new Error(`${error instanceof Error ? error.message : String(error)}\nMCP stderr:\n${stderr}`);
+    } finally {
+      await client.close().catch(() => undefined);
+      await rm(runtimeRoot, { recursive: true, force: true });
+    }
+  }, 20_000);
+
+  it("responds to MCP initialize through the packaged HTTP transport", async () => {
+    buildPackage();
 
     const child = spawn(process.execPath, [launcherPath, "--transport", "http", "--host", "127.0.0.1", "--port", "0"], {
       env: { ...process.env, COREPACK_ENABLE_PROJECT_SPEC: "0" },
@@ -172,4 +225,12 @@ function waitForHttpEndpoint(child: ChildProcess): Promise<string> {
     child.on("exit", onExit);
     child.on("error", onError);
   });
+}
+
+function buildPackage() {
+  const buildResult = spawnSync("pnpm", ["--dir", packageRoot, "build"], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  expect(buildResult.status, buildResult.stderr || buildResult.stdout).toBe(0);
 }

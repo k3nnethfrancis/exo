@@ -123,6 +123,14 @@ export function semanticTraceEventToRunTracePacket(event: SemanticTraceEvent): R
   };
 }
 
+export function semanticTraceEventsToAgentAnswerText(events: readonly SemanticTraceEvent[]): string {
+  return events
+    .filter((event) => event.kind === "message" && event.actor.kind === "agent")
+    .map((event) => event.payload.text)
+    .filter((text): text is string => typeof text === "string" && text.length > 0)
+    .join("\n");
+}
+
 function runTraceKindForSemanticTrace(kind: SemanticTraceEventKind): ActivityTraceKind {
   if (kind === "message") {
     return "message";

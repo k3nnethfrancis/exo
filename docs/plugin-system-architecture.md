@@ -296,6 +296,7 @@ Not yet aligned:
 - plugin manager can inspect and mutate local/developer metadata plugins, but it still reads closer to inventory than a quick management surface for active, disabled, untrusted, missing, and misconfigured capabilities
 - plugin manifests do not yet contribute UI, commands, settings, or MCP/CLI surfaces
 - profile packs have a metadata shape for recommended plugins, schemas, context files, skills, routines, graph views, and policies, plus active-profile state and copy/customize metadata flows; the permissioned apply flow is not implemented
+- profile plan previews expose disabled future apply prompt steps for plugin trust, plugin enable/install, permission grants, plugin settings, file writes, skill installs, routine creation, and MCP config review
 - graph visualization does not yet have a stable plugin surface or core graph-data API
 - core versus official/local plugin language is still being normalized across docs and code names
 

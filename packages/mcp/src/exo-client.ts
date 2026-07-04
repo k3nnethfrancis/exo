@@ -338,7 +338,7 @@ function formatCommandServerHttpError(
   return `Exo command server returned HTTP ${status} for ${method} ${targetPath}: ${payloadError ?? body}`;
 }
 
-async function resolveMcpRuntimeRoot(env: NodeJS.ProcessEnv): Promise<string> {
+export async function resolveMcpRuntimeRoot(env: NodeJS.ProcessEnv): Promise<string> {
   if (env.EXO_RUNTIME_ROOT) {
     return env.EXO_RUNTIME_ROOT;
   }

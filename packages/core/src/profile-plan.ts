@@ -48,12 +48,14 @@ export interface ProfilePlanApplyState {
   label: "Review only";
   reason: string;
   blockedBy: ProfilePlanApplyBlocker[];
+  promptSteps: ProfilePlanApplyPromptStep[];
 }
 
 export type ProfilePlanApplyBlockerKind =
   | "permissionModel"
   | "pluginTrust"
   | "pluginEnable"
+  | "pluginSettings"
   | "fileWrite"
   | "skillInstall"
   | "routineScheduling"
@@ -63,6 +65,25 @@ export interface ProfilePlanApplyBlocker {
   kind: ProfilePlanApplyBlockerKind;
   message: string;
   actionIds: string[];
+}
+
+export type ProfilePlanApplyPromptKind =
+  | "pluginTrustReview"
+  | "pluginEnableReview"
+  | "permissionGrantReview"
+  | "pluginSettingsReview"
+  | "fileWriteReview"
+  | "skillInstallReview"
+  | "routineInstantiationReview"
+  | "mcpConfigReview";
+
+export interface ProfilePlanApplyPromptStep {
+  kind: ProfilePlanApplyPromptKind;
+  label: string;
+  detail: string;
+  actionIds: string[];
+  enabled: false;
+  required: boolean;
 }
 
 export interface ProfilePlanSummary {
@@ -169,6 +190,10 @@ export interface ProfilePlanInventoryReference {
   trust: PluginInventoryItem["trust"];
   pluginId?: string;
   pluginName?: string;
+  requestedPermissions: string[];
+  grantedPermissions: string[];
+  missingPermissions: string[];
+  settingsReviewRequired: boolean;
 }
 
 export interface ProfilePlanIssue {
@@ -236,6 +261,7 @@ function planApplyState(actions: ProfilePlanAction[]): ProfilePlanApplyState {
     label: "Review only",
     reason: "Profile application is read-only until trust grants, permission prompts, file writes, skill installation, and routine scheduling have explicit apply gates.",
     blockedBy,
+    promptSteps: applyPromptSteps(actions),
   };
 }
 
@@ -253,6 +279,9 @@ function applyBlockers(actions: ProfilePlanAction[]): ProfilePlanApplyBlocker[] 
   pushBlocker(blockers, "pluginEnable", "Some recommended plugins would need to be enabled or installed.", actions, (action) =>
     action.kind === "pluginRecommendation" && action.pluginStatus !== "ready" && action.pluginStatus !== "untrusted",
   );
+  pushBlocker(blockers, "pluginSettings", "Some recommended plugin settings would need review before profile application.", actions, (action) =>
+    action.kind === "pluginRecommendation" && action.inventoryItem?.settingsReviewRequired === true,
+  );
   pushBlocker(blockers, "fileWrite", "Profile templates and schema changes would need an explicit file-write confirmation.", actions, (action) =>
     Boolean(action.effect.wouldWrite),
   );
@@ -266,6 +295,97 @@ function applyBlockers(actions: ProfilePlanAction[]): ProfilePlanApplyBlocker[] 
     Boolean(action.effect.wouldMutateMcpConfig),
   );
   return blockers;
+}
+
+function applyPromptSteps(actions: ProfilePlanAction[]): ProfilePlanApplyPromptStep[] {
+  const steps: ProfilePlanApplyPromptStep[] = [];
+  pushPromptStep(
+    steps,
+    "pluginTrustReview",
+    "Trust local plugins",
+    "Review local/developer plugin manifests before a profile can rely on them.",
+    actions,
+    (action) => action.kind === "pluginRecommendation" && action.pluginStatus === "untrusted",
+  );
+  pushPromptStep(
+    steps,
+    "pluginEnableReview",
+    "Enable or install plugins",
+    "Choose whether recommended plugins should be enabled or installed. This remains separate from profile selection.",
+    actions,
+    (action) => action.kind === "pluginRecommendation" && action.pluginStatus !== "ready" && action.pluginStatus !== "untrusted",
+  );
+  pushPromptStep(
+    steps,
+    "permissionGrantReview",
+    "Grant requested permissions",
+    "Grant only the permissions requested by reviewed plugin capabilities. Manifest requests are not authority.",
+    actions,
+    (action) => action.kind === "pluginRecommendation" && (action.inventoryItem?.missingPermissions.length ?? 0) > 0,
+  );
+  pushPromptStep(
+    steps,
+    "pluginSettingsReview",
+    "Review plugin settings",
+    "Review plugin-owned settings separately from workspace profile selection.",
+    actions,
+    (action) => action.kind === "pluginRecommendation" && action.inventoryItem?.settingsReviewRequired === true,
+  );
+  pushPromptStep(
+    steps,
+    "fileWriteReview",
+    "Review file writes",
+    "Stage and approve context, instruction, schema, and config file changes before writing user files.",
+    actions,
+    (action) => Boolean(action.effect.wouldWrite),
+  );
+  pushPromptStep(
+    steps,
+    "skillInstallReview",
+    "Install or enable skills",
+    "Review harness skill changes before installing or enabling profile-recommended skills.",
+    actions,
+    (action) => Boolean(action.effect.wouldInstallSkills),
+  );
+  pushPromptStep(
+    steps,
+    "routineInstantiationReview",
+    "Create routines",
+    "Instantiate or schedule routines only after the user reviews scope, harness, and output policy.",
+    actions,
+    (action) => Boolean(action.effect.wouldScheduleRoutines),
+  );
+  pushPromptStep(
+    steps,
+    "mcpConfigReview",
+    "Review MCP config",
+    "Review MCP configuration changes separately from profile selection and plugin trust.",
+    actions,
+    (action) => Boolean(action.effect.wouldMutateMcpConfig),
+  );
+  return steps;
+}
+
+function pushPromptStep(
+  steps: ProfilePlanApplyPromptStep[],
+  kind: ProfilePlanApplyPromptKind,
+  label: string,
+  detail: string,
+  actions: ProfilePlanAction[],
+  predicate: (action: ProfilePlanAction) => boolean,
+): void {
+  const matchingActions = actions.filter(predicate);
+  if (matchingActions.length === 0) {
+    return;
+  }
+  steps.push({
+    kind,
+    label,
+    detail,
+    actionIds: matchingActions.map((action) => action.id),
+    enabled: false,
+    required: matchingActions.some((action) => action.required === true || action.severity === "blocker"),
+  });
 }
 
 function pushBlocker(
@@ -468,5 +588,11 @@ function inventoryReference(item: PluginInventoryItem): ProfilePlanInventoryRefe
     trust: item.trust,
     pluginId: item.pluginId,
     pluginName: item.pluginName,
+    requestedPermissions: item.permissionGrants?.requested ?? item.permissions,
+    grantedPermissions: item.permissionGrants?.granted ?? [],
+    missingPermissions: item.permissionGrants?.missing ?? [],
+    settingsReviewRequired: item.settings?.reviewRequired === true
+      || item.settings?.configReviewRequired === true
+      || (item.settings?.validationErrors.length ?? 0) > 0,
   };
 }

@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
-import { agentHarnessRegistry, type AgentHarness } from "@exo/core";
+import { SemanticTraceStore, agentHarnessRegistry, captureFakeHarnessTraceFixture, semanticTraceEventsToAgentAnswerText, type AgentHarness } from "@exo/core";
 
 import { CommandServer, type CommandServerOptions } from "./command-server";
 
@@ -320,6 +320,34 @@ describe("CommandServer terminal routes", () => {
       expect(response.ok).toBe(true);
       await expect(response.json()).resolves.toEqual({ tail: "line-2\nline-3" });
       expect(receivedOptions).toEqual({ maxLines: 2 });
+    } finally {
+      server.stop();
+    }
+  });
+
+  it("returns trace-backed semantic answers separately from terminal tails", async () => {
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-command-server-"));
+    tempPaths.push(runtimeRoot);
+    await captureFakeHarnessTraceFixture(new SemanticTraceStore(runtimeRoot), {
+      sessionId: "term-pi",
+      harnessId: "fake-pi",
+      rawEvents: [{ type: "assistant-text", text: "PI_FIXTURE_ANSWER OK" }],
+      now: () => "2026-07-03T16:00:00.000Z",
+    });
+    const server = new CommandServer({
+      ...commandServerOptions(runtimeRoot),
+      onReadTerminalSemanticAnswer: async (id, options) => {
+        const events = await new SemanticTraceStore(runtimeRoot).readEvents(id, { limit: options?.limit ?? 100 });
+        return events.length === 0 ? null : semanticTraceEventsToAgentAnswerText(events);
+      },
+    });
+
+    try {
+      const port = await server.start();
+      const response = await fetch(`http://127.0.0.1:${port}/terminals/term-pi/semantic-answer?limit=10`);
+
+      expect(response.ok).toBe(true);
+      await expect(response.json()).resolves.toEqual({ answer: "PI_FIXTURE_ANSWER OK" });
     } finally {
       server.stop();
     }
@@ -706,6 +734,7 @@ function commandServerOptions(runtimeRoot: string): CommandServerOptions {
     }),
     onReadTerminalTail: () => "",
     onReadTerminalTranscript: () => "",
+    onReadTerminalSemanticAnswer: async () => "",
     onWriteTerminal: async () => ({ ok: true, delivery: "sent" }),
     onSendTerminalMessage: async () => ({ ok: true, delivery: "sent" }),
     onReconnectTerminal: async () => null,

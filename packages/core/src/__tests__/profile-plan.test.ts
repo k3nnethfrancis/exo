@@ -142,6 +142,35 @@ describe("profile plan preview", () => {
       available: false,
       label: "Review only",
     });
+    expect(preview.apply.promptSteps.every((step) => step.enabled === false)).toBe(true);
+  });
+
+  it("describes disabled future apply prompt steps without granting authority", () => {
+    const preview = planProfilePreview(profile, inventory());
+
+    expect(preview.apply.promptSteps.map((step) => step.kind)).toEqual([
+      "pluginTrustReview",
+      "pluginEnableReview",
+      "permissionGrantReview",
+      "fileWriteReview",
+      "skillInstallReview",
+      "routineInstantiationReview",
+      "mcpConfigReview",
+    ]);
+    expect(preview.apply.promptSteps.find((step) => step.kind === "permissionGrantReview")).toMatchObject({
+      enabled: false,
+      actionIds: ["ready.plugin"],
+    });
+    expect(
+      preview.actions.find((candidate) => candidate.kind === "pluginRecommendation" && candidate.id === "ready.plugin"),
+    ).toMatchObject({
+      pluginStatus: "ready",
+      inventoryItem: {
+        requestedPermissions: ["workspace:read"],
+        grantedPermissions: [],
+        missingPermissions: ["workspace:read"],
+      },
+    });
   });
 
   it("reports exact apply blockers for trust, enablement, writes, skills, routines, and MCP config", () => {
@@ -197,6 +226,12 @@ function inventory(): PluginInventory {
         statusLabel: "Available",
         enabled: true,
         trust: "trusted",
+        permissionGrants: {
+          requested: ["workspace:read"],
+          granted: [],
+          missing: ["workspace:read"],
+          status: "partial",
+        },
       }),
       item({
         id: "disabled.capability",

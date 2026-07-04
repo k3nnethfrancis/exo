@@ -30,6 +30,10 @@ export const EXO_COMMAND_ROUTES = {
   },
   terminalTranscript: (id: string, tailChars: number) =>
     `/terminals/${encodeURIComponent(id)}/transcript?tailChars=${encodeURIComponent(String(tailChars))}`,
+  terminalSemanticAnswer: (id: string, limit?: number) => {
+    const query = limit && limit > 0 ? `?limit=${encodeURIComponent(String(limit))}` : "";
+    return `/terminals/${encodeURIComponent(id)}/semantic-answer${query}`;
+  },
   terminalWrite: (id: string) => `/terminals/${encodeURIComponent(id)}/write`,
   terminalMessage: (id: string) => `/terminals/${encodeURIComponent(id)}/message`,
   terminalReconnect: (id: string) => `/terminals/${encodeURIComponent(id)}/reconnect`,

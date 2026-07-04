@@ -190,7 +190,7 @@
   color: var(--muted);
 }
 
-.statusbar__index {
+.statusbar__item {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -204,7 +204,7 @@
   cursor: pointer;
 }
 
-.statusbar__index:hover {
+.statusbar__item:hover {
   border-color: var(--surface-border);
   background: var(--surface-hover);
 }
@@ -236,7 +236,7 @@
   color: var(--accent);
 }
 
-.statusbar__index-dot {
+.statusbar__item-dot {
   width: 6px;
   height: 6px;
   flex: none;
@@ -244,23 +244,23 @@
   background: currentColor;
 }
 
-.statusbar__index--muted {
+.statusbar__item--muted {
   color: var(--muted);
 }
 
-.statusbar__index--ok {
+.statusbar__item--ok {
   color: var(--state-success);
 }
 
-.statusbar__index--warn {
+.statusbar__item--warn {
   color: var(--state-warning);
 }
 
-.statusbar__index--info {
+.statusbar__item--info {
   color: var(--state-info);
 }
 
-.statusbar__index--error {
+.statusbar__item--error {
   color: var(--state-danger);
 }
 

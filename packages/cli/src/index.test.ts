@@ -1,10 +1,20 @@
 import { describe, expect, it } from "vitest";
+import { spawn } from "node:child_process";
+import { once } from "node:events";
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { runCli } from "./index";
-import { SemanticTraceStore, captureFakeHarnessTraceFixture, formatManagedAgentKindUsage, saveWorkspaceSettings } from "@exo/core";
+import {
+  SemanticTraceStore,
+  captureFakeHarnessTraceFixture,
+  formatManagedAgentKindUsage,
+  mapHarnessRawTraceEvent,
+  saveWorkspaceSettings,
+  type HarnessRawTraceEvent,
+} from "@exo/core";
 
 describe("cli package", () => {
   it("renders runtime status", async () => {
@@ -121,6 +131,69 @@ describe("cli package", () => {
       expect(stdout).toContain("#4 tool.call name=\"read_file\"");
       expect(stdout).toContain("#6 lifecycle lifecycle=\"exit\" status=\"succeeded\"");
     } finally {
+      await rm(runtimeRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("reads fake Pi repaint TUI answers from semantic traces after terminal repaint", async () => {
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-pi-trace-"));
+    const traceSidecar = path.join(runtimeRoot, "fake-pi-sidecar.ndjson");
+    const sessionId = "fake-pi-session";
+    const harnessId = "fake-pi";
+    const fixturePath = path.resolve(
+      path.dirname(fileURLToPath(import.meta.url)),
+      "../../../apps/desktop/tests/fixtures/fake-pi-repaint-tui.mjs",
+    );
+    let stdout = "";
+    let childOutput = "";
+    const child = spawn(process.execPath, [fixturePath], {
+      env: {
+        ...process.env,
+        EXO_FAKE_PI_VISIBLE_MS: "10",
+        EXO_FAKE_PI_TRACE_PATH: traceSidecar,
+        EXO_FAKE_PI_TRACE_SESSION_ID: sessionId,
+        EXO_FAKE_PI_TRACE_HARNESS_ID: harnessId,
+      },
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+
+    try {
+      child.stdout?.on("data", (chunk) => {
+        childOutput += chunk.toString("utf8");
+      });
+      child.stdin?.write("Reply exactly OK.\n");
+      await waitFor(async () => {
+        const raw = await readFile(traceSidecar, "utf8").catch(() => "");
+        return raw.includes("PI_FIXTURE_ANSWER OK");
+      });
+      await waitFor(() => childOutput.includes("status: ready") && childOutput.includes("PI_FIXTURE_ANSWER OK"));
+
+      const rawEvents = (await readFile(traceSidecar, "utf8"))
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as HarnessRawTraceEvent);
+      await new SemanticTraceStore(runtimeRoot).appendEvents(
+        sessionId,
+        rawEvents.map((event, index) => mapHarnessRawTraceEvent(event, { sessionId, harnessId }, index + 1)),
+      );
+
+      const exitCode = await runCli(["node", "exo-cli", "agents", "read", sessionId, "--semantic"], {
+        env: {
+          EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
+          EXO_RUNTIME_ROOT: runtimeRoot,
+        },
+        stdout: { write: (text) => { stdout += text; } },
+        stderr: { write: () => {} },
+        connectAppClient: async () => {
+          throw new Error("semantic agent reads should not connect to the app");
+        },
+      });
+
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain("PI_FIXTURE_ANSWER OK");
+    } finally {
+      child.kill("SIGTERM");
+      await once(child, "exit").catch(() => undefined);
       await rm(runtimeRoot, { recursive: true, force: true });
     }
   });
@@ -1432,4 +1505,15 @@ function fakeAppClient(overrides: Partial<{
     killTerminal: missing,
     ...overrides,
   };
+}
+
+async function waitFor(predicate: () => boolean | Promise<boolean>, timeoutMs = 2_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await predicate()) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error("Timed out waiting for predicate.");
 }

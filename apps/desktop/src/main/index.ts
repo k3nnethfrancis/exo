@@ -34,6 +34,8 @@ import {
   searchIndex,
   searchNotes,
   searchWorkspace,
+  SemanticTraceStore,
+  semanticTraceEventsToAgentAnswerText,
   clearActiveProfile,
   markProfileReviewRequired,
   setActiveProfile,
@@ -174,6 +176,10 @@ function startCommandServer() {
       terminalManager.create({ kind: kind as ManagedAgentKind, harnessId, cwd, callerSurface }),
     onReadTerminalTail: (id: string, options?: { maxLines?: number }) => terminalManager.readTail(id, options),
     onReadTerminalTranscript: (id: string, tailChars: number) => terminalManager.readTranscript(id, tailChars),
+    onReadTerminalSemanticAnswer: async (id: string, options?: { limit?: number }) => {
+      const events = await new SemanticTraceStore(runtimeConfig.runtimeRoot).readEvents(id, { limit: options?.limit ?? 100 });
+      return events.length === 0 ? null : semanticTraceEventsToAgentAnswerText(events);
+    },
     onWriteTerminal: (id: string, data: string) => terminalManager.write(id, data),
     onSendTerminalMessage: (id: string, message: string, submit: boolean) => terminalManager.sendMessage(id, message, submit),
     onReconnectTerminal: (id: string) => terminalManager.reconnect(id),

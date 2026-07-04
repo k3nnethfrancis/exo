@@ -403,6 +403,8 @@ Profiles are bundles of recommendations and conventions, not executable capabili
 
 The profile extractor validates shape and rejects unsafe absolute or traversal paths, but it does not install skills, enable plugins, schedule routines, change settings, grant permissions, or mutate user Markdown directly. Profile-owned context, instruction, and MCP config templates can now be staged as proposal batches for explicit Desktop/CLI review. Applying plugins, skills, routines, settings, permission grants, or AI-generated profile changes remains a future UX and permission flow.
 
+Profile preview plans now also expose a metadata-only apply prompt checklist. The checklist names the disabled gates for plugin trust, plugin enable/install, requested permission grants, plugin settings review, file writes, skill install/enable, routine instantiation/scheduling, and MCP config mutation. These prompt steps are serialized as plan data for Settings/Profile and onboarding review; they do not grant authority, enable plugins, write files, install skills, schedule routines, or execute plugin code.
+
 Official example: `plugins/exograph-baseline/exo.plugin.json` declares the first read-only baseline profile so Plugin Manager can display profile metadata during QA.
 
 ### Graph Snapshot And Visualization Payload

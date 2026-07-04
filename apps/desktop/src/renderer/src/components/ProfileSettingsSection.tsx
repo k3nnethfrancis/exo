@@ -376,6 +376,17 @@ function ProfileCandidateDetails({
           ))}
         </div>
       ) : null}
+      {candidate.applyPromptRows.length > 0 ? (
+        <div className="profile-settings__recommendations">
+          <div className="dialog-field__label">Future apply prompts</div>
+          {candidate.applyPromptRows.map((row) => (
+            <div className="profile-settings__recommendation" key={row.label}>
+              <span>{row.label}</span>
+              <span>{row.value}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

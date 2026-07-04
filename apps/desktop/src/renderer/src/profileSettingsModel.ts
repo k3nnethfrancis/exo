@@ -33,6 +33,7 @@ export interface ProfileSettingsCandidate {
   planLoadError: string | null;
   componentRows: ProfileSettingsRow[];
   recommendationRows: ProfileSettingsRow[];
+  applyPromptRows: ProfileSettingsRow[];
   editSections: ProfileSettingsSectionGroup[];
 }
 
@@ -123,6 +124,7 @@ function profileCandidate(
     planLoadError: previewEntry?.error ?? null,
     componentRows: profile ? componentRows(profile, plan, previewEntry) : [],
     recommendationRows: profile ? recommendationRows(profile, inventory, plan) : [],
+    applyPromptRows: plan ? applyPromptRows(plan) : [],
     editSections: profile ? profileEditSections(profile, item, inventory, plan, previewEntry) : [],
   };
 }
@@ -220,6 +222,13 @@ function recommendationRows(
       : "unavailable";
     return { label: id, value: `${status}${required ? " (required)" : " (optional)"}` };
   });
+}
+
+function applyPromptRows(plan: ProfilePlanPreview): ProfileSettingsRow[] {
+  return plan.apply.promptSteps.map((step) => ({
+    label: step.label,
+    value: `${step.required ? "required" : "optional"} · disabled · ${step.actionIds.length} action${step.actionIds.length === 1 ? "" : "s"}`,
+  }));
 }
 
 function profileEditSections(
@@ -339,6 +348,15 @@ function profileEditSectionsFromPlan(
         { label: "Would install skills", value: String(plan.summary.wouldInstallSkillCount) },
         { label: "Would schedule routines", value: String(plan.summary.wouldScheduleRoutineCount) },
       ],
+    },
+    {
+      id: "applyPrompts",
+      label: "Future apply prompts",
+      description: "Profile application gates that are planned but disabled in this metadata-only pass.",
+      rows: plan.apply.promptSteps.map((step) => ({
+        label: step.label,
+        value: `${step.detail} (${step.actionIds.join(", ")})`,
+      })),
     },
     {
       id: "recommendedPlugins",

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   normalizeSemanticTraceEvent,
+  semanticTraceEventsToAgentAnswerText,
   semanticTraceEventToRunTracePacket,
   type SemanticTraceInput,
 } from "../semantic-trace";
@@ -71,6 +72,27 @@ describe("semantic trace contract", () => {
       kind: "message",
       private: false,
     });
+  });
+
+  it("extracts agent answer text without depending on terminal transcript tails", () => {
+    const events = [
+      normalizeSemanticTraceEvent({
+        ...baseEvent,
+        id: "harness-event",
+        kind: "lifecycle",
+        actor: { id: "fake-pi", kind: "harness" },
+        payload: { status: "generating" },
+      }),
+      normalizeSemanticTraceEvent({
+        ...baseEvent,
+        id: "agent-answer",
+        kind: "message",
+        actor: { id: "fake-pi", kind: "agent" },
+        payload: { text: "PI_FIXTURE_ANSWER OK" },
+      }),
+    ];
+
+    expect(semanticTraceEventsToAgentAnswerText(events)).toBe("PI_FIXTURE_ANSWER OK");
   });
 
   it("round-trips lifecycle and raw harness events through compatibility packets", () => {

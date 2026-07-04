@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import * as z from "zod/v4";
 
 import { createExoMcpServer } from "./index";
+import { captureFakeHarnessTraceFixture, SemanticTraceStore } from "@exo/core/semantic-trace-store";
 
 const tempPaths: string[] = [];
 
@@ -100,6 +101,35 @@ describe("Exo MCP server tools", () => {
         harnessId: "test.command-server-only",
         commandServerStatus: 400,
         commandServerError: expect.stringContaining("Agent harness is not approved for mcp launch"),
+      },
+    });
+  });
+
+  it("can read trace-backed agent answers without terminal capture", async () => {
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-mcp-trace-agent-"));
+    tempPaths.push(runtimeRoot);
+    await captureFakeHarnessTraceFixture(new SemanticTraceStore(runtimeRoot), {
+      sessionId: "fake-pi-session",
+      harnessId: "fake-pi",
+      rawEvents: [{ type: "assistant-text", text: "PI_FIXTURE_ANSWER OK" }],
+      now: () => "2026-07-03T16:00:00.000Z",
+    });
+    vi.stubEnv("EXO_RUNTIME_ROOT", runtimeRoot);
+
+    const server = createExoMcpServer() as unknown as {
+      _registeredTools: Record<string, { handler?: (args: Record<string, unknown>) => Promise<unknown> }>;
+    };
+    const result = await server._registeredTools.read_agent.handler?.({
+      agentId: "fake-pi-session",
+      source: "trace",
+    });
+
+    expect(result).toMatchObject({
+      content: [{ type: "text", text: "PI_FIXTURE_ANSWER OK" }],
+      structuredContent: {
+        agentId: "fake-pi-session",
+        output: "PI_FIXTURE_ANSWER OK",
+        source: "trace",
       },
     });
   });

@@ -26,6 +26,14 @@ interface IndexStatusLine {
   busy: boolean;
 }
 
+interface TerminalStatusLine {
+  label: string;
+  tone: "muted" | "ok" | "warn" | "info" | "error";
+  title: string;
+  busy: boolean;
+  sessionId: string;
+}
+
 interface ShellLayoutProps {
   noteSections: RootSection[];
   projectSections: RootSection[];
@@ -51,6 +59,7 @@ interface ShellLayoutProps {
     pendingProposals: number;
     profileReviewRequired: boolean;
     profileLabel: string | null;
+    terminal: TerminalStatusLine | null;
     index: IndexStatusLine;
   };
   shellLayout: {
@@ -375,14 +384,27 @@ export function ShellLayout(props: ShellLayoutProps) {
           {statusLine.projectLabel ? <span>{statusLine.projectLabel}</span> : null}
         </div>
         <div className="statusbar__group statusbar__group--right">
+          {statusLine.terminal ? (
+            <button
+              className={`statusbar__item statusbar__item--${statusLine.terminal.tone}`}
+              data-testid="statusbar-terminal"
+              onClick={() => onOpenTerminalSession(statusLine.terminal!.sessionId)}
+              title={statusLine.terminal.title}
+              type="button"
+            >
+              <span className="statusbar__item-dot" aria-hidden="true" />
+              <span>{statusLine.terminal.label}</span>
+              {statusLine.terminal.busy ? <span className="statusbar__ellipsis" aria-hidden="true" /> : null}
+            </button>
+          ) : null}
           <button
-            className={`statusbar__index statusbar__index--${statusLine.index.tone}`}
+            className={`statusbar__item statusbar__item--${statusLine.index.tone}`}
             data-testid="statusbar-index"
             onClick={onOpenIndexSettings}
             title={statusLine.index.title}
             type="button"
           >
-            <span className="statusbar__index-dot" aria-hidden="true" />
+            <span className="statusbar__item-dot" aria-hidden="true" />
             <span>{statusLine.index.label}</span>
             {statusLine.index.busy ? <span className="statusbar__ellipsis" aria-hidden="true" /> : null}
           </button>

@@ -40,6 +40,7 @@ import {
   workspaceSettingsToEnv,
   agentHarnessRegistry,
   SemanticTraceStore,
+  semanticTraceEventsToAgentAnswerText,
   assertRoutineAgentPolicy,
   type ManagedAgentKind,
   type ExoMcpIntegrationClient,
@@ -580,6 +581,28 @@ export async function runCli(
       return 0;
     }
 
+    if (subcommand === "read" && args.some((arg) => arg === "--semantic" || arg === "--trace")) {
+      const id = args[0];
+      if (!id) {
+        throw new Error("Usage: exo agents read <agent-id> [--tail chars] [--full] [--raw] [--semantic]");
+      }
+      const { values } = parseInlineOptions(args);
+      const config = await resolveCliRuntimeConfig(env);
+      const events = await new SemanticTraceStore(config.runtimeRoot).readEvents(id, {
+        limit: parsePositiveInt(values.limit) ?? 100,
+      });
+      if (values.json === "1") {
+        stdout.write(`${JSON.stringify(events, null, 2)}\n`);
+        return 0;
+      }
+      const answer = semanticTraceEventsToAgentAnswerText(events);
+      stdout.write(answer || "(no semantic answer output)");
+      if (!answer.endsWith("\n")) {
+        stdout.write("\n");
+      }
+      return 0;
+    }
+
     const client = await connectOrFail(env, stderr, connectAppClient);
     if (!client) return 1;
 
@@ -606,7 +629,7 @@ export async function runCli(
     if (subcommand === "read") {
       const id = args[0];
       if (!id) {
-        throw new Error("Usage: exo agents read <agent-id> [--tail chars] [--full] [--raw]");
+        throw new Error("Usage: exo agents read <agent-id> [--tail chars] [--full] [--raw] [--semantic]");
       }
 
       const tailChars = parseAgentReadTailChars(args);
@@ -1029,7 +1052,7 @@ export async function runCli(
       "  exo terminals resync <id>                  Reattach and resize a divergent terminal (app)",
       "  exo agents [list]                          List live Exo agents (app)",
       `  exo agents create <${agentKindUsage(env)}>     Create Exo agent (app)`,
-      "  exo agents read <id> [--tail n] [--full] [--raw] Read agent transcript tail (app)",
+      "  exo agents read <id> [--tail n] [--full] [--raw] [--semantic] Read agent transcript tail or semantic trace answer",
       "  exo agents send <id> <text> [--raw|--no-submit] Send message to agent (app)",
       "  exo agents interrupt <id> [escape|ctrl-c]  Interrupt agent (app)",
       "  exo agents terminate <id>                  Terminate agent (app)",

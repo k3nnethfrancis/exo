@@ -65,6 +65,7 @@ export interface CommandServerOptions {
   onCreateTerminal: (kind: string, harnessId?: string, cwd?: string, callerSurface?: ExoCreateTerminalRequest["callerSurface"]) => Promise<ExoCommandTerminalInfo>;
   onReadTerminalTail: (id: string, options?: { maxLines?: number }) => string | null;
   onReadTerminalTranscript: (id: string, tailChars: number) => string | null;
+  onReadTerminalSemanticAnswer: (id: string, options?: { limit?: number }) => Promise<string | null>;
   onWriteTerminal: (id: string, data: string) => Promise<ExoWriteTerminalResponse>;
   onSendTerminalMessage: (id: string, message: string, submit: boolean) => Promise<ExoWriteTerminalResponse>;
   onReconnectTerminal: (id: string) => Promise<ExoCommandTerminalInfo | null>;
@@ -440,6 +441,20 @@ export class CommandServer {
           return;
         }
         json(res, { transcript });
+        return;
+      }
+
+      const terminalSemanticAnswerMatch = pathname.match(/^\/terminals\/([^/]+)\/semantic-answer$/);
+      if (method === "GET" && terminalSemanticAnswerMatch) {
+        const answer = await this.options.onReadTerminalSemanticAnswer(
+          decodeURIComponent(terminalSemanticAnswerMatch[1]),
+          { limit: parsePositiveNumber(url.searchParams.get("limit")) },
+        );
+        if (answer === null) {
+          json(res, { error: "Terminal semantic trace not found" }, 404);
+          return;
+        }
+        json(res, { answer });
         return;
       }
 

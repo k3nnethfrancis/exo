@@ -192,27 +192,6 @@ export function TerminalDock(props: TerminalDockProps) {
                 onHydrated={onHydrated}
                 inputEnabled={inputEnabled}
               />
-              {!terminalWritable || terminalHydrating ? (
-                <div className="terminal-dock__health-overlay" data-testid="terminal-health-overlay">
-                  <div className="terminal-dock__health-title">
-                    {terminalHydrating ? "Restoring terminal" : activeSession.status === "exited" ? "Terminal exited" : "Terminal unavailable"}
-                  </div>
-                  <div className="terminal-dock__health-detail">
-                    {terminalHydrating ? "Reattaching to the durable tmux pane." : activeSession.healthDetail ?? "Reconnect or inspect terminal diagnostics."}
-                  </div>
-                  {canReconnect && !terminalHydrating ? (
-                    <button
-                      type="button"
-                      className="terminal-dock__header-button terminal-dock__reconnect"
-                      data-testid="terminal-overlay-reconnect"
-                      onClick={() => onReconnect?.(activeSession.id)}
-                    >
-                      <RefreshCw size={13} />
-                      <span>Reconnect</span>
-                    </button>
-                  ) : null}
-                </div>
-              ) : null}
             </div>
           ) : !empty ? (
             <div className="terminal-dock__empty">No terminals yet.</div>

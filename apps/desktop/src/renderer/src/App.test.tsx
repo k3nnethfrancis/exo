@@ -63,7 +63,7 @@ import {
   shouldSkipTerminalHydration,
 } from "./hooks/useTerminalSessions";
 import { defaultTerminalCwdForNotesFolder } from "./hooks/useWorkspaceBootstrap";
-import { isReconnectableSession, isTerminalInputEnabled, terminalSessionsEqual } from "./terminalSessions";
+import { isReconnectableSession, isTerminalInputEnabled, summarizeTerminalStatusLine, terminalSessionsEqual } from "./terminalSessions";
 import {
   buildPluginBoundarySummary,
   buildPluginCategoryFilters,
@@ -122,6 +122,7 @@ import {
 import { runToolSurfaceAction } from "./toolDockModel";
 import type { ToolSurfaceDescriptor } from "@exo/core/surface-descriptor";
 import type { WorkspaceSettingsDialogState } from "./workspaceSettingsDialogTypes";
+import type { TerminalSessionInfo } from "../../shared/api";
 
 describe("desktop shell", () => {
   it("keeps a renderer test surface in place", () => {
@@ -427,6 +428,7 @@ describe("profile settings model", () => {
     expect(buildProfileEditPanelSections(candidate!).map((section) => section.id)).toEqual([
       "metadata",
       "planSummary",
+      "applyPrompts",
       "recommendedPlugins",
       "templates",
       "skills",
@@ -1140,6 +1142,16 @@ function profilePlanFixture(): ProfilePlanPreview {
           kind: "permissionModel",
           message: "Permission prompts and trust grants are not implemented for profile application.",
           actionIds: ["qmd", "agents-md"],
+        },
+      ],
+      promptSteps: [
+        {
+          kind: "fileWriteReview",
+          label: "Review file writes",
+          detail: "Stage and approve context and instruction file changes before writing user files.",
+          actionIds: ["agents-md"],
+          enabled: false,
+          required: false,
         },
       ],
     },
@@ -2394,6 +2406,23 @@ function noteKnowledge(): NoteKnowledge {
   };
 }
 
+function terminalSessionFixture(overrides: Partial<TerminalSessionInfo> = {}): TerminalSessionInfo {
+  return {
+    id: "term-a",
+    title: "Terminal",
+    cwd: "/workspace",
+    terminalKind: "shell",
+    harnessId: null,
+    kind: "shell",
+    command: "zsh",
+    status: "running",
+    health: "idle",
+    healthDetail: "No recent terminal output; terminal may simply be waiting for input.",
+    attachGeneration: 1,
+    ...overrides,
+  };
+}
+
 describe("terminal session sync", () => {
   it("detects unchanged terminal session snapshots", () => {
     const sessions = [
@@ -2435,6 +2464,54 @@ describe("terminal session sync", () => {
     expect(isReconnectableSession(unhealthySession)).toBe(true);
     expect(isTerminalInputEnabled({ ...unhealthySession, health: "idle" })).toBe(true);
     expect(isTerminalInputEnabled({ ...unhealthySession, status: "exited", health: "exited" })).toBe(false);
+  });
+
+  it("summarizes exited terminal state for the bottom status bar", () => {
+    const sessions = [
+      terminalSessionFixture({
+        id: "term-codex",
+        title: "Codex",
+        kind: "codex",
+        terminalKind: "agent",
+        harnessId: "codex",
+        status: "exited",
+        health: "exited",
+        healthDetail: "Process exited.",
+      }),
+    ];
+
+    expect(summarizeTerminalStatusLine(sessions, "term-codex", new Set())).toEqual({
+      label: "Terminal exited",
+      tone: "warn",
+      title: "Codex: Process exited.",
+      busy: false,
+      sessionId: "term-codex",
+    });
+  });
+
+  it("prioritizes terminal restore state without requiring a floating overlay", () => {
+    const sessions = [
+      terminalSessionFixture({ id: "term-shell", title: "Shell" }),
+      terminalSessionFixture({
+        id: "term-codex",
+        title: "Codex",
+        kind: "codex",
+        terminalKind: "agent",
+        harnessId: "codex",
+        status: "exited",
+        health: "exited",
+        healthDetail: "Process exited.",
+      }),
+    ];
+
+    expect(summarizeTerminalStatusLine(sessions, "term-shell", new Set(["term-shell"]))).toEqual({
+      label: "Restoring terminal",
+      tone: "info",
+      title: "Shell: reattaching to the durable tmux pane.",
+      busy: true,
+      sessionId: "term-shell",
+    });
+    expect(summarizeTerminalStatusLine([sessions[0]], "term-shell", new Set())).toBeNull();
   });
 
   it("preserves terminal data that arrives before or during hydration", () => {

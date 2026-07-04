@@ -1,7 +1,7 @@
 # WP-078 Pi Answer Visibility Diagnostic
 
 Date: 2026-07-03
-Status: diagnostic complete; no product fix shipped
+Status: diagnostic complete; generic semantic answer read path shipped
 
 ## Fixture
 
@@ -110,15 +110,17 @@ visible-only/history-absent => viewport-widget limitation
 
 After repaint, direct tmux capture no longer contains the answer. Durable "what did the agent say" behavior for Pi-style TUIs still belongs in semantic trace output, not broader tmux capture, buffering, or TUI-special casing in terminal core.
 
-## Recommendation
+## Decision
 
 Do not change terminal runtime capture behavior for WP-078.
 
-If a narrow follow-up is approved, it should be read-path only and generic:
+`exo agents read <id> --tail N --raw` remains a raw transcript suffix. It is useful for terminal debugging, but it is not an answer extractor and can miss Pi-style answers after repaint/status bytes push the answer outside the bounded suffix.
 
-- clarify `exo agents read --tail N --raw` as a raw transcript suffix, not an answer extractor
-- consider a larger/default bounded transcript tail or a semantic/read mode that strips/compacts repaint control sequences before tailing
-- keep Pi answer semantics on the WP-P4 trace path for the durable fix
+The narrow fix is a generic semantic answer read path:
+
+- CLI: `exo agents read <id> --semantic` reads agent message text from `.exo/traces/{id}.ndjson`.
+- MCP: `read_agent` accepts `source: "trace"` for the same persisted semantic answer path.
+- App command server: `GET /terminals/{id}/semantic-answer?limit=N` returns `{ answer }`.
 
 No terminal core buffering, capture behavior, or Pi-specific TUI special casing was edited.
 

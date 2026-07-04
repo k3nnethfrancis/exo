@@ -10,7 +10,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-081: Non-modal terminal status messages should use the bottom status bar
 
-- Status: open
+- Status: fixed in working tree; needs app QA after restart
 - Severity: medium
 - Area: terminal UI, system status messaging, bottom status bar
 - Source:
@@ -24,10 +24,14 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - Terminal exit, refresh, reconnect, and background system messages should not obscure editor or terminal content.
   - If a message needs details or actions, the bottom-bar item can be clickable to open a small detail popover/log.
 - Acceptance:
-  - [ ] Inventory floating status/toast/popover messages used for terminal/session/index/refresh/system state.
-  - [ ] Move non-modal system messages to a bottom status/info bar item.
-  - [ ] Keep only true contextual hover help as tooltips.
-  - [ ] Add UI regression coverage or QA notes for terminal exit and refresh/status messages.
+  - [x] Inventory floating status/toast/popover messages used for terminal/session/index/refresh/system state.
+  - [x] Move non-modal terminal exit/restore/unavailable messages to a bottom status/info bar item.
+  - [x] Keep only true contextual hover help as tooltips.
+  - [x] Add UI regression coverage for terminal exit and restore/status messages.
+- Resolution:
+  - Removed the terminal health overlay from the terminal pane.
+  - Added a bottom-bar terminal status item for `Terminal exited`, `Terminal unavailable`, and `Restoring terminal`.
+  - The status item focuses the affected terminal when clicked and uses hover title text for detail.
 
 ### EXO-ISSUE-080: Pi-compatible harness should auto-start configured inference backend before launch
 
@@ -93,7 +97,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-078: Pi agent session launches but bounded read does not expose generated answer text
 
-- Status: diagnosed; fix not started
+- Status: fixed for trace-backed answer reads; raw tail behavior documented
 - Severity: medium
 - Area: Pi-compatible harness, agent transcripts, terminal read path, Exo MCP/CLI agent APIs
 - Source:
@@ -117,11 +121,16 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - Decision-tree outcome: `transcript-present/read-absent => read-tail policy bug` for the reported `exo agents read --tail 120 --raw` symptom.
   - Secondary terminal-screen outcome: `visible-only/history-absent => viewport-widget limitation`; once a Pi-style TUI repaints its answer region, tmux display/history cannot recover the answer.
   - Durable "what did the agent say" behavior should come from semantic trace output, not new tmux capture behavior, terminal buffering, or Pi-specific TUI special casing in terminal core.
+- Resolution:
+  - `exo agents read <id> --tail N --raw` remains documented as a bounded raw transcript suffix, not a semantic answer extractor.
+  - Added a generic trace-backed answer read path: `exo agents read <id> --semantic`, MCP `read_agent` with `source: "trace"`, and command-server `GET /terminals/{id}/semantic-answer?limit=N`.
+  - The fake Pi repaint TUI can now emit a semantic sidecar event for deterministic tests; no live inference is required.
+  - Terminal screen reads/capture tails still report displayed/history text only.
 - Acceptance:
   - [x] Reproduce with a deterministic fake or low-risk Pi-compatible fixture without requiring live model inference.
   - [x] Confirm whether the answer is absent from tmux capture, Exo transcript persistence, or only `exo agents read`.
-  - [ ] Decide whether to make a narrow generic read-tail change, document `agents read --tail` as raw transcript suffix behavior, or defer user-facing answer reads to semantic traces.
-  - [ ] Add coverage so Pi-compatible harness sessions expose generated answer text through the expected CLI/MCP/app read path.
+  - [x] Decide whether to make a narrow generic read-tail change, document `agents read --tail` as raw transcript suffix behavior, or defer user-facing answer reads to semantic traces.
+  - [x] Add coverage so Pi-compatible harness sessions expose generated answer text through the expected CLI/MCP/app read path.
   - Keep the fix generic for Pi-compatible harnesses; do not add GA-specific behavior.
 
 ### EXO-ISSUE-077: Pi-compatible harness detection shows wrong executable and remains unlaunchable in packaged app

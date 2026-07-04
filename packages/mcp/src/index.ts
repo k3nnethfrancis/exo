@@ -9,12 +9,14 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { DEFAULT_TERMINAL_MAX_READ_TAIL_CHARS, DEFAULT_TERMINAL_READ_TAIL_CHARS } from "@exo/core/terminal-settings";
+import { semanticTraceEventsToAgentAnswerText } from "@exo/core/semantic-trace";
+import { SemanticTraceStore } from "@exo/core/semantic-trace-store";
 import {
   formatRegisteredAgentHarnessUsage,
 } from "@exo/core/agent-harness-registry";
 import * as z from "zod/v4";
 
-import { ExoCommandClient, ExoCommandDiscoveryError, ExoCommandServerHttpError, formatAgents, stripAnsi } from "./exo-client";
+import { ExoCommandClient, ExoCommandDiscoveryError, ExoCommandServerHttpError, formatAgents, resolveMcpRuntimeRoot, stripAnsi } from "./exo-client";
 
 const DEFAULT_HTTP_HOST = "127.0.0.1";
 const DEFAULT_HTTP_PORT = 3333;
@@ -274,7 +276,9 @@ server.registerTool(
       agentId: z.string().min(1).describe("Agent id from list_agents, for example term-3."),
       maxLines: z.number().int().positive().optional().describe("Maximum live terminal lines to return, bounded by Exo's configured terminal history lines. Prefer this for reads that should not flood callers."),
       tailChars: z.number().int().nonnegative().optional().describe("Maximum characters to return from the end of the transcript when maxLines is omitted. Omit to use Exo's configured default."),
-      clean: z.boolean().default(true).describe("Strip ANSI terminal escape codes before returning output."),
+      clean: z.boolean().default(true).describe("Strip ANSI terminal escape codes before returning terminal output."),
+      source: z.enum(["terminal", "trace"]).default("terminal").describe("Read the terminal transcript/live tail, or read semantic agent answer text from persisted traces."),
+      traceLimit: z.number().int().positive().optional().describe("Maximum semantic trace events to inspect when source is trace. Defaults to 100."),
     },
     annotations: {
       readOnlyHint: true,
@@ -282,8 +286,17 @@ server.registerTool(
       idempotentHint: true,
     },
   },
-  async ({ agentId, maxLines, tailChars, clean }) => {
+  async ({ agentId, maxLines, tailChars, clean, source, traceLimit }) => {
     return runAppBackedTool(async () => {
+      if (source === "trace") {
+        const store = new SemanticTraceStore(await resolveMcpRuntimeRoot(process.env));
+        const events = await store.readEvents(agentId, { limit: traceLimit ?? 100 });
+        const output = semanticTraceEventsToAgentAnswerText(events);
+        return {
+          content: [{ type: "text", text: output || "(no semantic answer output)" }],
+          structuredContent: { agentId, output, source: "trace", traceLimit: traceLimit ?? 100 },
+        };
+      }
       const client = await ExoCommandClient.connect();
       const config = await client.getConfig();
       const configuredDefault = readNonNegativeInteger(config.terminalReadTailChars, DEFAULT_TERMINAL_READ_TAIL_CHARS);
@@ -296,7 +309,7 @@ server.registerTool(
       const output = clean ? stripAnsi(rawOutput) : rawOutput;
       return {
         content: [{ type: "text", text: output || "(no buffered output)" }],
-        structuredContent: { agentId, output, maxLines, tailChars: maxLines ? undefined : effectiveTailChars },
+        structuredContent: { agentId, output, source: "terminal", maxLines, tailChars: maxLines ? undefined : effectiveTailChars },
       };
     });
   },

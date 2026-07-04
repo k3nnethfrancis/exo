@@ -326,6 +326,7 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
 - [x] Add profile review and notes-repo changes indicators to the bottom bar, with a changed-notes modal that opens changed Markdown files from note roots.
 - [ ] Add permission prompts and a staged profile apply review flow before any profile can write `AGENTS.md`, `CLAUDE.md`, MCP config, skills, routines, plugin settings, or permission grants.
   - [x] Stage profile-owned context, instruction, and MCP config file templates through the proposal review queue.
+  - [x] Add a metadata-only profile apply prompt plan that names disabled trust, enablement, permission grant, plugin settings, file write, skill, routine, and MCP config gates.
   - [ ] Add prompts/grants before profiles can enable plugins, install skills, schedule routines, change settings, or grant permissions.
 - [x] Add local plugin add/remove/swap primitives for metadata plugin directories without loading executable plugin entrypoints.
 - [x] Add provider-neutral search readiness metadata so Plugin Manager can show QMD and future search-provider state without treating QMD as core search.

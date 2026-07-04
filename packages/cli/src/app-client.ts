@@ -254,6 +254,11 @@ export class AppClient {
     return String(result.transcript ?? "");
   }
 
+  async readTerminalSemanticAnswer(id: string, limit?: number): Promise<string> {
+    const result = await this.get(EXO_COMMAND_ROUTES.terminalSemanticAnswer(id, limit));
+    return String(result.answer ?? "");
+  }
+
   async writeTerminal(id: string, data: string): Promise<AppClientWriteResult> {
     return this.post(EXO_COMMAND_ROUTES.terminalWrite(id), { data });
   }

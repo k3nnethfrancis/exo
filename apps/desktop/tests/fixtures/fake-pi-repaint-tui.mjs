@@ -1,9 +1,15 @@
 #!/usr/bin/env node
 
+import { appendFile, mkdir } from "node:fs/promises";
+import path from "node:path";
+
 const answer = process.env.EXO_FAKE_PI_ANSWER ?? "PI_FIXTURE_ANSWER OK";
 const visibleMs = Number.parseInt(process.env.EXO_FAKE_PI_VISIBLE_MS ?? "1200", 10);
 const status = process.env.EXO_FAKE_PI_STATUS ?? "model: fake-pi-viewport status: ready";
 const includePrompt = process.env.EXO_FAKE_PI_INCLUDE_PROMPT === "1";
+const tracePath = process.env.EXO_FAKE_PI_TRACE_PATH;
+const traceSessionId = process.env.EXO_FAKE_PI_TRACE_SESSION_ID ?? "fake-pi-session";
+const traceHarnessId = process.env.EXO_FAKE_PI_TRACE_HARNESS_ID ?? "fake-pi";
 
 let input = "";
 let rendering = false;
@@ -23,6 +29,14 @@ function renderInitial() {
 
 function renderAnswer(prompt) {
   rendering = true;
+  void emitTraceEvent({
+    type: "assistant-text",
+    sessionId: traceSessionId,
+    harnessId: traceHarnessId,
+    turnId: "turn-1",
+    text: answer,
+    payload: { prompt },
+  });
   write("\r\x1b[2K");
   write("\x1b[2A\r\x1b[2K");
   write(`answer: ${answer}${includePrompt ? ` prompt=${prompt}` : ""}\n`);
@@ -37,6 +51,14 @@ function renderAnswer(prompt) {
     write("> ");
     rendering = false;
   }, Number.isFinite(visibleMs) && visibleMs >= 0 ? visibleMs : 1200);
+}
+
+async function emitTraceEvent(event) {
+  if (!tracePath) {
+    return;
+  }
+  await mkdir(path.dirname(tracePath), { recursive: true });
+  await appendFile(tracePath, `${JSON.stringify({ timestamp: new Date().toISOString(), ...event })}\n`, "utf8");
 }
 
 function handleChunk(chunk) {

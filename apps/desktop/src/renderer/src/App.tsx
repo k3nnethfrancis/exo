@@ -65,6 +65,7 @@ import {
 import { pathLabel } from "./workspaceTree";
 import type { IndexBusyState } from "./workspaceSettingsDialogTypes";
 import { getPreviewTitle, markdownPreviewExcerpt, suggestWikilinkTargetsFromTrees } from "./graphAffordances";
+import { summarizeTerminalStatusLine } from "./terminalSessions";
 
 type ZoomSurface = "editor" | "terminal" | "explorer";
 
@@ -1060,6 +1061,11 @@ export function App() {
   }
 
   const indexStatusLine = summarizeIndexStatus(indexStatus, indexBusy);
+  const terminalStatusLine = summarizeTerminalStatusLine(
+    terminalSessions,
+    activeTerminalId,
+    terminalState.hydratingTerminalIds,
+  );
 
   return (
     <>
@@ -1084,6 +1090,7 @@ export function App() {
         pendingProposals: proposalReviewState.pendingProposalCount,
         profileReviewRequired: profileState?.reviewRequired ?? false,
         profileLabel: profileState?.activeProfile?.profileId ?? null,
+        terminal: terminalStatusLine,
         index: indexStatusLine,
       }}
       shellLayout={shellLayout}

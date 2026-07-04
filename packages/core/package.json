@@ -11,6 +11,8 @@
     "./plugin-permissions": "./src/plugin-permissions.ts",
     "./profile": "./src/profile.ts",
     "./profile-plan": "./src/profile-plan.ts",
+    "./semantic-trace": "./src/semantic-trace.ts",
+    "./semantic-trace-store": "./src/semantic-trace-store.ts",
     "./surface-descriptor": "./src/surface-descriptor.ts",
     "./types": "./src/types.ts",
     "./terminal-settings": "./src/terminal-settings.ts",
