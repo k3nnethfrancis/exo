@@ -1,12 +1,38 @@
 # Exo Issues
 
-Last updated: 2026-07-03
+Last updated: 2026-07-04
 
 This is the canonical active bug/QA tracker for Exo implementation work. It captures user-observed issues that need investigation before the next push/release pass.
 
 This root file is the only canonical Exo issue tracker. Field notes from daily dogfooding, GitHub issues, screenshots, or agent sessions should be promoted here with an `EXO-ISSUE-*` id before assignment.
 
 ## Open
+
+### EXO-ISSUE-082: `exo agents read` returns corrupted terminal glyphs during Exo-on-Exo monitoring
+
+- Status: open; prioritize before treating Exo-on-Exo orchestration as reliable
+- Severity: high
+- Area: CLI agent read path, terminal transcripts, tmux/control-mode capture, Exo-on-Exo observability
+- Source:
+  - 2026-07-04 Wave 3 monitoring after Fable review fan-out.
+- Observed:
+  - `exo agents read <id>` returned visibly corrupted output while reading Codex worker sessions, including repeated `q`, `W`, bullets, digits, cursor/control fragments, and smeared text.
+  - The corruption made worker status unreadable from the operator CLI even though the worktrees showed active edits.
+  - This breaks the Exo-on-Exo management loop because the lead agent cannot reliably monitor or triage subagent progress through Exo.
+- Expected:
+  - `exo agents read` should return clean, bounded, human-readable text suitable for monitoring agent status.
+  - If the source is a raw screen/transcript tail with terminal control sequences, the command should sanitize or select a readable mode explicitly rather than emitting control-mode artifacts.
+  - Raw byte/ANSI output may remain available behind an explicit raw/debug flag, but the default agent-read path should be operator-readable.
+- Suspected:
+  - The CLI read path may be returning a screen/control-mode/tmux tail that still contains terminal-render control artifacts, or it may be decoding terminal output differently from xterm.
+  - This is related to, but not identical with, embedded terminal render corruption: even if the app surface recovers, the CLI readback must be stable for orchestration.
+- Acceptance:
+  - [ ] Reproduce with deterministic fake Codex/Claude output that includes spinner, box drawing, carriage-return updates, and split Unicode/control bytes.
+  - [ ] Identify whether corruption originates in tmux capture, transcript decoding, command-server read sanitization, or CLI rendering.
+  - [ ] Make `exo agents read` default to a clean operator-readable view.
+  - [ ] Keep explicit raw/debug access for transcript or screen bytes where useful.
+  - [ ] Add regression coverage so the Exo-on-Exo monitoring path cannot emit replacement glyphs/control fragments for normal reads.
+  - [ ] Verify with a live Exo-managed Codex worker that `exo agents read <id>` can be used for status monitoring without hard-refreshing the app.
 
 ### EXO-ISSUE-081: Non-modal terminal status messages should use the bottom status bar
 

@@ -46,6 +46,7 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
     - [ ] WP-046: MCP stdio restart/reinstall diagnostic-first fix; this gates Exo-on-Exo readiness but not plugin UI work.
     - [ ] WP-PA1: profile apply slice #1 for context/instruction/MCP template writes through proposals on a fixture vault; starts after C1b.
     - [ ] WP-QA-PM: Plugin Manager/onboarding read-only app-QA pass with fallback evidence if Computer Use inspection fails.
+  - [ ] Prioritize `EXO-ISSUE-082`: make `exo agents read` clean and operator-readable for Exo-on-Exo monitoring before relying on it for swarm management.
   - [ ] Enforce Fable's public-contract rule in all future briefs: command-server routes, CLI commands/flags, MCP tool parameters, and shared protocol types require architect review before shipping unless the user explicitly approves an exception.
   - [ ] Finish removing compatibility harness ids from internal renderer/API launch descriptors while keeping `exo terminals` as the low-level core terminal surface.
     - [x] Add backward-compatible `terminalKind`/`harnessId` fields to terminal session info, diagnostics, command protocol terminal info, and persisted terminal session records.
