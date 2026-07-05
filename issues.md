@@ -1,12 +1,31 @@
 # Exo Issues
 
-Last updated: 2026-07-04
+Last updated: 2026-07-05
 
 This is the canonical active bug/QA tracker for Exo implementation work. It captures user-observed issues that need investigation before the next push/release pass.
 
 This root file is the only canonical Exo issue tracker. Field notes from daily dogfooding, GitHub issues, screenshots, or agent sessions should be promoted here with an `EXO-ISSUE-*` id before assignment.
 
 ## Open
+
+### EXO-ISSUE-087: Terminal diagnostics command ignores target id and can EPIPE when piped
+
+- Status: open
+- Severity: medium
+- Area: CLI diagnostics, terminal monitoring, Exo-on-Exo observability
+- Source:
+  - 2026-07-05 Wave 5 Exo-on-Exo monitoring.
+- Observed:
+  - Running `exo terminals diagnostics term-136` printed diagnostics for all terminals instead of only `term-136`.
+  - Piping the large JSON diagnostics through `jq` caused the CLI process to crash with an unhandled `write EPIPE`.
+  - The broad diagnostics dump made it harder to monitor a specific worker and produced noisy terminal output during agent orchestration.
+- Expected:
+  - `exo terminals diagnostics <id>` should either return diagnostics for that terminal id only, or the help text should make clear that diagnostics is all-terminal only.
+  - Broken stdout pipes should be handled gracefully without an unhandled Node error stack.
+- Acceptance:
+  - [ ] Decide whether `diagnostics <id>` is supported or remove the misleading positional behavior.
+  - [ ] Add focused CLI coverage for single-terminal diagnostics or help/usage behavior.
+  - [ ] Handle stdout `EPIPE` consistently for diagnostics and other large CLI outputs.
 
 ### EXO-ISSUE-084: `install-mac-app` can stall during electron-builder dependency packaging
 
