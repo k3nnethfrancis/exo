@@ -278,15 +278,16 @@ Verification:
 
 Goal: finish the documented plugin/profile management foundation before GA-specific work.
 
-Deliverables:
+Remaining deliverables:
 
 - permission prompt UX/backend integration for metadata grants
-- profile apply review model that can stage planned file-template changes but still requires explicit confirmation
-- plugin install/remove state cleanup
+- prompts/grants for profile-driven plugin enablement, skill install/enable, routine creation/scheduling, settings changes, and permission changes
+- plugin install/update/remove state cleanup beyond the implemented managed-local add/remove/swap path
 - split remaining terminal/session substrate ids from harness-adapter ids where needed for arbitrary registered harnesses
 
 Completed foundation pieces:
 
+- profile-owned context, instruction, and MCP config file templates can be staged through the proposal review queue and still require explicit Desktop/CLI acceptance before file writes
 - local plugin add/remove/swap primitives for metadata plugin directories
 - provider-neutral search readiness metadata in Plugin Manager
 

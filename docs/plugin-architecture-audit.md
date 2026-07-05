@@ -27,7 +27,7 @@ Still open:
 - external plugin contracts for trace collection, review labels, dataset export, eval packets, and instrumented runtimes;
 - project knowledge sync plugin/profile contract;
 - richer plugin QA across onboarding, Plugin Manager, QMD/search, and harness launch states;
-- possible Fable alignment decisions around open capability kind ids, legacy alias shims, and comment-preserving frontmatter patching.
+- future re-review before public plugin support around open capability kind ids and host negotiation for unsupported namespaced kinds.
 
 ### Core Owns Substrate; Plugins Own Variation
 

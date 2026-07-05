@@ -170,7 +170,7 @@ Contract should cover:
 - optional skill inventory metadata
 - required runtime dependency metadata, including inference backends
 
-Contract note: the terminal/session metadata split has started. `TerminalSessionInfo`, diagnostics, persisted session records, and command-protocol terminal info can distinguish core substrate (`terminalKind: "shell" | "agent"`) from harness identity (`harnessId`). The current creation path still accepts fixed `ManagedAgentKind` values, so future cleanup must let local harness plugins launch by plugin capability id without pretending to be a built-in kind.
+Contract note: the terminal/session metadata split has started. `TerminalSessionInfo`, diagnostics, persisted session records, and command-protocol terminal info can distinguish core substrate (`terminalKind: "shell" | "agent"`) from harness identity (`harnessId`). Public agent-create paths now route through registered, launchable `harnessId` values, but some renderer/API descriptors still carry built-in `ManagedAgentKind` compatibility fields for built-in terminal creation and persisted-session backfill.
 
 Migration approach:
 
@@ -350,7 +350,7 @@ The first manifest pass supports:
 
 - `exo.plugin.json` manifests in plugin directories
 - plugin id, name, version, Exo API version, optional description, optional entrypoints, settings schema, surfaces, permissions, and declared capabilities
-- strict validation for capability kinds, lifecycle states, surfaces, and permission strings
+- strict validation for lifecycle states, surfaces, and permission strings; bare legacy capability kinds are rejected, while future namespaced kinds are parsed as inert `unsupported-kind` metadata
 - deterministic discovery from configured directories without loading or executing plugin code
 - source/trust metadata for built-in, dev, user, and workspace plugins
 - duplicate-safe plugin and capability registration
@@ -423,7 +423,7 @@ Defer until the manifest model survives real use.
 
 Future work:
 
-- install/uninstall flows that copy or remove plugin directories from the user/workspace roots
+- remote install/update flows and state cleanup beyond the implemented metadata-only local add/remove/swap path
 - trust prompts and trust revocation UX for user/workspace roots
 - permission prompt UX on top of the metadata-only grant/revocation records
 - entrypoint loading, sandbox policy, process isolation, and lifecycle error handling
@@ -431,18 +431,18 @@ Future work:
 - logs/errors
 - uninstall and state cleanup
 
-## Implementation Order
+## Current Remaining Order
 
-1. Core capability registry and built-in metadata.
-2. SearchProvider contract with QMD behind it.
-3. AgentHarness contract with shell/Claude/Codex/Pi/Hermes behind it.
-4. Minimal activity/artifact-reference substrate plus plugin Routine template spec.
-5. External reference workload contract requirements.
-6. Scheduler implementation.
-7. Feed/event model.
-8. Permissioned surface contributions.
-9. Local plugin manifest discovery and validation.
-10. External plugin loading.
+Foundation work has already landed for the capability registry, QMD search provider, built-in agent harnesses, minimal Routine/activity records, metadata-only manifests, metadata-only permissions/settings, local add/remove/swap, Plugin Manager, profile preview/copy state, safe surface descriptors, and graph snapshot metadata.
+
+The remaining order is:
+
+1. Finish staged profile apply prompts/grants beyond file-template proposals: plugin enable/install, permission grants, plugin settings, skills, routines, MCP config, and AI-generated profile changes.
+2. Finish renderer/API launch descriptor cleanup so built-in `ManagedAgentKind` compatibility is only used for built-in creation and persisted-session backfill.
+3. Define external plugin contracts for workload-specific trace collection, review labels, dataset export, eval packets, and instrumented agent runtimes.
+4. Define the Project Knowledge Sync plugin/profile contract for project-local Markdown control files and central exograph synchronization.
+5. Add scheduler/feed implementation only after the manual Routine/activity path proves which core fields are universal.
+6. Add explicit policy, tests, and UX before any plugin contributes executable code, renderer panels, command-server routes, CLI commands, MCP tools, or direct web-viewer actions.
 
 ## QA Standard
 

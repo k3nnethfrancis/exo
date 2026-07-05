@@ -307,40 +307,39 @@ Current trust defaults:
 - built-in and dev manifests are trusted
 - user and workspace manifests are untrusted
 - disabled manifests are hidden from normal lists and do not reserve capability ids
+- future namespaced capability kinds are inspectable as `unsupported-kind` but inert
+- bare legacy or malformed capability kinds are rejected
 
-Non-goals for this phase:
+Implemented management state:
+
+- local plugin trust, enable, disable, metadata-only settings, and permission grant/revocation records
+- Exo-managed user/workspace local plugin add/remove/swap by copying valid plugin directories
+- Plugin Manager inspection and mutation for trusted local/developer metadata plugins while official/core rows stay read-only
+
+Still non-goals:
 
 - no entrypoint execution
-- no install/uninstall flow
-- no Plugin Manager UI
 - no plugin-owned CLI commands, MCP tools, desktop panes, or settings sections
-- no permission grants beyond manifest metadata
+- no permission grants that authorize runtime file, terminal, network, CLI, MCP, command-server, renderer, or web-viewer behavior
 
 ### Phase 6: Plugin Manager UI
 
-Add a compact Settings surface after the manifest and permission model exist:
+Status: implemented as a Plugin Manager surface rather than a general Settings page. The current manager shows:
 
 - installed plugins
 - enabled/disabled state
 - permissions
 - state location
-- logs/errors
-- uninstall/remove state
+- setup/readiness state
+- managed local add/remove/swap actions
 
-This should be an operator/admin surface, not a new default workflow screen.
+This remains a lifecycle/configuration surface, not the profile editor and not a plugin execution host.
 
-## First Work Chunks
+## Foundation Work Chunks
 
-1. Add core capability contract types and a built-in registry with tests.
-2. Register built-in search provider metadata for QMD without changing behavior.
-3. Extract the QMD implementation behind a `SearchProvider` interface.
-4. Register official agent harness metadata for shell, Claude Code, Codex, Pi, and Hermes without turning missing harnesses into dead launch buttons.
-5. Extract launch planning behind an `AgentHarness` interface.
-6. Define the minimal activity/artifact-reference substrate and harness skill inventory contracts.
-7. Define plugin-owned Routine, trace, review, eval, and executor contracts that can link back to core activity/artifact references.
-8. Add docs and harness checks so new hardwired provider/harness branches are rejected unless they go through the registry.
-9. Use local plugin manifests as metadata-only declarations.
-10. Only then design permissioned loading.
+The foundation chunks have landed: core capability types and registry, QMD behind `SearchProvider`, built-in agent harnesses behind `AgentHarness`, minimal Routine/activity and harness skill contracts, metadata-only local manifests, metadata-only permission/settings state, Plugin Manager, local add/remove/swap, safe surface descriptors, and graph snapshot metadata.
+
+Current remaining work is tracked in `../tasks.md` under `Finish Plugin Architecture Completion`: staged profile apply prompts/grants, renderer/API harness descriptor cleanup, external workload plugin contracts, Project Knowledge Sync, and the explicit policy/test work required before executable loading or plugin-contributed CLI/MCP/renderer/command-server surfaces.
 
 ## Agent Plugins
 

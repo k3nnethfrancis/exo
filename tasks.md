@@ -29,7 +29,7 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
     - [x] WP-P4a: first semantic trace consumer with trace store, fake harness capture, and `exo traces read`.
     - [x] WP-T6: tmux control-mode stdin input path with retry-then-degrade failure discipline.
     - [x] WP-D: terminal runtime decision docs/skills closure after the plain-attach spike.
-  - [x] Wave 1 plugin package: migrate capability kinds to namespaced ids with legacy manifest alias shim and status-visible deprecation.
+  - [x] Wave 1 plugin package: migrate capability kinds to namespaced ids; bare legacy kinds are rejected, and future namespaced kinds stay inspectable but inert.
   - [x] Accept Fable's sequencing amendment: namespaced capabilities and scoped permissions land before the proposal/review write contract.
   - [x] Add scoped plugin permission parsing/grants with `propose` distinct from direct `write`.
   - [ ] Add staged profile apply review with trust prompts and permission grants before any profile/plugin recommendation can write instructions, MCP config, skills, routines, settings, or grants.
@@ -308,42 +308,6 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
 - [x] Add a core read-only graph snapshot API that produces deterministic note/tag/link facts for graph visualization plugins and MCP/CLI graph traversal.
 - [ ] Keep LM Wiki and Shoshin as optional starter profiles, not built-in mandatory folder structures.
 
-## Next: Plugin Architecture Completion
-
-- [x] Add a profile dry-run/preview planner that shows recommended plugin, schema, context-template, skill, routine, graph-view, and review-policy effects without applying them.
-- [x] Split plugin trust from enabled state and keep user/workspace plugin manifests inspectable but inactive until explicitly trusted later.
-- [x] Add neutral plugin location resolution for built-in, dev, user, and workspace plugin directories so routine discovery does not own plugin discovery.
-- [x] Keep plugin manifests metadata-only and reject unsafe entrypoint paths before any future executable plugin loading exists.
-- [x] Make harness readiness the canonical launchability model for Claude, Codex, Pi-compatible, Hermes, and future adapters.
-- [x] Add a final launch gate so non-shell agent terminals cannot be created from raw launch plans when the harness is not launchable.
-- [x] Define the agent-harness plugin contract for Claude, Codex, Pi, Aider, Goose, OpenCode, and local/open-source agents: adapter metadata, availability detection, launch planning, semantic messages, skill/config inventory, dependency/setup guidance, and core terminal ownership.
-- [x] Keep Plugin Manager read-only for the foundation pass while improving category navigation, detail inspection, and setup/readiness explanations.
-- [x] Add Plugin Enablement v0: desktop Plugin Manager can trust, enable, and disable local/developer metadata plugins while keeping official/core rows read-only and without executing plugin code.
-- [x] Add Plugin Config v0 core state: metadata-only plugin settings schemas, JSON-backed overrides, validation, reset, and inventory summaries without executing plugin code.
-- [x] Add Plugin Config desktop UI in Plugin Manager so trusted/enabled local plugins can edit reviewed settings without bloating Workspace Settings.
-- [x] Add typed tool surface descriptors for the right rail/tool dock so terminal launchers, harness launchers, Agent Config, Plugin Manager, side-pane controls, and future routine/graph plugin surfaces are described before renderer callback wiring.
-- [x] Sharpen the graph visualization plugin boundary with deterministic `GraphSnapshot` metadata, derived backlinks, nested `graphVisualization` compatibility payloads, graph-aware surface descriptor metadata, and focused contract docs.
-- [x] Define safe renderer panel extension points and core web viewer endpoint usage for plugin-produced local apps/artifacts without implementing renderer plugin loading.
-- [x] Write the near-term Profile and Plugin Management plan that distinguishes Onboarding, Settings/Profile, Plugin Manager, Agent Config, and status-bar review affordances.
-- [x] Add active workspace profile state under the runtime root: active profile id/source/hash, scope, auto-update flag, and review-required status.
-- [x] Add shared/main/preload APIs for listing profiles, reading active profile state, setting/clearing active profile state, and toggling profile auto-update without applying profile writes.
-- [x] Refactor Workspace Settings from horizontal tabs to vertical settings navigation and add a Profile page.
-- [x] Add a read-only Profile Settings page showing active profile, profile candidates, recommended plugins, schemas, context/instruction templates, skills, routines, graph views, review/output policies, and disabled write actions with reasons.
-- [x] Add a read-only Profile Customize/Edit screen shell that centralizes profile metadata, recommended plugins, instruction templates, skills, schemas, routines, graph views, analyzers, and policies while keeping templatize/save disabled.
-- [x] Route Profile Customize component sections to existing specialized managers: recommended plugins open Plugin Manager, and instructions/templates/skills open Agent Config Editor while inline writes remain disabled.
-- [x] Add a Profile copy/customize path that creates trusted workspace-local profile metadata, selects it, and marks review required without mutating official profile packages or writing user instruction files.
-- [x] Improve Plugin Manager into a quick management surface with active/disabled/untrusted/missing setup/permissions-needed buckets, inline mutable actions, same-category alternatives, and clear locks for official/core rows.
-- [x] Add Plugin Manager baseline/layer orientation so users can distinguish always-on Exograph core, official plugins, local plugins, developer plugins, and which local plugins can be swapped or removed.
-- [x] Expose backend `ProfilePlanPreview` data to Profile Settings so Review/Customize screens show canonical profile actions, blockers, warnings, and future write/install/schedule effects without renderer-side duplicate planning.
-- [x] Add profile review and notes-repo changes indicators to the bottom bar, with a changed-notes modal that opens changed Markdown files from note roots.
-- [ ] Add permission prompts and a staged profile apply review flow before any profile can write `AGENTS.md`, `CLAUDE.md`, MCP config, skills, routines, plugin settings, or permission grants.
-  - [x] Stage profile-owned context, instruction, and MCP config file templates through the proposal review queue.
-  - [x] Gate real-vault file-template proposal staging on trusted/enabled/available profiles, human-reviewed `propose` policy, explicit allowed paths, and proposal apply-host validation before accepted target writes.
-  - [x] Add a metadata-only profile apply prompt plan that names disabled trust, enablement, permission grant, plugin settings, file write, skill, routine, and MCP config gates.
-  - [ ] Add prompts/grants before profiles can enable plugins, install skills, schedule routines, change settings, or grant permissions.
-- [x] Add local plugin add/remove/swap primitives for metadata plugin directories without loading executable plugin entrypoints.
-- [x] Add provider-neutral search readiness metadata so Plugin Manager can show QMD and future search-provider state without treating QMD as core search.
-
 ## Next: Multi-Agent Coordination
 
 - [ ] Add an agent roster with names, types, current cwd, status, objective, and active task.
@@ -357,63 +321,6 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
 - [ ] Support routing messages through MCP and filesystem-backed channels.
 - [ ] Keep terminal agents as the first integration point; add richer direct transports later.
 
-## Next: Plugin Architecture Foundations
-
-- [x] Scope the plugin architecture as internal capability registries first, not arbitrary user-code loading.
-- [x] Define the target core-versus-plugin architecture: core owns Markdown graph/editor, basic search, pane/web viewer hosts, terminal runtime, minimal activity/artifact-reference substrate, permissions, and plugin registry; plugins provide harnesses, advanced search, profiles, routines, analyzers, evals, exporters, dashboards, and maintenance workflows.
-- [x] Write the concrete implementation sequence in `docs/plugin-implementation-plan.md`.
-- [x] Write the near-term Plugin Manager foundation milestone: inventory sources, visible categories, non-goals, acceptance criteria, tests, and app QA requirements.
-- [x] Expose current core capabilities, official plugin-shaped capabilities, and metadata-only local manifests to the desktop through a read-only inventory API.
-- [x] Add a read-only Plugin Manager foundation surface grouped by category, showing Core vs Official Plugin vs Local Plugin vs Developer Manifest, lifecycle, trust, enabled/disabled state, dependency/install status, and surfaces/permissions.
-- [x] Add a read-only Plugin Manager detail panel for profile and graph visualization metadata without adding mutation or plugin execution.
-- [x] Keep Settings focused on baseline Exo behavior; use Plugin Manager for plugin lifecycle/config and keep Agent Config Editor specialized for harness instructions/skills/provider files.
-- [x] Define the profile manifest extension for recommended plugins, metadata/frontmatter schemas, context templates, AGENTS/CLAUDE templates, MCP config, skills, routine templates, graph views, analyzer settings, and output/review policies.
-- [x] Define the graph-data API and graph visualization surface contract before implementing the default graph explorer.
-- [x] Add core capability contract types and a built-in registry with tests.
-- [x] Register built-in QMD search-provider metadata without changing behavior.
-- [x] Extract QMD behind a `SearchProvider` interface.
-- [x] Add a typed search-provider registry and route the QMD facade through it.
-- [x] Register built-in shell, Claude, and Codex agent-harness metadata without changing behavior.
-- [x] Extract shell/Claude/Codex launch planning behind an `AgentHarness` interface.
-- [x] Add a typed agent-harness registry and route runtime launcher resolution through it.
-- [x] Define Routine and harness skill inventory contracts before implementing scheduler UI.
-- [x] Define first-pass Run, artifact, trace, file-change proposal, and evaluation result primitives that plugins can build on.
-- [ ] Narrow the long-term core contract from rich Run/trace/eval schemas to minimal activity, artifact-reference, provenance-reference, and review-reference primitives; leave rich schemas plugin-owned.
-- [x] Define canonical `.exo/` storage paths for first-pass Routine definitions, Run/activity records, transcripts, logs, and artifacts.
-- [x] Add a first JSON-backed core store for Routine definitions and Run/activity records.
-- [x] Add artifact writing and trace JSONL append helpers to the Routine/Run store.
-- [x] Add metadata-only plugin routine-template extraction and concrete Routine instantiation helpers.
-- [x] Add a core Routine service that discovers plugin templates, persists routines, and records dry-run executions.
-- [x] Add a generic trace collector contract without registering workload-specific collectors in core.
-- [x] Add a manual Routine executor substrate with injected host execution, artifact recording, trace recording, failure capture, and review status updates.
-- [x] Document that workload-specific systems such as Guardian Angel should be downstream plugins/reference workloads, not Exo core features.
-- [ ] Define external plugin contracts for workload-specific trace collection, review labels, dataset export, eval packets, and instrumented agent runtimes.
-- [x] Review the first-pass official harness plugin/config work for shell, Claude Code, Codex, Pi, and Hermes; ensure missing harnesses are configuration items, not dead launch buttons, and local GA Pi is represented only as a local custom Pi instance.
-- [ ] Split terminal/session substrate types from harness-adapter ids so CLI/MCP agent creation derives allowed choices from the registered harnesses while `exo terminals` stays the low-level core terminal surface.
-  - [x] Add backward-compatible `terminalKind`/`harnessId` fields to terminal session info, diagnostics, command protocol terminal info, and persisted terminal session records.
-  - [x] Move CLI/MCP/app `agents create` launch requests to registered, enabled, policy-approved harness ids instead of fixed `ManagedAgentKind` values.
-- [ ] Define how downstream plugins can use OKF-compatible concept documents for curated knowledge while storing raw traces, labels, eval packets, and training exports as linked local artifacts.
-- [x] Define permissioned surface-contribution policy for desktop, CLI, MCP, and command-server exposure.
-- [x] Define plugin manifest shape and first Exo API version policy.
-- [x] Add metadata-only local plugin manifest discovery and validation for `exo.plugin.json`.
-- [x] Add a duplicate-safe plugin registry for discovered plugin manifests and declared capabilities.
-- [x] Define initial plugin discovery sources and trust states: built-in, dev, user, workspace; trusted, untrusted, disabled.
-- [x] Keep first-pass plugin manifests non-executable: no entrypoint loading, permission grants, UI contributions, CLI commands, or MCP tools.
-- [x] Add metadata-only plugin permission grant/revocation state and policy helpers that distinguish requested permissions from active grants.
-- [x] Add architecture/harness checks that discourage direct implementation imports outside the provider/harness facade path.
-- [x] Define concrete discovery locations for built-in, dev, user, and workspace plugin manifests in the desktop runtime.
-- [x] Define concrete install/load directories and lifecycle rules for future executable plugins.
-- [x] Convert the current terminal rail into a general tool/plugin dock without moving terminal rendering, scrollback, reconnect, or diagnostics out of core.
-- [x] Add renderer surface descriptors for official/local tool actions: terminal launcher, harness launcher, agent config, routines, graph tools, and future plugin panels.
-- [x] Add core web viewer open/focus/close endpoints for URL/path/artifact preview; plugin outputs should call those endpoints rather than require a special WebView plugin API.
-- [x] Add first-pass onboarding capability review for official/local plugins after workspace selection: core locked rows, QMD/search provider rows, agent harness readiness rows, and local/profile/routine inventory from the existing Plugin Inventory API; web viewer remains core.
-- [ ] Add a future onboarding apply flow for profile/plugin recommendations after trust prompts and permission grants exist.
-- [ ] Add trust prompts and permission prompt UX before any plugin entrypoint execution.
-- [x] Add the first read-only Plugin Manager UI after manifests, trust, and permissions survived the metadata-only pass.
-- [x] Add Plugin Manager mutation flows for metadata-only local/developer plugins: trust, enable, and disable.
-- [x] Add plugin-owned settings/config core contracts after the metadata-only enablement path.
-- [x] Add plugin-owned settings/config UI after the core settings contract has enough real plugin configuration to validate.
-
 ## Later: Graph, Memory, Workcells, Training
 
 - [ ] Add graph/memory view combining backlinks, Markdown links, note structure, and QMD-derived relationships.
@@ -426,21 +333,6 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
 - [ ] Add eval hooks for retrieval quality, memory usefulness, agent recovery, and operator acceptance.
 - [ ] Keep training data explicitly scoped by project, workcell, agent, artifact type, review status, and time window.
 - [ ] Explore local-agent training workflows once Exo has stable workcells, memory, and evals.
-
-## Later: Plugin Architecture
-
-- [x] Define plugin manifest shape and version policy.
-- [x] Define plugin install/load locations.
-- [x] Define plugin extension depths: app plugins, surface plugins, capability plugins, and routine/template plugins.
-- [ ] Define safe renderer panel extension points and core web viewer endpoint usage for plugin-produced local apps/artifacts.
-- [ ] Define command registration API.
-- [x] Define settings API for plugin-owned state.
-- [x] Define agent harness adapter API for Claude, Codex, Pi, Aider, Goose, OpenCode, and local/open-source agents.
-- [ ] Decide how plugins can add MCP tools or CLI commands under explicit permissions.
-- [x] Define initial capability permissions for workspace/notes/project reads and writes, terminal/agent launch, network access, artifact writes, scoped grants, and propose-vs-write metadata.
-- [x] Define search provider, trace collector, eval runner, exporter, and routine-template extension points.
-- [ ] Decide whether the current branch-family file convention remains core or moves behind a plugin boundary.
-- [ ] Keep optional personal/domain workflows out of core until the plugin boundary exists.
 
 ## Later: Self-Modifying Exo
 

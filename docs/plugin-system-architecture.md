@@ -87,7 +87,7 @@ Capability kinds are namespaced ids. Bare legacy names are rejected so manifests
 This intentionally differs from Fable's July 2026 preflight recommendation for a one-release parse-time alias shim. Exo has not shipped a public plugin manifest ecosystem yet, so the current product choice is a hard migration with less compatibility code. Revisit this before any public third-party plugin release, package registry, or documented manifest stability promise.
 
 | Capability kind | Status |
-|---|---|---|
+|---|---|
 | `core:searchProvider` | hosted by core |
 | `core:agentHarness` | hosted by core |
 | `core:profile` | hosted by core |
@@ -98,7 +98,7 @@ This intentionally differs from Fable's July 2026 preflight recommendation for a
 | `exo.training:datasetExporter` | inert |
 | `exo.training:evalRunner` | inert |
 
-Unknown capability kinds are currently rejected during manifest parsing rather than accepted as inert capabilities. That keeps today's official/local plugin inventory mechanically bounded while the host contracts are still forming. If Exo starts supporting user-defined capability namespaces, this should change to an open `CapabilityKindId` model with inert unknown kinds and explicit host negotiation.
+Future namespaced capability kinds are inspectable but inert: Exo parses them with `status: "unsupported-kind"`, strips their requested permissions, does not expose them as active capabilities, and leaves valid supported siblings usable. Bare legacy or malformed kinds such as `routineTemplate` are rejected during manifest parsing. This keeps today's official/local plugin inventory bounded while allowing forward-compatible manifests to show unsupported rows. If Exo starts supporting user-defined capability namespaces, this should grow into explicit host negotiation instead of silent activation.
 
 Profiles are bundles, not individual runtime capabilities. A profile can declare recommended plugins, graph metadata conventions, AGENTS.md/CLAUDE.md templates, MCP config templates, skills to install or enable, routine templates, default graph views, analyzer settings, and output/review policies. A profile may depend on plugins, but it should not hide executable code inside configuration. If a profile needs executable behavior, it should depend on an explicit plugin capability.
 
@@ -280,6 +280,8 @@ Already aligned:
 - core surface descriptors now name metadata-only plugin panels and web viewer endpoint metadata for plugin-produced local apps/artifacts without renderer plugin loading
 - first-pass Routine, Run, artifact, trace, and routine-template primitives exist in core, but the target boundary should keep rich automation semantics plugin-owned
 - plugin manifests are metadata-only and non-executable
+- public `exo agents create`, MCP `create_agent`, and app agent-create paths validate registered, enabled, surface-approved, visible, launchable harness ids before terminal creation
+- Plugin Manager now acts as a quick management surface for active, disabled, untrusted, missing-setup, permissions-needed, and plugin-settings rows, with managed local add/remove/swap support
 - command server, CLI, and MCP share core protocol types
 - pane content already has typed document, terminal, and browser bodies
 
@@ -289,31 +291,26 @@ Not yet aligned:
 - settings use scalable vertical navigation and include a dedicated Profile page, but deeper profile editing remains read-only/preview-oriented
 - terminal launch controls are partly hardwired UI even though harness metadata exists
 - current Routine/Run naming is compatibility terminology for the first CLI/store MVP; the durable contract is the smaller activity/artifact/provenance/review substrate documented in `activity-plugin-contract.md`
-- terminal sessions now expose additive substrate/harness identity fields, but CLI/MCP launch paths still accept fixed official harness ids where they should eventually derive policy-approved choices from the harness registry
-- plugin manager exists and onboarding now has a first-pass read-only capability review, but onboarding does not yet apply profile/plugin recommendations or grant permissions
-- Plugin Manager can add, remove, and swap metadata-only local plugins in managed user/workspace plugin roots without loading executable entrypoints
+- terminal sessions now expose additive substrate/harness identity fields, but some renderer/API descriptors still carry built-in `ManagedAgentKind` compatibility fields for built-in creation and persisted-session backfill
+- onboarding has a first-pass read-only capability review, but it does not yet apply profile/plugin recommendations or grant permissions
 - active workspace profile state exists under Exo runtime metadata and is visible from Settings and the status bar when review is required
-- plugin manager can inspect and mutate local/developer metadata plugins, but it still reads closer to inventory than a quick management surface for active, disabled, untrusted, missing, and misconfigured capabilities
-- plugin manifests do not yet contribute UI, commands, settings, or MCP/CLI surfaces
+- plugin manifests can declare metadata-only settings schemas, but they do not yet contribute native renderer panels, commands, command-server routes, or MCP/CLI tools
 - profile packs have a metadata shape for recommended plugins, schemas, context files, skills, routines, graph views, and policies, plus active-profile state and copy/customize metadata flows; the permissioned apply flow is not implemented
 - profile plan previews expose disabled future apply prompt steps for plugin trust, plugin enable/install, permission grants, plugin settings, file writes, skill installs, routine creation, and MCP config review
-- graph visualization does not yet have a stable plugin surface or core graph-data API
+- graph visualization has a read-only core snapshot type and metadata contract, but no renderer graph extraction/rendering flow or default graph explorer UI yet
 - core versus official/local plugin language is still being normalized across docs and code names
 
 ## Implementation Path
 
 1. Keep terminal reliability work in core. Do not push terminal rendering/hydration/reconnect into plugins.
-2. Rename the current terminal rail conceptually to a tool/plugin dock in docs, then in code when the terminal refactor is stable.
-3. Add a renderer surface descriptor model for core and official plugin actions.
-4. Move harness launchers, agent config, routine/plugin actions, and graph tools onto surface descriptors.
-5. Keep the web viewer as a core endpoint surface rather than a plugin API.
-6. Reassess current Routine/Run core types and keep only the minimal activity/artifact/review substrate needed for plugins to compose.
-7. Finish splitting terminal/session substrate types from harness-adapter ids: session metadata now has the compatibility fields, but `exo agents create` still needs to choose policy-approved registered harness ids while `exo terminals` remains a low-level terminal surface.
-8. Add Plugin Manager and onboarding capability selection after manifests, trust, permissions, and official plugin metadata are stable.
-9. Add settings section contributions for plugin-owned settings.
-10. Add explicit policy and tests before any plugin can contribute MCP tools, CLI commands, or executable code.
-11. Define a profile manifest extension for recommended plugins, metadata schemas, context templates, skills, routines, graph views, and review/output policies.
-12. Define a graph-data API and graph visualization surface contract before building a replaceable graph explorer.
+2. Finish the remaining terminal rail/tool-dock naming cleanup without moving terminal rendering, scrollback, reconnect, or diagnostics out of core.
+3. Finish removing built-in `ManagedAgentKind` compatibility fields from renderer/API launch descriptors except where needed for built-in creation and persisted-session backfill.
+4. Keep the web viewer as a core endpoint surface rather than a plugin API.
+5. Reassess current Routine/Run core types and keep only the minimal activity/artifact/review substrate needed for plugins to compose.
+6. Add onboarding apply flows only after profile/plugin trust prompts, permission prompts, and explicit review gates exist.
+7. Add explicit policy and tests before any plugin can contribute MCP tools, CLI commands, command-server routes, renderer panels, executable code, or direct web-viewer actions.
+8. Define the project knowledge sync plugin/profile contract for project-local Markdown control files and central exograph synchronization.
+9. Build graph extraction/rendering and a replaceable default graph explorer on top of the existing graph snapshot and visualization metadata contracts.
 
 ## Non-Goals
 
