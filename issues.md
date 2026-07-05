@@ -126,6 +126,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - Exiting Monitor Mode restores the pre-monitor terminal layout snapshot while reconciling sessions created or killed during monitor mode.
   - External sessions attached while Monitor Mode is enabled are appended through the split-add path instead of rebuilding the monitor tree.
   - Validation: `pnpm --filter @exo/desktop exec vitest run src/renderer/src/App.test.tsx` passed; default `pnpm stable:smoke` passed twice on main.
+  - 2026-07-05 Monitor Mode QA evidence: added deterministic Electron e2e coverage with 4 local tmux-backed sessions, monitor toggle during output repaint, create/terminate while monitor mode is enabled, persisted monitor-mode relaunch, and geometry diagnostics. Validation passed with `pnpm exec playwright test -c apps/desktop/playwright.config.ts apps/desktop/tests/e2e/monitor-mode.spec.ts --grep "splits live terminals in monitor mode"`. Screenshots were captured outside the repo at `/tmp/exo-monitor-mode-4-live-sessions.png` and `/tmp/exo-monitor-mode-relaunch-persisted.png`.
 
 ### EXO-ISSUE-082: `exo agents read` returns corrupted terminal glyphs during Exo-on-Exo monitoring
 

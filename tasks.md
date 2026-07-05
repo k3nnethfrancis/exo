@@ -88,7 +88,7 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
 - [ ] Harden CLI/MCP for multi-agent coordination:
   - [x] Add terminal Monitor Mode so Exo-on-Exo fan-out sessions can be shown as split panes for operator monitoring, while normal mode keeps grouped terminal tabs.
   - [x] Fix `EXO-ISSUE-086`: Monitor Mode must preserve terminal pane identity across toggles instead of remounting every terminal view.
-  - [ ] Run Monitor Mode QA with 4+ live sessions: toggle during repaint, create/terminate while enabled, restart with monitor mode persisted, and document that monitor mode changes agent terminal geometry.
+  - [x] Run Monitor Mode QA with 4+ live sessions: toggle during repaint, create/terminate while enabled, restart with monitor mode persisted, and document that monitor mode changes agent terminal geometry.
   - [ ] Make `workspace_status` a reliable orientation tool with workspace roots, plugin/search readiness, live agents, index summary, command-server health, and degraded-state diagnostics.
   - [ ] Add or finalize the core preview/artifact-open command path for CLI/MCP through the core web viewer endpoint.
   - [ ] Add NDE-style MCP tests covering functionality, latency, result quality, stale config diagnostics, and permission/security behavior.

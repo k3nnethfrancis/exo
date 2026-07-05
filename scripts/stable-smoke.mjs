@@ -40,6 +40,12 @@ export const smokeScenarios = [
     timeoutMs: 85_000,
   },
   {
+    name: 'terminal-monitor-mode',
+    file: 'apps/desktop/tests/e2e/monitor-mode.spec.ts',
+    grep: 'splits live terminals in monitor mode, reconciles geometry, and persists across relaunch',
+    timeoutMs: 95_000,
+  },
+  {
     name: 'hidden-window-command-server',
     file: 'apps/desktop/tests/e2e/shell.spec.ts',
     grep: 'keeps the command server available while the window is hidden',
