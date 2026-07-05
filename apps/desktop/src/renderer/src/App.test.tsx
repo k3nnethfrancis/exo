@@ -426,7 +426,7 @@ describe("profile settings model", () => {
     expect(model.baselineCandidate?.componentRows).toContainEqual({ label: "Blockers", value: "1" });
     expect(model.baselineCandidate?.recommendationRows).toEqual([{ label: "qmd", value: "ready (optional)" }]);
     expect(PROFILE_SETTINGS_DISABLED_REASON).toContain("fixture-vault review");
-    expect(PROFILE_SETTINGS_DISABLED_REASON).toContain("WP-C1b");
+    expect(PROFILE_SETTINGS_DISABLED_REASON).toContain("Real-vault writes");
     expect(PROFILE_SETTINGS_DISABLED_REASON).toContain("permission grants");
   });
 

@@ -86,7 +86,7 @@ function assertProfileApplyWriteAllowed(proposal: ProposalBatch, options: Propos
   if (options.profileApplyMode === "fixtureVault" && proposal.metadata.profileApplyTarget === "fixtureVault") {
     return;
   }
-  throw new Error("Profile apply file writes are fixture-vault only until WP-C1b enables real-vault proposal review.");
+  throw new Error("Profile apply file writes are fixture-vault only until the real-vault profile apply permission contract ships.");
 }
 
 export async function currentHashesForProposal(

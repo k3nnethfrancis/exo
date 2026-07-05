@@ -41,10 +41,10 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
   - [x] Design semantic trace contract early enough that harness adapters do not need another terminal-service re-plumb.
   - [x] Tighten Plugin Manager into a management surface: active/disabled/untrusted/missing states, local plugin add/remove/swap, plugin-owned settings, readiness/dependency guidance, and no dense-layout overlap.
   - [ ] Complete Fable Wave-3 correction packages from `fable-exo-wave3-review.md`:
-    - [x] WP-C1b: reviewer-facing byte-accurate frontmatter preview in `ProposalReviewDialog` and `exo proposals show`; real-vault proposal use remains blocked until this lands.
+    - [x] WP-C1b: reviewer-facing byte-accurate frontmatter preview in `ProposalReviewDialog` and `exo proposals show`.
     - [ ] WP-P4b: production semantic trace capture wiring plus Pi-compatible sidecar emission; include EXO-ISSUE-078 raw-read honesty fix.
     - [ ] WP-046: MCP stdio restart/reinstall diagnostic-first fix; this gates Exo-on-Exo readiness but not plugin UI work.
-    - [x] WP-PA1: profile apply slice #1 for context/instruction/MCP template writes through proposals on a fixture vault; real-vault profile apply remains blocked on WP-C1b.
+    - [x] WP-PA1: profile apply slice #1 for context/instruction/MCP template writes through proposals on a fixture vault; real-vault profile apply remains blocked on the explicit profile apply permission/enabling contract.
     - [ ] WP-QA-PM: Plugin Manager/onboarding read-only app-QA pass with fallback evidence if Computer Use inspection fails.
   - [x] Prioritize `EXO-ISSUE-082`: make `exo agents read` clean and operator-readable for Exo-on-Exo monitoring before relying on it for swarm management.
   - [ ] Enforce Fable's public-contract rule in all future briefs: command-server routes, CLI commands/flags, MCP tool parameters, and shared protocol types require architect review before shipping unless the user explicitly approves an exception.

@@ -55,7 +55,7 @@ export interface ProfileSettingsSectionGroup {
 }
 
 export const PROFILE_SETTINGS_DISABLED_REASON =
-  "Profile-owned file templates can be staged as proposals for fixture-vault review. Real-vault writes wait for WP-C1b; profile field editing, skill installs, routine scheduling, plugin enablement, plugin settings, MCP config mutation, and permission grants each need their own enabling contract.";
+  "Profile-owned file templates can be staged as proposals for fixture-vault review. Real-vault writes, profile field editing, skill installs, routine scheduling, plugin enablement, plugin settings, MCP config mutation, and permission grants each need their own enabling contract.";
 
 export function buildProfileSettingsModel(
   inventory: PluginInventory | null,
