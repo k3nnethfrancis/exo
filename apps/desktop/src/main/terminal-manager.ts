@@ -213,13 +213,16 @@ export class TerminalManager extends EventEmitter {
 
   setRuntimeConfig(runtimeConfig: RuntimeConfig = resolveRuntimeConfig()) {
     const previousRuntimeRoot = this.runtimeConfig.runtimeRoot;
-    this.runtimeConfig = runtimeConfig;
-    this.sessionRegistry = this.createSessionRegistry();
     if (runtimeConfig.runtimeRoot === previousRuntimeRoot) {
+      this.runtimeConfig = runtimeConfig;
+      this.sessionRegistry = this.createSessionRegistry();
       return;
     }
 
     this.flushAllTranscripts();
+    this.detachRuntimeSessionsForSwitch();
+    this.runtimeConfig = runtimeConfig;
+    this.sessionRegistry = this.createSessionRegistry();
     this.transcripts = this.createTranscriptStore();
     this.restorePersistedSessions();
   }
@@ -832,6 +835,23 @@ export class TerminalManager extends EventEmitter {
     for (const id of this.sessions.keys()) {
       this.flushTranscript(id);
     }
+  }
+
+  private detachRuntimeSessionsForSwitch(): void {
+    for (const record of this.sessions.values()) {
+      this.stopTraceCaptureIngestion(record);
+      this.clearReadinessTimer(record);
+      this.discardRawInput(record, "terminal runtime root changed");
+      this.discardPendingWrites(record, "terminal runtime root changed");
+      record.reconnecting = true;
+      try {
+        record.process.kill();
+      } catch {
+        // Runtime switches replace Exo's registry/bridge ownership. The tmux
+        // session itself remains durable and recoverable from its old registry.
+      }
+    }
+    this.sessions.clear();
   }
 
   private createTranscriptStore(): TerminalTranscriptStore {

@@ -36,7 +36,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-083: Readiness/e2e temp terminals can leak into the real workspace runtime
 
-- Status: open
+- Status: fixed in `codex/issue-083-runtime-isolation`; Electron smoke rerun needs a process-permission pass
 - Severity: medium
 - Area: terminal registry, test/runtime isolation, Exo-on-Exo dogfooding
 - Source:
@@ -49,10 +49,16 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - Automated readiness/e2e/fixture terminals should use isolated runtime roots and should not persist into the user's real workspace `.exo` registry.
   - If stale missing-tmux sessions are found after restart, Exo should offer a clear cleanup path and avoid cluttering the active terminal roster.
 - Acceptance:
-  - [ ] Identify which readiness/e2e path created `exo-codex-readiness-*` terminals under the lab runtime.
-  - [ ] Ensure those tests/tools always set isolated `EXO_RUNTIME_ROOT`/user-data paths or clean their terminal records.
-  - [ ] Add a regression check that readiness fixture terminals do not appear in `exo status` for the real workspace after app restart.
-  - [ ] Consider a user-visible stale-terminal cleanup action if the registry contains missing-tmux sessions.
+  - [x] Identify which readiness/e2e path created `exo-codex-readiness-*` terminals under the lab runtime.
+  - [x] Ensure those tests/tools always set isolated `EXO_RUNTIME_ROOT`/user-data paths or clean their terminal records.
+  - [x] Add a regression check that readiness fixture terminals do not appear in `exo status` for the real workspace after app restart.
+  - [x] Consider a user-visible stale-terminal cleanup action if the registry contains missing-tmux sessions.
+- Resolution:
+  - Root cause: `TerminalManager.setRuntimeConfig()` switched the registry path before clearing in-memory terminal records from the previous runtime. A later terminal create could persist those old records into the new runtime registry, which let temp readiness workspaces such as `/var/folders/.../exo-codex-readiness-*` appear in the real workspace terminal roster.
+  - Fix: runtime-root changes now flush transcripts, stop readiness/trace timers, detach old Exo bridge processes without terminating tmux sessions, clear the in-memory session map, then load the new runtime registry. This preserves the old runtime's persisted tmux-backed records while preventing cross-runtime registry contamination.
+  - Regression: `terminal-manager.test.ts` now simulates a readiness workspace switching into a separate real workspace runtime and verifies the real registry does not contain `exo-codex-readiness-*`.
+  - Stale cleanup action: no new automatic prune path was added in this slice. Existing explicit `exo terminals kill <id>` remains the cleanup path; auto-pruning missing tmux sessions would risk weakening transcript/session persistence without a separate UX decision.
+  - Verification: focused terminal Vitest passed. `pnpm terminal:check` passed its Vitest phase; Electron smoke needed process permissions, and the approved rerun was interrupted after stale-bundle timeouts. `pnpm --filter @exo/desktop build` and `pnpm check:repo` passed afterward.
 
 ### EXO-ISSUE-085: `stable:smoke` timeout blocks unrelated fixes
 

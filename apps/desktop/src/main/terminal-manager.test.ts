@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { SemanticTraceStore, semanticTraceEventsToAgentAnswerText, type AgentHarnessDependencyStatus } from "@exo/core";
+import { resolveRuntimeConfig, SemanticTraceStore, semanticTraceEventsToAgentAnswerText, type AgentHarnessDependencyStatus } from "@exo/core";
 
 const ptyState = vi.hoisted(() => ({
   spawned: [] as Array<{
@@ -602,6 +602,7 @@ describe("TerminalManager Codex readiness", () => {
       }
       return childProcess.defaultExecFileSync(command, args);
     });
+    stubWorkspaceEnv(workspaceRoot);
     const manager = new TerminalManager(workspaceRoot, 500);
 
     const terminal = await manager.create({ kind: "shell", cwd: workspaceRoot });
@@ -623,6 +624,7 @@ describe("TerminalManager Codex readiness", () => {
       }
       return childProcess.defaultExecFileSync(command, args);
     });
+    stubWorkspaceEnv(workspaceRoot);
     const manager = new TerminalManager(workspaceRoot, 500);
 
     const terminal = await manager.create({ kind: "shell", cwd: workspaceRoot });
@@ -696,6 +698,7 @@ describe("TerminalManager Codex readiness", () => {
 
   it("applies configured live scrollback to tmux history", async () => {
     const workspaceRoot = await workspaceFixture();
+    stubWorkspaceEnv(workspaceRoot);
     const manager = new TerminalManager(workspaceRoot, 24_000);
 
     await manager.create({ kind: "shell", cwd: workspaceRoot });
@@ -903,6 +906,37 @@ describe("TerminalManager Codex readiness", () => {
       }),
     ]);
     expect(registry.sessions[0]?.transcriptPath).toMatch(/term-1-shell-\d{4}-/);
+  });
+
+  it("does not carry readiness fixture terminals into a new runtime registry after settings apply", async () => {
+    const readinessWorkspaceRoot = await workspaceFixture();
+    const manager = managerForWorkspace(readinessWorkspaceRoot);
+    await manager.create({ kind: "shell", cwd: readinessWorkspaceRoot });
+
+    const realWorkspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-real-workspace-"));
+    tempPaths.push(realWorkspaceRoot);
+    await mkdir(realWorkspaceRoot, { recursive: true });
+    stubWorkspaceEnv(realWorkspaceRoot);
+    manager.setRuntimeConfig(resolveRuntimeConfig());
+    manager.setDefaultCwd(realWorkspaceRoot);
+
+    const realTerminal = await manager.create({ kind: "shell", cwd: realWorkspaceRoot });
+    const readinessRegistry = JSON.parse(
+      await readFile(path.join(readinessWorkspaceRoot, ".exo", "terminal-sessions.json"), "utf8"),
+    ) as { sessions: Array<{ cwd: string }> };
+    const realRegistry = JSON.parse(
+      await readFile(path.join(realWorkspaceRoot, ".exo", "terminal-sessions.json"), "utf8"),
+    ) as { sessions: Array<{ id: string; cwd: string }> };
+
+    expect(readinessRegistry.sessions).toEqual([expect.objectContaining({ cwd: readinessWorkspaceRoot })]);
+    expect(realRegistry.sessions).toEqual([expect.objectContaining({ id: realTerminal.id, cwd: realWorkspaceRoot })]);
+    expect(JSON.stringify(realRegistry)).not.toContain("exo-codex-readiness-");
+    expect(manager.list()).toEqual([
+      expect.objectContaining({
+        id: realTerminal.id,
+        cwd: realWorkspaceRoot,
+      }),
+    ]);
   });
 
   it("records renderer geometry exactly and uses it on reconnect", async () => {
