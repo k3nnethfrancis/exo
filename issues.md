@@ -8,6 +8,27 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ## Open
 
+### EXO-ISSUE-084: `install-mac-app` can stall during electron-builder dependency packaging
+
+- Status: open
+- Severity: medium
+- Area: mac packaging, install flow, release readiness
+- Source:
+  - 2026-07-04 plugin architecture cleanup verification.
+- Observed:
+  - `pnpm --filter @exo/desktop build`, focused tests, typecheck, and `pnpm check:repo` passed.
+  - `./scripts/install-mac-app --with-cli --with-mcp --app-dir "$HOME/Applications"` rebuilt the desktop, CLI, and MCP packages successfully, then entered electron-builder packaging.
+  - The process reached `searching for node modules` / production dependency packaging and then remained idle for several minutes without producing `release/mac-arm64/Exo.app`.
+  - Interrupting the script exited with `No packaged Exo.app found under .../release. Run pnpm pack:mac first.`
+- Expected:
+  - The install script should either complete packaging in a bounded, diagnosable time or fail with a clear error that names the stuck packaging phase and next action.
+  - Packaging stalls should not block routine source-build QA or leave users uncertain whether a packaged install succeeded.
+- Acceptance:
+  - [ ] Reproduce with a clean `pnpm pack:mac` / `install-mac-app` run and capture electron-builder debug logs.
+  - [ ] Identify whether the stall is dependency traversal, native dependency rebuild, pnpm workspace metadata, or a machine-local lock/cache issue.
+  - [ ] Add timeout/progress/error handling around the packaging phase if electron-builder can hang silently.
+  - [ ] Confirm `install-mac-app --with-cli --with-mcp --app-dir "$HOME/Applications"` produces a launchable `Exo.app` from a fresh build.
+
 ### EXO-ISSUE-083: Readiness/e2e temp terminals can leak into the real workspace runtime
 
 - Status: open
