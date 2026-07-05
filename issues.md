@@ -8,9 +8,36 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ## Open
 
+### EXO-ISSUE-090: First-run onboarding shows core capability review before plugin setup
+
+- Status: fixed
+- Severity: medium
+- Area: onboarding, plugin setup, search provider UX
+- Source:
+  - GitHub issue #22: https://github.com/k3nnethfrancis/exo/issues/22
+- Observed:
+  - After selecting workspace directories, first-run onboarding shows a `Review capabilities` page that leads with `Exograph Baseline` and locked core rows.
+  - The first workspace setup step includes advanced search/QMD selection even though the immediate user decision should be notes root, default terminal path, and optional project folders.
+  - Plugin-related content is harder to see because core capabilities are listed as if they are setup choices.
+- Expected:
+  - First-run workspace setup should focus only on workspace fundamentals.
+  - Exo should persist and load the workspace before showing plugin setup.
+  - Plugin setup should be a separate `Set up your Exograph` surface that focuses on optional plugin layers, not locked core rows.
+  - Advanced search provider selection should move out of the initial directory/workspace step.
+- Acceptance:
+  - [x] Remove advanced search selection from the first workspace/directory onboarding screen.
+  - [x] Persist/load the selected workspace before showing plugin setup.
+  - [x] Replace the pre-save `Review capabilities` page with a plugin-focused post-workspace setup popup.
+  - [x] Hide locked core capability rows from the user-facing plugin setup flow.
+  - [x] Show bundled/default plugins as preselected toggles that can be disabled before continuing.
+  - [x] Keep core/plugin boundaries aligned with `skills/plugin-development/SKILL.md`.
+  - [x] Add focused tests for the revised onboarding/plugin setup split.
+  - [x] Add packaged-app onboarding QA evidence for the revised flow.
+    - 2026-07-05: `pnpm pack:mac` passed; disposable packaged `release/mac-arm64/Exo.app` Playwright probe saw first-run `Open notes folder`, did not show `Advanced search provider`, did not show app shell before setup, and did not write `workspace-settings.json` before confirmation.
+
 ### EXO-ISSUE-089: Getting-started docs do not distinguish dev, source-run, packaged, and release flows
 
-- Status: in progress
+- Status: fixed in `c0e0106`
 - Severity: medium
 - Area: docs, onboarding QA, packaged app validation
 - Source:

@@ -25,7 +25,7 @@ const SECTION_ORDER = [
 ] as const;
 
 export function buildOnboardingCapabilitySections(inventory: PluginInventory | null): OnboardingCapabilitySection[] {
-  const items = inventory?.items ?? [];
+  const items = (inventory?.items ?? []).filter((item) => item.source !== "core");
   const knownIds = new Set(SECTION_ORDER.map(([id]) => id));
   const sections: OnboardingCapabilitySection[] = SECTION_ORDER.map(([id, label]) => ({
     id,

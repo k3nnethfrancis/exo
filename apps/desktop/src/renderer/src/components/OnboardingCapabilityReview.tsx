@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { PluginInventory, PluginInventoryItem } from "@exo/core";
-import { LockKeyhole, ShieldAlert, ShieldCheck } from "lucide-react";
+import { ShieldAlert, ShieldCheck } from "lucide-react";
 
 import {
   buildOnboardingCapabilitySections,
@@ -8,16 +8,15 @@ import {
   onboardingCapabilityStatus,
   onboardingCapabilityTone,
 } from "../onboardingCapabilities";
+import { pluginActionInput } from "../pluginManagerModel";
 
 interface OnboardingCapabilityReviewProps {
-  indexMode: string;
   notesFolder: string;
   onBack: () => void;
   onEnterWorkspace: () => void;
 }
 
 export function OnboardingCapabilityReview({
-  indexMode,
   notesFolder,
   onBack,
   onEnterWorkspace,
@@ -25,6 +24,8 @@ export function OnboardingCapabilityReview({
   const [inventory, setInventory] = useState<PluginInventory | null>(null);
   const [loadState, setLoadState] = useState<"loading" | "idle" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [pendingPluginId, setPendingPluginId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -51,63 +52,87 @@ export function OnboardingCapabilityReview({
 
   const sections = useMemo(() => buildOnboardingCapabilitySections(inventory), [inventory]);
 
+  async function setPluginEnabled(item: PluginInventoryItem, enabled: boolean) {
+    const actionKey = item.pluginId ?? item.id;
+    setPendingPluginId(actionKey);
+    setActionMessage(null);
+    setErrorMessage(null);
+    try {
+      const input = pluginActionInput(item);
+      const nextInventory = enabled
+        ? await window.exo.workspace.enablePlugin(input)
+        : await window.exo.workspace.disablePlugin(input);
+      setInventory(nextInventory);
+      setLoadState("idle");
+      setActionMessage(`${item.pluginName ?? item.label} ${enabled ? "enabled" : "disabled"}.`);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : String(error));
+      setLoadState("error");
+    } finally {
+      setPendingPluginId(null);
+    }
+  }
+
   return (
     <OnboardingCapabilityReviewContent
+      actionMessage={actionMessage}
       errorMessage={errorMessage}
-      indexMode={indexMode}
       inventory={inventory}
       loadState={loadState}
       notesFolder={notesFolder}
       onBack={onBack}
       onEnterWorkspace={onEnterWorkspace}
+      onTogglePlugin={(item, enabled) => void setPluginEnabled(item, enabled)}
+      pendingPluginId={pendingPluginId}
       sections={sections}
     />
   );
 }
 
 export function OnboardingCapabilityReviewContent({
+  actionMessage,
   errorMessage,
-  indexMode,
   inventory,
   loadState,
   notesFolder,
   onBack,
   onEnterWorkspace,
+  onTogglePlugin,
+  pendingPluginId,
   sections,
 }: {
+  actionMessage?: string | null;
   errorMessage: string | null;
-  indexMode: string;
   inventory: PluginInventory | null;
   loadState: "loading" | "idle" | "error";
   notesFolder: string;
   onBack: () => void;
   onEnterWorkspace: () => void;
+  onTogglePlugin?: (item: PluginInventoryItem, enabled: boolean) => void;
+  pendingPluginId?: string | null;
   sections: ReturnType<typeof buildOnboardingCapabilitySections>;
 }) {
   const profileReviews = buildOnboardingProfileReviews(inventory);
   return (
     <>
-      <h1 className="onboarding-card__title">Review capabilities</h1>
+      <h1 className="onboarding-card__title">Set up your Exograph</h1>
       <p className="onboarding-card__copy">
-        This workspace starts with the Exograph core baseline. Official, local, and developer plugins are optional capability layers that can be managed later in Plugin Manager.
+        Your workspace is ready. Review the optional plugin layers Exo found; core Markdown, terminal, settings, and preview features are already available.
       </p>
       <div className="onboarding-review-summary" data-testid="onboarding-capability-summary">
         <div>
           <span>Workspace</span>
           <strong>{notesFolder}</strong>
         </div>
-        <div>
-          <span>Advanced search default</span>
-          <strong>{indexMode === "off" ? "Core search only" : `QMD ${indexMode}`}</strong>
-        </div>
         {inventory ? (
           <div>
-            <span>Plugin layers</span>
+            <span>Optional plugins</span>
             <strong>{inventory.counts.official} official, {inventory.counts.local + inventory.counts.developer} local</strong>
           </div>
         ) : null}
       </div>
       {loadState === "loading" ? <div className="dialog-card__status">Loading plugin inventory...</div> : null}
+      {actionMessage ? <div className="dialog-card__status dialog-card__status--success">{actionMessage}</div> : null}
       {loadState === "error" ? (
         <div className="dialog-card__status dialog-card__status--warning">
           Plugin inventory is unavailable: {errorMessage}. You can continue with core defaults.
@@ -144,16 +169,23 @@ export function OnboardingCapabilityReviewContent({
             <div className="onboarding-capability-section__header">
               <div>
                 <div className="dialog-field__label">{section.label}</div>
-                <div className="onboarding-section__hint">{section.id === "core" ? "Always available; not a plugin toggle." : "Optional plugin inventory; manage after entering the workspace."}</div>
+                <div className="onboarding-section__hint">Bundled and local plugin inventory. Manage detailed settings later in Plugin Manager.</div>
               </div>
             </div>
             <div className="onboarding-capability-list">
-              {section.rows.map((item) => <OnboardingCapabilityRow item={item} key={`${item.source}:${item.id}`} />)}
+              {section.rows.map((item) => (
+                <OnboardingCapabilityRow
+                  item={item}
+                  key={`${item.source}:${item.id}`}
+                  onTogglePlugin={onTogglePlugin}
+                  pending={pendingPluginId === (item.pluginId ?? item.id)}
+                />
+              ))}
             </div>
           </section>
         ))}
         {sections.length === 0 && loadState !== "loading" ? (
-          <div className="onboarding-section onboarding-section--summary">Core defaults are available. Plugin inventory can be reviewed later.</div>
+          <div className="onboarding-section onboarding-section--summary">No optional plugins found. Core Exo features are available now.</div>
         ) : null}
       </div>
       <div className="onboarding-card__actions">
@@ -166,22 +198,40 @@ export function OnboardingCapabilityReviewContent({
           onClick={onEnterWorkspace}
           type="button"
         >
-          Enter workspace
+          Continue
         </button>
       </div>
     </>
   );
 }
 
-function OnboardingCapabilityRow({ item }: { item: PluginInventoryItem }) {
+function OnboardingCapabilityRow({
+  item,
+  onTogglePlugin,
+  pending,
+}: {
+  item: PluginInventoryItem;
+  onTogglePlugin?: (item: PluginInventoryItem, enabled: boolean) => void;
+  pending?: boolean;
+}) {
   const tone = onboardingCapabilityTone(item);
-  const Icon = tone === "locked" ? LockKeyhole : tone === "warning" ? ShieldAlert : ShieldCheck;
+  const Icon = tone === "warning" ? ShieldAlert : ShieldCheck;
   const dependencyDetail = item.dependencies?.length
     ? item.dependencies.map((dependency) => `${dependency.label}: ${dependency.statusLabel}`).join("; ")
     : null;
+  const toggleDisabled = !onTogglePlugin || pending || item.trust === "untrusted";
 
   return (
     <div className={`onboarding-capability-row onboarding-capability-row--${tone}`}>
+      <label className="onboarding-capability-toggle" title={toggleDisabled ? onboardingCapabilityStatus(item) : item.enabled ? "Disable this optional plugin" : "Enable this optional plugin"}>
+        <input
+          checked={item.enabled}
+          data-testid={`onboarding-plugin-toggle-${item.id}`}
+          disabled={toggleDisabled}
+          onChange={(event) => onTogglePlugin?.(item, event.target.checked)}
+          type="checkbox"
+        />
+      </label>
       <Icon size={16} />
       <div className="onboarding-capability-row__body">
         <div className="onboarding-capability-row__title">

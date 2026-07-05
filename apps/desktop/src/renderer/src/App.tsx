@@ -33,7 +33,7 @@ import { useProposalReviewState } from "./hooks/useProposalReviewState";
 import { useShellLayout } from "./hooks/useShellLayout";
 import { useTerminalPaneController, type TerminalPaneController } from "./hooks/useTerminalPaneController";
 import { useTerminalSessions } from "./hooks/useTerminalSessions";
-import { useWorkspaceBootstrap } from "./hooks/useWorkspaceBootstrap";
+import { consumePostWorkspaceSetupFlag, useWorkspaceBootstrap } from "./hooks/useWorkspaceBootstrap";
 import { useWorkspaceCommandHandlers } from "./hooks/useWorkspaceCommandHandlers";
 import { useWorkspaceLayoutPersistence } from "./hooks/useWorkspaceLayoutPersistence";
 import { useWorkspaceMutations } from "./hooks/useWorkspaceMutations";
@@ -88,6 +88,7 @@ export function App() {
   const [agentContextManagerOpen, setAgentContextManagerOpen] = useState(false);
   const [agentHarnesses, setAgentHarnesses] = useState<AgentHarnessDetection[]>([]);
   const [pluginManagerOpen, setPluginManagerOpen] = useState(false);
+  const [postWorkspaceSetupOpen, setPostWorkspaceSetupOpen] = useState(false);
   const [proposalReviewOpen, setProposalReviewOpen] = useState(false);
   const [profileState, setProfileState] = useState<ProfileStateStore | null>(null);
   const [noteChangesOpen, setNoteChangesOpen] = useState(false);
@@ -227,6 +228,12 @@ export function App() {
   useEffect(() => {
     void refreshAgentHarnesses();
   }, []);
+
+  useEffect(() => {
+    if (workspaceModel && !onboardingState && consumePostWorkspaceSetupFlag()) {
+      setPostWorkspaceSetupOpen(true);
+    }
+  }, [workspaceModel, onboardingState]);
 
   useEffect(() => {
     terminalRuntimeScrollbackLinesRef.current = terminalRuntimeScrollbackLines;
@@ -917,7 +924,6 @@ export function App() {
             </>
           ) : onboardingState.step === "capabilities" ? (
             <OnboardingCapabilityReview
-              indexMode={onboardingState.indexMode}
               notesFolder={onboardingState.notesFolder}
               onBack={() =>
                 setOnboardingState((current) =>
@@ -939,7 +945,7 @@ export function App() {
                 {onboardingState.mode === "first-run" ? "Open notes folder" : "Choose notes folder"}
               </h1>
               <p className="onboarding-card__copy">
-                Select an existing Markdown folder or create one, then confirm the default terminal, projects, and advanced search mode.
+                Select an existing Markdown folder or create one, then confirm where terminals and project-aware workflows should start.
               </p>
               <div className="onboarding-grid">
                 <div className="onboarding-section onboarding-section--primary">
@@ -1012,53 +1018,6 @@ export function App() {
                     }
                   />
                 </div>
-                <div className="onboarding-section onboarding-section--index">
-                  <div className="onboarding-section__header">
-                    <div>
-                      <div className="dialog-field__label">Advanced search provider</div>
-                      <div className="onboarding-section__hint">Optional QMD plugin search over the notes folder. Core filename search is always available.</div>
-                    </div>
-                    <select
-                      className="dialog-card__input onboarding-select"
-                      data-testid="onboarding-index-mode"
-                      value={onboardingState.indexMode}
-                      onChange={(event) => {
-                        const nextMode = event.target.value as WorkspaceSettings["indexing"]["mode"];
-                        setOnboardingState((current) =>
-                          current
-                            ? {
-                                ...current,
-                                indexMode: nextMode,
-                                exploreIndexSearchOnEnter: nextMode !== "off",
-                                status: "idle",
-                                errorMessage: null,
-                              }
-                            : current,
-                        );
-                      }}
-                    >
-                      <option value="off">Off</option>
-                      <option value="lexical">Lexical</option>
-                      <option value="semantic">Semantic</option>
-                      <option value="hybrid">Hybrid</option>
-                    </select>
-                  </div>
-                  {onboardingState.indexMode !== "off" ? (
-                    <label className="dialog-check">
-                      <input
-                        checked={onboardingState.exploreIndexSearchOnEnter}
-                        data-testid="onboarding-index-enter"
-                        onChange={(event) =>
-                          setOnboardingState((current) =>
-                            current ? { ...current, exploreIndexSearchOnEnter: event.target.checked } : current,
-                          )
-                        }
-                        type="checkbox"
-                      />
-                      <span>Use QMD search when pressing Enter in Explore.</span>
-                    </label>
-                  ) : null}
-                </div>
               </div>
               <div className="onboarding-card__actions">
                 {onboardingState.workspaces.length > 0 || onboardingState.mode === "switch" ? (
@@ -1081,7 +1040,7 @@ export function App() {
                   onClick={() => void workspaceBootstrap.completeOnboarding()}
                   type="button"
                 >
-                  {onboardingState.status === "saving" ? "Saving…" : "Review capabilities"}
+                  {onboardingState.status === "saving" ? "Saving…" : "Open workspace"}
                 </button>
               </div>
             </>
@@ -1396,6 +1355,17 @@ export function App() {
       ) : null}
       {pluginManagerOpen ? (
         <PluginManagerDialog onClose={() => setPluginManagerOpen(false)} />
+      ) : null}
+      {postWorkspaceSetupOpen && workspaceModel ? (
+        <div className="dialog-overlay" data-testid="post-workspace-setup-overlay">
+          <div className="dialog-card dialog-card--wide" data-testid="post-workspace-setup">
+            <OnboardingCapabilityReview
+              notesFolder={workspaceModel.noteRoots[0]?.path ?? workspaceModel.workspaceRoot}
+              onBack={() => setPostWorkspaceSetupOpen(false)}
+              onEnterWorkspace={() => setPostWorkspaceSetupOpen(false)}
+            />
+          </div>
+        </div>
       ) : null}
       {proposalReviewOpen ? (
         <ProposalReviewDialog

@@ -2286,7 +2286,7 @@ describe("workspace onboarding model", () => {
     expect(defaultTerminalCwdForNotesFolder("/notes")).toBe("/notes");
   });
 
-  it("builds a capability review from plugin inventory without a separate source of truth", () => {
+  it("builds a plugin setup review from plugin inventory without locked core rows", () => {
     const core = pluginInventoryItem("core.markdown-graph", "Markdown graph", "core", "Core", "core");
     const qmd = pluginInventoryItem("qmd", "QMD advanced search", "searchProvider", "Search providers", "bundled");
     const codex = {
@@ -2302,7 +2302,7 @@ describe("workspace onboarding model", () => {
     };
     const sections = buildOnboardingCapabilitySections(pluginInventory([codex, localProfile, qmd, core]));
 
-    expect(sections.map((section) => section.id)).toEqual(["core", "core:searchProvider", "core:agentHarness", "core:profile"]);
+    expect(sections.map((section) => section.id)).toEqual(["core:searchProvider", "core:agentHarness", "core:profile"]);
     expect(sections.find((section) => section.id === "core:searchProvider")?.rows.map((row) => row.id)).toEqual(["qmd"]);
     expect(onboardingCapabilityStatus(core)).toBe("Core, locked");
     expect(onboardingCapabilityStatus(qmd)).toBe("Official, available");
@@ -2338,7 +2338,7 @@ describe("workspace onboarding model", () => {
     ]);
   });
 
-  it("renders the capability review with core and optional plugin categories", () => {
+  it("renders post-workspace plugin setup without core rows or search-provider defaults", () => {
     const inventory = pluginInventory([
       pluginInventoryItem("core.markdown-graph", "Markdown graph", "core", "Core", "core"),
       pluginInventoryItem("qmd", "QMD advanced search", "searchProvider", "Search providers", "bundled"),
@@ -2361,28 +2361,30 @@ describe("workspace onboarding model", () => {
     const html = renderToStaticMarkup(
       <OnboardingCapabilityReviewContent
         errorMessage={null}
-        indexMode="hybrid"
         inventory={inventory}
         loadState="idle"
         notesFolder="/workspace/notes"
         onBack={vi.fn()}
         onEnterWorkspace={vi.fn()}
+        onTogglePlugin={vi.fn()}
         sections={buildOnboardingCapabilitySections(inventory)}
       />,
     );
 
-    expect(html).toContain("Review capabilities");
-    expect(html).toContain("Markdown graph");
-    expect(html).toContain("Core, locked");
+    expect(html).toContain("Set up your Exograph");
+    expect(html).not.toContain("Markdown graph");
+    expect(html).not.toContain("Core, locked");
     expect(html).toContain("QMD advanced search");
+    expect(html).toContain("onboarding-plugin-toggle-qmd");
     expect(html).toContain("Agent harness readiness");
     expect(html).toContain("Official, not found");
-    expect(html).toContain("QMD hybrid");
+    expect(html).not.toContain("Advanced search default");
+    expect(html).not.toContain("QMD hybrid");
     expect(html).toContain("Profile plan preview");
     expect(html).toContain("No templates, skills, plugin enablement, or routines are applied during onboarding.");
     expect(html).toContain("Review only");
     expect(html).toContain("apply blockers");
-    expect(html).toContain("Enter workspace");
+    expect(html).toContain("Continue");
   });
 });
 

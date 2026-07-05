@@ -6,6 +6,8 @@ import type { PaneNode } from "./usePaneTree";
 import { loadInitialTrees, type UseWorkspaceTreesOptions } from "./useWorkspaceTrees";
 import { pathLabel, pickInitialNote, uniquePaths } from "../workspaceTree";
 
+const POST_WORKSPACE_SETUP_FLAG = "exo:show-post-workspace-setup";
+
 export interface OnboardingState {
   mode: "first-run" | "switch";
   step: "select" | "configure" | "capabilities";
@@ -267,18 +269,8 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
     try {
       const saved = await window.exo.workspace.activateWorkspace(current.selectedWorkspaceId);
       workspaceSettingsRef.current = saved;
-      setOnboardingState({
-        ...current,
-        notesFolder: saved.noteRoots[0] ?? current.notesFolder,
-        projectFolders: saved.projectRoots,
-        defaultTerminalCwd: saved.defaultTerminalCwd,
-        indexMode: saved.indexing.mode,
-        exploreIndexSearchOnEnter: saved.exploreIndexSearchOnEnter,
-        indexUpdateStrategy: saved.indexUpdateStrategy,
-        step: "capabilities",
-        status: "idle",
-        errorMessage: null,
-      });
+      window.sessionStorage.setItem(POST_WORKSPACE_SETUP_FLAG, "1");
+      window.location.reload();
     } catch (error) {
       setOnboardingState({
         ...current,
@@ -325,18 +317,8 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
       };
       const saved = await window.exo.workspace.saveSettings(nextSettings);
       workspaceSettingsRef.current = saved;
-      setOnboardingState({
-        ...current,
-        notesFolder,
-        defaultTerminalCwd: nextSettings.defaultTerminalCwd,
-        projectFolders: nextSettings.projectRoots,
-        indexMode: nextSettings.indexing.mode,
-        exploreIndexSearchOnEnter: nextSettings.exploreIndexSearchOnEnter,
-        indexUpdateStrategy: nextSettings.indexUpdateStrategy,
-        step: "capabilities",
-        status: "idle",
-        errorMessage: null,
-      });
+      window.sessionStorage.setItem(POST_WORKSPACE_SETUP_FLAG, "1");
+      window.location.reload();
     } catch (error) {
       setOnboardingState({
         ...current,
@@ -368,6 +350,18 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
     completeOnboarding,
     enterWorkspaceAfterCapabilityReview,
   };
+}
+
+export function consumePostWorkspaceSetupFlag(): boolean {
+  try {
+    if (window.sessionStorage.getItem(POST_WORKSPACE_SETUP_FLAG) !== "1") {
+      return false;
+    }
+    window.sessionStorage.removeItem(POST_WORKSPACE_SETUP_FLAG);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function defaultTerminalCwdForNotesFolder(notesFolder: string): string {

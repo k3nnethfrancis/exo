@@ -3842,13 +3842,24 @@ select.dialog-card__input {
 
 .onboarding-capability-row {
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr);
+  grid-template-columns: 18px 22px minmax(0, 1fr);
   gap: 10px;
   align-items: start;
   padding: 10px;
   border: 1px solid var(--surface-border);
   border-radius: 8px;
   background: var(--surface-2);
+}
+
+.onboarding-capability-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 18px;
+}
+
+.onboarding-capability-toggle input {
+  margin: 0;
 }
 
 .onboarding-capability-row--locked svg,
