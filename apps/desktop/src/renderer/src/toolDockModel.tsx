@@ -2,7 +2,7 @@ import { Bot, PanelRightClose, PanelRightOpen, PanelsLeftBottom, Plug, Settings2
 import type { ReactNode } from "react";
 import type { ToolSurfaceDescriptor } from "@exo/core/surface-descriptor";
 
-import type { TerminalKind } from "../../shared/api";
+import type { TerminalLaunchKind } from "../../shared/api";
 import { AgentIcon } from "./components/AgentIcon";
 import type { ToolDockAction } from "./components/ToolDockRail";
 
@@ -11,7 +11,7 @@ export interface ToolSurfaceActionHandlers {
   onToggleSidePanes: () => void;
   onOpenAgentConfigEditor: () => void;
   onOpenPluginManager: () => void;
-  onCreateTerminal: (kind: TerminalKind, harnessId?: string) => void;
+  onCreateTerminal: (terminalKind: TerminalLaunchKind, harnessId?: string) => void;
 }
 
 export function toolDockActionsFromDescriptors(
@@ -66,8 +66,8 @@ function iconForToolSurfaceDescriptor(descriptor: ToolSurfaceDescriptor): ReactN
       if (descriptor.action.terminalKind === "shell") {
         return <SquareTerminal size={16} />;
       }
-      if (descriptor.action.terminalKind === "claude" || descriptor.action.terminalKind === "codex") {
-        return <AgentIcon kind={descriptor.action.terminalKind} size={16} />;
+      if (descriptor.action.harnessId === "claude" || descriptor.action.harnessId === "codex") {
+        return <AgentIcon kind={descriptor.action.harnessId} size={16} />;
       }
       return <Bot size={16} />;
     case "agentConfig.open":

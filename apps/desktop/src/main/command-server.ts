@@ -4,6 +4,7 @@ import path from "node:path";
 
 import {
   EXO_COMMAND_ROUTES,
+  terminalSubstrateKindForManagedAgentKind,
   validateRegisteredAgentHarnessLaunchForSurface,
   type ExoCommandServerInfo,
   type ExoCommandTerminalDiagnostics,
@@ -37,6 +38,8 @@ import {
   type ProposalBatch,
 } from "@exo/core";
 
+import type { TerminalCreateOptions } from "../shared/api";
+
 export interface CommandServerOptions {
   runtimeRoot: string;
   onShowWindow: () => void;
@@ -62,7 +65,7 @@ export interface CommandServerOptions {
   onRemoveProjectRoot: (target: string) => Promise<WorkspaceSettings>;
   onListTerminals: () => ExoCommandTerminalInfo[];
   onTerminalDiagnostics: () => ExoCommandTerminalDiagnostics[];
-  onCreateTerminal: (kind: string, harnessId?: string, cwd?: string, callerSurface?: ExoCreateTerminalRequest["callerSurface"]) => Promise<ExoCommandTerminalInfo>;
+  onCreateTerminal: (options: TerminalCreateOptions) => Promise<ExoCommandTerminalInfo>;
   onReadTerminalTail: (id: string, options?: { maxLines?: number }) => string | null;
   onReadTerminalTranscript: (id: string, tailChars: number) => string | null;
   onReadTerminalSemanticAnswer: (id: string, options?: { limit?: number }) => Promise<string | null>;
@@ -374,7 +377,7 @@ export class CommandServer {
           }, 400);
           return;
         }
-        let terminalKind = "shell";
+        let terminalKind: TerminalCreateOptions["terminalKind"] = "shell";
         let resolvedHarnessId = requestedHarnessId;
         try {
           const callerLaunch = validateRegisteredAgentHarnessLaunchForSurface(requestedHarnessId, {
@@ -391,7 +394,7 @@ export class CommandServer {
             const detail = launch.detection.detail ? ` ${launch.detection.detail}` : "";
             throw new Error(`Agent harness is not launchable: ${requestedHarnessId} (${launch.detection.statusLabel}).${detail}`);
           }
-          terminalKind = launch.terminalKind;
+          terminalKind = terminalSubstrateKindForManagedAgentKind(launch.terminalKind);
           resolvedHarnessId = launch.harnessId;
         } catch (error) {
           json(res, {
@@ -403,7 +406,12 @@ export class CommandServer {
           return;
         }
         try {
-          const terminal = await this.options.onCreateTerminal(terminalKind, resolvedHarnessId, cwd, "commandServer");
+          const terminal = await this.options.onCreateTerminal({
+            terminalKind,
+            harnessId: resolvedHarnessId,
+            cwd,
+            callerSurface: "commandServer",
+          });
           json(res, terminal);
         } catch (error) {
           json(res, {

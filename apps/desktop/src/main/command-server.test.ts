@@ -138,18 +138,20 @@ describe("CommandServer preview routes", () => {
 });
 
 describe("CommandServer terminal routes", () => {
-  it("creates launchable public agent harness ids through the compatibility terminal kind", async () => {
+  it("creates launchable public agent harness ids through substrate launch options", async () => {
     const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-command-server-"));
     tempPaths.push(runtimeRoot);
     const previousCodexCommand = process.env.EXO_CODEX_COMMAND;
     process.env.EXO_CODEX_COMMAND = "/bin/sh";
-    let receivedKind = "";
+    let receivedTerminalKind = "";
+    let receivedHarnessId = "";
     let receivedCallerSurface = "";
     const server = new CommandServer({
       ...commandServerOptions(runtimeRoot),
-      onCreateTerminal: async (kind, _harnessId, _cwd, callerSurface) => {
-        receivedKind = kind;
-        receivedCallerSurface = callerSurface ?? "";
+      onCreateTerminal: async (options) => {
+        receivedTerminalKind = options.terminalKind ?? "";
+        receivedHarnessId = options.harnessId ?? "";
+        receivedCallerSurface = options.callerSurface ?? "";
         return {
           id: "terminal-1",
           terminalKind: "agent",
@@ -168,12 +170,13 @@ describe("CommandServer terminal routes", () => {
       const response = await fetch(`http://127.0.0.1:${port}/terminals`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ harnessId: "codex", kind: "codex", callerSurface: "cli" }),
+        body: JSON.stringify({ harnessId: "codex", callerSurface: "cli" }),
       });
 
       expect(response.ok).toBe(true);
       await expect(response.json()).resolves.toMatchObject({ id: "terminal-1", kind: "codex" });
-      expect(receivedKind).toBe("codex");
+      expect(receivedTerminalKind).toBe("agent");
+      expect(receivedHarnessId).toBe("codex");
       expect(receivedCallerSurface).toBe("commandServer");
     } finally {
       if (previousCodexCommand === undefined) {

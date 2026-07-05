@@ -237,7 +237,7 @@ describe("AppClient", () => {
     const client = await AppClient.connect(runtimeRoot);
 
     await expect(client?.createTerminal("codex", "/tmp")).resolves.toMatchObject({ id: "term-1" });
-    expect(createBody).toEqual({ harnessId: "codex", kind: "codex", cwd: "/tmp", callerSurface: "cli" });
+    expect(createBody).toEqual({ harnessId: "codex", cwd: "/tmp", callerSurface: "cli" });
   });
 
   it("calls proposal review endpoints", async () => {

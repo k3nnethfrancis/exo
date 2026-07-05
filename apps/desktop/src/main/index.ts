@@ -45,7 +45,6 @@ import {
   writeProfileStateStore,
   type DiscoveredPlugin,
   type IndexStatus,
-  type ManagedAgentKind,
   type ActiveProfileIdentity,
   type CapabilityMetadata,
   type PluginInventoryItem,
@@ -173,8 +172,7 @@ function startCommandServer() {
     onRemoveProjectRoot: (target) => workspaceSettingsService.removeProjectRoot(target),
     onListTerminals: () => terminalManager.list(),
     onTerminalDiagnostics: () => terminalManager.diagnostics(),
-    onCreateTerminal: (kind: string, harnessId?: string, cwd?: string, callerSurface = "commandServer") =>
-      terminalManager.create({ kind: kind as ManagedAgentKind, harnessId, cwd, callerSurface }),
+    onCreateTerminal: (options) => terminalManager.create(options),
     onReadTerminalTail: (id: string, options?: { maxLines?: number }) => terminalManager.readTail(id, options),
     onReadTerminalTranscript: (id: string, tailChars: number) => terminalManager.readTranscript(id, tailChars),
     onReadTerminalSemanticAnswer: async (id: string, options?: { limit?: number }) => {

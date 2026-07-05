@@ -5,7 +5,7 @@ import {
 } from "@exo/core/surface-descriptor";
 import type { AgentHarnessDetection } from "@exo/core";
 
-import type { TerminalKind } from "../../../shared/api";
+import type { TerminalLaunchKind } from "../../../shared/api";
 import { ToolDockActionButtons, ToolDockRail, type ToolDockAction, type ToolDockRailPlacement } from "./ToolDockRail";
 import { toolDockActionsFromDescriptors } from "../toolDockModel";
 
@@ -18,7 +18,7 @@ interface TerminalRailProps {
   onToggleSidePanes: () => void;
   onOpenAgentConfigEditor: () => void;
   onOpenPluginManager: () => void;
-  onCreateTerminal: (kind: TerminalKind, harnessId?: string) => void;
+  onCreateTerminal: (terminalKind: TerminalLaunchKind, harnessId?: string) => void;
   style?: CSSProperties;
 }
 
@@ -61,7 +61,7 @@ export function TerminalRailTopControls(props: {
   collapsed: boolean;
   onToggleCollapsed: () => void;
   onOpenAgentConfigEditor: () => void;
-  onCreateTerminal: (kind: TerminalKind, harnessId?: string) => void;
+  onCreateTerminal: (terminalKind: TerminalLaunchKind, harnessId?: string) => void;
   harnesses?: AgentHarnessDetection[];
 }) {
   const { collapsed, onToggleCollapsed, onOpenAgentConfigEditor, onCreateTerminal } = props;
@@ -85,7 +85,7 @@ export function createTerminalToolDockActions(input: {
   harnesses: AgentHarnessDetection[];
   onToggleCollapsed: () => void;
   onOpenAgentConfigEditor: () => void;
-  onCreateTerminal: (kind: TerminalKind, harnessId?: string) => void;
+  onCreateTerminal: (terminalKind: TerminalLaunchKind, harnessId?: string) => void;
 }): ToolDockAction[] {
   return toolDockActionsFromDescriptors(
     buildCoreToolSurfaceDescriptors({

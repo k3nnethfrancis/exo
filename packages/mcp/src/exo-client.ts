@@ -242,7 +242,7 @@ export class ExoCommandClient {
   }
 
   async createAgent(kind: ExoAgentKind, cwd?: string): Promise<ExoAgent> {
-    return this.post(EXO_COMMAND_ROUTES.terminals, { harnessId: kind, kind, cwd, callerSurface: "mcp" }, this.terminalCreateTimeoutMs);
+    return this.post(EXO_COMMAND_ROUTES.terminals, { harnessId: kind, cwd, callerSurface: "mcp" }, this.terminalCreateTimeoutMs);
   }
 
   async readAgent(id: string, tailChars: number): Promise<string> {

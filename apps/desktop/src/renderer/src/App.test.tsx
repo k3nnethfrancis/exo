@@ -1544,7 +1544,7 @@ describe("terminal harness launchers", () => {
 
     expect(onToggleCollapsed).toHaveBeenCalledTimes(1);
     expect(onCreateTerminal).toHaveBeenNthCalledWith(1, "shell", "shell");
-    expect(onCreateTerminal).toHaveBeenNthCalledWith(2, "pi", "pi");
+    expect(onCreateTerminal).toHaveBeenNthCalledWith(2, "agent", "pi");
     expect(onOpenAgentConfigEditor).toHaveBeenCalledTimes(1);
   });
 

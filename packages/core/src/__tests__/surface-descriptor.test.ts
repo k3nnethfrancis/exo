@@ -52,7 +52,7 @@ describe("tool surface descriptors", () => {
     expect(descriptors.find((descriptor) => descriptor.id === "launch-claude")).toMatchObject({
       owner: "officialPlugin",
       capabilityId: "claude",
-      action: { type: "terminal.launch", terminalKind: "claude" },
+      action: { type: "terminal.launch", terminalKind: "agent", harnessId: "claude" },
     });
   });
 

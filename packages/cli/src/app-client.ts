@@ -241,7 +241,7 @@ export class AppClient {
   }
 
   async createTerminal(kind: string, cwd?: string): Promise<Record<string, unknown>> {
-    return this.post(EXO_COMMAND_ROUTES.terminals, { harnessId: kind, kind, cwd, callerSurface: "cli" }, this.terminalCreateTimeoutMs);
+    return this.post(EXO_COMMAND_ROUTES.terminals, { harnessId: kind, cwd, callerSurface: "cli" }, this.terminalCreateTimeoutMs);
   }
 
   async readTerminal(id: string, options: { maxLines?: number } = {}): Promise<string> {

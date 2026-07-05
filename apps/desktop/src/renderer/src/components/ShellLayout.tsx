@@ -8,7 +8,7 @@ import type { DragManager, DragPayload } from "../hooks/useDragManager";
 import type { WorkspaceSearchResultMode } from "../hooks/useWorkspaceSearch";
 import type { AppearanceMode, ResolvedAppearance } from "../appearance";
 import type { AgentHarnessDetection, TreeNode, WorkspaceSearchResults } from "@exo/core";
-import type { TerminalKind, WorkspaceGitChange } from "../../../shared/api";
+import type { TerminalLaunchKind, WorkspaceGitChange } from "../../../shared/api";
 import exoGlyph from "../assets/exo-glyph.svg";
 
 const RESIZER_TRACK_SIZE = "6px";
@@ -114,7 +114,7 @@ interface ShellLayoutProps {
   onCreateTerminalInDirectory: (directoryPath: string) => void;
   onRenamePath: (targetPath: string) => void;
   onDeletePath: (targetPath: string) => void;
-  onCreateTerminal: (kind: TerminalKind, harnessId?: string) => void;
+  onCreateTerminal: (terminalKind: TerminalLaunchKind, harnessId?: string) => void;
   agentHarnesses: AgentHarnessDetection[];
   onCreateBrowserPane: () => void;
 }

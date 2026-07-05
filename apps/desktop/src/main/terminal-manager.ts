@@ -262,14 +262,21 @@ export class TerminalManager extends EventEmitter {
   async create(options: TerminalCreateOptions): Promise<TerminalSessionInfo> {
     const cwd = options.cwd ?? this.defaultCwd;
     const { launch, dependencyEnv } = await this.resolveLaunchAfterDependencyStart(options, cwd);
-    if (launch.kind !== options.kind) {
+    const legacyKind = launch.kind;
+    if (options.kind && launch.kind !== options.kind) {
       throw new Error(
         `Agent harness terminal kind mismatch: ${options.harnessId ?? options.kind} resolves to ${launch.kind}, not ${options.kind}.`,
       );
     }
+    const resolvedTerminalKind = terminalSubstrateKindForManagedAgentKind(legacyKind);
+    if (options.terminalKind && options.terminalKind !== resolvedTerminalKind) {
+      throw new Error(
+        `Agent harness terminal substrate mismatch: ${options.harnessId ?? options.kind ?? options.terminalKind} resolves to ${resolvedTerminalKind}, not ${options.terminalKind}.`,
+      );
+    }
     await this.syncRuntimeContext();
     const id = this.allocateTerminalId();
-    const isAgent = isAgentHarnessKind(options.kind);
+    const isAgent = isAgentHarnessKind(legacyKind);
     const overlayEnv = isAgent ? agentInstructionOverlayEnv(this.runtimeConfig.workspace, launch.cwd) : {};
     const traceCapture = this.provisionTraceCapture(id, launch.harnessId, launch.traceCapture);
     if (isAgent) {
@@ -288,7 +295,7 @@ export class TerminalManager extends EventEmitter {
       ...traceCaptureEnv(id, launch.harnessId, traceCapture),
     };
 
-    const spawnArgs = harnessLaunchArgs(options.kind, launch.args, this.runtimeConfig, launch.cwd);
+    const spawnArgs = harnessLaunchArgs(legacyKind, launch.args, this.runtimeConfig, launch.cwd);
     const createdAt = new Date().toISOString();
     const launchToken = `${id}-${createdAt}-${randomUUID().slice(0, 8)}`;
     const geometry = this.geometryService.initialDefault(createdAt);
@@ -308,19 +315,19 @@ export class TerminalManager extends EventEmitter {
     const tmuxPaneId = runtimeSession.paneId;
     const processHandle = runtimeSession.process;
 
-    const transcriptPath = this.makeTranscriptPath(id, options.kind, createdAt, launchToken);
+    const transcriptPath = this.makeTranscriptPath(id, legacyKind, createdAt, launchToken);
     const info: TerminalSessionInfo = {
       id,
       title: launch.title,
       cwd: launch.cwd,
-      ...terminalSessionIdentity(options.kind, launch.harnessId),
-      kind: options.kind,
+      ...terminalSessionIdentity(legacyKind, launch.harnessId),
+      kind: legacyKind,
       command: launch.command,
       instructionOverlayPath: overlayEnv.EXO_INSTRUCTIONS ?? null,
       transcriptPath,
       status: "running",
-      readiness: initialHarnessReadiness(options.kind),
-      readinessDetail: initialHarnessReadinessDetail(options.kind),
+      readiness: initialHarnessReadiness(legacyKind),
+      readinessDetail: initialHarnessReadinessDetail(legacyKind),
       queuedInputCount: 0,
       geometry,
       attachGeneration: this.allocateAttachGeneration(),
@@ -365,7 +372,10 @@ export class TerminalManager extends EventEmitter {
     options: TerminalCreateOptions,
     cwd: string,
   ): Promise<{ launch: ReturnType<typeof resolveLaunchableAgentLaunchPlan>; dependencyEnv: Record<string, string> }> {
-    const harnessId = options.harnessId ?? options.kind;
+    const harnessId = options.harnessId ?? options.kind ?? (options.terminalKind === "shell" ? "shell" : undefined);
+    if (!harnessId) {
+      throw new Error("Missing harnessId for agent terminal launch.");
+    }
     const detection = resolveRegisteredAgentHarnessDetection(harnessId, process.env);
     const dependencyEnv = detection?.dependencies
       ? await this.harnessDependencyStarter.ensureStarted(detection.dependencies)

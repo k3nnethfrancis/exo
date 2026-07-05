@@ -204,8 +204,8 @@ describe("TerminalManager session identity", () => {
     const workspaceRoot = await workspaceFixture();
     const manager = managerForWorkspace(workspaceRoot);
 
-    const shell = await manager.create({ kind: "shell", cwd: workspaceRoot });
-    const codex = await manager.create({ kind: "codex", cwd: workspaceRoot });
+    const shell = await manager.create({ terminalKind: "shell", cwd: workspaceRoot });
+    const codex = await manager.create({ terminalKind: "agent", harnessId: "codex", cwd: workspaceRoot });
 
     expect(shell).toMatchObject({
       kind: "shell",
@@ -227,6 +227,10 @@ describe("TerminalManager session identity", () => {
 
     await expect(manager.create({ kind: "shell", harnessId: "codex", cwd: workspaceRoot })).rejects.toThrow(
       "Agent harness terminal kind mismatch: codex resolves to codex, not shell.",
+    );
+
+    await expect(manager.create({ terminalKind: "shell", harnessId: "codex", cwd: workspaceRoot })).rejects.toThrow(
+      "Agent harness terminal substrate mismatch: codex resolves to agent, not shell.",
     );
 
     expect(manager.list()).toEqual([]);

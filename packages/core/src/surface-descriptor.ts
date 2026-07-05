@@ -1,4 +1,9 @@
-import { isManagedAgentKind, type AgentHarnessDetection, type AgentHarnessId, type ManagedAgentKind } from "./types";
+import {
+  terminalSubstrateKindForManagedAgentKind,
+  type AgentHarnessDetection,
+  type AgentHarnessId,
+  type TerminalSubstrateKind,
+} from "./types";
 import { EXO_COMMAND_ROUTES } from "./command-protocol";
 import {
   graphVisualizationFromCapability,
@@ -17,7 +22,7 @@ export type PluginPanelHostPlacement = "toolDock" | "editorGrid" | "modal";
 
 export type ToolSurfaceAction =
   | { type: "terminal.toggleDock" }
-  | { type: "terminal.launch"; terminalKind: ManagedAgentKind; harnessId?: AgentHarnessId }
+  | { type: "terminal.launch"; terminalKind: TerminalSubstrateKind; harnessId: AgentHarnessId }
   | { type: "agentConfig.open" }
   | { type: "pluginManager.open" }
   | { type: "sidePanes.toggle" }
@@ -112,7 +117,7 @@ export function buildCoreToolSurfaceDescriptors(options: CoreToolSurfaceDescript
         id: `launch-${harness.id}`,
         label: `Launch ${harness.label}`,
         title: `Launch ${harness.label}`,
-        terminalKind: harness.launcher?.kind ?? managedAgentKindFromHarnessId(harness.id) ?? "shell",
+        terminalKind: harness.launcher ? terminalSubstrateKindForManagedAgentKind(harness.launcher.kind) : "agent",
         harnessId: harness.id,
         owner: "officialPlugin",
         capabilityId: harness.id,
@@ -318,8 +323,8 @@ function terminalLaunchDescriptor(input: {
   id: string;
   label: string;
   title: string;
-  terminalKind: ManagedAgentKind;
-  harnessId?: AgentHarnessId;
+  terminalKind: TerminalSubstrateKind;
+  harnessId: AgentHarnessId;
   owner: ToolSurfaceOwnerKind;
   capabilityId: string;
 }): ToolSurfaceDescriptor {
@@ -336,10 +341,6 @@ function terminalLaunchDescriptor(input: {
     enabled: true,
     visible: true,
   };
-}
-
-function managedAgentKindFromHarnessId(harnessId: AgentHarnessId): ManagedAgentKind | undefined {
-  return isManagedAgentKind(harnessId) ? harnessId : undefined;
 }
 
 function capabilityToolDescriptor(

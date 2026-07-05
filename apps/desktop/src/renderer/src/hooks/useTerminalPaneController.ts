@@ -8,21 +8,21 @@ import {
   type PaneNodeId,
   type PaneTreeActions,
 } from "./usePaneTree";
-import type { TerminalKind, TerminalSessionInfo } from "../../../shared/api";
+import type { TerminalLaunchKind, TerminalSessionInfo } from "../../../shared/api";
 import {
   addTerminalSessionToFirstLeaf,
   removeTerminalSessionFromTree,
 } from "../paneTreeSelectors";
 
 interface TerminalStateApi {
-  createTerminal: (kind: TerminalKind, cwd?: string, harnessId?: string) => Promise<TerminalSessionInfo>;
+  createTerminal: (terminalKind: TerminalLaunchKind, cwd?: string, harnessId?: string) => Promise<TerminalSessionInfo>;
   setActiveTerminalId: (id: string | null) => void;
   activateTerminal: (id: string) => Promise<void>;
   killTerminal: (id: string) => Promise<TerminalSessionInfo[]>;
 }
 
 export interface TerminalPaneController {
-  createTerminal: (kind: TerminalKind, cwd?: string, activate?: boolean, harnessId?: string) => Promise<TerminalSessionInfo>;
+  createTerminal: (terminalKind: TerminalLaunchKind, cwd?: string, activate?: boolean, harnessId?: string) => Promise<TerminalSessionInfo>;
   attachExternalTerminalSessions: (sessions: TerminalSessionInfo[], options: { activateLatest: boolean }) => void;
   activateTerminal: (leafId: PaneNodeId, id: string) => Promise<void>;
   focusTerminalSession: (id: string) => Promise<void>;
@@ -42,8 +42,8 @@ interface UseTerminalPaneControllerOptions {
 }
 
 export function useTerminalPaneController(options: UseTerminalPaneControllerOptions): TerminalPaneController {
-  async function createTerminal(kind: TerminalKind, cwd?: string, activate = true, harnessId?: string) {
-    const session = await options.terminalState.createTerminal(kind, cwd, harnessId);
+  async function createTerminal(terminalKind: TerminalLaunchKind, cwd?: string, activate = true, harnessId?: string) {
+    const session = await options.terminalState.createTerminal(terminalKind, cwd, harnessId);
     options.setTerminalCollapsed(false);
 
     const focusedLeaf = findNode(options.terminalTree, (n) => n.id === options.terminalFocusedLeafId) as PaneLeaf | undefined;

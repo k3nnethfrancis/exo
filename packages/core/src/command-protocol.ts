@@ -160,6 +160,7 @@ export interface ExoReconnectRecoverableTerminalsResponse {
 
 export interface ExoCreateTerminalRequest {
   harnessId?: string;
+  // Legacy compatibility for older app/CLI/MCP clients; new launch requests use harnessId.
   kind?: string;
   cwd?: string;
   callerSurface?: CapabilitySurface;

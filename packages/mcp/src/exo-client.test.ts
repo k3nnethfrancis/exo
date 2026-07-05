@@ -58,7 +58,7 @@ describe("ExoCommandClient", () => {
     expect(await client.readAgent("term-1", 5)).toBe("laude");
     expect(await client.readAgentTail("term-1", 2)).toBe("line-2\nline-3");
     expect(await client.createAgent("codex", "/tmp")).toMatchObject({ id: "term-2", kind: "codex" });
-    expect(JSON.parse(createBody)).toEqual({ harnessId: "codex", kind: "codex", cwd: "/tmp", callerSurface: "mcp" });
+    expect(JSON.parse(createBody)).toEqual({ harnessId: "codex", cwd: "/tmp", callerSurface: "mcp" });
     await expect(client.killAgent("term-2")).resolves.toBeUndefined();
   });
 

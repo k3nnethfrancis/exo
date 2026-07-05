@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import type { TerminalKind, TerminalSessionInfo } from "../../../shared/api";
+import type { TerminalLaunchKind, TerminalSessionInfo } from "../../../shared/api";
 import type { TerminalHydrationReason } from "../components/terminalHydration";
 import { writeTerminalData } from "../components/terminalRegistry";
 import { terminalSessionsEqual } from "../terminalSessions";
@@ -256,8 +256,8 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
     setHydratingTerminalIds((current) => new Set([...current].filter((id) => activeIds.has(id))));
   }
 
-  async function createTerminal(kind: TerminalKind, cwd?: string, harnessId?: string): Promise<TerminalSessionInfo> {
-    const session = await window.exo.terminals.create({ kind, cwd, harnessId, callerSurface: "desktop" });
+  async function createTerminal(terminalKind: TerminalLaunchKind, cwd?: string, harnessId?: string): Promise<TerminalSessionInfo> {
+    const session = await window.exo.terminals.create({ terminalKind, cwd, harnessId, callerSurface: "desktop" });
     const nextSessions = sessionsRef.current.some((existing) => existing.id === session.id)
       ? sessionsRef.current
       : [...sessionsRef.current, session];

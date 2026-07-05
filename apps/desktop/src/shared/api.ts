@@ -30,6 +30,7 @@ import type {
 } from "@exo/core";
 
 export type TerminalKind = ManagedAgentKind;
+export type TerminalLaunchKind = TerminalSubstrateKind;
 export type TerminalHealthState = "healthy" | "idle" | "unhealthy" | "exited";
 export type WorkspaceSettingsSection = "workspace" | "profile" | "index" | "appearance" | "terminal" | "harnesses";
 
@@ -62,8 +63,9 @@ export interface TerminalSessionInfo {
 }
 
 export interface TerminalCreateOptions {
-  kind: TerminalKind;
+  terminalKind?: TerminalLaunchKind;
   harnessId?: AgentHarnessId;
+  kind?: TerminalKind;
   callerSurface?: CapabilitySurface;
   cwd?: string;
 }
