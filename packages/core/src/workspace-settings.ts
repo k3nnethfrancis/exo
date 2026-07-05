@@ -427,6 +427,7 @@ function normalizeWorkspaceLayout(input: unknown): WorkspaceLayoutSettings | und
     editorTree,
     terminalTree,
     terminalCollapsed: Boolean(candidate.terminalCollapsed),
+    terminalMonitorMode: Boolean(candidate.terminalMonitorMode),
     sidePanesFlipped: Boolean(candidate.sidePanesFlipped),
     zoneSplitRatio: clampSettingsNumber(candidate.zoneSplitRatio, 0.6, 0.15, 0.85),
     sidebarCollapsed: Boolean(candidate.sidebarCollapsed),

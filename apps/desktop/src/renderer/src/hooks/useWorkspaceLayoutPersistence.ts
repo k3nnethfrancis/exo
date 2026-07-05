@@ -7,6 +7,7 @@ interface UseWorkspaceLayoutPersistenceOptions {
   editorTree: PaneNode;
   terminalTree: PaneNode;
   terminalCollapsed: boolean;
+  terminalMonitorMode: boolean;
   sidePanesFlipped: boolean;
   zoneSplitRatio: number;
   sidebarCollapsed: boolean;
@@ -34,6 +35,7 @@ export function useWorkspaceLayoutPersistence(options: UseWorkspaceLayoutPersist
         editorTree: options.editorTree,
         terminalTree: options.terminalTree,
         terminalCollapsed: options.terminalCollapsed,
+        terminalMonitorMode: options.terminalMonitorMode,
         sidePanesFlipped: options.sidePanesFlipped,
         zoneSplitRatio: options.zoneSplitRatio,
         sidebarCollapsed: options.sidebarCollapsed,
@@ -56,6 +58,7 @@ export function useWorkspaceLayoutPersistence(options: UseWorkspaceLayoutPersist
     options.editorTree,
     options.terminalTree,
     options.terminalCollapsed,
+    options.terminalMonitorMode,
     options.sidePanesFlipped,
     options.zoneSplitRatio,
     options.sidebarCollapsed,
@@ -73,6 +76,7 @@ function createWorkspaceLayoutSnapshot(input: WorkspaceLayoutSettings): Workspac
     editorTree: input.editorTree,
     terminalTree: input.terminalTree,
     terminalCollapsed: input.terminalCollapsed,
+    terminalMonitorMode: input.terminalMonitorMode,
     sidePanesFlipped: input.sidePanesFlipped,
     zoneSplitRatio: roundLayoutNumber(input.zoneSplitRatio),
     sidebarCollapsed: input.sidebarCollapsed,

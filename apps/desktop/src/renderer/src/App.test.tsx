@@ -112,6 +112,12 @@ import {
 } from "./workspaceSettingsModel";
 import { buildExplorerChangeState } from "./explorerChangeState";
 import { collectLeaves, openOrUpdateBrowserPane, type PaneNode } from "./hooks/usePaneTree";
+import {
+  addTerminalSessionAsSplit,
+  buildTerminalMonitorTree,
+  buildTerminalTabsTree,
+  collectTerminalSessionIds,
+} from "./paneTreeSelectors";
 import { isNewTerminalShortcut } from "./hooks/useAppKeybindings";
 import {
   getWikilinkCompletionContext,
@@ -656,6 +662,61 @@ describe("browser preview panes", () => {
     expect(result.focusLeafId).toBe("browser-1");
   });
 
+});
+
+describe("terminal monitor layout", () => {
+  it("builds one readable terminal leaf per session in monitor mode", () => {
+    const tree = buildTerminalMonitorTree(["term-a", "term-b", "term-c"], "term-b");
+    const leaves = collectLeaves(tree);
+
+    expect(leaves).toHaveLength(3);
+    expect(leaves.every((leaf) => leaf.content.kind === "terminal")).toBe(true);
+    expect(leaves.map((leaf) => leaf.content.kind === "terminal" ? leaf.content.terminalIds : [])).toEqual([
+      ["term-a"],
+      ["term-b"],
+      ["term-c"],
+    ]);
+    expect(collectTerminalSessionIds(tree)).toEqual(new Set(["term-a", "term-b", "term-c"]));
+  });
+
+  it("collapses monitor sessions back to a normal tab group", () => {
+    const tree = buildTerminalTabsTree(["term-a", "term-b", "term-c"], "term-b");
+    const leaves = collectLeaves(tree);
+
+    expect(leaves).toHaveLength(1);
+    expect(leaves[0].content).toEqual({
+      kind: "terminal",
+      terminalIds: ["term-a", "term-b", "term-c"],
+      activeTerminalId: "term-b",
+    });
+  });
+
+  it("adds new monitor terminals as split leaves instead of hidden tabs", () => {
+    const start = buildTerminalMonitorTree(["term-a"], "term-a");
+    const result = addTerminalSessionAsSplit(start, "term-b");
+    const leaves = collectLeaves(result.tree);
+
+    expect(result.leafId).toBe(leaves.find((leaf) =>
+      leaf.content.kind === "terminal" && leaf.content.terminalIds.includes("term-b"),
+    )?.id);
+    expect(leaves.map((leaf) => leaf.content.kind === "terminal" ? leaf.content.terminalIds : [])).toEqual([
+      ["term-a"],
+      ["term-b"],
+    ]);
+  });
+
+  it("fills an empty monitor leaf with the first terminal instead of creating an empty split", () => {
+    const start = buildTerminalTabsTree([], null);
+    const result = addTerminalSessionAsSplit(start, "term-a");
+    const leaves = collectLeaves(result.tree);
+
+    expect(leaves).toHaveLength(1);
+    expect(leaves[0].content).toEqual({
+      kind: "terminal",
+      terminalIds: ["term-a"],
+      activeTerminalId: "term-a",
+    });
+  });
 });
 
 describe("plugin manager model", () => {

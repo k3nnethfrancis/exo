@@ -1,5 +1,5 @@
 import { useEffect, useRef, type CSSProperties, type ReactNode, type Ref } from "react";
-import { Bot, GripVertical, RefreshCw, SquareTerminal, X } from "lucide-react";
+import { Bot, GripVertical, LayoutGrid, RefreshCw, SquareTerminal, X } from "lucide-react";
 
 import type { TerminalSessionInfo } from "../../../shared/api";
 import type { DragManager } from "../hooks/useDragManager";
@@ -36,6 +36,8 @@ interface TerminalDockProps {
   onReconnect?: (id: string) => void;
   dragManager: DragManager;
   onTogglePlacement: () => void;
+  monitorMode: boolean;
+  onToggleMonitorMode: () => void;
   ref?: Ref<HTMLDivElement>;
   headerActions?: ReactNode;
   overlay?: ReactNode;
@@ -68,6 +70,8 @@ export function TerminalDock(props: TerminalDockProps) {
     onReconnect,
     dragManager,
     onTogglePlacement,
+    monitorMode,
+    onToggleMonitorMode,
     ref,
     headerActions,
     overlay,
@@ -154,8 +158,21 @@ export function TerminalDock(props: TerminalDockProps) {
                 </ChromeTab>
               ))}
             </div>
-            {headerActions || canReconnect ? (
+            {headerActions || canReconnect || onToggleMonitorMode ? (
               <div className="terminal-dock__actions">
+                <button
+                  type="button"
+                  className={`terminal-dock__header-button ${monitorMode ? "terminal-dock__header-button--active" : ""}`}
+                  data-testid="terminal-monitor-mode"
+                  title={monitorMode ? "Exit monitor mode" : "Monitor all terminals"}
+                  aria-pressed={monitorMode}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onToggleMonitorMode();
+                  }}
+                >
+                  <LayoutGrid size={13} />
+                </button>
                 {canReconnect && activeSession ? (
                   <button
                     type="button"

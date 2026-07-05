@@ -91,6 +91,124 @@ export function addTerminalSessionToFirstLeaf(tree: PaneNode, sessionId: string)
   });
 }
 
+export function buildTerminalTabsTree(sessionIds: string[], activeSessionId: string | null): PaneNode {
+  const uniqueSessionIds = uniqueTerminalSessionIds(sessionIds);
+  const activeTerminalId = activeSessionId && uniqueSessionIds.includes(activeSessionId)
+    ? activeSessionId
+    : uniqueSessionIds.at(-1) ?? null;
+  return {
+    kind: "leaf",
+    id: paneId(),
+    content: {
+      kind: "terminal",
+      terminalIds: uniqueSessionIds,
+      activeTerminalId,
+    },
+  };
+}
+
+export function buildTerminalMonitorTree(sessionIds: string[], activeSessionId: string | null): PaneNode {
+  const uniqueSessionIds = uniqueTerminalSessionIds(sessionIds);
+  if (uniqueSessionIds.length <= 1) {
+    return buildTerminalTabsTree(uniqueSessionIds, activeSessionId);
+  }
+
+  function buildBalanced(ids: string[], depth: number): PaneNode {
+    if (ids.length === 1) {
+      return {
+        kind: "leaf",
+        id: paneId(),
+        content: {
+          kind: "terminal",
+          terminalIds: ids,
+          activeTerminalId: ids[0],
+        },
+      };
+    }
+
+    const midpoint = Math.ceil(ids.length / 2);
+    return {
+      kind: "split",
+      id: paneId(),
+      direction: depth % 2 === 0 ? "horizontal" : "vertical",
+      ratio: 0.5,
+      children: [
+        buildBalanced(ids.slice(0, midpoint), depth + 1),
+        buildBalanced(ids.slice(midpoint), depth + 1),
+      ],
+    };
+  }
+
+  return buildBalanced(uniqueSessionIds, 0);
+}
+
+export function addTerminalSessionAsSplit(tree: PaneNode, sessionId: string, targetLeafId?: PaneNodeId | null): { tree: PaneNode; leafId: PaneNodeId } {
+  if (treeContainsTerminalSession(tree, sessionId)) {
+    const existingLeaf = collectLeaves(tree).find((leaf) =>
+      leaf.content.kind === "terminal" && leaf.content.terminalIds.includes(sessionId),
+    );
+    return {
+      tree,
+      leafId: existingLeaf?.id ?? targetLeafId ?? findTerminalLeaf(tree)?.id ?? tree.id,
+    };
+  }
+
+  const targetLeaf = (
+    targetLeafId
+      ? collectLeaves(tree).find((leaf) => leaf.id === targetLeafId && leaf.content.kind === "terminal")
+      : undefined
+  ) ?? findTerminalLeaf(tree);
+  if (!targetLeaf) {
+    return { tree, leafId: tree.id };
+  }
+
+  if (targetLeaf.content.kind === "terminal" && targetLeaf.content.terminalIds.length === 0) {
+    return {
+      tree: updateNode(tree, targetLeaf.id, (node) => {
+        if (node.kind !== "leaf" || node.content.kind !== "terminal") {
+          return node;
+        }
+        return {
+          ...node,
+          content: {
+            ...node.content,
+            terminalIds: [sessionId],
+            activeTerminalId: sessionId,
+          },
+        };
+      }),
+      leafId: targetLeaf.id,
+    };
+  }
+
+  const newLeafId = paneId();
+  const newLeaf: PaneLeaf = {
+    kind: "leaf",
+    id: newLeafId,
+    content: {
+      kind: "terminal",
+      terminalIds: [sessionId],
+      activeTerminalId: sessionId,
+    },
+  };
+
+  return {
+    tree: updateNode(tree, targetLeaf.id, (node) => {
+      if (node.kind !== "leaf") {
+        return node;
+      }
+      return {
+        kind: "split",
+        id: paneId(),
+        direction: "horizontal",
+        ratio: 0.5,
+        children: [node, newLeaf],
+      };
+    }),
+    leafId: newLeafId,
+  };
+}
+
 export function removeTerminalSessionFromTree(tree: PaneNode, sessionId: string): PaneNode {
   return mapLeaves(tree, (leaf) => {
     if (leaf.content.kind !== "terminal" || !leaf.content.terminalIds.includes(sessionId)) {
@@ -179,6 +297,10 @@ export function countTerminalSessions(tree: PaneNode): number {
   return collectLeaves(tree).reduce((count, leaf) =>
     leaf.content.kind === "terminal" ? count + leaf.content.terminalIds.length : count,
   0);
+}
+
+function uniqueTerminalSessionIds(sessionIds: string[]): string[] {
+  return Array.from(new Set(sessionIds));
 }
 
 export function flattenFiles(nodes: TreeNode[]): TreeNode[] {

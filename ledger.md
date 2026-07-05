@@ -188,6 +188,7 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Added the plugin/profile distinction to durable context: a plugin is a replaceable capability; a profile is an opinionated bundle of recommended plugins, metadata/frontmatter conventions, context templates, AGENTS/CLAUDE templates, MCP config, skills, routine templates, graph views, analyzer settings, and review/output policies. Profiles may depend on plugins, but executable behavior should live in explicit plugin capabilities.
 - Next plugin implementation resume point: complete the profile/apply and plugin-management path on top of the Plugin Manager foundation. Defer arbitrary executable plugin loading, native component plugins, and broad plugin-contributed surfaces until manifests/trust/permissions survive real use.
 - Proposed background product-quality loop: a scheduled Codex automation can poll GitHub issues labeled `codex-loop` and `ready-for-codex`, take at most one actionable issue per run, fix in an isolated worktree/branch, run focused tests and app QA, then open a draft PR instead of pushing directly to `main`.
+- Added terminal Monitor Mode for Exo-on-Exo coordination: a terminal-header grid toggle converts active terminal sessions into readable split panes, new terminals open as splits while monitoring, toggling off collapses sessions back to normal grouped tabs, and the monitor-mode state is persisted with workspace layout metadata.
 
 ## Next Priorities
 

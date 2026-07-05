@@ -112,6 +112,7 @@ export interface WorkspaceLayoutSettings {
   editorTree: WorkspacePaneNode;
   terminalTree: WorkspacePaneNode;
   terminalCollapsed: boolean;
+  terminalMonitorMode: boolean;
   sidePanesFlipped: boolean;
   zoneSplitRatio: number;
   sidebarCollapsed: boolean;

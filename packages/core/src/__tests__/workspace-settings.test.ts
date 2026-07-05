@@ -174,6 +174,7 @@ describe("workspace settings registry", () => {
             content: { kind: "terminal", terminalIds: ["term-2"], activeTerminalId: "missing" },
           },
           terminalCollapsed: true,
+          terminalMonitorMode: true,
           sidePanesFlipped: true,
           zoneSplitRatio: 0.01,
           sidebarCollapsed: true,
@@ -184,6 +185,7 @@ describe("workspace settings registry", () => {
 
       expect(saved.layout).toMatchObject({
         terminalCollapsed: true,
+        terminalMonitorMode: true,
         sidePanesFlipped: true,
         zoneSplitRatio: 0.15,
         sidebarWidth: 800,
@@ -227,6 +229,7 @@ describe("workspace settings registry", () => {
           editorTree: { kind: "leaf", id: "editor-a", content: { kind: "editor", openPaths: [], activePath: null } },
           terminalTree: { kind: "leaf", id: "terminal-a", content: { kind: "terminal", terminalIds: [], activeTerminalId: null } },
           terminalCollapsed: false,
+          terminalMonitorMode: false,
           sidePanesFlipped: false,
           zoneSplitRatio: 0.6,
           sidebarCollapsed: false,

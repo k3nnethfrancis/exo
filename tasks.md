@@ -74,6 +74,7 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
   - [ ] Install/onboarding/dev launch: `EXO-ISSUE-027`, `EXO-ISSUE-028`, `EXO-ISSUE-029`, `EXO-ISSUE-031`.
   - [x] QA workflow: `EXO-ISSUE-074` visual app QA preflight/fallback documentation.
 - [ ] Harden CLI/MCP for multi-agent coordination:
+  - [x] Add terminal Monitor Mode so Exo-on-Exo fan-out sessions can be shown as split panes for operator monitoring, while normal mode keeps grouped terminal tabs.
   - [ ] Make `workspace_status` a reliable orientation tool with workspace roots, plugin/search readiness, live agents, index summary, command-server health, and degraded-state diagnostics.
   - [ ] Add or finalize the core preview/artifact-open command path for CLI/MCP through the core web viewer endpoint.
   - [ ] Add NDE-style MCP tests covering functionality, latency, result quality, stale config diagnostics, and permission/security behavior.

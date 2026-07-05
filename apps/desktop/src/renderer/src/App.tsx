@@ -46,6 +46,8 @@ import type { ColorThemeId } from "./theme/types";
 import { collectLeaves, findEditorLeaf, findNode, mapLeaves, paneId, pruneEmptyLeaves, updateNode, type PaneLeaf, type PaneNode, type PaneNodeId } from "./hooks/usePaneTree";
 import {
   addTerminalSessionToFirstLeaf,
+  buildTerminalMonitorTree,
+  buildTerminalTabsTree,
   collectActiveTerminalIds,
   collectOpenEditorPaths,
   collectTerminalSessionIds,
@@ -97,6 +99,7 @@ export function App() {
   const [terminalFontSize, setTerminalFontSize] = useState(DEFAULT_TERMINAL_FONT_SIZE);
   const [terminalRuntimeScrollbackLines, setTerminalRuntimeScrollbackLines] = useState(DEFAULT_TERMINAL_HISTORY_LINES);
   const [terminalRuntimeReadTailChars, setTerminalRuntimeReadTailChars] = useState(DEFAULT_TERMINAL_READ_TAIL_CHARS);
+  const [terminalMonitorMode, setTerminalMonitorMode] = useState(false);
   const [explorerScale, setExplorerScale] = useState(DEFAULT_EXPLORER_SCALE);
   const [systemPrefersDark, setSystemPrefersDark] = useState(() =>
     window.matchMedia("(prefers-color-scheme: dark)").matches,
@@ -130,13 +133,14 @@ export function App() {
     terminalState,
     setTerminalCollapsed: shellLayout.setTerminalCollapsed,
     setZoomSurface,
+    monitorMode: terminalMonitorMode,
   });
   terminalPaneControllerRef.current = terminalPaneController;
   const workspaceBootstrap = useWorkspaceBootstrap({
     noteTreeMaxDepth: NOTE_TREE_MAX_DEPTH,
     projectTreeMaxDepth: PROJECT_TREE_MAX_DEPTH,
     applyWorkspaceSettings,
-    applyPersistedLayout: shellLayout.applyPersistedLayout,
+    applyPersistedLayout,
     setIndexStatus,
     replaceTreesForModel: workspaceTrees.replaceTreesForModel,
     restoreInitialDocuments,
@@ -296,6 +300,7 @@ export function App() {
     editorTree,
     terminalTree,
     terminalCollapsed: shellLayout.terminalCollapsed,
+    terminalMonitorMode,
     sidePanesFlipped: shellLayout.sidePanesFlipped,
     zoneSplitRatio: shellLayout.zoneSplitRatio,
     sidebarCollapsed: shellLayout.sidebarCollapsed,
@@ -341,6 +346,11 @@ export function App() {
     setTerminalRuntimeReadTailChars(terminalPolicy.readTailChars);
     setExplorerScale(settings.explorerScale);
     setExploreIndexSearchOnEnter(settings.exploreIndexSearchOnEnter);
+  }
+
+  function applyPersistedLayout(layout: WorkspaceSettings["layout"] | undefined) {
+    shellLayout.applyPersistedLayout(layout);
+    setTerminalMonitorMode(Boolean(layout?.terminalMonitorMode));
   }
 
   async function restoreInitialDocuments(input: {
@@ -404,6 +414,21 @@ export function App() {
       return restoreTerminalsInEditor
         ? pruned
         : terminalTreeSessionIds.reduce((nextTree, sessionId) => addTerminalSessionToFirstLeaf(nextTree, sessionId), pruned);
+    });
+  }
+
+  function toggleTerminalMonitorMode() {
+    setTerminalMonitorMode((current) => {
+      const next = !current;
+      shellLayout.setTerminalCollapsed(false);
+      terminalActions.setTree((currentTree) => {
+        const sessionIds = terminalSessions.map((session) => session.id);
+        return next
+          ? buildTerminalMonitorTree(sessionIds, activeTerminalId)
+          : buildTerminalTabsTree(sessionIds, activeTerminalId);
+      });
+      setZoomSurface("terminal");
+      return next;
     });
   }
 
@@ -1155,6 +1180,8 @@ export function App() {
               onReconnect={(id) => void terminalState.reconnectTerminal(id)}
               dragManager={dragManager}
               onTogglePlacement={() => {}}
+              monitorMode={terminalMonitorMode}
+              onToggleMonitorMode={toggleTerminalMonitorMode}
               headerActions={null}
             />
           );
@@ -1249,6 +1276,8 @@ export function App() {
             onReconnect={(id) => void terminalState.reconnectTerminal(id)}
             dragManager={dragManager}
             onTogglePlacement={() => {}}
+            monitorMode={terminalMonitorMode}
+            onToggleMonitorMode={toggleTerminalMonitorMode}
             headerActions={null}
           />
         );

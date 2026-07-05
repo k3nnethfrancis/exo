@@ -10,7 +10,9 @@ import {
 } from "./usePaneTree";
 import type { TerminalLaunchKind, TerminalSessionInfo } from "../../../shared/api";
 import {
+  addTerminalSessionAsSplit,
   addTerminalSessionToFirstLeaf,
+  buildTerminalMonitorTree,
   removeTerminalSessionFromTree,
 } from "../paneTreeSelectors";
 
@@ -39,12 +41,25 @@ interface UseTerminalPaneControllerOptions {
   terminalState: TerminalStateApi;
   setTerminalCollapsed: (collapsed: boolean) => void;
   setZoomSurface: (surface: "editor" | "terminal" | "explorer") => void;
+  monitorMode: boolean;
 }
 
 export function useTerminalPaneController(options: UseTerminalPaneControllerOptions): TerminalPaneController {
   async function createTerminal(terminalKind: TerminalLaunchKind, cwd?: string, activate = true, harnessId?: string) {
     const session = await options.terminalState.createTerminal(terminalKind, cwd, harnessId);
     options.setTerminalCollapsed(false);
+
+    if (options.monitorMode) {
+      options.terminalActions.setTree((currentTree) => {
+        const result = addTerminalSessionAsSplit(currentTree, session.id, options.terminalFocusedLeafId);
+        return result.tree;
+      });
+      if (activate) {
+        options.setZoomSurface("terminal");
+        await options.terminalState.activateTerminal(session.id);
+      }
+      return session;
+    }
 
     const focusedLeaf = findNode(options.terminalTree, (n) => n.id === options.terminalFocusedLeafId) as PaneLeaf | undefined;
     const termLeaf = (focusedLeaf?.content.kind === "terminal" ? focusedLeaf : null) ?? findTerminalLeaf(options.terminalTree);
@@ -80,6 +95,17 @@ export function useTerminalPaneController(options: UseTerminalPaneControllerOpti
     }
     void attachOptions;
     options.setTerminalCollapsed(false);
+    if (options.monitorMode) {
+      options.terminalActions.setTree((currentTree) => {
+        const existingIds = collectLeaves(currentTree).flatMap((leaf) =>
+          leaf.content.kind === "terminal" ? leaf.content.terminalIds : [],
+        );
+        const nextIds = [...existingIds, ...sessions.map((session) => session.id)];
+        const activeId = attachOptions.activateLatest ? sessions.at(-1)?.id ?? null : null;
+        return buildTerminalMonitorTree(nextIds, activeId);
+      });
+      return;
+    }
     options.terminalActions.setTree((currentTree) =>
       sessions.reduce((nextTree, session) => addTerminalSessionToFirstLeaf(nextTree, session.id), currentTree),
     );

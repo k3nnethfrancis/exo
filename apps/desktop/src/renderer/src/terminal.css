@@ -107,6 +107,11 @@
   border-radius: 8px;
 }
 
+.terminal-dock__header-button--active {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
 .terminal-dock__reconnect {
   width: auto;
   display: inline-flex;
