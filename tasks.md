@@ -23,7 +23,8 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
   - [x] Close WP-D docs: record the 2026-07-03 control-mode decision, killed plain-attach path, and pty terminology in `docs/terminal-runtime-decision.md`; sync terminal-stability guidance.
 - [ ] Finish Plugin Architecture Completion:
   - [ ] Complete Fable Wave-4 dogfooding gates before declaring plugin architecture ready for real-vault use:
-    - [ ] WP-QA-PM: rerun Plugin Manager/onboarding read-only app QA against current source after recent UI/plugin changes.
+    - [x] WP-QA-PM: rerun Plugin Manager/onboarding read-only app QA against current source after recent UI/plugin changes.
+      - 2026-07-05 evidence: source Exo app was restarted from `main`; Computer Use could not inspect the remote Electron window, so app QA used focused Electron Playwright coverage instead. Passed `shell.spec.ts --grep "plugin manager"` and `shell.spec.ts --grep "opens an existing notes folder from first-run setup"`.
     - [ ] PA2: design the real-vault proposal/profile rollback gate, get architect review, then flip from fixture-only to guarded real-vault apply.
     - [ ] Finish or explicitly inventory remaining `ManagedAgentKind` compatibility residue and removal conditions.
     - [ ] Confirm `EXO-ISSUE-082` on `main`, `EXO-ISSUE-046` after live restart, and `EXO-ISSUE-083` isolation before plugin dogfooding.
