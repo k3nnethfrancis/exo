@@ -412,7 +412,7 @@ Official example: `plugins/exograph-baseline/exo.plugin.json` declares the first
 
 Status: first metadata contract implemented in `packages/core/src/project-knowledge-sync.ts` and exposed through profile payload extraction in `packages/core/src/profile.ts`.
 
-Project Knowledge Sync is profile/plugin-declared metadata for making relationships between project-local Markdown control files and a central exograph explicit. A profile can declare:
+Project Knowledge Sync is profile/plugin-declared metadata for making relationships between project-local Markdown control files and a central exograph explicit. Status: unstable. A profile can declare:
 
 - canonical file names and glob-like patterns such as `issues.md`, `tasks.md`, `roadmap.md`, `plans/**/*.md`, `specs/**/*.md`, `AGENTS.md`, and `CLAUDE.md`
 - project and exograph root scopes plus optional path scopes
@@ -421,7 +421,7 @@ Project Knowledge Sync is profile/plugin-declared metadata for making relationsh
 - review policy for human review, proposal requirement, and allowed target prefixes
 - optional GitHub remote metadata for owner, repo, branch, issue labels, and pull request labels
 
-This contract does not watch files, generate indexes, create proposals, copy files, create symlinks, call GitHub, or write to the workspace. Path and pattern fields are conservative: absolute paths, traversal, backslashes, and URL-like schemes are rejected. The next implementation steps are to connect this metadata to read-only drift/index views, then use the existing proposal/review substrate for staged sync proposals before considering any copy or symlink apply path.
+This contract does not watch files, generate indexes, create proposals, copy files, create symlinks, call GitHub, or write to the workspace. Path and pattern fields are conservative: absolute paths, traversal, backslashes, and URL-like schemes are rejected. `index` and `proposal` are the modes core intends to implement first; `copy`, `symlink`, and `remote` are reserved words, not commitments, and may be removed without compatibility shims. Freeze vocabulary growth here: do not add new modes, conflict actions, or providers until the first acting implementation exists. The next implementation steps are to connect this metadata to read-only drift/index views, then use the existing proposal/review substrate for staged sync proposals before considering any copy or symlink apply path.
 
 ### Graph Snapshot And Visualization Payload
 

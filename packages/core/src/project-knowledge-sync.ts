@@ -1,3 +1,5 @@
+// status: unstable. This is profile/plugin metadata only; no core behavior acts on these declarations yet.
+// Freeze vocabulary growth until the first acting implementation proves which terms are actually needed.
 export type ProjectKnowledgeRelationshipMode = "index" | "proposal" | "copy" | "symlink" | "remote";
 export type ProjectKnowledgeConflictAction =
   | "report"

@@ -31,6 +31,7 @@ import {
   listProfileApplyRecoveryManifests,
   inspectProfileApplyRecoveryManifest,
   restoreProfileApplyRecoveryManifest,
+  ProfileApplyRecoveryRestoreError,
   loadActiveWorkspaceSettings,
   listWorkspaceRegistryEntries,
   getWorkspaceRegistryEntry,
@@ -520,8 +521,16 @@ export async function runCli(
       if (!manifestRef) {
         throw new Error("Usage: exo profile-recovery restore <manifest-file-or-path> [item-id]");
       }
-      stdout.write(`${JSON.stringify(await restoreProfileApplyRecoveryManifest(config.workspace.workspaceRoot, manifestRef, { itemId: args[1] }), null, 2)}\n`);
-      return 0;
+      try {
+        stdout.write(`${JSON.stringify(await restoreProfileApplyRecoveryManifest(config.workspace.workspaceRoot, manifestRef, { itemId: args[1] }), null, 2)}\n`);
+        return 0;
+      } catch (error) {
+        if (error instanceof ProfileApplyRecoveryRestoreError) {
+          stdout.write(`${JSON.stringify({ error: error.message, partialResult: error.result }, null, 2)}\n`);
+          return 1;
+        }
+        throw error;
+      }
     }
 
     stderr.write("Usage: exo profile-recovery [list | show <manifest> | restore <manifest> [item-id]]\n");

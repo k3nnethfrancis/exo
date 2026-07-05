@@ -39,10 +39,13 @@ Escape hatch: if a repo check flags a change that is genuinely implementation-on
 - review: guard-baseline: 2026-07-04 existing CLI command, usage, and flag parsing surface; guard cleanup does not change behavior.
 - sha256: `481bad75527ab75ff8ab04cc5a4a5f7adabf6939dc81e8a7a4c122720cd58962`
 - review: user-approved-exception: 2026-07-05 Wave 6 recovery/rollback task explicitly allowed CLI/app command surfaces and prohibited Fable/oracle; adds `exo profile-recovery list|show|restore` as a local operator-only recovery surface while keeping MCP without accept/reject/rollback tools.
+- review: architect-review: 2026-07-05 fable-exo-wave6-review.md — confirmed CLI recovery surface is acceptably narrow and intentionally operator-only.
 - sha256: `2934f84385e13dea7f8f07b5feb2d95a24ef1795219ab733c74531423e016526`
 - review: user-approved-exception: 2026-07-05 Wave 6 trace-retention task explicitly requested a CLI-first operator surface for listing and cleaning semantic traces before broad real-vault plugin dogfooding; post-hoc architect review should confirm the command shape before public stabilization.
+- review: architect-review: 2026-07-05 fable-exo-wave6-review.md — confirmed CLI trace list/cleanup is sufficient for dogfooding and should remain explicit, with no hidden retention cap.
 - sha256: `7d6378d2b14ae8ceacac28bb8513bcde3ffe9e1d06d30ef6d12c3d474596f9ee`
 - review: user-approved-exception: 2026-07-05 Wave 6 merged CLI operator surface combines `exo profile-recovery list|show|restore` with `exo traces list|cleanup`; this is intentionally CLI-only and requires post-hoc Fable/oracle review before public stabilization.
+- review: architect-review: 2026-07-05 fable-exo-wave6-review.md — confirmed merged Wave 6 CLI operator surface can ship after partial-restore reporting and ledger closure fixes.
 
 ### `packages/cli/src/app-client.ts#route-client-methods`
 
@@ -64,3 +67,4 @@ Escape hatch: if a repo check flags a change that is genuinely implementation-on
 - review: user-approved-exception: 2026-07-04 plugin architecture cleanup intentionally updated MCP app-client agent-create route payloads to submit harness ids through the registered harness path.
 - sha256: `31f16c4e3feb550b537c1b304b658def98bea16a7fe7d9e724de6608d4002f6e`
 - review: user-approved-exception: 2026-07-05 Wave 6 workspace_status enrichment adds a read-only MCP command-server client call for terminal diagnostics so agents can orient to Exo health without adding new MCP admin tools; post-hoc Fable/oracle review should confirm the response shape before public stabilization.
+- review: architect-review: 2026-07-05 fable-exo-wave6-review.md — confirmed read-only MCP workspace_status enrichment is the right single orientation tool shape; MCP mutations remain excluded from exception flow.

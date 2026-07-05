@@ -28,6 +28,18 @@ export interface ProfileApplyRecoveryRestoreResult {
   restoredItems: ProfileApplyRecoveryRestoredItem[];
 }
 
+export class ProfileApplyRecoveryRestoreError extends Error {
+  readonly result: ProfileApplyRecoveryRestoreResult;
+  readonly cause: unknown;
+
+  constructor(message: string, result: ProfileApplyRecoveryRestoreResult, cause: unknown) {
+    super(message);
+    this.name = "ProfileApplyRecoveryRestoreError";
+    this.result = result;
+    this.cause = cause;
+  }
+}
+
 export interface ProfileApplyRecoveryRestoredItem {
   id: string;
   kind: ProfileApplyRecoveryItem["kind"];
@@ -100,19 +112,28 @@ export async function restoreProfileApplyRecoveryManifest(
   assertUniqueRecoveryPaths(restorePlans.map((plan) => plan.item.path));
 
   const restoredItems: ProfileApplyRecoveryRestoredItem[] = [];
-  for (const { item, target } of restorePlans) {
-    if (item.before.exists) {
-      await mkdir(path.dirname(target), { recursive: true });
-      await writeFile(target, item.before.contents, "utf8");
-      restoredItems.push({ id: item.id, kind: item.kind, path: item.path, action: "restored" });
-    } else {
-      await rm(target);
-      restoredItems.push({ id: item.id, kind: item.kind, path: item.path, action: "deleted" });
+  const manifestSummary = summarizeProfileApplyRecoveryManifest(workspaceRoot, manifestPath, manifest);
+  try {
+    for (const { item, target } of restorePlans) {
+      if (item.before.exists) {
+        await mkdir(path.dirname(target), { recursive: true });
+        await writeFile(target, item.before.contents, "utf8");
+        restoredItems.push({ id: item.id, kind: item.kind, path: item.path, action: "restored" });
+      } else {
+        await rm(target);
+        restoredItems.push({ id: item.id, kind: item.kind, path: item.path, action: "deleted" });
+      }
     }
+  } catch (error) {
+    throw new ProfileApplyRecoveryRestoreError(
+      `Profile apply recovery restore failed after ${restoredItems.length} item${restoredItems.length === 1 ? "" : "s"}: ${error instanceof Error ? error.message : String(error)}`,
+      { manifest: manifestSummary, restoredItems },
+      error,
+    );
   }
 
   return {
-    manifest: summarizeProfileApplyRecoveryManifest(workspaceRoot, manifestPath, manifest),
+    manifest: manifestSummary,
     restoredItems,
   };
 }

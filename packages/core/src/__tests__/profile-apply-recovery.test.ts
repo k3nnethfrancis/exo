@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -7,6 +7,7 @@ import { contentSha256 } from "../proposal-apply-host";
 import {
   inspectProfileApplyRecoveryManifest,
   listProfileApplyRecoveryManifests,
+  ProfileApplyRecoveryRestoreError,
   restoreProfileApplyRecoveryManifest,
 } from "../profile-apply-recovery";
 import type { ProfileApplyRecoveryManifest } from "../proposal-apply-host";
@@ -119,6 +120,45 @@ describe("profile apply recovery", () => {
     await expect(restoreProfileApplyRecoveryManifest(workspaceRoot, "partial-block.json")).rejects.toThrow("does not match expected post-apply hash");
     await expect(readFile(path.join(workspaceRoot, "AGENTS.md"), "utf8")).resolves.toBe("# Agents\n");
     await expect(readFile(path.join(workspaceRoot, "CLAUDE.md"), "utf8")).resolves.toBe("# Edited later\n");
+  });
+
+  it("reports restored items when a mutation fails after preflight", async () => {
+    const workspaceRoot = await workspace();
+    const agentsPath = path.join(workspaceRoot, "AGENTS.md");
+    const claudePath = path.join(workspaceRoot, "CLAUDE.md");
+    await writeFile(agentsPath, "# Agents applied\n", "utf8");
+    await writeFile(claudePath, "# Claude applied\n", "utf8");
+    await chmod(claudePath, 0o400);
+    await writeManifest(workspaceRoot, "partial-mutation-failure.json", manifestFor([
+      {
+        id: "instruction-agents",
+        kind: "filePatch",
+        path: "AGENTS.md",
+        before: { exists: true, hash: contentSha256("# Agents old\n"), contents: "# Agents old\n" },
+        afterHash: contentSha256("# Agents applied\n"),
+      },
+      {
+        id: "instruction-claude",
+        kind: "filePatch",
+        path: "CLAUDE.md",
+        before: { exists: true, hash: contentSha256("# Claude old\n"), contents: "# Claude old\n" },
+        afterHash: contentSha256("# Claude applied\n"),
+      },
+    ]));
+
+    try {
+      await restoreProfileApplyRecoveryManifest(workspaceRoot, "partial-mutation-failure.json");
+      throw new Error("Expected partial restore failure.");
+    } catch (error) {
+      expect(error).toBeInstanceOf(ProfileApplyRecoveryRestoreError);
+      expect((error as ProfileApplyRecoveryRestoreError).result.restoredItems).toEqual([
+        { id: "instruction-agents", kind: "filePatch", path: "AGENTS.md", action: "restored" },
+      ]);
+    } finally {
+      await chmod(claudePath, 0o600).catch(() => {});
+    }
+    await expect(readFile(agentsPath, "utf8")).resolves.toBe("# Agents old\n");
+    await expect(readFile(claudePath, "utf8")).resolves.toBe("# Claude applied\n");
   });
 
   it("rejects manifest item paths that escape the workspace root", async () => {

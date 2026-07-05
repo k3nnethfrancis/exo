@@ -11,6 +11,7 @@ import {
   SemanticTraceStore,
   buildFrontmatterPatchPreviewEvidence,
   captureFakeHarnessTraceFixture,
+  contentSha256,
   formatManagedAgentKindUsage,
   mapHarnessRawTraceEvent,
   saveWorkspaceSettings,
@@ -764,6 +765,64 @@ describe("cli package", () => {
       expect(restoreStdout).toContain("\"action\": \"deleted\"");
       await expect(readFile(path.join(workspaceRoot, "AGENTS.md"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
     } finally {
+      await rm(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("prints partial profile recovery results when restore fails after a mutation", async () => {
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-profile-recovery-partial-"));
+    const manifestDir = path.join(workspaceRoot, ".exo/proposal-recovery/profile-apply");
+    const manifestPath = path.join(manifestDir, "profile-apply-partial.json");
+    const agentsPath = path.join(workspaceRoot, "AGENTS.md");
+    const claudePath = path.join(workspaceRoot, "CLAUDE.md");
+    let restoreStdout = "";
+
+    try {
+      await mkdir(manifestDir, { recursive: true });
+      await writeFile(agentsPath, "# Agents applied\n", "utf8");
+      await writeFile(claudePath, "# Claude applied\n", "utf8");
+      await chmod(claudePath, 0o400);
+      await writeFile(manifestPath, JSON.stringify({
+        format: "exo.profileApplyRecovery.v1",
+        proposalId: "proposal-1",
+        createdAt: "2026-07-05T12:00:00.000Z",
+        source: "profileApply",
+        profileId: "test.profile",
+        profileApplyTarget: "realVault",
+        items: [
+          {
+            id: "instruction-agents",
+            kind: "filePatch",
+            path: "AGENTS.md",
+            before: { exists: true, hash: contentSha256("# Agents old\n"), contents: "# Agents old\n" },
+            afterHash: contentSha256("# Agents applied\n"),
+          },
+          {
+            id: "instruction-claude",
+            kind: "filePatch",
+            path: "CLAUDE.md",
+            before: { exists: true, hash: contentSha256("# Claude old\n"), contents: "# Claude old\n" },
+            afterHash: contentSha256("# Claude applied\n"),
+          },
+        ],
+      }), "utf8");
+
+      const restoreExitCode = await runCli(["node", "exo-cli", "profile-recovery", "restore", "profile-apply-partial.json"], {
+        env: { ...testRuntimeEnv(), EXO_WORKSPACE_ROOT: workspaceRoot },
+        stdout: { write: (text) => { restoreStdout += text; } },
+        stderr: { write: () => {} },
+        connectAppClient: async () => {
+          throw new Error("profile recovery commands should not connect to the app");
+        },
+      });
+
+      expect(restoreExitCode).toBe(1);
+      const parsed = JSON.parse(restoreStdout) as { partialResult: { restoredItems: Array<{ id: string; action: string }> } };
+      expect(parsed.partialResult.restoredItems).toEqual([{ id: "instruction-agents", kind: "filePatch", path: "AGENTS.md", action: "restored" }]);
+      await expect(readFile(agentsPath, "utf8")).resolves.toBe("# Agents old\n");
+      await expect(readFile(claudePath, "utf8")).resolves.toBe("# Claude applied\n");
+    } finally {
+      await chmod(claudePath, 0o600).catch(() => {});
       await rm(workspaceRoot, { recursive: true, force: true });
     }
   });
