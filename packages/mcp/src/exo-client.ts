@@ -241,6 +241,11 @@ export class ExoCommandClient {
     return this.get(EXO_COMMAND_ROUTES.terminals);
   }
 
+  async terminalDiagnostics(): Promise<Record<string, unknown>[]> {
+    const result = await this.get(EXO_COMMAND_ROUTES.terminalDiagnostics);
+    return Array.isArray(result) ? result.filter((entry): entry is Record<string, unknown> => Boolean(entry && typeof entry === "object")) : [];
+  }
+
   async createAgent(kind: ExoAgentKind, cwd?: string): Promise<ExoAgent> {
     return this.post(EXO_COMMAND_ROUTES.terminals, { harnessId: kind, cwd, callerSurface: "mcp" }, this.terminalCreateTimeoutMs);
   }

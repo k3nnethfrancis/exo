@@ -62,13 +62,18 @@ function registerExoTools(server: McpServer) {
     return runAppBackedTool(async () => {
       const client = await ExoCommandClient.connect();
       const status = await client.getStatus();
-      const indexStatus = await client.getIndexStatus();
+      const indexStatusResult = await optionalCommandServerRead("indexStatus", () => client.getIndexStatus());
+      const terminalDiagnosticsResult = await optionalCommandServerRead("terminalDiagnostics", () => client.terminalDiagnostics());
       const terminals = (status as { terminals?: unknown }).terminals;
-      const workspaceStatus = {
-        ...status,
+      const workspaceStatus = buildWorkspaceStatusOrientation({
+        status,
+        indexStatus: indexStatusResult.value,
+        indexStatusError: indexStatusResult.error,
+        terminalDiagnostics: terminalDiagnosticsResult.value,
+        terminalDiagnosticsError: terminalDiagnosticsResult.error,
+        commandServerBaseUrl: client.baseUrl,
         agents: Array.isArray(terminals) ? terminals : [],
-        indexStatus,
-      };
+      });
       return {
         content: [{ type: "text", text: JSON.stringify(workspaceStatus, null, 2) }],
         structuredContent: workspaceStatus,
@@ -408,6 +413,241 @@ type McpToolResult = {
   structuredContent?: Record<string, unknown>;
   isError?: boolean;
 };
+
+type OptionalReadResult<T> = { value: T; error?: undefined } | { value: undefined; error: string };
+
+async function optionalCommandServerRead<T>(label: string, read: () => Promise<T>): Promise<OptionalReadResult<T>> {
+  try {
+    return { value: await read() };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { value: undefined, error: `${label}: ${message}` };
+  }
+}
+
+function buildWorkspaceStatusOrientation(input: {
+  status: Record<string, unknown>;
+  indexStatus?: Record<string, unknown>;
+  indexStatusError?: string;
+  terminalDiagnostics?: Record<string, unknown>[];
+  terminalDiagnosticsError?: string;
+  commandServerBaseUrl: string;
+  agents: unknown[];
+}): Record<string, unknown> {
+  const workspaceModel = objectRecord(input.status.workspace);
+  const roots = workspaceRoots(workspaceModel);
+  const agents = input.agents.filter((agent): agent is Record<string, unknown> => Boolean(agent && typeof agent === "object"));
+  const terminalDiagnostics = input.terminalDiagnostics ?? [];
+  const degradedMessages = [
+    ...stringsAt(input.indexStatus?.errors),
+    ...stringsAt(input.indexStatus?.warnings),
+    ...terminalDegradedMessages(terminalDiagnostics),
+    input.indexStatusError,
+    input.terminalDiagnosticsError,
+  ].filter((message): message is string => Boolean(message));
+
+  const workspaceStatus: Record<string, unknown> = {
+    ...input.status,
+    ok: true,
+    workspaceModel,
+    workspaceRoots: roots,
+    noteRoots: roots.noteRoots,
+    projectRoots: roots.projectRoots,
+    indexedRoots: Array.isArray(input.indexStatus?.indexedRoots)
+      ? input.indexStatus.indexedRoots
+      : Array.isArray(workspaceModel?.indexedRoots) ? workspaceModel.indexedRoots : [],
+    indexStatus: input.indexStatus ?? {
+      available: false,
+      error: input.indexStatusError ?? "index status unavailable",
+    },
+    indexSummary: indexSummary(input.indexStatus, input.indexStatusError),
+    searchProviderReadiness: searchProviderReadiness(input.indexStatus, input.indexStatusError),
+    pluginReadiness: {
+      searchProviders: [searchProviderReadiness(input.indexStatus, input.indexStatusError)],
+      note: "MCP reports plugin readiness only from data already exposed through the command server.",
+    },
+    agents,
+    liveAgents: agents,
+    terminalSessions: terminalSessionSummary(agents, terminalDiagnostics, input.terminalDiagnosticsError),
+    commandServer: {
+      health: "reachable",
+      baseUrl: input.commandServerBaseUrl,
+      degraded: degradedMessages.length > 0,
+      degradedMessages,
+    },
+    diagnostics: {
+      degradedMessages,
+      optionalReads: {
+        indexStatus: input.indexStatusError ? { ok: false, error: input.indexStatusError } : { ok: true },
+        terminalDiagnostics: input.terminalDiagnosticsError ? { ok: false, error: input.terminalDiagnosticsError } : { ok: true },
+      },
+    },
+  };
+
+  return workspaceStatus;
+}
+
+function workspaceRoots(workspaceModel: Record<string, unknown> | undefined): Record<string, unknown> {
+  return {
+    workspaceRoot: stringAt(workspaceModel?.workspaceRoot),
+    defaultTerminalCwd: stringAt(workspaceModel?.defaultTerminalCwd),
+    noteRoots: arrayAt(workspaceModel?.noteRoots),
+    projectRoots: arrayAt(workspaceModel?.projectRoots),
+  };
+}
+
+function indexSummary(indexStatus: Record<string, unknown> | undefined, error?: string): Record<string, unknown> {
+  if (!indexStatus) {
+    return { available: false, error: error ?? "index status unavailable" };
+  }
+  const indexedRoots = arrayAt(indexStatus.indexedRoots);
+  return {
+    available: true,
+    enabled: booleanAt(indexStatus.enabled),
+    mode: stringAt(indexStatus.mode),
+    backend: stringAt(indexStatus.backend),
+    indexedRootCount: indexedRoots.length,
+    documentCount: numberAt(indexStatus.documentCount),
+    pendingEmbeddings: numberAt(indexStatus.pendingEmbeddings),
+    hasVectorIndex: booleanAt(indexStatus.hasVectorIndex),
+    lastUpdated: stringAt(indexStatus.lastUpdated),
+    warnings: stringsAt(indexStatus.warnings),
+    errors: stringsAt(indexStatus.errors),
+    recentJobs: arrayAt(indexStatus.recentJobs),
+  };
+}
+
+function searchProviderReadiness(indexStatus: Record<string, unknown> | undefined, error?: string): Record<string, unknown> {
+  if (!indexStatus) {
+    return {
+      provider: "qmd",
+      state: "unknown",
+      label: "Status unavailable",
+      detail: error ?? "Index status could not be read from the command server.",
+    };
+  }
+  const summary = indexSummary(indexStatus);
+  const errors = stringsAt(indexStatus.errors);
+  const warnings = stringsAt(indexStatus.warnings);
+  const indexedRootCount = numberAt(summary.indexedRootCount) ?? 0;
+  const mode = stringAt(indexStatus.mode) ?? "off";
+  const enabled = booleanAt(indexStatus.enabled) === true;
+  const pendingEmbeddings = numberAt(indexStatus.pendingEmbeddings) ?? 0;
+  const hasVectorIndex = booleanAt(indexStatus.hasVectorIndex) === true;
+  if (!enabled || mode === "off") {
+    return { provider: "qmd", state: "disabled", label: "Off", detail: "Advanced QMD search is disabled; MCP search can still use core fallback.", summary };
+  }
+  if (indexedRootCount === 0) {
+    return { provider: "qmd", state: "needsSetup", label: "Needs indexed roots", detail: "No indexed roots are configured.", summary };
+  }
+  if (errors.length > 0) {
+    return { provider: "qmd", state: "error", label: "Index error", detail: errors[0], summary };
+  }
+  if (pendingEmbeddings > 0) {
+    return { provider: "qmd", state: "indexing", label: "Embeddings pending", detail: `${pendingEmbeddings} documents need embeddings.`, summary };
+  }
+  if (warnings.length > 0 || (mode !== "lexical" && !hasVectorIndex)) {
+    return { provider: "qmd", state: "degraded", label: "Degraded", detail: warnings[0] ?? "Vector search is not ready; lexical search may still work.", summary };
+  }
+  return { provider: "qmd", state: "ready", label: "Ready", detail: "Advanced QMD search is configured for this workspace.", summary };
+}
+
+function terminalSessionSummary(
+  agents: Record<string, unknown>[],
+  diagnostics: Record<string, unknown>[],
+  diagnosticsError?: string,
+): Record<string, unknown> {
+  return {
+    count: agents.length,
+    running: agents.filter((agent) => agent.status === "running").length,
+    exited: agents.filter((agent) => agent.status === "exited").length,
+    byKind: countBy(agents, "kind"),
+    byHealth: countBy(diagnostics.length > 0 ? diagnostics : agents, "health"),
+    diagnosticsAvailable: !diagnosticsError,
+    diagnosticsError,
+    diagnostics: diagnostics.map((entry) => ({
+      id: entry.id,
+      kind: entry.kind,
+      harnessId: entry.harnessId,
+      cwd: entry.cwd,
+      status: entry.status,
+      readiness: entry.readiness,
+      readinessDetail: entry.readinessDetail,
+      health: entry.health,
+      healthDetail: entry.healthDetail,
+      runtime: entry.runtime,
+      bridgeStatus: entry.bridgeStatus,
+      paneStatus: entry.paneStatus,
+      geometry: objectRecord(entry.geometry)
+        ? {
+            divergent: objectRecord(entry.geometry)?.divergent,
+            divergentSinceMs: objectRecord(entry.geometry)?.divergentSinceMs,
+          }
+        : undefined,
+      lastInputAt: entry.lastInputAt,
+      lastOutputAt: entry.lastOutputAt,
+      transcriptPath: entry.transcriptPath,
+    })),
+  };
+}
+
+function terminalDegradedMessages(diagnostics: Record<string, unknown>[]): string[] {
+  return diagnostics.flatMap((entry) => {
+    const messages: string[] = [];
+    const id = stringAt(entry.id) ?? "terminal";
+    const health = stringAt(entry.health);
+    const paneStatus = stringAt(entry.paneStatus);
+    const bridgeStatus = stringAt(entry.bridgeStatus);
+    const geometry = objectRecord(entry.geometry);
+    if (health === "unhealthy") {
+      messages.push(`${id}: ${stringAt(entry.healthDetail) ?? "terminal health is unhealthy"}`);
+    }
+    if (paneStatus && paneStatus !== "alive") {
+      messages.push(`${id}: tmux pane status is ${paneStatus}`);
+    }
+    if (bridgeStatus && bridgeStatus !== "attached") {
+      messages.push(`${id}: terminal bridge is ${bridgeStatus}`);
+    }
+    if (geometry?.divergent === true) {
+      messages.push(`${id}: terminal geometry is divergent`);
+    }
+    return messages;
+  });
+}
+
+function countBy(items: Record<string, unknown>[], key: string): Record<string, number> {
+  return items.reduce<Record<string, number>>((counts, item) => {
+    const value = stringAt(item[key]);
+    if (value) {
+      counts[value] = (counts[value] ?? 0) + 1;
+    }
+    return counts;
+  }, {});
+}
+
+function objectRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+}
+
+function arrayAt(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function stringsAt(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+function stringAt(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
+function numberAt(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function booleanAt(value: unknown): boolean | undefined {
+  return typeof value === "boolean" ? value : undefined;
+}
 
 async function runAppBackedTool(work: () => Promise<McpToolResult>): Promise<McpToolResult> {
   try {

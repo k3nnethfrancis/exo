@@ -17,6 +17,27 @@ afterEach(async () => {
 });
 
 describe("Exo MCP server tools", () => {
+  it("keeps the MCP tool surface narrow", () => {
+    const server = createExoMcpServer() as unknown as {
+      _registeredTools: Record<string, unknown>;
+    };
+
+    expect(Object.keys(server._registeredTools).sort()).toEqual([
+      "close_preview",
+      "create_agent",
+      "focus_preview",
+      "interrupt_agent",
+      "list_agents",
+      "open_preview",
+      "read_agent",
+      "read_document",
+      "search",
+      "send_agent_message",
+      "terminate_agent",
+      "workspace_status",
+    ]);
+  });
+
   it("does not advertise a hidden read_agent maxLines cap", () => {
     const server = createExoMcpServer() as unknown as {
       _registeredTools: Record<string, { inputSchema?: z.ZodType }>;
@@ -26,6 +47,126 @@ describe("Exo MCP server tools", () => {
     const maxLinesSchema = (jsonSchema as { properties?: Record<string, Record<string, unknown>> }).properties?.maxLines ?? {};
 
     expect(maxLinesSchema.maximum).not.toBe(1000);
+  });
+
+  it("enriches workspace_status with agent orientation fields", async () => {
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-mcp-orientation-"));
+    tempPaths.push(runtimeRoot);
+    await writeFile(path.join(runtimeRoot, "server.json"), JSON.stringify({ port: 55431, pid: process.pid }), "utf8");
+    const workspace = {
+      workspaceRoot: "/workspace",
+      defaultTerminalCwd: "/workspace/projects/exo",
+      noteRoots: [{ id: "note-root-1", label: "notes", path: "/workspace/notes", kind: "notes" }],
+      projectRoots: [{ id: "project-root-1", label: "exo", path: "/workspace/projects/exo", kind: "projects" }],
+      indexedRoots: [],
+      indexing: { enabled: true, mode: "hybrid", backend: "qmd" },
+      attachedWorkcells: [],
+    };
+    const terminals = [{
+      id: "term-1",
+      kind: "codex",
+      terminalKind: "agent",
+      harnessId: "codex",
+      title: "Codex",
+      cwd: "/workspace/projects/exo",
+      command: "codex",
+      status: "running",
+      readiness: "ready",
+      health: "healthy",
+    }];
+    const indexStatus = {
+      enabled: true,
+      mode: "hybrid",
+      backend: "qmd",
+      dbPath: "/runtime/qmd.db",
+      runtimePath: "/runtime",
+      indexedRoots: [{ id: "notes", label: "notes", path: "/workspace/notes", kind: "notes", pattern: "**/*.md", ignore: [], backend: "qmd" }],
+      documentCount: 42,
+      pendingEmbeddings: 0,
+      hasVectorIndex: true,
+      lastUpdated: "2026-07-05T12:00:00.000Z",
+      warnings: [],
+      errors: [],
+    };
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+      const targetUrl = new URL(String(input));
+      if (targetUrl.pathname === "/status") {
+        return Promise.resolve(jsonResponse({ workspace, terminals }));
+      }
+      if (targetUrl.pathname === "/index/status") {
+        return Promise.resolve(jsonResponse(indexStatus));
+      }
+      if (targetUrl.pathname === "/terminals/diagnostics") {
+        return Promise.resolve(jsonResponse([{
+          ...terminals[0],
+          runtime: "tmux",
+          bridgeStatus: "attached",
+          paneStatus: "alive",
+          transcriptPath: "/runtime/terminal-transcripts/term-1.ansi.log",
+          bufferedLines: 12,
+          bufferedChars: 300,
+          lastInputAt: null,
+          lastOutputAt: "2026-07-05T12:01:00.000Z",
+          lastWriteId: 1,
+          lastWriteLatencyMs: 5,
+          geometry: { divergent: false, divergentSinceMs: null, attachGeneration: 1 },
+        }]));
+      }
+      return Promise.resolve(jsonResponse({ error: "not found" }, 404));
+    }));
+    vi.stubEnv("EXO_RUNTIME_ROOT", runtimeRoot);
+
+    const server = createExoMcpServer() as unknown as {
+      _registeredTools: Record<string, { handler?: (args: Record<string, unknown>) => Promise<unknown> }>;
+    };
+    const result = await server._registeredTools.workspace_status.handler?.({});
+
+    expect(result).toMatchObject({
+      structuredContent: {
+        ok: true,
+        workspaceModel: workspace,
+        workspaceRoots: {
+          workspaceRoot: "/workspace",
+          defaultTerminalCwd: "/workspace/projects/exo",
+          noteRoots: workspace.noteRoots,
+          projectRoots: workspace.projectRoots,
+        },
+        noteRoots: workspace.noteRoots,
+        projectRoots: workspace.projectRoots,
+        indexedRoots: indexStatus.indexedRoots,
+        indexSummary: {
+          available: true,
+          enabled: true,
+          mode: "hybrid",
+          backend: "qmd",
+          indexedRootCount: 1,
+          documentCount: 42,
+          pendingEmbeddings: 0,
+          hasVectorIndex: true,
+        },
+        searchProviderReadiness: {
+          provider: "qmd",
+          state: "ready",
+        },
+        pluginReadiness: {
+          searchProviders: [expect.objectContaining({ provider: "qmd", state: "ready" })],
+        },
+        liveAgents: terminals,
+        terminalSessions: {
+          count: 1,
+          running: 1,
+          diagnosticsAvailable: true,
+          byKind: { codex: 1 },
+          byHealth: { healthy: 1 },
+          diagnostics: [expect.objectContaining({ id: "term-1", runtime: "tmux", paneStatus: "alive" })],
+        },
+        commandServer: {
+          health: "reachable",
+          degraded: false,
+          degradedMessages: [],
+        },
+      },
+    });
   });
 
   it("returns structured command-server diagnostics for app-backed tool failures", async () => {
@@ -92,7 +233,7 @@ describe("Exo MCP server tools", () => {
     };
     const result = await server._registeredTools.create_agent.handler?.({ kind: "test.command-server-only" });
 
-    expect(createBody).toMatchObject({ harnessId: "test.command-server-only", kind: "test.command-server-only", callerSurface: "mcp" });
+    expect(createBody).toMatchObject({ harnessId: "test.command-server-only", callerSurface: "mcp" });
     expect(result).toMatchObject({
       isError: true,
       structuredContent: {
@@ -192,7 +333,7 @@ describe("Exo MCP server tools", () => {
   });
 });
 
-function jsonResponse(body: Record<string, unknown>, status = 200): Response {
+function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { "Content-Type": "application/json" },

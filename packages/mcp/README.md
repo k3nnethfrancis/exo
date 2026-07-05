@@ -86,7 +86,7 @@ Equivalent env vars are `EXO_MCP_HTTP_HOST`, `EXO_MCP_HTTP_PORT`, and `EXO_MCP_H
 
 ## Tools
 
-- `workspace_status` — inspect the active Exo workspace model, live agents, and advanced search summary.
+- `workspace_status` — inspect the active Exo workspace model, note/project/indexed roots, live agents and terminal diagnostics, QMD/search-provider readiness, index summary, and command-server degraded-state messages when available.
 - `search` — search notes through the bundled QMD advanced provider when enabled, with core filesystem fallback when QMD is off or unavailable.
 - `read_document` — read an indexed or filesystem note/document target.
 - `open_preview` — open an HTTP(S) URL or existing local `.html`/`.htm` artifact inside Exo's in-app browser preview. Local files must be inside the workspace, note roots, or project roots.
@@ -100,6 +100,8 @@ Equivalent env vars are `EXO_MCP_HTTP_HOST`, `EXO_MCP_HTTP_PORT`, and `EXO_MCP_H
 - `terminate_agent` — terminate an Exo terminal and its tmux-backed session.
 
 MCP is intentionally narrower than the CLI. Use `bin/exo index ...`, `bin/exo project-roots ...`, and `bin/exo terminals ...` for operator/admin/debug workflows.
+
+`workspace_status` is the recommended first orientation call for agents. Its structured response preserves the command-server `/status` payload and adds read-only orientation sections: `workspaceModel`, `workspaceRoots`, `noteRoots`, `projectRoots`, `indexedRoots`, `indexSummary`, `searchProviderReadiness`, `pluginReadiness`, `liveAgents`, `terminalSessions`, `commandServer`, and `diagnostics`. Optional diagnostics may be marked unavailable when the running app lacks that data, but MCP does not expose index sync, recovery, accept/reject, or other mutation tools through this status response.
 
 ## CLI Mirror
 
