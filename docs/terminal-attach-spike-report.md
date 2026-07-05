@@ -32,7 +32,7 @@ Plain attach did not clear Fable's promote threshold. It required native-module 
 
 Read before editing:
 
-- `/Users/kenneth/.codex/skills/terminal-stability/SKILL.md`
+- `skills/terminal-stability/SKILL.md`
 - `fable-exo-preflight-spec.md` section 5 and section 9
 - `docs/terminal-quality-standard.md`
 - `docs/terminal-architecture-v4.md`

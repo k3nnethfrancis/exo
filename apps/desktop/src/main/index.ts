@@ -110,6 +110,7 @@ let workspaceModel: WorkspaceModel;
 let workspaceSettings: WorkspaceSettings | null = null;
 let workspaceSettingsStore: WorkspaceSettingsStore;
 let workspaceSetupComplete = false;
+let onboardingRuntimeRoot: string | null = null;
 let terminalManager: TerminalManager;
 let workspaceWatcherService: WorkspaceWatcherService;
 let indexingService: IndexingService;
@@ -259,19 +260,11 @@ function logWorkspaceStartup(model: WorkspaceModel) {
 function createFirstRunWorkspaceModel(): WorkspaceModel {
   const userDataRoot = app.getPath("userData");
   const homeRoot = app.getPath("home");
-  const notesRoot = path.join(userDataRoot, "onboarding-notes");
 
   return {
     workspaceRoot: userDataRoot,
     defaultTerminalCwd: homeRoot,
-    noteRoots: [
-      {
-        id: "note-root-1",
-        label: "onboarding-notes",
-        path: notesRoot,
-        kind: "notes",
-      },
-    ],
+    noteRoots: [],
     projectRoots: [],
     indexedRoots: [],
     indexing: {
@@ -878,10 +871,22 @@ function resolveSourceProjectRoot(): string | undefined {
 }
 
 function applyWorkspaceSettings(settings: WorkspaceSettings | null) {
+  if (settings && onboardingRuntimeRoot && process.env.EXO_RUNTIME_ROOT === onboardingRuntimeRoot) {
+    delete process.env.EXO_RUNTIME_ROOT;
+    onboardingRuntimeRoot = null;
+  }
   applyWorkspaceSettingsToEnv(settings);
   if (!isForcedTheme(process.env.EXO_FORCE_THEME)) {
     nativeTheme.themeSource = settings?.appearanceMode ?? DEFAULT_APPEARANCE_MODE;
   }
+}
+
+function applyOnboardingRuntimeEnv() {
+  if (process.env.EXO_RUNTIME_ROOT) {
+    return;
+  }
+  onboardingRuntimeRoot = path.join(app.getPath("userData"), "onboarding-runtime");
+  process.env.EXO_RUNTIME_ROOT = onboardingRuntimeRoot;
 }
 
 app.whenReady().then(async () => {
@@ -901,8 +906,12 @@ app.whenReady().then(async () => {
   }
   workspaceSetupComplete = workspaceSettings !== null || Boolean(process.env.EXO_NOTE_ROOTS);
   workspaceModel = workspaceSetupComplete ? resolveWorkspaceModel() : createFirstRunWorkspaceModel();
-  const effectiveWorkspaceSettings = workspaceSettings ?? workspaceSettingsStore.fromModel(workspaceModel);
-  applyWorkspaceSettings(effectiveWorkspaceSettings);
+  if (workspaceSetupComplete) {
+    applyWorkspaceSettings(workspaceSettings ?? workspaceSettingsStore.fromModel(workspaceModel));
+  } else {
+    applyOnboardingRuntimeEnv();
+    applyWorkspaceSettings(null);
+  }
   if (workspaceSettings && !isForcedTheme(forcedTheme)) {
     nativeTheme.themeSource = workspaceSettings.appearanceMode;
   }

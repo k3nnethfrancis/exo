@@ -8,6 +8,34 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ## Open
 
+### EXO-ISSUE-088: Fresh launch can bypass onboarding and persist synthesized workspace defaults
+
+- Status: in progress
+- Severity: high
+- Area: onboarding, workspace settings bootstrap, packaged launch
+- Source:
+  - GitHub issue #20: https://github.com/k3nnethfrancis/exo/issues/20
+- Observed:
+  - A fresh app launch with no valid prior workspace settings can open the main shell instead of first-run onboarding.
+  - The app may derive workspace defaults from the process cwd, create a `notes` directory, and persist `workspace-settings.json` before the user chooses a notes root or default terminal cwd.
+  - Reported generated settings pointed at `apps/desktop`, which makes a built-app launch look like it chose a notes repo for the user.
+  - Packaged `Exo.app` failed differently after clearing app state: startup tried to create `/notes` and logged an unhandled `ENOENT: no such file or directory, mkdir '/notes'` before onboarding appeared.
+- Expected:
+  - Missing or invalid persisted workspace settings should be an explicit first-run state.
+  - Exo may suggest default paths inside onboarding, but it must not persist them, create note roots, or open the main shell until the user confirms setup.
+- Acceptance:
+  - [x] Fresh launch without workspace env/settings shows onboarding before the app shell.
+    - 2026-07-05: focused Electron e2e covers first-run no-env launch and existing-notes setup.
+  - [x] No `workspace-settings.json`, registry entry, or synthetic notes folder is written before onboarding confirmation.
+    - 2026-07-05: focused Electron e2e asserts no pre-confirm settings file and no synthetic `onboarding-notes`; disposable `pnpm app` smoke also confirmed no settings file, no `apps/desktop/notes`, and no `/notes`.
+  - [ ] Packaged first launch does not try to create `/notes` or any cwd-derived note root before onboarding confirmation.
+    - 2026-07-05: source-run helper path verified; packaged bundle was not present locally for a bundle smoke in this slice.
+  - [ ] Choosing a notes folder persists the selected notes root and derived/default terminal cwd.
+    - 2026-07-05: focused Electron e2e covers selecting an existing notes folder and persisting settings only after capability review/enter.
+  - [ ] Focused Electron e2e covers the packaged-style no-env launch path.
+    - 2026-07-05: covered in `shell.spec.ts` with explicit no-env/no-settings assertions.
+  - [ ] Fresh installed-app/new-machine QA confirms onboarding appears before any workspace defaults are saved.
+
 ### EXO-ISSUE-087: Terminal diagnostics command ignores target id and can EPIPE when piped
 
 - Status: open
@@ -498,7 +526,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - Tests or docs are updated if any fallback behavior changes.
 - Resolution:
   - Added `docs/plugin-architecture-audit.md` with core/plugin decisions, steelmanned reasons, accepted fallbacks, rejected fallbacks, inline-comment targets, and hardening backlog.
-  - Added `.claude/skills/plugin-development/SKILL.md` and referenced it from `AGENTS.md`.
+  - Added `skills/plugin-development/SKILL.md` and referenced it from `AGENTS.md`.
   - Added concise inline comments for metadata-only plugin discovery, disabled plugin capability handling, trusted dev plugin dirs, surface policy limits, QMD degraded search fallbacks, harness detection compatibility, and Pi backend readiness.
   - 2026-07-03: Removed legacy bare capability-kind aliases; official manifests now use namespaced capability ids directly.
   - 2026-07-03: Added the first proposal/review apply host and `exo proposals` CLI/app command surface.
@@ -612,7 +640,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - After app refresh/relaunch, a tmux-backed Claude session should reattach and accept input on first terminal focus.
   - Terminal focus/input should not depend on tab switching, forced refresh, or renderer reset side effects.
 - Investigation notes:
-  - Use `.claude/skills/terminal-stability/SKILL.md` before changing terminal code.
+  - Use `skills/terminal-stability/SKILL.md` before changing terminal code.
   - Treat this as a terminal launch blocker, not a cosmetic issue.
   - Check whether Claude harness readiness, queued semantic sends, hydration state, and xterm focus/registration disagree after create and after hard refresh.
   - Verify `TerminalDock`/`useTerminalSessions` no longer skips the needed reconnect snapshot while also avoiding normal focus-triggered resets.
@@ -689,7 +717,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - `TerminalDock` no longer forces hydration on active terminal/pane changes; already-hydrated mounted terminals stay on live append unless reconnect explicitly requests a forced snapshot.
   - Reconnect now forces a hydration snapshot so a restored bridge can replay current live pane output after backend reconnect.
   - MCP `read_agent.maxLines` no longer advertises or enforces the hidden 1000-line schema cap; live line limits now flow to the app and are bounded by configured terminal history.
-  - Added `.claude/skills/terminal-stability/SKILL.md` and linked it from repo guidance so future terminal changes start from the terminal ownership rules, invariants, focused checks, and app QA script.
+  - Added `skills/terminal-stability/SKILL.md` and linked it from repo guidance so future terminal changes start from the terminal ownership rules, invariants, focused checks, and app QA script.
   - 2026-06-24 consolidation: the remaining architectural cleanup, diagnostics hardening, named readiness gate, and app QA requirements are now owned by `EXO-ISSUE-068`.
 
 ### EXO-ISSUE-064: Routine template plugins need trust and policy enforcement before agent execution

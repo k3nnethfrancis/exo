@@ -1,4 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { access, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -1875,7 +1876,7 @@ test("shows first-run notes setup before the app shell", async () => {
 });
 
 test("shows first-run setup from a packaged-style launch without workspace env", async () => {
-  const { page, cleanup } = await launchExoFixture({
+  const { page, cleanup, settingsPath } = await launchExoFixture({
     configured: false,
     cwd: "/",
     workspaceRootEnv: false,
@@ -1886,6 +1887,9 @@ test("shows first-run setup from a packaged-style launch without workspace env",
   await expect(page.getByTestId("workspace-picker-open")).toHaveCount(0);
   const model = await page.evaluate(() => window.exo.workspace.getModel());
   expect(model.workspaceRoot).not.toBe("/");
+  expect(model.noteRoots).toEqual([]);
+  expect(existsSync(settingsPath)).toBe(false);
+  expect(existsSync(path.join(path.dirname(settingsPath), "onboarding-notes"))).toBe(false);
 
   await cleanup();
 });

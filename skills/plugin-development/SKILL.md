@@ -1,3 +1,8 @@
+---
+name: plugin-development
+description: Use before changing Exo plugin architecture, capability registries, plugin manifests, plugin trust/permissions, search-provider adapters, harness adapters, Routine templates, plugin-owned settings/surfaces, or plugin-related CLI/MCP behavior.
+---
+
 # Plugin Development
 
 Use this skill before changing Exo plugin architecture, capability registries, plugin manifests, plugin trust/permissions, search-provider adapters, agent-harness adapters, Routine templates, plugin-owned settings/surfaces, or plugin-related CLI/MCP behavior.

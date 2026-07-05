@@ -27,7 +27,12 @@ pnpm test:e2e
 - `packages/core` owns workspace, search, runtime, and shared protocol logic.
 - `packages/cli` owns the `bin/exo` command surface.
 - `packages/mcp` owns the MCP server for local agents.
+- `skills` owns repo-local contributor skills shared by Claude and Codex compatibility paths.
 - `docs/README.md`, `docs/strategy.md`, `docs/architecture.md`, `docs/harness.md`, `tasks.md`, `roadmap.md`, and `ledger.md` are part of the source of truth for agent/human handoff.
+
+## Issue Intake
+
+Root `issues.md` is the canonical local tracker for active Exo bug, QA, setup, and field reports. Before filing or assigning a report, use `skills/submit-exo-issue/SKILL.md`: deduplicate, add the next `EXO-ISSUE-*` entry, include GitHub links/screenshots where relevant, and keep acceptance criteria testable.
 
 ## Work Chunks
 

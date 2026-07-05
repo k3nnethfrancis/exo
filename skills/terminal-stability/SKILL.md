@@ -1,3 +1,8 @@
+---
+name: terminal-stability
+description: Use before changing Exo terminal runtime, terminal rendering, terminal settings, terminal tests, or agent terminal launch behavior. Keeps tmux-durable, xterm-owned terminal work aligned with launch-readiness invariants.
+---
+
 # Terminal Stability
 
 Use this skill before changing Exo terminal runtime, terminal rendering, terminal settings, terminal tests, or agent terminal launch behavior.

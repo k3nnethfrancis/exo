@@ -29,6 +29,16 @@ The immediate product proving loop is Exo-on-Exo: finish usability/harness readi
 21. `docs/public-contract-reviews.md` - review-note ledger checked by `pnpm check:repo` for command-server, CLI, MCP, and shared protocol surfaces
 22. `packages/mcp/README.md` - MCP setup and tool contract
 
+## Project Skills
+
+Repo-owned Exo skills live in `skills/`. Treat this as the canonical project skill library for both Claude and Codex contributors; `.claude/skills` and `.codex/skills` are compatibility links to the same folder.
+
+Before contributing, scan `skills/`. For broad Exo development, load all project skills first. For tightly scoped subagent work, load at least the matching skill before editing:
+
+- `skills/submit-exo-issue/SKILL.md` - use when filing, promoting, deduplicating, or assigning Exo bug/QA/setup reports.
+- `skills/terminal-stability/SKILL.md` - use before changing terminal runtime, rendering, settings, tests, or harness launch behavior.
+- `skills/plugin-development/SKILL.md` - use before changing plugin architecture, capability registries, manifests, trust/permissions, providers, harness adapters, Routine templates, or plugin-owned surfaces.
+
 ## Repository Map
 
 - `apps/desktop` - Electron main/preload/renderer, settings, terminal supervision, command server.
@@ -133,8 +143,9 @@ CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build 
 - Do not include local secrets, private paths as source defaults, transcripts, logs, or `.exo/` runtime files.
 - Preserve unrelated local edits. Before staging, inspect `git status` and include only files that belong to the current task.
 - UI and terminal changes require app QA in the real Electron app, not only browser or unit tests. Use focused automated tests first, then manually exercise the affected workflow.
-- Before changing terminal runtime, terminal rendering, terminal settings, terminal tests, or agent terminal launch behavior, use `.claude/skills/terminal-stability/SKILL.md` and follow its ownership rules, fallback discipline, invariants, checks, and manual QA script.
-- Before changing plugin architecture, capability registries, plugin manifests, plugin trust/permissions, search-provider adapters, harness adapters, Routine templates, or plugin-owned surfaces, use `.claude/skills/plugin-development/SKILL.md` and follow its core/plugin split, fallback discipline, and trust rules.
+- Before changing terminal runtime, terminal rendering, terminal settings, terminal tests, or agent terminal launch behavior, use `skills/terminal-stability/SKILL.md` and follow its ownership rules, fallback discipline, invariants, checks, and manual QA script.
+- Before changing plugin architecture, capability registries, plugin manifests, plugin trust/permissions, search-provider adapters, harness adapters, Routine templates, or plugin-owned surfaces, use `skills/plugin-development/SKILL.md` and follow its core/plugin split, fallback discipline, and trust rules.
+- Before filing or promoting Exo bugs, setup reports, UX issues, or GitHub issues, use `skills/submit-exo-issue/SKILL.md` and keep root `issues.md` canonical.
 - Exo uses an orchestrator-led coding pattern. Subagents execute scoped work, avoid broad architecture decisions, and report architectural or public-contract questions to the lead/orchestrator with evidence, options, and a recommendation. Subagents must not independently seek external architect/oracle review.
 - Review tests for quality before accepting them: they should assert user-visible behavior or stable contracts, isolate live Exo state, fail for the intended regression, and avoid only snapshotting implementation details.
 - Prefer extracting pure helpers or focused hooks over expanding `App.tsx` or `main/index.ts`. Keep IPC types in `@exo/core` when shared across CLI/MCP/desktop and avoid duplicate type definitions in preload-only files.
