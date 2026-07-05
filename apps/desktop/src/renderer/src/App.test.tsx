@@ -90,6 +90,7 @@ import { PiHarnessSettingsPanel, createPiHarnessDraft, piHarnessSettingsFromDraf
 import { ChangedNotesDialog } from "./components/ChangedNotesDialog";
 import { ProposalReviewDialog } from "./components/ProposalReviewDialog";
 import { ProfileEditPanel, buildProfileEditPanelSections } from "./components/ProfileEditPanel";
+import { ProfileSettingsContent } from "./components/ProfileSettingsSection";
 import { OnboardingCapabilityReviewContent } from "./components/OnboardingCapabilityReview";
 import {
   buildOnboardingCapabilitySections,
@@ -400,7 +401,7 @@ describe("profile settings model", () => {
         profile: {
           recommendedPlugins: [{ id: "qmd", required: false }],
           metadataSchemas: [{ id: "markdown-note", label: "Markdown note", scope: { paths: ["**/*.md"] }, frontmatter: {}, tags: [] }],
-          contextTemplates: [],
+          contextTemplates: [{ id: "agents-md", label: "AGENTS.md", target: "AGENTS.md", templatePath: "templates/AGENTS.md" }],
           instructionTemplates: [],
           mcpConfigTemplates: [],
           skills: [],
@@ -425,9 +426,81 @@ describe("profile settings model", () => {
     expect(model.baselineCandidate?.plan?.apply).toMatchObject({ available: false, label: "Review only" });
     expect(model.baselineCandidate?.componentRows).toContainEqual({ label: "Blockers", value: "1" });
     expect(model.baselineCandidate?.recommendationRows).toEqual([{ label: "qmd", value: "ready (optional)" }]);
-    expect(PROFILE_SETTINGS_DISABLED_REASON).toContain("fixture-vault review");
-    expect(PROFILE_SETTINGS_DISABLED_REASON).toContain("Real-vault writes");
+    expect(model.baselineCandidate?.applyGate).toMatchObject({
+      canStageFileTemplates: true,
+      label: "Stage file proposals",
+    });
+    expect(PROFILE_SETTINGS_DISABLED_REASON).toContain("reviewable proposals");
+    expect(PROFILE_SETTINGS_DISABLED_REASON).toContain("Accepting the proposal is a separate UI/CLI review action");
     expect(PROFILE_SETTINGS_DISABLED_REASON).toContain("permission grants");
+  });
+
+  it("keeps file-template staging disabled for untrusted or non-propose profiles", () => {
+    const untrustedProfile: PluginInventoryItem = {
+      ...pluginInventoryItem("lab.profile", "Lab profile", "profile", "Profiles", "localManifest"),
+      trust: "untrusted",
+      compatibility: {
+        profile: {
+          contextTemplates: [{ id: "agents-md", label: "AGENTS.md", target: "AGENTS.md", templatePath: "templates/AGENTS.md" }],
+          reviewPolicy: { fileChanges: "propose", requireHumanReview: true, allowedPaths: ["**/*.md"] },
+        },
+      },
+    };
+    const unsafePolicyProfile: PluginInventoryItem = {
+      ...pluginInventoryItem("unsafe.profile", "Unsafe profile", "profile", "Profiles", "bundled"),
+      compatibility: {
+        profile: {
+          contextTemplates: [{ id: "agents-md", label: "AGENTS.md", target: "AGENTS.md", templatePath: "templates/AGENTS.md" }],
+          reviewPolicy: { fileChanges: "apply", requireHumanReview: true, allowedPaths: ["**/*.md"] },
+        },
+      },
+    };
+
+    const model = buildProfileSettingsModel(pluginInventory([untrustedProfile, unsafePolicyProfile]), null);
+
+    expect(model.detectedProfiles.find((candidate) => candidate.id === "lab.profile")?.applyGate).toMatchObject({
+      canStageFileTemplates: false,
+      label: "Trust required",
+    });
+    expect(model.detectedProfiles.find((candidate) => candidate.id === "unsafe.profile")?.applyGate).toMatchObject({
+      canStageFileTemplates: false,
+      label: "Review policy required",
+    });
+  });
+
+  it("renders stage file proposals only when the profile apply gate allows it", () => {
+    const baseline: PluginInventoryItem = {
+      ...pluginInventoryItem("exograph-baseline.profile", "Exograph Baseline", "profile", "Profiles", "bundled"),
+      compatibility: {
+        profile: {
+          contextTemplates: [{ id: "agents-md", label: "AGENTS.md", target: "AGENTS.md", templatePath: "templates/AGENTS.md" }],
+          reviewPolicy: { fileChanges: "propose", requireHumanReview: true, allowedPaths: ["**/*.md"] },
+        },
+      },
+    };
+    const model = buildProfileSettingsModel(pluginInventory([baseline]), null, {
+      "exograph-baseline.profile": { plan: profilePlanFixture(), error: null },
+    });
+    const html = renderToStaticMarkup(
+      <ProfileSettingsContent
+        actionError={null}
+        actionMessage={null}
+        actionStatus="idle"
+        loadError={null}
+        loadState="ready"
+        model={model}
+        onClearActive={() => {}}
+        onCopy={() => {}}
+        onCustomize={() => {}}
+        onReview={() => {}}
+        onSetActive={() => {}}
+        onStageApply={() => {}}
+        onToggleAutoUpdate={() => {}}
+      />,
+    );
+
+    expect(html).toContain("Stage file proposals");
+    expect(html).not.toContain("Stage apply blocked");
   });
 
   it("resolves active profile state against detected profile candidates", () => {

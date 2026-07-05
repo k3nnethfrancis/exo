@@ -32,6 +32,7 @@ describe("createProfileApplyProposal", () => {
       pluginRoot,
       workspaceRoot,
       activityId: "profile-apply:test",
+      target: "realVault",
       now: "2026-07-03T12:00:00.000Z",
     });
 
@@ -39,7 +40,7 @@ describe("createProfileApplyProposal", () => {
       id: "profile-apply-test-profile-2026-07-03T12-00-00-000Z",
       status: "pending",
       provenance: { activityId: "profile-apply:test" },
-      metadata: { source: "profileApply", profileId: "test.profile" },
+      metadata: { source: "profileApply", profileId: "test.profile", profileApplyTarget: "realVault", profileApplyCreatedBy: "exo" },
     });
     expect(proposal?.items).toEqual([
       expect.objectContaining({
@@ -110,25 +111,45 @@ describe("createProfileApplyProposal", () => {
     await expect(store.readProposal(staged!.id)).resolves.toMatchObject({ status: "accepted" });
   });
 
-  it("does not write unmarked profile apply proposals outside the fixture-vault path", async () => {
+  it("stages and applies real-vault profile proposals only with embedded review-policy evidence", async () => {
     const { pluginRoot, workspaceRoot } = await fixture();
     await writeFile(path.join(pluginRoot, "templates/AGENTS.md"), "# Agents\n");
     const proposal = await createProfileApplyProposal({
       profile: profile({
         contextTemplates: [{ id: "agents", label: "Agents", templatePath: "templates/AGENTS.md", target: "AGENTS.md" }],
+        reviewPolicy: { fileChanges: "propose", requireHumanReview: true, allowedPaths: ["**/*.md"] },
       }),
       pluginRoot,
       workspaceRoot,
       activityId: "profile-apply:blocked",
+      target: "realVault",
       now: "2026-07-04T10:00:00.000Z",
     });
 
-    await expect(applyProposalToWorkspace(proposal!, {
+    await expect(applyProposalToWorkspace({
+      ...proposal!,
+      metadata: {
+        ...proposal!.metadata,
+        profileApplyCreatedBy: undefined,
+      },
+    }, {
       workspaceRoot,
       decision: "accept",
       surface: "cli",
-    })).rejects.toThrow("fixture-vault only");
+    })).rejects.toThrow("Exo-created profileApply metadata");
     await expect(readFile(path.join(workspaceRoot, "AGENTS.md"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+
+    const result = await applyProposalToWorkspace(proposal!, {
+      workspaceRoot,
+      decision: "accept",
+      surface: "cli",
+      decidedAt: "2026-07-04T10:01:00.000Z",
+    });
+
+    expect(result.appliedItems).toEqual([
+      { id: "context-agents", kind: "fileCreate", path: "AGENTS.md", action: "created" },
+    ]);
+    await expect(readFile(path.join(workspaceRoot, "AGENTS.md"), "utf8")).resolves.toBe("# Agents\n");
   });
 
   it("returns null when profile template targets already match", async () => {
@@ -143,6 +164,7 @@ describe("createProfileApplyProposal", () => {
       pluginRoot,
       workspaceRoot,
       activityId: "profile-apply:test",
+      target: "realVault",
       now: "2026-07-03T12:00:00.000Z",
     })).resolves.toBeNull();
   });
@@ -156,6 +178,7 @@ describe("createProfileApplyProposal", () => {
       pluginRoot,
       workspaceRoot,
       activityId: "profile-apply:test",
+      target: "fixtureVault",
     })).rejects.toThrow("escapes plugin root");
 
     await writeFile(path.join(pluginRoot, "templates/AGENTS.md"), "# Agents\n");
@@ -166,7 +189,35 @@ describe("createProfileApplyProposal", () => {
       pluginRoot,
       workspaceRoot,
       activityId: "profile-apply:test",
+      target: "fixtureVault",
     })).rejects.toThrow("inside the workspace");
+  });
+
+  it("requires real-vault proposals to use human-reviewed propose policy and allowed paths", async () => {
+    const { pluginRoot, workspaceRoot } = await fixture();
+    await writeFile(path.join(pluginRoot, "templates/AGENTS.md"), "# Agents\n");
+
+    await expect(createProfileApplyProposal({
+      profile: profile({
+        contextTemplates: [{ id: "agents", label: "Agents", templatePath: "templates/AGENTS.md", target: "AGENTS.md" }],
+        reviewPolicy: { fileChanges: "apply", requireHumanReview: true, allowedPaths: ["**/*.md"] },
+      }),
+      pluginRoot,
+      workspaceRoot,
+      activityId: "profile-apply:test",
+      target: "realVault",
+    })).rejects.toThrow("fileChanges must be \"propose\"");
+
+    await expect(createProfileApplyProposal({
+      profile: profile({
+        contextTemplates: [{ id: "agents", label: "Agents", templatePath: "templates/AGENTS.md", target: "AGENTS.md" }],
+        reviewPolicy: { fileChanges: "propose", requireHumanReview: true, allowedPaths: ["notes/**"] },
+      }),
+      pluginRoot,
+      workspaceRoot,
+      activityId: "profile-apply:test",
+      target: "realVault",
+    })).rejects.toThrow("Blocked template target paths: AGENTS.md");
   });
 });
 
@@ -215,6 +266,7 @@ function profile(overrides: Partial<ProfileDefinition> = {}): ProfileDefinition 
     routineTemplateIds: [],
     graphViews: [],
     analyzerSettings: [],
+    reviewPolicy: { fileChanges: "propose", requireHumanReview: true, allowedPaths: ["**/*.md", ".mcp.json", ".exo/**"] },
     ...overrides,
   };
 }

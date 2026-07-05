@@ -715,6 +715,7 @@ async function previewWorkspaceProfile(input: ActiveProfileIdentity) {
 
 async function createWorkspaceProfileApplyProposal(input: ActiveProfileIdentity) {
   const { item, profile } = await resolveWorkspaceProfile(input);
+  assertProfileApplyProposalStagingAllowed(item, profile);
   if (!item.rootDirectory) {
     throw new Error(`Selected profile does not have a plugin root directory: ${input.capabilityId}`);
   }
@@ -723,6 +724,7 @@ async function createWorkspaceProfileApplyProposal(input: ActiveProfileIdentity)
     pluginRoot: item.rootDirectory,
     workspaceRoot: workspaceModel.workspaceRoot,
     activityId: `profile-apply:${profile.id}`,
+    target: "realVault",
   });
   if (!proposal) {
     return null;
@@ -730,6 +732,21 @@ async function createWorkspaceProfileApplyProposal(input: ActiveProfileIdentity)
   const proposalWithPreview = await enrichProposalFrontmatterPreviews(workspaceModel.workspaceRoot, proposal);
   await writeWorkspaceProposal(proposalWithPreview);
   return proposalWithPreview;
+}
+
+function assertProfileApplyProposalStagingAllowed(item: PluginInventoryItem, profile: ReturnType<typeof profileFromCapability>): void {
+  if (!profile) {
+    throw new Error("Selected profile cannot be staged because it could not be parsed.");
+  }
+  if (item.trust !== "trusted") {
+    throw new Error("Profile file-template proposals can be staged only from trusted profile plugins.");
+  }
+  if (!item.enabled || item.status !== "available") {
+    throw new Error("Profile file-template proposals can be staged only from enabled and available profile plugins.");
+  }
+  if (profile.reviewPolicy?.fileChanges !== "propose" || profile.reviewPolicy.requireHumanReview !== true) {
+    throw new Error("Profile file-template proposals require reviewPolicy.fileChanges=\"propose\" and requireHumanReview=true.");
+  }
 }
 
 async function resolveWorkspaceProfile(input: ActiveProfileIdentity) {

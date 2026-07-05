@@ -36,13 +36,14 @@ Already implemented:
 - Profile Customize now reads as a component edit hub: recommended plugins link to Plugin Manager, instruction/templates/skills link to Agent Config, and direct profile writes remain disabled until the staged apply/permission model exists.
 - The bottom status bar shows profile review state and changed notes state.
 - Changed notes open a read-only modal listing note-root git changes with path, status, root label, changed line when known, and an open-note action.
+- Trusted, enabled profile capabilities can stage profile-owned context, instruction, and MCP config file templates as `.exo` proposal records when the profile declares `reviewPolicy.fileChanges: "propose"`, `requireHumanReview: true`, and allowed template paths. Target files are written only by later UI/CLI proposal acceptance, and the apply host re-checks Exo-created profile-apply metadata, embedded review policy, item kinds, and allowed paths.
 
 Gaps:
 
 - Profile component edits are centralized visually but not yet editable.
 - Profile component hub links to existing specialized managers, but it does not yet provide inline editors for profile JSON, instruction files, skills, routines, schemas, or graph views.
-- Templatize, permission review, AI/headless harness calls, and broad profile apply are not implemented.
-- Profile-owned context, instruction, and MCP config templates can be staged as reviewable proposal batches; they still require explicit Desktop/CLI acceptance before any file write.
+- Templatize, permission review, AI/headless harness calls, plugin enablement, grants, skills, routines, settings changes, and broad profile apply are not implemented.
+- Profile-owned context, instruction, and MCP config templates can be staged as reviewable proposal batches only through explicit UI invocation and policy gates; they still require explicit Desktop/CLI acceptance before any target file write.
 - Profile modified/review state is visible, but there is no diff against profile-owned component refs yet.
 - Notes repo git state is visible, but there are no inline diffs, stage/commit actions, or provenance links yet.
 - Local plugin add/remove/swap flows exist for Exo-managed user/workspace plugin directories, but not for remote install/update flows or marketplace-style distribution.
@@ -322,7 +323,7 @@ This cycle is finished when:
 ## Risks
 
 - Overloading Plugin Manager with profile editing would blur product concepts. Keep profiles in Settings.
-- Adding broad profile apply before permission prompts would create hidden mutations. Keep plugin enables, skills, routines, settings, and grants disabled until their confirmation model exists; profile-owned file templates may use the proposal review queue.
+- Adding broad profile apply before permission prompts would create hidden mutations. Keep plugin enables, skills, routines, settings, and grants disabled until their confirmation model exists; profile-owned file templates may use the proposal review queue only with trusted/enabled profile metadata, human-reviewed propose policy, allowed-path evidence, and UI/CLI proposal acceptance.
 - Adding git commit flows too early would expand scope. Start with read-only changed-note listing.
 - Templatize via AI is valuable, but it should wait until headless routine/harness execution and review artifacts are stronger.
 

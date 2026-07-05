@@ -133,7 +133,7 @@ export function ProfileSettingsSection({
       onCustomize={editableCandidate ? () => setEditingCandidate(editableCandidate) : null}
       onReview={editableCandidate ? () => setEditingCandidate(editableCandidate) : null}
       onCopy={editableCandidate ? () => void copyProfile(editableCandidate) : null}
-      onStageApply={editableCandidate ? () => void stageProfileApply(editableCandidate) : null}
+      onStageApply={editableCandidate?.applyGate.canStageFileTemplates ? () => void stageProfileApply(editableCandidate) : null}
       onToggleAutoUpdate={(autoUpdate) => void runProfileAction(() => window.exo.workspace.setProfileAutoUpdate({ autoUpdate }))}
     />
   );
@@ -231,10 +231,10 @@ export function ProfileSettingsContent({
             className="toolbar-button"
             disabled={!onStageApply || actionStatus === "saving"}
             onClick={() => onStageApply?.()}
-            title="Create a reviewable proposal for profile-owned file templates. Plugins, skills, routines, settings, and permissions remain blocked."
+            title={editableApplyGateTitle(model)}
             type="button"
           >
-            Stage apply
+            {editableApplyGate(model).label}
           </button>
           <button
             className="toolbar-button"
@@ -308,6 +308,19 @@ export function ProfileSettingsContent({
       ) : null}
     </section>
   );
+}
+
+function editableApplyGateTitle(model: ProfileSettingsModel): string {
+  return editableApplyGate(model).reason;
+}
+
+function editableApplyGate(model: ProfileSettingsModel) {
+  const editableCandidate = model.detectedProfiles.find((candidate) => candidate.isActive) ?? model.baselineCandidate;
+  return editableCandidate?.applyGate ?? {
+    canStageFileTemplates: false,
+    label: "Stage file proposals",
+    reason: PROFILE_SETTINGS_DISABLED_REASON,
+  };
 }
 
 function ProfileCandidateSummary({

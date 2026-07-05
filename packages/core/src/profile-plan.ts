@@ -259,7 +259,7 @@ function planApplyState(actions: ProfilePlanAction[]): ProfilePlanApplyState {
   return {
     available: false,
     label: "Review only",
-    reason: "Profile application is read-only until trust grants, permission prompts, file writes, skill installation, and routine scheduling have explicit apply gates.",
+    reason: "Broad profile application is read-only. Trusted profiles may stage file-template proposal records for UI/CLI review, but plugin enablement, permission grants, skill installation, settings changes, and routine scheduling remain blocked until their own apply gates ship.",
     blockedBy,
     promptSteps: applyPromptSteps(actions),
   };
@@ -282,7 +282,7 @@ function applyBlockers(actions: ProfilePlanAction[]): ProfilePlanApplyBlocker[] 
   pushBlocker(blockers, "pluginSettings", "Some recommended plugin settings would need review before profile application.", actions, (action) =>
     action.kind === "pluginRecommendation" && action.inventoryItem?.settingsReviewRequired === true,
   );
-  pushBlocker(blockers, "fileWrite", "Profile templates and schema changes would need an explicit file-write confirmation.", actions, (action) =>
+  pushBlocker(blockers, "fileWrite", "Profile templates must be staged as proposal records and accepted through UI/CLI review before target files are written.", actions, (action) =>
     Boolean(action.effect.wouldWrite),
   );
   pushBlocker(blockers, "skillInstall", "Profile skills would need an explicit skill install/enable flow.", actions, (action) =>
@@ -335,7 +335,7 @@ function applyPromptSteps(actions: ProfilePlanAction[]): ProfilePlanApplyPromptS
     steps,
     "fileWriteReview",
     "Review file writes",
-    "Stage and approve context, instruction, schema, and config file changes before writing user files.",
+    "Trusted profiles can stage context, instruction, and MCP config templates as proposal records; target files are written only after UI/CLI proposal acceptance.",
     actions,
     (action) => Boolean(action.effect.wouldWrite),
   );
@@ -473,7 +473,7 @@ function templateAction(kind: ProfileTemplateAction["kind"], template: ProfileTe
     template,
     effect: {
       ...previewEffect(),
-      wouldWrite: `Would write ${template.target ?? template.id} from ${template.templatePath} only in a future apply flow.`,
+      wouldWrite: `Can stage ${template.target ?? template.id} from ${template.templatePath} as a reviewable proposal; target files change only after UI/CLI acceptance.`,
       ...(kind === "mcpConfigTemplate"
         ? { wouldMutateMcpConfig: `Would update MCP config from ${template.templatePath} only with explicit confirmation.` }
         : {}),

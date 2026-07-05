@@ -5,22 +5,31 @@ import { contentSha256 } from "./proposal-apply-host";
 import type { ProposalBatch, ProposalItem } from "./proposal-review";
 import type { ProfileDefinition, ProfileTemplateReference } from "./profile";
 
+export const PROFILE_APPLY_REAL_VAULT_BLOCKED_REASON =
+  "Real-vault profile file-template proposals require an explicit target, human-review policy, and allowed template paths.";
+
+export type ProfileApplyProposalTarget = "fixtureVault" | "realVault";
+
 export interface ProfileApplyProposalOptions {
   profile: ProfileDefinition;
   pluginRoot: string;
   workspaceRoot: string;
   activityId: string;
   sessionId?: string;
-  target?: "fixtureVault";
+  target?: ProfileApplyProposalTarget;
   now?: string;
 }
 
 export async function createProfileApplyProposal(options: ProfileApplyProposalOptions): Promise<ProposalBatch | null> {
+  if (!options.target) {
+    throw new Error("Profile apply proposal target must be explicit: fixtureVault or realVault.");
+  }
   const now = options.now ?? new Date().toISOString();
   const items = await proposalItemsForTemplates(options);
   if (items.length === 0) {
     return null;
   }
+  assertProfileApplyTargetAllowed(options, items);
   return {
     id: `profile-apply-${slug(options.profile.id)}-${timestampSlug(now)}`,
     title: `Apply ${options.profile.label} profile templates`,
@@ -37,9 +46,39 @@ export async function createProfileApplyProposal(options: ProfileApplyProposalOp
       source: "profileApply",
       profileId: options.profile.id,
       profileLabel: options.profile.label,
-      ...(options.target ? { profileApplyTarget: options.target } : {}),
+      profileApplyTarget: options.target,
+      ...(options.target === "realVault" && options.profile.reviewPolicy
+        ? {
+          profileApplyCreatedBy: "exo",
+          profileApplyReviewPolicy: {
+            fileChanges: options.profile.reviewPolicy.fileChanges,
+            requireHumanReview: options.profile.reviewPolicy.requireHumanReview,
+            allowedPaths: options.profile.reviewPolicy.allowedPaths,
+          },
+        }
+        : {}),
     },
   };
+}
+
+function assertProfileApplyTargetAllowed(options: ProfileApplyProposalOptions, items: ProposalItem[]): void {
+  if (options.target === "fixtureVault") {
+    return;
+  }
+  if (options.target !== "realVault") {
+    throw new Error(`Unsupported profile apply proposal target: ${String(options.target)}`);
+  }
+  const reviewPolicy = options.profile.reviewPolicy;
+  if (reviewPolicy?.fileChanges !== "propose" || reviewPolicy.requireHumanReview !== true) {
+    throw new Error(`${PROFILE_APPLY_REAL_VAULT_BLOCKED_REASON} Profile reviewPolicy.fileChanges must be "propose" and requireHumanReview must be true.`);
+  }
+  if (reviewPolicy.allowedPaths.length === 0) {
+    throw new Error(`${PROFILE_APPLY_REAL_VAULT_BLOCKED_REASON} Profile reviewPolicy.allowedPaths must include every template target.`);
+  }
+  const blockedPaths = items.map((item) => item.path).filter((targetPath) => !matchesProfileApplyAllowedPath(targetPath, reviewPolicy.allowedPaths));
+  if (blockedPaths.length > 0) {
+    throw new Error(`${PROFILE_APPLY_REAL_VAULT_BLOCKED_REASON} Blocked template target paths: ${blockedPaths.join(", ")}`);
+  }
 }
 
 async function proposalItemsForTemplates(options: ProfileApplyProposalOptions): Promise<ProposalItem[]> {
@@ -157,4 +196,18 @@ function slug(value: string): string {
 
 function timestampSlug(value: string): string {
   return value.replace(/[^0-9A-Za-z]+/g, "-").replace(/^-|-$/g, "");
+}
+
+export function matchesProfileApplyAllowedPath(targetPath: string, allowedPaths: readonly string[]): boolean {
+  return allowedPaths.some((pattern) => globToRegExp(pattern).test(targetPath));
+}
+
+function globToRegExp(pattern: string): RegExp {
+  const normalized = path.normalize(pattern).replace(/\\/g, "/");
+  const escaped = normalized.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+  const source = escaped
+    .replace(/\*\*\//g, "(?:.*/)?")
+    .replace(/\*\*/g, ".*")
+    .replace(/\*/g, "[^/]*");
+  return new RegExp(`^${source}$`);
 }

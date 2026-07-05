@@ -34,7 +34,8 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
   - [x] Add scoped plugin permission parsing/grants with `propose` distinct from direct `write`.
   - [ ] Add staged profile apply review with trust prompts and permission grants before any profile/plugin recommendation can write instructions, MCP config, skills, routines, settings, or grants.
     - [x] Stage profile-owned context, instruction, and MCP config file templates as reviewable proposal batches.
-    - [ ] Keep plugin enables, permission grants, skills, routines, settings, and AI-generated profile changes behind future prompts.
+    - [x] Add explicit real-vault file-template proposal staging for trusted/enabled profiles with human-reviewed propose policy, embedded allowed-path evidence, UI/CLI-only proposal acceptance, and apply-time path/kind guards.
+    - [x] Keep plugin enables, permission grants, skills, routines, settings, and AI-generated profile changes behind future prompts.
   - [x] Design and implement the metadata-only proposal/review write contract as the shared substrate for profile apply, project knowledge sync, graph maintenance, skill/config writes, and agent-suggested note edits.
   - [x] Add the proposal/review apply host and CLI/app command review surface; keep MCP without decision tools.
   - [x] Add the native UI review surface for proposal batches.
@@ -337,6 +338,7 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
 - [x] Add profile review and notes-repo changes indicators to the bottom bar, with a changed-notes modal that opens changed Markdown files from note roots.
 - [ ] Add permission prompts and a staged profile apply review flow before any profile can write `AGENTS.md`, `CLAUDE.md`, MCP config, skills, routines, plugin settings, or permission grants.
   - [x] Stage profile-owned context, instruction, and MCP config file templates through the proposal review queue.
+  - [x] Gate real-vault file-template proposal staging on trusted/enabled/available profiles, human-reviewed `propose` policy, explicit allowed paths, and proposal apply-host validation before accepted target writes.
   - [x] Add a metadata-only profile apply prompt plan that names disabled trust, enablement, permission grant, plugin settings, file write, skill, routine, and MCP config gates.
   - [ ] Add prompts/grants before profiles can enable plugins, install skills, schedule routines, change settings, or grant permissions.
 - [x] Add local plugin add/remove/swap primitives for metadata plugin directories without loading executable plugin entrypoints.

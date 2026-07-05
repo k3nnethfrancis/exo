@@ -35,6 +35,13 @@ export interface ProfileSettingsCandidate {
   recommendationRows: ProfileSettingsRow[];
   applyPromptRows: ProfileSettingsRow[];
   editSections: ProfileSettingsSectionGroup[];
+  applyGate: ProfileSettingsApplyGate;
+}
+
+export interface ProfileSettingsApplyGate {
+  canStageFileTemplates: boolean;
+  label: string;
+  reason: string;
 }
 
 export interface ProfilePreviewLoadEntry {
@@ -55,7 +62,7 @@ export interface ProfileSettingsSectionGroup {
 }
 
 export const PROFILE_SETTINGS_DISABLED_REASON =
-  "Profile-owned file templates can be staged as proposals for fixture-vault review. Real-vault writes, profile field editing, skill installs, routine scheduling, plugin enablement, plugin settings, MCP config mutation, and permission grants each need their own enabling contract.";
+  "Profile-owned file templates can be staged as reviewable proposals for trusted, enabled profiles that declare human-reviewed propose policy and allowed paths. Accepting the proposal is a separate UI/CLI review action. Profile field editing, skill installs, routine scheduling, plugin enablement, plugin settings, MCP config mutation, and permission grants remain disabled.";
 
 export function buildProfileSettingsModel(
   inventory: PluginInventory | null,
@@ -126,6 +133,7 @@ function profileCandidate(
     recommendationRows: profile ? recommendationRows(profile, inventory, plan) : [],
     applyPromptRows: plan ? applyPromptRows(plan) : [],
     editSections: profile ? profileEditSections(profile, item, inventory, plan, previewEntry) : [],
+    applyGate: profileApplyGate(profile, item, plan),
   };
 }
 
@@ -229,6 +237,65 @@ function applyPromptRows(plan: ProfilePlanPreview): ProfileSettingsRow[] {
     label: step.label,
     value: `${step.required ? "required" : "optional"} · disabled · ${step.actionIds.length} action${step.actionIds.length === 1 ? "" : "s"} · ${step.detail}`,
   }));
+}
+
+function profileApplyGate(
+  profile: Record<string, unknown> | null,
+  item: PluginInventoryItem,
+  plan: ProfilePlanPreview | null,
+): ProfileSettingsApplyGate {
+  const templateCount = countProfileFileTemplates(profile);
+  if (templateCount === 0) {
+    return {
+      canStageFileTemplates: false,
+      label: "No file templates",
+      reason: "This profile does not declare context, instruction, or MCP config file templates to stage.",
+    };
+  }
+  if (item.trust !== "trusted") {
+    return {
+      canStageFileTemplates: false,
+      label: "Trust required",
+      reason: "Trust this profile plugin before staging file-template proposals.",
+    };
+  }
+  if (!item.enabled || item.status !== "available") {
+    return {
+      canStageFileTemplates: false,
+      label: "Enablement required",
+      reason: "Enable this profile plugin and resolve setup issues before staging file-template proposals.",
+    };
+  }
+  const reviewPolicy = isRecord(profile?.reviewPolicy) ? profile.reviewPolicy : null;
+  if (optionalString(reviewPolicy, "fileChanges") !== "propose" || reviewPolicy?.requireHumanReview !== true) {
+    return {
+      canStageFileTemplates: false,
+      label: "Review policy required",
+      reason: "Real-vault file-template proposals require reviewPolicy.fileChanges=\"propose\" and requireHumanReview=true.",
+    };
+  }
+  if (readStringArray(reviewPolicy.allowedPaths).length === 0) {
+    return {
+      canStageFileTemplates: false,
+      label: "Allowed paths required",
+      reason: "Real-vault file-template proposals require reviewPolicy.allowedPaths to cover every template target.",
+    };
+  }
+  return {
+    canStageFileTemplates: true,
+    label: "Stage file proposals",
+    reason: plan?.apply.promptSteps.find((step) => step.kind === "fileWriteReview")?.detail
+      ?? "Creates a proposal batch under .exo for review. Target files are written only if the user accepts the proposal in UI or CLI review.",
+  };
+}
+
+function countProfileFileTemplates(profile: Record<string, unknown> | null): number {
+  if (!profile) {
+    return 0;
+  }
+  return readRecordArray(profile.contextTemplates).length
+    + readRecordArray(profile.instructionTemplates).length
+    + readRecordArray(profile.mcpConfigTemplates).length;
 }
 
 function profileEditSections(

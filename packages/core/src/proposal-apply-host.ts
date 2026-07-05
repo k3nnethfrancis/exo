@@ -14,6 +14,10 @@ import {
   type ProposalDecisionSurface,
   type ProposalItem,
 } from "./proposal-review";
+import {
+  matchesProfileApplyAllowedPath,
+  PROFILE_APPLY_REAL_VAULT_BLOCKED_REASON,
+} from "./profile-apply-proposal";
 
 export interface ProposalApplyOptions {
   workspaceRoot: string;
@@ -86,7 +90,45 @@ function assertProfileApplyWriteAllowed(proposal: ProposalBatch, options: Propos
   if (options.profileApplyMode === "fixtureVault" && proposal.metadata.profileApplyTarget === "fixtureVault") {
     return;
   }
-  throw new Error("Profile apply file writes are fixture-vault only until the real-vault profile apply permission contract ships.");
+  if (proposal.metadata.profileApplyTarget === "realVault") {
+    assertRealVaultProfileApplyWriteAllowed(proposal);
+    return;
+  }
+  throw new Error(PROFILE_APPLY_REAL_VAULT_BLOCKED_REASON);
+}
+
+function assertRealVaultProfileApplyWriteAllowed(proposal: ProposalBatch): void {
+  if (proposal.metadata?.source !== "profileApply" || proposal.metadata.profileApplyCreatedBy !== "exo") {
+    throw new Error("Real-vault profile proposal writes require Exo-created profileApply metadata.");
+  }
+  const reviewPolicy = readProfileApplyReviewPolicy(proposal.metadata.profileApplyReviewPolicy);
+  const unsupportedItems = proposal.items.filter((item) => item.kind === "fileMove" || item.kind === "fileDelete");
+  if (unsupportedItems.length > 0) {
+    throw new Error(`Real-vault profile proposal writes do not support fileMove/fileDelete items: ${unsupportedItems.map((item) => item.id).join(", ")}`);
+  }
+  const blockedPaths = proposal.items
+    .map((item) => item.path)
+    .filter((targetPath) => !matchesProfileApplyAllowedPath(targetPath, reviewPolicy.allowedPaths));
+  if (blockedPaths.length > 0) {
+    throw new Error(`Real-vault profile proposal paths are outside the embedded review policy: ${blockedPaths.join(", ")}`);
+  }
+}
+
+function readProfileApplyReviewPolicy(input: unknown): {
+  fileChanges: "propose";
+  requireHumanReview: true;
+  allowedPaths: string[];
+} {
+  if (!isRecord(input)) {
+    throw new Error("Real-vault profile proposal writes require embedded review policy evidence.");
+  }
+  const allowedPaths = Array.isArray(input.allowedPaths)
+    ? input.allowedPaths.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
+    : [];
+  if (input.fileChanges !== "propose" || input.requireHumanReview !== true || allowedPaths.length === 0) {
+    throw new Error("Real-vault profile proposal writes require fileChanges=\"propose\", requireHumanReview=true, and allowedPaths.");
+  }
+  return { fileChanges: input.fileChanges, requireHumanReview: input.requireHumanReview, allowedPaths };
 }
 
 export async function currentHashesForProposal(
