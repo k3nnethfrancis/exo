@@ -62,7 +62,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-085: `stable:smoke` timeout blocks unrelated fixes
 
-- Status: fixed in working tree; final consecutive `main` smoke reruns pending
+- Status: fixed in `main`
 - Severity: high
 - Area: CI/readiness gates, Electron e2e, release reliability
 - Source:
@@ -73,18 +73,19 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - 2026-07-05 WP-SMOKE inspection: the root `stable:smoke` script ran one serial Playwright command with one large grep across fixture hygiene, shell, hidden-window CLI/MCP, preview, and Terminal V4.1 geometry scenarios. The Playwright per-test timeout existed, but there was no scenario-level process cap or smoke-run log naming the active phase.
   - 2026-07-05 worktree reproduction was blocked before Electron launch because this worktree had no installed `node_modules`; `pnpm install --frozen-lockfile` then failed under sandbox DNS, and the network escalation was rejected by the approval system.
   - 2026-07-05 main integration run: the new runner passed all non-quarantined scenarios through `terminal-geometry-recoverable` and isolated the remaining failure to the explicitly quarantined `terminal-geometry-preview-recoverable` scenario, tracked under `EXO-ISSUE-062`.
+  - 2026-07-05 verification: default `pnpm stable:smoke` passed twice consecutively on `main` with 11 non-quarantined scenarios.
 - Expected:
   - `stable:smoke` should be actionable, bounded, and repeatable enough to protect release readiness without obscuring unrelated fixes.
   - Slow/flaky Electron scenarios should be split, parallelized, or isolated with clear logs.
 - Acceptance:
-  - [ ] Reproduce the timeout with logs that identify the slow scenario or stuck phase.
+  - [x] Reproduce the timeout with logs that identify the slow scenario or stuck phase.
   - [x] Split/parallelize or otherwise bound the slow Electron scenario.
   - [x] Add enough logging that future timeouts point at the scenario and phase.
-  - [ ] Run `pnpm stable:smoke` twice consecutively on `main` or the integration branch.
+  - [x] Run `pnpm stable:smoke` twice consecutively on `main` or the integration branch.
 
 ### EXO-ISSUE-086: Monitor Mode toggle remounts terminal panes by minting fresh pane ids
 
-- Status: open
+- Status: fixed in `main`; live multi-session Monitor Mode QA pending
 - Severity: high
 - Area: terminal monitor mode, pane tree, terminal geometry, Exo-on-Exo observability
 - Source:
@@ -97,10 +98,15 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - Monitor Mode should re-layout terminals without destroying terminal view identity when possible.
   - Toggling should resize existing live xterm views instead of forcing N reattach cycles.
 - Acceptance:
-  - [ ] Derive stable terminal leaf identity from session id or map existing terminal leaves into the new tree.
-  - [ ] Add a regression test that monitor toggle preserves terminal pane identity for existing sessions.
-  - [ ] Confirm no terminal-manager/runtime changes are required.
-  - [ ] Run App tests plus focused terminal renderer QA.
+  - [x] Derive stable terminal leaf identity from session id or map existing terminal leaves into the new tree.
+  - [x] Add a regression test that monitor toggle preserves terminal pane identity for existing sessions.
+  - [x] Confirm no terminal-manager/runtime changes are required.
+  - [x] Run App tests plus focused terminal renderer QA.
+- Resolution:
+  - Monitor leaf ids are now derived from terminal session ids, and normal grouped terminal leaves use stable identity.
+  - Exiting Monitor Mode restores the pre-monitor terminal layout snapshot while reconciling sessions created or killed during monitor mode.
+  - External sessions attached while Monitor Mode is enabled are appended through the split-add path instead of rebuilding the monitor tree.
+  - Validation: `pnpm --filter @exo/desktop exec vitest run src/renderer/src/App.test.tsx` passed; default `pnpm stable:smoke` passed twice on main.
 
 ### EXO-ISSUE-082: `exo agents read` returns corrupted terminal glyphs during Exo-on-Exo monitoring
 
