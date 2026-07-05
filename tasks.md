@@ -26,7 +26,7 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
     - [x] WP-QA-PM: rerun Plugin Manager/onboarding read-only app QA against current source after recent UI/plugin changes.
       - 2026-07-05 evidence: source Exo app was restarted from `main`; Computer Use could not inspect the remote Electron window, so app QA used focused Electron Playwright coverage instead. Passed `shell.spec.ts --grep "plugin manager"` and `shell.spec.ts --grep "opens an existing notes folder from first-run setup"`.
     - [ ] PA2: design the real-vault proposal/profile rollback gate, get architect review, then flip from fixture-only to guarded real-vault apply.
-    - [ ] Finish or explicitly inventory remaining `ManagedAgentKind` compatibility residue and removal conditions.
+    - [x] Finish or explicitly inventory remaining `ManagedAgentKind` compatibility residue and removal conditions.
     - [ ] Confirm remaining critical dogfooding gates before plugin dogfooding: `EXO-ISSUE-082` on `main`, `EXO-ISSUE-083` isolation, and trace-store hygiene.
       - [x] `EXO-ISSUE-046` after live restart: 2026-07-05 source Exo restart plus worktree Codex probe launched without the Exo MCP startup warning and used the imported Exo repo MCP launcher.
     - [ ] Confirm cross-session trace-store hygiene or document the bounded dogfooding retention policy.
@@ -63,11 +63,12 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
   - [x] Prioritize `EXO-ISSUE-082`: make `exo agents read` clean and operator-readable for Exo-on-Exo monitoring before relying on it for swarm management.
   - [x] Enforce Fable's public-contract rule in all future briefs: command-server routes, CLI commands/flags, MCP tool parameters, and shared protocol types require architect review before shipping unless the user explicitly approves an exception.
     - 2026-07-04: `pnpm check:repo` now hashes focused public-contract slices and requires matching review notes in `docs/public-contract-reviews.md`.
-  - [ ] Finish removing compatibility harness ids from internal renderer/API launch descriptors while keeping `exo terminals` as the low-level core terminal surface.
+  - [x] Finish removing compatibility harness ids from internal renderer/API launch descriptors while keeping `exo terminals` as the low-level core terminal surface.
     - [x] Add backward-compatible `terminalKind`/`harnessId` fields to terminal session info, diagnostics, command protocol terminal info, and persisted terminal session records.
     - [x] Move Codex startup readiness, blocked prompt metadata, semantic queue policy, and MCP launch-arg augmentation behind the built-in harness contract while keeping terminal rendering/session ownership in core.
     - [x] Move CLI/MCP/app `agents create` launch requests to registered, enabled, policy-approved harness ids instead of fixed `ManagedAgentKind` values.
     - [x] Continue the internal cleanup so renderer/API descriptors no longer need built-in `ManagedAgentKind` compatibility fields except for persisted-session backfill.
+      - 2026-07-05: Removed legacy `kind` from desktop renderer/preload `TerminalCreateOptions`; retained documented compatibility only in command protocol, main-process low-level creation, session/debug records, persisted-session validation, and core built-in adapter/runtime config seams.
   - [ ] Define external plugin contracts for workload-specific trace collection, review labels, dataset export, eval packets, and instrumented agent runtimes.
   - [ ] Define a Project Knowledge Sync plugin/profile contract for project-local canonical Markdown files: default names such as `issues.md`, `tasks.md`, `roadmap.md`, plans, specs, `AGENTS.md`, and `CLAUDE.md`; custom user patterns; sync mode; conflict policy; remote GitHub state; and reviewable proposals.
   - [ ] Keep GA/Shoshin-specific behavior out of OSS core; represent local variants as local/private plugin configuration or downstream plugins.

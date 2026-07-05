@@ -65,7 +65,6 @@ export interface TerminalSessionInfo {
 export interface TerminalCreateOptions {
   terminalKind?: TerminalLaunchKind;
   harnessId?: AgentHarnessId;
-  kind?: TerminalKind;
   callerSurface?: CapabilitySurface;
   cwd?: string;
 }

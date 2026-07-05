@@ -759,8 +759,15 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
     - Added `callerSurface` to terminal-create requests so command-server validates CLI/MCP exposure in addition to command-server launchability.
     - Preserved renderer `harnessId` through terminal-launch descriptors, tool-dock actions, pane controller, and desktop IPC terminal creation.
     - Made `TerminalManager.create` reject mismatched compatibility `kind` / public `harnessId` pairs before runtime creation.
+  - 2026-07-05 ManagedAgentKind residue inventory/cleanup:
+    - Removed legacy `kind` from the shared desktop `TerminalCreateOptions` renderer/preload launch descriptor. Renderer, tool-dock, pane-controller, and command-server-internal create calls now type against `terminalKind` plus `harnessId`.
+    - Retained command-protocol `ExoCreateTerminalRequest.kind` as public legacy compatibility for older app/CLI/MCP clients. Removal requires a reviewed public-contract change and a compatibility window.
+    - Retained `TerminalManager.create` legacy `kind` input as a main-process compatibility shim for low-level built-in terminal creation and mismatch validation. Removal requires all internal tests/callers to use `terminalKind`/`harnessId` and a separate reviewed decision on whether low-level debug surfaces may still create by built-in kind.
+    - Retained `TerminalSessionInfo.kind`, diagnostics `kind`, command-server terminal info `kind`, transcript naming, and `PersistedTerminalSession.kind` as persisted-session/read/debug compatibility. Removal requires a persisted registry migration that can recover older tmux sessions without silently dropping transcript-backed records.
+    - Retained `ManagedAgentKind` in `@exo/core` runtime config, built-in harness registry, launch planning, and readiness adapters as the reviewed built-in adapter boundary. Removal requires replacing runtime launch config records with harness-id keyed adapter config while preserving built-in launch plans and persisted Pi settings.
+    - Retained CLI routine harness normalization against built-in kinds because routines still store first-pass built-in harness ids. Removal requires routine-template/runtime validation to accept registered harness ids through the harness registry without changing public CLI semantics accidentally.
   - Remaining next patch:
-    - Continue splitting renderer/API terminal-launch descriptors from compatibility `ManagedAgentKind`; the public CLI/MCP/app create path now routes by registered `harnessId`, but some internal compatibility fields remain for built-in terminal creation and persisted-session backfill.
+    - Replace core runtime launch config records and low-level terminal compatibility creation with harness-id keyed adapter config only after a reviewed migration plan proves built-in launches, Pi settings, old terminal registries, and `exo terminals` diagnostics remain recoverable.
 - QA coverage needed:
   - Agent creation derives from registered/launchable harness metadata.
   - Codex-specific startup behavior remains covered by harness adapter tests, not terminal-manager-only tests.

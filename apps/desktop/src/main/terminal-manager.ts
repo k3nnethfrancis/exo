@@ -90,6 +90,10 @@ interface ProvisionedTraceCapture {
   timer?: NodeJS.Timeout;
 }
 
+type TerminalManagerCreateOptions = TerminalCreateOptions & {
+  kind?: TerminalKind;
+};
+
 const DEFAULT_LIVE_SCROLLBACK_LINES = 100_000;
 const DEFAULT_BUFFER_LINE_LIMIT = DEFAULT_LIVE_SCROLLBACK_LINES;
 const MIN_LIVE_SCROLLBACK_LINES = 500;
@@ -262,7 +266,7 @@ export class TerminalManager extends EventEmitter {
     return syncRuntimeContextFiles(this.runtimeConfig);
   }
 
-  async create(options: TerminalCreateOptions): Promise<TerminalSessionInfo> {
+  async create(options: TerminalManagerCreateOptions): Promise<TerminalSessionInfo> {
     const cwd = options.cwd ?? this.defaultCwd;
     const { launch, dependencyEnv } = await this.resolveLaunchAfterDependencyStart(options, cwd);
     const legacyKind = launch.kind;
@@ -372,7 +376,7 @@ export class TerminalManager extends EventEmitter {
   }
 
   private async resolveLaunchAfterDependencyStart(
-    options: TerminalCreateOptions,
+    options: TerminalManagerCreateOptions,
     cwd: string,
   ): Promise<{ launch: ReturnType<typeof resolveLaunchableAgentLaunchPlan>; dependencyEnv: Record<string, string> }> {
     const harnessId = options.harnessId ?? options.kind ?? (options.terminalKind === "shell" ? "shell" : undefined);
