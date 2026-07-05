@@ -4,7 +4,13 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { cleanMacOutputDirectories, macOutputDirectories, packagingFailureDiagnostic } from './pack-mac.mjs';
+import {
+  cleanMacOutputDirectories,
+  macOutputDirectories,
+  packagingFailureDiagnostic,
+  packagingTimeoutDiagnostic,
+  packMacTimeouts,
+} from './pack-mac.mjs';
 
 test('macOutputDirectories returns only generated mac app output directories', () => {
   const root = mkdtempSync(path.join(os.tmpdir(), 'exo-pack-mac-test-'));
@@ -45,4 +51,32 @@ test('packagingFailureDiagnostic explains pnpm SQLite dependency collector failu
   assert.match(diagnostic, /electron-builder asked pnpm to collect the dependency tree/);
   assert.match(diagnostic, /release\/mac-\*/);
   assert.match(diagnostic, /pnpm --dir apps\/desktop why/);
+});
+
+test('packMacTimeouts uses conservative defaults with environment overrides', () => {
+  assert.deepEqual(packMacTimeouts({}), {
+    timeoutMs: 20 * 60 * 1000,
+    idleTimeoutMs: 5 * 60 * 1000,
+  });
+  assert.deepEqual(packMacTimeouts({ EXO_PACK_MAC_TIMEOUT_MS: '120000', EXO_PACK_MAC_IDLE_TIMEOUT_MS: '30000' }), {
+    timeoutMs: 120000,
+    idleTimeoutMs: 30000,
+  });
+  assert.deepEqual(packMacTimeouts({ EXO_PACK_MAC_TIMEOUT_MS: '0', EXO_PACK_MAC_IDLE_TIMEOUT_MS: 'nope' }), {
+    timeoutMs: 20 * 60 * 1000,
+    idleTimeoutMs: 5 * 60 * 1000,
+  });
+});
+
+test('packagingTimeoutDiagnostic names dependency collection as the likely stuck phase', () => {
+  const diagnostic = packagingTimeoutDiagnostic({
+    kind: 'idle',
+    label: 'electron-builder packaging',
+    timeoutMs: 300000,
+  });
+
+  assert.match(diagnostic, /produced no output for 5m/);
+  assert.match(diagnostic, /searching for node modules/);
+  assert.match(diagnostic, /dependency collection/);
+  assert.match(diagnostic, /EXO_PACK_MAC_IDLE_TIMEOUT_MS/);
 });

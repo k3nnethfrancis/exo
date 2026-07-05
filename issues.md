@@ -24,10 +24,15 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - The install script should either complete packaging in a bounded, diagnosable time or fail with a clear error that names the stuck packaging phase and next action.
   - Packaging stalls should not block routine source-build QA or leave users uncertain whether a packaged install succeeded.
 - Acceptance:
-  - [ ] Reproduce with a clean `pnpm pack:mac` / `install-mac-app` run and capture electron-builder debug logs.
-  - [ ] Identify whether the stall is dependency traversal, native dependency rebuild, pnpm workspace metadata, or a machine-local lock/cache issue.
-  - [ ] Add timeout/progress/error handling around the packaging phase if electron-builder can hang silently.
+  - [x] Reproduce with a clean `pnpm pack:mac` / `install-mac-app` run and capture electron-builder debug logs.
+    - 2026-07-05 diagnostics from `codex/issue-084-packaging-stall`: sandboxed `DEBUG=electron-builder,electron-builder:* pnpm pack:mac` reached `searching for node modules`, then electron-builder's pnpm node-module collector failed with `ERR_SQLITE_ERROR`; the captured log is outside the repo at `/tmp/exo-issue-084-packmac.log`.
+    - The same bounded pack run with normal filesystem/cache access completed in 20.7s and produced `release/mac-arm64/Exo.app`; captured log is outside the repo at `/tmp/exo-issue-084-packmac-escalated.log`.
+  - [x] Identify whether the stall is dependency traversal, native dependency rebuild, pnpm workspace metadata, or a machine-local lock/cache issue.
+    - Native rebuild completed before the failure. `pnpm --dir apps/desktop why @tobilu/qmd better-sqlite3 sqlite-vec --prod` succeeded, and normal-access packaging completed, so the current evidence points to electron-builder dependency collection through pnpm workspace/store metadata under restricted cache/filesystem access rather than malformed dependency metadata.
+  - [x] Add timeout/progress/error handling around the packaging phase if electron-builder can hang silently.
+    - `scripts/pack-mac.mjs` now runs electron-builder with a total timeout and idle-output timeout, prints the active bounds, stops stalled packaging, removes partial `release/mac-*` output, and emits a focused diagnostic for stalls after `searching for node modules`.
   - [ ] Confirm `install-mac-app --with-cli --with-mcp --app-dir "$HOME/Applications"` produces a launchable `Exo.app` from a fresh build.
+    - Next step: run the full install against a disposable app dir first, then the user app dir when ready; this diagnostics chunk intentionally avoided touching the resident installed app.
 
 ### EXO-ISSUE-083: Readiness/e2e temp terminals can leak into the real workspace runtime
 
