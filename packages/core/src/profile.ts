@@ -1,5 +1,7 @@
 import type { CapabilityLifecycle, CapabilityMetadata, CapabilityPermission, CapabilitySurface } from "./capabilities";
 import type { DiscoveredPlugin } from "./plugin";
+import type { ProjectKnowledgeSyncDefinition } from "./project-knowledge-sync";
+import { validateProjectKnowledgeSyncDefinitions } from "./project-knowledge-sync";
 import type { RoutineOutputPolicy } from "./routine";
 
 export interface ProfileDefinition {
@@ -14,6 +16,7 @@ export interface ProfileDefinition {
   mcpConfigTemplates: ProfileTemplateReference[];
   skills: ProfileSkillReference[];
   routineTemplateIds: string[];
+  projectKnowledgeSync: ProjectKnowledgeSyncDefinition[];
   graphViews: ProfileGraphViewReference[];
   analyzerSettings: ProfileAnalyzerSetting[];
   reviewPolicy?: ProfileReviewPolicy;
@@ -152,6 +155,7 @@ function readProfilePayload(capability: CapabilityMetadata): ProfileDefinition {
     mcpConfigTemplates: validateTemplateReferences(payload.mcpConfigTemplates, "mcpConfigTemplates"),
     skills: validateSkillReferences(payload.skills),
     routineTemplateIds: validateStringArray(payload.routineTemplateIds, "routineTemplateIds", []),
+    projectKnowledgeSync: validateProjectKnowledgeSyncDefinitions(payload.projectKnowledgeSync),
     graphViews: validateGraphViewReferences(payload.graphViews),
     analyzerSettings: validateAnalyzerSettings(payload.analyzerSettings),
     reviewPolicy: validateReviewPolicy(payload.reviewPolicy),

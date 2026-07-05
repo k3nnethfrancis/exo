@@ -134,6 +134,8 @@ Metadata schemas and profiles should be advisory and composable. Exo can use pro
 
 Project control files are also Markdown graph material. `issues.md`, `tasks.md`, `roadmap.md`, plans, specs, and context files may live in a project repo for portability and in the central exograph for personal continuity. Exo's job is to make that relationship visible, searchable, and reviewable; sync plugins decide whether to symlink, mirror, index, or propose changes.
 
+The first Project Knowledge Sync contract is metadata-only and lives under `capability.compatibility.profile.projectKnowledgeSync`. It names canonical files/patterns, project and exograph scopes, relationship mode, conflict policy, review policy, and optional GitHub metadata. Core parses and validates the declaration for inspection, while file observation, drift views, generated indexes, reviewable proposals, copy, symlink, and remote-sync behavior remain future permissioned implementation steps.
+
 ### Pane And Surface Core
 
 Core owns the pane tree, tab descriptors, drag/drop, persisted layout, and trusted host primitives. Plugins may contribute surfaces to these hosts, but they should not mutate pane state by reaching around the registry.
@@ -317,7 +319,7 @@ Not yet aligned:
 - onboarding has a first-pass read-only capability review, but it does not yet apply profile/plugin recommendations or grant permissions
 - active workspace profile state exists under Exo runtime metadata and is visible from Settings and the status bar when review is required
 - plugin manifests can declare metadata-only settings schemas, but they do not yet contribute native renderer panels, commands, command-server routes, or MCP/CLI tools
-- profile packs have a metadata shape for recommended plugins, schemas, context files, skills, routines, graph views, and policies, plus active-profile state and copy/customize metadata flows; the permissioned apply flow is not implemented
+- profile packs have a metadata shape for recommended plugins, schemas, context files, skills, routines, project knowledge sync declarations, graph views, and policies, plus active-profile state and copy/customize metadata flows; the permissioned apply flow is not implemented
 - profile plan previews expose disabled future apply prompt steps for plugin trust, plugin enable/install, permission grants, plugin settings, file writes, skill installs, routine creation, and MCP config review
 - graph visualization has a read-only core snapshot type and metadata contract, but no renderer graph extraction/rendering flow or default graph explorer UI yet
 - core versus official/local plugin language is still being normalized across docs and code names
@@ -331,7 +333,7 @@ Not yet aligned:
 5. Reassess current Routine/Run core types and keep only the minimal activity/artifact/review substrate needed for plugins to compose.
 6. Add onboarding apply flows only after profile/plugin trust prompts, permission prompts, and explicit review gates exist.
 7. Add explicit policy and tests before any plugin can contribute MCP tools, CLI commands, command-server routes, renderer panels, executable code, or direct web-viewer actions.
-8. Define the project knowledge sync plugin/profile contract for project-local Markdown control files and central exograph synchronization.
+8. Build project knowledge sync read-only drift/index views and reviewed proposal staging on top of the metadata-only contract.
 9. Build graph extraction/rendering and a replaceable default graph explorer on top of the existing graph snapshot and visualization metadata contracts.
 
 ## Non-Goals

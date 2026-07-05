@@ -397,6 +397,7 @@ Profiles are bundles of recommendations and conventions, not executable capabili
 - context, instruction, and MCP config template references
 - skill references by harness id
 - routine template ids
+- project knowledge sync declarations for canonical project-local Markdown files, relationship mode, conflict policy, review policy, and optional remote metadata
 - graph view references
 - analyzer settings
 - review and output policy defaults
@@ -406,6 +407,21 @@ The profile extractor validates shape and rejects unsafe absolute or traversal p
 Profile preview plans now also expose a metadata-only apply prompt checklist. The checklist names the disabled gates for plugin trust, plugin enable/install, requested permission grants, plugin settings review, file writes, skill install/enable, routine instantiation/scheduling, and MCP config mutation. These prompt steps are serialized as plan data for Settings/Profile and onboarding review; they do not grant authority, enable plugins, write files, install skills, schedule routines, or execute plugin code.
 
 Official example: `plugins/exograph-baseline/exo.plugin.json` declares the first read-only baseline profile so Plugin Manager can display profile metadata during QA.
+
+### Project Knowledge Sync Payload
+
+Status: first metadata contract implemented in `packages/core/src/project-knowledge-sync.ts` and exposed through profile payload extraction in `packages/core/src/profile.ts`.
+
+Project Knowledge Sync is profile/plugin-declared metadata for making relationships between project-local Markdown control files and a central exograph explicit. A profile can declare:
+
+- canonical file names and glob-like patterns such as `issues.md`, `tasks.md`, `roadmap.md`, `plans/**/*.md`, `specs/**/*.md`, `AGENTS.md`, and `CLAUDE.md`
+- project and exograph root scopes plus optional path scopes
+- relationship mode as inert metadata: `index`, `proposal`, `copy`, `symlink`, or `remote`
+- conflict policy for divergence reporting, blocking, preference, or proposed merge handling
+- review policy for human review, proposal requirement, and allowed target prefixes
+- optional GitHub remote metadata for owner, repo, branch, issue labels, and pull request labels
+
+This contract does not watch files, generate indexes, create proposals, copy files, create symlinks, call GitHub, or write to the workspace. Path and pattern fields are conservative: absolute paths, traversal, backslashes, and URL-like schemes are rejected. The next implementation steps are to connect this metadata to read-only drift/index views, then use the existing proposal/review substrate for staged sync proposals before considering any copy or symlink apply path.
 
 ### Graph Snapshot And Visualization Payload
 
@@ -440,7 +456,7 @@ The remaining order is:
 1. Finish staged profile apply prompts/grants beyond file-template proposals: plugin enable/install, permission grants, plugin settings, skills, routines, MCP config, and AI-generated profile changes.
 2. Finish renderer/API launch descriptor cleanup so built-in `ManagedAgentKind` compatibility is only used for built-in creation and persisted-session backfill.
 3. Define external plugin contracts for workload-specific trace collection, review labels, dataset export, eval packets, and instrumented agent runtimes.
-4. Define the Project Knowledge Sync plugin/profile contract for project-local Markdown control files and central exograph synchronization.
+4. Build Project Knowledge Sync read-only drift/index views from the metadata-only contract, then stage sync proposals through the existing review substrate.
 5. Add scheduler/feed implementation only after the manual Routine/activity path proves which core fields are universal.
 6. Add explicit policy, tests, and UX before any plugin contributes executable code, renderer panels, command-server routes, CLI commands, MCP tools, or direct web-viewer actions.
 

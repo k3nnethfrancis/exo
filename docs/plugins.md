@@ -27,7 +27,7 @@ Exo's distribution model is official versus local. Official plugins live under t
 
 Profiles are curated bundles of plugin recommendations and configuration, not just agent config. A profile can package metadata/frontmatter conventions, context templates, AGENTS.md/CLAUDE.md templates, MCP config templates, skills, routine templates, graph views, analyzer settings, and output/review policies. Profiles may depend on plugins, but executable behavior should live in explicit plugin capabilities.
 
-The first profile contract lives under `capability.compatibility.profile`. Exo can parse and show these bundles, but applying one is future work and must be explicit because it can eventually write files, install skills, or change plugin state.
+The first profile contract lives under `capability.compatibility.profile`. Exo can parse and show these bundles, but applying one is future work and must be explicit because it can eventually write files, install skills, or change plugin state. Project Knowledge Sync declarations now live in that profile payload as metadata-only configuration for project-local canonical Markdown files, relationship mode, conflict policy, review policy, and optional GitHub metadata; Exo does not yet watch, sync, copy, symlink, propose, or call remote services from those declarations.
 
 Guardian Angel is an example downstream workload that can pressure-test this architecture outside core. Workflows like elicitation, trace capture, accept/reject/correction review, psychological-model hypotheses, dataset export, eval packets, and instrumented agent runtimes should use Exo's generic plugin primitives rather than becoming built-in Exo product code by default.
 
@@ -116,7 +116,7 @@ Not every plugin has the same relationship to Exo. The plugin model should suppo
 - Capability plugins: add backend abilities. Examples: agent harnesses, MCP tools, CLI commands, search providers, trace collectors, eval runners.
 - Routine/template plugins: ship prompts, templates, default schedules, and review/output policies that Exo can run through a selected harness. Examples: run eval, collect traces, score results, produce a report, and prepare a PR.
 - Profile plugins: ship use-case conventions and default bundles. Examples: LM Wiki, Shoshin, Guardian Angel, OKF-compatible graph, or a project/domain-specific exograph profile.
-- Sync/profile plugins: declare canonical file patterns, scope mappings, symlink/copy/index/proposal behavior, and conflict policy for keeping project-local Markdown and central exograph Markdown coherent.
+- Sync/profile plugins: declare canonical file patterns, scope mappings, symlink/copy/index/proposal/remote relationship metadata, conflict policy, review policy, and optional remote metadata for keeping project-local Markdown and central exograph Markdown coherent.
 
 The terminal and web viewer hosts are core primitives, not merely plugins. Many unrelated workflows need a safe terminal/session service and a safe way to show local web apps, documentation previews, dashboards, and artifacts. Plugins can target those primitives, but they do not own the underlying terminal or web viewer security boundary.
 

@@ -320,6 +320,7 @@ function profile(overrides: Partial<ProfileDefinition> = {}): ProfileDefinition 
     mcpConfigTemplates: [],
     skills: [],
     routineTemplateIds: [],
+    projectKnowledgeSync: [],
     graphViews: [],
     analyzerSettings: [],
     reviewPolicy: { fileChanges: "propose", requireHumanReview: true, allowedPaths: ["**/*.md", ".mcp.json", ".exo/**"] },

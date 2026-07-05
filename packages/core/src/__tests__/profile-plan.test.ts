@@ -42,6 +42,7 @@ const profile: ProfileDefinition = {
     },
   ],
   routineTemplateIds: ["graph-health.template"],
+  projectKnowledgeSync: [],
   graphViews: [{ id: "default", label: "Default Graph", pluginId: "graph.plugin", viewId: "default" }],
   analyzerSettings: [{ analyzerId: "graph-health.analyzer", settings: { orphanThresholdDays: 30 } }],
   reviewPolicy: { fileChanges: "propose", requireHumanReview: true, allowedPaths: ["notes/**"] },
