@@ -8,6 +8,28 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ## Open
 
+### EXO-ISSUE-089: Getting-started docs do not distinguish dev, source-run, packaged, and release flows
+
+- Status: in progress
+- Severity: medium
+- Area: docs, onboarding QA, packaged app validation
+- Source:
+  - GitHub issue #21: https://github.com/k3nnethfrancis/exo/issues/21
+- Observed:
+  - Exo has `pnpm dev`, `pnpm dev:qa`, `pnpm app`, `pnpm pack:mac`, `pnpm dist:mac`, and install scripts, but the docs do not clearly tell humans or agents which launch mode proves which behavior.
+  - `pnpm app` sounds like "run the app" but is a source-built Electron smoke test, not equivalent to installed or packaged Exo behavior.
+  - Packaged app behavior can differ for cwd, app support paths, packaged resources, native modules, terminal cwd defaults, and first-run/onboarding state.
+- Expected:
+  - Docs should say `pnpm dev` is for active Electron/Vite development and `pnpm dev:qa` is source QA with isolated runtime state.
+  - Docs should say `pnpm app` is source-built smoke only.
+  - Docs should say onboarding, first-run setup, user-data/app-support paths, packaged resources, native module packaging, and terminal cwd defaults require packaged-app QA.
+  - Missing first-run workspace settings should lead to onboarding; Exo must not silently choose a notes root, project root, or default terminal cwd.
+- Acceptance:
+  - [x] `README.md` explains the difference between `pnpm dev`, `pnpm dev:qa`, `pnpm app`, `pnpm pack:mac`, and `pnpm dist:mac`.
+  - [x] `AGENTS.md` tells agents to use packaged-app QA for onboarding, first-run setup, app support paths, terminal cwd defaults, and packaged resources.
+  - [x] `docs/harness.md` includes the same launch-mode decision boundary and requires packaged-app evidence for startup/onboarding changes.
+  - [x] Docs avoid implying `pnpm app` is equivalent to installed or packaged Exo.
+
 ### EXO-ISSUE-088: Fresh launch can bypass onboarding and persist synthesized workspace defaults
 
 - Status: in progress

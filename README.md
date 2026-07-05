@@ -106,6 +106,20 @@ pnpm install
 pnpm dev:qa
 ```
 
+### Launch Modes
+
+Use the launch mode that matches the evidence you need:
+
+| Command | Use For | Not Evidence For |
+| --- | --- | --- |
+| `pnpm dev` | Active Electron/Vite development and fast main/renderer iteration. | Installed-app or packaged-app behavior. |
+| `pnpm dev:qa` | Source QA with isolated `.exo-dev/` runtime and user-data paths while an installed Exo app remains usable. | Packaged resources, install paths, or first-run packaged app behavior. |
+| `pnpm app` | Source-built smoke test. It builds production bundles and launches Electron from the source tree. | Onboarding, app-support/user-data paths, packaged resources, native-module packaging, or terminal cwd defaults. |
+| `pnpm pack:mac` then `open release/mac-arm64/Exo.app` | Packaged-app QA for onboarding, first-run setup, app-support paths, packaged resources, native modules, and terminal cwd defaults. | Signed release artifact validation. |
+| `pnpm dist:mac` | Unsigned DMG/ZIP release artifact validation. | Fast development iteration. |
+
+For onboarding or first-run bugs, validate with a packaged app, not only `pnpm dev`, `pnpm dev:qa`, or `pnpm app`. Missing first-run workspace settings must show onboarding; Exo must not silently choose a notes root, project root, or default terminal cwd for the user.
+
 Install a repo-backed local `exo` command:
 
 ```bash
@@ -350,7 +364,7 @@ Unsigned macOS app bundle:
 pnpm pack:mac
 ```
 
-This writes the installable local bundle to `release/mac-<arch>/Exo.app` after cleaning stale `release/mac*` app-output directories. If packaging fails, partial app bundles such as `release/mac-arm64/Electron.app` are removed before the command exits.
+This writes the installable local bundle to `release/mac-<arch>/Exo.app` after cleaning stale `release/mac*` app-output directories. If packaging fails, partial app bundles such as `release/mac-arm64/Electron.app` are removed before the command exits. Open this bundle directly when you need packaged-app evidence for onboarding, first-run setup, app-support/user-data paths, packaged resources, native modules, or terminal cwd defaults.
 
 Install that local bundle into `~/Applications`:
 
@@ -364,7 +378,7 @@ Unsigned macOS DMG and ZIP:
 pnpm dist:mac
 ```
 
-Artifacts are written to `release/`. Public binary releases should be signed and notarized before being presented as stable.
+Artifacts are written to `release/`. Public binary releases should be signed and notarized before being presented as stable. Use this for release-artifact validation, not for fast source iteration.
 
 ## Logs
 

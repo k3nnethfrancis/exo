@@ -75,15 +75,23 @@ CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build 
 
 ## Dev Loop
 
+- Choose the launch mode by evidence needed:
+  - `pnpm dev` is for active Electron/Vite development and fast main/renderer iteration.
+  - `pnpm dev:qa` is source-build QA with isolated `.exo-dev/` runtime and user-data paths.
+  - `pnpm app` is a source-built smoke test; it is not equivalent to packaged or installed Exo.
+  - `pnpm pack:mac` followed by `open release/mac-arm64/Exo.app` is the required local packaged-app path for onboarding, first-run setup, app-support/user-data paths, packaged resources, native-module packaging, and terminal cwd defaults.
+  - `pnpm dist:mac` is for unsigned DMG/ZIP release artifact validation.
 - Use installed `Exo.app` as the stable daily runtime once the usability-readiness gate is complete.
 - Use `pnpm dev:qa` for source-build QA while installed Exo remains available for notes, monitoring, and agent coordination.
 - Use `pnpm dev` only when intentionally running source Exo as the primary runtime.
+- Do not use `pnpm app` as evidence for installed-app or packaged-app behavior.
 - Install a repo-backed local CLI with `./scripts/install-local`.
 - Install the local packaged macOS app with `./scripts/install-mac-app`.
 - Use `pnpm --filter @exo/desktop dev -- --remote-debugging-port=9222` for renderer inspection.
 - Restart Exo after touching Electron main, preload, native terminal handling, runtime config, package dependencies, or settings bootstrap.
 - HMR is usually enough only for pure renderer changes.
 - Inspect the real Electron renderer through CDP on port `9222`; `localhost:5173` lacks `window.exo`.
+- First-run workspace rules: missing or invalid workspace settings must lead to onboarding. Do not silently choose or persist a notes root, project root, or default terminal cwd for the user. Validate those paths in a packaged app before marking startup/onboarding work complete.
 
 ## Runtime Rules
 

@@ -26,6 +26,20 @@ pnpm build
 
 When QAing the desktop app while using Exo for real work, prefer `pnpm dev:qa`. It isolates source-build runtime state under `.exo-dev/` so the installed stable Exo app can keep coordinating agents without command-server or settings collisions.
 
+## Launch-Mode Evidence
+
+Use the launch mode that matches the behavior under review:
+
+- `pnpm dev`: active Electron/Vite development and fast main/renderer iteration.
+- `pnpm dev:qa`: source-build QA with isolated `.exo-dev/` runtime and user-data paths.
+- `pnpm app`: source-built smoke test only. It builds production bundles and launches Electron from the source tree, but it is not equivalent to installed or packaged Exo.
+- `pnpm pack:mac` then `open release/mac-arm64/Exo.app`: packaged-app QA for onboarding, first-run setup, app-support/user-data paths, packaged resources, native-module packaging, and terminal cwd defaults.
+- `pnpm dist:mac`: unsigned DMG/ZIP release artifact validation.
+
+Startup, onboarding, first-run workspace setup, Application Support/user-data paths, packaged resources, native module packaging, install paths, and terminal cwd defaults require packaged-app evidence. Do not mark those flows complete with only `pnpm dev`, `pnpm dev:qa`, or `pnpm app`.
+
+First-run workspace behavior has one product invariant: missing or invalid workspace settings show onboarding. Exo must not silently choose a notes root, project root, or default terminal cwd for the user.
+
 ## Harness Engineering Principles
 
 - One canonical broad gate: local handoff and CI both use `pnpm ci:check`.
