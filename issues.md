@@ -62,7 +62,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-085: `stable:smoke` timeout blocks unrelated fixes
 
-- Status: open
+- Status: fixed in working tree; final consecutive `main` smoke reruns pending
 - Severity: high
 - Area: CI/readiness gates, Electron e2e, release reliability
 - Source:
@@ -70,13 +70,16 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 - Observed:
   - A high-severity `exo agents read` fix was held by a broad `stable:smoke` timeout in unrelated Electron scenarios.
   - This makes the release gate less useful because it encourages either batching around failures or holding focused fixes hostage.
+  - 2026-07-05 WP-SMOKE inspection: the root `stable:smoke` script ran one serial Playwright command with one large grep across fixture hygiene, shell, hidden-window CLI/MCP, preview, and Terminal V4.1 geometry scenarios. The Playwright per-test timeout existed, but there was no scenario-level process cap or smoke-run log naming the active phase.
+  - 2026-07-05 worktree reproduction was blocked before Electron launch because this worktree had no installed `node_modules`; `pnpm install --frozen-lockfile` then failed under sandbox DNS, and the network escalation was rejected by the approval system.
+  - 2026-07-05 main integration run: the new runner passed all non-quarantined scenarios through `terminal-geometry-recoverable` and isolated the remaining failure to the explicitly quarantined `terminal-geometry-preview-recoverable` scenario, tracked under `EXO-ISSUE-062`.
 - Expected:
   - `stable:smoke` should be actionable, bounded, and repeatable enough to protect release readiness without obscuring unrelated fixes.
   - Slow/flaky Electron scenarios should be split, parallelized, or isolated with clear logs.
 - Acceptance:
   - [ ] Reproduce the timeout with logs that identify the slow scenario or stuck phase.
-  - [ ] Split/parallelize or otherwise bound the slow Electron scenario.
-  - [ ] Add enough logging that future timeouts point at the scenario and phase.
+  - [x] Split/parallelize or otherwise bound the slow Electron scenario.
+  - [x] Add enough logging that future timeouts point at the scenario and phase.
   - [ ] Run `pnpm stable:smoke` twice consecutively on `main` or the integration branch.
 
 ### EXO-ISSUE-086: Monitor Mode toggle remounts terminal panes by minting fresh pane ids
@@ -625,6 +628,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - 2026-06-23: Added explicit `tmux -u` invocation, UTF-8 locale defaults for terminal launches, Unicode-safe pending hydration tails, stricter xterm-generated OSC response filtering, and fake-Claude render-stability e2e coverage while a preview pane is open.
   - 2026-06-24: Added `docs/terminal-render-cleanup-protocol.md` so future render glitches are handled as field evidence -> classification -> fixture -> narrow fix -> `pnpm terminal:check`, rather than one-off terminal patches.
   - 2026-06-24: Added Claude's `⏺` action marker to the render-stability corpus and applied a renderer-only text-presentation selector before xterm writes to improve marker sizing/spacing. Treat this separately from true `�` byte corruption.
+  - 2026-07-05: `pnpm stable:smoke -- --include-quarantine` / the explicit `terminal-geometry-preview-recoverable` scenario reproduces preview-open terminal corruption with `��` inside fake Ink box drawing and a wrapped box fragment. Default `stable:smoke` excludes this quarantined scenario, but it remains the current deterministic fixture for the preview-plus-terminal render corruption class.
 - QA coverage needed:
   - Deterministic test for Claude-like Unicode/box-drawing/status output split across tmux control-mode records and renderer write chunks.
   - E2E render-quality test that fails on `U+FFFD`, `???`, missing Claude-like header/status text, or preview-open input/render loss.
