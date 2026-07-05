@@ -1,10 +1,10 @@
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { applyProposalToWorkspace } from "../proposal-apply-host";
+import { applyProposalToWorkspace, contentSha256 } from "../proposal-apply-host";
 import { createProfileApplyProposal } from "../profile-apply-proposal";
 import { ProposalReviewStore } from "../proposal-review-store";
 import type { ProfileDefinition } from "../profile";
@@ -114,9 +114,12 @@ describe("createProfileApplyProposal", () => {
   it("stages and applies real-vault profile proposals only with embedded review-policy evidence", async () => {
     const { pluginRoot, workspaceRoot } = await fixture();
     await writeFile(path.join(pluginRoot, "templates/AGENTS.md"), "# Agents\n");
+    await writeFile(path.join(pluginRoot, "templates/CLAUDE.md"), "# Claude\n");
+    await writeFile(path.join(workspaceRoot, "CLAUDE.md"), "# Old\n");
     const proposal = await createProfileApplyProposal({
       profile: profile({
         contextTemplates: [{ id: "agents", label: "Agents", templatePath: "templates/AGENTS.md", target: "AGENTS.md" }],
+        instructionTemplates: [{ id: "claude", label: "Claude", templatePath: "templates/CLAUDE.md", target: "CLAUDE.md" }],
         reviewPolicy: { fileChanges: "propose", requireHumanReview: true, allowedPaths: ["**/*.md"] },
       }),
       pluginRoot,
@@ -148,8 +151,61 @@ describe("createProfileApplyProposal", () => {
 
     expect(result.appliedItems).toEqual([
       { id: "context-agents", kind: "fileCreate", path: "AGENTS.md", action: "created" },
+      { id: "instruction-claude", kind: "filePatch", path: "CLAUDE.md", action: "patched" },
     ]);
     await expect(readFile(path.join(workspaceRoot, "AGENTS.md"), "utf8")).resolves.toBe("# Agents\n");
+    await expect(readFile(path.join(workspaceRoot, "CLAUDE.md"), "utf8")).resolves.toBe("# Claude\n");
+    const recoveryFiles = await readdir(path.join(workspaceRoot, ".exo", "proposal-recovery", "profile-apply"));
+    expect(recoveryFiles).toHaveLength(1);
+    const recovery = JSON.parse(await readFile(path.join(workspaceRoot, ".exo", "proposal-recovery", "profile-apply", recoveryFiles[0]), "utf8"));
+    expect(recovery).toMatchObject({
+      format: "exo.profileApplyRecovery.v1",
+      proposalId: proposal!.id,
+      source: "profileApply",
+      profileApplyTarget: "realVault",
+      profileId: "test.profile",
+      items: [
+        {
+          id: "context-agents",
+          kind: "fileCreate",
+          path: "AGENTS.md",
+          before: { exists: false },
+          afterHash: contentSha256("# Agents\n"),
+        },
+        {
+          id: "instruction-claude",
+          kind: "filePatch",
+          path: "CLAUDE.md",
+          before: { exists: true, hash: contentSha256("# Old\n"), contents: "# Old\n" },
+          afterHash: contentSha256("# Claude\n"),
+        },
+      ],
+    });
+  });
+
+  it("fails closed without mutating real-vault files when recovery evidence cannot be written", async () => {
+    const { pluginRoot, workspaceRoot } = await fixture();
+    await writeFile(path.join(pluginRoot, "templates/AGENTS.md"), "# Agents\n");
+    await writeFile(path.join(workspaceRoot, ".exo"), "not a directory");
+    const proposal = await createProfileApplyProposal({
+      profile: profile({
+        contextTemplates: [{ id: "agents", label: "Agents", templatePath: "templates/AGENTS.md", target: "AGENTS.md" }],
+        reviewPolicy: { fileChanges: "propose", requireHumanReview: true, allowedPaths: ["**/*.md"] },
+      }),
+      pluginRoot,
+      workspaceRoot,
+      activityId: "profile-apply:blocked",
+      target: "realVault",
+      now: "2026-07-04T10:00:00.000Z",
+    });
+
+    await expect(applyProposalToWorkspace(proposal!, {
+      workspaceRoot,
+      decision: "accept",
+      surface: "cli",
+      decidedAt: "2026-07-04T10:01:00.000Z",
+    })).rejects.toMatchObject({ code: "ENOTDIR" });
+    await expect(readFile(path.join(workspaceRoot, "AGENTS.md"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("returns null when profile template targets already match", async () => {

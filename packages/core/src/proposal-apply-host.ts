@@ -41,6 +41,28 @@ export interface ProposalAppliedItem {
 }
 
 export const FRONTMATTER_PREVIEW_METADATA_KEY = "exo.frontmatterPreview.v1";
+export const PROFILE_APPLY_RECOVERY_FORMAT = "exo.profileApplyRecovery.v1";
+
+export interface ProfileApplyRecoveryManifest {
+  format: typeof PROFILE_APPLY_RECOVERY_FORMAT;
+  proposalId: string;
+  createdAt: string;
+  source: "profileApply";
+  profileId?: string;
+  profileLabel?: string;
+  profileApplyTarget: "realVault";
+  items: ProfileApplyRecoveryItem[];
+}
+
+export interface ProfileApplyRecoveryItem {
+  id: string;
+  kind: ProposalItem["kind"];
+  path: string;
+  before:
+    | { exists: false }
+    | { exists: true; hash: string; contents: string };
+  afterHash: string;
+}
 
 export interface FrontmatterPatchPreviewEvidence {
   format: typeof FRONTMATTER_PREVIEW_METADATA_KEY;
@@ -75,12 +97,27 @@ export async function applyProposalToWorkspace(
 
   const prepared = await prepareAcceptedFrontmatterPatches(options.workspaceRoot, decided);
   const acceptedItems = prepared.proposal.items.filter((item) => item.itemStatus === "accepted");
+  if (isRealVaultProfileApplyAccept(prepared.proposal, options) && acceptedItems.length > 0) {
+    await writeProfileApplyRecoveryManifest(
+      options.workspaceRoot,
+      prepared.proposal,
+      acceptedItems,
+      prepared.frontmatterPreviews,
+      options.decidedAt ?? new Date().toISOString(),
+    );
+  }
   const appliedItems: ProposalAppliedItem[] = [];
   for (const item of acceptedItems) {
     appliedItems.push(await applyAcceptedItem(options.workspaceRoot, item, prepared.frontmatterPreviews));
   }
 
   return { proposal: prepared.proposal, appliedItems };
+}
+
+function isRealVaultProfileApplyAccept(proposal: ProposalBatch, options: ProposalApplyOptions): boolean {
+  return options.decision === "accept"
+    && proposal.metadata?.source === "profileApply"
+    && proposal.metadata.profileApplyTarget === "realVault";
 }
 
 function assertProfileApplyWriteAllowed(proposal: ProposalBatch, options: ProposalApplyOptions): void {
@@ -129,6 +166,135 @@ function readProfileApplyReviewPolicy(input: unknown): {
     throw new Error("Real-vault profile proposal writes require fileChanges=\"propose\", requireHumanReview=true, and allowedPaths.");
   }
   return { fileChanges: input.fileChanges, requireHumanReview: input.requireHumanReview, allowedPaths };
+}
+
+export async function writeProfileApplyRecoveryManifest(
+  workspaceRoot: string,
+  proposal: ProposalBatch,
+  acceptedItems: readonly ProposalItem[],
+  frontmatterPreviews: ReadonlyMap<string, string>,
+  createdAt: string,
+): Promise<string> {
+  const manifest = await buildProfileApplyRecoveryManifest(workspaceRoot, proposal, acceptedItems, frontmatterPreviews, createdAt);
+  const target = await uniqueProfileApplyRecoveryManifestPath(workspaceRoot, proposal.id, createdAt);
+  await mkdir(path.dirname(target), { recursive: true });
+  await writeFile(target, `${JSON.stringify(manifest, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
+  return target;
+}
+
+async function buildProfileApplyRecoveryManifest(
+  workspaceRoot: string,
+  proposal: ProposalBatch,
+  acceptedItems: readonly ProposalItem[],
+  frontmatterPreviews: ReadonlyMap<string, string>,
+  createdAt: string,
+): Promise<ProfileApplyRecoveryManifest> {
+  const items = await Promise.all(acceptedItems.map(async (item): Promise<ProfileApplyRecoveryItem> => {
+    const before = await readRecoveryBeforeState(workspaceRoot, item);
+    assertRecoveryBeforeStateMatchesProposal(item, before);
+    return {
+      id: item.id,
+      kind: item.kind,
+      path: item.path,
+      before,
+      afterHash: contentSha256(afterContentsForRecovery(item, before, frontmatterPreviews)),
+    };
+  }));
+  const manifest: ProfileApplyRecoveryManifest = {
+    format: PROFILE_APPLY_RECOVERY_FORMAT,
+    proposalId: proposal.id,
+    createdAt,
+    source: "profileApply",
+    profileApplyTarget: "realVault",
+    items,
+  };
+  if (typeof proposal.metadata?.profileId === "string") {
+    manifest.profileId = proposal.metadata.profileId;
+  }
+  if (typeof proposal.metadata?.profileLabel === "string") {
+    manifest.profileLabel = proposal.metadata.profileLabel;
+  }
+  return manifest;
+}
+
+async function readRecoveryBeforeState(
+  workspaceRoot: string,
+  item: ProposalItem,
+): Promise<ProfileApplyRecoveryItem["before"]> {
+  const target = resolveWorkspaceProposalPath(workspaceRoot, item.path);
+  try {
+    const contents = await readFile(target, "utf8");
+    return { exists: true, hash: contentSha256(contents), contents };
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+      return { exists: false };
+    }
+    throw error;
+  }
+}
+
+function assertRecoveryBeforeStateMatchesProposal(
+  item: ProposalItem,
+  before: ProfileApplyRecoveryItem["before"],
+): void {
+  if (item.kind === "fileCreate") {
+    if (before.exists) {
+      throw new Error(`Real-vault profile recovery detected an existing file before create apply: ${item.path}`);
+    }
+    return;
+  }
+  if (!before.exists || before.hash !== item.baseHash) {
+    throw new Error(`Real-vault profile recovery detected a changed file before apply: ${item.path}`);
+  }
+}
+
+function afterContentsForRecovery(
+  item: ProposalItem,
+  before: ProfileApplyRecoveryItem["before"],
+  frontmatterPreviews: ReadonlyMap<string, string>,
+): string {
+  if (item.kind === "fileCreate") {
+    return item.contents;
+  }
+  if (!before.exists) {
+    throw new Error(`Real-vault profile recovery cannot preview a missing file: ${item.path}`);
+  }
+  if (item.kind === "filePatch") {
+    return applyUnifiedDiff(before.contents, item.unifiedDiff);
+  }
+  if (item.kind === "frontmatterPatch") {
+    return frontmatterPreviews.get(item.id) ?? previewFrontmatterPatch(before.contents, item.operations);
+  }
+  throw new Error(`${item.kind} proposals are not supported by the real-vault profile recovery gate.`);
+}
+
+async function uniqueProfileApplyRecoveryManifestPath(
+  workspaceRoot: string,
+  proposalId: string,
+  createdAt: string,
+): Promise<string> {
+  const directory = path.join(workspaceRoot, ".exo", "proposal-recovery", "profile-apply");
+  const baseName = `${safeRecoverySegment(proposalId)}-${safeRecoverySegment(createdAt)}`;
+  for (let index = 1; index < 1000; index += 1) {
+    const suffix = index === 1 ? "" : `-${index}`;
+    const candidate = path.join(directory, `${baseName}${suffix}.json`);
+    if (!await pathExists(candidate)) {
+      return candidate;
+    }
+  }
+  throw new Error(`Could not allocate profile apply recovery manifest path for proposal ${proposalId}.`);
+}
+
+async function pathExists(target: string): Promise<boolean> {
+  try {
+    await stat(target);
+    return true;
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+      return false;
+    }
+    throw error;
+  }
 }
 
 export async function currentHashesForProposal(
@@ -629,6 +795,10 @@ function inferLineEnding(contents: string): "\n" | "\r\n" {
 
 function normalizeYamlLineEndings(yaml: string, eol: "\n" | "\r\n"): string {
   return eol === "\n" ? yaml : yaml.replace(/\n/g, "\r\n");
+}
+
+function safeRecoverySegment(value: string): string {
+  return value.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-|-$/g, "").slice(0, 120) || "recovery";
 }
 
 function withFrontmatterPatchPreviewEvidence(
