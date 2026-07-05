@@ -8,6 +8,26 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ## Open
 
+### EXO-ISSUE-083: Readiness/e2e temp terminals can leak into the real workspace runtime
+
+- Status: open
+- Severity: medium
+- Area: terminal registry, test/runtime isolation, Exo-on-Exo dogfooding
+- Source:
+  - 2026-07-04 post-Wave-3 install/restart verification.
+- Observed:
+  - After reinstalling and relaunching Exo, `exo status` showed multiple stale shell terminals with cwd values under `/var/folders/.../exo-codex-readiness-*`.
+  - Those sessions reported `health: unhealthy` with `Tmux session is missing; transcript remains available.`
+  - Manual cleanup with `exo terminals kill <id>` removed the stale records and left the real lab terminal healthy.
+- Expected:
+  - Automated readiness/e2e/fixture terminals should use isolated runtime roots and should not persist into the user's real workspace `.exo` registry.
+  - If stale missing-tmux sessions are found after restart, Exo should offer a clear cleanup path and avoid cluttering the active terminal roster.
+- Acceptance:
+  - [ ] Identify which readiness/e2e path created `exo-codex-readiness-*` terminals under the lab runtime.
+  - [ ] Ensure those tests/tools always set isolated `EXO_RUNTIME_ROOT`/user-data paths or clean their terminal records.
+  - [ ] Add a regression check that readiness fixture terminals do not appear in `exo status` for the real workspace after app restart.
+  - [ ] Consider a user-visible stale-terminal cleanup action if the registry contains missing-tmux sessions.
+
 ### EXO-ISSUE-082: `exo agents read` returns corrupted terminal glyphs during Exo-on-Exo monitoring
 
 - Status: fixed in `codex/issue-082-agent-readback`; broad `stable:smoke` app gate timed out across unrelated Electron e2e scenarios and needs separate follow-up before push/release
