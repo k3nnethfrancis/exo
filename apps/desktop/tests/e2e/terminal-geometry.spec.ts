@@ -231,15 +231,29 @@ async function tmuxPaneWidthForTerminal(page: Page, terminalId: string): Promise
 }
 
 async function expectGeometryFrame(page: Page, options: { minCols: number }) {
-  await expect.poll(async () => currentGeometryFrame(page), { timeout: 5_000 }).toMatchObject({
-    frameCount: 1,
-  });
-  const current = await currentGeometryFrame(page);
+  const current = await waitForCompleteGeometryFrame(page, { minCols: options.minCols });
   expect(current.cols, `Expected wide terminal cols from visible fake Ink frame:\n${current.visibleText}`).toBeGreaterThanOrEqual(options.minCols);
   expect(current.rulerLength, `Expected ruler to match cols:\n${current.visibleText}`).toBe(current.cols);
   expect(current.boxLength, `Expected box line to match cols:\n${current.visibleText}`).toBe(current.cols);
   expect(current.boxWrappedFragment, `Expected no wrapped box fragment:\n${current.visibleText}`).toBe(false);
   return current;
+}
+
+async function waitForCompleteGeometryFrame(page: Page, options: { minCols: number }): Promise<GeometryFrame> {
+  await expect.poll(async () => {
+    const frame = await currentGeometryFrame(page);
+    return {
+      complete:
+        frame.frameCount === 1
+        && frame.cols >= options.minCols
+        && frame.rulerLength === frame.cols
+        && frame.boxLength === frame.cols
+        && !frame.boxWrappedFragment,
+      visibleText: frame.visibleText,
+    };
+  }, { timeout: 5_000 }).toMatchObject({ complete: true });
+
+  return currentGeometryFrame(page);
 }
 
 async function assertRecoveredFakeInk(page: Page, expectedCols: number, input: string): Promise<void> {
