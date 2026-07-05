@@ -29,18 +29,29 @@ const PASTE_ENTER_SEMANTIC_MESSAGES = {
   detail: "Agent semantic messages use bracketed paste, then Enter when submitted.",
 } as const;
 
+const SIDECAR_SEMANTIC_TRACE_EVENT_KINDS = [
+  "session.started",
+  "turn.started",
+  "message",
+  "tool.call",
+  "tool.result",
+  "lifecycle",
+  "harness.raw",
+] as const;
+
+const CLAUDE_SEMANTIC_TRACE = {
+  schemaVersion: "exo.semantic-trace.v1",
+  sources: ["sidecar-jsonl"],
+  eventKinds: SIDECAR_SEMANTIC_TRACE_EVENT_KINDS,
+  defaultVisibility: "private",
+  artifactFileName: "semantic-trace.ndjson",
+  detail: "Claude Code-compatible harnesses may emit stream-json events to the sidecar path declared through EXO_CLAUDE_SEMANTIC_TRACE_PATH.",
+} as const;
+
 const PI_SEMANTIC_TRACE = {
   schemaVersion: "exo.semantic-trace.v1",
   sources: ["sidecar-jsonl"],
-  eventKinds: [
-    "session.started",
-    "turn.started",
-    "message",
-    "tool.call",
-    "tool.result",
-    "lifecycle",
-    "harness.raw",
-  ],
+  eventKinds: SIDECAR_SEMANTIC_TRACE_EVENT_KINDS,
   defaultVisibility: "private",
   artifactFileName: "semantic-trace.ndjson",
   detail: "Pi-compatible harnesses may emit stream-json events to the sidecar path declared through EXO_PI_SEMANTIC_TRACE_PATH.",
@@ -476,6 +487,7 @@ class ClaudeAgentHarness implements AgentHarness {
   } as const;
   readonly skills = [];
   readonly semanticMessages = PASTE_ENTER_SEMANTIC_MESSAGES;
+  readonly semanticTrace = CLAUDE_SEMANTIC_TRACE;
   readonly terminalOwnership = "core";
 
   resolveLauncher(env: NodeJS.ProcessEnv): AgentLauncherConfig {
@@ -484,6 +496,13 @@ class ClaudeAgentHarness implements AgentHarness {
       title: this.title,
       command: env.EXO_CLAUDE_COMMAND ?? "claude",
       args: splitEnvArgs(env.EXO_CLAUDE_ARGS),
+      traceCapture: {
+        schemaVersion: "exo.semantic-trace.v1",
+        source: "sidecar-jsonl",
+        artifactFileName: CLAUDE_SEMANTIC_TRACE.artifactFileName,
+        eventFormat: "stream-json",
+        envVar: "EXO_CLAUDE_SEMANTIC_TRACE_PATH",
+      },
     };
   }
 

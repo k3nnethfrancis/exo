@@ -128,6 +128,13 @@ describe("agent harness registry", () => {
         defaultMode: "paste-enter",
         supportsMultiline: true,
       },
+      semanticTrace: {
+        schemaVersion: "exo.semantic-trace.v1",
+        sources: ["sidecar-jsonl"],
+        eventKinds: expect.arrayContaining(["message", "tool.call", "tool.result", "harness.raw"]),
+        defaultVisibility: "private",
+        artifactFileName: "semantic-trace.ndjson",
+      },
     });
     expect(builtInAgentHarnesses.codex).toMatchObject({
       contractVersion: "agent-harness.v1",

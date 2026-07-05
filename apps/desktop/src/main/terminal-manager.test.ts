@@ -1,5 +1,6 @@
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { EventEmitter } from "node:events";
+import { writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -865,6 +866,88 @@ describe("TerminalManager Codex readiness", () => {
     });
   });
 
+  it("provisions Claude trace sidecars and ingests fake Claude stream-json events through the declared path", async () => {
+    const workspaceRoot = await workspaceFixture();
+    stubWorkspaceEnv(workspaceRoot);
+    const runtime = fakeRuntime("runtime-captured\r\n", (options) => {
+      const sidecarPath = options.env.EXO_CLAUDE_SEMANTIC_TRACE_PATH;
+      expect(sidecarPath).toBe(path.join(workspaceRoot, ".exo", "traces", "sidecars", "term-1.ndjson"));
+      expect(options.env.EXO_SEMANTIC_TRACE_PATH).toBe(sidecarPath);
+      expect(options.env.EXO_SEMANTIC_TRACE_SESSION_ID).toBe("term-1");
+      expect(options.env.EXO_SEMANTIC_TRACE_HARNESS_ID).toBe("claude");
+      writeFileSync(
+        sidecarPath!,
+        [
+          {
+            type: "session-start",
+            command: "fake-claude --stream-json",
+            cwd: workspaceRoot,
+            timestamp: "2026-07-04T12:00:00.000Z",
+          },
+          {
+            type: "assistant-text",
+            text: "CLAUDE_FIXTURE_ANSWER OK",
+            turnId: "turn-1",
+            timestamp: "2026-07-04T12:00:01.000Z",
+          },
+          {
+            type: "tool-call",
+            name: "read_file",
+            toolCallId: "tool-1",
+            turnId: "turn-1",
+            input: { path: "tasks.md" },
+            status: "started",
+            timestamp: "2026-07-04T12:00:02.000Z",
+          },
+          {
+            type: "tool-result",
+            name: "read_file",
+            toolCallId: "tool-1",
+            turnId: "turn-1",
+            output: { bytes: 42 },
+            status: "succeeded",
+            timestamp: "2026-07-04T12:00:03.000Z",
+          },
+        ].map((event) => JSON.stringify(event)).join("\n") + "\n",
+        "utf8",
+      );
+    });
+    const manager = new TerminalManager(workspaceRoot, 500, 0, {}, runtime);
+
+    const terminal = await manager.create({ kind: "claude", cwd: workspaceRoot });
+    runtime.emitExit(0);
+
+    await vi.waitFor(async () => {
+      const events = await new SemanticTraceStore(path.join(workspaceRoot, ".exo")).readEvents(terminal.id);
+      expect(events.map((event) => event.kind)).toEqual(["session.started", "message", "tool.call", "tool.result"]);
+      expect(semanticTraceEventsToAgentAnswerText(events)).toBe("CLAUDE_FIXTURE_ANSWER OK");
+      expect(events[0]).toMatchObject({
+        schemaVersion: "exo.semantic-trace.v1",
+        sessionId: terminal.id,
+        harnessId: "claude",
+        visibility: "private",
+        payload: {
+          rawKind: "session-start",
+          command: "fake-claude --stream-json",
+          cwd: workspaceRoot,
+        },
+      });
+      expect(events[2]).toMatchObject({
+        kind: "tool.call",
+        actor: { id: "read_file", kind: "tool" },
+        refs: {
+          tools: [
+            expect.objectContaining({
+              name: "read_file",
+              callId: "tool-1",
+              status: "started",
+            }),
+          ],
+        },
+      });
+    });
+  });
+
   it("terminates the tmux session when killing a terminal", async () => {
     const workspaceRoot = await workspaceFixture();
     const manager = managerForWorkspace(workspaceRoot);
@@ -1640,7 +1723,10 @@ function mockLiveTmuxPanes(
   });
 }
 
-function fakeRuntime(capturedTail = "runtime-captured\r\n"): TerminalRuntime & {
+function fakeRuntime(
+  capturedTail = "runtime-captured\r\n",
+  onCreate?: (options: Parameters<TerminalRuntime["createSession"]>[0]) => void,
+): TerminalRuntime & {
   calls: {
     createSession: unknown[];
     captureTailForDisplay: unknown[];
@@ -1666,6 +1752,7 @@ function fakeRuntime(capturedTail = "runtime-captured\r\n"): TerminalRuntime & {
     availability: () => ({ available: true }),
     createSession: (options) => {
       calls.createSession.push(options);
+      onCreate?.(options);
       return {
         sessionName: "runtime-session-1",
         paneId: "%runtime-1",

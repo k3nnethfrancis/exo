@@ -29,7 +29,7 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
     - [ ] Confirm `EXO-ISSUE-082` on `main`, `EXO-ISSUE-046` after live restart, and `EXO-ISSUE-083` isolation before plugin dogfooding.
     - [ ] Confirm cross-session trace-store hygiene or document the bounded dogfooding retention policy.
     - [x] WP-XC0: record external contract status rules: two-consumer rule, unstable status by default, trace first, review/proposal second, dataset/eval later with Helm, instrumented runtimes not plugin contracts.
-    - [ ] WP-TRC-CL: add Claude as the second semantic trace producer through the declared trace path; no fixture self-writes.
+    - [x] WP-TRC-CL: add Claude as the second semantic trace producer through the declared trace path; no fixture self-writes.
   - [x] Complete Fable Wave-2 correction packages before continuing profile/onboarding/plugin UI expansion:
     - [x] WP-C1: proposal apply frontmatter fidelity with byte-identity golden tests.
     - [x] WP-C2: unknown capability kinds degrade to inert inspectable status plus plugin tripwire.

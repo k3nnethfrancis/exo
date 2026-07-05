@@ -68,6 +68,13 @@ describe("runtime", () => {
     expect(plan.env.EXO_RUNTIME_SECONDARY_INSTRUCTIONS).toBe("");
     expect(plan.env.EXO_AGENT_TRANSPORT).toBe("file-sqlite");
     expect(plan.secondaryInstructionsPath).toBeUndefined();
+    expect(plan.traceCapture).toEqual({
+      schemaVersion: "exo.semantic-trace.v1",
+      source: "sidecar-jsonl",
+      artifactFileName: "semantic-trace.ndjson",
+      eventFormat: "stream-json",
+      envVar: "EXO_CLAUDE_SEMANTIC_TRACE_PATH",
+    });
   });
 
   it("resolves shell launchers through the built-in shell harness", () => {

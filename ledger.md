@@ -30,7 +30,7 @@ This is the fastest current-state handoff for Exo. It records what exists now, w
 
 - Whether to keep the current closed/namespaced `CapabilityKind` allowlist through first public plugin work, or adopt Fable's open/inert unknown kind model before external plugin authors exist.
 - Whether the proposal apply host must switch from `gray-matter` frontmatter rewrite to a comment/key-order-preserving YAML AST before P3 can be called complete.
-- Claude semantic trace binding remains intentionally unbound until Fable reviews the Pi-compatible sidecar contract.
+- WP-TRC-CL bound Claude as the second semantic trace producer through the same declared `sidecar-jsonl` launch-plan path as Pi: Exo provisions `.exo/traces/sidecars/{sessionId}.ndjson`, exports `EXO_CLAUDE_SEMANTIC_TRACE_PATH` plus generic `EXO_SEMANTIC_TRACE_*` env vars, and ingests stream-json events into `.exo/traces/{sessionId}.ndjson`.
 - How profile apply should stage plugin enables, grants, skills, routines, settings, and AI-generated profile changes without turning profile selection into silent writes.
 
 ## Product Thesis
