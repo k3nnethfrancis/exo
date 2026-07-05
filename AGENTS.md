@@ -26,7 +26,8 @@ The immediate product proving loop is Exo-on-Exo: finish usability/harness readi
 18. `docs/plugin-architecture-audit.md` - plugin decision/fallback audit and hardening policy
 19. `docs/plugins.md` - future extension model
 20. `docs/plugin-implementation-plan.md` - implementation sequence for capability registries, providers, harnesses, activity substrate, artifact references, and plugin templates
-21. `packages/mcp/README.md` - MCP setup and tool contract
+21. `docs/public-contract-reviews.md` - review-note ledger checked by `pnpm check:repo` for command-server, CLI, MCP, and shared protocol surfaces
+22. `packages/mcp/README.md` - MCP setup and tool contract
 
 ## Repository Map
 

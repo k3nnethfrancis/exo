@@ -51,7 +51,8 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
       - Plugin Manager QA covered core/official read-only rows, Pi missing-dependency copy, QMD/search readiness, Graph Health/profile permission copy, profile preview safety copy, and category layout overflow.
       - Onboarding QA used the workspace switcher path to reach the live `Review capabilities` step for the current saved workspace without selecting new folders; it showed core locked rows, official plugin inventory, Pi missing dependency, and profile apply blockers.
   - [x] Prioritize `EXO-ISSUE-082`: make `exo agents read` clean and operator-readable for Exo-on-Exo monitoring before relying on it for swarm management.
-  - [ ] Enforce Fable's public-contract rule in all future briefs: command-server routes, CLI commands/flags, MCP tool parameters, and shared protocol types require architect review before shipping unless the user explicitly approves an exception.
+  - [x] Enforce Fable's public-contract rule in all future briefs: command-server routes, CLI commands/flags, MCP tool parameters, and shared protocol types require architect review before shipping unless the user explicitly approves an exception.
+    - 2026-07-04: `pnpm check:repo` now hashes focused public-contract slices and requires matching review notes in `docs/public-contract-reviews.md`.
   - [ ] Finish removing compatibility harness ids from internal renderer/API launch descriptors while keeping `exo terminals` as the low-level core terminal surface.
     - [x] Add backward-compatible `terminalKind`/`harnessId` fields to terminal session info, diagnostics, command protocol terminal info, and persisted terminal session records.
     - [x] Move Codex startup readiness, blocked prompt metadata, semantic queue policy, and MCP launch-arg augmentation behind the built-in harness contract while keeping terminal rendering/session ownership in core.

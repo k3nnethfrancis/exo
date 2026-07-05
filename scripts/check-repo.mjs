@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { createHash } from 'node:crypto';
 import { lstatSync, readFileSync, readdirSync, readlinkSync } from 'node:fs';
 import { builtinModules } from 'node:module';
 import path from 'node:path';
@@ -36,6 +37,10 @@ function assertContains(relativePath, expected) {
   if (!content.includes(expected)) {
     fail(`${relativePath} must contain: ${expected}`);
   }
+}
+
+function sha256Hex(content) {
+  return createHash('sha256').update(content).digest('hex');
 }
 
 function listSourceFiles(relativeDirectory) {
@@ -185,6 +190,173 @@ function assertPluginManifestPermissionsStayMetadataOnly() {
   assertContains('packages/core/src/plugin-permissions.ts', 'if (!isActivePlugin(plugin)) {');
 }
 
+const publicContractSurfaces = [
+  {
+    id: 'packages/core/src/command-protocol.ts#routes-and-types',
+    path: 'packages/core/src/command-protocol.ts',
+    label: 'shared command routes and protocol payload types',
+    slice: 'exported-protocol',
+  },
+  {
+    id: 'apps/desktop/src/main/command-server.ts#route-table',
+    path: 'apps/desktop/src/main/command-server.ts',
+    label: 'command-server HTTP method and route table',
+    slice: 'command-server-routes',
+  },
+  {
+    id: 'packages/cli/src/index.ts#commands-and-flags',
+    path: 'packages/cli/src/index.ts',
+    label: 'CLI commands and flags',
+    slice: 'cli-commands',
+  },
+  {
+    id: 'packages/cli/src/app-client.ts#route-client-methods',
+    path: 'packages/cli/src/app-client.ts',
+    label: 'CLI command-server client contract',
+    slice: 'command-client-routes',
+  },
+  {
+    id: 'packages/mcp/src/index.ts#tool-schemas',
+    path: 'packages/mcp/src/index.ts',
+    label: 'MCP tools and tool parameters',
+    slice: 'mcp-tool-schemas',
+  },
+  {
+    id: 'packages/mcp/src/exo-client.ts#route-client-methods',
+    path: 'packages/mcp/src/exo-client.ts',
+    label: 'MCP command-server client contract',
+    slice: 'command-client-routes',
+  },
+];
+
+function linesMatching(content, patterns) {
+  return content
+    .split('\n')
+    .filter((line) => patterns.some((pattern) => pattern.test(line)))
+    .map((line) => line.trim())
+    .join('\n');
+}
+
+function extractMcpToolSchemas(content) {
+  const slices = [];
+  let searchFrom = 0;
+  const needle = 'server.registerTool(';
+  while (true) {
+    const start = content.indexOf(needle, searchFrom);
+    if (start === -1) {
+      break;
+    }
+    const callbackStart = content.indexOf('\n  async', start);
+    if (callbackStart === -1) {
+      slices.push(content.slice(start));
+      break;
+    }
+    slices.push(content.slice(start, callbackStart).trim());
+    searchFrom = callbackStart + 1;
+  }
+  return slices.join('\n\n');
+}
+
+function publicContractSlice(surface) {
+  const content = read(surface.path);
+  if (surface.slice === 'exported-protocol') {
+    return content
+      .split('\n')
+      .filter((line) => !line.startsWith('import '))
+      .join('\n')
+      .trim();
+  }
+  if (surface.slice === 'command-server-routes') {
+    return linesMatching(content, [
+      /^\s*if \(method === /,
+      /^\s*const \w+Match = pathname\.match\(/,
+    ]);
+  }
+  if (surface.slice === 'cli-commands') {
+    return linesMatching(content, [
+      /^\s*if \(command === /,
+      /^\s*if \(command && /,
+      /^\s*if \(subcommand === /,
+      /^\s*if \(subcommand !== /,
+      /^\s*if \(subcommand && /,
+      /^\s*if \(subcommand === .*args\.some\(isHelpFlag\)/,
+      /^\s*throw new Error\("Usage: exo /,
+      /parseInlineOptions\(/,
+      /isHelpFlag\(/,
+    ]);
+  }
+  if (surface.slice === 'command-client-routes') {
+    return linesMatching(content, [
+      /^\s*async \w+\(/,
+      /EXO_COMMAND_ROUTES\./,
+    ]);
+  }
+  if (surface.slice === 'mcp-tool-schemas') {
+    return extractMcpToolSchemas(content);
+  }
+  throw new Error(`Unknown public contract slice: ${surface.slice}`);
+}
+
+function parsePublicContractReviewEntries(markdown) {
+  const entries = new Map();
+  const headingPattern = /^### `([^`]+)`\n([\s\S]*?)(?=^### `|(?![\s\S]))/gm;
+  for (const headingMatch of markdown.matchAll(headingPattern)) {
+    const [, relativePath, block] = headingMatch;
+    const pathEntries = entries.get(relativePath) ?? [];
+    const entryPattern = /- sha256: `([a-f0-9]{64})`\n\s*- review: ([^\n]+)/g;
+    for (const entryMatch of block.matchAll(entryPattern)) {
+      pathEntries.push({
+        sha256: entryMatch[1],
+        review: entryMatch[2].trim(),
+      });
+    }
+    entries.set(relativePath, pathEntries);
+  }
+  return entries;
+}
+
+function hasValidPublicContractReview(entries, relativePath, sha256) {
+  const pathEntries = entries.get(relativePath) ?? [];
+  const validReviewPattern = /^(architect-review|user-approved-exception|guard-baseline):\s+\d{4}-\d{2}-\d{2}\s+\S/;
+  return pathEntries.some((entry) => entry.sha256 === sha256 && validReviewPattern.test(entry.review));
+}
+
+function assertPublicContractReviewParserSelfTest() {
+  const hash = 'a'.repeat(64);
+  const entries = parsePublicContractReviewEntries(`### \`example.ts\`
+- sha256: \`${hash}\`
+- review: architect-review: 2026-07-04 reviewed by lead architect
+`);
+  if (!hasValidPublicContractReview(entries, 'example.ts', hash)) {
+    fail('public contract review parser self-test failed to accept a valid review note');
+  }
+  if (hasValidPublicContractReview(entries, 'example.ts', 'b'.repeat(64))) {
+    fail('public contract review parser self-test accepted the wrong file hash');
+  }
+}
+
+function assertPublicContractSurfacesHaveReviewNotes() {
+  assertPublicContractReviewParserSelfTest();
+  const reviewDocPath = 'docs/public-contract-reviews.md';
+  assertFile(reviewDocPath);
+  const reviewDoc = read(reviewDocPath);
+  const entries = parsePublicContractReviewEntries(reviewDoc);
+  const protectedSurfaceList = publicContractSurfaces.map((surface) => `\`${surface.id}\``).join(', ');
+  assertContains(
+    reviewDocPath,
+    'command-server routes, CLI commands/flags, MCP tool parameters, and shared protocol types require architect review before shipping unless a user-approved exception is explicitly documented',
+  );
+  for (const surface of publicContractSurfaces) {
+    assertFile(surface.path);
+    const currentHash = sha256Hex(publicContractSlice(surface));
+    if (!hasValidPublicContractReview(entries, surface.id, currentHash)) {
+      fail(
+        `${surface.id} changed ${surface.label}; add a ${reviewDocPath} entry for sha256 ${currentHash} with architect-review or user-approved-exception. Protected surfaces: ${protectedSurfaceList}`,
+      );
+    }
+  }
+}
+
 function assertSymlink(relativePath, target) {
   const fullPath = path.join(repoRoot, relativePath);
   try {
@@ -318,6 +490,7 @@ const requiredFiles = [
   'tasks.md',
   'docs/README.md',
   'docs/architecture.md',
+  'docs/public-contract-reviews.md',
   'docs/harness.md',
   'docs/qmd-integration-notes.md',
   'docs/usability-readiness.md',
@@ -366,6 +539,7 @@ assertContains('docs/harness.md', 'One canonical broad gate');
 assertContains('docs/harness.md', 'Tests must be hermetic');
 assertContains('docs/harness.md', 'CI runs `pnpm ci:check`');
 assertContains('docs/usability-readiness.md', 'Installed `Exo.app` is the stable daily runtime');
+assertContains('docs/README.md', 'public-contract-reviews.md');
 assertContains('AGENTS.md', '`CLAUDE.md` is a compatibility symlink to `AGENTS.md`');
 assertContains('AGENTS.md', 'docs/usability-readiness.md');
 assertContains('README.md', './scripts/install-local');
@@ -401,6 +575,7 @@ assertNoDirectImplementationImports({
 assertRendererHasNoNodeOrElectronImports();
 assertPluginEntrypointsRemainInert();
 assertPluginManifestPermissionsStayMetadataOnly();
+assertPublicContractSurfacesHaveReviewNotes();
 
 if (failures.length > 0) {
   console.error('Repo checks failed:');
