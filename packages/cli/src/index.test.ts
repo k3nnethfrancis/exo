@@ -1421,7 +1421,7 @@ describe("cli package", () => {
               code: 0,
               stdout: [
                 "exo",
-                "  command: node",
+                `  command: ${process.execPath}`,
                 "  args: /tmp/exo-test-workspace/projects/exo/packages/mcp/bin/exo-mcp.mjs",
               ].join("\n"),
               stderr: "",
@@ -1487,7 +1487,7 @@ describe("cli package", () => {
     expect(exitCode).toBe(0);
     expect(stdout).toContain("- codex: found (/opt/bin/codex); Exo MCP stale config");
     expect(stdout).toContain("configured node /tmp/exo-old/packages/mcp/bin/exo-mcp.mjs");
-    expect(stdout).toContain("expected node /tmp/exo-test-workspace/projects/exo-current/packages/mcp/bin/exo-mcp.mjs");
+    expect(stdout).toContain(`expected ${process.execPath} /tmp/exo-test-workspace/projects/exo-current/packages/mcp/bin/exo-mcp.mjs`);
     expect(stdout).toContain("run `exo integrations install codex` and restart existing codex sessions");
   });
 
