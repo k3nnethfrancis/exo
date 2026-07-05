@@ -49,9 +49,48 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - [ ] Add a regression check that readiness fixture terminals do not appear in `exo status` for the real workspace after app restart.
   - [ ] Consider a user-visible stale-terminal cleanup action if the registry contains missing-tmux sessions.
 
+### EXO-ISSUE-085: `stable:smoke` timeout blocks unrelated fixes
+
+- Status: open
+- Severity: high
+- Area: CI/readiness gates, Electron e2e, release reliability
+- Source:
+  - 2026-07-04 Fable Wave-4 review, RF-1.
+- Observed:
+  - A high-severity `exo agents read` fix was held by a broad `stable:smoke` timeout in unrelated Electron scenarios.
+  - This makes the release gate less useful because it encourages either batching around failures or holding focused fixes hostage.
+- Expected:
+  - `stable:smoke` should be actionable, bounded, and repeatable enough to protect release readiness without obscuring unrelated fixes.
+  - Slow/flaky Electron scenarios should be split, parallelized, or isolated with clear logs.
+- Acceptance:
+  - [ ] Reproduce the timeout with logs that identify the slow scenario or stuck phase.
+  - [ ] Split/parallelize or otherwise bound the slow Electron scenario.
+  - [ ] Add enough logging that future timeouts point at the scenario and phase.
+  - [ ] Run `pnpm stable:smoke` twice consecutively on `main` or the integration branch.
+
+### EXO-ISSUE-086: Monitor Mode toggle remounts terminal panes by minting fresh pane ids
+
+- Status: open
+- Severity: high
+- Area: terminal monitor mode, pane tree, terminal geometry, Exo-on-Exo observability
+- Source:
+  - 2026-07-04 Fable Wave-4 review, M-1.
+- Observed:
+  - `buildTerminalMonitorTree` / `buildTerminalTabsTree` create fresh pane ids on every toggle.
+  - Fresh pane ids become fresh React keys, which can unmount/remount every `TerminalView`.
+  - With many live agents, this can multiply detach/reattach/refit cycles and create a self-inflicted geometry storm.
+- Expected:
+  - Monitor Mode should re-layout terminals without destroying terminal view identity when possible.
+  - Toggling should resize existing live xterm views instead of forcing N reattach cycles.
+- Acceptance:
+  - [ ] Derive stable terminal leaf identity from session id or map existing terminal leaves into the new tree.
+  - [ ] Add a regression test that monitor toggle preserves terminal pane identity for existing sessions.
+  - [ ] Confirm no terminal-manager/runtime changes are required.
+  - [ ] Run App tests plus focused terminal renderer QA.
+
 ### EXO-ISSUE-082: `exo agents read` returns corrupted terminal glyphs during Exo-on-Exo monitoring
 
-- Status: fixed in `codex/issue-082-agent-readback`; broad `stable:smoke` app gate timed out across unrelated Electron e2e scenarios and needs separate follow-up before push/release
+- Status: fixed in `main`; follow-up coverage tracked by `EXO-ISSUE-085`
 - Severity: high
 - Area: CLI agent read path, terminal transcripts, tmux/control-mode capture, Exo-on-Exo observability
 - Source:

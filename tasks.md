@@ -22,6 +22,14 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
   - [x] Complete the remaining V4.1 audit: confirm WP-T4/T5 coverage, close any diagnostics gaps, and keep `pnpm terminal:check` green.
   - [x] Close WP-D docs: record the 2026-07-03 control-mode decision, killed plain-attach path, and pty terminology in `docs/terminal-runtime-decision.md`; sync terminal-stability guidance.
 - [ ] Finish Plugin Architecture Completion:
+  - [ ] Complete Fable Wave-4 dogfooding gates before declaring plugin architecture ready for real-vault use:
+    - [ ] WP-QA-PM: rerun Plugin Manager/onboarding read-only app QA against current source after recent UI/plugin changes.
+    - [ ] PA2: design the real-vault proposal/profile rollback gate, get architect review, then flip from fixture-only to guarded real-vault apply.
+    - [ ] Finish or explicitly inventory remaining `ManagedAgentKind` compatibility residue and removal conditions.
+    - [ ] Confirm `EXO-ISSUE-082` on `main`, `EXO-ISSUE-046` after live restart, and `EXO-ISSUE-083` isolation before plugin dogfooding.
+    - [ ] Confirm cross-session trace-store hygiene or document the bounded dogfooding retention policy.
+    - [ ] WP-XC0: record external contract status rules: two-consumer rule, unstable status by default, trace first, review/proposal second, dataset/eval later with Helm, instrumented runtimes not plugin contracts.
+    - [ ] WP-TRC-CL: add Claude as the second semantic trace producer through the declared trace path; no fixture self-writes.
   - [x] Complete Fable Wave-2 correction packages before continuing profile/onboarding/plugin UI expansion:
     - [x] WP-C1: proposal apply frontmatter fidelity with byte-identity golden tests.
     - [x] WP-C2: unknown capability kinds degrade to inert inspectable status plus plugin tripwire.
@@ -67,6 +75,7 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
   - [ ] Search QA: QMD enabled/degraded/disabled states preserve core filename/path/basic text search and do not block Explore.
   - [ ] Harness QA: unavailable harnesses do not show dead launch buttons; shell/Claude/Codex still launch through the registered harness path.
 - [ ] Clear the daily-use bug-bash cluster from root `issues.md` before treating the build as ship-ready:
+  - [ ] Fix `EXO-ISSUE-085`: make `pnpm stable:smoke` bounded, diagnosable, and repeatable enough that unrelated fixes are not held hostage by broad Electron timeouts.
   - [ ] Terminal field-watch and preview interaction: `EXO-ISSUE-062`, `EXO-ISSUE-069`, plus any new render/focus regressions with deterministic fixtures.
   - [ ] Editor/graph UX: open issues such as project Markdown/rendering regressions, wikilink hover/search regressions, backlinks/references polish, and task/list QoL only if new field evidence appears.
   - [ ] Explorer/UI polish: open issues such as duplicate controls, changed-state badges, folder typography, and dense modal overlap only if new field evidence appears.
@@ -75,6 +84,8 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
   - [x] QA workflow: `EXO-ISSUE-074` visual app QA preflight/fallback documentation.
 - [ ] Harden CLI/MCP for multi-agent coordination:
   - [x] Add terminal Monitor Mode so Exo-on-Exo fan-out sessions can be shown as split panes for operator monitoring, while normal mode keeps grouped terminal tabs.
+  - [ ] Fix `EXO-ISSUE-086`: Monitor Mode must preserve terminal pane identity across toggles instead of remounting every terminal view.
+  - [ ] Run Monitor Mode QA with 4+ live sessions: toggle during repaint, create/terminate while enabled, restart with monitor mode persisted, and document that monitor mode changes agent terminal geometry.
   - [ ] Make `workspace_status` a reliable orientation tool with workspace roots, plugin/search readiness, live agents, index summary, command-server health, and degraded-state diagnostics.
   - [ ] Add or finalize the core preview/artifact-open command path for CLI/MCP through the core web viewer endpoint.
   - [ ] Add NDE-style MCP tests covering functionality, latency, result quality, stale config diagnostics, and permission/security behavior.

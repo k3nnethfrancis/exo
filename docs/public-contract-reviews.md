@@ -13,6 +13,8 @@ If a protected slice changes, add a new entry under that slice with the new hash
 
 Use `guard-baseline` only for the initial no-behavior-change snapshot that introduced this guard.
 
+Exception discipline: a `user-approved-exception` must name the approving task or user decision, and it must receive a post-hoc architect review within the same work wave. That review can either approve the exception as intentionally bounded or require a follow-up contract cleanup before the next wave.
+
 Escape hatch: if a repo check flags a change that is genuinely implementation-only noise, narrow the extractor in `scripts/check-repo.mjs` in the same change and explain why the public contract did not move. Do not silence the guard by adding a review note for unrelated implementation churn.
 
 ## Protected Surfaces
