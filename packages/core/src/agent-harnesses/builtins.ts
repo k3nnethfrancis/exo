@@ -337,7 +337,7 @@ function withCodexReasoningEffortOverride(args: string[], env: NodeJS.ProcessEnv
   return configuredArgs;
 }
 
-function withCodexMcpOverrides(args: readonly string[], config: RuntimeConfig, cwd: string): string[] {
+function withCodexMcpOverrides(args: readonly string[], config: RuntimeConfig, cwd: string, env: NodeJS.ProcessEnv): string[] {
   const exoRoot = findExoRepoRoot(config, cwd);
   if (!exoRoot) {
     return [...args];
@@ -346,6 +346,7 @@ function withCodexMcpOverrides(args: readonly string[], config: RuntimeConfig, c
   const spec = buildExoMcpServerSpec({
     exoRoot,
     workspaceRoot: config.workspace.workspaceRoot,
+    nodeCommand: resolveNodeCommandForMcpOverride(env),
   });
 
   return [
@@ -359,13 +360,24 @@ function withCodexMcpOverrides(args: readonly string[], config: RuntimeConfig, c
   ];
 }
 
+function resolveNodeCommandForMcpOverride(env: NodeJS.ProcessEnv): string {
+  // In the packaged app, process.execPath is Electron, not Node. Prefer the
+  // Node executable captured from the launch environment so Codex does not
+  // resolve a different or missing `node` when it starts Exo MCP.
+  return env.NODE || env.npm_node_execpath || "node";
+}
+
 function findExoRepoRoot(config: RuntimeConfig, cwd: string): string | null {
   const candidates = [
-    cwd,
-    process.cwd(),
+    // Exo-launched agents often run inside git worktrees for the code they are
+    // editing. Those worktrees may not have built MCP artifacts, so the MCP
+    // launcher must prefer the imported/running Exo project root before the
+    // terminal cwd.
+    ...config.workspace.projectRoots.map((root) => root.path),
     config.workspace.workspaceRoot,
     config.workspace.defaultTerminalCwd,
-    ...config.workspace.projectRoots.map((root) => root.path),
+    process.cwd(),
+    cwd,
   ];
 
   for (const candidate of candidates) {
@@ -566,7 +578,7 @@ class CodexAgentHarness implements AgentHarness {
   }
 
   prepareLaunchArgs(context: HarnessLaunchArgsContext): string[] {
-    return withCodexMcpOverrides(context.args, context.runtimeConfig, context.cwd);
+    return withCodexMcpOverrides(context.args, context.runtimeConfig, context.cwd, context.env);
   }
 }
 

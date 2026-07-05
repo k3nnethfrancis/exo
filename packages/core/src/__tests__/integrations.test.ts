@@ -65,6 +65,17 @@ describe("integrations", () => {
     expect(json.mcpServers.exo.env.EXO_MCP_SEARCH_TIMEOUT_MS).toBe("30000");
   });
 
+  it("uses an explicit Node command when provided", () => {
+    const spec = buildExoMcpIntegrationSpec("codex", {
+      ...config,
+      nodeCommand: "/opt/homebrew/bin/node",
+    });
+
+    expect(spec.server.command).toBe("/opt/homebrew/bin/node");
+    expect(spec.installArgs).toContain("/opt/homebrew/bin/node");
+    expect(formatMcpServerJson(spec.server)).toContain("/opt/homebrew/bin/node");
+  });
+
   it("parses Codex and Claude MCP list output", () => {
     expect(parseMcpListOutput("context7 npx -y context7\nexo pnpm --dir /tmp/exo\n").configured).toBe(true);
     expect(parseMcpListOutput("qmd: qmd mcp\nexo: pnpm --dir /tmp/exo\n").configured).toBe(true);

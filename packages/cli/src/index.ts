@@ -252,7 +252,7 @@ export async function runCli(
       stdout.write(
         clients
           .map((client) => {
-            const spec = buildExoMcpIntegrationSpec(client, { exoRoot, workspaceRoot });
+            const spec = buildExoMcpIntegrationSpec(client, { exoRoot, workspaceRoot, nodeCommand: process.execPath });
             return [
               `# ${client}`,
               `Install command:`,
@@ -290,7 +290,7 @@ export async function runCli(
       const results: string[] = [];
       let ok = true;
       for (const client of clients) {
-        const spec = buildExoMcpIntegrationSpec(client, { exoRoot, workspaceRoot });
+        const spec = buildExoMcpIntegrationSpec(client, { exoRoot, workspaceRoot, nodeCommand: process.execPath });
 
         if (targets.dryRun) {
           results.push(`[dry-run] ${spec.installDisplay}`);
@@ -1686,7 +1686,7 @@ async function getIntegrationStatus(
     };
   }
 
-  const spec = buildExoMcpIntegrationSpec(client, config);
+  const spec = buildExoMcpIntegrationSpec(client, { ...config, nodeCommand: process.execPath });
   const parsed = parseMcpListOutput(list.stdout, spec.server.serverName);
   let details: ReturnType<typeof parseMcpServerDetailsOutput> = {};
   let detailsError: string | undefined;

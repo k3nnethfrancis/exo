@@ -27,7 +27,8 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
       - 2026-07-05 evidence: source Exo app was restarted from `main`; Computer Use could not inspect the remote Electron window, so app QA used focused Electron Playwright coverage instead. Passed `shell.spec.ts --grep "plugin manager"` and `shell.spec.ts --grep "opens an existing notes folder from first-run setup"`.
     - [ ] PA2: design the real-vault proposal/profile rollback gate, get architect review, then flip from fixture-only to guarded real-vault apply.
     - [ ] Finish or explicitly inventory remaining `ManagedAgentKind` compatibility residue and removal conditions.
-    - [ ] Confirm `EXO-ISSUE-082` on `main`, `EXO-ISSUE-046` after live restart, and `EXO-ISSUE-083` isolation before plugin dogfooding.
+    - [ ] Confirm remaining critical dogfooding gates before plugin dogfooding: `EXO-ISSUE-082` on `main`, `EXO-ISSUE-083` isolation, and trace-store hygiene.
+      - [x] `EXO-ISSUE-046` after live restart: 2026-07-05 source Exo restart plus worktree Codex probe launched without the Exo MCP startup warning and used the imported Exo repo MCP launcher.
     - [ ] Confirm cross-session trace-store hygiene or document the bounded dogfooding retention policy.
     - [x] WP-XC0: record external contract status rules: two-consumer rule, unstable status by default, trace first, review/proposal second, dataset/eval later with Helm, instrumented runtimes not plugin contracts.
     - [x] WP-TRC-CL: add Claude as the second semantic trace producer through the declared trace path; no fixture self-writes.

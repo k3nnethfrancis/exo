@@ -5,6 +5,7 @@ export const EXO_MCP_INTEGRATION_CLIENTS: ExoMcpIntegrationClient[] = ["codex", 
 export interface ExoMcpIntegrationConfig {
   exoRoot: string;
   workspaceRoot: string;
+  nodeCommand?: string;
   serverName?: string;
   startCommand?: string;
 }
@@ -38,7 +39,7 @@ export function buildExoMcpServerSpec(config: ExoMcpIntegrationConfig): ExoMcpSe
   const serverName = config.serverName ?? "exo";
   return {
     serverName,
-    command: "node",
+    command: config.nodeCommand ?? "node",
     args: [`${config.exoRoot}/packages/mcp/bin/exo-mcp.mjs`],
     env: {
       EXO_MCP_AUTOSTART: "1",

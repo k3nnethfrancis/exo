@@ -107,6 +107,62 @@ describe("runtime", () => {
     expect(plan.args).toContain('model_reasoning_effort="high"');
   });
 
+  it("uses a deterministic Node command for Exo MCP overrides in prepared Codex launch args", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "exo-codex-mcp-"));
+    tempPaths.push(tempRoot);
+    await mkdir(path.join(tempRoot, "packages", "mcp", "bin"), { recursive: true });
+    await writeFile(path.join(tempRoot, "package.json"), JSON.stringify({ name: "exo" }), "utf8");
+    await writeFile(path.join(tempRoot, "packages", "mcp", "bin", "exo-mcp.mjs"), "#!/usr/bin/env node\n", "utf8");
+
+    const config = resolveRuntimeConfig({
+      EXO_WORKSPACE_ROOT: tempRoot,
+      EXO_NOTE_ROOTS: path.join(tempRoot, "notes"),
+      EXO_PROJECT_ROOTS: tempRoot,
+      EXO_CODEX_COMMAND: "codex",
+      NODE: "/opt/homebrew/bin/node",
+    });
+
+    const args = builtInAgentHarnesses.codex.prepareLaunchArgs?.({
+      args: [],
+      cwd: tempRoot,
+      env: { NODE: "/opt/homebrew/bin/node" },
+      runtimeConfig: config,
+    });
+
+    expect(args).toContain('mcp_servers.exo.command="/opt/homebrew/bin/node"');
+    expect(args).toContain(`mcp_servers.exo.args=["${tempRoot}/packages/mcp/bin/exo-mcp.mjs"]`);
+  });
+
+  it("prefers the imported Exo project root over an agent worktree for Codex MCP overrides", async () => {
+    const mainRoot = await mkdtemp(path.join(os.tmpdir(), "exo-codex-mcp-main-"));
+    const worktreeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-codex-mcp-worktree-"));
+    tempPaths.push(mainRoot, worktreeRoot);
+
+    for (const root of [mainRoot, worktreeRoot]) {
+      await mkdir(path.join(root, "packages", "mcp", "bin"), { recursive: true });
+      await writeFile(path.join(root, "package.json"), JSON.stringify({ name: "exo" }), "utf8");
+      await writeFile(path.join(root, "packages", "mcp", "bin", "exo-mcp.mjs"), "#!/usr/bin/env node\n", "utf8");
+    }
+
+    const config = resolveRuntimeConfig({
+      EXO_WORKSPACE_ROOT: path.dirname(mainRoot),
+      EXO_NOTE_ROOTS: path.join(path.dirname(mainRoot), "notes"),
+      EXO_PROJECT_ROOTS: mainRoot,
+      EXO_CODEX_COMMAND: "codex",
+      NODE: "/opt/homebrew/bin/node",
+    });
+
+    const args = builtInAgentHarnesses.codex.prepareLaunchArgs?.({
+      args: [],
+      cwd: worktreeRoot,
+      env: { NODE: "/opt/homebrew/bin/node" },
+      runtimeConfig: config,
+    });
+
+    expect(args).toContain(`mcp_servers.exo.args=["${mainRoot}/packages/mcp/bin/exo-mcp.mjs"]`);
+    expect(args).not.toContain(`mcp_servers.exo.args=["${worktreeRoot}/packages/mcp/bin/exo-mcp.mjs"]`);
+  });
+
   it("keeps an explicit Codex reasoning-effort override when provided", () => {
     const config = resolveRuntimeConfig({
       EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
