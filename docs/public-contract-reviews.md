@@ -41,6 +41,8 @@ Escape hatch: if a repo check flags a change that is genuinely implementation-on
 - review: user-approved-exception: 2026-07-05 Wave 6 recovery/rollback task explicitly allowed CLI/app command surfaces and prohibited Fable/oracle; adds `exo profile-recovery list|show|restore` as a local operator-only recovery surface while keeping MCP without accept/reject/rollback tools.
 - sha256: `2934f84385e13dea7f8f07b5feb2d95a24ef1795219ab733c74531423e016526`
 - review: user-approved-exception: 2026-07-05 Wave 6 trace-retention task explicitly requested a CLI-first operator surface for listing and cleaning semantic traces before broad real-vault plugin dogfooding; post-hoc architect review should confirm the command shape before public stabilization.
+- sha256: `7d6378d2b14ae8ceacac28bb8513bcde3ffe9e1d06d30ef6d12c3d474596f9ee`
+- review: user-approved-exception: 2026-07-05 Wave 6 merged CLI operator surface combines `exo profile-recovery list|show|restore` with `exo traces list|cleanup`; this is intentionally CLI-only and requires post-hoc Fable/oracle review before public stabilization.
 
 ### `packages/cli/src/app-client.ts#route-client-methods`
 
@@ -60,3 +62,5 @@ Escape hatch: if a repo check flags a change that is genuinely implementation-on
 - review: guard-baseline: 2026-07-04 existing MCP app-client route method surface; guard cleanup does not change behavior.
 - sha256: `f02f1bf341ae2d05ffbeb844e233bd33a36daaef9d7e34612b69d57a50b6b384`
 - review: user-approved-exception: 2026-07-04 plugin architecture cleanup intentionally updated MCP app-client agent-create route payloads to submit harness ids through the registered harness path.
+- sha256: `31f16c4e3feb550b537c1b304b658def98bea16a7fe7d9e724de6608d4002f6e`
+- review: user-approved-exception: 2026-07-05 Wave 6 workspace_status enrichment adds a read-only MCP command-server client call for terminal diagnostics so agents can orient to Exo health without adding new MCP admin tools; post-hoc Fable/oracle review should confirm the response shape before public stabilization.
