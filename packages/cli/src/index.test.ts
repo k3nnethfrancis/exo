@@ -175,6 +175,66 @@ describe("cli package", () => {
     }
   });
 
+  it("lists semantic trace sessions and cleans up only when explicitly requested", async () => {
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-trace-cleanup-"));
+    const store = new SemanticTraceStore(runtimeRoot);
+    let listStdout = "";
+    let dryRunStdout = "";
+    let deleteStdout = "";
+
+    try {
+      await captureFakeHarnessTraceFixture(store, {
+        sessionId: "old-session",
+        harnessId: "fake-claude",
+        rawEvents: [{ type: "assistant-text", timestamp: "2026-07-01T10:00:00.000Z", text: "OLD_ONLY" }],
+      });
+      await captureFakeHarnessTraceFixture(store, {
+        sessionId: "new-session",
+        harnessId: "fake-pi",
+        rawEvents: [{ type: "assistant-text", timestamp: "2026-07-05T10:00:00.000Z", text: "NEW_ONLY" }],
+      });
+
+      const env = {
+        EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
+        EXO_RUNTIME_ROOT: runtimeRoot,
+      };
+      const noAppConnect = async () => {
+        throw new Error("traces cleanup should not connect to the app");
+      };
+      expect(await runCli(["node", "exo-cli", "traces", "list"], {
+        env,
+        stdout: { write: (text) => { listStdout += text; } },
+        stderr: { write: () => {} },
+        connectAppClient: noAppConnect,
+      })).toBe(0);
+      expect(listStdout).toContain("Semantic trace sessions: 2");
+      expect(listStdout).toContain("old-session harness=fake-claude 1 event");
+      expect(listStdout).toContain("new-session harness=fake-pi 1 event");
+
+      expect(await runCli(["node", "exo-cli", "traces", "cleanup", "--before", "2026-07-04T00:00:00.000Z", "--dry-run"], {
+        env,
+        stdout: { write: (text) => { dryRunStdout += text; } },
+        stderr: { write: () => {} },
+        connectAppClient: noAppConnect,
+      })).toBe(0);
+      expect(dryRunStdout).toContain("Would delete 2 semantic trace files across 1 session");
+      expect((await store.readEvents("old-session")).map((event) => event.payload.text)).toEqual(["OLD_ONLY"]);
+      expect((await store.readEvents("new-session")).map((event) => event.payload.text)).toEqual(["NEW_ONLY"]);
+
+      expect(await runCli(["node", "exo-cli", "traces", "cleanup", "--session", "old-session"], {
+        env,
+        stdout: { write: (text) => { deleteStdout += text; } },
+        stderr: { write: () => {} },
+        connectAppClient: noAppConnect,
+      })).toBe(0);
+      expect(deleteStdout).toContain("Deleted 2 semantic trace files across 1 session");
+      expect(await store.readEvents("old-session")).toEqual([]);
+      expect((await store.readEvents("new-session")).map((event) => event.payload.text)).toEqual(["NEW_ONLY"]);
+    } finally {
+      await rm(runtimeRoot, { recursive: true, force: true });
+    }
+  });
+
   it("reads fake Pi repaint TUI answers from semantic traces after terminal repaint", async () => {
     const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-pi-trace-"));
     const traceSidecar = path.join(runtimeRoot, "fake-pi-sidecar.ndjson");

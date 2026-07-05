@@ -11,6 +11,7 @@ import {
   mapHarnessRawTraceEvent,
   semanticTraceMetadataPath,
   semanticTracePath,
+  semanticTraceSidecarPath,
 } from "../semantic-trace-store";
 
 describe("semantic trace store", () => {
@@ -169,6 +170,80 @@ describe("semantic trace store", () => {
       expect((await store.readMetadata("retained-session"))?.eventCount).toBe(4);
       expect((await store.readEvents("retained-session", { limit: 2 })).map((event) => event.sequence)).toEqual([5, 6]);
       expect((await store.readEvents("retained-session", { sinceSequence: 4 })).map((event) => event.sequence)).toEqual([5, 6]);
+    } finally {
+      await rm(runtimeRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("lists trace sessions and dry-runs cleanup without deleting files", async () => {
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-semantic-trace-cleanup-dry-"));
+    const store = new SemanticTraceStore(runtimeRoot);
+
+    try {
+      await captureFakeHarnessTraceFixture(store, {
+        sessionId: "old-session",
+        harnessId: "fake-claude",
+        rawEvents: [{ type: "assistant-text", timestamp: "2026-07-01T10:00:00.000Z", text: "OLD_ONLY" }],
+      });
+      await captureFakeHarnessTraceFixture(store, {
+        sessionId: "new-session",
+        harnessId: "fake-pi",
+        rawEvents: [{ type: "assistant-text", timestamp: "2026-07-05T10:00:00.000Z", text: "NEW_ONLY" }],
+      });
+      await mkdir(path.dirname(semanticTraceSidecarPath(store.layout, "old-session")), { recursive: true });
+      await writeFile(semanticTraceSidecarPath(store.layout, "old-session"), `${JSON.stringify({ type: "assistant-text", text: "raw" })}\n`, "utf8");
+
+      const sessions = await store.listSessions();
+      expect(sessions.map((session) => session.sessionId).sort()).toEqual(["new-session", "old-session"]);
+      expect(sessions.find((session) => session.sessionId === "old-session")).toMatchObject({
+        harnessId: "fake-claude",
+        eventCount: 1,
+        sidecarPath: semanticTraceSidecarPath(store.layout, "old-session"),
+      });
+
+      const result = await store.cleanupSessions({ before: "2026-07-04T00:00:00.000Z", dryRun: true });
+      expect(result.dryRun).toBe(true);
+      expect(result.sessions.map((session) => session.sessionId)).toEqual(["old-session"]);
+      expect(result.files.sort()).toEqual([
+        semanticTraceMetadataPath(store.layout, "old-session"),
+        semanticTracePath(store.layout, "old-session"),
+        semanticTraceSidecarPath(store.layout, "old-session"),
+      ].sort());
+      expect((await store.readEvents("old-session")).map((event) => event.payload.text)).toEqual(["OLD_ONLY"]);
+      expect(await readFile(semanticTraceSidecarPath(store.layout, "old-session"), "utf8")).toContain("raw");
+      expect((await store.readEvents("new-session")).map((event) => event.payload.text)).toEqual(["NEW_ONLY"]);
+    } finally {
+      await rm(runtimeRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("explicitly deletes only the requested trace session", async () => {
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-semantic-trace-cleanup-session-"));
+    const store = new SemanticTraceStore(runtimeRoot);
+
+    try {
+      await captureFakeHarnessTraceFixture(store, {
+        sessionId: "claude/session",
+        harnessId: "claude",
+        rawEvents: [{ type: "assistant-text", text: "SLASH_SESSION" }],
+      });
+      await captureFakeHarnessTraceFixture(store, {
+        sessionId: "claude-session",
+        harnessId: "claude",
+        rawEvents: [{ type: "assistant-text", text: "DASH_SESSION" }],
+      });
+
+      const result = await store.cleanupSessions({ sessionId: "claude/session" });
+      expect(result.dryRun).toBe(false);
+      expect(result.sessions.map((session) => session.sessionId)).toEqual(["claude/session"]);
+      expect(result.deletedFiles.sort()).toEqual([
+        semanticTraceMetadataPath(store.layout, "claude/session"),
+        semanticTracePath(store.layout, "claude/session"),
+      ].sort());
+      expect(await store.readEvents("claude/session")).toEqual([]);
+      expect(await store.readMetadata("claude/session")).toBeNull();
+      expect((await store.readEvents("claude-session")).map((event) => event.payload.text)).toEqual(["DASH_SESSION"]);
+      expect(await store.readMetadata("claude-session")).not.toBeNull();
     } finally {
       await rm(runtimeRoot, { recursive: true, force: true });
     }

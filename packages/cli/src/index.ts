@@ -58,6 +58,8 @@ import {
   type RoutineTrigger,
   type RunRecord,
   type SemanticTraceEvent,
+  type SemanticTraceCleanupResult,
+  type SemanticTraceSessionListEntry,
 } from "@exo/core";
 
 const TERMINAL_KIND_USAGE = formatManagedAgentKindUsage();
@@ -993,23 +995,41 @@ export async function runCli(
   }
 
   if (command === "traces") {
-    if (subcommand !== "read") {
-      throw new Error("Usage: exo traces read <session-id> [--limit n] [--json]");
-    }
     const { values, positionals } = parseInlineOptions(args);
-    const sessionId = positionals[0];
-    if (!sessionId) {
-      throw new Error("Usage: exo traces read <session-id> [--limit n] [--json]");
-    }
     const config = await resolveCliRuntimeConfig(env);
     const store = new SemanticTraceStore(config.runtimeRoot);
-    const events = await store.readEvents(sessionId, { limit: parsePositiveInt(values.limit) ?? 100 });
-    if (values.json === "1") {
-      stdout.write(`${JSON.stringify(events, null, 2)}\n`);
+
+    if (!subcommand || subcommand === "list") {
+      const sessions = await store.listSessions();
+      stdout.write(values.json === "1" ? `${JSON.stringify(sessions, null, 2)}\n` : renderSemanticTraceSessions(sessions));
       return 0;
     }
-    stdout.write(renderSemanticTraceEvents(sessionId, events));
-    return 0;
+
+    if (subcommand === "read") {
+      const sessionId = positionals[0];
+      if (!sessionId) {
+        throw new Error("Usage: exo traces read <session-id> [--limit n] [--json]");
+      }
+      const events = await store.readEvents(sessionId, { limit: parsePositiveInt(values.limit) ?? 100 });
+      if (values.json === "1") {
+        stdout.write(`${JSON.stringify(events, null, 2)}\n`);
+        return 0;
+      }
+      stdout.write(renderSemanticTraceEvents(sessionId, events));
+      return 0;
+    }
+
+    if (subcommand === "cleanup") {
+      const result = await store.cleanupSessions({
+        sessionId: values.session ?? positionals[0],
+        before: values.before,
+        dryRun: values["dry-run"] === "1",
+      });
+      stdout.write(values.json === "1" ? `${JSON.stringify(result, null, 2)}\n` : renderSemanticTraceCleanup(result));
+      return 0;
+    }
+
+    throw new Error("Usage: exo traces [list [--json] | read <session-id> [--limit n] [--json] | cleanup (--session <id> | --before <iso-date>) [--dry-run] [--json]]");
   }
 
   // ─── Launch commands ─────────────────────────────────────────────────
@@ -1078,7 +1098,10 @@ export async function runCli(
       "  exo routines create <template-id> <id>     Create a routine from a template",
       "  exo routines run <id> --dry-run            Record a dry-run routine execution",
       "  exo routines run <id> --agent              Launch an Exo app agent and send the routine prompt",
+      "  exo traces list                            List semantic trace sessions",
       "  exo traces read <session-id> [--limit n]   Read persisted semantic trace events",
+      "  exo traces cleanup --session <id>          Delete one semantic trace session",
+      "  exo traces cleanup --before <iso-date>     Delete semantic trace sessions older than a date; add --dry-run to preview",
       "  exo index status                           Show QMD advanced search provider status (app)",
       "  exo index sync                             Sync documents and embeddings for configured mode (app)",
       "  exo index add <path> [--name n] [--kind k] [--force]",
@@ -1613,6 +1636,34 @@ function parsePositiveInt(value: string | undefined): number | undefined {
   }
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function renderSemanticTraceSessions(sessions: readonly SemanticTraceSessionListEntry[]): string {
+  if (sessions.length === 0) {
+    return "Semantic trace sessions: none\n";
+  }
+  const lines = [`Semantic trace sessions: ${sessions.length}`];
+  for (const session of sessions) {
+    const eventCount = session.eventCount === undefined ? "unknown events" : `${session.eventCount} event${session.eventCount === 1 ? "" : "s"}`;
+    const updatedAt = session.updatedAt ? ` updated=${session.updatedAt}` : "";
+    const bytes = session.traceBytes === undefined ? "" : ` traceBytes=${session.traceBytes}`;
+    const sidecar = session.sidecarPath ? ` sidecarBytes=${session.sidecarBytes ?? 0}` : "";
+    lines.push(`${session.sessionId} harness=${session.harnessId} ${eventCount}${updatedAt}${bytes}${sidecar}`);
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+function renderSemanticTraceCleanup(result: SemanticTraceCleanupResult): string {
+  const verb = result.dryRun ? "Would delete" : "Deleted";
+  const policy = result.before ? ` before=${result.before}` : "";
+  const lines = [`${verb} ${result.files.length} semantic trace file${result.files.length === 1 ? "" : "s"} across ${result.sessions.length} session${result.sessions.length === 1 ? "" : "s"}${policy}`];
+  for (const session of result.sessions) {
+    lines.push(`session ${session.sessionId} harness=${session.harnessId} updated=${session.updatedAt ?? "unknown"}`);
+  }
+  for (const file of result.files) {
+    lines.push(file);
+  }
+  return `${lines.join("\n")}\n`;
 }
 
 function renderSemanticTraceEvents(sessionId: string, events: readonly SemanticTraceEvent[]): string {

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import {
@@ -35,6 +35,37 @@ export interface SemanticTraceSessionMetadata {
 export interface SemanticTraceReadOptions {
   limit?: number;
   sinceSequence?: number;
+}
+
+export interface SemanticTraceSessionListEntry {
+  sessionId: string;
+  harnessId: string;
+  tracePath: string;
+  metadataPath: string;
+  sidecarPath?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  eventCount?: number;
+  firstSequence?: number;
+  lastSequence?: number;
+  traceBytes?: number;
+  metadataBytes?: number;
+  sidecarBytes?: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface SemanticTraceCleanupOptions {
+  sessionId?: string;
+  before?: string | Date;
+  dryRun?: boolean;
+}
+
+export interface SemanticTraceCleanupResult {
+  dryRun: boolean;
+  before?: string;
+  sessions: SemanticTraceSessionListEntry[];
+  files: string[];
+  deletedFiles: string[];
 }
 
 export interface SemanticTraceAppendOptions {
@@ -129,6 +160,10 @@ export function semanticTraceMetadataPath(layout: SemanticTraceStoreLayout, sess
   return path.join(layout.tracesDir, `${semanticTraceStoreSegment(sessionId)}.json`);
 }
 
+export function semanticTraceSidecarPath(layout: SemanticTraceStoreLayout, sessionId: string): string {
+  return path.join(layout.tracesDir, "sidecars", `${safeStoreSegment(sessionId)}.ndjson`);
+}
+
 export function defaultHarnessRawTraceSidecarIngestState(): HarnessRawTraceSidecarIngestState {
   return { byteOffset: 0, pendingText: "", nextSequence: 1 };
 }
@@ -189,6 +224,86 @@ export class SemanticTraceStore {
       }
       throw error;
     }
+  }
+
+  async listSessions(): Promise<SemanticTraceSessionListEntry[]> {
+    const sessionIds = new Set<string>();
+    const metadataSessionBySegment = new Map<string, string>();
+    const entries = await listDirectoryEntries(this.layout.tracesDir);
+    for (const entry of entries) {
+      if (entry.name.endsWith(".json")) {
+        const parsed = await readTraceMetadataFile(path.join(this.layout.tracesDir, entry.name));
+        const segment = path.basename(entry.name, ".json");
+        const sessionId = parsed?.sessionId ?? segment;
+        metadataSessionBySegment.set(segment, sessionId);
+        sessionIds.add(sessionId);
+      }
+    }
+    for (const entry of entries) {
+      if (entry.name.endsWith(".ndjson")) {
+        const segment = path.basename(entry.name, ".ndjson");
+        sessionIds.add(metadataSessionBySegment.get(segment) ?? segment);
+      }
+    }
+    for (const entry of await listDirectoryEntries(path.join(this.layout.tracesDir, "sidecars"))) {
+      if (entry.name.endsWith(".ndjson")) {
+        sessionIds.add(path.basename(entry.name, ".ndjson"));
+      }
+    }
+
+    const sessions = await Promise.all([...sessionIds].map((sessionId) => this.describeSession(sessionId)));
+    return sessions.sort((left, right) => (right.updatedAt ?? "").localeCompare(left.updatedAt ?? "") || left.sessionId.localeCompare(right.sessionId));
+  }
+
+  async cleanupSessions(options: SemanticTraceCleanupOptions): Promise<SemanticTraceCleanupResult> {
+    const before = normalizeCleanupBefore(options.before);
+    if (!options.sessionId && !before) {
+      throw new Error("Semantic trace cleanup requires an explicit session id or before date.");
+    }
+    const sessions = (await this.listSessions()).filter((session) =>
+      options.sessionId ? session.sessionId === options.sessionId : before ? isSessionBefore(session, before) : false,
+    );
+    const files = uniquePaths(sessions.flatMap((session) => sessionFiles(session)));
+    const deletedFiles: string[] = [];
+    if (!options.dryRun) {
+      for (const file of files) {
+        await rm(file, { force: true });
+        deletedFiles.push(file);
+      }
+    }
+    return {
+      dryRun: options.dryRun === true,
+      before: before?.toISOString(),
+      sessions,
+      files,
+      deletedFiles,
+    };
+  }
+
+  private async describeSession(sessionId: string): Promise<SemanticTraceSessionListEntry> {
+    const metadata = await this.readMetadata(sessionId);
+    const tracePath = semanticTracePath(this.layout, metadata?.sessionId ?? sessionId);
+    const metadataPath = semanticTraceMetadataPath(this.layout, metadata?.sessionId ?? sessionId);
+    const sidecarPath = semanticTraceSidecarPath(this.layout, metadata?.sessionId ?? sessionId);
+    const traceInfo = await fileInfo(tracePath);
+    const metadataInfo = await fileInfo(metadataPath);
+    const sidecarInfo = await fileInfo(sidecarPath);
+    return {
+      sessionId: metadata?.sessionId ?? sessionId,
+      harnessId: metadata?.harnessId ?? "unknown",
+      tracePath,
+      metadataPath,
+      sidecarPath: sidecarInfo.exists ? sidecarPath : undefined,
+      createdAt: metadata?.createdAt ?? traceInfo.mtime?.toISOString() ?? metadataInfo.mtime?.toISOString() ?? sidecarInfo.mtime?.toISOString(),
+      updatedAt: metadata?.updatedAt ?? traceInfo.mtime?.toISOString() ?? metadataInfo.mtime?.toISOString() ?? sidecarInfo.mtime?.toISOString(),
+      eventCount: metadata?.eventCount,
+      firstSequence: metadata?.firstSequence,
+      lastSequence: metadata?.lastSequence,
+      traceBytes: traceInfo.bytes,
+      metadataBytes: metadataInfo.bytes,
+      sidecarBytes: sidecarInfo.bytes,
+      metadata: metadata?.metadata,
+    };
   }
 
   private async writeEvents(sessionId: string, events: readonly SemanticTraceEvent[]): Promise<void> {
@@ -451,6 +566,65 @@ function applyReadLimit(events: SemanticTraceEvent[], limit?: number): SemanticT
     return events;
   }
   return events.slice(-limit);
+}
+
+async function listDirectoryEntries(directory: string): Promise<Array<{ name: string }>> {
+  try {
+    return await readdir(directory, { withFileTypes: true });
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+      return [];
+    }
+    throw error;
+  }
+}
+
+async function readTraceMetadataFile(filePath: string): Promise<SemanticTraceSessionMetadata | null> {
+  try {
+    return JSON.parse(await readFile(filePath, "utf8")) as SemanticTraceSessionMetadata;
+  } catch {
+    return null;
+  }
+}
+
+async function fileInfo(filePath: string): Promise<{ exists: boolean; bytes?: number; mtime?: Date }> {
+  try {
+    const details = await stat(filePath);
+    return { exists: true, bytes: details.size, mtime: details.mtime };
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+      return { exists: false };
+    }
+    throw error;
+  }
+}
+
+function normalizeCleanupBefore(value: string | Date | undefined): Date | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  const parsed = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(parsed.valueOf())) {
+    throw new Error(`Invalid semantic trace cleanup before date: ${String(value)}`);
+  }
+  return parsed;
+}
+
+function isSessionBefore(session: SemanticTraceSessionListEntry, before: Date): boolean {
+  const updatedAt = session.updatedAt ? new Date(session.updatedAt) : undefined;
+  return updatedAt !== undefined && !Number.isNaN(updatedAt.valueOf()) && updatedAt < before;
+}
+
+function sessionFiles(session: SemanticTraceSessionListEntry): string[] {
+  return [
+    session.traceBytes === undefined ? undefined : session.tracePath,
+    session.metadataBytes === undefined ? undefined : session.metadataPath,
+    session.sidecarPath,
+  ].filter((file): file is string => Boolean(file));
+}
+
+function uniquePaths(files: readonly string[]): string[] {
+  return [...new Set(files)];
 }
 
 function semanticTraceStoreSegment(sessionId: string): string {
