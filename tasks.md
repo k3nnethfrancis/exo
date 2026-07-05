@@ -1,6 +1,6 @@
 # Exo Tasks
 
-Last updated: 2026-07-04
+Last updated: 2026-07-05
 
 This is the active task tracker for Exo. It is intentionally not a history file; completed implementation history belongs in `ledger.md`. Tasks here should be concrete, current, and ordered by practical priority.
 
@@ -28,7 +28,7 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
     - [ ] Finish or explicitly inventory remaining `ManagedAgentKind` compatibility residue and removal conditions.
     - [ ] Confirm `EXO-ISSUE-082` on `main`, `EXO-ISSUE-046` after live restart, and `EXO-ISSUE-083` isolation before plugin dogfooding.
     - [ ] Confirm cross-session trace-store hygiene or document the bounded dogfooding retention policy.
-    - [ ] WP-XC0: record external contract status rules: two-consumer rule, unstable status by default, trace first, review/proposal second, dataset/eval later with Helm, instrumented runtimes not plugin contracts.
+    - [x] WP-XC0: record external contract status rules: two-consumer rule, unstable status by default, trace first, review/proposal second, dataset/eval later with Helm, instrumented runtimes not plugin contracts.
     - [ ] WP-TRC-CL: add Claude as the second semantic trace producer through the declared trace path; no fixture self-writes.
   - [x] Complete Fable Wave-2 correction packages before continuing profile/onboarding/plugin UI expansion:
     - [x] WP-C1: proposal apply frontmatter fidelity with byte-identity golden tests.

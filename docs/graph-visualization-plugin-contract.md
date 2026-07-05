@@ -1,6 +1,8 @@
 # Graph Visualization Plugin Contract
 
-Last updated: 2026-06-28
+Last updated: 2026-07-05
+
+status: unstable. This contract is pre-public and carries no compatibility promise until the plugin manifest can declare a minimum supported contract version and the contract has two real consumers.
 
 This document defines the first concrete boundary between Exo core graph data and future graph visualization plugins.
 
@@ -12,7 +14,7 @@ This contract is metadata-only today. Exo can discover graph visualization capab
 
 ## Core Graph Snapshot
 
-The stable data unit is `GraphSnapshot` from `packages/core/src/graph.ts`.
+The current data unit is `GraphSnapshot` from `packages/core/src/graph.ts`.
 
 Required snapshot properties:
 
@@ -102,4 +104,4 @@ Graph visualizations that choose `hostSurface: "webPreview"` must use the core w
 - No plugin-owned web view host.
 - No MCP/CLI graph visualization command registration from manifest metadata alone.
 
--- Exo | 2026-06-27
+-- Exo | 2026-07-05

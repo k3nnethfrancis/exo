@@ -1,6 +1,8 @@
 # Plugin System Architecture
 
-Last updated: 2026-07-03
+Last updated: 2026-07-05
+
+status: unstable. External plugin contracts are pre-public and carry no compatibility promise until the plugin manifest can declare a minimum supported contract version and the specific contract has been reviewed as stable.
 
 This document defines the target plugin boundary for Exo.
 
@@ -106,6 +108,24 @@ Project knowledge sync belongs in this same family. Many projects have useful lo
 
 The first implemented profile contract is metadata-only: `profile` capabilities store a typed payload under `capability.compatibility.profile`. Exo may list and inspect that payload, but it must not apply a profile, write instructions, install skills, enable plugins, or schedule routines without an explicit future permissioned flow.
 
+## External Contract Status
+
+Externally visible plugin contracts are unstable by default. A contract is not declared stable until it has two real consumers: either two first-party plugins, or one first-party plugin plus one committed external co-development target. Contracts should be extracted from working integrations, not designed ahead of consumers.
+
+Current contract order:
+
+1. Trace contract first. `exo.semantic-trace.v1` already has one production producer through the Pi-compatible sidecar path, and Claude is the intended second producer through the same declared trace path. Two producers of one envelope validate the shared seam while leaving provider payloads plugin-owned.
+2. Review/proposal contract second. The current proposal/review path has one producer family. Project Knowledge Sync is the intended validating second consumer, so the contract should not be frozen before that real-vault integration exists.
+3. Dataset and eval contracts later. Exo has no internal second consumer yet. The expected external validator is Helm reading Exo traces for judging and training-data workflows; that integration should define the dataset/eval artifact contract when it exists.
+4. Instrumented runtimes are not plugin contracts. Terminal runtime, rendering, scrollback, transcripts, reconnect, diagnostics, and semantic message delivery stay core-owned. Harness plugins may declare trace and launch semantics, but they must not turn terminal transport or rendering into a plugin API.
+
+Stability discipline:
+
+- Every externally visible contract doc must carry `status: unstable` until a reviewed stable version exists.
+- Unstable contracts carry no compatibility promise. They may change while the first and second consumers shake out the shape.
+- Stable exported core contract slices later enter the public-contract guard in `docs/public-contract-reviews.md`. Unstable slices intentionally stay outside that guard so pre-public churn remains cheap.
+- Do not add contract versions, compatibility matrices, or future API fields before the validating consumers require them.
+
 ### Markdown And Exograph Core
 
 Core treats Markdown files as canonical user-owned state. Graph semantics come from links, tags, paths, properties/frontmatter, profile mappings, and explicit user choices. Core can store derived indexes, proposals, runs, traces, and plugin state under `.exo/`, but durable approved knowledge stays in the user's files.
@@ -179,7 +199,7 @@ The first proposal/review write contract is implemented in `@exo/core`: proposal
 
 Core should not grow a large opinionated automation product by default. A graph-health routine, eval workflow, LM Wiki maintenance run, GA trace exporter, or Exo-on-Exo maintenance loop should be implemented as a plugin on top of this substrate.
 
-The concrete workload contract is documented in `activity-plugin-contract.md`. Core records references and defines a small `exo.semantic-trace.v1` envelope; plugin-owned artifacts carry rich trace, eval, dataset, dashboard, export, and review schemas. Semantic traces are not terminal rendering and must not become a second live screen source.
+The concrete workload contract is documented in `activity-plugin-contract.md`. Core records references and defines a small unstable `exo.semantic-trace.v1` envelope; plugin-owned artifacts carry rich trace, eval, dataset, dashboard, export, and review schemas. Semantic traces are not terminal rendering and must not become a second live screen source.
 
 ## Plugin Distribution
 
@@ -274,7 +294,7 @@ Already aligned:
 - QMD sits behind a search-provider contract
 - shell/Claude/Codex/Pi/Hermes launch planning sits behind an agent-harness contract
 - the agent-harness plugin contract now names availability detection, launch planning, semantic messages, skill/config inventory, dependency/setup guidance, and the terminal-core boundary
-- the semantic trace contract now names a stable event envelope and optional harness trace declarations while keeping provider payloads plugin-owned
+- the semantic trace contract now names a current event envelope and optional harness trace declarations while keeping provider payloads plugin-owned
 - the desktop right rail/tool dock has a first typed descriptor layer for core terminal actions, official harness launchers, Agent Config, Plugin Manager, side-pane controls, and future routine/graph plugin targets
 - Plugin Manager distinguishes Exograph Baseline, official plugins, local plugins, and developer plugins before showing inventory rows, so users can see what is core versus optional and which rows are locally manageable.
 - core surface descriptors now name metadata-only plugin panels and web viewer endpoint metadata for plugin-produced local apps/artifacts without renderer plugin loading

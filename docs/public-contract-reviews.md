@@ -6,6 +6,8 @@ Boundary rule: command-server routes, CLI commands/flags, MCP tool parameters, a
 
 `pnpm check:repo` verifies the protected contract slices below by SHA-256. The guard intentionally hashes route constants/types, command-server route matching lines, CLI command/usage/flag lines, MCP tool schema declarations, and CLI/MCP command-server client route calls instead of whole files. Implementation-only body edits in these files should not require a review-ledger update unless they change one of those extracted slices.
 
+External plugin contracts are not protected by this guard while they are marked `status: unstable`. When an exported core contract is reviewed as stable, has two real consumers, and can be version-gated by plugin manifests, add a focused protected slice for that exported type or schema here. This keeps trace, proposal/review, dataset, eval, graph, harness, and surface contracts cheap to change until their consumer evidence supports a compatibility promise.
+
 If a protected slice changes, add a new entry under that slice with the new hash and one of these review note prefixes:
 
 - `architect-review: YYYY-MM-DD <reviewer/ref and summary>`

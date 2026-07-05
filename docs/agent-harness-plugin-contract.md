@@ -1,6 +1,8 @@
 # Agent Harness Plugin Contract
 
-Last updated: 2026-07-03
+Last updated: 2026-07-05
+
+status: unstable. This contract is pre-public and carries no compatibility promise until the plugin manifest can declare a minimum supported contract version and the contract has two real consumers.
 
 This document defines the adapter contract for official and local Exo agent harness plugins.
 
@@ -16,7 +18,7 @@ The TypeScript contract starts in `packages/core/src/agent-harness.ts`.
 
 An `AgentHarness` exposes:
 
-- capability metadata: stable id, owner, lifecycle, surfaces, and requested permissions
+- capability metadata: persistent id, owner, lifecycle, surfaces, and requested permissions
 - adapter metadata: adapter id, family, product name, executable names, docs, and homepage
 - launch planning: command, args, title, and the current terminal runtime kind
 - availability detection: enabled, configured, detected, launchable, status, executable path, repo path, install help, and dependency status
@@ -85,7 +87,7 @@ Provider-specific startup heuristics should live in harness readiness policy, no
 
 ## Semantic Traces
 
-Harnesses may declare whether they can produce structured semantic trace events. The contract is metadata-only in v1:
+Harnesses may declare whether they can produce structured semantic trace events. The current pre-public shape is metadata-only:
 
 - source: stdout JSONL, stderr JSONL, sidecar JSONL, hooks, command log, ANSI transcript, or none
 - supported event kinds from `exo.semantic-trace.v1`
@@ -99,6 +101,8 @@ The stream-json sidecar contract accepts line-delimited packets such as `session
 Semantic traces are separate from terminal output. Core terminal services still own tmux, xterm, scrollback, transcripts, reconnect, and input delivery. Harness adapters may later tee provider-native JSON streams, hooks, or sidecar logs into `.exo/artifacts/{activityId}/semantic-trace.jsonl`, but they must not use semantic traces as a second live terminal screen source.
 
 Trace payloads remain plugin/provider-owned. Core only defines the envelope and reference model so later trace collectors, eval exporters, dataset builders, and review tools can consume events without another terminal-service re-plumb.
+
+Trace production is the first external harness contract Exo should validate because the Pi-compatible sidecar path is already the first producer and Claude is the intended second producer. Dataset/export and eval packet schemas should wait until a real consumer, expected to be Helm reading Exo traces for judging or training-data workflows, exists.
 
 ## Skills And Config
 
@@ -153,3 +157,5 @@ Terminal behavior is a product safety boundary. Exo needs one reliable implement
 - CLI/MCP/app terminal APIs
 
 Letting each harness own terminal rendering would multiply failure modes and make agent work impossible to debug. Harness plugins provide semantics; core owns the terminal.
+
+Instrumented runtimes do not change this boundary. A harness may emit structured trace events, but terminal runtime, rendering, transport, reconnect, transcripts, diagnostics, and semantic message delivery remain core-owned and are not plugin contracts.

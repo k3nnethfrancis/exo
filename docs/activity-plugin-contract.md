@@ -1,6 +1,8 @@
 # Activity Plugin Contract
 
-Last updated: 2026-07-03
+Last updated: 2026-07-05
+
+status: unstable. This contract is pre-public and carries no compatibility promise until the plugin manifest can declare a minimum supported contract version and the contract has two real consumers.
 
 This document defines the minimum core substrate that plugin workloads can rely on. It is intentionally smaller than a workflow, eval, trace, or export product.
 
@@ -35,6 +37,8 @@ Plugins should write those details as artifacts under `.exo/artifacts/{activityI
 
 Core now defines a small semantic trace envelope in `packages/core/src/semantic-trace.ts`. It exists so harness adapters, routines, trace collectors, and exporters can agree on the outer shape of a trace event without forcing Claude/Codex/Pi/eval-specific schemas into `RunRecord`.
 
+This is the first external workload contract Exo should validate because it already has one production producer through the Pi-compatible sidecar path and an intended second producer in the Claude adapter. Until that second producer is implemented through the same declared path, the envelope remains unstable and may change without compatibility shims.
+
 The envelope names:
 
 - schema version: `exo.semantic-trace.v1`
@@ -64,6 +68,10 @@ Semantic traces are not terminal rendering. The terminal transcript remains dura
 
 Do not add rich trace, eval, export, dashboard, or domain-specific fields to `RunRecord`. Add an artifact reference and let the plugin own the file schema.
 
+Review/proposal details are the next contract to validate, but they should be proven by a second real producer such as Project Knowledge Sync before Exo treats their labels or artifact schemas as stable external plugin API.
+
+Dataset and eval contracts are later work. Exo should not define a dataset/export or eval packet schema before a real consumer exists; Helm reading Exo traces for judging or training-data workflows is the expected integration point that should shape those artifacts.
+
 ## External Workload Requirements
 
 Reference workloads such as elicitation, trace collection, evaluation runs, training export, graph health, or Exo-on-Exo maintenance must be expressible as:
@@ -90,4 +98,6 @@ Trace JSONL is a plugin-owned artifact. Core provides a first semantic trace sto
 
 Raw terminal reads remain transcript/live-tail evidence, not semantic answer extraction. UI, CLI, and MCP copy must say whether a read is transcript-backed, live-tail-backed, or trace-backed, and must not imply semantic trace data exists when no trace events have been emitted. Run/activity records should still reference the trace artifact rather than embedding packets.
 
--- Exo | 2026-07-03
+Instrumented agent runtimes are not activity plugin contracts. Terminal runtime, rendering, transport, reconnect, transcripts, and semantic message delivery remain core-owned even when a harness emits trace artifacts.
+
+-- Exo | 2026-07-05
