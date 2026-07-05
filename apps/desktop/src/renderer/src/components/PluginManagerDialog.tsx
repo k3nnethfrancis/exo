@@ -305,7 +305,7 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
           <div>
             <div className="dialog-card__title">Plugin Manager</div>
             <div className="dialog-card__message">
-              Inspect Exo core surfaces, official plugins, and local plugin manifests. Local and developer manifests can be trusted or enabled here.
+              Manage installed plugin capabilities: trust, enablement, setup state, dependencies, and plugin-owned settings. Core baseline rows are shown for context.
             </div>
           </div>
           <button
@@ -337,7 +337,7 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
             <section className="plugin-manager__boundary" data-testid="plugin-manager-boundary">
               <div className="plugin-manager__boundary-header">
                 <div>
-                  <strong>Exograph baseline and plugin layers</strong>
+                  <strong>Capability layers</strong>
                   <span>{boundarySummary.coreSummary}</span>
                 </div>
                 <div className="plugin-manager__boundary-status" title="Local plugin folders installed into Exo-managed user or workspace plugin roots can be swapped or removed here.">
@@ -364,8 +364,8 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
             </section>
             <div className="plugin-manager__local-toolbar" data-testid="plugin-manager-local-toolbar">
               <div>
-                <strong>Local plugins</strong>
-                <span>Add metadata plugin folders without executing plugin code. New local plugins require review before use.</span>
+                <strong>Local plugin inventory</strong>
+                <span>Add user or workspace metadata plugin folders. Exo reads manifests only; trust, enablement, and settings are reviewed before use.</span>
               </div>
               <div className="plugin-manager__local-toolbar-actions">
                 <button
@@ -589,14 +589,14 @@ export function PluginSettingsSection({
   return (
     <section className="plugin-manager__settings" data-testid="plugin-manager-settings">
       <div className="plugin-manager__settings-header">
-        <h4>Settings</h4>
+        <h4>Plugin-owned settings</h4>
         {settings ? (
           <span>
             {settings.configuredCount} of {settings.fieldCount} configured
           </span>
         ) : null}
       </div>
-      <p>{availabilityReason}</p>
+      <p>{availabilityReason} These values are stored as metadata; they do not load plugin code or grant permissions.</p>
       {state === "loading" ? <p>Loading plugin settings...</p> : null}
       {message ? (
         <div className={`plugin-manager__settings-message ${state === "error" ? "plugin-manager__settings-message--error" : ""}`}>
@@ -815,7 +815,7 @@ export function PluginInventoryRow({
       </div>
       <div className="plugin-manager__row-management" aria-label={`Management actions for ${item.label}`}>
         <div className="plugin-manager__row-management-copy">
-          <span>Manage</span>
+          <span>Lifecycle</span>
           <small>{pluginManagementGuidance(item)}</small>
           {item.dependencies?.length ? (
             <small>

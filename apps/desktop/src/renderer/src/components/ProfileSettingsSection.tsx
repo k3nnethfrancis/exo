@@ -206,8 +206,8 @@ export function ProfileSettingsContent({
   return (
     <section className="profile-settings" data-testid="workspace-settings-profile">
       <div className="profile-settings__notice">
-        <strong>Read-only profile preview.</strong>
-        <span>{PROFILE_SETTINGS_DISABLED_REASON}</span>
+        <strong>Profile state, not plugin management.</strong>
+        <span>Use this screen to review the active workspace profile and its recommendations. Plugin trust, enablement, setup, and plugin-owned settings live in Plugin Manager. {PROFILE_SETTINGS_DISABLED_REASON}</span>
       </div>
 
       <div className="profile-settings__summary">
@@ -271,7 +271,7 @@ export function ProfileSettingsContent({
       <div className="profile-settings__candidate" data-testid="workspace-settings-profile-baseline">
         <div className="profile-settings__candidate-header">
           <div>
-            <div className="dialog-field__label">Baseline/profile candidate</div>
+            <div className="dialog-field__label">Baseline profile candidate</div>
             <div className="profile-settings__candidate-title">{model.baselineCandidate?.label ?? "Exograph Baseline"}</div>
           </div>
           <span className="profile-settings__pill">{model.baselineCandidate?.statusLabel ?? "Not detected"}</span>
@@ -380,7 +380,7 @@ function ProfileCandidateDetails({
       </div>
       {candidate.recommendationRows.length > 0 ? (
         <div className="profile-settings__recommendations">
-          <div className="dialog-field__label">Recommended plugins</div>
+          <div className="dialog-field__label">Recommended plugins managed in Plugin Manager</div>
           {candidate.recommendationRows.map((row) => (
             <div className="profile-settings__recommendation" key={row.label}>
               <span>{row.label}</span>

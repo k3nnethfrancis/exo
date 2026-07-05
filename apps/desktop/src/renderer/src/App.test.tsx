@@ -507,6 +507,8 @@ describe("profile settings model", () => {
     );
 
     expect(html).toContain("Stage file proposals");
+    expect(html).toContain("Profile state, not plugin management.");
+    expect(html).toContain("Plugin trust, enablement, setup, and plugin-owned settings live in Plugin Manager.");
     expect(html).not.toContain("Stage apply blocked");
   });
 
@@ -595,7 +597,7 @@ describe("profile settings model", () => {
     expect(markup).toContain("Create a trusted workspace-local metadata profile copy");
     expect(markup).toContain("Open Plugin Manager");
     expect(markup).toContain("Open Agent Config");
-    expect(markup).toContain("Plugin enablement, trust, setup, and configuration live in Plugin Manager.");
+    expect(markup).toContain("Plugin trust, enablement, setup, and plugin-owned settings live in Plugin Manager.");
     expect(markup).toContain("Agent instructions and skills use the specialized Agent Config Editor.");
     expect(markup).toContain("Plan review");
     expect(markup).toContain("Apply blockers and warnings");
@@ -927,7 +929,7 @@ describe("plugin manager model", () => {
 
     expect(localHtml).toContain("data-state=\"Disabled\"");
     expect(localHtml).toContain("plugin-manager__row-management");
-    expect(localHtml).toContain("Manage");
+    expect(localHtml).toContain("Lifecycle");
     expect(localHtml).toContain("Trust");
     expect(localHtml).toContain("Enable");
     expect(localHtml).toContain("Permissions: 1 requested");
@@ -1259,19 +1261,19 @@ describe("plugin manager model", () => {
       visible: true,
       editable: false,
       canRead: false,
-      reason: "Trust this local plugin before editing its settings.",
+      reason: "Trust this local or developer plugin before editing plugin-owned settings.",
     });
     expect(pluginSettingsAvailability(disabled)).toMatchObject({
       visible: true,
       editable: false,
       canRead: false,
-      reason: "Enable this plugin before editing its settings.",
+      reason: "Enable this plugin before editing plugin-owned settings.",
     });
     expect(pluginSettingsAvailability(noSchema)).toMatchObject({
       visible: true,
       editable: false,
       canRead: false,
-      reason: "This plugin manifest does not declare configurable settings.",
+      reason: "This plugin manifest does not declare plugin-owned settings.",
     });
     expect(pluginSettingsAvailability(official)).toMatchObject({ visible: false, editable: false, canRead: false });
   });
@@ -1321,7 +1323,7 @@ describe("plugin manager model", () => {
     };
     const html = renderToStaticMarkup(
       <PluginSettingsSection
-        availabilityReason="Settings can be edited for trusted and enabled local or developer plugins."
+        availabilityReason="Plugin-owned settings can be edited for trusted and enabled local or developer plugins."
         draft={{ enabled: true, mode: "fast", limit: "9", label: "Nightly" }}
         editable={true}
         item={item}
@@ -1337,7 +1339,7 @@ describe("plugin manager model", () => {
     );
     const disabledHtml = renderToStaticMarkup(
       <PluginSettingsSection
-        availabilityReason="Trust this local plugin before editing its settings."
+        availabilityReason="Trust this local or developer plugin before editing plugin-owned settings."
         draft={{ enabled: true, mode: "fast", limit: "9", label: "Nightly" }}
         editable={false}
         item={item}
@@ -1356,6 +1358,8 @@ describe("plugin manager model", () => {
     expect(html).toContain("<select");
     expect(html).toContain("type=\"number\"");
     expect(html).toContain("type=\"text\"");
+    expect(html).toContain("Plugin-owned settings");
+    expect(html).toContain("they do not load plugin code or grant permissions");
     expect(html).toContain("plugin-manager-settings-apply");
     expect(disabledHtml).toContain("disabled=\"\"");
   });
@@ -2374,7 +2378,8 @@ describe("workspace onboarding model", () => {
     expect(html).toContain("Agent harness readiness");
     expect(html).toContain("Official, not found");
     expect(html).toContain("QMD hybrid");
-    expect(html).toContain("Profile apply review");
+    expect(html).toContain("Profile plan preview");
+    expect(html).toContain("No templates, skills, plugin enablement, or routines are applied during onboarding.");
     expect(html).toContain("Review only");
     expect(html).toContain("apply blockers");
     expect(html).toContain("Enter workspace");

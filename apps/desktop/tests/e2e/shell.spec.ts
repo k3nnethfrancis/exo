@@ -125,7 +125,7 @@ test("opens the plugin manager inventory and keeps official rows read-only", asy
   await expect(page.getByTestId("plugin-manager-boundary")).toContainText("Local plugins");
   await expect(page.getByTestId("plugin-manager-boundary")).toContainText("Developer plugins");
   await page.screenshot({ path: "/tmp/exo-plugin-manager-boundary.png", fullPage: false });
-  await expect(page.getByTestId("plugin-manager-local-toolbar")).toContainText("Local plugins");
+  await expect(page.getByTestId("plugin-manager-local-toolbar")).toContainText("Local plugin inventory");
   await expect(page.getByTestId("plugin-manager-add-workspace-plugin")).toBeVisible();
   await expect(page.getByTestId("plugin-manager-add-user-plugin")).toBeVisible();
   await expect(page.getByTestId("plugin-manager-summary")).toContainText("Active");
@@ -146,7 +146,7 @@ test("opens the plugin manager inventory and keeps official rows read-only", asy
   await expect(page.getByTestId("plugin-manager-group-core")).toContainText("Terminal host");
   await page.getByTestId("plugin-manager-category-core:searchProvider").click();
   await expect(page.getByTestId("plugin-manager-group-core:searchProvider")).toContainText("QMD");
-  await expect(page.getByTestId("plugin-inventory-item-qmd")).toContainText("Manage");
+  await expect(page.getByTestId("plugin-inventory-item-qmd")).toContainText("Lifecycle");
   await expect(page.getByTestId("plugin-inventory-item-qmd")).toContainText(/Active|Degraded/);
   await page.screenshot({ path: "/tmp/exo-plugin-manager-state-filters.png", fullPage: false });
   await page.getByTestId("plugin-inventory-item-qmd").click();
@@ -219,9 +219,9 @@ test("trusts, edits, and resets workspace plugin settings from Plugin Manager", 
   await page.getByTestId("plugin-manager-category-core:routineTemplate").click();
   await page.getByTestId("plugin-inventory-item-settings-plugin.template").click();
   await expect(page.getByTestId("plugin-manager-settings")).toBeVisible();
-  await expect(page.getByTestId("plugin-manager-settings")).toContainText("Trust this local plugin");
+  await expect(page.getByTestId("plugin-manager-settings")).toContainText("Trust this local or developer plugin");
   await page.getByTestId("plugin-manager-actions").getByTestId("plugin-manager-action-trust").click();
-  await expect(page.getByTestId("plugin-manager-settings")).toContainText("Settings can be edited");
+  await expect(page.getByTestId("plugin-manager-settings")).toContainText("Plugin-owned settings can be edited");
 
   await page.getByTestId("plugin-setting-enabled").setChecked(false);
   await page.getByTestId("plugin-setting-name").fill("nightly");

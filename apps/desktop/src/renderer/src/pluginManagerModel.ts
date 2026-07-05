@@ -183,7 +183,7 @@ export function buildPluginStateFilters(items: PluginInventoryItem[]): PluginSta
     {
       id: "missing",
       label: "Missing",
-      detail: "Rows blocked by missing dependencies, setup, invalid settings, or broken readiness.",
+      detail: "Rows blocked by missing dependencies, setup steps, invalid settings, or broken readiness.",
     },
     {
       id: "local",
@@ -232,7 +232,7 @@ export function buildPluginManagementSummary(items: PluginInventoryItem[]): Plug
       id: "disabled",
       label: "Disabled",
       value: disabledCount,
-      detail: "Installed or known capabilities that are currently off.",
+      detail: "Installed or known plugin capabilities that are currently off.",
       tone: disabledCount > 0 ? "neutral" : "ok",
     },
     {
@@ -246,7 +246,7 @@ export function buildPluginManagementSummary(items: PluginInventoryItem[]): Plug
       id: "setup",
       label: "Setup issues",
       value: setupIssueCount,
-      detail: "Rows with missing dependencies, broken status, or settings review.",
+      detail: "Plugin rows with missing dependencies, setup work, broken status, or settings review.",
       tone: setupIssueCount > 0 ? "danger" : "ok",
     },
     {
@@ -296,7 +296,7 @@ export function buildPluginBoundarySummary(items: PluginInventoryItem[]): Plugin
         label: "Official plugins",
         value: officialCount,
         detail: "Reviewed capabilities shipped with Exo, such as QMD and default harness adapters.",
-        management: "Read-only here. Setup/config appears in Plugin Manager or specialized settings.",
+        management: "Read-only lifecycle. Setup state and plugin-owned config are shown here.",
       },
       {
         id: "local",
@@ -310,7 +310,7 @@ export function buildPluginBoundarySummary(items: PluginInventoryItem[]): Plugin
         label: "Developer plugins",
         value: developerCount,
         detail: "Explicit development/operator plugin paths for local experiments.",
-        management: "Inspect and toggle here; remove or move them outside Plugin Manager.",
+        management: "Inspect and toggle here; remove or move source paths outside Plugin Manager.",
       },
     ],
     manageableLocalCount,
@@ -321,7 +321,9 @@ export function buildPluginBoundarySummary(items: PluginInventoryItem[]): Plugin
 
 export function buildPluginRowIndicators(item: PluginInventoryItem): PluginRowIndicator[] {
   const indicators: PluginRowIndicator[] = [];
-  if (item.source === "core" || item.distribution === "official" || item.source === "bundled") {
+  if (item.source === "core") {
+    indicators.push({ id: "core", label: "Core baseline", tone: "neutral" });
+  } else if (item.distribution === "official" || item.source === "bundled") {
     indicators.push({ id: "locked", label: "Read-only", tone: "neutral" });
   }
   if (item.trust === "untrusted") {
@@ -401,10 +403,10 @@ export function pluginManagementLane(item: PluginInventoryItem): string {
 
 export function pluginManagementGuidance(item: PluginInventoryItem): string {
   if (item.source === "core") {
-    return "Core baseline capability. It remains available even when optional plugins are disabled.";
+    return "Core substrate. Always available; not a plugin lifecycle row.";
   }
   if (item.source === "bundled" || item.distribution === "official") {
-    return "Reviewed plugin shipped with Exo. Plugin Manager shows setup and state, but this row is read-only in v0.";
+    return "Reviewed plugin shipped with Exo. Plugin Manager shows setup, state, and plugin-owned config.";
   }
   if (item.source === "localManifest" && (item.pluginSource === "workspace" || item.pluginSource === "user")) {
     return "Exo-managed local plugin. Review trust, enablement, settings, and local copy actions here.";
@@ -533,10 +535,10 @@ export function pluginActionAvailability(item: PluginInventoryItem): PluginActio
     return { mutable: false, reason: "This capability kind is not supported by this Exo version.", actions: [] };
   }
   if (item.source === "core") {
-    return { mutable: false, reason: "Core surfaces are built in and cannot be disabled.", actions: [] };
+    return { mutable: false, reason: "Core surfaces are built in. Manage workspace behavior in Settings, not Plugin Manager.", actions: [] };
   }
   if (item.distribution === "official" || item.source === "bundled") {
-    return { mutable: false, reason: "Official plugin rows are read-only in Plugin Enablement v0.", actions: [] };
+    return { mutable: false, reason: "Official plugin lifecycle is read-only in this pass; setup and plugin-owned config remain visible here.", actions: [] };
   }
   if (item.source !== "localManifest" || !item.pluginId || !item.manifestPath || !item.rootDirectory) {
     return { mutable: false, reason: "This row does not include a local plugin manifest identity.", actions: [] };
@@ -598,7 +600,7 @@ export function pluginSettingsAvailability(item: PluginInventoryItem): PluginSet
       visible: false,
       editable: false,
       canRead: false,
-      reason: "Plugin settings are available for local and developer manifests only.",
+      reason: "Plugin-owned settings are editable for local and developer manifests only.",
     };
   }
   if (!item.settings?.hasSettings) {
@@ -606,7 +608,7 @@ export function pluginSettingsAvailability(item: PluginInventoryItem): PluginSet
       visible: true,
       editable: false,
       canRead: false,
-      reason: "This plugin manifest does not declare configurable settings.",
+      reason: "This plugin manifest does not declare plugin-owned settings.",
     };
   }
   if (item.trust !== "trusted") {
@@ -614,7 +616,7 @@ export function pluginSettingsAvailability(item: PluginInventoryItem): PluginSet
       visible: true,
       editable: false,
       canRead: false,
-      reason: "Trust this local plugin before editing its settings.",
+      reason: "Trust this local or developer plugin before editing plugin-owned settings.",
     };
   }
   if (!item.enabled) {
@@ -622,7 +624,7 @@ export function pluginSettingsAvailability(item: PluginInventoryItem): PluginSet
       visible: true,
       editable: false,
       canRead: false,
-      reason: "Enable this plugin before editing its settings.",
+      reason: "Enable this plugin before editing plugin-owned settings.",
     };
   }
   const actionAvailability = pluginActionAvailability(item);
@@ -638,7 +640,7 @@ export function pluginSettingsAvailability(item: PluginInventoryItem): PluginSet
     visible: true,
     editable: true,
     canRead: true,
-    reason: "Settings can be edited for trusted and enabled local or developer plugins.",
+    reason: "Plugin-owned settings can be edited for trusted and enabled local or developer plugins.",
   };
 }
 

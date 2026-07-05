@@ -89,7 +89,7 @@ export function OnboardingCapabilityReviewContent({
     <>
       <h1 className="onboarding-card__title">Review capabilities</h1>
       <p className="onboarding-card__copy">
-        Exo core stays enabled. Official and local plugins add optional search, harness, profile, and routine capabilities for this workspace.
+        This workspace starts with the Exograph core baseline. Official, local, and developer plugins are optional capability layers that can be managed later in Plugin Manager.
       </p>
       <div className="onboarding-review-summary" data-testid="onboarding-capability-summary">
         <div>
@@ -102,7 +102,7 @@ export function OnboardingCapabilityReviewContent({
         </div>
         {inventory ? (
           <div>
-            <span>Optional review</span>
+            <span>Plugin layers</span>
             <strong>{inventory.counts.official} official, {inventory.counts.local + inventory.counts.developer} local</strong>
           </div>
         ) : null}
@@ -120,7 +120,7 @@ export function OnboardingCapabilityReviewContent({
       ) : null}
       {profileReviews.length > 0 ? (
         <section className="onboarding-section onboarding-section--summary" data-testid="onboarding-profile-apply-review">
-          <div className="dialog-field__label">Profile apply review</div>
+          <div className="dialog-field__label">Profile plan preview</div>
           {profileReviews.map((review) => (
             <div className="onboarding-profile-review" key={review.id}>
               <div className="onboarding-capability-row__title">
@@ -131,7 +131,7 @@ export function OnboardingCapabilityReviewContent({
                 {review.errorMessage
                   ? `Profile payload needs review: ${review.errorMessage}`
                   : review.plan
-                    ? `${review.plan.summary.totalActions} recommendations, ${review.plan.summary.readyPluginRecommendations} ready plugins, ${review.plan.apply.blockedBy.length} apply blockers. ${review.plan.apply.reason}`
+                    ? `${review.plan.summary.totalActions} recommendations, ${review.plan.summary.readyPluginRecommendations} ready plugins, ${review.plan.apply.blockedBy.length} apply blockers. No templates, skills, plugin enablement, or routines are applied during onboarding. ${review.plan.apply.reason}`
                     : `${review.status}. Profile payload is unavailable.`}
               </div>
             </div>
@@ -144,7 +144,7 @@ export function OnboardingCapabilityReviewContent({
             <div className="onboarding-capability-section__header">
               <div>
                 <div className="dialog-field__label">{section.label}</div>
-                <div className="onboarding-section__hint">{section.id === "core" ? "Always available." : "Optional plugin inventory."}</div>
+                <div className="onboarding-section__hint">{section.id === "core" ? "Always available; not a plugin toggle." : "Optional plugin inventory; manage after entering the workspace."}</div>
               </div>
             </div>
             <div className="onboarding-capability-list">

@@ -167,7 +167,7 @@ function sectionAction(
   if (section.id === "recommendedPlugins") {
     return {
       label: "Open Plugin Manager",
-      detail: "Plugin enablement, trust, setup, and configuration live in Plugin Manager.",
+      detail: "Plugin trust, enablement, setup, and plugin-owned settings live in Plugin Manager.",
       title: "Open Plugin Manager for recommended plugin setup.",
       enabled: Boolean(handlers.onOpenPluginManager),
       onClick: handlers.onOpenPluginManager,
