@@ -29,7 +29,8 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
     - [x] Finish or explicitly inventory remaining `ManagedAgentKind` compatibility residue and removal conditions.
       - [x] Add the first real-vault profile apply recovery gate: accepted profile template proposals persist `.exo/proposal-recovery/profile-apply/` pre-apply evidence before any file mutation and fail closed if recovery evidence cannot be recorded.
       - [ ] Get architect review for the recovery manifest contract and the real-vault profile apply enablement criteria.
-      - [ ] Add the reviewed recovery/rollback operator surface before declaring real-vault profile apply broadly enabled.
+      - [x] Add the recovery/rollback operator surface: `exo profile-recovery list|show|restore` lists and inspects real-vault profile apply recovery manifests and restores a manifest or single item only when current file hashes match recorded post-apply hashes; absent pre-state deletes are guarded the same way.
+      - [ ] Post-hoc architect review for the user-approved CLI contract exception and recovery/rollback command shape before declaring real-vault profile apply broadly enabled.
     - [ ] Confirm remaining critical dogfooding gates before plugin dogfooding: `EXO-ISSUE-082` on `main`, `EXO-ISSUE-083` isolation, and trace-store hygiene.
       - [x] `EXO-ISSUE-046` after live restart: 2026-07-05 source Exo restart plus worktree Codex probe launched without the Exo MCP startup warning and used the imported Exo repo MCP launcher.
     - [x] Confirm cross-session trace-store hygiene or document the bounded dogfooding retention policy.

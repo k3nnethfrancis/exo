@@ -641,6 +641,73 @@ describe("cli package", () => {
     }
   });
 
+  it("runs local profile recovery list, show, and guarded restore commands", async () => {
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-profile-recovery-"));
+    const manifestDir = path.join(workspaceRoot, ".exo/proposal-recovery/profile-apply");
+    const manifestPath = path.join(manifestDir, "profile-apply-one.json");
+    let listStdout = "";
+    let showStdout = "";
+    let restoreStdout = "";
+
+    try {
+      await mkdir(manifestDir, { recursive: true });
+      await writeFile(path.join(workspaceRoot, "AGENTS.md"), "# Agents\n", "utf8");
+      await writeFile(manifestPath, JSON.stringify({
+        format: "exo.profileApplyRecovery.v1",
+        proposalId: "proposal-1",
+        createdAt: "2026-07-05T12:00:00.000Z",
+        source: "profileApply",
+        profileId: "test.profile",
+        profileApplyTarget: "realVault",
+        items: [
+          {
+            id: "context-agents",
+            kind: "fileCreate",
+            path: "AGENTS.md",
+            before: { exists: false },
+            afterHash: "sha256:070a8ff8c31696dd57f1d0f8dfbfb1c9151ebd903c5d7e41d9dbf4133d54f84e",
+          },
+        ],
+      }), "utf8");
+
+      const env = { ...testRuntimeEnv(), EXO_WORKSPACE_ROOT: workspaceRoot };
+      const listExitCode = await runCli(["node", "exo-cli", "profile-recovery", "list"], {
+        env,
+        stdout: { write: (text) => { listStdout += text; } },
+        stderr: { write: () => {} },
+        connectAppClient: async () => {
+          throw new Error("profile recovery commands should not connect to the app");
+        },
+      });
+      const showExitCode = await runCli(["node", "exo-cli", "profile-recovery", "show", "profile-apply-one.json"], {
+        env,
+        stdout: { write: (text) => { showStdout += text; } },
+        stderr: { write: () => {} },
+        connectAppClient: async () => {
+          throw new Error("profile recovery commands should not connect to the app");
+        },
+      });
+      const restoreExitCode = await runCli(["node", "exo-cli", "profile-recovery", "restore", "profile-apply-one.json", "context-agents"], {
+        env,
+        stdout: { write: (text) => { restoreStdout += text; } },
+        stderr: { write: () => {} },
+        connectAppClient: async () => {
+          throw new Error("profile recovery commands should not connect to the app");
+        },
+      });
+
+      expect(listExitCode).toBe(0);
+      expect(showExitCode).toBe(0);
+      expect(restoreExitCode).toBe(0);
+      expect(listStdout).toContain("profile-apply-one.json");
+      expect(showStdout).toContain("context-agents");
+      expect(restoreStdout).toContain("\"action\": \"deleted\"");
+      await expect(readFile(path.join(workspaceRoot, "AGENTS.md"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+    } finally {
+      await rm(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
   it("submits agent messages by default", async () => {
     let receivedMessage = "";
     let receivedSubmit: boolean | undefined;

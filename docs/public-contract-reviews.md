@@ -37,6 +37,8 @@ Escape hatch: if a repo check flags a change that is genuinely implementation-on
 
 - sha256: `27d3d18d302c398cb953c633a737bbd0e4f65dc47ac2ef50290dff9bc0a57b1e`
 - review: guard-baseline: 2026-07-04 existing CLI command, usage, and flag parsing surface; guard cleanup does not change behavior.
+- sha256: `481bad75527ab75ff8ab04cc5a4a5f7adabf6939dc81e8a7a4c122720cd58962`
+- review: user-approved-exception: 2026-07-05 Wave 6 recovery/rollback task explicitly allowed CLI/app command surfaces and prohibited Fable/oracle; adds `exo profile-recovery list|show|restore` as a local operator-only recovery surface while keeping MCP without accept/reject/rollback tools.
 
 ### `packages/cli/src/app-client.ts#route-client-methods`
 

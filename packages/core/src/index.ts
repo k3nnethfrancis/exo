@@ -17,6 +17,7 @@ export * from "./profile";
 export * from "./project-knowledge-sync";
 export * from "./profile-copy";
 export * from "./profile-apply-proposal";
+export * from "./profile-apply-recovery";
 export * from "./profile-plan";
 export * from "./profile-state";
 export * from "./graph";

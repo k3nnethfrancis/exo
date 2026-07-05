@@ -28,6 +28,9 @@ import {
   routinePluginDirectoriesFromEnv,
   resolveNotePath,
   resolveWorkspaceModel,
+  listProfileApplyRecoveryManifests,
+  inspectProfileApplyRecoveryManifest,
+  restoreProfileApplyRecoveryManifest,
   loadActiveWorkspaceSettings,
   listWorkspaceRegistryEntries,
   getWorkspaceRegistryEntry,
@@ -490,6 +493,36 @@ export async function runCli(
     }
 
     stderr.write("Usage: exo proposals [list | show <id> | create <proposal-json> | accept <id> [item-id] | reject <id> [item-id]]\n");
+    return 1;
+  }
+
+  if (command === "profile-recovery") {
+    const config = await resolveCliRuntimeConfig(env);
+
+    if (subcommand === "list" || !subcommand) {
+      stdout.write(`${JSON.stringify({ manifests: await listProfileApplyRecoveryManifests(config.workspace.workspaceRoot) }, null, 2)}\n`);
+      return 0;
+    }
+
+    if (subcommand === "show") {
+      const manifestRef = args[0];
+      if (!manifestRef) {
+        throw new Error("Usage: exo profile-recovery show <manifest-file-or-path>");
+      }
+      stdout.write(`${JSON.stringify(await inspectProfileApplyRecoveryManifest(config.workspace.workspaceRoot, manifestRef), null, 2)}\n`);
+      return 0;
+    }
+
+    if (subcommand === "restore") {
+      const manifestRef = args[0];
+      if (!manifestRef) {
+        throw new Error("Usage: exo profile-recovery restore <manifest-file-or-path> [item-id]");
+      }
+      stdout.write(`${JSON.stringify(await restoreProfileApplyRecoveryManifest(config.workspace.workspaceRoot, manifestRef, { itemId: args[1] }), null, 2)}\n`);
+      return 0;
+    }
+
+    stderr.write("Usage: exo profile-recovery [list | show <manifest> | restore <manifest> [item-id]]\n");
     return 1;
   }
 
@@ -1065,6 +1098,9 @@ export async function runCli(
       "  exo proposals show <id>                    Show a proposal batch (app)",
       "  exo proposals create <json>                Store a proposal batch for review (app)",
       "  exo proposals accept|reject <id> [item]    Decide proposal changes (app)",
+      "  exo profile-recovery [list]                List profile apply recovery manifests",
+      "  exo profile-recovery show <manifest>       Inspect a profile apply recovery manifest",
+      "  exo profile-recovery restore <manifest> [item] Restore files from guarded recovery evidence",
       "  exo terminals [list]                       List terminals (app)",
       `  exo terminals create <${TERMINAL_KIND_USAGE}>  Create terminal (app)`,
       "  exo terminals read <id> [--lines n]        Read bounded live terminal tail (app)",
