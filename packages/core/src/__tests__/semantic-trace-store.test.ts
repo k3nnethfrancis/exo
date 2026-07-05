@@ -80,6 +80,35 @@ describe("semantic trace store", () => {
     }
   });
 
+  it("keeps trace files isolated by sanitized session id", async () => {
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-semantic-trace-isolation-"));
+    const store = new SemanticTraceStore(runtimeRoot);
+
+    try {
+      await captureFakeHarnessTraceFixture(store, {
+        sessionId: "claude/session",
+        harnessId: "claude",
+        rawEvents: [{ type: "assistant-text", text: "CLAUDE_ONLY" }],
+        now: () => "2026-07-03T16:00:00.000Z",
+      });
+      await captureFakeHarnessTraceFixture(store, {
+        sessionId: "pi.session",
+        harnessId: "pi",
+        rawEvents: [{ type: "assistant-text", text: "PI_ONLY" }],
+        now: () => "2026-07-03T16:00:01.000Z",
+      });
+
+      expect(path.dirname(semanticTracePath(store.layout, "claude/session"))).toBe(path.join(runtimeRoot, "traces"));
+      expect(semanticTracePath(store.layout, "claude/session")).not.toBe(semanticTracePath(store.layout, "claude-session"));
+      expect((await store.readEvents("claude/session")).map((event) => event.payload.text)).toEqual(["CLAUDE_ONLY"]);
+      expect((await store.readEvents("pi.session")).map((event) => event.payload.text)).toEqual(["PI_ONLY"]);
+      expect(await store.readEvents("claude-session")).toEqual([]);
+      expect(await store.readEvents("missing-session")).toEqual([]);
+    } finally {
+      await rm(runtimeRoot, { recursive: true, force: true });
+    }
+  });
+
   it("maps required raw events and preserves unknown source data as harness.raw", () => {
     const context = {
       sessionId: "session-1",

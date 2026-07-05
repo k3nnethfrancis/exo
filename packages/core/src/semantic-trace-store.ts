@@ -122,11 +122,11 @@ export function resolveSemanticTraceStoreLayout(runtimeRoot: string): SemanticTr
 }
 
 export function semanticTracePath(layout: SemanticTraceStoreLayout, sessionId: string): string {
-  return path.join(layout.tracesDir, `${safeStoreSegment(sessionId)}.ndjson`);
+  return path.join(layout.tracesDir, `${semanticTraceStoreSegment(sessionId)}.ndjson`);
 }
 
 export function semanticTraceMetadataPath(layout: SemanticTraceStoreLayout, sessionId: string): string {
-  return path.join(layout.tracesDir, `${safeStoreSegment(sessionId)}.json`);
+  return path.join(layout.tracesDir, `${semanticTraceStoreSegment(sessionId)}.json`);
 }
 
 export function defaultHarnessRawTraceSidecarIngestState(): HarnessRawTraceSidecarIngestState {
@@ -451,6 +451,12 @@ function applyReadLimit(events: SemanticTraceEvent[], limit?: number): SemanticT
     return events;
   }
   return events.slice(-limit);
+}
+
+function semanticTraceStoreSegment(sessionId: string): string {
+  const trimmed = sessionId.trim();
+  const safe = safeStoreSegment(sessionId);
+  return safe === trimmed ? safe : `${safe}-${createHash("sha256").update(trimmed).digest("hex").slice(0, 12)}`;
 }
 
 function digestUnknown(value: unknown): string {

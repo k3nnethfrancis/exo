@@ -136,6 +136,45 @@ describe("cli package", () => {
     }
   });
 
+  it("reads only the requested semantic trace session", async () => {
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-trace-isolation-"));
+    let stdout = "";
+
+    try {
+      await captureFakeHarnessTraceFixture(new SemanticTraceStore(runtimeRoot), {
+        sessionId: "claude-session",
+        harnessId: "fake-claude",
+        rawEvents: [{ type: "assistant-text", text: "CLAUDE_ONLY" }],
+        now: () => "2026-07-03T16:00:00.000Z",
+      });
+      await captureFakeHarnessTraceFixture(new SemanticTraceStore(runtimeRoot), {
+        sessionId: "pi-session",
+        harnessId: "fake-pi",
+        rawEvents: [{ type: "assistant-text", text: "PI_ONLY" }],
+        now: () => "2026-07-03T16:00:01.000Z",
+      });
+
+      const exitCode = await runCli(["node", "exo-cli", "traces", "read", "pi-session", "--limit", "10"], {
+        env: {
+          EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
+          EXO_RUNTIME_ROOT: runtimeRoot,
+        },
+        stdout: { write: (text) => { stdout += text; } },
+        stderr: { write: () => {} },
+        connectAppClient: async () => {
+          throw new Error("traces read should not connect to the app");
+        },
+      });
+
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain("Trace session pi-session: 1 event");
+      expect(stdout).toContain("PI_ONLY");
+      expect(stdout).not.toContain("CLAUDE_ONLY");
+    } finally {
+      await rm(runtimeRoot, { recursive: true, force: true });
+    }
+  });
+
   it("reads fake Pi repaint TUI answers from semantic traces after terminal repaint", async () => {
     const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-pi-trace-"));
     const traceSidecar = path.join(runtimeRoot, "fake-pi-sidecar.ndjson");

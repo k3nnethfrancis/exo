@@ -32,7 +32,9 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
       - [ ] Add the reviewed recovery/rollback operator surface before declaring real-vault profile apply broadly enabled.
     - [ ] Confirm remaining critical dogfooding gates before plugin dogfooding: `EXO-ISSUE-082` on `main`, `EXO-ISSUE-083` isolation, and trace-store hygiene.
       - [x] `EXO-ISSUE-046` after live restart: 2026-07-05 source Exo restart plus worktree Codex probe launched without the Exo MCP startup warning and used the imported Exo repo MCP launcher.
-    - [ ] Confirm cross-session trace-store hygiene or document the bounded dogfooding retention policy.
+    - [x] Confirm cross-session trace-store hygiene or document the bounded dogfooding retention policy.
+      - 2026-07-05: Added regression coverage for per-session trace reads and sanitizer-collision isolation. Current dogfooding policy is session-isolated, default bounded reads, and manual disk cleanup under `.exo/traces/`; before broad real-vault plugin dogfooding, add a settings-visible trace retention or cleanup policy rather than a hidden cap.
+    - [ ] Add settings-visible semantic trace retention/cleanup before broad real-vault plugin dogfooding.
     - [x] WP-XC0: record external contract status rules: two-consumer rule, unstable status by default, trace first, review/proposal second, dataset/eval later with Helm, instrumented runtimes not plugin contracts.
     - [x] WP-TRC-CL: add Claude as the second semantic trace producer through the declared trace path; no fixture self-writes.
   - [x] Complete Fable Wave-2 correction packages before continuing profile/onboarding/plugin UI expansion:
