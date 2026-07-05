@@ -12,7 +12,6 @@ import type { TerminalLaunchKind, TerminalSessionInfo } from "../../../shared/ap
 import {
   addTerminalSessionAsSplit,
   addTerminalSessionToFirstLeaf,
-  buildTerminalMonitorTree,
   removeTerminalSessionFromTree,
 } from "../paneTreeSelectors";
 
@@ -97,13 +96,18 @@ export function useTerminalPaneController(options: UseTerminalPaneControllerOpti
     options.setTerminalCollapsed(false);
     if (options.monitorMode) {
       options.terminalActions.setTree((currentTree) => {
-        const existingIds = collectLeaves(currentTree).flatMap((leaf) =>
-          leaf.content.kind === "terminal" ? leaf.content.terminalIds : [],
+        const { tree } = sessions.reduce(
+          (next, session) => addTerminalSessionAsSplit(next.tree, session.id, next.leafId),
+          { tree: currentTree, leafId: options.terminalFocusedLeafId },
         );
-        const nextIds = [...existingIds, ...sessions.map((session) => session.id)];
-        const activeId = attachOptions.activateLatest ? sessions.at(-1)?.id ?? null : null;
-        return buildTerminalMonitorTree(nextIds, activeId);
+        return tree;
       });
+      if (attachOptions.activateLatest) {
+        const latestId = sessions.at(-1)?.id;
+        if (latestId) {
+          void options.terminalState.activateTerminal(latestId);
+        }
+      }
       return;
     }
     options.terminalActions.setTree((currentTree) =>

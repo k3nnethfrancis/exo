@@ -53,6 +53,7 @@ import {
   collectTerminalSessionIds,
   findActiveEditorPath,
   pruneStaleTerminalSessions,
+  restoreTerminalTreeSnapshot,
 } from "./paneTreeSelectors";
 import {
   clampNumber,
@@ -106,6 +107,7 @@ export function App() {
   );
   const terminalRuntimeScrollbackLinesRef = useRef(DEFAULT_TERMINAL_HISTORY_LINES);
   const terminalPaneControllerRef = useRef<TerminalPaneController | null>(null);
+  const preMonitorTerminalTreeRef = useRef<PaneNode | null>(null);
   const shellLayout = useShellLayout();
 
   const { tree: editorTree, focusedLeafId: editorFocusedLeafId, actions: editorActions } = shellLayout.editorPaneTree;
@@ -350,6 +352,7 @@ export function App() {
 
   function applyPersistedLayout(layout: WorkspaceSettings["layout"] | undefined) {
     shellLayout.applyPersistedLayout(layout);
+    preMonitorTerminalTreeRef.current = null;
     setTerminalMonitorMode(Boolean(layout?.terminalMonitorMode));
   }
 
@@ -423,8 +426,14 @@ export function App() {
       shellLayout.setTerminalCollapsed(false);
       terminalActions.setTree((currentTree) => {
         const sessionIds = terminalSessions.map((session) => session.id);
-        return next
-          ? buildTerminalMonitorTree(sessionIds, activeTerminalId)
+        if (next) {
+          preMonitorTerminalTreeRef.current = currentTree;
+          return buildTerminalMonitorTree(sessionIds, activeTerminalId);
+        }
+        const preMonitorTree = preMonitorTerminalTreeRef.current;
+        preMonitorTerminalTreeRef.current = null;
+        return preMonitorTree
+          ? restoreTerminalTreeSnapshot(preMonitorTree, sessionIds, activeTerminalId)
           : buildTerminalTabsTree(sessionIds, activeTerminalId);
       });
       setZoomSurface("terminal");

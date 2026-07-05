@@ -5,6 +5,7 @@ import {
   findTerminalLeaf,
   mapLeaves,
   paneId,
+  pruneEmptyLeaves,
   updateNode,
   type DropEdge,
   type PaneLeaf,
@@ -91,6 +92,8 @@ export function addTerminalSessionToFirstLeaf(tree: PaneNode, sessionId: string)
   });
 }
 
+const TERMINAL_TABS_LEAF_ID = "terminal-tabs";
+
 export function buildTerminalTabsTree(sessionIds: string[], activeSessionId: string | null): PaneNode {
   const uniqueSessionIds = uniqueTerminalSessionIds(sessionIds);
   const activeTerminalId = activeSessionId && uniqueSessionIds.includes(activeSessionId)
@@ -98,7 +101,7 @@ export function buildTerminalTabsTree(sessionIds: string[], activeSessionId: str
     : uniqueSessionIds.at(-1) ?? null;
   return {
     kind: "leaf",
-    id: paneId(),
+    id: TERMINAL_TABS_LEAF_ID,
     content: {
       kind: "terminal",
       terminalIds: uniqueSessionIds,
@@ -109,7 +112,7 @@ export function buildTerminalTabsTree(sessionIds: string[], activeSessionId: str
 
 export function buildTerminalMonitorTree(sessionIds: string[], activeSessionId: string | null): PaneNode {
   const uniqueSessionIds = uniqueTerminalSessionIds(sessionIds);
-  if (uniqueSessionIds.length <= 1) {
+  if (uniqueSessionIds.length === 0) {
     return buildTerminalTabsTree(uniqueSessionIds, activeSessionId);
   }
 
@@ -117,7 +120,7 @@ export function buildTerminalMonitorTree(sessionIds: string[], activeSessionId: 
     if (ids.length === 1) {
       return {
         kind: "leaf",
-        id: paneId(),
+        id: terminalMonitorLeafId(ids[0]),
         content: {
           kind: "terminal",
           terminalIds: ids,
@@ -129,7 +132,7 @@ export function buildTerminalMonitorTree(sessionIds: string[], activeSessionId: 
     const midpoint = Math.ceil(ids.length / 2);
     return {
       kind: "split",
-      id: paneId(),
+      id: terminalMonitorSplitId(ids, depth),
       direction: depth % 2 === 0 ? "horizontal" : "vertical",
       ratio: 0.5,
       children: [
@@ -140,6 +143,29 @@ export function buildTerminalMonitorTree(sessionIds: string[], activeSessionId: 
   }
 
   return buildBalanced(uniqueSessionIds, 0);
+}
+
+export function restoreTerminalTreeSnapshot(snapshot: PaneNode, sessionIds: string[], activeSessionId: string | null): PaneNode {
+  const uniqueSessionIds = uniqueTerminalSessionIds(sessionIds);
+  if (uniqueSessionIds.length === 0) {
+    return buildTerminalTabsTree([], null);
+  }
+
+  let next = pruneEmptyLeaves(
+    pruneStaleTerminalSessions(snapshot, new Set(uniqueSessionIds)),
+    (leaf) => leaf.content.kind === "terminal" && leaf.content.terminalIds.length === 0,
+  );
+  if (!findTerminalLeaf(next)) {
+    return buildTerminalTabsTree(uniqueSessionIds, activeSessionId);
+  }
+
+  for (const sessionId of uniqueSessionIds) {
+    if (!treeContainsTerminalSession(next, sessionId)) {
+      next = addTerminalSessionToFirstLeaf(next, sessionId);
+    }
+  }
+
+  return setActiveTerminalSessionInTree(next, uniqueSessionIds, activeSessionId);
 }
 
 export function addTerminalSessionAsSplit(tree: PaneNode, sessionId: string, targetLeafId?: PaneNodeId | null): { tree: PaneNode; leafId: PaneNodeId } {
@@ -301,6 +327,41 @@ export function countTerminalSessions(tree: PaneNode): number {
 
 function uniqueTerminalSessionIds(sessionIds: string[]): string[] {
   return Array.from(new Set(sessionIds));
+}
+
+function terminalMonitorLeafId(sessionId: string): PaneNodeId {
+  return `terminal-session:${sessionId}`;
+}
+
+function terminalMonitorSplitId(sessionIds: string[], depth: number): PaneNodeId {
+  return `terminal-monitor:${depth}:${sessionIds.join("|")}`;
+}
+
+function setActiveTerminalSessionInTree(tree: PaneNode, sessionIds: string[], activeSessionId: string | null): PaneNode {
+  const activeTerminalId = activeSessionId && sessionIds.includes(activeSessionId)
+    ? activeSessionId
+    : sessionIds.at(-1) ?? null;
+
+  return mapLeaves(tree, (leaf) => {
+    if (leaf.content.kind !== "terminal") {
+      return leaf;
+    }
+    const leafActiveTerminalId = activeTerminalId && leaf.content.terminalIds.includes(activeTerminalId)
+      ? activeTerminalId
+      : leaf.content.activeTerminalId && leaf.content.terminalIds.includes(leaf.content.activeTerminalId)
+        ? leaf.content.activeTerminalId
+        : leaf.content.terminalIds.at(-1) ?? null;
+    if (leafActiveTerminalId === leaf.content.activeTerminalId) {
+      return leaf;
+    }
+    return {
+      ...leaf,
+      content: {
+        ...leaf.content,
+        activeTerminalId: leafActiveTerminalId,
+      },
+    };
+  });
 }
 
 export function flattenFiles(nodes: TreeNode[]): TreeNode[] {
