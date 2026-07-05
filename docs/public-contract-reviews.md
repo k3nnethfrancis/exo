@@ -21,6 +21,8 @@ Escape hatch: if a repo check flags a change that is genuinely implementation-on
 
 - sha256: `c12a5694574feecbad1508d9e7b3f73d07be7c3c5798ae820faa469380d24373`
 - review: guard-baseline: 2026-07-04 existing shared command route and payload type exports; guard cleanup does not change behavior.
+- sha256: `6c6003ee69693121a8b9eb703840d72015b787625c613029cfff359bda1c5669`
+- review: user-approved-exception: 2026-07-04 plugin architecture cleanup intentionally moved app/CLI/MCP agent-create payloads toward registered harness ids while preserving compatibility fields for terminal sessions and persisted backfill.
 
 ### `apps/desktop/src/main/command-server.ts#route-table`
 
@@ -36,6 +38,8 @@ Escape hatch: if a repo check flags a change that is genuinely implementation-on
 
 - sha256: `334f61251ac0ce1f32e8a6cdec3ca8268831a5fe4e345bf182216da684420a40`
 - review: guard-baseline: 2026-07-04 existing CLI app-client route method surface; guard cleanup does not change behavior.
+- sha256: `c6a887cffc9f911b5433a3ec4da69d262af03a35fc8cabfe36efaba6b24de421`
+- review: user-approved-exception: 2026-07-04 plugin architecture cleanup intentionally updated CLI app-client agent-create route payloads to submit harness ids through the registered harness path.
 
 ### `packages/mcp/src/index.ts#tool-schemas`
 
@@ -46,3 +50,5 @@ Escape hatch: if a repo check flags a change that is genuinely implementation-on
 
 - sha256: `f86f86f28193c3189fe3fde4188572480839281325afd20bddd7e0b8fe39291a`
 - review: guard-baseline: 2026-07-04 existing MCP app-client route method surface; guard cleanup does not change behavior.
+- sha256: `f02f1bf341ae2d05ffbeb844e233bd33a36daaef9d7e34612b69d57a50b6b384`
+- review: user-approved-exception: 2026-07-04 plugin architecture cleanup intentionally updated MCP app-client agent-create route payloads to submit harness ids through the registered harness path.
