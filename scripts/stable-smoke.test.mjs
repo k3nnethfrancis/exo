@@ -16,6 +16,7 @@ test('stable smoke scenarios keep one named Playwright target per bounded phase'
     'shell-pane-tree-input',
     'shell-fake-claude-render',
     'shell-relaunch-reattach',
+    'terminal-monitor-mode',
     'hidden-window-command-server',
     'hidden-window-cli-mcp',
     'preview-layout',
