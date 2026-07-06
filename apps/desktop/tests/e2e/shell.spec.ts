@@ -32,6 +32,20 @@ async function expectTestIdsDoNotOverlap(page: import("@playwright/test").Page, 
   expect(boxesOverlap(firstBox!, secondBox!)).toBe(false);
 }
 
+async function outerSize(page: import("@playwright/test").Page, testId: string) {
+  const box = await page.getByTestId(testId).boundingBox();
+  expect(box).not.toBeNull();
+  return { width: Math.round(box!.width), height: Math.round(box!.height) };
+}
+
+function expectSameOuterSize(
+  actual: { width: number; height: number },
+  expected: { width: number; height: number },
+) {
+  expect(Math.abs(actual.width - expected.width)).toBeLessThanOrEqual(1);
+  expect(Math.abs(actual.height - expected.height)).toBeLessThanOrEqual(1);
+}
+
 async function cycleAppearanceTo(page: import("@playwright/test").Page, targetMode: "system" | "light" | "dark") {
   for (let attempt = 0; attempt < 4; attempt += 1) {
     const currentMode = await page.locator("html").getAttribute("data-appearance-mode");
@@ -1266,14 +1280,17 @@ test("opens workspace settings from the sidebar", async () => {
 
   await page.getByTestId("workspace-settings").click();
   await expect(page.getByTestId("workspace-settings-dialog")).toBeVisible();
+  const settingsOuterSize = await outerSize(page, "workspace-settings-dialog");
   await expect(page.getByTestId("workspace-settings-note-roots")).toContainText("test-notes");
   await page.screenshot({ path: "/tmp/exo-workspace-settings-workspace.png", fullPage: false });
   await expectTestIdsDoNotOverlap(page, "workspace-settings-note-roots", "workspace-settings-project-roots");
   await page.getByTestId("workspace-settings-tab-index").click();
+  expectSameOuterSize(await outerSize(page, "workspace-settings-dialog"), settingsOuterSize);
   await expect(page.getByTestId("workspace-settings-index-mode")).toHaveValue("off");
   await expect(page.getByTestId("workspace-settings-dialog")).toContainText("Local QMD advanced search provider");
   await page.screenshot({ path: "/tmp/exo-workspace-settings-index.png", fullPage: false });
   await page.getByTestId("workspace-settings-tab-profile").click();
+  expectSameOuterSize(await outerSize(page, "workspace-settings-dialog"), settingsOuterSize);
   await expect(page.getByTestId("workspace-settings-profile")).toContainText("No active profile");
   await page.screenshot({ path: "/tmp/exo-workspace-settings-profile.png", fullPage: false });
   await page.getByRole("button", { name: "Set active profile" }).click();
@@ -1297,7 +1314,7 @@ test("opens workspace settings from the sidebar", async () => {
   await expect(page.getByTestId("profile-edit-panel")).toContainText("Open Agent Config");
   await page.screenshot({ path: "/tmp/exo-profile-plan-preview.png", fullPage: false });
   await page.getByTestId("profile-edit-copy").click();
-  await expect(page.getByTestId("workspace-settings-profile")).toContainText("Profile state saved.");
+  await expect(page.getByTestId("workspace-settings-profile")).toContainText("Profile copied.");
   await expect(page.getByTestId("workspace-settings-profile")).toContainText("Exograph Baseline Copy");
   const copiedProfileState = JSON.parse(await readFile(path.join(runtimeRoot, "profile-state.json"), "utf8"));
   expect(copiedProfileState.reviewRequired).toBe(true);
@@ -1310,6 +1327,7 @@ test("opens workspace settings from the sidebar", async () => {
   expect(copiedManifest.capabilities[0].id).toMatch(/^exograph-baseline\.profile-copy(?:-\d+)?\.profile$/);
   expect(copiedManifest.capabilities[0].compatibility.profile.label).toBe("Exograph Baseline Copy");
   await page.getByTestId("workspace-settings-tab-terminal").click();
+  expectSameOuterSize(await outerSize(page, "workspace-settings-dialog"), settingsOuterSize);
   await expect(page.getByTestId("workspace-settings-dialog")).toContainText("Live terminal scrollback lines");
   await expect(page.getByTestId("workspace-settings-terminal-history-lines")).toBeVisible();
   await expect(page.getByTestId("workspace-settings-terminal-history-lines")).toHaveValue("100000");
@@ -1907,10 +1925,12 @@ test("opens an existing notes folder from first-run setup", async () => {
     },
   });
   const expectedTerminalCwd = path.join(workspaceRoot, "notes");
+  const onboardingOuterSize = await outerSize(page, "onboarding-card");
 
   await page.getByTestId("onboarding-choose-notes").click();
   await expect(page.getByTestId("onboarding-notes-folder")).toContainText(notesFolder);
   await expect(page.getByTestId("onboarding-terminal-folder")).toContainText(expectedTerminalCwd);
+  expectSameOuterSize(await outerSize(page, "onboarding-card"), onboardingOuterSize);
 
   await page.getByTestId("onboarding-continue").click();
   await expect(page.getByTestId("sidebar")).toBeVisible();
@@ -1919,9 +1939,19 @@ test("opens an existing notes folder from first-run setup", async () => {
   await expect(page.getByTestId("post-workspace-setup")).toContainText("Set up your Exograph");
   await expect(page.getByTestId("post-workspace-setup")).not.toContainText("Core, locked");
   await expect(page.getByTestId("onboarding-capability-review")).toBeVisible();
+  const setupOuterSize = await outerSize(page, "post-workspace-setup");
   await expect(page.getByTestId("onboarding-plugin-toggle-qmd")).toBeChecked();
   await expect(page.getByTestId("onboarding-plugin-toggle-qmd")).toBeEnabled();
-  await expect(page.getByTestId("onboarding-profile-routine-note")).toContainText("configured later in Settings");
+  await page.getByTestId("onboarding-enter-workspace").click();
+  await expect(page.getByTestId("onboarding-agent-instructions")).toBeVisible();
+  expectSameOuterSize(await outerSize(page, "post-workspace-setup"), setupOuterSize);
+  await page.getByTestId("onboarding-enter-workspace").click();
+  await expect(page.getByTestId("onboarding-routines")).toBeVisible();
+  expectSameOuterSize(await outerSize(page, "post-workspace-setup"), setupOuterSize);
+  await page.getByTestId("onboarding-enter-workspace").click();
+  await expect(page.getByTestId("onboarding-profile-review")).toBeVisible();
+  await expect(page.getByTestId("onboarding-profile-routine-note")).toContainText("still require review");
+  expectSameOuterSize(await outerSize(page, "post-workspace-setup"), setupOuterSize);
   await page.getByTestId("onboarding-enter-workspace").scrollIntoViewIfNeeded();
   await expect(page.getByTestId("onboarding-enter-workspace")).toBeVisible();
   await page.getByTestId("onboarding-enter-workspace").click();
