@@ -8,6 +8,78 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ## Open
 
+### EXO-ISSUE-095: Settings and onboarding dialogs should keep stable frames across tabs and steps
+
+- Status: open
+- Severity: medium
+- Area: onboarding, settings, modal layout, frontend UX
+- Source:
+  - GitHub issue #32: https://github.com/k3nnethfrancis/exo/issues/32
+- Observed:
+  - Onboarding windows change dimensions between steps/selections.
+  - Settings windows change size/shape when different tabs or selections are chosen.
+  - The behavior feels like switching between unrelated windows rather than tabs inside one stable setup workspace.
+- Expected:
+  - Dialogs with tabbed or step-based content should keep a stable outer frame.
+  - Content can scroll internally when needed.
+  - Primary actions should remain anchored and should not jump as content height changes.
+  - Onboarding and Settings should share consistent sizing rules, even when their content differs.
+- Acceptance:
+  - [ ] Define stable sizing rules for Settings and onboarding dialogs.
+  - [ ] Keep the outer modal/window frame stable across Settings tab changes.
+  - [ ] Keep the outer modal/window frame stable across onboarding step changes.
+  - [ ] Use internal scrolling or responsive two-column layouts instead of resizing the whole modal around content.
+  - [ ] Add visual/e2e coverage for switching Settings tabs and onboarding steps without outer-frame jumps.
+  - [ ] Include packaged-app QA screenshots or video evidence for desktop dimensions.
+
+### EXO-ISSUE-094: Define onboarding versus Settings boundaries for profile-era setup
+
+- Status: open
+- Severity: medium
+- Area: onboarding, settings, profiles, plugins, information architecture
+- Source:
+  - GitHub issue #31: https://github.com/k3nnethfrancis/exo/issues/31
+- Observed:
+  - First-run onboarding is becoming a guided workspace/profile setup flow, but Settings still reflects older native-only setup assumptions.
+  - Workspace settings can be saved while plugin/profile/agent/routine setup remains ambiguous.
+  - It is unclear whether plugin-like choices should be edited in Settings, Plugin Manager, Agent Config, Profile settings, or onboarding.
+  - Search/index settings still partly reflect the older model where QMD was native rather than plugin/provider-backed advanced search.
+- Expected:
+  - Onboarding is a guided profile builder: workspace basics, search/plugin choices, harnesses, agent context, starter routines, and final profile save.
+  - Settings manages existing state after setup and links to Plugin Manager, Agent Config, Routine Manager, and Profile Manager where those concepts are owned.
+  - Plugin-backed features should not remain as old native-only settings.
+  - If setup is incomplete, Settings or the app shell should show a clear resume/finish setup path.
+- Acceptance:
+  - [ ] Document which concepts belong to Onboarding, Settings, Plugin Manager, Agent Config, Routine Manager, and Profile Manager.
+  - [ ] Update Settings search/index UI so it reflects the plugin/provider architecture instead of treating QMD as native-only Exo behavior.
+  - [ ] Add a clear resume/finish setup path when onboarding is incomplete.
+  - [ ] Add a clear active workspace profile surface after onboarding is complete.
+  - [ ] Ensure onboarding choices have corresponding post-onboarding management surfaces.
+  - [ ] Add tests or QA scripts for the transition from onboarding to Settings/Profile management.
+
+### EXO-ISSUE-093: Hard refresh can exit onboarding with only partial setup saved
+
+- Status: open
+- Severity: high
+- Area: onboarding, profile state, workspace settings, packaged first-run
+- Source:
+  - GitHub issue #30: https://github.com/k3nnethfrancis/exo/issues/30
+- Observed:
+  - During fresh packaged-app onboarding, a hard refresh/reload can exit onboarding after only part of setup has run.
+  - App support can contain completed-looking `workspace-settings.json` and `workspace-registry.json` even though plugin/profile/agent/routine setup was not finished.
+  - There does not appear to be a separate persisted onboarding/profile setup state under app support.
+- Expected:
+  - Hard refresh during onboarding should restore the current onboarding step or return to a clear continue-setup state.
+  - Workspace basics may be saved early, but Exo must distinguish workspace-created from onboarding/profile-complete.
+  - The app should not silently convert partial onboarding into completed first-run setup.
+- Acceptance:
+  - [ ] Add explicit persisted state for onboarding progress/completion separate from workspace settings existence.
+  - [ ] Hard refresh during onboarding returns to the correct current or next onboarding step.
+  - [ ] Exo distinguishes workspace basics saved from workspace profile/onboarding complete.
+  - [ ] If onboarding is interrupted, Settings or the main app offers a clear resume/finish setup path.
+  - [ ] Add packaged-app QA covering refresh/relaunch during each onboarding stage.
+  - [ ] Add regression coverage that workspace settings alone do not imply profile/onboarding completion.
+
 ### EXO-ISSUE-092: First-run onboarding must produce a workspace profile with agent context
 
 - Status: fixed
