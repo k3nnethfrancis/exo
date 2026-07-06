@@ -1532,7 +1532,7 @@ describe("TerminalManager Codex readiness", () => {
     expect(ptyState.spawned[0]?.args).toEqual(["-u", "-C", "attach-session", "-t", expect.stringMatching(/^exo-[a-f0-9]{10}-term-1-\d{4}-/i)]);
     expect(shellLaunch).toContain(`'${path.join(workspaceRoot, "bin", "codex")}'`);
     expect(shellLaunch).toContain("'-c'");
-    expect(shellLaunch).toContain(`'mcp_servers.exo.command=\"node\"'`);
+    expect(shellLaunch).toMatch(/'mcp_servers\.exo\.command=\"(?:node|[^']*\/node)\"'/);
     expect(shellLaunch).toContain(`'mcp_servers.exo.args=[\"${exoRoot}/packages/mcp/bin/exo-mcp.mjs\"]'`);
     expect(shellLaunch).toContain(
       `'mcp_servers.exo.env={EXO_MCP_AUTOSTART=\"1\", EXO_MCP_SEARCH_TIMEOUT_MS=\"30000\", EXO_MCP_START_COMMAND=\"${exoRoot}/bin/exo start\"}'`,

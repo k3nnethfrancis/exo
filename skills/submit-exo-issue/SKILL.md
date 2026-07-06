@@ -9,35 +9,23 @@ Use this skill when a user reports an Exo bug, QA finding, setup failure, confus
 
 ## Standard
 
-Root `issues.md` is the canonical local tracker for Exo field reports. GitHub issues are useful for external intake and the scheduled Codex issue-fix loop, but every active Exo implementation issue must be promoted into root `issues.md` with an `EXO-ISSUE-*` id before assignment.
+GitHub issues are the default submission surface for Exo field reports and Codex-loop work. Root `issues.md` is useful for duplicate checks and implementation context, but do not edit it unless the user asks for a local tracker update, you are starting implementation immediately, or the report already needs to be reconciled with an existing `EXO-ISSUE-*`.
 
 ## Workflow
 
-1. Inspect root `issues.md` for duplicates before creating a new entry.
-2. If the report came from GitHub, include the GitHub issue number and URL in `Source`.
-3. Add the issue under `## Open` with the next unused `EXO-ISSUE-*` id.
-4. Use this shape:
+1. Inspect root `issues.md` and recent GitHub issues for duplicates or related context.
+2. Create or update the GitHub issue as the primary action.
+3. Use a concise issue body:
 
-```markdown
-### EXO-ISSUE-000: Short user-outcome title
+- Summary
+- Observed
+- Expected
+- Acceptance criteria
+- Relevant screenshot/log/source paths
 
-- Status: open
-- Severity: critical|high|medium|low
-- Area: short subsystem list
-- Source:
-  - Date/source/link/screenshot path/GitHub URL.
-- Observed:
-  - Concrete behavior the user saw.
-- Expected:
-  - User-visible behavior that should happen instead.
-- Acceptance:
-  - [ ] Testable condition.
-  - [ ] Testable condition.
-```
-
-5. If work starts immediately, set `Status: in progress` and keep acceptance criteria current.
-6. If the issue is eligible for the GitHub issue-fix loop, the GitHub issue must have both `codex-loop` and `ready-for-codex`; otherwise do not assume automation will pick it up.
-7. Do not create parallel issue trackers under `docs/` or the notes vault.
+4. If the issue is actionable by automation, apply both `codex-loop` and `ready-for-codex`; otherwise do not assume automation will pick it up.
+5. Only edit root `issues.md` when explicitly useful. If you do, add the next unused `EXO-ISSUE-*` under `## Open` and include the GitHub URL in `Source`.
+6. Do not create parallel issue trackers under `docs/` or the notes vault.
 
 ## Severity Guide
 
