@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { PluginInventory, PluginInventoryItem } from "@exo/core";
 import { ShieldAlert, ShieldCheck } from "lucide-react";
-import type { AgentInstructionConfig } from "../../../shared/api";
+import type { AgentInstructionConfig, OnboardingSetupStep } from "../../../shared/api";
 
 import {
   buildOnboardingCapabilitySections,
@@ -13,17 +13,19 @@ import {
 import { pluginActionInput } from "../pluginManagerModel";
 
 interface OnboardingCapabilityReviewProps {
+  initialSetupStep?: OnboardingSetupStep;
   notesFolder: string;
   onBack: () => void;
   onEnterWorkspace: () => void;
+  onSetupStepChange?: (setupStep: OnboardingSetupStep) => void;
 }
 
-type OnboardingSetupStep = "plugins" | "instructions" | "routines" | "review";
-
 export function OnboardingCapabilityReview({
+  initialSetupStep = "plugins",
   notesFolder,
   onBack,
   onEnterWorkspace,
+  onSetupStepChange,
 }: OnboardingCapabilityReviewProps) {
   const [inventory, setInventory] = useState<PluginInventory | null>(null);
   const [loadState, setLoadState] = useState<"loading" | "idle" | "error">("loading");
@@ -31,7 +33,7 @@ export function OnboardingCapabilityReview({
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [pendingPluginId, setPendingPluginId] = useState<string | null>(null);
   const [selectionOverrides, setSelectionOverrides] = useState<Record<string, boolean>>({});
-  const [setupStep, setSetupStep] = useState<OnboardingSetupStep>("plugins");
+  const [setupStep, setSetupStepState] = useState<OnboardingSetupStep>(initialSetupStep);
   const [profileName, setProfileName] = useState("My Exograph");
   const [defaultHarnessId, setDefaultHarnessId] = useState<string | null>(null);
   const [agentInstructionConfig, setAgentInstructionConfig] = useState<AgentInstructionConfig | null>(null);
@@ -40,6 +42,11 @@ export function OnboardingCapabilityReview({
   const [exographContextApplied, setExographContextApplied] = useState(false);
   const [graphHealthEnabled, setGraphHealthEnabled] = useState(true);
   const [instructionSyncEnabled, setInstructionSyncEnabled] = useState(true);
+
+  function setSetupStep(nextStep: OnboardingSetupStep) {
+    setSetupStepState(nextStep);
+    onSetupStepChange?.(nextStep);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -176,6 +183,7 @@ export function OnboardingCapabilityReview({
           exographContextApplied,
         },
       });
+      await window.exo.workspace.markOnboardingProfileSetup({ status: "complete", setupStep: "review" });
       onEnterWorkspace();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : String(error));

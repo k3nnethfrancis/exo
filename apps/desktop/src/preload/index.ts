@@ -30,6 +30,7 @@ const api: DesktopApi = {
     getModel: () => invokeDesktop("workspace:get-model"),
     getSettings: () => invokeDesktop("workspace:get-settings"),
     getSetupState: () => invokeDesktop("workspace:get-setup-state"),
+    markOnboardingProfileSetup: (input) => invokeDesktop("workspace:mark-onboarding-profile-setup", input),
     listWorkspaces: () => invokeDesktop("workspace:list-workspaces"),
     activateWorkspace: (workspaceId) => invokeDesktop("workspace:activate-workspace", workspaceId),
     saveSettings: (settings) => invokeDesktop("workspace:save-settings", settings),

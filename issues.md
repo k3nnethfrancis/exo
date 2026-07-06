@@ -59,7 +59,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-093: Hard refresh can exit onboarding with only partial setup saved
 
-- Status: open
+- Status: fixed
 - Severity: high
 - Area: onboarding, profile state, workspace settings, packaged first-run
 - Source:
@@ -67,18 +67,24 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 - Observed:
   - During fresh packaged-app onboarding, a hard refresh/reload can exit onboarding after only part of setup has run.
   - App support can contain completed-looking `workspace-settings.json` and `workspace-registry.json` even though plugin/profile/agent/routine setup was not finished.
-  - There does not appear to be a separate persisted onboarding/profile setup state under app support.
+  - There did not appear to be a separate persisted onboarding/profile setup state under app support.
 - Expected:
   - Hard refresh during onboarding should restore the current onboarding step or return to a clear continue-setup state.
   - Workspace basics may be saved early, but Exo must distinguish workspace-created from onboarding/profile-complete.
   - The app should not silently convert partial onboarding into completed first-run setup.
 - Acceptance:
-  - [ ] Add explicit persisted state for onboarding progress/completion separate from workspace settings existence.
-  - [ ] Hard refresh during onboarding returns to the correct current or next onboarding step.
-  - [ ] Exo distinguishes workspace basics saved from workspace profile/onboarding complete.
-  - [ ] If onboarding is interrupted, Settings or the main app offers a clear resume/finish setup path.
-  - [ ] Add packaged-app QA covering refresh/relaunch during each onboarding stage.
-  - [ ] Add regression coverage that workspace settings alone do not imply profile/onboarding completion.
+  - [x] Add explicit persisted state for onboarding progress/completion separate from workspace settings existence.
+    - 2026-07-06: Added app-support `onboarding-state.json` keyed by workspace root. Workspace basics now mark profile setup `pending`; saving the final profile review marks it `complete`.
+  - [x] Hard refresh during onboarding returns to the correct current or next onboarding step.
+    - 2026-07-06: Focused Electron e2e covers refresh while setup is on Agent Context and verifies the same step returns.
+  - [x] Exo distinguishes workspace basics saved from workspace profile/onboarding complete.
+    - 2026-07-06: `workspace:get-setup-state` now reports onboarding profile setup status separately from workspace settings existence.
+  - [x] If onboarding is interrupted, Settings or the main app offers a clear resume/finish setup path.
+    - 2026-07-06: Pending setup auto-opens after bootstrap and a status-bar `Finish setup` action reopens it if dismissed.
+  - [x] Add packaged-app QA covering refresh/relaunch during each onboarding stage.
+    - 2026-07-06: Source-built Electron e2e covered refresh plus app relaunch resume. Packaged `release/mac-arm64/Exo.app` QA with isolated app-support/settings/home paths confirmed relaunch resumes on Agent Context and completion clears the setup modal. Screenshots: `/tmp/exo-issue-30-packaged-resume.png`, `/tmp/exo-issue-30-packaged-complete.png`.
+  - [x] Add regression coverage that workspace settings alone do not imply profile/onboarding completion.
+    - 2026-07-06: New e2e verifies pending setup persists after workspace settings are saved and clears only after profile review is saved.
 
 ### EXO-ISSUE-092: First-run onboarding must produce a workspace profile with agent context
 

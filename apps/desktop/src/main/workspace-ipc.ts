@@ -27,7 +27,8 @@ export interface WorkspaceIpcHandlers {
   getProfileState: WorkspaceApi["getProfileState"];
   getRuntimeStatus: () => Promise<unknown> | unknown;
   getSettings: () => WorkspaceSettings;
-  getSetupState: () => { complete: boolean; settingsPath: string };
+  getSetupState: WorkspaceApi["getSetupState"];
+  markOnboardingProfileSetup: WorkspaceApi["markOnboardingProfileSetup"];
   enablePlugin: WorkspaceApi["enablePlugin"];
   disablePlugin: WorkspaceApi["disablePlugin"];
   setActiveProfile: WorkspaceApi["setActiveProfile"];
@@ -80,6 +81,7 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
   handleDesktopInvoke("workspace:get-model", async () => handlers.getModel());
   handleDesktopInvoke("workspace:get-settings", async () => handlers.getSettings());
   handleDesktopInvoke("workspace:get-setup-state", async () => handlers.getSetupState());
+  handleDesktopInvoke("workspace:mark-onboarding-profile-setup", async (_event, input) => handlers.markOnboardingProfileSetup(input));
   handleDesktopInvoke("workspace:list-workspaces", async () => handlers.listWorkspaces());
   handleDesktopInvoke("workspace:activate-workspace", async (_event, workspaceId) => handlers.activateWorkspace(workspaceId));
   handleDesktopInvoke("workspace:get-index-status", async () => handlers.getIndexStatus());

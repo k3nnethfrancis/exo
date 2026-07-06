@@ -48,6 +48,7 @@ Plugin architecture, tmux terminal persistence/readiness, packaged onboarding ha
 - Adds existing-note suggestions while typing `[[wikilinks]]`, capped to three matches, with Enter selecting the first match and no popup when no note matches.
 - Tightens terminal resize handoff between xterm and the tmux/node-pty bridge to reduce split-pane prompt rendering drift during active Claude/Codex typing.
 - Fixes fresh packaged startup when no workspace registry exists by loading the active workspace/onboarding path instead of falling back to `/`.
+- Fixes interrupted first-run setup by persisting onboarding/profile setup progress separately from workspace settings and resuming the post-workspace setup flow after refresh or relaunch.
 - Simplifies first-run onboarding so the initial path is notes-folder selection instead of a confusing non-working workspace button.
 - Fixes dependency/setup friction from blocked `fast-uri` and package-wide `picomatch` overrides.
 - Narrows and then adjusts the default explorer pane width, improves pane-to-terminal focus behavior, and adds terminal bottom inset so terminal status lines are not clipped by the bottom bar.

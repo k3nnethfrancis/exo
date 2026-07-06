@@ -9,7 +9,7 @@ import type {
   WorkspaceSettings,
 } from "@exo/core";
 
-import type { TerminalSessionInfo } from "../../shared/api";
+import type { OnboardingSetupStep, TerminalSessionInfo } from "../../shared/api";
 
 import type { AppearanceMode, ResolvedAppearance } from "./appearance";
 import { AgentConfigEditorDialog } from "./components/AgentConfigEditorDialog";
@@ -33,7 +33,7 @@ import { useProposalReviewState } from "./hooks/useProposalReviewState";
 import { useShellLayout } from "./hooks/useShellLayout";
 import { useTerminalPaneController, type TerminalPaneController } from "./hooks/useTerminalPaneController";
 import { useTerminalSessions } from "./hooks/useTerminalSessions";
-import { consumePostWorkspaceSetupFlag, useWorkspaceBootstrap } from "./hooks/useWorkspaceBootstrap";
+import { useWorkspaceBootstrap } from "./hooks/useWorkspaceBootstrap";
 import { useWorkspaceCommandHandlers } from "./hooks/useWorkspaceCommandHandlers";
 import { useWorkspaceLayoutPersistence } from "./hooks/useWorkspaceLayoutPersistence";
 import { useWorkspaceMutations } from "./hooks/useWorkspaceMutations";
@@ -89,6 +89,8 @@ export function App() {
   const [agentHarnesses, setAgentHarnesses] = useState<AgentHarnessDetection[]>([]);
   const [pluginManagerOpen, setPluginManagerOpen] = useState(false);
   const [postWorkspaceSetupOpen, setPostWorkspaceSetupOpen] = useState(false);
+  const [postWorkspaceSetupPending, setPostWorkspaceSetupPending] = useState(false);
+  const [postWorkspaceSetupStep, setPostWorkspaceSetupStep] = useState<OnboardingSetupStep>("plugins");
   const [proposalReviewOpen, setProposalReviewOpen] = useState(false);
   const [profileState, setProfileState] = useState<ProfileStateStore | null>(null);
   const [noteChangesOpen, setNoteChangesOpen] = useState(false);
@@ -230,9 +232,31 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    if (workspaceModel && !onboardingState && consumePostWorkspaceSetupFlag()) {
-      setPostWorkspaceSetupOpen(true);
+    if (!workspaceModel || onboardingState) {
+      setPostWorkspaceSetupPending(false);
+      return;
     }
+    let cancelled = false;
+    void window.exo.workspace.getSetupState()
+      .then((setupState) => {
+        if (cancelled) {
+          return;
+        }
+        const pending = setupState.onboarding?.status === "pending";
+        setPostWorkspaceSetupPending(pending);
+        if (pending) {
+          setPostWorkspaceSetupStep(setupState.onboarding?.setupStep ?? "plugins");
+          setPostWorkspaceSetupOpen(true);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPostWorkspaceSetupPending(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [workspaceModel, onboardingState]);
 
   useEffect(() => {
@@ -1081,6 +1105,7 @@ export function App() {
         changedFiles: projectReviewChanges.length,
         changedNotes: noteGitChanges.length,
         pendingProposals: proposalReviewState.pendingProposalCount,
+        onboardingSetupPending: postWorkspaceSetupPending,
         profileReviewRequired: profileState?.reviewRequired ?? false,
         profileLabel: profileState?.activeProfile?.label ?? profileState?.activeProfile?.profileId ?? null,
         terminal: terminalStatusLine,
@@ -1089,6 +1114,7 @@ export function App() {
       shellLayout={shellLayout}
       revealExplorerPathRequest={revealExplorerPathRequest}
       onOpenAgentConfigEditor={() => void openAgentContextManager()}
+      onOpenOnboardingSetup={() => setPostWorkspaceSetupOpen(true)}
       renderEditorLeaf={(leaf, isFocused) => {
         if (leaf.content.kind === "browser") {
           return (
@@ -1360,9 +1386,17 @@ export function App() {
         <div className="dialog-overlay" data-testid="post-workspace-setup-overlay">
           <div className="dialog-card dialog-card--wide" data-testid="post-workspace-setup">
             <OnboardingCapabilityReview
+              initialSetupStep={postWorkspaceSetupStep}
               notesFolder={workspaceModel.noteRoots[0]?.path ?? workspaceModel.workspaceRoot}
               onBack={() => setPostWorkspaceSetupOpen(false)}
-              onEnterWorkspace={() => setPostWorkspaceSetupOpen(false)}
+              onEnterWorkspace={() => {
+                setPostWorkspaceSetupOpen(false);
+                setPostWorkspaceSetupPending(false);
+              }}
+              onSetupStepChange={(setupStep) => {
+                setPostWorkspaceSetupStep(setupStep);
+                void window.exo.workspace.markOnboardingProfileSetup({ status: "pending", setupStep });
+              }}
             />
           </div>
         </div>

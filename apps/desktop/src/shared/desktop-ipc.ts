@@ -9,6 +9,7 @@ export interface DesktopInvokeHandlers {
   "workspace:get-model": WorkspaceApi["getModel"];
   "workspace:get-settings": WorkspaceApi["getSettings"];
   "workspace:get-setup-state": WorkspaceApi["getSetupState"];
+  "workspace:mark-onboarding-profile-setup": WorkspaceApi["markOnboardingProfileSetup"];
   "workspace:list-workspaces": WorkspaceApi["listWorkspaces"];
   "workspace:activate-workspace": WorkspaceApi["activateWorkspace"];
   "workspace:save-settings": WorkspaceApi["saveSettings"];

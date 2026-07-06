@@ -57,6 +57,7 @@ interface ShellLayoutProps {
     changedFiles: number;
     changedNotes: number;
     pendingProposals: number;
+    onboardingSetupPending: boolean;
     profileReviewRequired: boolean;
     profileLabel: string | null;
     terminal: TerminalStatusLine | null;
@@ -97,6 +98,7 @@ interface ShellLayoutProps {
   onOpenAgentConfigEditor: () => void;
   onOpenPluginManager: () => void;
   onOpenProposalReview: () => void;
+  onOpenOnboardingSetup: () => void;
   onOpenIndexSettings: () => void;
   onOpenProjectChanges: () => void;
   onOpenNoteChanges: () => void;
@@ -142,6 +144,7 @@ export function ShellLayout(props: ShellLayoutProps) {
     onOpenAgentConfigEditor,
     onOpenPluginManager,
     onOpenProposalReview,
+    onOpenOnboardingSetup,
     onOpenIndexSettings,
     onOpenProjectChanges,
     onOpenNoteChanges,
@@ -413,6 +416,17 @@ export function ShellLayout(props: ShellLayoutProps) {
               {statusLine.gitBranch}
               {statusLine.gitDirty ? "*" : ""}
             </span>
+          ) : null}
+          {statusLine.onboardingSetupPending ? (
+            <button
+              className="statusbar__changes statusbar__changes--setup"
+              data-testid="statusbar-onboarding-setup"
+              onClick={onOpenOnboardingSetup}
+              title="Finish workspace setup"
+              type="button"
+            >
+              Finish setup
+            </button>
           ) : null}
           {statusLine.profileReviewRequired ? (
             <button
