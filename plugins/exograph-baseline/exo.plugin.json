@@ -26,6 +26,11 @@
               "id": "graph-health.plugin",
               "required": false,
               "reason": "Routine template for graph-maintenance reports."
+            },
+            {
+              "id": "agent-instruction-sync.plugin",
+              "required": false,
+              "reason": "Routine template for proposing provider-agnostic agent instruction merges."
             }
           ],
           "metadataSchemas": [
@@ -61,7 +66,7 @@
           "instructionTemplates": [],
           "mcpConfigTemplates": [],
           "skills": [],
-          "routineTemplateIds": ["graph-health.template"],
+          "routineTemplateIds": ["graph-health.template", "agent-instruction-sync.template"],
           "graphViews": [],
           "analyzerSettings": [],
           "reviewPolicy": {

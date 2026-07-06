@@ -19,6 +19,7 @@ import {
 const identity: ActiveProfileIdentity = {
   profileId: "shoshin",
   capabilityId: "shoshin.profile",
+  label: "Shoshin",
   pluginId: "shoshin-profile.plugin",
   source: "workspace",
   manifestPath: "/workspace/.exo/plugins/shoshin/exo.plugin.json",

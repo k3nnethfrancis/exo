@@ -57,6 +57,7 @@ export interface WorkspaceIpcHandlers {
   readAgentSkillFile: WorkspaceApi["readAgentSkillFile"];
   renamePath: WorkspaceApi["renamePath"];
   resolveTarget: NotesApi["resolveTarget"];
+  applyGlobalExographContext: WorkspaceApi["applyGlobalExographContext"];
   saveAgentInstructionConfig: WorkspaceApi["saveAgentInstructionConfig"];
   saveAgentSkillFile: WorkspaceApi["saveAgentSkillFile"];
   saveNote: NotesApi["save"];
@@ -151,6 +152,9 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
   handleDesktopInvoke("workspace:decide-proposal", async (_event, id, input) => handlers.decideProposal(id, input));
   handleDesktopInvoke("workspace:save-agent-instruction-config", async (_event, input) =>
     handlers.saveAgentInstructionConfig(input),
+  );
+  handleDesktopInvoke("workspace:apply-global-exograph-context", async (_event, input) =>
+    handlers.applyGlobalExographContext(input),
   );
   handleDesktopInvoke("workspace:list-agent-instruction-overlays", async () => handlers.listAgentInstructionOverlays());
   handleDesktopInvoke("workspace:list-agent-skills", async () => handlers.listAgentSkills());

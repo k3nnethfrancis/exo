@@ -193,6 +193,7 @@ export interface AgentInstructionScope {
 export interface AgentInstructionConfig {
   scopes: AgentInstructionScope[];
   starterTemplate: string;
+  exographContextTemplate: string;
 }
 
 export interface AgentInstructionOverlay {
@@ -362,6 +363,9 @@ export interface DesktopApi {
     decideProposal: (id: string, input: { decision: ProposalDecision; itemId?: string }) => Promise<ProposalApplyResult>;
     saveAgentInstructionConfig: (input: {
       scopeId: AgentInstructionScopeId;
+      body: string;
+    }) => Promise<AgentInstructionConfig>;
+    applyGlobalExographContext: (input: {
       body: string;
     }) => Promise<AgentInstructionConfig>;
     listAgentInstructionOverlays: () => Promise<AgentInstructionOverlay[]>;

@@ -398,6 +398,7 @@ function registerIpcHandlers() {
     renamePath: renameWorkspacePath,
     resolveTarget: (sourceFilePath, target) => workspaceNotesService.resolveTarget(sourceFilePath, target),
     saveAgentInstructionConfig: (input) => agentInstructionsService.saveConfig(input),
+    applyGlobalExographContext: (input) => agentInstructionsService.applyGlobalExographContext(input),
     saveAgentSkillFile: (skillId, relativePath, body) => agentSkillsService.saveSkillFile(skillId, relativePath, body),
     saveNote: async (filePath, frontmatter, body) => {
       await saveWorkspaceDocument(filePath, frontmatter, body);

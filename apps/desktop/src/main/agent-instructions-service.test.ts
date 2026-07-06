@@ -4,7 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import type { WorkspaceModel } from "@exo/core";
-import { AgentInstructionsService, normalizeInstructionFileBody, resolveInstructionStatus } from "./agent-instructions-service";
+import { AgentInstructionsService, normalizeInstructionFileBody, resolveInstructionStatus, upsertExographContextBlock } from "./agent-instructions-service";
 
 describe("AgentInstructionsService", () => {
   it("resolves provider file status states", () => {
@@ -18,6 +18,15 @@ describe("AgentInstructionsService", () => {
 
   it("normalizes saved instruction bodies with one trailing newline", () => {
     expect(normalizeInstructionFileBody("body\n\n")).toBe("body\n");
+  });
+
+  it("adds or replaces the managed Exograph context block without rewriting user instructions", () => {
+    const first = upsertExographContextBlock("personal rules\n", "exo context");
+    expect(first).toContain("personal rules\n\n<!-- exo:exograph-context:start -->\nexo context\n<!-- exo:exograph-context:end -->\n");
+
+    const second = upsertExographContextBlock(first, "updated context\n\n");
+    expect(second).toContain("personal rules\n\n<!-- exo:exograph-context:start -->\nupdated context\n<!-- exo:exograph-context:end -->\n");
+    expect(second).not.toContain("exo context\n<!-- exo:exograph-context:end -->\n\n<!-- exo:exograph-context:start -->");
   });
 
   it("loads aligned global and exocortex scopes", async () => {
@@ -46,6 +55,21 @@ describe("AgentInstructionsService", () => {
     await expect(readFile(path.join(notesRoot, "CLAUDE.md"), "utf8")).resolves.toBe("shared instructions\n");
     expect(config.scopes.find((scope) => scope.id === "exocortex")).toEqual(
       expect.objectContaining({ status: "aligned", body: "shared instructions\n" }),
+    );
+  });
+
+  it("applies Exograph context to both global provider files", async () => {
+    const { service, homeRoot } = await agentInstructionsService();
+    await mkdir(path.join(homeRoot, ".codex"), { recursive: true });
+    await mkdir(path.join(homeRoot, ".claude"), { recursive: true });
+    await writeFile(path.join(homeRoot, ".codex", "AGENTS.md"), "codex rules\n", "utf8");
+
+    const config = await service.applyGlobalExographContext({ body: "exo context" });
+
+    await expect(readFile(path.join(homeRoot, ".codex", "AGENTS.md"), "utf8")).resolves.toContain("codex rules\n\n<!-- exo:exograph-context:start -->\nexo context\n<!-- exo:exograph-context:end -->\n");
+    await expect(readFile(path.join(homeRoot, ".claude", "CLAUDE.md"), "utf8")).resolves.toBe("<!-- exo:exograph-context:start -->\nexo context\n<!-- exo:exograph-context:end -->\n");
+    expect(config.scopes.find((scope) => scope.id === "global")).toEqual(
+      expect.objectContaining({ status: "different" }),
     );
   });
 

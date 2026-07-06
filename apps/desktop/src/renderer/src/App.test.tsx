@@ -2350,7 +2350,7 @@ describe("workspace onboarding model", () => {
     );
 
     expect(html).toContain("Set up your Exograph");
-    expect(html).toContain("Choose the optional plugins to start with.");
+    expect(html).toContain("Choose plugins, agent context, and routine defaults.");
     expect(html).not.toContain("Markdown graph");
     expect(html).not.toContain("Core, locked");
     expect(html).toContain("QMD advanced search");
@@ -2364,9 +2364,35 @@ describe("workspace onboarding model", () => {
     expect(html).not.toContain("QMD hybrid");
     expect(html).not.toContain("Profile plan preview");
     expect(html).not.toContain("Lab profile");
-    expect(html).toContain("Profiles and routines are configured later in Settings.");
-    expect(html).toContain("never override manual plugin choices without review");
+    expect(html).toContain("Agent context");
+    expect(html).toContain("Routines");
     expect(html).toContain("Continue");
+  });
+
+  it("lets detected bundled harnesses be deselected as onboarding choices", () => {
+    const inventory = pluginInventory([
+      pluginInventoryItem("qmd", "QMD advanced search", "searchProvider", "Search providers", "bundled"),
+      pluginInventoryItem("codex", "Codex", "agentHarness", "Agent harnesses", "bundled"),
+    ]);
+    const html = renderToStaticMarkup(
+      <OnboardingCapabilityReviewContent
+        errorMessage={null}
+        inventory={inventory}
+        loadState="idle"
+        notesFolder="/workspace/notes"
+        onBack={vi.fn()}
+        onEnterWorkspace={vi.fn()}
+        onTogglePlugin={vi.fn()}
+        sections={buildOnboardingCapabilitySections(inventory)}
+        selectedHarnesses={[inventory.items[1]]}
+        defaultHarnessId="codex"
+      />,
+    );
+
+    expect(html).toContain("Agent harnesses");
+    expect(html).toContain("Default harness for routines");
+    expect(html).toMatch(/data-testid=\"onboarding-plugin-toggle-codex\"[^>]*checked=\"\"/);
+    expect(html).not.toMatch(/data-testid=\"onboarding-plugin-toggle-codex\"[^>]*disabled=\"\"/);
   });
 });
 

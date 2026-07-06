@@ -68,6 +68,7 @@ const api: DesktopApi = {
     readProposal: (id) => invokeDesktop("workspace:read-proposal", id),
     decideProposal: (id, input) => invokeDesktop("workspace:decide-proposal", id, input),
     saveAgentInstructionConfig: (input) => invokeDesktop("workspace:save-agent-instruction-config", input),
+    applyGlobalExographContext: (input) => invokeDesktop("workspace:apply-global-exograph-context", input),
     listAgentInstructionOverlays: () => invokeDesktop("workspace:list-agent-instruction-overlays"),
     listAgentSkills: () => invokeDesktop("workspace:list-agent-skills"),
     addAgentSkillSource: (input) => invokeDesktop("workspace:add-agent-skill-source", input),

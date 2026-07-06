@@ -47,6 +47,7 @@ export class AgentInstructionsService {
     return {
       scopes: await Promise.all(this.scopeCandidates().map((scope) => this.readScope(scope))),
       starterTemplate: exoAgentInstructionStarterTemplate(),
+      exographContextTemplate: exographAgentContextTemplate(),
     };
   }
 
@@ -61,6 +62,25 @@ export class AgentInstructionsService {
     }));
     return this.getConfig();
   }
+
+  async applyGlobalExographContext(input: { body: string }): Promise<AgentInstructionConfig> {
+    const scope = this.scopeCandidates().find((candidate) => candidate.id === "global");
+    if (!scope) {
+      throw new Error("Global agent instruction scope is unavailable.");
+    }
+    await Promise.all(Object.values(scope.files).map(async (file) => {
+      const existing = await readFile(file.path, "utf8").catch((error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") {
+          return "";
+        }
+        throw error;
+      });
+      await mkdir(path.dirname(file.path), { recursive: true });
+      await writeFile(file.path, upsertExographContextBlock(existing, input.body), "utf8");
+    }));
+    return this.getConfig();
+  }
+
 
   private scopeCandidates(): AgentInstructionScopeCandidate[] {
     const notesRoot = this.options.getWorkspaceModel().noteRoots[0];
@@ -190,6 +210,29 @@ export function normalizeInstructionFileBody(body: string) {
   return `${body.trimEnd()}\n`;
 }
 
+const EXOGRAPH_CONTEXT_START = "<!-- exo:exograph-context:start -->";
+const EXOGRAPH_CONTEXT_END = "<!-- exo:exograph-context:end -->";
+
+export function upsertExographContextBlock(existingBody: string, contextBody: string): string {
+  const block = [
+    EXOGRAPH_CONTEXT_START,
+    normalizeInstructionFileBody(contextBody).trimEnd(),
+    EXOGRAPH_CONTEXT_END,
+  ].join("\n");
+  const normalizedExisting = existingBody.replace(/\r\n/g, "\n").trimEnd();
+  const markerPattern = new RegExp(
+    `${escapeRegExp(EXOGRAPH_CONTEXT_START)}[\\s\\S]*?${escapeRegExp(EXOGRAPH_CONTEXT_END)}`,
+    "m",
+  );
+  if (markerPattern.test(normalizedExisting)) {
+    return normalizeInstructionFileBody(normalizedExisting.replace(markerPattern, block));
+  }
+  if (!normalizedExisting) {
+    return normalizeInstructionFileBody(block);
+  }
+  return normalizeInstructionFileBody(`${normalizedExisting}\n\n${block}`);
+}
+
 function normalizeInstructionComparisonBody(body: string) {
   return body.replace(/\r\n/g, "\n").trimEnd();
 }
@@ -203,4 +246,20 @@ function exoAgentInstructionStarterTemplate() {
     "- Treat notes as user-authored working context. Preserve organization, links, and private drafts unless asked to change them.",
     "- Prefer explicit attached roots over broad filesystem searches.",
   ].join("\n");
+}
+
+function exographAgentContextTemplate() {
+  return [
+    "## Exograph Context",
+    "",
+    "- Exo is the local-first Markdown graph workstation for notes, projects, terminals, agent harnesses, plugins, and indexed context.",
+    "- Prefer Exo MCP or CLI surfaces for workspace orientation before broad filesystem search.",
+    "- Use attached notes and project roots as the source of truth. Do not reorganize or rewrite user notes unless explicitly asked.",
+    "- Keep agent guidance provider-agnostic. Avoid Claude-only, Codex-only, or harness-specific assumptions unless a task asks for them.",
+    "- Treat Exo friction as product signal: if an Exo tool is missing, confusing, slow, or less useful than raw filesystem access, record an issue in the Exo project issue tracker.",
+  ].join("\n");
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

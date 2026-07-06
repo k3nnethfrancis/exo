@@ -8,6 +8,7 @@ export const EXO_PROFILE_STATE_FILE = "profile-state.json";
 export interface ActiveProfileIdentity {
   profileId: string;
   capabilityId: string;
+  label?: string;
   pluginId?: string;
   source?: PluginSource;
   manifestPath?: string;
@@ -126,6 +127,7 @@ function validateActiveProfileIdentity(input: unknown): ActiveProfileIdentity {
   return {
     profileId: requiredString(input, "profileId"),
     capabilityId: requiredString(input, "capabilityId"),
+    label: optionalString(input, "label"),
     pluginId: optionalString(input, "pluginId"),
     source: validateOptionalSource(optionalString(input, "source")),
     manifestPath: optionalString(input, "manifestPath"),

@@ -8,6 +8,35 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ## Open
 
+### EXO-ISSUE-092: First-run onboarding must produce a workspace profile with agent context
+
+- Status: fixed
+- Severity: medium
+- Area: onboarding, profiles, routines, agent instruction setup
+- Source:
+  - GitHub issue #25: https://github.com/k3nnethfrancis/exo/issues/25
+  - GitHub issue #26: https://github.com/k3nnethfrancis/exo/issues/26
+  - GitHub issue #27: https://github.com/k3nnethfrancis/exo/issues/27
+- Observed:
+  - Bundled harness rows were presented as mutable plugin toggles, but clicking them fell through to manifest plugin actions and threw `Plugin row is missing manifest identity`.
+  - First-run setup skipped the later concepts that should be part of the workspace profile: default harness, agent instruction context, built-in routines, and final profile save.
+  - Exograph-specific agent context needed to be applied without overwriting or merging the user's existing global instruction files.
+- Expected:
+  - Bundled harness choices behave as onboarding/profile choices, not manifest-backed plugin enable actions.
+  - The default Exograph profile is the built-in baseline, not a profile the user has to select.
+  - Onboarding walks through plugins, global agent context, built-in routines, and final review/save.
+  - Exograph context is a separate managed block appended to global provider files.
+  - Divergent `AGENTS.md`/`CLAUDE.md` merge is offered as a reviewable routine handoff, not a silent rewrite/symlink.
+- Acceptance:
+  - [x] Bundled harness toggles can be deselected in onboarding without calling manifest plugin actions.
+  - [x] Add default harness selection for routine handoffs.
+  - [x] Add a global agent-instruction step that detects global provider files and applies Exograph context as a managed block.
+  - [x] Add built-in routine toggles for Graph Health and Agent Instruction Sync.
+  - [x] Add a final review/save step that records the workspace's active profile label.
+  - [x] Register Agent Instruction Sync as a bundled routine template and recommend it from Exograph Baseline.
+  - [x] Add focused service/core/renderer tests.
+  - [ ] Fresh packaged-app QA for the complete multi-step onboarding flow.
+
 ### EXO-ISSUE-091: Deslopify Exograph setup and prioritize detected plugin choices
 
 - Status: fixed
@@ -19,11 +48,11 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - The post-workspace `Set up your Exograph` popup is too narrow, too prose-heavy, and reads like a technical review.
   - Search providers and agent harnesses do not feel like equal first-run decisions.
   - Missing harnesses can appear selected even when Exo cannot launch them.
-  - Profiles and routines appear before the setup flow can explain their effects or conflict behavior.
+  - Profiles and routines needed to appear only after plugin choices, once their effects and conflict behavior could be explained.
 - Expected:
   - First-run plugin setup should be dense, wide, and focused on concrete choices: advanced search and detected launchable harnesses.
   - Missing or unavailable harnesses should not be preselected or selectable.
-  - Profiles and routines should move to later Settings/Profile or Plugin Manager flows until their apply semantics are explicit.
+  - Profiles and routines should move out of the first plugin picker and into later onboarding/setup surfaces with explicit review semantics.
 - Acceptance:
   - [x] Add a reusable frontend skill/guideline for deslopifying Exo UI.
     - Added `skills/deslopify-frontend/SKILL.md` and referenced it from `AGENTS.md`/`CLAUDE.md`.
@@ -35,7 +64,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - [x] Do not auto-select unavailable harnesses.
     - Packaged QA saw Pi present but unchecked and disabled when its inference backend was missing.
   - [x] Move profiles and routines out of the first plugin-selection screen or redesign with clear semantics.
-    - Profiles/routines are deferred to Settings/Profile and Plugin Manager.
+    - Profiles/routines are now introduced after plugin selection through agent context, routine, and review/save steps.
   - [x] Define profile/manual plugin disagreement behavior.
     - First-run plugin setup states that profiles and routines never override manual plugin choices without review.
   - [x] Add packaged-app onboarding QA evidence and screenshots for the revised setup flow.

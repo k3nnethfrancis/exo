@@ -256,14 +256,17 @@ The target onboarding sequence is:
 
 1. Select or create the notes folder.
 2. Confirm workspace and default terminal path.
-3. Choose a workspace profile.
-4. Review the profile's recommended official/local plugins and capability settings.
-5. Enter the workspace.
+3. Review optional plugin choices such as QMD and detected launchable harnesses.
+4. Review global agent instruction context and optionally append Exograph context as a separate managed block.
+5. Review starter routine templates such as Graph Health and Agent Instruction Sync.
+6. Save the resulting choices as the active workspace profile and enter the workspace.
+
+The default Exograph profile is not a preset the user must pick during first run. It is the baseline set of official defaults. Onboarding edits that baseline for the current workspace; the saved result is the workspace profile. Profile templates and routine-backed rewrites still require explicit proposal/review flows before they modify files, install skills, grant permissions, or schedule automation.
 
 The capability screen should show:
 
 - Core: enabled and not optional.
-- Active workspace profile: official default, imported local profile, or no profile.
+- Active workspace profile: the saved result of first-run setup, an imported local profile, or no profile.
 - Plugin categories: search providers, agent harness adapters, profiles, analyzers, routines/templates, exporters, eval runners, dashboards, and future contributed surfaces.
 - Recommended official plugins: enabled by default only when ready.
 - Detected but not configured capabilities.
@@ -316,7 +319,7 @@ Not yet aligned:
 - terminal launch controls are partly hardwired UI even though harness metadata exists
 - current Routine/Run naming is compatibility terminology for the first CLI/store MVP; the durable contract is the smaller activity/artifact/provenance/review substrate documented in `activity-plugin-contract.md`
 - terminal sessions now expose additive substrate/harness identity fields, but some renderer/API descriptors still carry built-in `ManagedAgentKind` compatibility fields for built-in creation and persisted-session backfill
-- onboarding has a first-pass read-only capability review, but it does not yet apply profile/plugin recommendations or grant permissions
+- onboarding has a first-pass staged setup flow for plugin choices, managed global Exograph agent context, starter routine choices, and active workspace profile naming, but it does not yet apply profile/plugin recommendations or grant permissions
 - active workspace profile state exists under Exo runtime metadata and is visible from Settings and the status bar when review is required
 - plugin manifests can declare metadata-only settings schemas, but they do not yet contribute native renderer panels, commands, command-server routes, or MCP/CLI tools
 - profile packs have a metadata shape for recommended plugins, schemas, context files, skills, routines, project knowledge sync declarations, graph views, and policies, plus active-profile state and copy/customize metadata flows; the permissioned apply flow is not implemented

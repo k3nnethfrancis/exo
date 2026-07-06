@@ -75,7 +75,7 @@ export function buildProfileSettingsModel(
   const activeProfile = state?.activeProfile ?? null;
   return {
     activeProfile,
-    activeProfileLabel: activeCandidate?.label ?? activeProfile?.profileId ?? "No active profile",
+    activeProfileLabel: activeProfile?.label ?? activeCandidate?.label ?? activeProfile?.profileId ?? "No active profile",
     activeProfileDetail: activeCandidate
       ? `${activeCandidate.sourceLabel}; ${activeCandidate.statusLabel}`
       : activeProfile
