@@ -685,6 +685,13 @@ describe("browser preview panes", () => {
 });
 
 describe("terminal monitor layout", () => {
+  function monitorShape(node: PaneNode): unknown {
+    if (node.kind === "leaf") {
+      return node.content.kind === "terminal" ? node.content.terminalIds[0] ?? null : node.content.kind;
+    }
+    return [node.direction, monitorShape(node.children[0]), monitorShape(node.children[1])];
+  }
+
   it("builds one readable terminal leaf per session in monitor mode", () => {
     const tree = buildTerminalMonitorTree(["term-a", "term-b", "term-c"], "term-b");
     const leaves = collectLeaves(tree);
@@ -697,6 +704,50 @@ describe("terminal monitor layout", () => {
       ["term-c"],
     ]);
     expect(collectTerminalSessionIds(tree)).toEqual(new Set(["term-a", "term-b", "term-c"]));
+  });
+
+  it("defines balanced monitor split shapes for common multi-agent counts", () => {
+    const expectedShapes: Array<[number, unknown]> = [
+      [1, "term-a"],
+      [2, ["horizontal", "term-a", "term-b"]],
+      [3, ["horizontal", ["vertical", "term-a", "term-b"], "term-c"]],
+      [4, ["horizontal", ["vertical", "term-a", "term-b"], ["vertical", "term-c", "term-d"]]],
+      [5, ["horizontal", ["vertical", ["horizontal", "term-a", "term-b"], "term-c"], ["vertical", "term-d", "term-e"]]],
+      [6, ["horizontal", ["vertical", ["horizontal", "term-a", "term-b"], "term-c"], ["vertical", ["horizontal", "term-d", "term-e"], "term-f"]]],
+      [
+        8,
+        [
+          "horizontal",
+          ["vertical", ["horizontal", "term-a", "term-b"], ["horizontal", "term-c", "term-d"]],
+          ["vertical", ["horizontal", "term-e", "term-f"], ["horizontal", "term-g", "term-h"]],
+        ],
+      ],
+    ];
+
+    for (const [count, expectedShape] of expectedShapes) {
+      const sessionIds = Array.from({ length: count }, (_, index) => `term-${String.fromCharCode(97 + index)}`);
+      expect(monitorShape(buildTerminalMonitorTree(sessionIds, sessionIds.at(-1) ?? null))).toEqual(expectedShape);
+    }
+  });
+
+  it("keeps live monitor additions converged with the balanced monitor tree", () => {
+    const sessionIds = Array.from({ length: 8 }, (_, index) => `term-${String.fromCharCode(97 + index)}`);
+    let tree = buildTerminalMonitorTree([sessionIds[0]], sessionIds[0]);
+    let leafId = collectLeaves(tree)[0].id;
+
+    for (const sessionId of sessionIds.slice(1)) {
+      const result = addTerminalSessionAsSplit(tree, sessionId, leafId);
+      tree = result.tree;
+      leafId = result.leafId;
+
+      const currentSessionIds = sessionIds.slice(0, sessionIds.indexOf(sessionId) + 1);
+      expect(monitorShape(tree)).toEqual(
+        monitorShape(buildTerminalMonitorTree(currentSessionIds, sessionId)),
+      );
+      expect(collectLeaves(tree).map((leaf) => leaf.id)).toEqual(
+        currentSessionIds.map((id) => `terminal-session:${id}`),
+      );
+    }
   });
 
   it("derives stable monitor leaf identity from terminal session ids", () => {
@@ -795,6 +846,8 @@ describe("terminal monitor layout", () => {
     const leaves = collectLeaves(result.tree);
 
     expect(leaves).toHaveLength(1);
+    expect(result.leafId).toBe("terminal-session:term-a");
+    expect(leaves[0].id).toBe("terminal-session:term-a");
     expect(leaves[0].content).toEqual({
       kind: "terminal",
       terminalIds: ["term-a"],

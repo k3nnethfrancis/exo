@@ -54,6 +54,7 @@ Plugin architecture, tmux terminal persistence/readiness, packaged onboarding ha
 - Fixes stale/blank managed agent terminal starts and improves Claude/Codex terminal startup handling.
 - Fixes Markdown list outdent behavior in the editor.
 - Fixes terminal Unicode stream corruption, tmux UTF-8 decoding, parity handling, scrollback bridge behavior, renderer write batching, hydration/replay drift, blank panes after reload, generated-input artifacts, pane identity in monitor mode, runtime registry isolation, and Codex MCP restart coverage.
+- Fixes Monitor Mode live terminal additions so they converge on the balanced monitor grid instead of repeatedly adding same-direction columns.
 - Fixes preview pane target replacement, preview clipping, and preview-triggered terminal replay/focus regressions.
 - Fixes packaged/onboarding startup paths so missing workspace state reaches onboarding before synthetic workspace defaults or terminal transcript initialization.
 - Fixes plugin manager layout overlap, settings modal spacing, index settings status copy, and stale MCP/integration diagnostics.

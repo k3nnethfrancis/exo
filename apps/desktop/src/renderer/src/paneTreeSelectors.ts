@@ -179,59 +179,14 @@ export function addTerminalSessionAsSplit(tree: PaneNode, sessionId: string, tar
     };
   }
 
-  const targetLeaf = (
-    targetLeafId
-      ? collectLeaves(tree).find((leaf) => leaf.id === targetLeafId && leaf.content.kind === "terminal")
-      : undefined
-  ) ?? findTerminalLeaf(tree);
-  if (!targetLeaf) {
+  const existingSessionIds = collectTerminalSessionIdsInOrder(tree);
+  if (existingSessionIds.length === 0 && !findTerminalLeaf(tree)) {
     return { tree, leafId: tree.id };
   }
 
-  if (targetLeaf.content.kind === "terminal" && targetLeaf.content.terminalIds.length === 0) {
-    return {
-      tree: updateNode(tree, targetLeaf.id, (node) => {
-        if (node.kind !== "leaf" || node.content.kind !== "terminal") {
-          return node;
-        }
-        return {
-          ...node,
-          content: {
-            ...node.content,
-            terminalIds: [sessionId],
-            activeTerminalId: sessionId,
-          },
-        };
-      }),
-      leafId: targetLeaf.id,
-    };
-  }
-
-  const newLeafId = paneId();
-  const newLeaf: PaneLeaf = {
-    kind: "leaf",
-    id: newLeafId,
-    content: {
-      kind: "terminal",
-      terminalIds: [sessionId],
-      activeTerminalId: sessionId,
-    },
-  };
-
   return {
-    tree: updateNode(tree, targetLeaf.id, (node) => {
-      if (node.kind !== "leaf") {
-        return node;
-      }
-      return {
-        kind: "split",
-        id: paneId(),
-        direction: "horizontal",
-        ratio: 0.5,
-        children: [node, newLeaf],
-      };
-    }),
-    leafId: newLeafId,
+    tree: buildTerminalMonitorTree([...existingSessionIds, sessionId], sessionId),
+    leafId: terminalMonitorLeafId(sessionId),
   };
 }
 
@@ -327,6 +282,21 @@ export function countTerminalSessions(tree: PaneNode): number {
 
 function uniqueTerminalSessionIds(sessionIds: string[]): string[] {
   return Array.from(new Set(sessionIds));
+}
+
+function collectTerminalSessionIdsInOrder(tree: PaneNode): string[] {
+  const ids: string[] = [];
+  for (const leaf of collectLeaves(tree)) {
+    if (leaf.content.kind !== "terminal") {
+      continue;
+    }
+    for (const id of leaf.content.terminalIds) {
+      if (!ids.includes(id)) {
+        ids.push(id);
+      }
+    }
+  }
+  return ids;
 }
 
 function terminalMonitorLeafId(sessionId: string): PaneNodeId {

@@ -1,12 +1,33 @@
 # Exo Issues
 
-Last updated: 2026-07-05
+Last updated: 2026-07-06
 
 This is the canonical active bug/QA tracker for Exo implementation work. It captures user-observed issues that need investigation before the next push/release pass.
 
 This root file is the only canonical Exo issue tracker. Field notes from daily dogfooding, GitHub issues, screenshots, or agent sessions should be promoted here with an `EXO-ISSUE-*` id before assignment.
 
 ## Open
+
+### EXO-ISSUE-094: Monitor Mode live additions create skinny repeated columns
+
+- Status: fixed in `codex/issue-33-monitor-layout`
+- Severity: medium
+- Area: terminal monitor mode, pane layout
+- Source:
+  - GitHub issue #33: https://github.com/k3nnethfrancis/exo/issues/33
+- Observed:
+  - Entering Monitor Mode can build a balanced split tree, but adding terminals while Monitor Mode is already enabled used a fixed `horizontal` split around the focused terminal leaf.
+  - Repeated live additions could skew the terminal dock toward skinny columns instead of a readable grid.
+- Expected:
+  - Entering Monitor Mode with a session list and adding sessions while Monitor Mode is enabled should converge on the same deterministic balanced layout.
+  - Monitor leaves should keep stable ids derived from terminal session ids so the prior Monitor Mode remount fix remains intact.
+- Acceptance:
+  - [x] Define the target balanced monitor split shapes for 1, 2, 3, 4, 5, 6, and 8 terminal sessions.
+  - [x] Make live Monitor Mode additions rebuild through the balanced monitor layout instead of repeated same-direction splits.
+  - [x] Preserve `terminal-session:<id>` leaf ids for monitor leaves.
+  - [x] Add focused renderer tests for monitor split-tree shape and live-add convergence.
+  - [x] Run Electron/visual QA with at least 6 live sessions and confirm panes are balanced/readable.
+    - 2026-07-06 evidence: focused Monitor Mode Electron e2e created six live tmux-backed terminal sessions, asserted balanced terminal surface width/height ratios, verified geometry convergence, closed one session, relaunched with monitor mode persisted, and captured `/tmp/exo-monitor-mode-6-balanced-sessions.png`.
 
 ### EXO-ISSUE-092: First-run onboarding must produce a workspace profile with agent context
 
