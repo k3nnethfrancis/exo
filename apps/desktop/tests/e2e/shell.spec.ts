@@ -1920,7 +1920,8 @@ test("opens an existing notes folder from first-run setup", async () => {
   await expect(page.getByTestId("post-workspace-setup")).not.toContainText("Core, locked");
   await expect(page.getByTestId("onboarding-capability-review")).toBeVisible();
   await expect(page.getByTestId("onboarding-plugin-toggle-qmd")).toBeChecked();
-  await expect(page.getByTestId("onboarding-profile-apply-review")).toContainText("Review only");
+  await expect(page.getByTestId("onboarding-plugin-toggle-qmd")).toBeEnabled();
+  await expect(page.getByTestId("onboarding-profile-routine-note")).toContainText("configured later in Settings");
   await page.getByTestId("onboarding-enter-workspace").scrollIntoViewIfNeeded();
   await expect(page.getByTestId("onboarding-enter-workspace")).toBeVisible();
   await page.getByTestId("onboarding-enter-workspace").click();

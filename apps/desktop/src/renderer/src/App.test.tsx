@@ -94,7 +94,8 @@ import { ProfileSettingsContent } from "./components/ProfileSettingsSection";
 import { OnboardingCapabilityReviewContent } from "./components/OnboardingCapabilityReview";
 import {
   buildOnboardingCapabilitySections,
-  buildOnboardingProfileReviews,
+  onboardingCapabilitySelectable,
+  onboardingCapabilitySelected,
   onboardingCapabilityStatus,
   onboardingCapabilityTone,
 } from "./onboardingCapabilities";
@@ -2302,40 +2303,16 @@ describe("workspace onboarding model", () => {
     };
     const sections = buildOnboardingCapabilitySections(pluginInventory([codex, localProfile, qmd, core]));
 
-    expect(sections.map((section) => section.id)).toEqual(["core:searchProvider", "core:agentHarness", "core:profile"]);
+    expect(sections.map((section) => section.id)).toEqual(["core:searchProvider", "core:agentHarness"]);
     expect(sections.find((section) => section.id === "core:searchProvider")?.rows.map((row) => row.id)).toEqual(["qmd"]);
     expect(onboardingCapabilityStatus(core)).toBe("Core, locked");
     expect(onboardingCapabilityStatus(qmd)).toBe("Official, available");
     expect(onboardingCapabilityStatus(localProfile)).toBe("Local, review needed");
     expect(onboardingCapabilityTone(codex)).toBe("warning");
-  });
-
-  it("builds profile apply reviews as read-only plans with explicit blockers", () => {
-    const profileItem: PluginInventoryItem = {
-      ...pluginInventoryItem("lab.profile", "Lab profile", "profile", "Profiles", "localManifest"),
-      kind: "core:profile",
-      compatibility: {
-        profile: {
-          recommendedPlugins: [{ id: "qmd", required: false }],
-          contextTemplates: [{ id: "agents", label: "Agent instructions", target: "AGENTS.md", templatePath: "templates/AGENTS.md" }],
-          skills: [{ id: "graph-skill", label: "Graph Skill", harnesses: ["codex"], sourcePath: "skills/graph-skill" }],
-          routineTemplateIds: ["graph-health.template"],
-        },
-      },
-    };
-    const reviews = buildOnboardingProfileReviews(pluginInventory([
-      profileItem,
-      pluginInventoryItem("qmd", "QMD advanced search", "searchProvider", "Search providers", "bundled"),
-    ]));
-
-    expect(reviews).toHaveLength(1);
-    expect(reviews[0].plan?.apply).toMatchObject({ available: false, label: "Review only" });
-    expect(reviews[0].plan?.apply.blockedBy.map((blocker) => blocker.kind)).toEqual([
-      "permissionModel",
-      "fileWrite",
-      "skillInstall",
-      "routineScheduling",
-    ]);
+    expect(onboardingCapabilitySelected(codex)).toBe(false);
+    expect(onboardingCapabilitySelectable(codex)).toBe(false);
+    expect(onboardingCapabilitySelected(qmd)).toBe(true);
+    expect(onboardingCapabilitySelectable(qmd)).toBe(true);
   });
 
   it("renders post-workspace plugin setup without core rows or search-provider defaults", () => {
@@ -2372,18 +2349,22 @@ describe("workspace onboarding model", () => {
     );
 
     expect(html).toContain("Set up your Exograph");
+    expect(html).toContain("Choose the optional plugins to start with.");
     expect(html).not.toContain("Markdown graph");
     expect(html).not.toContain("Core, locked");
     expect(html).toContain("QMD advanced search");
     expect(html).toContain("onboarding-plugin-toggle-qmd");
-    expect(html).toContain("Agent harness readiness");
+    expect(html).toContain("Agent harnesses");
     expect(html).toContain("Official, not found");
+    expect(html).toMatch(/data-testid=\"onboarding-plugin-toggle-qmd\"[^>]*checked=\"\"/);
+    expect(html).not.toMatch(/data-testid=\"onboarding-plugin-toggle-qmd\"[^>]*disabled=\"\"/);
+    expect(html).toMatch(/data-testid=\"onboarding-plugin-toggle-codex\"[^>]*disabled=\"\"/);
     expect(html).not.toContain("Advanced search default");
     expect(html).not.toContain("QMD hybrid");
-    expect(html).toContain("Profile plan preview");
-    expect(html).toContain("No templates, skills, plugin enablement, or routines are applied during onboarding.");
-    expect(html).toContain("Review only");
-    expect(html).toContain("apply blockers");
+    expect(html).not.toContain("Profile plan preview");
+    expect(html).not.toContain("Lab profile");
+    expect(html).toContain("Profiles and routines are configured later in Settings.");
+    expect(html).toContain("never override manual plugin choices without review");
     expect(html).toContain("Continue");
   });
 });

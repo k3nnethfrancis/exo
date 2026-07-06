@@ -1471,6 +1471,10 @@ button svg,
   overflow: auto;
 }
 
+.dialog-card--wide {
+  width: min(1040px, calc(100vw - 48px));
+}
+
 .dialog-card--settings {
   width: min(980px, calc(100vw - 48px));
   grid-template-rows: auto auto minmax(0, 1fr) auto;
@@ -3816,11 +3820,15 @@ select.dialog-card__input {
 
 .onboarding-capability-sections {
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
   gap: 12px;
 }
 
 .onboarding-capability-section {
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  align-content: start;
   gap: 10px;
   padding: 14px;
   border: 1px solid var(--surface-border);
@@ -3837,6 +3845,7 @@ select.dialog-card__input {
 
 .onboarding-capability-list {
   display: grid;
+  align-content: start;
   gap: 8px;
 }
 
@@ -3912,8 +3921,22 @@ select.dialog-card__input {
   line-height: 1.35;
 }
 
+.onboarding-deferred-note {
+  padding: 10px 12px;
+  border: 1px solid var(--surface-border);
+  border-radius: 8px;
+  color: var(--muted);
+  background: var(--surface-1);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 @media (max-width: 760px) {
   .onboarding-review-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .onboarding-capability-sections {
     grid-template-columns: minmax(0, 1fr);
   }
 

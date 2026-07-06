@@ -38,6 +38,7 @@ Before contributing, scan `skills/`. For broad Exo development, load the relevan
 - `skills/submit-exo-issue/SKILL.md` - available for contributors and intake agents that file, promote, deduplicate, or assign Exo bug/QA/setup reports. The lead/orchestrator may follow the tracker convention directly without invoking this skill.
 - `skills/terminal-stability/SKILL.md` - use before changing terminal runtime, rendering, settings, tests, or harness launch behavior.
 - `skills/plugin-development/SKILL.md` - use before changing plugin architecture, capability registries, manifests, trust/permissions, providers, harness adapters, Routine templates, or plugin-owned surfaces.
+- `skills/deslopify-frontend/SKILL.md` - use before changing setup, settings, onboarding, Plugin Manager, or other configuration UI.
 
 ## Repository Map
 
@@ -153,6 +154,7 @@ CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build 
 - UI and terminal changes require app QA in the real Electron app, not only browser or unit tests. Use focused automated tests first, then manually exercise the affected workflow.
 - Before changing terminal runtime, terminal rendering, terminal settings, terminal tests, or agent terminal launch behavior, use `skills/terminal-stability/SKILL.md` and follow its ownership rules, fallback discipline, invariants, checks, and manual QA script.
 - Before changing plugin architecture, capability registries, plugin manifests, plugin trust/permissions, search-provider adapters, harness adapters, Routine templates, or plugin-owned surfaces, use `skills/plugin-development/SKILL.md` and follow its core/plugin split, fallback discipline, and trust rules.
+- Before changing setup, settings, onboarding, Plugin Manager, or other configuration UI, use `skills/deslopify-frontend/SKILL.md` and keep screens dense, scannable, and low-prose.
 - When filing or promoting Exo bugs, setup reports, UX issues, or GitHub issues, keep root `issues.md` canonical. Contributor/intake agents should use `skills/submit-exo-issue/SKILL.md`; the lead/orchestrator may apply the same convention directly.
 - Exo uses an orchestrator-led coding pattern. Subagents execute scoped work, avoid broad architecture decisions, and report architectural or public-contract questions to the lead/orchestrator with evidence, options, and a recommendation. Subagents must not independently seek external architect/oracle review.
 - Review tests for quality before accepting them: they should assert user-visible behavior or stable contracts, isolate live Exo state, fail for the intended regression, and avoid only snapshotting implementation details.

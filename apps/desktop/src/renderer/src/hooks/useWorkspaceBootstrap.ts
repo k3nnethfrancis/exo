@@ -87,7 +87,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
           notesFolder: "",
           projectFolders: settings.projectRoots,
           defaultTerminalCwd: "",
-          indexMode: settings.indexing.mode,
+          indexMode: "hybrid",
           exploreIndexSearchOnEnter: false,
           indexUpdateStrategy: settings.indexUpdateStrategy,
           status: "idle",

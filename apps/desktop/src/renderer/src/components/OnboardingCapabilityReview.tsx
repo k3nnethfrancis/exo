@@ -4,7 +4,8 @@ import { ShieldAlert, ShieldCheck } from "lucide-react";
 
 import {
   buildOnboardingCapabilitySections,
-  buildOnboardingProfileReviews,
+  onboardingCapabilitySelectable,
+  onboardingCapabilitySelected,
   onboardingCapabilityStatus,
   onboardingCapabilityTone,
 } from "../onboardingCapabilities";
@@ -26,6 +27,7 @@ export function OnboardingCapabilityReview({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [pendingPluginId, setPendingPluginId] = useState<string | null>(null);
+  const [selectionOverrides, setSelectionOverrides] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -58,11 +60,25 @@ export function OnboardingCapabilityReview({
     setActionMessage(null);
     setErrorMessage(null);
     try {
-      const input = pluginActionInput(item);
-      const nextInventory = enabled
-        ? await window.exo.workspace.enablePlugin(input)
-        : await window.exo.workspace.disablePlugin(input);
-      setInventory(nextInventory);
+      if (item.kind === "core:searchProvider" && item.id === "qmd" && item.source === "bundled") {
+        const settings = await window.exo.workspace.getSettings();
+        const mode = enabled
+          ? settings.indexing.mode === "off"
+            ? "hybrid"
+            : settings.indexing.mode
+          : "off";
+        await window.exo.workspace.saveSettings({
+          ...settings,
+          indexing: { ...settings.indexing, enabled, mode, backend: "qmd" },
+        });
+        setSelectionOverrides((current) => ({ ...current, [item.id]: enabled }));
+      } else {
+        const input = pluginActionInput(item);
+        const nextInventory = enabled
+          ? await window.exo.workspace.enablePlugin(input)
+          : await window.exo.workspace.disablePlugin(input);
+        setInventory(nextInventory);
+      }
       setLoadState("idle");
       setActionMessage(`${item.pluginName ?? item.label} ${enabled ? "enabled" : "disabled"}.`);
     } catch (error) {
@@ -84,6 +100,7 @@ export function OnboardingCapabilityReview({
       onEnterWorkspace={onEnterWorkspace}
       onTogglePlugin={(item, enabled) => void setPluginEnabled(item, enabled)}
       pendingPluginId={pendingPluginId}
+      selectionOverrides={selectionOverrides}
       sections={sections}
     />
   );
@@ -99,6 +116,7 @@ export function OnboardingCapabilityReviewContent({
   onEnterWorkspace,
   onTogglePlugin,
   pendingPluginId,
+  selectionOverrides = {},
   sections,
 }: {
   actionMessage?: string | null;
@@ -110,14 +128,14 @@ export function OnboardingCapabilityReviewContent({
   onEnterWorkspace: () => void;
   onTogglePlugin?: (item: PluginInventoryItem, enabled: boolean) => void;
   pendingPluginId?: string | null;
+  selectionOverrides?: Record<string, boolean>;
   sections: ReturnType<typeof buildOnboardingCapabilitySections>;
 }) {
-  const profileReviews = buildOnboardingProfileReviews(inventory);
   return (
     <>
       <h1 className="onboarding-card__title">Set up your Exograph</h1>
       <p className="onboarding-card__copy">
-        Your workspace is ready. Review the optional plugin layers Exo found; core Markdown, terminal, settings, and preview features are already available.
+        Choose the optional plugins to start with. Core editing, files, terminal host, and preview are already on.
       </p>
       <div className="onboarding-review-summary" data-testid="onboarding-capability-summary">
         <div>
@@ -143,33 +161,13 @@ export function OnboardingCapabilityReviewContent({
           Some local plugin manifests need review in Plugin Manager.
         </div>
       ) : null}
-      {profileReviews.length > 0 ? (
-        <section className="onboarding-section onboarding-section--summary" data-testid="onboarding-profile-apply-review">
-          <div className="dialog-field__label">Profile plan preview</div>
-          {profileReviews.map((review) => (
-            <div className="onboarding-profile-review" key={review.id}>
-              <div className="onboarding-capability-row__title">
-                <span>{review.label}</span>
-                <strong>{review.plan?.apply.label ?? "Review unavailable"}</strong>
-              </div>
-              <div className="onboarding-capability-row__description">
-                {review.errorMessage
-                  ? `Profile payload needs review: ${review.errorMessage}`
-                  : review.plan
-                    ? `${review.plan.summary.totalActions} recommendations, ${review.plan.summary.readyPluginRecommendations} ready plugins, ${review.plan.apply.blockedBy.length} apply blockers. No templates, skills, plugin enablement, or routines are applied during onboarding. ${review.plan.apply.reason}`
-                    : `${review.status}. Profile payload is unavailable.`}
-              </div>
-            </div>
-          ))}
-        </section>
-      ) : null}
       <div className="onboarding-capability-sections" data-testid="onboarding-capability-review">
         {sections.map((section) => (
           <section className="onboarding-capability-section" data-testid={`onboarding-capability-section-${section.id}`} key={section.id}>
             <div className="onboarding-capability-section__header">
               <div>
                 <div className="dialog-field__label">{section.label}</div>
-                <div className="onboarding-section__hint">Bundled and local plugin inventory. Manage detailed settings later in Plugin Manager.</div>
+                <div className="onboarding-section__hint">{section.id === "core:searchProvider" ? "Advanced search is optional; basic file search always works." : "Only detected, launchable harnesses start selected."}</div>
               </div>
             </div>
             <div className="onboarding-capability-list">
@@ -179,6 +177,7 @@ export function OnboardingCapabilityReviewContent({
                   key={`${item.source}:${item.id}`}
                   onTogglePlugin={onTogglePlugin}
                   pending={pendingPluginId === (item.pluginId ?? item.id)}
+                  selectedOverride={selectionOverrides[item.id]}
                 />
               ))}
             </div>
@@ -187,6 +186,9 @@ export function OnboardingCapabilityReviewContent({
         {sections.length === 0 && loadState !== "loading" ? (
           <div className="onboarding-section onboarding-section--summary">No optional plugins found. Core Exo features are available now.</div>
         ) : null}
+      </div>
+      <div className="onboarding-deferred-note" data-testid="onboarding-profile-routine-note">
+        Profiles and routines are configured later in Settings. They never override manual plugin choices without review.
       </div>
       <div className="onboarding-card__actions">
         <button className="toolbar-button" onClick={onBack} type="button">
@@ -209,23 +211,28 @@ function OnboardingCapabilityRow({
   item,
   onTogglePlugin,
   pending,
+  selectedOverride,
 }: {
   item: PluginInventoryItem;
   onTogglePlugin?: (item: PluginInventoryItem, enabled: boolean) => void;
   pending?: boolean;
+  selectedOverride?: boolean;
 }) {
   const tone = onboardingCapabilityTone(item);
   const Icon = tone === "warning" ? ShieldAlert : ShieldCheck;
   const dependencyDetail = item.dependencies?.length
     ? item.dependencies.map((dependency) => `${dependency.label}: ${dependency.statusLabel}`).join("; ")
     : null;
-  const toggleDisabled = !onTogglePlugin || pending || item.trust === "untrusted";
+  const selected = selectedOverride ?? onboardingCapabilitySelected(item);
+  const selectable = onboardingCapabilitySelectable(item);
+  const toggleDisabled = !onTogglePlugin || pending || !selectable;
+  const description = dependencyDetail ?? (item.kind === "core:agentHarness" && !selected ? item.statusLabel : item.description);
 
   return (
     <div className={`onboarding-capability-row onboarding-capability-row--${tone}`}>
       <label className="onboarding-capability-toggle" title={toggleDisabled ? onboardingCapabilityStatus(item) : item.enabled ? "Disable this optional plugin" : "Enable this optional plugin"}>
         <input
-          checked={item.enabled}
+          checked={selected}
           data-testid={`onboarding-plugin-toggle-${item.id}`}
           disabled={toggleDisabled}
           onChange={(event) => onTogglePlugin?.(item, event.target.checked)}
@@ -238,7 +245,7 @@ function OnboardingCapabilityRow({
           <span>{item.label}</span>
           <strong>{onboardingCapabilityStatus(item)}</strong>
         </div>
-        <div className="onboarding-capability-row__description">{dependencyDetail ?? item.description}</div>
+        <div className="onboarding-capability-row__description">{description}</div>
       </div>
     </div>
   );

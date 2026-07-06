@@ -1,41 +1,23 @@
 import type { PluginInventory, PluginInventoryItem } from "@exo/core";
-import { profileFromCapability } from "@exo/core/profile";
-import { planProfilePreview, type ProfilePlanPreview } from "@exo/core/profile-plan";
-
 export interface OnboardingCapabilitySection {
   id: string;
   label: string;
   rows: PluginInventoryItem[];
 }
 
-export interface OnboardingProfileReview {
-  id: string;
-  label: string;
-  status: string;
-  plan: ProfilePlanPreview | null;
-  errorMessage?: string;
-}
-
 const SECTION_ORDER = [
-  ["core", "Core"],
   ["core:searchProvider", "Search providers"],
-  ["core:agentHarness", "Agent harness readiness"],
-  ["core:profile", "Profiles"],
-  ["core:routineTemplate", "Routine templates"],
+  ["core:agentHarness", "Agent harnesses"],
 ] as const;
 
 export function buildOnboardingCapabilitySections(inventory: PluginInventory | null): OnboardingCapabilitySection[] {
-  const items = (inventory?.items ?? []).filter((item) => item.source !== "core");
-  const knownIds = new Set(SECTION_ORDER.map(([id]) => id));
+  const setupCategoryIds = new Set<string>(SECTION_ORDER.map(([id]) => id));
+  const items = (inventory?.items ?? []).filter((item) => item.source !== "core" && setupCategoryIds.has(item.categoryId));
   const sections: OnboardingCapabilitySection[] = SECTION_ORDER.map(([id, label]) => ({
     id,
     label,
     rows: sortCapabilityRows(items.filter((item) => item.categoryId === id)),
   }));
-  const otherRows = sortCapabilityRows(items.filter((item) => item.source !== "core" && !knownIds.has(item.categoryId as (typeof SECTION_ORDER)[number][0])));
-  if (otherRows.length > 0) {
-    sections.push({ id: "other", label: "Other optional capabilities", rows: otherRows });
-  }
   return sections.filter((section) => section.rows.length > 0);
 }
 
@@ -55,6 +37,29 @@ export function onboardingCapabilityStatus(item: PluginInventoryItem): string {
   return item.distributionLabel;
 }
 
+export function onboardingCapabilitySelected(item: PluginInventoryItem): boolean {
+  if (!item.enabled || item.trust === "untrusted") {
+    return false;
+  }
+  if (item.kind === "core:agentHarness") {
+    return item.status === "available" || item.status === "configured";
+  }
+  return item.status !== "missing-dependency" && item.status !== "not-found" && item.status !== "broken";
+}
+
+export function onboardingCapabilitySelectable(item: PluginInventoryItem): boolean {
+  if (item.trust === "untrusted" || item.status === "unsupported-kind") {
+    return false;
+  }
+  if (item.kind === "core:searchProvider" && item.id === "qmd" && item.source === "bundled") {
+    return item.status !== "missing-dependency" && item.status !== "not-found" && item.status !== "broken";
+  }
+  if (item.kind === "core:agentHarness") {
+    return onboardingCapabilitySelected(item);
+  }
+  return item.source === "localManifest" && Boolean(item.pluginId && item.manifestPath && item.rootDirectory);
+}
+
 export function onboardingCapabilityTone(item: PluginInventoryItem): "locked" | "ready" | "warning" | "disabled" {
   if (item.source === "core") {
     return "locked";
@@ -66,16 +71,6 @@ export function onboardingCapabilityTone(item: PluginInventoryItem): "locked" | 
     return "disabled";
   }
   return "ready";
-}
-
-export function buildOnboardingProfileReviews(inventory: PluginInventory | null): OnboardingProfileReview[] {
-  if (!inventory) {
-    return [];
-  }
-  return inventory.items
-    .filter((item) => item.kind === "core:profile")
-    .map((item) => profileReview(item, inventory))
-    .sort((a, b) => a.label.localeCompare(b.label));
 }
 
 function sortCapabilityRows(items: PluginInventoryItem[]): PluginInventoryItem[] {
@@ -90,35 +85,5 @@ function sourceSort(source: PluginInventoryItem["source"]): number {
       return 1;
     case "localManifest":
       return 2;
-  }
-}
-
-function profileReview(item: PluginInventoryItem, inventory: PluginInventory): OnboardingProfileReview {
-  try {
-    const profile = profileFromCapability({
-      id: item.id,
-      kind: "core:profile",
-      label: item.label,
-      description: item.description,
-      lifecycle: item.lifecycle,
-      owner: item.owner,
-      surfaces: item.surfaces,
-      permissions: item.permissions,
-      compatibility: item.compatibility,
-    });
-    return {
-      id: item.id,
-      label: item.label,
-      status: onboardingCapabilityStatus(item),
-      plan: profile ? planProfilePreview(profile, inventory) : null,
-    };
-  } catch (error) {
-    return {
-      id: item.id,
-      label: item.label,
-      status: onboardingCapabilityStatus(item),
-      plan: null,
-      errorMessage: error instanceof Error ? error.message : String(error),
-    };
   }
 }

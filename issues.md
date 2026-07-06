@@ -8,6 +8,39 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ## Open
 
+### EXO-ISSUE-091: Deslopify Exograph setup and prioritize detected plugin choices
+
+- Status: fixed
+- Severity: medium
+- Area: onboarding, plugin setup, frontend UX, harness readiness
+- Source:
+  - GitHub issue #23: https://github.com/k3nnethfrancis/exo/issues/23
+- Observed:
+  - The post-workspace `Set up your Exograph` popup is too narrow, too prose-heavy, and reads like a technical review.
+  - Search providers and agent harnesses do not feel like equal first-run decisions.
+  - Missing harnesses can appear selected even when Exo cannot launch them.
+  - Profiles and routines appear before the setup flow can explain their effects or conflict behavior.
+- Expected:
+  - First-run plugin setup should be dense, wide, and focused on concrete choices: advanced search and detected launchable harnesses.
+  - Missing or unavailable harnesses should not be preselected or selectable.
+  - Profiles and routines should move to later Settings/Profile or Plugin Manager flows until their apply semantics are explicit.
+- Acceptance:
+  - [x] Add a reusable frontend skill/guideline for deslopifying Exo UI.
+    - Added `skills/deslopify-frontend/SKILL.md` and referenced it from `AGENTS.md`/`CLAUDE.md`.
+  - [x] Rework `Set up your Exograph` to use a wider desktop layout.
+    - The post-workspace setup modal now uses the existing wide dialog treatment and two desktop columns.
+  - [x] Present search provider and harness setup as equal first-class choices near the top.
+    - The first plugin setup screen now renders only `Search providers` and `Agent harnesses`.
+  - [x] Only preselect harnesses that Exo detects as available/launchable.
+  - [x] Do not auto-select unavailable harnesses.
+    - Packaged QA saw Pi present but unchecked and disabled when its inference backend was missing.
+  - [x] Move profiles and routines out of the first plugin-selection screen or redesign with clear semantics.
+    - Profiles/routines are deferred to Settings/Profile and Plugin Manager.
+  - [x] Define profile/manual plugin disagreement behavior.
+    - First-run plugin setup states that profiles and routines never override manual plugin choices without review.
+  - [x] Add packaged-app onboarding QA evidence and screenshots for the revised setup flow.
+    - 2026-07-05: `pnpm pack:mac` passed; disposable packaged `release/mac-arm64/Exo.app` Playwright probe saw no advanced-search control on first setup, QMD checked and enabled, settings saved as `indexing: { enabled: true, mode: "hybrid", backend: "qmd" }`, Explorer indexed-search-on-enter left unchanged/off, Pi unchecked/disabled, no profile plan preview, both Search Providers and Agent Harnesses present, and screenshot captured at `test-results/exo-issue-091-post-workspace-setup.png`.
+
 ### EXO-ISSUE-090: First-run onboarding shows core capability review before plugin setup
 
 - Status: fixed
