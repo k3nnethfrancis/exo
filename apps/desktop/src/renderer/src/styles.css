@@ -1477,7 +1477,14 @@ button svg,
 
 .dialog-card--settings {
   width: min(980px, calc(100vw - 48px));
+  height: min(760px, calc(100dvh - 48px));
   grid-template-rows: auto auto minmax(0, 1fr) auto;
+  overflow: hidden;
+}
+
+.dialog-card--onboarding-review {
+  height: min(720px, calc(100dvh - 48px));
+  grid-template-rows: minmax(0, 1fr) auto;
   overflow: hidden;
 }
 
@@ -3190,6 +3197,7 @@ select.dialog-card__input {
   grid-template-columns: 220px minmax(0, 1fr);
   gap: 16px;
   min-height: 0;
+  overflow: hidden;
 }
 
 .settings-nav {
@@ -3201,6 +3209,7 @@ select.dialog-card__input {
   border: 1px solid var(--surface-border);
   border-radius: 12px;
   background: var(--surface-2);
+  overflow: auto;
 }
 
 .settings-nav__button {
@@ -3257,6 +3266,7 @@ select.dialog-card__input {
 
 .workspace-settings-panel {
   min-width: 0;
+  min-height: 0;
 }
 
 .profile-settings {
@@ -3707,7 +3717,7 @@ select.dialog-card__input {
 .onboarding-shell {
   min-height: 100dvh;
   display: grid;
-  align-items: start;
+  align-items: center;
   justify-items: center;
   padding: 32px;
   background: var(--bg);
@@ -3716,14 +3726,27 @@ select.dialog-card__input {
 }
 
 .onboarding-card {
-  width: min(760px, calc(100vw - 48px));
+  width: min(960px, calc(100vw - 64px));
+  height: min(720px, calc(100dvh - 64px));
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
   gap: 18px;
   padding: 28px;
   border: 1px solid var(--surface-border-strong);
   border-radius: 14px;
   background: var(--panel-strong);
   box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.onboarding-card__body {
+  min-height: 0;
+  display: grid;
+  align-content: start;
+  gap: 18px;
+  overflow: auto;
+  padding-right: 4px;
+  overscroll-behavior: contain;
 }
 
 .onboarding-card__eyebrow {
@@ -3790,6 +3813,7 @@ select.dialog-card__input {
   align-items: center;
   justify-content: flex-end;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
 .onboarding-select {
@@ -3964,8 +3988,10 @@ select.dialog-card__input {
 
 .onboarding-textarea {
   width: 100%;
-  min-height: 220px;
-  resize: vertical;
+  min-height: 180px;
+  max-height: 260px;
+  resize: none;
+  overflow: auto;
   padding: 12px;
   border: 1px solid var(--surface-border);
   border-radius: 8px;
@@ -4003,6 +4029,21 @@ select.dialog-card__input {
 }
 
 @media (max-width: 760px) {
+  .onboarding-shell {
+    align-items: stretch;
+    padding: 16px;
+  }
+
+  .onboarding-card {
+    width: min(100%, calc(100vw - 32px));
+    height: calc(100dvh - 32px);
+    padding: 18px;
+  }
+
+  .onboarding-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .onboarding-review-summary {
     grid-template-columns: minmax(0, 1fr);
   }

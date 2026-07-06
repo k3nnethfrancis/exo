@@ -1,12 +1,34 @@
 # Exo Issues
 
-Last updated: 2026-07-05
+Last updated: 2026-07-06
 
 This is the canonical active bug/QA tracker for Exo implementation work. It captures user-observed issues that need investigation before the next push/release pass.
 
 This root file is the only canonical Exo issue tracker. Field notes from daily dogfooding, GitHub issues, screenshots, or agent sessions should be promoted here with an `EXO-ISSUE-*` id before assignment.
 
 ## Open
+
+### EXO-ISSUE-093: Onboarding and Settings dialogs should keep stable frames across steps
+
+- Status: fixed
+- Severity: medium
+- Area: onboarding, settings, frontend UX
+- Source:
+  - GitHub issue #32: https://github.com/k3nnethfrancis/exo/issues/32
+- Observed:
+  - First-run onboarding, post-workspace setup, and Workspace Settings resized around the selected step/tab.
+  - Primary action rows could visually jump as content height changed, making setup feel like switching between separate windows.
+- Expected:
+  - Settings and onboarding use stable responsive outer frames.
+  - Step/tab-specific content scrolls inside the frame when needed.
+  - Primary actions remain anchored while content changes.
+- Acceptance:
+  - [x] Settings dialog keeps a fixed responsive outer frame across Workspace, Index/Search, Profile, and Terminal tabs.
+  - [x] First-run onboarding card keeps a fixed responsive outer frame after selecting a notes folder.
+  - [x] Post-workspace setup keeps a fixed responsive outer frame across Plugins, Agent Context, Routines, and Review.
+  - [x] Focused Electron e2e asserts outer frame dimensions stay stable across those transitions.
+  - [x] Packaged-app QA evidence captured dimensions and screenshots.
+    - 2026-07-06: `pnpm pack:mac` passed. Disposable packaged `release/mac-arm64/Exo.app` Playwright probe measured Settings at `980x760`, first-run onboarding at `960x720`, and post-workspace setup at `1040x720` with no size changes across tab/step switches. Screenshots captured outside the repo at `/tmp/exo-issue-32-packaged-settings-workspace.png`, `/tmp/exo-issue-32-packaged-settings-terminal.png`, `/tmp/exo-issue-32-packaged-onboarding-empty.png`, `/tmp/exo-issue-32-packaged-onboarding-selected.png`, `/tmp/exo-issue-32-packaged-setup-plugins.png`, and `/tmp/exo-issue-32-packaged-setup-review.png`.
 
 ### EXO-ISSUE-092: First-run onboarding must produce a workspace profile with agent context
 
