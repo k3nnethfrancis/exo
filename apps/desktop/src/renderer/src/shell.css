@@ -236,6 +236,10 @@
   color: var(--accent);
 }
 
+.statusbar__changes--setup {
+  color: var(--warning-strong);
+}
+
 .statusbar__item-dot {
   width: 6px;
   height: 6px;

@@ -1921,9 +1921,15 @@ test("opens an existing notes folder from first-run setup", async () => {
   await expect(page.getByTestId("onboarding-capability-review")).toBeVisible();
   await expect(page.getByTestId("onboarding-plugin-toggle-qmd")).toBeChecked();
   await expect(page.getByTestId("onboarding-plugin-toggle-qmd")).toBeEnabled();
-  await expect(page.getByTestId("onboarding-profile-routine-note")).toContainText("configured later in Settings");
   await page.getByTestId("onboarding-enter-workspace").scrollIntoViewIfNeeded();
   await expect(page.getByTestId("onboarding-enter-workspace")).toBeVisible();
+  await page.getByTestId("onboarding-enter-workspace").click();
+  await expect(page.getByTestId("onboarding-agent-instructions")).toBeVisible();
+  await page.getByTestId("onboarding-enter-workspace").click();
+  await expect(page.getByTestId("onboarding-routines")).toBeVisible();
+  await page.getByTestId("onboarding-enter-workspace").click();
+  await expect(page.getByTestId("onboarding-profile-review")).toBeVisible();
+  await expect(page.getByTestId("onboarding-profile-routine-note")).toContainText("still require review");
   await page.getByTestId("onboarding-enter-workspace").click();
   await expect(page.getByTestId("post-workspace-setup")).toHaveCount(0);
   await expect.poll(async () => page.evaluate(() => window.exo.workspace.getSettings()))
@@ -1933,6 +1939,62 @@ test("opens an existing notes folder from first-run setup", async () => {
     });
 
   await cleanup();
+});
+
+test("resumes post-workspace setup after refresh and relaunch until profile review is saved", async () => {
+  const fixtureWorkspaceRoot = path.join(repoRoot, "fixtures/test-workspace");
+  const notesFolder = path.join(fixtureWorkspaceRoot, "notes/test-notes");
+  const fixture = await launchExoFixture({
+    configured: false,
+    cwd: "/",
+    workspaceRootEnv: false,
+    runtimeRootEnv: false,
+    env: {
+      EXO_TEST_SELECT_FOLDER_PATH: notesFolder,
+    },
+  });
+  let relaunched: Awaited<ReturnType<typeof relaunchExoFixture>> | null = null;
+
+  try {
+    await fixture.page.getByTestId("onboarding-choose-notes").click();
+    await fixture.page.getByTestId("onboarding-continue").click();
+    await expect(fixture.page.getByTestId("post-workspace-setup")).toBeVisible();
+
+    await fixture.page.getByTestId("onboarding-enter-workspace").click();
+    await expect(fixture.page.getByTestId("onboarding-agent-instructions")).toBeVisible();
+    await expect.poll(async () => fixture.page.evaluate(() => window.exo.workspace.getSetupState()))
+      .toMatchObject({ onboarding: { status: "pending", setupStep: "instructions" } });
+
+    await fixture.page.reload();
+    await expect(fixture.page.getByTestId("sidebar")).toBeVisible();
+    await expect(fixture.page.getByTestId("post-workspace-setup")).toBeVisible();
+    await expect(fixture.page.getByTestId("onboarding-agent-instructions")).toBeVisible();
+
+    await fixture.electronApp.close();
+    relaunched = await relaunchExoFixture(fixture);
+    await expect(relaunched.page.getByTestId("post-workspace-setup")).toBeVisible();
+    await expect(relaunched.page.getByTestId("onboarding-agent-instructions")).toBeVisible();
+
+    await relaunched.page.getByTestId("onboarding-enter-workspace").click();
+    await expect(relaunched.page.getByTestId("onboarding-routines")).toBeVisible();
+    await relaunched.page.getByTestId("onboarding-enter-workspace").click();
+    await expect(relaunched.page.getByTestId("onboarding-profile-review")).toBeVisible();
+    await relaunched.page.getByTestId("onboarding-enter-workspace").click();
+    await expect(relaunched.page.getByTestId("post-workspace-setup")).toHaveCount(0);
+    await expect(relaunched.page.getByTestId("statusbar-onboarding-setup")).toHaveCount(0);
+    await expect.poll(async () => relaunched!.page.evaluate(() => window.exo.workspace.getSetupState()))
+      .toMatchObject({ onboarding: { status: "complete", setupStep: "review" } });
+
+    await relaunched.page.reload();
+    await expect(relaunched.page.getByTestId("sidebar")).toBeVisible();
+    await expect(relaunched.page.getByTestId("post-workspace-setup")).toHaveCount(0);
+  } finally {
+    if (relaunched) {
+      await relaunched.cleanup();
+    } else {
+      await fixture.cleanup();
+    }
+  }
 });
 
 test("collapses and reopens the workspace rail", async () => {

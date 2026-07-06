@@ -152,6 +152,21 @@ export interface WorkspaceGitChange {
 export interface WorkspaceSetupState {
   complete: boolean;
   settingsPath: string;
+  onboarding: OnboardingProfileSetupState | null;
+}
+
+export type OnboardingSetupStep = "plugins" | "instructions" | "routines" | "review";
+
+export interface OnboardingProfileSetupState {
+  workspaceRoot: string;
+  status: "pending" | "complete";
+  setupStep: OnboardingSetupStep;
+  updatedAt: string;
+}
+
+export interface OnboardingProfileSetupInput {
+  status: OnboardingProfileSetupState["status"];
+  setupStep?: OnboardingSetupStep;
 }
 
 export interface WorkspaceRegistryEntry {
@@ -321,6 +336,7 @@ export interface DesktopApi {
     getModel: () => Promise<WorkspaceModel>;
     getSettings: () => Promise<WorkspaceSettings>;
     getSetupState: () => Promise<WorkspaceSetupState>;
+    markOnboardingProfileSetup: (input: OnboardingProfileSetupInput) => Promise<OnboardingProfileSetupState>;
     listWorkspaces: () => Promise<WorkspaceRegistryEntry[]>;
     activateWorkspace: (workspaceId: string) => Promise<WorkspaceSettings>;
     saveSettings: (settings: WorkspaceSettings) => Promise<WorkspaceSettings>;

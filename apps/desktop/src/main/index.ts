@@ -63,6 +63,7 @@ import { AgentSkillsService } from "./agent-skills-service";
 import { AppLifecycleController } from "./app-lifecycle";
 import { CommandServer } from "./command-server";
 import { IndexingService } from "./indexing-service";
+import { OnboardingStateStore } from "./onboarding-state";
 import {
   applyWorkspaceSettingsToEnv,
   DEFAULT_APPEARANCE_MODE,
@@ -109,6 +110,7 @@ let commandServer: CommandServer | null = null;
 let workspaceModel: WorkspaceModel;
 let workspaceSettings: WorkspaceSettings | null = null;
 let workspaceSettingsStore: WorkspaceSettingsStore;
+let onboardingStateStore: OnboardingStateStore;
 let workspaceSetupComplete = false;
 let onboardingRuntimeRoot: string | null = null;
 let terminalManager: TerminalManager;
@@ -375,10 +377,17 @@ function registerIpcHandlers() {
     getModel: () => workspaceModel,
     getRuntimeStatus: () => terminalManager.getRuntimeConfig(),
     getSettings: () => workspaceSettingsService.currentSettings(),
-    getSetupState: () => ({
+    getSetupState: async () => ({
       complete: workspaceSetupComplete,
       settingsPath: workspaceSettingsStore.resolvePath(),
+      onboarding: workspaceSetupComplete ? await onboardingStateStore.getWorkspaceState(workspaceModel.workspaceRoot) : null,
     }),
+    markOnboardingProfileSetup: (input) =>
+      onboardingStateStore.markProfileSetup({
+        workspaceRoot: workspaceModel.workspaceRoot,
+        status: input.status,
+        setupStep: input.setupStep,
+      }),
     addAgentSkillSource: (input) => agentSkillsService.addSkillSource(input),
     installAgentLibrarySkill: (input) => agentSkillsService.installLibrarySkill(input),
     listAgentInstructionOverlays: () => agentInstructionsService.listOverlays(),
@@ -892,6 +901,7 @@ function applyOnboardingRuntimeEnv() {
 
 app.whenReady().then(async () => {
   workspaceSettingsStore = new WorkspaceSettingsStore({ userDataPath: app.getPath("userData") });
+  onboardingStateStore = new OnboardingStateStore(app.getPath("userData"));
   workspaceWatcherService = new WorkspaceWatcherService((event) => {
     sendToRenderer("workspace:changed", event);
   });
