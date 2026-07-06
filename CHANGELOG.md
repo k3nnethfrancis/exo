@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-Plugin architecture, tmux terminal persistence, packaged first-run hardening, and MCP transport compatibility.
+Plugin architecture, tmux terminal persistence/readiness, packaged onboarding hardening, agent configuration/skills, profile/proposal workflows, and MCP transport compatibility.
 
 ### Added
 
@@ -16,6 +16,13 @@ Plugin architecture, tmux terminal persistence, packaged first-run hardening, an
 - Adds a permissioned surface policy for desktop, CLI, MCP, command-server, and internal capability exposure.
 - Adds optional Streamable HTTP MCP transport for remote-only MCP hosts while keeping stdio as the default local transport.
 - Adds tmux-backed terminal persistence with Exo-owned tmux sessions, node-pty attach bridges, session registry reattach, power-resume recovery, reconnect affordances, tmux history sizing, and deterministic terminal QA coverage.
+- Adds Agent Config skill inventory/editing, skill file-tree controls, Git-backed skill sources, and provider-independent agent instruction management outside Workspace Settings.
+- Adds renderer theme registry support, top-bar Exograph branding, installed-app/menu-bar icon updates, and UI polish for settings, explorer, editor chrome, project Markdown rendering, and Plugin Manager density.
+- Adds Plugin Manager and profile settings foundations: plugin inventory/detail views, local plugin directories, enablement state, plugin-owned settings state, readiness filters, profile customize/copy/preview flows, active profile status, and tool-surface descriptors.
+- Adds profile/proposal infrastructure for template apply proposals, proposal review contracts, native review/apply UI, recovery manifests, and rollback CLI support.
+- Adds semantic trace contracts, trace store hygiene, trace cleanup commands, and Claude/Pi trace capture hooks.
+- Adds Project Knowledge Sync profile metadata, terminal monitor mode, `Cmd+T` new-terminal shortcut, stable smoke coverage, and monitor-mode QA coverage.
+- Adds staged onboarding profile setup, profile-choice surfacing in settings, agent instruction sync flow foundations, and GitHub-first Exo issue submission skill updates.
 
 ### Changed
 
@@ -25,6 +32,14 @@ Plugin architecture, tmux terminal persistence, packaged first-run hardening, an
 - Stops live terminal hydration from resetting xterm and replaying stale scrollback over active agent output.
 - Keeps Guardian Angel out of Exo core. GA is treated as a downstream/reference plugin workload that should use generic Exo plugin primitives.
 - Reframes OKF, LM Wiki, Shoshin profiles, feed/scheduler concepts, and routines as optional exograph/plugin architecture directions rather than hardwired folder/schema requirements.
+- Splits Workspace Settings from Agent Config and Plugin/Profile configuration so agent instructions, skills, harnesses, plugins, and profile state each have clearer ownership.
+- Stages onboarding as workspace basics, plugin choices, agent context, routines, and profile review instead of a single settings-like form; unavailable harnesses are hidden and QMD is treated as an optional search-provider plugin after workspace load.
+- Treats the default Exograph profile as the baseline product configuration rather than a user-selected preset.
+- Routes agent launches by harness id, removes renderer `ManagedAgentKind` residue, and hardens harness descriptors for installed and source runtimes.
+- Persists Pi harness configuration, gates Pi launch on backend readiness, and can auto-start the configured Pi backend before launch.
+- Clarifies official/local plugin inventory, external contract status rules, public-contract review guardrails, proposal review flow, and core-versus-plugin boundaries in docs and skills.
+- Consolidates active Exo trackers to root `issues.md` and `tasks.md`, with docs reserved for durable architecture/product references.
+- Moves project change indicators into the explorer tree, reduces folder/editor chrome weight, and keeps project Markdown files on the Markdown renderer path.
 
 ### Fixed
 
@@ -38,11 +53,17 @@ Plugin architecture, tmux terminal persistence, packaged first-run hardening, an
 - Narrows and then adjusts the default explorer pane width, improves pane-to-terminal focus behavior, and adds terminal bottom inset so terminal status lines are not clipped by the bottom bar.
 - Fixes stale/blank managed agent terminal starts and improves Claude/Codex terminal startup handling.
 - Fixes Markdown list outdent behavior in the editor.
+- Fixes terminal Unicode stream corruption, tmux UTF-8 decoding, parity handling, scrollback bridge behavior, renderer write batching, hydration/replay drift, blank panes after reload, generated-input artifacts, pane identity in monitor mode, runtime registry isolation, and Codex MCP restart coverage.
+- Fixes preview pane target replacement, preview clipping, and preview-triggered terminal replay/focus regressions.
+- Fixes packaged/onboarding startup paths so missing workspace state reaches onboarding before synthetic workspace defaults or terminal transcript initialization.
+- Fixes plugin manager layout overlap, settings modal spacing, index settings status copy, and stale MCP/integration diagnostics.
+- Fixes mac packaging collector stalls and documents launch-mode/setup expectations for packaged, installed, source, and MCP contexts.
 
 ### Removed
 
 - Removes Guardian Angel-specific capability/code/docs from Exo core after the plugin boundary was clarified.
 - Keeps plugin entrypoint execution, Plugin Manager UI, plugin-owned CLI/MCP tools, marketplace/package loading, and permission grants out of this release until the manifest/trust model survives real use.
+- Removes the terminal attach-copy header button, agent config tab from Workspace Settings, legacy plugin kind aliases, and renderer-managed harness kind leftovers.
 
 ## 0.1.0-alpha.3 - 2026-05-31
 

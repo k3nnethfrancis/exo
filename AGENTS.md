@@ -139,6 +139,7 @@ CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build 
 - CLI-first operator surfaces come before deep UI.
 - Every fragile UI/runtime behavior needs an automated harness or a documented manual evidence path.
 - Harness engineering is not complete until important architecture rules are mechanical. Prefer lint/structural checks with remediation messages over prose-only guidance for constraints agents repeatedly violate.
+- User-visible changes should update `CHANGELOG.md` under `Unreleased` before push. The repo ships a non-blocking `pre-push` reminder hook in `scripts/git-hooks/`; enable it with `git config core.hooksPath scripts/git-hooks`.
 - Expose user outcomes, not implementation toggles. Prefer one solid default over user-facing switches like transport modes, streaming modes, or provider-specific branches unless there is a clear workflow that needs the choice.
 - Agent-facing configuration is provider-agnostic at the product layer. `AGENTS.md` and `CLAUDE.md` are compatibility outputs, not separate product concepts; do not add Claude-only or Codex-only repo guidance here.
 - Settings surfaces should stay compact and task-oriented. When a control affects hidden files, runtime behavior, or indexing, label the outcome and provide just enough tooltip/help text to explain the consequence.
