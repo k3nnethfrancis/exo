@@ -20,6 +20,12 @@ const identity: ActiveProfileIdentity = {
   profileId: "shoshin",
   capabilityId: "shoshin.profile",
   label: "Shoshin",
+  setup: {
+    enabledHarnessIds: ["codex"],
+    defaultHarnessId: "codex",
+    routineTemplateIds: ["graph-health.template"],
+    exographContextApplied: true,
+  },
   pluginId: "shoshin-profile.plugin",
   source: "workspace",
   manifestPath: "/workspace/.exo/plugins/shoshin/exo.plugin.json",

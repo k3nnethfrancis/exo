@@ -37,6 +37,7 @@ export function OnboardingCapabilityReview({
   const [agentInstructionConfig, setAgentInstructionConfig] = useState<AgentInstructionConfig | null>(null);
   const [contextBody, setContextBody] = useState("");
   const [agentInstructionStatus, setAgentInstructionStatus] = useState<"idle" | "loading" | "saving" | "error">("idle");
+  const [exographContextApplied, setExographContextApplied] = useState(false);
   const [graphHealthEnabled, setGraphHealthEnabled] = useState(true);
   const [instructionSyncEnabled, setInstructionSyncEnabled] = useState(true);
 
@@ -145,6 +146,7 @@ export function OnboardingCapabilityReview({
     try {
       const config = await window.exo.workspace.applyGlobalExographContext({ body: contextBody });
       setAgentInstructionConfig(config);
+      setExographContextApplied(true);
       setActionMessage("Exograph context applied to global agent instruction files.");
       setAgentInstructionStatus("idle");
     } catch (error) {
@@ -164,6 +166,15 @@ export function OnboardingCapabilityReview({
         pluginId: "exograph-baseline.plugin",
         source: "built-in",
         label: profileName.trim() || "My Exograph",
+        setup: {
+          enabledHarnessIds: selectedHarnesses.map((item) => item.id),
+          defaultHarnessId: defaultHarnessId ?? selectedHarnesses[0]?.id,
+          routineTemplateIds: [
+            graphHealthEnabled ? "graph-health.template" : null,
+            instructionSyncEnabled ? "agent-instruction-sync.template" : null,
+          ].filter((id): id is string => Boolean(id)),
+          exographContextApplied,
+        },
       });
       onEnterWorkspace();
     } catch (error) {

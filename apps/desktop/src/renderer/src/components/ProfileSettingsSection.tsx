@@ -135,6 +135,8 @@ export function ProfileSettingsSection({
       onCopy={editableCandidate ? () => void copyProfile(editableCandidate) : null}
       onStageApply={editableCandidate?.applyGate.canStageFileTemplates ? () => void stageProfileApply(editableCandidate) : null}
       onToggleAutoUpdate={(autoUpdate) => void runProfileAction(() => window.exo.workspace.setProfileAutoUpdate({ autoUpdate }))}
+      onOpenAgentConfigEditor={onOpenAgentConfigEditor}
+      onOpenPluginManager={onOpenPluginManager}
     />
   );
 }
@@ -188,6 +190,8 @@ export function ProfileSettingsContent({
   onSetActive,
   onStageApply,
   onToggleAutoUpdate,
+  onOpenAgentConfigEditor,
+  onOpenPluginManager,
 }: {
   actionError: string | null;
   actionMessage: string | null;
@@ -202,12 +206,43 @@ export function ProfileSettingsContent({
   onSetActive: (candidate: ProfileSettingsCandidate) => void;
   onStageApply: (() => void) | null;
   onToggleAutoUpdate: (autoUpdate: boolean) => void;
+  onOpenAgentConfigEditor?: () => void;
+  onOpenPluginManager?: () => void;
 }) {
   return (
     <section className="profile-settings" data-testid="workspace-settings-profile">
       <div className="profile-settings__notice">
         <strong>Profile state, not plugin management.</strong>
         <span>Use this screen to review the active workspace profile and its recommendations. Plugin trust, enablement, setup, and plugin-owned settings live in Plugin Manager. {PROFILE_SETTINGS_DISABLED_REASON}</span>
+      </div>
+
+      <div className="profile-settings__setup" data-testid="workspace-settings-profile-setup">
+        <div className="profile-settings__candidate-header">
+          <div>
+            <div className="dialog-field__label">Workspace setup</div>
+            <div className="profile-settings__candidate-title">Saved onboarding choices</div>
+          </div>
+          <span className="profile-settings__pill">Review only</span>
+        </div>
+        <div className="profile-settings__grid">
+          {model.workspaceSetupRows.map((row) => (
+            <div className="profile-settings__metric" key={`${row.label}:${row.value}`}>
+              <span>{row.label}</span>
+              <strong>{row.value}</strong>
+            </div>
+          ))}
+        </div>
+        <div className="profile-settings__setup-actions">
+          <button className="toolbar-button" disabled={!onOpenPluginManager} onClick={() => onOpenPluginManager?.()} type="button">
+            Open Plugin Manager
+          </button>
+          <button className="toolbar-button" disabled={!onOpenAgentConfigEditor} onClick={() => onOpenAgentConfigEditor?.()} type="button">
+            Open Agent Config
+          </button>
+        </div>
+        <div className="profile-settings__muted">
+          Search providers, harness availability, and routine templates are managed through Plugin Manager. Instruction files and skills stay in Agent Config.
+        </div>
       </div>
 
       <div className="profile-settings__summary">

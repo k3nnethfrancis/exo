@@ -9,11 +9,19 @@ export interface ActiveProfileIdentity {
   profileId: string;
   capabilityId: string;
   label?: string;
+  setup?: ActiveProfileSetupSummary;
   pluginId?: string;
   source?: PluginSource;
   manifestPath?: string;
   rootDirectory?: string;
   manifestHash?: string;
+}
+
+export interface ActiveProfileSetupSummary {
+  enabledHarnessIds: string[];
+  defaultHarnessId?: string;
+  routineTemplateIds: string[];
+  exographContextApplied?: boolean;
 }
 
 export interface ProfileStateStore {
@@ -128,12 +136,39 @@ function validateActiveProfileIdentity(input: unknown): ActiveProfileIdentity {
     profileId: requiredString(input, "profileId"),
     capabilityId: requiredString(input, "capabilityId"),
     label: optionalString(input, "label"),
+    setup: validateOptionalSetup(input.setup),
     pluginId: optionalString(input, "pluginId"),
     source: validateOptionalSource(optionalString(input, "source")),
     manifestPath: optionalString(input, "manifestPath"),
     rootDirectory: optionalString(input, "rootDirectory"),
     manifestHash: optionalString(input, "manifestHash"),
   };
+}
+
+function validateOptionalSetup(input: unknown): ActiveProfileSetupSummary | undefined {
+  if (input === undefined) {
+    return undefined;
+  }
+  if (!isRecord(input)) {
+    throw new Error("Profile state activeProfile.setup must be an object when provided.");
+  }
+  return {
+    enabledHarnessIds: stringArray(input, "enabledHarnessIds"),
+    defaultHarnessId: optionalString(input, "defaultHarnessId"),
+    routineTemplateIds: stringArray(input, "routineTemplateIds"),
+    exographContextApplied: input.exographContextApplied === undefined ? undefined : requiredBoolean(input, "exographContextApplied"),
+  };
+}
+
+function stringArray(record: Record<string, unknown>, key: string): string[] {
+  const value = record[key];
+  if (value === undefined) {
+    return [];
+  }
+  if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string" || entry.trim().length === 0)) {
+    throw new Error(`Profile state field ${key} must be an array of non-empty strings.`);
+  }
+  return value;
 }
 
 function validateOptionalSource(value: string | undefined): PluginSource | undefined {

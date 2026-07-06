@@ -1082,7 +1082,7 @@ export function App() {
         changedNotes: noteGitChanges.length,
         pendingProposals: proposalReviewState.pendingProposalCount,
         profileReviewRequired: profileState?.reviewRequired ?? false,
-        profileLabel: profileState?.activeProfile?.profileId ?? null,
+        profileLabel: profileState?.activeProfile?.label ?? profileState?.activeProfile?.profileId ?? null,
         terminal: terminalStatusLine,
         index: indexStatusLine,
       }}

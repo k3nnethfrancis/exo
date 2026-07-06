@@ -16,6 +16,7 @@ export interface ProfileSettingsModel {
   updatedAt: string | null;
   baselineCandidate: ProfileSettingsCandidate | null;
   detectedProfiles: ProfileSettingsCandidate[];
+  workspaceSetupRows: ProfileSettingsRow[];
   inventoryErrors: string[];
 }
 
@@ -86,8 +87,56 @@ export function buildProfileSettingsModel(
     updatedAt: state?.updatedAt ?? null,
     baselineCandidate,
     detectedProfiles,
+    workspaceSetupRows: workspaceSetupRows(activeProfile, inventory),
     inventoryErrors: inventory?.errors.map((error) => `${error.directory}: ${error.message}`) ?? [],
   };
+}
+
+function workspaceSetupRows(activeProfile: ActiveProfileIdentity | null, inventory: PluginInventory | null): ProfileSettingsRow[] {
+  const setup = activeProfile?.setup;
+  const harnessLabels = new Map(
+    (inventory?.items ?? [])
+      .filter((item) => item.kind === "core:agentHarness")
+      .map((item) => [item.id, item.label]),
+  );
+  const routineLabels = new Map(
+    (inventory?.items ?? [])
+      .filter((item) => item.kind === "core:routineTemplate")
+      .map((item) => [item.id, item.label]),
+  );
+  if (!setup) {
+    return [
+      { label: "Base profile", value: activeProfile ? "Exograph default" : "Not saved" },
+      { label: "Default harness", value: "Not selected" },
+      { label: "Enabled harnesses", value: "Not recorded" },
+      { label: "Starter routines", value: "Not recorded" },
+      { label: "Exograph context", value: "Not recorded" },
+    ];
+  }
+  const enabledHarnesses = setup.enabledHarnessIds
+    .map((id) => harnessLabels.get(id) ?? id)
+    .join(", ");
+  const routines = setup.routineTemplateIds
+    .map((id) => routineLabels.get(id) ?? routineLabel(id))
+    .join(", ");
+  return [
+    { label: "Base profile", value: "Exograph default" },
+    { label: "Default harness", value: setup.defaultHarnessId ? harnessLabels.get(setup.defaultHarnessId) ?? setup.defaultHarnessId : "Not selected" },
+    { label: "Enabled harnesses", value: enabledHarnesses || "None selected" },
+    { label: "Starter routines", value: routines || "None selected" },
+    { label: "Exograph context", value: setup.exographContextApplied ? "Applied to globals" : "Not applied" },
+  ];
+}
+
+function routineLabel(id: string): string {
+  switch (id) {
+    case "graph-health.template":
+      return "Graph Health";
+    case "agent-instruction-sync.template":
+      return "Agent Instruction Sync";
+    default:
+      return id;
+  }
 }
 
 function profileCandidatesFromInventory(

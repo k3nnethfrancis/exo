@@ -33,6 +33,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - [x] Add a global agent-instruction step that detects global provider files and applies Exograph context as a managed block.
   - [x] Add built-in routine toggles for Graph Health and Agent Instruction Sync.
   - [x] Add a final review/save step that records the workspace's active profile label.
+  - [x] Surface saved onboarding choices in Workspace Settings / Profile with links to Plugin Manager and Agent Config.
   - [x] Register Agent Instruction Sync as a bundled routine template and recommend it from Exograph Baseline.
   - [x] Add focused service/core/renderer tests.
   - [ ] Fresh packaged-app QA for the complete multi-step onboarding flow.

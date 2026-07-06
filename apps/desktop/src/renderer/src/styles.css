@@ -3265,6 +3265,7 @@ select.dialog-card__input {
 }
 
 .profile-settings__notice,
+.profile-settings__setup,
 .profile-settings__summary,
 .profile-settings__candidate,
 .profile-settings__toggle,
@@ -3314,6 +3315,12 @@ select.dialog-card__input {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
+  gap: 8px;
+}
+
+.profile-settings__setup-actions {
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 

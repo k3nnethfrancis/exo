@@ -504,10 +504,16 @@ describe("profile settings model", () => {
         onSetActive={() => {}}
         onStageApply={() => {}}
         onToggleAutoUpdate={() => {}}
+        onOpenAgentConfigEditor={() => {}}
+        onOpenPluginManager={() => {}}
       />,
     );
 
     expect(html).toContain("Stage file proposals");
+    expect(html).toContain("Workspace setup");
+    expect(html).toContain("Saved onboarding choices");
+    expect(html).toContain("Open Plugin Manager");
+    expect(html).toContain("Open Agent Config");
     expect(html).toContain("Profile state, not plugin management.");
     expect(html).toContain("Plugin trust, enablement, setup, and plugin-owned settings live in Plugin Manager.");
     expect(html).not.toContain("Stage apply blocked");
@@ -533,6 +539,13 @@ describe("profile settings model", () => {
       activeProfile: {
         profileId: "exograph-baseline.profile",
         capabilityId: "exograph-baseline.profile",
+        label: "My Lab",
+        setup: {
+          enabledHarnessIds: ["codex"],
+          defaultHarnessId: "codex",
+          routineTemplateIds: ["graph-health.template", "agent-instruction-sync.template"],
+          exographContextApplied: true,
+        },
         pluginId: "exograph-baseline.plugin",
         manifestPath: "/plugins/exograph-baseline/exo.plugin.json",
       },
@@ -541,10 +554,13 @@ describe("profile settings model", () => {
       updatedAt: "2026-06-28T12:00:00.000Z",
     });
 
-    expect(model.activeProfileLabel).toBe("Exograph Baseline");
+    expect(model.activeProfileLabel).toBe("My Lab");
     expect(model.autoUpdate).toBe(true);
     expect(model.reviewRequired).toBe(true);
     expect(model.baselineCandidate?.isActive).toBe(true);
+    expect(model.workspaceSetupRows).toContainEqual({ label: "Default harness", value: "codex" });
+    expect(model.workspaceSetupRows).toContainEqual({ label: "Starter routines", value: "Graph Health, Agent Instruction Sync" });
+    expect(model.workspaceSetupRows).toContainEqual({ label: "Exograph context", value: "Applied to globals" });
   });
 
   it("builds a centralized read-only profile edit surface from profile sections", () => {
