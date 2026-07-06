@@ -45,6 +45,8 @@ export async function launchExoFixture(options?: {
   configured?: boolean;
   workspaceRootEnv?: boolean;
   runtimeRootEnv?: boolean;
+  expectOnboarding?: boolean;
+  prepareSettings?: (input: { settingsPath: string; userDataRoot: string; workspaceRoot: string }) => Promise<void>;
 }): Promise<{
   electronApp: ElectronApplication;
   page: Page;
@@ -69,6 +71,10 @@ export async function launchExoFixture(options?: {
 
   if (options?.prepareWorkspace) {
     await options.prepareWorkspace(workspaceRoot);
+  }
+
+  if (options?.prepareSettings) {
+    await options.prepareSettings({ settingsPath, userDataRoot, workspaceRoot });
   }
 
   const configured = options?.configured ?? true;
@@ -115,7 +121,7 @@ export async function launchExoFixture(options?: {
     env: launchEnv,
   });
   const page = electronApp.windows()[0] ?? await electronApp.firstWindow();
-  if (!configured) {
+  if (!configured && options?.expectOnboarding !== false) {
     await expect(page.getByTestId("onboarding")).toBeVisible();
     return {
       electronApp,

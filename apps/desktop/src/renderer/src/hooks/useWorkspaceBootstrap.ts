@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { IndexStatus, TreeNode, WorkspaceModel, WorkspaceSettings } from "@exo/core";
 
-import type { TerminalSessionInfo, WorkspaceRegistryEntry } from "../../../shared/api";
+import type { TerminalSessionInfo, WorkspaceRegistryEntry, WorkspaceSetupState } from "../../../shared/api";
 import type { PaneNode } from "./usePaneTree";
 import { loadInitialTrees, type UseWorkspaceTreesOptions } from "./useWorkspaceTrees";
 import { pathLabel, pickInitialNote, uniquePaths } from "../workspaceTree";
@@ -47,6 +47,7 @@ export interface UseWorkspaceBootstrapOptions extends UseWorkspaceTreesOptions {
 export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
   const [workspaceModel, setWorkspaceModel] = useState<WorkspaceModel | null>(null);
   const [onboardingState, setOnboardingState] = useState<OnboardingState | null>(null);
+  const [setupState, setSetupState] = useState<WorkspaceSetupState | null>(null);
   const [bootstrapError, setBootstrapError] = useState<string | null>(null);
   const [layoutPersistenceReady, setLayoutPersistenceReady] = useState(false);
   const workspaceSettingsRef = useRef<WorkspaceSettings | null>(null);
@@ -72,6 +73,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
       ]);
 
       setBootstrapError(null);
+      setSetupState(setupState);
       workspaceSettingsRef.current = settings;
       setLayoutPersistenceReady(false);
       currentOptions.applyWorkspaceSettings(settings);
@@ -316,6 +318,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
         indexUpdateStrategy: current.indexUpdateStrategy,
       };
       const saved = await window.exo.workspace.saveSettings(nextSettings);
+      await window.exo.workspace.markOnboardingProfileStep({ step: "plugins" });
       workspaceSettingsRef.current = saved;
       window.sessionStorage.setItem(POST_WORKSPACE_SETUP_FLAG, "1");
       window.location.reload();
@@ -337,6 +340,8 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
     setWorkspaceModel,
     onboardingState,
     setOnboardingState,
+    setupState,
+    setSetupState,
     bootstrapError,
     layoutPersistenceReady,
     setLayoutPersistenceReady,

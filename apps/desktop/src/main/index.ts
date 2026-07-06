@@ -23,7 +23,12 @@ import {
   enrichProposalFrontmatterPreviews,
   readManagedPluginSettings,
   ProposalReviewStore,
+  emptyOnboardingStateStore,
+  markOnboardingComplete,
+  markOnboardingProfileStep,
+  markOnboardingWorkspaceBasicsSaved,
   readProfileStateStore,
+  readOnboardingStateStore,
   readWorkspaceDocument,
   renameWorkspacePath,
   resetManagedPluginSettings,
@@ -43,10 +48,13 @@ import {
   setProfileAutoUpdate,
   updateManagedPluginSettings,
   writeProfileStateStore,
+  writeOnboardingStateStore,
   type DiscoveredPlugin,
   type IndexStatus,
   type ActiveProfileIdentity,
   type CapabilityMetadata,
+  type OnboardingStateStore,
+  type OnboardingProfileStep,
   type PluginInventoryItem,
   type PluginInventoryReadinessSummary,
   type PluginStateAction,
@@ -110,6 +118,8 @@ let workspaceModel: WorkspaceModel;
 let workspaceSettings: WorkspaceSettings | null = null;
 let workspaceSettingsStore: WorkspaceSettingsStore;
 let workspaceSetupComplete = false;
+let operatorWorkspaceSetupComplete = false;
+let onboardingState: OnboardingStateStore = emptyOnboardingStateStore();
 let onboardingRuntimeRoot: string | null = null;
 let terminalManager: TerminalManager;
 let workspaceWatcherService: WorkspaceWatcherService;
@@ -375,10 +385,14 @@ function registerIpcHandlers() {
     getModel: () => workspaceModel,
     getRuntimeStatus: () => terminalManager.getRuntimeConfig(),
     getSettings: () => workspaceSettingsService.currentSettings(),
-    getSetupState: () => ({
+    getSetupState: async () => ({
       complete: workspaceSetupComplete,
+      onboardingComplete: onboardingComplete(),
+      onboarding: onboardingState,
       settingsPath: workspaceSettingsStore.resolvePath(),
     }),
+    markOnboardingProfileStep: (input) => updateWorkspaceOnboardingProfileStep(input.step),
+    markOnboardingComplete: () => completeWorkspaceOnboarding(),
     addAgentSkillSource: (input) => agentSkillsService.addSkillSource(input),
     installAgentLibrarySkill: (input) => agentSkillsService.installLibrarySkill(input),
     listAgentInstructionOverlays: () => agentInstructionsService.listOverlays(),
@@ -848,6 +862,30 @@ function matchesPluginSettingsInput(plugin: DiscoveredPlugin, input: WorkspacePl
     && plugin.rootDirectory === input.rootDirectory;
 }
 
+function onboardingComplete(): boolean {
+  return onboardingState.status === "complete" || operatorWorkspaceSetupComplete;
+}
+
+async function writeWorkspaceOnboardingState(nextState: OnboardingStateStore): Promise<OnboardingStateStore> {
+  onboardingState = nextState;
+  await writeOnboardingStateStore(app.getPath("userData"), onboardingState);
+  return onboardingState;
+}
+
+async function updateWorkspaceOnboardingProfileStep(step: OnboardingProfileStep): Promise<OnboardingStateStore> {
+  const base = onboardingState.workspaceBasicsSaved
+    ? onboardingState
+    : markOnboardingWorkspaceBasicsSaved(onboardingState, step);
+  return writeWorkspaceOnboardingState(markOnboardingProfileStep(base, step));
+}
+
+async function completeWorkspaceOnboarding(): Promise<OnboardingStateStore> {
+  const base = onboardingState.workspaceBasicsSaved
+    ? onboardingState
+    : markOnboardingWorkspaceBasicsSaved(onboardingState, "review");
+  return writeWorkspaceOnboardingState(markOnboardingComplete(base));
+}
+
 function pluginDiscoveryEnv(): NodeJS.ProcessEnv {
   return {
     ...process.env,
@@ -901,11 +939,13 @@ app.whenReady().then(async () => {
     nativeTheme.themeSource = forcedTheme;
   }
 
+  operatorWorkspaceSetupComplete = Boolean(process.env.EXO_NOTE_ROOTS);
   workspaceSettings = await workspaceSettingsStore.load();
+  onboardingState = await readOnboardingStateStore(app.getPath("userData"));
   if (workspaceSettings) {
     applyWorkspaceSettings(workspaceSettings);
   }
-  workspaceSetupComplete = workspaceSettings !== null || Boolean(process.env.EXO_NOTE_ROOTS);
+  workspaceSetupComplete = workspaceSettings !== null || operatorWorkspaceSetupComplete;
   workspaceModel = workspaceSetupComplete ? resolveWorkspaceModel() : createFirstRunWorkspaceModel();
   if (workspaceSetupComplete) {
     applyWorkspaceSettings(workspaceSettings ?? workspaceSettingsStore.fromModel(workspaceModel));

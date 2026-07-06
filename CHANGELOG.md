@@ -34,6 +34,7 @@ Plugin architecture, tmux terminal persistence/readiness, packaged onboarding ha
 - Reframes OKF, LM Wiki, Shoshin profiles, feed/scheduler concepts, and routines as optional exograph/plugin architecture directions rather than hardwired folder/schema requirements.
 - Splits Workspace Settings from Agent Config and Plugin/Profile configuration so agent instructions, skills, harnesses, plugins, and profile state each have clearer ownership.
 - Stages onboarding as workspace basics, plugin choices, agent context, routines, and profile review instead of a single settings-like form; unavailable harnesses are hidden and QMD is treated as an optional search-provider plugin after workspace load.
+- Documents the onboarding versus Settings ownership boundary and reframes Settings search as core search plus the QMD advanced provider with Plugin Manager as the provider lifecycle surface.
 - Treats the default Exograph profile as the baseline product configuration rather than a user-selected preset.
 - Routes agent launches by harness id, removes renderer `ManagedAgentKind` residue, and hardens harness descriptors for installed and source runtimes.
 - Persists Pi harness configuration, gates Pi launch on backend readiness, and can auto-start the configured Pi backend before launch.
@@ -56,6 +57,7 @@ Plugin architecture, tmux terminal persistence/readiness, packaged onboarding ha
 - Fixes terminal Unicode stream corruption, tmux UTF-8 decoding, parity handling, scrollback bridge behavior, renderer write batching, hydration/replay drift, blank panes after reload, generated-input artifacts, pane identity in monitor mode, runtime registry isolation, and Codex MCP restart coverage.
 - Fixes preview pane target replacement, preview clipping, and preview-triggered terminal replay/focus regressions.
 - Fixes packaged/onboarding startup paths so missing workspace state reaches onboarding before synthetic workspace defaults or terminal transcript initialization.
+- Fixes interrupted first-run onboarding so saved workspace settings do not imply profile setup completion and reloads resume setup.
 - Fixes plugin manager layout overlap, settings modal spacing, index settings status copy, and stale MCP/integration diagnostics.
 - Fixes mac packaging collector stalls and documents launch-mode/setup expectations for packaged, installed, source, and MCP contexts.
 

@@ -32,6 +32,16 @@ async function expectTestIdsDoNotOverlap(page: import("@playwright/test").Page, 
   expect(boxesOverlap(firstBox!, secondBox!)).toBe(false);
 }
 
+async function expectStableOuterFrame(
+  locator: import("@playwright/test").Locator,
+  before: { width: number; height: number },
+) {
+  const after = await locator.boundingBox();
+  expect(after).not.toBeNull();
+  expect(Math.abs(after!.width - before.width)).toBeLessThanOrEqual(1);
+  expect(Math.abs(after!.height - before.height)).toBeLessThanOrEqual(1);
+}
+
 async function cycleAppearanceTo(page: import("@playwright/test").Page, targetMode: "system" | "light" | "dark") {
   for (let attempt = 0; attempt < 4; attempt += 1) {
     const currentMode = await page.locator("html").getAttribute("data-appearance-mode");
@@ -1266,14 +1276,18 @@ test("opens workspace settings from the sidebar", async () => {
 
   await page.getByTestId("workspace-settings").click();
   await expect(page.getByTestId("workspace-settings-dialog")).toBeVisible();
+  const settingsFrame = await page.getByTestId("workspace-settings-dialog").boundingBox();
+  expect(settingsFrame).not.toBeNull();
   await expect(page.getByTestId("workspace-settings-note-roots")).toContainText("test-notes");
   await page.screenshot({ path: "/tmp/exo-workspace-settings-workspace.png", fullPage: false });
   await expectTestIdsDoNotOverlap(page, "workspace-settings-note-roots", "workspace-settings-project-roots");
   await page.getByTestId("workspace-settings-tab-index").click();
+  await expectStableOuterFrame(page.getByTestId("workspace-settings-dialog"), settingsFrame!);
   await expect(page.getByTestId("workspace-settings-index-mode")).toHaveValue("off");
-  await expect(page.getByTestId("workspace-settings-dialog")).toContainText("Local QMD advanced search provider");
+  await expect(page.getByTestId("workspace-settings-dialog")).toContainText("Core search + QMD advanced provider");
   await page.screenshot({ path: "/tmp/exo-workspace-settings-index.png", fullPage: false });
   await page.getByTestId("workspace-settings-tab-profile").click();
+  await expectStableOuterFrame(page.getByTestId("workspace-settings-dialog"), settingsFrame!);
   await expect(page.getByTestId("workspace-settings-profile")).toContainText("No active profile");
   await page.screenshot({ path: "/tmp/exo-workspace-settings-profile.png", fullPage: false });
   await page.getByRole("button", { name: "Set active profile" }).click();
@@ -1310,6 +1324,7 @@ test("opens workspace settings from the sidebar", async () => {
   expect(copiedManifest.capabilities[0].id).toMatch(/^exograph-baseline\.profile-copy(?:-\d+)?\.profile$/);
   expect(copiedManifest.capabilities[0].compatibility.profile.label).toBe("Exograph Baseline Copy");
   await page.getByTestId("workspace-settings-tab-terminal").click();
+  await expectStableOuterFrame(page.getByTestId("workspace-settings-dialog"), settingsFrame!);
   await expect(page.getByTestId("workspace-settings-dialog")).toContainText("Live terminal scrollback lines");
   await expect(page.getByTestId("workspace-settings-terminal-history-lines")).toBeVisible();
   await expect(page.getByTestId("workspace-settings-terminal-history-lines")).toHaveValue("100000");
@@ -1325,6 +1340,29 @@ test("opens workspace settings from the sidebar", async () => {
   await expect(page.getByTestId("workspace-settings-dialog")).not.toContainText("Agent streaming");
   await expect(page.getByTestId("workspace-settings-dialog")).not.toContainText("Agent terminal transport");
 
+  await cleanup();
+});
+
+test("keeps workspace settings frame stable across tabs", async () => {
+  const { page, cleanup } = await launchExoFixture({
+    env: {
+      EXO_INDEX_ENABLED: "0",
+      EXO_INDEX_MODE: "off",
+      EXO_INDEXED_ROOTS: "[]",
+    },
+  });
+
+  await page.getByTestId("workspace-settings").click();
+  await expect(page.getByTestId("workspace-settings-dialog")).toBeVisible();
+  const settingsFrame = await page.getByTestId("workspace-settings-dialog").boundingBox();
+  expect(settingsFrame).not.toBeNull();
+
+  for (const section of ["index", "profile", "harnesses", "appearance", "terminal", "workspace"]) {
+    await page.getByTestId(`workspace-settings-tab-${section}`).click();
+    await expectStableOuterFrame(page.getByTestId("workspace-settings-dialog"), settingsFrame!);
+  }
+
+  await page.screenshot({ path: "/tmp/exo-issue-32-settings-tabs.png", fullPage: false });
   await cleanup();
 });
 
@@ -1894,6 +1932,92 @@ test("shows first-run setup from a packaged-style launch without workspace env",
   await cleanup();
 });
 
+test("workspace settings alone do not complete onboarding", async () => {
+  const { page, cleanup, workspaceRoot } = await launchExoFixture({
+    mutable: true,
+    configured: false,
+    cwd: "/",
+    workspaceRootEnv: false,
+    expectOnboarding: false,
+    initialNoteLabel: null,
+    prepareSettings: async ({ settingsPath, workspaceRoot }) => {
+      const notesFolder = path.join(workspaceRoot, "notes/test-notes");
+      await mkdir(path.dirname(settingsPath), { recursive: true });
+      await writeFile(
+        settingsPath,
+        JSON.stringify({
+          workspaceRoot: notesFolder,
+          defaultTerminalCwd: path.join(workspaceRoot, "notes"),
+          noteRoots: [notesFolder],
+          projectRoots: [path.join(workspaceRoot, "projects/sample-project")],
+          indexedRoots: [],
+          indexing: { enabled: false, mode: "off", backend: "qmd" },
+        }),
+      );
+    },
+  });
+
+  await expect(page.getByTestId("sidebar")).toBeVisible();
+  await expect(page.getByTestId("post-workspace-setup")).toContainText("Set up your Exograph");
+  await expect.poll(async () => page.evaluate(() => window.exo.workspace.getSetupState()))
+    .toMatchObject({
+      complete: true,
+      onboardingComplete: false,
+      onboarding: {
+        status: "in-progress",
+        phase: "profile",
+        profileStep: "plugins",
+        workspaceBasicsSaved: true,
+      },
+    });
+
+  await page.getByRole("button", { name: "Back" }).click();
+  await expect(page.getByTestId("post-workspace-setup")).toHaveCount(0);
+  await expect(page.getByTestId("statusbar-finish-setup")).toBeVisible();
+  await page.getByTestId("statusbar-finish-setup").click();
+  await expect(page.getByTestId("post-workspace-setup")).toBeVisible();
+  await expect(page.getByTestId("post-workspace-setup")).toContainText(path.join(workspaceRoot, "notes/test-notes"));
+
+  await cleanup();
+});
+
+test("hard reload resumes incomplete onboarding profile step", async () => {
+  const fixtureWorkspaceRoot = path.join(repoRoot, "fixtures/test-workspace");
+  const notesFolder = path.join(fixtureWorkspaceRoot, "notes/test-notes");
+  const { page, cleanup } = await launchExoFixture({
+    configured: false,
+    cwd: "/",
+    workspaceRootEnv: false,
+    runtimeRootEnv: false,
+    env: {
+      EXO_TEST_SELECT_FOLDER_PATH: notesFolder,
+    },
+  });
+
+  await page.getByTestId("onboarding-choose-notes").click();
+  await page.getByTestId("onboarding-continue").click();
+  await expect(page.getByTestId("post-workspace-setup")).toBeVisible();
+  await page.getByTestId("onboarding-enter-workspace").click();
+  await expect(page.getByTestId("onboarding-agent-instructions")).toBeVisible();
+  await expect.poll(async () => page.evaluate(() => window.exo.workspace.getSetupState()))
+    .toMatchObject({
+      complete: true,
+      onboardingComplete: false,
+      onboarding: {
+        phase: "profile",
+        profileStep: "instructions",
+        workspaceBasicsSaved: true,
+      },
+    });
+
+  await page.reload();
+  await expect(page.getByTestId("sidebar")).toBeVisible();
+  await expect(page.getByTestId("post-workspace-setup")).toBeVisible();
+  await expect(page.getByTestId("onboarding-agent-instructions")).toBeVisible();
+
+  await cleanup();
+});
+
 test("opens an existing notes folder from first-run setup", async () => {
   const fixtureWorkspaceRoot = path.join(repoRoot, "fixtures/test-workspace");
   const notesFolder = path.join(fixtureWorkspaceRoot, "notes/test-notes");
@@ -1908,7 +2032,10 @@ test("opens an existing notes folder from first-run setup", async () => {
   });
   const expectedTerminalCwd = path.join(workspaceRoot, "notes");
 
+  const firstRunFrame = await page.getByTestId("onboarding-card").boundingBox();
+  expect(firstRunFrame).not.toBeNull();
   await page.getByTestId("onboarding-choose-notes").click();
+  await expectStableOuterFrame(page.getByTestId("onboarding-card"), firstRunFrame!);
   await expect(page.getByTestId("onboarding-notes-folder")).toContainText(notesFolder);
   await expect(page.getByTestId("onboarding-terminal-folder")).toContainText(expectedTerminalCwd);
 
@@ -1919,13 +2046,33 @@ test("opens an existing notes folder from first-run setup", async () => {
   await expect(page.getByTestId("post-workspace-setup")).toContainText("Set up your Exograph");
   await expect(page.getByTestId("post-workspace-setup")).not.toContainText("Core, locked");
   await expect(page.getByTestId("onboarding-capability-review")).toBeVisible();
+  const setupFrame = await page.getByTestId("post-workspace-setup").boundingBox();
+  expect(setupFrame).not.toBeNull();
   await expect(page.getByTestId("onboarding-plugin-toggle-qmd")).toBeChecked();
   await expect(page.getByTestId("onboarding-plugin-toggle-qmd")).toBeEnabled();
-  await expect(page.getByTestId("onboarding-profile-routine-note")).toContainText("configured later in Settings");
-  await page.getByTestId("onboarding-enter-workspace").scrollIntoViewIfNeeded();
+  await page.screenshot({ path: "/tmp/exo-issue-32-onboarding-plugins.png", fullPage: false });
+  await page.getByTestId("onboarding-enter-workspace").click();
+  await expect(page.getByTestId("onboarding-agent-instructions")).toBeVisible();
+  await expectStableOuterFrame(page.getByTestId("post-workspace-setup"), setupFrame!);
+  await page.getByTestId("onboarding-enter-workspace").click();
+  await expect(page.getByTestId("onboarding-routines")).toBeVisible();
+  await expectStableOuterFrame(page.getByTestId("post-workspace-setup"), setupFrame!);
+  await page.getByTestId("onboarding-enter-workspace").click();
+  await expect(page.getByTestId("onboarding-profile-routine-note")).toContainText("Profile templates");
+  await expectStableOuterFrame(page.getByTestId("post-workspace-setup"), setupFrame!);
+  await page.screenshot({ path: "/tmp/exo-issue-32-onboarding-review.png", fullPage: false });
   await expect(page.getByTestId("onboarding-enter-workspace")).toBeVisible();
   await page.getByTestId("onboarding-enter-workspace").click();
   await expect(page.getByTestId("post-workspace-setup")).toHaveCount(0);
+  await expect.poll(async () => page.evaluate(() => window.exo.workspace.getSetupState()))
+    .toMatchObject({
+      complete: true,
+      onboardingComplete: true,
+      onboarding: {
+        status: "complete",
+        phase: "done",
+      },
+    });
   await expect.poll(async () => page.evaluate(() => window.exo.workspace.getSettings()))
     .toMatchObject({
       noteRoots: [notesFolder],

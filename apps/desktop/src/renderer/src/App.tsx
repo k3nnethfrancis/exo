@@ -236,6 +236,12 @@ export function App() {
   }, [workspaceModel, onboardingState]);
 
   useEffect(() => {
+    if (workspaceModel && !onboardingState && workspaceBootstrap.setupState?.complete && !workspaceBootstrap.setupState.onboardingComplete) {
+      setPostWorkspaceSetupOpen(true);
+    }
+  }, [workspaceModel, onboardingState, workspaceBootstrap.setupState]);
+
+  useEffect(() => {
     terminalRuntimeScrollbackLinesRef.current = terminalRuntimeScrollbackLines;
   }, [terminalRuntimeScrollbackLines]);
 
@@ -857,51 +863,53 @@ export function App() {
     const selectedWorkspace = onboardingState.workspaces.find((workspace) => workspace.id === onboardingState.selectedWorkspaceId) ?? null;
     return (
       <div className="onboarding-shell" data-testid="onboarding">
-        <div className="onboarding-card">
+        <div className="onboarding-card" data-testid="onboarding-card">
           <div className="onboarding-card__eyebrow">
             {onboardingState.mode === "first-run" ? "First setup" : "Switch workspace"}
           </div>
           {onboardingState.step === "select" ? (
             <>
-              <h1 className="onboarding-card__title">Select workspace</h1>
-              <p className="onboarding-card__copy">
-                Workspaces are saved notes folders with their own projects, terminal defaults, settings, and advanced search state.
-              </p>
-              <div className="workspace-picker" data-testid="workspace-picker">
-                {onboardingState.workspaces.length > 0 ? (
-                  onboardingState.workspaces.map((workspace) => (
-                    <button
-                      className={`workspace-picker__item${workspace.id === onboardingState.selectedWorkspaceId ? " workspace-picker__item--selected" : ""}`}
-                      data-testid="workspace-picker-item"
-                      key={workspace.id}
-                      onClick={() =>
-                        setOnboardingState((current) =>
-                          current ? { ...current, selectedWorkspaceId: workspace.id, status: "idle", errorMessage: null } : current,
-                        )
-                      }
-                      type="button"
-                    >
-                      <span className="workspace-picker__name">{workspace.label}</span>
-                      <span className="workspace-picker__path">{workspace.notesFolder}</span>
-                    </button>
-                  ))
-                ) : (
-                  <div className="path-list__empty" data-testid="workspace-picker-empty">No workspaces yet.</div>
-                )}
-              </div>
-              {selectedWorkspace ? (
-                <div className="onboarding-section onboarding-section--summary" data-testid="workspace-picker-detail">
-                  <div className="dialog-field__label">{selectedWorkspace.label}</div>
-                  <div className="onboarding-section__hint">{selectedWorkspace.notesFolder}</div>
-                  <div className="workspace-picker__meta">
-                    {selectedWorkspace.settings.projectRoots.length} project{selectedWorkspace.settings.projectRoots.length === 1 ? "" : "s"}
-                    {" | "}
-                    search {selectedWorkspace.settings.indexing.mode}
-                    {" | "}
-                    terminal {pathLabel(selectedWorkspace.settings.defaultTerminalCwd)}
-                  </div>
+              <div className="onboarding-card__body" data-testid="onboarding-card-body">
+                <h1 className="onboarding-card__title">Select workspace</h1>
+                <p className="onboarding-card__copy">
+                  Workspaces are saved notes folders with their own projects, terminal defaults, settings, and advanced search state.
+                </p>
+                <div className="workspace-picker" data-testid="workspace-picker">
+                  {onboardingState.workspaces.length > 0 ? (
+                    onboardingState.workspaces.map((workspace) => (
+                      <button
+                        className={`workspace-picker__item${workspace.id === onboardingState.selectedWorkspaceId ? " workspace-picker__item--selected" : ""}`}
+                        data-testid="workspace-picker-item"
+                        key={workspace.id}
+                        onClick={() =>
+                          setOnboardingState((current) =>
+                            current ? { ...current, selectedWorkspaceId: workspace.id, status: "idle", errorMessage: null } : current,
+                          )
+                        }
+                        type="button"
+                      >
+                        <span className="workspace-picker__name">{workspace.label}</span>
+                        <span className="workspace-picker__path">{workspace.notesFolder}</span>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="path-list__empty" data-testid="workspace-picker-empty">No workspaces yet.</div>
+                  )}
                 </div>
-              ) : null}
+                {selectedWorkspace ? (
+                  <div className="onboarding-section onboarding-section--summary" data-testid="workspace-picker-detail">
+                    <div className="dialog-field__label">{selectedWorkspace.label}</div>
+                    <div className="onboarding-section__hint">{selectedWorkspace.notesFolder}</div>
+                    <div className="workspace-picker__meta">
+                      {selectedWorkspace.settings.projectRoots.length} project{selectedWorkspace.settings.projectRoots.length === 1 ? "" : "s"}
+                      {" | "}
+                      search {selectedWorkspace.settings.indexing.mode}
+                      {" | "}
+                      terminal {pathLabel(selectedWorkspace.settings.defaultTerminalCwd)}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
               <div className="onboarding-card__actions">
                 {onboardingState.mode === "switch" ? (
                   <button className="toolbar-button" onClick={() => setOnboardingState(null)} type="button">
@@ -925,6 +933,7 @@ export function App() {
           ) : onboardingState.step === "capabilities" ? (
             <OnboardingCapabilityReview
               notesFolder={onboardingState.notesFolder}
+              initialStep={workspaceBootstrap.setupState?.onboarding.profileStep ?? "plugins"}
               onBack={() =>
                 setOnboardingState((current) =>
                   current
@@ -941,82 +950,84 @@ export function App() {
             />
           ) : (
             <>
-              <h1 className="onboarding-card__title">
-                {onboardingState.mode === "first-run" ? "Open notes folder" : "Choose notes folder"}
-              </h1>
-              <p className="onboarding-card__copy">
-                Select an existing Markdown folder or create one, then confirm where terminals and project-aware workflows should start.
-              </p>
-              <div className="onboarding-grid">
-                <div className="onboarding-section onboarding-section--primary">
-                  <div className="onboarding-section__header">
-                    <div>
-                      <div className="dialog-field__label">Notes folder</div>
-                      <div className="onboarding-section__hint">Required. This Markdown folder identifies the workspace.</div>
+              <div className="onboarding-card__body" data-testid="onboarding-card-body">
+                <h1 className="onboarding-card__title">
+                  {onboardingState.mode === "first-run" ? "Open notes folder" : "Choose notes folder"}
+                </h1>
+                <p className="onboarding-card__copy">
+                  Select an existing Markdown folder or create one, then confirm where terminals and project-aware workflows should start.
+                </p>
+                <div className="onboarding-grid">
+                  <div className="onboarding-section onboarding-section--primary">
+                    <div className="onboarding-section__header">
+                      <div>
+                        <div className="dialog-field__label">Notes folder</div>
+                        <div className="onboarding-section__hint">Required. This Markdown folder identifies the workspace.</div>
+                      </div>
+                      <button className="toolbar-button" data-testid="onboarding-choose-notes" onClick={() => void workspaceBootstrap.selectNotesFolderForOnboarding()} type="button">
+                        Select
+                      </button>
                     </div>
-                    <button className="toolbar-button" data-testid="onboarding-choose-notes" onClick={() => void workspaceBootstrap.selectNotesFolderForOnboarding()} type="button">
-                      Select
-                    </button>
+                    <PathList
+                      emptyLabel="No notes folder selected."
+                      paths={onboardingState.notesFolder ? [onboardingState.notesFolder] : []}
+                      testId="onboarding-notes-folder"
+                      onRemove={() =>
+                        setOnboardingState((current) =>
+                          current ? { ...current, notesFolder: "", status: "idle", errorMessage: null } : current,
+                        )
+                      }
+                    />
                   </div>
-                  <PathList
-                    emptyLabel="No notes folder selected."
-                    paths={onboardingState.notesFolder ? [onboardingState.notesFolder] : []}
-                    testId="onboarding-notes-folder"
-                    onRemove={() =>
-                      setOnboardingState((current) =>
-                        current ? { ...current, notesFolder: "", status: "idle", errorMessage: null } : current,
-                      )
-                    }
-                  />
-                </div>
-                <div className="onboarding-section">
-                  <div className="onboarding-section__header">
-                    <div>
-                      <div className="dialog-field__label">Project folders</div>
-                      <div className="onboarding-section__hint">Optional code folders for terminals, review, and agents.</div>
+                  <div className="onboarding-section">
+                    <div className="onboarding-section__header">
+                      <div>
+                        <div className="dialog-field__label">Project folders</div>
+                        <div className="onboarding-section__hint">Optional code folders for terminals, review, and agents.</div>
+                      </div>
+                      <button className="toolbar-button toolbar-button--icon" data-testid="onboarding-add-project" onClick={() => void workspaceBootstrap.addProjectFoldersForOnboarding()} type="button">
+                        <Plus size={15} />
+                      </button>
                     </div>
-                    <button className="toolbar-button toolbar-button--icon" data-testid="onboarding-add-project" onClick={() => void workspaceBootstrap.addProjectFoldersForOnboarding()} type="button">
-                      <Plus size={15} />
-                    </button>
+                    <PathList
+                      emptyLabel="No project folders added."
+                      paths={onboardingState.projectFolders}
+                      testId="onboarding-project-folders"
+                      onRemove={(targetPath) =>
+                        setOnboardingState((current) =>
+                          current
+                            ? {
+                                ...current,
+                                projectFolders: current.projectFolders.filter((entry) => entry !== targetPath),
+                                status: "idle",
+                                errorMessage: null,
+                              }
+                            : current,
+                        )
+                      }
+                    />
                   </div>
-                  <PathList
-                    emptyLabel="No project folders added."
-                    paths={onboardingState.projectFolders}
-                    testId="onboarding-project-folders"
-                    onRemove={(targetPath) =>
-                      setOnboardingState((current) =>
-                        current
-                          ? {
-                              ...current,
-                              projectFolders: current.projectFolders.filter((entry) => entry !== targetPath),
-                              status: "idle",
-                              errorMessage: null,
-                            }
-                          : current,
-                      )
-                    }
-                  />
-                </div>
-                <div className="onboarding-section">
-                  <div className="onboarding-section__header">
-                    <div>
-                      <div className="dialog-field__label">Default terminal</div>
-                      <div className="onboarding-section__hint">Where new shell, Claude, and Codex sessions start.</div>
+                  <div className="onboarding-section">
+                    <div className="onboarding-section__header">
+                      <div>
+                        <div className="dialog-field__label">Default terminal</div>
+                        <div className="onboarding-section__hint">Where new shell, Claude, and Codex sessions start.</div>
+                      </div>
+                      <button className="toolbar-button" data-testid="onboarding-choose-terminal" onClick={() => void workspaceBootstrap.selectDefaultTerminalForOnboarding()} type="button">
+                        Select
+                      </button>
                     </div>
-                    <button className="toolbar-button" data-testid="onboarding-choose-terminal" onClick={() => void workspaceBootstrap.selectDefaultTerminalForOnboarding()} type="button">
-                      Select
-                    </button>
+                    <PathList
+                      emptyLabel={onboardingState.notesFolder ? "Defaults to the parent of your notes folder." : "Defaults after you choose notes."}
+                      paths={onboardingState.defaultTerminalCwd ? [onboardingState.defaultTerminalCwd] : []}
+                      testId="onboarding-terminal-folder"
+                      onRemove={() =>
+                        setOnboardingState((current) =>
+                          current ? { ...current, defaultTerminalCwd: "", status: "idle", errorMessage: null } : current,
+                        )
+                      }
+                    />
                   </div>
-                  <PathList
-                    emptyLabel={onboardingState.notesFolder ? "Defaults to the parent of your notes folder." : "Defaults after you choose notes."}
-                    paths={onboardingState.defaultTerminalCwd ? [onboardingState.defaultTerminalCwd] : []}
-                    testId="onboarding-terminal-folder"
-                    onRemove={() =>
-                      setOnboardingState((current) =>
-                        current ? { ...current, defaultTerminalCwd: "", status: "idle", errorMessage: null } : current,
-                      )
-                    }
-                  />
                 </div>
               </div>
               <div className="onboarding-card__actions">
@@ -1081,6 +1092,7 @@ export function App() {
         changedFiles: projectReviewChanges.length,
         changedNotes: noteGitChanges.length,
         pendingProposals: proposalReviewState.pendingProposalCount,
+        onboardingIncomplete: Boolean(workspaceBootstrap.setupState?.complete && !workspaceBootstrap.setupState.onboardingComplete),
         profileReviewRequired: profileState?.reviewRequired ?? false,
         profileLabel: profileState?.activeProfile?.label ?? profileState?.activeProfile?.profileId ?? null,
         terminal: terminalStatusLine,
@@ -1262,6 +1274,7 @@ export function App() {
       onOpenProjectChanges={() => void openProjectChangesFromStatus()}
       onOpenNoteChanges={() => setNoteChangesOpen(true)}
       onOpenProfileSettings={() => void workspaceSettingsController.openDialog("profile")}
+      onOpenOnboardingSetup={() => setPostWorkspaceSetupOpen(true)}
       onSearchQueryChange={(value) => {
         workspaceSearch.setQuery(value);
         workspaceSearch.setSubmittedQuery(value.trim());
@@ -1358,11 +1371,17 @@ export function App() {
       ) : null}
       {postWorkspaceSetupOpen && workspaceModel ? (
         <div className="dialog-overlay" data-testid="post-workspace-setup-overlay">
-          <div className="dialog-card dialog-card--wide" data-testid="post-workspace-setup">
+          <div className="dialog-card dialog-card--wide dialog-card--onboarding-setup" data-testid="post-workspace-setup">
             <OnboardingCapabilityReview
               notesFolder={workspaceModel.noteRoots[0]?.path ?? workspaceModel.workspaceRoot}
+              initialStep={workspaceBootstrap.setupState?.onboarding.profileStep ?? "plugins"}
               onBack={() => setPostWorkspaceSetupOpen(false)}
-              onEnterWorkspace={() => setPostWorkspaceSetupOpen(false)}
+              onEnterWorkspace={() => {
+                workspaceBootstrap.setSetupState((current) =>
+                  current ? { ...current, onboardingComplete: true, onboarding: { ...current.onboarding, status: "complete", phase: "done" } } : current,
+                );
+                setPostWorkspaceSetupOpen(false);
+              }}
             />
           </div>
         </div>

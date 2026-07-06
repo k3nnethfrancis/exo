@@ -23,6 +23,8 @@ import type {
   SearchResult,
   TreeNode,
   ProfileStateStore,
+  OnboardingStateStore,
+  OnboardingProfileStep,
   WorkspaceModel,
   WorkspaceSettings,
   WorkspaceSearchResults,
@@ -151,6 +153,8 @@ export interface WorkspaceGitChange {
 
 export interface WorkspaceSetupState {
   complete: boolean;
+  onboardingComplete: boolean;
+  onboarding: OnboardingStateStore;
   settingsPath: string;
 }
 
@@ -321,6 +325,8 @@ export interface DesktopApi {
     getModel: () => Promise<WorkspaceModel>;
     getSettings: () => Promise<WorkspaceSettings>;
     getSetupState: () => Promise<WorkspaceSetupState>;
+    markOnboardingProfileStep: (input: { step: OnboardingProfileStep }) => Promise<OnboardingStateStore>;
+    markOnboardingComplete: () => Promise<OnboardingStateStore>;
     listWorkspaces: () => Promise<WorkspaceRegistryEntry[]>;
     activateWorkspace: (workspaceId: string) => Promise<WorkspaceSettings>;
     saveSettings: (settings: WorkspaceSettings) => Promise<WorkspaceSettings>;

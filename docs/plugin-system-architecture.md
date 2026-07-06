@@ -63,6 +63,8 @@ Plugin management, profile management, and onboarding are related but separate p
 - **Plugin Manager** is the capability lifecycle surface. It owns plugin discovery, trust, enablement, dependency/setup state, requested versus granted permissions, plugin-owned configuration, managed local plugin add/remove/swap flows, and links into deeper plugin-specific settings. Developer/operator plugin directories remain explicit read-only source paths rather than Plugin Manager install targets.
 - **Agent Config Editor** remains a specialized harness-adjacent editor for instruction files, skills, and provider config. Profile Settings can deep-link there, but it should not duplicate the full skill/instruction editing UI.
 
+See `docs/onboarding-settings-boundaries.md` for the concise ownership table that also covers Routine Manager and Profile Manager responsibilities.
+
 This split keeps each screen legible:
 
 - Onboarding answers "What should this workspace start with?"

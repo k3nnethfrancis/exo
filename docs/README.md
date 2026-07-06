@@ -17,6 +17,7 @@ This directory contains committed, public-facing project context. It should be u
 - `plugin-architecture-audit.md` - plugin decision/fallback audit and hardening policy.
 - `public-contract-reviews.md` - SHA-256 review-note ledger for guarded command-server, CLI, MCP, and shared protocol surfaces.
 - `profile-plugin-management-plan.md` - near-term plan for active profiles, Plugin Manager, Settings/Profile, and plugin lifecycle UX.
+- `onboarding-settings-boundaries.md` - product ownership map for onboarding, Settings, Plugin Manager, Agent Config, Routine Manager, and Profile Manager.
 - `activity-plugin-contract.md` - minimal activity/artifact/provenance/review substrate boundary for plugin workloads.
 - `agent-harness-plugin-contract.md` - harness adapter contract for Claude, Codex, Pi-compatible, and future local/open-source agents.
 - `plugin-surface-contract.md` - safe plugin surface and core web viewer endpoint contribution contract.
@@ -57,19 +58,20 @@ These remain in place for traceability but should not be treated as the latest a
 14. `plugin-architecture-audit.md` - plugin decision/fallback audit and hardening policy
 15. `public-contract-reviews.md` - public contract guard ledger for command-server, CLI, MCP, and shared protocol surfaces
 16. `profile-plugin-management-plan.md` - current product and implementation plan for profile/plugin management UX
-17. `plugins.md` - plugin architecture direction
-18. `plugin-implementation-plan.md` - phased implementation plan for capability registries, search providers, agent harnesses, activity substrate, plugin manifests, and future permissioned loading
-19. `activity-plugin-contract.md` - activity/artifact/provenance/review substrate contract
-20. `agent-harness-plugin-contract.md` - harness adapter contract
-21. `plugin-surface-contract.md` - safe plugin surface and web viewer endpoint contract
-22. `graph-visualization-plugin-contract.md` - graph visualization plugin contract
-23. `open-source.md` - release and platform support notes
-24. `terminal-architecture-v4.md` - current terminal architecture and module-boundary target
-25. `terminal-runtime-decision.md` - terminal runtime decision
-26. `terminal-quality-standard.md` - terminal useability and QA standard
-27. `terminal-fallback-audit.md` - terminal fallback/recovery policy and current decisions
-28. `terminal-refactor-plan.md` - historical tmux migration plan
-29. `qmd-integration-notes.md` - live QMD dependency boundary and upgrade checklist
+17. `onboarding-settings-boundaries.md` - current IA boundary for first-run setup versus ongoing management
+18. `plugins.md` - plugin architecture direction
+19. `plugin-implementation-plan.md` - phased implementation plan for capability registries, search providers, agent harnesses, activity substrate, plugin manifests, and future permissioned loading
+20. `activity-plugin-contract.md` - activity/artifact/provenance/review substrate contract
+21. `agent-harness-plugin-contract.md` - harness adapter contract
+22. `plugin-surface-contract.md` - safe plugin surface and web viewer endpoint contract
+23. `graph-visualization-plugin-contract.md` - graph visualization plugin contract
+24. `open-source.md` - release and platform support notes
+25. `terminal-architecture-v4.md` - current terminal architecture and module-boundary target
+26. `terminal-runtime-decision.md` - terminal runtime decision
+27. `terminal-quality-standard.md` - terminal useability and QA standard
+28. `terminal-fallback-audit.md` - terminal fallback/recovery policy and current decisions
+29. `terminal-refactor-plan.md` - historical tmux migration plan
+30. `qmd-integration-notes.md` - live QMD dependency boundary and upgrade checklist
 
 ## File Roles
 
@@ -86,6 +88,7 @@ These remain in place for traceability but should not be treated as the latest a
 - `plugin-architecture-audit.md` records plugin fallback decisions, rejected shortcuts, and hardening rules.
 - `public-contract-reviews.md` records the review-note hashes that `pnpm check:repo` requires before protected public contract files can change.
 - `profile-plugin-management-plan.md` defines how onboarding, Settings/Profile, Plugin Manager, active profile state, and status-bar review affordances should fit together.
+- `onboarding-settings-boundaries.md` defines which concepts belong to onboarding, Settings, Plugin Manager, Agent Config, Routine Manager, and Profile Manager.
 - `plugins.md` tracks the intended extension model.
 - `plugin-implementation-plan.md` tracks the concrete refactor/implementation order for the first plugin architecture phases.
 - `activity-plugin-contract.md` defines the minimal activity substrate and keeps rich workload schemas plugin-owned.

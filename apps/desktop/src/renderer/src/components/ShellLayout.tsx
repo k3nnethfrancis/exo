@@ -57,6 +57,7 @@ interface ShellLayoutProps {
     changedFiles: number;
     changedNotes: number;
     pendingProposals: number;
+    onboardingIncomplete: boolean;
     profileReviewRequired: boolean;
     profileLabel: string | null;
     terminal: TerminalStatusLine | null;
@@ -101,6 +102,7 @@ interface ShellLayoutProps {
   onOpenProjectChanges: () => void;
   onOpenNoteChanges: () => void;
   onOpenProfileSettings: () => void;
+  onOpenOnboardingSetup: () => void;
   onSearchQueryChange: (value: string) => void;
   onSearchSubmit: () => void;
   onOpenFile: (filePath: string, line?: number | null) => void;
@@ -146,6 +148,7 @@ export function ShellLayout(props: ShellLayoutProps) {
     onOpenProjectChanges,
     onOpenNoteChanges,
     onOpenProfileSettings,
+    onOpenOnboardingSetup,
     onSearchQueryChange,
     onSearchSubmit,
     onOpenFile,
@@ -423,6 +426,17 @@ export function ShellLayout(props: ShellLayoutProps) {
               type="button"
             >
               Profile review
+            </button>
+          ) : null}
+          {statusLine.onboardingIncomplete ? (
+            <button
+              className="statusbar__changes statusbar__changes--profile"
+              data-testid="statusbar-finish-setup"
+              onClick={onOpenOnboardingSetup}
+              title="Finish workspace profile setup"
+              type="button"
+            >
+              Finish setup
             </button>
           ) : null}
           {statusLine.pendingProposals > 0 ? (

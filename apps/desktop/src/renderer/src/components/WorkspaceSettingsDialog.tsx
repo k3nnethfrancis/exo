@@ -29,7 +29,7 @@ interface WorkspaceSettingsDialogProps {
 const SETTINGS_SECTIONS: Array<{ id: WorkspaceSettingsSection; label: string; description: string; icon: typeof FolderOpen }> = [
   { id: "workspace", label: "Workspace", description: "Folders and roots", icon: FolderOpen },
   { id: "profile", label: "Profile", description: "Read-only profile state", icon: UserRound },
-  { id: "index", label: "Index/Search", description: "QMD and search", icon: Search },
+  { id: "index", label: "Search", description: "Core + QMD provider", icon: Search },
   { id: "harnesses", label: "Harnesses", description: "Agent adapters", icon: Bot },
   { id: "appearance", label: "Appearance", description: "Theme and editor", icon: Palette },
   { id: "terminal", label: "Terminal", description: "Runtime defaults", icon: TerminalSquare },
@@ -69,7 +69,7 @@ export function WorkspaceSettingsDialog({
           </button>
         </div>
         <div className="dialog-card__message">{workspaceSettingsDialogIntroCopy(settings.section, hasStructuralChanges)}</div>
-        <div className="workspace-settings-layout">
+        <div className="workspace-settings-layout" data-testid="workspace-settings-body">
           <nav className="settings-nav" role="tablist" aria-label="Workspace settings sections">
             {SETTINGS_SECTIONS.map((section) => {
               const Icon = section.icon;
@@ -103,66 +103,75 @@ export function WorkspaceSettingsDialog({
               />
             ) : null}
             {settings.section === "index" ? (
-              <IndexSection indexBusy={indexBusy} indexStatus={indexStatus} settings={settings} setSettings={setSettings} onRunIndexUpdate={onRunIndexUpdate} />
+              <IndexSection
+                indexBusy={indexBusy}
+                indexStatus={indexStatus}
+                settings={settings}
+                setSettings={setSettings}
+                onOpenPluginManager={onOpenPluginManager}
+                onRunIndexUpdate={onRunIndexUpdate}
+              />
             ) : null}
             {settings.section === "harnesses" ? <HarnessesSection agentHarnesses={agentHarnesses} settings={settings} setSettings={setSettings} /> : null}
             {settings.section === "appearance" ? <AppearanceSection settings={settings} setSettings={setSettings} /> : null}
             {settings.section === "terminal" ? <TerminalSection settings={settings} setSettings={setSettings} /> : null}
           </div>
         </div>
-        {hasStructuralChanges ? (
-          <div className="dialog-card__apply-row">
-            <div className="dialog-card__status">Workspace path and advanced search changes are ready to apply.</div>
-            <button
-              className="toolbar-button"
-              data-testid="workspace-settings-apply"
-              disabled={settings.applyStatus === "applying"}
-              onClick={() => void onSave(settings, { includeStructural: true })}
-              type="button"
-            >
-              {settings.applyStatus === "applying" ? "Applying..." : "Apply"}
-            </button>
-          </div>
-        ) : null}
-        {settings.applyStatus === "applied" ? (
-          <div className="dialog-card__status" data-testid="workspace-settings-apply-status">
-            Applied. Workspace paths are active.
-          </div>
-        ) : null}
-        {settings.applyStatus === "error" && settings.applyErrorMessage ? (
-          <div className="dialog-card__status dialog-card__status--error">{settings.applyErrorMessage}</div>
-        ) : null}
-        {settings.saveStatus === "saving" ? (
-          <div className="dialog-card__status" data-testid="workspace-settings-status">
-            Saving...
-          </div>
-        ) : null}
-        {settings.saveStatus === "saved" ? (
-          <div className="dialog-card__status" data-testid="workspace-settings-status">
-            {workspaceSettingsSavedFooterCopy(hasStructuralChanges)}
-          </div>
-        ) : null}
-        {settings.saveStatus === "error" && settings.errorMessage ? (
-          <div className="dialog-card__status dialog-card__status--error">{settings.errorMessage}</div>
-        ) : null}
+        <div className="dialog-card__footer">
+          {hasStructuralChanges ? (
+            <div className="dialog-card__apply-row">
+              <div className="dialog-card__status">Workspace path and advanced search provider changes are ready to apply.</div>
+              <button
+                className="toolbar-button"
+                data-testid="workspace-settings-apply"
+                disabled={settings.applyStatus === "applying"}
+                onClick={() => void onSave(settings, { includeStructural: true })}
+                type="button"
+              >
+                {settings.applyStatus === "applying" ? "Applying..." : "Apply"}
+              </button>
+            </div>
+          ) : null}
+          {settings.applyStatus === "applied" ? (
+            <div className="dialog-card__status" data-testid="workspace-settings-apply-status">
+              Applied. Workspace paths are active.
+            </div>
+          ) : null}
+          {settings.applyStatus === "error" && settings.applyErrorMessage ? (
+            <div className="dialog-card__status dialog-card__status--error">{settings.applyErrorMessage}</div>
+          ) : null}
+          {settings.saveStatus === "saving" ? (
+            <div className="dialog-card__status" data-testid="workspace-settings-status">
+              Saving...
+            </div>
+          ) : null}
+          {settings.saveStatus === "saved" ? (
+            <div className="dialog-card__status" data-testid="workspace-settings-status">
+              {workspaceSettingsSavedFooterCopy(hasStructuralChanges)}
+            </div>
+          ) : null}
+          {settings.saveStatus === "error" && settings.errorMessage ? (
+            <div className="dialog-card__status dialog-card__status--error">{settings.errorMessage}</div>
+          ) : null}
+        </div>
       </div>
     </div>
   );
 }
 
 export function workspaceSettingsSavedFooterCopy(hasStructuralChanges: boolean): string {
-  return hasStructuralChanges ? "Draft saved. Press Apply for workspace path or advanced search changes." : "Settings saved.";
+  return hasStructuralChanges ? "Draft saved. Press Apply for workspace path or search provider changes." : "Settings saved.";
 }
 
 export function workspaceSettingsDialogIntroCopy(section: WorkspaceSettingsSection, hasStructuralChanges: boolean): string {
   if (hasStructuralChanges) {
     return section === "index"
       ? "Advanced search provider changes are saved as a draft. Press Apply to make them active."
-      : "Workspace path or advanced search changes are saved as a draft. Press Apply to make them active.";
+      : "Workspace path or search provider changes are saved as a draft. Press Apply to make them active.";
   }
 
   if (section === "index") {
-    return "QMD update preferences save immediately. Manual sync actions run when pressed and refresh status when they finish.";
+    return "Core search is always on. QMD provider update preferences save immediately.";
   }
 
   if (section === "workspace") {
@@ -268,10 +277,11 @@ function WorkspaceSection({
 function IndexSection({
   indexBusy,
   indexStatus,
+  onOpenPluginManager,
   onRunIndexUpdate,
   settings,
   setSettings,
-}: Pick<WorkspaceSettingsDialogProps, "indexBusy" | "indexStatus" | "onRunIndexUpdate" | "settings" | "setSettings">) {
+}: Pick<WorkspaceSettingsDialogProps, "indexBusy" | "indexStatus" | "onOpenPluginManager" | "onRunIndexUpdate" | "settings" | "setSettings">) {
   const statusCopy = indexSettingsStatusCopy(indexStatus, indexBusy);
 
   return (
@@ -279,14 +289,19 @@ function IndexSection({
       <div className="index-summary">
         <div className="index-summary__header">
           <span>
-            Local{" "}
+            Core search +{" "}
             <button className="link-button link-button--inline" onClick={() => void window.exo.shell.openExternal("https://github.com/tobi/qmd")} type="button">
               QMD
             </button>{" "}
-            advanced search provider
+            advanced provider
           </span>
+          <button className="toolbar-button" onClick={onOpenPluginManager} type="button">
+            Open Plugin Manager
+          </button>
         </div>
         <div className="index-summary__stats">
+          <span>core always on</span>
+          <span>official provider</span>
           <span>{indexStatus?.mode ?? settings.indexMode}</span>
           <span>
             {indexStatus?.indexedRoots.length ?? settings.indexedRoots.length} root
@@ -316,7 +331,7 @@ function IndexSection({
         </div>
       ) : null}
       <label className="dialog-field dialog-field--section">
-        <span className="dialog-field__label">Advanced search provider</span>
+        <span className="dialog-field__label">QMD provider mode</span>
         <select
           className="dialog-card__input"
           data-testid="workspace-settings-index-mode"
@@ -353,7 +368,7 @@ function IndexSection({
           }
           type="checkbox"
         />
-        <span>Use QMD lexical search on Enter in Explore.</span>
+        <span>Use QMD lexical provider search on Enter in Explore.</span>
       </label>
       <label className="dialog-field dialog-field--section">
         <span className="dialog-field__label">QMD updates</span>
