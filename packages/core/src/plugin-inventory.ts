@@ -181,9 +181,10 @@ export function buildPluginInventory(input: {
   readinessByCapabilityId?: Record<string, PluginInventoryReadinessSummary | undefined>;
 }): PluginInventory {
   const harnessById = new Map((input.harnesses ?? []).map((harness) => [harness.id, harness]));
+  const hasHarnessDetections = input.harnesses !== undefined;
   const bundledItems = (input.builtIns ?? builtInCapabilities).map((capability) => {
     const harnessKind = managedAgentKindFromCapability(capability);
-    return bundledCapabilityItem(capability, harnessKind ? harnessById.get(harnessKind) : undefined, input.readinessByCapabilityId?.[capability.id]);
+    return bundledCapabilityItem(capability, harnessKind ? harnessById.get(harnessKind) : undefined, input.readinessByCapabilityId?.[capability.id], hasHarnessDetections);
   });
   const plugins = (input.plugins ?? []).map((plugin) => applyPluginState(plugin, input.pluginStateStore));
   const localItems = plugins.flatMap((plugin) => pluginInventoryItems(plugin, input.pluginSettingsStore, input.pluginPermissionStore));
@@ -265,9 +266,11 @@ function bundledCapabilityItem(
   capability: CapabilityMetadata,
   harness: AgentHarnessDetection | undefined,
   readiness: PluginInventoryReadinessSummary | undefined,
+  hasHarnessDetections: boolean,
 ): PluginInventoryItem {
   const isHarness = capability.kind === "core:agentHarness";
-  const enabled = capability.lifecycle !== "disabled" && (!isHarness || harness?.enabled !== false);
+  const harnessMissingFromDetections = isHarness && hasHarnessDetections && !harness;
+  const enabled = capability.lifecycle !== "disabled" && (!isHarness || (!harnessMissingFromDetections && harness?.enabled !== false));
   return {
     id: capability.id,
     label: capability.label,
@@ -285,8 +288,8 @@ function bundledCapabilityItem(
     permissions: capability.permissions,
     enabled,
     trust: "trusted",
-    status: harness?.status ?? (enabled ? "available" : "disabled"),
-    statusLabel: harness?.statusLabel ?? (enabled ? "Available" : "Disabled"),
+    status: harness?.status ?? (harnessMissingFromDetections ? "disabled" : enabled ? "available" : "disabled"),
+    statusLabel: harness?.statusLabel ?? (harnessMissingFromDetections ? "Disabled" : enabled ? "Available" : "Disabled"),
     dependencies: harness?.dependencies?.map((dependency) => ({
       id: dependency.id,
       label: dependency.label,

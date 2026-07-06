@@ -214,6 +214,37 @@ describe("plugin inventory", () => {
     });
   });
 
+  it("does not mark hidden official harnesses available without detector metadata", () => {
+    const inventory = buildPluginInventory({
+      harnesses: [
+        {
+          id: "shell",
+          adapterId: "shell",
+          family: "shell",
+          label: "Terminal",
+          productName: "Shell",
+          enabled: true,
+          configured: true,
+          detected: true,
+          launchable: true,
+          status: "available",
+          statusLabel: "Available",
+        },
+      ] satisfies AgentHarnessDetection[],
+    });
+
+    expect(find(inventory.items, "shell")).toMatchObject({
+      enabled: true,
+      status: "available",
+      statusLabel: "Available",
+    });
+    expect(find(inventory.items, "hermes")).toMatchObject({
+      enabled: false,
+      status: "disabled",
+      statusLabel: "Disabled",
+    });
+  });
+
   it("keeps untrusted and disabled manifests inspectable", () => {
     const inventory = buildPluginInventory({
       plugins: [

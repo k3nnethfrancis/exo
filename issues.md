@@ -1,12 +1,35 @@
 # Exo Issues
 
-Last updated: 2026-07-05
+Last updated: 2026-07-06
 
 This is the canonical active bug/QA tracker for Exo implementation work. It captures user-observed issues that need investigation before the next push/release pass.
 
 This root file is the only canonical Exo issue tracker. Field notes from daily dogfooding, GitHub issues, screenshots, or agent sessions should be promoted here with an `EXO-ISSUE-*` id before assignment.
 
 ## Open
+
+### EXO-ISSUE-092: Onboarding harness toggles call local-manifest plugin actions for bundled rows
+
+- Status: fixed in `codex/issue-25-onboarding-harness-toggles`
+- Severity: medium
+- Area: onboarding, plugin setup, harness readiness
+- Source:
+  - GitHub issue #25: https://github.com/k3nnethfrancis/exo/issues/25
+- Observed:
+  - First-run `Set up your Exograph` showed detected official harness rows as checked, clickable plugin toggles.
+  - Clicking Shell, Codex, or Hermes could route through local-manifest enable/disable code and throw `Plugin row is missing manifest identity`.
+  - Hermes could appear as an available official harness even when normal harness detection intentionally hid it because no Hermes command/config was present.
+- Expected:
+  - Official bundled harness rows should not use local-manifest lifecycle actions.
+  - Hidden official harnesses should not be marked available in detector-backed plugin inventory.
+  - QMD remains the only bundled onboarding row with a first-run mutable settings-backed toggle in this slice.
+- Resolution:
+  - Onboarding now treats bundled harness rows as read-only review rows while preserving checked readiness display for detected launchable harnesses.
+  - Detector-backed plugin inventory marks bundled harnesses missing from the live detector list as disabled, keeping unconfigured Hermes out of first-run onboarding.
+  - Focused renderer and core inventory tests cover read-only official harness rows and hidden harness detector metadata.
+- Verification:
+  - `pnpm --filter @exo/core exec vitest run src/__tests__/plugin-inventory.test.ts`
+  - `pnpm --filter @exo/desktop exec vitest run src/renderer/src/App.test.tsx`
 
 ### EXO-ISSUE-091: Deslopify Exograph setup and prioritize detected plugin choices
 
