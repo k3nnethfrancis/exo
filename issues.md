@@ -39,7 +39,8 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - [x] Define profile/manual plugin disagreement behavior.
     - First-run plugin setup states that profiles and routines never override manual plugin choices without review.
   - [x] Add packaged-app onboarding QA evidence and screenshots for the revised setup flow.
-    - 2026-07-05: `pnpm pack:mac` passed; disposable packaged `release/mac-arm64/Exo.app` Playwright probe saw no advanced-search control on first setup, QMD checked and enabled, settings saved as `indexing: { enabled: true, mode: "hybrid", backend: "qmd" }`, Explorer indexed-search-on-enter left unchanged/off, Pi unchecked/disabled, no profile plan preview, both Search Providers and Agent Harnesses present, and screenshot captured at `test-results/exo-issue-091-post-workspace-setup.png`.
+    - 2026-07-05: `pnpm pack:mac` passed; disposable packaged `release/mac-arm64/Exo.app` Playwright probe saw no advanced-search control on first setup, QMD checked and enabled, settings saved as `indexing: { enabled: true, mode: "hybrid", backend: "qmd" }`, Explorer indexed-search-on-enter left unchanged/off, no profile plan preview, both Search Providers and Agent Harnesses present, and screenshot captured at `test-results/exo-issue-091-post-workspace-setup.png`.
+    - 2026-07-05 follow-up: onboarding now hides non-launchable harnesses (`not-found`, `broken`, or dependency-blocked) so users only see detected launchable harness choices. Source-built visual probe forced broken Claude/Codex commands and confirmed Claude/Codex/Pi were absent while detected Hermes/Shell stayed preselected; screenshot captured at `test-results/exo-issue-091-missing-harnesses-hidden.png`.
 
 ### EXO-ISSUE-090: First-run onboarding shows core capability review before plugin setup
 

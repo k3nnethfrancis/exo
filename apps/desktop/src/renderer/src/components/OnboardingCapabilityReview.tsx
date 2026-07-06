@@ -131,6 +131,7 @@ export function OnboardingCapabilityReviewContent({
   selectionOverrides?: Record<string, boolean>;
   sections: ReturnType<typeof buildOnboardingCapabilitySections>;
 }) {
+  const visibleChoiceCount = sections.reduce((sum, section) => sum + section.rows.length, 0);
   return (
     <>
       <h1 className="onboarding-card__title">Set up your Exograph</h1>
@@ -144,8 +145,8 @@ export function OnboardingCapabilityReviewContent({
         </div>
         {inventory ? (
           <div>
-            <span>Optional plugins</span>
-            <strong>{inventory.counts.official} official, {inventory.counts.local + inventory.counts.developer} local</strong>
+            <span>Setup choices</span>
+            <strong>{visibleChoiceCount} detected</strong>
           </div>
         ) : null}
       </div>

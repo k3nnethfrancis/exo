@@ -12,13 +12,20 @@ const SECTION_ORDER = [
 
 export function buildOnboardingCapabilitySections(inventory: PluginInventory | null): OnboardingCapabilitySection[] {
   const setupCategoryIds = new Set<string>(SECTION_ORDER.map(([id]) => id));
-  const items = (inventory?.items ?? []).filter((item) => item.source !== "core" && setupCategoryIds.has(item.categoryId));
+  const items = (inventory?.items ?? []).filter((item) => item.source !== "core" && setupCategoryIds.has(item.categoryId) && shouldShowOnboardingCapability(item));
   const sections: OnboardingCapabilitySection[] = SECTION_ORDER.map(([id, label]) => ({
     id,
     label,
     rows: sortCapabilityRows(items.filter((item) => item.categoryId === id)),
   }));
   return sections.filter((section) => section.rows.length > 0);
+}
+
+function shouldShowOnboardingCapability(item: PluginInventoryItem): boolean {
+  if (item.kind === "core:agentHarness") {
+    return item.status === "available" || item.status === "configured";
+  }
+  return true;
 }
 
 export function onboardingCapabilityStatus(item: PluginInventoryItem): string {

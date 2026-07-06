@@ -2303,8 +2303,9 @@ describe("workspace onboarding model", () => {
     };
     const sections = buildOnboardingCapabilitySections(pluginInventory([codex, localProfile, qmd, core]));
 
-    expect(sections.map((section) => section.id)).toEqual(["core:searchProvider", "core:agentHarness"]);
+    expect(sections.map((section) => section.id)).toEqual(["core:searchProvider"]);
     expect(sections.find((section) => section.id === "core:searchProvider")?.rows.map((row) => row.id)).toEqual(["qmd"]);
+    expect(sections.some((section) => section.rows.some((row) => row.id === "codex"))).toBe(false);
     expect(onboardingCapabilityStatus(core)).toBe("Core, locked");
     expect(onboardingCapabilityStatus(qmd)).toBe("Official, available");
     expect(onboardingCapabilityStatus(localProfile)).toBe("Local, review needed");
@@ -2354,11 +2355,11 @@ describe("workspace onboarding model", () => {
     expect(html).not.toContain("Core, locked");
     expect(html).toContain("QMD advanced search");
     expect(html).toContain("onboarding-plugin-toggle-qmd");
-    expect(html).toContain("Agent harnesses");
-    expect(html).toContain("Official, not found");
+    expect(html).not.toContain("Agent harnesses");
+    expect(html).not.toContain("Official, not found");
     expect(html).toMatch(/data-testid=\"onboarding-plugin-toggle-qmd\"[^>]*checked=\"\"/);
     expect(html).not.toMatch(/data-testid=\"onboarding-plugin-toggle-qmd\"[^>]*disabled=\"\"/);
-    expect(html).toMatch(/data-testid=\"onboarding-plugin-toggle-codex\"[^>]*disabled=\"\"/);
+    expect(html).not.toContain("onboarding-plugin-toggle-codex");
     expect(html).not.toContain("Advanced search default");
     expect(html).not.toContain("QMD hybrid");
     expect(html).not.toContain("Profile plan preview");
