@@ -551,10 +551,10 @@ button svg,
   display: grid;
   grid-template-rows: minmax(0, 1fr);
   background: transparent;
-  overflow: hidden;
+  overflow: visible;
 }
 
-.editor-surface > * {
+.editor-surface > .cm-editor {
   height: 100%;
   min-height: 0;
   overflow: hidden;
@@ -859,11 +859,20 @@ button svg,
 }
 
 .editor-surface--live-preview .markdown-graph-references {
+  display: block;
   max-width: 860px;
   margin: 2.2rem auto 0;
   padding-top: 1rem;
   border-top: 1px solid var(--divider);
   color: var(--text-muted);
+}
+
+.editor-surface--live-preview .cm-line:has(.markdown-graph-references) {
+  padding-left: 0 !important;
+}
+
+.editor-surface--live-preview .cm-line:has(.markdown-graph-references)::before {
+  content: none !important;
 }
 
 .editor-surface--live-preview .markdown-graph-references__group + .markdown-graph-references__group {

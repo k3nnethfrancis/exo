@@ -20,13 +20,16 @@ export interface WikilinkCompletionContext {
 export function getWikilinkCompletionContext(state: EditorState, pos: number): WikilinkCompletionContext | null {
   const line = state.doc.lineAt(pos);
   const offset = pos - line.from;
-  const open = line.text.lastIndexOf("[[", offset);
+  const open = line.text.lastIndexOf("[[", Math.max(0, offset - 1));
   if (open < 0) {
+    return null;
+  }
+  if (offset < open + 2) {
     return null;
   }
 
   const close = line.text.indexOf("]]", open + 2);
-  if (close !== -1 && offset > close + 2) {
+  if (close !== -1 && offset > close) {
     return null;
   }
 

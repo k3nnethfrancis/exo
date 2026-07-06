@@ -55,7 +55,12 @@ import {
   workspaceSettingsDialogIntroCopy,
   workspaceSettingsSavedFooterCopy,
 } from "./components/WorkspaceSettingsDialog";
-import { listEnterEdit, shouldSuppressGeneratedTitleLine, wikilinkExitEdit } from "./components/markdownLivePreview";
+import {
+  clampSelectionToRenderedListText,
+  listEnterEdit,
+  shouldSuppressGeneratedTitleLine,
+  wikilinkExitEdit,
+} from "./components/markdownLivePreview";
 import {
   appendPendingTerminalData,
   mergeHydrationSnapshot,
@@ -2595,29 +2600,34 @@ describe("markdown editor list behavior", () => {
       exitList: true,
     });
   });
+
+  it("clamps shortcut selections to rendered list text", () => {
+    const state = EditorState.create({ doc: "- some important text" });
+    const anchor = state.doc.length;
+    const selection = clampSelectionToRenderedListText(state, anchor, 0);
+
+    expect(selection?.anchor).toBe(anchor);
+    expect(selection?.head).toBe("- ".length);
+  });
 });
 
 describe("markdown editor wikilink behavior", () => {
-  it("exits a wikilink by inserting one trailing space", () => {
+  it("exits a wikilink without inserting trailing whitespace", () => {
     const state = EditorState.create({ doc: "Discuss [[customer-name]]today" });
     const pos = "Discuss [[customer-name".length;
 
     expect(wikilinkExitEdit(state, pos)).toEqual({
       insertAt: "Discuss [[customer-name]]".length,
-      insert: " ",
-      selection: "Discuss [[customer-name]] ".length,
+      insert: "",
+      selection: "Discuss [[customer-name]]".length,
     });
   });
 
-  it("exits a wikilink through an existing trailing space", () => {
+  it("does not treat the closing edge of a wikilink as editable interior", () => {
     const state = EditorState.create({ doc: "Discuss [[customer-name]] today" });
     const pos = "Discuss [[customer-name]]".length;
 
-    expect(wikilinkExitEdit(state, pos)).toEqual({
-      insertAt: "Discuss [[customer-name]]".length,
-      insert: "",
-      selection: "Discuss [[customer-name]] ".length,
-    });
+    expect(wikilinkExitEdit(state, pos)).toBeNull();
   });
 
   it("does not handle Tab or Enter outside wikilinks", () => {
@@ -2636,6 +2646,15 @@ describe("markdown editor wikilink behavior", () => {
       insert: "[[goals]]",
       selection: "See [[goals]]".length,
     });
+  });
+
+  it("does not open wikilink completion outside bracket boundaries", () => {
+    const state = EditorState.create({ doc: "[[goals]]" });
+
+    expect(getWikilinkCompletionContext(state, 0)).toBeNull();
+    expect(getWikilinkCompletionContext(state, 1)).toBeNull();
+    expect(getWikilinkCompletionContext(state, 2)).toEqual({ from: 0, to: "[[goals]]".length, query: "goals" });
+    expect(getWikilinkCompletionContext(state, "[[goals]]".length)).toBeNull();
   });
 
   it("filters wikilink popup candidates from the in-memory note tree", () => {

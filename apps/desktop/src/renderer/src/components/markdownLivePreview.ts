@@ -1,9 +1,10 @@
-import { EditorSelection, EditorState, Prec, Transaction, type Extension, RangeSetBuilder, StateEffect, StateField } from "@codemirror/state";
+import { Annotation, EditorSelection, EditorState, Prec, Transaction, type Extension, RangeSetBuilder, StateEffect, StateField, type SelectionRange } from "@codemirror/state";
 import { indentLess } from "@codemirror/commands";
 import { Decoration, EditorView, ViewPlugin, WidgetType, keymap, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 import { LIST_GEOMETRY, listGeometryStyleVariables } from "./listGeometry";
 
 const toggleFoldEffect = StateEffect.define<number>();
+const allowListPrefixRawSelection = Annotation.define<boolean>();
 
 const foldedLinesField = StateField.define<Set<number>>({
   create() {
@@ -270,10 +271,21 @@ const listPrefixSelectionFilter = EditorState.transactionFilter.of((tr) => {
   if (!tr.selection || !tr.changes.empty) {
     return tr;
   }
+  if (tr.annotation(allowListPrefixRawSelection)) {
+    return tr;
+  }
 
   const range = tr.selection.main;
   if (!range.empty) {
-    return tr;
+    const adjusted = clampSelectionToRenderedListText(tr.state, range.anchor, range.head);
+    if (!adjusted) {
+      return tr;
+    }
+    return {
+      selection: adjusted,
+      scrollIntoView: true,
+      annotations: Transaction.userEvent.of("select"),
+    };
   }
 
   const positions = listPrefixPositionsAt(tr.state, range.head);
@@ -281,22 +293,39 @@ const listPrefixSelectionFilter = EditorState.transactionFilter.of((tr) => {
     return tr;
   }
 
+  const markerStart = range.head === positions.markerStart;
   const markerInterior = range.head > positions.markerStart && range.head < positions.markerEnd;
   const hiddenLineStart = range.head === positions.lineFrom && positions.lineFrom < positions.markerStart;
   const hiddenBeforeMarker = range.head > positions.lineFrom && range.head < positions.markerStart;
   const hiddenAfterMarker = range.head > positions.markerEnd && range.head < positions.prefixEnd;
-  if (!markerInterior && !hiddenLineStart && !hiddenBeforeMarker && !hiddenAfterMarker) {
+  if (!markerStart && !markerInterior && !hiddenLineStart && !hiddenBeforeMarker && !hiddenAfterMarker) {
     return tr;
   }
 
-  const nextPos = hiddenLineStart || hiddenBeforeMarker || hiddenAfterMarker || markerInterior ? positions.prefixEnd : range.head;
-
   return {
-    selection: EditorSelection.cursor(nextPos),
+    selection: EditorSelection.cursor(positions.prefixEnd),
     scrollIntoView: true,
     annotations: Transaction.userEvent.of("select"),
   };
 });
+
+export function clampSelectionToRenderedListText(state: EditorState, anchor: number, head: number): SelectionRange | null {
+  if (anchor === head) {
+    return null;
+  }
+
+  const positions = listPrefixPositionsAt(state, head);
+  if (!positions || head >= positions.prefixEnd) {
+    return null;
+  }
+
+  const anchorLine = state.doc.lineAt(anchor);
+  if (anchorLine.number !== positions.lineNumber || anchor < positions.prefixEnd) {
+    return null;
+  }
+
+  return EditorSelection.range(anchor, positions.prefixEnd);
+}
 
 function moveWithinListPrefix(direction: "left" | "right") {
   return (view: EditorView): boolean => moveListPrefixSelection(view, direction);
@@ -321,7 +350,7 @@ function moveListPrefixSelection(view: EditorView, direction: "left" | "right"):
   view.dispatch({
     selection: EditorSelection.cursor(nextPos),
     scrollIntoView: true,
-    userEvent: "select",
+    annotations: [Transaction.userEvent.of("select"), allowListPrefixRawSelection.of(true)],
   });
   return true;
 }
@@ -371,15 +400,11 @@ export function wikilinkExitEdit(state: EditorState, pos: number): { insertAt: n
   for (const match of line.text.matchAll(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g)) {
     const start = line.from + (match.index ?? 0);
     const end = start + match[0].length;
-    if (pos < start || pos > end) {
+    if (pos < start + 2 || pos > end - 2) {
       continue;
     }
 
-    const hasSpaceAfter = end < line.to && state.doc.sliceString(end, end + 1) === " ";
-    if (hasSpaceAfter) {
-      return { insertAt: end, insert: "", selection: end + 1 };
-    }
-    return { insertAt: end, insert: " ", selection: end + 1 };
+    return { insertAt: end, insert: "", selection: end };
   }
   return null;
 }
@@ -744,6 +769,8 @@ class GraphReferencesWidget extends WidgetType {
     const wrap = document.createElement("section");
     wrap.className = "markdown-graph-references";
     wrap.dataset.testid = "markdown-graph-references";
+    wrap.contentEditable = "false";
+    wrap.setAttribute("aria-label", "Graph references");
 
     if (this.references.backlinks.length > 0) {
       wrap.appendChild(this.renderGroup("Backlinks", this.references.backlinks, "backlinks"));

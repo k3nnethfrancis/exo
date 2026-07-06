@@ -121,7 +121,7 @@ test("continues and exits markdown task list items in live preview", async () =>
   await cleanup();
 });
 
-test("Tab and Enter exit wikilinks to a following space", async () => {
+test("Tab and Enter exit wikilinks without adding whitespace", async () => {
   const { page, cleanup } = await launchExoFixture({
     mutable: true,
     prepareWorkspace: async (workspaceRoot) => {
@@ -150,7 +150,15 @@ test("Tab and Enter exit wikilinks to a following space", async () => {
         return content?.cmView?.view?.state.doc.toString() ?? "";
       }),
     )
-    .toContain("Discuss [[customer-name]] today");
+    .toContain("Discuss [[customer-name]]today");
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+        return content?.cmView?.view?.state.selection.main.head ?? -1;
+      }),
+    )
+    .toBe("# Wikilink Edit Test\n\nDiscuss [[customer-name]]".length);
 
   await page.evaluate(() => {
     const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
@@ -158,7 +166,7 @@ test("Tab and Enter exit wikilinks to a following space", async () => {
     if (!view) {
       throw new Error("Unable to resolve CodeMirror view");
     }
-    const pos = view.state.doc.toString().indexOf("[[account-name]]") + "[[account-name]]".length;
+    const pos = view.state.doc.toString().indexOf("[[account-name]]") + "[[account-name".length;
     view.dispatch({ selection: { anchor: pos } });
     view.focus();
   });
@@ -171,6 +179,14 @@ test("Tab and Enter exit wikilinks to a following space", async () => {
       }),
     )
     .toContain("Next [[account-name]] step");
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+        return content?.cmView?.view?.state.selection.main.head ?? -1;
+      }),
+    )
+    .toBe("# Wikilink Edit Test\n\nDiscuss [[customer-name]]today\nNext [[account-name]]".length);
 
   await cleanup();
 });
@@ -178,6 +194,7 @@ test("Tab and Enter exit wikilinks to a following space", async () => {
 test("suggests existing note targets while typing wikilinks", async () => {
   const { page, cleanup } = await launchExoFixture({
     mutable: true,
+    initialNoteLabel: null,
     prepareWorkspace: async (workspaceRoot) => {
       const notesRoot = path.join(workspaceRoot, "notes/test-notes");
       await writeFile(path.join(notesRoot, "wikilink-suggest-test.md"), "# Wikilink Suggest Test\n\n", "utf8");
@@ -212,9 +229,226 @@ test("suggests existing note targets while typing wikilinks", async () => {
       }),
     )
     .toContain("[[customer-alpha]]");
+  await expect(page.getByTestId("wikilink-suggestions")).toHaveCount(0);
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+        const view = content?.cmView?.view;
+        if (!view) {
+          return -1;
+        }
+        return view.state.selection.main.head;
+      }),
+    )
+    .toBe("# Wikilink Suggest Test\n\n[[customer-alpha]]".length);
 
   await page.keyboard.type("\n[[no-such-existing-note");
   await expect(page.getByTestId("wikilink-suggestions")).toHaveCount(0);
+
+  await cleanup();
+});
+
+test("keeps wikilink completion overlays outside editor clipping", async () => {
+  const { page, cleanup } = await launchExoFixture({
+    mutable: true,
+    initialNoteLabel: null,
+    prepareWorkspace: async (workspaceRoot) => {
+      const notesRoot = path.join(workspaceRoot, "notes/test-notes");
+      await writeFile(path.join(notesRoot, "short-wikilink-popup.md"), "# Short Wikilink Popup\n\n", "utf8");
+      await writeFile(path.join(notesRoot, "goals.md"), "# Goals\n", "utf8");
+      await writeFile(path.join(notesRoot, "governance.md"), "# Governance\n", "utf8");
+      await writeFile(path.join(notesRoot, "goose.md"), "# Goose\n", "utf8");
+    },
+  });
+
+  await page.getByRole("button", { name: /short-wikilink-popup/i }).first().click();
+  await page.locator(".cm-content").click();
+  await page.evaluate(() => {
+    const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+    const view = content?.cmView?.view;
+    if (!view) {
+      throw new Error("Unable to resolve CodeMirror view");
+    }
+    view.dispatch({ selection: { anchor: view.state.doc.length } });
+    view.focus();
+  });
+
+  await page.keyboard.type("[[go");
+  await expect(page.getByTestId("wikilink-suggestions")).toBeVisible();
+  await expect(page.locator(".wikilink-suggestions__item")).toHaveCount(3);
+  await expect
+    .poll(() =>
+      page.getByTestId("wikilink-suggestions").evaluate((node) => {
+        const popup = node.getBoundingClientRect();
+        let current = node.parentElement;
+        while (current) {
+          const style = window.getComputedStyle(current);
+          const clips = [style.overflow, style.overflowX, style.overflowY].some((value) => value === "hidden" || value === "clip");
+          if (clips) {
+            const rect = current.getBoundingClientRect();
+            if (popup.bottom > rect.bottom || popup.right > rect.right || popup.left < rect.left || popup.top < rect.top) {
+              return false;
+            }
+          }
+          current = current.parentElement;
+        }
+        return true;
+      }),
+    )
+    .toBe(true);
+
+  await cleanup();
+});
+
+test("lets Enter add a line above a first-line wikilink", async () => {
+  const { page, cleanup } = await launchExoFixture({
+    mutable: true,
+    initialNoteLabel: null,
+    prepareWorkspace: async (workspaceRoot) => {
+      const target = path.join(workspaceRoot, "notes/test-notes/top-line-wikilink.md");
+      await writeFile(target, "[[goals]]\n", "utf8");
+      await writeFile(path.join(workspaceRoot, "notes/test-notes/goals.md"), "# Goals\n", "utf8");
+    },
+  });
+
+  await page.getByRole("button", { name: /top-line-wikilink/i }).first().click();
+  await page.locator(".cm-content").click();
+  await page.evaluate(() => {
+    const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+    const view = content?.cmView?.view;
+    if (!view) {
+      throw new Error("Unable to resolve CodeMirror view");
+    }
+    view.dispatch({ selection: { anchor: 0 } });
+    view.focus();
+  });
+
+  await expect(page.getByTestId("wikilink-suggestions")).toHaveCount(0);
+  await page.keyboard.press("Enter");
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+        return content?.cmView?.view?.state.doc.toString() ?? "";
+      }),
+    )
+    .toBe("\n[[goals]]\n");
+
+  await cleanup();
+});
+
+test("keeps generated graph references outside editable list layout", async () => {
+  const { page, cleanup } = await launchExoFixture({
+    mutable: true,
+    prepareWorkspace: async (workspaceRoot) => {
+      const notesRoot = path.join(workspaceRoot, "notes/test-notes");
+      await writeFile(path.join(notesRoot, "source-ref.md"), "See [[refs-list-target]].\n", "utf8");
+      await writeFile(path.join(notesRoot, "refs-list-target.md"), "# Refs List Target\n\n- \n", "utf8");
+    },
+  });
+
+  await page.getByRole("button", { name: /refs-list-target/i }).first().click();
+  const referencesSection = page.locator("section.markdown-graph-references");
+  await expect(referencesSection).toBeVisible();
+  await expect
+    .poll(() =>
+      referencesSection.evaluate((node) => ({
+        editable: node.getAttribute("contenteditable"),
+        linePaddingLeft: window.getComputedStyle(node.closest(".cm-line") ?? node).paddingLeft,
+        bulletContent: window.getComputedStyle(node.closest(".cm-line") ?? node, "::before").content,
+      })),
+    )
+    .toEqual({ editable: "false", linePaddingLeft: "0px", bulletContent: "none" });
+
+  await cleanup();
+});
+
+test("keeps cursor and shortcut selections out of rendered list markers", async () => {
+  const { page, cleanup } = await launchExoFixture({
+    mutable: true,
+    prepareWorkspace: async (workspaceRoot) => {
+      const target = path.join(workspaceRoot, "notes/test-notes/list-cursor-boundaries.md");
+      await writeFile(target, "# List Cursor Boundaries\n\nBefore\n- first item\n- second item\n", "utf8");
+    },
+  });
+
+  await page.getByRole("button", { name: /list-cursor-boundaries/i }).first().click();
+  await page.locator(".cm-content").click();
+
+  const positions = await page.evaluate(() => {
+    const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+    const view = content?.cmView?.view;
+    if (!view) {
+      throw new Error("Unable to resolve CodeMirror view");
+    }
+    const doc = view.state.doc.toString();
+    return {
+      firstMarkerStart: doc.indexOf("- first item"),
+      firstTextStart: doc.indexOf("- first item") + "- ".length,
+      secondMarkerStart: doc.indexOf("- second item"),
+      secondTextStart: doc.indexOf("- second item") + "- ".length,
+      secondLineEnd: doc.indexOf("- second item") + "- second item".length,
+    };
+  });
+
+  await page.evaluate(({ firstMarkerStart }) => {
+    const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+    const view = content?.cmView?.view;
+    if (!view) {
+      throw new Error("Unable to resolve CodeMirror view");
+    }
+    view.dispatch({ selection: { anchor: firstMarkerStart } });
+    view.focus();
+  }, positions);
+
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+        return content?.cmView?.view?.state.selection.main.head ?? -1;
+      }),
+    )
+    .toBe(positions.firstTextStart);
+
+  await page.evaluate(({ secondLineEnd }) => {
+    const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+    const view = content?.cmView?.view;
+    if (!view) {
+      throw new Error("Unable to resolve CodeMirror view");
+    }
+    view.dispatch({ selection: { anchor: secondLineEnd } });
+    view.focus();
+  }, positions);
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+Shift+ArrowLeft" : "Control+Shift+ArrowLeft");
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+        const selection = content?.cmView?.view?.state.selection.main;
+        return selection ? { anchor: selection.anchor, head: selection.head } : null;
+      }),
+    )
+    .toEqual({ anchor: positions.secondLineEnd, head: positions.secondTextStart });
+
+  await page.evaluate(({ secondTextStart }) => {
+    const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+    const view = content?.cmView?.view;
+    if (!view) {
+      throw new Error("Unable to resolve CodeMirror view");
+    }
+    view.dispatch({ selection: { anchor: secondTextStart } });
+    view.focus();
+  }, positions);
+  await page.keyboard.press("ArrowLeft");
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+        return content?.cmView?.view?.state.selection.main.head ?? -1;
+      }),
+    )
+    .toBe(positions.secondMarkerStart + 1);
 
   await cleanup();
 });
