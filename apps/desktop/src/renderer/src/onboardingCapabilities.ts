@@ -62,7 +62,9 @@ export function onboardingCapabilitySelectable(item: PluginInventoryItem): boole
     return item.status !== "missing-dependency" && item.status !== "not-found" && item.status !== "broken";
   }
   if (item.kind === "core:agentHarness") {
-    return onboardingCapabilitySelected(item);
+    return item.source === "localManifest"
+      && Boolean(item.pluginId && item.manifestPath && item.rootDirectory)
+      && onboardingCapabilitySelected(item);
   }
   return item.source === "localManifest" && Boolean(item.pluginId && item.manifestPath && item.rootDirectory);
 }

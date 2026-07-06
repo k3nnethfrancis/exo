@@ -168,7 +168,7 @@ export function OnboardingCapabilityReviewContent({
             <div className="onboarding-capability-section__header">
               <div>
                 <div className="dialog-field__label">{section.label}</div>
-                <div className="onboarding-section__hint">{section.id === "core:searchProvider" ? "Advanced search is optional; basic file search always works." : "Only detected, launchable harnesses start selected."}</div>
+                <div className="onboarding-section__hint">{section.id === "core:searchProvider" ? "Advanced search is optional; basic file search always works." : "Detected harnesses are reviewed here. Manage harness setup later in Agent Config."}</div>
               </div>
             </div>
             <div className="onboarding-capability-list">
@@ -231,7 +231,7 @@ function OnboardingCapabilityRow({
 
   return (
     <div className={`onboarding-capability-row onboarding-capability-row--${tone}`}>
-      <label className="onboarding-capability-toggle" title={toggleDisabled ? onboardingCapabilityStatus(item) : item.enabled ? "Disable this optional plugin" : "Enable this optional plugin"}>
+      <label className="onboarding-capability-toggle" title={toggleTitle(item, toggleDisabled)}>
         <input
           checked={selected}
           data-testid={`onboarding-plugin-toggle-${item.id}`}
@@ -250,4 +250,11 @@ function OnboardingCapabilityRow({
       </div>
     </div>
   );
+}
+
+function toggleTitle(item: PluginInventoryItem, disabled: boolean): string {
+  if (disabled) {
+    return onboardingCapabilityStatus(item);
+  }
+  return item.enabled ? "Disable this optional plugin" : "Enable this optional plugin";
 }

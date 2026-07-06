@@ -2314,12 +2314,17 @@ describe("workspace onboarding model", () => {
     expect(onboardingCapabilitySelectable(codex)).toBe(false);
     expect(onboardingCapabilitySelected(qmd)).toBe(true);
     expect(onboardingCapabilitySelectable(qmd)).toBe(true);
+
+    const availableBundledHarness = pluginInventoryItem("shell", "Shell", "agentHarness", "Agent harnesses", "bundled");
+    expect(onboardingCapabilitySelected(availableBundledHarness)).toBe(true);
+    expect(onboardingCapabilitySelectable(availableBundledHarness)).toBe(false);
   });
 
-  it("renders post-workspace plugin setup without core rows or search-provider defaults", () => {
+  it("renders post-workspace plugin setup without core rows, mutable official harness toggles, or search-provider defaults", () => {
     const inventory = pluginInventory([
       pluginInventoryItem("core.markdown-graph", "Markdown graph", "core", "Core", "core"),
       pluginInventoryItem("qmd", "QMD advanced search", "searchProvider", "Search providers", "bundled"),
+      pluginInventoryItem("shell", "Shell", "agentHarness", "Agent harnesses", "bundled"),
       {
         ...pluginInventoryItem("codex", "Codex", "agentHarness", "Agent harnesses", "bundled"),
         status: "not-found",
@@ -2355,7 +2360,11 @@ describe("workspace onboarding model", () => {
     expect(html).not.toContain("Core, locked");
     expect(html).toContain("QMD advanced search");
     expect(html).toContain("onboarding-plugin-toggle-qmd");
-    expect(html).not.toContain("Agent harnesses");
+    expect(html).toContain("Agent harnesses");
+    expect(html).toContain("Shell");
+    const shellToggle = html.match(/<input[^>]*data-testid=\"onboarding-plugin-toggle-shell\"[^>]*>/)?.[0] ?? "";
+    expect(shellToggle).toContain("checked=\"\"");
+    expect(shellToggle).toContain("disabled=\"\"");
     expect(html).not.toContain("Official, not found");
     expect(html).toMatch(/data-testid=\"onboarding-plugin-toggle-qmd\"[^>]*checked=\"\"/);
     expect(html).not.toMatch(/data-testid=\"onboarding-plugin-toggle-qmd\"[^>]*disabled=\"\"/);
