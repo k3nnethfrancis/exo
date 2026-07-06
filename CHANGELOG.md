@@ -58,6 +58,7 @@ Plugin architecture, tmux terminal persistence/readiness, packaged onboarding ha
 - Fixes packaged/onboarding startup paths so missing workspace state reaches onboarding before synthetic workspace defaults or terminal transcript initialization.
 - Fixes plugin manager layout overlap, settings modal spacing, index settings status copy, and stale MCP/integration diagnostics.
 - Fixes mac packaging collector stalls and documents launch-mode/setup expectations for packaged, installed, source, and MCP contexts.
+- Fixes onboarding and Workspace Settings dialogs so tab and step changes keep a stable outer frame with internal scrolling.
 
 ### Removed
 
