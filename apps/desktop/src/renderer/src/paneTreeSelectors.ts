@@ -116,33 +116,7 @@ export function buildTerminalMonitorTree(sessionIds: string[], activeSessionId: 
     return buildTerminalTabsTree(uniqueSessionIds, activeSessionId);
   }
 
-  function buildBalanced(ids: string[], depth: number): PaneNode {
-    if (ids.length === 1) {
-      return {
-        kind: "leaf",
-        id: terminalMonitorLeafId(ids[0]),
-        content: {
-          kind: "terminal",
-          terminalIds: ids,
-          activeTerminalId: ids[0],
-        },
-      };
-    }
-
-    const midpoint = Math.ceil(ids.length / 2);
-    return {
-      kind: "split",
-      id: terminalMonitorSplitId(ids, depth),
-      direction: depth % 2 === 0 ? "horizontal" : "vertical",
-      ratio: 0.5,
-      children: [
-        buildBalanced(ids.slice(0, midpoint), depth + 1),
-        buildBalanced(ids.slice(midpoint), depth + 1),
-      ],
-    };
-  }
-
-  return buildBalanced(uniqueSessionIds, 0);
+  return buildTerminalMonitorRows(partitionTerminalMonitorRows(uniqueSessionIds), 0);
 }
 
 export function restoreTerminalTreeSnapshot(snapshot: PaneNode, sessionIds: string[], activeSessionId: string | null): PaneNode {
@@ -188,50 +162,10 @@ export function addTerminalSessionAsSplit(tree: PaneNode, sessionId: string, tar
     return { tree, leafId: tree.id };
   }
 
-  if (targetLeaf.content.kind === "terminal" && targetLeaf.content.terminalIds.length === 0) {
-    return {
-      tree: updateNode(tree, targetLeaf.id, (node) => {
-        if (node.kind !== "leaf" || node.content.kind !== "terminal") {
-          return node;
-        }
-        return {
-          ...node,
-          content: {
-            ...node.content,
-            terminalIds: [sessionId],
-            activeTerminalId: sessionId,
-          },
-        };
-      }),
-      leafId: targetLeaf.id,
-    };
-  }
-
-  const newLeafId = paneId();
-  const newLeaf: PaneLeaf = {
-    kind: "leaf",
-    id: newLeafId,
-    content: {
-      kind: "terminal",
-      terminalIds: [sessionId],
-      activeTerminalId: sessionId,
-    },
-  };
-
+  const sessionIds = [...terminalSessionIdsInLeafOrder(tree), sessionId];
   return {
-    tree: updateNode(tree, targetLeaf.id, (node) => {
-      if (node.kind !== "leaf") {
-        return node;
-      }
-      return {
-        kind: "split",
-        id: paneId(),
-        direction: "horizontal",
-        ratio: 0.5,
-        children: [node, newLeaf],
-      };
-    }),
-    leafId: newLeafId,
+    tree: buildTerminalMonitorTree(sessionIds, sessionId),
+    leafId: terminalMonitorLeafId(sessionId),
   };
 }
 
@@ -335,6 +269,86 @@ function terminalMonitorLeafId(sessionId: string): PaneNodeId {
 
 function terminalMonitorSplitId(sessionIds: string[], depth: number): PaneNodeId {
   return `terminal-monitor:${depth}:${sessionIds.join("|")}`;
+}
+
+function partitionTerminalMonitorRows(sessionIds: string[]): string[][] {
+  const rowCount = terminalMonitorRowCount(sessionIds.length);
+  if (rowCount <= 1) {
+    return [sessionIds];
+  }
+  const baseRowSize = Math.floor(sessionIds.length / rowCount);
+  const extraRows = sessionIds.length % rowCount;
+  const rows: string[][] = [];
+  let offset = 0;
+  for (let index = 0; index < rowCount; index += 1) {
+    const rowSize = baseRowSize + (index < extraRows ? 1 : 0);
+    rows.push(sessionIds.slice(offset, offset + rowSize));
+    offset += rowSize;
+  }
+  return rows.filter((row) => row.length > 0);
+}
+
+function terminalMonitorRowCount(sessionCount: number): number {
+  if (sessionCount <= 1) {
+    return 1;
+  }
+  if (sessionCount === 2) {
+    return 2;
+  }
+  return Math.max(1, Math.round(Math.sqrt(sessionCount)));
+}
+
+function buildTerminalMonitorRows(rows: string[][], depth: number): PaneNode {
+  if (rows.length === 1) {
+    return buildTerminalMonitorRow(rows[0], depth);
+  }
+
+  const [firstRow, ...remainingRows] = rows;
+  const remainingSessionIds = remainingRows.flat();
+  const sessionIds = [...firstRow, ...remainingSessionIds];
+  return {
+    kind: "split",
+    id: terminalMonitorSplitId(sessionIds, depth),
+    direction: "vertical",
+    ratio: firstRow.length / sessionIds.length,
+    children: [
+      buildTerminalMonitorRow(firstRow, depth + 1),
+      buildTerminalMonitorRows(remainingRows, depth + 1),
+    ],
+  };
+}
+
+function buildTerminalMonitorRow(sessionIds: string[], depth: number): PaneNode {
+  if (sessionIds.length === 1) {
+    const sessionId = sessionIds[0];
+    return {
+      kind: "leaf",
+      id: terminalMonitorLeafId(sessionId),
+      content: {
+        kind: "terminal",
+        terminalIds: [sessionId],
+        activeTerminalId: sessionId,
+      },
+    };
+  }
+
+  const [firstSessionId, ...remainingSessionIds] = sessionIds;
+  return {
+    kind: "split",
+    id: terminalMonitorSplitId(sessionIds, depth),
+    direction: "horizontal",
+    ratio: 1 / sessionIds.length,
+    children: [
+      buildTerminalMonitorRow([firstSessionId], depth + 1),
+      buildTerminalMonitorRow(remainingSessionIds, depth + 1),
+    ],
+  };
+}
+
+function terminalSessionIdsInLeafOrder(tree: PaneNode): string[] {
+  return collectLeaves(tree).flatMap((leaf) =>
+    leaf.content.kind === "terminal" ? leaf.content.terminalIds : [],
+  );
 }
 
 function setActiveTerminalSessionInTree(tree: PaneNode, sessionIds: string[], activeSessionId: string | null): PaneNode {

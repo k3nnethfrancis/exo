@@ -696,6 +696,122 @@ describe("browser preview panes", () => {
 });
 
 describe("terminal monitor layout", () => {
+  it("builds a deterministic balanced monitor grid for common session counts", () => {
+    const cases = [
+      {
+        count: 1,
+        shape: "term-a",
+      },
+      {
+        count: 2,
+        shape: { direction: "vertical", ratio: 0.5, children: ["term-a", "term-b"] },
+      },
+      {
+        count: 3,
+        shape: {
+          direction: "vertical",
+          ratio: 0.6667,
+          children: [
+            { direction: "horizontal", ratio: 0.5, children: ["term-a", "term-b"] },
+            "term-c",
+          ],
+        },
+      },
+      {
+        count: 4,
+        shape: {
+          direction: "vertical",
+          ratio: 0.5,
+          children: [
+            { direction: "horizontal", ratio: 0.5, children: ["term-a", "term-b"] },
+            { direction: "horizontal", ratio: 0.5, children: ["term-c", "term-d"] },
+          ],
+        },
+      },
+      {
+        count: 5,
+        shape: {
+          direction: "vertical",
+          ratio: 0.6,
+          children: [
+            {
+              direction: "horizontal",
+              ratio: 0.3333,
+              children: [
+                "term-a",
+                { direction: "horizontal", ratio: 0.5, children: ["term-b", "term-c"] },
+              ],
+            },
+            { direction: "horizontal", ratio: 0.5, children: ["term-d", "term-e"] },
+          ],
+        },
+      },
+      {
+        count: 6,
+        shape: {
+          direction: "vertical",
+          ratio: 0.5,
+          children: [
+            {
+              direction: "horizontal",
+              ratio: 0.3333,
+              children: [
+                "term-a",
+                { direction: "horizontal", ratio: 0.5, children: ["term-b", "term-c"] },
+              ],
+            },
+            {
+              direction: "horizontal",
+              ratio: 0.3333,
+              children: [
+                "term-d",
+                { direction: "horizontal", ratio: 0.5, children: ["term-e", "term-f"] },
+              ],
+            },
+          ],
+        },
+      },
+      {
+        count: 8,
+        shape: {
+          direction: "vertical",
+          ratio: 0.375,
+          children: [
+            {
+              direction: "horizontal",
+              ratio: 0.3333,
+              children: [
+                "term-a",
+                { direction: "horizontal", ratio: 0.5, children: ["term-b", "term-c"] },
+              ],
+            },
+            {
+              direction: "vertical",
+              ratio: 0.6,
+              children: [
+                {
+                  direction: "horizontal",
+                  ratio: 0.3333,
+                  children: [
+                    "term-d",
+                    { direction: "horizontal", ratio: 0.5, children: ["term-e", "term-f"] },
+                  ],
+                },
+                { direction: "horizontal", ratio: 0.5, children: ["term-g", "term-h"] },
+              ],
+            },
+          ],
+        },
+      },
+    ];
+
+    for (const testCase of cases) {
+      const sessionIds = Array.from({ length: testCase.count }, (_, index) => `term-${String.fromCharCode(97 + index)}`);
+
+      expect(monitorTreeShape(buildTerminalMonitorTree(sessionIds, sessionIds.at(-1) ?? null))).toEqual(testCase.shape);
+    }
+  });
+
   it("builds one readable terminal leaf per session in monitor mode", () => {
     const tree = buildTerminalMonitorTree(["term-a", "term-b", "term-c"], "term-b");
     const leaves = collectLeaves(tree);
@@ -800,6 +916,19 @@ describe("terminal monitor layout", () => {
     ]);
   });
 
+  it("keeps incremental monitor additions equivalent to entering monitor mode with the same sessions", () => {
+    const sessionIds = ["term-a", "term-b", "term-c", "term-d", "term-e", "term-f"];
+    const incremental = sessionIds.reduce(
+      (tree, sessionId) => addTerminalSessionAsSplit(tree, sessionId).tree,
+      buildTerminalTabsTree([], null),
+    );
+
+    expect(monitorTreeShape(incremental)).toEqual(monitorTreeShape(buildTerminalMonitorTree(sessionIds, "term-f")));
+    expect(collectLeaves(incremental).map((leaf) => leaf.id)).toEqual(
+      sessionIds.map((sessionId) => `terminal-session:${sessionId}`),
+    );
+  });
+
   it("fills an empty monitor leaf with the first terminal instead of creating an empty split", () => {
     const start = buildTerminalTabsTree([], null);
     const result = addTerminalSessionAsSplit(start, "term-a");
@@ -813,6 +942,18 @@ describe("terminal monitor layout", () => {
     });
   });
 });
+
+function monitorTreeShape(tree: PaneNode): unknown {
+  if (tree.kind === "leaf") {
+    return tree.content.kind === "terminal" ? tree.content.terminalIds[0] ?? "empty" : tree.content.kind;
+  }
+
+  return {
+    direction: tree.direction,
+    ratio: Number(tree.ratio.toFixed(4)),
+    children: tree.children.map((child) => monitorTreeShape(child)),
+  };
+}
 
 describe("plugin manager model", () => {
   it("groups inventory rows but hides core from plugin category filters", () => {
