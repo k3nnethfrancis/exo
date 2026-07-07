@@ -3353,6 +3353,13 @@ select.dialog-card__input {
   gap: 8px;
 }
 
+.profile-settings__inline-edit {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
 .profile-settings__toggle {
   grid-template-columns: auto minmax(0, 1fr);
   align-items: start;
@@ -3538,6 +3545,10 @@ select.dialog-card__input {
 
   .profile-settings__component-toolbar {
     display: grid;
+  }
+
+  .profile-settings__inline-edit {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -4111,6 +4122,23 @@ select.dialog-card__input {
   min-height: 260px;
 }
 
+.onboarding-profile-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.onboarding-profile-status {
+  align-self: center;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.onboarding-profile-status--error {
+  color: var(--danger-strong);
+}
+
 @media (max-width: 760px) {
   .onboarding-review-summary {
     grid-template-columns: minmax(0, 1fr);
@@ -4118,6 +4146,10 @@ select.dialog-card__input {
 
   .onboarding-capability-sections {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .onboarding-profile-header {
+    display: grid;
   }
 
   .onboarding-capability-row__title {

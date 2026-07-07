@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { OnboardingProfileStep, PluginInventory, PluginInventoryItem } from "@exo/core";
+import type { ActiveProfileIdentity, OnboardingProfileStep, PluginInventory, PluginInventoryItem } from "@exo/core";
 import { ShieldAlert, ShieldCheck } from "lucide-react";
 import type { AgentInstructionConfig } from "../../../shared/api";
 
@@ -66,6 +66,11 @@ export function OnboardingCapabilityReview({
   const [selectionOverrides, setSelectionOverrides] = useState<Record<string, boolean>>({});
   const [setupStep, setSetupStep] = useState<OnboardingSetupStep>(initialStep);
   const [profileName, setProfileName] = useState("My Exograph");
+  const [profileConfigDraft, setProfileConfigDraft] = useState("");
+  const [profileConfigDirty, setProfileConfigDirty] = useState(false);
+  const [profileConfigStatus, setProfileConfigStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [profileConfigError, setProfileConfigError] = useState<string | null>(null);
+  const [profileSavedAt, setProfileSavedAt] = useState<string | null>(null);
   const [defaultHarnessId, setDefaultHarnessId] = useState<string | null>(null);
   const [agentInstructionConfig, setAgentInstructionConfig] = useState<AgentInstructionConfig | null>(null);
   const [contextBody, setContextBody] = useState("");
@@ -111,6 +116,27 @@ export function OnboardingCapabilityReview({
     );
   }, [sections, selectionOverrides]);
   const selectedRoutineHarnesses = useMemo(() => selectedHarnesses.filter(isAgentPromptRoutineHarness), [selectedHarnesses]);
+  const resolvedProfileConfig = useMemo(() => buildOnboardingProfileConfig({
+    profileName,
+    selectedHarnesses,
+    defaultHarnessId,
+    graphHealthEnabled,
+    instructionSyncEnabled,
+    exographContextApplied,
+  }), [
+    defaultHarnessId,
+    exographContextApplied,
+    graphHealthEnabled,
+    instructionSyncEnabled,
+    profileName,
+    selectedHarnesses,
+  ]);
+
+  useEffect(() => {
+    if (!profileConfigDirty) {
+      setProfileConfigDraft(formatProfileConfig(resolvedProfileConfig));
+    }
+  }, [profileConfigDirty, resolvedProfileConfig]);
 
   useEffect(() => {
     if (!defaultHarnessId && selectedRoutineHarnesses.length > 0) {
@@ -197,29 +223,73 @@ export function OnboardingCapabilityReview({
     }
   }
 
+  function updateProfileName(value: string) {
+    setProfileName(value);
+    setProfileConfigDirty(true);
+    setProfileConfigStatus("idle");
+    setProfileConfigError(null);
+    setProfileConfigDraft((current) => patchProfileConfigLabel(current || formatProfileConfig(resolvedProfileConfig), value));
+  }
+
+  function updateProfileConfigDraft(value: string) {
+    setProfileConfigDraft(value);
+    setProfileConfigDirty(true);
+    setProfileConfigStatus("idle");
+    setProfileConfigError(null);
+  }
+
+  function createNewProfileDraft() {
+    const nextName = "Untitled Exograph";
+    const nextConfig = buildOnboardingProfileConfig({
+      profileName: nextName,
+      selectedHarnesses,
+      defaultHarnessId,
+      graphHealthEnabled,
+      instructionSyncEnabled,
+      exographContextApplied,
+    });
+    setProfileName(nextName);
+    setProfileConfigDraft(formatProfileConfig(nextConfig));
+    setProfileConfigDirty(true);
+    setProfileConfigStatus("idle");
+    setProfileConfigError(null);
+    setProfileSavedAt(null);
+  }
+
+  async function saveProfileConfig(): Promise<ActiveProfileIdentity> {
+    setPendingPluginId("profile");
+    setProfileConfigStatus("saving");
+    setProfileConfigError(null);
+    setActionMessage(null);
+    setErrorMessage(null);
+    try {
+      const parsed = parseProfileConfigDraft(profileConfigDraft || formatProfileConfig(resolvedProfileConfig));
+      const nextState = await window.exo.workspace.setActiveProfile(parsed);
+      window.dispatchEvent(new CustomEvent("exo:profile-state-changed", { detail: nextState }));
+      setProfileName(parsed.label ?? parsed.profileId);
+      setProfileConfigDraft(formatProfileConfig(parsed));
+      setProfileConfigDirty(false);
+      setProfileConfigStatus("saved");
+      setProfileSavedAt(new Date().toLocaleString());
+      setActionMessage("Profile config saved.");
+      return parsed;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setProfileConfigError(message);
+      setProfileConfigStatus("error");
+      setErrorMessage(message);
+      throw error;
+    } finally {
+      setPendingPluginId(null);
+    }
+  }
+
   async function finishOnboarding() {
     setPendingPluginId("profile");
     setActionMessage(null);
     setErrorMessage(null);
     try {
-      const selectedDefaultHarnessId = selectedRoutineHarnesses.find((item) => item.id === defaultHarnessId)?.id
-        ?? selectedRoutineHarnesses[0]?.id;
-      await window.exo.workspace.setActiveProfile({
-        profileId: "exograph-baseline.profile",
-        capabilityId: "exograph-baseline.profile",
-        pluginId: "exograph-baseline.plugin",
-        source: "built-in",
-        label: profileName.trim() || "My Exograph",
-        setup: {
-          enabledHarnessIds: selectedHarnesses.map((item) => item.id),
-          defaultHarnessId: selectedDefaultHarnessId,
-          routineTemplateIds: selectedDefaultHarnessId ? [
-            graphHealthEnabled ? "graph-health.template" : null,
-            instructionSyncEnabled ? "agent-instruction-sync.template" : null,
-          ].filter((id): id is string => Boolean(id)) : [],
-          exographContextApplied,
-        },
-      });
+      await saveProfileConfig();
       await window.exo.workspace.markOnboardingComplete();
       onEnterWorkspace();
     } catch (error) {
@@ -241,9 +311,16 @@ export function OnboardingCapabilityReview({
       onFinishOnboarding={() => void finishOnboarding()}
       onTogglePlugin={(item, enabled) => void setPluginEnabled(item, enabled)}
       onApplyExographContext={() => void applyExographContext()}
+      onCreateProfileDraft={createNewProfileDraft}
+      onSaveProfileConfig={() => void saveProfileConfig()}
       pendingPluginId={pendingPluginId}
       profileName={profileName}
-      setProfileName={setProfileName}
+      setProfileName={updateProfileName}
+      profileConfigDraft={profileConfigDraft}
+      setProfileConfigDraft={updateProfileConfigDraft}
+      profileConfigStatus={profileConfigStatus}
+      profileConfigError={profileConfigError}
+      profileSavedAt={profileSavedAt}
       setupStep={setupStep}
       setSetupStep={setSetupStep}
       selectedHarnesses={selectedHarnesses}
@@ -264,6 +341,69 @@ export function OnboardingCapabilityReview({
   );
 }
 
+export function buildOnboardingProfileConfig({
+  profileName,
+  selectedHarnesses,
+  defaultHarnessId,
+  graphHealthEnabled,
+  instructionSyncEnabled,
+  exographContextApplied,
+}: {
+  profileName: string;
+  selectedHarnesses: PluginInventoryItem[];
+  defaultHarnessId?: string | null;
+  graphHealthEnabled: boolean;
+  instructionSyncEnabled: boolean;
+  exographContextApplied: boolean;
+}): ActiveProfileIdentity {
+  const routineHarnesses = selectedHarnesses.filter(isAgentPromptRoutineHarness);
+  const selectedDefaultHarnessId = routineHarnesses.find((item) => item.id === defaultHarnessId)?.id
+    ?? routineHarnesses[0]?.id;
+  return {
+    profileId: "exograph-baseline.profile",
+    capabilityId: "exograph-baseline.profile",
+    pluginId: "exograph-baseline.plugin",
+    source: "built-in",
+    label: profileName.trim() || "My Exograph",
+    setup: {
+      enabledHarnessIds: selectedHarnesses.map((item) => item.id),
+      defaultHarnessId: selectedDefaultHarnessId,
+      routineTemplateIds: selectedDefaultHarnessId ? [
+        graphHealthEnabled ? "graph-health.template" : null,
+        instructionSyncEnabled ? "agent-instruction-sync.template" : null,
+      ].filter((id): id is string => Boolean(id)) : [],
+      exographContextApplied,
+    },
+  };
+}
+
+export function formatProfileConfig(config: ActiveProfileIdentity): string {
+  return `${JSON.stringify(config, null, 2)}\n`;
+}
+
+export function parseProfileConfigDraft(draft: string): ActiveProfileIdentity {
+  const parsed = JSON.parse(draft) as Partial<ActiveProfileIdentity>;
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("Profile config must be a JSON object.");
+  }
+  if (typeof parsed.profileId !== "string" || parsed.profileId.trim().length === 0) {
+    throw new Error("Profile config requires a non-empty profileId.");
+  }
+  if (typeof parsed.capabilityId !== "string" || parsed.capabilityId.trim().length === 0) {
+    throw new Error("Profile config requires a non-empty capabilityId.");
+  }
+  return parsed as ActiveProfileIdentity;
+}
+
+function patchProfileConfigLabel(draft: string, label: string): string {
+  try {
+    const parsed = parseProfileConfigDraft(draft);
+    return formatProfileConfig({ ...parsed, label: label.trim() || "My Exograph" });
+  } catch {
+    return draft;
+  }
+}
+
 export function OnboardingCapabilityReviewContent({
   actionMessage,
   errorMessage,
@@ -275,9 +415,16 @@ export function OnboardingCapabilityReviewContent({
   onFinishOnboarding,
   onTogglePlugin,
   onApplyExographContext,
+  onCreateProfileDraft,
+  onSaveProfileConfig,
   pendingPluginId,
   profileName = "My Exograph",
   setProfileName,
+  profileConfigDraft,
+  setProfileConfigDraft,
+  profileConfigStatus = "idle",
+  profileConfigError = null,
+  profileSavedAt = null,
   setupStep = "plugins",
   setSetupStep,
   selectedHarnesses = [],
@@ -305,9 +452,16 @@ export function OnboardingCapabilityReviewContent({
   onFinishOnboarding?: () => void;
   onTogglePlugin?: (item: PluginInventoryItem, enabled: boolean) => void;
   onApplyExographContext?: () => void;
+  onCreateProfileDraft?: () => void;
+  onSaveProfileConfig?: () => void;
   pendingPluginId?: string | null;
   profileName?: string;
   setProfileName?: (value: string) => void;
+  profileConfigDraft?: string;
+  setProfileConfigDraft?: (value: string) => void;
+  profileConfigStatus?: "idle" | "saving" | "saved" | "error";
+  profileConfigError?: string | null;
+  profileSavedAt?: string | null;
   setupStep?: OnboardingSetupStep;
   setSetupStep?: (value: OnboardingSetupStep) => void;
   selectedHarnesses?: PluginInventoryItem[];
@@ -338,42 +492,14 @@ export function OnboardingCapabilityReviewContent({
     selectedHarness && instructionSyncEnabled ? "Agent instruction sync" : null,
   ].filter((label): label is string => Boolean(label));
   const selectedHarnessLabels = selectedHarnesses.map((item) => item.label).join(", ");
-  const profileConfigPreview = JSON.stringify({
-    profile: {
-      name: profileName.trim() || "My Exograph",
-      baseProfile: "exograph-baseline.profile",
-    },
-    selections: {
-      searchProviders: selectedSearchProviders.map((item) => item.id),
-      enabledHarnesses: selectedHarnesses.map((item) => item.id),
-      defaultHarnessId: selectedHarness?.id ?? null,
-      routineTemplateIds: [
-        selectedHarness && graphHealthEnabled ? "graph-health.template" : null,
-        selectedHarness && instructionSyncEnabled ? "agent-instruction-sync.template" : null,
-      ].filter(Boolean),
-      agentContext: exographContextApplied ? "applied-to-global-instructions" : "not-applied",
-      skills: {
-        status: "pending-agent-config-review",
-        recommended: STANDARD_SKILL_ROWS.map((skill) => skill.name),
-      },
-      surfaces: {
-        cli: "not-configured-pending-future-policy",
-        mcp: "not-configured-pending-future-policy",
-      },
-    },
-    submitEffect: [
-      "save active profile selection",
-      "save onboarding choices",
-      "mark onboarding complete",
-    ],
-    deferredEffects: [
-      "install or move skill folders",
-      "enable profile templates",
-      "schedule routines",
-      "write MCP or CLI exposure policy",
-      "grant plugin permissions",
-    ],
-  }, null, 2);
+  const profileConfigText = profileConfigDraft ?? formatProfileConfig(buildOnboardingProfileConfig({
+    profileName,
+    selectedHarnesses,
+    defaultHarnessId,
+    graphHealthEnabled,
+    instructionSyncEnabled,
+    exographContextApplied,
+  }));
   const setupStepIndex = SETUP_STEP_ORDER.findIndex(([id]) => id === setupStep);
   const previousStep = setupStepIndex > 0 ? SETUP_STEP_ORDER[setupStepIndex - 1]?.[0] : null;
   const nextStep = setupStepIndex >= 0 && setupStepIndex < SETUP_STEP_ORDER.length - 1
@@ -606,60 +732,67 @@ export function OnboardingCapabilityReviewContent({
         ) : null}
         {setupStep === "review" ? (
           <section className="onboarding-section onboarding-section--primary" data-testid="onboarding-profile-review">
-            <label className="dialog-field__label" htmlFor="onboarding-profile-name">Workspace profile name</label>
+            <div className="onboarding-profile-header">
+              <div>
+                <div className="dialog-field__label">Profile</div>
+                <div className="onboarding-section__hint">Edit the workspace profile config saved under Exo state. Saving here does not apply templates, install skills, enable plugins, or write notes files.</div>
+              </div>
+              <button className="toolbar-button" onClick={onCreateProfileDraft} type="button">
+                New profile draft
+              </button>
+            </div>
+            <label className="dialog-field__label" htmlFor="onboarding-profile-name">Profile name</label>
             <input
               className="settings-input"
               id="onboarding-profile-name"
               onChange={(event) => setProfileName?.(event.target.value)}
               value={profileName}
             />
-            <div className="onboarding-review-summary">
+            <div className="onboarding-review-summary onboarding-review-summary--compact">
               <div>
-                <span>Profile name</span>
-                <strong>{profileName.trim() || "My Exograph"}</strong>
+                <span>Saved status</span>
+                <strong>{profileConfigStatus === "saved" ? "Saved" : profileConfigStatus === "saving" ? "Saving" : profileConfigStatus === "error" ? "Needs fix" : "Not saved"}</strong>
               </div>
               <div>
-                <span>Base profile</span>
-                <strong>Exograph default</strong>
+                <span>Last saved</span>
+                <strong>{profileSavedAt ?? "Not saved this session"}</strong>
               </div>
               <div>
-                <span>Search</span>
-                <strong>{selectedSearchProviders.map((item) => item.label).join(", ") || "Basic file search only"}</strong>
+                <span>Profile package</span>
+                <strong>Exograph baseline</strong>
               </div>
               <div>
                 <span>Harnesses</span>
                 <strong>{selectedHarnessLabels || "None selected"}</strong>
               </div>
               <div>
-                <span>Default harness</span>
-                <strong>{selectedHarness?.label ?? "None selected"}</strong>
-              </div>
-              <div>
                 <span>Routines</span>
                 <strong>{selectedRoutineLabels.join(", ") || "None selected"}</strong>
               </div>
               <div>
-                <span>Agent context</span>
-                <strong>{exographContextApplied ? "Applied" : "Not applied"}</strong>
-              </div>
-              <div>
-                <span>Skills</span>
-                <strong>Review-only; Agent Config applies</strong>
-              </div>
-              <div>
-                <span>CLI / MCP exposure</span>
-                <strong>Not configured</strong>
+                <span>Search</span>
+                <strong>{selectedSearchProviders.map((item) => item.label).join(", ") || "Basic file search only"}</strong>
               </div>
             </div>
-            <label className="dialog-field__label" htmlFor="onboarding-profile-config-preview">Resolved profile config preview</label>
+            <label className="dialog-field__label" htmlFor="onboarding-profile-config-preview">Profile config JSON</label>
             <textarea
               className="onboarding-textarea onboarding-config-preview"
               id="onboarding-profile-config-preview"
-              readOnly
-              value={profileConfigPreview}
+              onChange={(event) => setProfileConfigDraft?.(event.target.value)}
+              readOnly={!setProfileConfigDraft}
+              value={profileConfigText}
             />
-            <div className="onboarding-deferred-note" data-testid="onboarding-profile-routine-note">
-              Enter workspace saves this profile state and onboarding completion only. File templates, skill folders, routine schedules, MCP/CLI exposure, plugin settings, and permission grants require separate review.
+            <div className="onboarding-card__actions onboarding-card__actions--inline">
+              <button
+                className="toolbar-button toolbar-button--primary"
+                disabled={!onSaveProfileConfig || profileConfigStatus === "saving"}
+                onClick={onSaveProfileConfig}
+                type="button"
+              >
+                {profileConfigStatus === "saving" ? "Saving..." : "Save profile config"}
+              </button>
+              {profileConfigStatus === "saved" ? <span className="onboarding-profile-status">Saved to active workspace profile.</span> : null}
+              {profileConfigStatus === "error" ? <span className="onboarding-profile-status onboarding-profile-status--error">{profileConfigError ?? "Fix the JSON and save again."}</span> : null}
             </div>
           </section>
         ) : null}

@@ -43,7 +43,8 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - [ ] Replace inert instruction merge with a visible routine/agent run or a clearly disabled/setup-guided action if no harness is available.
   - [ ] Redesign onboarding Skills to offer Exo-native skill install/enable choices for selected harnesses.
   - [ ] Move skill GitHub sources/sync into Skills management.
-  - [ ] Simplify Profile setup to editable profile config, rename/create/save/apply.
+  - [x] Simplify Profile setup to editable profile config, rename/create/save/apply.
+    - 2026-07-07: Onboarding Profile now exposes a profile-name field, new profile draft affordance, raw active-profile config JSON editor, immediate save through existing profile-state IPC, and saved/error status. Settings/Profile copy and name editing now align with the same workspace-config model. This does not change profile apply semantics or silently apply templates, install skills, enable plugins, write instruction/notes files, or schedule routines.
   - [ ] Remove shell from user-facing agent harness/profile/routine surfaces; decide whether core metadata needs a new terminal substrate/tool capability or a stricter UI filter.
   - [ ] Collapse advanced Pi custom config by default and keep normal harness rows visually aligned.
   - [ ] Update docs/tasks/changelog and add focused renderer/e2e UI coverage.
