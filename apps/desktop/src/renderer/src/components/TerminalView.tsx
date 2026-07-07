@@ -80,6 +80,7 @@ export function TerminalView(props: TerminalViewProps) {
   useEffect(() => {
     hydrationStateRef.current = initialTerminalHydrationViewState();
     const terminal = new Terminal({
+      allowProposedApi: true,
       fontFamily: TERMINAL_FONT_FAMILY,
       fontSize,
       customGlyphs: TERMINAL_CUSTOM_GLYPHS,

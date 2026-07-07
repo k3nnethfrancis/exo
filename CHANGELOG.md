@@ -49,6 +49,8 @@ Plugin architecture, tmux terminal persistence/readiness, packaged onboarding ha
 
 ### Fixed
 
+- Fixes Monitor Mode terminal layout so entering monitor mode and adding live sessions both produce balanced pane grids instead of repeatedly adding columns.
+- Fixes production renderer startup for terminal surfaces that load xterm's Unicode 11 addon.
 - Fixes markdown editor cursor preservation across clean-file refreshes and improves live-preview editing so Enter continues bullets/numbered lists, empty list items exit cleanly, normal cursor navigation and line-boundary selection avoid hidden list markers, and Tab/Enter exits `[[wikilinks]]` without adding whitespace.
 - Fixes markdown task-list continuation so Enter from `- [ ]` / `- [x]` creates a new unchecked task item, while empty task items exit cleanly.
 - Adds existing-note suggestions while typing `[[wikilinks]]`, capped to three matches, with Enter selecting the first match and no popup when no note matches.
