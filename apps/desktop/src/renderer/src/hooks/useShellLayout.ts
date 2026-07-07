@@ -48,7 +48,6 @@ export function useShellLayout() {
   const workspaceBodyRef = useRef<HTMLDivElement | null>(null);
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [inspectorCollapsed, setInspectorCollapsed] = useState(true);
   const [terminalCollapsed, setTerminalCollapsed] = useState(false);
   const [sidePanesFlipped, setSidePanesFlipped] = useState(false);
 
@@ -126,7 +125,6 @@ export function useShellLayout() {
     setZoneSplitRatio(layout.zoneSplitRatio);
     setSidebarCollapsed(layout.sidebarCollapsed);
     setSidebarWidth(layout.sidebarWidth);
-    setInspectorCollapsed(layout.inspectorCollapsed);
   }, [editorPaneTree.actions, terminalPaneTree.actions]);
 
   return {
@@ -134,8 +132,6 @@ export function useShellLayout() {
     workspaceBodyRef,
     sidebarCollapsed,
     setSidebarCollapsed,
-    inspectorCollapsed,
-    setInspectorCollapsed,
     editorPaneTree,
     terminalPaneTree,
     terminalCollapsed,
