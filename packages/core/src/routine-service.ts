@@ -7,7 +7,7 @@ import { resolvePluginLocations, splitPluginPathList, type PluginLocation } from
 import { RoutineExecutor, type RoutineExecutionHost } from "./routine-executor";
 import { RoutineRunStore } from "./routine-run-store";
 import { instantiateRoutineTemplate, routineTemplatesFromPlugin, type RoutineInstantiationOptions, type RoutineTemplateDefinition } from "./routine-template";
-import { missingRequiredHarnessSkills, type RoutineDefinition, type RoutineOutputPolicy } from "./routine";
+import { assertRoutineExecutionSupported, missingRequiredHarnessSkills, type RoutineDefinition, type RoutineOutputPolicy } from "./routine";
 import type { RunRecord } from "./run";
 import type { WorkspaceModel } from "./types";
 
@@ -167,6 +167,7 @@ export const DEFAULT_ROUTINE_AGENT_SUPPORTED_FILE_CHANGES = ["none", "propose"] 
 export const DEFAULT_ROUTINE_AGENT_SUPPORTED_ARTIFACTS = ["none", "record"] satisfies RoutineOutputPolicy["artifacts"][];
 
 export function assertRoutineAgentPolicy(routine: RoutineDefinition, options: RoutineAgentPolicyOptions = {}): void {
+  assertRoutineExecutionSupported(routine);
   const allowedPermissions = new Set(options.allowedPermissions ?? DEFAULT_ROUTINE_AGENT_ALLOWED_PERMISSIONS);
   const supportedFileChanges = options.supportedFileChanges ?? DEFAULT_ROUTINE_AGENT_SUPPORTED_FILE_CHANGES;
   const supportedArtifacts = options.supportedArtifacts ?? DEFAULT_ROUTINE_AGENT_SUPPORTED_ARTIFACTS;

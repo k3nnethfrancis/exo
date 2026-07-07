@@ -35,6 +35,7 @@ describe("routine service", () => {
         id: "graph-health-weekly",
         title: "Graph Health",
         harnessId: "codex",
+        execution: { kind: "agentPrompt", harnessId: "codex" },
         createdAt: "2026-06-16T00:00:00.000Z",
       });
       await expect(service.listRoutines()).resolves.toEqual([routine]);

@@ -260,7 +260,7 @@ The target onboarding sequence is:
 2. Confirm workspace and default terminal path.
 3. Review optional plugin choices such as QMD and detected launchable harnesses.
 4. Review starter routine templates such as Graph Health and Agent Instruction Sync and choose the default harness they will use later.
-5. Review global agent instruction context and optionally append dynamic Exograph context as a separate managed block. The generated block should include active notes/project roots, search capability state, MCP/CLI surface guidance, and a bounded notes navigation snapshot without overwriting existing user-authored instructions.
+5. Review global agent instruction context and optionally append dynamic Exograph context as a separate managed block. The generated block should include stable active notes/project roots, search capability state, and MCP/CLI surface guidance without overwriting existing user-authored instructions. Do not embed generated file or folder tree snapshots in global provider files; live directory and index navigation should be handled through explicit scoped tools.
 6. Review standard Exo skills and route skill installation/enabling to Agent Config rather than silently modifying harness folders.
 7. Save the resulting choices as the active workspace profile and enter the workspace.
 

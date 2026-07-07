@@ -18,6 +18,7 @@
         "routineTemplate": {
           "prompt": "Inspect the selected workspace scope and produce a concise report with findings, evidence, and proposed follow-up actions. Do not modify files unless the instantiated routine output policy explicitly permits proposed changes.",
           "harnessId": "codex",
+          "execution": { "kind": "agentPrompt" },
           "requiredSkills": [],
           "trigger": {
             "kind": "manual"

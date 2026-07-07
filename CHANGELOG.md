@@ -23,7 +23,7 @@ Plugin architecture, tmux terminal persistence/readiness, packaged onboarding ha
 - Adds semantic trace contracts, trace store hygiene, trace cleanup commands, and Claude/Pi trace capture hooks.
 - Adds Project Knowledge Sync profile metadata, terminal monitor mode, `Cmd+T` new-terminal shortcut, stable smoke coverage, and monitor-mode QA coverage.
 - Adds staged onboarding profile setup, profile-choice surfacing in settings, agent instruction sync flow foundations, and GitHub-first Exo issue submission skill updates.
-- Adds dynamic Exograph agent-context generation that includes active workspace roots, notes/project roots, indexed-search mode guidance, MCP/CLI surface guidance, and a bounded notes navigation snapshot before applying the managed global instruction block.
+- Adds dynamic Exograph agent-context generation that includes active workspace roots, notes/project roots, indexed-search mode guidance, and MCP/CLI surface guidance before applying the managed global instruction block.
 
 ### Changed
 
@@ -35,7 +35,9 @@ Plugin architecture, tmux terminal persistence/readiness, packaged onboarding ha
 - Reframes OKF, LM Wiki, Shoshin profiles, feed/scheduler concepts, and routines as optional exograph/plugin architecture directions rather than hardwired folder/schema requirements.
 - Splits Workspace Settings from Agent Config and Plugin/Profile configuration so agent instructions, skills, harnesses, plugins, and profile state each have clearer ownership.
 - Stages onboarding as workspace basics, plugin choices, agent context, routines, and profile review instead of a single settings-like form; unavailable harnesses are hidden and QMD is treated as an optional search-provider plugin after workspace load.
-- Reorders profile onboarding to Plugins -> Routines -> Agent Context -> Skills -> Review, clarifies Graph Health and Agent Instruction Sync as manual starter routine templates, and keeps skill installation/enabling routed through Agent Config instead of silent harness-folder writes.
+- Reorders profile onboarding to Plugins -> Routines -> Agent Context -> Skills -> Profile, clarifies Graph Health and Agent Instruction Sync as manual starter routine templates, and keeps skill installation/enabling routed through Agent Config instead of silent harness-folder writes.
+- Adds a routine execution-kind contract so current routines are explicitly agent-prompt routines, reserves shell-command routines for future work, and removes shell from prompt-routine default harness choices.
+- Removes generated file/folder tree snapshots from managed Exograph agent context; future live directory and index navigation should be handled through explicit scoped tools instead of stale prompt text.
 - Simplifies Plugin Manager around optional capability lifecycle: core is summarized as always-on context, core rows are hidden from plugin inventory/category filters, and routine-template rows explain that scheduling/running belongs in a future Routine Manager.
 - Documents the onboarding versus Settings ownership boundary and reframes Settings search as core search plus the QMD advanced provider with Plugin Manager as the provider lifecycle surface.
 - Treats the default Exograph profile as the baseline product configuration rather than a user-selected preset.

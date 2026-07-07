@@ -96,7 +96,7 @@ import { ChangedNotesDialog } from "./components/ChangedNotesDialog";
 import { ProposalReviewDialog } from "./components/ProposalReviewDialog";
 import { ProfileEditPanel, buildProfileEditPanelSections } from "./components/ProfileEditPanel";
 import { ProfileSettingsContent } from "./components/ProfileSettingsSection";
-import { OnboardingCapabilityReviewContent } from "./components/OnboardingCapabilityReview";
+import { isAgentPromptRoutineHarness, OnboardingCapabilityReviewContent } from "./components/OnboardingCapabilityReview";
 import {
   buildOnboardingCapabilitySections,
   onboardingCapabilitySelectable,
@@ -2377,7 +2377,7 @@ describe("workspace onboarding model", () => {
     );
 
     expect(html).toContain("Set up your Exograph");
-    expect(html).toContain("Choose optional plugins, starter routines, agent context, and skills.");
+    expect(html).toContain("Choose optional plugins, starter routines, agent context, and a workspace profile.");
     expect(html).not.toContain("Markdown graph");
     expect(html).not.toContain("Core, locked");
     expect(html).toContain("QMD advanced search");
@@ -2394,6 +2394,7 @@ describe("workspace onboarding model", () => {
     expect(html).toContain("Agent context");
     expect(html).toContain("Routines");
     expect(html).toContain("Skills");
+    expect(html).toContain("Profile");
     expect(html).toContain("Continue");
   });
 
@@ -2437,6 +2438,94 @@ describe("workspace onboarding model", () => {
     expect(pluginHtml).not.toMatch(/data-testid=\"onboarding-plugin-toggle-codex\"[^>]*disabled=\"\"/);
     expect(routineHtml).toContain("Starter routine templates");
     expect(routineHtml).toContain("Default harness");
+  });
+
+  it("excludes shell from prompt-routine onboarding harness choices", () => {
+    const inventory = pluginInventory([
+      pluginInventoryItem("shell", "Shell", "agentHarness", "Agent harnesses", "bundled"),
+      pluginInventoryItem("codex", "Codex", "agentHarness", "Agent harnesses", "bundled"),
+    ]);
+    const routineHtml = renderToStaticMarkup(
+      <OnboardingCapabilityReviewContent
+        errorMessage={null}
+        inventory={inventory}
+        loadState="idle"
+        notesFolder="/workspace/notes"
+        onBack={vi.fn()}
+        onEnterWorkspace={vi.fn()}
+        sections={buildOnboardingCapabilitySections(inventory)}
+        selectedHarnesses={inventory.items}
+        defaultHarnessId="shell"
+        setupStep="routines"
+      />,
+    );
+
+    expect(isAgentPromptRoutineHarness(inventory.items[0])).toBe(false);
+    expect(isAgentPromptRoutineHarness(inventory.items[1])).toBe(true);
+    expect(routineHtml).toContain("Default harness");
+    expect(routineHtml).not.toContain("<option value=\"shell\">Shell</option>");
+    expect(routineHtml).toContain("<option value=\"codex\">Codex</option>");
+  });
+
+  it("renders skills as Agent Config review instead of an onboarding installer", () => {
+    const inventory = pluginInventory([
+      pluginInventoryItem("codex", "Codex", "agentHarness", "Agent harnesses", "bundled"),
+    ]);
+    const html = renderToStaticMarkup(
+      <OnboardingCapabilityReviewContent
+        errorMessage={null}
+        inventory={inventory}
+        loadState="idle"
+        notesFolder="/workspace/notes"
+        onBack={vi.fn()}
+        onEnterWorkspace={vi.fn()}
+        onTogglePlugin={vi.fn()}
+        sections={buildOnboardingCapabilitySections(inventory)}
+        selectedHarnesses={[inventory.items[0]]}
+        defaultHarnessId="codex"
+        setupStep="skills"
+      />,
+    );
+
+    expect(html).toContain("Skills review");
+    expect(html).toContain("Selected harnesses");
+    expect(html).toContain("Codex");
+    expect(html).toContain("Review/apply in Agent Config");
+    expect(html).toContain("This setup will not install, enable, disable, move, or sync skill folders.");
+    expect(html).toContain("Pending review");
+  });
+
+  it("renders the final Profile step as a resolved read-only config preview", () => {
+    const inventory = pluginInventory([
+      pluginInventoryItem("qmd", "QMD advanced search", "searchProvider", "Search providers", "bundled"),
+      pluginInventoryItem("codex", "Codex", "agentHarness", "Agent harnesses", "bundled"),
+    ]);
+    const html = renderToStaticMarkup(
+      <OnboardingCapabilityReviewContent
+        errorMessage={null}
+        inventory={inventory}
+        loadState="idle"
+        notesFolder="/workspace/notes"
+        onBack={vi.fn()}
+        onEnterWorkspace={vi.fn()}
+        onTogglePlugin={vi.fn()}
+        sections={buildOnboardingCapabilitySections(inventory)}
+        selectedHarnesses={[inventory.items[1]]}
+        defaultHarnessId="codex"
+        profileName="Research Lab"
+        exographContextApplied
+        setupStep="review"
+      />,
+    );
+
+    expect(html).toContain("Workspace profile name");
+    expect(html).toContain("Profile name");
+    expect(html).toContain("Research Lab");
+    expect(html).toContain("Resolved profile config preview");
+    expect(html).toContain("&quot;defaultHarnessId&quot;: &quot;codex&quot;");
+    expect(html).toContain("&quot;status&quot;: &quot;pending-agent-config-review&quot;");
+    expect(html).toContain("&quot;mcp&quot;: &quot;not-configured-pending-future-policy&quot;");
+    expect(html).toContain("Enter workspace saves this profile state and onboarding completion only.");
   });
 });
 

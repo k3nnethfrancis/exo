@@ -18,6 +18,7 @@
         "routineTemplate": {
           "prompt": "Read the configured global AGENTS.md and CLAUDE.md files. Produce a proposed unified instruction document that preserves user intent, removes provider-specific language unless explicitly necessary, and keeps Exo/Exograph context in a clearly marked managed section. Do not overwrite, delete, or symlink files. Output a reviewable proposal and call out conflicts that require human choice.",
           "harnessId": "codex",
+          "execution": { "kind": "agentPrompt" },
           "requiredSkills": [],
           "trigger": { "kind": "manual" },
           "permissions": {

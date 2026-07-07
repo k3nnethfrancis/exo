@@ -48,6 +48,7 @@ describe("routine template contracts", () => {
       description: "Audit graph structure and write a review artifact.",
       prompt: "Audit the selected exograph and write a graph health report.",
       harnessId: "codex",
+      execution: { kind: "agentPrompt", prompt: "Audit the selected exograph and write a graph health report.", harnessId: "codex" },
       requiredSkills: [{ id: "graph-health", label: "Graph Health", required: true }],
       trigger: { kind: "manual" },
       permissions: {
@@ -109,6 +110,7 @@ describe("routine template contracts", () => {
       title: "Graph Health",
       prompt: "Audit the selected exograph and write a graph health report.",
       harnessId: "codex",
+      execution: { kind: "agentPrompt", prompt: "Audit the selected exograph and write a graph health report.", harnessId: "codex" },
       trigger: { kind: "schedule", schedule: "0 8 * * 1", timezone: "America/Los_Angeles" },
       enabled: true,
       createdAt: "2026-06-15T00:00:00.000Z",
@@ -142,6 +144,7 @@ describe("routine template contracts", () => {
       title: "Custom Review",
       prompt: "Use the custom prompt.",
       harnessId: "claude",
+      execution: { kind: "agentPrompt", prompt: "Use the custom prompt.", harnessId: "claude" },
       enabled: false,
       outputPolicy: {
         fileChanges: "none",
@@ -158,6 +161,48 @@ describe("routine template contracts", () => {
         compatibility: {},
       }),
     ).toThrow("must define compatibility.routineTemplate");
+  });
+
+  it("defaults legacy routine templates to agentPrompt execution", () => {
+    const template = routineTemplateFromCapability({
+      ...templateCapability,
+      compatibility: {
+        routineTemplate: {
+          ...templatePayload,
+          execution: undefined,
+        },
+      },
+    });
+
+    expect(template?.execution).toEqual({
+      kind: "agentPrompt",
+      prompt: "Audit the selected exograph and write a graph health report.",
+      harnessId: "codex",
+    });
+  });
+
+  it("parses shellCommand execution metadata without making it runnable", () => {
+    const template = routineTemplateFromCapability({
+      ...templateCapability,
+      compatibility: {
+        routineTemplate: {
+          ...templatePayload,
+          execution: {
+            kind: "shellCommand",
+            command: "pnpm",
+            args: ["test"],
+            cwd: "/workspace",
+          },
+        },
+      },
+    });
+
+    expect(template?.execution).toEqual({
+      kind: "shellCommand",
+      command: "pnpm",
+      args: ["test"],
+      cwd: "/workspace",
+    });
   });
 
   it("fails clearly on malformed routine template policies", () => {

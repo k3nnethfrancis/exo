@@ -24,7 +24,7 @@ Every onboarding choice needs a post-onboarding management surface:
 | Notes folder, workspace root, default terminal path, project roots | Settings -> Workspace |
 | Advanced search provider choice such as QMD | Settings -> Search for mode/sync behavior; Plugin Manager -> Search providers for lifecycle and plugin-owned setup |
 | Harness choices | Settings -> Harnesses for current built-in configuration; Plugin Manager -> Harness adapters for lifecycle; Agent Config for instructions and skills |
-| Managed Exograph agent context | Agent Config. The generated context should summarize active roots, search mode/backend, MCP/CLI surface intent, and a bounded notes navigation snapshot. Automatic refresh policy belongs to Profile/Agent Config later because it rewrites global instruction files. |
+| Managed Exograph agent context | Agent Config. The generated context should summarize stable active roots, search mode/backend, and MCP/CLI surface intent. It should not embed generated file or folder tree snapshots; live directory and index navigation belongs in future explicit scoped tools because global instruction rewrites are user-visible provider-file changes. |
 | Starter routine templates | Onboarding records the starter selection; Routine Manager owns concrete runs/schedules when available; Plugin Manager lists routine-template plugin lifecycle until that manager exists |
 | Profile name, active profile, profile recommendations | Settings -> Profile |
 

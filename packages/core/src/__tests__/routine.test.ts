@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import type { AgentHarness } from "../agent-harness";
-import { missingRequiredHarnessSkills, type RoutineDefinition } from "../routine";
+import { missingRequiredHarnessSkills, normalizeRoutineDefinition, type RoutineDefinition } from "../routine";
 
 const baseRoutine: RoutineDefinition = {
   id: "routine-1",
   title: "Graph Health",
   prompt: "Run the graph health check and write a report.",
   harnessId: "codex",
+  execution: { kind: "agentPrompt", prompt: "Run the graph health check and write a report.", harnessId: "codex" },
   requiredSkills: [
     { id: "graph-health", label: "Graph Health", required: true },
     { id: "optional-style", label: "Optional Style", required: false },
@@ -58,6 +59,16 @@ describe("routine contracts", () => {
         harnessWithSkills([{ id: "graph-health", label: "Graph Health", source: "filesystem", enabled: true }]),
       ),
     ).toEqual([]);
+  });
+
+  it("normalizes legacy prompt routines to agentPrompt execution", () => {
+    const { execution: _execution, ...legacyRoutine } = baseRoutine;
+
+    expect(normalizeRoutineDefinition(legacyRoutine).execution).toEqual({
+      kind: "agentPrompt",
+      prompt: "Run the graph health check and write a report.",
+      harnessId: "codex",
+    });
   });
 });
 

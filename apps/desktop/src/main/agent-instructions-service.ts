@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { listRootTree, type TreeNode, type WorkspaceModel } from "@exo/core";
+import type { WorkspaceModel } from "@exo/core";
 import type {
   AgentInstructionConfig,
   AgentInstructionProviderFile,
@@ -48,7 +48,7 @@ export class AgentInstructionsService {
     return {
       scopes: await Promise.all(this.scopeCandidates().map((scope) => this.readScope(scope))),
       starterTemplate: exoAgentInstructionStarterTemplate(workspaceModel),
-      exographContextTemplate: await exographAgentContextTemplate(workspaceModel),
+      exographContextTemplate: exographAgentContextTemplate(workspaceModel),
     };
   }
 
@@ -251,7 +251,7 @@ function exoAgentInstructionStarterTemplate(workspaceModel: WorkspaceModel) {
   ].join("\n");
 }
 
-async function exographAgentContextTemplate(workspaceModel: WorkspaceModel) {
+function exographAgentContextTemplate(workspaceModel: WorkspaceModel) {
   return [
     "## Exograph Context",
     "",
@@ -282,10 +282,6 @@ async function exographAgentContextTemplate(workspaceModel: WorkspaceModel) {
     "- Exo MCP is the narrow agent work surface: workspace status/orientation, search/read, and live agent session control.",
     "- Exo CLI is the broader operator surface: workspace setup, indexing, project roots, diagnostics, terminals, agents, and MCP/integration helpers when installed.",
     "- If a requested Exo capability is not exposed through MCP, use the CLI or filesystem when available, and record the MCP gap as product feedback.",
-    "",
-    "### Notes Navigation Snapshot",
-    "",
-    ...await formatNotesNavigationSnapshot(workspaceModel),
   ].join("\n");
 }
 
@@ -321,52 +317,6 @@ function formatSearchGuidance(workspaceModel: WorkspaceModel) {
     `- Indexed Exo search is enabled through ${indexing.backend.toUpperCase()} in ${indexing.mode} mode: ${modeGuidance}`,
     "- Use filesystem search for exact code or path questions; use indexed Exo search for graph/context questions where meaning matters.",
   ];
-}
-
-// Keep the generated global prompt useful without copying a whole vault into
-// every agent instruction file. EXO-ISSUE-097 tracks exposing these bounds and
-// refresh policy through Agent Config/Profile settings before any auto-refresh.
-const AGENT_CONTEXT_TREE_MAX_DEPTH = 2;
-const AGENT_CONTEXT_TREE_MAX_LINES = 80;
-
-async function formatNotesNavigationSnapshot(workspaceModel: WorkspaceModel) {
-  if (workspaceModel.noteRoots.length === 0) {
-    return ["- No notes roots are attached."];
-  }
-
-  const lines: string[] = [
-    `Snapshot policy: Markdown files only, depth ${AGENT_CONTEXT_TREE_MAX_DEPTH}, first ${AGENT_CONTEXT_TREE_MAX_LINES} lines. Use filesystem tools or Exo search for the complete current tree.`,
-  ];
-  for (const root of workspaceModel.noteRoots) {
-    lines.push("", `#### ${root.label}`, "", "```text", root.path);
-    try {
-      const nodes = await listRootTree(root.path, { markdownOnly: true, maxDepth: AGENT_CONTEXT_TREE_MAX_DEPTH, includeEmptyDirectories: true });
-      const allTreeLines = renderTreeLines(nodes);
-      const treeLines = allTreeLines.slice(0, AGENT_CONTEXT_TREE_MAX_LINES);
-      lines.push(...treeLines);
-      if (allTreeLines.length > AGENT_CONTEXT_TREE_MAX_LINES) {
-        lines.push("...");
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      lines.push(`[tree unavailable: ${message}]`);
-    }
-    lines.push("```");
-  }
-  return lines;
-}
-
-function renderTreeLines(nodes: TreeNode[], prefix = ""): string[] {
-  return nodes.flatMap((node, index) => {
-    const isLast = index === nodes.length - 1;
-    const connector = isLast ? "`-- " : "|-- ";
-    const childPrefix = `${prefix}${isLast ? "    " : "|   "}`;
-    const line = `${prefix}${connector}${node.kind === "directory" ? `${node.name}/` : node.name}`;
-    if (node.kind !== "directory" || !node.children?.length) {
-      return [line];
-    }
-    return [line, ...renderTreeLines(node.children, childPrefix)];
-  });
 }
 
 function escapeRegExp(value: string) {

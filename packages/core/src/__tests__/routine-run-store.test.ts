@@ -58,6 +58,7 @@ describe("routine run store layout", () => {
         title: "Graph Health",
         prompt: "Audit the graph.",
         harnessId: "codex",
+        execution: { kind: "agentPrompt", prompt: "Audit the graph.", harnessId: "codex" },
         requiredSkills: [],
         trigger: { kind: "manual" },
         scope: {
@@ -99,6 +100,46 @@ describe("routine run store layout", () => {
       expect(await store.listRoutines()).toEqual([routine]);
       expect(await store.listRuns()).toEqual([run]);
       expect(await readFile(routinePath, "utf8")).toContain("\"title\": \"Graph Health\"");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("reads legacy routine definitions as agentPrompt routines", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-routine-run-store-"));
+    try {
+      const store = new RoutineRunStore(path.join(root, ".exo"));
+      const legacyRoutine = {
+        id: "legacy-routine",
+        title: "Legacy Routine",
+        prompt: "Run the legacy prompt.",
+        harnessId: "codex",
+        requiredSkills: [],
+        trigger: { kind: "manual" },
+        scope: {
+          workspaceRoot: root,
+          noteRootIds: [],
+          projectRootIds: [],
+          paths: [],
+        },
+        permissions: { permissions: ["workspace:read"] },
+        outputPolicy: {
+          fileChanges: "none",
+          artifacts: "none",
+          allowedPaths: [],
+        },
+        enabled: true,
+        createdAt: "2026-06-14T00:00:00.000Z",
+        updatedAt: "2026-06-14T00:00:00.000Z",
+      };
+      const target = routineDefinitionPath(store.layout, legacyRoutine.id);
+      await mkdir(path.dirname(target), { recursive: true });
+      await writeFile(target, `${JSON.stringify(legacyRoutine, null, 2)}\n`, "utf8");
+
+      await expect(store.readRoutine(legacyRoutine.id)).resolves.toMatchObject({
+        ...legacyRoutine,
+        execution: { kind: "agentPrompt", prompt: "Run the legacy prompt.", harnessId: "codex" },
+      });
     } finally {
       await rm(root, { recursive: true, force: true });
     }

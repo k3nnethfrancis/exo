@@ -1,6 +1,6 @@
 # Exo Issues
 
-Last updated: 2026-07-06
+Last updated: 2026-07-07
 
 This is the canonical active bug/QA tracker for Exo implementation work. It captures user-observed issues that need investigation before the next push/release pass.
 
@@ -8,28 +8,31 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ## Open
 
-### EXO-ISSUE-097: Agent context should support configurable Exo tool exposure and refresh policy
+### EXO-ISSUE-097: Agent context needs explicit directory and index navigation tools
 
 - Status: open
 - Severity: medium
-- Area: onboarding, Agent Config, profiles, MCP/CLI policy, agent instruction context
+- Area: Agent Config, MCP/CLI policy, directory browsing, indexed navigation, agent instruction context
 - Source:
-  - Product design discussion on 2026-07-06 while testing first-run onboarding and global Exograph context.
+  - Product design discussion on 2026-07-06 and follow-up P1 simplification on 2026-07-07 after deciding to remove generated folder context from global agent instructions.
 - Observed:
-  - The managed Exograph context block now generates from the active workspace model, but MCP/CLI exposure policy and notes-tree refresh behavior are still implicit.
-  - The context can describe current search mode and attached roots, but users cannot yet choose which Exo CLI/MCP surfaces should be recommended or exposed to agents from the setup/profile UI.
-  - The notes navigation snapshot is generated when the context is loaded/applied; it is not yet automatically refreshed when the notes tree changes.
+  - The managed Exograph context block should stay stable: attached roots, search capability guidance, and MCP/CLI guidance only.
+  - Generated folder trees or file-name snapshots make global provider instructions stale and noisy, so they were removed from the context template.
+  - Agents still need an intentional way to browse attached root directories and inspect indexed navigation state without relying on a static prompt snapshot.
 - Expected:
-  - Users should be able to review and configure which Exo MCP/CLI capabilities are exposed or recommended to agent harnesses.
-  - The generated agent context should reflect those choices instead of giving generic tool guidance.
-  - Notes-tree snapshots should have a user-visible refresh policy, depth/size policy, and manual refresh action before Exo rewrites global instruction files automatically.
+  - Directory browsing and index navigation should be explicit operator/agent tools with clear scope, bounds, and freshness semantics.
+  - Any CLI/MCP surface changes should receive architect review before implementation.
+  - The generated global Exograph context should point agents at available search/read/tool surfaces, not embed file lists or directory trees.
+- Design notes:
+  - `docs/control-plane-catalog.md` proposes future control-plane exposure profiles (`off`, `everyday`, `dev`, `custom`) and an MCP tool membership table for user sign-off.
+  - The same note records a future explicit navigation-tool family: `list_roots`, `list_directory`, `describe_index`, `list_index_documents`, and `resolve_document`.
+  - These navigation tools should replace generated folder context because they are live, scoped, bounded, and auditable instead of stale prompt text.
 - Acceptance:
-  - [ ] Define MCP/CLI exposure policy ownership between Profile Manager, Plugin Manager, Agent Config, and MCP server config.
-  - [ ] Add a reviewable UI/API for selecting exposed or recommended Exo tool surfaces.
-  - [ ] Make generated Exograph context reflect selected tool/search policies.
-  - [ ] Add configurable notes navigation snapshot policy instead of fixed generation bounds.
-  - [ ] Add manual refresh/apply behavior before any automatic rewrite behavior.
-  - [ ] Add tests for policy-aware context generation and refresh behavior.
+  - [ ] Design explicit directory browsing and indexed navigation commands/tools for attached notes and project roots.
+  - [ ] Confirm control-plane profile membership before implementing MCP filtering, settings UI, or agent-instruction policy output.
+  - [ ] Review CLI and MCP contract changes with the lead/architect before implementation.
+  - [ ] Define scope, pagination, filtering, freshness, and error behavior for directory/index navigation.
+  - [ ] Add tests proving global agent context remains stable and does not embed generated file names or tree snapshots.
 
 ### EXO-ISSUE-096: Exo terminal runtime should not depend on the user's default tmux server
 

@@ -1,4 +1,5 @@
 import type { RoutineDefinition } from "./routine";
+import { assertRoutineExecutionSupported } from "./routine";
 import type { RunArtifact, RunRecord, RunTracePacket } from "./run";
 import { runHasPendingReview } from "./run";
 import type { RoutineRunStore } from "./routine-run-store";
@@ -39,6 +40,7 @@ export class RoutineExecutor {
     if (!routine.enabled) {
       throw new Error(`Routine is disabled: ${routine.id}`);
     }
+    assertRoutineExecutionSupported(routine);
     if (routine.trigger.kind !== "manual") {
       throw new Error(`Routine is not manual-triggered: ${routine.id}`);
     }

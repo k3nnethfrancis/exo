@@ -2057,10 +2057,12 @@ test("opens an existing notes folder from first-run setup", async () => {
   await expectStableOuterFrame(page.getByTestId("post-workspace-setup"), setupFrame!);
   await page.getByTestId("onboarding-enter-workspace").click();
   await expect(page.getByTestId("onboarding-skills")).toBeVisible();
-  await expect(page.getByTestId("onboarding-skills")).toContainText("Standard Exo skills");
+  await expect(page.getByTestId("onboarding-skills")).toContainText("Skills review");
+  await expect(page.getByTestId("onboarding-skills")).toContainText("Review/apply in Agent Config");
   await expectStableOuterFrame(page.getByTestId("post-workspace-setup"), setupFrame!);
   await page.getByTestId("onboarding-enter-workspace").click();
-  await expect(page.getByTestId("onboarding-profile-routine-note")).toContainText("Profile templates");
+  await expect(page.getByTestId("onboarding-profile-routine-note")).toContainText("Enter workspace saves this profile state");
+  await expect(page.getByTestId("onboarding-profile-review")).toContainText("Resolved profile config preview");
   await expectStableOuterFrame(page.getByTestId("post-workspace-setup"), setupFrame!);
   await page.screenshot({ path: "/tmp/exo-issue-32-onboarding-review.png", fullPage: false });
   await expect(page.getByTestId("onboarding-enter-workspace")).toBeVisible();

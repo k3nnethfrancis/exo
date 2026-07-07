@@ -17,7 +17,7 @@ const SETUP_STEP_ORDER: Array<[OnboardingSetupStep, string]> = [
   ["routines", "Routines"],
   ["instructions", "Agent context"],
   ["skills", "Skills"],
-  ["review", "Review"],
+  ["review", "Profile"],
 ];
 
 const STANDARD_SKILL_ROWS = [
@@ -47,6 +47,10 @@ interface OnboardingCapabilityReviewProps {
 }
 
 type OnboardingSetupStep = OnboardingProfileStep;
+
+export function isAgentPromptRoutineHarness(item: PluginInventoryItem): boolean {
+  return item.kind === "core:agentHarness" && item.id !== "shell";
+}
 
 export function OnboardingCapabilityReview({
   notesFolder,
@@ -102,17 +106,20 @@ export function OnboardingCapabilityReview({
   const sections = useMemo(() => buildOnboardingCapabilitySections(inventory), [inventory]);
   const selectedHarnesses = useMemo(() => {
     const rows = sections.flatMap((section) => section.rows);
-    return rows.filter((item) => item.kind === "core:agentHarness" && (selectionOverrides[item.id] ?? onboardingCapabilitySelected(item)));
+    return rows.filter((item) =>
+      item.kind === "core:agentHarness" && (selectionOverrides[item.id] ?? onboardingCapabilitySelected(item))
+    );
   }, [sections, selectionOverrides]);
+  const selectedRoutineHarnesses = useMemo(() => selectedHarnesses.filter(isAgentPromptRoutineHarness), [selectedHarnesses]);
 
   useEffect(() => {
-    if (!defaultHarnessId && selectedHarnesses.length > 0) {
-      setDefaultHarnessId(selectedHarnesses[0].id);
+    if (!defaultHarnessId && selectedRoutineHarnesses.length > 0) {
+      setDefaultHarnessId(selectedRoutineHarnesses[0].id);
     }
-    if (defaultHarnessId && selectedHarnesses.length > 0 && !selectedHarnesses.some((item) => item.id === defaultHarnessId)) {
-      setDefaultHarnessId(selectedHarnesses[0].id);
+    if (defaultHarnessId && selectedRoutineHarnesses.length > 0 && !selectedRoutineHarnesses.some((item) => item.id === defaultHarnessId)) {
+      setDefaultHarnessId(selectedRoutineHarnesses[0].id);
     }
-  }, [defaultHarnessId, selectedHarnesses]);
+  }, [defaultHarnessId, selectedRoutineHarnesses]);
 
   useEffect(() => {
     if (setupStep !== "instructions" || agentInstructionConfig) {
@@ -195,7 +202,8 @@ export function OnboardingCapabilityReview({
     setActionMessage(null);
     setErrorMessage(null);
     try {
-      const selectedDefaultHarnessId = defaultHarnessId ?? selectedHarnesses[0]?.id;
+      const selectedDefaultHarnessId = selectedRoutineHarnesses.find((item) => item.id === defaultHarnessId)?.id
+        ?? selectedRoutineHarnesses[0]?.id;
       await window.exo.workspace.setActiveProfile({
         profileId: "exograph-baseline.profile",
         capabilityId: "exograph-baseline.profile",
@@ -245,6 +253,7 @@ export function OnboardingCapabilityReview({
       agentInstructionStatus={agentInstructionStatus}
       contextBody={contextBody}
       setContextBody={setContextBody}
+      exographContextApplied={exographContextApplied}
       graphHealthEnabled={graphHealthEnabled}
       setGraphHealthEnabled={setGraphHealthEnabled}
       instructionSyncEnabled={instructionSyncEnabled}
@@ -278,6 +287,7 @@ export function OnboardingCapabilityReviewContent({
   agentInstructionStatus = "idle",
   contextBody = "",
   setContextBody,
+  exographContextApplied = false,
   graphHealthEnabled = true,
   setGraphHealthEnabled,
   instructionSyncEnabled = true,
@@ -307,6 +317,7 @@ export function OnboardingCapabilityReviewContent({
   agentInstructionStatus?: "idle" | "loading" | "saving" | "error";
   contextBody?: string;
   setContextBody?: (value: string) => void;
+  exographContextApplied?: boolean;
   graphHealthEnabled?: boolean;
   setGraphHealthEnabled?: (value: boolean) => void;
   instructionSyncEnabled?: boolean;
@@ -315,8 +326,54 @@ export function OnboardingCapabilityReviewContent({
   sections: ReturnType<typeof buildOnboardingCapabilitySections>;
 }) {
   const visibleChoiceCount = sections.reduce((sum, section) => sum + section.rows.length, 0);
+  const routineHarnesses = selectedHarnesses.filter(isAgentPromptRoutineHarness);
   const globalScope = agentInstructionConfig?.scopes.find((scope) => scope.id === "global") ?? null;
-  const selectedHarness = selectedHarnesses.find((item) => item.id === defaultHarnessId) ?? selectedHarnesses[0] ?? null;
+  const selectedHarness = routineHarnesses.find((item) => item.id === defaultHarnessId) ?? routineHarnesses[0] ?? null;
+  const selectedCapabilityRows = sections
+    .flatMap((section) => section.rows)
+    .filter((item) => selectionOverrides[item.id] ?? onboardingCapabilitySelected(item));
+  const selectedSearchProviders = selectedCapabilityRows.filter((item) => item.kind === "core:searchProvider");
+  const selectedRoutineLabels = [
+    selectedHarness && graphHealthEnabled ? "Graph health" : null,
+    selectedHarness && instructionSyncEnabled ? "Agent instruction sync" : null,
+  ].filter((label): label is string => Boolean(label));
+  const selectedHarnessLabels = selectedHarnesses.map((item) => item.label).join(", ");
+  const profileConfigPreview = JSON.stringify({
+    profile: {
+      name: profileName.trim() || "My Exograph",
+      baseProfile: "exograph-baseline.profile",
+    },
+    selections: {
+      searchProviders: selectedSearchProviders.map((item) => item.id),
+      enabledHarnesses: selectedHarnesses.map((item) => item.id),
+      defaultHarnessId: selectedHarness?.id ?? null,
+      routineTemplateIds: [
+        selectedHarness && graphHealthEnabled ? "graph-health.template" : null,
+        selectedHarness && instructionSyncEnabled ? "agent-instruction-sync.template" : null,
+      ].filter(Boolean),
+      agentContext: exographContextApplied ? "applied-to-global-instructions" : "not-applied",
+      skills: {
+        status: "pending-agent-config-review",
+        recommended: STANDARD_SKILL_ROWS.map((skill) => skill.name),
+      },
+      surfaces: {
+        cli: "not-configured-pending-future-policy",
+        mcp: "not-configured-pending-future-policy",
+      },
+    },
+    submitEffect: [
+      "save active profile selection",
+      "save onboarding choices",
+      "mark onboarding complete",
+    ],
+    deferredEffects: [
+      "install or move skill folders",
+      "enable profile templates",
+      "schedule routines",
+      "write MCP or CLI exposure policy",
+      "grant plugin permissions",
+    ],
+  }, null, 2);
   const setupStepIndex = SETUP_STEP_ORDER.findIndex(([id]) => id === setupStep);
   const previousStep = setupStepIndex > 0 ? SETUP_STEP_ORDER[setupStepIndex - 1]?.[0] : null;
   const nextStep = setupStepIndex >= 0 && setupStepIndex < SETUP_STEP_ORDER.length - 1
@@ -327,7 +384,7 @@ export function OnboardingCapabilityReviewContent({
       <div className="onboarding-card__body" data-testid="onboarding-card-body">
         <h1 className="onboarding-card__title">Set up your Exograph</h1>
         <p className="onboarding-card__copy">
-          Choose optional plugins, starter routines, agent context, and skills. Core editing, files, terminal host, and preview are already on.
+          Choose optional plugins, starter routines, agent context, and a workspace profile. Core editing, files, terminal host, and preview are already on.
         </p>
         <div className="onboarding-stepper" aria-label="Setup steps">
           {SETUP_STEP_ORDER.map(([id, label]) => (
@@ -405,16 +462,16 @@ export function OnboardingCapabilityReviewContent({
                 </div>
               </div>
             </div>
-            {selectedHarnesses.length > 0 ? (
+            {routineHarnesses.length > 0 ? (
               <div className="onboarding-routine-harness">
                 <label className="dialog-field__label" htmlFor="onboarding-routine-harness">Default harness</label>
                 <select
                   className="onboarding-select"
                   id="onboarding-routine-harness"
                   onChange={(event) => setDefaultHarnessId?.(event.target.value)}
-                  value={defaultHarnessId ?? selectedHarnesses[0]?.id ?? ""}
+                  value={defaultHarnessId ?? routineHarnesses[0]?.id ?? ""}
                 >
-                  {selectedHarnesses.map((item) => (
+                  {routineHarnesses.map((item) => (
                     <option key={item.id} value={item.id}>{item.label}</option>
                   ))}
                 </select>
@@ -500,22 +557,50 @@ export function OnboardingCapabilityReviewContent({
           <section className="onboarding-section onboarding-section--primary" data-testid="onboarding-skills">
             <div className="onboarding-capability-section__header">
               <div>
-                <div className="dialog-field__label">Standard Exo skills</div>
+                <div className="dialog-field__label">Skills review</div>
                 <div className="onboarding-section__hint">
-                  Exo keeps skill files in Agent Config so you can inspect, edit, enable, or disable them per harness after setup.
+                  Onboarding records recommendations only. Skill folders are reviewed and applied in Agent Config.
                 </div>
+              </div>
+            </div>
+            <div className="onboarding-review-summary">
+              <div>
+                <span>Selected harnesses</span>
+                <strong>{selectedHarnessLabels || "None selected"}</strong>
+              </div>
+              <div>
+                <span>Default harness</span>
+                <strong>{selectedHarness?.label ?? "None selected"}</strong>
+              </div>
+              <div>
+                <span>Apply path</span>
+                <strong>Agent Config</strong>
               </div>
             </div>
             <div className="onboarding-skill-list">
               {STANDARD_SKILL_ROWS.map((skill) => (
                 <div className="onboarding-skill-row" key={skill.name}>
-                  <strong>{skill.name}</strong>
+                  <div className="onboarding-skill-row__title">
+                    <strong>{skill.name}</strong>
+                    <span>Pending review</span>
+                  </div>
                   <span>{skill.detail}</span>
+                  <small>Applies after setup through Agent Config for selected harnesses.</small>
                 </div>
               ))}
             </div>
+            <div className="onboarding-card__actions onboarding-card__actions--inline">
+              <button
+                className="toolbar-button"
+                disabled
+                title="Enter the workspace, then open Agent Config to inspect, enable, disable, sync, or install skills."
+                type="button"
+              >
+                Review/apply in Agent Config
+              </button>
+            </div>
             <div className="onboarding-deferred-note">
-              Routine templates may require harness skills later. This setup records the profile choice only; installing or syncing skills remains a reviewable Agent Config action.
+              This setup will not install, enable, disable, move, or sync skill folders.
             </div>
           </section>
         ) : null}
@@ -530,8 +615,20 @@ export function OnboardingCapabilityReviewContent({
             />
             <div className="onboarding-review-summary">
               <div>
+                <span>Profile name</span>
+                <strong>{profileName.trim() || "My Exograph"}</strong>
+              </div>
+              <div>
                 <span>Base profile</span>
                 <strong>Exograph default</strong>
+              </div>
+              <div>
+                <span>Search</span>
+                <strong>{selectedSearchProviders.map((item) => item.label).join(", ") || "Basic file search only"}</strong>
+              </div>
+              <div>
+                <span>Harnesses</span>
+                <strong>{selectedHarnessLabels || "None selected"}</strong>
               </div>
               <div>
                 <span>Default harness</span>
@@ -539,11 +636,30 @@ export function OnboardingCapabilityReviewContent({
               </div>
               <div>
                 <span>Routines</span>
-                <strong>{[graphHealthEnabled ? "graph health" : null, instructionSyncEnabled ? "instruction sync" : null].filter(Boolean).join(", ") || "none"}</strong>
+                <strong>{selectedRoutineLabels.join(", ") || "None selected"}</strong>
+              </div>
+              <div>
+                <span>Agent context</span>
+                <strong>{exographContextApplied ? "Applied" : "Not applied"}</strong>
+              </div>
+              <div>
+                <span>Skills</span>
+                <strong>Review-only; Agent Config applies</strong>
+              </div>
+              <div>
+                <span>CLI / MCP exposure</span>
+                <strong>Not configured</strong>
               </div>
             </div>
+            <label className="dialog-field__label" htmlFor="onboarding-profile-config-preview">Resolved profile config preview</label>
+            <textarea
+              className="onboarding-textarea onboarding-config-preview"
+              id="onboarding-profile-config-preview"
+              readOnly
+              value={profileConfigPreview}
+            />
             <div className="onboarding-deferred-note" data-testid="onboarding-profile-routine-note">
-              This records your workspace profile selection. Profile templates, routine schedules, and file changes still require review before they modify local files.
+              Enter workspace saves this profile state and onboarding completion only. File templates, skill folders, routine schedules, MCP/CLI exposure, plugin settings, and permission grants require separate review.
             </div>
           </section>
         ) : null}

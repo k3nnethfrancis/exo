@@ -46,7 +46,7 @@ describe("AgentInstructionsService", () => {
     ]);
   });
 
-  it("renders dynamic Exograph context from the active workspace model", async () => {
+  it("renders stable Exograph context guidance without generated file or tree snapshots", async () => {
     const { service, notesRoot, projectRoot } = await agentInstructionsService({
       indexing: { enabled: true, mode: "hybrid", backend: "qmd" },
     });
@@ -63,10 +63,13 @@ describe("AgentInstructionsService", () => {
     expect(config.exographContextTemplate).toContain("Indexed Exo search is enabled through QMD in hybrid mode");
     expect(config.exographContextTemplate).toContain("Exo MCP is the narrow agent work surface");
     expect(config.exographContextTemplate).toContain("Exo CLI is the broader operator surface");
-    expect(config.exographContextTemplate).toContain("Snapshot policy: Markdown files only");
-    expect(config.exographContextTemplate).toContain("|-- projects/");
-    expect(config.exographContextTemplate).toContain("`-- index.md");
-    expect(config.exographContextTemplate).toContain("roadmap.md");
+    expect(config.exographContextTemplate).toContain("use the CLI or filesystem when available, and record the MCP gap as product feedback");
+    expect(config.exographContextTemplate).not.toContain("Notes Navigation Snapshot");
+    expect(config.exographContextTemplate).not.toContain("Snapshot policy");
+    expect(config.exographContextTemplate).not.toContain("|--");
+    expect(config.exographContextTemplate).not.toContain("`--");
+    expect(config.exographContextTemplate).not.toContain("index.md");
+    expect(config.exographContextTemplate).not.toContain("roadmap.md");
   });
 
   it("saves a selected scope to both provider files", async () => {

@@ -4075,21 +4075,40 @@ select.dialog-card__input {
 
 .onboarding-skill-row {
   display: grid;
-  gap: 3px;
+  gap: 5px;
   padding: 10px 12px;
   border: 1px solid var(--surface-border);
   border-radius: 8px;
   background: var(--surface-1);
 }
 
+.onboarding-skill-row__title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 .onboarding-skill-row strong {
   font-size: 13px;
 }
 
-.onboarding-skill-row span {
+.onboarding-skill-row span,
+.onboarding-skill-row small {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.35;
+}
+
+.onboarding-skill-row__title span {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.onboarding-config-preview {
+  min-height: 260px;
 }
 
 @media (max-width: 760px) {

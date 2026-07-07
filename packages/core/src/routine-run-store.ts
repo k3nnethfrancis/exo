@@ -1,7 +1,7 @@
 import { appendFile, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import type { RoutineDefinition } from "./routine";
+import { normalizeRoutineDefinition, type RoutineDefinition } from "./routine";
 import type { RunArtifact, RunArtifactKind, RunRecord, RunTracePacket } from "./run";
 import { activityToRunRecord } from "./run";
 
@@ -60,13 +60,14 @@ export class RoutineRunStore {
   }
 
   async readRoutine(routineId: string): Promise<RoutineDefinition | null> {
-    return readJsonOrNull<RoutineDefinition>(routineDefinitionPath(this.layout, routineId));
+    const routine = await readJsonOrNull<RoutineDefinition>(routineDefinitionPath(this.layout, routineId));
+    return routine ? normalizeRoutineDefinition(routine) : null;
   }
 
   async listRoutines(): Promise<RoutineDefinition[]> {
     const files = await listJsonFiles(this.layout.routinesDir);
     const routines = await Promise.all(files.map((file) => readJsonOrNull<RoutineDefinition>(path.join(this.layout.routinesDir, file))));
-    return routines.filter((routine): routine is RoutineDefinition => Boolean(routine));
+    return routines.filter((routine): routine is RoutineDefinition => Boolean(routine)).map(normalizeRoutineDefinition);
   }
 
   async writeRun(run: RunRecord): Promise<string> {

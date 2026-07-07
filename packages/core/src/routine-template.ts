@@ -4,6 +4,7 @@ import type { DiscoveredPlugin } from "./plugin";
 import type {
   HarnessSkillRequirement,
   RoutineDefinition,
+  RoutineExecution,
   RoutineOutputPolicy,
   RoutinePermissionSet,
   RoutineScope,
@@ -16,6 +17,7 @@ export interface RoutineTemplateDefinition {
   description: string;
   prompt: string;
   harnessId: string;
+  execution: RoutineExecution;
   requiredSkills: HarnessSkillRequirement[];
   trigger: RoutineTrigger;
   permissions: RoutinePermissionSet;
@@ -48,11 +50,14 @@ export function instantiateRoutineTemplate(
   options: RoutineInstantiationOptions,
 ): RoutineDefinition {
   const now = options.now ?? new Date().toISOString();
+  const prompt = options.prompt ?? template.prompt;
+  const harnessId = options.harnessId ?? template.harnessId;
   return {
     id: options.id,
     title: options.title ?? template.title,
-    prompt: options.prompt ?? template.prompt,
-    harnessId: options.harnessId ?? template.harnessId,
+    prompt,
+    harnessId,
+    execution: template.execution.kind === "agentPrompt" ? { kind: "agentPrompt", prompt, harnessId } : template.execution,
     requiredSkills: options.requiredSkills ?? template.requiredSkills,
     trigger: options.trigger ?? template.trigger,
     scope: options.scope,
@@ -125,11 +130,37 @@ function readRoutineTemplatePayload(capability: CapabilityMetadata): RoutineTemp
     description: optionalString(payload, "description") ?? capability.description,
     prompt: requiredString(payload, "prompt"),
     harnessId: requiredString(payload, "harnessId"),
+    execution: validateExecution(payload.execution, {
+      prompt: requiredString(payload, "prompt"),
+      harnessId: requiredString(payload, "harnessId"),
+    }),
     requiredSkills: validateSkillRequirements(payload.requiredSkills),
     trigger: validateTrigger(payload.trigger),
     permissions: validatePermissions(payload.permissions),
     outputPolicy: validateOutputPolicy(payload.outputPolicy),
   };
+}
+
+function validateExecution(input: unknown, defaults: { prompt: string; harnessId: string }): RoutineExecution {
+  if (input === undefined) {
+    return { kind: "agentPrompt", prompt: defaults.prompt, harnessId: defaults.harnessId };
+  }
+  if (!isRecord(input)) {
+    throw new Error("Routine template execution must be an object.");
+  }
+  const kind = requiredString(input, "kind");
+  if (kind === "agentPrompt") {
+    const prompt = optionalString(input, "prompt") ?? defaults.prompt;
+    const harnessId = optionalString(input, "harnessId") ?? defaults.harnessId;
+    return { kind, prompt, harnessId };
+  }
+  if (kind === "shellCommand") {
+    const command = requiredString(input, "command");
+    const args = validateOptionalStringArray(input.args, "execution.args");
+    const cwd = optionalString(input, "cwd");
+    return { kind, command, args, cwd };
+  }
+  throw new Error(`Routine template execution kind is unsupported: ${kind}`);
 }
 
 function validateSkillRequirements(input: unknown): HarnessSkillRequirement[] {
@@ -211,6 +242,16 @@ function validateOutputPolicy(input: unknown): RoutineOutputPolicy {
     throw new Error("Routine template outputPolicy.allowedPaths must be an array of non-empty strings.");
   }
   return { fileChanges, artifacts, allowedPaths };
+}
+
+function validateOptionalStringArray(input: unknown, field: string): string[] | undefined {
+  if (input === undefined) {
+    return undefined;
+  }
+  if (!Array.isArray(input) || !input.every((value) => typeof value === "string" && value.trim().length > 0)) {
+    throw new Error(`Routine template ${field} must be an array of non-empty strings.`);
+  }
+  return input;
 }
 
 function requiredString(record: Record<string, unknown>, key: string): string {

@@ -12,6 +12,7 @@ const routine: RoutineDefinition = {
   title: "Alignment Smoke",
   prompt: "Run a small alignment smoke workflow.",
   harnessId: "codex",
+  execution: { kind: "agentPrompt", prompt: "Run a small alignment smoke workflow.", harnessId: "codex" },
   requiredSkills: [],
   trigger: { kind: "manual" },
   scope: {
@@ -152,6 +153,34 @@ describe("routine executor", () => {
       await expect(executor.runManual({ ...routine, trigger: { kind: "schedule", schedule: "0 8 * * *" } })).rejects.toThrow(
         "Routine is not manual-triggered",
       );
+      await expect(store.readRun("run-unused")).resolves.toBeNull();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects reserved shellCommand routines before invoking the host", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-routine-executor-"));
+    try {
+      const store = new RoutineRunStore(path.join(root, ".exo"));
+      let launched = false;
+      const executor = new RoutineExecutor(
+        store,
+        {
+          execute: async () => {
+            launched = true;
+            return {};
+          },
+        },
+        fixedRunIds("run-unused"),
+        fixedClock(),
+      );
+
+      await expect(executor.runManual({
+        ...routine,
+        execution: { kind: "shellCommand", command: "pnpm", args: ["test"] },
+      })).rejects.toThrow("Routine execution kind is not supported yet: shellCommand");
+      expect(launched).toBe(false);
       await expect(store.readRun("run-unused")).resolves.toBeNull();
     } finally {
       await rm(root, { recursive: true, force: true });
