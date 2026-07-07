@@ -194,6 +194,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - Divergent `AGENTS.md`/`CLAUDE.md` merge is offered as a reviewable routine handoff, not a silent rewrite/symlink.
 - Acceptance:
   - [x] Bundled harness toggles can be deselected in onboarding without calling manifest plugin actions.
+    - 2026-07-07 refresh: bundled harnesses omitted from live detection metadata now remain disabled/inspectable in plugin inventory, so unconfigured hidden harnesses such as Hermes are not shown as available onboarding choices.
   - [x] Add default harness selection for routine handoffs.
   - [x] Add a global agent-instruction step that detects global provider files and applies Exograph context as a managed block.
   - [x] Add built-in routine toggles for Graph Health and Agent Instruction Sync.

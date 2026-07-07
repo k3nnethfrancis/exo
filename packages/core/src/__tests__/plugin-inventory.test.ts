@@ -214,6 +214,38 @@ describe("plugin inventory", () => {
     });
   });
 
+  it("keeps omitted official harness metadata disabled but inspectable", () => {
+    const inventory = buildPluginInventory({
+      harnesses: [
+        {
+          id: "codex",
+          adapterId: "codex",
+          family: "codex",
+          label: "Codex",
+          productName: "Codex CLI",
+          enabled: true,
+          configured: false,
+          detected: true,
+          launchable: true,
+          status: "available",
+          statusLabel: "Available",
+        },
+      ] satisfies AgentHarnessDetection[],
+    });
+
+    expect(find(inventory.items, "codex")).toMatchObject({
+      enabled: true,
+      status: "available",
+      statusLabel: "Available",
+    });
+    expect(find(inventory.items, "hermes")).toMatchObject({
+      source: "bundled",
+      enabled: false,
+      status: "disabled",
+      statusLabel: "Disabled",
+    });
+  });
+
   it("keeps untrusted and disabled manifests inspectable", () => {
     const inventory = buildPluginInventory({
       plugins: [
@@ -242,7 +274,7 @@ describe("plugin inventory", () => {
       },
     });
     expect(inventory.counts.untrusted).toBe(3);
-    expect(inventory.counts.disabled).toBe(4);
+    expect(inventory.counts.disabled).toBe(9);
   });
 
   it("surfaces unsupported capability kinds without activating them", () => {

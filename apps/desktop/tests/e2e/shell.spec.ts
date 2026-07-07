@@ -2048,6 +2048,7 @@ test("opens an existing notes folder from first-run setup", async () => {
   expect(setupFrame).not.toBeNull();
   await expect(page.getByTestId("onboarding-plugin-toggle-qmd")).toBeChecked();
   await expect(page.getByTestId("onboarding-plugin-toggle-qmd")).toBeEnabled();
+  await expect(page.getByTestId("onboarding-plugin-toggle-hermes")).toHaveCount(0);
   await page.screenshot({ path: "/tmp/exo-issue-32-onboarding-plugins.png", fullPage: false });
   await page.getByTestId("onboarding-enter-workspace").click();
   await expect(page.getByTestId("onboarding-routines")).toBeVisible();
