@@ -179,7 +179,6 @@ describe("workspace settings registry", () => {
           zoneSplitRatio: 0.01,
           sidebarCollapsed: true,
           sidebarWidth: 9999,
-          inspectorCollapsed: false,
         },
       }, { EXO_USER_DATA_PATH: userDataPath });
 
@@ -189,7 +188,6 @@ describe("workspace settings registry", () => {
         sidePanesFlipped: true,
         zoneSplitRatio: 0.15,
         sidebarWidth: 800,
-        inspectorCollapsed: false,
       });
       expect(saved.layout?.editorTree.kind).toBe("split");
       if (saved.layout?.editorTree.kind === "split" && saved.layout.editorTree.children[1].kind === "leaf") {
@@ -234,7 +232,6 @@ describe("workspace settings registry", () => {
           zoneSplitRatio: 0.6,
           sidebarCollapsed: false,
           sidebarWidth: 260,
-          inspectorCollapsed: true,
         },
       }, { EXO_USER_DATA_PATH: userDataPath });
 
