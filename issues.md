@@ -41,8 +41,8 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - [ ] Design and implement shared instruction-file preview/editor components for onboarding and Agent Config.
   - [ ] Make Exograph context apply idempotent and visibly refresh previews.
   - [ ] Replace inert instruction merge with a visible routine/agent run or a clearly disabled/setup-guided action if no harness is available.
-  - [ ] Redesign onboarding Skills to offer Exo-native skill install/enable choices for selected harnesses.
-  - [ ] Move skill GitHub sources/sync into Skills management.
+  - [x] Redesign onboarding Skills to offer Exo-native skill install/enable choices for selected harnesses.
+  - [x] Move skill GitHub sources/sync into Skills management.
   - [ ] Simplify Profile setup to editable profile config, rename/create/save/apply.
   - [ ] Remove shell from user-facing agent harness/profile/routine surfaces; decide whether core metadata needs a new terminal substrate/tool capability or a stricter UI filter.
   - [ ] Collapse advanced Pi custom config by default and keep normal harness rows visually aligned.

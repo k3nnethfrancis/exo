@@ -1012,6 +1012,7 @@ app.whenReady().then(async () => {
     disabledRootPath: path.join(app.getPath("userData"), "disabled-skills"),
     getWorkspaceModel: () => workspaceModel,
     homePath: process.env.HOME || app.getPath("home"),
+    standardSkillsRootPath: sourceProjectRoot ? path.join(sourceProjectRoot, "skills") : undefined,
     skillSourcesRootPath: path.join(app.getPath("userData"), "skill-sources"),
   });
   appLifecycle = new AppLifecycleController({

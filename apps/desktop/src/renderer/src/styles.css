@@ -2730,7 +2730,7 @@ select.dialog-card__input {
 
 .dialog-tabs {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
   gap: 6px;
   padding: 3px;
   border: 1px solid var(--surface-border);
@@ -2918,6 +2918,14 @@ select.dialog-card__input {
   white-space: pre;
 }
 
+.agent-skills-panel {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 14px;
+  min-width: 0;
+  min-height: 0;
+}
+
 .agent-skills {
   display: grid;
   grid-template-columns: minmax(220px, 0.34fr) minmax(0, 1fr);
@@ -2942,6 +2950,7 @@ select.dialog-card__input {
   padding-right: 2px;
 }
 
+.shared-skill-row,
 .agent-skills__skill {
   display: grid;
   gap: 4px;
@@ -2961,6 +2970,8 @@ select.dialog-card__input {
   background: color-mix(in srgb, var(--accent) 12%, var(--surface-2));
 }
 
+.shared-skill-row span,
+.shared-skill-row small,
 .agent-skills__skill span,
 .agent-skills__skill small {
   min-width: 0;
@@ -3067,6 +3078,8 @@ select.dialog-card__input {
   gap: 12px;
   min-width: 0;
   min-height: 0;
+  padding-top: 12px;
+  border-top: 1px solid color-mix(in srgb, var(--divider) 45%, transparent);
 }
 
 .agent-sources__form {
@@ -4073,6 +4086,7 @@ select.dialog-card__input {
   gap: 8px;
 }
 
+.onboarding-skill-bulk-toggle,
 .onboarding-skill-row {
   display: grid;
   gap: 5px;
@@ -4080,6 +4094,16 @@ select.dialog-card__input {
   border: 1px solid var(--surface-border);
   border-radius: 8px;
   background: var(--surface-1);
+}
+
+.onboarding-skill-bulk-toggle {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+}
+
+.onboarding-skill-bulk-toggle span {
+  display: grid;
+  gap: 3px;
 }
 
 .onboarding-skill-row__title {
@@ -4093,6 +4117,7 @@ select.dialog-card__input {
   font-size: 13px;
 }
 
+.onboarding-skill-bulk-toggle small,
 .onboarding-skill-row span,
 .onboarding-skill-row small {
   color: var(--muted);

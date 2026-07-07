@@ -99,9 +99,31 @@ describe("AgentSkillsService", () => {
     ]));
     await expect(service.installLibrarySkill({ librarySkillId: librarySkill!.id, locationId: targetLocation!.id })).rejects.toThrow("already exists");
   });
+
+  it("lists bundled Exo standard skills as installable library skills", async () => {
+    const standardSkillsRootPath = await mkdtemp(path.join(os.tmpdir(), "exo-standard-skills-"));
+    await createSkill(path.join(standardSkillsRootPath, "terminal-stability"), "# Terminal Stability\n");
+    const { service, workspaceRoot } = await agentSkillsService({ standardSkillsRootPath });
+
+    const inventory = await service.listInventory();
+    const standardSkill = inventory.librarySkills.find((skill) => skill.name === "terminal-stability");
+    const targetLocation = inventory.locations.find((location) => location.id === "codex:workspace");
+
+    expect(standardSkill).toEqual(expect.objectContaining({
+      label: "Terminal Stability",
+      sourceId: "exo-standard",
+      sourceLabel: "Exo standard",
+    }));
+    expect(targetLocation).toBeTruthy();
+
+    await service.installLibrarySkill({ librarySkillId: standardSkill!.id, locationId: targetLocation!.id });
+
+    await expect(readFile(path.join(workspaceRoot, ".codex", "skills", "terminal-stability", "SKILL.md"), "utf8"))
+      .resolves.toBe("# Terminal Stability\n");
+  });
 });
 
-async function agentSkillsService() {
+async function agentSkillsService(options: { standardSkillsRootPath?: string } = {}) {
   const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-agent-skills-"));
   const homeRoot = path.join(workspaceRoot, "home");
   const notesRoot = path.join(workspaceRoot, "notes");
@@ -121,7 +143,13 @@ async function agentSkillsService() {
     disabledRootPath,
     homeRoot,
     notesRoot,
-    service: new AgentSkillsService({ disabledRootPath, getWorkspaceModel: () => model, homePath: homeRoot, skillSourcesRootPath }),
+    service: new AgentSkillsService({
+      disabledRootPath,
+      getWorkspaceModel: () => model,
+      homePath: homeRoot,
+      standardSkillsRootPath: options.standardSkillsRootPath,
+      skillSourcesRootPath,
+    }),
     skillSourcesRootPath,
     workspaceRoot,
   };

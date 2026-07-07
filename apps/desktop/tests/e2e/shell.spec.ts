@@ -1863,7 +1863,7 @@ test("syncs a git skill source and installs a library skill copy", async () => {
 
     await page.getByTestId("open-agent-config").click();
     await expect(page.getByTestId("agent-context-manager")).toBeVisible();
-    await page.getByTestId("agent-config-tab-sources").click();
+    await page.getByTestId("agent-config-tab-skills").click();
     await page.getByTestId("agent-skill-source-url").fill(sourceRepo);
     await page.getByTestId("agent-skill-source-add").click();
     await expect(page.getByTestId("agent-skill-sources")).toContainText("Library Skill");
@@ -2057,8 +2057,8 @@ test("opens an existing notes folder from first-run setup", async () => {
   await expectStableOuterFrame(page.getByTestId("post-workspace-setup"), setupFrame!);
   await page.getByTestId("onboarding-enter-workspace").click();
   await expect(page.getByTestId("onboarding-skills")).toBeVisible();
-  await expect(page.getByTestId("onboarding-skills")).toContainText("Skills review");
-  await expect(page.getByTestId("onboarding-skills")).toContainText("Review/apply in Agent Config");
+  await expect(page.getByTestId("onboarding-skills")).toContainText("Standard skills");
+  await expect(page.getByTestId("onboarding-skills")).toContainText("Apply standard skills");
   await expectStableOuterFrame(page.getByTestId("post-workspace-setup"), setupFrame!);
   await page.getByTestId("onboarding-enter-workspace").click();
   await expect(page.getByTestId("onboarding-profile-routine-note")).toContainText("Enter workspace saves this profile state");
