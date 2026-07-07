@@ -8,6 +8,27 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ## Open
 
+### EXO-ISSUE-100: Monitor Mode live additions skew into repeated same-direction splits
+
+- Status: fixed in automation branch; PR pending
+- Severity: medium
+- Area: terminal monitor mode, pane tree, Exo-on-Exo observability
+- Source:
+  - GitHub issue #33: https://github.com/k3nnethfrancis/exo/issues/33
+- Observed:
+  - Entering Monitor Mode uses a balanced split tree, but creating or attaching new terminal sessions while Monitor Mode is already enabled used a fixed split helper.
+  - Repeated live additions could keep splitting the focused terminal region in the same direction, producing skinny panes instead of a readable grid.
+- Expected:
+  - Entering Monitor Mode and adding sessions live should converge on the same deterministic balanced layout for common multi-agent counts.
+  - Stable monitor leaf ids derived from terminal session ids should be preserved so terminal panes are not remounted unnecessarily.
+- Acceptance:
+  - [x] Define deterministic balanced monitor split shapes for 1, 2, 3, 4, 5, 6, and 8 sessions.
+  - [x] Route live Monitor Mode additions through the same balanced monitor tree model used on initial entry.
+  - [x] Preserve `terminal-session:<id>` monitor leaf ids for existing and newly added sessions.
+  - [x] Add focused renderer coverage proving live additions converge with fresh Monitor Mode rebuilds.
+  - [x] Run Electron Monitor Mode app QA with at least 6 live sessions before merge.
+    - 2026-07-07: focused Electron e2e covered six live terminal panes, balanced pane area ratios, geometry convergence, close-one-session behavior, and relaunch persistence. Screenshot evidence captured outside the repo at `/tmp/exo-monitor-mode-6-live-sessions.png`.
+
 ### EXO-ISSUE-099: Onboarding, Agent Config, Skills, and Profile management are not trustworthy or aligned
 
 - Status: open

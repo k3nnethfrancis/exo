@@ -51,14 +51,17 @@ test("splits live terminals in monitor mode, reconciles geometry, and persists a
     await page.screenshot({ path: "/tmp/exo-monitor-mode-4-live-sessions.png", fullPage: false });
 
     await page.getByTestId("launch-shell").click();
-    await expect.poll(async () => terminalSessions(page), { timeout: 10_000 }).toHaveLength(5);
-    await expect(page.getByTestId("terminal-surface")).toHaveCount(5);
+    await page.getByTestId("launch-shell").click();
+    await expect.poll(async () => terminalSessions(page), { timeout: 10_000 }).toHaveLength(6);
+    await expect(page.getByTestId("terminal-surface")).toHaveCount(6);
     const sessionsWithCreated = await terminalSessions(page);
     await waitForRendererGeometry(page, sessionsWithCreated.map((session) => session.id));
+    await expectBalancedTerminalSurfaces(page, 6);
+    await page.screenshot({ path: "/tmp/exo-monitor-mode-6-live-sessions.png", fullPage: false });
 
     await page.getByTestId("close-terminal-codex").click();
-    await expect.poll(async () => terminalSessions(page), { timeout: 10_000 }).toHaveLength(4);
-    await expect(page.getByTestId("terminal-surface")).toHaveCount(4);
+    await expect.poll(async () => terminalSessions(page), { timeout: 10_000 }).toHaveLength(5);
+    await expect(page.getByTestId("terminal-surface")).toHaveCount(5);
     await expect.poll(async () => terminalSessions(page)).not.toContainEqual(expect.objectContaining({ kind: "codex" }));
 
     await expect.poll(async () => {
@@ -68,9 +71,9 @@ test("splits live terminals in monitor mode, reconciles geometry, and persists a
 
     await fixture.electronApp.close();
     relaunched = await relaunchExoFixture(fixture, { env: localHarnessEnv });
-    await expect.poll(async () => terminalSessions(relaunched!.page), { timeout: 10_000 }).toHaveLength(4);
+    await expect.poll(async () => terminalSessions(relaunched!.page), { timeout: 10_000 }).toHaveLength(5);
     await expect(relaunched.page.getByTestId("terminal-monitor-mode").first()).toHaveAttribute("aria-pressed", "true");
-    await expect(relaunched.page.getByTestId("terminal-surface")).toHaveCount(4);
+    await expect(relaunched.page.getByTestId("terminal-surface")).toHaveCount(5);
 
     const relaunchedSessions = await terminalSessions(relaunched.page);
     await waitForRendererGeometry(relaunched.page, relaunchedSessions.map((session) => session.id));
@@ -158,6 +161,27 @@ async function expectNoGeometryDivergence(page: Page, terminalIds: string[]) {
       paneStatus: "alive",
     })),
   );
+}
+
+async function expectBalancedTerminalSurfaces(page: Page, expectedCount: number) {
+  const boxes = await page.getByTestId("terminal-surface").evaluateAll((surfaces) =>
+    surfaces.map((surface) => {
+      const rect = surface.getBoundingClientRect();
+      return {
+        width: rect.width,
+        height: rect.height,
+        area: rect.width * rect.height,
+      };
+    }),
+  );
+  expect(boxes).toHaveLength(expectedCount);
+  const areas = boxes.map((box) => box.area).filter((area) => area > 0);
+  const smallestArea = Math.min(...areas);
+  const largestArea = Math.max(...areas);
+  expect(
+    smallestArea / largestArea,
+    `Expected balanced monitor pane areas, got ${JSON.stringify(boxes)}`,
+  ).toBeGreaterThan(0.35);
 }
 
 function geometryChanged(

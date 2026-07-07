@@ -10,7 +10,7 @@ import {
 } from "./usePaneTree";
 import type { TerminalLaunchKind, TerminalSessionInfo } from "../../../shared/api";
 import {
-  addTerminalSessionAsSplit,
+  addTerminalSessionToMonitorTree,
   addTerminalSessionToFirstLeaf,
   removeTerminalSessionFromTree,
 } from "../paneTreeSelectors";
@@ -50,7 +50,7 @@ export function useTerminalPaneController(options: UseTerminalPaneControllerOpti
 
     if (options.monitorMode) {
       options.terminalActions.setTree((currentTree) => {
-        const result = addTerminalSessionAsSplit(currentTree, session.id, options.terminalFocusedLeafId);
+        const result = addTerminalSessionToMonitorTree(currentTree, session.id);
         return result.tree;
       });
       if (activate) {
@@ -97,7 +97,7 @@ export function useTerminalPaneController(options: UseTerminalPaneControllerOpti
     if (options.monitorMode) {
       options.terminalActions.setTree((currentTree) => {
         const { tree } = sessions.reduce(
-          (next, session) => addTerminalSessionAsSplit(next.tree, session.id, next.leafId),
+          (next, session) => addTerminalSessionToMonitorTree(next.tree, session.id),
           { tree: currentTree, leafId: options.terminalFocusedLeafId },
         );
         return tree;
