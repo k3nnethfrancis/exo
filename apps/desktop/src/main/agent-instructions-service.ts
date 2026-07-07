@@ -7,6 +7,7 @@ import type { WorkspaceModel } from "@exo/core";
 import type {
   AgentInstructionConfig,
   AgentInstructionProviderFile,
+  AgentInstructionProviderId,
   AgentInstructionScope,
   AgentInstructionScopeId,
   AgentInstructionStatus,
@@ -62,6 +63,22 @@ export class AgentInstructionsService {
       await writeFile(file.path, normalizeInstructionFileBody(input.body), "utf8");
     }));
     return this.getConfig();
+  }
+
+  async mergeFiles(input: { scopeId: AgentInstructionScopeId; sourceProviderId: AgentInstructionProviderId }): Promise<AgentInstructionConfig> {
+    const scope = this.scopeCandidates().find((candidate) => candidate.id === input.scopeId);
+    if (!scope) {
+      throw new Error("Agent instruction scope is unavailable for the active workspace.");
+    }
+    const currentScope = await this.readScope(scope);
+    const sourceFile = currentScope.files[input.sourceProviderId];
+    if (sourceFile.errorMessage) {
+      throw new Error(`${sourceFile.label} cannot be merged: ${sourceFile.errorMessage}`);
+    }
+    if (!sourceFile.exists || !sourceFile.body.trim()) {
+      throw new Error(`${sourceFile.label} has no instruction content to merge.`);
+    }
+    return this.saveConfig({ scopeId: input.scopeId, body: sourceFile.body });
   }
 
   async applyGlobalExographContext(input: { body: string }): Promise<AgentInstructionConfig> {

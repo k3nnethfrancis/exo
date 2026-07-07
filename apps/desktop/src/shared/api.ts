@@ -371,6 +371,10 @@ export interface DesktopApi {
       scopeId: AgentInstructionScopeId;
       body: string;
     }) => Promise<AgentInstructionConfig>;
+    mergeAgentInstructionFiles: (input: {
+      scopeId: AgentInstructionScopeId;
+      sourceProviderId: AgentInstructionProviderId;
+    }) => Promise<AgentInstructionConfig>;
     applyGlobalExographContext: (input: {
       body: string;
     }) => Promise<AgentInstructionConfig>;

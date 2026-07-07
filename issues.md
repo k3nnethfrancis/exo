@@ -37,10 +37,10 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - Advanced/custom Pi configuration should be collapsed or hidden unless relevant.
   - GitHub skill sources/sync should live inside the Skills management surface.
 - Acceptance:
-  - [ ] Get Fable/oracle review of the revised ownership model before implementation.
+  - [x] Get Fable/oracle review of the revised ownership model before implementation.
   - [ ] Design and implement shared instruction-file preview/editor components for onboarding and Agent Config.
-  - [ ] Make Exograph context apply idempotent and visibly refresh previews.
-  - [ ] Replace inert instruction merge with a visible routine/agent run or a clearly disabled/setup-guided action if no harness is available.
+  - [x] Make Exograph context apply idempotent and visibly refresh previews.
+  - [x] Replace inert instruction merge with a deterministic desktop merge operation and inline refreshed preview.
   - [ ] Redesign onboarding Skills to offer Exo-native skill install/enable choices for selected harnesses.
   - [ ] Move skill GitHub sources/sync into Skills management.
   - [ ] Simplify Profile setup to editable profile config, rename/create/save/apply.

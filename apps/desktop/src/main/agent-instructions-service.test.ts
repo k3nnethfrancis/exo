@@ -84,6 +84,28 @@ describe("AgentInstructionsService", () => {
     );
   });
 
+  it("merges a selected provider file across both instruction files", async () => {
+    const { service, notesRoot } = await agentInstructionsService();
+    await writeFile(path.join(notesRoot, "AGENTS.md"), "agents source\n\n", "utf8");
+    await writeFile(path.join(notesRoot, "CLAUDE.md"), "claude old\n", "utf8");
+
+    const config = await service.mergeFiles({ scopeId: "exocortex", sourceProviderId: "agents" });
+
+    await expect(readFile(path.join(notesRoot, "AGENTS.md"), "utf8")).resolves.toBe("agents source\n");
+    await expect(readFile(path.join(notesRoot, "CLAUDE.md"), "utf8")).resolves.toBe("agents source\n");
+    expect(config.scopes.find((scope) => scope.id === "exocortex")).toEqual(
+      expect.objectContaining({ status: "aligned", body: "agents source\n", source: "agents" }),
+    );
+  });
+
+  it("does not merge from a missing or empty provider file", async () => {
+    const { service, notesRoot } = await agentInstructionsService();
+    await writeFile(path.join(notesRoot, "AGENTS.md"), "agents source\n", "utf8");
+
+    await expect(service.mergeFiles({ scopeId: "exocortex", sourceProviderId: "claude" })).rejects.toThrow("has no instruction content to merge");
+    await expect(readFile(path.join(notesRoot, "AGENTS.md"), "utf8")).resolves.toBe("agents source\n");
+  });
+
   it("applies Exograph context to both global provider files", async () => {
     const { service, homeRoot } = await agentInstructionsService();
     await mkdir(path.join(homeRoot, ".codex"), { recursive: true });
