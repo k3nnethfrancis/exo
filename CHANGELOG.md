@@ -62,6 +62,7 @@ Plugin architecture, tmux terminal persistence/readiness, packaged onboarding ha
 - Fixes stale/blank managed agent terminal starts and improves Claude/Codex terminal startup handling.
 - Fixes Markdown list outdent behavior in the editor.
 - Fixes terminal Unicode stream corruption, tmux UTF-8 decoding, parity handling, scrollback bridge behavior, renderer write batching, hydration/replay drift, blank panes after reload, generated-input artifacts, pane identity in monitor mode, runtime registry isolation, and Codex MCP restart coverage.
+- Fixes terminal input/render regressions where a broken default user tmux server could make Exo terminals unavailable, stale hydration could mask unhealthy panes as restoring, tab activation could force xterm replay, missing Unicode width rules could corrupt Claude-style TUI glyphs, and xterm custom glyph drawing could corrupt wide TUI lines despite byte-correct tmux tails.
 - Fixes preview pane target replacement, preview clipping, and preview-triggered terminal replay/focus regressions.
 - Fixes packaged/onboarding startup paths so missing workspace state reaches onboarding before synthetic workspace defaults or terminal transcript initialization.
 - Fixes interrupted first-run onboarding so saved workspace settings do not imply profile setup completion and reloads resume setup.

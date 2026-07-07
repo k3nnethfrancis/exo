@@ -53,6 +53,7 @@ export async function launchExoFixture(options?: {
   workspaceRoot: string;
   settingsPath: string;
   runtimeRoot: string;
+  tmuxServerName: string;
   homeRoot: string;
   cleanup: () => Promise<void>;
 }> {
@@ -131,6 +132,7 @@ export async function launchExoFixture(options?: {
       workspaceRoot,
       settingsPath,
       runtimeRoot,
+      tmuxServerName,
       homeRoot,
       cleanup: async () => {
         await electronApp.close().catch(() => {});
@@ -164,6 +166,7 @@ export async function launchExoFixture(options?: {
     workspaceRoot,
     settingsPath,
     runtimeRoot,
+    tmuxServerName,
     homeRoot,
     cleanup: async () => {
       await electronApp.close().catch(() => {});

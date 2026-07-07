@@ -84,7 +84,7 @@ function killTmuxAttachClients(tmuxSessionName: string): number {
     throw new Error(processList.stderr || "Failed to list processes.");
   }
   const escapedSessionName = tmuxSessionName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const attachPattern = new RegExp(`\\btmux\\s+attach-session\\s+-t\\s+${escapedSessionName}\\b`);
+  const attachPattern = new RegExp(`\\btmux\\b.*\\battach-session\\b.*\\s-t\\s+${escapedSessionName}\\b`);
   const pids = processList.stdout
     .split("\n")
     .map((line) => {

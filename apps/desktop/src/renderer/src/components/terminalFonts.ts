@@ -12,4 +12,7 @@ export const TERMINAL_FONT_FAMILY = [
   "monospace",
 ].join(", ");
 
-export const TERMINAL_CUSTOM_GLYPHS = true;
+// Xterm's custom glyph renderer can corrupt very wide box-drawing/TUI lines
+// after fit/reconnect cycles even when the tmux source tail is byte-correct.
+// Let the configured monospace/symbol fonts own glyph drawing instead.
+export const TERMINAL_CUSTOM_GLYPHS = false;

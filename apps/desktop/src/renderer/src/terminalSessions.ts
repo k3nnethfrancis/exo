@@ -55,51 +55,73 @@ export function summarizeTerminalStatusLine(
   hydratingTerminalIds: ReadonlySet<string>,
 ): TerminalStatusLine | null {
   const activeSession = activeTerminalId ? sessions.find((session) => session.id === activeTerminalId) ?? null : null;
-  const hydratingSession = firstMatchingTerminalSession(sessions, activeSession, (session) => hydratingTerminalIds.has(session.id));
-  if (hydratingSession) {
-    return {
-      label: "Restoring terminal",
-      tone: "info",
-      title: `${hydratingSession.title}: reattaching to the durable tmux pane.`,
-      busy: true,
-      sessionId: hydratingSession.id,
-    };
+  const activeStatus = activeSession ? terminalStatusForSession(activeSession, hydratingTerminalIds) : null;
+  if (activeStatus) {
+    return activeStatus;
   }
 
-  const exitedSession = firstMatchingTerminalSession(sessions, activeSession, (session) => session.status === "exited" || session.health === "exited");
+  const exitedSession = sessions.find((session) => session.status === "exited" || session.health === "exited") ?? null;
   if (exitedSession) {
-    return {
-      label: "Terminal exited",
-      tone: "warn",
-      title: terminalStatusTitle(exitedSession, "Process exited."),
-      busy: false,
-      sessionId: exitedSession.id,
-    };
+    return exitedTerminalStatus(exitedSession);
   }
 
-  const unavailableSession = firstMatchingTerminalSession(sessions, activeSession, (session) => session.status === "running" && session.health === "unhealthy");
+  const unavailableSession = sessions.find((session) => session.status === "running" && session.health === "unhealthy") ?? null;
   if (unavailableSession) {
-    return {
-      label: "Terminal unavailable",
-      tone: "error",
-      title: terminalStatusTitle(unavailableSession, "Reconnect or inspect terminal diagnostics."),
-      busy: false,
-      sessionId: unavailableSession.id,
-    };
+    return unavailableTerminalStatus(unavailableSession);
+  }
+
+  const hydratingSession = sessions.find((session) => hydratingTerminalIds.has(session.id)) ?? null;
+  if (hydratingSession) {
+    return restoringTerminalStatus(hydratingSession);
   }
 
   return null;
 }
 
-function firstMatchingTerminalSession(
-  sessions: TerminalSessionInfo[],
-  activeSession: TerminalSessionInfo | null,
-  predicate: (session: TerminalSessionInfo) => boolean,
-): TerminalSessionInfo | null {
-  if (activeSession && predicate(activeSession)) {
-    return activeSession;
+function terminalStatusForSession(
+  session: TerminalSessionInfo,
+  hydratingTerminalIds: ReadonlySet<string>,
+): TerminalStatusLine | null {
+  if (session.status === "exited" || session.health === "exited") {
+    return exitedTerminalStatus(session);
   }
-  return sessions.find(predicate) ?? null;
+  if (session.status === "running" && session.health === "unhealthy") {
+    return unavailableTerminalStatus(session);
+  }
+  if (hydratingTerminalIds.has(session.id)) {
+    return restoringTerminalStatus(session);
+  }
+  return null;
+}
+
+function exitedTerminalStatus(session: TerminalSessionInfo): TerminalStatusLine {
+  return {
+    label: "Terminal exited",
+    tone: "warn",
+    title: terminalStatusTitle(session, "Process exited."),
+    busy: false,
+    sessionId: session.id,
+  };
+}
+
+function unavailableTerminalStatus(session: TerminalSessionInfo): TerminalStatusLine {
+  return {
+    label: "Terminal unavailable",
+    tone: "error",
+    title: terminalStatusTitle(session, "Reconnect or inspect terminal diagnostics."),
+    busy: false,
+    sessionId: session.id,
+  };
+}
+
+function restoringTerminalStatus(session: TerminalSessionInfo): TerminalStatusLine {
+  return {
+    label: "Restoring terminal",
+    tone: "info",
+    title: `${session.title}: reattaching to the durable tmux pane.`,
+    busy: true,
+    sessionId: session.id,
+  };
 }
 
 function terminalStatusTitle(session: TerminalSessionInfo, fallbackDetail: string): string {

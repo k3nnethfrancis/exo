@@ -8,6 +8,38 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ## Open
 
+### EXO-ISSUE-098: Terminal input drops spaces/backspace state and gets stuck unavailable/restoring
+
+- Status: fixed in `main`; user should QA on the affected machine after update
+- Severity: critical
+- Area: terminal runtime, tmux bridge, xterm input/rendering, readiness/health state
+- Source:
+  - User field report on 2026-07-07 from a machine with current-ish Exo terminal regressions.
+- Observed:
+  - Opening a new terminal can accept letters but not spaces, so words run together.
+  - Backspace/delete can move the cursor while leaving some visible characters behind.
+  - The terminal status can show `Terminal unavailable`, then after refresh `Restoring terminal`, and never clear even when a Claude harness launched from the pane appears to accept messages.
+  - Opening another terminal repeats the broken space/backspace input behavior and unavailable state.
+  - Returning to a previously working Claude terminal can show a blank pane with `Terminal unavailable`.
+  - Local verification on 2026-07-07 also found the default `tmux` server returning `server exited unexpectedly`, overlapping with `EXO-ISSUE-096`.
+- Expected:
+  - New shell, Claude, Codex, and Pi terminals should accept normal terminal input including spaces, backspace/delete, paste, and submitted messages.
+  - Status should reflect the actual session state: restoring should clear after a successful bridge attach/hydration, and unavailable should not appear for a working attached session.
+  - Returning to an existing running terminal should show the live xterm surface or an explicit reconnect path, not a blank stale pane.
+- Acceptance:
+  - [x] Reproduce with a deterministic fake shell/agent or captured tmux state that exercises spaces, backspace/delete, refresh, reconnect, and tab return.
+  - [x] Verify whether input corruption is caused by tmux send/input mapping, control-mode bridge health, renderer input filtering, stale xterm geometry, or hydration/attach generation state.
+  - [x] Add regression coverage for raw typing with spaces and backspace/delete through the same app terminal path used by shell and harness panes.
+  - [x] Add regression coverage that `Restoring terminal` clears on successful attach and that a healthy running terminal does not show `Terminal unavailable`.
+  - [x] Confirm the fix works when the user's default tmux server is unhealthy or move the product runtime behind the app-owned tmux namespace tracked by `EXO-ISSUE-096`.
+  - [x] Restart installed Exo and manually QA new shell plus Claude launch/input after refresh and tab switching.
+- Fix notes:
+  - Production Exo now assigns a workspace-owned tmux namespace, so a broken default user tmux server no longer prevents terminal creation or restore.
+  - Terminal tab activation no longer forces a hydration reset/replay; it only focuses the mounted xterm surface.
+  - The status bar now reports `Terminal unavailable` ahead of stale hydration state for the active terminal, so `Restoring terminal` cannot mask an unhealthy pane.
+  - The deterministic fake Ink geometry scenario proved the tmux/API source tail was byte-correct while the visible xterm surface lost spaces and inserted `��`; the renderer now uses xterm Unicode 11 width rules and disables xterm custom glyph drawing so the configured terminal fonts own wide TUI glyph rendering.
+  - Verification: `pnpm terminal:check` passed on 2026-07-07 after app rebuild. Installed Exo was rebuilt/restarted during the fix pass.
+
 ### EXO-ISSUE-097: Agent context needs explicit directory and index navigation tools
 
 - Status: open
@@ -36,7 +68,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-096: Exo terminal runtime should not depend on the user's default tmux server
 
-- Status: open
+- Status: fixed in `main`; user should QA on machines with unhealthy default tmux state
 - Severity: high
 - Area: terminal runtime, tmux persistence, app startup
 - Source:
@@ -50,11 +82,15 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - A user's unrelated tmux server crash or config issue should not prevent Exo terminal restore, terminal creation, or e2e startup.
   - Product behavior should remain one tmux-backed runtime path; server isolation is namespace ownership, not a transport fallback.
 - Acceptance:
-  - [ ] Decide whether production Exo should always use an app-owned tmux server namespace derived from runtime/workspace identity.
-  - [ ] If yes, apply the existing `EXO_TMUX_SERVER_NAME` plumbing to runtime config instead of only e2e fixtures.
-  - [ ] Add recovery/diagnostic copy that distinguishes an Exo-owned tmux server issue from the user's default tmux server issue.
-  - [ ] Verify restored terminals, new shell, Claude, Codex, and Pi sessions work while the user's default tmux server is unhealthy.
-  - [ ] Add regression coverage that Exo e2e and app startup do not depend on the default tmux server.
+  - [x] Decide whether production Exo should always use an app-owned tmux server namespace derived from runtime/workspace identity.
+  - [x] If yes, apply the existing `EXO_TMUX_SERVER_NAME` plumbing to runtime config instead of only e2e fixtures.
+  - [x] Add recovery/diagnostic copy that distinguishes an Exo-owned tmux server issue from the user's default tmux server issue.
+  - [x] Verify restored terminals, new shell, Claude, Codex, and Pi sessions work while the user's default tmux server is unhealthy.
+  - [x] Add regression coverage that Exo e2e and app startup do not depend on the default tmux server.
+- Fix notes:
+  - `applyWorkspaceSettingsToEnv` now assigns `EXO_TMUX_SERVER_NAME=exo-{workspaceHash}` for normal app launches, while preserving an explicit operator/test override.
+  - Local verification kept the default `tmux` server in `server exited unexpectedly` state while Exo created and used a healthy namespaced session.
+  - E2E fixture helpers now expose and use their tmux namespace for direct pane-width probes and control-mode bridge termination.
 
 ### EXO-ISSUE-095: Settings and onboarding dialogs should keep stable frames across tabs and steps
 

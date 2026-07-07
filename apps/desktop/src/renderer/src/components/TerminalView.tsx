@@ -1,6 +1,7 @@
 import { useEffect, useRef, type MutableRefObject } from "react";
 
 import { FitAddon } from "@xterm/addon-fit";
+import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { Terminal } from "xterm";
 
 import type { TerminalSessionInfo } from "../../../shared/api";
@@ -88,7 +89,14 @@ export function TerminalView(props: TerminalViewProps) {
       theme: exoXtermTheme(theme),
     });
     const fitAddon = new FitAddon();
+    const unicode11Addon = new Unicode11Addon();
     disposedRef.current = false;
+    // Terminal harnesses render modern TUI glyphs: emoji, braille spinners,
+    // box drawing, and private-use symbols. Xterm's default width table is too
+    // old for those sequences, which can make clean tmux output display as
+    // wrapped borders or replacement glyphs after reconnect/resize.
+    terminal.loadAddon(unicode11Addon);
+    terminal.unicode.activeVersion = "11";
     terminal.loadAddon(fitAddon);
     terminal.open(viewportRef.current!);
     requestAnimationFrame(() => {

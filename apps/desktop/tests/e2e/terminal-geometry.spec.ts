@@ -18,7 +18,7 @@ test("Terminal V4.1 baseline fake Ink fixture reports one unwrapped wide frame",
   try {
     const shell = await pageShellSession(page);
     await startFakeInkAgent(page, shell.id);
-    const baseline = await expectGeometryFrame(page, { minCols: 180 });
+    const baseline = await expectGeometryFrame(page, { minCols: 180 }, shell.id);
 
     expect(baseline.frameCount).toBe(1);
     expect(baseline.rulerLength).toBe(baseline.cols);
@@ -35,7 +35,7 @@ test("Terminal V4.1 reconnect-at-wrong-size keeps fixture width aligned after re
   try {
     const shell = await pageShellSession(page);
     await startFakeInkAgent(page, shell.id);
-    const baseline = await expectGeometryFrame(page, { minCols: 180 });
+    const baseline = await expectGeometryFrame(page, { minCols: 180 }, shell.id);
 
     await page.evaluate(async (id) => {
       await window.exo.terminals.reconnect(id);
@@ -69,7 +69,7 @@ test("Terminal V4.1 reconnect-recoverable route restores a detached fake Ink bri
   try {
     const shell = await pageShellSession(page);
     await startFakeInkAgent(page, shell.id);
-    const baseline = await expectGeometryFrame(page, { minCols: 180 });
+    const baseline = await expectGeometryFrame(page, { minCols: 180 }, shell.id);
 
     await killAttachBridgeForTerminal(page, shell.id);
     await waitForTerminalHealth(page, shell.id, { bridgeStatus: "detached", health: "unhealthy" }, 5_000);
@@ -102,7 +102,7 @@ test("Terminal V4.1 @quarantine-preview reconnect-recoverable route restores fak
     const shell = await pageShellSession(page);
     await page.getByTestId("terminal-surface").click();
     await startFakeInkAgent(page, shell.id);
-    const baseline = await expectGeometryFrame(page, { minCols: 180 });
+    const baseline = await expectGeometryFrame(page, { minCols: 180 }, shell.id);
 
     await page.getByTestId("browser-pane").click();
     await killAttachBridgeForTerminal(page, shell.id);
@@ -128,6 +128,7 @@ async function launchWideTerminal(options?: { prepareWorkspace?: (workspaceRoot:
     },
     initialNoteLabel: null,
   });
+  (fixture.page as Page & { __exoFixtureTmuxServerName?: string }).__exoFixtureTmuxServerName = fixture.tmuxServerName;
   await fixture.electronApp.evaluate(({ BrowserWindow }) => {
     const window = BrowserWindow.getAllWindows()[0];
     window.webContents.setZoomFactor(0.5);
@@ -196,7 +197,7 @@ async function waitForSettledTerminalGeometry(page: Page, terminalId: string, op
       const sessions = await window.exo.terminals.list();
       return sessions.find((candidate) => candidate.id === id) ?? null;
     }, terminalId);
-    const tmuxCols = session ? await tmuxPaneWidthForTerminal(page, terminalId) : 0;
+    const tmuxCols = session ? await tmuxPaneWidthForTerminal(page, terminalId, pageFixtureTmuxServerName(page)) : 0;
     const rendererCols = session?.geometry?.source === "renderer-fit" ? session.geometry.cols : 0;
     const rendererRows = session?.geometry?.source === "renderer-fit" ? session.geometry.rows : 0;
     lastSample = { rendererCols, rendererRows, tmuxCols };
@@ -219,7 +220,7 @@ async function waitForSettledTerminalGeometry(page: Page, terminalId: string, op
   throw new Error(`Timed out waiting for settled terminal geometry: ${JSON.stringify(lastSample)}`);
 }
 
-async function tmuxPaneWidthForTerminal(page: Page, terminalId: string): Promise<number> {
+async function tmuxPaneWidthForTerminal(page: Page, terminalId: string, tmuxServerName: string): Promise<number> {
   const diagnostic = await page.evaluate(async (id) => {
     const diagnostics = await window.exo.terminals.diagnostics();
     return diagnostics.find((candidate) => candidate.id === id) ?? null;
@@ -227,11 +228,11 @@ async function tmuxPaneWidthForTerminal(page: Page, terminalId: string): Promise
   if (!diagnostic?.tmuxSessionName) {
     return 0;
   }
-  return tmuxPaneWidth(diagnostic.tmuxSessionName) ?? 0;
+  return tmuxPaneWidth(tmuxServerName, diagnostic.tmuxSessionName) ?? 0;
 }
 
-async function expectGeometryFrame(page: Page, options: { minCols: number }) {
-  const current = await waitForCompleteGeometryFrame(page, { minCols: options.minCols });
+async function expectGeometryFrame(page: Page, options: { minCols: number }, terminalId: string) {
+  const current = await waitForCompleteGeometryFrame(page, { minCols: options.minCols }, terminalId);
   expect(current.cols, `Expected wide terminal cols from visible fake Ink frame:\n${current.visibleText}`).toBeGreaterThanOrEqual(options.minCols);
   expect(current.rulerLength, `Expected ruler to match cols:\n${current.visibleText}`).toBe(current.cols);
   expect(current.boxLength, `Expected box line to match cols:\n${current.visibleText}`).toBe(current.cols);
@@ -239,21 +240,27 @@ async function expectGeometryFrame(page: Page, options: { minCols: number }) {
   return current;
 }
 
-async function waitForCompleteGeometryFrame(page: Page, options: { minCols: number }): Promise<GeometryFrame> {
-  await expect.poll(async () => {
-    const frame = await currentGeometryFrame(page);
-    return {
-      complete:
-        frame.frameCount === 1
-        && frame.cols >= options.minCols
-        && frame.rulerLength === frame.cols
-        && frame.boxLength === frame.cols
-        && !frame.boxWrappedFragment,
-      visibleText: frame.visibleText,
-    };
-  }, { timeout: 5_000 }).toMatchObject({ complete: true });
+async function waitForCompleteGeometryFrame(page: Page, options: { minCols: number }, terminalId: string): Promise<GeometryFrame> {
+  const deadline = Date.now() + 5_000;
+  let lastFrame: GeometryFrame | null = null;
 
-  return currentGeometryFrame(page);
+  while (Date.now() < deadline) {
+    const frame = await currentGeometryFrame(page);
+    lastFrame = frame;
+    if (
+      frame.frameCount === 1
+      && frame.cols >= options.minCols
+      && frame.rulerLength === frame.cols
+      && frame.boxLength === frame.cols
+      && !frame.boxWrappedFragment
+    ) {
+      return frame;
+    }
+    await page.waitForTimeout(50);
+  }
+
+  const sourceTail = await page.evaluate(async (id) => window.exo.terminals.read(id, { maxChars: 8_000 }), terminalId).catch((error) => String(error));
+  throw new Error(`Timed out waiting for complete geometry frame:\n${JSON.stringify(lastFrame, null, 2)}\nsourceTail:\n${sourceTail}`);
 }
 
 async function assertRecoveredFakeInk(page: Page, expectedCols: number, input: string): Promise<void> {
@@ -344,7 +351,7 @@ function killTmuxAttachClients(tmuxSessionName: string): number {
     throw new Error(processList.stderr || "Failed to list processes.");
   }
   const escapedSessionName = tmuxSessionName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const attachPattern = new RegExp(`\\btmux(?:\\s+-[A-Za-z]+)*\\s+attach-session\\s+-t\\s+${escapedSessionName}\\b`);
+  const attachPattern = new RegExp(`\\btmux\\b.*\\battach-session\\b.*\\s-t\\s+${escapedSessionName}\\b`);
   const pids = processList.stdout
     .split("\n")
     .map((line) => {
@@ -363,8 +370,15 @@ function killTmuxAttachClients(tmuxSessionName: string): number {
   return pids.length;
 }
 
-function tmuxPaneWidth(tmuxSessionName: string): number | null {
-  const result = spawnSync("tmux", ["display-message", "-p", "-t", tmuxSessionName, "#{pane_width}"], { encoding: "utf8" });
+function pageFixtureTmuxServerName(page: Page): string {
+  return (page as Page & { __exoFixtureTmuxServerName?: string }).__exoFixtureTmuxServerName ?? "";
+}
+
+function tmuxPaneWidth(tmuxServerName: string, tmuxSessionName: string): number | null {
+  const args = tmuxServerName
+    ? ["-L", tmuxServerName, "display-message", "-p", "-t", tmuxSessionName, "#{pane_width}"]
+    : ["display-message", "-p", "-t", tmuxSessionName, "#{pane_width}"];
+  const result = spawnSync("tmux", args, { encoding: "utf8" });
   if (result.status !== 0) {
     return null;
   }

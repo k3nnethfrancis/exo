@@ -90,7 +90,6 @@ export function TerminalDock(props: TerminalDockProps) {
 
   useEffect(() => {
     if (activeSession) {
-      hydrateRef.current(activeSession.id, { force: true, reason: "bootstrap" });
       focusTerminalAfterPaneActivation(activeSession.id);
     }
   }, [activeSession?.id]);

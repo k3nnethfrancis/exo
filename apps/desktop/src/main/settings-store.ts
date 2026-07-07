@@ -31,6 +31,8 @@ import {
   type WorkspaceRegistryEntry,
   type WorkspaceSettings,
 } from "@exo/core";
+import { createHash } from "node:crypto";
+import path from "node:path";
 
 export {
   DEFAULT_APPEARANCE_MODE,
@@ -80,6 +82,7 @@ const initialPiHarnessEnvOverrides = new Map(
     .filter((key) => process.env[key] !== undefined)
     .map((key) => [key, process.env[key] as string]),
 );
+const initialTmuxServerNameOverride = process.env.EXO_TMUX_SERVER_NAME;
 
 export interface TerminalRuntimePolicy {
   scrollbackLines: number;
@@ -173,6 +176,13 @@ export function applyWorkspaceSettingsToEnv(settings: WorkspaceSettings | null, 
 
   const settingsEnv = workspaceSettingsToEnv(settings);
   Object.assign(env, settingsEnv);
+  if (env === process.env && initialTmuxServerNameOverride !== undefined) {
+    env.EXO_TMUX_SERVER_NAME = initialTmuxServerNameOverride;
+  } else {
+    // Exo owns a tmux namespace per workspace. This keeps a user's unrelated
+    // default tmux server crash/config from breaking Exo terminal sessions.
+    env.EXO_TMUX_SERVER_NAME = exoTmuxServerNameForWorkspace(settings.workspaceRoot);
+  }
   for (const key of PI_HARNESS_ENV_KEYS) {
     const operatorValue = env === process.env ? initialPiHarnessEnvOverrides.get(key) : undefined;
     if (operatorValue !== undefined) {
@@ -181,6 +191,11 @@ export function applyWorkspaceSettingsToEnv(settings: WorkspaceSettings | null, 
       delete env[key];
     }
   }
+}
+
+export function exoTmuxServerNameForWorkspace(workspaceRoot: string): string {
+  const workspaceHash = createHash("sha256").update(path.resolve(workspaceRoot)).digest("hex").slice(0, 10);
+  return `exo-${workspaceHash}`;
 }
 
 export function isForcedTheme(value: string | undefined): value is WorkspaceSettings["appearanceMode"] {

@@ -2622,8 +2622,8 @@ describe("terminal presentation normalization", () => {
 });
 
 describe("terminal font configuration", () => {
-  it("keeps symbol, emoji, and custom box-drawing fallbacks enabled for agent TUIs", () => {
-    expect(TERMINAL_CUSTOM_GLYPHS).toBe(true);
+  it("uses font fallback instead of xterm custom glyph drawing for agent TUIs", () => {
+    expect(TERMINAL_CUSTOM_GLYPHS).toBe(false);
     expect(TERMINAL_FONT_FAMILY).toContain('"Apple Symbols"');
     expect(TERMINAL_FONT_FAMILY).toContain('"Apple Color Emoji"');
     expect(TERMINAL_FONT_FAMILY).toContain('"Symbols Nerd Font');
@@ -2933,6 +2933,26 @@ describe("terminal session sync", () => {
       sessionId: "term-shell",
     });
     expect(summarizeTerminalStatusLine([sessions[0]], "term-shell", new Set())).toBeNull();
+  });
+
+  it("does not let stale terminal hydration mask an unavailable session", () => {
+    const sessions = [
+      terminalSessionFixture({
+        id: "term-shell",
+        title: "Shell",
+        status: "running",
+        health: "unhealthy",
+        healthDetail: "Unable to find live tmux pane.",
+      }),
+    ];
+
+    expect(summarizeTerminalStatusLine(sessions, "term-shell", new Set(["term-shell"]))).toEqual({
+      label: "Terminal unavailable",
+      tone: "error",
+      title: "Shell: Unable to find live tmux pane.",
+      busy: false,
+      sessionId: "term-shell",
+    });
   });
 
   it("preserves terminal data that arrives before or during hydration", () => {

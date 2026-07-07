@@ -85,8 +85,12 @@ export function terminalDebugAttachInfo(tmuxSessionName: string, tmuxPaneId?: st
   };
 }
 
-export function safeTmuxAttachCommand(tmuxSessionName: string): string {
-  return `tmux attach-session -t ${shellQuote(tmuxSessionName)}`;
+export function safeTmuxAttachCommand(tmuxSessionName: string, tmuxServerName = process.env.EXO_TMUX_SERVER_NAME): string {
+  // Exo runs terminals in a workspace-scoped tmux server. Include that namespace
+  // in human debug commands so a broken/default user tmux server cannot hijack
+  // recovery instructions or make a healthy Exo terminal look unrecoverable.
+  const serverArgs = tmuxServerName ? ` -L ${shellQuote(tmuxServerName)}` : "";
+  return `tmux${serverArgs} attach-session -t ${shellQuote(tmuxSessionName)}`;
 }
 
 function shellQuote(value: string): string {

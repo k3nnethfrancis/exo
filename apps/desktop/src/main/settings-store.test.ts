@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { WorkspaceSettingsStore } from "./settings-store";
+import { applyWorkspaceSettingsToEnv, exoTmuxServerNameForWorkspace, WorkspaceSettingsStore } from "./settings-store";
 import type { WorkspaceSettings } from "@exo/core";
 
 const tempPaths: string[] = [];
@@ -47,6 +47,16 @@ describe("WorkspaceSettingsStore", () => {
       workspaceRoot: "/workspace/active",
       noteRoots: ["/workspace/active/notes"],
     });
+  });
+
+  it("assigns an Exo-owned tmux server namespace for the active workspace", () => {
+    const env: NodeJS.ProcessEnv = {};
+    const settings = workspaceSettings("/workspace/active");
+
+    applyWorkspaceSettingsToEnv(settings, env);
+
+    expect(env.EXO_TMUX_SERVER_NAME).toBe(exoTmuxServerNameForWorkspace("/workspace/active"));
+    expect(env.EXO_TMUX_SERVER_NAME).toMatch(/^exo-[a-f0-9]{10}$/);
   });
 });
 
