@@ -1,4 +1,5 @@
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
 
 import { test, expect, type Page } from "@playwright/test";
 
@@ -16,7 +17,24 @@ const localHarnessEnv = {
 };
 
 test("splits live terminals in monitor mode, reconciles geometry, and persists across relaunch", async () => {
-  const fixture = await launchExoFixture({ env: localHarnessEnv, initialNoteLabel: null });
+  const fixture = await launchExoFixture({
+    env: localHarnessEnv,
+    initialNoteLabel: null,
+    prepareSettings: async ({ userDataRoot }) => {
+      await mkdir(userDataRoot, { recursive: true });
+      await writeFile(
+        path.join(userDataRoot, "onboarding-state.json"),
+        JSON.stringify({
+          version: 1,
+          status: "complete",
+          phase: "done",
+          workspaceBasicsSaved: true,
+          updatedAt: "2026-07-07T00:00:00.000Z",
+          completedAt: "2026-07-07T00:00:00.000Z",
+        }),
+      );
+    },
+  });
   let relaunched: Awaited<ReturnType<typeof relaunchExoFixture>> | null = null;
 
   try {
@@ -51,14 +69,18 @@ test("splits live terminals in monitor mode, reconciles geometry, and persists a
     await page.screenshot({ path: "/tmp/exo-monitor-mode-4-live-sessions.png", fullPage: false });
 
     await page.getByTestId("launch-shell").click();
-    await expect.poll(async () => terminalSessions(page), { timeout: 10_000 }).toHaveLength(5);
-    await expect(page.getByTestId("terminal-surface")).toHaveCount(5);
+    await page.getByTestId("launch-shell").click();
+    await expect.poll(async () => terminalSessions(page), { timeout: 10_000 }).toHaveLength(6);
+    await expect(page.getByTestId("terminal-surface")).toHaveCount(6);
     const sessionsWithCreated = await terminalSessions(page);
     await waitForRendererGeometry(page, sessionsWithCreated.map((session) => session.id));
+    await expectNoGeometryDivergence(page, sessionsWithCreated.map((session) => session.id));
+    await expectReadableSixPaneLayout(page);
+    await page.screenshot({ path: "/tmp/exo-monitor-mode-6-balanced-sessions.png", fullPage: false });
 
     await page.getByTestId("close-terminal-codex").click();
-    await expect.poll(async () => terminalSessions(page), { timeout: 10_000 }).toHaveLength(4);
-    await expect(page.getByTestId("terminal-surface")).toHaveCount(4);
+    await expect.poll(async () => terminalSessions(page), { timeout: 10_000 }).toHaveLength(5);
+    await expect(page.getByTestId("terminal-surface")).toHaveCount(5);
     await expect.poll(async () => terminalSessions(page)).not.toContainEqual(expect.objectContaining({ kind: "codex" }));
 
     await expect.poll(async () => {
@@ -68,9 +90,9 @@ test("splits live terminals in monitor mode, reconciles geometry, and persists a
 
     await fixture.electronApp.close();
     relaunched = await relaunchExoFixture(fixture, { env: localHarnessEnv });
-    await expect.poll(async () => terminalSessions(relaunched!.page), { timeout: 10_000 }).toHaveLength(4);
+    await expect.poll(async () => terminalSessions(relaunched!.page), { timeout: 10_000 }).toHaveLength(5);
     await expect(relaunched.page.getByTestId("terminal-monitor-mode").first()).toHaveAttribute("aria-pressed", "true");
-    await expect(relaunched.page.getByTestId("terminal-surface")).toHaveCount(4);
+    await expect(relaunched.page.getByTestId("terminal-surface")).toHaveCount(5);
 
     const relaunchedSessions = await terminalSessions(relaunched.page);
     await waitForRendererGeometry(relaunched.page, relaunchedSessions.map((session) => session.id));
@@ -165,4 +187,29 @@ function geometryChanged(
   after: { cols: number; rows: number } | null | undefined,
 ): boolean {
   return Boolean(before && after && (before.cols !== after.cols || before.rows !== after.rows));
+}
+
+async function expectReadableSixPaneLayout(page: Page) {
+  const boxes = await page.getByTestId("terminal-surface").evaluateAll((nodes) =>
+    nodes.map((node) => {
+      const rect = node.getBoundingClientRect();
+      return {
+        left: rect.left,
+        right: rect.right,
+        top: rect.top,
+        bottom: rect.bottom,
+        width: rect.width,
+        height: rect.height,
+      };
+    }),
+  );
+
+  expect(boxes).toHaveLength(6);
+  const totalWidth = Math.max(...boxes.map((box) => box.right)) - Math.min(...boxes.map((box) => box.left));
+  const totalHeight = Math.max(...boxes.map((box) => box.bottom)) - Math.min(...boxes.map((box) => box.top));
+  const minWidth = Math.min(...boxes.map((box) => box.width));
+  const minHeight = Math.min(...boxes.map((box) => box.height));
+
+  expect(minWidth, `Six-pane monitor layout should avoid skinny columns: ${JSON.stringify(boxes)}`).toBeGreaterThan(totalWidth * 0.2);
+  expect(minHeight, `Six-pane monitor layout should keep rows readable: ${JSON.stringify(boxes)}`).toBeGreaterThan(totalHeight * 0.38);
 }

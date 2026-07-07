@@ -207,31 +207,9 @@ export function addTerminalSessionAsSplit(tree: PaneNode, sessionId: string, tar
     };
   }
 
-  const newLeafId = paneId();
-  const newLeaf: PaneLeaf = {
-    kind: "leaf",
-    id: newLeafId,
-    content: {
-      kind: "terminal",
-      terminalIds: [sessionId],
-      activeTerminalId: sessionId,
-    },
-  };
-
   return {
-    tree: updateNode(tree, targetLeaf.id, (node) => {
-      if (node.kind !== "leaf") {
-        return node;
-      }
-      return {
-        kind: "split",
-        id: paneId(),
-        direction: "horizontal",
-        ratio: 0.5,
-        children: [node, newLeaf],
-      };
-    }),
-    leafId: newLeafId,
+    tree: buildTerminalMonitorTree([...collectTerminalSessionIdsInOrder(tree), sessionId], sessionId),
+    leafId: terminalMonitorLeafId(sessionId),
   };
 }
 
@@ -327,6 +305,12 @@ export function countTerminalSessions(tree: PaneNode): number {
 
 function uniqueTerminalSessionIds(sessionIds: string[]): string[] {
   return Array.from(new Set(sessionIds));
+}
+
+function collectTerminalSessionIdsInOrder(tree: PaneNode): string[] {
+  return uniqueTerminalSessionIds(
+    collectLeaves(tree).flatMap((leaf) => leaf.content.kind === "terminal" ? leaf.content.terminalIds : []),
+  );
 }
 
 function terminalMonitorLeafId(sessionId: string): PaneNodeId {

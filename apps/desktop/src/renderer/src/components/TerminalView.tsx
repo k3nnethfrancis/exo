@@ -87,6 +87,7 @@ export function TerminalView(props: TerminalViewProps) {
       minimumContrastRatio: 4.5,
       scrollback: scrollbackLines,
       theme: exoXtermTheme(theme),
+      allowProposedApi: true,
     });
     const fitAddon = new FitAddon();
     const unicode11Addon = new Unicode11Addon();

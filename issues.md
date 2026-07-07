@@ -8,6 +8,32 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ## Open
 
+### EXO-ISSUE-099: Monitor Mode live additions make skinny repeated columns
+
+- Status: fixed in refreshed draft PR for GitHub issue #33
+- Severity: medium
+- Area: terminal monitor mode, pane tree, terminal geometry, Exo-on-Exo observability
+- Source:
+  - GitHub issue #33: https://github.com/k3nnethfrancis/exo/issues/33
+- Observed:
+  - Entering Monitor Mode with an existing session list uses the balanced monitor tree.
+  - Creating or attaching additional sessions while Monitor Mode is already enabled used the live-add split path, which wrapped the target leaf in a fixed horizontal split.
+  - Repeated additions could therefore degrade into narrow repeated columns instead of a readable grid.
+- Expected:
+  - Entering Monitor Mode and adding sessions while already in Monitor Mode should converge on the same deterministic balanced pane tree.
+  - Stable monitor leaf ids derived from terminal session ids should be preserved where possible.
+  - Common multi-agent counts should remain readable, especially 2, 3, 4, 5, 6, and 8 sessions.
+- Acceptance:
+  - [x] Define expected split-tree shapes for 1 through 8 terminal sessions.
+  - [x] Update live Monitor Mode additions to rebuild through the balanced monitor tree using current terminal session order.
+  - [x] Preserve stable `terminal-session:<id>` monitor leaf ids.
+  - [x] Add focused unit coverage for balanced shapes and live-add convergence.
+  - [x] Run Electron Monitor Mode QA with at least six live sessions and capture screenshot evidence.
+- Fix notes:
+  - Live Monitor Mode additions now rebuild through the same balanced monitor tree as initial Monitor Mode entry, preserving `terminal-session:<id>` leaf ids.
+  - The refreshed Electron QA also caught a terminal mount crash from xterm's Unicode 11 addon requiring `allowProposedApi`; terminal construction now enables that API so the Unicode width addon can load.
+  - 2026-07-07 QA evidence: focused Monitor Mode Electron e2e passed with six live sessions, no geometry divergence, relaunch persistence, and screenshot `/tmp/exo-monitor-mode-6-balanced-sessions.png`.
+
 ### EXO-ISSUE-098: Terminal input drops spaces/backspace state and gets stuck unavailable/restoring
 
 - Status: fixed in `main`; user should QA on the affected machine after update
