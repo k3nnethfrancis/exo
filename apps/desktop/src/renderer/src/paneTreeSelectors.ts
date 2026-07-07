@@ -190,48 +190,15 @@ export function addTerminalSessionAsSplit(tree: PaneNode, sessionId: string, tar
 
   if (targetLeaf.content.kind === "terminal" && targetLeaf.content.terminalIds.length === 0) {
     return {
-      tree: updateNode(tree, targetLeaf.id, (node) => {
-        if (node.kind !== "leaf" || node.content.kind !== "terminal") {
-          return node;
-        }
-        return {
-          ...node,
-          content: {
-            ...node.content,
-            terminalIds: [sessionId],
-            activeTerminalId: sessionId,
-          },
-        };
-      }),
-      leafId: targetLeaf.id,
+      tree: buildTerminalMonitorTree([sessionId], sessionId),
+      leafId: terminalMonitorLeafId(sessionId),
     };
   }
 
-  const newLeafId = paneId();
-  const newLeaf: PaneLeaf = {
-    kind: "leaf",
-    id: newLeafId,
-    content: {
-      kind: "terminal",
-      terminalIds: [sessionId],
-      activeTerminalId: sessionId,
-    },
-  };
-
+  const nextSessionIds = uniqueTerminalSessionIds([...collectTerminalSessionOrder(tree), sessionId]);
   return {
-    tree: updateNode(tree, targetLeaf.id, (node) => {
-      if (node.kind !== "leaf") {
-        return node;
-      }
-      return {
-        kind: "split",
-        id: paneId(),
-        direction: "horizontal",
-        ratio: 0.5,
-        children: [node, newLeaf],
-      };
-    }),
-    leafId: newLeafId,
+    tree: buildTerminalMonitorTree(nextSessionIds, sessionId),
+    leafId: terminalMonitorLeafId(sessionId),
   };
 }
 
@@ -327,6 +294,12 @@ export function countTerminalSessions(tree: PaneNode): number {
 
 function uniqueTerminalSessionIds(sessionIds: string[]): string[] {
   return Array.from(new Set(sessionIds));
+}
+
+function collectTerminalSessionOrder(tree: PaneNode): string[] {
+  return collectLeaves(tree).flatMap((leaf) =>
+    leaf.content.kind === "terminal" ? leaf.content.terminalIds : [],
+  );
 }
 
 function terminalMonitorLeafId(sessionId: string): PaneNodeId {
