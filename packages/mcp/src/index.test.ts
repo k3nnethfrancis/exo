@@ -6,12 +6,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import * as z from "zod/v4";
 
 import { createExoMcpServer } from "./index";
+import { mcpToolsForExposureProfile } from "@exo/core/control-plane-catalog";
 import { captureFakeHarnessTraceFixture, SemanticTraceStore } from "@exo/core/semantic-trace-store";
 
 const tempPaths: string[] = [];
 
 afterEach(async () => {
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
   vi.unstubAllGlobals();
   await Promise.all(tempPaths.splice(0).map((target) => rm(target, { recursive: true, force: true })));
 });
@@ -22,20 +24,52 @@ describe("Exo MCP server tools", () => {
       _registeredTools: Record<string, unknown>;
     };
 
-    expect(Object.keys(server._registeredTools).sort()).toEqual([
-      "close_preview",
-      "create_agent",
-      "focus_preview",
-      "interrupt_agent",
-      "list_agents",
-      "open_preview",
-      "read_agent",
-      "read_document",
-      "search",
-      "send_agent_message",
-      "terminate_agent",
-      "workspace_status",
-    ]);
+    expect(Object.keys(server._registeredTools).sort()).toEqual(mcpToolsForExposureProfile("dev"));
+  });
+
+  it("supports MCP exposure profiles from the control-plane catalog", () => {
+    vi.stubEnv("EXO_MCP_EXPOSURE_PROFILE", "everyday");
+    let server = createExoMcpServer() as unknown as {
+      _registeredTools: Record<string, unknown>;
+    };
+    expect(Object.keys(server._registeredTools).sort()).toEqual(mcpToolsForExposureProfile("everyday"));
+
+    vi.stubEnv("EXO_MCP_EXPOSURE_PROFILE", "off");
+    server = createExoMcpServer() as unknown as {
+      _registeredTools: Record<string, unknown>;
+    };
+    expect(Object.keys(server._registeredTools)).toEqual([]);
+
+    vi.stubEnv("EXO_MCP_EXPOSURE_PROFILE", "custom");
+    vi.stubEnv("EXO_MCP_TOOLS", "workspace_status,search,missing");
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    server = createExoMcpServer() as unknown as {
+      _registeredTools: Record<string, unknown>;
+    };
+    expect(Object.keys(server._registeredTools).sort()).toEqual(["search", "workspace_status"]);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Ignoring unknown EXO_MCP_TOOLS entries: missing"));
+  });
+
+  it("fails closed for invalid MCP exposure config", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.stubEnv("EXO_MCP_EXPOSURE_PROFILE", "everday");
+
+    const server = createExoMcpServer() as unknown as {
+      _registeredTools: Record<string, unknown>;
+    };
+
+    expect(Object.keys(server._registeredTools)).toEqual([]);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Unknown EXO_MCP_EXPOSURE_PROFILE"));
+  });
+
+  it("treats custom MCP exposure with no allow-list as no registered tools", () => {
+    vi.stubEnv("EXO_MCP_EXPOSURE_PROFILE", "custom");
+
+    const server = createExoMcpServer() as unknown as {
+      _registeredTools: Record<string, unknown>;
+    };
+
+    expect(Object.keys(server._registeredTools)).toEqual([]);
   });
 
   it("does not advertise a hidden read_agent maxLines cap", () => {

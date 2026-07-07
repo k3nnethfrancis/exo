@@ -58,6 +58,8 @@ Optional environment:
 - `EXO_MCP_REQUEST_TIMEOUT_MS` — normal command-server request timeout. Defaults to `2000`.
 - `EXO_MCP_SEARCH_TIMEOUT_MS` — search request timeout for QMD advanced retrieval. Defaults to `30000`.
 - `EXO_MCP_MAINTENANCE_TIMEOUT_MS` — long-running index maintenance timeout. Defaults to `1800000`.
+- `EXO_MCP_EXPOSURE_PROFILE` — MCP tool exposure profile. Defaults to `dev` to preserve Exo-on-Exo orchestration. Use `everyday` for orientation/search/read/preview only, `off` for no registered tools, or `custom` with `EXO_MCP_TOOLS`.
+- `EXO_MCP_TOOLS` — comma-separated MCP tool allow-list used only when `EXO_MCP_EXPOSURE_PROFILE=custom`.
 
 Without autostart, Exo must already be running so the MCP server can discover `.exo/server.json` and talk to the local command server.
 
@@ -86,6 +88,9 @@ Equivalent env vars are `EXO_MCP_HTTP_HOST`, `EXO_MCP_HTTP_PORT`, and `EXO_MCP_H
 
 ## Tools
 
+MCP tool registration is filtered through the control-plane catalog in `@exo/core`.
+The default `dev` profile exposes the full current Exo-on-Exo surface:
+
 - `workspace_status` — inspect the active Exo workspace model, note/project/indexed roots, live agents and terminal diagnostics, QMD/search-provider readiness, index summary, and command-server degraded-state messages when available.
 - `search` — search notes through the bundled QMD advanced provider when enabled, with core filesystem fallback when QMD is off or unavailable.
 - `read_document` — read an indexed or filesystem note/document target.
@@ -98,6 +103,8 @@ Equivalent env vars are `EXO_MCP_HTTP_HOST`, `EXO_MCP_HTTP_PORT`, and `EXO_MCP_H
 - `send_agent_message` — send text to a live agent. `submit` defaults to `true`, so the message is submitted with Enter unless explicitly disabled. Codex startup sends may be queued until normal chat input is ready.
 - `interrupt_agent` — send Escape or Ctrl-C to a live agent.
 - `terminate_agent` — terminate an Exo terminal and its tmux-backed session.
+
+The `everyday` profile exposes only `workspace_status`, `search`, `read_document`, `open_preview`, `focus_preview`, and `close_preview`. It is not strictly read-only because preview tools can change the visible app preview pane, but it intentionally excludes live agent lifecycle, input, destructive, and admin controls. The `custom` profile registers only tools named in `EXO_MCP_TOOLS`; unknown names are ignored with a startup warning. Invalid explicit profile names fail closed by registering no tools.
 
 MCP is intentionally narrower than the CLI. Use `bin/exo index ...`, `bin/exo project-roots ...`, and `bin/exo terminals ...` for operator/admin/debug workflows.
 

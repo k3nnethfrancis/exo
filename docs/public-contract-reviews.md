@@ -58,6 +58,8 @@ Escape hatch: if a repo check flags a change that is genuinely implementation-on
 
 - sha256: `949ef6196644ed7eec3b21fb5eeb285da7d804e8e50ce260b33e69df7dbe5f4b`
 - review: guard-baseline: 2026-07-04 existing MCP tool schema and parameter declaration surface; guard cleanup does not change behavior.
+- sha256: `aab06ee22975d9315b4e2149bd01d5883a27b166144f0ee24198d4bd03cf8d35`
+- review: architect-review: 2026-07-07 Fable CLI review approved catalog-driven MCP exposure profiles after hardening: default remains `dev`, profiles are narrowing-only, invalid explicit profiles fail closed, custom unknown tools warn, catalog/registration parity is mechanically tested, `everyday` is documented as not strictly read-only because it includes bounded preview view-control tools, and the future default flip criterion is recorded.
 
 ### `packages/mcp/src/exo-client.ts#route-client-methods`
 

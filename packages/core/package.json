@@ -8,6 +8,7 @@
     ".": "./src/index.ts",
     "./agent-harness-registry": "./src/agent-harness-registry.ts",
     "./command-protocol": "./src/command-protocol.ts",
+    "./control-plane-catalog": "./src/control-plane-catalog.ts",
     "./plugin-permissions": "./src/plugin-permissions.ts",
     "./profile": "./src/profile.ts",
     "./profile-plan": "./src/profile-plan.ts",

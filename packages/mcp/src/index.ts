@@ -12,6 +12,13 @@ import { DEFAULT_TERMINAL_MAX_READ_TAIL_CHARS, DEFAULT_TERMINAL_READ_TAIL_CHARS 
 import { semanticTraceEventsToAgentAnswerText } from "@exo/core/semantic-trace";
 import { SemanticTraceStore } from "@exo/core/semantic-trace-store";
 import {
+  isMcpToolExposed,
+  isControlPlaneExposureProfile,
+  isKnownMcpToolName,
+  parseMcpCustomToolList,
+  type ControlPlaneExposureProfile,
+} from "@exo/core/control-plane-catalog";
+import {
   formatRegisteredAgentHarnessUsage,
 } from "@exo/core/agent-harness-registry";
 import * as z from "zod/v4";
@@ -42,12 +49,55 @@ export function createExoMcpServer(): McpServer {
     name: "exo",
     version: "0.1.0",
   });
-  registerExoTools(server);
+  registerExoTools(server, mcpExposureFromEnv(process.env));
   return server;
 }
 
-function registerExoTools(server: McpServer) {
-  server.registerTool(
+type McpExposure = {
+  profile: ControlPlaneExposureProfile;
+  customTools: string[];
+};
+
+function warnMcpExposure(message: string) {
+  console.warn(`[exo:mcp] ${message}`);
+}
+
+function mcpExposureFromEnv(env: NodeJS.ProcessEnv): McpExposure {
+  const rawProfile = env.EXO_MCP_EXPOSURE_PROFILE?.trim();
+  let profile: ControlPlaneExposureProfile;
+  if (!rawProfile) {
+    profile = "dev";
+  } else if (isControlPlaneExposureProfile(rawProfile)) {
+    profile = rawProfile;
+  } else {
+    // Fail closed on typos. A misspelled narrowing profile must not silently expose the dev surface.
+    warnMcpExposure(`Unknown EXO_MCP_EXPOSURE_PROFILE=${JSON.stringify(rawProfile)}; registering no MCP tools.`);
+    profile = "off";
+  }
+
+  const requestedCustomTools = parseMcpCustomToolList(env.EXO_MCP_TOOLS);
+  if (profile === "custom") {
+    const unknownTools = requestedCustomTools.filter((tool) => !isKnownMcpToolName(tool));
+    if (unknownTools.length > 0) {
+      warnMcpExposure(`Ignoring unknown EXO_MCP_TOOLS entries: ${unknownTools.join(", ")}`);
+    }
+  }
+
+  return {
+    profile,
+    customTools: requestedCustomTools,
+  };
+}
+
+function registerExoTools(server: McpServer, exposure: McpExposure) {
+  const registerTool = ((name: string, config: unknown, callback: unknown) => {
+    if (!isMcpToolExposed(name, exposure.profile, exposure.customTools)) {
+      return undefined as never;
+    }
+    return (server.registerTool as (toolName: string, toolConfig: unknown, toolCallback: unknown) => unknown)(name, config, callback);
+  }) as McpServer["registerTool"];
+
+  registerTool(
   "workspace_status",
   {
     title: "Workspace Status",
@@ -82,7 +132,7 @@ function registerExoTools(server: McpServer) {
   },
 );
 
-server.registerTool(
+registerTool(
   "search",
   {
     title: "Search Exo",
@@ -112,7 +162,7 @@ server.registerTool(
   },
 );
 
-server.registerTool(
+registerTool(
   "read_document",
   {
     title: "Read Document",
@@ -140,7 +190,7 @@ server.registerTool(
   },
 );
 
-server.registerTool(
+registerTool(
   "open_preview",
   {
     title: "Open Exo Preview",
@@ -173,7 +223,7 @@ server.registerTool(
   },
 );
 
-server.registerTool(
+registerTool(
   "focus_preview",
   {
     title: "Focus Exo Preview",
@@ -197,7 +247,7 @@ server.registerTool(
   },
 );
 
-server.registerTool(
+registerTool(
   "close_preview",
   {
     title: "Close Exo Preview",
@@ -220,7 +270,7 @@ server.registerTool(
   },
 );
 
-server.registerTool(
+registerTool(
   "list_agents",
   {
     title: "List Exo Agents",
@@ -243,7 +293,7 @@ server.registerTool(
   },
 );
 
-server.registerTool(
+registerTool(
   "create_agent",
   {
     title: "Create Exo Agent",
@@ -272,7 +322,7 @@ server.registerTool(
   },
 );
 
-server.registerTool(
+registerTool(
   "read_agent",
   {
     title: "Read Exo Agent",
@@ -320,7 +370,7 @@ server.registerTool(
   },
 );
 
-server.registerTool(
+registerTool(
   "send_agent_message",
   {
     title: "Send Exo Agent Message",
@@ -352,7 +402,7 @@ server.registerTool(
   },
 );
 
-server.registerTool(
+registerTool(
   "terminate_agent",
   {
     title: "Terminate Exo Agent",
@@ -378,7 +428,7 @@ server.registerTool(
   },
 );
 
-server.registerTool(
+registerTool(
   "interrupt_agent",
   {
     title: "Interrupt Exo Agent",

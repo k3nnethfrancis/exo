@@ -185,6 +185,8 @@ Exo exposes a narrow MCP work plane for agents and a broader CLI control plane f
 - `interrupt_agent`
 - `terminate_agent`
 
+By default, MCP uses the `dev` exposure profile so Exo-on-Exo coordination keeps the full current tool surface. Set `EXO_MCP_EXPOSURE_PROFILE=everyday` to expose only orientation/search/read/preview tools, `off` to register no tools, or `custom` with `EXO_MCP_TOOLS=workspace_status,search` style allow-lists. Invalid explicit profile names fail closed by registering no tools.
+
 Install Exo MCP into supported local agent clients:
 
 ```bash

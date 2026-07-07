@@ -239,20 +239,14 @@ function linesMatching(content, patterns) {
 
 function extractMcpToolSchemas(content) {
   const slices = [];
-  let searchFrom = 0;
-  const needle = 'server.registerTool(';
-  while (true) {
-    const start = content.indexOf(needle, searchFrom);
-    if (start === -1) {
-      break;
-    }
+  const toolStarts = Array.from(content.matchAll(/(?:server\.)?registerTool\(/g), (match) => match.index).filter((index) => index !== undefined);
+  for (const start of toolStarts) {
     const callbackStart = content.indexOf('\n  async', start);
     if (callbackStart === -1) {
       slices.push(content.slice(start));
       break;
     }
     slices.push(content.slice(start, callbackStart).trim());
-    searchFrom = callbackStart + 1;
   }
   return slices.join('\n\n');
 }

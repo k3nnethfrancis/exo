@@ -2,7 +2,7 @@
 
 Last updated: 2026-07-07
 
-Status: design-only. This note proposes the future catalog and exposure profiles for Exo CLI/MCP control surfaces. It does not change MCP tool registration, CLI commands, command-server routes, shared protocol payloads, plugin behavior, or settings UI.
+Status: partially implemented. `@exo/core` now owns a typed control-plane catalog and MCP exposure profiles. `packages/mcp` uses that catalog to filter registered MCP tools through `EXO_MCP_EXPOSURE_PROFILE` and `EXO_MCP_TOOLS`. This does not change CLI commands, command-server routes, shared protocol payloads, plugin behavior, or settings UI.
 
 ## Decision Direction
 
@@ -28,7 +28,9 @@ The catalog is policy metadata, not authority by itself. MCP exposure is enforce
 | `dev` | Exo-on-Exo development and supervised local agent orchestration. | All current MCP tools, including live agent lifecycle/input controls. | Recommend CLI for indexing, project roots, diagnostics, terminal/admin work, and MCP integration management. |
 | `custom` | User-reviewed per-tool membership. | User selects exact MCP tools from the catalog, with risk labels and profile diffs. | User selects which CLI command families are described/advised to agents; enforcement still needs command-server auth. |
 
-Do not ship public MCP tool filtering, a settings UI, or profile-controlled tool membership until the user confirms the membership table and the implementation has a public-contract review. This pass only records the proposal.
+Public MCP filtering is implemented as an environment/config surface with `dev` as the default, preserving the current full Exo-on-Exo tool set unless explicitly narrowed. Invalid explicit profiles fail closed to no registered tools. A settings UI and profile-controlled tool membership still require a separate public-contract review.
+
+`everyday` is not a strictly read-only profile: it includes bounded `view-control` preview tools so agents can open local artifacts for review. It intentionally excludes agent lifecycle, agent input, destructive, and admin tools.
 
 ## Proposed MCP Membership Table
 
@@ -47,7 +49,9 @@ Do not ship public MCP tool filtering, a settings UI, or profile-controlled tool
 | `interrupt_agent` | `POST /terminals/:id/write` | agent-input | No | No | Yes | Sends Escape or Ctrl-C. Non-destructive in schema terms but can interrupt work. |
 | `terminate_agent` | `DELETE /terminals/:id` | destructive | No | No | Yes | Stops a terminal/session. Keep out of everyday and require clear user/operator intent. |
 
-Open question for sign-off: whether `open_preview`, `focus_preview`, and `close_preview` belong in `everyday` or should move to `dev` because they mutate the app layout.
+Decision for this implementation: `open_preview`, `focus_preview`, and `close_preview` stay in `everyday` because they are bounded core web-viewer controls useful for artifact review. They remain marked `view-control`, not read-only, so future UI/profile copy can show the layout-mutation tradeoff. `everyday` membership is an explicit reviewed list, not derived automatically from risk classes.
+
+Future default flip criterion: keep `dev` as the default while Exo-on-Exo coordination depends on the full local work plane. When daily-driver agents can operate through orientation/search/read/preview plus explicit user-triggered escalation, make `everyday` the default and `dev` opt-in.
 
 ## Future Directory And Index Navigation Tools
 

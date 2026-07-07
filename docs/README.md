@@ -16,7 +16,7 @@ This directory contains committed, public-facing project context. It should be u
 - `plugin-system-architecture.md` - canonical core-versus-plugin target architecture.
 - `plugin-architecture-audit.md` - plugin decision/fallback audit and hardening policy.
 - `public-contract-reviews.md` - SHA-256 review-note ledger for guarded command-server, CLI, MCP, and shared protocol surfaces.
-- `control-plane-catalog.md` - design-only proposal for future CLI/MCP exposure profiles, tool catalog metadata, and directory/index navigation tools.
+- `control-plane-catalog.md` - implemented core catalog and MCP exposure-profile policy, plus future CLI/profile navigation notes.
 - `profile-plugin-management-plan.md` - near-term plan for active profiles, Plugin Manager, Settings/Profile, and plugin lifecycle UX.
 - `onboarding-settings-boundaries.md` - product ownership map for onboarding, Settings, Plugin Manager, Agent Config, Routine Manager, and Profile Manager.
 - `activity-plugin-contract.md` - minimal activity/artifact/provenance/review substrate boundary for plugin workloads.
@@ -58,7 +58,7 @@ These remain in place for traceability but should not be treated as the latest a
 13. `plugin-system-architecture.md` - core-versus-plugin target architecture
 14. `plugin-architecture-audit.md` - plugin decision/fallback audit and hardening policy
 15. `public-contract-reviews.md` - public contract guard ledger for command-server, CLI, MCP, and shared protocol surfaces
-16. `control-plane-catalog.md` - design-only proposal for future CLI/MCP exposure profiles and catalog metadata
+16. `control-plane-catalog.md` - implemented core catalog and MCP exposure-profile policy, plus future CLI/profile navigation notes
 17. `profile-plugin-management-plan.md` - current product and implementation plan for profile/plugin management UX
 18. `onboarding-settings-boundaries.md` - current IA boundary for first-run setup versus ongoing management
 19. `plugins.md` - plugin architecture direction
@@ -89,7 +89,7 @@ These remain in place for traceability but should not be treated as the latest a
 - `plugin-system-architecture.md` defines which platform surfaces stay core versus become bundled/external plugins.
 - `plugin-architecture-audit.md` records plugin fallback decisions, rejected shortcuts, and hardening rules.
 - `public-contract-reviews.md` records the review-note hashes that `pnpm check:repo` requires before protected public contract files can change.
-- `control-plane-catalog.md` proposes future MCP/CLI exposure profiles and catalog metadata without changing public contracts.
+- `control-plane-catalog.md` defines the core control-plane catalog, current MCP exposure profiles, and future MCP/CLI profile directions.
 - `profile-plugin-management-plan.md` defines how onboarding, Settings/Profile, Plugin Manager, active profile state, and status-bar review affordances should fit together.
 - `onboarding-settings-boundaries.md` defines which concepts belong to onboarding, Settings, Plugin Manager, Agent Config, Routine Manager, and Profile Manager.
 - `plugins.md` tracks the intended extension model.

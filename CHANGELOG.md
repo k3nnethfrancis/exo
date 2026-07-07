@@ -24,6 +24,7 @@ Plugin architecture, tmux terminal persistence/readiness, packaged onboarding ha
 - Adds Project Knowledge Sync profile metadata, terminal monitor mode, `Cmd+T` new-terminal shortcut, stable smoke coverage, and monitor-mode QA coverage.
 - Adds staged onboarding profile setup, profile-choice surfacing in settings, agent instruction sync flow foundations, and GitHub-first Exo issue submission skill updates.
 - Adds dynamic Exograph agent-context generation that includes active workspace roots, notes/project roots, indexed-search mode guidance, and MCP/CLI surface guidance before applying the managed global instruction block.
+- Adds a typed control-plane catalog for MCP/CLI/Desktop/Internal surfaces and MCP exposure profiles (`dev`, `everyday`, `off`, and `custom`) so local agent tool access can be narrowed without changing the default Exo-on-Exo surface.
 
 ### Changed
 
@@ -46,6 +47,7 @@ Plugin architecture, tmux terminal persistence/readiness, packaged onboarding ha
 - Clarifies official/local plugin inventory, external contract status rules, public-contract review guardrails, proposal review flow, and core-versus-plugin boundaries in docs and skills.
 - Consolidates active Exo trackers to root `issues.md` and `tasks.md`, with docs reserved for durable architecture/product references.
 - Moves project change indicators into the explorer tree, reduces folder/editor chrome weight, and keeps project Markdown files on the Markdown renderer path.
+- Wires MCP tool registration through the control-plane catalog, keeps `dev` as the default full tool surface, fails closed on invalid explicit exposure profiles, and warns when custom MCP tool allow-lists contain unknown tool names.
 
 ### Fixed
 

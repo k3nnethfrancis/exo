@@ -46,4 +46,5 @@ export * from "./surface-descriptor";
 export * from "./search-provider";
 export * from "./search-provider-registry";
 export * from "./command-protocol";
+export * from "./control-plane-catalog";
 export * from "./integrations";

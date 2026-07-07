@@ -201,12 +201,16 @@ Integration setup commands:
 - `search`
 - `read_document`
 - `open_preview`
+- `focus_preview`
+- `close_preview`
 - `list_agents`
 - `create_agent`
 - `read_agent`
 - `send_agent_message`
 - `interrupt_agent`
 - `terminate_agent`
+
+MCP tool registration is filtered by the control-plane catalog in `@exo/core`. The default `dev` profile exposes the full current Exo-on-Exo surface. `EXO_MCP_EXPOSURE_PROFILE=everyday` narrows MCP to orientation/search/read/preview tools, `off` registers no tools, and `custom` uses `EXO_MCP_TOOLS` as a comma-separated allow-list. CLI remains the broader operator/admin/debug surface; the MCP profile does not add command-server authorization for local CLI users.
 
 Future MCP additions should be tested against this rule: can an agent use this tool to do useful work in the current workspace without gaining broad admin/debug power? Good candidates are scoped document graph/context inspection, allowed note creation/append/guarded patch, opening agent-produced artifacts through the core web viewer, and agent communication. Bad candidates are provider installation, index maintenance, project-root mutation, raw terminal writes, and app repair.
 
