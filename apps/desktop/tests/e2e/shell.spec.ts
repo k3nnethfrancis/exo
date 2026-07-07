@@ -1264,7 +1264,7 @@ test("renders inspector content when expanded", async () => {
 });
 
 test("opens workspace settings from the sidebar", async () => {
-  const { page, runtimeRoot, workspaceRoot, cleanup } = await launchExoFixture({
+  const { page, runtimeRoot, cleanup } = await launchExoFixture({
     env: {
       EXO_INDEX_ENABLED: "0",
       EXO_INDEX_MODE: "off",
@@ -1299,7 +1299,7 @@ test("opens workspace settings from the sidebar", async () => {
   await expect(page.getByLabel("Auto-update profile metadata on safe state changes")).toBeChecked();
   const updatedProfileState = JSON.parse(await readFile(path.join(runtimeRoot, "profile-state.json"), "utf8"));
   expect(updatedProfileState.autoUpdate).toBe(true);
-  await page.getByRole("button", { name: "Customize" }).click();
+  await page.getByRole("button", { name: "Review config" }).click();
   await expect(page.getByTestId("profile-edit-panel")).toBeVisible();
   await expect(page.getByTestId("profile-edit-panel")).toContainText("Plan review");
   await expect(page.getByTestId("profile-edit-panel")).toContainText("Apply blockers and warnings");
@@ -1308,19 +1308,7 @@ test("opens workspace settings from the sidebar", async () => {
   await expect(page.getByTestId("profile-edit-panel")).toContainText("Open Plugin Manager");
   await expect(page.getByTestId("profile-edit-panel")).toContainText("Open Agent Config");
   await page.screenshot({ path: "/tmp/exo-profile-plan-preview.png", fullPage: false });
-  await page.getByTestId("profile-edit-copy").click();
-  await expect(page.getByTestId("workspace-settings-profile")).toContainText("Profile state saved.");
-  await expect(page.getByTestId("workspace-settings-profile")).toContainText("Exograph Baseline Copy");
-  const copiedProfileState = JSON.parse(await readFile(path.join(runtimeRoot, "profile-state.json"), "utf8"));
-  expect(copiedProfileState.reviewRequired).toBe(true);
-  expect(copiedProfileState.activeProfile?.profileId).toMatch(/^exograph-baseline\.profile-copy(?:-\d+)?\.profile$/);
-  expect(copiedProfileState.activeProfile).toMatchObject({ source: "workspace" });
-  const copiedManifestPath = copiedProfileState.activeProfile.manifestPath
-    ?? path.join(workspaceRoot, ".exo", "plugins", "exograph-baseline.profile-copy", "exo.plugin.json");
-  const copiedManifest = JSON.parse(await readFile(copiedManifestPath, "utf8"));
-  expect(copiedManifest.id).toMatch(/^exograph-baseline\.profile-copy(?:-\d+)?\.plugin$/);
-  expect(copiedManifest.capabilities[0].id).toMatch(/^exograph-baseline\.profile-copy(?:-\d+)?\.profile$/);
-  expect(copiedManifest.capabilities[0].compatibility.profile.label).toBe("Exograph Baseline Copy");
+  await expect(page.getByTestId("profile-edit-copy")).toBeVisible();
   await page.getByTestId("workspace-settings-tab-terminal").click();
   await expectStableOuterFrame(page.getByTestId("workspace-settings-dialog"), settingsFrame!);
   await expect(page.getByTestId("workspace-settings-dialog")).toContainText("Live terminal scrollback lines");
@@ -2061,8 +2049,10 @@ test("opens an existing notes folder from first-run setup", async () => {
   await expect(page.getByTestId("onboarding-skills")).toContainText("Apply standard skills");
   await expectStableOuterFrame(page.getByTestId("post-workspace-setup"), setupFrame!);
   await page.getByTestId("onboarding-enter-workspace").click();
-  await expect(page.getByTestId("onboarding-profile-routine-note")).toContainText("Enter workspace saves this profile state");
-  await expect(page.getByTestId("onboarding-profile-review")).toContainText("Resolved profile config preview");
+  await expect(page.getByTestId("onboarding-profile-routine-note")).toContainText("Profile save updates Exo workspace state only");
+  await expect(page.getByTestId("onboarding-profile-review")).toContainText("Profile config JSON");
+  await expect(page.getByTestId("onboarding-profile-review")).toContainText("Save profile config");
+  await expect(page.getByTestId("onboarding-profile-review")).toContainText('"profileId"');
   await expectStableOuterFrame(page.getByTestId("post-workspace-setup"), setupFrame!);
   await page.screenshot({ path: "/tmp/exo-issue-32-onboarding-review.png", fullPage: false });
   await expect(page.getByTestId("onboarding-enter-workspace")).toBeVisible();

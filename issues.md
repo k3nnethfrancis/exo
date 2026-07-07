@@ -48,8 +48,9 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - [x] Remove shell from user-facing agent harness/profile/routine surfaces; decide whether core metadata needs a new terminal substrate/tool capability or a stricter UI filter.
     - 2026-07-07: User-facing surfaces now use a centralized renderer predicate to hide shell from agent-harness choice lists while preserving shell as the terminal tool and preserving existing CLI/MCP/core compatibility. A reviewed core `promptable: false` metadata field remains a future cleanup, not a silent contract change.
   - [x] Collapse advanced Pi custom config by default and keep normal harness rows visually aligned.
-  - [ ] Update docs/tasks/changelog and add focused renderer/e2e UI coverage.
-  - [ ] Run app QA screenshots for onboarding, Agent Config, Plugin Manager, Profile/Settings, and skill management before handoff.
+  - [x] Update docs/tasks/changelog and add focused renderer/e2e UI coverage.
+  - [x] Run app QA screenshots for onboarding, Agent Config, Plugin Manager, Profile/Settings, and skill management before handoff.
+    - 2026-07-07: Fable re-review cleared the blocker fixes after `5c2d30b`: instruction-file sync is honestly labeled, confirmation-gated, and no longer presented as a merge; raw profile config editing is confirmed as onboarding-only while Settings/Profile remains review/copy/deep-link. Focused renderer/service tests, typecheck, desktop build, repo check, and Electron app QA passed. App QA covered first-run onboarding through Plugins/Routines/Agent Context/Skills/Profile, Workspace Settings/Profile, instruction-file sync, and Agent Config Skills. Screenshots were written to `/tmp/exo-issue-32-onboarding-plugins.png`, `/tmp/exo-issue-32-onboarding-review.png`, `/tmp/exo-workspace-settings-workspace.png`, `/tmp/exo-workspace-settings-index.png`, `/tmp/exo-workspace-settings-profile.png`, `/tmp/exo-profile-plan-preview.png`, and `/tmp/exo-agent-config-skills.png`.
 
 ### EXO-ISSUE-098: Terminal input drops spaces/backspace state and gets stuck unavailable/restoring
 

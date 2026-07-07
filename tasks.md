@@ -32,7 +32,7 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
     - [x] Simplify Profile onboarding to direct profile name/config editing and immediate save.
     - [x] Hide shell from user-facing promptable harness/profile/routine selectors while keeping shell as a core terminal tool.
     - [x] Collapse advanced custom Pi config by default.
-    - [ ] Complete final app QA screenshots and Fable post-implementation review before user dogfooding.
+    - [x] Complete final app QA screenshots and Fable post-implementation review before user dogfooding.
   - [ ] Complete Fable Wave-4 dogfooding gates before declaring plugin architecture ready for real-vault use:
     - [x] WP-QA-PM: rerun Plugin Manager/onboarding read-only app QA against current source after recent UI/plugin changes.
       - 2026-07-05 evidence: source Exo app was restarted from `main`; Computer Use could not inspect the remote Electron window, so app QA used focused Electron Playwright coverage instead. Passed `shell.spec.ts --grep "plugin manager"` and `shell.spec.ts --grep "opens an existing notes folder from first-run setup"`.
