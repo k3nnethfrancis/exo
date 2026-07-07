@@ -80,6 +80,10 @@ export function TerminalView(props: TerminalViewProps) {
   useEffect(() => {
     hydrationStateRef.current = initialTerminalHydrationViewState();
     const terminal = new Terminal({
+      // Unicode11Addon depends on xterm's proposed unicode provider API.
+      // Without this flag, any mounted terminal throws during first launch and
+      // can blank the entire app shell before onboarding/profile setup appears.
+      allowProposedApi: true,
       fontFamily: TERMINAL_FONT_FAMILY,
       fontSize,
       customGlyphs: TERMINAL_CUSTOM_GLYPHS,

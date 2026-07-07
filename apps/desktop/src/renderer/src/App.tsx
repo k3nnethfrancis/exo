@@ -400,7 +400,7 @@ export function App() {
     settings: WorkspaceSettings;
     sessions: TerminalSessionInfo[];
     defaultTerminalId: string;
-    defaultTerminalSnapshot: string;
+    defaultTerminalSnapshot?: string;
   }) {
     const sessionIds = input.sessions.map((session) => session.id);
     const sessionIdSet = new Set(sessionIds);

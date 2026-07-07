@@ -40,7 +40,7 @@ export interface UseWorkspaceBootstrapOptions extends UseWorkspaceTreesOptions {
     settings: WorkspaceSettings;
     sessions: TerminalSessionInfo[];
     defaultTerminalId: string;
-    defaultTerminalSnapshot: string;
+    defaultTerminalSnapshot?: string;
   }) => void;
 }
 
@@ -108,26 +108,6 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
       }
 
       const firstNote = pickInitialNote(Object.entries(nextNoteTrees));
-      const defaultTerminal = await window.exo.terminals.ensureDefault();
-      const sessions = await window.exo.terminals.list();
-      const defaultTerminalSnapshot = await window.exo.terminals.restoreSnapshot(defaultTerminal.id);
-
-      if (cancelled || bootstrapRun !== bootstrapRunRef.current) {
-        return;
-      }
-
-      if (import.meta.env.DEV) {
-        console.info("[exo] renderer bootstrap", {
-          workspaceRoot: model.workspaceRoot,
-          defaultTerminalCwd: model.defaultTerminalCwd,
-          noteRoots: model.noteRoots.map((root) => root.path),
-          projectRoots: model.projectRoots.map((root) => root.path),
-          initialNotePath: firstNote?.path ?? null,
-          defaultTerminalId: defaultTerminal.id,
-          defaultTerminalSessionCwd: defaultTerminal.cwd,
-          sessionCount: sessions.length,
-        });
-      }
 
       await currentOptions.restoreInitialDocuments({
         settings,
@@ -140,13 +120,45 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
 
       setWorkspaceModel(model);
       currentOptions.replaceTreesForModel(model, nextNoteTrees, nextProjectTrees);
-      currentOptions.restoreTerminals({
-        settings,
-        sessions,
-        defaultTerminalId: defaultTerminal.id,
-        defaultTerminalSnapshot,
-      });
       setLayoutPersistenceReady(true);
+
+      try {
+        const defaultTerminal = await window.exo.terminals.ensureDefault();
+        const sessions = await window.exo.terminals.list();
+        const defaultTerminalSnapshot = await window.exo.terminals.restoreSnapshot(defaultTerminal.id).catch((error) => {
+          console.warn("[exo] default terminal snapshot failed", error);
+          return undefined;
+        });
+
+        if (cancelled || bootstrapRun !== bootstrapRunRef.current) {
+          return;
+        }
+
+        if (import.meta.env.DEV) {
+          console.info("[exo] renderer bootstrap", {
+            workspaceRoot: model.workspaceRoot,
+            defaultTerminalCwd: model.defaultTerminalCwd,
+            noteRoots: model.noteRoots.map((root) => root.path),
+            projectRoots: model.projectRoots.map((root) => root.path),
+            initialNotePath: firstNote?.path ?? null,
+            defaultTerminalId: defaultTerminal.id,
+            defaultTerminalSessionCwd: defaultTerminal.cwd,
+            sessionCount: sessions.length,
+          });
+        }
+
+        currentOptions.restoreTerminals({
+          settings,
+          sessions,
+          defaultTerminalId: defaultTerminal.id,
+          defaultTerminalSnapshot,
+        });
+      } catch (error) {
+        console.error("[exo] terminal bootstrap failed", error);
+        if (!cancelled && bootstrapRun === bootstrapRunRef.current) {
+          setBootstrapError(error instanceof Error ? `Terminal setup failed: ${error.message}` : `Terminal setup failed: ${String(error)}`);
+        }
+      }
     }
 
     void bootstrap().catch((error) => {
