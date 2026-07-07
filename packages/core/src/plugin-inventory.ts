@@ -267,7 +267,7 @@ function bundledCapabilityItem(
   readiness: PluginInventoryReadinessSummary | undefined,
 ): PluginInventoryItem {
   const isHarness = capability.kind === "core:agentHarness";
-  const enabled = capability.lifecycle !== "disabled" && (!isHarness || harness?.enabled !== false);
+  const enabled = capability.lifecycle !== "disabled" && (!isHarness || Boolean(harness?.enabled));
   return {
     id: capability.id,
     label: capability.label,

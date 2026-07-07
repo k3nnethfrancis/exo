@@ -69,6 +69,7 @@ Plugin architecture, tmux terminal persistence/readiness, packaged onboarding ha
 - Fixes packaged/onboarding startup paths so missing workspace state reaches onboarding before synthetic workspace defaults or terminal transcript initialization.
 - Fixes interrupted first-run onboarding so saved workspace settings do not imply profile setup completion and reloads resume setup.
 - Fixes a fresh-onboarding blank screen caused by terminal Unicode addon initialization during the workspace-to-profile handoff, and keeps terminal bootstrap failures from blocking the workspace shell.
+- Fixes onboarding plugin review so official harnesses omitted from live detection metadata, such as unconfigured Hermes, stay disabled and are not presented as available first-run choices.
 - Fixes plugin manager layout overlap, settings modal spacing, index settings status copy, and stale MCP/integration diagnostics.
 - Fixes Electron e2e terminal fixture isolation by running tests against a test-specific tmux server name instead of the developer's active tmux server state.
 - Fixes mac packaging collector stalls and documents launch-mode/setup expectations for packaged, installed, source, and MCP contexts.
