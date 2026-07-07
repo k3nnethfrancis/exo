@@ -8,6 +8,47 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ## Open
 
+### EXO-ISSUE-099: Onboarding, Agent Config, Skills, and Profile management are not trustworthy or aligned
+
+- Status: open
+- Severity: high
+- Area: onboarding, Agent Config Editor, Plugin Manager, skills, profiles, harness configuration, routines
+- Source:
+  - User QA on 2026-07-07 after the latest onboarding/profile/plugin changes.
+- Observed:
+  - The `Merge instruction files` button appears inert.
+  - The onboarding Agent Context step only reports states such as `found` / `aligned`; it does not show the actual `AGENTS.md` / `CLAUDE.md` files the user is being asked to trust.
+  - Applying Exograph context does not refresh the visible file/context preview, so repeated applies can look like nothing happened or can stack silently.
+  - Onboarding Agent Context and the Agent Config Editor use different visual components, copy, managed block marker presentation, and scope concepts.
+  - Onboarding does not show active notes-repo/exocortex instruction files when the user's workspace follows that pattern.
+  - Skills onboarding says `Pending review`, disables `Review/apply in Agent Config`, and says setup will not install/enable/move/sync skill folders even though the purpose is to offer Exo-native skills for selected harnesses.
+  - Shell still appears as an agent harness in multiple surfaces, even though shell is a terminal/tool substrate, not an agent harness.
+  - Profile onboarding shows too much generated/explanatory content instead of directly letting the user rename, edit, save, create, and apply a profile config.
+  - Pi custom harness configuration is too visually dominant even when the user is not using a custom Pi.
+  - The Agent Config `Sources` tab is really GitHub skill sync and feels out of place as a top-level peer.
+- Expected:
+  - Agent Context onboarding should show actual global and active-notes instruction files, one selectable file at a time, above the Exograph context append preview.
+  - Applying Exograph context should be idempotent and immediately refresh the previewed file/context content.
+  - Merging instruction files should launch an explicit visible routine/agent terminal run, show progress, and refresh the displayed files when the run changes them.
+  - Onboarding Skills should install/enable Exo standard skills for the selected agent harnesses; Agent Config Skills should manage, inspect, edit, enable/disable, and sync skills after setup.
+  - UI components for instruction files, skill inventories, harness readiness/config, and profile config should be shared where the underlying concept is shared.
+  - Shell should not appear in user-facing agent harness lists, routine default-harness options, or profile harness choices.
+  - Profile setup should be direct config management: rename profile, create profile, edit raw config, save/apply changes without needing `Enter workspace`.
+  - Advanced/custom Pi configuration should be collapsed or hidden unless relevant.
+  - GitHub skill sources/sync should live inside the Skills management surface.
+- Acceptance:
+  - [ ] Get Fable/oracle review of the revised ownership model before implementation.
+  - [ ] Design and implement shared instruction-file preview/editor components for onboarding and Agent Config.
+  - [ ] Make Exograph context apply idempotent and visibly refresh previews.
+  - [ ] Replace inert instruction merge with a visible routine/agent run or a clearly disabled/setup-guided action if no harness is available.
+  - [ ] Redesign onboarding Skills to offer Exo-native skill install/enable choices for selected harnesses.
+  - [ ] Move skill GitHub sources/sync into Skills management.
+  - [ ] Simplify Profile setup to editable profile config, rename/create/save/apply.
+  - [ ] Remove shell from user-facing agent harness/profile/routine surfaces; decide whether core metadata needs a new terminal substrate/tool capability or a stricter UI filter.
+  - [ ] Collapse advanced Pi custom config by default and keep normal harness rows visually aligned.
+  - [ ] Update docs/tasks/changelog and add focused renderer/e2e UI coverage.
+  - [ ] Run app QA screenshots for onboarding, Agent Config, Plugin Manager, Profile/Settings, and skill management before handoff.
+
 ### EXO-ISSUE-098: Terminal input drops spaces/backspace state and gets stuck unavailable/restoring
 
 - Status: fixed in `main`; user should QA on the affected machine after update
