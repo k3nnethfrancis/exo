@@ -33,7 +33,7 @@ export function ProfileEditPanel({
     <section className="profile-settings" data-testid="profile-edit-panel">
       <div className="profile-settings__summary" data-testid="profile-edit-panel-header">
         <div>
-          <div className="dialog-field__label">Customize profile</div>
+          <div className="dialog-field__label">Review profile package</div>
           <div className="profile-settings__active">{candidate.label}</div>
           <div className="profile-settings__muted">{candidate.description}</div>
         </div>
@@ -61,8 +61,8 @@ export function ProfileEditPanel({
       </div>
 
       <div className="profile-settings__notice" data-testid="profile-edit-disabled-notice">
-        <strong>Read-only customization preview.</strong>
-        <span>{disabledReason}</span>
+        <strong>Profile package review.</strong>
+        <span>Workspace profile naming and active selection are editable in Profile settings. Package fields below are review/proposal-only. {disabledReason}</span>
       </div>
 
       <div className="profile-settings__list" data-testid="profile-edit-sections">

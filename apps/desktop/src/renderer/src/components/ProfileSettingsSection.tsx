@@ -28,6 +28,7 @@ export function ProfileSettingsSection({
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [editingCandidate, setEditingCandidate] = useState<ProfileSettingsCandidate | null>(null);
   const [profilePreviews, setProfilePreviews] = useState<Record<string, ProfilePreviewLoadEntry>>({});
+  const [activeProfileNameDraft, setActiveProfileNameDraft] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -52,6 +53,10 @@ export function ProfileSettingsSection({
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    setActiveProfileNameDraft(profileState?.activeProfile?.label ?? profileState?.activeProfile?.profileId ?? "");
+  }, [profileState?.activeProfile]);
 
   const model = useMemo(() => buildProfileSettingsModel(inventory, profileState, profilePreviews), [inventory, profileState, profilePreviews]);
   const editableCandidate = model.detectedProfiles.find((candidate) => candidate.isActive) ?? model.baselineCandidate;
@@ -120,6 +125,17 @@ export function ProfileSettingsSection({
     }
   }
 
+  async function saveActiveProfileName() {
+    if (!profileState?.activeProfile) {
+      return;
+    }
+    const nextLabel = activeProfileNameDraft.trim() || profileState.activeProfile.profileId;
+    await runProfileAction(() => window.exo.workspace.setActiveProfile({
+      ...profileState.activeProfile!,
+      label: nextLabel,
+    }));
+  }
+
   return (
     <ProfileSettingsContent
       actionError={actionError}
@@ -128,7 +144,10 @@ export function ProfileSettingsSection({
       loadError={loadError}
       loadState={loadState}
       model={model}
+      activeProfileNameDraft={activeProfileNameDraft}
+      onActiveProfileNameChange={setActiveProfileNameDraft}
       onClearActive={() => void runProfileAction(() => window.exo.workspace.clearActiveProfile())}
+      onSaveActiveProfileName={() => void saveActiveProfileName()}
       onSetActive={(candidate) => void runProfileAction(() => window.exo.workspace.setActiveProfile(candidate.identity))}
       onCustomize={editableCandidate ? () => setEditingCandidate(editableCandidate) : null}
       onReview={editableCandidate ? () => setEditingCandidate(editableCandidate) : null}
@@ -183,10 +202,13 @@ export function ProfileSettingsContent({
   loadError,
   loadState,
   model,
+  activeProfileNameDraft,
+  onActiveProfileNameChange,
   onClearActive,
   onCopy,
   onCustomize,
   onReview,
+  onSaveActiveProfileName,
   onSetActive,
   onStageApply,
   onToggleAutoUpdate,
@@ -199,10 +221,13 @@ export function ProfileSettingsContent({
   loadError: string | null;
   loadState: ProfileInventoryLoadState;
   model: ProfileSettingsModel;
+  activeProfileNameDraft: string;
+  onActiveProfileNameChange: (value: string) => void;
   onClearActive: () => void;
   onCopy: (() => void) | null;
   onCustomize: (() => void) | null;
   onReview: (() => void) | null;
+  onSaveActiveProfileName: () => void;
   onSetActive: (candidate: ProfileSettingsCandidate) => void;
   onStageApply: (() => void) | null;
   onToggleAutoUpdate: (autoUpdate: boolean) => void;
@@ -212,8 +237,8 @@ export function ProfileSettingsContent({
   return (
     <section className="profile-settings" data-testid="workspace-settings-profile">
       <div className="profile-settings__notice">
-        <strong>Profile state, not plugin management.</strong>
-        <span>Use this screen to review the active workspace profile and its recommendations. Plugin trust, enablement, setup, and plugin-owned settings live in Plugin Manager. {PROFILE_SETTINGS_DISABLED_REASON}</span>
+        <strong>Workspace profile config.</strong>
+        <span>Use this screen for the saved active profile, workspace profile name, metadata copies, and reviewable profile proposals. Plugin trust, enablement, setup, and plugin-owned settings live in Plugin Manager. Instruction files and skills live in Agent Config. {PROFILE_SETTINGS_DISABLED_REASON}</span>
       </div>
 
       <div className="profile-settings__setup" data-testid="workspace-settings-profile-setup">
@@ -254,13 +279,13 @@ export function ProfileSettingsContent({
         </div>
         <div className="profile-settings__actions" aria-label="Profile actions">
           <button className="toolbar-button" disabled={!onReview} onClick={() => onReview?.()} type="button">
-            Review change
+            Inspect package
           </button>
           <button className="toolbar-button" disabled={!model.activeProfile || actionStatus === "saving"} onClick={onClearActive} type="button">
             Clear active
           </button>
           <button className="toolbar-button" disabled={!onCustomize} onClick={() => onCustomize?.()} type="button">
-            Customize
+            Review config
           </button>
           <button
             className="toolbar-button"
@@ -278,8 +303,37 @@ export function ProfileSettingsContent({
             title="Create a trusted workspace-local metadata profile copy and select it. This does not apply templates or write user content."
             type="button"
           >
-            Copy
+            Copy profile
           </button>
+        </div>
+      </div>
+
+      <div className="profile-settings__setup" data-testid="workspace-settings-profile-editable">
+        <div className="profile-settings__candidate-header">
+          <div>
+            <div className="dialog-field__label">Editable workspace config</div>
+            <div className="profile-settings__candidate-title">Profile name</div>
+          </div>
+          <span className="profile-settings__pill">Saved state</span>
+        </div>
+        <div className="profile-settings__inline-edit">
+          <input
+            className="settings-input"
+            disabled={!model.activeProfile || actionStatus === "saving"}
+            onChange={(event) => onActiveProfileNameChange(event.target.value)}
+            value={activeProfileNameDraft}
+          />
+          <button
+            className="toolbar-button"
+            disabled={!model.activeProfile || actionStatus === "saving"}
+            onClick={onSaveActiveProfileName}
+            type="button"
+          >
+            Save name
+          </button>
+        </div>
+        <div className="profile-settings__muted">
+          This updates Exo's active profile state only. Profile package contents, templates, plugin lifecycle, instruction files, skills, and routines remain review/proposal-only here.
         </div>
       </div>
 

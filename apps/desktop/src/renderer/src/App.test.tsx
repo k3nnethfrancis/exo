@@ -96,7 +96,12 @@ import { ChangedNotesDialog } from "./components/ChangedNotesDialog";
 import { ProposalReviewDialog } from "./components/ProposalReviewDialog";
 import { ProfileEditPanel, buildProfileEditPanelSections } from "./components/ProfileEditPanel";
 import { ProfileSettingsContent } from "./components/ProfileSettingsSection";
-import { isAgentPromptRoutineHarness, OnboardingCapabilityReviewContent } from "./components/OnboardingCapabilityReview";
+import {
+  buildOnboardingProfileConfig,
+  formatProfileConfig,
+  isAgentPromptRoutineHarness,
+  OnboardingCapabilityReviewContent,
+} from "./components/OnboardingCapabilityReview";
 import {
   buildOnboardingCapabilitySections,
   onboardingCapabilitySelectable,
@@ -508,10 +513,13 @@ describe("profile settings model", () => {
         loadError={null}
         loadState="ready"
         model={model}
+        activeProfileNameDraft=""
+        onActiveProfileNameChange={() => {}}
         onClearActive={() => {}}
         onCopy={() => {}}
         onCustomize={() => {}}
         onReview={() => {}}
+        onSaveActiveProfileName={() => {}}
         onSetActive={() => {}}
         onStageApply={() => {}}
         onToggleAutoUpdate={() => {}}
@@ -525,8 +533,10 @@ describe("profile settings model", () => {
     expect(html).toContain("Saved onboarding choices");
     expect(html).toContain("Open Plugin Manager");
     expect(html).toContain("Open Agent Config");
-    expect(html).toContain("Profile state, not plugin management.");
+    expect(html).toContain("Workspace profile config.");
     expect(html).toContain("Plugin trust, enablement, setup, and plugin-owned settings live in Plugin Manager.");
+    expect(html).toContain("Editable workspace config");
+    expect(html).toContain("Profile package contents, templates, plugin lifecycle, instruction files, skills, and routines remain review/proposal-only here.");
     expect(html).not.toContain("Stage apply blocked");
   });
 
@@ -620,7 +630,8 @@ describe("profile settings model", () => {
         onOpenPluginManager={() => {}}
       />,
     );
-    expect(markup).toContain("Customize profile");
+    expect(markup).toContain("Review profile package");
+    expect(markup).toContain("Workspace profile naming and active selection are editable in Profile settings.");
     expect(markup).toContain("Templatize");
     expect(markup).toContain("Create a trusted workspace-local metadata profile copy");
     expect(markup).toContain("Open Plugin Manager");
@@ -2558,7 +2569,7 @@ describe("workspace onboarding model", () => {
     expect(html).toContain("Pending review");
   });
 
-  it("renders the final Profile step as a resolved read-only config preview", () => {
+  it("renders the final Profile step as an editable config surface", () => {
     const inventory = pluginInventory([
       pluginInventoryItem("qmd", "QMD advanced search", "searchProvider", "Search providers", "bundled"),
       pluginInventoryItem("codex", "Codex", "agentHarness", "Agent harnesses", "bundled"),
@@ -2576,19 +2587,28 @@ describe("workspace onboarding model", () => {
         selectedHarnesses={[inventory.items[1]]}
         defaultHarnessId="codex"
         profileName="Research Lab"
+        profileConfigDraft={formatProfileConfig(buildOnboardingProfileConfig({
+          profileName: "Research Lab",
+          selectedHarnesses: [inventory.items[1]],
+          defaultHarnessId: "codex",
+          graphHealthEnabled: true,
+          instructionSyncEnabled: true,
+          exographContextApplied: true,
+        }))}
         exographContextApplied
         setupStep="review"
       />,
     );
 
-    expect(html).toContain("Workspace profile name");
     expect(html).toContain("Profile name");
     expect(html).toContain("Research Lab");
-    expect(html).toContain("Resolved profile config preview");
+    expect(html).toContain("Profile config JSON");
+    expect(html).toContain("Save profile config");
+    expect(html).toContain("New profile draft");
+    expect(html).toContain("Not saved this session");
     expect(html).toContain("&quot;defaultHarnessId&quot;: &quot;codex&quot;");
-    expect(html).toContain("&quot;status&quot;: &quot;pending-agent-config-review&quot;");
-    expect(html).toContain("&quot;mcp&quot;: &quot;not-configured-pending-future-policy&quot;");
-    expect(html).toContain("Enter workspace saves this profile state and onboarding completion only.");
+    expect(html).not.toContain("&quot;mcp&quot;: &quot;not-configured-pending-future-policy&quot;");
+    expect(html).not.toContain("Enter workspace saves this profile state and onboarding completion only.");
   });
 });
 
