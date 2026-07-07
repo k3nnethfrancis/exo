@@ -1,4 +1,4 @@
-import type { PluginInventory, PluginInventoryItem } from "@exo/core";
+import type { AgentHarnessDetection, PluginInventory, PluginInventoryItem } from "@exo/core";
 export interface OnboardingCapabilitySection {
   id: string;
   label: string;
@@ -12,7 +12,11 @@ const SECTION_ORDER = [
 
 export function buildOnboardingCapabilitySections(inventory: PluginInventory | null): OnboardingCapabilitySection[] {
   const setupCategoryIds = new Set<string>(SECTION_ORDER.map(([id]) => id));
-  const items = (inventory?.items ?? []).filter((item) => item.source !== "core" && setupCategoryIds.has(item.categoryId) && shouldShowOnboardingCapability(item));
+  const items = (inventory?.items ?? []).filter((item) =>
+    item.source !== "core"
+    && setupCategoryIds.has(item.categoryId)
+    && shouldShowOnboardingCapability(item)
+  );
   const sections: OnboardingCapabilitySection[] = SECTION_ORDER.map(([id, label]) => ({
     id,
     label,
@@ -23,9 +27,24 @@ export function buildOnboardingCapabilitySections(inventory: PluginInventory | n
 
 function shouldShowOnboardingCapability(item: PluginInventoryItem): boolean {
   if (item.kind === "core:agentHarness") {
-    return item.status === "available" || item.status === "configured";
+    return isPromptableAgentHarnessInventoryItem(item) && (item.status === "available" || item.status === "configured");
   }
   return true;
+}
+
+// Shell is a terminal substrate/tool, not a promptable agent harness. Keep the
+// compatibility registry untouched; user-facing agent pickers go through this
+// predicate until core exposes a reviewed promptable flag.
+export function isPromptableAgentHarnessId(id: string): boolean {
+  return id !== "shell";
+}
+
+export function isPromptableAgentHarnessInventoryItem(item: PluginInventoryItem): boolean {
+  return item.kind === "core:agentHarness" && isPromptableAgentHarnessId(item.id);
+}
+
+export function isPromptableAgentHarnessDetection(harness: AgentHarnessDetection): boolean {
+  return isPromptableAgentHarnessId(harness.id);
 }
 
 export function onboardingCapabilityStatus(item: PluginInventoryItem): string {
@@ -49,7 +68,7 @@ export function onboardingCapabilitySelected(item: PluginInventoryItem): boolean
     return false;
   }
   if (item.kind === "core:agentHarness") {
-    return item.status === "available" || item.status === "configured";
+    return isPromptableAgentHarnessInventoryItem(item) && (item.status === "available" || item.status === "configured");
   }
   return item.status !== "missing-dependency" && item.status !== "not-found" && item.status !== "broken";
 }
@@ -62,7 +81,7 @@ export function onboardingCapabilitySelectable(item: PluginInventoryItem): boole
     return item.status !== "missing-dependency" && item.status !== "not-found" && item.status !== "broken";
   }
   if (item.kind === "core:agentHarness") {
-    return onboardingCapabilitySelected(item);
+    return isPromptableAgentHarnessInventoryItem(item) && onboardingCapabilitySelected(item);
   }
   return item.source === "localManifest" && Boolean(item.pluginId && item.manifestPath && item.rootDirectory);
 }

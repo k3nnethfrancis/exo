@@ -45,8 +45,9 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - [x] Move skill GitHub sources/sync into Skills management.
   - [x] Simplify Profile setup to editable profile config, rename/create/save/apply.
     - 2026-07-07: Onboarding Profile now exposes a profile-name field, new profile draft affordance, raw active-profile config JSON editor, immediate save through existing profile-state IPC, and saved/error status. Settings/Profile copy and name editing now align with the same workspace-config model. This does not change profile apply semantics or silently apply templates, install skills, enable plugins, write instruction/notes files, or schedule routines.
-  - [ ] Remove shell from user-facing agent harness/profile/routine surfaces; decide whether core metadata needs a new terminal substrate/tool capability or a stricter UI filter.
-  - [ ] Collapse advanced Pi custom config by default and keep normal harness rows visually aligned.
+  - [x] Remove shell from user-facing agent harness/profile/routine surfaces; decide whether core metadata needs a new terminal substrate/tool capability or a stricter UI filter.
+    - 2026-07-07: User-facing surfaces now use a centralized renderer predicate to hide shell from agent-harness choice lists while preserving shell as the terminal tool and preserving existing CLI/MCP/core compatibility. A reviewed core `promptable: false` metadata field remains a future cleanup, not a silent contract change.
+  - [x] Collapse advanced Pi custom config by default and keep normal harness rows visually aligned.
   - [ ] Update docs/tasks/changelog and add focused renderer/e2e UI coverage.
   - [ ] Run app QA screenshots for onboarding, Agent Config, Plugin Manager, Profile/Settings, and skill management before handoff.
 

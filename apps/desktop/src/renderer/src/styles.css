@@ -1818,6 +1818,31 @@ button svg,
   min-width: 0;
 }
 
+.agent-harnesses__settings-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--surface-border);
+  border-radius: 6px;
+  background: var(--surface-1);
+  color: var(--text-secondary);
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
+.agent-harnesses__settings-summary strong {
+  flex: 0 0 auto;
+  color: var(--text-primary);
+  font-size: 0.78rem;
+  font-weight: 650;
+  text-transform: uppercase;
+}
+
+.agent-harnesses__advanced-toggle {
+  align-self: flex-start;
+}
+
 .agent-harnesses__settings-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

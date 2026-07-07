@@ -6,6 +6,7 @@ import type {
   ProfilePlanPreview,
   ProfileStateStore,
 } from "@exo/core";
+import { isPromptableAgentHarnessId, isPromptableAgentHarnessInventoryItem } from "./onboardingCapabilities";
 
 export interface ProfileSettingsModel {
   activeProfileLabel: string;
@@ -96,7 +97,7 @@ function workspaceSetupRows(activeProfile: ActiveProfileIdentity | null, invento
   const setup = activeProfile?.setup;
   const harnessLabels = new Map(
     (inventory?.items ?? [])
-      .filter((item) => item.kind === "core:agentHarness")
+      .filter(isPromptableAgentHarnessInventoryItem)
       .map((item) => [item.id, item.label]),
   );
   const routineLabels = new Map(
@@ -114,14 +115,18 @@ function workspaceSetupRows(activeProfile: ActiveProfileIdentity | null, invento
     ];
   }
   const enabledHarnesses = setup.enabledHarnessIds
+    .filter(isPromptableAgentHarnessId)
     .map((id) => harnessLabels.get(id) ?? id)
     .join(", ");
+  const defaultHarness = setup.defaultHarnessId && isPromptableAgentHarnessId(setup.defaultHarnessId)
+    ? harnessLabels.get(setup.defaultHarnessId) ?? setup.defaultHarnessId
+    : "Not selected";
   const routines = setup.routineTemplateIds
     .map((id) => routineLabels.get(id) ?? routineLabel(id))
     .join(", ");
   return [
     { label: "Base profile", value: "Exograph default" },
-    { label: "Default harness", value: setup.defaultHarnessId ? harnessLabels.get(setup.defaultHarnessId) ?? setup.defaultHarnessId : "Not selected" },
+    { label: "Default harness", value: defaultHarness },
     { label: "Enabled harnesses", value: enabledHarnesses || "None selected" },
     { label: "Starter routines", value: routines || "None selected" },
     { label: "Exograph context", value: setup.exographContextApplied ? "Applied to globals" : "Not applied" },
