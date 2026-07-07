@@ -65,7 +65,7 @@ export class AgentInstructionsService {
     return this.getConfig();
   }
 
-  async mergeFiles(input: { scopeId: AgentInstructionScopeId; sourceProviderId: AgentInstructionProviderId }): Promise<AgentInstructionConfig> {
+  async syncFromProviderFile(input: { scopeId: AgentInstructionScopeId; sourceProviderId: AgentInstructionProviderId }): Promise<AgentInstructionConfig> {
     const scope = this.scopeCandidates().find((candidate) => candidate.id === input.scopeId);
     if (!scope) {
       throw new Error("Agent instruction scope is unavailable for the active workspace.");
@@ -73,10 +73,10 @@ export class AgentInstructionsService {
     const currentScope = await this.readScope(scope);
     const sourceFile = currentScope.files[input.sourceProviderId];
     if (sourceFile.errorMessage) {
-      throw new Error(`${sourceFile.label} cannot be merged: ${sourceFile.errorMessage}`);
+      throw new Error(`${sourceFile.label} cannot be synced: ${sourceFile.errorMessage}`);
     }
     if (!sourceFile.exists || !sourceFile.body.trim()) {
-      throw new Error(`${sourceFile.label} has no instruction content to merge.`);
+      throw new Error(`${sourceFile.label} has no instruction content to sync.`);
     }
     return this.saveConfig({ scopeId: input.scopeId, body: sourceFile.body });
   }

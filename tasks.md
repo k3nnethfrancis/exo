@@ -26,7 +26,7 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
     - [x] Get Fable review on the ownership split before implementation.
     - [x] Show actual global and active-notes `AGENTS.md` / `CLAUDE.md` files in onboarding Agent Context.
     - [x] Make Exograph context apply idempotent and refresh the visible file previews.
-    - [x] Replace inert instruction merge with deterministic local merge behavior that refreshes previews.
+    - [x] Replace inert instruction merge with honest deterministic sync-from-selected-file behavior, overwrite confirmation, and refreshed previews.
     - [x] Make onboarding Skills install/enable bundled Exo skills for selected promptable harnesses through the shared Agent Config skill service.
     - [x] Move GitHub skill source/sync controls into the Skills management surface.
     - [x] Simplify Profile onboarding to direct profile name/config editing and immediate save.

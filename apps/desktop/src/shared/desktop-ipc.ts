@@ -49,7 +49,7 @@ export interface DesktopInvokeHandlers {
   "workspace:read-proposal": WorkspaceApi["readProposal"];
   "workspace:decide-proposal": WorkspaceApi["decideProposal"];
   "workspace:save-agent-instruction-config": WorkspaceApi["saveAgentInstructionConfig"];
-  "workspace:merge-agent-instruction-files": WorkspaceApi["mergeAgentInstructionFiles"];
+  "workspace:sync-agent-instruction-files-from-provider": WorkspaceApi["syncAgentInstructionFilesFromProvider"];
   "workspace:apply-global-exograph-context": WorkspaceApi["applyGlobalExographContext"];
   "workspace:list-agent-instruction-overlays": WorkspaceApi["listAgentInstructionOverlays"];
   "workspace:list-agent-skills": WorkspaceApi["listAgentSkills"];

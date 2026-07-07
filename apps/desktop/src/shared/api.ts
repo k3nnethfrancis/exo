@@ -371,7 +371,7 @@ export interface DesktopApi {
       scopeId: AgentInstructionScopeId;
       body: string;
     }) => Promise<AgentInstructionConfig>;
-    mergeAgentInstructionFiles: (input: {
+    syncAgentInstructionFilesFromProvider: (input: {
       scopeId: AgentInstructionScopeId;
       sourceProviderId: AgentInstructionProviderId;
     }) => Promise<AgentInstructionConfig>;

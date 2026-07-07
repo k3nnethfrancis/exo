@@ -89,8 +89,8 @@ export function OnboardingCapabilityReview({
   const [agentInstructionConfig, setAgentInstructionConfig] = useState<AgentInstructionConfig | null>(null);
   const [contextBody, setContextBody] = useState("");
   const [agentInstructionStatus, setAgentInstructionStatus] = useState<"idle" | "loading" | "saving" | "error">("idle");
-  const [agentInstructionMergeStatus, setAgentInstructionMergeStatus] = useState<"idle" | "merging" | "merged" | "error">("idle");
-  const [agentInstructionMergeMessage, setAgentInstructionMergeMessage] = useState<string | null>(null);
+  const [agentInstructionSyncStatus, setAgentInstructionSyncStatus] = useState<"idle" | "syncing" | "synced" | "error">("idle");
+  const [agentInstructionSyncMessage, setAgentInstructionSyncMessage] = useState<string | null>(null);
   const [exographContextApplied, setExographContextApplied] = useState(false);
   const [graphHealthEnabled, setGraphHealthEnabled] = useState(true);
   const [instructionSyncEnabled, setInstructionSyncEnabled] = useState(true);
@@ -252,8 +252,8 @@ export function OnboardingCapabilityReview({
 
   async function applyExographContext() {
     setAgentInstructionStatus("saving");
-    setAgentInstructionMergeStatus("idle");
-    setAgentInstructionMergeMessage(null);
+    setAgentInstructionSyncStatus("idle");
+    setAgentInstructionSyncMessage(null);
     setActionMessage(null);
     setErrorMessage(null);
     try {
@@ -268,22 +268,38 @@ export function OnboardingCapabilityReview({
     }
   }
 
-  async function mergeAgentInstructionFiles(input: { scopeId: AgentInstructionScopeId; sourceProviderId: AgentInstructionProviderId }) {
-    setAgentInstructionMergeStatus("merging");
-    setAgentInstructionMergeMessage("Merging instruction files...");
+  async function syncAgentInstructionFilesFromProvider(input: { scopeId: AgentInstructionScopeId; sourceProviderId: AgentInstructionProviderId }) {
+    const scope = agentInstructionConfig?.scopes.find((entry) => entry.id === input.scopeId);
+    const sourceFile = scope?.files[input.sourceProviderId];
+    const targetLabels = scope
+      ? Object.values(scope.files).filter((file) => file.id !== input.sourceProviderId).map((file) => file.label).join(", ")
+      : "the other provider files";
+    const confirmed = window.confirm([
+      `Sync instruction files from ${sourceFile?.label ?? input.sourceProviderId}?`,
+      "",
+      `This will overwrite ${targetLabels || "the other provider files"} in the ${scope?.label ?? input.scopeId} scope with the selected file's contents.`,
+      "Unique content in overwritten files will be replaced.",
+    ].join("\n"));
+    if (!confirmed) {
+      setAgentInstructionSyncStatus("idle");
+      setAgentInstructionSyncMessage("Instruction file sync cancelled.");
+      return;
+    }
+    setAgentInstructionSyncStatus("syncing");
+    setAgentInstructionSyncMessage("Syncing instruction files from selected source...");
     setActionMessage(null);
     setErrorMessage(null);
     try {
-      const config = await window.exo.workspace.mergeAgentInstructionFiles(input);
-      const scope = config.scopes.find((entry) => entry.id === input.scopeId);
-      const sourceFile = scope?.files[input.sourceProviderId];
+      const config = await window.exo.workspace.syncAgentInstructionFilesFromProvider(input);
+      const nextScope = config.scopes.find((entry) => entry.id === input.scopeId);
+      const nextSourceFile = nextScope?.files[input.sourceProviderId];
       setAgentInstructionConfig(config);
-      setAgentInstructionMergeStatus("merged");
-      setAgentInstructionMergeMessage(`Merged ${scope?.label ?? "scope"} from ${sourceFile?.label ?? input.sourceProviderId}.`);
+      setAgentInstructionSyncStatus("synced");
+      setAgentInstructionSyncMessage(`Synced ${nextScope?.label ?? "scope"} from ${nextSourceFile?.label ?? input.sourceProviderId}.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      setAgentInstructionMergeStatus("error");
-      setAgentInstructionMergeMessage(message);
+      setAgentInstructionSyncStatus("error");
+      setAgentInstructionSyncMessage(message);
       setErrorMessage(message);
     }
   }
@@ -395,7 +411,7 @@ export function OnboardingCapabilityReview({
       onFinishOnboarding={() => void finishOnboarding()}
       onTogglePlugin={(item, enabled) => void setPluginEnabled(item, enabled)}
       onApplyExographContext={() => void applyExographContext()}
-      onMergeAgentInstructionFiles={(input) => void mergeAgentInstructionFiles(input)}
+      onSyncAgentInstructionFilesFromProvider={(input) => void syncAgentInstructionFilesFromProvider(input)}
       onCreateProfileDraft={createNewProfileDraft}
       onSaveProfileConfig={() => void saveProfileConfig()}
       pendingPluginId={pendingPluginId}
@@ -413,8 +429,8 @@ export function OnboardingCapabilityReview({
       setDefaultHarnessId={setDefaultHarnessId}
       agentInstructionConfig={agentInstructionConfig}
       agentInstructionStatus={agentInstructionStatus}
-      agentInstructionMergeStatus={agentInstructionMergeStatus}
-      agentInstructionMergeMessage={agentInstructionMergeMessage}
+      agentInstructionSyncStatus={agentInstructionSyncStatus}
+      agentInstructionSyncMessage={agentInstructionSyncMessage}
       contextBody={contextBody}
       setContextBody={setContextBody}
       exographContextApplied={exographContextApplied}
@@ -589,7 +605,7 @@ export function OnboardingCapabilityReviewContent({
   onFinishOnboarding,
   onTogglePlugin,
   onApplyExographContext,
-  onMergeAgentInstructionFiles,
+  onSyncAgentInstructionFilesFromProvider,
   onCreateProfileDraft,
   onSaveProfileConfig,
   pendingPluginId,
@@ -607,8 +623,8 @@ export function OnboardingCapabilityReviewContent({
   setDefaultHarnessId,
   agentInstructionConfig = null,
   agentInstructionStatus = "idle",
-  agentInstructionMergeStatus = "idle",
-  agentInstructionMergeMessage = null,
+  agentInstructionSyncStatus = "idle",
+  agentInstructionSyncMessage = null,
   contextBody = "",
   setContextBody,
   exographContextApplied = false,
@@ -635,7 +651,7 @@ export function OnboardingCapabilityReviewContent({
   onFinishOnboarding?: () => void;
   onTogglePlugin?: (item: PluginInventoryItem, enabled: boolean) => void;
   onApplyExographContext?: () => void;
-  onMergeAgentInstructionFiles?: (input: { scopeId: AgentInstructionScopeId; sourceProviderId: AgentInstructionProviderId }) => void;
+  onSyncAgentInstructionFilesFromProvider?: (input: { scopeId: AgentInstructionScopeId; sourceProviderId: AgentInstructionProviderId }) => void;
   onCreateProfileDraft?: () => void;
   onSaveProfileConfig?: () => void;
   pendingPluginId?: string | null;
@@ -653,8 +669,8 @@ export function OnboardingCapabilityReviewContent({
   setDefaultHarnessId?: (value: string) => void;
   agentInstructionConfig?: AgentInstructionConfig | null;
   agentInstructionStatus?: "idle" | "loading" | "saving" | "error";
-  agentInstructionMergeStatus?: "idle" | "merging" | "merged" | "error";
-  agentInstructionMergeMessage?: string | null;
+  agentInstructionSyncStatus?: "idle" | "syncing" | "synced" | "error";
+  agentInstructionSyncMessage?: string | null;
   contextBody?: string;
   setContextBody?: (value: string) => void;
   exographContextApplied?: boolean;
@@ -679,11 +695,11 @@ export function OnboardingCapabilityReviewContent({
     ?? agentInstructionConfig?.scopes[0]
     ?? null;
   const selectedInstructionFile = selectedInstructionScope?.files[selectedInstructionProviderId] ?? selectedInstructionScope?.files.agents ?? null;
-  const selectedInstructionMergeSourceReady = Boolean(
+  const selectedInstructionSyncSourceReady = Boolean(
     selectedInstructionFile?.exists
       && selectedInstructionFile.body.trim()
       && !selectedInstructionFile.errorMessage
-      && agentInstructionMergeStatus !== "merging"
+      && agentInstructionSyncStatus !== "syncing"
       && agentInstructionStatus !== "saving",
   );
   const selectedHarness = routineHarnesses.find((item) => item.id === defaultHarnessId) ?? routineHarnesses[0] ?? null;
@@ -854,12 +870,12 @@ export function OnboardingCapabilityReviewContent({
                 selectedScopeId={selectedInstructionScope?.id ?? "global"}
               />
             ) : null}
-            {agentInstructionMergeMessage ? (
+            {agentInstructionSyncMessage ? (
               <div
-                className={`dialog-card__status${agentInstructionMergeStatus === "error" ? " dialog-card__status--error" : agentInstructionMergeStatus === "merged" ? " dialog-card__status--success" : ""}`}
-                data-testid="onboarding-agent-instruction-merge-status"
+                className={`dialog-card__status${agentInstructionSyncStatus === "error" ? " dialog-card__status--error" : agentInstructionSyncStatus === "synced" ? " dialog-card__status--success" : ""}`}
+                data-testid="onboarding-agent-instruction-sync-status"
               >
-                {agentInstructionMergeMessage}
+                {agentInstructionSyncMessage}
               </div>
             ) : null}
             <label className="dialog-field__label" htmlFor="onboarding-exograph-context">Exograph context to append</label>
@@ -885,16 +901,16 @@ export function OnboardingCapabilityReviewContent({
               {instructionSyncEnabled ? (
                 <button
                   className="toolbar-button"
-                  data-testid="onboarding-agent-instruction-merge"
-                  disabled={!onMergeAgentInstructionFiles || !selectedInstructionScope || !selectedInstructionMergeSourceReady}
-                  onClick={() => selectedInstructionScope ? onMergeAgentInstructionFiles?.({
+                  data-testid="onboarding-agent-instruction-sync"
+                  disabled={!onSyncAgentInstructionFilesFromProvider || !selectedInstructionScope || !selectedInstructionSyncSourceReady}
+                  onClick={() => selectedInstructionScope ? onSyncAgentInstructionFilesFromProvider?.({
                     scopeId: selectedInstructionScope.id,
                     sourceProviderId: selectedInstructionFile?.id ?? "agents",
                   }) : undefined}
-                  title={selectedInstructionMergeSourceReady ? "Write the selected visible instruction file to both AGENTS.md and CLAUDE.md for this scope." : "Select an existing non-empty instruction file to merge from."}
+                  title={selectedInstructionSyncSourceReady ? "After confirmation, overwrite the other provider file with the selected visible instruction file." : "Select an existing non-empty instruction file to sync from."}
                   type="button"
                 >
-                  {agentInstructionMergeStatus === "merging" ? "Merging..." : "Merge instruction files"}
+                  {agentInstructionSyncStatus === "syncing" ? "Syncing..." : "Sync from selected file"}
                 </button>
               ) : null}
             </div>

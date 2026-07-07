@@ -2513,15 +2513,15 @@ describe("workspace onboarding model", () => {
     expect(routineHtml).toContain("<option value=\"codex\">Codex</option>");
   });
 
-  it("renders actual instruction files and an honest deterministic merge action in Agent Context", () => {
+  it("renders actual instruction files and an honest deterministic sync action in Agent Context", () => {
     const inventory = pluginInventory([
       pluginInventoryItem("codex", "Codex", "agentHarness", "Agent harnesses", "bundled"),
     ]);
     const html = renderToStaticMarkup(
       <OnboardingCapabilityReviewContent
         agentInstructionConfig={agentInstructionConfig()}
-        agentInstructionMergeMessage="Merged Global from Codex AGENTS.md."
-        agentInstructionMergeStatus="merged"
+        agentInstructionSyncMessage="Synced Global from Codex AGENTS.md."
+        agentInstructionSyncStatus="synced"
         contextBody="Managed Exograph context"
         defaultHarnessId="codex"
         errorMessage={null}
@@ -2531,7 +2531,7 @@ describe("workspace onboarding model", () => {
         onApplyExographContext={vi.fn()}
         onBack={vi.fn()}
         onEnterWorkspace={vi.fn()}
-        onMergeAgentInstructionFiles={vi.fn()}
+        onSyncAgentInstructionFilesFromProvider={vi.fn()}
         sections={buildOnboardingCapabilitySections(inventory)}
         selectedHarnesses={[inventory.items[0]]}
         setupStep="instructions"
@@ -2545,13 +2545,14 @@ describe("workspace onboarding model", () => {
     expect(html).toContain("/home/test/.codex/AGENTS.md");
     expect(html).toContain("Global AGENTS body");
     expect(html).toContain("&lt;!-- exo:exograph-context:start --&gt;");
-    expect(html).toContain("Merged Global from Codex AGENTS.md.");
-    expect(html).toContain("Merge instruction files");
-    expect(html).toMatch(/data-testid=\"onboarding-agent-instruction-merge\"/);
-    expect(html).not.toMatch(/data-testid=\"onboarding-agent-instruction-merge\"[^>]*disabled=\"\"/);
+    expect(html).toContain("Synced Global from Codex AGENTS.md.");
+    expect(html).toContain("Sync from selected file");
+    expect(html).toContain("overwrite the other provider file");
+    expect(html).toMatch(/data-testid=\"onboarding-agent-instruction-sync\"/);
+    expect(html).not.toMatch(/data-testid=\"onboarding-agent-instruction-sync\"[^>]*disabled=\"\"/);
   });
 
-  it("disables instruction merge when the selected visible source has no content", () => {
+  it("disables instruction sync when the selected visible source has no content", () => {
     const inventory = pluginInventory([]);
     const config = agentInstructionConfig({
       agentsBody: "",
@@ -2566,14 +2567,14 @@ describe("workspace onboarding model", () => {
         notesFolder="/workspace/notes"
         onBack={vi.fn()}
         onEnterWorkspace={vi.fn()}
-        onMergeAgentInstructionFiles={vi.fn()}
+        onSyncAgentInstructionFilesFromProvider={vi.fn()}
         sections={buildOnboardingCapabilitySections(inventory)}
         setupStep="instructions"
       />,
     );
 
     expect(html).toContain("File is missing. Agent Config can create it from aligned instruction content.");
-    expect(html).toMatch(/data-testid=\"onboarding-agent-instruction-merge\"[^>]*disabled=\"\"/);
+    expect(html).toMatch(/data-testid=\"onboarding-agent-instruction-sync\"[^>]*disabled=\"\"/);
   });
 
   it("renders standard skills as a bulk onboarding enablement step", () => {

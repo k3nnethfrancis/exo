@@ -16,7 +16,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 - Source:
   - User QA on 2026-07-07 after the latest onboarding/profile/plugin changes.
 - Observed:
-  - The `Merge instruction files` button appears inert.
+  - The `Merge instruction files` button appears inert and mislabels what is really a provider-file sync/overwrite action.
   - The onboarding Agent Context step only reports states such as `found` / `aligned`; it does not show the actual `AGENTS.md` / `CLAUDE.md` files the user is being asked to trust.
   - Applying Exograph context does not refresh the visible file/context preview, so repeated applies can look like nothing happened or can stack silently.
   - Onboarding Agent Context and the Agent Config Editor use different visual components, copy, managed block marker presentation, and scope concepts.
@@ -29,7 +29,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 - Expected:
   - Agent Context onboarding should show actual global and active-notes instruction files, one selectable file at a time, above the Exograph context append preview.
   - Applying Exograph context should be idempotent and immediately refresh the previewed file/context content.
-  - Merging instruction files should use the reviewed deterministic merge path by default, show progress/results inline, and refresh the displayed files when they change. Agent-assisted merge can be a later optional routine, not the default setup dependency.
+  - Syncing instruction files should use the reviewed deterministic local path by default, clearly say that the selected provider file will overwrite the other provider file, require confirmation, show progress/results inline, and refresh the displayed files when they change. Agent-assisted true merge can be a later optional routine, not the default setup dependency.
   - Onboarding Skills should install/enable Exo standard skills for the selected agent harnesses; Agent Config Skills should manage, inspect, edit, enable/disable, and sync skills after setup.
   - UI components for instruction files, skill inventories, harness readiness/config, and profile config should be shared where the underlying concept is shared.
   - Shell should not appear in user-facing agent harness lists, routine default-harness options, or profile harness choices.
@@ -40,11 +40,11 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - [x] Get Fable/oracle review of the revised ownership model before implementation.
   - [x] Design and implement shared instruction-file preview/editor components for onboarding and Agent Config.
   - [x] Make Exograph context apply idempotent and visibly refresh previews.
-  - [x] Replace inert instruction merge with a deterministic desktop merge operation and inline refreshed preview.
+  - [x] Replace inert instruction merge with an honestly labeled deterministic desktop sync operation, overwrite confirmation, and inline refreshed preview.
   - [x] Redesign onboarding Skills to offer Exo-native skill install/enable choices for selected harnesses.
   - [x] Move skill GitHub sources/sync into Skills management.
   - [x] Simplify Profile setup to editable profile config, rename/create/save/apply.
-    - 2026-07-07: Onboarding Profile now exposes a profile-name field, new profile draft affordance, raw active-profile config JSON editor, immediate save through existing profile-state IPC, and saved/error status. Settings/Profile copy and name editing now align with the same workspace-config model. This does not change profile apply semantics or silently apply templates, install skills, enable plugins, write instruction/notes files, or schedule routines.
+    - 2026-07-07: Onboarding Profile now exposes a profile-name field, new profile draft affordance, raw active-profile config JSON editor, immediate save through existing profile-state IPC, and saved/error status. This is onboarding-only in this pass; Settings/Profile remains the review/copy/deep-link surface until the broader settings redesign lands. This does not change profile apply semantics or silently apply templates, install skills, enable plugins, write instruction/notes files, or schedule routines.
   - [x] Remove shell from user-facing agent harness/profile/routine surfaces; decide whether core metadata needs a new terminal substrate/tool capability or a stricter UI filter.
     - 2026-07-07: User-facing surfaces now use a centralized renderer predicate to hide shell from agent-harness choice lists while preserving shell as the terminal tool and preserving existing CLI/MCP/core compatibility. A reviewed core `promptable: false` metadata field remains a future cleanup, not a silent contract change.
   - [x] Collapse advanced Pi custom config by default and keep normal harness rows visually aligned.

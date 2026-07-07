@@ -60,7 +60,7 @@ export interface WorkspaceIpcHandlers {
   renamePath: WorkspaceApi["renamePath"];
   resolveTarget: NotesApi["resolveTarget"];
   applyGlobalExographContext: WorkspaceApi["applyGlobalExographContext"];
-  mergeAgentInstructionFiles: WorkspaceApi["mergeAgentInstructionFiles"];
+  syncAgentInstructionFilesFromProvider: WorkspaceApi["syncAgentInstructionFilesFromProvider"];
   saveAgentInstructionConfig: WorkspaceApi["saveAgentInstructionConfig"];
   saveAgentSkillFile: WorkspaceApi["saveAgentSkillFile"];
   saveNote: NotesApi["save"];
@@ -158,8 +158,8 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
   handleDesktopInvoke("workspace:save-agent-instruction-config", async (_event, input) =>
     handlers.saveAgentInstructionConfig(input),
   );
-  handleDesktopInvoke("workspace:merge-agent-instruction-files", async (_event, input) =>
-    handlers.mergeAgentInstructionFiles(input),
+  handleDesktopInvoke("workspace:sync-agent-instruction-files-from-provider", async (_event, input) =>
+    handlers.syncAgentInstructionFilesFromProvider(input),
   );
   handleDesktopInvoke("workspace:apply-global-exograph-context", async (_event, input) =>
     handlers.applyGlobalExographContext(input),
