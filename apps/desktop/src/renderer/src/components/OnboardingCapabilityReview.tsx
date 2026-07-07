@@ -12,6 +12,33 @@ import {
 } from "../onboardingCapabilities";
 import { pluginActionInput } from "../pluginManagerModel";
 
+const SETUP_STEP_ORDER: Array<[OnboardingSetupStep, string]> = [
+  ["plugins", "Plugins"],
+  ["routines", "Routines"],
+  ["instructions", "Agent context"],
+  ["skills", "Skills"],
+  ["review", "Review"],
+];
+
+const STANDARD_SKILL_ROWS = [
+  {
+    name: "Plugin development",
+    detail: "Guidance for building Exo plugins without crossing core boundaries.",
+  },
+  {
+    name: "Terminal stability",
+    detail: "Rules for changing Exo terminal code without weakening persistence or rendering.",
+  },
+  {
+    name: "Submit Exo issue",
+    detail: "A contributor workflow for reporting bugs into the project issue process.",
+  },
+  {
+    name: "Deslopify frontend",
+    detail: "A UI cleanup checklist for setup, settings, and manager surfaces.",
+  },
+];
+
 interface OnboardingCapabilityReviewProps {
   notesFolder: string;
   initialStep?: OnboardingProfileStep;
@@ -168,6 +195,7 @@ export function OnboardingCapabilityReview({
     setActionMessage(null);
     setErrorMessage(null);
     try {
+      const selectedDefaultHarnessId = defaultHarnessId ?? selectedHarnesses[0]?.id;
       await window.exo.workspace.setActiveProfile({
         profileId: "exograph-baseline.profile",
         capabilityId: "exograph-baseline.profile",
@@ -176,11 +204,11 @@ export function OnboardingCapabilityReview({
         label: profileName.trim() || "My Exograph",
         setup: {
           enabledHarnessIds: selectedHarnesses.map((item) => item.id),
-          defaultHarnessId: defaultHarnessId ?? selectedHarnesses[0]?.id,
-          routineTemplateIds: [
+          defaultHarnessId: selectedDefaultHarnessId,
+          routineTemplateIds: selectedDefaultHarnessId ? [
             graphHealthEnabled ? "graph-health.template" : null,
             instructionSyncEnabled ? "agent-instruction-sync.template" : null,
-          ].filter((id): id is string => Boolean(id)),
+          ].filter((id): id is string => Boolean(id)) : [],
           exographContextApplied,
         },
       });
@@ -289,24 +317,24 @@ export function OnboardingCapabilityReviewContent({
   const visibleChoiceCount = sections.reduce((sum, section) => sum + section.rows.length, 0);
   const globalScope = agentInstructionConfig?.scopes.find((scope) => scope.id === "global") ?? null;
   const selectedHarness = selectedHarnesses.find((item) => item.id === defaultHarnessId) ?? selectedHarnesses[0] ?? null;
+  const setupStepIndex = SETUP_STEP_ORDER.findIndex(([id]) => id === setupStep);
+  const previousStep = setupStepIndex > 0 ? SETUP_STEP_ORDER[setupStepIndex - 1]?.[0] : null;
+  const nextStep = setupStepIndex >= 0 && setupStepIndex < SETUP_STEP_ORDER.length - 1
+    ? SETUP_STEP_ORDER[setupStepIndex + 1]?.[0]
+    : null;
   return (
     <>
       <div className="onboarding-card__body" data-testid="onboarding-card-body">
         <h1 className="onboarding-card__title">Set up your Exograph</h1>
         <p className="onboarding-card__copy">
-          Choose plugins, agent context, and routine defaults. Core editing, files, terminal host, and preview are already on.
+          Choose optional plugins, starter routines, agent context, and skills. Core editing, files, terminal host, and preview are already on.
         </p>
         <div className="onboarding-stepper" aria-label="Setup steps">
-          {[
-            ["plugins", "Plugins"],
-            ["instructions", "Agent context"],
-            ["routines", "Routines"],
-            ["review", "Review"],
-          ].map(([id, label]) => (
+          {SETUP_STEP_ORDER.map(([id, label]) => (
             <button
               className={`onboarding-stepper__item${setupStep === id ? " onboarding-stepper__item--active" : ""}`}
               key={id}
-              onClick={() => setSetupStep?.(id as OnboardingSetupStep)}
+              onClick={() => setSetupStep?.(id)}
               type="button"
             >
               {label}
@@ -365,12 +393,24 @@ export function OnboardingCapabilityReviewContent({
                 <div className="onboarding-section onboarding-section--summary">No optional plugins found. Core Exo features are available now.</div>
               ) : null}
             </div>
+          </>
+        ) : null}
+        {setupStep === "routines" ? (
+          <section className="onboarding-section onboarding-section--primary" data-testid="onboarding-routines">
+            <div className="onboarding-capability-section__header">
+              <div>
+                <div className="dialog-field__label">Starter routine templates</div>
+                <div className="onboarding-section__hint">
+                  These are manual templates saved with your profile. They do not run on a schedule or change files during setup.
+                </div>
+              </div>
+            </div>
             {selectedHarnesses.length > 0 ? (
-              <div className="onboarding-section">
-                <label className="dialog-field__label" htmlFor="onboarding-default-harness">Default harness for routines</label>
+              <div className="onboarding-routine-harness">
+                <label className="dialog-field__label" htmlFor="onboarding-routine-harness">Default harness</label>
                 <select
                   className="onboarding-select"
-                  id="onboarding-default-harness"
+                  id="onboarding-routine-harness"
                   onChange={(event) => setDefaultHarnessId?.(event.target.value)}
                   value={defaultHarnessId ?? selectedHarnesses[0]?.id ?? ""}
                 >
@@ -378,10 +418,27 @@ export function OnboardingCapabilityReviewContent({
                     <option key={item.id} value={item.id}>{item.label}</option>
                   ))}
                 </select>
-                <div className="onboarding-section__hint">Used for setup routines such as instruction merge proposals and future graph maintenance.</div>
               </div>
-            ) : null}
-          </>
+            ) : (
+              <div className="dialog-card__status dialog-card__status--warning">
+                Select a launchable harness before enabling agent-backed routines.
+              </div>
+            )}
+            <label className="onboarding-routine-toggle">
+              <input checked={Boolean(selectedHarness) && graphHealthEnabled} disabled={!selectedHarness} onChange={(event) => setGraphHealthEnabled?.(event.target.checked)} type="checkbox" />
+              <span>
+                <strong>Graph health</strong>
+                <small>Manual audit template for orphaned notes, unresolved links, stale markers, and missing source context. Outputs a reviewable report/artifact.</small>
+              </span>
+            </label>
+            <label className="onboarding-routine-toggle">
+              <input checked={Boolean(selectedHarness) && instructionSyncEnabled} disabled={!selectedHarness} onChange={(event) => setInstructionSyncEnabled?.(event.target.checked)} type="checkbox" />
+              <span>
+                <strong>Agent instruction sync</strong>
+                <small>Manual proposal template for merging AGENTS.md and CLAUDE.md into agent-agnostic instructions. No silent overwrites.</small>
+              </span>
+            </label>
+          </section>
         ) : null}
         {setupStep === "instructions" ? (
           <section className="onboarding-section onboarding-section--primary" data-testid="onboarding-agent-instructions">
@@ -439,23 +496,27 @@ export function OnboardingCapabilityReviewContent({
             </div>
           </section>
         ) : null}
-        {setupStep === "routines" ? (
-          <section className="onboarding-section onboarding-section--primary" data-testid="onboarding-routines">
-            <div className="dialog-field__label">Built-in routines</div>
-            <label className="onboarding-routine-toggle">
-              <input checked={graphHealthEnabled} onChange={(event) => setGraphHealthEnabled?.(event.target.checked)} type="checkbox" />
-              <span>
-                <strong>Graph health</strong>
-                <small>Review orphaned notes, stale metadata, conflicts, and source coverage.</small>
-              </span>
-            </label>
-            <label className="onboarding-routine-toggle">
-              <input checked={instructionSyncEnabled} onChange={(event) => setInstructionSyncEnabled?.(event.target.checked)} type="checkbox" />
-              <span>
-                <strong>Agent instruction sync</strong>
-                <small>Use the default harness to propose provider-agnostic merges when global instruction files diverge.</small>
-              </span>
-            </label>
+        {setupStep === "skills" ? (
+          <section className="onboarding-section onboarding-section--primary" data-testid="onboarding-skills">
+            <div className="onboarding-capability-section__header">
+              <div>
+                <div className="dialog-field__label">Standard Exo skills</div>
+                <div className="onboarding-section__hint">
+                  Exo keeps skill files in Agent Config so you can inspect, edit, enable, or disable them per harness after setup.
+                </div>
+              </div>
+            </div>
+            <div className="onboarding-skill-list">
+              {STANDARD_SKILL_ROWS.map((skill) => (
+                <div className="onboarding-skill-row" key={skill.name}>
+                  <strong>{skill.name}</strong>
+                  <span>{skill.detail}</span>
+                </div>
+              ))}
+            </div>
+            <div className="onboarding-deferred-note">
+              Routine templates may require harness skills later. This setup records the profile choice only; installing or syncing skills remains a reviewable Agent Config action.
+            </div>
           </section>
         ) : null}
         {setupStep === "review" ? (
@@ -491,12 +552,8 @@ export function OnboardingCapabilityReviewContent({
         <button
           className="toolbar-button"
           onClick={() => {
-            if (setupStep === "review") {
-              setSetupStep?.("routines");
-            } else if (setupStep === "routines") {
-              setSetupStep?.("instructions");
-            } else if (setupStep === "instructions") {
-              setSetupStep?.("plugins");
+            if (previousStep) {
+              setSetupStep?.(previousStep);
             } else {
               onBack();
             }
@@ -509,12 +566,8 @@ export function OnboardingCapabilityReviewContent({
           className="toolbar-button toolbar-button--primary"
           data-testid="onboarding-enter-workspace"
           onClick={() => {
-            if (setupStep === "plugins") {
-              setSetupStep?.("instructions");
-            } else if (setupStep === "instructions") {
-              setSetupStep?.("routines");
-            } else if (setupStep === "routines") {
-              setSetupStep?.("review");
+            if (nextStep) {
+              setSetupStep?.(nextStep);
             } else {
               (onFinishOnboarding ?? onEnterWorkspace)();
             }

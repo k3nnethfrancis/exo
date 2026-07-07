@@ -8,6 +8,51 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ## Open
 
+### EXO-ISSUE-097: Agent context should support configurable Exo tool exposure and refresh policy
+
+- Status: open
+- Severity: medium
+- Area: onboarding, Agent Config, profiles, MCP/CLI policy, agent instruction context
+- Source:
+  - Product design discussion on 2026-07-06 while testing first-run onboarding and global Exograph context.
+- Observed:
+  - The managed Exograph context block now generates from the active workspace model, but MCP/CLI exposure policy and notes-tree refresh behavior are still implicit.
+  - The context can describe current search mode and attached roots, but users cannot yet choose which Exo CLI/MCP surfaces should be recommended or exposed to agents from the setup/profile UI.
+  - The notes navigation snapshot is generated when the context is loaded/applied; it is not yet automatically refreshed when the notes tree changes.
+- Expected:
+  - Users should be able to review and configure which Exo MCP/CLI capabilities are exposed or recommended to agent harnesses.
+  - The generated agent context should reflect those choices instead of giving generic tool guidance.
+  - Notes-tree snapshots should have a user-visible refresh policy, depth/size policy, and manual refresh action before Exo rewrites global instruction files automatically.
+- Acceptance:
+  - [ ] Define MCP/CLI exposure policy ownership between Profile Manager, Plugin Manager, Agent Config, and MCP server config.
+  - [ ] Add a reviewable UI/API for selecting exposed or recommended Exo tool surfaces.
+  - [ ] Make generated Exograph context reflect selected tool/search policies.
+  - [ ] Add configurable notes navigation snapshot policy instead of fixed generation bounds.
+  - [ ] Add manual refresh/apply behavior before any automatic rewrite behavior.
+  - [ ] Add tests for policy-aware context generation and refresh behavior.
+
+### EXO-ISSUE-096: Exo terminal runtime should not depend on the user's default tmux server
+
+- Status: open
+- Severity: high
+- Area: terminal runtime, tmux persistence, app startup
+- Source:
+  - Local verification during onboarding/plugin manager QA on 2026-07-06.
+- Observed:
+  - `tmux list-panes ...` can return `server exited unexpectedly` from the user's default tmux server.
+  - Exo startup then logs terminal restore failures for persisted sessions even though the app shell can still open.
+  - Electron e2e also failed before reaching Plugin Manager assertions until the test fixture was isolated behind `EXO_TMUX_SERVER_NAME`.
+- Expected:
+  - Exo should isolate its durable terminal sessions from the user's normal tmux server state.
+  - A user's unrelated tmux server crash or config issue should not prevent Exo terminal restore, terminal creation, or e2e startup.
+  - Product behavior should remain one tmux-backed runtime path; server isolation is namespace ownership, not a transport fallback.
+- Acceptance:
+  - [ ] Decide whether production Exo should always use an app-owned tmux server namespace derived from runtime/workspace identity.
+  - [ ] If yes, apply the existing `EXO_TMUX_SERVER_NAME` plumbing to runtime config instead of only e2e fixtures.
+  - [ ] Add recovery/diagnostic copy that distinguishes an Exo-owned tmux server issue from the user's default tmux server issue.
+  - [ ] Verify restored terminals, new shell, Claude, Codex, and Pi sessions work while the user's default tmux server is unhealthy.
+  - [ ] Add regression coverage that Exo e2e and app startup do not depend on the default tmux server.
+
 ### EXO-ISSUE-095: Settings and onboarding dialogs should keep stable frames across tabs and steps
 
 - Status: fixed in `main`; fresh packaged-app human QA still recommended

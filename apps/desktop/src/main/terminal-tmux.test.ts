@@ -22,6 +22,7 @@ import {
   TmuxCommandRunner,
   decodeTmuxControlValue,
   tmuxEnvironmentArgs,
+  tmuxServerArgs,
 } from "./terminal-tmux";
 
 beforeEach(() => {
@@ -141,6 +142,28 @@ describe("terminal tmux runtime helpers", () => {
         UNSET: undefined,
       }),
     ).toEqual(["-e", "TERM=xterm-256color", "-e", "EMPTY="]);
+  });
+
+  it("builds optional isolated tmux server args", () => {
+    expect(tmuxServerArgs({})).toEqual([]);
+    expect(tmuxServerArgs({ EXO_TMUX_SERVER_NAME: "exo-e2e-abc_123.4" })).toEqual(["-L", "exo-e2e-abc_123.4"]);
+    expect(() => tmuxServerArgs({ EXO_TMUX_SERVER_NAME: "../bad" })).toThrow(/EXO_TMUX_SERVER_NAME/);
+  });
+
+  it("passes optional tmux server args before commands", () => {
+    childProcess.execFileSync.mockReturnValue("ok");
+
+    const runner = new TmuxCommandRunner("/opt/homebrew/bin/tmux", { EXO_TMUX_SERVER_NAME: "exo-test" });
+    expect(runner.run(["display-message", "-p", "hello"], { cwd: "/tmp/work", env: { PATH: "/bin" } })).toBe("ok");
+
+    expect(childProcess.execFileSync).toHaveBeenCalledWith(
+      "/opt/homebrew/bin/tmux",
+      ["-u", "-L", "exo-test", "display-message", "-p", "hello"],
+      expect.objectContaining({
+        cwd: "/tmp/work",
+        env: { PATH: "/bin" },
+      }),
+    );
   });
 
   it("quotes shell commands safely for tmux new-session", () => {

@@ -94,7 +94,6 @@ const SOURCE_ORDER: Record<PluginInventoryItem["source"], number> = {
 };
 
 const CATEGORY_ORDER = [
-  ["core", "Core"],
   ["core:searchProvider", "Search providers"],
   ["core:agentHarness", "Agent harnesses"],
   ["core:routineTemplate", "Routine templates"],
@@ -125,6 +124,9 @@ export function groupPluginInventoryItems(items: PluginInventoryItem[]): PluginI
 export function buildPluginCategoryFilters(items: PluginInventoryItem[]): PluginCategoryFilter[] {
   const counts = new Map<string, { label: string; count: number }>();
   for (const item of items) {
+    if (item.source === "core") {
+      continue;
+    }
     const current = counts.get(item.categoryId) ?? { label: item.categoryLabel, count: 0 };
     current.count += 1;
     counts.set(item.categoryId, current);
@@ -137,7 +139,7 @@ export function buildPluginCategoryFilters(items: PluginInventoryItem[]): Plugin
   }));
   const knownIds = new Set(CATEGORY_ORDER.map(([id]) => id));
   const otherCount = [...counts.entries()]
-    .filter(([id]) => !knownIds.has(id as (typeof CATEGORY_ORDER)[number][0]))
+    .filter(([id]) => id !== "core" && !knownIds.has(id as (typeof CATEGORY_ORDER)[number][0]))
     .reduce((total, [, value]) => total + value.count, 0);
   filters.push({ id: "other", label: "Other", count: otherCount });
   return filters;
@@ -149,7 +151,12 @@ export function filterPluginInventoryItems(
 ): PluginInventoryItem[] {
   const knownIds = new Set(CATEGORY_ORDER.map(([id]) => id));
   return items
-    .filter((item) => categoryId === "other" ? !knownIds.has(item.categoryId as (typeof CATEGORY_ORDER)[number][0]) : item.categoryId === categoryId)
+    .filter((item) => {
+      if (item.source === "core") {
+        return false;
+      }
+      return categoryId === "other" ? !knownIds.has(item.categoryId as (typeof CATEGORY_ORDER)[number][0]) : item.categoryId === categoryId;
+    })
     .sort(compareInventoryItems);
 }
 
@@ -213,12 +220,13 @@ export function filterPluginInventoryItemsByState(
 }
 
 export function buildPluginManagementSummary(items: PluginInventoryItem[]): PluginManagementSummaryBucket[] {
-  const activeCount = items.filter(isActivePluginRow).length;
-  const disabledCount = items.filter((item) => !item.enabled || item.status === "disabled").length;
-  const reviewCount = items.filter((item) => item.trust === "untrusted").length;
-  const setupIssueCount = items.filter(hasSetupIssue).length;
-  const permissionRequestedCount = items.filter((item) => requestedPermissions(item).length > 0).length;
-  const permissionNeededCount = items.filter((item) => missingPermissions(item).length > 0).length;
+  const pluginItems = items.filter((item) => item.source !== "core");
+  const activeCount = pluginItems.filter(isActivePluginRow).length;
+  const disabledCount = pluginItems.filter((item) => !item.enabled || item.status === "disabled").length;
+  const reviewCount = pluginItems.filter((item) => item.trust === "untrusted").length;
+  const setupIssueCount = pluginItems.filter(hasSetupIssue).length;
+  const permissionRequestedCount = pluginItems.filter((item) => requestedPermissions(item).length > 0).length;
+  const permissionNeededCount = pluginItems.filter((item) => missingPermissions(item).length > 0).length;
 
   return [
     {
@@ -815,8 +823,9 @@ function routineTemplateDetailSections(item: PluginInventoryItem): PluginDetailS
       id: "routine-template",
       label: "Routine Template",
       rows: compactRows([
+        row("Current behavior", "Manual template; setup records it but does not schedule or run it"),
         row("Default harness", optionalString(template, "harnessId")),
-        row("Skills", summarizeList(readRecordArray(template.requiredSkills).map(skillLabel).filter(isString))),
+        row("Required skills", summarizeList(readRecordArray(template.requiredSkills).map(skillLabel).filter(isString)) ?? "none"),
         row("Trigger", trigger ? triggerLabel(trigger) : "manual"),
         row("Permissions", summarizeList(permissions) ?? "none"),
         row("Output policy", outputPolicy ? outputPolicyLabel(outputPolicy) : undefined),

@@ -4,7 +4,7 @@ import path from "node:path";
 export const EXO_ONBOARDING_STATE_FILE = "onboarding-state.json";
 
 export type OnboardingWorkspaceStep = "select" | "configure";
-export type OnboardingProfileStep = "plugins" | "instructions" | "routines" | "review";
+export type OnboardingProfileStep = "plugins" | "routines" | "instructions" | "skills" | "review";
 
 export interface OnboardingStateStore {
   version: 1;
@@ -117,7 +117,7 @@ export function validateOnboardingStateStore(input: unknown): OnboardingStateSto
     status,
     phase,
     workspaceStep: optionalUnion(input, "workspaceStep", ["select", "configure"]),
-    profileStep: optionalUnion(input, "profileStep", ["plugins", "instructions", "routines", "review"]),
+    profileStep: optionalUnion(input, "profileStep", ["plugins", "routines", "instructions", "skills", "review"]),
     workspaceBasicsSaved: input.workspaceBasicsSaved === undefined ? false : requiredBoolean(input, "workspaceBasicsSaved"),
     updatedAt: optionalIsoString(input, "updatedAt"),
     completedAt: optionalIsoString(input, "completedAt"),

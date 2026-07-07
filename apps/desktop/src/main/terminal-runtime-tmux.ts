@@ -40,7 +40,7 @@ export class TmuxTerminalRuntime implements TerminalRuntime {
 
   createSession(options: TerminalRuntimeCreateSessionOptions): TerminalRuntimeSession {
     const tmux = this.requireTmux();
-    const runner = new TmuxCommandRunner(tmux.path);
+    const runner = new TmuxCommandRunner(tmux.path, options.env);
     const sessionName = exoTmuxSessionName(options.sessionToken, options.workspaceRoot);
     let created = false;
     runner.run(
@@ -96,7 +96,7 @@ export class TmuxTerminalRuntime implements TerminalRuntime {
 
   attachSession(options: TerminalRuntimeAttachOptions): TerminalRuntimeProcess {
     const tmux = this.requireTmux();
-    this.resizeWindowBeforeAttach(new TmuxCommandRunner(tmux.path), {
+    this.resizeWindowBeforeAttach(new TmuxCommandRunner(tmux.path, options.env), {
       sessionName: options.sessionName,
       cols: options.cols,
       rows: options.rows,

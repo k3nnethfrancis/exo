@@ -131,12 +131,12 @@ test("opens the plugin manager inventory and keeps official rows read-only", asy
 
   await page.getByTestId("open-plugin-manager").click();
   await expect(page.getByTestId("plugin-manager")).toBeVisible();
-  await expect(page.getByTestId("plugin-manager-boundary")).toContainText("Exograph baseline");
-  await expect(page.getByTestId("plugin-manager-boundary")).toContainText("Official plugins");
-  await expect(page.getByTestId("plugin-manager-boundary")).toContainText("Local plugins");
-  await expect(page.getByTestId("plugin-manager-boundary")).toContainText("Developer plugins");
+  await expect(page.getByTestId("plugin-manager-boundary")).toContainText("Core stays on");
+  await expect(page.getByTestId("plugin-manager-boundary")).toContainText("official");
+  await expect(page.getByTestId("plugin-manager-boundary")).toContainText("developer");
+  await expect(page.getByTestId("plugin-manager-boundary")).toContainText("manageable local");
   await page.screenshot({ path: "/tmp/exo-plugin-manager-boundary.png", fullPage: false });
-  await expect(page.getByTestId("plugin-manager-local-toolbar")).toContainText("Local plugin inventory");
+  await expect(page.getByTestId("plugin-manager-local-toolbar")).toContainText("Local plugins");
   await expect(page.getByTestId("plugin-manager-add-workspace-plugin")).toBeVisible();
   await expect(page.getByTestId("plugin-manager-add-user-plugin")).toBeVisible();
   await expect(page.getByTestId("plugin-manager-summary")).toContainText("Active");
@@ -154,8 +154,6 @@ test("opens the plugin manager inventory and keeps official rows read-only", asy
   expect(summaryBox).not.toBeNull();
   expect(bodyBox).not.toBeNull();
   expect(summaryBox!.y + summaryBox!.height).toBeLessThanOrEqual(bodyBox!.y);
-  await expect(page.getByTestId("plugin-manager-group-core")).toContainText("Terminal host");
-  await page.getByTestId("plugin-manager-category-core:searchProvider").click();
   await expect(page.getByTestId("plugin-manager-group-core:searchProvider")).toContainText("QMD");
   await expect(page.getByTestId("plugin-inventory-item-qmd")).toContainText("Lifecycle");
   await expect(page.getByTestId("plugin-inventory-item-qmd")).toContainText(/Active|Degraded/);
@@ -1998,14 +1996,14 @@ test("hard reload resumes incomplete onboarding profile step", async () => {
   await page.getByTestId("onboarding-continue").click();
   await expect(page.getByTestId("post-workspace-setup")).toBeVisible();
   await page.getByTestId("onboarding-enter-workspace").click();
-  await expect(page.getByTestId("onboarding-agent-instructions")).toBeVisible();
+  await expect(page.getByTestId("onboarding-routines")).toBeVisible();
   await expect.poll(async () => page.evaluate(() => window.exo.workspace.getSetupState()))
     .toMatchObject({
       complete: true,
       onboardingComplete: false,
       onboarding: {
         phase: "profile",
-        profileStep: "instructions",
+        profileStep: "routines",
         workspaceBasicsSaved: true,
       },
     });
@@ -2013,7 +2011,7 @@ test("hard reload resumes incomplete onboarding profile step", async () => {
   await page.reload();
   await expect(page.getByTestId("sidebar")).toBeVisible();
   await expect(page.getByTestId("post-workspace-setup")).toBeVisible();
-  await expect(page.getByTestId("onboarding-agent-instructions")).toBeVisible();
+  await expect(page.getByTestId("onboarding-routines")).toBeVisible();
 
   await cleanup();
 });
@@ -2052,10 +2050,14 @@ test("opens an existing notes folder from first-run setup", async () => {
   await expect(page.getByTestId("onboarding-plugin-toggle-qmd")).toBeEnabled();
   await page.screenshot({ path: "/tmp/exo-issue-32-onboarding-plugins.png", fullPage: false });
   await page.getByTestId("onboarding-enter-workspace").click();
+  await expect(page.getByTestId("onboarding-routines")).toBeVisible();
+  await expectStableOuterFrame(page.getByTestId("post-workspace-setup"), setupFrame!);
+  await page.getByTestId("onboarding-enter-workspace").click();
   await expect(page.getByTestId("onboarding-agent-instructions")).toBeVisible();
   await expectStableOuterFrame(page.getByTestId("post-workspace-setup"), setupFrame!);
   await page.getByTestId("onboarding-enter-workspace").click();
-  await expect(page.getByTestId("onboarding-routines")).toBeVisible();
+  await expect(page.getByTestId("onboarding-skills")).toBeVisible();
+  await expect(page.getByTestId("onboarding-skills")).toContainText("Standard Exo skills");
   await expectStableOuterFrame(page.getByTestId("post-workspace-setup"), setupFrame!);
   await page.getByTestId("onboarding-enter-workspace").click();
   await expect(page.getByTestId("onboarding-profile-routine-note")).toContainText("Profile templates");

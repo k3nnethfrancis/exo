@@ -815,7 +815,7 @@ describe("terminal monitor layout", () => {
 });
 
 describe("plugin manager model", () => {
-  it("groups and filters inventory rows by category with core first", () => {
+  it("groups inventory rows but hides core from plugin category filters", () => {
     const items = [
       pluginInventoryItem("codex", "Codex", "agentHarness", "Agent harnesses", "bundled"),
       pluginInventoryItem("core.terminal", "Terminal host", "core", "Core", "core"),
@@ -827,7 +827,6 @@ describe("plugin manager model", () => {
     expect(groups.map((group) => group.id)).toEqual(["core", "core:searchProvider", "core:agentHarness", "core:routineTemplate"]);
     expect(groups.find((group) => group.id === "core:agentHarness")?.items.map((item) => item.id)).toEqual(["codex"]);
     expect(buildPluginCategoryFilters(items)).toEqual([
-      { id: "core", label: "Core", count: 1 },
       { id: "core:searchProvider", label: "Search providers", count: 1 },
       { id: "core:agentHarness", label: "Agent harnesses", count: 1 },
       { id: "core:routineTemplate", label: "Routine templates", count: 1 },
@@ -1143,8 +1142,9 @@ describe("plugin manager model", () => {
 
     expect(sections.find((section) => section.id === "routine-template")?.rows).toEqual(
       expect.arrayContaining([
+        { label: "Current behavior", value: "Manual template; setup records it but does not schedule or run it" },
         { label: "Default harness", value: "claude" },
-        { label: "Skills", value: "Graph Health" },
+        { label: "Required skills", value: "Graph Health" },
         { label: "Trigger", value: "schedule: 0 9 * * 1 (US/Pacific)" },
         { label: "Permissions", value: "workspace:read, notes:read, artifacts:write" },
         { label: "Output policy", value: "file changes propose; artifacts record" },
@@ -2377,7 +2377,7 @@ describe("workspace onboarding model", () => {
     );
 
     expect(html).toContain("Set up your Exograph");
-    expect(html).toContain("Choose plugins, agent context, and routine defaults.");
+    expect(html).toContain("Choose optional plugins, starter routines, agent context, and skills.");
     expect(html).not.toContain("Markdown graph");
     expect(html).not.toContain("Core, locked");
     expect(html).toContain("QMD advanced search");
@@ -2393,6 +2393,7 @@ describe("workspace onboarding model", () => {
     expect(html).not.toContain("Lab profile");
     expect(html).toContain("Agent context");
     expect(html).toContain("Routines");
+    expect(html).toContain("Skills");
     expect(html).toContain("Continue");
   });
 
@@ -2401,7 +2402,7 @@ describe("workspace onboarding model", () => {
       pluginInventoryItem("qmd", "QMD advanced search", "searchProvider", "Search providers", "bundled"),
       pluginInventoryItem("codex", "Codex", "agentHarness", "Agent harnesses", "bundled"),
     ]);
-    const html = renderToStaticMarkup(
+    const pluginHtml = renderToStaticMarkup(
       <OnboardingCapabilityReviewContent
         errorMessage={null}
         inventory={inventory}
@@ -2415,11 +2416,27 @@ describe("workspace onboarding model", () => {
         defaultHarnessId="codex"
       />,
     );
+    const routineHtml = renderToStaticMarkup(
+      <OnboardingCapabilityReviewContent
+        errorMessage={null}
+        inventory={inventory}
+        loadState="idle"
+        notesFolder="/workspace/notes"
+        onBack={vi.fn()}
+        onEnterWorkspace={vi.fn()}
+        onTogglePlugin={vi.fn()}
+        sections={buildOnboardingCapabilitySections(inventory)}
+        selectedHarnesses={[inventory.items[1]]}
+        defaultHarnessId="codex"
+        setupStep="routines"
+      />,
+    );
 
-    expect(html).toContain("Agent harnesses");
-    expect(html).toContain("Default harness for routines");
-    expect(html).toMatch(/data-testid=\"onboarding-plugin-toggle-codex\"[^>]*checked=\"\"/);
-    expect(html).not.toMatch(/data-testid=\"onboarding-plugin-toggle-codex\"[^>]*disabled=\"\"/);
+    expect(pluginHtml).toContain("Agent harnesses");
+    expect(pluginHtml).toMatch(/data-testid=\"onboarding-plugin-toggle-codex\"[^>]*checked=\"\"/);
+    expect(pluginHtml).not.toMatch(/data-testid=\"onboarding-plugin-toggle-codex\"[^>]*disabled=\"\"/);
+    expect(routineHtml).toContain("Starter routine templates");
+    expect(routineHtml).toContain("Default harness");
   });
 });
 

@@ -41,7 +41,7 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
   const [settingsDraft, setSettingsDraft] = useState<PluginSettingsDraft>({});
   const [settingsMessage, setSettingsMessage] = useState<string | null>(null);
   const [pendingSettingsAction, setPendingSettingsAction] = useState<"apply" | "reset" | null>(null);
-  const [selectedCategoryId, setSelectedCategoryId] = useState("core");
+  const [selectedCategoryId, setSelectedCategoryId] = useState("core:searchProvider");
   const [selectedStateFilterId, setSelectedStateFilterId] = useState<PluginStateFilterId>("all");
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
 
@@ -106,6 +106,22 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
     ? `${selectedItem.pluginId ?? selectedItem.id}:${selectedItem.pluginSource ?? selectedItem.source}:${selectedItem.manifestPath ?? ""}:${selectedItem.rootDirectory ?? ""}`
     : "";
   const detailHeadingId = selectedItem ? `plugin-manager-detail-heading-${selectedItem.id}` : undefined;
+
+  useEffect(() => {
+    if (!inventory) {
+      return;
+    }
+    const current = categoryFilters.find((category) => category.id === selectedCategoryId);
+    if (current && current.count > 0) {
+      return;
+    }
+    const firstPopulated = categoryFilters.find((category) => category.count > 0);
+    if (firstPopulated && firstPopulated.id !== selectedCategoryId) {
+      setSelectedCategoryId(firstPopulated.id);
+      setSelectedStateFilterId("all");
+      setSelectedItemId(null);
+    }
+  }, [categoryFilters, inventory, selectedCategoryId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -305,7 +321,7 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
           <div>
             <div className="dialog-card__title">Plugin Manager</div>
             <div className="dialog-card__message">
-              Manage installed plugin capabilities: trust, enablement, setup state, dependencies, and plugin-owned settings. Core baseline rows are shown for context.
+              Manage optional capabilities: official plugins, local plugins, trust, dependencies, and plugin-owned settings.
             </div>
           </div>
           <button
@@ -337,35 +353,21 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
             <section className="plugin-manager__boundary" data-testid="plugin-manager-boundary">
               <div className="plugin-manager__boundary-header">
                 <div>
-                  <strong>Capability layers</strong>
+                  <strong>Core stays on</strong>
                   <span>{boundarySummary.coreSummary}</span>
                 </div>
                 <div className="plugin-manager__boundary-status" title="Local plugin folders installed into Exo-managed user or workspace plugin roots can be swapped or removed here.">
+                  {boundarySummary.layers.find((layer) => layer.id === "official")?.value ?? 0} official · {" "}
+                  {boundarySummary.layers.find((layer) => layer.id === "developer")?.value ?? 0} developer · {" "}
                   {boundarySummary.manageableLocalCount} manageable local
                   {boundarySummary.blockedCount > 0 ? ` · ${boundarySummary.blockedCount} need attention` : ""}
                 </div>
               </div>
-              <div className="plugin-manager__boundary-grid">
-                {boundarySummary.layers.map((layer) => (
-                  <div
-                    className={`plugin-manager__boundary-layer plugin-manager__boundary-layer--${layer.id}`}
-                    key={layer.id}
-                    title={`${layer.detail} ${layer.management}`}
-                  >
-                    <div>
-                      <span>{layer.label}</span>
-                      <strong>{layer.value}</strong>
-                    </div>
-                    <p>{layer.detail}</p>
-                    <small>{layer.management}</small>
-                  </div>
-                ))}
-              </div>
             </section>
             <div className="plugin-manager__local-toolbar" data-testid="plugin-manager-local-toolbar">
               <div>
-                <strong>Local plugin inventory</strong>
-                <span>Add user or workspace metadata plugin folders. Exo reads manifests only; trust, enablement, and settings are reviewed before use.</span>
+                <strong>Local plugins</strong>
+                <span>Add metadata plugin folders. Exo reads manifests only; trust and settings are reviewed before use.</span>
               </div>
               <div className="plugin-manager__local-toolbar-actions">
                 <button
@@ -547,7 +549,7 @@ export function PluginManagerDialog({ onClose }: PluginManagerDialogProps) {
                     ) : null}
                   </>
                 ) : (
-                  <p>Select a plugin or core surface to inspect.</p>
+                  <p>Select a plugin to inspect.</p>
                 )}
               </aside>
             </div>

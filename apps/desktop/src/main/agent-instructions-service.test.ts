@@ -46,6 +46,29 @@ describe("AgentInstructionsService", () => {
     ]);
   });
 
+  it("renders dynamic Exograph context from the active workspace model", async () => {
+    const { service, notesRoot, projectRoot } = await agentInstructionsService({
+      indexing: { enabled: true, mode: "hybrid", backend: "qmd" },
+    });
+    await mkdir(path.join(notesRoot, "projects", "exo"), { recursive: true });
+    await writeFile(path.join(notesRoot, "index.md"), "# Index\n", "utf8");
+    await writeFile(path.join(notesRoot, "projects", "exo", "roadmap.md"), "# Roadmap\n", "utf8");
+
+    const config = await service.getConfig();
+
+    expect(config.starterTemplate).toContain(`Active notes roots: notes (${notesRoot})`);
+    expect(config.exographContextTemplate).toContain(`- Workspace root: ${path.dirname(notesRoot)}`);
+    expect(config.exographContextTemplate).toContain(`- notes: ${notesRoot}`);
+    expect(config.exographContextTemplate).toContain(`- exo: ${projectRoot}`);
+    expect(config.exographContextTemplate).toContain("Indexed Exo search is enabled through QMD in hybrid mode");
+    expect(config.exographContextTemplate).toContain("Exo MCP is the narrow agent work surface");
+    expect(config.exographContextTemplate).toContain("Exo CLI is the broader operator surface");
+    expect(config.exographContextTemplate).toContain("Snapshot policy: Markdown files only");
+    expect(config.exographContextTemplate).toContain("|-- projects/");
+    expect(config.exographContextTemplate).toContain("`-- index.md");
+    expect(config.exographContextTemplate).toContain("roadmap.md");
+  });
+
   it("saves a selected scope to both provider files", async () => {
     const { service, notesRoot } = await agentInstructionsService();
 
@@ -86,23 +109,27 @@ describe("AgentInstructionsService", () => {
   });
 });
 
-async function agentInstructionsService() {
+async function agentInstructionsService(overrides: Partial<WorkspaceModel> = {}) {
   const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-agent-instructions-"));
   const homeRoot = path.join(workspaceRoot, "home");
   const notesRoot = path.join(workspaceRoot, "notes");
+  const projectRoot = path.join(workspaceRoot, "projects", "exo");
   await mkdir(notesRoot, { recursive: true });
+  await mkdir(projectRoot, { recursive: true });
   const model: WorkspaceModel = {
     workspaceRoot,
     defaultTerminalCwd: workspaceRoot,
     noteRoots: [{ id: "note-root-1", label: "notes", path: notesRoot, kind: "notes" }],
-    projectRoots: [],
+    projectRoots: [{ id: "project-root-1", label: "exo", path: projectRoot, kind: "projects" }],
     indexedRoots: [],
     indexing: { enabled: false, mode: "off", backend: "qmd" },
     attachedWorkcells: [],
+    ...overrides,
   };
   return {
     homeRoot,
     notesRoot,
+    projectRoot,
     service: new AgentInstructionsService({ getWorkspaceModel: () => model, homePath: homeRoot }),
   };
 }

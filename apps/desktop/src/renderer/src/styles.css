@@ -1505,6 +1505,7 @@ button svg,
 
 .dialog-card--plugin-manager {
   width: min(1120px, calc(100vw - 48px));
+  height: min(780px, calc(100dvh - 48px));
   grid-template-rows: auto auto minmax(0, 1fr);
   overflow: hidden;
 }
@@ -1893,8 +1894,8 @@ button svg,
 
 .plugin-manager__boundary {
   display: grid;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: 6px;
+  padding: 8px 10px;
   border: 1px solid var(--surface-border);
   border-radius: 8px;
   background: color-mix(in srgb, var(--surface-2) 82%, var(--surface-1));
@@ -1926,7 +1927,7 @@ button svg,
 
 .plugin-manager__boundary-status {
   flex: 0 0 auto;
-  max-width: 260px;
+  max-width: 360px;
   text-align: right;
 }
 
@@ -2012,30 +2013,32 @@ button svg,
 
 .plugin-manager__summary {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: 6px;
 }
 
 .plugin-manager__summary-tile {
-  min-height: 62px;
-  padding: 8px 10px;
+  min-height: 44px;
+  padding: 7px 9px;
   border: 1px solid var(--surface-border);
   border-radius: 8px;
   background: var(--surface-2);
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: start;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
   gap: 6px;
 }
 
 .plugin-manager__summary-tile span {
   color: var(--muted);
   font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .plugin-manager__summary-tile strong {
-  font-size: 18px;
+  font-size: 15px;
   line-height: 1;
 }
 
@@ -3845,12 +3848,12 @@ select.dialog-card__input {
 }
 
 .onboarding-select {
-  width: 170px;
+  width: 220px;
 }
 
 .onboarding-stepper {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 4px;
   padding: 4px;
   border: 1px solid var(--surface-border);
@@ -4045,6 +4048,17 @@ select.dialog-card__input {
   margin-top: 10px;
 }
 
+.onboarding-routine-harness {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--surface-border);
+  border-radius: 8px;
+  background: var(--surface-1);
+}
+
 .onboarding-routine-toggle span {
   display: grid;
   gap: 3px;
@@ -4052,6 +4066,30 @@ select.dialog-card__input {
 
 .onboarding-routine-toggle small {
   color: var(--muted);
+}
+
+.onboarding-skill-list {
+  display: grid;
+  gap: 8px;
+}
+
+.onboarding-skill-row {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  border: 1px solid var(--surface-border);
+  border-radius: 8px;
+  background: var(--surface-1);
+}
+
+.onboarding-skill-row strong {
+  font-size: 13px;
+}
+
+.onboarding-skill-row span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 @media (max-width: 760px) {

@@ -62,6 +62,7 @@ export async function launchExoFixture(options?: {
   const settingsPath = path.join(settingsRoot, "workspace-settings.json");
   const userDataRoot = await mkdtemp(path.join(os.tmpdir(), "exo-userdata-"));
   const runtimeRoot = path.join(userDataRoot, "runtime");
+  const tmuxServerName = tmuxServerNameForRuntimeRoot(runtimeRoot);
   const homeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-home-"));
   if (options?.mutable || options?.prepareWorkspace) {
     tempRoot = await mkdtemp(path.join(os.tmpdir(), "exo-fixture-"));
@@ -93,6 +94,7 @@ export async function launchExoFixture(options?: {
     EXO_SETTINGS_PATH: settingsPath,
     EXO_USER_DATA_PATH: userDataRoot,
     EXO_RUNTIME_ROOT: runtimeRoot,
+    EXO_TMUX_SERVER_NAME: tmuxServerName,
     EXO_FORCE_THEME: "dark",
     HOME: homeRoot,
     EXO_SHELL: "/bin/sh",
@@ -132,7 +134,7 @@ export async function launchExoFixture(options?: {
       homeRoot,
       cleanup: async () => {
         await electronApp.close().catch(() => {});
-        await cleanupFixtureTmuxSessions(runtimeRoot);
+        await cleanupFixtureTmuxSessions(runtimeRoot, tmuxServerName);
         await rm(settingsRoot, { recursive: true, force: true });
         await rm(userDataRoot, { recursive: true, force: true });
         await rm(homeRoot, { recursive: true, force: true });
@@ -165,7 +167,7 @@ export async function launchExoFixture(options?: {
     homeRoot,
     cleanup: async () => {
       await electronApp.close().catch(() => {});
-      await cleanupFixtureTmuxSessions(runtimeRoot);
+      await cleanupFixtureTmuxSessions(runtimeRoot, tmuxServerName);
       await rm(settingsRoot, { recursive: true, force: true });
       await rm(userDataRoot, { recursive: true, force: true });
       await rm(homeRoot, { recursive: true, force: true });
@@ -192,6 +194,7 @@ export async function relaunchExoFixture(
   cleanup: () => Promise<void>;
 }> {
   const userDataRoot = path.dirname(previous.runtimeRoot);
+  const tmuxServerName = tmuxServerNameForRuntimeRoot(previous.runtimeRoot);
   const launchEnv: NodeJS.ProcessEnv = {
     ...process.env,
     EXO_TEST: "1",
@@ -200,6 +203,7 @@ export async function relaunchExoFixture(
     EXO_SETTINGS_PATH: previous.settingsPath,
     EXO_USER_DATA_PATH: userDataRoot,
     EXO_RUNTIME_ROOT: previous.runtimeRoot,
+    EXO_TMUX_SERVER_NAME: tmuxServerName,
     EXO_FORCE_THEME: "dark",
     HOME: previous.homeRoot,
     EXO_NOTE_ROOTS: path.join(previous.workspaceRoot, "notes/test-notes"),
@@ -228,7 +232,7 @@ export async function relaunchExoFixture(
     page,
     cleanup: async () => {
       await electronApp.close().catch(() => {});
-      await cleanupFixtureTmuxSessions(previous.runtimeRoot);
+      await cleanupFixtureTmuxSessions(previous.runtimeRoot, tmuxServerName);
       await rm(path.dirname(previous.settingsPath), { recursive: true, force: true });
       await rm(userDataRoot, { recursive: true, force: true });
       await rm(previous.homeRoot, { recursive: true, force: true });
@@ -236,7 +240,7 @@ export async function relaunchExoFixture(
   };
 }
 
-async function cleanupFixtureTmuxSessions(runtimeRoot: string): Promise<void> {
+async function cleanupFixtureTmuxSessions(runtimeRoot: string, tmuxServerName: string): Promise<void> {
   const registryPath = path.join(runtimeRoot, "terminal-sessions.json");
   let parsed: { sessions?: Array<{ tmuxSessionName?: unknown }> };
   try {
@@ -252,9 +256,13 @@ async function cleanupFixtureTmuxSessions(runtimeRoot: string): Promise<void> {
   );
   await Promise.all(
     Array.from(names).map((name) =>
-      execFileAsync("tmux", ["kill-session", "-t", name]).catch(() => {
+      execFileAsync("tmux", ["-L", tmuxServerName, "kill-session", "-t", name]).catch(() => {
         // Tests may close after a terminal has already exited or after tmux is unavailable.
       }),
     ),
   );
+}
+
+function tmuxServerNameForRuntimeRoot(runtimeRoot: string): string {
+  return `exo-e2e-${path.basename(path.dirname(runtimeRoot)).replace(/[^A-Za-z0-9_.-]/g, "-")}`;
 }

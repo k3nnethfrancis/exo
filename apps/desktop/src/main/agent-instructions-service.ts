@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import type { WorkspaceModel } from "@exo/core";
+import { listRootTree, type TreeNode, type WorkspaceModel } from "@exo/core";
 import type {
   AgentInstructionConfig,
   AgentInstructionProviderFile,
@@ -44,10 +44,11 @@ export class AgentInstructionsService {
   }
 
   async getConfig(): Promise<AgentInstructionConfig> {
+    const workspaceModel = this.options.getWorkspaceModel();
     return {
       scopes: await Promise.all(this.scopeCandidates().map((scope) => this.readScope(scope))),
-      starterTemplate: exoAgentInstructionStarterTemplate(),
-      exographContextTemplate: exographAgentContextTemplate(),
+      starterTemplate: exoAgentInstructionStarterTemplate(workspaceModel),
+      exographContextTemplate: await exographAgentContextTemplate(workspaceModel),
     };
   }
 
@@ -237,27 +238,135 @@ function normalizeInstructionComparisonBody(body: string) {
   return body.replace(/\r\n/g, "\n").trimEnd();
 }
 
-function exoAgentInstructionStarterTemplate() {
+function exoAgentInstructionStarterTemplate(workspaceModel: WorkspaceModel) {
   return [
     "# Exo Agent Instructions",
     "",
     "- Exo is the local workspace app for navigating the user's notes, projects, terminals, and indexed context.",
-    "- Use Exo MCP or CLI tools to inspect attached project roots and indexed notes before guessing where context lives.",
+    `- Active workspace root: ${workspaceModel.workspaceRoot}`,
+    `- Active notes roots: ${formatInlineRootList(workspaceModel.noteRoots)}`,
+    "- Use Exo MCP, Exo CLI, filesystem tools, and normal shell tools according to the task. Exact code/string/path work is often best with filesystem search; concept or meaning-oriented note retrieval may be better with Exo search when indexing is enabled.",
     "- Treat notes as user-authored working context. Preserve organization, links, and private drafts unless asked to change them.",
-    "- Prefer explicit attached roots over broad filesystem searches.",
+    "- Prefer explicit attached roots over broad home-directory searches.",
   ].join("\n");
 }
 
-function exographAgentContextTemplate() {
+async function exographAgentContextTemplate(workspaceModel: WorkspaceModel) {
   return [
     "## Exograph Context",
     "",
     "- Exo is the local-first Markdown graph workstation for notes, projects, terminals, agent harnesses, plugins, and indexed context.",
-    "- Prefer Exo MCP or CLI surfaces for workspace orientation before broad filesystem search.",
-    "- Use attached notes and project roots as the source of truth. Do not reorganize or rewrite user notes unless explicitly asked.",
+    "- Exo augments normal filesystem access rather than replacing it. Use `rg`, file reads, and shell tools for exact code/path/string work; use Exo search/read surfaces when workspace orientation, notes retrieval, backlinks, or semantic/lexical graph context would be more useful.",
     "- Keep agent guidance provider-agnostic. Avoid Claude-only, Codex-only, or harness-specific assumptions unless a task asks for them.",
     "- Treat Exo friction as product signal: if an Exo tool is missing, confusing, slow, or less useful than raw filesystem access, record an issue in the Exo project issue tracker.",
+    "",
+    "### Active Workspace",
+    "",
+    `- Workspace root: ${workspaceModel.workspaceRoot}`,
+    `- Default terminal cwd: ${workspaceModel.defaultTerminalCwd}`,
+    "",
+    "### Notes Roots",
+    "",
+    ...formatRootList(workspaceModel.noteRoots),
+    "",
+    "### Project Roots",
+    "",
+    ...formatRootList(workspaceModel.projectRoots),
+    "",
+    "### Search Capabilities",
+    "",
+    ...formatSearchGuidance(workspaceModel),
+    "",
+    "### Exo MCP and CLI Surfaces",
+    "",
+    "- Exo MCP is the narrow agent work surface: workspace status/orientation, search/read, and live agent session control.",
+    "- Exo CLI is the broader operator surface: workspace setup, indexing, project roots, diagnostics, terminals, agents, and MCP/integration helpers when installed.",
+    "- If a requested Exo capability is not exposed through MCP, use the CLI or filesystem when available, and record the MCP gap as product feedback.",
+    "",
+    "### Notes Navigation Snapshot",
+    "",
+    ...await formatNotesNavigationSnapshot(workspaceModel),
   ].join("\n");
+}
+
+function formatInlineRootList(roots: Array<{ label: string; path: string }>) {
+  return roots.length > 0
+    ? roots.map((root) => `${root.label} (${root.path})`).join(", ")
+    : "none attached";
+}
+
+function formatRootList(roots: Array<{ label: string; path: string }>) {
+  return roots.length > 0
+    ? roots.map((root) => `- ${root.label}: ${root.path}`)
+    : ["- None attached."];
+}
+
+function formatSearchGuidance(workspaceModel: WorkspaceModel) {
+  const { indexing } = workspaceModel;
+  if (!indexing.enabled || indexing.mode === "off") {
+    return [
+      "- Core filesystem and text search are available.",
+      "- Indexed Exo search is currently off. Prefer filesystem search unless a task asks to enable or configure indexing.",
+    ];
+  }
+
+  const modeGuidance = {
+    lexical: "lexical search is best for exact names, tags, headings, filenames, and phrases.",
+    semantic: "semantic search is best for concept, meaning, and fuzzy recall across notes.",
+    hybrid: "hybrid search combines lexical and semantic retrieval; use it for most exploratory note questions.",
+    off: "indexed search is currently off.",
+  }[indexing.mode];
+
+  return [
+    `- Indexed Exo search is enabled through ${indexing.backend.toUpperCase()} in ${indexing.mode} mode: ${modeGuidance}`,
+    "- Use filesystem search for exact code or path questions; use indexed Exo search for graph/context questions where meaning matters.",
+  ];
+}
+
+// Keep the generated global prompt useful without copying a whole vault into
+// every agent instruction file. EXO-ISSUE-097 tracks exposing these bounds and
+// refresh policy through Agent Config/Profile settings before any auto-refresh.
+const AGENT_CONTEXT_TREE_MAX_DEPTH = 2;
+const AGENT_CONTEXT_TREE_MAX_LINES = 80;
+
+async function formatNotesNavigationSnapshot(workspaceModel: WorkspaceModel) {
+  if (workspaceModel.noteRoots.length === 0) {
+    return ["- No notes roots are attached."];
+  }
+
+  const lines: string[] = [
+    `Snapshot policy: Markdown files only, depth ${AGENT_CONTEXT_TREE_MAX_DEPTH}, first ${AGENT_CONTEXT_TREE_MAX_LINES} lines. Use filesystem tools or Exo search for the complete current tree.`,
+  ];
+  for (const root of workspaceModel.noteRoots) {
+    lines.push("", `#### ${root.label}`, "", "```text", root.path);
+    try {
+      const nodes = await listRootTree(root.path, { markdownOnly: true, maxDepth: AGENT_CONTEXT_TREE_MAX_DEPTH, includeEmptyDirectories: true });
+      const allTreeLines = renderTreeLines(nodes);
+      const treeLines = allTreeLines.slice(0, AGENT_CONTEXT_TREE_MAX_LINES);
+      lines.push(...treeLines);
+      if (allTreeLines.length > AGENT_CONTEXT_TREE_MAX_LINES) {
+        lines.push("...");
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      lines.push(`[tree unavailable: ${message}]`);
+    }
+    lines.push("```");
+  }
+  return lines;
+}
+
+function renderTreeLines(nodes: TreeNode[], prefix = ""): string[] {
+  return nodes.flatMap((node, index) => {
+    const isLast = index === nodes.length - 1;
+    const connector = isLast ? "`-- " : "|-- ";
+    const childPrefix = `${prefix}${isLast ? "    " : "|   "}`;
+    const line = `${prefix}${connector}${node.kind === "directory" ? `${node.name}/` : node.name}`;
+    if (node.kind !== "directory" || !node.children?.length) {
+      return [line];
+    }
+    return [line, ...renderTreeLines(node.children, childPrefix)];
+  });
 }
 
 function escapeRegExp(value: string) {

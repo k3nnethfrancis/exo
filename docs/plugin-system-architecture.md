@@ -1,6 +1,6 @@
 # Plugin System Architecture
 
-Last updated: 2026-07-05
+Last updated: 2026-07-06
 
 status: unstable. External plugin contracts are pre-public and carry no compatibility promise until the plugin manifest can declare a minimum supported contract version and the specific contract has been reviewed as stable.
 
@@ -58,9 +58,9 @@ Official plugins may feel native during everyday use, but they should not be inv
 
 Plugin management, profile management, and onboarding are related but separate product surfaces:
 
-- **Onboarding** is the first-run selection and review flow. It helps the user pick notes, review the default Exograph Baseline or another profile, understand recommended official plugins, and enter the workspace. It should not become the long-term place for changing configuration.
+- **Onboarding** is the first-run selection and review flow. It helps the user pick notes, review optional plugin choices, choose starter routine templates, append starter agent context, see standard skills, and enter the workspace. It should not become the long-term place for changing configuration.
 - **Settings / Profile** is the workspace-level profile surface. It owns the active profile record, profile scope, auto-update preference, profile drift/review state, and profile component summaries such as schemas, recommended plugins, context templates, skills, routines, graph views, and review/output policy.
-- **Plugin Manager** is the capability lifecycle surface. It owns plugin discovery, trust, enablement, dependency/setup state, requested versus granted permissions, plugin-owned configuration, managed local plugin add/remove/swap flows, and links into deeper plugin-specific settings. Developer/operator plugin directories remain explicit read-only source paths rather than Plugin Manager install targets.
+- **Plugin Manager** is the capability lifecycle surface. It owns plugin discovery, trust, enablement, dependency/setup state, requested versus granted permissions, plugin-owned configuration, managed local plugin add/remove/swap flows, and links into deeper plugin-specific settings. It summarizes core as always-on context, but should not list core substrate as if it were an optional plugin. Developer/operator plugin directories remain explicit read-only source paths rather than Plugin Manager install targets.
 - **Agent Config Editor** remains a specialized harness-adjacent editor for instruction files, skills, and provider config. Profile Settings can deep-link there, but it should not duplicate the full skill/instruction editing UI.
 
 See `docs/onboarding-settings-boundaries.md` for the concise ownership table that also covers Routine Manager and Profile Manager responsibilities.
@@ -69,7 +69,7 @@ This split keeps each screen legible:
 
 - Onboarding answers "What should this workspace start with?"
 - Settings / Profile answers "What exograph profile is this workspace using, and what does that mean?"
-- Plugin Manager answers "What capabilities are installed, trusted, enabled, configured, or blocked?"
+- Plugin Manager answers "What optional capabilities are installed, trusted, enabled, configured, or blocked?"
 - Agent Config Editor answers "What do my harnesses and terminal agents actually read?"
 
 The active profile is workspace state, not just another plugin row. A profile may be supplied by a profile plugin, but once selected it should be visible from Settings, status-bar review affordances, and onboarding summaries. Selecting a profile must not silently apply templates, enable plugins, install skills, grant permissions, or schedule routines; those writes require an explicit future review/apply flow.
@@ -259,11 +259,14 @@ The target onboarding sequence is:
 1. Select or create the notes folder.
 2. Confirm workspace and default terminal path.
 3. Review optional plugin choices such as QMD and detected launchable harnesses.
-4. Review global agent instruction context and optionally append Exograph context as a separate managed block.
-5. Review starter routine templates such as Graph Health and Agent Instruction Sync.
-6. Save the resulting choices as the active workspace profile and enter the workspace.
+4. Review starter routine templates such as Graph Health and Agent Instruction Sync and choose the default harness they will use later.
+5. Review global agent instruction context and optionally append dynamic Exograph context as a separate managed block. The generated block should include active notes/project roots, search capability state, MCP/CLI surface guidance, and a bounded notes navigation snapshot without overwriting existing user-authored instructions.
+6. Review standard Exo skills and route skill installation/enabling to Agent Config rather than silently modifying harness folders.
+7. Save the resulting choices as the active workspace profile and enter the workspace.
 
 The default Exograph profile is not a preset the user must pick during first run. It is the baseline set of official defaults. Onboarding edits that baseline for the current workspace; the saved result is the workspace profile. Profile templates and routine-backed rewrites still require explicit proposal/review flows before they modify files, install skills, grant permissions, or schedule automation.
+
+The managed Exograph context block is dynamic at generation time, not a generic static prompt. It should explain that Exo augments normal filesystem access rather than replacing it, name the attached roots agents should inspect first, and describe the active indexed-search mode so agents can choose between filesystem search, lexical search, semantic search, hybrid search, MCP reads, and CLI/admin commands intelligently. Automatic refresh of already-written global context is a separate profile/config feature because rewriting global agent files on every tree/index change needs explicit user control.
 
 The capability screen should show:
 
@@ -282,6 +285,8 @@ Plugin configuration should follow the same separation principle as agent config
 - Settings is for baseline Exo behavior: workspace paths, editor behavior, theme, preview behavior, terminal settings, and core search behavior.
 - Plugin Manager is for plugin lifecycle/configuration: enable/disable, dependency detection, permissions, install/setup guidance, category-specific shared fields, and plugin-owned custom fields.
 - Agent Config Editor remains a specialized harness-adjacent surface for instruction files, skills, and provider config because those workflows are complex enough to deserve their own interface.
+
+Routine templates sit between Plugin Manager and a future Routine Manager. Plugin Manager may show that a template plugin is installed, enabled, trusted, configured, or blocked. It should not imply that the template is scheduled, running, or modifying the user's graph. Concrete manual/scheduled routines, run history, artifacts, and "when does this update my graph?" explanations belong in Routine Manager once that product surface exists.
 
 A search provider and an agent harness may share lifecycle/permission concepts, but their practical setup flows should not be forced into the same settings form. Over time, QMD administration should move toward Plugin Manager under search providers while basic core search preferences remain in Settings. Profile changes after onboarding should use the same review/apply model: show what the new profile recommends, what differs from the current workspace, and which file/settings/plugin changes require explicit confirmation.
 

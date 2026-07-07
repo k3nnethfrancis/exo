@@ -108,11 +108,16 @@ export function parseTmuxPaneList(raw: string): TmuxPaneInfo[] {
 }
 
 export class TmuxCommandRunner {
-  constructor(readonly tmuxPath: string) {}
+  private readonly globalArgs: string[];
+
+  constructor(readonly tmuxPath: string, env: NodeJS.ProcessEnv = process.env) {
+    this.globalArgs = tmuxServerArgs(env);
+  }
 
   run(args: string[], options: { cwd?: string; env?: NodeJS.ProcessEnv } = {}): string {
+    const tmuxArgs = [...this.globalArgs, ...args];
     try {
-      return execFileSync(this.tmuxPath, tmuxUtf8Args(args), {
+      return execFileSync(this.tmuxPath, tmuxUtf8Args(tmuxArgs), {
         cwd: options.cwd,
         env: options.env,
         encoding: "utf8",
@@ -120,7 +125,7 @@ export class TmuxCommandRunner {
       });
     } catch (error) {
       const stderr = commandStderr(error);
-      throw new TmuxCommandError(`tmux command failed: ${this.tmuxPath} ${args.join(" ")}`, this.tmuxPath, args, stderr);
+      throw new TmuxCommandError(`tmux command failed: ${this.tmuxPath} ${tmuxArgs.join(" ")}`, this.tmuxPath, tmuxArgs, stderr);
     }
   }
 }
@@ -151,7 +156,7 @@ export class TmuxControlModeProcess {
   private inputWriteLatencySamplesMs: number[] = [];
 
   constructor(private readonly options: TmuxControlModeProcessOptions) {
-    this.child = spawn(options.tmuxPath, tmuxUtf8Args(["-C", "attach-session", "-t", options.sessionName]), {
+    this.child = spawn(options.tmuxPath, tmuxUtf8Args([...tmuxServerArgs(options.env), "-C", "attach-session", "-t", options.sessionName]), {
       cwd: options.cwd,
       env: options.env,
     });
@@ -334,6 +339,19 @@ export function tmuxEnvironmentArgs(env: NodeJS.ProcessEnv): string[] {
     args.push("-e", `${key}=${value}`);
   }
   return args;
+}
+
+export function tmuxServerArgs(env: NodeJS.ProcessEnv): string[] {
+  const serverName = env.EXO_TMUX_SERVER_NAME;
+  if (!serverName) {
+    return [];
+  }
+  if (!/^[A-Za-z0-9_.-]+$/.test(serverName)) {
+    throw new Error("EXO_TMUX_SERVER_NAME must contain only letters, numbers, dots, underscores, or dashes.");
+  }
+  // This isolates test/debug tmux servers. It is not a runtime fallback: all
+  // commands still use the same tmux control-mode architecture.
+  return ["-L", serverName];
 }
 
 export function shellCommand(command: string, args: string[]): string {

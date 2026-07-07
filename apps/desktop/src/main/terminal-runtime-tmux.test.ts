@@ -156,6 +156,45 @@ describe("TmuxTerminalRuntime", () => {
     expect(childProcess.spawn).toHaveBeenCalledWith("/custom/tmux", ["-u", "-C", "attach-session", "-t", "exo-existing"], expect.any(Object));
   });
 
+  it("uses the configured tmux server namespace for create and attach commands", () => {
+    let createdSessionName = "";
+    childProcess.execFileSync.mockImplementation((_command: string, args: string[]) => {
+      if (args.includes("new-session")) {
+        createdSessionName = args[args.indexOf("-s") + 1] ?? "";
+        return "";
+      }
+      if (args.includes("list-panes")) {
+        return `${createdSessionName}\t@1\t%1\t0\t80\t24\t80\t24\tzsh\t/tmp/workspace\n`;
+      }
+      return "";
+    });
+    childProcess.spawn.mockReturnValue(fakeControlProcess());
+
+    const runtime = new TmuxTerminalRuntime();
+    runtime.createSession({
+      sessionToken: "term-1",
+      workspaceRoot: "/tmp/workspace",
+      command: "/bin/zsh",
+      args: [],
+      cwd: "/tmp/workspace",
+      env: { EXO_TMUX_SERVER_NAME: "exo-e2e-test" },
+      cols: 80,
+      rows: 24,
+      historyLimit: 500,
+    });
+
+    expect(childProcess.execFileSync).toHaveBeenCalledWith(
+      "/custom/tmux",
+      expect.arrayContaining(["-u", "-L", "exo-e2e-test", "new-session"]),
+      expect.any(Object),
+    );
+    expect(childProcess.spawn).toHaveBeenCalledWith(
+      "/custom/tmux",
+      expect.arrayContaining(["-u", "-L", "exo-e2e-test", "-C", "attach-session"]),
+      expect.any(Object),
+    );
+  });
+
   it("captures restore snapshots byte-faithfully and appends cursor position in the same string", () => {
     childProcess.execFileSync.mockImplementation((_command: string, args: string[]) => {
       if (args.includes("display-message")) {
