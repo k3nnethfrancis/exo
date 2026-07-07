@@ -136,7 +136,7 @@ import {
 import { runToolSurfaceAction } from "./toolDockModel";
 import type { ToolSurfaceDescriptor } from "@exo/core/surface-descriptor";
 import type { WorkspaceSettingsDialogState } from "./workspaceSettingsDialogTypes";
-import type { TerminalSessionInfo } from "../../shared/api";
+import type { AgentInstructionConfig, TerminalSessionInfo } from "../../shared/api";
 
 describe("desktop shell", () => {
   it("keeps a renderer test surface in place", () => {
@@ -2467,6 +2467,69 @@ describe("workspace onboarding model", () => {
     expect(routineHtml).toContain("<option value=\"codex\">Codex</option>");
   });
 
+  it("renders actual instruction files and an honest deterministic merge action in Agent Context", () => {
+    const inventory = pluginInventory([
+      pluginInventoryItem("codex", "Codex", "agentHarness", "Agent harnesses", "bundled"),
+    ]);
+    const html = renderToStaticMarkup(
+      <OnboardingCapabilityReviewContent
+        agentInstructionConfig={agentInstructionConfig()}
+        agentInstructionMergeMessage="Merged Global from Codex AGENTS.md."
+        agentInstructionMergeStatus="merged"
+        contextBody="Managed Exograph context"
+        defaultHarnessId="codex"
+        errorMessage={null}
+        inventory={inventory}
+        loadState="idle"
+        notesFolder="/workspace/notes"
+        onApplyExographContext={vi.fn()}
+        onBack={vi.fn()}
+        onEnterWorkspace={vi.fn()}
+        onMergeAgentInstructionFiles={vi.fn()}
+        sections={buildOnboardingCapabilitySections(inventory)}
+        selectedHarnesses={[inventory.items[0]]}
+        setupStep="instructions"
+      />,
+    );
+
+    expect(html).toContain("agent-instruction-preview-scope-global");
+    expect(html).toContain("agent-instruction-preview-scope-exocortex");
+    expect(html).toContain("agent-instruction-preview-file-agents");
+    expect(html).toContain("agent-instruction-preview-file-claude");
+    expect(html).toContain("/home/test/.codex/AGENTS.md");
+    expect(html).toContain("Global AGENTS body");
+    expect(html).toContain("&lt;!-- exo:exograph-context:start --&gt;");
+    expect(html).toContain("Merged Global from Codex AGENTS.md.");
+    expect(html).toContain("Merge instruction files");
+    expect(html).toMatch(/data-testid=\"onboarding-agent-instruction-merge\"/);
+    expect(html).not.toMatch(/data-testid=\"onboarding-agent-instruction-merge\"[^>]*disabled=\"\"/);
+  });
+
+  it("disables instruction merge when the selected visible source has no content", () => {
+    const inventory = pluginInventory([]);
+    const config = agentInstructionConfig({
+      agentsBody: "",
+      agentsExists: false,
+    });
+    const html = renderToStaticMarkup(
+      <OnboardingCapabilityReviewContent
+        agentInstructionConfig={config}
+        errorMessage={null}
+        inventory={inventory}
+        loadState="idle"
+        notesFolder="/workspace/notes"
+        onBack={vi.fn()}
+        onEnterWorkspace={vi.fn()}
+        onMergeAgentInstructionFiles={vi.fn()}
+        sections={buildOnboardingCapabilitySections(inventory)}
+        setupStep="instructions"
+      />,
+    );
+
+    expect(html).toContain("File is missing. Agent Config can create it from aligned instruction content.");
+    expect(html).toMatch(/data-testid=\"onboarding-agent-instruction-merge\"[^>]*disabled=\"\"/);
+  });
+
   it("renders skills as Agent Config review instead of an onboarding installer", () => {
     const inventory = pluginInventory([
       pluginInventoryItem("codex", "Codex", "agentHarness", "Agent harnesses", "bundled"),
@@ -2841,6 +2904,80 @@ function terminalSessionFixture(overrides: Partial<TerminalSessionInfo> = {}): T
     healthDetail: "No recent terminal output; terminal may simply be waiting for input.",
     attachGeneration: 1,
     ...overrides,
+  };
+}
+
+function agentInstructionConfig(overrides: {
+  agentsBody?: string;
+  agentsExists?: boolean;
+  claudeBody?: string;
+  claudeExists?: boolean;
+} = {}): AgentInstructionConfig {
+  const agentsBody = overrides.agentsBody ?? "Global AGENTS body\n\n<!-- exo:exograph-context:start -->\nManaged block\n<!-- exo:exograph-context:end -->\n";
+  const claudeBody = overrides.claudeBody ?? "Global CLAUDE body\n";
+  const agentsExists = overrides.agentsExists ?? true;
+  const claudeExists = overrides.claudeExists ?? true;
+  return {
+    exographContextTemplate: "Managed Exograph context",
+    starterTemplate: "Starter instructions",
+    scopes: [
+      {
+        id: "global",
+        label: "Global",
+        description: "Personal instructions loaded across workspaces.",
+        rootPath: "/home/test",
+        files: {
+          agents: {
+            id: "agents",
+            label: "Codex AGENTS.md",
+            path: "/home/test/.codex/AGENTS.md",
+            exists: agentsExists,
+            body: agentsBody,
+            errorMessage: null,
+          },
+          claude: {
+            id: "claude",
+            label: "Claude CLAUDE.md",
+            path: "/home/test/.claude/CLAUDE.md",
+            exists: claudeExists,
+            body: claudeBody,
+            errorMessage: null,
+          },
+        },
+        status: agentsExists && claudeExists && agentsBody === claudeBody ? "aligned" : "different",
+        body: agentsBody === claudeBody ? agentsBody : "",
+        source: agentsBody === claudeBody ? "agents" : "unresolved",
+        errorMessages: [],
+      },
+      {
+        id: "exocortex",
+        label: "Exocortex",
+        description: "Instructions stored in the active notes folder.",
+        rootPath: "/workspace/notes",
+        files: {
+          agents: {
+            id: "agents",
+            label: "Notes AGENTS.md",
+            path: "/workspace/notes/AGENTS.md",
+            exists: true,
+            body: "Notes AGENTS body\n",
+            errorMessage: null,
+          },
+          claude: {
+            id: "claude",
+            label: "Notes CLAUDE.md",
+            path: "/workspace/notes/CLAUDE.md",
+            exists: true,
+            body: "Notes CLAUDE body\n",
+            errorMessage: null,
+          },
+        },
+        status: "different",
+        body: "",
+        source: "unresolved",
+        errorMessages: [],
+      },
+    ],
   };
 }
 

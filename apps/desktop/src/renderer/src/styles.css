@@ -2900,6 +2900,67 @@ select.dialog-card__input {
   background: color-mix(in srgb, var(--surface-1) 54%, transparent);
 }
 
+.agent-instruction-preview {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.agent-instruction-preview__file-button {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, var(--divider) 48%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-1) 54%, transparent);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.agent-instruction-preview__file-button--active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-1));
+}
+
+.agent-instruction-preview__body {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.agent-instruction-preview__body-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.agent-instruction-preview__body-header span:last-child {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.agent-instruction-preview__body pre {
+  box-sizing: border-box;
+  min-height: 150px;
+  max-height: min(280px, 30dvh);
+  margin: 0;
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--divider) 50%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-2) 45%, transparent);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
 .agent-config-editor__editor-field {
   grid-template-rows: auto minmax(360px, 52dvh);
   min-height: 0;
