@@ -58,7 +58,7 @@ Official plugins may feel native during everyday use, but they should not be inv
 
 Plugin management, profile management, and onboarding are related but separate product surfaces:
 
-- **Onboarding** is the first-run selection and review flow. It helps the user pick notes, review optional plugin choices, choose starter routine templates, append starter agent context, see standard skills, and enter the workspace. It should not become the long-term place for changing configuration.
+- **Onboarding** is the first-run selection and review flow. It helps the user pick notes, review optional plugin choices, choose starter routine templates, append starter agent context, install/enable bundled Exo skills for selected promptable harnesses, and enter the workspace. It should not become the long-term place for changing configuration.
 - **Settings / Profile** is the workspace-level profile surface. It owns the active profile record, profile scope, auto-update preference, profile drift/review state, and profile component summaries such as schemas, recommended plugins, context templates, skills, routines, graph views, and review/output policy.
 - **Plugin Manager** is the capability lifecycle surface. It owns plugin discovery, trust, enablement, dependency/setup state, requested versus granted permissions, plugin-owned configuration, managed local plugin add/remove/swap flows, and links into deeper plugin-specific settings. It summarizes core as always-on context, but should not list core substrate as if it were an optional plugin. Developer/operator plugin directories remain explicit read-only source paths rather than Plugin Manager install targets.
 - **Agent Config Editor** remains a specialized harness-adjacent editor for instruction files, skills, and provider config. Profile Settings can deep-link there, but it should not duplicate the full skill/instruction editing UI.
@@ -71,6 +71,13 @@ This split keeps each screen legible:
 - Settings / Profile answers "What exograph profile is this workspace using, and what does that mean?"
 - Plugin Manager answers "What optional capabilities are installed, trusted, enabled, configured, or blocked?"
 - Agent Config Editor answers "What do my harnesses and terminal agents actually read?"
+
+Skills have two product modes:
+
+- Onboarding Skills is a bulk starter flow. It enables or disables Exo-bundled skills for the selected promptable harnesses through the same skill service used after setup. It should not expose full file editing, source sync, or advanced inventory management.
+- Agent Config Skills is the ongoing management flow. It shows the full skill inventory, file tree, editable skill files, per-harness enablement, and GitHub/source sync. Any screen that changes harness skill state must route through this same service so onboarding and post-setup behavior cannot drift.
+
+Instruction-file merge is a deterministic local configuration operation, not an agent routine. Onboarding may show progress and refreshed previews, but merging `AGENTS.md` and `CLAUDE.md` must work even when no promptable harness is installed or configured. Agent-assisted instruction rewrites can be introduced later as an optional routine/proposal flow.
 
 The active profile is workspace state, not just another plugin row. A profile may be supplied by a profile plugin, but once selected it should be visible from Settings, status-bar review affordances, and onboarding summaries. Selecting a profile must not silently apply templates, enable plugins, install skills, grant permissions, or schedule routines; those writes require an explicit future review/apply flow.
 
@@ -244,13 +251,15 @@ Lifecycle rules for the foundation slice:
 Initial official plugin families:
 
 - Terminal tool surfaces: shell launcher, terminal commands, terminal status widgets, and terminal debug surfaces.
-- Agent harness adapters: shell, Claude Code, Codex, Pi, Hermes, Aider, Goose, OpenCode, and local/open-source agents.
+- Agent harness adapters: Claude Code, Codex, Pi, Hermes, Aider, Goose, OpenCode, and local/open-source agents.
 - Advanced search provider: QMD.
 - Routine templates and automations: graph-health and future first-party maintenance workflows, implemented as plugins.
 - Graph/profile helpers: starter profiles and graph diagnostics once the exograph model lands.
 - Graph visualization: one official default graph explorer should eventually exist as a plugin-shaped surface, while graph data extraction and host surfaces remain core.
 
-Official does not mean always visible. Launch controls should appear only when the plugin is enabled and usable. Missing harnesses belong in Plugin Manager or Agent Config, where Exo can explain how to install or configure them.
+Shell is a core terminal tool, not a promptable agent harness. Existing core metadata and compatibility records may still carry a shell terminal capability during active development, but user-facing harness pickers, profile choices, and agent-prompt routine selectors should filter to promptable harnesses. If this boundary becomes public API, add reviewed metadata such as `promptable: false` instead of scattering `id !== "shell"` checks.
+
+Official does not mean always visible. Launch controls should appear only when the plugin is enabled and usable. Missing promptable harnesses belong in Plugin Manager or Agent Config, where Exo can explain how to install or configure them.
 
 ## Onboarding
 

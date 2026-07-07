@@ -1,6 +1,6 @@
 # Exo Tasks
 
-Last updated: 2026-07-05
+Last updated: 2026-07-07
 
 This is the active task tracker for Exo. It is intentionally not a history file; completed implementation history belongs in `ledger.md`. Tasks here should be concrete, current, and ordered by practical priority.
 
@@ -22,6 +22,17 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
   - [x] Complete the remaining V4.1 audit: confirm WP-T4/T5 coverage, close any diagnostics gaps, and keep `pnpm terminal:check` green.
   - [x] Close WP-D docs: record the 2026-07-03 control-mode decision, killed plain-attach path, and pty terminology in `docs/terminal-runtime-decision.md`; sync terminal-stability guidance.
 - [ ] Finish Plugin Architecture Completion:
+  - [ ] Finish `EXO-ISSUE-099` onboarding/config alignment handoff:
+    - [x] Get Fable review on the ownership split before implementation.
+    - [x] Show actual global and active-notes `AGENTS.md` / `CLAUDE.md` files in onboarding Agent Context.
+    - [x] Make Exograph context apply idempotent and refresh the visible file previews.
+    - [x] Replace inert instruction merge with deterministic local merge behavior that refreshes previews.
+    - [x] Make onboarding Skills install/enable bundled Exo skills for selected promptable harnesses through the shared Agent Config skill service.
+    - [x] Move GitHub skill source/sync controls into the Skills management surface.
+    - [x] Simplify Profile onboarding to direct profile name/config editing and immediate save.
+    - [x] Hide shell from user-facing promptable harness/profile/routine selectors while keeping shell as a core terminal tool.
+    - [x] Collapse advanced custom Pi config by default.
+    - [ ] Complete final app QA screenshots and Fable post-implementation review before user dogfooding.
   - [ ] Complete Fable Wave-4 dogfooding gates before declaring plugin architecture ready for real-vault use:
     - [x] WP-QA-PM: rerun Plugin Manager/onboarding read-only app QA against current source after recent UI/plugin changes.
       - 2026-07-05 evidence: source Exo app was restarted from `main`; Computer Use could not inspect the remote Electron window, so app QA used focused Electron Playwright coverage instead. Passed `shell.spec.ts --grep "plugin manager"` and `shell.spec.ts --grep "opens an existing notes folder from first-run setup"`.

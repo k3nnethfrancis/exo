@@ -31,6 +31,8 @@ An `AgentHarness` exposes:
 
 The public agent-create path now uses harness ids and validates them against registered, enabled, surface-approved, visible, launchable harnesses. The lower-level terminal runtime still carries compatibility `ManagedAgentKind` fields for built-in creation and persisted-session backfill; future cleanup should keep removing those from renderer/API launch descriptors without weakening terminal/session recovery.
 
+Shell is not a promptable agent harness. It is a core terminal tool/substrate that may still appear in low-level terminal metadata for compatibility, diagnostics, CLI/MCP terminal control, and persisted-session recovery. User-facing agent harness lists, profile defaults, and agent-prompt routine selectors should show only promptable harnesses such as Claude Code, Codex, Pi-compatible builds, and future agent systems. If this distinction becomes part of a shared/public contract, add reviewed metadata such as `promptable: false` rather than duplicating special-case shell filters.
+
 ## Adapter Families
 
 Official and local adapters should use these families where possible:
