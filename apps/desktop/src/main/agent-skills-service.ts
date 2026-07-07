@@ -20,6 +20,7 @@ export interface AgentSkillsServiceOptions {
   disabledRootPath: string;
   getWorkspaceModel: () => WorkspaceModel;
   homePath: string;
+  standardSkillsRootPath?: string;
   skillSourcesRootPath: string;
 }
 
@@ -35,6 +36,8 @@ interface DisabledSkillMetadata {
 
 const METADATA_FILE = ".exo-skill-location.json";
 const ENTRY_FILE = "SKILL.md";
+const STANDARD_SKILL_SOURCE_ID = "exo-standard";
+const STANDARD_SKILL_SOURCE_LABEL = "Exo standard";
 const SOURCE_REGISTRY_FILE = "sources.json";
 const execFileAsync = promisify(execFile);
 
@@ -228,29 +231,49 @@ export class AgentSkillsService {
     const sources = await this.listSources();
     const skills: AgentLibrarySkill[] = [];
 
+    if (this.options.standardSkillsRootPath && await fileExists(this.options.standardSkillsRootPath)) {
+      skills.push(...await this.listLibrarySkillsFromRoot({
+        rootPath: this.options.standardSkillsRootPath,
+        sourceId: STANDARD_SKILL_SOURCE_ID,
+        sourceLabel: STANDARD_SKILL_SOURCE_LABEL,
+      }));
+    }
+
     for (const source of sources) {
       const sourceSkillsRoot = path.join(source.localPath, source.skillsPath);
-      const skillDirectories = await listDirectoryEntries(sourceSkillsRoot);
-      for (const entry of skillDirectories) {
-        if (!entry.isDirectory() || entry.name.startsWith(".")) {
-          continue;
-        }
-        const rootPath = path.join(sourceSkillsRoot, entry.name);
-        const entryFilePath = path.join(rootPath, ENTRY_FILE);
-        skills.push({
-          id: `library:${source.id}:${entry.name}`,
-          sourceId: source.id,
-          sourceLabel: source.label,
-          name: entry.name,
-          label: await readSkillLabel(entryFilePath, entry.name),
-          rootPath,
-          files: await listSkillFiles(rootPath),
-          entryFilePath: await fileExists(entryFilePath) ? entryFilePath : null,
-        });
-      }
+      skills.push(...await this.listLibrarySkillsFromRoot({
+        rootPath: sourceSkillsRoot,
+        sourceId: source.id,
+        sourceLabel: source.label,
+      }));
     }
 
     return skills.sort((a, b) => `${a.sourceLabel}:${a.name}`.localeCompare(`${b.sourceLabel}:${b.name}`));
+  }
+
+  private async listLibrarySkillsFromRoot(input: { rootPath: string; sourceId: string; sourceLabel: string }): Promise<AgentLibrarySkill[]> {
+    const skillDirectories = await listDirectoryEntries(input.rootPath);
+    const skills: AgentLibrarySkill[] = [];
+
+    for (const entry of skillDirectories) {
+      if (!entry.isDirectory() || entry.name.startsWith(".")) {
+        continue;
+      }
+      const rootPath = path.join(input.rootPath, entry.name);
+      const entryFilePath = path.join(rootPath, ENTRY_FILE);
+      skills.push({
+        id: `library:${input.sourceId}:${entry.name}`,
+        sourceId: input.sourceId,
+        sourceLabel: input.sourceLabel,
+        name: entry.name,
+        label: await readSkillLabel(entryFilePath, entry.name),
+        rootPath,
+        files: await listSkillFiles(rootPath),
+        entryFilePath: await fileExists(entryFilePath) ? entryFilePath : null,
+      });
+    }
+
+    return skills;
   }
 
   private async skillSummary(rootPath: string, location: SkillLocationCandidate, enabled: boolean): Promise<AgentSkillSummary> {

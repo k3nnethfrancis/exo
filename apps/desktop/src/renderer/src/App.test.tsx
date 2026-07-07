@@ -131,6 +131,7 @@ import {
   restoreTerminalTreeSnapshot,
 } from "./paneTreeSelectors";
 import { isNewTerminalShortcut } from "./hooks/useAppKeybindings";
+import type { AgentSkillInventory } from "../../shared/api";
 import {
   getWikilinkCompletionContext,
   graphReferencesForMarkdownMode,
@@ -2541,10 +2542,32 @@ describe("workspace onboarding model", () => {
     expect(html).toMatch(/data-testid=\"onboarding-agent-instruction-merge\"[^>]*disabled=\"\"/);
   });
 
-  it("renders skills as Agent Config review instead of an onboarding installer", () => {
+  it("renders standard skills as a bulk onboarding enablement step", () => {
     const inventory = pluginInventory([
       pluginInventoryItem("codex", "Codex", "agentHarness", "Agent harnesses", "bundled"),
     ]);
+    const skillInventory: AgentSkillInventory = {
+      skills: [],
+      locations: [{
+        id: "codex:workspace",
+        harness: "codex",
+        scope: "workspace",
+        label: "Codex workspace",
+        path: "/workspace/.codex/skills",
+        enabled: true,
+      }],
+      sources: [],
+      librarySkills: [{
+        id: "library:exo-standard:terminal-stability",
+        sourceId: "exo-standard",
+        sourceLabel: "Exo standard",
+        name: "terminal-stability",
+        label: "Terminal Stability",
+        rootPath: "/repo/skills/terminal-stability",
+        files: [],
+        entryFilePath: "/repo/skills/terminal-stability/SKILL.md",
+      }],
+    };
     const html = renderToStaticMarkup(
       <OnboardingCapabilityReviewContent
         errorMessage={null}
@@ -2558,15 +2581,19 @@ describe("workspace onboarding model", () => {
         selectedHarnesses={[inventory.items[0]]}
         defaultHarnessId="codex"
         setupStep="skills"
+        skillInventory={skillInventory}
+        onApplyStandardSkills={vi.fn()}
       />,
     );
 
-    expect(html).toContain("Skills review");
-    expect(html).toContain("Selected harnesses");
+    expect(html).toContain("Standard skills");
+    expect(html).toContain("Compatible harnesses");
     expect(html).toContain("Codex");
-    expect(html).toContain("Review/apply in Agent Config");
-    expect(html).toContain("This setup will not install, enable, disable, move, or sync skill folders.");
-    expect(html).toContain("Pending review");
+    expect(html).toContain("Apply standard skills");
+    expect(html).toContain("Will enable");
+    expect(html).toContain("Managed through the same skill inventory and enablement path as Agent Config.");
+    expect(html).not.toContain("Pending review");
+    expect(html).not.toContain("This setup will not install");
   });
 
   it("renders the final Profile step as an editable config surface", () => {
@@ -2609,6 +2636,8 @@ describe("workspace onboarding model", () => {
     expect(html).toContain("&quot;defaultHarnessId&quot;: &quot;codex&quot;");
     expect(html).not.toContain("&quot;mcp&quot;: &quot;not-configured-pending-future-policy&quot;");
     expect(html).not.toContain("Enter workspace saves this profile state and onboarding completion only.");
+    expect(html).toContain("Standard set enabled for selected harnesses");
+    expect(html).toContain("Profile save updates Exo workspace state only.");
   });
 });
 

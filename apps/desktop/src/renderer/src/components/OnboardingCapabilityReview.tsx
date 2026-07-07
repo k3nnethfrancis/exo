@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ActiveProfileIdentity, OnboardingProfileStep, PluginInventory, PluginInventoryItem } from "@exo/core";
 import { ShieldAlert, ShieldCheck } from "lucide-react";
-import type { AgentInstructionConfig, AgentInstructionProviderId, AgentInstructionScopeId } from "../../../shared/api";
+import type {
+  AgentInstructionConfig,
+  AgentInstructionProviderId,
+  AgentInstructionScopeId,
+  AgentSkillHarnessId,
+  AgentSkillInventory,
+} from "../../../shared/api";
 
 import {
   buildOnboardingCapabilitySections,
@@ -23,22 +29,28 @@ const SETUP_STEP_ORDER: Array<[OnboardingSetupStep, string]> = [
 
 const STANDARD_SKILL_ROWS = [
   {
+    id: "plugin-development",
     name: "Plugin development",
     detail: "Guidance for building Exo plugins without crossing core boundaries.",
   },
   {
+    id: "terminal-stability",
     name: "Terminal stability",
     detail: "Rules for changing Exo terminal code without weakening persistence or rendering.",
   },
   {
+    id: "submit-exo-issue",
     name: "Submit Exo issue",
     detail: "A contributor workflow for reporting bugs into the project issue process.",
   },
   {
+    id: "deslopify-frontend",
     name: "Deslopify frontend",
     detail: "A UI cleanup checklist for setup, settings, and manager surfaces.",
   },
 ];
+
+const STANDARD_SKILL_SOURCE_ID = "exo-standard";
 
 interface OnboardingCapabilityReviewProps {
   notesFolder: string;
@@ -81,6 +93,10 @@ export function OnboardingCapabilityReview({
   const [exographContextApplied, setExographContextApplied] = useState(false);
   const [graphHealthEnabled, setGraphHealthEnabled] = useState(true);
   const [instructionSyncEnabled, setInstructionSyncEnabled] = useState(true);
+  const [skillInventory, setSkillInventory] = useState<AgentSkillInventory | null>(null);
+  const [standardSkillsEnabled, setStandardSkillsEnabled] = useState(true);
+  const [skillApplyState, setSkillApplyState] = useState<"idle" | "loading" | "applying" | "applied" | "error">("idle");
+  const [skillApplyMessage, setSkillApplyMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -172,6 +188,29 @@ export function OnboardingCapabilityReview({
       cancelled = true;
     };
   }, [agentInstructionConfig, setupStep]);
+
+  useEffect(() => {
+    if (setupStep !== "skills" || skillInventory || skillApplyState === "loading") {
+      return;
+    }
+    let cancelled = false;
+    setSkillApplyState("loading");
+    setSkillApplyMessage(null);
+    window.exo.workspace.listAgentSkills()
+      .then((inventory) => {
+        if (cancelled) return;
+        setSkillInventory(inventory);
+        setSkillApplyState("idle");
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setSkillApplyMessage(error instanceof Error ? error.message : String(error));
+        setSkillApplyState("error");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [setupStep, skillApplyState, skillInventory]);
 
   async function setPluginEnabled(item: PluginInventoryItem, enabled: boolean) {
     const actionKey = item.pluginId ?? item.id;
@@ -324,6 +363,25 @@ export function OnboardingCapabilityReview({
     }
   }
 
+  async function applyStandardSkills() {
+    setSkillApplyState("applying");
+    setSkillApplyMessage(null);
+    setErrorMessage(null);
+    try {
+      const summary = await applyStandardSkillSelection({
+        enabled: standardSkillsEnabled,
+        inventory: skillInventory ?? await window.exo.workspace.listAgentSkills(),
+        selectedHarnesses,
+      });
+      setSkillInventory(summary.inventory);
+      setSkillApplyState("applied");
+      setSkillApplyMessage(summary.message);
+    } catch (error) {
+      setSkillApplyState("error");
+      setSkillApplyMessage(error instanceof Error ? error.message : String(error));
+    }
+  }
+
   return (
     <OnboardingCapabilityReviewContent
       actionMessage={actionMessage}
@@ -363,6 +421,12 @@ export function OnboardingCapabilityReview({
       setGraphHealthEnabled={setGraphHealthEnabled}
       instructionSyncEnabled={instructionSyncEnabled}
       setInstructionSyncEnabled={setInstructionSyncEnabled}
+      skillApplyMessage={skillApplyMessage}
+      skillApplyState={skillApplyState}
+      skillInventory={skillInventory}
+      standardSkillsEnabled={standardSkillsEnabled}
+      setStandardSkillsEnabled={setStandardSkillsEnabled}
+      onApplyStandardSkills={() => void applyStandardSkills()}
       selectionOverrides={selectionOverrides}
       sections={sections}
     />
@@ -432,6 +496,87 @@ function patchProfileConfigLabel(draft: string, label: string): string {
   }
 }
 
+async function applyStandardSkillSelection({
+  enabled,
+  inventory,
+  selectedHarnesses,
+}: {
+  enabled: boolean;
+  inventory: AgentSkillInventory;
+  selectedHarnesses: PluginInventoryItem[];
+}): Promise<{ inventory: AgentSkillInventory; message: string }> {
+  let nextInventory = inventory;
+  const targetHarnesses = selectedHarnesses.map(standardSkillHarnessId).filter((id): id is AgentSkillHarnessId => Boolean(id));
+  const targetLocations = nextInventory.locations.filter((location) =>
+    location.enabled && location.scope === "workspace" && targetHarnesses.includes(location.harness)
+  );
+  if (targetLocations.length === 0) {
+    return { inventory: nextInventory, message: "Select a Claude or Codex harness before applying standard skills." };
+  }
+
+  const librarySkills = STANDARD_SKILL_ROWS.map((row) =>
+    nextInventory.librarySkills.find((skill) => skill.sourceId === STANDARD_SKILL_SOURCE_ID && skill.name === row.id),
+  );
+  const availableLibrarySkills = librarySkills.filter((skill): skill is NonNullable<typeof skill> => Boolean(skill));
+  if (enabled && availableLibrarySkills.length === 0) {
+    return { inventory: nextInventory, message: "Exo standard skill library is unavailable in this build." };
+  }
+
+  let installed = 0;
+  let enabledCount = 0;
+  let disabled = 0;
+  let already = 0;
+
+  for (const location of targetLocations) {
+    for (const row of STANDARD_SKILL_ROWS) {
+      const existing = nextInventory.skills.find((skill) =>
+        skill.name === row.id && skill.harness === location.harness && skill.scope === location.scope
+      );
+      if (enabled) {
+        if (existing?.enabled) {
+          already += 1;
+          continue;
+        }
+        if (existing && !existing.enabled) {
+          nextInventory = await window.exo.workspace.setAgentSkillEnabled({ skillId: existing.id, enabled: true });
+          enabledCount += 1;
+          continue;
+        }
+        const librarySkill = nextInventory.librarySkills.find((skill) => skill.sourceId === STANDARD_SKILL_SOURCE_ID && skill.name === row.id);
+        if (!librarySkill) {
+          continue;
+        }
+        nextInventory = await window.exo.workspace.installAgentLibrarySkill({
+          librarySkillId: librarySkill.id,
+          locationId: location.id,
+        });
+        installed += 1;
+      } else if (existing?.enabled) {
+        nextInventory = await window.exo.workspace.setAgentSkillEnabled({ skillId: existing.id, enabled: false });
+        disabled += 1;
+      } else if (existing) {
+        already += 1;
+      }
+    }
+  }
+
+  const targetLabels = targetLocations.map((location) => location.label).join(", ");
+  const message = enabled
+    ? `Standard skills applied to ${targetLabels}: ${installed} installed, ${enabledCount} enabled, ${already} already active.`
+    : `Standard skills disabled for ${targetLabels}: ${disabled} disabled, ${already} already inactive.`;
+  return { inventory: nextInventory, message };
+}
+
+function standardSkillHarnessId(item: PluginInventoryItem): AgentSkillHarnessId | null {
+  if (item.kind !== "core:agentHarness") {
+    return null;
+  }
+  if (item.id === "claude" || item.id === "codex") {
+    return item.id;
+  }
+  return null;
+}
+
 export function OnboardingCapabilityReviewContent({
   actionMessage,
   errorMessage,
@@ -470,6 +615,12 @@ export function OnboardingCapabilityReviewContent({
   setGraphHealthEnabled,
   instructionSyncEnabled = true,
   setInstructionSyncEnabled,
+  skillApplyMessage,
+  skillApplyState = "idle",
+  skillInventory = null,
+  standardSkillsEnabled = true,
+  setStandardSkillsEnabled,
+  onApplyStandardSkills,
   selectionOverrides = {},
   sections,
 }: {
@@ -510,6 +661,12 @@ export function OnboardingCapabilityReviewContent({
   setGraphHealthEnabled?: (value: boolean) => void;
   instructionSyncEnabled?: boolean;
   setInstructionSyncEnabled?: (value: boolean) => void;
+  skillApplyMessage?: string | null;
+  skillApplyState?: "idle" | "loading" | "applying" | "applied" | "error";
+  skillInventory?: AgentSkillInventory | null;
+  standardSkillsEnabled?: boolean;
+  setStandardSkillsEnabled?: (value: boolean) => void;
+  onApplyStandardSkills?: () => void;
   selectionOverrides?: Record<string, boolean>;
   sections: ReturnType<typeof buildOnboardingCapabilitySections>;
 }) {
@@ -551,6 +708,13 @@ export function OnboardingCapabilityReviewContent({
   const nextStep = setupStepIndex >= 0 && setupStepIndex < SETUP_STEP_ORDER.length - 1
     ? SETUP_STEP_ORDER[setupStepIndex + 1]?.[0]
     : null;
+  const skillHarnessLabels = selectedHarnesses.filter((item) => standardSkillHarnessId(item)).map((item) => item.label).join(", ");
+  const standardSkillLibraryAvailable = Boolean(skillInventory?.librarySkills.some((skill) => skill.sourceId === STANDARD_SKILL_SOURCE_ID));
+  const standardSkillActionDisabled = !onApplyStandardSkills
+    || skillApplyState === "loading"
+    || skillApplyState === "applying"
+    || !skillHarnessLabels
+    || (standardSkillsEnabled && !standardSkillLibraryAvailable);
   return (
     <>
       <div className="onboarding-card__body" data-testid="onboarding-card-body">
@@ -739,50 +903,67 @@ export function OnboardingCapabilityReviewContent({
           <section className="onboarding-section onboarding-section--primary" data-testid="onboarding-skills">
             <div className="onboarding-capability-section__header">
               <div>
-                <div className="dialog-field__label">Skills review</div>
+                <div className="dialog-field__label">Standard skills</div>
                 <div className="onboarding-section__hint">
-                  Onboarding records recommendations only. Skill folders are reviewed and applied in Agent Config.
+                  Bulk enable or disable Exo's bundled skillset for the selected Claude/Codex harnesses. Agent Config manages individual skills after setup.
                 </div>
               </div>
             </div>
             <div className="onboarding-review-summary">
               <div>
-                <span>Selected harnesses</span>
-                <strong>{selectedHarnessLabels || "None selected"}</strong>
+                <span>Compatible harnesses</span>
+                <strong>{skillHarnessLabels || "Select Claude or Codex"}</strong>
               </div>
               <div>
                 <span>Default harness</span>
                 <strong>{selectedHarness?.label ?? "None selected"}</strong>
               </div>
               <div>
-                <span>Apply path</span>
-                <strong>Agent Config</strong>
+                <span>Standard library</span>
+                <strong>{skillApplyState === "loading" ? "Loading" : standardSkillLibraryAvailable ? "Available" : "Unavailable"}</strong>
               </div>
             </div>
+            <label className="onboarding-skill-bulk-toggle">
+              <input
+                checked={standardSkillsEnabled}
+                onChange={(event) => setStandardSkillsEnabled?.(event.target.checked)}
+                type="checkbox"
+              />
+              <span>
+                <strong>Enable Exo standard skills</strong>
+                <small>Applies the bundled skill folders to each selected workspace harness folder. Turning this off disables the standard set for those harnesses.</small>
+              </span>
+            </label>
             <div className="onboarding-skill-list">
               {STANDARD_SKILL_ROWS.map((skill) => (
                 <div className="onboarding-skill-row" key={skill.name}>
                   <div className="onboarding-skill-row__title">
                     <strong>{skill.name}</strong>
-                    <span>Pending review</span>
+                    <span>{standardSkillsEnabled ? "Will enable" : "Will disable"}</span>
                   </div>
                   <span>{skill.detail}</span>
-                  <small>Applies after setup through Agent Config for selected harnesses.</small>
+                  <small>Managed through the same skill inventory and enablement path as Agent Config.</small>
                 </div>
               ))}
             </div>
             <div className="onboarding-card__actions onboarding-card__actions--inline">
               <button
                 className="toolbar-button"
-                disabled
-                title="Enter the workspace, then open Agent Config to inspect, enable, disable, sync, or install skills."
+                disabled={standardSkillActionDisabled}
+                onClick={onApplyStandardSkills}
+                title={standardSkillLibraryAvailable ? "Apply standard skill choices for selected harnesses." : "The bundled Exo standard skill library is not available in this build."}
                 type="button"
               >
-                Review/apply in Agent Config
+                {skillApplyState === "applying" ? "Applying..." : "Apply standard skills"}
               </button>
             </div>
-            <div className="onboarding-deferred-note">
-              This setup will not install, enable, disable, move, or sync skill folders.
+            {skillApplyMessage ? (
+              <div className={`dialog-card__status ${skillApplyState === "error" ? "dialog-card__status--error" : "dialog-card__status--success"}`}>
+                {skillApplyMessage}
+              </div>
+            ) : null}
+            <div className="onboarding-deferred-note" data-testid="onboarding-skills-note">
+              GitHub skill sources and per-skill file edits live in Agent Config Skills. GitHub sync only manages source files; it does not execute downloaded code.
             </div>
           </section>
         ) : null}
@@ -829,6 +1010,14 @@ export function OnboardingCapabilityReviewContent({
                 <span>Search</span>
                 <strong>{selectedSearchProviders.map((item) => item.label).join(", ") || "Basic file search only"}</strong>
               </div>
+              <div>
+                <span>Agent context</span>
+                <strong>{exographContextApplied ? "Applied" : "Not applied"}</strong>
+              </div>
+              <div>
+                <span>Skills</span>
+                <strong>{standardSkillsEnabled ? "Standard set enabled for selected harnesses" : "Standard set disabled for selected harnesses"}</strong>
+              </div>
             </div>
             <label className="dialog-field__label" htmlFor="onboarding-profile-config-preview">Profile config JSON</label>
             <textarea
@@ -849,6 +1038,9 @@ export function OnboardingCapabilityReviewContent({
               </button>
               {profileConfigStatus === "saved" ? <span className="onboarding-profile-status">Saved to active workspace profile.</span> : null}
               {profileConfigStatus === "error" ? <span className="onboarding-profile-status onboarding-profile-status--error">{profileConfigError ?? "Fix the JSON and save again."}</span> : null}
+            </div>
+            <div className="onboarding-deferred-note" data-testid="onboarding-profile-routine-note">
+              Profile save updates Exo workspace state only. File templates, routine schedules, MCP/CLI exposure, plugin settings, GitHub skill sources, and permission grants require separate review.
             </div>
           </section>
         ) : null}

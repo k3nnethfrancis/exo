@@ -6,7 +6,7 @@ import type { AgentLibrarySkill, AgentSkillFile, AgentSkillInventory, AgentSkill
 import { agentInstructionStatusLabel, type useAgentInstructionEditor } from "../hooks/useAgentInstructionEditor";
 
 type AgentInstructionEditor = ReturnType<typeof useAgentInstructionEditor>;
-type AgentConfigTab = "instructions" | "harnesses" | "skills" | "sources";
+type AgentConfigTab = "instructions" | "harnesses" | "skills";
 
 interface AgentConfigEditorDialogProps {
   editor: AgentInstructionEditor;
@@ -74,21 +74,11 @@ export function AgentConfigEditorDialog({ editor, onClose }: AgentConfigEditorDi
           >
             Harnesses
           </button>
-          <button
-            className={`dialog-tabs__button ${activeTab === "sources" ? "dialog-tabs__button--active" : ""}`}
-            data-testid="agent-config-tab-sources"
-            onClick={() => setActiveTab("sources")}
-            role="tab"
-            type="button"
-          >
-            Sources
-          </button>
         </div>
 
         {activeTab === "instructions" ? <AgentInstructionsPanel editor={editor} /> : null}
         {activeTab === "harnesses" ? <AgentHarnessesPanel /> : null}
         {activeTab === "skills" ? <AgentSkillsPanel /> : null}
-        {activeTab === "sources" ? <AgentSkillSourcesPanel /> : null}
       </div>
     </div>
   );
@@ -593,113 +583,116 @@ function AgentSkillsPanel() {
   }
 
   return (
-    <div className="agent-skills" data-testid="agent-skills-manager">
-      <div className="agent-skills__sidebar">
-        <div className="dialog-field__label">Configured Skills</div>
-        {loadState === "loading" && !inventory ? <div className="dialog-card__status">Loading skills...</div> : null}
-        {inventory?.skills.length === 0 ? (
-          <div className="dialog-card__status">No skills found in Claude or Codex skill folders.</div>
-        ) : null}
-        {inventory?.skills.map((skill) => (
-          <button
-            className={`agent-skills__skill ${skill.id === selectedSkillId ? "agent-skills__skill--active" : ""}`}
-            data-testid={`agent-skill-${skill.name}`}
-            key={skill.id}
-            onClick={() => {
-              setSelectedSkillId(skill.id);
-              setSelectedRelativePath(null);
-              setExpandedDirectoryPaths([]);
-            }}
-            type="button"
-          >
-            <strong>{skill.label}</strong>
-            <span>
-              {skill.harness} · {skill.scope} · {skill.enabled ? "enabled" : "disabled"}
-            </span>
-            <small>{skill.rootPath}</small>
-          </button>
-        ))}
-      </div>
+    <div className="agent-skills-panel" data-testid="agent-skills-manager">
+      <div className="agent-skills">
+        <div className="agent-skills__sidebar">
+          <div className="dialog-field__label">Configured Skills</div>
+          {loadState === "loading" && !inventory ? <div className="dialog-card__status">Loading skills...</div> : null}
+          {inventory?.skills.length === 0 ? (
+            <div className="dialog-card__status">No skills found in Claude or Codex skill folders.</div>
+          ) : null}
+          {inventory?.skills.map((skill) => (
+            <button
+              className={`agent-skills__skill shared-skill-row ${skill.id === selectedSkillId ? "agent-skills__skill--active" : ""}`}
+              data-testid={`agent-skill-${skill.name}`}
+              key={skill.id}
+              onClick={() => {
+                setSelectedSkillId(skill.id);
+                setSelectedRelativePath(null);
+                setExpandedDirectoryPaths([]);
+              }}
+              type="button"
+            >
+              <strong>{skill.label}</strong>
+              <span>
+                {skill.harness} · {skill.scope} · {skill.enabled ? "enabled" : "disabled"}
+              </span>
+              <small>{skill.rootPath}</small>
+            </button>
+          ))}
+        </div>
 
-      <div className="agent-skills__main">
-        {selectedSkill ? (
-          <>
-            <div className="agent-skills__toolbar">
-              <div>
-                <div className="dialog-field__label">{selectedSkill.label}</div>
-                <div className="agent-config-editor__path">{selectedSkill.locationLabel}</div>
+        <div className="agent-skills__main">
+          {selectedSkill ? (
+            <>
+              <div className="agent-skills__toolbar">
+                <div>
+                  <div className="dialog-field__label">{selectedSkill.label}</div>
+                  <div className="agent-config-editor__path">{selectedSkill.locationLabel}</div>
+                </div>
+                <button className="toolbar-button" data-testid="agent-skill-toggle-enabled" onClick={() => void toggleSelectedSkillEnabled()} type="button">
+                  {selectedSkill.enabled ? "Disable for harness" : "Enable for harness"}
+                </button>
               </div>
-              <button className="toolbar-button" data-testid="agent-skill-toggle-enabled" onClick={() => void toggleSelectedSkillEnabled()} type="button">
-                {selectedSkill.enabled ? "Disable for harness" : "Enable for harness"}
-              </button>
-            </div>
-            <div className="agent-skills__workspace">
-              <div className="agent-skills__files" data-testid="agent-skill-files">
-                {selectedFiles.map((file) => (
-                  <button
-                    className={`agent-skills__file ${file.kind === "directory" ? "agent-skills__file--directory" : ""} ${file.relativePath === selectedRelativePath ? "agent-skills__file--active" : ""}`}
-                    data-depth={file.depth}
-                    data-testid={`agent-skill-file-${file.relativePath}`}
-                    key={file.relativePath}
-                    onClick={() => {
-                      if (file.kind === "directory") {
-                        setExpandedDirectoryPaths((current) =>
-                          current.includes(file.relativePath)
-                            ? current.filter((directoryPath) => directoryPath !== file.relativePath)
-                            : [...current, file.relativePath],
-                        );
-                        return;
-                      }
-                      setSelectedRelativePath(file.relativePath);
-                    }}
-                    style={{ paddingLeft: `${8 + file.depth * 14}px` }}
-                    type="button"
-                  >
-                    {file.kind === "directory" ? `${file.expanded ? "▾" : "▸"} ` : ""}
-                    {file.label}
-                  </button>
-                ))}
-              </div>
-              <div className="agent-skills__editor">
-                {selectedFile ? (
-                  <>
-                    <div className="agent-skills__editor-header">
-                      <span>{selectedFile.relativePath}</span>
-                      <button
-                        className="toolbar-button"
-                        data-testid="agent-skill-save-file"
-                        disabled={saveState === "saving"}
-                        onClick={() => void saveSelectedFile()}
-                        type="button"
-                      >
-                        {saveState === "saving" ? "Saving..." : "Save"}
-                      </button>
-                    </div>
-                    <textarea
-                      className="dialog-card__input agent-skills__textarea"
-                      data-testid="agent-skill-file-editor"
-                      spellCheck={false}
-                      value={fileBody}
-                      onChange={(event) => {
-                        setSaveState("idle");
-                        setFileBody(event.target.value);
+              <div className="agent-skills__workspace">
+                <div className="agent-skills__files" data-testid="agent-skill-files">
+                  {selectedFiles.map((file) => (
+                    <button
+                      className={`agent-skills__file ${file.kind === "directory" ? "agent-skills__file--directory" : ""} ${file.relativePath === selectedRelativePath ? "agent-skills__file--active" : ""}`}
+                      data-depth={file.depth}
+                      data-testid={`agent-skill-file-${file.relativePath}`}
+                      key={file.relativePath}
+                      onClick={() => {
+                        if (file.kind === "directory") {
+                          setExpandedDirectoryPaths((current) =>
+                            current.includes(file.relativePath)
+                              ? current.filter((directoryPath) => directoryPath !== file.relativePath)
+                              : [...current, file.relativePath],
+                          );
+                          return;
+                        }
+                        setSelectedRelativePath(file.relativePath);
                       }}
-                    />
-                  </>
-                ) : (
-                  <div className="dialog-card__status">Select a skill file to edit.</div>
-                )}
+                      style={{ paddingLeft: `${8 + file.depth * 14}px` }}
+                      type="button"
+                    >
+                      {file.kind === "directory" ? `${file.expanded ? "▾" : "▸"} ` : ""}
+                      {file.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="agent-skills__editor">
+                  {selectedFile ? (
+                    <>
+                      <div className="agent-skills__editor-header">
+                        <span>{selectedFile.relativePath}</span>
+                        <button
+                          className="toolbar-button"
+                          data-testid="agent-skill-save-file"
+                          disabled={saveState === "saving"}
+                          onClick={() => void saveSelectedFile()}
+                          type="button"
+                        >
+                          {saveState === "saving" ? "Saving..." : "Save"}
+                        </button>
+                      </div>
+                      <textarea
+                        className="dialog-card__input agent-skills__textarea"
+                        data-testid="agent-skill-file-editor"
+                        spellCheck={false}
+                        value={fileBody}
+                        onChange={(event) => {
+                          setSaveState("idle");
+                          setFileBody(event.target.value);
+                        }}
+                      />
+                    </>
+                  ) : (
+                    <div className="dialog-card__status">Select a skill file to edit.</div>
+                  )}
+                </div>
               </div>
-            </div>
-            {saveState === "saved" ? <div className="dialog-card__status">Saved.</div> : null}
-          </>
-        ) : (
-          <div className="dialog-card__status">Select a skill to inspect its files.</div>
-        )}
-        {loadState === "error" || saveState === "error" || errorMessage ? (
-          <div className="dialog-card__status dialog-card__status--error">{errorMessage}</div>
-        ) : null}
+              {saveState === "saved" ? <div className="dialog-card__status">Saved.</div> : null}
+            </>
+          ) : (
+            <div className="dialog-card__status">Select a skill to inspect its files.</div>
+          )}
+          {loadState === "error" || saveState === "error" || errorMessage ? (
+            <div className="dialog-card__status dialog-card__status--error">{errorMessage}</div>
+          ) : null}
+        </div>
       </div>
+      <AgentSkillSourcesPanel />
     </div>
   );
 }
@@ -873,7 +866,7 @@ function AgentSkillSourcesPanel() {
           <div className="agent-sources__library">
             {inventory?.librarySkills.map((skill) => (
               <button
-                className={`agent-sources__skill ${skill.id === selectedLibrarySkillId ? "agent-sources__skill--active" : ""}`}
+                className={`agent-sources__skill shared-skill-row ${skill.id === selectedLibrarySkillId ? "agent-sources__skill--active" : ""}`}
                 data-testid={`agent-library-skill-${skill.name}`}
                 key={skill.id}
                 onClick={() => setSelectedLibrarySkillId(skill.id)}
