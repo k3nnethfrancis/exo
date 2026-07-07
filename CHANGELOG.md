@@ -80,6 +80,7 @@ Plugin architecture, tmux terminal persistence/readiness, packaged onboarding ha
 - Removes Guardian Angel-specific capability/code/docs from Exo core after the plugin boundary was clarified.
 - Keeps plugin entrypoint execution, Plugin Manager UI, plugin-owned CLI/MCP tools, marketplace/package loading, and permission grants out of this release until the manifest/trust model survives real use.
 - Removes the terminal attach-copy header button, agent config tab from Workspace Settings, legacy plugin kind aliases, and renderer-managed harness kind leftovers.
+- Removes the obsolete editor Inspector button/panel now that backlinks and references render inline below Markdown pages.
 
 ## 0.1.0-alpha.3 - 2026-05-31
 
