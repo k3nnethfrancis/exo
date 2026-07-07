@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 
 import type { AgentLibrarySkill, AgentSkillFile, AgentSkillInventory, AgentSkillSummary } from "../../../shared/api";
 import { agentInstructionStatusLabel, type useAgentInstructionEditor } from "../hooks/useAgentInstructionEditor";
+import { isPromptableAgentHarnessDetection } from "../onboardingCapabilities";
 
 type AgentInstructionEditor = ReturnType<typeof useAgentInstructionEditor>;
 type AgentConfigTab = "instructions" | "harnesses" | "skills" | "sources";
@@ -154,6 +155,7 @@ function AgentHarnessesPanel() {
   }
 
   const piHarness = harnesses.find((harness) => harness.id === "pi");
+  const agentHarnesses = harnesses.filter(isPromptableAgentHarnessDetection);
 
   return (
     <div className="agent-harnesses" data-testid="agent-harnesses-manager">
@@ -169,7 +171,7 @@ function AgentHarnessesPanel() {
           saveState={saveState}
         />
       ) : null}
-      {harnesses.map((harness) => (
+      {agentHarnesses.map((harness) => (
         <div className="agent-harnesses__row" data-testid={`agent-harness-${harness.id}`} key={harness.id}>
           <div>
             <div className="agent-harnesses__title">
@@ -186,7 +188,7 @@ function AgentHarnessesPanel() {
           </div>
           <div className="agent-harnesses__meta">
             <span>{harness.enabled ? "Enabled" : "Disabled"}</span>
-            <span>{harness.launchable ? "Launchable" : "Launch unavailable"}</span>
+            <span>{harness.launchable ? "Launchable" : "Setup needed"}</span>
             {harness.executablePath ? <small>{harness.executablePath}</small> : null}
             {!harness.executablePath && harness.repoPath ? <small>{harness.repoPath}</small> : null}
             {!harness.executablePath && !harness.repoPath && harness.install?.label ? <small>{harness.install.label}</small> : null}
@@ -200,6 +202,11 @@ function AgentHarnessesPanel() {
           </div>
         </div>
       ))}
+      {loadState === "idle" && agentHarnesses.length === 0 ? (
+        <div className="dialog-card__status dialog-card__status--warning">
+          No agent harnesses are ready yet. Shell remains available as a terminal tool from the terminal dock.
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -232,6 +239,12 @@ export function PiHarnessSettingsPanel({
   saveMessage: string | null;
   saveState: "idle" | "saving" | "error";
 }) {
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const hasCustomConfig = hasAdvancedPiConfig(draft);
+  const backendStatus = harness.dependencies?.find((dependency) => dependency.id === "pi-inference-backend")?.statusLabel;
+  const guidance = harness.setupSummary
+    ?? (harness.launchable ? "Pi is ready to launch." : "Configure a Pi-compatible command or source checkout and a ready inference backend before launch.");
+
   return (
     <section className="agent-harnesses__settings" data-testid="pi-harness-settings">
       <div className="agent-harnesses__settings-header">
@@ -239,12 +252,16 @@ export function PiHarnessSettingsPanel({
           <div className="dialog-field__label">Pi-compatible setup</div>
           <div className="agent-config-editor__path">
             {harness.statusLabel}
-            {harness.setupSummary ? ` · ${harness.setupSummary}` : ""}
+            {backendStatus ? ` · Backend: ${backendStatus}` : ""}
           </div>
         </div>
         <button className="toolbar-button" data-testid="pi-harness-save" disabled={saveState === "saving"} onClick={onSave} type="button">
           {saveState === "saving" ? "Saving..." : "Save"}
         </button>
+      </div>
+      <div className="agent-harnesses__settings-summary">
+        <span>{guidance}</span>
+        {hasCustomConfig ? <strong>Custom config saved</strong> : <strong>Default config</strong>}
       </div>
       {saveMessage ? (
         <div className={`dialog-card__status ${saveState === "error" ? "dialog-card__status--error" : ""}`} data-testid="pi-harness-save-message">
@@ -260,30 +277,54 @@ export function PiHarnessSettingsPanel({
         />
         <span>Enabled</span>
       </label>
-      <div className="agent-harnesses__settings-grid">
-        <PiTextField draftKey="label" label="Label" draft={draft} onChange={onChange} testId="pi-harness-label" />
-        <PiTextField draftKey="repoPath" label="Repo path" draft={draft} onChange={onChange} testId="pi-harness-repo-path" />
-        <PiTextField draftKey="command" label="Command" draft={draft} onChange={onChange} testId="pi-harness-command" />
-        <PiTextField draftKey="args" label="Args" draft={draft} onChange={onChange} testId="pi-harness-args" />
-        <PiTextField draftKey="backendUrl" label="Backend URL" draft={draft} onChange={onChange} testId="pi-harness-backend-url" />
-        <PiTextField draftKey="backendCommand" label="Backend command" draft={draft} onChange={onChange} testId="pi-harness-backend-command" />
-        <PiTextField draftKey="backendLabel" label="Backend label" draft={draft} onChange={onChange} testId="pi-harness-backend-label" />
-        <PiTextField draftKey="backendKind" label="Backend kind" draft={draft} onChange={onChange} testId="pi-harness-backend-kind" />
-        <label className="dialog-field">
-          <span className="dialog-field__label">Backend ready</span>
-          <select
-            className="dialog-card__input"
-            data-testid="pi-harness-backend-ready"
-            onChange={(event) => onChange({ ...draft, backendReady: event.target.value as PiHarnessDraft["backendReady"] })}
-            value={draft.backendReady}
-          >
-            <option value="">Auto</option>
-            <option value="true">Ready</option>
-            <option value="false">Blocked</option>
-          </select>
-        </label>
-      </div>
+      <button
+        className="toolbar-button agent-harnesses__advanced-toggle"
+        data-testid="pi-harness-advanced-toggle"
+        onClick={() => setShowAdvanced((current) => !current)}
+        type="button"
+      >
+        {showAdvanced ? "Hide custom config" : hasCustomConfig ? "Edit custom config" : "Show custom config"}
+      </button>
+      {showAdvanced ? (
+        <div className="agent-harnesses__settings-grid" data-testid="pi-harness-advanced-config">
+          <PiTextField draftKey="label" label="Label" draft={draft} onChange={onChange} testId="pi-harness-label" />
+          <PiTextField draftKey="repoPath" label="Repo path" draft={draft} onChange={onChange} testId="pi-harness-repo-path" />
+          <PiTextField draftKey="command" label="Command" draft={draft} onChange={onChange} testId="pi-harness-command" />
+          <PiTextField draftKey="args" label="Args" draft={draft} onChange={onChange} testId="pi-harness-args" />
+          <PiTextField draftKey="backendUrl" label="Backend URL" draft={draft} onChange={onChange} testId="pi-harness-backend-url" />
+          <PiTextField draftKey="backendCommand" label="Backend command" draft={draft} onChange={onChange} testId="pi-harness-backend-command" />
+          <PiTextField draftKey="backendLabel" label="Backend label" draft={draft} onChange={onChange} testId="pi-harness-backend-label" />
+          <PiTextField draftKey="backendKind" label="Backend kind" draft={draft} onChange={onChange} testId="pi-harness-backend-kind" />
+          <label className="dialog-field">
+            <span className="dialog-field__label">Backend ready</span>
+            <select
+              className="dialog-card__input"
+              data-testid="pi-harness-backend-ready"
+              onChange={(event) => onChange({ ...draft, backendReady: event.target.value as PiHarnessDraft["backendReady"] })}
+              value={draft.backendReady}
+            >
+              <option value="">Auto</option>
+              <option value="true">Ready</option>
+              <option value="false">Blocked</option>
+            </select>
+          </label>
+        </div>
+      ) : null}
     </section>
+  );
+}
+
+function hasAdvancedPiConfig(draft: PiHarnessDraft): boolean {
+  return Boolean(
+    draft.label.trim()
+    || draft.command.trim()
+    || draft.repoPath.trim()
+    || draft.args.trim()
+    || draft.backendUrl.trim()
+    || draft.backendCommand.trim()
+    || draft.backendLabel.trim()
+    || draft.backendKind.trim()
+    || draft.backendReady,
   );
 }
 

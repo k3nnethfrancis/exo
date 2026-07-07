@@ -44,8 +44,8 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - [ ] Redesign onboarding Skills to offer Exo-native skill install/enable choices for selected harnesses.
   - [ ] Move skill GitHub sources/sync into Skills management.
   - [ ] Simplify Profile setup to editable profile config, rename/create/save/apply.
-  - [ ] Remove shell from user-facing agent harness/profile/routine surfaces; decide whether core metadata needs a new terminal substrate/tool capability or a stricter UI filter.
-  - [ ] Collapse advanced Pi custom config by default and keep normal harness rows visually aligned.
+  - [x] Remove shell from user-facing agent harness/profile/routine surfaces; decide whether core metadata needs a new terminal substrate/tool capability or a stricter UI filter.
+  - [x] Collapse advanced Pi custom config by default and keep normal harness rows visually aligned.
   - [ ] Update docs/tasks/changelog and add focused renderer/e2e UI coverage.
   - [ ] Run app QA screenshots for onboarding, Agent Config, Plugin Manager, Profile/Settings, and skill management before handoff.
 

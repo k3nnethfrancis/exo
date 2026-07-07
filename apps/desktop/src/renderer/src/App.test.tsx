@@ -99,6 +99,7 @@ import { ProfileSettingsContent } from "./components/ProfileSettingsSection";
 import { isAgentPromptRoutineHarness, OnboardingCapabilityReviewContent } from "./components/OnboardingCapabilityReview";
 import {
   buildOnboardingCapabilitySections,
+  isPromptableAgentHarnessInventoryItem,
   onboardingCapabilitySelectable,
   onboardingCapabilitySelected,
   onboardingCapabilityStatus,
@@ -574,6 +575,31 @@ describe("profile settings model", () => {
     expect(model.workspaceSetupRows).toContainEqual({ label: "Exograph context", value: "Applied to globals" });
   });
 
+  it("does not show shell as a saved profile agent harness", () => {
+    const model = buildProfileSettingsModel(pluginInventory([
+      pluginInventoryItem("shell", "Shell", "agentHarness", "Agent harnesses", "bundled"),
+      pluginInventoryItem("codex", "Codex", "agentHarness", "Agent harnesses", "bundled"),
+    ]), {
+      version: 1,
+      activeProfile: {
+        profileId: "exograph-baseline.profile",
+        capabilityId: "exograph-baseline.profile",
+        label: "My Lab",
+        setup: {
+          enabledHarnessIds: ["shell", "codex"],
+          defaultHarnessId: "shell",
+          routineTemplateIds: [],
+          exographContextApplied: false,
+        },
+      },
+      autoUpdate: false,
+      reviewRequired: false,
+    });
+
+    expect(model.workspaceSetupRows).toContainEqual({ label: "Default harness", value: "Not selected" });
+    expect(model.workspaceSetupRows).toContainEqual({ label: "Enabled harnesses", value: "Codex" });
+  });
+
   it("builds a centralized read-only profile edit surface from profile sections", () => {
     const baseline: PluginInventoryItem = {
       ...pluginInventoryItem("exograph-baseline.profile", "Exograph Baseline", "profile", "Profiles", "bundled"),
@@ -817,6 +843,7 @@ describe("terminal monitor layout", () => {
 describe("plugin manager model", () => {
   it("groups inventory rows but hides core from plugin category filters", () => {
     const items = [
+      pluginInventoryItem("shell", "Shell", "agentHarness", "Agent harnesses", "bundled"),
       pluginInventoryItem("codex", "Codex", "agentHarness", "Agent harnesses", "bundled"),
       pluginInventoryItem("core.terminal", "Terminal host", "core", "Core", "core"),
       pluginInventoryItem("graph-health.template", "Graph Health", "routineTemplate", "Routine templates", "localManifest"),
@@ -835,6 +862,7 @@ describe("plugin manager model", () => {
       { id: "other", label: "Other", count: 0 },
     ]);
     expect(filterPluginInventoryItems(items, "core:searchProvider").map((item) => item.id)).toEqual(["qmd"]);
+    expect(filterPluginInventoryItems(items, "core:agentHarness").map((item) => item.id)).toEqual(["codex"]);
   });
 
   it("filters inventory rows by management state within a selected category", () => {
@@ -1804,8 +1832,10 @@ describe("terminal harness launchers", () => {
 
     expect(markup).toContain("Pi-compatible setup");
     expect(markup).toContain("Missing dependency");
-    expect(markup).toContain("pi-harness-backend-url");
-    expect(markup).toContain("http://127.0.0.1:8080");
+    expect(markup).toContain("Custom config saved");
+    expect(markup).toContain("Edit custom config");
+    expect(markup).not.toContain("pi-harness-backend-url");
+    expect(markup).not.toContain("http://127.0.0.1:8080");
     expect(piHarnessSettingsFromDraft({ ...draft, args: "--model, local", backendReady: "true" })).toMatchObject({
       label: "GA Pi",
       repoPath: "/workspace/projects/ga-pi",
@@ -2347,6 +2377,7 @@ describe("workspace onboarding model", () => {
     const inventory = pluginInventory([
       pluginInventoryItem("core.markdown-graph", "Markdown graph", "core", "Core", "core"),
       pluginInventoryItem("qmd", "QMD advanced search", "searchProvider", "Search providers", "bundled"),
+      pluginInventoryItem("shell", "Shell", "agentHarness", "Agent harnesses", "bundled"),
       {
         ...pluginInventoryItem("codex", "Codex", "agentHarness", "Agent harnesses", "bundled"),
         status: "not-found",
@@ -2387,6 +2418,7 @@ describe("workspace onboarding model", () => {
     expect(html).toMatch(/data-testid=\"onboarding-plugin-toggle-qmd\"[^>]*checked=\"\"/);
     expect(html).not.toMatch(/data-testid=\"onboarding-plugin-toggle-qmd\"[^>]*disabled=\"\"/);
     expect(html).not.toContain("onboarding-plugin-toggle-codex");
+    expect(html).not.toContain("onboarding-plugin-toggle-shell");
     expect(html).not.toContain("Advanced search default");
     expect(html).not.toContain("QMD hybrid");
     expect(html).not.toContain("Profile plan preview");
@@ -2461,7 +2493,9 @@ describe("workspace onboarding model", () => {
     );
 
     expect(isAgentPromptRoutineHarness(inventory.items[0])).toBe(false);
+    expect(isPromptableAgentHarnessInventoryItem(inventory.items[0])).toBe(false);
     expect(isAgentPromptRoutineHarness(inventory.items[1])).toBe(true);
+    expect(buildOnboardingCapabilitySections(inventory).flatMap((section) => section.rows).map((item) => item.id)).toEqual(["codex"]);
     expect(routineHtml).toContain("Default harness");
     expect(routineHtml).not.toContain("<option value=\"shell\">Shell</option>");
     expect(routineHtml).toContain("<option value=\"codex\">Codex</option>");

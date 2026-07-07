@@ -5,6 +5,7 @@ import type { AgentInstructionConfig } from "../../../shared/api";
 
 import {
   buildOnboardingCapabilitySections,
+  isPromptableAgentHarnessInventoryItem,
   onboardingCapabilitySelectable,
   onboardingCapabilitySelected,
   onboardingCapabilityStatus,
@@ -49,7 +50,7 @@ interface OnboardingCapabilityReviewProps {
 type OnboardingSetupStep = OnboardingProfileStep;
 
 export function isAgentPromptRoutineHarness(item: PluginInventoryItem): boolean {
-  return item.kind === "core:agentHarness" && item.id !== "shell";
+  return isPromptableAgentHarnessInventoryItem(item);
 }
 
 export function OnboardingCapabilityReview({
@@ -107,7 +108,7 @@ export function OnboardingCapabilityReview({
   const selectedHarnesses = useMemo(() => {
     const rows = sections.flatMap((section) => section.rows);
     return rows.filter((item) =>
-      item.kind === "core:agentHarness" && (selectionOverrides[item.id] ?? onboardingCapabilitySelected(item))
+      isPromptableAgentHarnessInventoryItem(item) && (selectionOverrides[item.id] ?? onboardingCapabilitySelected(item))
     );
   }, [sections, selectionOverrides]);
   const selectedRoutineHarnesses = useMemo(() => selectedHarnesses.filter(isAgentPromptRoutineHarness), [selectedHarnesses]);

@@ -1,5 +1,6 @@
 import type { PluginInventory, PluginInventoryItem, PluginSettingsSchema, PluginSettingValue, ResolvedPluginSettings } from "@exo/core";
 import type { WorkspacePluginActionInput } from "../../shared/api";
+import { isPromptableAgentHarnessInventoryItem } from "./onboardingCapabilities";
 
 export interface PluginInventoryGroup {
   id: string;
@@ -103,7 +104,7 @@ const CATEGORY_ORDER = [
 
 export function groupPluginInventoryItems(items: PluginInventoryItem[]): PluginInventoryGroup[] {
   const groups = new Map<string, PluginInventoryGroup>();
-  for (const item of items) {
+  for (const item of pluginManagerVisibleItems(items)) {
     const group = groups.get(item.categoryId) ?? {
       id: item.categoryId,
       label: item.categoryLabel,
@@ -123,7 +124,7 @@ export function groupPluginInventoryItems(items: PluginInventoryItem[]): PluginI
 
 export function buildPluginCategoryFilters(items: PluginInventoryItem[]): PluginCategoryFilter[] {
   const counts = new Map<string, { label: string; count: number }>();
-  for (const item of items) {
+  for (const item of pluginManagerVisibleItems(items)) {
     if (item.source === "core") {
       continue;
     }
@@ -150,7 +151,7 @@ export function filterPluginInventoryItems(
   categoryId: string,
 ): PluginInventoryItem[] {
   const knownIds = new Set(CATEGORY_ORDER.map(([id]) => id));
-  return items
+  return pluginManagerVisibleItems(items)
     .filter((item) => {
       if (item.source === "core") {
         return false;
@@ -220,7 +221,7 @@ export function filterPluginInventoryItemsByState(
 }
 
 export function buildPluginManagementSummary(items: PluginInventoryItem[]): PluginManagementSummaryBucket[] {
-  const pluginItems = items.filter((item) => item.source !== "core");
+  const pluginItems = pluginManagerVisibleItems(items).filter((item) => item.source !== "core");
   const activeCount = pluginItems.filter(isActivePluginRow).length;
   const disabledCount = pluginItems.filter((item) => !item.enabled || item.status === "disabled").length;
   const reviewCount = pluginItems.filter((item) => item.trust === "untrusted").length;
@@ -270,19 +271,20 @@ export function buildPluginManagementSummary(items: PluginInventoryItem[]): Plug
 }
 
 export function buildPluginBoundarySummary(items: PluginInventoryItem[]): PluginBoundarySummary {
-  const coreCount = items.filter((item) => item.source === "core").length;
-  const officialCount = items.filter((item) => item.source === "bundled" || item.distribution === "official").length;
-  const localCount = items.filter((item) =>
+  const visibleItems = pluginManagerVisibleItems(items);
+  const coreCount = visibleItems.filter((item) => item.source === "core").length;
+  const officialCount = visibleItems.filter((item) => item.source === "bundled" || item.distribution === "official").length;
+  const localCount = visibleItems.filter((item) =>
     item.source === "localManifest" && (item.pluginSource === "user" || item.pluginSource === "workspace" || item.distribution === "local")
   ).length;
-  const developerCount = items.filter((item) =>
+  const developerCount = visibleItems.filter((item) =>
     item.source === "localManifest"
     && item.pluginSource !== "user"
     && item.pluginSource !== "workspace"
     && item.distribution !== "local"
   ).length;
-  const manageableLocalCount = items.filter((item) => pluginLocalManagementAvailability(item).manageable).length;
-  const blockedCount = items.filter((item) =>
+  const manageableLocalCount = visibleItems.filter((item) => pluginLocalManagementAvailability(item).manageable).length;
+  const blockedCount = visibleItems.filter((item) =>
     !item.enabled
     || item.trust === "untrusted"
     || item.status === "broken"
@@ -325,6 +327,10 @@ export function buildPluginBoundarySummary(items: PluginInventoryItem[]): Plugin
     blockedCount,
     coreSummary: "Core stays available even when optional plugins are disabled. Plugins add replaceable capabilities on top of the Exograph baseline.",
   };
+}
+
+function pluginManagerVisibleItems(items: PluginInventoryItem[]): PluginInventoryItem[] {
+  return items.filter((item) => item.kind !== "core:agentHarness" || isPromptableAgentHarnessInventoryItem(item));
 }
 
 export function buildPluginRowIndicators(item: PluginInventoryItem): PluginRowIndicator[] {
@@ -1012,7 +1018,7 @@ function alternativeDetailRows(item: PluginInventoryItem, inventory: PluginInven
   if (!inventory) {
     return [];
   }
-  const alternatives = inventory.items
+  const alternatives = pluginManagerVisibleItems(inventory.items)
     .filter((candidate) => candidate.id !== item.id && candidate.categoryId === item.categoryId)
     .sort(compareInventoryItems);
   if (alternatives.length === 0) {
