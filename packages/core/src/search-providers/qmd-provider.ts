@@ -44,6 +44,16 @@ export class QmdSearchProvider implements SearchProvider {
     return readIndexDocument(model, runtimeRoot, target, options);
   }
 
+  readAuthorized(
+    model: WorkspaceModel,
+    runtimeRoot: string,
+    target: string,
+    options: IndexReadOptions,
+    authorizeResolvedPath: (filePath: string) => Promise<void>,
+  ): Promise<IndexReadResponse> {
+    return readIndexDocument(model, runtimeRoot, target, options, authorizeResolvedPath);
+  }
+
   update(model: WorkspaceModel, runtimeRoot: string, options: IndexUpdateOptions = {}): Promise<IndexStatus> {
     return updateIndex(model, runtimeRoot, options);
   }
@@ -291,6 +301,7 @@ async function readIndexDocument(
   runtimeRoot: string,
   target: string,
   options: IndexReadOptions = {},
+  authorizeResolvedPath?: (filePath: string) => Promise<void>,
 ): Promise<IndexReadResponse> {
   if (isDocid(target) && shouldUseQmd(model)) {
     let store: QmdStore | null = null;
@@ -304,6 +315,7 @@ async function readIndexDocument(
       if (!filePath || !isPathAllowedByIndexedRoot(filePath, model)) {
         throw new Error("Refusing to read a QMD document outside configured indexed roots.");
       }
+      await authorizeResolvedPath?.(filePath);
       const body = await store.getDocumentBody(target, {
         fromLine: options.fromLine,
         maxLines: options.maxLines,
@@ -322,7 +334,7 @@ async function readIndexDocument(
     }
   }
 
-  return readFilesystemDocument(model, target, options);
+  return readFilesystemDocument(model, target, options, authorizeResolvedPath);
 }
 
 async function openQmdStore(model: WorkspaceModel, runtimeRoot: string): Promise<QmdStore> {

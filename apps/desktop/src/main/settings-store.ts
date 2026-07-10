@@ -26,10 +26,14 @@ import {
   resolveWorkspaceRegistryPath,
   resolveWorkspaceSettingsPath,
   saveWorkspaceSettings,
+  workspaceSettingsRevision,
   workspaceSettingsToEnv,
   type WorkspaceModel,
   type WorkspaceRegistryEntry,
   type WorkspaceSettings,
+  type WorkspaceSettingsRevision,
+  type WorkspaceSettingsSaveRequest,
+  type WorkspaceSettingsSnapshot,
 } from "@exo/core";
 import { createHash } from "node:crypto";
 import path from "node:path";
@@ -60,6 +64,18 @@ export {
 export interface WorkspaceSettingsStoreOptions {
   userDataPath: string;
   env?: NodeJS.ProcessEnv;
+}
+
+export class WorkspaceSettingsConflictError extends Error {
+  readonly code = "workspace-settings-stale";
+
+  constructor(
+    readonly expectedRevision: WorkspaceSettingsRevision,
+    readonly actualRevision: WorkspaceSettingsRevision,
+  ) {
+    super("Workspace settings changed since this edit began. Reload settings and try again.");
+    this.name = "WorkspaceSettingsConflictError";
+  }
 }
 
 const PI_HARNESS_ENV_KEYS = [
@@ -101,8 +117,13 @@ export interface TerminalRuntimePolicy {
   idleThresholdMs: number;
 }
 
+// The desktop main process is the single settings writer. This per-path queue
+// also serializes accidental duplicate store instances within that process.
+const settingsSaveQueues = new Map<string, Promise<void>>();
+
 export class WorkspaceSettingsStore {
   private readonly env: NodeJS.ProcessEnv;
+  private revision: WorkspaceSettingsRevision = null;
 
   constructor(private readonly options: WorkspaceSettingsStoreOptions) {
     this.env = options.env ?? process.env;
@@ -152,12 +173,27 @@ export class WorkspaceSettingsStore {
     };
   }
 
-  async load(): Promise<WorkspaceSettings | null> {
-    return loadActiveWorkspaceSettings({ ...this.env, EXO_USER_DATA_PATH: this.options.userDataPath });
+  async load(): Promise<WorkspaceSettingsSnapshot | null> {
+    await currentSettingsSave(this.resolvePath());
+    const settings = await this.loadCurrentSettings();
+    this.revision = workspaceSettingsRevision(settings);
+    return settings ? { settings, revision: this.revision } : null;
   }
 
-  async save(settings: WorkspaceSettings): Promise<WorkspaceSettings> {
-    return saveWorkspaceSettings(settings, { ...this.env, EXO_USER_DATA_PATH: this.options.userDataPath });
+  save(request: WorkspaceSettingsSaveRequest): Promise<WorkspaceSettingsSnapshot> {
+    return enqueueSettingsSave(this.resolvePath(), async () => {
+      const actual = await this.loadCurrentRevision();
+      if (actual !== request.expectedRevision) {
+        throw new WorkspaceSettingsConflictError(request.expectedRevision, actual);
+      }
+      const settings = await saveWorkspaceSettings(request.settings, this.persistenceEnv());
+      this.revision = workspaceSettingsRevision(settings);
+      return { settings, revision: this.revision };
+    });
+  }
+
+  currentRevision(): WorkspaceSettingsRevision {
+    return this.revision;
   }
 
   async listWorkspaces(currentSettings?: WorkspaceSettings | null): Promise<WorkspaceRegistryEntry[]> {
@@ -167,6 +203,28 @@ export class WorkspaceSettingsStore {
   async getWorkspace(workspaceId: string): Promise<WorkspaceRegistryEntry | null> {
     return getWorkspaceRegistryEntry(workspaceId, { ...this.env, EXO_USER_DATA_PATH: this.options.userDataPath });
   }
+
+  private loadCurrentSettings(): Promise<WorkspaceSettings | null> {
+    return loadActiveWorkspaceSettings(this.persistenceEnv());
+  }
+
+  private async loadCurrentRevision(): Promise<WorkspaceSettingsRevision> {
+    return workspaceSettingsRevision(await this.loadCurrentSettings());
+  }
+
+  private persistenceEnv(): NodeJS.ProcessEnv {
+    return { ...this.env, EXO_USER_DATA_PATH: this.options.userDataPath };
+  }
+}
+
+function currentSettingsSave(settingsPath: string): Promise<void> {
+  return settingsSaveQueues.get(settingsPath) ?? Promise.resolve();
+}
+
+function enqueueSettingsSave<Result>(settingsPath: string, operation: () => Promise<Result>): Promise<Result> {
+  const result = currentSettingsSave(settingsPath).then(operation);
+  settingsSaveQueues.set(settingsPath, result.then(() => undefined, () => undefined));
+  return result;
 }
 
 export function applyWorkspaceSettingsToEnv(settings: WorkspaceSettings | null, env: NodeJS.ProcessEnv = process.env): void {

@@ -36,7 +36,7 @@ export async function copyMutableFixtureWorkspace(sourceRoot: string, targetRoot
   });
 }
 
-export async function launchExoFixture(options?: {
+interface LaunchExoFixtureOptions {
   mutable?: boolean;
   env?: Record<string, string>;
   cwd?: string;
@@ -47,7 +47,9 @@ export async function launchExoFixture(options?: {
   runtimeRootEnv?: boolean;
   expectOnboarding?: boolean;
   prepareSettings?: (input: { settingsPath: string; userDataRoot: string; workspaceRoot: string }) => Promise<void>;
-}): Promise<{
+}
+
+interface ExoFixture {
   electronApp: ElectronApplication;
   page: Page;
   workspaceRoot: string;
@@ -56,7 +58,20 @@ export async function launchExoFixture(options?: {
   tmuxServerName: string;
   homeRoot: string;
   cleanup: () => Promise<void>;
-}> {
+}
+
+export function launchExoTerminalFixture(options?: LaunchExoFixtureOptions): Promise<ExoFixture> {
+  return launchExoFixtureForJourney(options, true);
+}
+
+export function launchExoWorkspaceFixture(options?: LaunchExoFixtureOptions): Promise<ExoFixture> {
+  return launchExoFixtureForJourney(options, false);
+}
+
+async function launchExoFixtureForJourney(
+  options: LaunchExoFixtureOptions | undefined,
+  openTerminalSurface: boolean,
+): Promise<ExoFixture> {
   let workspaceRoot = fixtureRoot;
   let tempRoot: string | null = null;
   const settingsRoot = await mkdtemp(path.join(os.tmpdir(), "exo-settings-"));
@@ -145,12 +160,12 @@ export async function launchExoFixture(options?: {
 
   await expect(page.getByTestId("sidebar")).toBeVisible();
   await expect(page.getByTestId("editor-panel")).toBeVisible();
-  // The product starts with the right surface closed. Test fixtures open it so
-  // shell-focused tests can exercise the one visible V1 terminal without duplicating setup.
-  await page.getByTestId("side-panel-toggle").click();
-  await expect(page.getByTestId("exo-side-panel")).toBeVisible();
-  await expect(page.getByTestId("terminal-dock").first()).toBeVisible();
-  await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(1);
+  if (openTerminalSurface) {
+    await page.getByTestId("side-panel-toggle").click();
+    await expect(page.getByTestId("exo-side-panel")).toBeVisible();
+    await expect(page.getByTestId("terminal-dock").first()).toBeVisible();
+    await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(1);
+  }
   if (options?.initialNoteLabel !== null) {
     const initialNoteLabel = options?.initialNoteLabel ?? "focus-note";
     const noteButton = page.getByRole("button", { name: initialNoteLabel });
@@ -182,21 +197,42 @@ export async function launchExoFixture(options?: {
   };
 }
 
-export async function relaunchExoFixture(
-  previous: {
-    workspaceRoot: string;
-    settingsPath: string;
-    runtimeRoot: string;
-    homeRoot: string;
-  },
-  options?: {
-    env?: Record<string, string>;
-  },
-): Promise<{
+interface RelaunchExoFixtureInput {
+  workspaceRoot: string;
+  settingsPath: string;
+  runtimeRoot: string;
+  homeRoot: string;
+}
+
+interface RelaunchExoFixtureOptions {
+  env?: Record<string, string>;
+}
+
+interface RelaunchedExoFixture {
   electronApp: ElectronApplication;
   page: Page;
   cleanup: () => Promise<void>;
-}> {
+}
+
+export function relaunchExoTerminalFixture(
+  previous: RelaunchExoFixtureInput,
+  options?: RelaunchExoFixtureOptions,
+): Promise<RelaunchedExoFixture> {
+  return relaunchExoFixtureForJourney(previous, options, true);
+}
+
+export function relaunchExoWorkspaceFixture(
+  previous: RelaunchExoFixtureInput,
+  options?: RelaunchExoFixtureOptions,
+): Promise<RelaunchedExoFixture> {
+  return relaunchExoFixtureForJourney(previous, options, false);
+}
+
+async function relaunchExoFixtureForJourney(
+  previous: RelaunchExoFixtureInput,
+  options: RelaunchExoFixtureOptions | undefined,
+  openTerminalSurface: boolean,
+): Promise<RelaunchedExoFixture> {
   const userDataRoot = path.dirname(previous.runtimeRoot);
   const tmuxServerName = tmuxServerNameForRuntimeRoot(previous.runtimeRoot);
   const launchEnv: NodeJS.ProcessEnv = {
@@ -225,10 +261,12 @@ export async function relaunchExoFixture(
   const page = electronApp.windows()[0] ?? await electronApp.firstWindow();
   await expect(page.getByTestId("sidebar")).toBeVisible();
   await expect(page.getByTestId("editor-panel")).toBeVisible();
-  await page.getByTestId("side-panel-toggle").click();
-  await expect(page.getByTestId("exo-side-panel")).toBeVisible();
-  await expect(page.getByTestId("terminal-dock").first()).toBeVisible();
-  await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(1);
+  if (openTerminalSurface) {
+    await page.getByTestId("side-panel-toggle").click();
+    await expect(page.getByTestId("exo-side-panel")).toBeVisible();
+    await expect(page.getByTestId("terminal-dock").first()).toBeVisible();
+    await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(1);
+  }
 
   return {
     electronApp,

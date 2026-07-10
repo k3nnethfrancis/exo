@@ -2,10 +2,10 @@ import { expect, test } from "@playwright/test";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { launchExoFixture } from "../helpers";
+import { launchExoWorkspaceFixture } from "../helpers";
 
 test("refreshes an open clean document when it changes on disk", async () => {
-  const { page, workspaceRoot, cleanup } = await launchExoFixture({
+  const { page, workspaceRoot, cleanup } = await launchExoWorkspaceFixture({
     mutable: true,
     prepareWorkspace: async (workspaceRoot) => {
       const target = path.join(workspaceRoot, "notes/test-notes/external-change-test.md");
@@ -27,7 +27,7 @@ test("refreshes an open clean document when it changes on disk", async () => {
 
 test("preserves editor scroll when an open document refreshes from disk", async () => {
   const longBody = Array.from({ length: 140 }, (_value, index) => `line ${String(index + 1).padStart(3, "0")}`).join("\n");
-  const { page, workspaceRoot, cleanup } = await launchExoFixture({
+  const { page, workspaceRoot, cleanup } = await launchExoWorkspaceFixture({
     mutable: true,
     prepareWorkspace: async (workspaceRoot) => {
       const target = path.join(workspaceRoot, "notes/test-notes/external-scroll-test.md");
@@ -63,7 +63,7 @@ test("preserves editor scroll when an open document refreshes from disk", async 
 });
 
 test("preserves editor cursor when an open document refreshes from disk", async () => {
-  const { page, workspaceRoot, cleanup } = await launchExoFixture({
+  const { page, workspaceRoot, cleanup } = await launchExoWorkspaceFixture({
     mutable: true,
     prepareWorkspace: async (workspaceRoot) => {
       const target = path.join(workspaceRoot, "notes/test-notes/external-cursor-test.md");
@@ -105,7 +105,7 @@ test("preserves editor cursor when an open document refreshes from disk", async 
 });
 
 test("does not overwrite an unsaved document when the file changes on disk", async () => {
-  const { page, workspaceRoot, cleanup } = await launchExoFixture({
+  const { page, workspaceRoot, cleanup } = await launchExoWorkspaceFixture({
     mutable: true,
     prepareWorkspace: async (workspaceRoot) => {
       const target = path.join(workspaceRoot, "notes/test-notes/external-dirty-test.md");

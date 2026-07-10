@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { launchExoFixture } from "../helpers";
+import { launchExoWorkspaceFixture } from "../helpers";
 
 test("renders fenced code blocks in markdown live preview", async () => {
   const markdownContent = `# Code Block Test
@@ -28,7 +28,7 @@ cover cover cover cover cover cover cover cover cover cover cover cover cover co
 After.
 `;
 
-  const { page, cleanup } = await launchExoFixture({
+  const { page, cleanup } = await launchExoWorkspaceFixture({
     mutable: true,
     prepareWorkspace: async (workspaceRoot) => {
       const target = path.join(workspaceRoot, "notes/test-notes/code-block-test.md");

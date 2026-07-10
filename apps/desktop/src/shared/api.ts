@@ -14,6 +14,8 @@ import type {
   OnboardingStateStore,
   WorkspaceModel,
   WorkspaceSettings,
+  WorkspaceSettingsSaveRequest,
+  WorkspaceSettingsSnapshot,
   WorkspaceSearchResults,
   TerminalSubstrateKind,
   InvocationRecord,
@@ -140,6 +142,14 @@ export interface WorkspaceRegistryEntry {
   updatedAt: string;
 }
 
+export type WorkspaceSettingsRuntimeApplyOutcome =
+  | { status: "applied" }
+  | { status: "failed"; errorMessage: string };
+
+export interface WorkspaceSettingsSaveOutcome extends WorkspaceSettingsSnapshot {
+  runtimeApply: WorkspaceSettingsRuntimeApplyOutcome;
+}
+
 export type AgentInstructionScopeId = "global" | "exocortex";
 export type AgentInstructionProviderId = "agents" | "claude";
 export type AgentInstructionStatus = "aligned" | "different" | "missing-agents" | "missing-claude" | "missing-both" | "error";
@@ -207,12 +217,12 @@ export interface LaunchAgentInvocationResponse {
 export interface DesktopApi {
   workspace: {
     getModel: () => Promise<WorkspaceModel>;
-    getSettings: () => Promise<WorkspaceSettings>;
+    getSettings: () => Promise<WorkspaceSettingsSnapshot>;
     getSetupState: () => Promise<WorkspaceSetupState>;
     markOnboardingComplete: () => Promise<OnboardingStateStore>;
     listWorkspaces: () => Promise<WorkspaceRegistryEntry[]>;
-    activateWorkspace: (workspaceId: string) => Promise<WorkspaceSettings>;
-    saveSettings: (settings: WorkspaceSettings) => Promise<WorkspaceSettings>;
+    activateWorkspace: (input: { workspaceId: string; expectedRevision: WorkspaceSettingsSaveRequest["expectedRevision"] }) => Promise<WorkspaceSettingsSaveOutcome>;
+    saveSettings: (request: WorkspaceSettingsSaveRequest) => Promise<WorkspaceSettingsSaveOutcome>;
     selectFolder: (options?: { title?: string; allowMultiple?: boolean; buttonLabel?: string }) => Promise<string[]>;
     getIndexStatus: () => Promise<IndexStatus>;
     resolvePreviewTarget: (target: string) => Promise<{ url: string; source: "url" | "file" }>;

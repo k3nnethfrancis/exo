@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { access, chmod, mkdtemp, open, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -9,12 +9,116 @@ import {
   listWorkspaceRegistryEntries,
   loadActiveWorkspaceSettings,
   normalizeWorkspaceSettings,
+  resolveWorkspaceRegistryPath,
+  resolveWorkspaceSettingsPath,
+  resolveWorkspaceSettingsTransactionPath,
   saveWorkspaceSettings,
   workspaceEnvOverrides,
   workspaceSettingsToEnv,
 } from "../workspace-settings";
 
 describe("workspace settings registry", () => {
+  it("recovers a committed settings transaction after an interrupted registry write", async () => {
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-settings-recovery-"));
+    const env = { EXO_USER_DATA_PATH: userDataPath };
+    const settings = normalizeWorkspaceSettings({
+      workspaceRoot: "/tmp/exo-recovery/notes",
+      defaultTerminalCwd: "/tmp/exo-recovery",
+      noteRoots: ["/tmp/exo-recovery/notes"],
+      projectRoots: [],
+      indexedRoots: [],
+      indexing: { enabled: false, mode: "off", backend: "qmd" },
+    });
+
+    try {
+      expect(settings).not.toBeNull();
+      await saveWorkspaceSettings(settings!, env);
+      const registry = JSON.parse(await readFile(resolveWorkspaceRegistryPath(env), "utf8")) as WorkspaceSettingsTransaction["registry"];
+      const nextSettings = { ...settings!, appearanceMode: "dark" as const };
+      const nextRegistry = {
+        ...registry,
+        workspaces: registry.workspaces.map((entry, index) =>
+          index === 0 ? { ...entry, settings: nextSettings } : entry),
+      };
+      const transactionPath = resolveWorkspaceSettingsTransactionPath(env);
+      await writeFile(transactionPath, JSON.stringify({ version: 1, settings: nextSettings, registry: nextRegistry }), { mode: 0o600 });
+      await writeFile(resolveWorkspaceSettingsPath(env), JSON.stringify(nextSettings), { mode: 0o600 });
+
+      await expect(loadActiveWorkspaceSettings(env)).resolves.toMatchObject({ appearanceMode: "dark" });
+
+      const recoveredRegistry = JSON.parse(await readFile(resolveWorkspaceRegistryPath(env), "utf8")) as WorkspaceSettingsTransaction["registry"];
+      expect(recoveredRegistry.workspaces[0]?.settings.appearanceMode).toBe("dark");
+      await expect(access(transactionPath)).rejects.toMatchObject({ code: "ENOENT" });
+    } finally {
+      await rm(userDataPath, { recursive: true, force: true });
+    }
+  });
+
+  it("enforces private permissions on settings and registry files", async () => {
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-private-settings-"));
+    const env = { EXO_USER_DATA_PATH: userDataPath };
+    const settings = normalizeWorkspaceSettings({
+      workspaceRoot: "/tmp/exo-private/notes",
+      defaultTerminalCwd: "/tmp/exo-private",
+      noteRoots: ["/tmp/exo-private/notes"],
+      projectRoots: [],
+      indexedRoots: [],
+      indexing: { enabled: false, mode: "off", backend: "qmd" },
+    });
+
+    try {
+      expect(settings).not.toBeNull();
+      await saveWorkspaceSettings(settings!, env);
+      await chmod(resolveWorkspaceSettingsPath(env), 0o666);
+      await chmod(resolveWorkspaceRegistryPath(env), 0o666);
+
+      await saveWorkspaceSettings({ ...settings!, appearanceMode: "dark" }, env);
+
+      expect((await stat(resolveWorkspaceSettingsPath(env))).mode & 0o777).toBe(0o600);
+      expect((await stat(resolveWorkspaceRegistryPath(env))).mode & 0o777).toBe(0o600);
+    } finally {
+      await rm(userDataPath, { recursive: true, force: true });
+    }
+  });
+
+  it("atomically replaces the settings and registry files", async () => {
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-atomic-settings-"));
+    const env = { EXO_USER_DATA_PATH: userDataPath };
+    const initial = normalizeWorkspaceSettings({
+      workspaceRoot: "/tmp/exo-atomic/notes",
+      defaultTerminalCwd: "/tmp/exo-atomic",
+      noteRoots: ["/tmp/exo-atomic/notes"],
+      projectRoots: [],
+      indexedRoots: [],
+      indexing: { enabled: false, mode: "off", backend: "qmd" },
+      appearanceMode: "system",
+    });
+
+    try {
+      expect(initial).not.toBeNull();
+      await saveWorkspaceSettings(initial!, env);
+      const originalSettingsFile = await open(resolveWorkspaceSettingsPath(env), "r");
+      const originalRegistryFile = await open(resolveWorkspaceRegistryPath(env), "r");
+
+      try {
+        await saveWorkspaceSettings({ ...initial!, appearanceMode: "dark" }, env);
+
+        const originalSettings = JSON.parse(await originalSettingsFile.readFile("utf8")) as { appearanceMode: string };
+        const currentSettings = JSON.parse(await readFile(resolveWorkspaceSettingsPath(env), "utf8")) as { appearanceMode: string };
+        const originalRegistry = JSON.parse(await originalRegistryFile.readFile("utf8")) as WorkspaceRegistryAppearance;
+        const currentRegistry = JSON.parse(await readFile(resolveWorkspaceRegistryPath(env), "utf8")) as WorkspaceRegistryAppearance;
+        expect(originalSettings.appearanceMode).toBe("system");
+        expect(currentSettings.appearanceMode).toBe("dark");
+        expect(originalRegistry.workspaces[0]?.settings.appearanceMode).toBe("system");
+        expect(currentRegistry.workspaces[0]?.settings.appearanceMode).toBe("dark");
+      } finally {
+        await Promise.all([originalSettingsFile.close(), originalRegistryFile.close()]);
+      }
+    } finally {
+      await rm(userDataPath, { recursive: true, force: true });
+    }
+  });
+
   it("defaults missing color theme ids and normalizes unknown ids", () => {
     const missing = normalizeWorkspaceSettings({
       workspaceRoot: "/tmp/exo-theme/notes",
@@ -425,3 +529,14 @@ describe("workspace settings registry", () => {
     expect(workspaceEnvOverrides({})).toBe(false);
   });
 });
+
+interface WorkspaceRegistryAppearance {
+  workspaces: Array<{ settings: { appearanceMode: string } }>;
+}
+
+interface WorkspaceSettingsTransaction {
+  registry: {
+    activeWorkspaceId: string | null;
+    workspaces: Array<{ settings: { appearanceMode: string }; [key: string]: unknown }>;
+  };
+}

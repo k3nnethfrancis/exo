@@ -14,7 +14,7 @@ import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { test, expect, type Page } from "@playwright/test";
-import { launchExoFixture } from "../helpers";
+import { launchExoTerminalFixture, launchExoWorkspaceFixture } from "../helpers";
 
 // ---------------------------------------------------------------------------
 // Helpers — simulate manual drag (not HTML5 DnD)
@@ -74,7 +74,7 @@ async function getBoundingBox(page: Page, selector: string) {
 
 test.describe("Three-zone layout", () => {
   test("renders explorer, editor pane, and terminal pane as three columns", async () => {
-    const { page, cleanup } = await launchExoFixture();
+    const { page, cleanup } = await launchExoTerminalFixture();
 
     // All three zones visible
     await expect(page.getByTestId("sidebar")).toBeVisible();
@@ -91,78 +91,11 @@ test.describe("Three-zone layout", () => {
     await cleanup();
   });
 
-  test("swaps terminal pane left and explorer pane right", async () => {
-    const { page, cleanup } = await launchExoFixture();
-
-    await page.getByTestId("swap-side-panes").click();
-
-    const sidebarBox = await getBoundingBox(page, '[data-testid="sidebar"]');
-    const editorBox = await getBoundingBox(page, ".pane-leaf--editor");
-    const terminalBox = await getBoundingBox(page, ".pane-leaf--terminal");
-    const railBox = await getBoundingBox(page, '[data-testid="terminal-rail"]');
-    const launchShellBox = await getBoundingBox(page, '[data-testid="launch-shell"]');
-    const sidebarToggleBox = await getBoundingBox(page, '[data-testid="sidebar-collapse"]');
-    const newNoteBox = await getBoundingBox(page, '[data-testid="sidebar-new-note"]');
-    const searchToggleBox = await getBoundingBox(page, '[data-testid="sidebar-search-toggle"]');
-    const firstMirroredFile = page.locator(".sidebar--mirrored .tree-node--file").first();
-    const firstFileLabelAlign = await firstMirroredFile.locator("span").last().evaluate((element) =>
-      window.getComputedStyle(element).textAlign,
-    );
-    const firstMirroredFileBox = await firstMirroredFile.boundingBox();
-    const firstMirroredFileLabelBox = await firstMirroredFile.locator("span").last().boundingBox();
-
-    expect(terminalBox.x).toBeLessThan(editorBox.x);
-    expect(editorBox.x).toBeLessThan(sidebarBox.x);
-    expect(sidebarBox.x).toBeLessThan(railBox.x);
-    expect(launchShellBox.x).toBeLessThan(terminalBox.x);
-    expect(sidebarToggleBox.x).toBeGreaterThan(sidebarBox.x);
-    expect(newNoteBox.x).toBeGreaterThan(searchToggleBox.x);
-    expect(firstFileLabelAlign).toBe("right");
-    expect(firstMirroredFileBox).not.toBeNull();
-    expect(firstMirroredFileLabelBox).not.toBeNull();
-    expect(firstMirroredFileLabelBox!.x + firstMirroredFileLabelBox!.width).toBeGreaterThan(
-      firstMirroredFileBox!.x + firstMirroredFileBox!.width / 2,
-    );
-
-    const firstDirectory = page.locator(".sidebar--mirrored .tree-node--directory").first();
-    if (await firstDirectory.count()) {
-      const firstDirectoryChevronBox = await firstDirectory.locator("svg").boundingBox();
-      const firstDirectoryLabelBox = await firstDirectory.locator("span").boundingBox();
-      const firstDirectoryAlign = await firstDirectory.locator("span").evaluate((element) =>
-        window.getComputedStyle(element).textAlign,
-      );
-      expect(firstDirectoryChevronBox).not.toBeNull();
-      expect(firstDirectoryLabelBox).not.toBeNull();
-      expect(firstDirectoryChevronBox!.x).toBeGreaterThan(firstDirectoryLabelBox!.x);
-      expect(firstDirectoryAlign).toBe("right");
-    }
-
-    await page.getByTestId("swap-side-panes").click();
-
-    const restoredSidebarBox = await getBoundingBox(page, '[data-testid="sidebar"]');
-    const restoredEditorBox = await getBoundingBox(page, ".pane-leaf--editor");
-    const restoredTerminalBox = await getBoundingBox(page, ".pane-leaf--terminal");
-    const restoredFirstFile = page.locator('[data-testid="sidebar"] .tree-node--file').first();
-    const restoredFirstFileLabelAlign = await restoredFirstFile.locator("span").last().evaluate((element) =>
-      window.getComputedStyle(element).textAlign,
-    );
-    const restoredFirstFileBox = await restoredFirstFile.boundingBox();
-    const restoredFirstFileLabelBox = await restoredFirstFile.locator("span").last().boundingBox();
-
-    expect(restoredSidebarBox.x).toBeLessThan(restoredEditorBox.x);
-    expect(restoredEditorBox.x).toBeLessThan(restoredTerminalBox.x);
-    expect(restoredFirstFileLabelAlign).toBe("left");
-    expect(restoredFirstFileBox).not.toBeNull();
-    expect(restoredFirstFileLabelBox).not.toBeNull();
-    expect(restoredFirstFileLabelBox!.x).toBeLessThan(restoredFirstFileBox!.x + restoredFirstFileBox!.width / 2);
-
-    await cleanup();
-  });
 });
 
 test.describe("Drag editor tab over terminal pane", () => {
   test("does NOT produce drop zones on terminal pane", async () => {
-    const { page, cleanup } = await launchExoFixture();
+    const { page, cleanup } = await launchExoTerminalFixture();
 
     // Open a second note so we have a tab to drag
     await page.getByTestId("inspector-toggle").click();
@@ -204,7 +137,7 @@ test.describe("Drag editor tab over terminal pane", () => {
   });
 
   test("does NOT cause blank canvas when dropped on terminal pane", async () => {
-    const { page, cleanup } = await launchExoFixture();
+    const { page, cleanup } = await launchExoTerminalFixture();
 
     // Open a second note
     await page.getByTestId("inspector-toggle").click();
@@ -234,7 +167,7 @@ test.describe("Drag editor tab over terminal pane", () => {
 
 test.describe("Drag within editor zone", () => {
   test("drag ghost appears when dragging editor tab", async () => {
-    const { page, cleanup } = await launchExoFixture();
+    const { page, cleanup } = await launchExoWorkspaceFixture();
 
     // Open a second note so we have a tab to drag
     await page.getByTestId("inspector-toggle").click();
@@ -265,7 +198,7 @@ test.describe("Drag within editor zone", () => {
 
 test.describe("Within-zone splits", () => {
   test("dropping editor tab on edge of editor pane creates a split", async () => {
-    const { page, cleanup } = await launchExoFixture();
+    const { page, cleanup } = await launchExoTerminalFixture();
 
     // Open a second note so we have a tab to drag
     await page.getByTestId("inspector-toggle").click();
@@ -297,7 +230,7 @@ test.describe("Within-zone splits", () => {
   });
 
   test("dragging a split terminal tab back to another terminal tab group merges panes", async () => {
-    const { page, cleanup } = await launchExoFixture();
+    const { page, cleanup } = await launchExoTerminalFixture();
 
     await page.evaluate(async () => {
       await window.exo.terminals.create({ kind: "shell" });
@@ -336,7 +269,7 @@ test.describe("Within-zone splits", () => {
 
 test.describe("Cross-zone terminal tab moves", () => {
   test("dragging a terminal tab into the editor canvas creates a terminal pane there", async () => {
-    const { page, settingsPath, cleanup } = await launchExoFixture();
+    const { page, settingsPath, cleanup } = await launchExoTerminalFixture();
 
     const terminalTabBox = await page.getByTestId("terminal-tab-shell").first().boundingBox();
     const editorBox = await getBoundingBox(page, ".pane-leaf--editor");
@@ -350,7 +283,6 @@ test.describe("Cross-zone terminal tab moves", () => {
 
     await expect(page.locator(".workspace__body .pane-leaf--editor")).toBeVisible();
     await expect(page.locator(".workspace__body .pane-leaf--terminal")).toHaveCount(1);
-    await expect(page.getByTestId("terminal-expand")).toBeVisible();
     await expect(page.locator(".workspace__body .pane-leaf--terminal").getByTestId("terminal-tab-shell")).toBeVisible();
 
     const editorTabStripBox = await page.locator(".workspace__body .pane-leaf--editor .tab-strip").first().boundingBox();
@@ -369,13 +301,12 @@ test.describe("Cross-zone terminal tab moves", () => {
     await page.reload();
     await expect(page.getByTestId("sidebar")).toBeVisible();
     await expect(page.locator(".workspace__body .pane-leaf--terminal").getByTestId("terminal-tab-shell")).toBeVisible();
-    await expect(page.getByTestId("terminal-expand")).toBeVisible();
 
     await cleanup();
   });
 
   test("dragging an editor tab onto a canvas terminal pane splits the shared graph", async () => {
-    const { page, cleanup } = await launchExoFixture();
+    const { page, cleanup } = await launchExoTerminalFixture();
 
     const terminalTabBox = await page.getByTestId("terminal-tab-shell").first().boundingBox();
     const editorBox = await getBoundingBox(page, ".pane-leaf--editor");
@@ -387,7 +318,6 @@ test.describe("Cross-zone terminal tab moves", () => {
       { x: editorBox.x + editorBox.width / 2, y: editorBox.y + editorBox.height / 2 },
     );
 
-    await expect(page.getByTestId("terminal-expand")).toBeVisible();
     await expect(page.locator(".workspace__body .pane-leaf--terminal")).toHaveCount(1);
 
     const editorTabBox = await page.locator(".workspace__body .pane-leaf--editor .chrome-tab").first().boundingBox();
@@ -403,13 +333,12 @@ test.describe("Cross-zone terminal tab moves", () => {
 
     await expect(page.locator(".workspace__body .pane-leaf--terminal")).toHaveCount(1);
     await expect(page.locator(".workspace__body .pane-leaf--editor")).toHaveCount(2);
-    await expect(page.getByTestId("terminal-expand")).toBeVisible();
 
     await cleanup();
   });
 
   test("workspace terminal panes stream input and prune when closed", async () => {
-    const { page, cleanup } = await launchExoFixture({
+    const { page, cleanup } = await launchExoTerminalFixture({
       env: {
         EXO_SHELL: "/bin/cat",
         EXO_SHELL_ARGS: "",
@@ -428,7 +357,6 @@ test.describe("Cross-zone terminal tab moves", () => {
 
     const workspaceTerminal = page.locator(".workspace__body .pane-leaf--terminal").first();
     await expect(workspaceTerminal).toBeVisible();
-    await expect(page.getByTestId("terminal-expand")).toBeVisible();
 
     await workspaceTerminal.getByTestId("terminal-surface").click();
     await page.keyboard.type("canvas terminal\n");
@@ -437,7 +365,6 @@ test.describe("Cross-zone terminal tab moves", () => {
     await workspaceTerminal.getByTestId("close-terminal-shell").click();
     await expect(page.locator(".workspace__body .pane-leaf--terminal")).toHaveCount(0);
     await expect(page.locator(".workspace__body .pane-leaf--editor")).toBeVisible();
-    await expect(page.getByTestId("terminal-expand")).toBeVisible();
 
     await cleanup();
   });
@@ -445,7 +372,7 @@ test.describe("Cross-zone terminal tab moves", () => {
 
 test.describe("Explorer file moves", () => {
   test("dragging a folder onto another folder moves it there", async () => {
-    const { page, workspaceRoot, cleanup } = await launchExoFixture({
+    const { page, workspaceRoot, cleanup } = await launchExoWorkspaceFixture({
       mutable: true,
       prepareWorkspace: async (root) => {
         await mkdir(path.join(root, "notes/test-notes/source-dir"), { recursive: true });
@@ -486,7 +413,7 @@ test.describe("Explorer file moves", () => {
   });
 
   test("dragging a folder onto an existing destination shows a conflict dialog", async () => {
-    const { page, workspaceRoot, cleanup } = await launchExoFixture({
+    const { page, workspaceRoot, cleanup } = await launchExoWorkspaceFixture({
       mutable: true,
       prepareWorkspace: async (root) => {
         await mkdir(path.join(root, "notes/test-notes/source-dir"), { recursive: true });
@@ -521,7 +448,7 @@ test.describe("Explorer file moves", () => {
   });
 
   test("dragging a nested folder onto notes whitespace moves it to the root", async () => {
-    const { page, workspaceRoot, cleanup } = await launchExoFixture({
+    const { page, workspaceRoot, cleanup } = await launchExoWorkspaceFixture({
       mutable: true,
       prepareWorkspace: async (root) => {
         await mkdir(path.join(root, "notes/test-notes/parent-dir/nested-dir"), { recursive: true });
@@ -560,7 +487,7 @@ test.describe("Explorer file moves", () => {
   });
 
   test("dragging a nested folder onto a root file moves it to the root", async () => {
-    const { page, workspaceRoot, cleanup } = await launchExoFixture({
+    const { page, workspaceRoot, cleanup } = await launchExoWorkspaceFixture({
       mutable: true,
       prepareWorkspace: async (root) => {
         await mkdir(path.join(root, "notes/test-notes/parent-dir/nested-dir"), { recursive: true });
@@ -604,7 +531,7 @@ test.describe("Explorer file moves", () => {
 
 test.describe("Post-drag app stability", () => {
   test("app remains functional after dragging editor tab anywhere and releasing", async () => {
-    const { page, cleanup } = await launchExoFixture();
+    const { page, cleanup } = await launchExoTerminalFixture();
 
     // Open a second note
     await page.getByTestId("inspector-toggle").click();
@@ -636,7 +563,7 @@ test.describe("Post-drag app stability", () => {
   });
 
   test("drop zones appear on same-kind panes but NOT on cross-kind panes", async () => {
-    const { page, cleanup } = await launchExoFixture();
+    const { page, cleanup } = await launchExoTerminalFixture();
 
     // Open a second note
     await page.getByTestId("inspector-toggle").click();

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { IndexStatus, TreeNode, WorkspaceModel, WorkspaceSettings } from "@exo/core";
+import type { IndexStatus, TreeNode, WorkspaceModel, WorkspaceSettings, WorkspaceSettingsRevision } from "@exo/core";
 
 import type { TerminalSessionInfo, WorkspaceRegistryEntry, WorkspaceSetupState } from "../../../shared/api";
 import type { PaneNode } from "./usePaneTree";
@@ -48,6 +48,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
   const [bootstrapError, setBootstrapError] = useState<string | null>(null);
   const [layoutPersistenceReady, setLayoutPersistenceReady] = useState(false);
   const workspaceSettingsRef = useRef<WorkspaceSettings | null>(null);
+  const workspaceSettingsRevisionRef = useRef<WorkspaceSettingsRevision>(null);
   const bootstrapRunRef = useRef(0);
   const optionsRef = useRef(options);
 
@@ -62,16 +63,18 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
       const bootstrapRun = ++bootstrapRunRef.current;
       const currentOptions = optionsRef.current;
       const workspaceListPromise = window.exo.workspace.listWorkspaces().catch(() => []);
-      const [setupState, model, settings, workspaces] = await Promise.all([
+      const [setupState, model, settingsSnapshot, workspaces] = await Promise.all([
         window.exo.workspace.getSetupState(),
         window.exo.workspace.getModel(),
         window.exo.workspace.getSettings(),
         workspaceListPromise,
       ]);
+      const settings = settingsSnapshot.settings;
 
       setBootstrapError(null);
       setSetupState(setupState);
       workspaceSettingsRef.current = settings;
+      workspaceSettingsRevisionRef.current = settingsSnapshot.revision;
       setLayoutPersistenceReady(false);
       currentOptions.applyWorkspaceSettings(settings);
       currentOptions.applyPersistedLayout(settings.layout);
@@ -255,9 +258,16 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
     }
     setOnboardingState({ ...current, status: "saving", errorMessage: null });
     try {
-      const saved = await window.exo.workspace.activateWorkspace(current.selectedWorkspaceId);
+      const saved = await window.exo.workspace.activateWorkspace({
+        workspaceId: current.selectedWorkspaceId,
+        expectedRevision: workspaceSettingsRevisionRef.current,
+      });
+      workspaceSettingsRef.current = saved.settings;
+      workspaceSettingsRevisionRef.current = saved.revision;
+      if (saved.runtimeApply.status === "failed") {
+        throw new Error(saved.runtimeApply.errorMessage);
+      }
       await window.exo.workspace.markOnboardingComplete();
-      workspaceSettingsRef.current = saved;
       window.location.reload();
     } catch (error) {
       setOnboardingState({
@@ -281,7 +291,10 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
 
     setOnboardingState({ ...current, status: "saving", errorMessage: null });
     try {
-      const base = workspaceSettingsRef.current ?? await window.exo.workspace.getSettings();
+      const baseSnapshot = workspaceSettingsRef.current
+        ? { settings: workspaceSettingsRef.current, revision: workspaceSettingsRevisionRef.current }
+        : await window.exo.workspace.getSettings();
+      const base = baseSnapshot.settings;
       const indexMode = current.indexMode;
       const indexedRootPaths = indexMode === "off" ? [] : [notesFolder];
       const nextSettings: WorkspaceSettings = {
@@ -303,9 +316,16 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
         exploreIndexSearchOnEnter: indexMode !== "off" && current.exploreIndexSearchOnEnter,
         indexUpdateStrategy: current.indexUpdateStrategy,
       };
-      const saved = await window.exo.workspace.saveSettings(nextSettings);
+      const saved = await window.exo.workspace.saveSettings({
+        settings: nextSettings,
+        expectedRevision: baseSnapshot.revision,
+      });
+      workspaceSettingsRef.current = saved.settings;
+      workspaceSettingsRevisionRef.current = saved.revision;
+      if (saved.runtimeApply.status === "failed") {
+        throw new Error(saved.runtimeApply.errorMessage);
+      }
       await window.exo.workspace.markOnboardingComplete();
-      workspaceSettingsRef.current = saved;
       window.location.reload();
     } catch (error) {
       setOnboardingState({
@@ -327,6 +347,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
     layoutPersistenceReady,
     setLayoutPersistenceReady,
     workspaceSettingsRef,
+    workspaceSettingsRevisionRef,
     selectNotesFolderForOnboarding,
     selectDefaultTerminalForOnboarding,
     openWorkspaceSwitcher,

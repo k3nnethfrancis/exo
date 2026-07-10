@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type Dispatch, type MutableRefObject, type
 import {
   type IndexStatus,
   type WorkspaceSettings,
+  type WorkspaceSettingsRevision,
 } from "@exo/core";
 import {
   DEFAULT_TERMINAL_IDLE_THRESHOLD_MS,
@@ -33,6 +34,7 @@ import { pathLabel } from "../workspaceTree";
 
 interface UseWorkspaceSettingsControllerOptions {
   workspaceSettingsRef: MutableRefObject<WorkspaceSettings | null>;
+  workspaceSettingsRevisionRef: MutableRefObject<WorkspaceSettingsRevision>;
   applyWorkspaceSettings: (settings: WorkspaceSettings) => void;
   refreshWorkspaceModel: () => Promise<void>;
   setIndexStatus: Dispatch<SetStateAction<IndexStatus | null>>;
@@ -43,6 +45,7 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
   const [dialog, setDialog] = useState<WorkspaceSettingsDialogState | null>(null);
   const [indexBusy, setIndexBusy] = useState<IndexBusyState>(null);
   const optionsRef = useRef(options);
+  const settingsPatchSaveTailRef = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
     optionsRef.current = options;
@@ -85,23 +88,44 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
     return () => window.clearTimeout(timeout);
   }, [dialog]);
 
-  async function saveSettingsPatch(patch: Partial<WorkspaceSettings>) {
-    const base = optionsRef.current.workspaceSettingsRef.current ?? await window.exo.workspace.getSettings();
-    const nextSettings: WorkspaceSettings = {
-      ...base,
-      ...patch,
-    };
-    optionsRef.current.workspaceSettingsRef.current = nextSettings;
-    const saved = await window.exo.workspace.saveSettings(nextSettings);
-    optionsRef.current.workspaceSettingsRef.current = saved;
-    void optionsRef.current.onSettingsSaved?.();
+  function saveSettingsPatch(patch: Partial<WorkspaceSettings>): Promise<void> {
+    // Fire-and-forget controls share one local snapshot stream. Each patch must
+    // wait for the prior save to publish the revision that authorizes it.
+    const result = settingsPatchSaveTailRef.current.then(async () => {
+      const baseSnapshot = optionsRef.current.workspaceSettingsRef.current
+        ? {
+            settings: optionsRef.current.workspaceSettingsRef.current,
+            revision: optionsRef.current.workspaceSettingsRevisionRef.current,
+          }
+        : await window.exo.workspace.getSettings();
+      const nextSettings: WorkspaceSettings = {
+        ...baseSnapshot.settings,
+        ...patch,
+      };
+      const saved = await window.exo.workspace.saveSettings({
+        settings: nextSettings,
+        expectedRevision: baseSnapshot.revision,
+      });
+      optionsRef.current.workspaceSettingsRef.current = saved.settings;
+      optionsRef.current.workspaceSettingsRevisionRef.current = saved.revision;
+      if (saved.runtimeApply.status === "failed") {
+        throw new Error(saved.runtimeApply.errorMessage);
+      }
+      void optionsRef.current.onSettingsSaved?.();
+    });
+    settingsPatchSaveTailRef.current = result.catch(() => undefined);
+    return result;
   }
 
   async function openDialog(section: WorkspaceSettingsSection = "workspace") {
-    const settings = await window.exo.workspace.getSettings();
+    const snapshot = await window.exo.workspace.getSettings();
+    const settings = snapshot.settings;
+    optionsRef.current.workspaceSettingsRef.current = settings;
+    optionsRef.current.workspaceSettingsRevisionRef.current = snapshot.revision;
     const appliedWorkspaceKey = workspaceSettingsStructuralKeyFromSettings(settings);
     setDialog({
       section,
+      settingsRevision: snapshot.revision,
       workspaceRoot: settings.workspaceRoot,
       defaultTerminalCwd: settings.defaultTerminalCwd,
       noteRoots: settings.noteRoots,
@@ -235,27 +259,69 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
     );
 
     try {
-      const saved = await window.exo.workspace.saveSettings(nextSettings);
-      optionsRef.current.workspaceSettingsRef.current = saved;
-      optionsRef.current.applyWorkspaceSettings(saved);
-      void optionsRef.current.onSettingsSaved?.();
-      setDialog((current) =>
-        current && (saveOptions.includeStructural ? workspaceSettingsStructuralDraftKey(current) : workspaceSettingsImmediateDraftKey(current)) === snapshotKey
-          ? {
-              ...current,
-              ...(saveOptions.includeStructural
+      const saved = await window.exo.workspace.saveSettings({
+        settings: nextSettings,
+        expectedRevision: settingsDialog.settingsRevision,
+      });
+      optionsRef.current.workspaceSettingsRef.current = saved.settings;
+      optionsRef.current.workspaceSettingsRevisionRef.current = saved.revision;
+      optionsRef.current.applyWorkspaceSettings(saved.settings);
+      if (saved.runtimeApply.status === "failed") {
+        const runtimeApplyErrorMessage = saved.runtimeApply.errorMessage;
+        setDialog((current) => {
+          if (!current || current.settingsRevision !== settingsDialog.settingsRevision) {
+            return current;
+          }
+          const savedDraftIsCurrent = (
+            saveOptions.includeStructural
+              ? workspaceSettingsStructuralDraftKey(current)
+              : workspaceSettingsImmediateDraftKey(current)
+          ) === snapshotKey;
+          return {
+            ...current,
+            settingsRevision: saved.revision,
+            ...(savedDraftIsCurrent
+              ? saveOptions.includeStructural
                 ? {
-                    appliedWorkspaceKey: workspaceSettingsStructuralKeyFromSettings(saved),
-                    applyStatus: "applied" as const,
-                    applyErrorMessage: null,
+                    applyStatus: "error" as const,
+                    applyErrorMessage: runtimeApplyErrorMessage,
                   }
                 : {
-                    saveStatus: "saved" as const,
-                    errorMessage: null,
-                  }),
-          }
-          : current,
-      );
+                    saveStatus: "error" as const,
+                    errorMessage: runtimeApplyErrorMessage,
+                  }
+              : {}),
+          };
+        });
+        return;
+      }
+      void optionsRef.current.onSettingsSaved?.();
+      setDialog((current) => {
+        if (!current || current.settingsRevision !== settingsDialog.settingsRevision) {
+          return current;
+        }
+        const savedDraftIsCurrent = (
+          saveOptions.includeStructural
+            ? workspaceSettingsStructuralDraftKey(current)
+            : workspaceSettingsImmediateDraftKey(current)
+        ) === snapshotKey;
+        return {
+          ...current,
+          settingsRevision: saved.revision,
+          ...(savedDraftIsCurrent
+            ? saveOptions.includeStructural
+              ? {
+                  appliedWorkspaceKey: workspaceSettingsStructuralKeyFromSettings(saved.settings),
+                  applyStatus: "applied" as const,
+                  applyErrorMessage: null,
+                }
+              : {
+                  saveStatus: "saved" as const,
+                  errorMessage: null,
+                }
+            : {}),
+        };
+      });
       if (saveOptions.includeStructural) {
         void optionsRef.current.refreshWorkspaceModel();
       }

@@ -1,8 +1,9 @@
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { chmod, mkdir, open, readFile, rename, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import type { IndexMode, PiHarnessSettings, WorkspaceLayoutSettings, WorkspacePaneContent, WorkspacePaneNode, WorkspaceSettings } from "./types";
+import type { IndexMode, PiHarnessSettings, WorkspaceLayoutSettings, WorkspacePaneContent, WorkspacePaneNode, WorkspaceSettings, WorkspaceSettingsRevision } from "./types";
 import { normalizeAgentCommands } from "./agent-invocation";
 import {
   DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS,
@@ -61,7 +62,16 @@ export function resolveWorkspaceRegistryPath(env: NodeJS.ProcessEnv = process.en
   return path.join(path.dirname(resolveWorkspaceSettingsPath(env)), "workspace-registry.json");
 }
 
+export function resolveWorkspaceSettingsTransactionPath(env: NodeJS.ProcessEnv = process.env): string {
+  return path.join(path.dirname(resolveWorkspaceSettingsPath(env)), "workspace-settings-transaction.json");
+}
+
 export async function loadWorkspaceSettings(env: NodeJS.ProcessEnv = process.env): Promise<WorkspaceSettings | null> {
+  await recoverWorkspaceSettingsTransaction(env);
+  return loadWorkspaceSettingsFile(env);
+}
+
+async function loadWorkspaceSettingsFile(env: NodeJS.ProcessEnv): Promise<WorkspaceSettings | null> {
   try {
     const raw = await readFile(resolveWorkspaceSettingsPath(env), "utf8");
     return normalizeWorkspaceSettings(JSON.parse(raw) as Partial<WorkspaceSettings>);
@@ -70,35 +80,52 @@ export async function loadWorkspaceSettings(env: NodeJS.ProcessEnv = process.env
   }
 }
 
+export function workspaceSettingsRevision(settings: WorkspaceSettings | null): WorkspaceSettingsRevision {
+  if (!settings) {
+    return null;
+  }
+  const normalized = normalizeWorkspaceSettings(settings);
+  return normalized
+    ? createHash("sha256").update(JSON.stringify(normalized)).digest("hex")
+    : null;
+}
+
 export async function saveWorkspaceSettings(settings: WorkspaceSettings, env: NodeJS.ProcessEnv = process.env): Promise<WorkspaceSettings> {
+  await recoverWorkspaceSettingsTransaction(env);
   const normalized = normalizeWorkspaceSettings(settings);
   if (!normalized) {
     throw new Error("Workspace settings are incomplete.");
   }
-  const settingsPath = resolveWorkspaceSettingsPath(env);
-  await mkdir(path.dirname(settingsPath), { recursive: true });
-  await writeFile(settingsPath, JSON.stringify(normalized, null, 2));
-  await saveActiveWorkspace(normalized, env);
-  return normalized;
+  const registry = await loadWorkspaceRegistryFile(env);
+  const transaction: WorkspaceSettingsTransaction = {
+    version: 1,
+    settings: normalized,
+    registry: registryWithActiveWorkspace(registry, normalized),
+  };
+  await writeJsonAtomically(resolveWorkspaceSettingsTransactionPath(env), transaction);
+  try {
+    await applyWorkspaceSettingsTransaction(transaction, env);
+    await removeFileDurably(resolveWorkspaceSettingsTransactionPath(env));
+    return normalized;
+  } catch (error) {
+    try {
+      await recoverWorkspaceSettingsTransaction(env);
+      return normalized;
+    } catch (recoveryError) {
+      throw new WorkspaceSettingsTransactionError(recoveryError, error);
+    }
+  }
 }
 
 export async function loadWorkspaceRegistry(env: NodeJS.ProcessEnv = process.env): Promise<WorkspaceRegistry> {
+  await recoverWorkspaceSettingsTransaction(env);
+  return loadWorkspaceRegistryFile(env);
+}
+
+async function loadWorkspaceRegistryFile(env: NodeJS.ProcessEnv): Promise<WorkspaceRegistry> {
   try {
     const raw = await readFile(resolveWorkspaceRegistryPath(env), "utf8");
-    const parsed = JSON.parse(raw) as Partial<WorkspaceRegistry>;
-    const workspaces = Array.isArray(parsed.workspaces)
-      ? parsed.workspaces.reduce<WorkspaceRegistryEntry[]>((entries, entry) => {
-          const normalized = normalizeRegistryEntry(entry);
-          if (normalized) {
-            entries.push(normalized);
-          }
-          return entries;
-        }, [])
-      : [];
-    return {
-      activeWorkspaceId: typeof parsed.activeWorkspaceId === "string" ? parsed.activeWorkspaceId : workspaces[0]?.id ?? null,
-      workspaces,
-    };
+    return normalizeWorkspaceRegistry(JSON.parse(raw));
   } catch {
     return { activeWorkspaceId: null, workspaces: [] };
   }
@@ -118,14 +145,116 @@ export async function getWorkspaceRegistryEntry(workspaceId: string, env: NodeJS
   return registry.workspaces.find((entry) => entry.id === workspaceId) ?? null;
 }
 
-export async function saveActiveWorkspace(settings: WorkspaceSettings, env: NodeJS.ProcessEnv = process.env): Promise<void> {
+export async function recoverWorkspaceSettingsTransaction(env: NodeJS.ProcessEnv = process.env): Promise<boolean> {
+  const transactionPath = resolveWorkspaceSettingsTransactionPath(env);
+  let raw: string;
+  try {
+    raw = await readFile(transactionPath, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return false;
+    }
+    throw error;
+  }
+  const transaction = parseWorkspaceSettingsTransaction(raw);
+  await applyWorkspaceSettingsTransaction(transaction, env);
+  await removeFileDurably(transactionPath);
+  return true;
+}
+
+function registryWithActiveWorkspace(registry: WorkspaceRegistry, settings: WorkspaceSettings): WorkspaceRegistry {
   const entry = workspaceEntryFromSettings(settings);
-  const registry = await loadWorkspaceRegistry(env);
-  const nextWorkspaces = registry.workspaces.filter((workspace) => workspace.id !== entry.id);
-  nextWorkspaces.unshift(entry);
-  const registryPath = resolveWorkspaceRegistryPath(env);
-  await mkdir(path.dirname(registryPath), { recursive: true });
-  await writeFile(registryPath, JSON.stringify({ activeWorkspaceId: entry.id, workspaces: nextWorkspaces }, null, 2));
+  return {
+    activeWorkspaceId: entry.id,
+    workspaces: [entry, ...registry.workspaces.filter((workspace) => workspace.id !== entry.id)],
+  };
+}
+
+function normalizeWorkspaceRegistry(value: unknown): WorkspaceRegistry {
+  const parsed = value && typeof value === "object" ? value as Partial<WorkspaceRegistry> : {};
+  const workspaces = Array.isArray(parsed.workspaces)
+    ? parsed.workspaces.reduce<WorkspaceRegistryEntry[]>((entries, entry) => {
+        const normalized = normalizeRegistryEntry(entry);
+        if (normalized) {
+          entries.push(normalized);
+        }
+        return entries;
+      }, [])
+    : [];
+  return {
+    activeWorkspaceId: typeof parsed.activeWorkspaceId === "string" ? parsed.activeWorkspaceId : workspaces[0]?.id ?? null,
+    workspaces,
+  };
+}
+
+function parseWorkspaceSettingsTransaction(raw: string): WorkspaceSettingsTransaction {
+  const parsed = JSON.parse(raw) as Partial<WorkspaceSettingsTransaction>;
+  const settings = normalizeWorkspaceSettings(parsed.settings);
+  const registry = normalizeWorkspaceRegistry(parsed.registry);
+  if (parsed.version !== 1 || !settings || registry.workspaces.length === 0) {
+    throw new Error("Workspace settings transaction is invalid.");
+  }
+  return { version: 1, settings, registry };
+}
+
+async function applyWorkspaceSettingsTransaction(transaction: WorkspaceSettingsTransaction, env: NodeJS.ProcessEnv): Promise<void> {
+  await writeJsonAtomically(resolveWorkspaceSettingsPath(env), transaction.settings);
+  await writeJsonAtomically(resolveWorkspaceRegistryPath(env), transaction.registry);
+}
+
+interface WorkspaceSettingsTransaction {
+  version: 1;
+  settings: WorkspaceSettings;
+  registry: WorkspaceRegistry;
+}
+
+export class WorkspaceSettingsTransactionError extends Error {
+  readonly code = "workspace-settings-recovery-pending";
+
+  constructor(readonly recoveryError: unknown, originalError: unknown) {
+    super("Workspace settings were committed but could not be fully applied. Recovery will resume on the next settings read.", { cause: originalError });
+    this.name = "WorkspaceSettingsTransactionError";
+  }
+}
+
+async function writeJsonAtomically(targetPath: string, value: unknown): Promise<void> {
+  await mkdir(path.dirname(targetPath), { recursive: true });
+  const temporaryPath = path.join(
+    path.dirname(targetPath),
+    `.${path.basename(targetPath)}.${process.pid}.${randomUUID()}.tmp`,
+  );
+  try {
+    await writeFile(temporaryPath, JSON.stringify(value, null, 2), { mode: 0o600 });
+    await chmod(temporaryPath, 0o600);
+    const temporaryFile = await open(temporaryPath, "r");
+    try {
+      await temporaryFile.sync();
+    } finally {
+      await temporaryFile.close();
+    }
+    await rename(temporaryPath, targetPath);
+    await syncDirectory(path.dirname(targetPath));
+  } catch (error) {
+    await rm(temporaryPath, { force: true }).catch(() => undefined);
+    throw error;
+  }
+}
+
+async function removeFileDurably(targetPath: string): Promise<void> {
+  await rm(targetPath, { force: true });
+  await syncDirectory(path.dirname(targetPath));
+}
+
+async function syncDirectory(directoryPath: string): Promise<void> {
+  if (process.platform === "win32") {
+    return;
+  }
+  const directory = await open(directoryPath, "r");
+  try {
+    await directory.sync();
+  } finally {
+    await directory.close();
+  }
 }
 
 export async function loadActiveWorkspaceSettings(env: NodeJS.ProcessEnv = process.env): Promise<WorkspaceSettings | null> {

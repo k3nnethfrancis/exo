@@ -3,7 +3,11 @@ import {
   resolveWorkspaceModel,
   type WorkspaceModel,
   type WorkspaceSettings,
+  type WorkspaceSettingsSaveRequest,
+  type WorkspaceSettingsSnapshot,
 } from "@exo/core";
+
+import type { WorkspaceSettingsSaveOutcome } from "../shared/api";
 
 import type { IndexingService } from "./indexing-service";
 import {
@@ -36,45 +40,71 @@ export class WorkspaceSettingsService {
     return this.options.getWorkspaceSettings() ?? this.options.store.fromModel(this.options.getWorkspaceModel());
   }
 
-  async saveSettings(settings: WorkspaceSettings): Promise<WorkspaceSettings> {
+  currentSnapshot(): WorkspaceSettingsSnapshot {
+    return {
+      settings: this.currentSettings(),
+      revision: this.options.store.currentRevision(),
+    };
+  }
+
+  async saveSettings(request: WorkspaceSettingsSaveRequest): Promise<WorkspaceSettingsSaveOutcome> {
     const previousSettings = this.currentSettings();
     const previousRuntimeRoot = resolveRuntimeConfig().runtimeRoot;
     const nextSettings = {
       ...previousSettings,
-      ...settings,
+      ...request.settings,
     };
-    const savedSettings = await this.options.store.save(nextSettings);
+    const saved = await this.options.store.save({
+      settings: nextSettings,
+      expectedRevision: request.expectedRevision,
+    });
+    const savedSettings = saved.settings;
 
     this.options.setWorkspaceSettings(savedSettings);
     this.options.setWorkspaceSetupComplete(true);
-    this.applySettings(savedSettings);
 
-    const nextModel = resolveWorkspaceModel();
-    this.options.setWorkspaceModel(nextModel);
-    const nextRuntimeConfig = resolveRuntimeConfig();
-    const terminalPolicy = resolveTerminalRuntimePolicy(this.currentSettings());
+    try {
+      this.applySettings(savedSettings);
 
-    await this.options.ensureNoteRoots(nextModel);
-    this.options.workspaceWatcherService.start(nextModel);
-    this.options.terminalManager.setRuntimeConfig(nextRuntimeConfig);
-    this.options.terminalManager.setDefaultCwd(nextModel.defaultTerminalCwd);
-    this.options.terminalManager.setBufferLineLimit(terminalPolicy.bufferLineLimit);
-    this.options.terminalManager.setTranscriptRetentionDays(terminalPolicy.transcriptRetentionDays);
-    this.options.terminalManager.setTerminalRuntimeOptions(terminalPolicy);
-    await this.options.terminalManager.syncRuntimeContext();
+      const nextModel = resolveWorkspaceModel();
+      this.options.setWorkspaceModel(nextModel);
+      const nextRuntimeConfig = resolveRuntimeConfig();
+      const terminalPolicy = resolveTerminalRuntimePolicy(this.currentSettings());
 
-    if (nextRuntimeConfig.runtimeRoot !== previousRuntimeRoot) {
-      this.options.restartCommandServer();
+      await this.options.ensureNoteRoots(nextModel);
+      this.options.workspaceWatcherService.start(nextModel);
+      this.options.terminalManager.setRuntimeConfig(nextRuntimeConfig);
+      this.options.terminalManager.setDefaultCwd(nextModel.defaultTerminalCwd);
+      this.options.terminalManager.setBufferLineLimit(terminalPolicy.bufferLineLimit);
+      this.options.terminalManager.setTranscriptRetentionDays(terminalPolicy.transcriptRetentionDays);
+      this.options.terminalManager.setTerminalRuntimeOptions(terminalPolicy);
+      await this.options.terminalManager.syncRuntimeContext();
+
+      if (nextRuntimeConfig.runtimeRoot !== previousRuntimeRoot) {
+        this.options.restartCommandServer();
+      }
+      if (this.options.indexingService.shouldSyncAfterSettingsApply(previousSettings, savedSettings)) {
+        this.options.indexingService.scheduleSync("settings-apply", 0);
+      }
+    } catch (error) {
+      return {
+        ...saved,
+        runtimeApply: {
+          status: "failed",
+          errorMessage: runtimeApplyErrorMessage(error),
+        },
+      };
     }
-    if (this.options.indexingService.shouldSyncAfterSettingsApply(previousSettings, savedSettings)) {
-      this.options.indexingService.scheduleSync("settings-apply", 0);
-    }
 
-    return savedSettings;
+    return { ...saved, runtimeApply: { status: "applied" } };
   }
 
   applySettings(settings: WorkspaceSettings | null): void {
     applyWorkspaceSettingsToEnv(settings);
     this.options.applyAppearanceMode(settings);
   }
+}
+
+function runtimeApplyErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

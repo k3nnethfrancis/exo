@@ -2,13 +2,13 @@ import { readFile } from "node:fs/promises";
 
 import { test, expect, type Page } from "@playwright/test";
 
-import { launchExoFixture, relaunchExoFixture } from "../helpers";
+import { launchExoTerminalFixture, relaunchExoTerminalFixture } from "../helpers";
 
 test.describe.configure({ mode: "serial" });
 
 test("splits live terminals in monitor mode, reconciles geometry, and persists monitor preference across relaunch", async () => {
-  const fixture = await launchExoFixture({ initialNoteLabel: null });
-  let relaunched: Awaited<ReturnType<typeof relaunchExoFixture>> | null = null;
+  const fixture = await launchExoTerminalFixture({ initialNoteLabel: null });
+  let relaunched: Awaited<ReturnType<typeof relaunchExoTerminalFixture>> | null = null;
 
   try {
     const { page, settingsPath } = fixture;
@@ -56,7 +56,7 @@ test("splits live terminals in monitor mode, reconciles geometry, and persists m
     }, { timeout: 5_000 }).toBe(true);
 
     await fixture.electronApp.close();
-    relaunched = await relaunchExoFixture(fixture);
+    relaunched = await relaunchExoTerminalFixture(fixture);
     await expect.poll(async () => terminalSessions(relaunched!.page), { timeout: 10_000 }).toHaveLength(1);
     await expect(relaunched.page.getByTestId("side-panel-monitor-mode-rail").first()).toHaveAttribute("aria-pressed", "true");
     await expect(relaunched.page.getByTestId("terminal-surface")).toHaveCount(1);

@@ -4,8 +4,13 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { applyWorkspaceSettingsToEnv, exoTmuxServerNameForWorkspace, WorkspaceSettingsStore } from "./settings-store";
-import type { WorkspaceSettings } from "@exo/core";
+import {
+  applyWorkspaceSettingsToEnv,
+  exoTmuxServerNameForWorkspace,
+  WorkspaceSettingsConflictError,
+  WorkspaceSettingsStore,
+} from "./settings-store";
+import { saveWorkspaceSettings, type WorkspaceSettings, type WorkspaceSettingsSnapshot } from "@exo/core";
 
 const tempPaths: string[] = [];
 
@@ -14,6 +19,71 @@ afterEach(async () => {
 });
 
 describe("WorkspaceSettingsStore", () => {
+  it("rejects a delayed client save carrying a completed revision", async () => {
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-settings-store-stale-"));
+    tempPaths.push(userDataPath);
+    const env = { EXO_USER_DATA_PATH: userDataPath };
+    const initial = workspaceSettings("/workspace/revision");
+    await saveWorkspaceSettings(initial, env);
+    const store = new WorkspaceSettingsStore({ userDataPath, env: {} });
+    const stale = await store.load() as WorkspaceSettingsSnapshot;
+    expect(stale.settings).toMatchObject(initial);
+    expect(stale.revision).toMatch(/^[a-f0-9]{64}$/);
+
+    const saved = await store.save({
+      settings: { ...stale.settings, appearanceMode: "dark" },
+      expectedRevision: stale.revision,
+    });
+    expect(saved.settings.appearanceMode).toBe("dark");
+
+    const conflict = await store.save({
+      settings: { ...stale.settings, terminalFontSize: 18 },
+      expectedRevision: stale.revision,
+    }).catch((error: unknown) => error);
+    expect(conflict).toBeInstanceOf(WorkspaceSettingsConflictError);
+    expect(conflict).toMatchObject({
+      code: "workspace-settings-stale",
+      expectedRevision: stale.revision,
+      actualRevision: saved.revision,
+    });
+    const current = await new WorkspaceSettingsStore({ userDataPath, env: {} }).load() as WorkspaceSettingsSnapshot;
+    expect(current.settings).toMatchObject({
+      appearanceMode: "dark",
+      terminalFontSize: initial.terminalFontSize,
+    });
+  });
+
+  it("serializes concurrent saves and rejects the second stale revision", async () => {
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-settings-store-serialized-"));
+    tempPaths.push(userDataPath);
+    const env = { EXO_USER_DATA_PATH: userDataPath };
+    const initial = workspaceSettings("/workspace/serialized");
+    await saveWorkspaceSettings(initial, env);
+    const firstStore = new WorkspaceSettingsStore({ userDataPath, env: {} });
+    const secondStore = new WorkspaceSettingsStore({ userDataPath, env: {} });
+    const [firstSnapshot, secondSnapshot] = await Promise.all([firstStore.load(), secondStore.load()]);
+    expect(firstSnapshot).not.toBeNull();
+    expect(secondSnapshot).not.toBeNull();
+
+    const firstSave = firstStore.save({
+      settings: { ...firstSnapshot!.settings, appearanceMode: "dark" },
+      expectedRevision: firstSnapshot!.revision,
+    });
+    const secondSave = secondStore.save({
+      settings: { ...secondSnapshot!.settings, terminalFontSize: 18 },
+      expectedRevision: secondSnapshot!.revision,
+    });
+
+    await expect(firstSave).resolves.toMatchObject({ settings: { appearanceMode: "dark" } });
+    await expect(secondSave).rejects.toMatchObject({ code: "workspace-settings-stale" });
+    await expect(new WorkspaceSettingsStore({ userDataPath, env: {} }).load()).resolves.toMatchObject({
+      settings: {
+        appearanceMode: "dark",
+        terminalFontSize: initial.terminalFontSize,
+      },
+    });
+  });
+
   it("loads the active workspace from the registry when direct settings are absent", async () => {
     const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-settings-store-"));
     tempPaths.push(userDataPath);
@@ -44,8 +114,10 @@ describe("WorkspaceSettingsStore", () => {
     );
 
     await expect(new WorkspaceSettingsStore({ userDataPath, env: {} }).load()).resolves.toMatchObject({
-      workspaceRoot: "/workspace/active",
-      noteRoots: ["/workspace/active/notes"],
+      settings: {
+        workspaceRoot: "/workspace/active",
+        noteRoots: ["/workspace/active/notes"],
+      },
     });
   });
 

@@ -10,7 +10,7 @@ import {
   createBranchFile,
   deleteWorkspacePath,
   listRootTree,
-  readIndexDocument,
+  readAuthorizedIndexDocument,
   emptyOnboardingStateStore,
   markOnboardingComplete,
   markOnboardingWorkspaceBasicsSaved,
@@ -36,6 +36,10 @@ import { AgentInstructionsService } from "./agent-instructions-service";
 import { AgentCommandInvocationService } from "./agent-command-invocation-service";
 import { AppLifecycleController } from "./app-lifecycle";
 import { CommandServer } from "./command-server";
+import {
+  commandServerDocumentReadContext,
+  CommandServerDocumentReader,
+} from "./command-server-document-reader";
 import { IndexingService } from "./indexing-service";
 import { InvocationObservationService } from "./invocation-observation-service";
 import {
@@ -103,6 +107,17 @@ if (!singleInstanceLock) {
 
 function startCommandServer() {
   const runtimeConfig = resolveRuntimeConfig();
+  const documentReader = new CommandServerDocumentReader({
+    getContext: () => commandServerDocumentReadContext(workspaceModel),
+    readDocument: (context, target, options, authorizeResolvedPath) =>
+      readAuthorizedIndexDocument(
+        context.model,
+        context.runtimeRoot,
+        target,
+        options,
+        authorizeResolvedPath,
+      ),
+  });
 
   commandServer?.stop();
   const nextCommandServer = new CommandServer({
@@ -128,7 +143,7 @@ function startCommandServer() {
     },
     onSearch: (query: string) => searchWorkspace(workspaceModel, query),
     onIndexSearch: (query, options) => searchIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot, query, options),
-    onReadDocument: (target, options) => readIndexDocument(workspaceModel, resolveRuntimeConfig().runtimeRoot, target, options),
+    onReadDocument: (target, options) => documentReader.read(target, options),
     onIndexStatus: () => indexingService.getMeasuredStatus(),
     onIndexAddRoot: (input) => indexingService.addRoot(input),
     onIndexRemoveRoot: (target) => indexingService.removeRoot(target),
@@ -297,12 +312,15 @@ function errorMessage(error: unknown): string {
 
 function registerIpcHandlers() {
   registerWorkspaceIpcHandlers({
-    activateWorkspace: async (workspaceId) => {
-      const entry = await workspaceSettingsStore.getWorkspace(workspaceId);
+    activateWorkspace: async (input) => {
+      const entry = await workspaceSettingsStore.getWorkspace(input.workspaceId);
       if (!entry) {
         throw new Error("Workspace not found.");
       }
-      return workspaceSettingsService.saveSettings(entry.settings);
+      return workspaceSettingsService.saveSettings({
+        settings: entry.settings,
+        expectedRevision: input.expectedRevision,
+      });
     },
     createBranch: (filePath, frontmatter, body) =>
       createBranchFile(
@@ -336,7 +354,7 @@ function registerIpcHandlers() {
     getMainWindow: () => appLifecycle.getMainWindow(),
     getModel: () => workspaceModel,
     getRuntimeStatus: () => terminalManager.getRuntimeConfig(),
-    getSettings: () => workspaceSettingsService.currentSettings(),
+    getSettings: async () => workspaceSettingsService.currentSnapshot(),
     getSetupState: async () => ({
       complete: workspaceSetupComplete,
       onboardingComplete: onboardingComplete(),
@@ -361,7 +379,7 @@ function registerIpcHandlers() {
       await saveWorkspaceDocument(filePath, frontmatter, body);
       indexingService.scheduleForFile(filePath, "note-save");
     },
-    saveSettings: (settings) => workspaceSettingsService.saveSettings(settings),
+    saveSettings: (request) => workspaceSettingsService.saveSettings(request),
     searchIndex: (query, options) => searchIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot, query, options),
     searchNotes: (query) => searchNotes(workspaceModel, query),
     searchTag: (tag) => workspaceNotesService.searchTag(tag),
@@ -453,7 +471,8 @@ app.whenReady().then(async () => {
   }
 
   operatorWorkspaceSetupComplete = Boolean(process.env.EXO_NOTE_ROOTS);
-  workspaceSettings = await workspaceSettingsStore.load();
+  const loadedWorkspaceSettings = await workspaceSettingsStore.load();
+  workspaceSettings = loadedWorkspaceSettings?.settings ?? null;
   onboardingState = await readOnboardingStateStore(app.getPath("userData"));
   if (workspaceSettings) {
     applyWorkspaceSettings(workspaceSettings);
@@ -471,7 +490,11 @@ app.whenReady().then(async () => {
   }
   if (workspaceSetupComplete) {
     await ensureNoteRoots(workspaceModel);
-    workspaceSettings = await workspaceSettingsStore.save(workspaceSettings ?? workspaceSettingsStore.fromModel(workspaceModel));
+    const savedWorkspaceSettings = await workspaceSettingsStore.save({
+      settings: workspaceSettings ?? workspaceSettingsStore.fromModel(workspaceModel),
+      expectedRevision: loadedWorkspaceSettings?.revision ?? null,
+    });
+    workspaceSettings = savedWorkspaceSettings.settings;
   }
   logWorkspaceStartup(workspaceModel);
   const terminalPolicy = resolveTerminalRuntimePolicy(workspaceSettings ?? workspaceSettingsStore.fromModel(workspaceModel));
@@ -485,7 +508,16 @@ app.whenReady().then(async () => {
     getWorkspaceModel: () => workspaceModel,
     getCurrentSettings: () => workspaceSettingsService.currentSettings(),
     getRuntimeRoot: () => resolveRuntimeConfig().runtimeRoot,
-    saveWorkspaceSettings: (settings) => workspaceSettingsService.saveSettings(settings),
+    saveWorkspaceSettings: async (settings) => {
+      const saved = await workspaceSettingsService.saveSettings({
+        settings,
+        expectedRevision: workspaceSettingsService.currentSnapshot().revision,
+      });
+      if (saved.runtimeApply.status === "failed") {
+        throw new Error(saved.runtimeApply.errorMessage);
+      }
+      return saved.settings;
+    },
     sendState: (event) => sendToRenderer("workspace:index-sync-state", event),
     errorMessage,
   });

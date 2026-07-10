@@ -40,3 +40,13 @@ export async function readIndexDocument(
 ): Promise<IndexReadResponse> {
   return defaultSearchProvider().read(model, runtimeRoot, target, options);
 }
+
+export async function readAuthorizedIndexDocument(
+  model: WorkspaceModel,
+  runtimeRoot: string,
+  target: string,
+  options: IndexReadOptions,
+  authorizeResolvedPath: (filePath: string) => Promise<void>,
+): Promise<IndexReadResponse> {
+  return qmdSearchProvider.readAuthorized(model, runtimeRoot, target, options, authorizeResolvedPath);
+}

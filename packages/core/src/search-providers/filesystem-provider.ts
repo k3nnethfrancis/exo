@@ -125,11 +125,13 @@ export async function readFilesystemDocument(
   model: WorkspaceModel,
   target: string,
   options: IndexReadOptions = {},
+  authorizeResolvedPath?: (filePath: string) => Promise<void>,
 ): Promise<IndexReadResponse> {
   const resolvedPath = path.resolve(target);
   if (!isPathAllowed(resolvedPath, model)) {
     throw new Error("Refusing to read a path outside attached or indexed roots.");
   }
+  await authorizeResolvedPath?.(resolvedPath);
 
   const document = await readWorkspaceDocument(resolvedPath);
   return {

@@ -4,7 +4,15 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { embedIndex, getIndexStatus, readIndexDocument, searchIndex, syncIndex, updateIndex } from "../qmd";
+import {
+  embedIndex,
+  getIndexStatus,
+  readAuthorizedIndexDocument,
+  readIndexDocument,
+  searchIndex,
+  syncIndex,
+  updateIndex,
+} from "../qmd";
 import { qmdSearchProvider } from "../search-providers/qmd-provider";
 import { createIndexedRoot, resolveWorkspaceModel } from "../workspace";
 
@@ -228,6 +236,24 @@ describe("QMD index adapter", () => {
     expect(result.source).toBe("qmd");
   });
 
+  it("authorizes a resolved QMD path before reading its body", async () => {
+    const root = await fixtureRoot();
+    const model = indexedModel(root, "lexical");
+
+    await expect(
+      readAuthorizedIndexDocument(
+        model,
+        path.join(root, ".exo"),
+        "#abc123",
+        {},
+        async () => {
+          throw new Error("path rejected");
+        },
+      ),
+    ).rejects.toThrow("path rejected");
+    expect(stores[0].getDocumentBodyCalls).toBe(0);
+  });
+
   it("rejects stale QMD docids outside configured indexed roots", async () => {
     const root = await fixtureRoot();
     const model = {
@@ -267,6 +293,7 @@ class MockStore {
   updateOptions: unknown[] = [];
   updateCalls = 0;
   embedCalls = 0;
+  getDocumentBodyCalls = 0;
 
   async getStatus() {
     return {
@@ -305,6 +332,7 @@ class MockStore {
   }
 
   async getDocumentBody() {
+    this.getDocumentBodyCalls += 1;
     return "# Focus\nalpha";
   }
 

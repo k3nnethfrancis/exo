@@ -96,6 +96,18 @@ export interface WorkspaceSettings {
   layout?: WorkspaceLayoutSettings;
 }
 
+export type WorkspaceSettingsRevision = string | null;
+
+export interface WorkspaceSettingsSnapshot {
+  settings: WorkspaceSettings;
+  revision: WorkspaceSettingsRevision;
+}
+
+export interface WorkspaceSettingsSaveRequest {
+  settings: WorkspaceSettings;
+  expectedRevision: WorkspaceSettingsRevision;
+}
+
 export interface PiHarnessSettings {
   enabled?: boolean;
   label?: string;

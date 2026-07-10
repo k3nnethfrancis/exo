@@ -196,14 +196,14 @@ export class TerminalManager extends EventEmitter {
     if (requestedKind !== "shell" || options.harnessId) {
       throw new Error("Terminal launch only supports shell. Configure agents as AgentCommands and invoke them from notes.");
     }
-    const shell = process.env.SHELL || "/bin/zsh";
+    const shell = this.runtimeConfig.launchers.shell;
     return this.createProcessTerminal({
       title: "Shell",
       cwd,
       kind: "shell",
       harnessId: null,
-      command: shell,
-      args: ["-l"],
+      command: shell.command,
+      args: shell.args,
       env: {
         ...process.env,
       },
@@ -281,7 +281,7 @@ export class TerminalManager extends EventEmitter {
   }
 
   readRestoreSnapshot(id: string): string | null {
-    return this.sessions.has(id) ? "" : null;
+    return this.sessions.get(id)?.tailCache.text() ?? null;
   }
 
   async resize(id: string, cols: number, rows: number): Promise<void> {

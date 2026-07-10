@@ -2,7 +2,7 @@ import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { test, expect, type Page } from "@playwright/test";
 
-import { launchExoFixture } from "../helpers";
+import { launchExoTerminalFixture, launchExoWorkspaceFixture } from "../helpers";
 
 async function settleForScreenshot(page: Page) {
   await page.evaluate(() => {
@@ -33,7 +33,7 @@ async function cycleAppearanceTo(page: Page, targetMode: "system" | "light" | "d
 }
 
 test("captures the default workspace shell", async () => {
-  const { page, cleanup } = await launchExoFixture();
+  const { page, cleanup } = await launchExoWorkspaceFixture();
   await cycleAppearanceTo(page, "dark");
   await settleForScreenshot(page);
   await expect(page).toHaveScreenshot("workspace-default.png", screenshotOptions);
@@ -41,7 +41,7 @@ test("captures the default workspace shell", async () => {
 });
 
 test("captures terminal pane with agent tabs", async () => {
-  const { page, cleanup } = await launchExoFixture();
+  const { page, cleanup } = await launchExoTerminalFixture();
   await cycleAppearanceTo(page, "dark");
   await page.getByTestId("launch-claude").click();
   await page.getByTestId("launch-codex").click();
@@ -51,7 +51,7 @@ test("captures terminal pane with agent tabs", async () => {
 });
 
 test("captures the expanded project roots drawer", async () => {
-  const { page, cleanup } = await launchExoFixture();
+  const { page, cleanup } = await launchExoWorkspaceFixture();
   await cycleAppearanceTo(page, "dark");
   await page.getByTestId("project-roots-toggle").click();
   await settleForScreenshot(page);
@@ -60,7 +60,7 @@ test("captures the expanded project roots drawer", async () => {
 });
 
 test("captures the warm light mode shell", async () => {
-  const { page, cleanup } = await launchExoFixture();
+  const { page, cleanup } = await launchExoWorkspaceFixture();
   await cycleAppearanceTo(page, "light");
   await settleForScreenshot(page);
   await expect(page).toHaveScreenshot("workspace-light-mode.png", screenshotOptions);
@@ -68,7 +68,7 @@ test("captures the warm light mode shell", async () => {
 });
 
 test("captures nested list geometry", async () => {
-  const { page, cleanup } = await launchExoFixture({
+  const { page, cleanup } = await launchExoWorkspaceFixture({
     prepareWorkspace: async (workspaceRoot) => {
       const notePath = path.join(workspaceRoot, "notes/test-notes/focus-note.md");
       await writeFile(

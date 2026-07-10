@@ -2,7 +2,7 @@ import { test } from "@playwright/test";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { launchExoFixture } from "../helpers";
+import { launchExoWorkspaceFixture } from "../helpers";
 
 test("table rendering does not crash on a note with multiple tables", async () => {
   const tableContent = `# Table Test
@@ -25,7 +25,7 @@ Between tables.
 End text.
 `;
 
-  const { page, cleanup } = await launchExoFixture({
+  const { page, cleanup } = await launchExoWorkspaceFixture({
     mutable: true,
     prepareWorkspace: async (workspaceRoot) => {
       const target = path.join(workspaceRoot, "notes/test-notes/table-test.md");

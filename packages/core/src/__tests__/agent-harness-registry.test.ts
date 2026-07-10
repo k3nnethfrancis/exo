@@ -51,6 +51,11 @@ describe("agent harness registry", () => {
       command: "/bin/zsh",
       args: ["-l"],
     });
+    expect(resolveRegisteredAgentLauncher("shell", { SHELL: "/bin/bash" }).args).toEqual(["-l"]);
+    expect(resolveRegisteredAgentLauncher("shell", {
+      EXO_SHELL: "/bin/zsh",
+      EXO_SHELL_ARGS: "",
+    }).args).toEqual([]);
   });
 
   it("resolves the runtime launcher record from the managed harness kind boundary", () => {

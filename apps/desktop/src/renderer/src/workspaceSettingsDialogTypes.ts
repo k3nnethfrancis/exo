@@ -1,4 +1,4 @@
-import type { WorkspaceSettings } from "@exo/core";
+import type { WorkspaceSettings, WorkspaceSettingsRevision } from "@exo/core";
 
 import type { AppearanceMode } from "./appearance";
 import type { ColorThemeId } from "./theme/types";
@@ -10,6 +10,7 @@ export type IndexBusyState = "syncing" | "updating" | "embedding" | null;
 
 export interface WorkspaceSettingsDialogState {
   section: WorkspaceSettingsSection;
+  settingsRevision: WorkspaceSettingsRevision;
   workspaceRoot: string;
   defaultTerminalCwd: string;
   noteRoots: string[];

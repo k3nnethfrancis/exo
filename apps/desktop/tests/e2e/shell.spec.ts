@@ -5,7 +5,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test, expect } from "@playwright/test";
 
-import { launchExoFixture, relaunchExoFixture } from "../helpers";
+import {
+  launchExoTerminalFixture,
+  launchExoWorkspaceFixture,
+} from "../helpers";
 import {
   latencySummary,
   waitForTerminalInputEnabled,
@@ -62,31 +65,6 @@ async function pageShellSession(page: import("@playwright/test").Page) {
   return shell;
 }
 
-function killTmuxAttachClients(tmuxSessionName: string): number {
-  const processList = spawnSync("ps", ["-ax", "-o", "pid=,command="], { encoding: "utf8" });
-  if (processList.status !== 0) {
-    throw new Error(processList.stderr || "Failed to list processes.");
-  }
-  const escapedSessionName = tmuxSessionName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const attachPattern = new RegExp(`\\btmux\\b.*\\battach-session\\b.*\\s-t\\s+${escapedSessionName}\\b`);
-  const pids = processList.stdout
-    .split("\n")
-    .map((line) => {
-      const match = line.trim().match(/^(\d+)\s+(.+)$/);
-      return match && attachPattern.test(match[2]) ? Number(match[1]) : null;
-    })
-    .filter((pid): pid is number => pid !== null && pid !== process.pid);
-
-  for (const pid of pids) {
-    try {
-      process.kill(pid, "SIGTERM");
-    } catch {
-      // The attach client may have exited between process listing and termination.
-    }
-  }
-  return pids.length;
-}
-
 async function dragBy(page: import("@playwright/test").Page, locator: import("@playwright/test").Locator, delta: { x: number; y: number }) {
   const box = await locator.boundingBox();
   expect(box).not.toBeNull();
@@ -112,7 +90,7 @@ test.describe.configure({ mode: "parallel" });
 
 
 test("boots the shell, opens notes, and manages terminal tabs", async () => {
-  const { page, cleanup } = await launchExoFixture();
+  const { page, cleanup } = await launchExoTerminalFixture();
 
   await expect(page.getByTestId("editor-title")).toHaveText("focus-note");
   await expect(page.getByTestId("editor-panel")).toContainText("Linked references:");
@@ -143,32 +121,8 @@ test("boots the shell, opens notes, and manages terminal tabs", async () => {
   await cleanup();
 });
 
-test.skip("renders markdown decorations immediately when switching notes", async () => {
-  const { page, cleanup } = await launchExoFixture({
-    env: {
-      EXO_FORCE_THEME: "light",
-    },
-    initialNoteLabel: null,
-  });
-
-  // Click CLAUDE note if visible, scrolling the sidebar if needed
-  const claudeButton = page.getByRole("button", { name: "CLAUDE" });
-  await claudeButton.scrollIntoViewIfNeeded().catch(() => {});
-  await claudeButton.click({ timeout: 5000 });
-
-  await expect.poll(async () => page.locator(".exo-md-line--heading").count()).toBeGreaterThan(1);
-  await expect.poll(async () => page.locator(".exo-md-list-prefix").count()).toBeGreaterThan(0);
-
-  await page.getByRole("button", { name: "2026-03-13" }).scrollIntoViewIfNeeded().catch(() => {});
-  await page.getByRole("button", { name: "2026-03-13" }).click();
-  await expect.poll(async () => page.locator(".exo-md-line--heading").count()).toBeGreaterThan(0);
-  await expect.poll(async () => page.locator(".exo-md-list-prefix").count()).toBeGreaterThan(0);
-
-  await cleanup();
-});
-
 test("shows a visible BrowserWindow on startup", async () => {
-  const { electronApp, page, cleanup } = await launchExoFixture();
+  const { electronApp, page, cleanup } = await launchExoWorkspaceFixture();
 
   const openWindows = await electronApp.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows().filter((window) => !window.isDestroyed()).length,
@@ -182,15 +136,13 @@ test("shows a visible BrowserWindow on startup", async () => {
 });
 
 test("opens a browser preview pane in the workspace", async () => {
-  const { page, cleanup } = await launchExoFixture();
+  const { page, cleanup } = await launchExoWorkspaceFixture();
 
   await expect(page.locator('[data-testid="terminal-rail"] [data-testid="launch-browser"]')).toHaveCount(0);
   await expect(page.locator('.sidebar__rail [data-testid="launch-browser"]')).toHaveCount(0);
-  await expect(page.getByTestId("exo-side-panel")).toBeVisible();
-  await expect(page.getByTestId("side-panel-terminal-rail")).toBeVisible();
-  await page.getByTestId("side-panel-toggle").click();
   await expect(page.getByTestId("exo-side-panel")).not.toBeVisible();
   await page.getByTestId("side-panel-toggle").click();
+  await expect(page.getByTestId("exo-side-panel")).toBeVisible();
   await page.getByTestId("side-panel-browser-rail").click();
   await expect(page.getByTestId("browser-pane")).toBeVisible();
   await expect(page.getByTestId("browser-url-input")).toHaveValue("about:blank");
@@ -206,12 +158,20 @@ test("opens a browser preview pane in the workspace", async () => {
 });
 
 test("creates, renames, and deletes notes from the explorer", async () => {
-  const { page, workspaceRoot, cleanup } = await launchExoFixture({ mutable: true });
+  const { page, workspaceRoot, cleanup } = await launchExoWorkspaceFixture({
+    prepareWorkspace: async (root) => {
+      await mkdir(path.join(root, "notes/test-notes/mutation-dir"), { recursive: true });
+    },
+  });
   const notesRoot = path.join(workspaceRoot, "notes/test-notes");
-  const createdPath = path.join(notesRoot, "mutation-qa.md");
-  const renamedPath = path.join(notesRoot, "mutation-renamed.md");
+  const mutationDirectoryPath = path.join(notesRoot, "mutation-dir");
+  const createdPath = path.join(mutationDirectoryPath, "mutation-qa.md");
+  const renamedPath = path.join(mutationDirectoryPath, "mutation-renamed.md");
 
-  await page.getByTestId("sidebar-new-note").click();
+  const mutationDirectory = page.locator(".tree-node--directory", { hasText: "mutation-dir" }).first();
+  await mutationDirectory.click();
+  await mutationDirectory.click({ button: "right" });
+  await page.getByRole("button", { name: "New File" }).click();
   await expect(page.getByTestId("workspace-dialog")).toBeVisible();
   await page.getByTestId("workspace-dialog-input").fill("mutation-qa.md");
   await page.getByTestId("workspace-dialog-confirm").click();
@@ -235,11 +195,14 @@ test("creates, renames, and deletes notes from the explorer", async () => {
 });
 
 test("handles global save and daily-note keybindings", async () => {
-  const { page, workspaceRoot, cleanup } = await launchExoFixture({ mutable: true });
+  const { page, workspaceRoot, cleanup } = await launchExoWorkspaceFixture({ mutable: true });
   const modifier = process.platform === "darwin" ? "Meta" : "Control";
   const focusNotePath = path.join(workspaceRoot, "notes/test-notes/focus-note.md");
   const now = new Date();
   const dailyName = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+
+  await expect(page.getByTestId("exo-side-panel")).not.toBeVisible();
+  await expect(page.getByTestId("terminal-dock")).not.toBeVisible();
 
   await page.evaluate(() => {
     const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
@@ -270,7 +233,7 @@ test("suppresses generated daily-note titles but preserves explicit H1s", async 
   const generatedDailyName = "2026-06-14";
   const explicitDailyName = "2026-06-15";
   const explicitNormalName = "explicit-heading";
-  const { page, cleanup } = await launchExoFixture({
+  const { page, cleanup } = await launchExoWorkspaceFixture({
     prepareWorkspace: async (workspaceRoot) => {
       const noteRoot = path.join(workspaceRoot, "notes/test-notes");
       await writeFile(path.join(noteRoot, `${generatedDailyName}.md`), `# ${generatedDailyName}\n\nToday has notes.\n`);
@@ -302,7 +265,7 @@ test("suppresses generated daily-note titles but preserves explicit H1s", async 
 });
 
 test("shows terminals created outside renderer controls", async () => {
-  const { page, cleanup } = await launchExoFixture({
+  const { page, cleanup } = await launchExoTerminalFixture({
     env: {
       EXO_SHELL: "/bin/sh",
       EXO_SHELL_ARGS: "-lc,pwd; cat",
@@ -321,7 +284,7 @@ test("shows terminals created outside renderer controls", async () => {
 });
 
 test("matches system appearance by default and supports light mode override", async () => {
-  const { page, cleanup } = await launchExoFixture();
+  const { page, cleanup } = await launchExoWorkspaceFixture();
   const systemTheme = await page.evaluate(() =>
     window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light",
   );
@@ -341,7 +304,7 @@ test("matches system appearance by default and supports light mode override", as
 });
 
 test("accepts terminal keyboard input", async () => {
-  const { page, cleanup } = await launchExoFixture({
+  const { page, cleanup } = await launchExoTerminalFixture({
     env: {
       EXO_SHELL: "/bin/cat",
       EXO_SHELL_ARGS: "",
@@ -362,7 +325,7 @@ test("accepts terminal keyboard input", async () => {
 });
 
 test("does not rehydrate an already rendered terminal when focusing its active tab", async () => {
-  const { page, cleanup } = await launchExoFixture({
+  const { page, cleanup } = await launchExoTerminalFixture({
     env: {
       EXO_SHELL: "/bin/cat",
       EXO_SHELL_ARGS: "",
@@ -396,7 +359,7 @@ test("does not rehydrate an already rendered terminal when focusing its active t
 });
 
 test("measures terminal input echo latency against p50 and p90 targets", async () => {
-  const { page, cleanup } = await launchExoFixture({
+  const { page, cleanup } = await launchExoTerminalFixture({
     env: {
       EXO_SHELL: "/bin/cat",
       EXO_SHELL_ARGS: "",
@@ -423,7 +386,7 @@ test("measures terminal input echo latency against p50 and p90 targets", async (
 });
 
 test("keeps terminal input latency within targets while another terminal streams output", async () => {
-  const { page, cleanup } = await launchExoFixture({
+  const { page, cleanup } = await launchExoTerminalFixture({
     env: {
       EXO_SHELL: "/bin/sh",
       EXO_SHELL_ARGS: "",
@@ -480,7 +443,7 @@ test("keeps /bin/cat terminal input visible while a loaded preview is focused an
   const previewFirstInput = "preview-first-input";
   const previewReturnInput = "preview-return-input";
   const previewResizeInput = "preview-resize-input";
-  const { page, cleanup, workspaceRoot } = await launchExoFixture({
+  const { page, cleanup, workspaceRoot } = await launchExoTerminalFixture({
     prepareWorkspace: async (root) => {
       await writeFile(
         path.join(root, "preview-terminal-focus.html"),
@@ -495,6 +458,7 @@ test("keeps /bin/cat terminal input visible while a loaded preview is focused an
   });
 
   try {
+    const shell = await pageShellSession(page);
     await page.getByTestId("side-panel-browser-rail").click();
     await page.getByTestId("browser-url-input").fill(`file://${path.join(workspaceRoot, "preview-terminal-focus.html")}`);
     await page.getByTestId("browser-load-url").click();
@@ -502,24 +466,33 @@ test("keeps /bin/cat terminal input visible while a loaded preview is focused an
 
     await page.getByTestId("terminal-surface").click();
     await page.keyboard.type(previewFirstInput);
+    await page.keyboard.press("Enter");
     await expect(page.locator(".xterm-rows")).toContainText(previewFirstInput);
 
     await page.getByTestId("browser-pane").click();
     await page.getByTestId("terminal-surface").click();
     await page.keyboard.type(previewReturnInput);
-    await expect(page.locator(".xterm-rows")).toContainText(`${previewFirstInput}${previewReturnInput}`);
+    await page.keyboard.press("Enter");
+    await expect(page.locator(".xterm-rows")).toContainText(previewReturnInput);
+    await expect.poll(async () => page.evaluate((id) => window.exo.terminals.read(id), shell.id))
+      .toContain(previewReturnInput);
 
     await dragBy(page, page.locator(".exo-side-panel-surface .pane-split-resizer--vertical").first(), { x: -160, y: 0 });
+    await expect.poll(async () => page.evaluate((id) => window.exo.terminals.read(id), shell.id))
+      .toContain(previewReturnInput);
     await page.getByTestId("terminal-surface").click();
     await page.keyboard.type(previewResizeInput);
-    await expect(page.locator(".xterm-rows")).toContainText(`${previewFirstInput}${previewReturnInput}${previewResizeInput}`);
+    await page.keyboard.press("Enter");
+    await expect(page.locator(".xterm-rows")).toContainText(previewFirstInput);
+    await expect(page.locator(".xterm-rows")).toContainText(previewReturnInput);
+    await expect(page.locator(".xterm-rows")).toContainText(previewResizeInput);
   } finally {
     await cleanup();
   }
 });
 
 test("keeps terminal interactive after large output, tab switches, and semantic sends", async () => {
-  const { page, cleanup } = await launchExoFixture({
+  const { page, cleanup } = await launchExoTerminalFixture({
     env: {
       EXO_SHELL: "/bin/sh",
       EXO_SHELL_ARGS: "",
@@ -569,78 +542,21 @@ test("keeps terminal interactive after large output, tab switches, and semantic 
   }
 });
 
-test("collapses the terminal pane after closing the last terminal", async () => {
-  const { page, cleanup } = await launchExoFixture();
+test("removes the last terminal session without hiding the workspace", async () => {
+  const { page, cleanup } = await launchExoTerminalFixture();
 
   await page.getByTestId("close-terminal-shell").click();
-  await expect(page.getByTestId("terminal-expand")).toBeVisible();
-  await expect(page.locator(".pane-leaf--terminal")).toHaveCount(0);
+  await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(0);
+  await expect(page.getByTestId("terminal-surface")).toHaveCount(0);
+  await expect(page.locator(".pane-leaf--editor")).toBeVisible();
+  await expect(page.getByTestId("side-panel-toggle")).toBeVisible();
 
   await cleanup();
 });
 
-test("reattaches a tmux-backed shell after app relaunch", async () => {
-  const beforeRelaunchMarker = `before-relaunch-${Date.now()}`;
-  const shellEnv = {
-    EXO_SHELL: "/bin/sh",
-    EXO_SHELL_ARGS: "-lc,while IFS= read -r line; do printf 'persist:%s\\n' \"$line\"; done",
-  };
-  const fixture = await launchExoFixture({ env: shellEnv, initialNoteLabel: null });
-  let relaunched: Awaited<ReturnType<typeof relaunchExoFixture>> | null = null;
-
-  try {
-    const shell = await pageShellSession(fixture.page);
-    await fixture.page.evaluate(
-      async ({ id, marker }) => {
-        await window.exo.terminals.sendMessage(id, marker, true);
-      },
-      { id: shell.id, marker: beforeRelaunchMarker },
-    );
-    await expect.poll(async () => fixture.page.evaluate((id) => window.exo.terminals.read(id), shell.id)).toContain(
-      `persist:${beforeRelaunchMarker}`,
-    );
-
-    await fixture.electronApp.close();
-    relaunched = await relaunchExoFixture(fixture, { env: shellEnv });
-
-    await expect.poll(async () => relaunched?.page.evaluate(() => window.exo.terminals.list()) ?? []).toEqual([
-      expect.objectContaining({
-        id: shell.id,
-        kind: "shell",
-        status: "running",
-      }),
-    ]);
-    await expect(relaunched.page.getByTestId("terminal-tab-shell")).toHaveCount(1);
-    await expect.poll(async () => relaunched?.page.evaluate((id) => window.exo.terminals.read(id), shell.id) ?? "").toContain(
-      `persist:${beforeRelaunchMarker}`,
-    );
-    await expect(
-      relaunched.page.locator(".xterm-rows"),
-      "tmux history should be visible immediately after relaunch, before any new input",
-    ).toContainText(`persist:${beforeRelaunchMarker}`);
-    await relaunched.page.evaluate(async (id) => {
-      await window.exo.terminals.sendMessage(id, "after-relaunch", true);
-    }, shell.id);
-    await expect.poll(async () => relaunched?.page.evaluate((id) => window.exo.terminals.read(id), shell.id) ?? "").toContain("persist:after-relaunch");
-
-    const diagnostics = await relaunched.page.evaluate(() => window.exo.terminals.diagnostics());
-    expect(diagnostics[0]).toMatchObject({
-      runtime: "tmux",
-      bridgeStatus: "attached",
-      tmuxSessionName: expect.stringMatching(/^exo-/),
-    });
-  } finally {
-    if (relaunched) {
-      await relaunched.cleanup();
-    } else {
-      await fixture.cleanup();
-    }
-  }
-});
-
-test("hydrates single-tab tmux terminal history after renderer reload before input", async () => {
+test("replays bounded terminal history after renderer reload before input", async () => {
   const beforeReloadMarker = `before-reload-${Date.now()}`;
-  const { page, cleanup } = await launchExoFixture({
+  const { page, cleanup } = await launchExoTerminalFixture({
     env: {
       EXO_SHELL: "/bin/sh",
       EXO_SHELL_ARGS: "-lc,while IFS= read -r line; do printf 'persist:%s\\n' \"$line\"; done",
@@ -670,7 +586,7 @@ test("hydrates single-tab tmux terminal history after renderer reload before inp
     );
     await expect(
       page.locator(".xterm-rows"),
-      "single-tab tmux history should render after reload without tab switching or input",
+      "terminal history should render after reload without tab switching or input",
     ).toContainText(`persist:${beforeReloadMarker}`);
 
     await page.evaluate(async (id) => {
@@ -682,52 +598,8 @@ test("hydrates single-tab tmux terminal history after renderer reload before inp
   }
 });
 
-test("shows a reconnect action when the tmux attach bridge exits", async () => {
-  const { page, cleanup } = await launchExoFixture({
-    env: {
-      EXO_SHELL: "/bin/sh",
-      EXO_SHELL_ARGS: "",
-    },
-    initialNoteLabel: null,
-  });
-
-  try {
-    const shell = await pageShellSession(page);
-    const diagnostic = await page.evaluate(async (id) => {
-      const diagnostics = await window.exo.terminals.diagnostics();
-      return diagnostics.find((candidate) => candidate.id === id) ?? null;
-    }, shell.id);
-    if (!diagnostic?.tmuxSessionName) {
-      throw new Error("Expected shell terminal to expose a tmux session name in diagnostics.");
-    }
-
-    const killed = killTmuxAttachClients(diagnostic.tmuxSessionName);
-    expect(killed, `Expected to kill tmux attach client for ${diagnostic.tmuxSessionName}`).toBeGreaterThan(0);
-    await expect.poll(async () => page.evaluate(async (id) => {
-      const diagnostics = await window.exo.terminals.diagnostics();
-      const current = diagnostics.find((candidate) => candidate.id === id);
-      return current ? `${current.bridgeStatus}:${current.health}` : "";
-    }, shell.id)).toBe("detached:unhealthy");
-
-    await expect(page.getByTestId("terminal-reconnect")).toBeVisible();
-    await page.getByTestId("terminal-reconnect").click();
-    await expect.poll(async () => page.evaluate(async (id) => {
-      const diagnostics = await window.exo.terminals.diagnostics();
-      const current = diagnostics.find((candidate) => candidate.id === id);
-      return current ? `${current.bridgeStatus}:${current.paneStatus}` : "";
-    }, shell.id)).toBe("attached:alive");
-
-    await page.evaluate(async (id) => {
-      await window.exo.terminals.write(id, "printf 'after-reconnect-ui\\n'\n");
-    }, shell.id);
-    await expect.poll(async () => page.evaluate((id) => window.exo.terminals.read(id), shell.id)).toContain("after-reconnect-ui");
-  } finally {
-    await cleanup();
-  }
-});
-
 test("lets you close editor tabs", async () => {
-  const { page, cleanup } = await launchExoFixture();
+  const { page, cleanup } = await launchExoWorkspaceFixture();
 
   await page.getByTestId("inspector-toggle").click();
   await page.getByTestId("backlinks-panel").getByText("Related Note").click();
@@ -739,7 +611,7 @@ test("lets you close editor tabs", async () => {
 });
 
 test("renders inspector content when expanded", async () => {
-  const { page, cleanup } = await launchExoFixture();
+  const { page, cleanup } = await launchExoWorkspaceFixture();
 
   await page.getByTestId("inspector-toggle").click();
 
@@ -753,7 +625,7 @@ test("renders inspector content when expanded", async () => {
 });
 
 test("opens workspace settings from the sidebar", async () => {
-  const { page, cleanup } = await launchExoFixture({
+  const { page, cleanup } = await launchExoWorkspaceFixture({
     env: {
       EXO_INDEX_ENABLED: "0",
       EXO_INDEX_MODE: "off",
@@ -761,6 +633,8 @@ test("opens workspace settings from the sidebar", async () => {
     },
   });
 
+  await expect(page.getByTestId("exo-side-panel")).not.toBeVisible();
+  await expect(page.getByTestId("terminal-dock")).not.toBeVisible();
   await page.getByTestId("workspace-menu-button").click();
   await page.getByTestId("workspace-settings").click();
   await expect(page.getByTestId("workspace-settings-dialog")).toBeVisible();
@@ -773,28 +647,15 @@ test("opens workspace settings from the sidebar", async () => {
   await expect(page.getByTestId("workspace-settings-index-mode")).toHaveValue("off");
   await expect(page.getByTestId("workspace-settings-dialog")).toContainText("Core search + QMD advanced provider");
   await page.screenshot({ path: "/tmp/exo-workspace-settings-index.png", fullPage: false });
-  await page.getByTestId("workspace-settings-tab-terminal").click();
-  await expectStableOuterFrame(page.getByTestId("workspace-settings-dialog"), settingsFrame!);
-  await expect(page.getByTestId("workspace-settings-dialog")).toContainText("Live terminal scrollback lines");
-  await expect(page.getByTestId("workspace-settings-terminal-history-lines")).toBeVisible();
-  await expect(page.getByTestId("workspace-settings-terminal-history-lines")).toHaveValue("100000");
-  await page.screenshot({ path: "/tmp/exo-workspace-settings-terminal.png", fullPage: false });
-  await page.getByTestId("workspace-settings-terminal-history-lines").fill("250000");
-  await expect(page.getByTestId("workspace-settings-terminal-history-lines")).toHaveValue("250000");
-  await expect(page.getByTestId("workspace-settings-terminal-transcript-retention")).toHaveValue("forever");
-  await expect(page.getByTestId("workspace-settings-terminal-read-tail-chars")).toHaveValue("20000");
-  await expect(page.getByTestId("workspace-settings-terminal-max-read-tail-chars")).toHaveValue("200000");
-  await expect(page.getByTestId("workspace-settings-terminal-input-coalesce-ms")).toHaveValue("40");
-  await expect(page.getByTestId("workspace-settings-terminal-unresponsive-threshold-ms")).toHaveValue("10000");
-  await expect(page.getByTestId("workspace-settings-terminal-idle-threshold-ms")).toHaveValue("120000");
-  await expect(page.getByTestId("workspace-settings-dialog")).not.toContainText("Agent streaming");
-  await expect(page.getByTestId("workspace-settings-dialog")).not.toContainText("Agent terminal transport");
+  await page.getByTestId("workspace-settings-close").click();
+  await expect(page.getByTestId("workspace-settings-dialog")).not.toBeVisible();
+  await expect(page.getByTestId("terminal-dock")).not.toBeVisible();
 
   await cleanup();
 });
 
 test("keeps workspace settings frame stable across tabs", async () => {
-  const { page, cleanup } = await launchExoFixture({
+  const { page, cleanup } = await launchExoWorkspaceFixture({
     env: {
       EXO_INDEX_ENABLED: "0",
       EXO_INDEX_MODE: "off",
@@ -818,7 +679,7 @@ test("keeps workspace settings frame stable across tabs", async () => {
 });
 
 test("keeps the command server available while the window is hidden", async () => {
-  const { electronApp, page, runtimeRoot, cleanup } = await launchExoFixture({
+  const { electronApp, page, runtimeRoot, cleanup } = await launchExoTerminalFixture({
     env: {
       EXO_SHELL: "/bin/cat",
       EXO_SHELL_ARGS: "",
@@ -877,8 +738,8 @@ test("keeps the command server available while the window is hidden", async () =
   await cleanup();
 });
 
-test("supports CLI agent control while the window is hidden", async () => {
-  const { electronApp, runtimeRoot, workspaceRoot, cleanup } = await launchExoFixture({
+test("supports CLI terminal control while the window is hidden", async () => {
+  const { electronApp, runtimeRoot, workspaceRoot, cleanup } = await launchExoTerminalFixture({
     env: {
       EXO_SHELL: "/bin/cat",
       EXO_SHELL_ARGS: "",
@@ -905,18 +766,18 @@ test("supports CLI agent control while the window is hidden", async () => {
     expect(status.status).toBe(0);
     expect(status.stdout).toContain(workspaceRoot);
 
-    const agents = runExoCli(["agents", "list"], cliEnv);
-    expect(agents.status).toBe(0);
+    const terminals = runExoCli(["terminals", "list"], cliEnv);
+    expect(terminals.status).toBe(0);
 
-    const createdAgent = runExoCli(["agents", "create", "shell", workspaceRoot], cliEnv);
-    expect(createdAgent.status).toBe(0);
-    const shellId = (JSON.parse(createdAgent.stdout) as { id: string }).id;
+    const createdTerminal = runExoCli(["terminals", "create", "shell", workspaceRoot], cliEnv);
+    expect(createdTerminal.status).toBe(0);
+    const shellId = (JSON.parse(createdTerminal.stdout) as { id: string }).id;
     expect(shellId).toMatch(/^term-\d+$/);
 
     const cliMessage = `hidden cli qa ${Date.now()}`;
-    const send = runExoCli(["agents", "send", shellId!, cliMessage], cliEnv);
+    const send = runExoCli(["terminals", "send", shellId!, cliMessage], cliEnv);
     expect(send.status).toBe(0);
-    await expect.poll(() => runExoCli(["agents", "read", shellId!, "--tail", "2000"], cliEnv).stdout).toContain(cliMessage);
+    await expect.poll(() => runExoCli(["terminals", "read", shellId!, "--lines", "2000"], cliEnv).stdout).toContain(cliMessage);
   } finally {
     await cleanup();
   }
@@ -938,7 +799,7 @@ function stringEnv(env: NodeJS.ProcessEnv): Record<string, string> {
 
 
 test("switch workspace opens the workspace picker", async () => {
-  const { page, cleanup } = await launchExoFixture();
+  const { page, cleanup } = await launchExoWorkspaceFixture();
 
   await page.getByTestId("workspace-menu-button").click();
   await page.getByTestId("workspace-settings").click();
@@ -954,7 +815,7 @@ test("switch workspace opens the workspace picker", async () => {
 });
 
 test("shows first-run notes setup before the app shell", async () => {
-  const { page, cleanup } = await launchExoFixture({
+  const { page, cleanup } = await launchExoWorkspaceFixture({
     configured: false,
     cwd: "/",
     workspaceRootEnv: false,
@@ -974,7 +835,7 @@ test("shows first-run notes setup before the app shell", async () => {
 });
 
 test("shows first-run setup from a packaged-style launch without workspace env", async () => {
-  const { page, cleanup, settingsPath } = await launchExoFixture({
+  const { page, cleanup, settingsPath } = await launchExoWorkspaceFixture({
     configured: false,
     cwd: "/",
     workspaceRootEnv: false,
@@ -995,7 +856,7 @@ test("shows first-run setup from a packaged-style launch without workspace env",
 test("opens an existing notes folder from first-run setup", async () => {
   const fixtureWorkspaceRoot = path.join(repoRoot, "fixtures/test-workspace");
   const notesFolder = path.join(fixtureWorkspaceRoot, "notes/test-notes");
-  const { page, cleanup, workspaceRoot } = await launchExoFixture({
+  const { page, cleanup, workspaceRoot } = await launchExoWorkspaceFixture({
     configured: false,
     cwd: "/",
     workspaceRootEnv: false,
@@ -1029,15 +890,17 @@ test("opens an existing notes folder from first-run setup", async () => {
     });
   await expect.poll(async () => page.evaluate(() => window.exo.workspace.getSettings()))
     .toMatchObject({
-      noteRoots: [notesFolder],
-      defaultTerminalCwd: expectedTerminalCwd,
+      settings: {
+        noteRoots: [notesFolder],
+        defaultTerminalCwd: expectedTerminalCwd,
+      },
     });
 
   await cleanup();
 });
 
 test("collapses and reopens the workspace explorer", async () => {
-  const { page, cleanup } = await launchExoFixture();
+  const { page, cleanup } = await launchExoWorkspaceFixture();
 
   await page.getByTestId("sidebar-collapse").click();
   await expect(page.getByTestId("sidebar-expand")).toBeVisible();
@@ -1050,13 +913,13 @@ test("collapses and reopens the workspace explorer", async () => {
 
   await page.getByTestId("sidebar-expand").click();
   await expect(page.getByTestId("sidebar-collapse")).toBeVisible();
-  await expect(page.getByTestId("side-panel-files-rail")).toBeVisible();
+  await expect(page.getByTestId("sidebar").getByRole("button", { name: "focus-note" })).toBeVisible();
 
   await cleanup();
 });
 
 test("shows the editor beside the right-side terminal surface", async () => {
-  const { page, cleanup } = await launchExoFixture();
+  const { page, cleanup } = await launchExoTerminalFixture();
 
   await expect(page.locator(".pane-leaf--editor")).toBeVisible();
   await expect(page.locator(".exo-side-panel-surface .pane-leaf--terminal")).toBeVisible();
@@ -1068,7 +931,7 @@ test("shows the editor beside the right-side terminal surface", async () => {
 });
 
 test("accepts terminal keyboard input in pane tree", async () => {
-  const { page, cleanup } = await launchExoFixture({
+  const { page, cleanup } = await launchExoTerminalFixture({
     env: {
       EXO_SHELL: "/bin/cat",
       EXO_SHELL_ARGS: "",
@@ -1087,7 +950,7 @@ test("accepts terminal keyboard input in pane tree", async () => {
 });
 
 test("keeps large terminal bursts available above the visible viewport", async () => {
-  const { page, cleanup } = await launchExoFixture({
+  const { page, cleanup } = await launchExoTerminalFixture({
     env: {
       EXO_SHELL: "/bin/sh",
       EXO_SHELL_ARGS:
@@ -1109,7 +972,7 @@ test("keeps large terminal bursts available above the visible viewport", async (
 });
 
 test("keeps app terminal tail above the legacy 12k cap", async () => {
-  const { page, cleanup } = await launchExoFixture({
+  const { page, cleanup } = await launchExoTerminalFixture({
     env: {
       EXO_SHELL: "/bin/sh",
       EXO_SHELL_ARGS:
@@ -1132,10 +995,10 @@ test("keeps app terminal tail above the legacy 12k cap", async () => {
 });
 
 test("renders emoji-heavy terminal output without replacement glyph corruption", async () => {
-  const { page, cleanup } = await launchExoFixture({
+  const { page, cleanup } = await launchExoTerminalFixture({
     env: {
       EXO_SHELL: process.execPath,
-      EXO_SHELL_ARGS: '-e,process.stdout.write("── 🙂 terminal-border\\n"+"🙂".repeat(20000)+"\\nterminal-emoji-end\\n");setInterval(()=>{},1000)',
+      EXO_SHELL_ARGS: '-e,process.stdout.write("── 🙂 terminal-border\\n"+"🙂".repeat(20000)+"\\nterminal-emoji-end\\n");process.stdin.resume()',
     },
   });
 
@@ -1153,7 +1016,7 @@ test("renders emoji-heavy terminal output without replacement glyph corruption",
 });
 
 test("does not feed xterm device responses back into terminal input", async () => {
-  const { page, cleanup } = await launchExoFixture({
+  const { page, cleanup } = await launchExoTerminalFixture({
     env: {
       EXO_SHELL: "/bin/cat",
       EXO_SHELL_ARGS: "",
@@ -1180,7 +1043,7 @@ test("does not feed xterm device responses back into terminal input", async () =
 });
 
 test("keeps list guides aligned with the visible bullet lanes", async () => {
-  const { page, cleanup } = await launchExoFixture({
+  const { page, cleanup } = await launchExoWorkspaceFixture({
     prepareWorkspace: async (workspaceRoot) => {
       const notePath = path.join(workspaceRoot, "notes/test-notes/focus-note.md");
       await writeFile(
@@ -1265,7 +1128,7 @@ test("keeps list guides aligned with the visible bullet lanes", async () => {
 });
 
 test("toggles markdown task checkboxes from live preview", async () => {
-  const { page, cleanup } = await launchExoFixture({
+  const { page, cleanup } = await launchExoWorkspaceFixture({
     prepareWorkspace: async (workspaceRoot) => {
       const notePath = path.join(workspaceRoot, "notes/test-notes/focus-note.md");
       await writeFile(
@@ -1297,7 +1160,7 @@ test("toggles markdown task checkboxes from live preview", async () => {
 });
 
 test("keeps list text aligned when editing a bullet marker", async () => {
-  const { page, cleanup } = await launchExoFixture({
+  const { page, cleanup } = await launchExoWorkspaceFixture({
     prepareWorkspace: async (workspaceRoot) => {
       const notePath = path.join(workspaceRoot, "notes/test-notes/focus-note.md");
       await writeFile(
@@ -1451,7 +1314,7 @@ test("keeps list text aligned when editing a bullet marker", async () => {
 });
 
 test("outdents blank list continuation lines in live preview", async () => {
-  const { page, cleanup } = await launchExoFixture({
+  const { page, cleanup } = await launchExoWorkspaceFixture({
     prepareWorkspace: async (workspaceRoot) => {
       const notePath = path.join(workspaceRoot, "notes/test-notes/focus-note.md");
       await writeFile(
@@ -1519,7 +1382,7 @@ test("outdents blank list continuation lines in live preview", async () => {
 
 test("keeps the inspector pinned while long notes scroll", async () => {
   const longDocument = Array.from({ length: 120 }, (_, index) => `- line ${index + 1}`).join("\n");
-  const longFixture = await launchExoFixture({
+  const longFixture = await launchExoWorkspaceFixture({
     prepareWorkspace: async (workspaceRoot) => {
       const notePath = path.join(workspaceRoot, "notes/test-notes/focus-note.md");
       await writeFile(

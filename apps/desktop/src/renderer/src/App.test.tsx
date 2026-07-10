@@ -467,6 +467,7 @@ function workspaceSettingsDialogFixture(
 ): WorkspaceSettingsDialogState {
   return {
     section: "workspace",
+    settingsRevision: null,
     workspaceRoot: "/workspace",
     defaultTerminalCwd: "/workspace",
     noteRoots: ["/workspace/notes"],
@@ -644,6 +645,7 @@ describe("workspace settings renderer model", () => {
     expect(settings).not.toBeNull();
     expect(workspaceSettingsStructuralDraftKey({
       section: "workspace",
+      settingsRevision: null,
       workspaceRoot: "/workspace",
       defaultTerminalCwd: "/workspace/project",
       noteRoots: ["/workspace/notes"],
@@ -680,6 +682,7 @@ describe("workspace settings renderer model", () => {
   it("tracks color theme in immediate settings saves", () => {
     const base = {
       section: "appearance" as const,
+      settingsRevision: null,
       workspaceRoot: "/workspace",
       defaultTerminalCwd: "/workspace",
       noteRoots: ["/workspace/notes"],
@@ -802,8 +805,8 @@ describe("workspace registry", () => {
 
       expect(firstSettings).not.toBeNull();
       expect(secondSettings).not.toBeNull();
-      await store.save(firstSettings!);
-      await store.save(secondSettings!);
+      const firstSnapshot = await store.save({ settings: firstSettings!, expectedRevision: null });
+      await store.save({ settings: secondSettings!, expectedRevision: firstSnapshot.revision });
 
       const workspaces = await store.listWorkspaces();
       expect(workspaces.map((workspace) => workspace.label)).toEqual(["notes-beta", "notes-alpha"]);

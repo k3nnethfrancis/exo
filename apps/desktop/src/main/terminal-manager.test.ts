@@ -4,6 +4,8 @@ import path from "node:path";
 
 import { describe, expect, it, vi } from "vitest";
 
+import { resolveRuntimeConfig } from "@exo/core";
+
 import type { TerminalRuntime, TerminalRuntimeCreateSessionOptions, TerminalRuntimeProcess, TerminalRuntimeSession } from "./terminal-runtime";
 import { TerminalManager } from "./terminal-manager";
 
@@ -38,6 +40,64 @@ describe("TerminalManager direct pty runtime", () => {
     });
   });
 
+  it.each([
+    {
+      name: "an argument-free echo fixture",
+      command: "/bin/cat",
+      rawArgs: "",
+      expectedArgs: [],
+    },
+    {
+      name: "a scripted shell fixture",
+      command: "/bin/sh",
+      rawArgs: "-lc,printf 'fixture ready\\n'; cat",
+      expectedArgs: ["-lc", "printf 'fixture ready\\n'; cat"],
+    },
+  ])("launches $name with the configured executable and arguments", async ({ command, rawArgs, expectedArgs }) => {
+    const root = await tempWorkspace();
+    const runtime = new FakeTerminalRuntime();
+    const manager = new TerminalManager(root, 500, 0, {}, runtime);
+    manager.setRuntimeConfig(resolveRuntimeConfig({
+      ...process.env,
+      EXO_WORKSPACE_ROOT: root,
+      EXO_DEFAULT_TERMINAL_CWD: root,
+      EXO_NOTE_ROOTS: root,
+      EXO_RUNTIME_ROOT: path.join(root, ".exo"),
+      EXO_SHELL: command,
+      EXO_SHELL_ARGS: rawArgs,
+    }));
+
+    await manager.create({ kind: "shell", cwd: root });
+
+    expect(runtime.created[0]).toMatchObject({
+      command,
+      args: expectedArgs,
+    });
+  });
+
+  it.each(["/bin/zsh", "/bin/bash"])("keeps the ordinary user shell launcher %s when no Exo test override is configured", async (userShell) => {
+    const root = await tempWorkspace();
+    const runtime = new FakeTerminalRuntime();
+    const manager = new TerminalManager(root, 500, 0, {}, runtime);
+    manager.setRuntimeConfig(resolveRuntimeConfig({
+      ...process.env,
+      SHELL: userShell,
+      EXO_SHELL: undefined,
+      EXO_SHELL_ARGS: undefined,
+      EXO_WORKSPACE_ROOT: root,
+      EXO_DEFAULT_TERMINAL_CWD: root,
+      EXO_NOTE_ROOTS: root,
+      EXO_RUNTIME_ROOT: path.join(root, ".exo"),
+    }));
+
+    await manager.create({ kind: "shell", cwd: root });
+
+    expect(runtime.created[0]).toMatchObject({
+      command: userShell,
+      args: ["-l"],
+    });
+  });
+
   it("passes spaces and printable input through byte-for-byte", async () => {
     const root = await tempWorkspace();
     const runtime = new FakeTerminalRuntime();
@@ -68,7 +128,7 @@ describe("TerminalManager direct pty runtime", () => {
     }
   });
 
-  it("streams output to live tails without transcript persistence", async () => {
+  it("streams output to live tails and restore snapshots without transcript persistence", async () => {
     const root = await tempWorkspace();
     const runtime = new FakeTerminalRuntime();
     const manager = new TerminalManager(root, 500, 0, {}, runtime);
@@ -77,6 +137,7 @@ describe("TerminalManager direct pty runtime", () => {
     runtime.processes[0].emitData("line-1\nline-2\n");
 
     expect(manager.readTail(terminal.id)).toBe("line-1\nline-2\n");
+    expect(manager.readRestoreSnapshot(terminal.id)).toBe("line-1\nline-2\n");
     expect(manager.readTranscript(terminal.id)).toBe("line-1\nline-2\n");
     expect(manager.getInfo(terminal.id)?.transcriptPath).toBeUndefined();
   });

@@ -8,6 +8,23 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ## Open
 
+### EXO-ISSUE-104: Preview pane lifecycle is nondeterministic in the complete Electron journey
+
+- Status: open
+- Severity: high
+- Area: preview pane, Electron window startup, E2E lifecycle
+- Source:
+  - 2026-07-10 Wave 1 integration proof.
+- Observed:
+  - `pnpm test:e2e` completed with 77 passed, 2 explicit skips, and one preview-pane-layout failure before the app emitted its first BrowserWindow; the same journey passed isolated in 785 ms.
+  - A later `pnpm stable:smoke` run passed the direct-PTY preview-input journey but failed the separate `preview-layout` scenario while locating its browser iframe.
+- Expected:
+  - Preview creation and iframe readiness have one observable lifecycle that is independent of test ordering, prior terminal state, and worker teardown.
+- Acceptance:
+  - [ ] Reproduce the startup and iframe failures with focused traces.
+  - [ ] Establish deterministic app-window and preview-frame readiness without arbitrary sleeps.
+  - [ ] Prove the full Electron suite and all nine active stable-smoke journeys pass from a clean run.
+
 ### EXO-ISSUE-103: Note paths can escape attached roots and mutate arbitrary filesystem locations
 
 - Status: partially fixed; dogfooding and command-server parity remain
@@ -29,11 +46,11 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - [ ] Route desktop IPC and command-server note operations through the same containment seam.
   - [ ] Prove ordinary wikilink creation still works inside each attached note root.
   - [ ] Complete guarded real-vault-copy dogfooding before closing.
-  - 2026-07-10 Wave 1: added main-process `WorkspaceFiles` authorization at renderer IPC and note-service boundaries. Focused regressions cover traversal, allowed/rejected absolute paths, existing and missing-descendant symlink escapes, valid missing ancestors, note-root self-mutation, wikilink traversal, and in-root absolute wikilink creation. The remaining acceptance work is root-relative identities, command-server route parity, and guarded real-vault-copy proof.
+  - 2026-07-10 Wave 1: added main-process `WorkspaceFiles` authorization at renderer IPC and note-service boundaries. Focused regressions cover traversal, allowed/rejected absolute paths, existing and missing-descendant symlink escapes, valid missing ancestors, note-root self-mutation, wikilink traversal, and in-root absolute wikilink creation. The existing command-server read route now authorizes absolute targets before provider I/O and provider-resolved document ids afterward; attached-folder/indexed-root-only reads fail closed and multi-note-root reads succeed. The remaining acceptance work is root-relative identities and guarded real-vault-copy proof.
 
 ### EXO-ISSUE-102: Opening Workspace Settings can erase Agent Commands and pane layout
 
-- Status: partially fixed; store concurrency and invocation proof remain
+- Status: partially fixed; real-vault and packaged-app proof remain
 - Severity: critical
 - Area: workspace settings, autosave, AgentCommand, pane layout, data preservation
 - Source:
@@ -51,7 +68,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - [ ] Prove appearance/search/terminal-only edits preserve commands, layout, future unknown keys, and migration metadata.
   - [ ] Prove concurrent patches cannot silently clobber one another.
   - [ ] Prove a seeded command remains invokable after the Settings round trip.
-  - 2026-07-10 Wave 1: a fresh Settings dialog is now clean rather than autosave-idle; focused saves merge over authoritative settings; normalization preserves unknown top-level fields. Regression coverage proves save/load/edit/reload preservation and focused appearance edits retaining commands, layout, and future keys. Revision-aware writes and an actual post-round-trip command invocation remain required before closing.
+  - 2026-07-10 Wave 1: a fresh Settings dialog is now clean rather than autosave-idle; focused saves merge over authoritative settings; normalization preserves unknown top-level fields. Reads and saves carry an explicit SHA-256 revision, so stale clients reject; local rapid patches serialize on each returned snapshot. Settings and registry write through a recoverable journaled transaction and configuration files are forced to `0600`. Focused evidence proves a seeded Command survives an actual Settings-style edit/reload and launches. Cross-process compare-and-swap is intentionally not claimed: all supported app writes are main-process-owned.
 
 ### EXO-ISSUE-101: Replace tmux/harness terminal architecture with direct pty and AgentCommand launch
 

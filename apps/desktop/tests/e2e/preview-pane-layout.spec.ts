@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
 
 import { test, expect, type Locator, type Page } from "@playwright/test";
 
-import { launchExoFixture } from "../helpers";
+import { launchExoTerminalFixture, launchExoWorkspaceFixture } from "../helpers";
 
 async function dragBy(page: Page, locator: Locator, delta: { x: number; y: number }) {
   const box = await locator.boundingBox();
@@ -20,7 +20,7 @@ async function dragBy(page: Page, locator: Locator, delta: { x: number; y: numbe
 }
 
 test("resizes the browser and terminal surfaces inside the right pane", async () => {
-  const { page, cleanup } = await launchExoFixture();
+  const { page, cleanup } = await launchExoTerminalFixture();
 
   try {
     await page.getByTestId("side-panel-browser-rail").click();
@@ -46,7 +46,7 @@ test("resizes the browser and terminal surfaces inside the right pane", async ()
 });
 
 test("opens absolute local HTML paths through the command server in the preview pane", async () => {
-  const { page, runtimeRoot, workspaceRoot, cleanup } = await launchExoFixture({
+  const { page, runtimeRoot, workspaceRoot, cleanup } = await launchExoWorkspaceFixture({
     mutable: true,
     prepareWorkspace: async (root) => {
       const artifactRoot = path.join(root, "projects", "sample-project", "docs", "artifacts");
@@ -95,6 +95,11 @@ test("opens absolute local HTML paths through the command server in the preview 
   });
 
   try {
+    await page.getByTestId("side-panel-toggle").click();
+    await expect(page.getByTestId("exo-side-panel")).toBeVisible();
+    await page.getByTestId("side-panel-browser-rail").click();
+    await expect(page.getByTestId("browser-pane")).toBeVisible();
+
     const serverInfo = JSON.parse(await readFile(path.join(runtimeRoot, "server.json"), "utf8")) as { port: number; token: string };
     const commandHeaders = {
       "Content-Type": "application/json",
@@ -218,9 +223,11 @@ async function getPreviewLayoutMetrics(page: Page): Promise<{
 }
 
 test("keeps the browser preview in the shared right-side pane graph", async () => {
-  const { page, cleanup } = await launchExoFixture();
+  const { page, cleanup } = await launchExoWorkspaceFixture();
 
   try {
+    await page.getByTestId("side-panel-toggle").click();
+    await expect(page.getByTestId("exo-side-panel")).toBeVisible();
     await page.getByTestId("side-panel-browser-rail").click();
     await expect(page.getByTestId("browser-tab-preview")).toBeVisible();
 

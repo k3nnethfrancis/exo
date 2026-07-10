@@ -148,9 +148,11 @@ export function App() {
     layoutPersistenceReady,
     setLayoutPersistenceReady,
     workspaceSettingsRef,
+    workspaceSettingsRevisionRef,
   } = workspaceBootstrap;
   const workspaceSettingsController = useWorkspaceSettingsController({
     workspaceSettingsRef,
+    workspaceSettingsRevisionRef,
     applyWorkspaceSettings,
     refreshWorkspaceModel,
     setIndexStatus,
@@ -279,6 +281,7 @@ export function App() {
     onboardingActive: Boolean(onboardingState),
     workspaceModel,
     workspaceSettingsRef,
+    workspaceSettingsRevisionRef,
   });
 
   useWorkspaceCommandHandlers({

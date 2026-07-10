@@ -116,6 +116,16 @@ function splitEnvArgs(rawValue?: string): string[] {
     .filter(Boolean);
 }
 
+function resolveShellArgs(command: string, env: NodeJS.ProcessEnv): string[] {
+  if (env.EXO_SHELL_ARGS !== undefined) {
+    return splitEnvArgs(env.EXO_SHELL_ARGS);
+  }
+  if (!env.EXO_SHELL || path.basename(command).includes("zsh")) {
+    return ["-l"];
+  }
+  return [];
+}
+
 function resolveCapabilityMetadata(id: ManagedAgentKind): CapabilityMetadata {
   return legacyHarnessCapabilityMetadata[id];
 }
@@ -386,13 +396,12 @@ class ShellAgentHarness implements AgentHarness {
 
   resolveLauncher(env: NodeJS.ProcessEnv): AgentLauncherConfig {
     const command = env.EXO_SHELL ?? env.SHELL ?? "/bin/zsh";
-    const args = splitEnvArgs(env.EXO_SHELL_ARGS);
 
     return {
       kind: this.kind,
       title: this.title,
       command,
-      args: args.length > 0 ? args : path.basename(command).includes("zsh") ? ["-l"] : [],
+      args: resolveShellArgs(command, env),
     };
   }
 

@@ -1,6 +1,6 @@
 import { BrowserWindow, dialog, shell, type OpenDialogOptions } from "electron";
 import path from "node:path";
-import { WorkspaceFiles, type WorkspaceModel, type WorkspaceSettings } from "@exo/core";
+import { WorkspaceFiles, type WorkspaceModel } from "@exo/core";
 
 import type { DesktopApi, FileStatInfo, WorkspaceRegistryEntry } from "../shared/api";
 import { handleDesktopInvoke } from "./typed-ipc";
@@ -26,7 +26,7 @@ export interface WorkspaceIpcHandlers {
   getMainWindow: () => BrowserWindow | null;
   getModel: () => WorkspaceModel;
   getRuntimeStatus: () => Promise<unknown> | unknown;
-  getSettings: () => WorkspaceSettings;
+  getSettings: WorkspaceApi["getSettings"];
   getSetupState: WorkspaceApi["getSetupState"];
   markOnboardingComplete: WorkspaceApi["markOnboardingComplete"];
   listAgentInstructionOverlays: WorkspaceApi["listAgentInstructionOverlays"];
@@ -59,7 +59,7 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
   handleDesktopInvoke("workspace:get-setup-state", async () => handlers.getSetupState());
   handleDesktopInvoke("workspace:mark-onboarding-complete", async () => handlers.markOnboardingComplete());
   handleDesktopInvoke("workspace:list-workspaces", async () => handlers.listWorkspaces());
-  handleDesktopInvoke("workspace:activate-workspace", async (_event, workspaceId) => handlers.activateWorkspace(workspaceId));
+  handleDesktopInvoke("workspace:activate-workspace", async (_event, input) => handlers.activateWorkspace(input));
   handleDesktopInvoke("workspace:get-index-status", async () => handlers.getIndexStatus());
   handleDesktopInvoke("workspace:resolve-preview-target", async (_event, target) => handlers.resolvePreviewTarget(target));
   handleDesktopInvoke("workspace:launch-agent-invocation", async (_event, input) => {
@@ -70,7 +70,7 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
   handleDesktopInvoke("workspace:index-sync", async () => handlers.syncIndex());
   handleDesktopInvoke("workspace:index-update", async () => handlers.updateIndex());
   handleDesktopInvoke("workspace:index-embed", async () => handlers.embedIndex());
-  handleDesktopInvoke("workspace:save-settings", async (_event, settings) => handlers.saveSettings(settings));
+  handleDesktopInvoke("workspace:save-settings", async (_event, request) => handlers.saveSettings(request));
   handleDesktopInvoke(
     "workspace:select-folder",
     async (_event, options) => {

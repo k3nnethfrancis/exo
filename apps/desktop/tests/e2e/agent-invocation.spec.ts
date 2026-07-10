@@ -2,7 +2,10 @@ import { expect, test, type Dialog } from "@playwright/test";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { launchExoFixture, relaunchExoFixture } from "../helpers";
+import {
+  launchExoWorkspaceFixture,
+  relaunchExoWorkspaceFixture,
+} from "../helpers";
 
 test("runs a configured note invocation, refreshes the note, and highlights the changed note", async () => {
   const fixture = await launchInvocationFixture("append", {
@@ -69,7 +72,7 @@ test("marks a running invocation orphaned when the app relaunches", async () => 
 await new Promise((resolve) => setTimeout(resolve, 30_000));
 `,
   });
-  let relaunched: Awaited<ReturnType<typeof relaunchExoFixture>> | null = null;
+  let relaunched: Awaited<ReturnType<typeof relaunchExoWorkspaceFixture>> | null = null;
 
   try {
     await invokeConfiguredAgent(fixture.page, "orphan");
@@ -77,7 +80,7 @@ await new Promise((resolve) => setTimeout(resolve, 30_000));
     expect(before).toMatchObject({ status: "running", command: { handle: "orphan" } });
 
     await fixture.electronApp.close();
-    relaunched = await relaunchExoFixture(fixture);
+    relaunched = await relaunchExoWorkspaceFixture(fixture);
 
     await expect.poll(async () => latestInvocationRecord(fixture.workspaceRoot)).toMatchObject({
       id: before.id,
@@ -157,10 +160,10 @@ test("live Claude can read the pointed document through AgentCommand invocation"
 async function launchInvocationFixture(
   handle: string,
   options: { scriptBody: string },
-): Promise<Awaited<ReturnType<typeof launchExoFixture>> & { notePath: string }> {
+): Promise<Awaited<ReturnType<typeof launchExoWorkspaceFixture>> & { notePath: string }> {
   let notePath = "";
   let scriptPath = "";
-  const fixture = await launchExoFixture({
+  const fixture = await launchExoWorkspaceFixture({
     mutable: true,
     initialNoteLabel: null,
     prepareWorkspace: async (workspaceRoot) => {
@@ -210,9 +213,9 @@ async function launchInvocationFixture(
 async function launchCommandInvocationFixture(
   handle: string,
   options: { command: string; noteBody: string },
-): Promise<Awaited<ReturnType<typeof launchExoFixture>> & { notePath: string }> {
+): Promise<Awaited<ReturnType<typeof launchExoWorkspaceFixture>> & { notePath: string }> {
   let notePath = "";
-  const fixture = await launchExoFixture({
+  const fixture = await launchExoWorkspaceFixture({
     mutable: true,
     initialNoteLabel: null,
     prepareWorkspace: async (workspaceRoot) => {
@@ -256,10 +259,10 @@ async function launchCommandInvocationFixture(
   return { ...fixture, notePath };
 }
 
-async function launchLiveClaudeInvocationFixture(): Promise<Awaited<ReturnType<typeof launchExoFixture>> & { notePath: string }> {
+async function launchLiveClaudeInvocationFixture(): Promise<Awaited<ReturnType<typeof launchExoWorkspaceFixture>> & { notePath: string }> {
   let notePath = "";
   let scriptPath = "";
-  const fixture = await launchExoFixture({
+  const fixture = await launchExoWorkspaceFixture({
     mutable: true,
     initialNoteLabel: null,
     env: process.env.HOME ? { HOME: process.env.HOME } : {},
@@ -341,7 +344,7 @@ function run() {
   return { ...fixture, notePath };
 }
 
-async function invokeConfiguredAgent(page: Awaited<ReturnType<typeof launchExoFixture>>["page"], handle: string): Promise<void> {
+async function invokeConfiguredAgent(page: Awaited<ReturnType<typeof launchExoWorkspaceFixture>>["page"], handle: string): Promise<void> {
   let dialogIndex = 0;
   const handleDialog = (dialog: Dialog) => {
     dialogIndex += 1;
@@ -360,7 +363,7 @@ async function invokeConfiguredAgent(page: Awaited<ReturnType<typeof launchExoFi
   }
 }
 
-async function appendEditorText(page: Awaited<ReturnType<typeof launchExoFixture>>["page"], text: string): Promise<void> {
+async function appendEditorText(page: Awaited<ReturnType<typeof launchExoWorkspaceFixture>>["page"], text: string): Promise<void> {
   await page.locator(".cm-content").click();
   await page.evaluate((insert) => {
     const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;

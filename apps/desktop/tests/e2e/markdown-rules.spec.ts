@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { launchExoFixture } from "../helpers";
+import { launchExoWorkspaceFixture } from "../helpers";
 
 test("renders underscore thematic breaks in markdown live preview", async () => {
   const markdownContent = `# Rule Test
@@ -14,7 +14,7 @@ ___
 Below.
 `;
 
-  const { page, cleanup } = await launchExoFixture({
+  const { page, cleanup } = await launchExoWorkspaceFixture({
     mutable: true,
     prepareWorkspace: async (workspaceRoot) => {
       const target = path.join(workspaceRoot, "notes/test-notes/rule-test.md");
@@ -32,7 +32,7 @@ Below.
 });
 
 test("continues and exits markdown bullets in live preview", async () => {
-  const { page, cleanup } = await launchExoFixture({
+  const { page, cleanup } = await launchExoWorkspaceFixture({
     mutable: true,
     prepareWorkspace: async (workspaceRoot) => {
       const target = path.join(workspaceRoot, "notes/test-notes/list-edit-test.md");
@@ -77,7 +77,7 @@ test("continues and exits markdown bullets in live preview", async () => {
 });
 
 test("continues and exits markdown task list items in live preview", async () => {
-  const { page, cleanup } = await launchExoFixture({
+  const { page, cleanup } = await launchExoWorkspaceFixture({
     mutable: true,
     prepareWorkspace: async (workspaceRoot) => {
       const target = path.join(workspaceRoot, "notes/test-notes/task-list-edit-test.md");
@@ -122,7 +122,7 @@ test("continues and exits markdown task list items in live preview", async () =>
 });
 
 test("Tab and Enter exit wikilinks without adding whitespace", async () => {
-  const { page, cleanup } = await launchExoFixture({
+  const { page, cleanup } = await launchExoWorkspaceFixture({
     mutable: true,
     prepareWorkspace: async (workspaceRoot) => {
       const target = path.join(workspaceRoot, "notes/test-notes/wikilink-edit-test.md");
@@ -192,7 +192,7 @@ test("Tab and Enter exit wikilinks without adding whitespace", async () => {
 });
 
 test("suggests existing note targets while typing wikilinks", async () => {
-  const { page, cleanup } = await launchExoFixture({
+  const { page, cleanup } = await launchExoWorkspaceFixture({
     mutable: true,
     initialNoteLabel: null,
     prepareWorkspace: async (workspaceRoot) => {
@@ -250,7 +250,7 @@ test("suggests existing note targets while typing wikilinks", async () => {
 });
 
 test("keeps wikilink completion overlays outside editor clipping", async () => {
-  const { page, cleanup } = await launchExoFixture({
+  const { page, cleanup } = await launchExoWorkspaceFixture({
     mutable: true,
     initialNoteLabel: null,
     prepareWorkspace: async (workspaceRoot) => {
@@ -302,7 +302,7 @@ test("keeps wikilink completion overlays outside editor clipping", async () => {
 });
 
 test("lets Enter add a line above a first-line wikilink", async () => {
-  const { page, cleanup } = await launchExoFixture({
+  const { page, cleanup } = await launchExoWorkspaceFixture({
     mutable: true,
     initialNoteLabel: null,
     prepareWorkspace: async (workspaceRoot) => {
@@ -339,7 +339,7 @@ test("lets Enter add a line above a first-line wikilink", async () => {
 });
 
 test("keeps generated graph references outside editable list layout", async () => {
-  const { page, cleanup } = await launchExoFixture({
+  const { page, cleanup } = await launchExoWorkspaceFixture({
     mutable: true,
     prepareWorkspace: async (workspaceRoot) => {
       const notesRoot = path.join(workspaceRoot, "notes/test-notes");
@@ -365,7 +365,7 @@ test("keeps generated graph references outside editable list layout", async () =
 });
 
 test("keeps cursor and shortcut selections out of rendered list markers", async () => {
-  const { page, cleanup } = await launchExoFixture({
+  const { page, cleanup } = await launchExoWorkspaceFixture({
     mutable: true,
     prepareWorkspace: async (workspaceRoot) => {
       const target = path.join(workspaceRoot, "notes/test-notes/list-cursor-boundaries.md");

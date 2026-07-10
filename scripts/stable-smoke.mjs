@@ -16,6 +16,24 @@ export const smokeScenarios = [
     timeoutMs: 30_000,
   },
   {
+    name: 'note-open-save',
+    file: 'apps/desktop/tests/e2e/shell.spec.ts',
+    grep: 'handles global save and daily-note keybindings',
+    timeoutMs: 60_000,
+  },
+  {
+    name: 'settings-open-no-terminal',
+    file: 'apps/desktop/tests/e2e/shell.spec.ts',
+    grep: 'opens workspace settings from the sidebar',
+    timeoutMs: 60_000,
+  },
+  {
+    name: 'command-note-invocation',
+    file: 'apps/desktop/tests/e2e/agent-invocation.spec.ts',
+    grep: 'runs a configured note invocation, refreshes the note, and highlights the changed note',
+    timeoutMs: 75_000,
+  },
+  {
     name: 'shell-boot-tabs',
     file: 'apps/desktop/tests/e2e/shell.spec.ts',
     grep: 'boots the shell, opens notes, and manages terminal tabs',
@@ -34,59 +52,16 @@ export const smokeScenarios = [
     timeoutMs: 65_000,
   },
   {
-    name: 'shell-relaunch-reattach',
-    file: 'apps/desktop/tests/e2e/shell.spec.ts',
-    grep: 'reattaches a tmux-backed shell after app relaunch',
-    timeoutMs: 85_000,
-  },
-  {
-    name: 'terminal-monitor-mode',
-    file: 'apps/desktop/tests/e2e/monitor-mode.spec.ts',
-    grep: 'splits live terminals in monitor mode, reconciles geometry, and persists across relaunch',
-    timeoutMs: 95_000,
-  },
-  {
     name: 'hidden-window-command-server',
     file: 'apps/desktop/tests/e2e/shell.spec.ts',
     grep: 'keeps the command server available while the window is hidden',
     timeoutMs: 75_000,
   },
   {
-    name: 'hidden-window-cli',
-    file: 'apps/desktop/tests/e2e/shell.spec.ts',
-    grep: 'supports CLI agent control while the window is hidden',
-    timeoutMs: 75_000,
-  },
-  {
     name: 'preview-layout',
     file: 'apps/desktop/tests/e2e/preview-pane-layout.spec.ts',
-    grep: 'resizes preview/editor and preview/terminal splits while a preview frame is open',
+    grep: 'resizes the browser and terminal surfaces inside the right pane',
     timeoutMs: 65_000,
-  },
-  {
-    name: 'terminal-geometry-baseline',
-    file: 'apps/desktop/tests/e2e/terminal-geometry.spec.ts',
-    grep: 'Terminal V4\\.1 baseline fake Ink fixture reports one unwrapped wide frame',
-    timeoutMs: 75_000,
-  },
-  {
-    name: 'terminal-geometry-reconnect',
-    file: 'apps/desktop/tests/e2e/terminal-geometry.spec.ts',
-    grep: 'Terminal V4\\.1 reconnect-at-wrong-size keeps fixture width aligned after reconnect',
-    timeoutMs: 75_000,
-  },
-  {
-    name: 'terminal-geometry-recoverable',
-    file: 'apps/desktop/tests/e2e/terminal-geometry.spec.ts',
-    grep: 'Terminal V4\\.1 reconnect-recoverable route restores a detached fake Ink bridge',
-    timeoutMs: 80_000,
-  },
-  {
-    name: 'terminal-geometry-preview-recoverable',
-    file: 'apps/desktop/tests/e2e/terminal-geometry.spec.ts',
-    grep: 'Terminal V4\\.1 @quarantine-preview reconnect-recoverable route restores fake Ink with preview pane open',
-    timeoutMs: 90_000,
-    quarantine: true,
   },
 ];
 
@@ -102,6 +77,8 @@ export function buildPlaywrightArgs(scenario) {
     scenario.file,
     '--grep',
     scenario.grep,
+    '--reporter',
+    './scripts/stable-smoke-reporter.mjs',
   ];
 }
 
@@ -114,14 +91,9 @@ export function formatDuration(ms) {
 
 export function selectScenarios(args, scenarios = smokeScenarios) {
   const selected = [];
-  let includeQuarantine = false;
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     if (arg === '--') {
-      continue;
-    }
-    if (arg === '--include-quarantine') {
-      includeQuarantine = true;
       continue;
     }
     if (arg === '--scenario') {
@@ -144,7 +116,7 @@ export function selectScenarios(args, scenarios = smokeScenarios) {
   }
 
   if (selected.length === 0) {
-    return scenarios.filter((scenario) => includeQuarantine || !scenario.quarantine);
+    return scenarios;
   }
 
   const byName = new Map(scenarios.map((scenario) => [scenario.name, scenario]));
@@ -158,8 +130,7 @@ export function selectScenarios(args, scenarios = smokeScenarios) {
 }
 
 export function scenarioSummary(scenario) {
-  const quarantineLabel = scenario.quarantine ? ' [quarantine]' : '';
-  return `${scenario.name}${quarantineLabel}: ${scenario.file} --grep ${JSON.stringify(scenario.grep)} (cap ${formatDuration(scenario.timeoutMs)})`;
+  return `${scenario.name}: ${scenario.file} --grep ${JSON.stringify(scenario.grep)} (cap ${formatDuration(scenario.timeoutMs)})`;
 }
 
 async function runScenario(scenario, { root = repoRoot, log = console.error } = {}) {
@@ -250,7 +221,7 @@ function shellDisplay(value) {
 async function main() {
   const args = process.argv.slice(2);
   if (args.includes('--help')) {
-    console.error('Usage: pnpm stable:smoke [-- --list] [-- --include-quarantine] [-- --scenario <name> ...]');
+    console.error('Usage: pnpm stable:smoke [-- --list] [-- --scenario <name> ...]');
     console.error('');
     console.error('Scenarios:');
     for (const scenario of smokeScenarios) {

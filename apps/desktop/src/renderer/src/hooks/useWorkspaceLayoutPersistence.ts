@@ -1,5 +1,5 @@
 import { useEffect, type MutableRefObject } from "react";
-import type { WorkspaceLayoutSettings, WorkspaceModel, WorkspaceSettings } from "@exo/core";
+import type { WorkspaceLayoutSettings, WorkspaceModel, WorkspaceSettings, WorkspaceSettingsRevision } from "@exo/core";
 
 import type { PaneNode } from "./usePaneTree";
 
@@ -17,6 +17,7 @@ interface UseWorkspaceLayoutPersistenceOptions {
   onboardingActive: boolean;
   workspaceModel: WorkspaceModel | null;
   workspaceSettingsRef: MutableRefObject<WorkspaceSettings | null>;
+  workspaceSettingsRevisionRef: MutableRefObject<WorkspaceSettingsRevision>;
 }
 
 export function useWorkspaceLayoutPersistence(options: UseWorkspaceLayoutPersistenceOptions) {
@@ -46,8 +47,15 @@ export function useWorkspaceLayoutPersistence(options: UseWorkspaceLayoutPersist
         return;
       }
 
-      void window.exo.workspace.saveSettings({ ...currentSettings, layout }).then((saved) => {
-        options.workspaceSettingsRef.current = saved;
+      void window.exo.workspace.saveSettings({
+        settings: { ...currentSettings, layout },
+        expectedRevision: options.workspaceSettingsRevisionRef.current,
+      }).then((saved) => {
+        options.workspaceSettingsRef.current = saved.settings;
+        options.workspaceSettingsRevisionRef.current = saved.revision;
+        if (saved.runtimeApply.status === "failed") {
+          throw new Error(saved.runtimeApply.errorMessage);
+        }
       }).catch((error) => {
         console.warn("[exo] failed to persist workspace layout", error);
       });
@@ -68,6 +76,7 @@ export function useWorkspaceLayoutPersistence(options: UseWorkspaceLayoutPersist
     options.onboardingActive,
     options.workspaceModel,
     options.workspaceSettingsRef,
+    options.workspaceSettingsRevisionRef,
   ]);
 }
 
