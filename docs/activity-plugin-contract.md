@@ -1,5 +1,7 @@
 # Activity Plugin Contract
 
+> Superseded as an active product contract by `docs/exograph-refactor-completion-plan.md` and `docs/extension-architecture.md` on `refactor/note-native-exo`. Invocation records under `.exo/invocations/` are the current activity primitive; Routine product work is a deletion-audit target.
+
 Last updated: 2026-07-05
 
 status: unstable. This contract is pre-public and carries no compatibility promise until the plugin manifest can declare a minimum supported contract version and the contract has two real consumers.
@@ -94,11 +96,11 @@ Canonical first-pass paths:
 - `.exo/runs/{runId}/run.log`
 - `.exo/artifacts/{runId}/{artifactFileName}`
 
-Trace JSONL is a plugin-owned artifact. Core provides a first semantic trace store under `.exo/traces/` using session-keyed NDJSON files plus metadata sidecars that record the trace artifact reference and sequence bounds. The first production producer is the Pi-compatible harness sidecar declared in the launch plan and ingested by the desktop terminal manager; raw provider packets land first in `.exo/traces/sidecars/{sessionId}.ndjson` and are normalized into the trace store. The first consumers are `exo traces read <sessionId>`, `exo agents read <sessionId> --semantic`, and MCP `read_agent` with `source: "trace"`.
+Trace JSONL is a plugin-owned artifact. Core provides a first semantic trace store under `.exo/traces/` using session-keyed NDJSON files plus metadata sidecars that record the trace artifact reference and sequence bounds. The first production producer is the Pi-compatible harness sidecar declared in the launch plan and ingested by the desktop terminal manager; raw provider packets land first in `.exo/traces/sidecars/{sessionId}.ndjson` and are normalized into the trace store. The first consumers are `exo traces read <sessionId>` and `exo agents read <sessionId> --semantic`.
 
-Dogfooding retention policy: semantic trace files are private workspace-runtime artifacts and are session-isolated by the requested session id. CLI, MCP, and command-server answer reads inspect a bounded event tail by default, currently 100 events, so a read should not summarize or merge unrelated sessions. Disk retention is intentionally manual for the pre-public dogfooding phase: normalized traces and raw sidecars remain under `.exo/traces/` until explicit operator cleanup. The CLI operator surface is `exo traces list` plus `exo traces cleanup --session <id>` or `exo traces cleanup --before <iso-date>`, with `--dry-run` available before deletion. Exo must not add hidden age, size, or count caps that silently delete trace evidence.
+Dogfooding retention policy: semantic trace files are private workspace-runtime artifacts and are session-isolated by the requested session id. CLI and command-server answer reads inspect a bounded event tail by default, currently 100 events, so a read should not summarize or merge unrelated sessions. Disk retention is intentionally manual for the pre-public dogfooding phase: normalized traces and raw sidecars remain under `.exo/traces/` until explicit operator cleanup. The CLI operator surface is `exo traces list` plus `exo traces cleanup --session <id>` or `exo traces cleanup --before <iso-date>`, with `--dry-run` available before deletion. Exo must not add hidden age, size, or count caps that silently delete trace evidence.
 
-Raw terminal reads remain transcript/live-tail evidence, not semantic answer extraction. UI, CLI, and MCP copy must say whether a read is transcript-backed, live-tail-backed, or trace-backed, and must not imply semantic trace data exists when no trace events have been emitted. Run/activity records should still reference the trace artifact rather than embedding packets.
+Raw terminal reads remain transcript/live-tail evidence, not semantic answer extraction. UI and CLI copy must say whether a read is transcript-backed, live-tail-backed, or trace-backed, and must not imply semantic trace data exists when no trace events have been emitted. Run/activity records should still reference the trace artifact rather than embedding packets.
 
 Instrumented agent runtimes are not activity plugin contracts. Terminal runtime, rendering, transport, reconnect, transcripts, and semantic message delivery remain core-owned even when a harness emits trace artifacts.
 

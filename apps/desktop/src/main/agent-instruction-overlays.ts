@@ -28,13 +28,6 @@ function agentInstructionOverlayDrafts(workspaceModel: WorkspaceModel): AgentIns
       path: path.join(workspaceModel.workspaceRoot, ".exo", "instructions", "notes", `${overlayFileStem(root.label, root.path)}.md`),
       targetRootPath: root.path,
     })),
-    ...workspaceModel.projectRoots.map((root) => ({
-      id: `project:${root.path}`,
-      scope: "project" as const,
-      label: `${root.label} runtime overlay`,
-      path: path.join(workspaceModel.workspaceRoot, ".exo", "instructions", "projects", `${overlayFileStem(root.label, root.path)}.md`),
-      targetRootPath: root.path,
-    })),
   ];
 
   return overlayRoots.map((overlay) => ({
@@ -77,7 +70,6 @@ export function agentInstructionOverlayEnv(workspaceModel: WorkspaceModel, cwd: 
 export function resolveAgentInstructionOverlay(workspaceModel: WorkspaceModel, cwd: string): AgentInstructionOverlay {
   const overlays = agentInstructionOverlayDrafts(workspaceModel);
   const roots = [
-    ...workspaceModel.projectRoots.map((root) => ({ scope: "project" as const, path: root.path })),
     ...workspaceModel.noteRoots.map((root) => ({ scope: "notes" as const, path: root.path })),
   ]
     .filter((root) => isPathWithin(root.path, cwd))
@@ -90,7 +82,7 @@ export function resolveAgentInstructionOverlay(workspaceModel: WorkspaceModel, c
   return byTargetRoot ?? overlays.find((overlay) => overlay.scope === "global") ?? overlays[0];
 }
 
-function renderAgentInstructionOverlay(workspaceModel: WorkspaceModel, label: string, scope: "global" | "notes" | "project", targetRootPath: string) {
+function renderAgentInstructionOverlay(workspaceModel: WorkspaceModel, label: string, scope: "global" | "notes", targetRootPath: string) {
   return [
     "# Exo Runtime Context",
     "",
@@ -106,15 +98,10 @@ function renderAgentInstructionOverlay(workspaceModel: WorkspaceModel, label: st
     "",
     ...listRootsForOverlay(workspaceModel.noteRoots),
     "",
-    "## Attached Project Roots",
-    "",
-    ...listRootsForOverlay(workspaceModel.projectRoots),
-    "",
     "## Exo Commands",
     "",
-    "- `exo project-roots list` shows attached project roots.",
-    "- Exo MCP search/read tools expose indexed notes context when enabled.",
-    "- Keep project files out of notes indexing unless the user explicitly attaches them later.",
+    "- `exo search` and `exo read` expose indexed document context when enabled.",
+    "- Use `exo index add` when the user explicitly wants another local folder indexed.",
     "",
   ].join("\n");
 }

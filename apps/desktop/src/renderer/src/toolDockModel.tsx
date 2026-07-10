@@ -1,17 +1,14 @@
-import { Bot, PanelRightClose, PanelRightOpen, PanelsLeftBottom, Plug, Settings2, SquareTerminal } from "lucide-react";
+import { PanelRightClose, PanelRightOpen, PanelsLeftBottom, Settings2, SquareTerminal } from "lucide-react";
 import type { ReactNode } from "react";
 import type { ToolSurfaceDescriptor } from "@exo/core/surface-descriptor";
 
 import type { TerminalLaunchKind } from "../../shared/api";
-import { AgentIcon } from "./components/AgentIcon";
 import type { ToolDockAction } from "./components/ToolDockRail";
 
 export interface ToolSurfaceActionHandlers {
   onToggleTerminalCollapsed: () => void;
   onToggleSidePanes: () => void;
-  onOpenAgentConfigEditor: () => void;
-  onOpenPluginManager: () => void;
-  onCreateTerminal: (terminalKind: TerminalLaunchKind, harnessId?: string) => void;
+  onCreateTerminal: (terminalKind: TerminalLaunchKind) => void;
 }
 
 export function toolDockActionsFromDescriptors(
@@ -39,21 +36,12 @@ export function runToolSurfaceAction(descriptor: ToolSurfaceDescriptor, handlers
       handlers.onToggleTerminalCollapsed();
       return;
     case "terminal.launch":
-      handlers.onCreateTerminal(descriptor.action.terminalKind, descriptor.action.harnessId);
-      return;
-    case "agentConfig.open":
-      handlers.onOpenAgentConfigEditor();
-      return;
-    case "pluginManager.open":
-      handlers.onOpenPluginManager();
+      handlers.onCreateTerminal(descriptor.action.terminalKind);
       return;
     case "sidePanes.toggle":
       handlers.onToggleSidePanes();
       return;
-    case "routineTemplate.open":
-    case "graphVisualization.open":
     case "pluginPanel.open":
-      handlers.onOpenPluginManager();
       return;
   }
 }
@@ -63,20 +51,9 @@ function iconForToolSurfaceDescriptor(descriptor: ToolSurfaceDescriptor): ReactN
     case "terminal.toggleDock":
       return descriptor.id === "terminal-expand" ? <PanelRightOpen size={16} /> : <PanelRightClose size={16} />;
     case "terminal.launch":
-      if (descriptor.action.terminalKind === "shell") {
-        return <SquareTerminal size={16} />;
-      }
-      if (descriptor.action.harnessId === "claude" || descriptor.action.harnessId === "codex") {
-        return <AgentIcon kind={descriptor.action.harnessId} size={16} />;
-      }
-      return <Bot size={16} />;
-    case "agentConfig.open":
-      return <Settings2 size={16} />;
-    case "pluginManager.open":
-    case "routineTemplate.open":
-    case "graphVisualization.open":
+      return <SquareTerminal size={16} />;
     case "pluginPanel.open":
-      return <Plug size={16} />;
+      return <Settings2 size={16} />;
     case "sidePanes.toggle":
       return <PanelsLeftBottom size={16} />;
   }

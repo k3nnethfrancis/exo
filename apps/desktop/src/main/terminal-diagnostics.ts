@@ -7,19 +7,16 @@ export interface TerminalDiagnosticRecord {
   exitCode?: number;
   health: TerminalDiagnostics["health"];
   healthDetail: string;
-  tmuxSessionName: string;
-  tmuxPaneId?: string | null;
+  runtime: "pty" | "tmux";
+  sessionName?: string;
+  paneId?: string | null;
   bridgeDetached?: boolean;
-  paneStatus?: TerminalDiagnostics["paneStatus"];
-  tmuxPaneGeometry?: { width: number; height: number };
-  tmuxClientGeometry?: { width: number; height: number };
-  geometryDivergentSince?: number;
   cwd: string;
   title: string;
   command: string;
   bufferedLines: number;
   bufferedChars: number;
-  transcriptPath: string;
+  transcriptPath?: string;
   lastInputAt?: number;
   lastOutputAt?: number;
   lastWriteId: number;
@@ -28,7 +25,6 @@ export interface TerminalDiagnosticRecord {
 }
 
 export function terminalDiagnosticsFromRecord(record: TerminalDiagnosticRecord): TerminalDiagnostics {
-  const debugAttach = terminalDebugAttachInfo(record.tmuxSessionName, record.tmuxPaneId);
   return {
     id: record.info.id,
     terminalKind: record.info.terminalKind,
@@ -38,14 +34,25 @@ export function terminalDiagnosticsFromRecord(record: TerminalDiagnosticRecord):
     exitCode: record.exitCode,
     health: record.health,
     healthDetail: record.healthDetail,
-    runtime: "tmux",
-    tmuxSessionName: record.tmuxSessionName,
-    tmuxPaneId: debugAttach.tmuxPaneId,
-    safeAttachCommand: debugAttach.safeAttachCommand,
-    debugAttach,
+    runtime: record.runtime,
+    tmuxSessionName: record.runtime === "tmux" ? record.sessionName : undefined,
+    tmuxPaneId: record.runtime === "tmux" ? record.paneId ?? null : null,
+    safeAttachCommand: record.runtime === "tmux" && record.sessionName ? safeTmuxAttachCommand(record.sessionName) : "",
+    debugAttach: {
+      tmuxSessionName: record.runtime === "tmux" ? record.sessionName ?? "" : "",
+      tmuxPaneId: record.runtime === "tmux" ? record.paneId ?? null : null,
+      safeAttachCommand: record.runtime === "tmux" && record.sessionName ? safeTmuxAttachCommand(record.sessionName) : "",
+    },
     bridgeStatus: record.bridgeDetached ? "detached" : "attached",
-    paneStatus: record.paneStatus ?? "unknown",
-    geometry: terminalDiagnosticsGeometry(record),
+    paneStatus: record.status === "exited" ? "dead" : "alive",
+    geometry: {
+      renderer: record.info.geometry ?? null,
+      tmuxPane: null,
+      tmuxClient: null,
+      divergent: false,
+      divergentSinceMs: null,
+      attachGeneration: record.info.attachGeneration,
+    },
     cwd: record.cwd,
     title: record.title,
     command: record.command,
@@ -59,22 +66,9 @@ export function terminalDiagnosticsFromRecord(record: TerminalDiagnosticRecord):
   };
 }
 
-function terminalDiagnosticsGeometry(record: TerminalDiagnosticRecord): TerminalDiagnostics["geometry"] {
-  const renderer = record.info.geometry ?? null;
-  const tmuxPane = record.tmuxPaneGeometry ?? null;
-  const tmuxClient = record.tmuxClientGeometry ?? null;
-  const divergent =
-    renderer !== null &&
-    ((tmuxPane !== null && (renderer.cols !== tmuxPane.width || renderer.rows !== tmuxPane.height)) ||
-      (tmuxClient !== null && (renderer.cols !== tmuxClient.width || renderer.rows !== tmuxClient.height)));
-  return {
-    renderer,
-    tmuxPane,
-    tmuxClient,
-    divergent,
-    divergentSinceMs: divergent && record.geometryDivergentSince ? Math.max(0, record.now - record.geometryDivergentSince) : null,
-    attachGeneration: record.info.attachGeneration,
-  };
+export function safeTmuxAttachCommand(tmuxSessionName: string, tmuxServerName = process.env.EXO_TMUX_SERVER_NAME): string {
+  const serverArgs = tmuxServerName ? ` -L ${shellQuote(tmuxServerName)}` : "";
+  return `tmux${serverArgs} attach-session -t ${shellQuote(tmuxSessionName)}`;
 }
 
 export function terminalDebugAttachInfo(tmuxSessionName: string, tmuxPaneId?: string | null) {
@@ -83,14 +77,6 @@ export function terminalDebugAttachInfo(tmuxSessionName: string, tmuxPaneId?: st
     tmuxPaneId: tmuxPaneId || null,
     safeAttachCommand: safeTmuxAttachCommand(tmuxSessionName),
   };
-}
-
-export function safeTmuxAttachCommand(tmuxSessionName: string, tmuxServerName = process.env.EXO_TMUX_SERVER_NAME): string {
-  // Exo runs terminals in a workspace-scoped tmux server. Include that namespace
-  // in human debug commands so a broken/default user tmux server cannot hijack
-  // recovery instructions or make a healthy Exo terminal look unrecoverable.
-  const serverArgs = tmuxServerName ? ` -L ${shellQuote(tmuxServerName)}` : "";
-  return `tmux${serverArgs} attach-session -t ${shellQuote(tmuxSessionName)}`;
 }
 
 function shellQuote(value: string): string {

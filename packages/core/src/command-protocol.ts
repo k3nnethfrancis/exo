@@ -1,5 +1,5 @@
-import type { ProposalBatch, ProposalDecision } from "./proposal-review";
 import type { CapabilitySurface } from "./capabilities";
+import type { InvocationRecord } from "./agent-invocation";
 
 export const EXO_COMMAND_ROUTES = {
   status: "/status",
@@ -15,15 +15,10 @@ export const EXO_COMMAND_ROUTES = {
   openPreview: "/preview/open",
   focusPreview: "/preview/focus",
   closePreview: "/preview/close",
-  proposals: "/proposals",
-  proposal: (id: string) => `/proposals/${encodeURIComponent(id)}`,
-  proposalDecision: (id: string) => `/proposals/${encodeURIComponent(id)}/decision`,
   config: "/config",
-  projectRoots: "/project-roots",
-  projectRoot: (target: string) => `/project-roots/${encodeURIComponent(target)}`,
+  spawnAgentCommand: "/agent-commands/spawn",
   terminals: "/terminals",
   terminalDiagnostics: "/terminals/diagnostics",
-  terminalReconnectRecoverable: "/terminals/reconnect-recoverable",
   terminalTail: (id: string, lines?: number) => {
     const query = lines && lines > 0 ? `?lines=${encodeURIComponent(String(lines))}` : "";
     return `/terminals/${encodeURIComponent(id)}/tail${query}`;
@@ -36,14 +31,15 @@ export const EXO_COMMAND_ROUTES = {
   },
   terminalWrite: (id: string) => `/terminals/${encodeURIComponent(id)}/write`,
   terminalMessage: (id: string) => `/terminals/${encodeURIComponent(id)}/message`,
-  terminalReconnect: (id: string) => `/terminals/${encodeURIComponent(id)}/reconnect`,
-  terminalResync: (id: string) => `/terminals/${encodeURIComponent(id)}/resync`,
   terminal: (id: string) => `/terminals/${encodeURIComponent(id)}`,
 } as const;
+
+export const EXO_COMMAND_TOKEN_HEADER = "x-exo-command-token";
 
 export interface ExoCommandServerInfo {
   port: number;
   pid: number;
+  token: string;
 }
 
 export interface ExoCommandTerminalInfo {
@@ -86,7 +82,7 @@ export interface ExoCommandTerminalDiagnosticsGeometry {
 }
 
 export interface ExoCommandTerminalDiagnostics extends ExoCommandTerminalInfo {
-  runtime?: "tmux";
+  runtime?: "pty" | "tmux";
   tmuxSessionName?: string;
   tmuxPaneId?: string | null;
   safeAttachCommand?: string;
@@ -96,7 +92,7 @@ export interface ExoCommandTerminalDiagnostics extends ExoCommandTerminalInfo {
   geometry?: ExoCommandTerminalDiagnosticsGeometry;
   bufferedLines: number;
   bufferedChars: number;
-  transcriptPath: string;
+  transcriptPath?: string;
   lastInputAt: string | null;
   lastOutputAt: string | null;
   lastWriteId: number;
@@ -121,49 +117,30 @@ export interface ExoPreviewCommandResponse {
   ok: true;
 }
 
-export interface ExoCreateProposalRequest {
-  proposal?: ProposalBatch;
-}
-
-export interface ExoCreateProposalResponse {
-  ok: true;
-  proposal: ProposalBatch;
-}
-
-export interface ExoListProposalsResponse {
-  proposals: ProposalBatch[];
-}
-
-export interface ExoReadProposalResponse {
-  proposal: ProposalBatch;
-}
-
-export interface ExoDecideProposalRequest {
-  decision?: ProposalDecision;
-  itemId?: string;
-}
-
-export interface ExoDecideProposalResponse {
-  ok: true;
-  proposal: ProposalBatch;
-  appliedItems: Array<{
-    id: string;
-    kind: string;
-    path: string;
-    action: string;
-  }>;
-}
-
-export interface ExoReconnectRecoverableTerminalsResponse {
-  ok: true;
-}
-
 export interface ExoCreateTerminalRequest {
+  // Legacy compatibility for older app/CLI clients. New terminal launch requests should use kind: "shell".
   harnessId?: string;
-  // Legacy compatibility for older app/CLI/MCP clients; new launch requests use harnessId.
   kind?: string;
   cwd?: string;
   callerSurface?: CapabilitySurface;
+}
+
+export interface ExoSpawnAgentCommandRequest {
+  handle?: string;
+  task?: string;
+}
+
+export interface ExoSpawnAgentCommandResponse {
+  ok: true;
+  invocation: InvocationRecord;
+  terminal: ExoCommandTerminalInfo;
+}
+
+export interface ExoCommandErrorResponse {
+  ok: false;
+  code: string;
+  error: string;
+  [key: string]: unknown;
 }
 
 export interface ExoWriteTerminalRequest {
@@ -184,11 +161,6 @@ export interface ExoWriteTerminalResponse {
   readinessDetail?: string;
 }
 
-export interface ExoReconnectTerminalResponse {
-  ok: true;
-  terminal: ExoCommandTerminalInfo | null;
-}
-
 export interface ExoIndexRootRequest {
   path?: string;
   name?: string;
@@ -196,10 +168,6 @@ export interface ExoIndexRootRequest {
   pattern?: string;
   ignore?: string[];
   force?: boolean;
-}
-
-export interface ExoProjectRootRequest {
-  path?: string;
 }
 
 export interface ExoReadDocumentRequest {

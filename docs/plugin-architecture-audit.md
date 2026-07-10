@@ -1,5 +1,7 @@
 # Plugin Architecture Audit
 
+> Superseded as an active product path by `docs/exograph-refactor-completion-plan.md` and `docs/extension-architecture.md` on `refactor/note-native-exo`. Keep this file as historical audit context; do not use it to reintroduce Plugin Manager, routine, MCP, or harness-manager product surfaces.
+
 Last updated: 2026-07-03
 
 This document applies the same discipline used for terminal architecture to Exo's plugin architecture: steelman the decisions, keep only fallbacks that preserve a real user capability, and document the reasoning before the system grows.

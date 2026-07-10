@@ -13,6 +13,6 @@ export const TERMINAL_FONT_FAMILY = [
 ].join(", ");
 
 // Xterm's custom glyph renderer can corrupt very wide box-drawing/TUI lines
-// after fit/reconnect cycles even when the tmux source tail is byte-correct.
+// after fit/refresh cycles even when the source tail is byte-correct.
 // Let the configured monospace/symbol fonts own glyph drawing instead.
 export const TERMINAL_CUSTOM_GLYPHS = false;

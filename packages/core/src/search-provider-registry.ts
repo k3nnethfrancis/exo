@@ -1,3 +1,4 @@
+import { filesystemSearchProvider } from "./search-providers/filesystem-provider";
 import { qmdSearchProvider } from "./search-providers/qmd-provider";
 import type { SearchProvider } from "./search-provider";
 
@@ -40,7 +41,7 @@ export class SearchProviderRegistry {
 }
 
 export function createBuiltInSearchProviderRegistry(): SearchProviderRegistry {
-  return new SearchProviderRegistry([qmdSearchProvider]);
+  return new SearchProviderRegistry([filesystemSearchProvider, qmdSearchProvider]);
 }
 
 export const searchProviderRegistry = createBuiltInSearchProviderRegistry();

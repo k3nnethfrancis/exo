@@ -8,10 +8,10 @@ const currentDir = dirname(fileURLToPath(import.meta.url));
 const rendererRoot = resolve(currentDir, "..");
 
 describe("ShellLayout brand icon", () => {
-  it("uses the transparent glyph asset instead of the square app icon", () => {
+  it("does not render the old global brand titlebar", () => {
     const shellLayoutSource = readFileSync(resolve(currentDir, "ShellLayout.tsx"), "utf8");
 
-    expect(shellLayoutSource).toContain("../assets/exo-glyph.svg");
+    expect(shellLayoutSource).not.toContain("topbar__brand-icon");
     expect(shellLayoutSource).not.toContain("../assets/exo-icon.svg");
   });
 

@@ -9,7 +9,6 @@ export interface SurfaceContributionPolicy {
 export const defaultSurfaceContributionPolicies: SurfaceContributionPolicy[] = [
   { surface: "desktop", audience: "human", defaultExposure: "review" },
   { surface: "cli", audience: "human", defaultExposure: "review" },
-  { surface: "mcp", audience: "agent", defaultExposure: "review" },
   { surface: "commandServer", audience: "internal", defaultExposure: "hidden" },
   { surface: "internal", audience: "internal", defaultExposure: "hidden" },
 ];

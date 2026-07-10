@@ -1,5 +1,7 @@
 # Plugin Architecture
 
+> Superseded as an active product path by `docs/exograph-refactor-completion-plan.md` and `docs/extension-architecture.md` on `refactor/note-native-exo`. Plugin internals may be reused for search providers or current app boot, but Plugin Manager and plugin setup are not the current product spine.
+
 Last updated: 2026-06-28
 
 Exo should support a plugin path so users can extend their local AI workstation without requiring every feature to land in core.
@@ -8,7 +10,7 @@ Exo should support a plugin path so users can extend their local AI workstation 
 
 Plugin architecture is now the next platform workstream after terminal/runtime usability. The immediate goal is not a public marketplace or arbitrary user-code loading. The immediate goal is to turn the extension seams Exo already needs into typed internal registries, then migrate hardwired behavior onto those registries.
 
-The target core-versus-plugin boundary lives in `plugin-system-architecture.md`. The detailed implementation sequence lives in `plugin-implementation-plan.md`. This document names the product model and boundaries; the implementation plan is the source of truth for the next refactor phases.
+The current core-versus-extension boundary lives in `extension-architecture.md`. This document is historical inventory for the prior plugin-platform model.
 
 The safe renderer/web-viewer surface contract lives in `plugin-surface-contract.md`. It defines metadata-only native plugin panels and the current core web viewer endpoint usage for plugin-produced local apps and artifacts.
 
@@ -19,13 +21,13 @@ That keeps Exo from overbuilding while still moving toward the long-term shape:
 - MCP and CLI stay separate product surfaces, with plugin contributions admitted only through policy.
 - Terminal remains a core platform service; harnesses plug into it.
 - The web viewer host and open/focus/close endpoints stay core; plugins can generate local content or services and ask Exo to open them.
-- Workload-specific harnesses, workcells, evals, graph analyzers, search optimization, LM Wiki/Shoshin profiles, and personal routines can become plugin-shaped without being forced into core.
-- Product framing stays layered: Exo is the workstation, the exograph is the user-owned graph it operates over, and plugins are how users swap or add harnesses, search providers, routines, profiles, analyzers, eval runners, exporters, and dashboards.
+- Workload-specific harnesses, workcells, evals, graph analyzers, search optimization, LM Wiki/Shoshin profiles, and personal workflows can become extension-shaped without being forced into core.
+- Product framing stays layered: Exo is the workstation, the exograph is the user-owned graph it operates over, and plugins are how users swap or add harnesses, search providers, profiles, analyzers, eval runners, exporters, and dashboards.
 - Local plugin manifests can now be discovered and validated as metadata. Exo can store metadata-only permission grant/revocation decisions for requested permissions, including scoped forms such as `notes:propose:root:shoshin-codex`, but those grants do not execute plugin code or authorize runtime file, terminal, CLI, MCP, command-server, renderer, or web-viewer behavior. Profile payloads and graph visualization declarations are also metadata-only in the current implementation.
 
 Exo's distribution model is official versus local. Official plugins live under the repo `plugins/` tree or packaged app resources and go through the normal review process before they ship on `main`. Local plugins use the same manifest shape in user/workspace/plugin directories, but they remain user-owned and untrusted until the user explicitly reviews and enables them.
 
-Profiles are curated bundles of plugin recommendations and configuration, not just agent config. A profile can package metadata/frontmatter conventions, context templates, AGENTS.md/CLAUDE.md templates, MCP config templates, skills, routine templates, graph views, analyzer settings, and output/review policies. Profiles may depend on plugins, but executable behavior should live in explicit plugin capabilities.
+Profiles are curated bundles of plugin recommendations and configuration, not just agent config. A profile can package metadata/frontmatter conventions, context templates, AGENTS.md/CLAUDE.md templates, skills, graph views, analyzer settings, and review policies. Profiles may depend on plugins, but executable behavior should live in explicit plugin capabilities.
 
 The first profile contract lives under `capability.compatibility.profile`. Exo can parse and show these bundles, but applying one is future work and must be explicit because it can eventually write files, install skills, or change plugin state. Project Knowledge Sync declarations now live in that profile payload as metadata-only configuration for project-local canonical Markdown files, relationship mode, conflict policy, review policy, and optional GitHub metadata; Exo does not yet watch, sync, copy, symlink, propose, or call remote services from those declarations. Status: unstable. `index` and `proposal` are the modes core intends to implement first; `copy`, `symlink`, and `remote` are reserved words, not commitments, and may be removed without compatibility shims.
 
@@ -71,7 +73,7 @@ Examples that likely belong in plugins:
 - domain-specific graph panels
 - graph visualization surfaces such as a 3D graph explorer or metadata-specific relationship view
 - metadata/frontmatter schema helpers
-- profile packs that bundle recommended plugins, config, skills, routines, and graph conventions
+- profile packs that bundle recommended plugins, config, skills, and graph conventions
 - project knowledge sync plugins that map project-local `issues.md`, `tasks.md`, `roadmap.md`, plans, specs, and context files into the central exograph with explicit conflict/review policy
 - local research/workcell surfaces
 - extra agent harnesses
@@ -88,7 +90,7 @@ Core should own:
 - pane/grid layout and trusted web viewer host primitive
 - terminal runtime, rendering surface, scrollback, transcripts, reconnect, diagnostics, and semantic message delivery
 - Exo CLI and MCP contracts
-- command, settings, pane/view, agent harness, search provider, exograph analyzer, exporter, eval, and routine-template registries
+- command, settings, pane/view, agent harness, search provider, exograph analyzer, exporter, and eval registries
 - settings and security boundaries
 - notes index integration points
 - minimal activity, artifact-reference, provenance-reference, and communication primitives
@@ -104,7 +106,7 @@ Plugins can add:
 - advanced search/index providers
 - trace collectors, eval runners, scorers, dashboards, and training/export flows
 - dashboards, local web apps, and artifact producers that use Exo's web viewer endpoints
-- project-specific routines and routine templates
+- project-specific workflow panels or commands
 - integrations with external tools
 
 ## Plugin Depths
@@ -114,7 +116,6 @@ Not every plugin has the same relationship to Exo. The plugin model should suppo
 - App plugins: mostly produce local content or run a local app that Exo opens through the native web viewer. Examples: eval dashboards, graph dashboards, custom notebook tools.
 - Surface plugins: add Exo-native UI surfaces. Examples: side panels, status widgets, editor decorations, command palette actions.
 - Capability plugins: add backend abilities. Examples: agent harnesses, MCP tools, CLI commands, search providers, trace collectors, eval runners.
-- Routine/template plugins: ship prompts, templates, default schedules, and review/output policies that Exo can run through a selected harness. Examples: run eval, collect traces, score results, produce a report, and prepare a PR.
 - Profile plugins: ship use-case conventions and default bundles. Examples: LM Wiki, Shoshin, Guardian Angel, OKF-compatible graph, or a project/domain-specific exograph profile.
 - Sync/profile plugins: declare canonical file patterns, scope mappings, symlink/copy/index/proposal/remote relationship metadata, conflict policy, review policy, and optional remote metadata for keeping project-local Markdown and central exograph Markdown coherent.
 
@@ -149,7 +150,6 @@ Initial registry kinds:
 - `core:searchProvider`
 - `core:agentHarness`
 - `core:profile`
-- `core:routineTemplate`
 - `exo.graph:analyzer`
 - `exo.graph:visualization`
 - `exo.training:traceCollector`
@@ -213,7 +213,7 @@ Status: implemented.
 
 ### Phase 3.5: Activity Substrate And Harness Skill Inventory Contract
 
-Do not model workflow as an executable core feature. Workflow, Routine, eval, and maintenance semantics should usually belong to plugins. Core should provide only the minimal activity substrate those plugins need to compose safely.
+Do not model workflow as an executable core feature. Workflow, eval, and maintenance semantics should usually belong to plugins or future extensions. Core should provide only the minimal activity substrate those extensions need to compose safely.
 
 The substrate should describe:
 
@@ -223,28 +223,11 @@ The substrate should describe:
 - cancellation/status hooks
 - optional review state when Exo mediates proposed changes
 
-Plugin-defined Routines can then layer on richer meaning: prompt, selected harness, optional required harness skills, trigger/schedule, scope, permissions, and output policy. Plugin-owned execution schemas can include detailed logs, traces, eval results, review labels, dashboards, and exports.
+Plugin-owned execution schemas can include detailed logs, traces, eval results, review labels, dashboards, and exports.
 
-Skills are capabilities available inside a harness. A prompt may ask the harness to use a skill, but Exo must be able to detect and warn when the selected harness does not expose that skill. Later, Exo should manage skills across harnesses in the same spirit as agent config management:
+Harness skill file management is no longer part of the active V1 product. Future skill work should start from the Exograph/LM-wiki ontology problem or from explicit plugin capability metadata. A plugin may eventually describe capabilities that an agent runtime exposes, but Exo should not reintroduce a provider skill installer/sync manager without a fresh design pass.
 
-- which skills are installed
-- which harnesses can use them
-- where the skill/config files live
-- compatibility warnings
-- sync/copy/install actions across supported harnesses
-
-The first implementation can be metadata-only. Full cross-provider skill management comes later.
-
-Status: first-pass Routine, Run/activity, artifact-reference, trace JSONL artifact helper, store, manual executor, and plugin-declared routine-template contracts are implemented in core. Treat this as provisional substrate, not permission to keep expanding core automation. Scheduler, UI, and real harness execution hosts remain future work.
-
-Plugin routine templates are metadata, not live jobs. A plugin can declare a `routineTemplate` capability with `compatibility.routineTemplate`, including:
-
-- prompt
-- default harness id
-- optional required harness skills
-- default manual or scheduled trigger
-- permissions
-- output policy
+Status: this historical section was superseded on `refactor/note-native-exo`. Routine/Run/template contracts were removed; the surviving substrate is neutral activity/artifact/provenance metadata.
 
 Exo should turn that template into a concrete workspace activity only when a user/workspace supplies scope, ids, permissions, and any overrides. This keeps plugin-authored workflows reusable without giving a manifest implicit write access or scheduler authority.
 
@@ -337,7 +320,7 @@ This remains a lifecycle/configuration surface, not the profile editor and not a
 
 ## Foundation Work Chunks
 
-The foundation chunks have landed: core capability types and registry, QMD behind `SearchProvider`, built-in agent harnesses behind `AgentHarness`, minimal Routine/activity and harness skill contracts, metadata-only local manifests, metadata-only permission/settings state, Plugin Manager, local add/remove/swap, safe surface descriptors, and graph snapshot metadata.
+The foundation chunks have landed: core capability types and registry, QMD behind `SearchProvider`, built-in agent harnesses behind `AgentHarness`, neutral activity metadata, metadata-only local manifests, metadata-only permission/settings state, Plugin Manager, local add/remove/swap, safe surface descriptors, and graph snapshot metadata.
 
 Current remaining work is tracked in `../tasks.md` under `Finish Plugin Architecture Completion`: staged profile apply prompts/grants, renderer/API harness descriptor cleanup, external workload plugin contracts, Project Knowledge Sync, and the explicit policy/test work required before executable loading or plugin-contributed CLI/MCP/renderer/command-server surfaces.
 
@@ -351,7 +334,6 @@ Specific coding agents should be adapter-shaped where possible. Exo core defines
 - MCP/CLI tools exposed to the agent
 - optional metadata such as model, provider, objective, and capabilities
 - optional hooks for provenance, code review, and PR workflows
-- optional harness skill inventory
 
 Claude Code, Codex, Pi, Hermes, Aider, Goose, OpenCode, and local/open-source agents can then be official or local plugins. A custom Pi fork can be configured as a local Pi instance without requiring fork-specific behavior to be hardwired into core.
 
@@ -402,7 +384,7 @@ An eval system may include a web dashboard, but it should not be only a hosted w
 - How are plugin settings stored and exported?
 - How should local web apps receive data from backend plugin capabilities through core web viewer endpoints?
 - Which activity/artifact/provenance references must exist before eval/tracing plugins are useful?
-- What minimum API is needed before building personal note-branching, versioning, or scheduled Routine templates?
+- What minimum API is needed before building personal note-branching, versioning, or scheduled extension workflows?
 
 ## Initial Task Direction
 
@@ -414,7 +396,7 @@ Before building personal extension features into core, define:
 - command registration API
 - settings API
 - agent harness API
-- activity substrate, plugin Routine templates, and harness skill inventory contracts
+- activity substrate and extension workflow contracts
 - MCP/CLI registration policy
 - capability permission model
 - compatibility/version policy

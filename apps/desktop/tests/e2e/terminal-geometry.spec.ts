@@ -35,27 +35,26 @@ test("Terminal V4.1 reconnect-at-wrong-size keeps fixture width aligned after re
   try {
     const shell = await pageShellSession(page);
     await startFakeInkAgent(page, shell.id);
-    const baseline = await expectGeometryFrame(page, { minCols: 180 }, shell.id);
+    await expectGeometryFrame(page, { minCols: 180 }, shell.id);
 
     await page.evaluate(async (id) => {
       await window.exo.terminals.reconnect(id);
     }, shell.id);
     await waitForTerminalHealth(page, shell.id, { bridgeStatus: "attached", paneStatus: "alive" }, 5_000);
 
-    await expect.poll(async () => currentGeometryFrame(page, baseline.cols), { timeout: 5_000 }).toMatchObject({
+    const reconnected = await waitForCompleteGeometryFrame(page, { minCols: 180 }, shell.id);
+    await expect.poll(async () => currentGeometryFrame(page, reconnected.cols), { timeout: 5_000 }).toMatchObject({
       frameCount: 1,
-      cols: baseline.cols,
-      rulerLength: baseline.cols,
-      boxLength: baseline.cols,
+      cols: reconnected.cols,
+      rulerLength: reconnected.cols,
+      boxLength: reconnected.cols,
     });
     await page.getByTestId("terminal-surface").click();
     await page.keyboard.type("hello-after-reconnect\n");
-    await expect.poll(async () => currentGeometryFrame(page, baseline.cols), { timeout: 5_000 }).toMatchObject({
+    await expect.poll(async () => alignedGeometryFrame(page), { timeout: 5_000 }).toMatchObject({
       frameCount: 1,
       echo: "input: hello-after-reconnect",
-      cols: baseline.cols,
-      rulerLength: baseline.cols,
-      boxLength: baseline.cols,
+      aligned: true,
     });
   } finally {
     await cleanup();
@@ -69,14 +68,14 @@ test("Terminal V4.1 reconnect-recoverable route restores a detached fake Ink bri
   try {
     const shell = await pageShellSession(page);
     await startFakeInkAgent(page, shell.id);
-    const baseline = await expectGeometryFrame(page, { minCols: 180 }, shell.id);
+    await expectGeometryFrame(page, { minCols: 180 }, shell.id);
 
     await killAttachBridgeForTerminal(page, shell.id);
     await waitForTerminalHealth(page, shell.id, { bridgeStatus: "detached", health: "unhealthy" }, 5_000);
     await postReconnectRecoverable(runtimeRoot);
     await waitForTerminalHealth(page, shell.id, { bridgeStatus: "attached", paneStatus: "alive" }, 10_000);
 
-    await assertRecoveredFakeInk(page, baseline.cols, "recoverable-after-route");
+    await assertRecoveredFakeInk(page, "recoverable-after-route");
   } finally {
     await cleanup();
     await electronApp.close().catch(() => {});
@@ -94,7 +93,7 @@ test("Terminal V4.1 @quarantine-preview reconnect-recoverable route restores fak
   });
 
   try {
-    await page.getByTestId("launch-browser").click();
+    await page.getByTestId("side-panel-browser-rail").click();
     await page.getByTestId("browser-url-input").fill(`file://${path.join(workspaceRoot, "fake-ink-preview.html")}`);
     await page.getByTestId("browser-load-url").click();
     await expect(page.getByTestId("browser-preview-frame")).toHaveAttribute("src", /^file:\/\/.*fake-ink-preview\.html$/);
@@ -102,7 +101,7 @@ test("Terminal V4.1 @quarantine-preview reconnect-recoverable route restores fak
     const shell = await pageShellSession(page);
     await page.getByTestId("terminal-surface").click();
     await startFakeInkAgent(page, shell.id);
-    const baseline = await expectGeometryFrame(page, { minCols: 180 }, shell.id);
+    await expectGeometryFrame(page, { minCols: 180 }, shell.id);
 
     await page.getByTestId("browser-pane").click();
     await killAttachBridgeForTerminal(page, shell.id);
@@ -111,7 +110,7 @@ test("Terminal V4.1 @quarantine-preview reconnect-recoverable route restores fak
     await waitForTerminalHealth(page, shell.id, { bridgeStatus: "attached", paneStatus: "alive" }, 10_000);
 
     await page.getByTestId("terminal-surface").click();
-    await assertRecoveredFakeInk(page, baseline.cols, "preview-recoverable-after-route");
+    await assertRecoveredFakeInk(page, "preview-recoverable-after-route");
   } finally {
     await cleanup();
     await electronApp.close().catch(() => {});
@@ -132,19 +131,20 @@ async function launchWideTerminal(options?: { prepareWorkspace?: (workspaceRoot:
   await fixture.electronApp.evaluate(({ BrowserWindow }) => {
     const window = BrowserWindow.getAllWindows()[0];
     window.webContents.setZoomFactor(0.5);
-    window.setBounds({ x: 0, y: 0, width: 2600, height: 1300 });
+    window.setBounds({ x: 0, y: 0, width: 1800, height: 1100 });
   });
   await fixture.page.evaluate(async () => {
     const settings = await window.exo.workspace.getSettings();
     await window.exo.workspace.saveSettings({ ...settings, terminalFontSize: 10 });
   });
   await fixture.page.reload();
-  await expect(fixture.page.getByTestId("terminal-rail")).toBeVisible();
+  await fixture.page.getByTestId("side-panel-toggle").click();
+  await expect(fixture.page.getByTestId("side-panel-terminal-rail")).toBeVisible();
   if (await fixture.page.getByTestId("sidebar-collapse").isVisible()) {
     await fixture.page.getByTestId("sidebar-collapse").click();
     await expect(fixture.page.getByTestId("sidebar-expand")).toBeVisible();
   }
-  await dragBy(fixture.page, fixture.page.locator(".workspace__body > .pane-split-resizer--vertical").first(), { x: -700, y: 0 });
+  await fixture.page.getByTestId("side-panel-terminal-rail").click();
   await fixture.page.getByTestId("terminal-surface").click();
   return fixture;
 }
@@ -263,19 +263,16 @@ async function waitForCompleteGeometryFrame(page: Page, options: { minCols: numb
   throw new Error(`Timed out waiting for complete geometry frame:\n${JSON.stringify(lastFrame, null, 2)}\nsourceTail:\n${sourceTail}`);
 }
 
-async function assertRecoveredFakeInk(page: Page, expectedCols: number, input: string): Promise<void> {
+async function assertRecoveredFakeInk(page: Page, input: string): Promise<void> {
   await page.getByTestId("terminal-surface").click();
   await expect.poll(async () =>
     page.getByTestId("terminal-surface").evaluate((element) => element.className),
   { timeout: 5_000 }).not.toContain("terminal-surface--input-disabled");
   await page.keyboard.type(`${input}\n`);
-  await expect.poll(async () => currentGeometryFrame(page, expectedCols), { timeout: 10_000 }).toMatchObject({
+  await expect.poll(async () => alignedGeometryFrame(page), { timeout: 10_000 }).toMatchObject({
     frameCount: 1,
     echo: `input: ${input}`,
-    cols: expectedCols,
-    rulerLength: expectedCols,
-    boxLength: expectedCols,
-    boxWrappedFragment: false,
+    aligned: true,
   });
 }
 
@@ -296,6 +293,14 @@ async function currentGeometryFrame(page: Page, preferredCols?: number): Promise
     boxLength: box.length,
     echo,
     boxWrappedFragment: lines.some((line) => line !== box && /^─*┐$/.test(line)),
+  };
+}
+
+async function alignedGeometryFrame(page: Page): Promise<GeometryFrame & { aligned: boolean }> {
+  const frame = await currentGeometryFrame(page);
+  return {
+    ...frame,
+    aligned: frame.cols >= 180 && frame.rulerLength === frame.cols && frame.boxLength === frame.cols && !frame.boxWrappedFragment,
   };
 }
 
@@ -387,9 +392,10 @@ function tmuxPaneWidth(tmuxServerName: string, tmuxSessionName: string): number 
 }
 
 async function postReconnectRecoverable(runtimeRoot: string): Promise<void> {
-  const serverInfo = JSON.parse(await readFile(path.join(runtimeRoot, "server.json"), "utf8")) as { port: number };
+  const serverInfo = JSON.parse(await readFile(path.join(runtimeRoot, "server.json"), "utf8")) as { port: number; token: string };
   const response = await fetch(`http://127.0.0.1:${serverInfo.port}/terminals/reconnect-recoverable`, {
     method: "POST",
+    headers: { "x-exo-command-token": serverInfo.token },
   });
   expect(response.ok).toBe(true);
   await expect(response.json()).resolves.toEqual({ ok: true });

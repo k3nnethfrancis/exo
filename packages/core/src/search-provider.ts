@@ -6,7 +6,15 @@ import type {
   IndexStatus,
   WorkspaceModel,
 } from "./types";
-import type { CapabilityMetadata } from "./capabilities";
+
+export interface SearchProviderMetadata {
+  id: string;
+  label: string;
+  description: string;
+  lifecycle: "built-in" | "experimental";
+  backend: IndexedRoot["backend"];
+  capabilities: readonly string[];
+}
 
 export interface IndexSearchOptions {
   limit?: number;
@@ -36,7 +44,7 @@ export interface IndexRootInput {
 }
 
 export interface SearchProvider {
-  metadata: CapabilityMetadata;
+  metadata: SearchProviderMetadata;
   getStatus(model: WorkspaceModel, runtimeRoot: string): Promise<IndexStatus>;
   search(model: WorkspaceModel, runtimeRoot: string, query: string, options?: IndexSearchOptions): Promise<IndexSearchResponse>;
   read(model: WorkspaceModel, runtimeRoot: string, target: string, options?: IndexReadOptions): Promise<IndexReadResponse>;

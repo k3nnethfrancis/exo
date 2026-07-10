@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { shouldIgnoreWorkspaceChange } from "./workspace-watchers";
+import { shouldIgnoreWorkspaceChange, WorkspaceWatcherService } from "./workspace-watchers";
+import type { WorkspaceChangeEvent } from "./workspace-watchers";
 
 describe("workspace watcher filtering", () => {
   const rootPath = "/workspace/exo";
@@ -19,3 +20,54 @@ describe("workspace watcher filtering", () => {
     expect(shouldIgnoreWorkspaceChange(rootPath, "/workspace/exo/coverage/index.html")).toBe(true);
   });
 });
+
+describe("WorkspaceWatcherService subscriptions", () => {
+  it("fans debounced workspace changes out to multiple listeners", async () => {
+    vi.useFakeTimers();
+    const first = vi.fn();
+    const second = vi.fn();
+    const service = new WorkspaceWatcherService(first);
+    service.subscribe(second);
+
+    queueForTest(service, {
+      rootPath: "/workspace/exo",
+      eventType: "change",
+      filePath: "/workspace/exo/issues.md",
+    });
+    await vi.advanceTimersByTimeAsync(120);
+
+    expect(first).toHaveBeenCalledWith({
+      rootPath: "/workspace/exo",
+      eventType: "change",
+      filePath: "/workspace/exo/issues.md",
+    });
+    expect(second).toHaveBeenCalledWith({
+      rootPath: "/workspace/exo",
+      eventType: "change",
+      filePath: "/workspace/exo/issues.md",
+    });
+    vi.useRealTimers();
+  });
+
+  it("stops sending changes to unsubscribed listeners", async () => {
+    vi.useFakeTimers();
+    const listener = vi.fn();
+    const service = new WorkspaceWatcherService();
+    const unsubscribe = service.subscribe(listener);
+    unsubscribe();
+
+    queueForTest(service, {
+      rootPath: "/workspace/exo",
+      eventType: "change",
+      filePath: "/workspace/exo/issues.md",
+    });
+    await vi.advanceTimersByTimeAsync(120);
+
+    expect(listener).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+});
+
+function queueForTest(service: WorkspaceWatcherService, event: WorkspaceChangeEvent): void {
+  (service as unknown as { queue: (nextEvent: WorkspaceChangeEvent) => void }).queue(event);
+}

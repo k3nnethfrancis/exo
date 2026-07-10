@@ -1,9 +1,8 @@
 import path from "node:path";
-import { accessSync, constants, existsSync, readFileSync } from "node:fs";
+import { accessSync, constants, existsSync } from "node:fs";
 
-import { builtInCapabilities, type CapabilityMetadata } from "../capabilities";
+import type { CapabilityMetadata } from "../capabilities";
 import type { AgentHarness, AgentHarnessMap, HarnessLaunchArgsContext } from "../agent-harness";
-import { buildExoMcpServerSpec } from "../integrations";
 import type {
   AgentHarnessAdapterId,
   AgentHarnessDependencyStatus,
@@ -28,6 +27,14 @@ const PASTE_ENTER_SEMANTIC_MESSAGES = {
   submitOnEnter: true,
   detail: "Agent semantic messages use bracketed paste, then Enter when submitted.",
 } as const;
+
+const legacyHarnessCapabilityMetadata: Record<ManagedAgentKind, CapabilityMetadata> = {
+  shell: legacyHarnessCapability("shell", "Shell", "Built-in interactive shell harness."),
+  claude: legacyHarnessCapability("claude", "Claude", "Legacy Claude terminal agent harness."),
+  codex: legacyHarnessCapability("codex", "Codex", "Legacy Codex terminal agent harness."),
+  pi: legacyHarnessCapability("pi", "Pi", "Legacy Pi terminal agent harness adapter."),
+  hermes: legacyHarnessCapability("hermes", "Hermes", "Legacy Hermes terminal agent harness adapter."),
+};
 
 const SIDECAR_SEMANTIC_TRACE_EVENT_KINDS = [
   "session.started",
@@ -110,11 +117,24 @@ function splitEnvArgs(rawValue?: string): string[] {
 }
 
 function resolveCapabilityMetadata(id: ManagedAgentKind): CapabilityMetadata {
-  const metadata = builtInCapabilities.find((capability) => capability.id === id);
-  if (!metadata) {
-    throw new Error(`Built-in agent harness metadata is not registered: ${id}`);
-  }
-  return metadata;
+  return legacyHarnessCapabilityMetadata[id];
+}
+
+function legacyHarnessCapability(id: ManagedAgentKind, label: string, description: string): CapabilityMetadata {
+  return {
+    id,
+    kind: "core:agentHarness",
+    label,
+    description,
+    lifecycle: "built-in",
+    owner: "@exo/core/legacy-runtime",
+    surfaces: ["cli", "internal"],
+    permissions: ["workspace:read", "notes:read", "projects:read", "terminals:launch", "agents:launch"],
+    compatibility: {
+      managedAgentKind: id,
+      legacyHarnessRegistry: true,
+    },
+  };
 }
 
 function isExecutable(filePath: string): boolean {
@@ -337,102 +357,6 @@ function withCodexReasoningEffortOverride(args: string[], env: NodeJS.ProcessEnv
   return configuredArgs;
 }
 
-function withCodexMcpOverrides(args: readonly string[], config: RuntimeConfig, cwd: string, env: NodeJS.ProcessEnv): string[] {
-  const exoRoot = findExoRepoRoot(config, cwd);
-  if (!exoRoot) {
-    return [...args];
-  }
-
-  const spec = buildExoMcpServerSpec({
-    exoRoot,
-    workspaceRoot: config.workspace.workspaceRoot,
-    nodeCommand: resolveNodeCommandForMcpOverride(env),
-  });
-
-  return [
-    ...args,
-    "-c",
-    `mcp_servers.${spec.serverName}.command=${tomlString(spec.command)}`,
-    "-c",
-    `mcp_servers.${spec.serverName}.args=${tomlStringArray(spec.args)}`,
-    "-c",
-    `mcp_servers.${spec.serverName}.env=${tomlInlineTable(spec.env)}`,
-  ];
-}
-
-function resolveNodeCommandForMcpOverride(env: NodeJS.ProcessEnv): string {
-  // In the packaged app, process.execPath is Electron, not Node. Prefer the
-  // Node executable captured from the launch environment so Codex does not
-  // resolve a different or missing `node` when it starts Exo MCP.
-  return env.NODE || env.npm_node_execpath || "node";
-}
-
-function findExoRepoRoot(config: RuntimeConfig, cwd: string): string | null {
-  const candidates = [
-    // Exo-launched agents often run inside git worktrees for the code they are
-    // editing. Those worktrees may not have built MCP artifacts, so the MCP
-    // launcher must prefer the imported/running Exo project root before the
-    // terminal cwd.
-    ...config.workspace.projectRoots.map((root) => root.path),
-    config.workspace.workspaceRoot,
-    config.workspace.defaultTerminalCwd,
-    process.cwd(),
-    cwd,
-  ];
-
-  for (const candidate of candidates) {
-    const root = findExoRepoRootFrom(candidate);
-    if (root) {
-      return root;
-    }
-  }
-
-  return null;
-}
-
-function findExoRepoRootFrom(startPath: string): string | null {
-  let current = path.resolve(startPath);
-  while (true) {
-    if (isExoRepoRoot(current)) {
-      return current;
-    }
-    const parent = path.dirname(current);
-    if (parent === current) {
-      return null;
-    }
-    current = parent;
-  }
-}
-
-function isExoRepoRoot(candidate: string): boolean {
-  const packageJsonPath = path.join(candidate, "package.json");
-  const mcpLauncherPath = path.join(candidate, "packages", "mcp", "bin", "exo-mcp.mjs");
-  if (!existsSync(packageJsonPath) || !existsSync(mcpLauncherPath)) {
-    return false;
-  }
-
-  try {
-    const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as { name?: string };
-    return packageJson.name === "exo";
-  } catch {
-    return false;
-  }
-}
-
-function tomlString(value: string): string {
-  return JSON.stringify(value);
-}
-
-function tomlStringArray(values: string[]): string {
-  return `[${values.map(tomlString).join(", ")}]`;
-}
-
-function tomlInlineTable(values: Record<string, string>): string {
-  return `{${Object.entries(values)
-    .map(([key, value]) => `${key}=${tomlString(value)}`)
-    .join(", ")}}`;
-}
-
 function normalizeCodexReasoningEffort(rawValue?: string): "minimal" | "low" | "medium" | "high" {
   switch (rawValue) {
     case "minimal":
@@ -578,7 +502,7 @@ class CodexAgentHarness implements AgentHarness {
   }
 
   prepareLaunchArgs(context: HarnessLaunchArgsContext): string[] {
-    return withCodexMcpOverrides(context.args, context.runtimeConfig, context.cwd, context.env);
+    return [...context.args];
   }
 }
 

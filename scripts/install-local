@@ -9,7 +9,6 @@ PREFIX="${EXO_INSTALL_PREFIX:-$HOME/.local}"
 BIN_DIR=""
 RUN_INSTALL=1
 RUN_BUILD=1
-INSTALL_MCP=0
 DRY_RUN=0
 FORCE=0
 
@@ -24,14 +23,12 @@ Options:
   --bin-dir <path>      Install the exo shim into this bin directory.
   --skip-install        Skip pnpm install.
   --skip-build          Skip pnpm build.
-  --with-mcp            Configure Exo MCP for supported local agent clients.
   --force               Replace an existing non-Exo exo command at the target.
   --dry-run             Print actions without changing files.
   -h, --help            Show this help.
 
 Examples:
   ./scripts/install-local
-  ./scripts/install-local --with-mcp
   ./scripts/install-local --bin-dir /usr/local/bin --force
 EOF
 }
@@ -77,10 +74,6 @@ while [ "$#" -gt 0 ]; do
       ;;
     --skip-build)
       RUN_BUILD=0
-      shift
-      ;;
-    --with-mcp)
-      INSTALL_MCP=1
       shift
       ;;
     --force)
@@ -146,11 +139,6 @@ log "installing exo command"
 run mkdir -p "$BIN_DIR"
 run ln -sfn "$EXO_SOURCE" "$EXO_TARGET"
 
-if [ "$INSTALL_MCP" -eq 1 ]; then
-  log "installing MCP integrations"
-  run "$EXO_TARGET" integrations install all
-fi
-
 cat <<EOF
 
 Exo local install complete.
@@ -161,7 +149,6 @@ Command:
 Try:
   exo start
   exo status
-  exo integrations doctor
 EOF
 
 case ":$PATH:" in

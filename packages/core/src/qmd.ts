@@ -1,10 +1,11 @@
 import { defaultSearchProvider } from "./search-provider-registry";
+import { filesystemSearchProvider } from "./search-providers/filesystem-provider";
 import { qmdSearchProvider, getQmdDbPath, getQmdRuntimePath } from "./search-providers/qmd-provider";
 import type { IndexReadOptions, IndexRootInput, IndexSearchOptions, IndexUpdateOptions } from "./search-provider";
 import type { IndexReadResponse, IndexSearchResponse, IndexSyncResult, IndexStatus, WorkspaceModel } from "./types";
 
 export type { IndexReadOptions, IndexRootInput, IndexSearchOptions, IndexUpdateOptions };
-export { getQmdDbPath, getQmdRuntimePath, qmdSearchProvider };
+export { filesystemSearchProvider, getQmdDbPath, getQmdRuntimePath, qmdSearchProvider };
 
 export async function getIndexStatus(model: WorkspaceModel, runtimeRoot: string): Promise<IndexStatus> {
   return defaultSearchProvider().getStatus(model, runtimeRoot);

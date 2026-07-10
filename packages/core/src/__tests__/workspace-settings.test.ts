@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { createDefaultClaudeAgentCommand } from "../agent-invocation";
 import {
   loadWorkspaceSettings,
   listWorkspaceRegistryEntries,
@@ -68,6 +69,76 @@ describe("workspace settings registry", () => {
     } finally {
       await rm(userDataPath, { recursive: true, force: true });
     }
+  });
+
+  it("normalizes and persists configured agent commands", async () => {
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-agent-commands-"));
+    const env = { EXO_USER_DATA_PATH: userDataPath };
+
+    try {
+      await saveWorkspaceSettings({
+        workspaceRoot: "/tmp/exo-agent/notes",
+        defaultTerminalCwd: "/tmp/exo-agent",
+        noteRoots: ["/tmp/exo-agent/notes"],
+        projectRoots: [],
+        indexedRoots: [],
+        indexing: { enabled: false, mode: "off", backend: "qmd" },
+        appearanceMode: "system",
+        colorThemeId: "exo-neutral",
+        editorFontSize: 15,
+        terminalFontSize: 13,
+        terminalHistoryLines: 100_000,
+        terminalTranscriptRetention: "forever",
+        terminalTranscriptRetentionDays: 14,
+        explorerScale: 1,
+        exploreIndexSearchOnEnter: false,
+        indexUpdateStrategy: "on-save",
+        agentCommands: [
+          {
+            id: " Claude Code ",
+            label: " Claude Code ",
+            handle: " @Claude ",
+            command: " claude ",
+            cwdPolicy: "workspace_root",
+            promptDelivery: "auto" as never,
+            version: 0,
+            enabled: true,
+          },
+        ],
+      }, env);
+
+      await expect(loadWorkspaceSettings(env)).resolves.toMatchObject({
+        agentCommands: [{
+          id: "Claude-Code",
+          label: "Claude Code",
+          handle: "claude",
+          command: "claude",
+          cwdPolicy: "workspace_root",
+          promptDelivery: "terminalInputAfterLaunch",
+          version: 1,
+          enabled: true,
+        }],
+      });
+    } finally {
+      await rm(userDataPath, { recursive: true, force: true });
+    }
+  });
+
+  it("defaults missing agent commands to an empty settings list without installing commands", () => {
+    const settings = normalizeWorkspaceSettings({
+      workspaceRoot: "/tmp/exo-agent/notes",
+      defaultTerminalCwd: "/tmp/exo-agent",
+      noteRoots: ["/tmp/exo-agent/notes"],
+      projectRoots: [],
+      indexedRoots: [],
+      indexing: { enabled: false, mode: "off", backend: "qmd" },
+    });
+
+    expect(settings?.agentCommands).toEqual([]);
+    expect(createDefaultClaudeAgentCommand()).toMatchObject({
+      handle: "claude",
+      promptDelivery: "terminalInputAfterLaunch",
+    });
   });
 
   it("normalizes and projects persisted Pi-compatible harness settings", () => {

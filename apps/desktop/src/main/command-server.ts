@@ -1,31 +1,24 @@
+import { randomBytes } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import {
   EXO_COMMAND_ROUTES,
-  terminalSubstrateKindForManagedAgentKind,
-  validateRegisteredAgentHarnessLaunchForSurface,
+  EXO_COMMAND_TOKEN_HEADER,
   type ExoCommandServerInfo,
   type ExoCommandTerminalDiagnostics,
-  type ExoCreateProposalRequest,
-  type ExoCreateProposalResponse,
-  type ExoDecideProposalRequest,
-  type ExoDecideProposalResponse,
-  type ExoReconnectTerminalResponse,
   type ExoIndexRootRequest,
-  type ExoListProposalsResponse,
   type ExoCommandTerminalInfo,
   type ExoCreateTerminalRequest,
-  type ExoProjectRootRequest,
-  type ExoReadProposalResponse,
   type ExoReadDocumentRequest,
   type ExoOpenFileRequest,
   type ExoOpenPreviewRequest,
   type ExoOpenPreviewResponse,
   type ExoPreviewCommandResponse,
-  type ExoReconnectRecoverableTerminalsResponse,
   type ExoSendTerminalMessageRequest,
+  type ExoSpawnAgentCommandRequest,
+  type ExoSpawnAgentCommandResponse,
   type ExoWriteTerminalRequest,
   type ExoWriteTerminalResponse,
   type IndexReadResponse,
@@ -34,11 +27,10 @@ import {
   type IndexStatus,
   type WorkspaceSearchResults,
   type WorkspaceSettings,
-  type ProposalApplyResult,
-  type ProposalBatch,
 } from "@exo/core";
 
 import type { TerminalCreateOptions } from "../shared/api";
+import { AgentCommandInvocationError, type AgentCommandInvocationResult } from "./agent-command-invocation-service";
 
 export interface CommandServerOptions {
   runtimeRoot: string;
@@ -47,10 +39,6 @@ export interface CommandServerOptions {
   onOpenPreview: (target: string) => Promise<ExoOpenPreviewResponse>;
   onFocusPreview: () => ExoPreviewCommandResponse;
   onClosePreview: () => ExoPreviewCommandResponse;
-  onCreateProposal: (proposal: ProposalBatch) => Promise<ProposalBatch>;
-  onListProposals: () => Promise<ProposalBatch[]>;
-  onReadProposal: (id: string) => Promise<ProposalBatch | null>;
-  onDecideProposal: (id: string, input: { decision: "accept" | "reject"; itemId?: string }) => Promise<ProposalApplyResult>;
   onSearch: (query: string) => Promise<WorkspaceSearchResults>;
   onIndexSearch: (query: string, options: { limit?: number; intent?: string; includeContent?: boolean; maxLinesPerResult?: number }) => Promise<IndexSearchResponse>;
   onReadDocument: (target: string, options: { fromLine?: number; maxLines?: number }) => Promise<IndexReadResponse>;
@@ -60,9 +48,6 @@ export interface CommandServerOptions {
   onIndexSync: () => Promise<IndexSyncResult>;
   onIndexUpdate: () => Promise<IndexStatus>;
   onIndexEmbed: () => Promise<IndexStatus>;
-  onListProjectRoots: () => string[];
-  onAddProjectRoot: (input: ExoProjectRootRequest) => Promise<WorkspaceSettings>;
-  onRemoveProjectRoot: (target: string) => Promise<WorkspaceSettings>;
   onListTerminals: () => ExoCommandTerminalInfo[];
   onTerminalDiagnostics: () => ExoCommandTerminalDiagnostics[];
   onCreateTerminal: (options: TerminalCreateOptions) => Promise<ExoCommandTerminalInfo>;
@@ -71,11 +56,10 @@ export interface CommandServerOptions {
   onReadTerminalSemanticAnswer: (id: string, options?: { limit?: number }) => Promise<string | null>;
   onWriteTerminal: (id: string, data: string) => Promise<ExoWriteTerminalResponse>;
   onSendTerminalMessage: (id: string, message: string, submit: boolean) => Promise<ExoWriteTerminalResponse>;
-  onReconnectTerminal: (id: string) => Promise<ExoCommandTerminalInfo | null>;
-  onReconnectRecoverableTerminals: () => void;
   onKillTerminal: (id: string) => Promise<void>;
   onGetSettings: () => WorkspaceSettings;
   onGetStatus: () => object;
+  onSpawnAgentCommand: (input: { handle: string; task: string }) => Promise<AgentCommandInvocationResult>;
 }
 
 export class CommandServer {
@@ -83,6 +67,7 @@ export class CommandServer {
   private port = 0;
   private serverJsonPath: string;
   private discoveryRefreshTimer: NodeJS.Timeout | null = null;
+  private readonly token = randomBytes(32).toString("base64url");
 
   constructor(private options: CommandServerOptions) {
     this.serverJsonPath = path.join(options.runtimeRoot, "server.json");
@@ -142,13 +127,14 @@ export class CommandServer {
       throw new Error("Command server is not listening.");
     }
     await this.writeServerJson();
-    return { port: this.port, pid: process.pid, path: this.serverJsonPath };
+    return { port: this.port, pid: process.pid, token: this.token, path: this.serverJsonPath };
   }
 
   private async writeServerJson(): Promise<void> {
-    const data = JSON.stringify({ port: this.port, pid: process.pid }, null, 2);
+    const data = JSON.stringify({ port: this.port, pid: process.pid, token: this.token }, null, 2);
     await mkdir(this.options.runtimeRoot, { recursive: true });
-    await writeFile(this.serverJsonPath, data, "utf-8");
+    await writeFile(this.serverJsonPath, data, { encoding: "utf-8", mode: 0o600 });
+    await chmod(this.serverJsonPath, 0o600).catch(() => {});
   }
 
   private startDiscoveryRefreshTimer(): void {
@@ -172,6 +158,16 @@ export class CommandServer {
     const method = req.method ?? "GET";
 
     try {
+      if (!isLoopbackRemote(req.socket.remoteAddress)) {
+        json(res, { error: "Command server only accepts loopback requests." }, 403);
+        return;
+      }
+
+      if (!this.isAuthenticated(req)) {
+        json(res, { error: "Missing or invalid Exo command token." }, 401);
+        return;
+      }
+
       if (method === "GET" && pathname === EXO_COMMAND_ROUTES.status) {
         json(res, this.options.onGetStatus());
         return;
@@ -276,70 +272,28 @@ export class CommandServer {
         return;
       }
 
-      if (method === "GET" && pathname === EXO_COMMAND_ROUTES.proposals) {
-        json(res, { proposals: await this.options.onListProposals() } satisfies ExoListProposalsResponse);
-        return;
-      }
-
-      if (method === "POST" && pathname === EXO_COMMAND_ROUTES.proposals) {
-        const body = await readBody(req);
-        const { proposal } = body as ExoCreateProposalRequest;
-        if (!proposal) {
-          json(res, { error: "Missing proposal in body" }, 400);
-          return;
-        }
-        json(res, { ok: true, proposal: await this.options.onCreateProposal(proposal) } satisfies ExoCreateProposalResponse);
-        return;
-      }
-
-      const proposalMatch = pathname.match(/^\/proposals\/([^/]+)$/);
-      if (method === "GET" && proposalMatch) {
-        const proposal = await this.options.onReadProposal(decodeURIComponent(proposalMatch[1]));
-        if (!proposal) {
-          json(res, { error: "Proposal not found" }, 404);
-          return;
-        }
-        json(res, { proposal } satisfies ExoReadProposalResponse);
-        return;
-      }
-
-      const proposalDecisionMatch = pathname.match(/^\/proposals\/([^/]+)\/decision$/);
-      if (method === "POST" && proposalDecisionMatch) {
-        const body = await readBody(req);
-        const { decision, itemId } = body as ExoDecideProposalRequest;
-        if (decision !== "accept" && decision !== "reject") {
-          json(res, { error: "Missing decision in body" }, 400);
-          return;
-        }
-        const result = await this.options.onDecideProposal(decodeURIComponent(proposalDecisionMatch[1]), { decision, itemId });
-        json(res, { ok: true, proposal: result.proposal, appliedItems: result.appliedItems } satisfies ExoDecideProposalResponse);
-        return;
-      }
-
       if (method === "GET" && pathname === EXO_COMMAND_ROUTES.config) {
         json(res, this.options.onGetSettings());
         return;
       }
 
-      if (method === "GET" && pathname === EXO_COMMAND_ROUTES.projectRoots) {
-        json(res, { projectRoots: this.options.onListProjectRoots() });
-        return;
-      }
-
-      if (method === "POST" && pathname === EXO_COMMAND_ROUTES.projectRoots) {
+      if (method === "POST" && pathname === EXO_COMMAND_ROUTES.spawnAgentCommand) {
         const body = await readBody(req);
-        const { path: projectRootPath } = body as ExoProjectRootRequest;
-        if (!projectRootPath) {
-          json(res, { error: "Missing path in body" }, 400);
+        const { handle, task } = body as ExoSpawnAgentCommandRequest;
+        if (!handle || !task) {
+          json(res, { ok: false, code: "missing-agent-command-spawn-input", error: "Missing handle or task in body." }, 400);
           return;
         }
-        json(res, await this.options.onAddProjectRoot({ path: projectRootPath }));
-        return;
-      }
-
-      const projectRootMatch = pathname.match(/^\/project-roots\/(.+)$/);
-      if (method === "DELETE" && projectRootMatch) {
-        json(res, await this.options.onRemoveProjectRoot(decodeURIComponent(projectRootMatch[1])));
+        try {
+          const result = await this.options.onSpawnAgentCommand({ handle, task });
+          json(res, { ok: true, invocation: result.invocation, terminal: result.terminal } satisfies ExoSpawnAgentCommandResponse);
+        } catch (error) {
+          if (error instanceof AgentCommandInvocationError) {
+            json(res, { ok: false, code: error.code, error: error.message, ...error.details }, error.code === "agent-command-untrusted" ? 403 : 400);
+            return;
+          }
+          throw error;
+        }
         return;
       }
 
@@ -353,62 +307,24 @@ export class CommandServer {
         return;
       }
 
-      if (method === "POST" && pathname === EXO_COMMAND_ROUTES.terminalReconnectRecoverable) {
-        this.options.onReconnectRecoverableTerminals();
-        json(res, { ok: true } satisfies ExoReconnectRecoverableTerminalsResponse);
-        return;
-      }
-
       if (method === "POST" && pathname === EXO_COMMAND_ROUTES.terminals) {
         const body = await readBody(req);
         const { harnessId, kind, cwd, callerSurface } = body as ExoCreateTerminalRequest;
-        const requestedHarnessId = harnessId ?? kind;
-        if (!requestedHarnessId) {
-          json(res, { error: "Missing harnessId in body", code: "missing-agent-harness" }, 400);
-          return;
-        }
-        const launchSurface = callerSurface ?? "commandServer";
-        if (!isAgentLaunchCallerSurface(launchSurface)) {
+        const requestedKind = kind ?? harnessId ?? "shell";
+        if (requestedKind !== "shell" || (harnessId && harnessId !== "shell")) {
           json(res, {
             ok: false,
-            code: "unsupported-agent-launch-surface",
-            callerSurface: launchSurface,
-            error: `Unsupported agent launch caller surface: ${String(launchSurface)}`,
-          }, 400);
-          return;
-        }
-        let terminalKind: TerminalCreateOptions["terminalKind"] = "shell";
-        let resolvedHarnessId = requestedHarnessId;
-        try {
-          const callerLaunch = validateRegisteredAgentHarnessLaunchForSurface(requestedHarnessId, {
-            surface: launchSurface,
-            requireLaunchable: false,
-          });
-          const launch = launchSurface === "commandServer"
-            ? callerLaunch
-            : validateRegisteredAgentHarnessLaunchForSurface(requestedHarnessId, {
-              surface: "commandServer",
-              requireLaunchable: false,
-            });
-          if (!launch.detection.launchable && !hasAutoStartableDependency(launch.detection.dependencies)) {
-            const detail = launch.detection.detail ? ` ${launch.detection.detail}` : "";
-            throw new Error(`Agent harness is not launchable: ${requestedHarnessId} (${launch.detection.statusLabel}).${detail}`);
-          }
-          terminalKind = terminalSubstrateKindForManagedAgentKind(launch.terminalKind);
-          resolvedHarnessId = launch.harnessId;
-        } catch (error) {
-          json(res, {
-            ok: false,
-            code: "unsupported-agent-harness",
-            harnessId: requestedHarnessId,
-            error: error instanceof Error ? error.message : String(error),
+            code: "unsupported-terminal-launch",
+            harnessId: harnessId ?? kind ?? null,
+            callerSurface: callerSurface ?? "commandServer",
+            error: "Terminal creation only supports shell. Configure agents as AgentCommands and invoke them from notes.",
           }, 400);
           return;
         }
         try {
           const terminal = await this.options.onCreateTerminal({
-            terminalKind,
-            harnessId: resolvedHarnessId,
+            terminalKind: "shell",
+            harnessId: undefined,
             cwd,
             callerSurface: "commandServer",
           });
@@ -416,8 +332,8 @@ export class CommandServer {
         } catch (error) {
           json(res, {
             ok: false,
-            code: "unsupported-agent-harness",
-            harnessId: requestedHarnessId,
+            code: "unsupported-terminal-launch",
+            harnessId: harnessId ?? kind ?? null,
             error: error instanceof Error ? error.message : String(error),
           }, 400);
         }
@@ -490,22 +406,6 @@ export class CommandServer {
         return;
       }
 
-      const terminalReconnectMatch = pathname.match(/^\/terminals\/([^/]+)\/reconnect$/);
-      if (method === "POST" && terminalReconnectMatch) {
-        const terminal = await this.options.onReconnectTerminal(decodeURIComponent(terminalReconnectMatch[1]));
-        json(res, { ok: true, terminal } satisfies ExoReconnectTerminalResponse);
-        return;
-      }
-
-      const terminalResyncMatch = pathname.match(/^\/terminals\/([^/]+)\/resync$/);
-      if (method === "POST" && terminalResyncMatch) {
-        // Geometry resync deliberately uses the reconnect implementation so there is one tested
-        // tmux reattach/resize recovery path instead of a parallel "just resize" fallback.
-        const terminal = await this.options.onReconnectTerminal(decodeURIComponent(terminalResyncMatch[1]));
-        json(res, { ok: true, terminal } satisfies ExoReconnectTerminalResponse);
-        return;
-      }
-
       const terminalKillMatch = pathname.match(/^\/terminals\/([^/]+)$/);
       if (method === "DELETE" && terminalKillMatch) {
         await this.options.onKillTerminal(decodeURIComponent(terminalKillMatch[1]));
@@ -515,13 +415,24 @@ export class CommandServer {
 
       json(res, { error: "Not found" }, 404);
     } catch (error) {
-      json(res, { error: error instanceof Error ? error.message : String(error) }, 500);
+      const status = error instanceof CommandServerHttpError ? error.status : 500;
+      json(res, { error: error instanceof Error ? error.message : String(error) }, status);
     }
   }
-}
 
-function hasAutoStartableDependency(dependencies: Array<{ required: boolean; satisfied: boolean; autoStart?: unknown }> | undefined): boolean {
-  return Boolean(dependencies?.some((dependency) => dependency.required && !dependency.satisfied && dependency.autoStart));
+  private isAuthenticated(req: IncomingMessage): boolean {
+    const headerToken = req.headers[EXO_COMMAND_TOKEN_HEADER];
+    if (typeof headerToken === "string" && headerToken === this.token) {
+      return true;
+    }
+
+    const authHeader = req.headers.authorization;
+    if (typeof authHeader === "string" && authHeader === `Bearer ${this.token}`) {
+      return true;
+    }
+
+    return false;
+  }
 }
 
 function parseTailChars(value: string | null): number {
@@ -548,10 +459,6 @@ function parseOptionalNumber(value: string | null): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-function isAgentLaunchCallerSurface(value: unknown): value is ExoCreateTerminalRequest["callerSurface"] {
-  return value === "cli" || value === "mcp" || value === "desktop" || value === "commandServer" || value === "internal";
-}
-
 function json(res: ServerResponse, data: unknown, status = 200): void {
   res.writeHead(status, { "Content-Type": "application/json" });
   res.end(JSON.stringify(data));
@@ -559,8 +466,23 @@ function json(res: ServerResponse, data: unknown, status = 200): void {
 
 function readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
+    const contentType = String(req.headers["content-type"] ?? "");
+    if (contentType && !contentType.toLowerCase().includes("application/json")) {
+      reject(new CommandServerHttpError(415, "Command server request body must be application/json."));
+      return;
+    }
+
     const chunks: Buffer[] = [];
-    req.on("data", (chunk) => chunks.push(chunk));
+    let byteLength = 0;
+    req.on("data", (chunk: Buffer) => {
+      byteLength += chunk.byteLength;
+      if (byteLength > MAX_COMMAND_SERVER_BODY_BYTES) {
+        reject(new CommandServerHttpError(413, "Command server request body is too large."));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
     req.on("end", () => {
       try {
         const text = Buffer.concat(chunks).toString("utf-8");
@@ -571,4 +493,16 @@ function readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
     });
     req.on("error", reject);
   });
+}
+
+const MAX_COMMAND_SERVER_BODY_BYTES = 1_000_000;
+
+class CommandServerHttpError extends Error {
+  constructor(readonly status: number, message: string) {
+    super(message);
+  }
+}
+
+function isLoopbackRemote(remoteAddress: string | undefined): boolean {
+  return !remoteAddress || remoteAddress === "127.0.0.1" || remoteAddress === "::1" || remoteAddress === "::ffff:127.0.0.1";
 }

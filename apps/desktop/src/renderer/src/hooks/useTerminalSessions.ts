@@ -184,7 +184,7 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
   }
 
   async function hydrateTerminal(id: string, options?: { force?: boolean; reason?: TerminalHydrationReason }) {
-    const reason: TerminalHydrationReason = options?.reason ?? (options?.force ? "reconnect" : "bootstrap");
+    const reason: TerminalHydrationReason = options?.reason ?? (options?.force ? "refresh" : "bootstrap");
     if (!options?.force && hydratedSessionIdsRef.current.has(id) && (pendingTerminalDataRef.current[id]?.data.length ?? 0) > 0) {
       // A terminal may be marked hydrated before its xterm instance registers.
       // Flush pending appends directly once the matching generation is live;
@@ -256,8 +256,8 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
     setHydratingTerminalIds((current) => new Set([...current].filter((id) => activeIds.has(id))));
   }
 
-  async function createTerminal(terminalKind: TerminalLaunchKind, cwd?: string, harnessId?: string): Promise<TerminalSessionInfo> {
-    const session = await window.exo.terminals.create({ terminalKind, cwd, harnessId, callerSurface: "desktop" });
+  async function createTerminal(terminalKind: TerminalLaunchKind, cwd?: string): Promise<TerminalSessionInfo> {
+    const session = await window.exo.terminals.create({ terminalKind, cwd, callerSurface: "desktop" });
     const nextSessions = sessionsRef.current.some((existing) => existing.id === session.id)
       ? sessionsRef.current
       : [...sessionsRef.current, session];
@@ -291,18 +291,6 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
   async function activateTerminal(id: string) {
     setActiveTerminalIdState(id);
     await hydrateTerminal(id);
-  }
-
-  async function reconnectTerminal(id: string): Promise<TerminalSessionInfo | null> {
-    const session = await window.exo.terminals.reconnect(id);
-    if (!session) {
-      return null;
-    }
-    const nextSessions = sessionsRef.current.map((existing) => (existing.id === session.id ? session : existing));
-    sessionsRef.current = nextSessions;
-    setSessions(nextSessions);
-    await hydrateTerminal(id, { force: true });
-    return session;
   }
 
   async function killTerminal(id: string): Promise<TerminalSessionInfo[]> {
@@ -360,7 +348,6 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
     createTerminal,
     adoptExternalSessions,
     activateTerminal,
-    reconnectTerminal,
     hydrateTerminal,
     markTerminalHydrated,
     hydratingTerminalIds,
@@ -447,7 +434,7 @@ export function shouldBufferTerminalDataForHydration(
   if (!rendered) {
     return true;
   }
-  if (pendingReason === "reconnect") {
+  if (pendingReason === "refresh") {
     return false;
   }
   // Rendered bootstrap data already reached xterm. Buffering it for the pending

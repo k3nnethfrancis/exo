@@ -82,7 +82,7 @@ export function TerminalView(props: TerminalViewProps) {
     const terminal = new Terminal({
       // Unicode11Addon depends on xterm's proposed unicode provider API.
       // Without this flag, any mounted terminal throws during first launch and
-      // can blank the entire app shell before onboarding/profile setup appears.
+      // can blank the entire app shell before onboarding appears.
       allowProposedApi: true,
       fontFamily: TERMINAL_FONT_FAMILY,
       fontSize,
@@ -95,10 +95,10 @@ export function TerminalView(props: TerminalViewProps) {
     const fitAddon = new FitAddon();
     const unicode11Addon = new Unicode11Addon();
     disposedRef.current = false;
-    // Terminal harnesses render modern TUI glyphs: emoji, braille spinners,
+    // Terminal apps render modern TUI glyphs: emoji, braille spinners,
     // box drawing, and private-use symbols. Xterm's default width table is too
     // old for those sequences, which can make clean tmux output display as
-    // wrapped borders or replacement glyphs after reconnect/resize.
+    // wrapped borders or replacement glyphs after refresh/resize.
     terminal.loadAddon(unicode11Addon);
     terminal.unicode.activeVersion = "11";
     terminal.loadAddon(fitAddon);
@@ -112,7 +112,7 @@ export function TerminalView(props: TerminalViewProps) {
 
     const disposeData = terminal.onData((data) => {
       // Main owns terminal writability. Renderer inputEnabled can briefly lag
-      // after reconnect/hydration, and dropping keystrokes here caused live
+      // after refresh/hydration, and dropping keystrokes here caused live
       // tmux panes to accept input only after a hard refresh.
       if (isTerminalGeneratedResponse(data)) {
         return;
@@ -325,7 +325,7 @@ export function TerminalView(props: TerminalViewProps) {
     hydrationStateRef.current = markTerminalHydrationApplied(hydrationStateRef.current, hydrationFrame);
 
     // Hydration is the only path that may reset xterm: first mount/reload
-    // before this xterm exists, or explicit reconnect. Later bootstrap
+    // before this xterm exists, or explicit refresh. Later bootstrap
     // versions are metadata/pending-data churn and must stay append-only.
     terminal.reset();
     writeQueueRef.current = [];

@@ -4,17 +4,14 @@ import type { IndexStatus, TreeNode, WorkspaceModel, WorkspaceSettings } from "@
 import type { TerminalSessionInfo, WorkspaceRegistryEntry, WorkspaceSetupState } from "../../../shared/api";
 import type { PaneNode } from "./usePaneTree";
 import { loadInitialTrees, type UseWorkspaceTreesOptions } from "./useWorkspaceTrees";
-import { pathLabel, pickInitialNote, uniquePaths } from "../workspaceTree";
-
-const POST_WORKSPACE_SETUP_FLAG = "exo:show-post-workspace-setup";
+import { pathLabel, pickInitialNote } from "../workspaceTree";
 
 export interface OnboardingState {
   mode: "first-run" | "switch";
-  step: "select" | "configure" | "capabilities";
+  step: "select" | "configure";
   workspaces: WorkspaceRegistryEntry[];
   selectedWorkspaceId: string | null;
   notesFolder: string;
-  projectFolders: string[];
   defaultTerminalCwd: string;
   indexMode: WorkspaceSettings["indexing"]["mode"];
   exploreIndexSearchOnEnter: boolean;
@@ -87,7 +84,6 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
           workspaces,
           selectedWorkspaceId: workspaces[0]?.id ?? null,
           notesFolder: "",
-          projectFolders: settings.projectRoots,
           defaultTerminalCwd: "",
           indexMode: "hybrid",
           exploreIndexSearchOnEnter: false,
@@ -193,26 +189,6 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
     }
   }
 
-  async function addProjectFoldersForOnboarding() {
-    const folders = await window.exo.workspace.selectFolder({
-      title: "Add project folders",
-      buttonLabel: "Add Projects",
-      allowMultiple: true,
-    });
-    if (folders.length > 0) {
-      setOnboardingState((current) =>
-        current
-          ? {
-              ...current,
-              projectFolders: uniquePaths([...current.projectFolders, ...folders]),
-              errorMessage: null,
-              status: "idle",
-            }
-          : current,
-      );
-    }
-  }
-
   async function selectDefaultTerminalForOnboarding() {
     const folders = await window.exo.workspace.selectFolder({
       title: "Choose default terminal folder",
@@ -241,7 +217,6 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
       workspaces,
       selectedWorkspaceId: workspaces.find((workspace) => workspace.notesFolder === current?.noteRoots[0])?.id ?? workspaces[0]?.id ?? null,
       notesFolder: current?.noteRoots[0] ?? "",
-      projectFolders: current?.projectRoots ?? [],
       defaultTerminalCwd: current?.defaultTerminalCwd ?? current?.noteRoots[0] ?? "",
       indexMode: current?.indexing.mode ?? "off",
       exploreIndexSearchOnEnter: current?.exploreIndexSearchOnEnter ?? false,
@@ -259,7 +234,6 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
             step: "configure",
             selectedWorkspaceId: null,
             notesFolder: "",
-            projectFolders: [],
             defaultTerminalCwd: "",
             indexMode: "hybrid",
             exploreIndexSearchOnEnter: true,
@@ -282,8 +256,8 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
     setOnboardingState({ ...current, status: "saving", errorMessage: null });
     try {
       const saved = await window.exo.workspace.activateWorkspace(current.selectedWorkspaceId);
+      await window.exo.workspace.markOnboardingComplete();
       workspaceSettingsRef.current = saved;
-      window.sessionStorage.setItem(POST_WORKSPACE_SETUP_FLAG, "1");
       window.location.reload();
     } catch (error) {
       setOnboardingState({
@@ -315,7 +289,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
         workspaceRoot: notesFolder,
         defaultTerminalCwd: current.defaultTerminalCwd.trim() || defaultTerminalCwdForNotesFolder(notesFolder),
         noteRoots: [notesFolder],
-        projectRoots: current.projectFolders,
+        projectRoots: [],
         indexedRoots: indexedRootPaths.map((rootPath, index) => ({
           id: `index-root-${index + 1}`,
           label: pathLabel(rootPath),
@@ -330,9 +304,8 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
         indexUpdateStrategy: current.indexUpdateStrategy,
       };
       const saved = await window.exo.workspace.saveSettings(nextSettings);
-      await window.exo.workspace.markOnboardingProfileStep({ step: "plugins" });
+      await window.exo.workspace.markOnboardingComplete();
       workspaceSettingsRef.current = saved;
-      window.sessionStorage.setItem(POST_WORKSPACE_SETUP_FLAG, "1");
       window.location.reload();
     } catch (error) {
       setOnboardingState({
@@ -341,10 +314,6 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
         errorMessage: error instanceof Error ? error.message : "Unable to save setup.",
       });
     }
-  }
-
-  function enterWorkspaceAfterCapabilityReview() {
-    window.location.reload();
   }
 
   return {
@@ -359,26 +328,12 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
     setLayoutPersistenceReady,
     workspaceSettingsRef,
     selectNotesFolderForOnboarding,
-    addProjectFoldersForOnboarding,
     selectDefaultTerminalForOnboarding,
     openWorkspaceSwitcher,
     startNewWorkspaceSetup,
     activateSelectedWorkspace,
     completeOnboarding,
-    enterWorkspaceAfterCapabilityReview,
   };
-}
-
-export function consumePostWorkspaceSetupFlag(): boolean {
-  try {
-    if (window.sessionStorage.getItem(POST_WORKSPACE_SETUP_FLAG) !== "1") {
-      return false;
-    }
-    window.sessionStorage.removeItem(POST_WORKSPACE_SETUP_FLAG);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 export function defaultTerminalCwdForNotesFolder(notesFolder: string): string {

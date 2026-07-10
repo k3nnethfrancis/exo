@@ -1,5 +1,7 @@
 # Plugin Architecture Implementation Plan
 
+> Superseded as an active implementation plan by `docs/exograph-refactor-completion-plan.md` and `docs/extension-architecture.md` on `refactor/note-native-exo`. Keep this document as historical implementation context. The current branch is deletion-first for stale plugin/routine/harness product surfaces.
+
 Last updated: 2026-07-03
 
 This plan turns Exo's plugin architecture into code without prematurely loading arbitrary user code. The first goal is internal extensibility: Exo core should use typed registries and contracts for the capabilities that are already plugin-shaped.
@@ -14,7 +16,7 @@ Core owns the substrate:
 - minimal feed/event and activity substrate: activity ids/status/timestamps, scopes, permission checks, artifact references, and provenance references
 - terminal/session lifecycle, rendering surface, scrollback, transcripts, reconnect, diagnostics, semantic message delivery, and command-server protocol
 - pane/grid layout, trusted web viewer host, and open/focus/close endpoints
-- CLI/MCP surfaces
+- CLI surfaces
 - security, permissions, settings, and app lifecycle
 
 Plugins and profiles own variation. Vanilla Exo should be treated as core plus official/recommended plugins, not core plus hardcoded permanent defaults:
@@ -33,7 +35,7 @@ The current code already has good starting boundaries:
 - `packages/core/src/runtime.ts` owns compatibility launch planning and remains the facade while shell/Claude/Codex/Pi/Hermes move behind harness adapters.
 - `apps/desktop/src/main/indexing-service.ts` consumes QMD search/index functions and should keep doing so through a stable search-provider facade.
 - `apps/desktop/src/main/terminal-manager.ts` consumes `resolveAgentLaunchPlan()` and should keep creating tmux-backed terminal sessions while harness planning moves behind a contract.
-- `apps/desktop/src/main/command-server.ts`, `packages/cli`, and `packages/mcp` should remain clients/surfaces over Exo-owned capabilities, not become the plugin system.
+- Historical note: at the time of this plan, `apps/desktop/src/main/command-server.ts`, `packages/cli`, and `packages/mcp` were clients/surfaces over Exo-owned capabilities. On the Exograph refactor branch, `packages/mcp` has been removed and CLI is the active local integration surface.
 - Renderer panes, settings, and web viewer endpoint usage come later; do not add plugin UI in the first implementation.
 - The current terminal rail should evolve into a tool/plugin dock, but terminal rendering and session ownership stay in core.
 
@@ -421,7 +423,7 @@ Project Knowledge Sync is profile/plugin-declared metadata for making relationsh
 - review policy for human review, proposal requirement, and allowed target prefixes
 - optional GitHub remote metadata for owner, repo, branch, issue labels, and pull request labels
 
-This contract does not watch files, generate indexes, create proposals, copy files, create symlinks, call GitHub, or write to the workspace. Path and pattern fields are conservative: absolute paths, traversal, backslashes, and URL-like schemes are rejected. `index` and `proposal` are the modes core intends to implement first; `copy`, `symlink`, and `remote` are reserved words, not commitments, and may be removed without compatibility shims. Freeze vocabulary growth here: do not add new modes, conflict actions, or providers until the first acting implementation exists. The next implementation steps are to connect this metadata to read-only drift/index views, then use the existing proposal/review substrate for staged sync proposals before considering any copy or symlink apply path.
+This contract does not watch files, generate indexes, create proposals, copy files, create symlinks, call GitHub, or write to the workspace. Path and pattern fields are conservative: absolute paths, traversal, backslashes, and URL-like schemes are rejected. `index` and `proposal` are the modes core intends to implement first; `copy`, `symlink`, and `remote` are reserved words, not commitments, and may be removed without compatibility shims. Do not add new modes, conflict actions, or providers until the first acting implementation exists. The next implementation steps are to connect this metadata to read-only drift/index views, then use the existing proposal/review substrate for staged sync proposals before considering any copy or symlink apply path.
 
 ### Graph Snapshot And Visualization Payload
 

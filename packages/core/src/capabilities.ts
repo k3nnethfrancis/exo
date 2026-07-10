@@ -1,8 +1,5 @@
 export type CapabilityKind =
   | "core:searchProvider"
-  | "core:agentHarness"
-  | "core:profile"
-  | "core:routineTemplate"
   | "exo.graph:analyzer"
   | "exo.graph:visualization"
   | "exo.training:traceCollector"
@@ -12,7 +9,7 @@ export type CapabilityKind =
 export type CapabilityKindId = CapabilityKind | (string & {});
 export type CapabilityStatus = "supported" | "unsupported-kind";
 export type CapabilityLifecycle = "built-in" | "experimental" | "disabled";
-export type CapabilitySurface = "desktop" | "cli" | "mcp" | "commandServer" | "internal";
+export type CapabilitySurface = "desktop" | "cli" | "commandServer" | "internal";
 
 export type PermissionResource = "workspace" | "notes" | "projects" | "terminals" | "agents" | "network" | "artifacts";
 export type PermissionAction = "read" | "propose" | "write" | "launch" | "access";
@@ -250,84 +247,16 @@ export const builtInCapabilities = [
     description: "Bundled advanced local Markdown search provider plugin. Core filename, path, and text search remains available without it.",
     lifecycle: "built-in",
     owner: "@exo/core/qmd",
-    surfaces: ["desktop", "cli", "mcp", "commandServer", "internal"],
+    surfaces: ["desktop", "cli", "commandServer", "internal"],
     permissions: ["workspace:read", "notes:read"],
     compatibility: {
       indexBackend: "qmd",
-    },
-  },
-  {
-    id: "shell",
-    kind: "core:agentHarness",
-    label: "Shell",
-    description: "Built-in interactive shell harness.",
-    lifecycle: "built-in",
-    owner: "@exo/core/runtime",
-    surfaces: ["desktop", "cli", "mcp", "commandServer", "internal"],
-    permissions: ["workspace:read", "projects:read", "terminals:launch", "agents:launch"],
-    compatibility: {
-      managedAgentKind: "shell",
-    },
-  },
-  {
-    id: "claude",
-    kind: "core:agentHarness",
-    label: "Claude",
-    description: "Built-in Claude terminal agent harness.",
-    lifecycle: "built-in",
-    owner: "@exo/core/runtime",
-    surfaces: ["desktop", "cli", "mcp", "commandServer", "internal"],
-    permissions: ["workspace:read", "notes:read", "projects:read", "terminals:launch", "agents:launch"],
-    compatibility: {
-      managedAgentKind: "claude",
-    },
-  },
-  {
-    id: "codex",
-    kind: "core:agentHarness",
-    label: "Codex",
-    description: "Built-in Codex terminal agent harness.",
-    lifecycle: "built-in",
-    owner: "@exo/core/runtime",
-    surfaces: ["desktop", "cli", "mcp", "commandServer", "internal"],
-    permissions: ["workspace:read", "notes:read", "projects:read", "terminals:launch", "agents:launch"],
-    compatibility: {
-      managedAgentKind: "codex",
-    },
-  },
-  {
-    id: "pi",
-    kind: "core:agentHarness",
-    label: "Pi",
-    description: "Built-in Pi terminal agent harness adapter.",
-    lifecycle: "built-in",
-    owner: "@exo/core/runtime",
-    surfaces: ["desktop", "cli", "mcp", "commandServer", "internal"],
-    permissions: ["workspace:read", "notes:read", "projects:read", "terminals:launch", "agents:launch"],
-    compatibility: {
-      managedAgentKind: "pi",
-    },
-  },
-  {
-    id: "hermes",
-    kind: "core:agentHarness",
-    label: "Hermes",
-    description: "Built-in Hermes terminal agent harness adapter.",
-    lifecycle: "built-in",
-    owner: "@exo/core/runtime",
-    surfaces: ["desktop", "cli", "mcp", "commandServer", "internal"],
-    permissions: ["workspace:read", "notes:read", "projects:read", "terminals:launch", "agents:launch"],
-    compatibility: {
-      managedAgentKind: "hermes",
     },
   },
 ] satisfies CapabilityMetadata[];
 
 export const capabilityKinds = [
   "core:searchProvider",
-  "core:agentHarness",
-  "core:profile",
-  "core:routineTemplate",
   "exo.graph:analyzer",
   "exo.graph:visualization",
   "exo.training:traceCollector",

@@ -1,9 +1,8 @@
 import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
-import { builtInCapabilities, type CapabilityMetadata } from "../capabilities";
-import { readWorkspaceDocument } from "../notes";
-import type { IndexReadOptions, IndexSearchOptions, IndexUpdateOptions, SearchProvider } from "../search-provider";
+import type { IndexReadOptions, IndexSearchOptions, IndexUpdateOptions, SearchProvider, SearchProviderMetadata } from "../search-provider";
+import { readFilesystemDocument, searchFilesystem } from "./filesystem-provider";
 import type {
   IndexedRoot,
   IndexReadResponse,
@@ -13,7 +12,6 @@ import type {
   IndexStatus,
   WorkspaceModel,
 } from "../types";
-import { searchWorkspace } from "../workspace";
 
 type QmdModule = typeof import("@tobilu/qmd");
 type QmdStore = Awaited<ReturnType<QmdModule["createStore"]>>;
@@ -22,7 +20,14 @@ const DEFAULT_SEARCH_LIMIT = 10;
 const DEFAULT_CONTENT_LINES = 80;
 const QMD_DIRECTORY_NAME = "qmd";
 
-export const qmdSearchProviderMetadata = resolveQmdSearchProviderMetadata();
+export const qmdSearchProviderMetadata: SearchProviderMetadata = {
+  id: "qmd",
+  label: "QMD advanced search",
+  description: "Bundled advanced local Markdown search provider.",
+  lifecycle: "built-in",
+  backend: "qmd",
+  capabilities: ["lexical", "semantic", "hybrid", "read", "update", "embed", "sync"],
+};
 
 export class QmdSearchProvider implements SearchProvider {
   readonly metadata = qmdSearchProviderMetadata;
@@ -53,14 +58,6 @@ export class QmdSearchProvider implements SearchProvider {
 }
 
 export const qmdSearchProvider = new QmdSearchProvider();
-
-function resolveQmdSearchProviderMetadata(): CapabilityMetadata {
-  const metadata = builtInCapabilities.find((capability) => capability.id === "qmd");
-  if (!metadata) {
-    throw new Error("Built-in QMD capability metadata is not registered.");
-  }
-  return metadata;
-}
 
 export function getQmdRuntimePath(runtimeRoot: string): string {
   return path.join(runtimeRoot, QMD_DIRECTORY_NAME);
@@ -325,21 +322,7 @@ async function readIndexDocument(
     }
   }
 
-  const resolvedPath = path.resolve(target);
-  if (!isPathAllowed(resolvedPath, model)) {
-    throw new Error("Refusing to read a path outside attached or indexed roots.");
-  }
-
-  const document = await readWorkspaceDocument(resolvedPath);
-  return {
-    target,
-    filePath: resolvedPath,
-    title: document.title,
-    body: sliceLines(document.body, options.fromLine, options.maxLines),
-    fromLine: options.fromLine,
-    maxLines: options.maxLines,
-    source: "filesystem",
-  };
+  return readFilesystemDocument(model, target, options);
 }
 
 async function openQmdStore(model: WorkspaceModel, runtimeRoot: string): Promise<QmdStore> {
@@ -438,32 +421,6 @@ function resolveQmdPath(displayPath: string | null, roots: IndexedRoot[]): strin
   return root ? path.join(root.path, ...segments) : null;
 }
 
-async function searchFilesystem(
-  model: WorkspaceModel,
-  query: string,
-  options: IndexSearchOptions,
-  warning: string,
-): Promise<IndexSearchResponse> {
-  const workspaceResults = await searchWorkspace(model, query);
-  const limit = options.limit ?? DEFAULT_SEARCH_LIMIT;
-  const results = [...workspaceResults.notes, ...workspaceResults.projectFiles, ...workspaceResults.tags]
-    .slice(0, limit)
-    .map<IndexSearchResult>((result) => ({
-      filePath: result.filePath,
-      title: result.title,
-      snippet: result.snippet,
-      score: 0,
-      source: "filesystem",
-    }));
-  return {
-    query,
-    mode: model.indexing.mode,
-    source: "filesystem",
-    warnings: [warning],
-    results,
-  };
-}
-
 function modeWarnings(model: WorkspaceModel, hasVectorIndex: boolean, pendingEmbeddings: number): string[] {
   if (model.indexing.mode === "lexical") {
     return [];
@@ -483,11 +440,6 @@ function latestCollectionUpdate(collections: Array<{ lastUpdated?: unknown; last
     .filter((value): value is string => Boolean(value))
     .sort();
   return values.at(-1) ?? null;
-}
-
-function isPathAllowed(targetPath: string, model: WorkspaceModel): boolean {
-  const roots = [...model.noteRoots, ...model.projectRoots, ...model.indexedRoots].map((root) => root.path);
-  return roots.some((root) => isWithin(root, targetPath));
 }
 
 function isPathAllowedByIndexedRoot(targetPath: string, model: WorkspaceModel): boolean {

@@ -1,6 +1,6 @@
 # Exo Issues
 
-Last updated: 2026-07-07
+Last updated: 2026-07-09
 
 This is the canonical active bug/QA tracker for Exo implementation work. It captures user-observed issues that need investigation before the next push/release pass.
 
@@ -8,11 +8,187 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ## Open
 
+### EXO-ISSUE-103: Note paths can escape attached roots and mutate arbitrary filesystem locations
+
+- Status: open
+- Severity: critical
+- Area: workspace files, wikilinks, IPC authorization, symlink/path containment
+- Source:
+  - 2026-07-09 simplification audit of the current `refactor/note-native-exo` working tree.
+- Observed:
+  - Renderer-provided note paths are resolved but not proven to remain inside an attached note root.
+  - `..` segments and symlink escapes can reach outside the authorized workspace.
+  - The clicked-wikilink path can ensure a missing target automatically, so crafted note content can create an outside Markdown file without a separate explicit create action.
+  - Main-process create, read, write, rename, and recursive delete paths ultimately accept arbitrary filesystem paths.
+- Expected:
+  - All note mutations pass through one root-scoped `WorkspaceFiles` capability owned by the main process.
+  - Its interface uses root-relative note identities rather than renderer-supplied absolute paths.
+  - Existing targets are checked with canonical real paths; creates validate the nearest existing ancestor; symlink and traversal escapes fail closed.
+- Acceptance:
+  - [ ] Add failing coverage for `..`, absolute paths, duplicate roots, symlinked files, symlinked directories, create-through-missing-ancestor, rename escape, and recursive-delete escape.
+  - [ ] Route desktop IPC and command-server note operations through the same containment seam.
+  - [ ] Prove ordinary wikilink creation still works inside each attached note root.
+  - [ ] Complete guarded real-vault-copy dogfooding before closing.
+
+### EXO-ISSUE-102: Opening Workspace Settings can erase Agent Commands and pane layout
+
+- Status: open
+- Severity: critical
+- Area: workspace settings, autosave, AgentCommand, pane layout, data preservation
+- Source:
+  - 2026-07-09 live-app reproduction and static audit of `useWorkspaceSettingsController.ts`.
+- Observed:
+  - Opening Settings creates an `idle` draft, which schedules an autosave after 650 ms; closing while idle also saves immediately.
+  - The dialog serializer rebuilds `WorkspaceSettings` from only the fields rendered in the dialog.
+  - It omits at least `agentCommands`, `layout`, `piHarness`, `terminalAgentStartupGraceMs`, and `terminalAgentSubmitDelayMs`.
+  - Main persists the value as a full replacement, and normalization turns the missing command list into `[]`. Merely opening or closing Settings can therefore delete the configured command path and reset saved layout.
+- Expected:
+  - Settings updates have patch semantics and preserve every field the current editor does not own, including unknown forward-compatible keys.
+  - Main-process persistence is serialized, atomic, revision-aware, and reports corrupt/unreadable state distinctly instead of silently replacing it.
+- Acceptance:
+  - [ ] Add the smallest stable regression proving open, wait, close, and reopen are byte-preserving without edits.
+  - [ ] Prove appearance/search/terminal-only edits preserve commands, layout, future unknown keys, and migration metadata.
+  - [ ] Prove concurrent patches cannot silently clobber one another.
+  - [ ] Prove a seeded command remains invokable after the Settings round trip.
+
+### EXO-ISSUE-101: Replace tmux/harness terminal architecture with direct pty and AgentCommand launch
+
+- Status: open
+- Severity: high
+- Area: terminal runtime, xterm input, harness deletion, AgentCommand launch, product simplification
+- Source:
+  - User QA on 2026-07-09: terminal input cannot type spaces reliably, and harness code remains spread through the app after the Exograph pivot.
+  - 2026-07-09 Fable review of the terminal/harness reset.
+- Observed:
+  - The current terminal runtime routes xterm input through a tmux control-mode bridge and hand-written input translation.
+  - Harness registry/readiness/detection concepts still appear across core, desktop, CLI, tests, settings, onboarding, and terminal launch paths.
+  - Existing docs and the terminal-stability skill still describe tmux durability/transcripts as product requirements, which is stale under the Exograph pivot.
+- Expected:
+  - Exo uses xterm over a direct pty for V1 terminals.
+  - Spaces, paste, Enter, Ctrl-C, and resize are passed through without tmux `send-keys` translation.
+  - Exo does not own tmux session persistence, restore snapshots, or terminal transcript history as core V1 behavior.
+  - Agent launch identity is `AgentCommand`; built-in harness registry/readiness/product setup is deleted rather than renamed.
+- Acceptance:
+  - [x] Rewrite terminal plan docs and `skills/terminal-stability/SKILL.md` around direct pty invariants.
+  - [x] Replace `TmuxTerminalRuntime` with a direct pty runtime and remove tmux input translation.
+  - [x] Delete tmux session registry, restore snapshots, recovery service, transcript store, transcript retention settings where no longer used, and tmux-specific diagnostics/tests.
+  - [ ] Delete remaining legacy harness registry/readiness/detection modules after the `exo launch` and runtime launch-plan/context CLI island is replaced or deleted.
+  - [x] Delete harness product UI: settings, rail launch buttons, IPC/preload detection route, onboarding choices, and built-in capability inventory rows.
+  - [x] Add focused regression coverage for space, paste, Enter, Ctrl-C, resize, and configured agent-command launch.
+  - [ ] Run packaged-app QA against real xterm input before closing.
+  - 2026-07-09 validation: core/desktop/CLI typechecks passed; focused desktop terminal/command-server/App tests passed; focused core capability/surface/plugin-inventory tests passed; CLI tests passed; `pnpm terminal:check` passed.
+
+### EXO-ISSUE-100: Audit and delete old MCP/routine/harness/setup product surfaces for the Exograph refactor
+
+- Status: resolved for `refactor/note-native-exo`; V2 decoupling follow-ups remain for named internals.
+- Severity: high
+- Area: refactor, MCP, routines, harness manager, Plugin Manager, profile apply, public contracts
+- Source:
+  - `refactor/note-native-exo` product pivot and Fable-reviewed completion plan on 2026-07-08.
+- Observed:
+  - The active product direction is Exograph: local Markdown exocortex, graph read path, CLI/search/read surfaces, note-native `AgentCommand` invocation, and direct-write diff/attribution.
+  - The repo contained substantial legacy product surfaces for MCP setup, routine execution, promptable harness management, Plugin Manager setup, profile apply, and provider skill setup.
+  - Some legacy internals remain only where they are named current substrate for terminals, search providers, changed-file review, proposal diffs, graph metadata, and app boot.
+- Expected:
+  - Remove old product surfaces aggressively after caller audit.
+  - Preserve only the internals explicitly needed for Exograph, CLI/search, terminal runtime, graph, and invocation review.
+  - Update public-contract checks and review notes when MCP/CLI/command-server/shared-protocol surfaces are intentionally removed.
+  - Document installed-machine cleanup for users with existing Claude/Codex MCP configs before deleting launcher paths.
+- Acceptance:
+  - [x] Audit MCP callers, setup docs, `scripts/check-repo.mjs`, `docs/public-contract-reviews.md`, and installed-machine integration paths.
+  - [x] Audit routine UI/CLI/core/tests and decide which activity/artifact store pieces are reused for invocation records.
+  - [x] Audit deep harness-manager, promptable harness selectors, readiness/send queues, and skill inventory setup surfaces.
+  - [x] Audit Plugin Manager/profile apply/setup surfaces and remove anything that remains old setup spine.
+  - [x] Remove audited legacy surfaces in small chunks with focused tests.
+  - [x] Keep CLI search/read/status and custom search/indexing provider seams working without MCP.
+  - [x] Update README, roadmap, tasks, AGENTS, and changelog after the first deletion chunk.
+- WP1 audit artifact, 2026-07-08:
+  - Architectural approval in force: `docs/exograph-refactor-completion-plan.md` section `Public Contract Approval` authorizes removal of the named MCP, routine, deep harness-manager, profile-apply, and plugin-manager product surfaces, subject to the caller audits and repo public-contract updates listed in Phase 1. This audit does not authorize new public surfaces.
+  - MCP setup/install/file families:
+    - Runtime/package surface: `packages/mcp/**`, `packages/mcp/bin/exo-mcp.mjs`, `packages/mcp/README.md`, root `package.json` build/test scripts, `pnpm-workspace.yaml`.
+    - Public-contract guard: `scripts/check-repo.mjs` protected slices for `packages/mcp/src/index.ts#tool-schemas` and `packages/mcp/src/exo-client.ts#route-client-methods`; required-file check currently names `packages/mcp/README.md`; `docs/public-contract-reviews.md` carries existing hashes and needs an intentional removal note/hash update when slices move or disappear.
+    - Installed-machine setup: `packages/core/src/integrations.ts`, `packages/core/src/__tests__/integrations.test.ts`, `packages/cli/src/index.ts` integration doctor/install commands, `packages/cli/src/index.test.ts`, `scripts/install-local`, and `scripts/install-mac-app` all reference Claude/Codex MCP add/list/remove flows and `packages/mcp/bin/exo-mcp.mjs`.
+    - Agent lifecycle exposure: `packages/mcp/src/index.ts` registers `list_agents`, `create_agent`, `read_agent`, `send_agent_message`, and `terminate_agent`; `packages/core/src/control-plane-catalog.ts` and `packages/core/src/__tests__/control-plane-catalog.test.ts` define exposure profiles and MCP tool risk metadata; `packages/mcp/src/stdio-handshake.test.ts` and `packages/mcp/src/index.test.ts` assert the registered tool set.
+    - Runtime coupling to remove carefully: `packages/core/src/agent-harnesses/builtins.ts` and `packages/core/src/__tests__/runtime.test.ts` prepare Codex launch overrides that point at Exo MCP when an Exo repo is found.
+  - Routine product file families:
+    - CLI surface: `packages/cli/src/index.ts` `exo routines ...` commands and help text; `packages/cli/src/index.test.ts` routine command coverage.
+    - Core substrate: `packages/core/src/routine.ts`, `routine-service.ts`, `routine-template.ts`, `routine-executor.ts`, `routine-run-store.ts`, and tests under `packages/core/src/__tests__/routine*.test.ts`.
+    - Plugin metadata/templates: `plugins/graph-health/exo.plugin.json`, `plugins/agent-instruction-sync/exo.plugin.json`, `plugins/README.md`, and profile payload fields that reference `routineTemplateIds`.
+    - UI/setup callers: `apps/desktop/src/renderer/src/components/OnboardingCapabilityReview.tsx` has the `routines` setup step, default harness selector, and starter routine toggles; `apps/desktop/src/renderer/src/pluginManagerModel.ts` renders `core:routineTemplate`; `apps/desktop/src/renderer/src/profileSettingsModel.ts` and `ProfileSettingsSection.tsx` summarize starter routines and disabled scheduling; `apps/desktop/tests/e2e/shell.spec.ts` asserts onboarding routine steps and Plugin Manager routine-template rows.
+    - Reuse candidate: keep the minimal activity/run/artifact ideas only if they directly simplify `.exo/invocations/{id}` records; do not keep routine CLI/UI as a prerequisite for invocation records.
+  - Deep harness-manager file families:
+    - Launch/registry substrate to keep until `AgentCommand` exists: `packages/core/src/agent-harness.ts`, `agent-harness-registry.ts`, `agent-harnesses/builtins.ts`, `runtime.ts`, terminal creation paths, and command-server/CLI/app callers.
+    - Deep manager/product surfaces to remove after generic `AgentCommand` launch exists: user-facing `exo agents create/read/send/terminate` wrappers in `packages/cli/src/index.ts`, MCP agent lifecycle tools above, `apps/desktop/src/renderer/src/components/OnboardingCapabilityReview.tsx` harness setup/default-routine selection, `WorkspaceSettingsDialog.tsx` Pi-compatible harness configuration, `AgentConfigEditorDialog.tsx` skill inventory/source sync, and `ProfileEditPanel.tsx`/`ProfileSettingsSection.tsx` links that make harness setup a profile/plugin setup dependency.
+    - Readiness/send queue coupling: `apps/desktop/src/main/terminal-harness-readiness.ts`, `terminal-manager.ts`, `WorkspaceSettingsDialog.tsx` startup queue settings, and related tests. These are blocked for deletion until generic configured-command launch is designed because current Claude/Codex/Pi terminals still use them.
+  - Profile apply file families:
+    - Core proposal/recovery: `packages/core/src/profile-apply-proposal.ts`, `profile-apply-recovery.ts`, `proposal-review.ts`, proposal apply host, fixtures under `packages/core/src/__tests__/fixtures/profile-apply-vault/**`, and tests `profile-apply-proposal.test.ts`, `profile-apply-recovery.test.ts`, `profile-plan.test.ts`.
+    - CLI operator surface: `packages/cli/src/index.ts` `exo profile-recovery list|show|restore` and tests.
+    - UI/setup copy: `apps/desktop/src/renderer/src/profileSettingsModel.ts`, `ProfileSettingsSection.tsx`, `ProfileEditPanel.tsx`, `pluginManagerModel.ts`, and `OnboardingCapabilityReview.tsx` mention profile template writes, MCP config templates, skill installs, routine scheduling, plugin enablement, and disabled apply gates.
+    - Temporary retention: keep read-only profile inspection and recovery evidence until direct-write review exists; remove profile apply expansion/setup copy that implies templates, skills, routines, settings, permissions, or MCP config are part of first-run setup.
+  - Plugin Manager setup-spine file families:
+    - UI/model/tests: `apps/desktop/src/renderer/src/components/PluginManagerDialog.tsx`, `pluginManagerModel.ts`, `App.tsx` plugin-manager open paths, `WorkspaceSettingsDialog.tsx` and `ProfileSettingsSection.tsx` links, `OnboardingCapabilityReview.tsx` review-capabilities flow, and Plugin Manager e2e slices in `apps/desktop/tests/e2e/shell.spec.ts`.
+    - Core metadata internals: `packages/core/src/plugin.ts`, `plugin-inventory.ts`, `plugin-management.ts`, `plugin-state.ts`, `plugin-settings.ts`, `plugin-permissions.ts`, `capabilities.ts`, plus tests. Keep these only where search providers, graph visualization metadata, profile inspection, or app boot still need them.
+    - Graph coupling: `packages/core/src/graph.ts` imports `CapabilityMetadata`/`CapabilitySurface` and exposes `graphVisualizationsFromPlugin()`; `packages/core/src/graph-snapshot.ts` is mostly independent. WP1 must preserve or decouple this type coupling before deleting plugin/capability internals.
+  - Safe first deletion chunk:
+    - Remove setup copy first: stop presenting MCP install, starter routines, profile apply, Plugin Manager review, and harness skill setup as first-run or primary setup steps in README/setup docs and onboarding copy.
+    - Remove primary UI affordances before module deletion: remove the onboarding `routines` step and Plugin Manager/profile deep links from primary setup while keeping only specifically retained diagnostics.
+    - Then narrow MCP exposure: switch default MCP setup/docs toward `off`/deprecation and remove MCP agent lifecycle copy before deleting tool schemas.
+    - Then remove routine CLI/help/docs before module deletion.
+  - WP1 first setup-surface removal chunk, 2026-07-08:
+    - Renderer onboarding now skips the legacy `routines` and `skills` steps, removes agent harness selection from first-run capability choices, and saves the onboarding profile without default harness or starter routine template selections.
+    - Profile settings/profile review copy no longer frames Plugin Manager, Agent Config skills, profile apply, MCP exposure, or routine scheduling as the active setup spine; existing diagnostic/provider surfaces remain reachable where already present.
+  - WP1 routine CLI/UI deletion chunk, 2026-07-08:
+    - Deleted the remaining onboarding `routines` and `skills` panes, their standard-skill application code, and dead styles.
+    - Removed the `exo routines` CLI commands, help text, app-backed routine execution host, and routine CLI tests. Routine core/run-store/plugin metadata remains deferred because invocation storage and plugin/profile inventory still reference it.
+    - Deleted the routine-template plugin authoring template so new local routine-template plugins are no longer scaffolded from the repo.
+  - WP1 routine core deletion chunk, 2026-07-09:
+    - Deleted `packages/core/src/routine.ts`, `routine-service.ts`, `routine-template.ts`, `routine-executor.ts`, `routine-run-store.ts`, and their focused tests.
+    - Deleted the bundled `graph-health` and `agent-instruction-sync` routine-template plugin manifests.
+    - Removed `core:routineTemplate` from supported capability kinds, Plugin Manager categories/detail sections, tool descriptors, profile payloads, active-profile setup state, and onboarding setup-step compatibility.
+  - WP1 agent config skill/harness deletion chunk, 2026-07-09:
+    - Reframed the Agent Config dialog as Agent Context and removed the stale Harnesses and Skills tabs.
+    - Deleted the desktop Agent Skills service, shared API methods, preload bridge, main-process IPC handlers, service tests, E2E skill-manager tests, and dead skill/harness CSS.
+    - Kept terminal harness registry/readiness internals and Workspace Settings Pi diagnostics because current terminal launch paths still consume them.
+    - Final validation: core/CLI/desktop typechecks passed; core tests 261/261, CLI tests 63/63, desktop tests 282/282 passed; `pnpm check:repo` passed; desktop build passed; invocation E2E passed 3/3; focused shell/settings E2E passed after rerunning one Electron startup flake.
+    - Kept only neutral activity/artifact helpers and moved store path sanitization into `store-paths.ts`.
+  - WP1 Plugin Manager product deletion chunk, 2026-07-09:
+    - Deleted the remaining renderer Plugin Manager product model (`pluginManagerModel.ts`), Plugin Manager dialog imports/tests, Plugin Manager E2E slices, Plugin Manager CSS, right-rail `open-plugin-manager` expectation, and active settings/profile copy that routed users to Plugin Manager.
+    - Removed mutable plugin lifecycle internals by deleting `packages/core/src/plugin-management.ts`, `plugin-local-management.ts`, and their focused tests.
+    - Split read-only manifest discovery into `packages/core/src/plugin-discovery.ts` so `profile-copy.ts` no longer imports a mutation-oriented management module.
+    - Updated `scripts/check-repo.mjs` so the deleted renderer Plugin Manager model is no longer an allowed entrypoint reader.
+    - Remaining plugin internals are not Plugin Manager UI: `plugin-inventory`, `plugin-state`, `plugin-settings`, `plugin-permissions`, `plugin.ts`, and capability metadata still have live profile/search/onboarding/test imports and need a later decoupling pass before deletion.
+    - Focused validation: core/CLI/desktop typechecks passed; `pnpm check:repo` passed; focused core tests for surface/plugin/profile/state/settings passed; focused desktop renderer/main tests passed; desktop build passed.
+  - WP1 profile apply/recovery deletion chunk, 2026-07-09:
+    - Targeted audit found no real `.exo/proposal-recovery/profile-apply/*.json` manifests in the active Exo repo, lab projects, or shoshin-codex notes.
+    - Deleted CLI `exo profile-recovery`, renderer/main/preload `createProfileApplyProposal`, core `profile-apply-proposal`/`profile-apply-recovery`, profile-apply fixtures/tests, and proposal-apply-host recovery-manifest writing.
+    - Profile preview/copy and generic proposal review remain; profile-owned file-template application no longer exists as a V1 product/setup path.
+    - Focused validation: core/CLI/desktop typechecks passed; focused core proposal/profile tests passed; focused CLI tests passed; focused desktop App tests passed.
+  - WP0.5 pointer-prompt dogfooding closure, 2026-07-09:
+    - Default invocation E2E passed 4/4: configured note invocation/diff, dirty-buffer conflict choice, orphaned restart recovery, and 10 consecutive real pointer-prompt note invocations through the Exo UI.
+    - Opt-in live Claude gate passed 1/1 with `EXO_LIVE_CLAUDE_E2E=1`: Exo launched a configured command, sent the pointer prompt through terminal input, the command invoked Claude, and Claude read the pointed Markdown document and returned the marker plus H1.
+  - Final validation closure, 2026-07-09:
+    - `pnpm ci:check` passed with repo checks, core/CLI/desktop typechecks, core 238/238, CLI 62/62, desktop 272/272, desktop/CLI builds, and install-local dry run.
+    - `pnpm test:e2e` passed 100/102; the two skips are the existing markdown-decoration skip and the opt-in live Claude gate.
+    - `pnpm terminal:check` passed after the AgentCommand and preview/test updates.
+    - CLI operator evidence: `exo status` works without the app; `exo read` returns filesystem-backed note content; `exo search` degrades to filesystem search when QMD has a local native Node ABI mismatch; `exo spawn @handle <task>` is implemented, tested, and listed in CLI help.
+    - Graph UI evidence: full shell E2E covers backlinks/tags and the graph-neighborhood panel for the active Markdown note.
+  - WP1 MCP deletion chunk, 2026-07-08:
+    - Deleted `packages/mcp/**`, removed the MCP build/test package from root scripts and lockfile, removed `exo integrations`, and dropped `--with-mcp` install flags from local/mac install scripts.
+    - Removed MCP capability surfaces and the control-plane catalog, deleted MCP public-contract guard slices, and updated the public-contract review ledger to make CLI/app command-server/shared protocol the guarded surfaces.
+    - Removed hidden Codex MCP launch injection from built-in harness preparation and updated runtime/agent instruction context to point agents at the CLI.
+    - Removed MCP profile config templates from profile model, profile planning, profile apply proposals, renderer profile summaries, and fixture-vault proposal tests.
+    - Preserved CLI search/read/status and command-server routes as the active local integration path.
+  - Surviving internals, not V1 product surfaces:
+    - Terminal harness registry/readiness/send-queue code remains only as terminal-runtime substrate for existing Claude/Codex/Pi terminal launch and diagnostics. User-facing agent identity for the refactor is `AgentCommand`.
+    - Plugin metadata/state/settings/inventory internals remain only where current profile/search/onboarding/app-boot imports require them. The user-facing Plugin Manager product surface and mutable lifecycle APIs are deleted.
+    - Profile apply/recovery is deleted after the no-manifest audit.
+
 ### EXO-ISSUE-099: Onboarding, Agent Config, Skills, and Profile management are not trustworthy or aligned
 
 - Status: open
 - Severity: high
 - Area: onboarding, Agent Config Editor, Plugin Manager, skills, profiles, harness configuration, routines
+- Pivot note: the skill-management expectations below are historical. On `refactor/note-native-exo`, the onboarding Skills path, Agent Config Skills tab, GitHub skill source sync, and desktop Agent Skills service were removed rather than carried into the new regime.
 - Source:
   - User QA on 2026-07-07 after the latest onboarding/profile/plugin changes.
 - Observed:

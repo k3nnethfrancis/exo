@@ -1,5 +1,7 @@
 # Profile And Plugin Management Plan
 
+> Superseded as an active product path by `docs/exograph-refactor-completion-plan.md` on `refactor/note-native-exo`. Profile apply/recovery and Plugin Manager product surfaces were deleted after the no-manifest audit. Keep this file only as historical planning context and reuse inventory.
+
 Last updated: 2026-06-28
 
 This plan turns the current plugin inventory foundation into a usable profile and plugin management experience.

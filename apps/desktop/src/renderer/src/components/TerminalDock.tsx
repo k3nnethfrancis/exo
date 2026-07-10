@@ -1,9 +1,9 @@
 import { useEffect, useRef, type CSSProperties, type ReactNode, type Ref } from "react";
-import { Bot, GripVertical, LayoutGrid, RefreshCw, SquareTerminal, X } from "lucide-react";
+import { Bot, GripVertical, SquareTerminal, X } from "lucide-react";
 
 import type { TerminalSessionInfo } from "../../../shared/api";
 import type { DragManager } from "../hooks/useDragManager";
-import { isReconnectableSession, isTerminalInputEnabled } from "../terminalSessions";
+import { isTerminalInputEnabled } from "../terminalSessions";
 import type { ExoThemeVariant } from "../theme/types";
 import { AgentIcon } from "./AgentIcon";
 import { ChromeTab } from "./Chrome";
@@ -27,13 +27,12 @@ interface TerminalDockProps {
   fontSize: number;
   scrollbackLines: number;
   onFocus: () => void;
-  onHydrate: (id: string, options?: { force?: boolean; reason?: "bootstrap" | "reconnect" }) => void;
+  onHydrate: (id: string, options?: { force?: boolean; reason?: "bootstrap" | "refresh" }) => void;
   onHydrated: (id: string) => void;
   onSetActiveTerminal: (id: string) => void;
   onWrite: (id: string, data: string) => void;
   onGeometryMeasured: (id: string, cols: number, rows: number) => void;
   onKill: (id: string) => void;
-  onReconnect?: (id: string) => void;
   dragManager: DragManager;
   onTogglePlacement: () => void;
   monitorMode: boolean;
@@ -67,18 +66,14 @@ export function TerminalDock(props: TerminalDockProps) {
     onWrite,
     onGeometryMeasured,
     onKill,
-    onReconnect,
     dragManager,
     onTogglePlacement,
-    monitorMode,
-    onToggleMonitorMode,
     ref,
     headerActions,
     overlay,
     style,
   } = props;
   const activeSession = sessions.find((session) => session.id === activeTerminalId) ?? null;
-  const canReconnect = Boolean(activeSession && isReconnectableSession(activeSession) && onReconnect);
   const terminalWritable = activeSession ? isTerminalInputEnabled(activeSession) : true;
   const terminalHydrating = Boolean(activeSession && hydratingTerminalIds.has(activeSession.id));
   const inputEnabled = terminalWritable && !terminalHydrating;
@@ -157,36 +152,7 @@ export function TerminalDock(props: TerminalDockProps) {
                 </ChromeTab>
               ))}
             </div>
-            {headerActions || canReconnect || onToggleMonitorMode ? (
-              <div className="terminal-dock__actions">
-                <button
-                  type="button"
-                  className={`terminal-dock__header-button ${monitorMode ? "terminal-dock__header-button--active" : ""}`}
-                  data-testid="terminal-monitor-mode"
-                  title={monitorMode ? "Exit monitor mode" : "Monitor all terminals"}
-                  aria-pressed={monitorMode}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onToggleMonitorMode();
-                  }}
-                >
-                  <LayoutGrid size={13} />
-                </button>
-                {canReconnect && activeSession ? (
-                  <button
-                    type="button"
-                    className="terminal-dock__header-button terminal-dock__reconnect"
-                    data-testid="terminal-reconnect"
-                    title={activeSession.healthDetail ? `Reconnect terminal · ${activeSession.healthDetail}` : "Reconnect terminal"}
-                    onClick={() => onReconnect?.(activeSession.id)}
-                  >
-                    <RefreshCw size={13} />
-                    <span>Reconnect</span>
-                  </button>
-                ) : null}
-                {headerActions}
-              </div>
-            ) : null}
+            {headerActions ? <div className="terminal-dock__actions">{headerActions}</div> : null}
           </div>
 
           {activeSession ? (

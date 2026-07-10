@@ -24,38 +24,6 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
-.terminal-rail {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 16px 0 8px;
-  box-sizing: border-box;
-  width: 42px;
-  border-left: 1px solid color-mix(in srgb, var(--divider) 64%, transparent);
-  background: var(--sidebar-bg);
-  z-index: 4;
-}
-
-.terminal-rail__spacer {
-  flex: 1 1 auto;
-}
-
-.terminal-rail .appearance-toggle__button {
-  flex: 0 0 auto;
-}
-
-.workspace__body--terminal-bottom .terminal-rail {
-  flex-direction: column;
-  justify-content: flex-start;
-  gap: 8px;
-  padding: 16px 0 8px;
-  box-sizing: border-box;
-  width: 42px;
-  border-left: 1px solid color-mix(in srgb, var(--divider) 64%, transparent);
-  border-bottom: 0;
-}
-
 .workspace__body--terminal-bottom .terminal-dock {
   border-left: 0;
   border-top: 1px solid color-mix(in srgb, var(--divider) 28%, transparent);
@@ -74,7 +42,7 @@
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-rows: 40px auto minmax(0, 1fr);
+  grid-template-rows: 44px auto minmax(0, 1fr);
   position: relative;
 }
 
@@ -85,10 +53,10 @@
   padding: 0;
   padding-right: 8px;
   border-bottom: 1px solid color-mix(in srgb, var(--divider) 52%, transparent);
-  background: transparent;
+  background: color-mix(in srgb, var(--terminal-bg) 96%, var(--chrome-bg));
   justify-content: space-between;
-  min-height: 40px;
-  height: 40px;
+  min-height: 44px;
+  height: 44px;
   grid-column: 1;
   grid-row: 1;
   min-width: 0;
@@ -105,6 +73,7 @@
   width: 26px;
   height: 26px;
   border-radius: 8px;
+  transition: background-color 140ms var(--exo-ease-out), color 140ms var(--exo-ease-out), transform 120ms var(--exo-ease-out);
 }
 
 .terminal-dock__header-button--active {
@@ -112,18 +81,8 @@
   background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
-.terminal-dock__reconnect {
-  width: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 0 9px;
-  border: 1px solid color-mix(in srgb, var(--accent) 42%, var(--divider));
-  background: color-mix(in srgb, var(--accent) 12%, var(--surface-2));
-  color: var(--text);
-  font-size: 12px;
-  line-height: 1;
-  white-space: nowrap;
+.terminal-dock__header-button:active {
+  transform: scale(var(--exo-press-scale));
 }
 
 .terminal-dock__footer {
@@ -283,11 +242,24 @@
   background: transparent;
   color: var(--muted);
   cursor: pointer;
+  transition: background-color 140ms var(--exo-ease-out), color 140ms var(--exo-ease-out), transform 120ms var(--exo-ease-out);
 }
 
 .browser-pane__button:hover {
   background: var(--surface-hover);
   color: var(--text);
+}
+
+.browser-pane__button:active {
+  transform: scale(var(--exo-press-scale));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .terminal-dock__header-button,
+  .browser-pane__button {
+    transition-duration: 0.01ms;
+    transform: none !important;
+  }
 }
 
 .browser-pane__frame {

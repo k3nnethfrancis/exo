@@ -3,9 +3,17 @@ import os from "node:os";
 import path from "node:path";
 
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
-import { SemanticTraceStore, agentHarnessRegistry, captureFakeHarnessTraceFixture, semanticTraceEventsToAgentAnswerText, type AgentHarness } from "@exo/core";
+import {
+  EXO_COMMAND_TOKEN_HEADER,
+  SemanticTraceStore,
+  agentHarnessRegistry,
+  captureFakeHarnessTraceFixture,
+  semanticTraceEventsToAgentAnswerText,
+  type AgentHarness,
+} from "@exo/core";
 
 import { CommandServer, type CommandServerOptions } from "./command-server";
+import { AgentCommandInvocationError } from "./agent-command-invocation-service";
 
 const tempPaths: string[] = [];
 const COMMAND_SERVER_ONLY_HARNESS_ID = "test.command-server-only";
@@ -62,8 +70,24 @@ describe("CommandServer discovery", () => {
       });
       await expect(readServerInfo(runtimeRoot)).resolves.toMatchObject({ port, pid: process.pid });
 
-      const response = await fetch(`http://127.0.0.1:${port}/status`);
+      const response = await commandFetch(runtimeRoot, port, "/status");
       await expect(response.json()).resolves.toEqual({ ok: true });
+    } finally {
+      server.stop();
+    }
+  });
+
+  it("rejects every route without the runtime token", async () => {
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-command-server-"));
+    tempPaths.push(runtimeRoot);
+    const server = new CommandServer(commandServerOptions(runtimeRoot));
+
+    try {
+      const port = await server.start();
+      const response = await fetch(`http://127.0.0.1:${port}/status`);
+
+      expect(response.status).toBe(401);
+      await expect(response.json()).resolves.toMatchObject({ error: "Missing or invalid Exo command token." });
     } finally {
       server.stop();
     }
@@ -85,7 +109,7 @@ describe("CommandServer preview routes", () => {
 
     try {
       const port = await server.start();
-      const response = await fetch(`http://127.0.0.1:${port}/preview/open`, {
+      const response = await commandFetch(runtimeRoot, port, "/preview/open", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ target: "http://localhost:4321/report.html" }),
@@ -122,8 +146,8 @@ describe("CommandServer preview routes", () => {
 
     try {
       const port = await server.start();
-      const focusResponse = await fetch(`http://127.0.0.1:${port}/preview/focus`, { method: "POST" });
-      const closeResponse = await fetch(`http://127.0.0.1:${port}/preview/close`, { method: "POST" });
+      const focusResponse = await commandFetch(runtimeRoot, port, "/preview/focus", { method: "POST" });
+      const closeResponse = await commandFetch(runtimeRoot, port, "/preview/close", { method: "POST" });
 
       expect(focusResponse.ok).toBe(true);
       await expect(focusResponse.json()).resolves.toEqual({ ok: true });
@@ -138,11 +162,74 @@ describe("CommandServer preview routes", () => {
 });
 
 describe("CommandServer terminal routes", () => {
-  it("creates launchable public agent harness ids through substrate launch options", async () => {
+  it("spawns configured AgentCommands through the command server", async () => {
     const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-command-server-"));
     tempPaths.push(runtimeRoot);
-    const previousCodexCommand = process.env.EXO_CODEX_COMMAND;
-    process.env.EXO_CODEX_COMMAND = "/bin/sh";
+    let received: { handle: string; task: string } | null = null;
+    const server = new CommandServer({
+      ...commandServerOptions(runtimeRoot),
+      onSpawnAgentCommand: async (input) => {
+        received = input;
+        return commandServerOptions(runtimeRoot).onSpawnAgentCommand(input);
+      },
+    });
+
+    try {
+      const port = await server.start();
+      const response = await commandFetch(runtimeRoot, port, "/agent-commands/spawn", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ handle: "@fable", task: "review this plan" }),
+      });
+
+      expect(response.ok).toBe(true);
+      await expect(response.json()).resolves.toMatchObject({
+        ok: true,
+        invocation: { id: "invocation-1", context: "cli", message: "review this plan" },
+        terminal: { id: "terminal-1" },
+      });
+      expect(received).toEqual({ handle: "@fable", task: "review this plan" });
+    } finally {
+      server.stop();
+    }
+  });
+
+  it("returns structured errors for untrusted AgentCommand spawn", async () => {
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-command-server-"));
+    tempPaths.push(runtimeRoot);
+    const server = new CommandServer({
+      ...commandServerOptions(runtimeRoot),
+      onSpawnAgentCommand: async () => {
+        throw new AgentCommandInvocationError(
+          "agent-command-untrusted",
+          "AgentCommand @fable must be trusted in Exo before it can launch.",
+          { handle: "fable", executableFingerprint: "1".repeat(64) },
+        );
+      },
+    });
+
+    try {
+      const port = await server.start();
+      const response = await commandFetch(runtimeRoot, port, "/agent-commands/spawn", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ handle: "@fable", task: "review this plan" }),
+      });
+
+      expect(response.status).toBe(403);
+      await expect(response.json()).resolves.toMatchObject({
+        ok: false,
+        code: "agent-command-untrusted",
+        handle: "fable",
+      });
+    } finally {
+      server.stop();
+    }
+  });
+
+  it("creates shell terminals through substrate launch options", async () => {
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-command-server-"));
+    tempPaths.push(runtimeRoot);
     let receivedTerminalKind = "";
     let receivedHarnessId = "";
     let receivedCallerSurface = "";
@@ -154,12 +241,12 @@ describe("CommandServer terminal routes", () => {
         receivedCallerSurface = options.callerSurface ?? "";
         return {
           id: "terminal-1",
-          terminalKind: "agent",
-          harnessId: "codex",
-          kind: "codex",
-          title: "Codex",
+          terminalKind: "shell",
+          harnessId: null,
+          kind: "shell",
+          title: "Shell",
           cwd: runtimeRoot,
-          command: "codex",
+          command: "zsh",
           status: "running",
         };
       },
@@ -167,23 +254,18 @@ describe("CommandServer terminal routes", () => {
 
     try {
       const port = await server.start();
-      const response = await fetch(`http://127.0.0.1:${port}/terminals`, {
+      const response = await commandFetch(runtimeRoot, port, "/terminals", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ harnessId: "codex", callerSurface: "cli" }),
+        body: JSON.stringify({ kind: "shell", callerSurface: "cli" }),
       });
 
       expect(response.ok).toBe(true);
-      await expect(response.json()).resolves.toMatchObject({ id: "terminal-1", kind: "codex" });
-      expect(receivedTerminalKind).toBe("agent");
-      expect(receivedHarnessId).toBe("codex");
+      await expect(response.json()).resolves.toMatchObject({ id: "terminal-1", kind: "shell" });
+      expect(receivedTerminalKind).toBe("shell");
+      expect(receivedHarnessId).toBe("");
       expect(receivedCallerSurface).toBe("commandServer");
     } finally {
-      if (previousCodexCommand === undefined) {
-        delete process.env.EXO_CODEX_COMMAND;
-      } else {
-        process.env.EXO_CODEX_COMMAND = previousCodexCommand;
-      }
       server.stop();
     }
   });
@@ -211,7 +293,7 @@ describe("CommandServer terminal routes", () => {
 
     try {
       const port = await server.start();
-      const response = await fetch(`http://127.0.0.1:${port}/terminals`, {
+      const response = await commandFetch(runtimeRoot, port, "/terminals", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ harnessId: "local.llama-agent", kind: "shell" }),
@@ -220,9 +302,9 @@ describe("CommandServer terminal routes", () => {
       expect(response.status).toBe(400);
       await expect(response.json()).resolves.toMatchObject({
         ok: false,
-        code: "unsupported-agent-harness",
+        code: "unsupported-terminal-launch",
         harnessId: "local.llama-agent",
-        error: expect.stringContaining("Agent harness is not registered: local.llama-agent"),
+        error: expect.stringContaining("Terminal creation only supports shell"),
       });
       expect(created).toBe(false);
     } finally {
@@ -244,7 +326,7 @@ describe("CommandServer terminal routes", () => {
 
     try {
       const port = await server.start();
-      const response = await fetch(`http://127.0.0.1:${port}/terminals`, {
+      const response = await commandFetch(runtimeRoot, port, "/terminals", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -257,9 +339,9 @@ describe("CommandServer terminal routes", () => {
       expect(response.status).toBe(400);
       await expect(response.json()).resolves.toMatchObject({
         ok: false,
-        code: "unsupported-agent-harness",
+        code: "unsupported-terminal-launch",
         harnessId: COMMAND_SERVER_ONLY_HARNESS_ID,
-        error: expect.stringContaining(`Agent harness is not approved for cli launch: ${COMMAND_SERVER_ONLY_HARNESS_ID}`),
+        error: expect.stringContaining("Terminal creation only supports shell"),
       });
       expect(created).toBe(false);
     } finally {
@@ -267,7 +349,7 @@ describe("CommandServer terminal routes", () => {
     }
   });
 
-  it("rejects command-server-only harnesses for MCP callers", async () => {
+  it("rejects deleted MCP caller surface as an unsupported terminal launch", async () => {
     const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-command-server-"));
     tempPaths.push(runtimeRoot);
     let created = false;
@@ -281,7 +363,7 @@ describe("CommandServer terminal routes", () => {
 
     try {
       const port = await server.start();
-      const response = await fetch(`http://127.0.0.1:${port}/terminals`, {
+      const response = await commandFetch(runtimeRoot, port, "/terminals", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -294,9 +376,8 @@ describe("CommandServer terminal routes", () => {
       expect(response.status).toBe(400);
       await expect(response.json()).resolves.toMatchObject({
         ok: false,
-        code: "unsupported-agent-harness",
-        harnessId: COMMAND_SERVER_ONLY_HARNESS_ID,
-        error: expect.stringContaining(`Agent harness is not approved for mcp launch: ${COMMAND_SERVER_ONLY_HARNESS_ID}`),
+        code: "unsupported-terminal-launch",
+        error: expect.stringContaining("Terminal creation only supports shell"),
       });
       expect(created).toBe(false);
     } finally {
@@ -318,7 +399,7 @@ describe("CommandServer terminal routes", () => {
 
     try {
       const port = await server.start();
-      const response = await fetch(`http://127.0.0.1:${port}/terminals/term-1/tail?lines=2`);
+      const response = await commandFetch(runtimeRoot, port, "/terminals/term-1/tail?lines=2");
 
       expect(response.ok).toBe(true);
       await expect(response.json()).resolves.toEqual({ tail: "line-2\nline-3" });
@@ -347,7 +428,7 @@ describe("CommandServer terminal routes", () => {
 
     try {
       const port = await server.start();
-      const response = await fetch(`http://127.0.0.1:${port}/terminals/term-pi/semantic-answer?limit=10`);
+      const response = await commandFetch(runtimeRoot, port, "/terminals/term-pi/semantic-answer?limit=10");
 
       expect(response.ok).toBe(true);
       await expect(response.json()).resolves.toEqual({ answer: "PI_FIXTURE_ANSWER OK" });
@@ -379,7 +460,7 @@ describe("CommandServer terminal routes", () => {
 
     try {
       const port = await server.start();
-      const response = await fetch(`http://127.0.0.1:${port}/terminals`, {
+      const response = await commandFetch(runtimeRoot, port, "/terminals", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ harnessId: "hermes", kind: "hermes" }),
@@ -388,9 +469,9 @@ describe("CommandServer terminal routes", () => {
       expect(response.status).toBe(400);
       await expect(response.json()).resolves.toMatchObject({
         ok: false,
-        code: "unsupported-agent-harness",
+        code: "unsupported-terminal-launch",
         harnessId: "hermes",
-        error: expect.stringContaining("Agent harness is not launchable: hermes"),
+        error: expect.stringContaining("Terminal creation only supports shell"),
       });
       expect(created).toBe(false);
     } finally {
@@ -422,7 +503,7 @@ describe("CommandServer terminal routes", () => {
     try {
       const port = await server.start();
       const message = "Keep   exact spaces.\nAnd punctuation: !?()";
-      const response = await fetch(`http://127.0.0.1:${port}/terminals/term-1/message`, {
+      const response = await commandFetch(runtimeRoot, port, "/terminals/term-1/message", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message, submit: false }),
@@ -490,8 +571,8 @@ describe("CommandServer terminal routes", () => {
 
     try {
       const port = await server.start();
-      const terminals = await fetchJson(`http://127.0.0.1:${port}/terminals`);
-      const diagnostics = await fetchJson(`http://127.0.0.1:${port}/terminals/diagnostics`);
+      const terminals = await fetchJson(runtimeRoot, port, "/terminals");
+      const diagnostics = await fetchJson(runtimeRoot, port, "/terminals/diagnostics");
 
       expect(terminals[0]).not.toHaveProperty("transport");
       expect(terminals[0]).not.toHaveProperty("tmuxSession");
@@ -522,175 +603,27 @@ describe("CommandServer terminal routes", () => {
     }
   });
 
-  it("reconnects terminal bridges over HTTP", async () => {
-    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-command-server-"));
-    tempPaths.push(runtimeRoot);
-    let receivedId = "";
-    const server = new CommandServer({
-      ...commandServerOptions(runtimeRoot),
-      onReconnectTerminal: async (id) => {
-        receivedId = id;
-        return {
-          id,
-          kind: "shell",
-          title: "Terminal",
-          cwd: runtimeRoot,
-          command: "zsh",
-          status: "running",
-        };
-      },
-    });
-
-    try {
-      const port = await server.start();
-      const response = await fetch(`http://127.0.0.1:${port}/terminals/term-1/reconnect`, {
-        method: "POST",
-      });
-
-      await expect(response.json()).resolves.toMatchObject({
-        ok: true,
-        terminal: { id: "term-1", status: "running" },
-      });
-      expect(receivedId).toBe("term-1");
-    } finally {
-      server.stop();
-    }
-  });
-
-  it("reconnects recoverable terminal bridges over HTTP", async () => {
-    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-command-server-"));
-    tempPaths.push(runtimeRoot);
-    let reconnected = false;
-    const server = new CommandServer({
-      ...commandServerOptions(runtimeRoot),
-      onReconnectRecoverableTerminals: () => {
-        reconnected = true;
-      },
-    });
-
-    try {
-      const port = await server.start();
-      const response = await fetch(`http://127.0.0.1:${port}/terminals/reconnect-recoverable`, {
-        method: "POST",
-      });
-
-      expect(response.ok).toBe(true);
-      await expect(response.json()).resolves.toEqual({ ok: true });
-      expect(reconnected).toBe(true);
-    } finally {
-      server.stop();
-    }
-  });
-
-  it("resyncs a terminal over the reconnect recovery path", async () => {
-    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-command-server-"));
-    tempPaths.push(runtimeRoot);
-    let receivedId = "";
-    const server = new CommandServer({
-      ...commandServerOptions(runtimeRoot),
-      onReconnectTerminal: async (id) => {
-        receivedId = id;
-        return {
-          id,
-          kind: "shell",
-          title: "Terminal",
-          cwd: runtimeRoot,
-          command: "zsh",
-          status: "running",
-        };
-      },
-    });
-
-    try {
-      const port = await server.start();
-      const response = await fetch(`http://127.0.0.1:${port}/terminals/term-1/resync`, {
-        method: "POST",
-      });
-
-      await expect(response.json()).resolves.toMatchObject({
-        ok: true,
-        terminal: { id: "term-1", status: "running" },
-      });
-      expect(receivedId).toBe("term-1");
-    } finally {
-      server.stop();
-    }
-  });
-
-  it("creates, reads, lists, and decides proposals over HTTP", async () => {
-    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-command-server-"));
-    tempPaths.push(runtimeRoot);
-    const proposals = new Map<string, any>();
-    const server = new CommandServer({
-      ...commandServerOptions(runtimeRoot),
-      onCreateProposal: async (proposal) => {
-        proposals.set(proposal.id, proposal);
-        return proposal;
-      },
-      onListProposals: async () => [...proposals.values()],
-      onReadProposal: async (id) => proposals.get(id) ?? null,
-      onDecideProposal: async (id, input) => {
-        const proposal = {
-          ...proposals.get(id),
-          status: input.decision === "accept" ? "accepted" : "rejected",
-          items: proposals.get(id).items.map((item: any) => ({
-            ...item,
-            itemStatus: input.decision === "accept" ? "accepted" : "rejected",
-          })),
-        };
-        proposals.set(id, proposal);
-        return {
-          proposal,
-          appliedItems: input.decision === "accept"
-            ? [{ id: "create-1", kind: "fileCreate", path: "notes/new.md", action: "created" }]
-            : [],
-        };
-      },
-    });
-    const proposal = {
-      id: "proposal-1",
-      status: "pending",
-      provenance: { activityId: "activity-1" },
-      items: [{ id: "create-1", kind: "fileCreate", path: "notes/new.md", contents: "# New\n", itemStatus: "pending" }],
-    };
-
-    try {
-      const port = await server.start();
-      const createResponse = await fetch(`http://127.0.0.1:${port}/proposals`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ proposal }),
-      });
-      const listResponse = await fetchJson(`http://127.0.0.1:${port}/proposals`);
-      const readResponse = await fetchJson(`http://127.0.0.1:${port}/proposals/proposal-1`);
-      const decideResponse = await fetch(`http://127.0.0.1:${port}/proposals/proposal-1/decision`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ decision: "accept" }),
-      });
-
-      await expect(createResponse.json()).resolves.toMatchObject({ ok: true, proposal: { id: "proposal-1" } });
-      expect(listResponse.proposals).toHaveLength(1);
-      expect(readResponse.proposal.id).toBe("proposal-1");
-      await expect(decideResponse.json()).resolves.toMatchObject({
-        ok: true,
-        proposal: { status: "accepted" },
-        appliedItems: [{ id: "create-1", action: "created" }],
-      });
-    } finally {
-      server.stop();
-    }
-  });
 });
 
-async function fetchJson(url: string): Promise<any> {
-  const response = await fetch(url);
+async function commandFetch(runtimeRoot: string, port: number, route: string, init: RequestInit = {}): Promise<Response> {
+  const { token } = await readServerInfo(runtimeRoot);
+  const headers = new Headers(init.headers);
+  headers.set(EXO_COMMAND_TOKEN_HEADER, token);
+  headers.set("Authorization", `Bearer ${token}`);
+  return fetch(`http://127.0.0.1:${port}${route}`, {
+    ...init,
+    headers,
+  });
+}
+
+async function fetchJson(runtimeRoot: string, port: number, route: string): Promise<any> {
+  const response = await commandFetch(runtimeRoot, port, route);
   expect(response.ok).toBe(true);
   return response.json();
 }
 
-async function readServerInfo(runtimeRoot: string): Promise<{ port: number; pid: number }> {
-  return JSON.parse(await readFile(path.join(runtimeRoot, "server.json"), "utf8")) as { port: number; pid: number };
+async function readServerInfo(runtimeRoot: string): Promise<{ port: number; pid: number; token: string }> {
+  return JSON.parse(await readFile(path.join(runtimeRoot, "server.json"), "utf8")) as { port: number; pid: number; token: string };
 }
 
 function commandServerOptions(runtimeRoot: string): CommandServerOptions {
@@ -701,12 +634,6 @@ function commandServerOptions(runtimeRoot: string): CommandServerOptions {
     onOpenPreview: async (target) => ({ ok: true, url: target, source: "url" }),
     onFocusPreview: () => ({ ok: true }),
     onClosePreview: () => ({ ok: true }),
-    onCreateProposal: async (proposal) => proposal,
-    onListProposals: async () => [],
-    onReadProposal: async () => null,
-    onDecideProposal: async () => {
-      throw new Error("Unexpected proposal decision");
-    },
     onSearch: async () => ({ notes: [], projectFiles: [], tags: [] }),
     onIndexSearch: async () => ({ mode: "lexical", source: "filesystem", query: "", results: [], warnings: [] }),
     onReadDocument: async () => ({ target: "", filePath: "", title: "", body: "", source: "filesystem" }),
@@ -720,9 +647,6 @@ function commandServerOptions(runtimeRoot: string): CommandServerOptions {
     }),
     onIndexUpdate: async () => indexStatus(),
     onIndexEmbed: async () => indexStatus(),
-    onListProjectRoots: () => [],
-    onAddProjectRoot: async () => workspaceSettings(),
-    onRemoveProjectRoot: async () => workspaceSettings(),
     onListTerminals: () => [],
     onTerminalDiagnostics: () => [],
     onCreateTerminal: async () => ({
@@ -740,11 +664,47 @@ function commandServerOptions(runtimeRoot: string): CommandServerOptions {
     onReadTerminalSemanticAnswer: async () => "",
     onWriteTerminal: async () => ({ ok: true, delivery: "sent" }),
     onSendTerminalMessage: async () => ({ ok: true, delivery: "sent" }),
-    onReconnectTerminal: async () => null,
-    onReconnectRecoverableTerminals: () => {},
     onKillTerminal: async () => {},
     onGetSettings: () => workspaceSettings(),
     onGetStatus: () => ({ ok: true }),
+    onSpawnAgentCommand: async ({ handle, task }) => ({
+      ok: true,
+      invocation: {
+        id: "invocation-1",
+        status: "running",
+        context: "cli",
+        mentionProvenance: "unknown",
+        message: task,
+        promptDelivery: "terminalInputAfterLaunch",
+        command: {
+          id: handle.replace(/^@/, ""),
+          label: handle,
+          handle: handle.replace(/^@/, ""),
+          command: "fake-agent",
+          cwdPolicy: "workspace_root",
+          promptDelivery: "terminalInputAfterLaunch",
+          version: 1,
+          enabled: true,
+          executableFingerprint: "0".repeat(64),
+        },
+        cwd: runtimeRoot,
+        createdAt: "2026-07-08T00:00:00.000Z",
+        changedFileRefs: [],
+        diffRefs: [],
+        attribution: { status: "pending" },
+      },
+      terminal: {
+        id: "terminal-1",
+        terminalKind: "shell",
+        harnessId: null,
+        kind: "shell",
+        title: handle,
+        cwd: runtimeRoot,
+        command: "fake-agent",
+        status: "running",
+        attachGeneration: 1,
+      },
+    }),
   };
 }
 

@@ -1,5 +1,7 @@
 # Plugin System Architecture
 
+> Superseded as an active roadmap by `docs/exograph-refactor-completion-plan.md` on `refactor/note-native-exo`. Keep this document as historical architecture and reuse inventory. Do not use it to expand Plugin Manager, Routine, or harness-manager product scope unless the completion plan explicitly reopens that slice.
+
 Last updated: 2026-07-06
 
 status: unstable. External plugin contracts are pre-public and carry no compatibility promise until the plugin manifest can declare a minimum supported contract version and the specific contract has been reviewed as stable.
@@ -70,12 +72,9 @@ This split keeps each screen legible:
 - Onboarding answers "What should this workspace start with?"
 - Settings / Profile answers "What exograph profile is this workspace using, and what does that mean?"
 - Plugin Manager answers "What optional capabilities are installed, trusted, enabled, configured, or blocked?"
-- Agent Config Editor answers "What do my harnesses and terminal agents actually read?"
+- Agent Context answers "What instruction files do Exo and terminal agents actually read?"
 
-Skills have two product modes:
-
-- Onboarding Skills is a bulk starter flow. It enables or disables Exo-bundled skills for the selected promptable harnesses through the same skill service used after setup. It should not expose full file editing, source sync, or advanced inventory management.
-- Agent Config Skills is the ongoing management flow. It shows the full skill inventory, file tree, editable skill files, per-harness enablement, and GitHub/source sync. Any screen that changes harness skill state must route through this same service so onboarding and post-setup behavior cannot drift.
+Harness skill management is not an active V1 product surface. The old onboarding/Agent Config skill inventory and source-sync service was removed because it pulled Exo back into provider-specific internals. Future "skills" work should be redesigned from the Exograph ontology/LM-wiki direction or as explicit plugin capability metadata, not revived as a harness skill file manager by default.
 
 Instruction-file sync is a deterministic local configuration operation, not an agent routine. Onboarding may show progress and refreshed previews, but syncing `AGENTS.md` and `CLAUDE.md` means overwriting the other provider file from the selected source file, so it must be labeled as sync/overwrite and require explicit confirmation. It must work even when no promptable harness is installed or configured. Agent-assisted instruction rewrites/true merges can be introduced later as an optional routine/proposal flow.
 
@@ -184,7 +183,7 @@ Harness plugins do not implement terminal rendering. They provide launch plans a
 
 - command, args, env, cwd, and readiness hints
 - display metadata and availability checks
-- skill inventory/config locations
+- optional capability/config metadata
 - semantic message behavior
 - optional semantic trace declarations/provenance hooks
 - setup/configuration help when missing
@@ -267,15 +266,13 @@ The target onboarding sequence is:
 
 1. Select or create the notes folder.
 2. Confirm workspace and default terminal path.
-3. Review optional plugin choices such as QMD and detected launchable harnesses.
-4. Review starter routine templates such as Graph Health and Agent Instruction Sync and choose the default harness they will use later.
-5. Review global agent instruction context and optionally append dynamic Exograph context as a separate managed block. The generated block should include stable active notes/project roots, search capability state, and MCP/CLI surface guidance without overwriting existing user-authored instructions. Do not embed generated file or folder tree snapshots in global provider files; live directory and index navigation should be handled through explicit scoped tools.
-6. Review standard Exo skills and route skill installation/enabling to Agent Config rather than silently modifying harness folders.
-7. Save the resulting choices as the active workspace profile and enter the workspace.
+3. Review core search/indexing defaults.
+4. Review global and notes-level agent instruction context and optionally apply the Exograph context template. The generated block should include stable active notes/project roots, search capability state, and CLI surface guidance without overwriting existing user-authored instructions. Do not embed generated file or folder tree snapshots in global provider files; live directory and index navigation should be handled through explicit scoped tools.
+5. Save the resulting choices as the active workspace profile and enter the workspace.
 
-The default Exograph profile is not a preset the user must pick during first run. It is the baseline set of official defaults. Onboarding edits that baseline for the current workspace; the saved result is the workspace profile. Profile templates and routine-backed rewrites still require explicit proposal/review flows before they modify files, install skills, grant permissions, or schedule automation.
+The default Exograph profile is not a preset the user must pick during first run. It is the baseline set of official defaults. Onboarding edits that baseline for the current workspace; the saved result is the workspace profile. Profile templates or agent-assisted rewrites still require explicit proposal/review flows before they modify files, install capabilities, grant permissions, or schedule automation.
 
-The managed Exograph context block is dynamic at generation time, not a generic static prompt. It should explain that Exo augments normal filesystem access rather than replacing it, name the attached roots agents should inspect first, and describe the active indexed-search mode so agents can choose between filesystem search, lexical search, semantic search, hybrid search, MCP reads, and CLI/admin commands intelligently. Automatic refresh of already-written global context is a separate profile/config feature because rewriting global agent files on every tree/index change needs explicit user control.
+The managed Exograph context block is dynamic at generation time, not a generic static prompt. It should explain that Exo augments normal filesystem access rather than replacing it, name the attached roots agents should inspect first, and describe the active indexed-search mode so agents can choose between filesystem search, lexical search, semantic search, hybrid search, and CLI/admin commands intelligently. Automatic refresh of already-written global context is a separate profile/config feature because rewriting global agent files on every tree/index change needs explicit user control.
 
 The capability screen should show:
 

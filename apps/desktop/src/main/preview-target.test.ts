@@ -49,14 +49,53 @@ describe("resolvePreviewTarget", () => {
     });
   });
 
-  it("passes through http and https URLs", async () => {
+  it("passes through localhost http and https URLs", async () => {
     const fixture = await previewFixture();
 
-    await expect(resolvePreviewTarget("https://localhost.test/report.html", fixture.settings)).resolves.toEqual({
+    await expect(resolvePreviewTarget("https://localhost:4443/report.html", fixture.settings)).resolves.toEqual({
       ok: true,
-      url: "https://localhost.test/report.html",
+      url: "https://localhost:4443/report.html",
       source: "url",
     });
+    await expect(resolvePreviewTarget("http://127.0.0.1:5173/report.html", fixture.settings)).resolves.toEqual({
+      ok: true,
+      url: "http://127.0.0.1:5173/report.html",
+      source: "url",
+    });
+  });
+
+  it("normalizes bare localhost targets to http URLs", async () => {
+    const fixture = await previewFixture();
+
+    await expect(resolvePreviewTarget("localhost:4321", fixture.settings)).resolves.toEqual({
+      ok: true,
+      url: "http://localhost:4321/",
+      source: "url",
+    });
+    await expect(resolvePreviewTarget("127.0.0.1:5173/report.html", fixture.settings)).resolves.toEqual({
+      ok: true,
+      url: "http://127.0.0.1:5173/report.html",
+      source: "url",
+    });
+  });
+
+  it("rejects remote web URLs in trusted-only V1 preview mode", async () => {
+    const fixture = await previewFixture();
+
+    await expect(resolvePreviewTarget("https://example.com/report.html", fixture.settings)).rejects.toThrow(
+      "Preview URLs are limited to localhost or local files in V1.",
+    );
+  });
+
+  it("rejects javascript and data URLs", async () => {
+    const fixture = await previewFixture();
+
+    await expect(resolvePreviewTarget("javascript:alert(1)", fixture.settings)).rejects.toThrow(
+      "Preview URL must use http, https, or file.",
+    );
+    await expect(resolvePreviewTarget("data:text/html,hello", fixture.settings)).rejects.toThrow(
+      "Preview URL must use http, https, or file.",
+    );
   });
 
   it("rejects local files outside configured roots", async () => {

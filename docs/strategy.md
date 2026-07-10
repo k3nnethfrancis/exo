@@ -1,5 +1,7 @@
 # Exo Strategy
 
+> Superseded as the active strategy by `docs/exograph-refactor-completion-plan.md` and `roadmap.md` on `refactor/note-native-exo`. This document remains historical context for the prior AI-workstation / Exo-on-Exo direction.
+
 Last updated: 2026-06-21
 
 This is the strategy document for Exo. `README.md` explains the product publicly, `../roadmap.md` describes future systems, `../tasks.md` tracks concrete work, and `ledger.md` records shipped history.
@@ -8,11 +10,11 @@ This is the strategy document for Exo. `README.md` explains the product publicly
 
 Exo is a local-first AI workstation for applied AI engineers, researchers, and hackers building personal AI systems over their own Markdown-first exograph.
 
-The core idea is simple: your Markdown notes, project context, terminal sessions, agent messages, changed files, activity records, and artifact references become a user-defined knowledge/work graph. You can write and organize your own knowledge, while terminal agents, search providers, routines, plugins, evals, and future training loops operate over the same exograph using Exo-controlled tools.
+The core idea is simple: your Markdown notes, project context, terminal sessions, agent messages, changed files, activity records, and artifact references become a user-defined knowledge/work graph. You can write and organize your own knowledge, while terminal agents, search providers, plugins, evals, and future training loops operate over the same exograph using Exo-controlled tools.
 
 Exo should be flexible enough to support many workflows. A person might use it as a research IDE, a note-taking system, an agent control room, a code-review surface, or an evaluation/training workspace. The product identity is broader than any one of those use cases: Exo is the local workstation for configuring, running, observing, evaluating, and improving personal AI systems.
 
-Put more concretely: Exo is an open-source, local-first workbench for building a custom LLM wiki and AI-at-home training workstation. It should let users keep full control of Markdown, local models, harnesses, search providers, routines, graph profiles, and training/eval artifacts while still giving agents a coherent interface to that system.
+Put more concretely: Exo is an open-source, local-first workbench for building a custom LLM wiki and AI-at-home training workstation. It should let users keep full control of Markdown, local models, harnesses, search providers, graph profiles, and training/eval artifacts while still giving agents a coherent interface to that system.
 
 ## System Model
 

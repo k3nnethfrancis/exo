@@ -1,5 +1,7 @@
 # Usability Readiness Standard
 
+> Historical readiness standard for the pre-pivot Exo-on-Exo product path. On `refactor/note-native-exo`, use `docs/exograph-refactor-completion-plan.md`, `roadmap.md`, and `tasks.md` for active sequencing.
+
 Last updated: 2026-05-31
 
 This is the near-term standard before Exo becomes Kenneth's daily installed runtime for notes, terminals, agent coordination, and Exo-on-Exo development.

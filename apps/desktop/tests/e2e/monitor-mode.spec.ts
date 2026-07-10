@@ -6,35 +6,25 @@ import { launchExoFixture, relaunchExoFixture } from "../helpers";
 
 test.describe.configure({ mode: "serial" });
 
-const localHarnessEnv = {
-  EXO_SHELL: "/bin/sh",
-  EXO_SHELL_ARGS: "-lc,printf 'shell ready\\n'; while IFS= read -r line; do printf 'SHELL:%s\\n' \"$line\"; done",
-  EXO_CLAUDE_COMMAND: "/bin/sh",
-  EXO_CLAUDE_ARGS: "-lc,printf 'claude ready\\n'; while IFS= read -r line; do printf 'CLAUDE:%s\\n' \"$line\"; done",
-  EXO_CODEX_COMMAND: "/bin/sh",
-  EXO_CODEX_ARGS: "-lc,printf 'codex ready\\n'; while IFS= read -r line; do printf 'CODEX:%s\\n' \"$line\"; done",
-};
-
-test("splits live terminals in monitor mode, reconciles geometry, and persists across relaunch", async () => {
-  const fixture = await launchExoFixture({ env: localHarnessEnv, initialNoteLabel: null });
+test("splits live terminals in monitor mode, reconciles geometry, and persists monitor preference across relaunch", async () => {
+  const fixture = await launchExoFixture({ initialNoteLabel: null });
   let relaunched: Awaited<ReturnType<typeof relaunchExoFixture>> | null = null;
 
   try {
     const { page, settingsPath } = fixture;
     await expect(page.getByTestId("terminal-tab-shell")).toBeVisible();
-    await page.getByTestId("launch-claude").click();
-    await page.getByTestId("launch-codex").click();
-    await page.getByTestId("launch-shell").click();
+    await page.getByTestId("side-panel-terminal-rail").click();
+    await page.getByTestId("side-panel-terminal-rail").click();
+    await page.getByTestId("side-panel-terminal-rail").click();
 
     await expect.poll(async () => terminalSessions(page), { timeout: 10_000 }).toHaveLength(4);
     const sessionsBeforeMonitor = await terminalSessions(page);
     await expect(page.getByTestId("terminal-surface")).toHaveCount(1);
-    await waitForTerminalReadyText(page, sessionsBeforeMonitor);
     await writeBurst(page, sessionsBeforeMonitor, "before-monitor", 8);
     const geometryBeforeMonitor = await terminalGeometryById(page);
 
-    await page.getByTestId("terminal-monitor-mode").click();
-    await expect(page.getByTestId("terminal-monitor-mode").first()).toHaveAttribute("aria-pressed", "true");
+    await page.getByTestId("side-panel-monitor-mode-rail").click();
+    await expect(page.getByTestId("side-panel-monitor-mode-rail").first()).toHaveAttribute("aria-pressed", "true");
     await expect(page.getByTestId("terminal-surface")).toHaveCount(4);
     await writeBurst(page, sessionsBeforeMonitor, "during-monitor-toggle", 24);
     await waitForRendererGeometry(page, sessionsBeforeMonitor.map((session) => session.id));
@@ -50,16 +40,15 @@ test("splits live terminals in monitor mode, reconciles geometry, and persists a
 
     await page.screenshot({ path: "/tmp/exo-monitor-mode-4-live-sessions.png", fullPage: false });
 
-    await page.getByTestId("launch-shell").click();
+    await page.getByTestId("side-panel-terminal-rail").click();
     await expect.poll(async () => terminalSessions(page), { timeout: 10_000 }).toHaveLength(5);
     await expect(page.getByTestId("terminal-surface")).toHaveCount(5);
     const sessionsWithCreated = await terminalSessions(page);
     await waitForRendererGeometry(page, sessionsWithCreated.map((session) => session.id));
 
-    await page.getByTestId("close-terminal-codex").click();
+    await page.locator('[data-testid="close-terminal-shell"]').last().click();
     await expect.poll(async () => terminalSessions(page), { timeout: 10_000 }).toHaveLength(4);
     await expect(page.getByTestId("terminal-surface")).toHaveCount(4);
-    await expect.poll(async () => terminalSessions(page)).not.toContainEqual(expect.objectContaining({ kind: "codex" }));
 
     await expect.poll(async () => {
       const settings = JSON.parse(await readFile(settingsPath, "utf8"));
@@ -67,10 +56,10 @@ test("splits live terminals in monitor mode, reconciles geometry, and persists a
     }, { timeout: 5_000 }).toBe(true);
 
     await fixture.electronApp.close();
-    relaunched = await relaunchExoFixture(fixture, { env: localHarnessEnv });
-    await expect.poll(async () => terminalSessions(relaunched!.page), { timeout: 10_000 }).toHaveLength(4);
-    await expect(relaunched.page.getByTestId("terminal-monitor-mode").first()).toHaveAttribute("aria-pressed", "true");
-    await expect(relaunched.page.getByTestId("terminal-surface")).toHaveCount(4);
+    relaunched = await relaunchExoFixture(fixture);
+    await expect.poll(async () => terminalSessions(relaunched!.page), { timeout: 10_000 }).toHaveLength(1);
+    await expect(relaunched.page.getByTestId("side-panel-monitor-mode-rail").first()).toHaveAttribute("aria-pressed", "true");
+    await expect(relaunched.page.getByTestId("terminal-surface")).toHaveCount(1);
 
     const relaunchedSessions = await terminalSessions(relaunched.page);
     await waitForRendererGeometry(relaunched.page, relaunchedSessions.map((session) => session.id));
@@ -89,12 +78,6 @@ test("splits live terminals in monitor mode, reconciles geometry, and persists a
 
 async function terminalSessions(page: Page) {
   return page.evaluate(() => window.exo.terminals.list());
-}
-
-async function waitForTerminalReadyText(page: Page, sessions: Awaited<ReturnType<typeof terminalSessions>>) {
-  await expect.poll(async () => readAllTerminals(page, sessions), { timeout: 10_000 }).toContain("shell ready");
-  await expect.poll(async () => readAllTerminals(page, sessions), { timeout: 10_000 }).toContain("claude ready");
-  await expect.poll(async () => readAllTerminals(page, sessions), { timeout: 10_000 }).toContain("codex ready");
 }
 
 async function writeBurst(page: Page, sessions: Awaited<ReturnType<typeof terminalSessions>>, label: string, count: number) {

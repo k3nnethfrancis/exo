@@ -1,39 +1,32 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Plus, X } from "lucide-react";
+import { X } from "lucide-react";
 import type {
+  AgentCommand,
   IndexStatus,
-  AgentHarnessDetection,
-  ProfileStateStore,
+  InvocationRecord,
   SearchResult,
   WorkspaceModel,
   WorkspaceSettings,
 } from "@exo/core";
+import type { ParsedAgentMention } from "@exo/core/agent-mention-parser";
 
 import type { TerminalSessionInfo } from "../../shared/api";
 
 import type { AppearanceMode, ResolvedAppearance } from "./appearance";
-import { AgentConfigEditorDialog } from "./components/AgentConfigEditorDialog";
-import { ChangedNotesDialog, type ChangedNote } from "./components/ChangedNotesDialog";
 import { EditorPane, type EditorPaneState } from "./components/EditorPane";
 import { BrowserPane } from "./components/BrowserPane";
 import { InspectorDock } from "./components/InspectorDock";
-import { OnboardingCapabilityReview } from "./components/OnboardingCapabilityReview";
 import { PathList } from "./components/PathList";
-import { PluginManagerDialog } from "./components/PluginManagerDialog";
-import { ProposalReviewDialog } from "./components/ProposalReviewDialog";
 import { ShellLayout } from "./components/ShellLayout";
 import { TerminalDock } from "./components/TerminalDock";
 import { WorkspaceSettingsDialog } from "./components/WorkspaceSettingsDialog";
-import { useAgentInstructionEditor } from "./hooks/useAgentInstructionEditor";
 import { useAppKeybindings } from "./hooks/useAppKeybindings";
 import { useOpenDocuments } from "./hooks/useOpenDocuments";
 import { usePaneDropOrchestration } from "./hooks/usePaneDropOrchestration";
-import { useProjectReviewState } from "./hooks/useProjectReviewState";
-import { useProposalReviewState } from "./hooks/useProposalReviewState";
 import { useShellLayout } from "./hooks/useShellLayout";
 import { useTerminalPaneController, type TerminalPaneController } from "./hooks/useTerminalPaneController";
 import { useTerminalSessions } from "./hooks/useTerminalSessions";
-import { consumePostWorkspaceSetupFlag, useWorkspaceBootstrap } from "./hooks/useWorkspaceBootstrap";
+import { useWorkspaceBootstrap } from "./hooks/useWorkspaceBootstrap";
 import { useWorkspaceCommandHandlers } from "./hooks/useWorkspaceCommandHandlers";
 import { useWorkspaceLayoutPersistence } from "./hooks/useWorkspaceLayoutPersistence";
 import { useWorkspaceMutations } from "./hooks/useWorkspaceMutations";
@@ -69,6 +62,7 @@ import { pathLabel } from "./workspaceTree";
 import type { IndexBusyState } from "./workspaceSettingsDialogTypes";
 import { getPreviewTitle, markdownPreviewExcerpt, suggestWikilinkTargetsFromTrees } from "./graphAffordances";
 import { summarizeTerminalStatusLine } from "./terminalSessions";
+import { hasInvocationDirtyConflict, invocationConflictKey } from "./invocationReviewState";
 
 type ZoomSurface = "editor" | "terminal" | "explorer";
 
@@ -77,7 +71,7 @@ const PROJECT_TREE_MAX_DEPTH = 3;
 
 export function App() {
   const workspaceTrees = useWorkspaceTrees({ noteTreeMaxDepth: NOTE_TREE_MAX_DEPTH, projectTreeMaxDepth: PROJECT_TREE_MAX_DEPTH });
-  const { noteTrees, projectTrees } = workspaceTrees;
+  const { noteTrees } = workspaceTrees;
   const [exploreIndexSearchOnEnter, setExploreIndexSearchOnEnter] = useState(false);
   const workspaceSearch = useWorkspaceSearch({ indexedOnEnter: exploreIndexSearchOnEnter });
   const [propertiesCollapsed, setPropertiesCollapsed] = useState(true);
@@ -85,14 +79,10 @@ export function App() {
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [revealExplorerPathRequest, setRevealExplorerPathRequest] = useState<{ path: string; nonce: number } | null>(null);
   const [editorRevealLineRequest, setEditorRevealLineRequest] = useState<{ filePath: string; line: number; nonce: number } | null>(null);
-  const [agentContextManagerOpen, setAgentContextManagerOpen] = useState(false);
-  const [agentHarnesses, setAgentHarnesses] = useState<AgentHarnessDetection[]>([]);
-  const [pluginManagerOpen, setPluginManagerOpen] = useState(false);
-  const [postWorkspaceSetupOpen, setPostWorkspaceSetupOpen] = useState(false);
-  const [proposalReviewOpen, setProposalReviewOpen] = useState(false);
-  const [profileState, setProfileState] = useState<ProfileStateStore | null>(null);
-  const [noteChangesOpen, setNoteChangesOpen] = useState(false);
-  const agentInstructionEditor = useAgentInstructionEditor();
+  const [invocationReview, setInvocationReview] = useState<{
+    record: InvocationRecord;
+  } | null>(null);
+  const [keptInvocationConflicts, setKeptInvocationConflicts] = useState<Set<string>>(() => new Set());
   const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null);
   const [appearanceMode, setAppearanceMode] = useState<AppearanceMode>("system");
   const [colorThemeId, setColorThemeId] = useState<ColorThemeId>(DEFAULT_COLOR_THEME_ID);
@@ -164,16 +154,12 @@ export function App() {
     applyWorkspaceSettings,
     refreshWorkspaceModel,
     setIndexStatus,
-    onSettingsSaved: refreshAgentHarnesses,
   });
   const {
     dialog: workspaceSettingsDialog,
     setDialog: setWorkspaceSettingsDialog,
     indexBusy,
   } = workspaceSettingsController;
-  const projectReviewState = useProjectReviewState(workspaceModel, terminalSessions);
-  const proposalReviewState = useProposalReviewState();
-  const noteGitChanges = projectReviewState.noteGitChanges;
   const openDocumentsState = useOpenDocuments({
     workspaceModel,
     getOpenEditorPaths: () => collectOpenEditorPaths(shellLayout.editorPaneTree.tree),
@@ -191,6 +177,7 @@ export function App() {
     setActiveDocumentPath,
     ensureDocumentLoaded,
     scheduleRefresh: scheduleOpenDocumentRefresh,
+    reloadFromDisk: reloadOpenDocumentFromDisk,
     updateBody,
     updateFrontmatter,
     saveDocument,
@@ -201,7 +188,6 @@ export function App() {
     editorFocusedLeafId,
     reloadTrees,
     openFile,
-    openWorkspaceSettings: () => workspaceSettingsController.openDialog("workspace"),
     remapOpenPaths: remapOpenPathsInEditor,
     removeDeletedPaths: removeDeletedPathsFromEditor,
     setActiveDocumentPath,
@@ -226,57 +212,25 @@ export function App() {
   const resolvedTheme = useMemo(() => resolveTheme(colorThemeId, resolvedAppearance), [colorThemeId, resolvedAppearance]);
 
   useEffect(() => {
-    void refreshAgentHarnesses();
-  }, []);
-
-  useEffect(() => {
-    if (workspaceModel && !onboardingState && consumePostWorkspaceSetupFlag()) {
-      setPostWorkspaceSetupOpen(true);
-    }
-  }, [workspaceModel, onboardingState]);
-
-  useEffect(() => {
-    if (workspaceModel && !onboardingState && workspaceBootstrap.setupState?.complete && !workspaceBootstrap.setupState.onboardingComplete) {
-      setPostWorkspaceSetupOpen(true);
-    }
-  }, [workspaceModel, onboardingState, workspaceBootstrap.setupState]);
-
-  useEffect(() => {
     terminalRuntimeScrollbackLinesRef.current = terminalRuntimeScrollbackLines;
   }, [terminalRuntimeScrollbackLines]);
-
-  useEffect(() => {
-    let cancelled = false;
-    void window.exo.workspace.getProfileState()
-      .then((nextState) => {
-        if (!cancelled) {
-          setProfileState(nextState);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setProfileState(null);
-        }
-      });
-
-    function handleProfileStateChanged(event: Event) {
-      const detail = event instanceof CustomEvent ? event.detail : null;
-      if (detail) {
-        setProfileState(detail as ProfileStateStore);
-      }
-    }
-
-    window.addEventListener("exo:profile-state-changed", handleProfileStateChanged);
-    return () => {
-      cancelled = true;
-      window.removeEventListener("exo:profile-state-changed", handleProfileStateChanged);
-    };
-  }, []);
 
   useEffect(() => {
     const openPaths = collectOpenEditorPaths(editorTree);
     openDocumentsState.pruneToOpenPaths(openPaths);
   }, [editorTree]);
+
+  useEffect(() => {
+    return window.exo.workspace.onInvocationUpdated((record) => {
+      if (record.taggedDocumentPath) {
+        scheduleOpenDocumentRefresh(record.taggedDocumentPath);
+      }
+      setKeptInvocationConflicts(new Set());
+      setInvocationReview((current) =>
+        current?.record.id === record.id ? { record } : current,
+      );
+    });
+  }, [scheduleOpenDocumentRefresh]);
 
   useEffect(() => {
     const activeTerminalIds = collectActiveTerminalIds(editorTree);
@@ -336,8 +290,6 @@ export function App() {
     openSettings: workspaceSettingsController.openDialog,
     reloadTrees,
     scheduleOpenDocumentRefresh,
-    recordObservedWorkspaceWrite: projectReviewState.recordObservedWorkspaceWrite,
-    refreshProjectGitStatus: projectReviewState.refreshProjectGitStatus,
   });
 
   useAppKeybindings({
@@ -492,74 +444,12 @@ export function App() {
       })) ?? [],
     [noteTrees, workspaceModel],
   );
-  const projectSections = useMemo(
-    () =>
-      workspaceModel?.projectRoots.map((root) => ({
-        label: root.label,
-        path: root.path,
-        nodes: projectTrees[root.path] ?? [],
-      })) ?? [],
-    [projectTrees, workspaceModel],
-  );
-  const projectReviewChanges = projectReviewState.projectReviewChanges;
   async function reloadTrees() {
     if (!workspaceModel) {
       return;
     }
 
     await reloadTreesForModel(workspaceModel);
-  }
-
-  async function openProjectChangesFromStatus() {
-    if (!workspaceModel || projectReviewChanges.length === 0) {
-      return;
-    }
-    const attachedProjectRoots = workspaceModel.projectRoots.map((root) => root.path);
-    const attachedChanges = projectReviewChanges.filter((change) =>
-      attachedProjectRoots.some((rootPath) => isPathWithin(rootPath, change.absolutePath)),
-    );
-    if (attachedChanges.length === 0) {
-      workspaceMutations.showAttachProjectDialog();
-      return;
-    }
-
-    const changesToOpen = attachedChanges.slice(0, 8);
-    await Promise.all(changesToOpen.map((change) => ensureDocumentLoaded(change.absolutePath)));
-    const targetLeaf = findNode(editorTree, (n) => n.id === editorFocusedLeafId && n.kind === "leaf" && n.content.kind === "editor");
-    const editorLeafId = targetLeaf?.id ?? findEditorLeaf(editorTree)?.id;
-    if (editorLeafId) {
-      editorActions.updateLeafContent(editorLeafId, (content) => {
-        if (content.kind !== "editor") return content;
-        const nextOpenPaths = [...content.openPaths];
-        for (const change of changesToOpen) {
-          if (!nextOpenPaths.includes(change.absolutePath)) {
-            nextOpenPaths.push(change.absolutePath);
-          }
-        }
-        return {
-          ...content,
-          activePath: changesToOpen[0].absolutePath,
-          openPaths: nextOpenPaths,
-        };
-      });
-      editorActions.focusLeaf(editorLeafId);
-    }
-    setActiveDocumentPath(changesToOpen[0].absolutePath);
-    setActiveTag(null);
-    setTagResults([]);
-    if (changesToOpen[0].firstChangedLine && changesToOpen[0].firstChangedLine > 0) {
-      setEditorRevealLineRequest({
-        filePath: changesToOpen[0].absolutePath,
-        line: changesToOpen[0].firstChangedLine,
-        nonce: Date.now(),
-      });
-    }
-  }
-
-  async function openNoteChange(change: ChangedNote) {
-    await ensureDocumentLoaded(change.absolutePath);
-    await openFile(change.absolutePath, undefined, { line: change.firstChangedLine });
-    setNoteChangesOpen(false);
   }
 
   async function reloadTreesForModel(model: WorkspaceModel) {
@@ -581,23 +471,96 @@ export function App() {
     return status;
   }
 
-  async function refreshAgentHarnesses() {
+  async function invokeAgentMention(mention: ParsedAgentMention) {
+    const document = activeDocument;
+    if (!document) {
+      return;
+    }
+    const command = workspaceSettingsRef.current?.agentCommands?.find((entry) => entry.handle === mention.handle);
+    const cwd = command?.cwdPolicy === "note_dir"
+      ? dirname(document.filePath)
+      : command?.cwdPolicy === "fixed"
+        ? command.fixedCwd ?? workspaceSettingsRef.current?.workspaceRoot ?? ""
+        : workspaceSettingsRef.current?.workspaceRoot ?? "";
+    const fingerprint = command ? await agentCommandExecutableFingerprintForRenderer(command) : null;
+    const confirmed = window.confirm([
+      `Run ${command?.label ?? `@${mention.handle}`} on this document?`,
+      "",
+      `Document: ${document.filePath}`,
+      `Shell: /bin/zsh -lc "${command?.command ?? `@${mention.handle}`}"`,
+      `Cwd: ${cwd || "(workspace root)"}`,
+      fingerprint ? `Fingerprint: ${fingerprint}` : "Fingerprint: unavailable until the command is configured",
+      "",
+      "This command runs as native code on your machine. Exo does not sandbox it.",
+      "The agent can edit files directly. Exo will observe this document and highlight changes seen during the invocation.",
+      "",
+      mention.message,
+    ].join("\n"));
+    if (!confirmed) {
+      return;
+    }
     try {
-      setAgentHarnesses(await window.exo.workspace.listAgentHarnesses());
-    } catch {
-      setAgentHarnesses([]);
+      if (document.dirty) {
+        await saveDocument(document.filePath);
+      }
+      const persistTrust = command
+        ? window.confirm([
+            `Trust ${command.label} for future Exo launches?`,
+            "",
+            `Shell: /bin/zsh -lc "${command.command}"`,
+            `Cwd: ${cwd || "(workspace root)"}`,
+            `Fingerprint: ${fingerprint}`,
+            "",
+            "Choose OK only if you want Exo to remember this command trust for this workspace. Choose Cancel to run it once without saving trust.",
+          ].join("\n"))
+        : false;
+      const result = await window.exo.workspace.launchAgentInvocation({
+        handle: mention.handle,
+        documentPath: document.filePath,
+        mentionText: mention.originalText,
+        message: mention.message,
+        allowUntrustedOneShot: !persistTrust,
+        persistTrust,
+      });
+      terminalState.adoptExternalSessions([result.terminal], { activateLatest: true });
+      shellLayout.setTerminalCollapsed(false);
+      setKeptInvocationConflicts(new Set());
+      setInvocationReview({ record: result.invocation });
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : String(error));
     }
   }
 
-  async function openAgentContextManager() {
-    setWorkspaceSettingsDialog(null);
-    setAgentContextManagerOpen(true);
-    void agentInstructionEditor.load();
+  async function endActiveInvocationObservation() {
+    if (!invocationReview) {
+      return;
+    }
+    const finalized = await window.exo.workspace.endAgentInvocation(invocationReview.record.id);
+    if (!finalized) {
+      return;
+    }
+    if (finalized.taggedDocumentPath) {
+      scheduleOpenDocumentRefresh(finalized.taggedDocumentPath);
+    }
+    setKeptInvocationConflicts(new Set());
+    setInvocationReview({ record: finalized });
   }
 
-  function openPluginManagerFromSettings() {
-    setWorkspaceSettingsDialog(null);
-    setPluginManagerOpen(true);
+  function keepInvocationDirtyBuffer(invocationId: string, filePath: string) {
+    setKeptInvocationConflicts((current) => {
+      const next = new Set(current);
+      next.add(invocationConflictKey(invocationId, filePath));
+      return next;
+    });
+  }
+
+  async function reloadInvocationDiskVersion(invocationId: string, filePath: string) {
+    const confirmed = window.confirm("Reload the disk version and discard unsaved edits in this editor?");
+    if (!confirmed) {
+      return;
+    }
+    await reloadOpenDocumentFromDisk(filePath);
+    keepInvocationDirtyBuffer(invocationId, filePath);
   }
 
   function focusEditorPane(leafId: PaneNodeId) {
@@ -748,31 +711,31 @@ export function App() {
   }
 
   function createBrowserPane(url = "about:blank") {
-    editorActions.openBrowserPane(editorFocusedLeafId, url);
-    setZoomSurface("editor");
+    terminalActions.openBrowserPane(terminalFocusedLeafId, url);
+    setZoomSurface("terminal");
   }
 
   function focusBrowserPane() {
-    const browserLeaf = collectLeaves(editorTree).find((leaf) => leaf.content.kind === "browser");
+    const browserLeaf = collectLeaves(terminalTree).find((leaf) => leaf.content.kind === "browser");
     if (!browserLeaf) {
       createBrowserPane();
       return;
     }
-    editorActions.focusLeaf(browserLeaf.id);
-    setZoomSurface("editor");
+    terminalActions.focusLeaf(browserLeaf.id);
+    setZoomSurface("terminal");
   }
 
   function closeBrowserPane() {
-    const leaves = collectLeaves(editorTree);
+    const leaves = collectLeaves(terminalTree);
     if (leaves.length <= 1) {
       return;
     }
-    const focusedBrowserLeaf = leaves.find((leaf) => leaf.id === editorFocusedLeafId && leaf.content.kind === "browser");
+    const focusedBrowserLeaf = leaves.find((leaf) => leaf.id === terminalFocusedLeafId && leaf.content.kind === "browser");
     const browserLeaf = focusedBrowserLeaf ?? leaves.find((leaf) => leaf.content.kind === "browser");
     if (!browserLeaf) {
       return;
     }
-    editorActions.removeLeaf(browserLeaf.id);
+    terminalActions.removeLeaf(browserLeaf.id);
   }
 
   async function createBranchFromActiveDocument() {
@@ -872,7 +835,7 @@ export function App() {
               <div className="onboarding-card__body" data-testid="onboarding-card-body">
                 <h1 className="onboarding-card__title">Select workspace</h1>
                 <p className="onboarding-card__copy">
-                  Workspaces are saved notes folders with their own projects, terminal defaults, settings, and advanced search state.
+                  Workspaces are saved notes folders with terminal defaults, settings, and advanced search state.
                 </p>
                 <div className="workspace-picker" data-testid="workspace-picker">
                   {onboardingState.workspaces.length > 0 ? (
@@ -901,8 +864,6 @@ export function App() {
                     <div className="dialog-field__label">{selectedWorkspace.label}</div>
                     <div className="onboarding-section__hint">{selectedWorkspace.notesFolder}</div>
                     <div className="workspace-picker__meta">
-                      {selectedWorkspace.settings.projectRoots.length} project{selectedWorkspace.settings.projectRoots.length === 1 ? "" : "s"}
-                      {" | "}
                       search {selectedWorkspace.settings.indexing.mode}
                       {" | "}
                       terminal {pathLabel(selectedWorkspace.settings.defaultTerminalCwd)}
@@ -930,24 +891,6 @@ export function App() {
                 </button>
               </div>
             </>
-          ) : onboardingState.step === "capabilities" ? (
-            <OnboardingCapabilityReview
-              notesFolder={onboardingState.notesFolder}
-              initialStep={workspaceBootstrap.setupState?.onboarding.profileStep ?? "plugins"}
-              onBack={() =>
-                setOnboardingState((current) =>
-                  current
-                    ? {
-                        ...current,
-                        step: current.selectedWorkspaceId && current.workspaces.length > 0 ? "select" : "configure",
-                        status: "idle",
-                        errorMessage: null,
-                      }
-                    : current,
-                )
-              }
-              onEnterWorkspace={workspaceBootstrap.enterWorkspaceAfterCapabilityReview}
-            />
           ) : (
             <>
               <div className="onboarding-card__body" data-testid="onboarding-card-body">
@@ -955,7 +898,7 @@ export function App() {
                   {onboardingState.mode === "first-run" ? "Open notes folder" : "Choose notes folder"}
                 </h1>
                 <p className="onboarding-card__copy">
-                  Select an existing Markdown folder or create one, then confirm where terminals and project-aware workflows should start.
+                  Select an existing Markdown folder or create one, then confirm where terminals should start.
                 </p>
                 <div className="onboarding-grid">
                   <div className="onboarding-section onboarding-section--primary">
@@ -975,34 +918,6 @@ export function App() {
                       onRemove={() =>
                         setOnboardingState((current) =>
                           current ? { ...current, notesFolder: "", status: "idle", errorMessage: null } : current,
-                        )
-                      }
-                    />
-                  </div>
-                  <div className="onboarding-section">
-                    <div className="onboarding-section__header">
-                      <div>
-                        <div className="dialog-field__label">Project folders</div>
-                        <div className="onboarding-section__hint">Optional code folders for terminals, review, and agents.</div>
-                      </div>
-                      <button className="toolbar-button toolbar-button--icon" data-testid="onboarding-add-project" onClick={() => void workspaceBootstrap.addProjectFoldersForOnboarding()} type="button">
-                        <Plus size={15} />
-                      </button>
-                    </div>
-                    <PathList
-                      emptyLabel="No project folders added."
-                      paths={onboardingState.projectFolders}
-                      testId="onboarding-project-folders"
-                      onRemove={(targetPath) =>
-                        setOnboardingState((current) =>
-                          current
-                            ? {
-                                ...current,
-                                projectFolders: current.projectFolders.filter((entry) => entry !== targetPath),
-                                status: "idle",
-                                errorMessage: null,
-                              }
-                            : current,
                         )
                       }
                     />
@@ -1075,7 +990,6 @@ export function App() {
     <>
       <ShellLayout
       noteSections={noteSections}
-      projectSections={projectSections}
       appearanceMode={appearanceMode}
       resolvedAppearance={resolvedAppearance}
       searchQuery={workspaceSearch.query}
@@ -1083,24 +997,14 @@ export function App() {
       searchResultMode={workspaceSearch.resultMode}
       searchResultQuery={workspaceSearch.resultQuery}
       searchMessage={workspaceSearch.message}
-      projectChanges={projectReviewChanges}
       statusLine={{
         workspaceLabel: workspaceModel ? pathLabel(workspaceModel.workspaceRoot) : "workspace",
-        projectLabel: workspaceModel?.projectRoots[0] ? pathLabel(workspaceModel.projectRoots[0].path) : null,
-        gitBranch: projectReviewState.workspaceGitStatus?.branch ?? null,
-        gitDirty: projectReviewState.workspaceGitStatus?.dirty ?? false,
-        changedFiles: projectReviewChanges.length,
-        changedNotes: noteGitChanges.length,
-        pendingProposals: proposalReviewState.pendingProposalCount,
-        onboardingIncomplete: Boolean(workspaceBootstrap.setupState?.complete && !workspaceBootstrap.setupState.onboardingComplete),
-        profileReviewRequired: profileState?.reviewRequired ?? false,
-        profileLabel: profileState?.activeProfile?.label ?? profileState?.activeProfile?.profileId ?? null,
+        onboardingIncomplete: false,
         terminal: terminalStatusLine,
         index: indexStatusLine,
       }}
       shellLayout={shellLayout}
       revealExplorerPathRequest={revealExplorerPathRequest}
-      onOpenAgentConfigEditor={() => void openAgentContextManager()}
       renderEditorLeaf={(leaf, isFocused) => {
         if (leaf.content.kind === "browser") {
           return (
@@ -1112,10 +1016,12 @@ export function App() {
                 setZoomSurface("editor");
                 editorActions.focusLeaf(leaf.id);
               }}
-              onNavigate={(url) => {
+              onNavigate={async (target) => {
+                const result = await window.exo.workspace.resolvePreviewTarget(target);
                 editorActions.updateLeafContent(leaf.id, (content) =>
-                  content.kind === "browser" ? { ...content, url } : content,
+                  content.kind === "browser" ? { ...content, url: result.url } : content,
                 );
+                return result.url;
               }}
               onClosePane={collectLeaves(editorTree).length > 1 ? () => editorActions.removeLeaf(leaf.id) : null}
               dragManager={dragManager}
@@ -1157,7 +1063,6 @@ export function App() {
               onWrite={(id, data) => void window.exo.terminals.write(id, data)}
               onGeometryMeasured={(id, cols, rows) => void window.exo.terminals.resize(id, cols, rows)}
               onKill={(id) => void terminalPaneController.closeTerminal(id)}
-              onReconnect={(id) => void terminalState.reconnectTerminal(id)}
               dragManager={dragManager}
               onTogglePlacement={() => {}}
               monitorMode={terminalMonitorMode}
@@ -1200,6 +1105,24 @@ export function App() {
               onSuggestTargets={(query) => suggestNoteTargets(query)}
               onPreviewTarget={(target) => previewKnowledgeTarget(target)}
               onCreateBranch={() => void createBranchFromActiveDocument()}
+              agentCommands={workspaceSettingsRef.current?.agentCommands ?? []}
+              onInvokeAgentMention={(mention) => void invokeAgentMention(mention)}
+              invocationReview={
+                invocationReview?.record.taggedDocumentPath === pane.activePath
+                  ? {
+                      ...invocationReview,
+                      hasDirtyConflict: hasInvocationDirtyConflict(
+                        invocationReview.record,
+                        pane.activePath,
+                        pane.activePath ? openDocuments[pane.activePath] : undefined,
+                        keptInvocationConflicts,
+                      ),
+                      onEndObservation: () => void endActiveInvocationObservation(),
+                      onKeepDirtyBuffer: () => pane.activePath ? keepInvocationDirtyBuffer(invocationReview.record.id, pane.activePath) : undefined,
+                      onReloadFromDisk: () => void (pane.activePath ? reloadInvocationDiskVersion(invocationReview.record.id, pane.activePath) : Promise.resolve()),
+                    }
+                  : null
+              }
               theme={resolvedTheme}
               fontSize={editorFontSize}
               onZoomEditor={(direction) => updateFocusedSurfaceZoom(direction, "editor")}
@@ -1223,6 +1146,28 @@ export function App() {
         );
       }}
       renderTerminalLeaf={(leaf, isFocused) => {
+        if (leaf.content.kind === "browser") {
+          return (
+            <BrowserPane
+              paneId={leaf.id}
+              url={leaf.content.url}
+              compact={false}
+              onFocus={() => {
+                setZoomSurface("terminal");
+                terminalActions.focusLeaf(leaf.id);
+              }}
+              onNavigate={async (target) => {
+                const result = await window.exo.workspace.resolvePreviewTarget(target);
+                terminalActions.updateLeafContent(leaf.id, (content) =>
+                  content.kind === "browser" ? { ...content, url: result.url } : content,
+                );
+                return result.url;
+              }}
+              onClosePane={collectLeaves(terminalTree).length > 1 ? () => terminalActions.removeLeaf(leaf.id) : null}
+              dragManager={dragManager}
+            />
+          );
+        }
         const terminalLeafSessions = terminalSessions.filter((s) => leaf.content.kind === "terminal" && leaf.content.terminalIds.includes(s.id));
         const leafActiveTerminalId = leaf.content.kind === "terminal"
           ? resolveTerminalPaneActiveId(terminalLeafSessions, leaf.content.activeTerminalId, activeTerminalId)
@@ -1253,7 +1198,6 @@ export function App() {
             onWrite={(id, data) => void window.exo.terminals.write(id, data)}
             onGeometryMeasured={(id, cols, rows) => void window.exo.terminals.resize(id, cols, rows)}
             onKill={(id) => void terminalPaneController.closeTerminal(id)}
-            onReconnect={(id) => void terminalState.reconnectTerminal(id)}
             dragManager={dragManager}
             onTogglePlacement={() => {}}
             monitorMode={terminalMonitorMode}
@@ -1264,17 +1208,7 @@ export function App() {
       }}
       onAppearanceModeChange={updateAppearanceMode}
       onOpenWorkspaceSettings={() => void workspaceSettingsController.openDialog()}
-      onOpenPluginManager={() => setPluginManagerOpen(true)}
-      onOpenProposalReview={() => {
-        proposalReviewState.clearLastApplyResult();
-        setProposalReviewOpen(true);
-        void proposalReviewState.refreshProposals();
-      }}
       onOpenIndexSettings={() => void workspaceSettingsController.openDialog("index")}
-      onOpenProjectChanges={() => void openProjectChangesFromStatus()}
-      onOpenNoteChanges={() => setNoteChangesOpen(true)}
-      onOpenProfileSettings={() => void workspaceSettingsController.openDialog("profile")}
-      onOpenOnboardingSetup={() => setPostWorkspaceSetupOpen(true)}
       onSearchQueryChange={(value) => {
         workspaceSearch.setQuery(value);
         workspaceSearch.setSubmittedQuery(value.trim());
@@ -1292,9 +1226,10 @@ export function App() {
       onCreateTerminalInDirectory={(directoryPath) => void terminalPaneController.createTerminal("shell", directoryPath)}
       onRenamePath={(targetPath) => workspaceMutations.renameWorkspacePath(targetPath)}
       onDeletePath={(targetPath) => workspaceMutations.deleteWorkspacePath(targetPath)}
-      onCreateTerminal={(kind, harnessId) => void terminalPaneController.createTerminal(kind, undefined, true, harnessId)}
-      agentHarnesses={agentHarnesses}
+      onCreateTerminal={(kind) => void terminalPaneController.createTerminal(kind, undefined, true)}
       onCreateBrowserPane={() => createBrowserPane()}
+      terminalMonitorMode={terminalMonitorMode}
+      onToggleTerminalMonitorMode={toggleTerminalMonitorMode}
       />
 
       {workspaceDialog ? (
@@ -1342,7 +1277,6 @@ export function App() {
 
       {workspaceSettingsDialog ? (
         <WorkspaceSettingsDialog
-          agentHarnesses={agentHarnesses}
           indexBusy={indexBusy}
           indexStatus={indexStatus}
           settings={workspaceSettingsDialog}
@@ -1350,53 +1284,12 @@ export function App() {
           structuralDraftKey={workspaceSettingsStructuralDraftKey}
           onChooseFolder={(target) => void workspaceSettingsController.chooseFolder(target)}
           onClose={workspaceSettingsController.closeDialog}
-          onOpenAgentConfigEditor={() => void openAgentContextManager()}
-          onOpenPluginManager={openPluginManagerFromSettings}
           onOpenWorkspaceSwitcher={() => {
             setWorkspaceSettingsDialog(null);
             void workspaceBootstrap.openWorkspaceSwitcher();
           }}
           onRunIndexUpdate={(kind) => void workspaceSettingsController.runIndexUpdate(kind)}
           onSave={(settingsDialog, options) => void workspaceSettingsController.saveDialog(settingsDialog, options)}
-        />
-      ) : null}
-      {agentContextManagerOpen ? (
-        <AgentConfigEditorDialog
-          editor={agentInstructionEditor}
-          onClose={() => setAgentContextManagerOpen(false)}
-        />
-      ) : null}
-      {pluginManagerOpen ? (
-        <PluginManagerDialog onClose={() => setPluginManagerOpen(false)} />
-      ) : null}
-      {postWorkspaceSetupOpen && workspaceModel ? (
-        <div className="dialog-overlay" data-testid="post-workspace-setup-overlay">
-          <div className="dialog-card dialog-card--wide dialog-card--onboarding-setup" data-testid="post-workspace-setup">
-            <OnboardingCapabilityReview
-              notesFolder={workspaceModel.noteRoots[0]?.path ?? workspaceModel.workspaceRoot}
-              initialStep={workspaceBootstrap.setupState?.onboarding.profileStep ?? "plugins"}
-              onBack={() => setPostWorkspaceSetupOpen(false)}
-              onEnterWorkspace={() => {
-                workspaceBootstrap.setSetupState((current) =>
-                  current ? { ...current, onboardingComplete: true, onboarding: { ...current.onboarding, status: "complete", phase: "done" } } : current,
-                );
-                setPostWorkspaceSetupOpen(false);
-              }}
-            />
-          </div>
-        </div>
-      ) : null}
-      {proposalReviewOpen ? (
-        <ProposalReviewDialog
-          review={proposalReviewState}
-          onClose={() => setProposalReviewOpen(false)}
-        />
-      ) : null}
-      {noteChangesOpen ? (
-        <ChangedNotesDialog
-          changes={noteGitChanges}
-          onClose={() => setNoteChangesOpen(false)}
-          onOpenChange={(change) => void openNoteChange(change)}
         />
       ) : null}
     </>
@@ -1485,6 +1378,27 @@ function summarizeIndexStatus(status: IndexStatus | null, busy: IndexBusyState):
 
 function joinPath(parentPath: string, name: string): string {
   return `${parentPath.replace(/\/$/, "")}/${name.replace(/^\//, "")}`;
+}
+
+function dirname(filePath: string): string {
+  const normalized = filePath.replace(/\\/g, "/");
+  const index = normalized.lastIndexOf("/");
+  return index > 0 ? normalized.slice(0, index) : ".";
+}
+
+async function agentCommandExecutableFingerprintForRenderer(command: AgentCommand): Promise<string> {
+  const payload = {
+    command: command.command,
+    cwdPolicy: command.cwdPolicy,
+    fixedCwd: command.fixedCwd ?? null,
+    handle: command.handle,
+    id: command.id,
+    promptDelivery: command.promptDelivery,
+    version: command.version,
+  };
+  const bytes = new TextEncoder().encode(JSON.stringify(payload));
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 function isPathWithin(parentPath: string, targetPath: string): boolean {

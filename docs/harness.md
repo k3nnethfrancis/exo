@@ -1,5 +1,7 @@
 # Exo Harness
 
+> General validation guidance remains useful, but the product framing in this document predates the Exograph pivot. On `refactor/note-native-exo`, use `docs/exograph-refactor-completion-plan.md` for active work sequencing and deletion targets.
+
 Last updated: 2026-07-03
 
 Exo's harness is the set of commands, docs, and evidence habits that keep fast agent-driven development from turning into drift. The near-term goal is practical: make it easy for humans, Codex, Claude Code, and Exo-hosted agents to contribute safely.
@@ -70,7 +72,7 @@ Desktop e2e/visual gates build the desktop app before running Playwright.
 
 ## App Visual QA Preflight
 
-UI, terminal, preview, editor, onboarding, plugin, settings, CLI/MCP, and resident-runtime changes need real Electron app QA when they affect visible behavior. Computer Use visual QA is preferred because it checks the same installed or dev app surface a user sees, but inability to inspect the app is itself a blocker signal. Do not replace a failed visual inspection with a vague "not checked" note.
+UI, terminal, preview, editor, onboarding, plugin/extension metadata, settings, CLI, and resident-runtime changes need real Electron app QA when they affect visible behavior. Computer Use visual QA is preferred because it checks the same installed or dev app surface a user sees, but inability to inspect the app is itself a blocker signal. Do not replace a failed visual inspection with a vague "not checked" note.
 
 Before detailed review, run a short visibility smoke:
 
@@ -87,7 +89,7 @@ Classify preflight failures explicitly:
 - Renderer blank: an Exo window is visible, but the renderer is empty, crashed, or stuck before meaningful content.
 - Tool timeout: Computer Use cannot return app or screen state after retry, even though process-level checks suggest Exo may be running.
 
-If any preflight failure remains after one clean relaunch or foreground retry, stop the visual QA pass and report it as a blocker. The change may still have automated tests, Playwright evidence, CLI/MCP smoke, or logs, but it has not passed app visual QA.
+If any preflight failure remains after one clean relaunch or foreground retry, stop the visual QA pass and report it as a blocker. The change may still have automated tests, Playwright evidence, CLI smoke, or logs, but it has not passed app visual QA.
 
 Fallback evidence is acceptable only as a labeled substitute while the visual blocker is tracked. Capture all of the following:
 
@@ -102,16 +104,16 @@ A PR or handoff may say "fallback app evidence collected" only when that bundle 
 ## Current Harness Coverage
 
 - Identity/context: `AGENTS.md`, `docs/strategy.md`, `../roadmap.md`, `../tasks.md`, and `ledger.md` describe the current exograph and Exo-on-Exo operating model.
-- Coordination: `docs/harness.md`, work-chunk rules, app-QA expectations, and Exo CLI/MCP agent commands give agents a shared development loop.
+- Coordination: `docs/harness.md`, work-chunk rules, app-QA expectations, and Exo CLI/AgentCommand surfaces give agents a shared development loop.
 - Control: `pnpm ci:check` is the canonical CI/local gate, but mechanical architecture controls are still incomplete.
 - Audit: issue tracking and manual review catch drift today; automated entropy scans are not yet implemented.
-- Intelligence: Playwright, CLI/MCP smoke tests, terminal health, logs, and app QA provide runtime signals, but not yet a unified dashboard.
+- Intelligence: Playwright, CLI smoke tests, terminal health, logs, and app QA provide runtime signals, but not yet a unified dashboard.
 - Type safety: `pnpm typecheck`.
 - Unit/integration behavior: `pnpm test`.
 - Desktop build behavior: `pnpm build`.
 - Desktop interaction behavior: `pnpm test:e2e`.
 - Visual shell behavior: `pnpm test:visual`.
-- MCP/CLI contracts: package tests plus CLI smoke commands.
+- CLI contracts: package tests plus CLI smoke commands.
 - Docs/context: reviewed manually through `README.md`, `AGENTS.md`, `ledger.md`, `docs/architecture.md`, `../tasks.md`, and `../roadmap.md`.
 - CLI app-route tests: isolated temporary command server and runtime roots so a live Exo app cannot affect results.
 
@@ -121,12 +123,12 @@ These are now part of the Exo-on-Exo readiness backlog:
 
 - Add ESLint or Biome for deterministic formatting/lint.
 - Add structural rules for high-risk patterns, likely through ast-grep or a TypeScript import-boundary test.
-- Expand docs link/path checks so roadmap/tasks/ledger/MCP docs cannot drift silently.
+- Expand docs link/path checks so roadmap/tasks/ledger/current architecture docs cannot drift silently.
 - Add renderer crash regression probes for blank-window failures.
 - Add golden/snapshot coverage for markdown rendering, terminal hydration, and search results where stable.
 - Add a test-quality review workflow that checks whether tests assert behavior, isolate external state, fail for the right reason, and cover the risk being changed.
 - Add an app-QA workflow that forces real Electron validation for UI/runtime changes, including screenshots or concise walkthrough evidence.
-- Add entropy scans for repeated anti-patterns: bloated shell files, direct filesystem access in renderer, duplicate IPC route types, hidden caps/settings, stale docs, and MCP/CLI contract drift.
+- Add entropy scans for repeated anti-patterns: bloated shell files, direct filesystem access in renderer, duplicate IPC route types, hidden caps/settings, stale docs, and CLI/command-server contract drift.
 - Add Exo-on-Exo coordination checks: agent creation/read/send reliability, changed-file attribution, transcript review, worktree state, and recovery after app hide/reopen.
 
 ## Work Chunks
@@ -164,25 +166,21 @@ Current boundaries are documented but not mechanically enforced:
 - Renderer uses `window.exo`; it does not import Node filesystem/process APIs directly.
 - Electron main owns filesystem/process/terminal-runtime behavior.
 - `packages/core` owns portable workspace/runtime/protocol logic.
-- `packages/cli` and `packages/mcp` are clients of the command server contract.
+- `packages/cli` is the active client of the command server contract. The previous `packages/mcp` client was removed on the Exograph refactor branch.
 
 Until import-boundary checks exist, reviews should explicitly look for boundary drift in changed files.
 
-## MCP And Agent Harness
+## CLI And Agent Harness
 
 Exo's agent bridge is itself part of the harness:
 
 ```bash
-./bin/exo integrations doctor
-./bin/exo integrations install --dry-run all
 ./bin/exo agents list
 ./bin/exo agents read <id> --tail 20000
 ./bin/exo agents send <id> "message"
 ```
 
-Already-running Codex/Claude sessions may not see newly installed MCP tools until restart or refresh. The CLI mirror remains the fallback control path.
-
-Keep the split clear when adding harness coverage: CLI is the operator/admin/debug surface; MCP is the narrower agent work plane.
+The legacy `exo agents` terminal lifecycle commands remain operator/debug coverage for current terminal sessions. User-facing note invocation should use configured `AgentCommand` records and `exo spawn @handle` rather than reintroducing MCP or a harness-manager product surface.
 
 ## Release Hygiene
 
@@ -192,6 +190,6 @@ Before an open-source push or release candidate:
 - run focused Playwright tests for touched UI flows
 - check `docs/usability-readiness.md` for the installed-app readiness gate before switching daily work to packaged Exo
 - confirm `.exo/`, logs, transcripts, and release artifacts are ignored
-- verify README, AGENTS, architecture, tasks, roadmap, and MCP docs agree
+- verify README, AGENTS, architecture, tasks, roadmap, and current docs agree
 - keep local/private paths out of source defaults
 - confirm the license decision is represented in the repo

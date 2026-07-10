@@ -10,8 +10,6 @@ Plugin architecture, tmux terminal persistence/readiness, packaged onboarding ha
 - Adds internal plugin seams for built-in QMD search providers and shell/Claude/Codex agent harnesses, while preserving existing desktop, CLI, MCP, and command-server behavior.
 - Adds core Routine, Run, artifact, trace, evaluation-result, routine-store, and manual executor primitives that future routine/template, trace collector, eval runner, and exporter plugins can build on.
 - Adds plugin-declared routine templates that can be instantiated into concrete user/workspace Routine definitions without executing plugin code.
-- Adds `exo routines` CLI commands for listing plugin templates, creating concrete routines, listing routines, recording explicit dry-run executions, and inspecting run records/artifacts.
-- Adds `exo routines run --agent` to create an Exo-managed shell/Claude/Codex terminal through the running app, send the routine prompt, and record the agent-session artifact for review.
 - Adds a bundled dev `graph-health.template` routine plugin manifest.
 - Adds a permissioned surface policy for desktop, CLI, MCP, command-server, and internal capability exposure.
 - Adds optional Streamable HTTP MCP transport for remote-only MCP hosts while keeping stdio as the default local transport.
@@ -35,8 +33,8 @@ Plugin architecture, tmux terminal persistence/readiness, packaged onboarding ha
 - Keeps Guardian Angel out of Exo core. GA is treated as a downstream/reference plugin workload that should use generic Exo plugin primitives.
 - Reframes OKF, LM Wiki, Shoshin profiles, feed/scheduler concepts, and routines as optional exograph/plugin architecture directions rather than hardwired folder/schema requirements.
 - Splits Workspace Settings from Agent Config and Plugin/Profile configuration so agent instructions, skills, harnesses, plugins, and profile state each have clearer ownership.
-- Stages onboarding as workspace basics, plugin choices, agent context, routines, and profile review instead of a single settings-like form; unavailable harnesses are hidden and QMD is treated as an optional search-provider plugin after workspace load.
-- Reorders profile onboarding to Plugins -> Routines -> Agent Context -> Skills -> Profile, clarifies Graph Health and Agent Instruction Sync as manual starter routine templates, and keeps skill installation/enabling routed through Agent Config instead of silent harness-folder writes.
+- Stages onboarding as workspace basics, plugin choices, agent context, and profile review instead of a single settings-like form; unavailable harnesses are hidden and QMD is treated as an optional search-provider plugin after workspace load.
+- Reorders profile onboarding to Plugins -> Agent Context -> Profile, removes starter routine and bulk skill setup panes from first-run setup, and keeps skill management in Agent Config.
 - Makes onboarding configuration trustworthy: Agent Context now previews the actual global and active-notes `AGENTS.md` / `CLAUDE.md` files, Exograph context apply refreshes visible file previews, instruction-file sync is labeled as an overwrite-from-selected-file action with confirmation, Skills onboarding installs/enables bundled Exo skills through the shared Agent Config skill service, and onboarding Profile setup exposes direct profile name/config editing with immediate save.
 - Treats shell as terminal substrate in user-facing setup surfaces: shell remains a core terminal tool for compatibility and CLI/MCP use, but it is hidden from agent-harness/profile/routine selection lists that expect a promptable agent.
 - Adds a routine execution-kind contract so current routines are explicitly agent-prompt routines, reserves shell-command routines for future work, and removes shell from prompt-routine default harness choices.
@@ -80,6 +78,8 @@ Plugin architecture, tmux terminal persistence/readiness, packaged onboarding ha
 - Removes Guardian Angel-specific capability/code/docs from Exo core after the plugin boundary was clarified.
 - Keeps plugin entrypoint execution, Plugin Manager UI, plugin-owned CLI/MCP tools, marketplace/package loading, and permission grants out of this release until the manifest/trust model survives real use.
 - Removes the terminal attach-copy header button, agent config tab from Workspace Settings, legacy plugin kind aliases, and renderer-managed harness kind leftovers.
+- Removes the legacy `exo routines` CLI surface and the onboarding routine/standard-skills setup panes from the note-native Exograph branch.
+- Removes the MCP package and setup surface from the note-native Exograph branch: `packages/mcp`, `exo integrations`, MCP capability surfaces, MCP profile config templates, MCP public-contract guard slices, and hidden Codex MCP launch injection are gone. CLI remains the local integration surface.
 
 ## 0.1.0-alpha.3 - 2026-05-31
 

@@ -1,6 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
-import { Bot, FolderOpen, Palette, Plus, Search, TerminalSquare, UserRound, X } from "lucide-react";
-import type { AgentHarnessDetection, IndexStatus, WorkspaceSettings } from "@exo/core";
+import { FolderOpen, Palette, Search, TerminalSquare, X } from "lucide-react";
+import type { IndexStatus, WorkspaceSettings } from "@exo/core";
 
 import type { AppearanceMode } from "../appearance";
 import { THEME_FAMILIES, normalizeColorThemeId } from "../theme/registry";
@@ -8,16 +8,12 @@ import type { ColorThemeId } from "../theme/types";
 import type { IndexBusyState, WorkspaceSettingsDialogState, WorkspaceSettingsSection } from "../workspaceSettingsDialogTypes";
 import { HelpTooltip } from "./HelpTooltip";
 import { PathList } from "./PathList";
-import { ProfileSettingsSection } from "./ProfileSettingsSection";
 
 interface WorkspaceSettingsDialogProps {
   indexBusy: IndexBusyState;
-  agentHarnesses: AgentHarnessDetection[];
   indexStatus: IndexStatus | null;
-  onChooseFolder: (target: "workspaceRoot" | "defaultTerminalCwd" | "projectRoot") => void | Promise<void>;
+  onChooseFolder: (target: "workspaceRoot" | "defaultTerminalCwd" | "noteRoot") => void | Promise<void>;
   onClose: () => void;
-  onOpenAgentConfigEditor: () => void;
-  onOpenPluginManager: () => void;
   onOpenWorkspaceSwitcher: () => void | Promise<void>;
   onRunIndexUpdate: (kind: Exclude<IndexBusyState, null>) => void | Promise<void>;
   onSave: (settingsDialog: WorkspaceSettingsDialogState, options: { includeStructural: boolean }) => void | Promise<void>;
@@ -28,21 +24,16 @@ interface WorkspaceSettingsDialogProps {
 
 const SETTINGS_SECTIONS: Array<{ id: WorkspaceSettingsSection; label: string; description: string; icon: typeof FolderOpen }> = [
   { id: "workspace", label: "Workspace", description: "Folders and roots", icon: FolderOpen },
-  { id: "profile", label: "Profile", description: "Read-only profile state", icon: UserRound },
   { id: "index", label: "Search", description: "Core + QMD provider", icon: Search },
-  { id: "harnesses", label: "Harnesses", description: "Agent adapters", icon: Bot },
   { id: "appearance", label: "Appearance", description: "Theme and editor", icon: Palette },
   { id: "terminal", label: "Terminal", description: "Runtime defaults", icon: TerminalSquare },
 ];
 
 export function WorkspaceSettingsDialog({
   indexBusy,
-  agentHarnesses,
   indexStatus,
   onChooseFolder,
   onClose,
-  onOpenAgentConfigEditor,
-  onOpenPluginManager,
   onOpenWorkspaceSwitcher,
   onRunIndexUpdate,
   onSave,
@@ -96,23 +87,15 @@ export function WorkspaceSettingsDialog({
             {settings.section === "workspace" ? (
               <WorkspaceSection settings={settings} setSettings={setSettings} onChooseFolder={onChooseFolder} onOpenWorkspaceSwitcher={onOpenWorkspaceSwitcher} />
             ) : null}
-            {settings.section === "profile" ? (
-              <ProfileSettingsSection
-                onOpenAgentConfigEditor={onOpenAgentConfigEditor}
-                onOpenPluginManager={onOpenPluginManager}
-              />
-            ) : null}
             {settings.section === "index" ? (
               <IndexSection
                 indexBusy={indexBusy}
                 indexStatus={indexStatus}
                 settings={settings}
                 setSettings={setSettings}
-                onOpenPluginManager={onOpenPluginManager}
                 onRunIndexUpdate={onRunIndexUpdate}
               />
             ) : null}
-            {settings.section === "harnesses" ? <HarnessesSection agentHarnesses={agentHarnesses} settings={settings} setSettings={setSettings} /> : null}
             {settings.section === "appearance" ? <AppearanceSection settings={settings} setSettings={setSettings} /> : null}
             {settings.section === "terminal" ? <TerminalSection settings={settings} setSettings={setSettings} /> : null}
           </div>
@@ -239,37 +222,6 @@ function WorkspaceSection({
           onRemove={() => setSettings((current) => (current ? { ...current, noteRoots: [], applyStatus: "idle", applyErrorMessage: null } : current))}
         />
       </div>
-      <div className="dialog-field dialog-field--section">
-        <div className="dialog-field__header">
-          <span className="dialog-field__label">Project folders</span>
-          <button
-            aria-label="Add project folder"
-            className="toolbar-button toolbar-button--icon"
-            onClick={() => void onChooseFolder("projectRoot")}
-            title="Add project folder"
-            type="button"
-          >
-            <Plus size={15} />
-          </button>
-        </div>
-        <PathList
-          emptyLabel="No project folders added."
-          paths={settings.projectRoots}
-          testId="workspace-settings-project-roots"
-          onRemove={(targetPath) =>
-            setSettings((current) =>
-              current
-                ? {
-                    ...current,
-                    projectRoots: current.projectRoots.filter((entry) => entry !== targetPath),
-                    applyStatus: "idle",
-                    applyErrorMessage: null,
-                  }
-                : current,
-            )
-          }
-        />
-      </div>
     </>
   );
 }
@@ -277,11 +229,10 @@ function WorkspaceSection({
 function IndexSection({
   indexBusy,
   indexStatus,
-  onOpenPluginManager,
   onRunIndexUpdate,
   settings,
   setSettings,
-}: Pick<WorkspaceSettingsDialogProps, "indexBusy" | "indexStatus" | "onOpenPluginManager" | "onRunIndexUpdate" | "settings" | "setSettings">) {
+}: Pick<WorkspaceSettingsDialogProps, "indexBusy" | "indexStatus" | "onRunIndexUpdate" | "settings" | "setSettings">) {
   const statusCopy = indexSettingsStatusCopy(indexStatus, indexBusy);
 
   return (
@@ -295,9 +246,6 @@ function IndexSection({
             </button>{" "}
             advanced provider
           </span>
-          <button className="toolbar-button" onClick={onOpenPluginManager} type="button">
-            Open Plugin Manager
-          </button>
         </div>
         <div className="index-summary__stats">
           <span>core always on</span>
@@ -477,142 +425,6 @@ export function indexSettingsStatusCopy(
   return null;
 }
 
-function HarnessesSection({
-  agentHarnesses,
-  settings,
-  setSettings,
-}: Pick<WorkspaceSettingsDialogProps, "agentHarnesses" | "settings" | "setSettings">) {
-  const piHarness = agentHarnesses.find((harness) => harness.id === "pi") ?? null;
-  const backendDependency = piHarness?.dependencies?.find((dependency) => dependency.id === "pi-inference-backend");
-
-  return (
-    <>
-      <div className="index-summary" data-testid="workspace-settings-pi-summary">
-        <div className="index-summary__header">
-          <span>Pi-compatible harness</span>
-        </div>
-        <div className="index-summary__stats">
-          <span>{piHarness?.statusLabel ?? "Not configured"}</span>
-          <span>{piHarness?.launchable ? "Launchable" : "Not launchable"}</span>
-          <span>{backendDependency?.statusLabel ?? "Backend missing"}</span>
-        </div>
-        <div className="onboarding-section__hint">
-          {piHarness?.setupSummary ?? "Configure a command or source checkout plus a compatible inference backend before launching Pi."}
-        </div>
-      </div>
-      <label className="dialog-check">
-        <input
-          checked={settings.piHarnessEnabled}
-          data-testid="workspace-settings-pi-enabled"
-          onChange={(event) =>
-            setSettings((current) => (current ? { ...current, piHarnessEnabled: event.target.checked, saveStatus: "idle", errorMessage: null } : current))
-          }
-          type="checkbox"
-        />
-        <span>Enable Pi-compatible harness when configured.</span>
-      </label>
-      <div className="dialog-form__grid">
-        <label className="dialog-field">
-          <span className="dialog-field__label">Display label</span>
-          <input
-            className="dialog-card__input"
-            data-testid="workspace-settings-pi-label"
-            value={settings.piHarnessLabel}
-            onChange={(event) => setSettings((current) => (current ? { ...current, piHarnessLabel: event.target.value, saveStatus: "idle", errorMessage: null } : current))}
-          />
-        </label>
-        <label className="dialog-field">
-          <span className="dialog-field__label">Command</span>
-          <input
-            className="dialog-card__input"
-            data-testid="workspace-settings-pi-command"
-            value={settings.piHarnessCommand}
-            onChange={(event) => setSettings((current) => (current ? { ...current, piHarnessCommand: event.target.value, saveStatus: "idle", errorMessage: null } : current))}
-          />
-        </label>
-        <label className="dialog-field">
-          <span className="dialog-field__label">Source checkout</span>
-          <input
-            className="dialog-card__input"
-            data-testid="workspace-settings-pi-repo-path"
-            value={settings.piHarnessRepoPath}
-            onChange={(event) => setSettings((current) => (current ? { ...current, piHarnessRepoPath: event.target.value, saveStatus: "idle", errorMessage: null } : current))}
-          />
-        </label>
-        <label className="dialog-field">
-          <span className="dialog-field__label">Arguments</span>
-          <input
-            className="dialog-card__input"
-            data-testid="workspace-settings-pi-args"
-            value={settings.piHarnessArgs}
-            onChange={(event) => setSettings((current) => (current ? { ...current, piHarnessArgs: event.target.value, saveStatus: "idle", errorMessage: null } : current))}
-          />
-        </label>
-        <label className="dialog-field">
-          <span className="dialog-field__label">Backend URL</span>
-          <input
-            className="dialog-card__input"
-            data-testid="workspace-settings-pi-backend-url"
-            value={settings.piHarnessBackendUrl}
-            onChange={(event) => setSettings((current) => (current ? { ...current, piHarnessBackendUrl: event.target.value, saveStatus: "idle", errorMessage: null } : current))}
-          />
-        </label>
-        <label className="dialog-field">
-          <span className="dialog-field__label">Backend command</span>
-          <input
-            className="dialog-card__input"
-            data-testid="workspace-settings-pi-backend-command"
-            value={settings.piHarnessBackendCommand}
-            onChange={(event) => setSettings((current) => (current ? { ...current, piHarnessBackendCommand: event.target.value, saveStatus: "idle", errorMessage: null } : current))}
-          />
-        </label>
-        <label className="dialog-field">
-          <span className="dialog-field__label">Backend label</span>
-          <input
-            className="dialog-card__input"
-            data-testid="workspace-settings-pi-backend-label"
-            value={settings.piHarnessBackendLabel}
-            onChange={(event) => setSettings((current) => (current ? { ...current, piHarnessBackendLabel: event.target.value, saveStatus: "idle", errorMessage: null } : current))}
-          />
-        </label>
-        <label className="dialog-field">
-          <span className="dialog-field__label">Backend kind</span>
-          <input
-            className="dialog-card__input"
-            data-testid="workspace-settings-pi-backend-kind"
-            value={settings.piHarnessBackendKind}
-            onChange={(event) => setSettings((current) => (current ? { ...current, piHarnessBackendKind: event.target.value, saveStatus: "idle", errorMessage: null } : current))}
-          />
-        </label>
-        <label className="dialog-field">
-          <span className="dialog-field__label">Backend readiness</span>
-          <select
-            className="dialog-card__input"
-            data-testid="workspace-settings-pi-backend-ready"
-            value={settings.piHarnessBackendReady}
-            onChange={(event) =>
-              setSettings((current) =>
-                current
-                  ? {
-                      ...current,
-                      piHarnessBackendReady: event.target.value as WorkspaceSettingsDialogState["piHarnessBackendReady"],
-                      saveStatus: "idle",
-                      errorMessage: null,
-                    }
-                  : current,
-              )
-            }
-          >
-            <option value="auto">Configured URL or command is ready</option>
-            <option value="ready">Force ready</option>
-            <option value="not-ready">Force not ready</option>
-          </select>
-        </label>
-      </div>
-    </>
-  );
-}
-
 function AppearanceSection({
   settings,
   setSettings,
@@ -768,7 +580,7 @@ function TerminalSection({
       <label className="dialog-field">
         <span className="dialog-field__label">
           Agent read maximum characters
-          <HelpTooltip label="Maximum terminal transcript characters an agent can request through Exo MCP. Set higher when debugging long sessions." />
+          <HelpTooltip label="Maximum terminal transcript characters an agent-facing Exo surface can request. Set higher when debugging long sessions." />
         </span>
         <input
           className="dialog-card__input"
@@ -783,7 +595,7 @@ function TerminalSection({
       <label className="dialog-field">
         <span className="dialog-field__label">
           Input coalesce milliseconds
-          <HelpTooltip label="How long Exo batches rapid raw terminal input before writing it to tmux. Lower values favor immediate keystrokes; higher values can reduce write churn." />
+          <HelpTooltip label="How long Exo may batch rapid raw terminal input before writing it to the terminal process. Lower values favor immediate keystrokes." />
         </span>
         <input
           className="dialog-card__input"
@@ -793,36 +605,6 @@ function TerminalSection({
           step={5}
           value={settings.terminalInputCoalesceMs}
           onChange={(event) => setSettings((current) => (current ? { ...current, terminalInputCoalesceMs: event.target.value, saveStatus: "idle", errorMessage: null } : current))}
-        />
-      </label>
-      <label className="dialog-field">
-        <span className="dialog-field__label">
-          Agent startup grace milliseconds
-          <HelpTooltip label="How long Exo waits before flushing queued startup input to agent harnesses that show startup interstitials." />
-        </span>
-        <input
-          className="dialog-card__input"
-          data-testid="workspace-settings-terminal-agent-startup-grace-ms"
-          type="number"
-          min={0}
-          step={100}
-          value={settings.terminalAgentStartupGraceMs}
-          onChange={(event) => setSettings((current) => (current ? { ...current, terminalAgentStartupGraceMs: event.target.value, saveStatus: "idle", errorMessage: null } : current))}
-        />
-      </label>
-      <label className="dialog-field">
-        <span className="dialog-field__label">
-          Agent submit delay milliseconds
-          <HelpTooltip label="Delay before pressing Enter for queued startup messages after an agent harness becomes ready." />
-        </span>
-        <input
-          className="dialog-card__input"
-          data-testid="workspace-settings-terminal-agent-submit-delay-ms"
-          type="number"
-          min={0}
-          step={20}
-          value={settings.terminalAgentSubmitDelayMs}
-          onChange={(event) => setSettings((current) => (current ? { ...current, terminalAgentSubmitDelayMs: event.target.value, saveStatus: "idle", errorMessage: null } : current))}
         />
       </label>
       <label className="dialog-field">

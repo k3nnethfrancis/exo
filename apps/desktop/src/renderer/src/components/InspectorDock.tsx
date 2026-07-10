@@ -1,6 +1,8 @@
 import { ExternalLink, ScanText } from "lucide-react";
 import type { NoteDocument, NoteKnowledge, SearchResult } from "@exo/core";
+import { buildNoteGraphContext } from "../graphAffordances";
 import { FloatingPanel } from "./FloatingPanel";
+import { GraphNeighborhoodView } from "./GraphNeighborhoodView";
 
 interface InspectorDockProps {
   document: NoteDocument | null;
@@ -28,26 +30,13 @@ export function InspectorDock(props: InspectorDockProps) {
   } = props;
 
   const isMarkdown = document?.kind === "markdown";
-  const backlinkCount = isMarkdown ? knowledge?.backlinks.length ?? 0 : 0;
-  const referenceLinks = isMarkdown
-    ? [
-        ...(knowledge?.wikilinks.map((item) => ({
-          label: item.label,
-          target: item.target,
-          kind: "wikilink" as const,
-        })) ?? []),
-        ...(knowledge?.markdownLinks
-          .filter((item) => !item.target.startsWith("http"))
-          .map((item) => ({
-            label: item.label,
-            target: item.target,
-            kind: "markdown" as const,
-          })) ?? []),
-      ]
-    : [];
-  const externalLinks = isMarkdown ? knowledge?.markdownLinks.filter((item) => item.target.startsWith("http")) ?? [] : [];
+  const graphContext = buildNoteGraphContext(document, knowledge);
+  const backlinkCount = isMarkdown ? graphContext?.backlinks.length ?? 0 : 0;
+  const referenceLinks = isMarkdown ? graphContext?.outgoingLinks.filter((item) => item.resolution !== "external") ?? [] : [];
+  const externalLinks = isMarkdown ? graphContext?.externalLinks ?? [] : [];
   const linkCount = referenceLinks.length + externalLinks.length;
-  const tagCount = isMarkdown ? knowledge?.tags.length ?? 0 : 0;
+  const tagCount = isMarkdown ? graphContext?.tags.length ?? 0 : 0;
+  const propertyEntries = graphContext ? Object.entries(graphContext.properties).filter(([key]) => !key.startsWith("branch_")) : [];
 
   return (
     <FloatingPanel
@@ -66,15 +55,15 @@ export function InspectorDock(props: InspectorDockProps) {
           <div className="footer-panel__title">Backlinks</div>
           {!isMarkdown ? (
             <div className="footer-empty">No note selected</div>
-          ) : knowledge?.backlinks.length ? (
-            knowledge.backlinks.map((backlink) => (
+          ) : graphContext?.backlinks.length ? (
+            graphContext.backlinks.map((backlink) => (
               <button
-                key={backlink.filePath}
+                key={backlink.target}
                 className="footer-item"
-                onClick={() => onOpenTarget(backlink.filePath)}
+                onClick={() => onOpenTarget(backlink.target)}
                 type="button"
               >
-                {backlink.title}
+                {backlink.label}
               </button>
             ))
           ) : (
@@ -128,11 +117,11 @@ export function InspectorDock(props: InspectorDockProps) {
           <div className="footer-panel__title">Tags</div>
           {!isMarkdown ? (
             <div className="footer-empty">No note selected</div>
-          ) : knowledge?.tags.length ? (
+          ) : graphContext?.tags.length ? (
             <div className="tag-list">
-              {knowledge.tags.map((tag) => (
-                <button key={tag.tag} className="tag-pill" onClick={() => onOpenTag(tag.tag)} type="button">
-                  #{tag.tag}
+              {graphContext.tags.map((tag) => (
+                <button key={tag} className="tag-pill" onClick={() => onOpenTag(tag)} type="button">
+                  #{tag}
                 </button>
               ))}
             </div>
@@ -152,7 +141,52 @@ export function InspectorDock(props: InspectorDockProps) {
             </div>
           ) : null}
         </div>
+
+        <div className="footer-panel__section" data-testid="properties-graph-panel">
+          <div className="footer-panel__title">Properties</div>
+          {!isMarkdown ? (
+            <div className="footer-empty">No note selected</div>
+          ) : propertyEntries.length ? (
+            <div className="graph-properties">
+              {propertyEntries.slice(0, 8).map(([key, value]) => (
+                <div key={key} className="graph-property-row">
+                  <span className="graph-property-row__key">{key}</span>
+                  <span className="graph-property-row__value">{formatPropertyValue(value)}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="footer-empty">No properties</div>
+          )}
+        </div>
+
+        <div className="footer-panel__section" data-testid="graph-neighborhood-panel">
+          <div className="footer-panel__title">Neighborhood</div>
+          {!isMarkdown ? (
+            <div className="footer-empty">No note selected</div>
+          ) : (
+            <GraphNeighborhoodView
+              neighborhood={graphContext?.neighborhood ?? null}
+              onOpenTarget={onOpenTarget}
+              onOpenExternal={onOpenExternal}
+              onOpenTag={onOpenTag}
+            />
+          )}
+        </div>
       </div>
     </FloatingPanel>
   );
+}
+
+function formatPropertyValue(value: unknown): string {
+  if (Array.isArray(value)) {
+    return value.map((entry) => String(entry)).join(", ");
+  }
+  if (value === null || value === undefined) {
+    return "";
+  }
+  if (typeof value === "object") {
+    return JSON.stringify(value);
+  }
+  return String(value);
 }

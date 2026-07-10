@@ -2,9 +2,9 @@
 
 This file is the lightweight annotation ledger for Exo's public agent/operator contract guard.
 
-Boundary rule: command-server routes, CLI commands/flags, MCP tool parameters, and shared protocol types require architect review before shipping unless a user-approved exception is explicitly documented.
+Boundary rule: command-server routes, CLI commands/flags, and shared protocol types require architect review before shipping unless a user-approved exception is explicitly documented.
 
-`pnpm check:repo` verifies the protected contract slices below by SHA-256. The guard intentionally hashes route constants/types, command-server route matching lines, CLI command/usage/flag lines, MCP tool schema declarations, and CLI/MCP command-server client route calls instead of whole files. Implementation-only body edits in these files should not require a review-ledger update unless they change one of those extracted slices.
+`pnpm check:repo` verifies the protected contract slices below by SHA-256. The guard intentionally hashes route constants/types, command-server route matching lines, CLI command/usage/flag lines, and CLI command-server client route calls instead of whole files. Implementation-only body edits in these files should not require a review-ledger update unless they change one of those extracted slices.
 
 External plugin contracts are not protected by this guard while they are marked `status: unstable`. When an exported core contract is reviewed as stable, has two real consumers, and can be version-gated by plugin manifests, add a focused protected slice for that exported type or schema here. This keeps trace, proposal/review, dataset, eval, graph, harness, and surface contracts cheap to change until their consumer evidence supports a compatibility promise.
 
@@ -19,6 +19,11 @@ Exception discipline: a `user-approved-exception` must name the approving task o
 
 Escape hatch: if a repo check flags a change that is genuinely implementation-only noise, narrow the extractor in `scripts/check-repo.mjs` in the same change and explain why the public contract did not move. Do not silence the guard by adding a review note for unrelated implementation churn.
 
+## Removal Approval Notes
+
+- architect-review: 2026-07-08 `docs/exograph-refactor-completion-plan.md#public-contract-approval` is the Fable-reviewed approval to remove the named MCP, routine, deep harness-manager, profile-apply, and plugin-manager product surfaces, subject to caller audits and the Phase 1 public-contract updates. This approval covers removals only; new command-server routes, CLI commands/flags, or shared protocol types remain out of scope.
+- architect-review: 2026-07-08 MCP removal audit deleted `packages/mcp`, `exo integrations`, MCP capability surfaces, MCP profile-template support, MCP public-contract guard slices, and Codex MCP launch injection. CLI remains the active local integration surface.
+
 ## Protected Surfaces
 
 ### `packages/core/src/command-protocol.ts#routes-and-types`
@@ -26,19 +31,27 @@ Escape hatch: if a repo check flags a change that is genuinely implementation-on
 - sha256: `c12a5694574feecbad1508d9e7b3f73d07be7c3c5798ae820faa469380d24373`
 - review: guard-baseline: 2026-07-04 existing shared command route and payload type exports; guard cleanup does not change behavior.
 - sha256: `6c6003ee69693121a8b9eb703840d72015b787625c613029cfff359bda1c5669`
-- review: user-approved-exception: 2026-07-04 plugin architecture cleanup intentionally moved app/CLI/MCP agent-create payloads toward registered harness ids while preserving compatibility fields for terminal sessions and persisted backfill.
+- review: user-approved-exception: 2026-07-04 plugin architecture cleanup intentionally moved app/CLI agent-create payloads toward registered harness ids while preserving compatibility fields for terminal sessions and persisted backfill.
+- sha256: `c1bf841f979298a4732c7f73e56d8d441e1de5eff617467b981709730a7e8ce0`
+- review: architect-review: 2026-07-08 Fable Exograph completion review approved per-runtime command-server token auth on all routes with the token stored in `server.json`; this protocol update adds the shared token header constant and required discovery token field.
+- sha256: `56dccdd401e9b9c59d90401c88b7c441fc56d0bfd625b675001b917f1e8eee1e`
+- review: architect-review: 2026-07-08 Fable Exograph completion review approved `AgentCommand` as the V1 agent identity and `exo spawn @handle` as a CLI-only configured-command launch surface; protocol update adds the spawn route request/response and invocation payload types.
+- sha256: `a61037495a1201d05172cf29d32abc5b25e28d775414580a45bad12137a49344`
+- review: architect-review: 2026-07-08 MCP removal audit removed MCP from the capability/caller-surface vocabulary and retained the existing app/CLI command protocol routes.
 
 ### `apps/desktop/src/main/command-server.ts#route-table`
 
 - sha256: `44fa7ee1d2d59a8de978dbec49e4d0694e08ff897b98b92dabc4b75f4ed41c04`
 - review: guard-baseline: 2026-07-04 existing command-server HTTP method and route match surface; guard cleanup does not change behavior.
+- sha256: `60d347d59b9c6f3356472d6d67b33b006c90d52bc7265cda203b2b84af2b7bd8`
+- review: architect-review: 2026-07-08 Fable Exograph completion review approved routing configured AgentCommand spawn through the authenticated local command server, with token auth already required on all routes and structured untrusted-command errors.
 
 ### `packages/cli/src/index.ts#commands-and-flags`
 
 - sha256: `27d3d18d302c398cb953c633a737bbd0e4f65dc47ac2ef50290dff9bc0a57b1e`
 - review: guard-baseline: 2026-07-04 existing CLI command, usage, and flag parsing surface; guard cleanup does not change behavior.
 - sha256: `481bad75527ab75ff8ab04cc5a4a5f7adabf6939dc81e8a7a4c122720cd58962`
-- review: user-approved-exception: 2026-07-05 Wave 6 recovery/rollback task explicitly allowed CLI/app command surfaces and prohibited Fable/oracle; adds `exo profile-recovery list|show|restore` as a local operator-only recovery surface while keeping MCP without accept/reject/rollback tools.
+- review: user-approved-exception: 2026-07-05 Wave 6 recovery/rollback task explicitly allowed CLI/app command surfaces and prohibited Fable/oracle; adds `exo profile-recovery list|show|restore` as a local operator-only recovery surface.
 - review: architect-review: 2026-07-05 fable-exo-wave6-review.md — confirmed CLI recovery surface is acceptably narrow and intentionally operator-only.
 - sha256: `2934f84385e13dea7f8f07b5feb2d95a24ef1795219ab733c74531423e016526`
 - review: user-approved-exception: 2026-07-05 Wave 6 trace-retention task explicitly requested a CLI-first operator surface for listing and cleaning semantic traces before broad real-vault plugin dogfooding; post-hoc architect review should confirm the command shape before public stabilization.
@@ -46,6 +59,12 @@ Escape hatch: if a repo check flags a change that is genuinely implementation-on
 - sha256: `7d6378d2b14ae8ceacac28bb8513bcde3ffe9e1d06d30ef6d12c3d474596f9ee`
 - review: user-approved-exception: 2026-07-05 Wave 6 merged CLI operator surface combines `exo profile-recovery list|show|restore` with `exo traces list|cleanup`; this is intentionally CLI-only and requires post-hoc Fable/oracle review before public stabilization.
 - review: architect-review: 2026-07-05 fable-exo-wave6-review.md — confirmed merged Wave 6 CLI operator surface can ship after partial-restore reporting and ledger closure fixes.
+- sha256: `3a2e29f9613087e887404e24f163e9ffd3e56d4d9abaa023a9a7fe007b4d29de`
+- review: architect-review: 2026-07-08 Fable Exograph completion review approved `exo spawn @handle <task>` for already trusted AgentCommand configs, with no CLI self-trust flag and `note_dir` cwd rejected outside document context.
+- sha256: `64f3436ebb49c0f475d85cc8c91ebbe1e7613679282b010835b78faff107df2e`
+- review: architect-review: 2026-07-08 MCP removal audit deleted the legacy `exo integrations` command family and kept CLI search/read/status/terminal/AgentCommand surfaces as the active local integration path.
+- sha256: `e09e9624ff2f59e1655c34cbf714b12cfe2dca60a3cd3f7d565d1296be588ccb`
+- review: architect-review: 2026-07-09 Fable Exograph completion plan required deleting `profile-recovery` when no real recovery manifests exist; targeted manifest audit found none, so the CLI recovery command was removed with profile-apply proposal/recovery code.
 
 ### `packages/cli/src/app-client.ts#route-client-methods`
 
@@ -53,20 +72,5 @@ Escape hatch: if a repo check flags a change that is genuinely implementation-on
 - review: guard-baseline: 2026-07-04 existing CLI app-client route method surface; guard cleanup does not change behavior.
 - sha256: `c6a887cffc9f911b5433a3ec4da69d262af03a35fc8cabfe36efaba6b24de421`
 - review: user-approved-exception: 2026-07-04 plugin architecture cleanup intentionally updated CLI app-client agent-create route payloads to submit harness ids through the registered harness path.
-
-### `packages/mcp/src/index.ts#tool-schemas`
-
-- sha256: `949ef6196644ed7eec3b21fb5eeb285da7d804e8e50ce260b33e69df7dbe5f4b`
-- review: guard-baseline: 2026-07-04 existing MCP tool schema and parameter declaration surface; guard cleanup does not change behavior.
-- sha256: `aab06ee22975d9315b4e2149bd01d5883a27b166144f0ee24198d4bd03cf8d35`
-- review: architect-review: 2026-07-07 Fable CLI review approved catalog-driven MCP exposure profiles after hardening: default remains `dev`, profiles are narrowing-only, invalid explicit profiles fail closed, custom unknown tools warn, catalog/registration parity is mechanically tested, `everyday` is documented as not strictly read-only because it includes bounded preview view-control tools, and the future default flip criterion is recorded.
-
-### `packages/mcp/src/exo-client.ts#route-client-methods`
-
-- sha256: `f86f86f28193c3189fe3fde4188572480839281325afd20bddd7e0b8fe39291a`
-- review: guard-baseline: 2026-07-04 existing MCP app-client route method surface; guard cleanup does not change behavior.
-- sha256: `f02f1bf341ae2d05ffbeb844e233bd33a36daaef9d7e34612b69d57a50b6b384`
-- review: user-approved-exception: 2026-07-04 plugin architecture cleanup intentionally updated MCP app-client agent-create route payloads to submit harness ids through the registered harness path.
-- sha256: `31f16c4e3feb550b537c1b304b658def98bea16a7fe7d9e724de6608d4002f6e`
-- review: user-approved-exception: 2026-07-05 Wave 6 workspace_status enrichment adds a read-only MCP command-server client call for terminal diagnostics so agents can orient to Exo health without adding new MCP admin tools; post-hoc Fable/oracle review should confirm the response shape before public stabilization.
-- review: architect-review: 2026-07-05 fable-exo-wave6-review.md — confirmed read-only MCP workspace_status enrichment is the right single orientation tool shape; MCP mutations remain excluded from exception flow.
+- sha256: `27fbf0b328b454c9a3afe57fffc855ae1695dcbeac5eff074809b09046bcf3ec`
+- review: architect-review: 2026-07-08 Fable Exograph completion review approved adding the CLI app-client method for authenticated AgentCommand spawn over the local command server.

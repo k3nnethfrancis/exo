@@ -41,10 +41,6 @@ function terminalGeometryEqual(left: TerminalSessionInfo["geometry"], right: Ter
     left?.source === right?.source;
 }
 
-export function isReconnectableSession(session: TerminalSessionInfo): boolean {
-  return session.status === "running" && session.health === "unhealthy";
-}
-
 export function isTerminalInputEnabled(session: TerminalSessionInfo): boolean {
   return session.status === "running" && session.health !== "unhealthy" && session.health !== "exited";
 }
@@ -108,7 +104,7 @@ function unavailableTerminalStatus(session: TerminalSessionInfo): TerminalStatus
   return {
     label: "Terminal unavailable",
     tone: "error",
-    title: terminalStatusTitle(session, "Reconnect or inspect terminal diagnostics."),
+    title: terminalStatusTitle(session, "Terminal process is unavailable."),
     busy: false,
     sessionId: session.id,
   };
@@ -116,9 +112,9 @@ function unavailableTerminalStatus(session: TerminalSessionInfo): TerminalStatus
 
 function restoringTerminalStatus(session: TerminalSessionInfo): TerminalStatusLine {
   return {
-    label: "Restoring terminal",
+    label: "Loading terminal",
     tone: "info",
-    title: `${session.title}: reattaching to the durable tmux pane.`,
+    title: `${session.title}: loading terminal output.`,
     busy: true,
     sessionId: session.id,
   };

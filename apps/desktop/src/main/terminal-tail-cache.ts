@@ -3,7 +3,7 @@
  *
  * This is deliberately not a live screen model. tmux owns durable history,
  * xterm owns mounted rendering, and transcripts own full append-only history.
- * The cache only supports readiness heuristics and bounded CLI/MCP/UI tail
+ * The cache only supports readiness heuristics and bounded CLI/UI tail
  * reads when tmux capture is temporarily unavailable.
  */
 export class TerminalTailCache {

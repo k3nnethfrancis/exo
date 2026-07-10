@@ -52,18 +52,12 @@
           "instructionTemplates": [],
           "mcpConfigTemplates": [],
           "skills": [],
-          "routineTemplateIds": [],
           "graphViews": [],
           "analyzerSettings": [],
           "reviewPolicy": {
             "fileChanges": "propose",
             "requireHumanReview": true,
             "allowedPaths": ["**/*.md", ".exo/**"]
-          },
-          "outputPolicy": {
-            "fileChanges": "propose",
-            "artifacts": "record",
-            "allowedPaths": [".exo/artifacts/**"]
           }
         }
       }

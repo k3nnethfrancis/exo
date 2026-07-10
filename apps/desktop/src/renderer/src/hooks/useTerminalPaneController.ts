@@ -16,14 +16,14 @@ import {
 } from "../paneTreeSelectors";
 
 interface TerminalStateApi {
-  createTerminal: (terminalKind: TerminalLaunchKind, cwd?: string, harnessId?: string) => Promise<TerminalSessionInfo>;
+  createTerminal: (terminalKind: TerminalLaunchKind, cwd?: string) => Promise<TerminalSessionInfo>;
   setActiveTerminalId: (id: string | null) => void;
   activateTerminal: (id: string) => Promise<void>;
   killTerminal: (id: string) => Promise<TerminalSessionInfo[]>;
 }
 
 export interface TerminalPaneController {
-  createTerminal: (terminalKind: TerminalLaunchKind, cwd?: string, activate?: boolean, harnessId?: string) => Promise<TerminalSessionInfo>;
+  createTerminal: (terminalKind: TerminalLaunchKind, cwd?: string, activate?: boolean) => Promise<TerminalSessionInfo>;
   attachExternalTerminalSessions: (sessions: TerminalSessionInfo[], options: { activateLatest: boolean }) => void;
   activateTerminal: (leafId: PaneNodeId, id: string) => Promise<void>;
   focusTerminalSession: (id: string) => Promise<void>;
@@ -44,8 +44,8 @@ interface UseTerminalPaneControllerOptions {
 }
 
 export function useTerminalPaneController(options: UseTerminalPaneControllerOptions): TerminalPaneController {
-  async function createTerminal(terminalKind: TerminalLaunchKind, cwd?: string, activate = true, harnessId?: string) {
-    const session = await options.terminalState.createTerminal(terminalKind, cwd, harnessId);
+  async function createTerminal(terminalKind: TerminalLaunchKind, cwd?: string, activate = true) {
+    const session = await options.terminalState.createTerminal(terminalKind, cwd);
     options.setTerminalCollapsed(false);
 
     if (options.monitorMode) {

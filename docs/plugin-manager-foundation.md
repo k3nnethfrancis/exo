@@ -1,5 +1,7 @@
 # Plugin Manager Foundation
 
+> Superseded as an active product path by `docs/exograph-refactor-completion-plan.md` on `refactor/note-native-exo`. The Plugin Manager UI/model/CSS/tests and mutable lifecycle APIs were deleted in the Exograph refactor. Keep this file only as historical implementation context.
+
 Last updated: 2026-06-27
 
 Status: completed as the foundation pass. Plugin Enablement v0 now extends this

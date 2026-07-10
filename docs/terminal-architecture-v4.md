@@ -32,7 +32,7 @@ Real product requirements:
 - No visible corruption: Unicode, ANSI, OSC/device responses, resize, tab switch, pane moves, preview-pane focus, renderer reload, and relaunch must not produce stale or replacement-glyph output.
 - Process persistence: shell and agent sessions must survive window close, renderer reload, app relaunch, and sleep/wake when tmux is alive.
 - Full useful scrollback: live scrollback should be configured and predictable; durable transcript should preserve full session output subject to retention.
-- Agent usability: CLI/MCP/app can create, list, send semantic messages, interrupt/write raw input, reconnect, terminate, diagnose, and read bounded transcript tails without live Claude/Codex inference in tests.
+- Agent usability: CLI/app surfaces can create, list, send semantic messages, interrupt/write raw input, reconnect, terminate, diagnose, and read bounded transcript tails without live Claude/Codex inference in tests.
 - No hidden caps: user-visible terminal caps/timing values belong in settings and UI.
 
 Assumed implementation choices:
@@ -61,7 +61,7 @@ Do not delete:
 - tmux control-mode attach path.
 - xterm live rendering.
 - deterministic fake-agent terminal tests.
-- bounded CLI/MCP transcript read limits exposed through settings.
+- bounded CLI/app transcript read limits exposed through settings.
 
 ### 3. Simplify Then Optimize
 
@@ -145,7 +145,7 @@ The plain attach spike is closed. It remains useful as evidence, but it is not a
 - `apps/desktop/src/renderer/src/components/terminalInputFilters.ts`: xterm-generated CSI/OSC response filter.
 - `apps/desktop/src/renderer/src/components/BrowserPane.tsx`: preview iframe for local/artifact URLs. Exo intentionally avoids Electron `<webview>` here because Electron documents webview event-routing instability, and terminal input is the higher-priority work surface.
 - Settings: `packages/core/src/terminal-settings.ts`, `packages/core/src/workspace-settings.ts`, `apps/desktop/src/main/settings-store.ts`, `WorkspaceSettingsDialog.tsx`, and `workspaceSettingsModel.ts` expose most terminal caps/timing values.
-- CLI/MCP: `packages/cli/src/index.ts`, `packages/cli/src/app-client.ts`, `packages/mcp/src/index.ts`, and `packages/core/src/command-protocol.ts` expose terminal create/read/send/reconnect/diagnostics contracts.
+- CLI: `packages/cli/src/index.ts`, `packages/cli/src/app-client.ts`, and `packages/core/src/command-protocol.ts` expose terminal create/read/send/reconnect/diagnostics contracts. The previous `packages/mcp` client was removed on the Exograph refactor branch.
 - Tests: `terminal-manager.test.ts`, `terminal-tmux.test.ts`, renderer `App.test.tsx`, and `apps/desktop/tests/e2e/shell.spec.ts` already cover many known regressions.
 
 ## Ownership Model
@@ -159,7 +159,7 @@ The plain attach spike is closed. It remains useful as evidence, but it is not a
 
 ## V4.1 Restore Snapshots
 
-Live reconnect/bootstrap restore uses a typed tmux restore snapshot, not the CLI/MCP display tail. The restore snapshot is byte-faithful `capture-pane -e -p -J` content plus an in-band cursor-position escape appended to the same string, after tmux has been asserted to the renderer-recorded geometry. Display tails may trim and normalize for readability; they must never hydrate a live xterm.
+Live reconnect/bootstrap restore uses a typed tmux restore snapshot, not the CLI/app display tail. The restore snapshot is byte-faithful `capture-pane -e -p -J` content plus an in-band cursor-position escape appended to the same string, after tmux has been asserted to the renderer-recorded geometry. Display tails may trim and normalize for readability; they must never hydrate a live xterm.
 
 Alt-screen restore is a v1 limitation: if tmux reports `alternate_on`, Exo returns an empty restore snapshot with `altScreen: true` and relies on the running TUI to repaint after reconnect/resize. Full alt-screen grid restore is deferred until a concrete harness needs it.
 
@@ -252,7 +252,7 @@ Phase 1: low-conflict boundary extraction.
 
 - Add `TerminalRuntime` interface.
 - Extract tmux create/attach/reconnect/resize/write/capture/kill into `TmuxTerminalRuntime`.
-- Keep public `TerminalManager` methods and IPC/CLI/MCP contracts unchanged.
+- Keep public `TerminalManager` methods and IPC/CLI contracts unchanged.
 - Move no product behavior in this slice.
 - Add unit tests that `TerminalManager` delegates and does not assemble tmux command strings.
 
@@ -323,8 +323,8 @@ Manual QA:
 
 - Risk: moving tmux code changes launch quoting or environment propagation.
   Detection: unit tests for `shellCommand`, env args, launch command, and fake-agent e2e.
-- Risk: removing main buffer breaks CLI/MCP tails.
-  Detection: command-server `/tail`, CLI `terminals read`, MCP `read_agent`, and transcript tests.
+- Risk: removing main buffer breaks CLI tails.
+  Detection: command-server `/tail`, CLI `terminals read`, and transcript tests.
 - Risk: stricter hydration leaves blank xterm after reload.
   Detection: reload/relaunch e2e must assert history visible before input.
 - Risk: preview panes steal focus or leave stale geometry.
@@ -334,7 +334,7 @@ Manual QA:
 - Risk: hidden caps reappear during refactor.
   Detection: settings tests assert all user-visible terminal caps are present in settings/UI; docs classify any internal constants.
 - Risk: Exo-on-Exo diagnostics are blocked by sandbox.
-  Detection: CLI/MCP stale-runtime diagnostics should distinguish blocked process/network checks from dead runtime. This review saw sandboxed `exo status` fail with `fetch failed` and `kill EPERM`.
+  Detection: CLI stale-runtime diagnostics should distinguish blocked process/network checks from dead runtime. This review saw sandboxed `exo status` fail with `fetch failed` and `kill EPERM`.
 
 ## Non-Negotiables
 
@@ -351,7 +351,7 @@ Start with Phase 1: extract `TerminalRuntime` and `TmuxTerminalRuntime` while ke
 
 Why this slice first:
 
-- It is low conflict because IPC, CLI, MCP, renderer, settings, and tests can remain behavior-compatible.
+- It is low conflict because IPC, CLI, renderer, settings, and tests can remain behavior-compatible.
 - It removes the biggest ownership knot without changing product behavior.
 - It creates a place for later registry, health, and hydration fixes to land without making `TerminalManager` larger.
 - It gives a second agent a concrete contract: move code, preserve behavior, run focused main-process terminal tests.
@@ -371,7 +371,7 @@ Implementation guardrails:
 
 - Do not move behavior and fix behavior in the same first slice. The first worker should extract the runtime boundary and preserve behavior.
 - Do not remove `TerminalLineBuffer`, hydration snapshots, readiness gates, or transcript paths during Phase 1 unless a test proves the move is behavior-preserving. Those deletions belong to later slices.
-- Keep `TerminalManager` as the compatibility facade for IPC, command server, CLI, MCP, and renderer code.
+- Keep `TerminalManager` as the compatibility facade for IPC, command server, CLI, and renderer code.
 - Keep the persisted `.exo/terminal-sessions.json` shape compatible in Phase 1.
 - Add tests that fail if new tmux command construction is added back to `TerminalManager`.
 - After Phase 1, run a separate targeted slice on the renderer hydration invariant: mounted/live xterm instances must not reset from focus, tab switch, metadata polling, or preview-pane refresh.
@@ -401,14 +401,14 @@ Measured LOC from the Phase 1 baseline in this worktree:
 - new `terminal-session-registry.ts`: +104.
 - Main-process terminal runtime subtotal for these files: 1778 -> 1769, net delta -9.
 
-The important result is that `TerminalManager` lost direct registry persistence, health policy, create-time tmux capture hydration, and the `TerminalLineBuffer` class. The total runtime LOC only drops slightly because two explicit boundary modules now carry the remaining registry and health behavior. A much larger total LOC deletion is not safe yet without tackling renderer hydration and tail semantics, because CLI/MCP/app reads still require a bounded live tail, Codex readiness still needs recent output text, and diagnostics still expose buffered line/char fields.
+The important result is that `TerminalManager` lost direct registry persistence, health policy, create-time tmux capture hydration, and the `TerminalLineBuffer` class. The total runtime LOC only drops slightly because two explicit boundary modules now carry the remaining registry and health behavior. A much larger total LOC deletion is not safe yet without tackling renderer hydration and tail semantics, because CLI/app reads still require a bounded live tail, Codex readiness still needs recent output text, and diagnostics still expose buffered line/char fields.
 
 Next deletion candidates:
 
 - Replace routine renderer hydration with an explicit first-mount/reconnect state machine, then remove more `terminals.read()` reset/replay paths.
 - Decide whether diagnostics should keep `bufferedLines`/`bufferedChars`; removing or renaming them is a public command-server/API compatibility decision.
 - Move Codex readiness and queued semantic message delivery behind a readiness gate so `TerminalManager` can stop owning harness-specific startup text scanning.
-  - 2026-06-24: `terminal-harness-readiness.ts` now owns Codex startup prompt scanning, semantic-send queue policy, bracketed-paste formatting, and Codex MCP launch overrides.
+  - 2026-06-24: `terminal-harness-readiness.ts` owns Codex startup prompt scanning, semantic-send queue policy, and bracketed-paste formatting. Codex MCP launch overrides were removed with the MCP package on the Exograph refactor branch.
   - 2026-06-24: Browser preview no longer schedules global terminal refreshes; mounted `TerminalView` owns scoped fit/refresh reconciliation for its own xterm surface.
   - 2026-06-24: `pnpm terminal:check` is the named focused terminal gate: focused terminal vitest subset plus `stable:smoke`.
   - 2026-06-24: `terminal-live-tail-policy.ts` owns the pure captured-tail vs bounded-cache read decision; `TerminalManager` remains responsible for tmux I/O and cache mutation.

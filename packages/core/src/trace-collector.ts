@@ -1,15 +1,14 @@
 import type { CapabilityMetadata } from "./capabilities";
-import type { RunTracePacket } from "./run";
+import type { ActivityTracePacket } from "./run";
 
 export interface TraceCollectorContext {
-  runId: string;
-  routineId?: string;
+  activityId: string;
   harnessId?: string;
 }
 
 export interface TraceCollector {
   metadata: CapabilityMetadata;
-  collect(packet: RunTracePacket, context: TraceCollectorContext): Promise<RunTracePacket>;
+  collect(packet: ActivityTracePacket, context: TraceCollectorContext): Promise<ActivityTracePacket>;
 }
 
 export class TraceCollectorRegistry {

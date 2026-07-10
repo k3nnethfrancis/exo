@@ -1,7 +1,7 @@
 import { readFile, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
 
-import { EXO_COMMAND_ROUTES, type ExoCommandServerInfo } from "@exo/core";
+import { EXO_COMMAND_ROUTES, EXO_COMMAND_TOKEN_HEADER, type ExoCommandServerInfo } from "@exo/core";
 
 export interface AppClientWriteResult {
   ok: boolean;
@@ -56,6 +56,7 @@ export class AppClient {
   private constructor(
     private baseUrl: string,
     private readonly discovery: AppClientDiscoveryMetadata,
+    private readonly token: string,
     private readonly requestTimeoutMs = defaultRequestTimeoutMs,
     private readonly searchRequestTimeoutMs = defaultSearchRequestTimeoutMs,
     private readonly maintenanceRequestTimeoutMs = defaultMaintenanceRequestTimeoutMs,
@@ -105,7 +106,7 @@ export class AppClient {
     const terminalCreateTimeoutMs =
       parsePositiveInt(env.EXO_APP_CLIENT_TERMINAL_CREATE_TIMEOUT_MS) ?? defaultTerminalCreateTimeoutMs;
     const discovery = { runtimeRoot, serverJsonPath, port: info.port, pid: info.pid };
-    const client = new AppClient(baseUrl, discovery, requestTimeoutMs, searchRequestTimeoutMs, maintenanceRequestTimeoutMs, terminalCreateTimeoutMs);
+    const client = new AppClient(baseUrl, discovery, info.token, requestTimeoutMs, searchRequestTimeoutMs, maintenanceRequestTimeoutMs, terminalCreateTimeoutMs);
 
     const initialProcessCheck = checkProcessLiveness(info.pid);
     if (initialProcessCheck.status === "dead") {
@@ -161,41 +162,12 @@ export class AppClient {
     return this.post(EXO_COMMAND_ROUTES.closePreview, {});
   }
 
-  async createProposal(proposal: Record<string, unknown>): Promise<Record<string, unknown>> {
-    return this.post(EXO_COMMAND_ROUTES.proposals, { proposal });
-  }
-
-  async listProposals(): Promise<Record<string, unknown>> {
-    return this.get(EXO_COMMAND_ROUTES.proposals);
-  }
-
-  async readProposal(id: string): Promise<Record<string, unknown>> {
-    return this.get(EXO_COMMAND_ROUTES.proposal(id));
-  }
-
-  async decideProposal(id: string, decision: "accept" | "reject", itemId?: string): Promise<Record<string, unknown>> {
-    return this.post(EXO_COMMAND_ROUTES.proposalDecision(id), { decision, itemId });
-  }
-
   async showWindow(): Promise<void> {
     await this.post(EXO_COMMAND_ROUTES.show, {});
   }
 
   async getConfig(): Promise<Record<string, unknown>> {
     return this.get(EXO_COMMAND_ROUTES.config);
-  }
-
-  async listProjectRoots(): Promise<string[]> {
-    const result = await this.get(EXO_COMMAND_ROUTES.projectRoots);
-    return Array.isArray(result.projectRoots) ? result.projectRoots.map(String) : [];
-  }
-
-  async addProjectRoot(projectRootPath: string): Promise<Record<string, unknown>> {
-    return this.post(EXO_COMMAND_ROUTES.projectRoots, { path: projectRootPath });
-  }
-
-  async removeProjectRoot(target: string): Promise<Record<string, unknown>> {
-    return this.delete(EXO_COMMAND_ROUTES.projectRoot(target));
   }
 
   async search(query: string, options: { limit?: number } = {}): Promise<Record<string, unknown>> {
@@ -241,7 +213,11 @@ export class AppClient {
   }
 
   async createTerminal(kind: string, cwd?: string): Promise<Record<string, unknown>> {
-    return this.post(EXO_COMMAND_ROUTES.terminals, { harnessId: kind, cwd, callerSurface: "cli" }, this.terminalCreateTimeoutMs);
+    return this.post(EXO_COMMAND_ROUTES.terminals, { kind, cwd, callerSurface: "cli" }, this.terminalCreateTimeoutMs);
+  }
+
+  async spawnAgentCommand(handle: string, task: string): Promise<Record<string, unknown>> {
+    return this.post(EXO_COMMAND_ROUTES.spawnAgentCommand, { handle, task }, this.terminalCreateTimeoutMs);
   }
 
   async readTerminal(id: string, options: { maxLines?: number } = {}): Promise<string> {
@@ -267,21 +243,16 @@ export class AppClient {
     return this.post(EXO_COMMAND_ROUTES.terminalMessage(id), { message, submit });
   }
 
-  async reconnectTerminal(id: string): Promise<Record<string, unknown>> {
-    return this.post(EXO_COMMAND_ROUTES.terminalReconnect(id), {});
-  }
-
-  async resyncTerminal(id: string): Promise<Record<string, unknown>> {
-    return this.post(EXO_COMMAND_ROUTES.terminalResync(id), {});
-  }
-
   async killTerminal(id: string): Promise<void> {
     await this.delete(EXO_COMMAND_ROUTES.terminal(id));
   }
 
   private async get(path: string, timeoutMs = this.requestTimeoutMs): Promise<any> {
     try {
-      const res = await fetch(`${this.baseUrl}${path}`, { signal: AbortSignal.timeout(timeoutMs) });
+      const res = await fetch(`${this.baseUrl}${path}`, {
+        headers: this.authHeaders(),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
       return res.json();
     } catch (error) {
@@ -293,7 +264,7 @@ export class AppClient {
     try {
       const res = await fetch(`${this.baseUrl}${path}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { ...this.authHeaders(), "Content-Type": "application/json" },
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(timeoutMs),
       });
@@ -306,12 +277,23 @@ export class AppClient {
 
   private async delete(path: string): Promise<any> {
     try {
-      const res = await fetch(`${this.baseUrl}${path}`, { method: "DELETE", signal: AbortSignal.timeout(this.requestTimeoutMs) });
+      const res = await fetch(`${this.baseUrl}${path}`, {
+        method: "DELETE",
+        headers: this.authHeaders(),
+        signal: AbortSignal.timeout(this.requestTimeoutMs),
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
       return res.json();
     } catch (error) {
       throw enhanceTimeoutError(error, "DELETE", path, this.requestTimeoutMs);
     }
+  }
+
+  private authHeaders(): Record<string, string> {
+    return {
+      Authorization: `Bearer ${this.token}`,
+      [EXO_COMMAND_TOKEN_HEADER]: this.token,
+    };
   }
 }
 
@@ -340,7 +322,8 @@ function isValidServerInfo(value: unknown): value is ExoCommandServerInfo {
   }
   const port = value.port;
   const pid = value.pid;
-  return Number.isInteger(port) && Number(port) > 0 && Number.isInteger(pid) && Number(pid) > 0;
+  const token = value.token;
+  return Number.isInteger(port) && Number(port) > 0 && Number.isInteger(pid) && Number(pid) > 0 && typeof token === "string" && token.length >= 32;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

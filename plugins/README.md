@@ -4,7 +4,7 @@ This directory contains Exo's official plugin manifests.
 
 Plugin Authoring v0 is metadata-only. Exo can discover and validate `exo.plugin.json`
 files, show their declared capabilities, and use selected metadata contracts such as
-profiles and routine templates. Exo does not execute plugin code, load renderer
+profiles. Exo does not execute plugin code, load renderer
 bundles, grant permissions, add MCP tools, add CLI commands, or mount desktop UI from
 these manifests yet.
 
@@ -26,12 +26,11 @@ hardcoding it into core.
 ## Current Official Examples
 
 - `exograph-baseline/exo.plugin.json` declares a metadata-only profile capability.
-- `graph-health/exo.plugin.json` declares a metadata-only routine template capability.
+- Routine-template plugins were removed with the old Routine product substrate.
 
 Templates for new metadata-only plugins live in:
 
 - `_template-profile/exo.plugin.template.json`
-- `_template-routine-template/exo.plugin.template.json`
 
 The template files are intentionally not named `exo.plugin.json`, because Exo currently
 discovers any direct child directory containing that exact filename as a real plugin.
@@ -64,7 +63,6 @@ Supported capability kinds are:
 - `traceCollector`
 - `datasetExporter`
 - `evalRunner`
-- `routineTemplate`
 - `graphVisualization`
 
 Supported lifecycle states are `built-in`, `experimental`, and `disabled`.
@@ -95,11 +93,8 @@ grant real access explicitly.
   execute them in v0.
 - Do not commit private paths, local machine assumptions, or user-specific defaults.
 - Keep profile payloads advisory. They may describe schemas, templates, recommended
-  plugins, skills, routine template ids, graph views, and review/output policies, but
-  they must not imply automatic file writes or installs.
-- Keep routine templates reusable. They define prompts, harness preferences,
-  permissions, and output policy; they do not run until instantiated with explicit
-  workspace scope.
+  plugins, skills, graph views, and review policies, but they must not imply automatic
+  file writes or installs.
 - Do not declare MCP, CLI, command-server, or desktop surfaces as executable
   contributions. Public surface contribution APIs do not exist yet.
 

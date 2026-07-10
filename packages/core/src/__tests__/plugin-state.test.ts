@@ -23,10 +23,10 @@ const manifest: PluginManifest = {
   exoApiVersion: "0.1",
   capabilities: [
     {
-      id: "workspace.template",
-      kind: "core:routineTemplate",
-      label: "Workspace Template",
-      description: "Workspace-owned routine template.",
+      id: "workspace.graph",
+      kind: "exo.graph:visualization",
+      label: "Workspace Graph",
+      description: "Workspace-owned graph visualization.",
       lifecycle: "experimental",
       owner: "workspace.plugin",
       surfaces: ["cli"],

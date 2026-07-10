@@ -4,7 +4,7 @@ import type { TerminalGeometryRecord } from "../shared/api";
 // on the session, and tmux follows that recorded geometry. Attach paths must
 // never fall back to initial defaults when a valid record exists, because doing
 // so forces SIGWINCH repaint at the wrong size and corrupts cursor-relative
-// terminal UIs during reconnect.
+// terminal UIs during resize and refresh.
 export class TerminalGeometryService {
   constructor(private readonly initialCols: number, private readonly initialRows: number) {}
 

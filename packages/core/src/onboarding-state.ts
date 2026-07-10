@@ -4,14 +4,12 @@ import path from "node:path";
 export const EXO_ONBOARDING_STATE_FILE = "onboarding-state.json";
 
 export type OnboardingWorkspaceStep = "select" | "configure";
-export type OnboardingProfileStep = "plugins" | "routines" | "instructions" | "skills" | "review";
 
 export interface OnboardingStateStore {
   version: 1;
   status: "not-started" | "in-progress" | "complete";
-  phase: "workspace" | "profile" | "done";
+  phase: "workspace" | "done";
   workspaceStep?: OnboardingWorkspaceStep;
-  profileStep?: OnboardingProfileStep;
   workspaceBasicsSaved: boolean;
   updatedAt?: string;
   completedAt?: string;
@@ -64,31 +62,11 @@ export function markOnboardingWorkspaceStep(
   });
 }
 
-export function markOnboardingWorkspaceBasicsSaved(
-  store: OnboardingStateStore,
-  profileStep: OnboardingProfileStep = "plugins",
-  now?: OnboardingStateTimestamp,
-): OnboardingStateStore {
+export function markOnboardingWorkspaceBasicsSaved(store: OnboardingStateStore, now?: OnboardingStateTimestamp): OnboardingStateStore {
   return validateOnboardingStateStore({
     ...store,
     status: "in-progress",
-    phase: "profile",
-    profileStep,
-    workspaceBasicsSaved: true,
-    updatedAt: timestamp(now),
-  });
-}
-
-export function markOnboardingProfileStep(
-  store: OnboardingStateStore,
-  profileStep: OnboardingProfileStep,
-  now?: OnboardingStateTimestamp,
-): OnboardingStateStore {
-  return validateOnboardingStateStore({
-    ...store,
-    status: "in-progress",
-    phase: "profile",
-    profileStep,
+    phase: "workspace",
     workspaceBasicsSaved: true,
     updatedAt: timestamp(now),
   });
@@ -111,13 +89,12 @@ export function validateOnboardingStateStore(input: unknown): OnboardingStateSto
     throw new Error("Onboarding state store must be a version 1 object.");
   }
   const status = requiredUnion(input, "status", ["not-started", "in-progress", "complete"]);
-  const phase = requiredUnion(input, "phase", ["workspace", "profile", "done"]);
+  const phase = requiredUnion(input, "phase", ["workspace", "done"]);
   return {
     version: 1,
     status,
     phase,
     workspaceStep: optionalUnion(input, "workspaceStep", ["select", "configure"]),
-    profileStep: optionalUnion(input, "profileStep", ["plugins", "routines", "instructions", "skills", "review"]),
     workspaceBasicsSaved: input.workspaceBasicsSaved === undefined ? false : requiredBoolean(input, "workspaceBasicsSaved"),
     updatedAt: optionalIsoString(input, "updatedAt"),
     completedAt: optionalIsoString(input, "completedAt"),

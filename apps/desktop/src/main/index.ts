@@ -1,4 +1,4 @@
-import { app, nativeTheme, powerMonitor } from "electron";
+import { app, nativeTheme } from "electron";
 import path from "node:path";
 import { existsSync } from "node:fs";
 import { appendFile, mkdir, stat } from "node:fs/promises";
@@ -10,30 +10,13 @@ import {
   createBranchFile,
   deleteWorkspacePath,
   listRootTree,
-  listPluginInventory,
-  addLocalPlugin,
-  applyPluginStateAction,
-  createProfileApplyProposal,
-  copyProfileToWorkspacePlugin,
-  discoverManagedPlugins,
-  planProfilePreview,
-  profileFromCapability,
   readIndexDocument,
-  applyProposalToWorkspace,
-  enrichProposalFrontmatterPreviews,
-  readManagedPluginSettings,
-  ProposalReviewStore,
   emptyOnboardingStateStore,
   markOnboardingComplete,
-  markOnboardingProfileStep,
   markOnboardingWorkspaceBasicsSaved,
-  readProfileStateStore,
   readOnboardingStateStore,
   readWorkspaceDocument,
   renameWorkspacePath,
-  resetManagedPluginSettings,
-  removeLocalPlugin,
-  replaceLocalPlugin,
   resolveRuntimeConfig,
   resolveWorkspaceModel,
   saveWorkspaceDocument,
@@ -42,35 +25,19 @@ import {
   searchWorkspace,
   SemanticTraceStore,
   semanticTraceEventsToAgentAnswerText,
-  clearActiveProfile,
-  markProfileReviewRequired,
-  setActiveProfile,
-  setProfileAutoUpdate,
-  updateManagedPluginSettings,
-  writeProfileStateStore,
   writeOnboardingStateStore,
-  type DiscoveredPlugin,
-  type IndexStatus,
-  type ActiveProfileIdentity,
-  type CapabilityMetadata,
   type OnboardingStateStore,
-  type OnboardingProfileStep,
-  type PluginInventoryItem,
-  type PluginInventoryReadinessSummary,
-  type PluginStateAction,
-  type ProposalApplyResult,
-  type ProposalDecision,
   type WorkspaceModel,
   type WorkspaceSettings,
 } from "@exo/core";
 
-import type { WorkspacePluginActionInput, WorkspacePluginSettingsInput } from "../shared/api";
 import type { DesktopEventChannel, DesktopEventPayloads } from "../shared/desktop-ipc";
 import { AgentInstructionsService } from "./agent-instructions-service";
-import { AgentSkillsService } from "./agent-skills-service";
+import { AgentCommandInvocationService } from "./agent-command-invocation-service";
 import { AppLifecycleController } from "./app-lifecycle";
 import { CommandServer } from "./command-server";
 import { IndexingService } from "./indexing-service";
+import { InvocationObservationService } from "./invocation-observation-service";
 import {
   applyWorkspaceSettingsToEnv,
   DEFAULT_APPEARANCE_MODE,
@@ -80,9 +47,7 @@ import {
 } from "./settings-store";
 import { registerTerminalIpcHandlers } from "./terminal-ipc";
 import { TerminalManager } from "./terminal-manager";
-import { registerTerminalRecoveryService } from "./terminal-recovery-service";
 import { registerWorkspaceIpcHandlers } from "./workspace-ipc";
-import { ProjectReviewService } from "./project-review-service";
 import { resolvePreviewTarget } from "./preview-target";
 import { WorkspaceNotesService } from "./workspace-notes-service";
 import { WorkspaceSettingsService } from "./workspace-settings-service";
@@ -125,10 +90,9 @@ let terminalManager: TerminalManager;
 let workspaceWatcherService: WorkspaceWatcherService;
 let indexingService: IndexingService;
 let workspaceNotesService: WorkspaceNotesService;
-let projectReviewService: ProjectReviewService;
 let agentInstructionsService: AgentInstructionsService;
-let agentSkillsService: AgentSkillsService;
 let workspaceSettingsService: WorkspaceSettingsService;
+let invocationObservationService: InvocationObservationService;
 
 if (!singleInstanceLock) {
   console.error(
@@ -162,13 +126,6 @@ function startCommandServer() {
       sendToRenderer("command:close-preview", undefined);
       return { ok: true };
     },
-    onCreateProposal: async (proposal) => {
-      await writeWorkspaceProposal(proposal);
-      return proposal;
-    },
-    onListProposals: () => listWorkspaceProposals(),
-    onReadProposal: (id) => readWorkspaceProposal(id),
-    onDecideProposal: (id, input) => decideWorkspaceProposal(id, input, "cli"),
     onSearch: (query: string) => searchWorkspace(workspaceModel, query),
     onIndexSearch: (query, options) => searchIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot, query, options),
     onReadDocument: (target, options) => readIndexDocument(workspaceModel, resolveRuntimeConfig().runtimeRoot, target, options),
@@ -178,9 +135,6 @@ function startCommandServer() {
     onIndexSync: () => indexingService.runSync("command"),
     onIndexUpdate: () => indexingService.update("command"),
     onIndexEmbed: () => indexingService.embed("command"),
-    onListProjectRoots: () => workspaceSettingsService.currentSettings().projectRoots,
-    onAddProjectRoot: (input) => workspaceSettingsService.addProjectRoot(input.path),
-    onRemoveProjectRoot: (target) => workspaceSettingsService.removeProjectRoot(target),
     onListTerminals: () => terminalManager.list(),
     onTerminalDiagnostics: () => terminalManager.diagnostics(),
     onCreateTerminal: (options) => terminalManager.create(options),
@@ -192,14 +146,19 @@ function startCommandServer() {
     },
     onWriteTerminal: (id: string, data: string) => terminalManager.write(id, data),
     onSendTerminalMessage: (id: string, message: string, submit: boolean) => terminalManager.sendMessage(id, message, submit),
-    onReconnectTerminal: (id: string) => terminalManager.reconnect(id),
-    onReconnectRecoverableTerminals: () => terminalManager.reconnectRecoverableTerminals(),
     onKillTerminal: (id: string) => terminalManager.kill(id),
     onGetSettings: () => workspaceSettingsService.currentSettings(),
     onGetStatus: () => ({
       workspace: workspaceModel,
       terminals: terminalManager.list(),
     }),
+    onSpawnAgentCommand: (input) =>
+      new AgentCommandInvocationService({
+        getWorkspaceSettings: () => workspaceSettingsService.currentSettings(),
+        trustStateRoot: app.getPath("userData"),
+        terminalManager,
+        observationService: invocationObservationService,
+      }).spawnFromCli(input),
   });
   commandServer = nextCommandServer;
 
@@ -363,23 +322,16 @@ function registerIpcHandlers() {
     embedIndex: () => indexingService.embed("settings"),
     ensureTarget: (sourceFilePath, target) => workspaceNotesService.ensureTarget(sourceFilePath, target),
     getAgentInstructionConfig: () => agentInstructionsService.getConfig(),
-    listAgentHarnesses: async () => terminalManager.getRuntimeConfig().harnesses,
-    listPluginInventory: () => readPluginInventory(),
-    enablePlugin: (input) => updatePluginState("enable", input),
-    disablePlugin: (input) => updatePluginState("disable", input),
-    trustPlugin: (input) => updatePluginState("trust", input),
-    addLocalPlugin: (input) => addWorkspaceLocalPlugin(input),
-    removeLocalPlugin: (input) => removeWorkspaceLocalPlugin(input),
-    replaceLocalPlugin: (input) => replaceWorkspaceLocalPlugin(input),
-    readPluginSettings: (input) => readPluginSettings(input),
-    updatePluginSettings: (input) => updatePluginSettings(input),
-    resetPluginSettings: (input) => resetPluginSettings(input),
-    listProposals: () => listWorkspaceProposals(),
-    readProposal: (id) => readWorkspaceProposal(id),
-    decideProposal: (id, input) => decideWorkspaceProposal(id, input, "ui"),
     getBranchFamily: (filePath) => workspaceNotesService.getBranchFamily(filePath),
-    getGitStatus: (rootPath) => projectReviewService.getGitStatus(rootPath),
     getIndexStatus: () => indexingService.getMeasuredStatus(),
+    launchAgentInvocation: (input) =>
+      new AgentCommandInvocationService({
+        getWorkspaceSettings: () => workspaceSettingsService.currentSettings(),
+        trustStateRoot: app.getPath("userData"),
+        terminalManager,
+        observationService: invocationObservationService,
+      }).launchNoteInvocation(input),
+    endAgentInvocation: (invocationId) => invocationObservationService.endObservation(invocationId),
     getKnowledge: (filePath) => workspaceNotesService.getKnowledge(filePath),
     getMainWindow: () => appLifecycle.getMainWindow(),
     getModel: () => workspaceModel,
@@ -391,30 +343,20 @@ function registerIpcHandlers() {
       onboarding: onboardingState,
       settingsPath: workspaceSettingsStore.resolvePath(),
     }),
-    markOnboardingProfileStep: (input) => updateWorkspaceOnboardingProfileStep(input.step),
     markOnboardingComplete: () => completeWorkspaceOnboarding(),
-    addAgentSkillSource: (input) => agentSkillsService.addSkillSource(input),
-    installAgentLibrarySkill: (input) => agentSkillsService.installLibrarySkill(input),
     listAgentInstructionOverlays: () => agentInstructionsService.listOverlays(),
-    listAgentSkills: () => agentSkillsService.listInventory(),
     listTree: listRootTree,
     listWorkspaces: () => workspaceSettingsStore.listWorkspaces(workspaceSettings),
-    readAgentSkillFile: (skillId, relativePath) => agentSkillsService.readSkillFile(skillId, relativePath),
-    getProfileState: () => readWorkspaceProfileState(),
-    setActiveProfile: (input) => setWorkspaceActiveProfile(input),
-    clearActiveProfile: () => clearWorkspaceActiveProfile(),
-    setProfileAutoUpdate: (input) => setWorkspaceProfileAutoUpdate(input.autoUpdate),
-    markProfileReviewRequired: (input) => markWorkspaceProfileReviewRequired(input.reviewRequired),
-    previewProfile: (input) => previewWorkspaceProfile(input),
-    copyProfile: (input) => copyWorkspaceProfile(input),
-    createProfileApplyProposal: (input) => createWorkspaceProfileApplyProposal(input),
     readNote: readWorkspaceDocument,
     renamePath: renameWorkspacePath,
+    resolvePreviewTarget: async (target) => {
+      const result = await resolvePreviewTarget(target, workspaceSettingsService.currentSettings());
+      return { url: result.url, source: result.source };
+    },
     resolveTarget: (sourceFilePath, target) => workspaceNotesService.resolveTarget(sourceFilePath, target),
     saveAgentInstructionConfig: (input) => agentInstructionsService.saveConfig(input),
     syncAgentInstructionFilesFromProvider: (input) => agentInstructionsService.syncFromProviderFile(input),
     applyGlobalExographContext: (input) => agentInstructionsService.applyGlobalExographContext(input),
-    saveAgentSkillFile: (skillId, relativePath, body) => agentSkillsService.saveSkillFile(skillId, relativePath, body),
     saveNote: async (filePath, frontmatter, body) => {
       await saveWorkspaceDocument(filePath, frontmatter, body);
       indexingService.scheduleForFile(filePath, "note-save");
@@ -424,7 +366,6 @@ function registerIpcHandlers() {
     searchNotes: (query) => searchNotes(workspaceModel, query),
     searchTag: (tag) => workspaceNotesService.searchTag(tag),
     searchWorkspace: (query) => searchWorkspace(workspaceModel, query),
-    setAgentSkillEnabled: (input) => agentSkillsService.setSkillEnabled(input),
     statNote: async (filePath) => {
       try {
         const info = await stat(filePath);
@@ -434,433 +375,11 @@ function registerIpcHandlers() {
       }
     },
     suggestTargets: (sourceFilePath, query) => workspaceNotesService.suggestTargets(sourceFilePath, query),
-    syncAgentSkillSource: (sourceId) => agentSkillsService.syncSkillSource(sourceId),
     syncIndex: () => indexingService.runSync("settings"),
     syncRuntime: () => terminalManager.syncRuntimeContext(),
     updateIndex: () => indexingService.update("settings"),
   });
   registerTerminalIpcHandlers(terminalManager);
-}
-
-async function readPluginInventory() {
-  const readinessByCapabilityId = await pluginReadinessByCapabilityId();
-  return listPluginInventory({
-    workspaceRoot: workspaceModel.workspaceRoot,
-    runtimeRoot: terminalManager.getRuntimeConfig().runtimeRoot,
-    env: pluginDiscoveryEnv(),
-    harnesses: terminalManager.getRuntimeConfig().harnesses,
-    readinessByCapabilityId,
-  });
-}
-
-function proposalStore(): ProposalReviewStore {
-  return new ProposalReviewStore(resolveRuntimeConfig().runtimeRoot);
-}
-
-async function writeWorkspaceProposal(proposal: Parameters<ProposalReviewStore["writeProposal"]>[0]): Promise<string> {
-  return proposalStore().writeProposal(await enrichProposalFrontmatterPreviews(workspaceModel.workspaceRoot, proposal));
-}
-
-async function listWorkspaceProposals() {
-  return proposalStore().listProposals();
-}
-
-async function readWorkspaceProposal(id: string) {
-  const proposal = await proposalStore().readProposal(id);
-  return proposal ? enrichProposalFrontmatterPreviews(workspaceModel.workspaceRoot, proposal) : null;
-}
-
-async function decideWorkspaceProposal(
-  id: string,
-  input: { decision: ProposalDecision; itemId?: string },
-  surface: "ui" | "cli",
-): Promise<ProposalApplyResult> {
-  const store = proposalStore();
-  let appliedResult: ProposalApplyResult | null = null;
-  await store.updateProposal(id, async (proposal) => {
-    const proposalWithPreview = await enrichProposalFrontmatterPreviews(workspaceModel.workspaceRoot, proposal);
-    appliedResult = await applyProposalToWorkspace(proposalWithPreview, {
-      workspaceRoot: workspaceModel.workspaceRoot,
-      decision: input.decision,
-      itemId: input.itemId,
-      surface,
-      decidedAt: new Date().toISOString(),
-    });
-    return appliedResult.proposal;
-  });
-  if (!appliedResult) {
-    throw new Error(`Proposal not found: ${id}`);
-  }
-  return appliedResult;
-}
-
-async function pluginReadinessByCapabilityId(): Promise<Record<string, PluginInventoryReadinessSummary>> {
-  try {
-    const status = await indexingService.getMeasuredStatus();
-    return { qmd: qmdReadinessSummary(status) };
-  } catch (error) {
-    return {
-      qmd: {
-        state: "error",
-        label: "Status unavailable",
-        detail: errorMessage(error),
-      },
-    };
-  }
-}
-
-function qmdReadinessSummary(status: IndexStatus): PluginInventoryReadinessSummary {
-  if (!status.enabled || status.mode === "off") {
-    return {
-      state: "disabled",
-      label: "Off",
-      detail: "Advanced QMD search is disabled. Core filename/path/text search remains available.",
-      metrics: qmdReadinessMetrics(status),
-    };
-  }
-  if (status.indexedRoots.length === 0) {
-    return {
-      state: "needsSetup",
-      label: "Needs indexed roots",
-      detail: "Add at least one notes or project root to use this advanced search provider.",
-      metrics: qmdReadinessMetrics(status),
-    };
-  }
-  if (status.errors.length > 0) {
-    return {
-      state: "error",
-      label: "Index error",
-      detail: status.errors[0],
-      metrics: qmdReadinessMetrics(status),
-    };
-  }
-  if (status.pendingEmbeddings > 0) {
-    return {
-      state: "indexing",
-      label: "Embeddings needed",
-      detail: `${status.pendingEmbeddings} documents still need embeddings for semantic or hybrid search quality.`,
-      metrics: qmdReadinessMetrics(status),
-    };
-  }
-  if (status.warnings.length > 0 || (status.mode !== "lexical" && !status.hasVectorIndex)) {
-    return {
-      state: "degraded",
-      label: "Degraded",
-      detail: status.warnings[0] ?? "Vector search is not ready; lexical behavior may still work.",
-      metrics: qmdReadinessMetrics(status),
-    };
-  }
-  return {
-    state: "ready",
-    label: "Ready",
-    detail: "Advanced QMD search is configured for this workspace.",
-    metrics: qmdReadinessMetrics(status),
-  };
-}
-
-function qmdReadinessMetrics(status: IndexStatus): PluginInventoryReadinessSummary["metrics"] {
-  return [
-    { label: "Mode", value: status.mode },
-    { label: "Roots", value: status.indexedRoots.length },
-    { label: "Documents", value: status.documentCount },
-    { label: "Pending embeddings", value: status.pendingEmbeddings },
-    { label: "Vector index", value: status.hasVectorIndex ? "ready" : "not ready" },
-  ];
-}
-
-async function updatePluginState(
-  action: PluginStateAction,
-  input: WorkspacePluginActionInput,
-) {
-  await applyPluginStateAction({
-    workspaceRoot: workspaceModel.workspaceRoot,
-    runtimeRoot: terminalManager.getRuntimeConfig().runtimeRoot,
-    pluginId: input.capabilityId ?? input.pluginId,
-    action,
-    source: input.source,
-    manifestPath: input.manifestPath,
-    rootDirectory: input.rootDirectory,
-    env: pluginDiscoveryEnv(),
-  });
-  return readPluginInventory();
-}
-
-async function addWorkspaceLocalPlugin(input: { sourceDirectory: string; target: "user" | "workspace" }) {
-  await addLocalPlugin({
-    workspaceRoot: workspaceModel.workspaceRoot,
-    sourceDirectory: input.sourceDirectory,
-    target: input.target,
-    env: pluginDiscoveryEnv(),
-  });
-  return readPluginInventory();
-}
-
-async function removeWorkspaceLocalPlugin(input: WorkspacePluginActionInput) {
-  await removeLocalPlugin({
-    workspaceRoot: workspaceModel.workspaceRoot,
-    plugin: {
-      pluginId: input.pluginId,
-      source: input.source,
-      manifestPath: input.manifestPath,
-      rootDirectory: input.rootDirectory,
-    },
-    env: pluginDiscoveryEnv(),
-  });
-  return readPluginInventory();
-}
-
-async function replaceWorkspaceLocalPlugin(input: {
-  sourceDirectory: string;
-  target: "user" | "workspace";
-  existing: WorkspacePluginActionInput;
-}) {
-  await replaceLocalPlugin({
-    workspaceRoot: workspaceModel.workspaceRoot,
-    sourceDirectory: input.sourceDirectory,
-    target: input.target,
-    existing: {
-      pluginId: input.existing.pluginId,
-      source: input.existing.source,
-      manifestPath: input.existing.manifestPath,
-      rootDirectory: input.existing.rootDirectory,
-    },
-    env: pluginDiscoveryEnv(),
-  });
-  return readPluginInventory();
-}
-
-async function readPluginSettings(input: WorkspacePluginActionInput) {
-  const options = pluginSettingsOptions(input);
-  const result = await readManagedPluginSettings(options);
-  return {
-    ...result,
-    schema: await requirePluginSettingsSchema(input),
-    inventory: await readPluginInventory(),
-  };
-}
-
-async function updatePluginSettings(input: WorkspacePluginSettingsInput) {
-  const options = pluginSettingsOptions(input);
-  const schema = await requireMutablePluginSettingsSchema(input);
-  const result = await updateManagedPluginSettings({
-    ...options,
-    values: input.values ?? {},
-  });
-  return {
-    ...result,
-    schema,
-    inventory: await readPluginInventory(),
-  };
-}
-
-async function resetPluginSettings(input: WorkspacePluginActionInput) {
-  const options = pluginSettingsOptions(input);
-  const schema = await requireMutablePluginSettingsSchema(input);
-  const result = await resetManagedPluginSettings(options);
-  return {
-    ...result,
-    schema,
-    inventory: await readPluginInventory(),
-  };
-}
-
-function profileRuntimeRoot(): string {
-  return terminalManager.getRuntimeConfig().runtimeRoot;
-}
-
-function profileStateNow(): string {
-  return new Date().toISOString();
-}
-
-async function readWorkspaceProfileState() {
-  return readProfileStateStore(profileRuntimeRoot());
-}
-
-async function setWorkspaceActiveProfile(input: ActiveProfileIdentity) {
-  const store = await readWorkspaceProfileState();
-  const nextStore = setActiveProfile(store, input, profileStateNow());
-  await writeProfileStateStore(profileRuntimeRoot(), nextStore);
-  return nextStore;
-}
-
-async function clearWorkspaceActiveProfile() {
-  const store = await readWorkspaceProfileState();
-  const nextStore = clearActiveProfile(store, profileStateNow());
-  await writeProfileStateStore(profileRuntimeRoot(), nextStore);
-  return nextStore;
-}
-
-async function setWorkspaceProfileAutoUpdate(autoUpdate: boolean) {
-  const store = await readWorkspaceProfileState();
-  const nextStore = setProfileAutoUpdate(store, autoUpdate, profileStateNow());
-  await writeProfileStateStore(profileRuntimeRoot(), nextStore);
-  return nextStore;
-}
-
-async function markWorkspaceProfileReviewRequired(reviewRequired: boolean) {
-  const store = await readWorkspaceProfileState();
-  const nextStore = markProfileReviewRequired(store, reviewRequired, profileStateNow());
-  await writeProfileStateStore(profileRuntimeRoot(), nextStore);
-  return nextStore;
-}
-
-async function copyWorkspaceProfile(input: ActiveProfileIdentity) {
-  const result = await copyProfileToWorkspacePlugin({
-    workspaceRoot: workspaceModel.workspaceRoot,
-    runtimeRoot: profileRuntimeRoot(),
-    sourceProfile: input,
-    env: pluginDiscoveryEnv(),
-  });
-  return {
-    ...result,
-    inventory: await readPluginInventory(),
-  };
-}
-
-async function previewWorkspaceProfile(input: ActiveProfileIdentity) {
-  const { inventory, profile } = await resolveWorkspaceProfile(input);
-  return planProfilePreview(profile, inventory);
-}
-
-async function createWorkspaceProfileApplyProposal(input: ActiveProfileIdentity) {
-  const { item, profile } = await resolveWorkspaceProfile(input);
-  assertProfileApplyProposalStagingAllowed(item, profile);
-  if (!item.rootDirectory) {
-    throw new Error(`Selected profile does not have a plugin root directory: ${input.capabilityId}`);
-  }
-  const proposal = await createProfileApplyProposal({
-    profile,
-    pluginRoot: item.rootDirectory,
-    workspaceRoot: workspaceModel.workspaceRoot,
-    activityId: `profile-apply:${profile.id}`,
-    target: "realVault",
-  });
-  if (!proposal) {
-    return null;
-  }
-  const proposalWithPreview = await enrichProposalFrontmatterPreviews(workspaceModel.workspaceRoot, proposal);
-  await writeWorkspaceProposal(proposalWithPreview);
-  return proposalWithPreview;
-}
-
-function assertProfileApplyProposalStagingAllowed(item: PluginInventoryItem, profile: ReturnType<typeof profileFromCapability>): void {
-  if (!profile) {
-    throw new Error("Selected profile cannot be staged because it could not be parsed.");
-  }
-  if (item.trust !== "trusted") {
-    throw new Error("Profile file-template proposals can be staged only from trusted profile plugins.");
-  }
-  if (!item.enabled || item.status !== "available") {
-    throw new Error("Profile file-template proposals can be staged only from enabled and available profile plugins.");
-  }
-  if (profile.reviewPolicy?.fileChanges !== "propose" || profile.reviewPolicy.requireHumanReview !== true) {
-    throw new Error("Profile file-template proposals require reviewPolicy.fileChanges=\"propose\" and requireHumanReview=true.");
-  }
-}
-
-async function resolveWorkspaceProfile(input: ActiveProfileIdentity) {
-  const inventory = await readPluginInventory();
-  const item = inventory.items.find((candidate) => profileInventoryItemMatches(candidate, input));
-  if (!item) {
-    throw new Error(`Unable to find profile in current plugin inventory: ${input.profileId}`);
-  }
-  if (item.kind !== "core:profile") {
-    throw new Error(`Selected capability is not a profile: ${input.capabilityId}`);
-  }
-  const profile = profileFromCapability(capabilityFromInventoryItem(item));
-  if (!profile) {
-    throw new Error(`Selected capability cannot be parsed as a profile: ${input.capabilityId}`);
-  }
-  return { inventory, item, profile };
-}
-
-function profileInventoryItemMatches(item: PluginInventoryItem, identity: ActiveProfileIdentity): boolean {
-  if (item.kind !== "core:profile") {
-    return false;
-  }
-  const profileId = profileIdFromInventoryItem(item);
-  return item.id === identity.capabilityId
-    && profileId === identity.profileId
-    && optionalIdentityMatch(item.pluginId, identity.pluginId)
-    && optionalIdentityMatch(item.pluginSource, identity.source)
-    && optionalIdentityMatch(item.manifestPath, identity.manifestPath)
-    && optionalIdentityMatch(item.rootDirectory, identity.rootDirectory);
-}
-
-function profileIdFromInventoryItem(item: PluginInventoryItem): string {
-  const profile = item.compatibility?.profile;
-  if (profile && typeof profile === "object" && !Array.isArray(profile) && "id" in profile && typeof profile.id === "string") {
-    return profile.id;
-  }
-  return item.id;
-}
-
-function optionalIdentityMatch(left: string | undefined, right: string | undefined): boolean {
-  return !left || !right || left === right;
-}
-
-function capabilityFromInventoryItem(item: PluginInventoryItem): CapabilityMetadata {
-  return {
-    id: item.id,
-    kind: "core:profile",
-    label: item.label,
-    description: item.description,
-    lifecycle: item.lifecycle,
-    owner: item.owner,
-    surfaces: item.surfaces,
-    permissions: item.permissions,
-    compatibility: item.compatibility,
-  };
-}
-
-function pluginSettingsOptions(input: WorkspacePluginActionInput) {
-  return {
-    workspaceRoot: workspaceModel.workspaceRoot,
-    runtimeRoot: terminalManager.getRuntimeConfig().runtimeRoot,
-    pluginId: input.capabilityId ?? input.pluginId,
-    source: input.source,
-    manifestPath: input.manifestPath,
-    rootDirectory: input.rootDirectory,
-    env: pluginDiscoveryEnv(),
-  };
-}
-
-async function requirePluginSettingsSchema(input: WorkspacePluginActionInput) {
-  const plugin = await requirePluginSettingsManifest(input);
-  if (!plugin.manifest.settingsSchema || plugin.manifest.settingsSchema.fields.length === 0) {
-    throw new Error(`Plugin does not declare settings: ${input.pluginId}`);
-  }
-  return plugin.manifest.settingsSchema;
-}
-
-async function requireMutablePluginSettingsSchema(input: WorkspacePluginActionInput) {
-  const plugin = await requirePluginSettingsManifest(input);
-  if (plugin.source === "built-in") {
-    throw new Error(`Official plugin settings are read-only in Plugin Config v0: ${plugin.manifest.id}`);
-  }
-  if (!plugin.manifest.settingsSchema || plugin.manifest.settingsSchema.fields.length === 0) {
-    throw new Error(`Plugin does not declare settings: ${input.pluginId}`);
-  }
-  return plugin.manifest.settingsSchema;
-}
-
-async function requirePluginSettingsManifest(input: WorkspacePluginActionInput) {
-  const plugins = await discoverManagedPlugins({
-    workspaceRoot: workspaceModel.workspaceRoot,
-    env: pluginDiscoveryEnv(),
-  });
-  const plugin = plugins.find((candidate) => matchesPluginSettingsInput(candidate, input));
-  if (!plugin) {
-    throw new Error(`Plugin not found: ${input.pluginId}`);
-  }
-  return plugin;
-}
-
-function matchesPluginSettingsInput(plugin: DiscoveredPlugin, input: WorkspacePluginActionInput): boolean {
-  return (plugin.manifest.id === input.pluginId || plugin.manifest.capabilities.some((capability) => capability.id === input.capabilityId))
-    && (!input.source || plugin.source === input.source)
-    && plugin.manifestPath === input.manifestPath
-    && plugin.rootDirectory === input.rootDirectory;
 }
 
 function onboardingComplete(): boolean {
@@ -873,17 +392,10 @@ async function writeWorkspaceOnboardingState(nextState: OnboardingStateStore): P
   return onboardingState;
 }
 
-async function updateWorkspaceOnboardingProfileStep(step: OnboardingProfileStep): Promise<OnboardingStateStore> {
-  const base = onboardingState.workspaceBasicsSaved
-    ? onboardingState
-    : markOnboardingWorkspaceBasicsSaved(onboardingState, step);
-  return writeWorkspaceOnboardingState(markOnboardingProfileStep(base, step));
-}
-
 async function completeWorkspaceOnboarding(): Promise<OnboardingStateStore> {
   const base = onboardingState.workspaceBasicsSaved
     ? onboardingState
-    : markOnboardingWorkspaceBasicsSaved(onboardingState, "review");
+    : markOnboardingWorkspaceBasicsSaved(onboardingState);
   return writeWorkspaceOnboardingState(markOnboardingComplete(base));
 }
 
@@ -1001,20 +513,23 @@ app.whenReady().then(async () => {
       }
     },
   });
+  invocationObservationService = new InvocationObservationService({
+    workspaceWatcherService,
+    terminalManager,
+    getWorkspaceSettings: () => workspaceSettingsService.currentSettings(),
+  });
+  invocationObservationService.on("updated", (record) => {
+    sendToRenderer("workspace:invocation-updated", record);
+  });
+  void invocationObservationService.markOrphanedRunningInvocations().catch((error) => {
+    console.warn("[exo] failed to mark orphaned invocations", error);
+  });
   workspaceNotesService = new WorkspaceNotesService({
     getWorkspaceModel: () => workspaceModel,
   });
-  projectReviewService = new ProjectReviewService();
   agentInstructionsService = new AgentInstructionsService({
     getWorkspaceModel: () => workspaceModel,
     errorMessage,
-  });
-  agentSkillsService = new AgentSkillsService({
-    disabledRootPath: path.join(app.getPath("userData"), "disabled-skills"),
-    getWorkspaceModel: () => workspaceModel,
-    homePath: process.env.HOME || app.getPath("home"),
-    standardSkillsRootPath: sourceProjectRoot ? path.join(sourceProjectRoot, "skills") : undefined,
-    skillSourcesRootPath: path.join(app.getPath("userData"), "skill-sources"),
   });
   appLifecycle = new AppLifecycleController({
     currentDirectory,
@@ -1041,7 +556,6 @@ app.whenReady().then(async () => {
     appLifecycle.updateBackgroundForTheme();
   });
 
-  registerTerminalRecoveryService({ powerMonitor, terminalManager, logMain });
 
   app.on("activate", () => {
     appLifecycle.activate();

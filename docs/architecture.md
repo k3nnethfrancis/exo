@@ -1,14 +1,13 @@
 # Exo Architecture
 
-Last updated: 2026-06-21
+Last updated: 2026-07-08
 
-Exo is a local-first AI workstation for applied AI engineers and researchers building personal AI systems over a Markdown-first exograph. The current system is still shell-first, but it now has three live control surfaces over the same workspace runtime:
+Exo is a local-first Exograph workspace for building a personal LM wiki over Markdown. The current system has two live control surfaces over the same workspace runtime:
 
 - desktop app
 - `bin/exo` CLI
-- `@exo/mcp` bridge
 
-The exograph is the core product object inside the workstation: a user-defined graph over notes, projects, agents, sessions, files, activity records, artifact references, and provenance references with growable relational ontologies. Memory, workcells, datasets, evals, and training are still future layers. The current runtime work is about making Markdown notes, code files, terminals, and terminal agents legible and controllable inside one local workstation.
+The exograph is the core product object: a user-defined graph over Markdown notes, projects, files, terminals, invocation records, artifact references, and provenance references with growable relational ontologies. The current runtime work is about making Markdown notes, code files, terminals, search providers, and note-native agent-command invocation legible and controllable inside one local workspace.
 
 ## Package Boundaries
 
@@ -17,9 +16,7 @@ The exograph is the core product object inside the workstation: a user-defined g
 - `packages/core`
   - Workspace config, note/project file discovery, markdown metadata, runtime launch plans, shared command protocol types, and retrieval/index adapters.
 - `packages/cli`
-  - CLI commands for runtime status, launch plans, app search/open/config, terminal operations against a running Exo app, and local MCP client integration setup.
-- `packages/mcp`
-  - MCP server that exposes the running Exo app to external agents. It speaks to the same command server as the CLI.
+  - CLI commands for runtime status, launch plans, app search/open/config, terminal operations against a running Exo app, and configured agent-command spawn.
 
 Renderer code never touches the filesystem or processes directly. It goes through preload APIs backed by main-process services.
 
@@ -29,7 +26,7 @@ The immediate architecture is current-package domain modules, not a new runtime 
 
 - keep `apps/desktop` as the Electron host while extracting main-process services from `src/main/index.ts`
 - keep `packages/core` as portable models, pure transforms, runtime config, and shared protocols
-- keep `packages/cli` and `packages/mcp` as command-server clients
+- keep `packages/cli` as the command-server client
 - move to a `packages/runtime` only after resident lifecycle and multi-agent coordination produce stable process-owned service contracts
 - introduce plugin-shaped internal registries only where core runtime primitives are stable enough to expose
 
@@ -44,7 +41,7 @@ Exo core owns the services that must be stable, permissioned, and coherent acros
 - Markdown files, note roots, project roots, basic file/path/text search, and core graph primitives
 - pane/grid layout, tab descriptors, persisted layout, and trusted web viewer host primitive
 - terminal runtime, rendering surface, scrollback, transcripts, reconnect, diagnostics, and semantic message delivery
-- command server, resident runtime, CLI/MCP base contracts, settings, permissions, and app lifecycle
+- command server, resident runtime, CLI base contracts, settings, permissions, and app lifecycle
 - minimal feed/activity substrate, artifact references, provenance references, optional review hooks, and plugin registry/trust state
 
 Official and local plugins provide replaceable capability variation:
@@ -52,11 +49,11 @@ Official and local plugins provide replaceable capability variation:
 - agent harness adapters such as shell, Claude Code, Codex, Pi, Hermes, Aider, OpenCode, and local agents
 - advanced search/index providers such as QMD, graph search, vector search, rerankers, and remote retrieval
 - dashboards, local web apps, and artifact producers that use the core web viewer endpoints
-- exograph profiles, analyzers, trace collectors, eval runners, dataset exporters, training flows, and Routine templates
+- exograph profiles, analyzers, trace collectors, eval runners, dataset exporters, training flows, and future extension-owned workflows
 
-The terminal itself is not a plugin. Exo needs to own terminal reliability because scrollback, rendering, sleep/reconnect behavior, semantic sends, transcripts, and CLI/MCP control are central to daily use. Harnesses plug into that terminal service by declaring launch plans, availability, skill/config locations, message semantics, readiness hints, and optional provenance hooks.
+The terminal itself is not a plugin. Exo needs to own terminal reliability because scrollback, rendering, sleep/reconnect behavior, semantic sends, transcripts, and CLI control are central to daily use. Harnesses plug into that terminal service by declaring launch plans, availability, skill/config locations, message semantics, readiness hints, and optional provenance hooks.
 
-See `plugin-system-architecture.md` for the canonical core-versus-plugin boundary.
+See `extension-architecture.md` for the current core-versus-extension boundary. `plugin-system-architecture.md` is historical inventory for the prior plugin-platform model.
 
 ## Runtime Command Server
 
@@ -80,7 +77,7 @@ Current endpoints in `apps/desktop/src/main/command-server.ts`:
 - `POST /terminals/:id/reconnect`
 - `DELETE /terminals/:id`
 
-`packages/core/src/command-protocol.ts` owns the shared route constants and command payload shapes. The desktop command server, CLI app client, and MCP client should consume that shared contract rather than duplicating routes.
+`packages/core/src/command-protocol.ts` owns the shared route constants and command payload shapes. The desktop command server and CLI app client consume that shared contract rather than duplicating routes.
 
 ## App Lifecycle Model
 
@@ -89,9 +86,9 @@ Exo has two separate lifecycle states:
 - the Exo process is running
 - the workspace window is visible
 
-The command server, MCP bridge, file watchers, transcript writers, and terminal-agent sessions belong to the running process, not to the visible window. Closing the main window hides the workspace UI while leaving those runtime services alive. Explicit app quit is the operation that stops or detaches live terminal agents according to the terminal runtime model.
+The command server, file watchers, transcript writers, and terminal sessions belong to the running process, not to the visible window. Closing the main window hides the workspace UI while leaving those runtime services alive. Explicit app quit is the operation that stops or detaches live terminal sessions according to the terminal runtime model.
 
-This distinction is central to multi-agent workflows: an external Codex or Claude agent can use Exo MCP to create, read, and message Exo-managed agents while the user keeps the Exo window hidden, then the user can reopen the window to monitor or take over those sessions.
+This distinction is central to local-agent workflows: an external Codex or Claude agent can use the Exo CLI or configured `AgentCommand` surfaces while the user keeps the Exo window hidden, then the user can reopen the window to monitor or take over terminal sessions.
 
 Exo now keeps the process resident when the workspace window closes. Live app commands require that resident desktop process to be running and available through `.exo/server.json`; they do not require the workspace window to be visible.
 
@@ -103,12 +100,12 @@ For Exo-on-Exo development, the installed app is the stable resident runtime. So
 
 Exo should eventually have a small core feed/event stream and activity substrate. It should not grow a large core automation product before plugins prove which primitives are universal.
 
-The feed is the broader primitive behind an inbox. It is a stream of incoming or generated context items from quick capture, files, notes, terminal agents, MCP messages, RSS/bookmarks, voice transcripts, workflow results, git events, evals, and plugin-generated sessions. Feed items are not automatically durable graph facts. They are reviewable inputs that can be linked, archived, promoted into notes/entities/tasks, or used as trace/artifact evidence.
+The feed is the broader primitive behind an inbox. It is a stream of incoming or generated context items from quick capture, files, notes, terminal agents, CLI/app messages, RSS/bookmarks, voice transcripts, workflow results, git events, evals, and plugin-generated sessions. Feed items are not automatically durable graph facts. They are reviewable inputs that can be linked, archived, promoted into notes/entities/tasks, or used as trace/artifact evidence.
 
 Core may own a scheduler hook or job registration mechanism because recurring local work should not require every plugin to invent process supervision. That substrate should stay small. A scheduled activity record should specify:
 
 - selected harness or agent runtime
-- prompt text and optional required harness skills
+- prompt text and runtime/capability metadata
 - scope such as note root, project root, profile, feed query, entity set, or saved search
 - permissions for reads, writes, terminal access, network, model calls, and exports
 - output policy: direct write, proposed changes, artifacts only, or review required
@@ -116,7 +113,7 @@ Core may own a scheduler hook or job registration mechanism because recurring lo
 
 Routines, workflows, eval runs, graph-health jobs, training exports, and maintenance loops are plugin-level concepts by default. They can use the core activity substrate for permission checks, status, cancellation, artifact references, and optional review state, but their richer schemas belong to the plugin until they prove universal.
 
-Skills are harness-visible capabilities referenced by prompts, not Exo worker runtimes. A harness may expose a skill inventory, and a future Exo config surface should help users see which skills are connected to which harnesses. Harness plugins provide headless execution. Profile/plugin packages may ship prompts, templates, default Routines, schedules, and UI surfaces, while Exo core owns only the shared permission, activity, artifact-reference, and review hooks needed for those plugins to compose safely.
+Skills should be redesigned from first principles under the Exograph/LM-wiki ontology frame or as explicit plugin capability metadata. The removed harness skill manager should not be treated as the default future shape. Harness plugins may provide headless execution and capability descriptions later; Exo core should own only the shared permission, activity, artifact-reference, and review hooks needed for those plugins to compose safely.
 
 ## Terminal And Agent Model
 
@@ -172,7 +169,7 @@ Current live app operator/debug commands:
 - `exo terminals reconnect <id>`
 - `exo terminals kill <id>`
 
-`exo terminals` is the low-level terminal debug surface. `exo agents` is the primary human/agent session surface and mirrors the MCP work-plane tools for already-running local agent sessions:
+`exo terminals` is the low-level terminal debug surface. `exo agents` is the legacy human/operator session surface for already-running local agent sessions:
 
 - `exo agents list`
 - `exo agents create <shell|claude|codex|pi|hermes> [cwd]`
@@ -184,41 +181,11 @@ Current live app operator/debug commands:
 
 The CLI remains the canonical operator/admin/debug surface. It may grow broad note, graph, search-provider, maintenance, and developer commands because it is the place for humans, scripts, setup, diagnostics, and supervised administration.
 
-MCP is the narrower agent work plane. It should expose enough for agents to orient, search, read, maintain allowed notes, and communicate, but it should not expose every setup, repair, index-maintenance, raw terminal, provider-admin, or workspace-mutation control.
+Configured `AgentCommand` invocation is the active agent model. `exo spawn @handle <task>` launches trusted configured commands from the CLI; note mentions launch the same configured commands from the editor after human confirmation.
 
-Integration setup commands:
+## Removed MCP Surface
 
-- `exo integrations doctor`
-- `exo integrations config <codex|claude|all>`
-- `exo integrations install <codex|claude|all> [--dry-run]`
-- `exo integrations test <codex|claude|all>`
-
-## MCP Contract
-
-`packages/mcp` exposes a narrow Exo agent work plane:
-
-- `workspace_status`
-- `search`
-- `read_document`
-- `open_preview`
-- `focus_preview`
-- `close_preview`
-- `list_agents`
-- `create_agent`
-- `read_agent`
-- `send_agent_message`
-- `interrupt_agent`
-- `terminate_agent`
-
-MCP tool registration is filtered by the control-plane catalog in `@exo/core`. The default `dev` profile exposes the full current Exo-on-Exo surface. `EXO_MCP_EXPOSURE_PROFILE=everyday` narrows MCP to orientation/search/read/preview tools, `off` registers no tools, and `custom` uses `EXO_MCP_TOOLS` as a comma-separated allow-list. CLI remains the broader operator/admin/debug surface; the MCP profile does not add command-server authorization for local CLI users.
-
-Future MCP additions should be tested against this rule: can an agent use this tool to do useful work in the current workspace without gaining broad admin/debug power? Good candidates are scoped document graph/context inspection, allowed note creation/append/guarded patch, opening agent-produced artifacts through the core web viewer, and agent communication. Bad candidates are provider installation, index maintenance, project-root mutation, raw terminal writes, and app repair.
-
-By default, the MCP server needs Exo already running so it can read `.exo/server.json`. With `EXO_MCP_AUTOSTART=1`, it can start Exo through `EXO_MCP_START_COMMAND` and wait for the command server. If `EXO_RUNTIME_ROOT` or explicit workspace env vars are not set, MCP uses the same active desktop workspace registry as the CLI to find the runtime root.
-
-`bin/exo integrations doctor|config|install|test` is the setup surface for external agent clients. It installs the default stdio MCP server into Codex and Claude Code through their native MCP CLIs, while the MCP server itself continues to speak to Exo through the shared command-server contract.
-
-Remote-only MCP hosts such as Glean can use the opt-in Streamable HTTP transport: `exo-mcp --transport http --host 127.0.0.1 --port 3333`. It is not a replacement for stdio. HTTP binds to localhost by default, should sit behind internal proxy/auth before wider exposure, and reuses the exact same narrow MCP tool registration so the transport does not create a second product surface.
+The refactor removed `packages/mcp`, `exo integrations`, MCP capability surfaces, MCP profile config templates, MCP public-contract guard slices, and hidden Codex MCP launch injection. MCP can be reconsidered later as an adapter over the CLI or command server, but it is not a current architecture surface.
 
 ## Editor Model
 
@@ -274,13 +241,13 @@ Search currently returns:
 
 - live Explore typing: local note filename/path matches
 - optional Explore Enter: QMD lexical results when enabled
-- CLI/MCP: QMD-backed search when enabled, with filesystem fallback
+- CLI: QMD-backed search when enabled, with filesystem fallback
 
 Search lives in the explorer search pane and keeps live typing fast. QMD-backed indexed search is explicit so heavy retrieval does not block the renderer.
 
-QMD integration lives behind `packages/core/src/qmd.ts`. The desktop command server exposes status, search, read, sync, update, and embed routes. CLI can use the full notes-index route set; MCP uses search/read and summarizes index status through `workspace_status` rather than instantiating its own QMD store. See `qmd-integration-notes.md` for the dependency boundary and upgrade checklist.
+QMD integration lives behind `packages/core/src/qmd.ts`. The desktop command server exposes status, search, read, sync, update, and embed routes. CLI can use the full notes-index route set. See `qmd-integration-notes.md` for the dependency boundary and upgrade checklist.
 
-Longer term, QMD should be the default implementation of a search-provider contract, not the only possible retrieval architecture. The provider contract should cover capability discovery, status/health, search, read/resolve target, optional graph hints, sync/update, cancellation, and diagnostics. MCP should receive the stable search/document operations; CLI/UI should own provider setup, sync, repair, and diagnostics.
+Longer term, QMD should be the default implementation of a search-provider contract, not the only possible retrieval architecture. The provider contract should cover capability discovery, status/health, search, read/resolve target, optional graph hints, sync/update, cancellation, and diagnostics. CLI/UI own provider setup, sync, repair, and diagnostics.
 
 The next architecture step is to make that provider contract real internally before adding public plugin loading. QMD remains the only built-in provider until there is a real second provider to test the boundary against.
 
@@ -295,7 +262,7 @@ Exo's note graph contract should support LM Wiki-style maintenance over Markdown
 - write operations should be scoped and reviewable: create, append, and guarded patch before broad overwrite
 - maintenance reports should surface orphans, dead ends, unresolved links, stale pages, contradiction candidates, and missing cross-links
 
-This is also the practical split between CLI and MCP for notes. CLI can mirror mature knowledge-app surfaces broadly. MCP should expose a compact set of agent-safe wiki operations so agents can maintain the knowledge graph without becoming a full filesystem/admin client.
+The CLI can mirror mature knowledge-app surfaces broadly. Agents invoked through Exo receive pointer prompts and can call the CLI when they need local graph/search/read context.
 
 ## Exograph Model
 

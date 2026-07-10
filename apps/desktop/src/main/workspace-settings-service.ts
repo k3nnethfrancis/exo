@@ -1,5 +1,3 @@
-import path from "node:path";
-
 import {
   resolveRuntimeConfig,
   resolveWorkspaceModel,
@@ -71,42 +69,8 @@ export class WorkspaceSettingsService {
     return savedSettings;
   }
 
-  async addProjectRoot(targetPath?: string): Promise<WorkspaceSettings> {
-    if (!targetPath) {
-      throw new Error("Missing project root path.");
-    }
-    const settings = this.currentSettings();
-    const resolvedPath = path.resolve(targetPath);
-    const nextRoots = uniqueResolvedPaths([...settings.projectRoots, resolvedPath]);
-    return this.saveSettings({ ...settings, projectRoots: nextRoots });
-  }
-
-  async removeProjectRoot(target: string): Promise<WorkspaceSettings> {
-    if (!target) {
-      throw new Error("Missing project root target.");
-    }
-    const settings = this.currentSettings();
-    const resolvedTarget = path.resolve(target);
-    const nextRoots = settings.projectRoots.filter((root) => path.resolve(root) !== resolvedTarget && root !== target);
-    return this.saveSettings({ ...settings, projectRoots: nextRoots });
-  }
-
   applySettings(settings: WorkspaceSettings | null): void {
     applyWorkspaceSettingsToEnv(settings);
     this.options.applyAppearanceMode(settings);
   }
-}
-
-export function uniqueResolvedPaths(paths: string[]): string[] {
-  const seen = new Set<string>();
-  const result: string[] = [];
-  for (const entry of paths) {
-    const resolved = path.resolve(entry);
-    if (seen.has(resolved)) {
-      continue;
-    }
-    seen.add(resolved);
-    result.push(resolved);
-  }
-  return result;
 }

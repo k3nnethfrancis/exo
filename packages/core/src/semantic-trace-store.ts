@@ -11,7 +11,7 @@ import {
   type SemanticTraceVisibility,
 } from "./semantic-trace";
 import type { ActivityArtifactRef } from "./run";
-import { safeStoreSegment } from "./routine-run-store";
+import { safeStoreSegment } from "./store-paths";
 import type { AgentLauncherTraceCaptureConfig } from "./types";
 
 export interface SemanticTraceStoreLayout {

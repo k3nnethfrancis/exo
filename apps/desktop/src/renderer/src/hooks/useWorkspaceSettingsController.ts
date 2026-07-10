@@ -4,8 +4,6 @@ import {
   type WorkspaceSettings,
 } from "@exo/core";
 import {
-  DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS,
-  DEFAULT_TERMINAL_AGENT_SUBMIT_DELAY_MS,
   DEFAULT_TERMINAL_IDLE_THRESHOLD_MS,
   DEFAULT_TERMINAL_INITIAL_COLUMNS,
   DEFAULT_TERMINAL_INITIAL_ROWS,
@@ -31,7 +29,7 @@ import type {
   WorkspaceSettingsDialogState,
   WorkspaceSettingsSection,
 } from "../workspaceSettingsDialogTypes";
-import { pathLabel, uniquePaths } from "../workspaceTree";
+import { pathLabel } from "../workspaceTree";
 
 interface UseWorkspaceSettingsControllerOptions {
   workspaceSettingsRef: MutableRefObject<WorkspaceSettings | null>;
@@ -118,8 +116,6 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
       terminalTranscriptRetention: settings.terminalTranscriptRetention,
       terminalTranscriptRetentionDays: String(settings.terminalTranscriptRetentionDays),
       terminalInputCoalesceMs: String(settings.terminalInputCoalesceMs ?? DEFAULT_TERMINAL_INPUT_COALESCE_MS),
-      terminalAgentStartupGraceMs: String(settings.terminalAgentStartupGraceMs ?? DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS),
-      terminalAgentSubmitDelayMs: String(settings.terminalAgentSubmitDelayMs ?? DEFAULT_TERMINAL_AGENT_SUBMIT_DELAY_MS),
       terminalInitialColumns: String(settings.terminalInitialColumns ?? DEFAULT_TERMINAL_INITIAL_COLUMNS),
       terminalInitialRows: String(settings.terminalInitialRows ?? DEFAULT_TERMINAL_INITIAL_ROWS),
       terminalMinimumColumns: String(settings.terminalMinimumColumns ?? DEFAULT_TERMINAL_MINIMUM_COLUMNS),
@@ -128,18 +124,6 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
       terminalMaxReadTailChars: String(settings.terminalMaxReadTailChars ?? DEFAULT_TERMINAL_MAX_READ_TAIL_CHARS),
       terminalUnresponsiveThresholdMs: String(settings.terminalUnresponsiveThresholdMs ?? DEFAULT_TERMINAL_UNRESPONSIVE_THRESHOLD_MS),
       terminalIdleThresholdMs: String(settings.terminalIdleThresholdMs ?? DEFAULT_TERMINAL_IDLE_THRESHOLD_MS),
-      piHarnessEnabled: settings.piHarness?.enabled ?? true,
-      piHarnessLabel: settings.piHarness?.label ?? "",
-      piHarnessCommand: settings.piHarness?.command ?? "",
-      piHarnessRepoPath: settings.piHarness?.repoPath ?? "",
-      piHarnessArgs: settings.piHarness?.args?.join(", ") ?? "",
-      piHarnessBackendUrl: settings.piHarness?.backendUrl ?? "",
-      piHarnessBackendCommand: settings.piHarness?.backendCommand ?? "",
-      piHarnessBackendLabel: settings.piHarness?.backendLabel ?? "",
-      piHarnessBackendKind: settings.piHarness?.backendKind ?? "",
-      piHarnessBackendReady: typeof settings.piHarness?.backendReady === "boolean"
-        ? settings.piHarness.backendReady ? "ready" : "not-ready"
-        : "auto",
       explorerScale: String(settings.explorerScale),
       exploreIndexSearchOnEnter: settings.exploreIndexSearchOnEnter,
       indexUpdateStrategy: settings.indexUpdateStrategy,
@@ -163,16 +147,13 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
     setDialog(null);
   }
 
-  async function chooseFolder(target: "workspaceRoot" | "defaultTerminalCwd" | "noteRoot" | "projectRoot") {
+  async function chooseFolder(target: "workspaceRoot" | "defaultTerminalCwd" | "noteRoot") {
     const folders = await window.exo.workspace.selectFolder({
       title:
         target === "noteRoot"
           ? "Choose notes folder"
-          : target === "projectRoot"
-            ? "Add project folder"
-            : "Choose folder",
-      buttonLabel: target === "projectRoot" ? "Add Folder" : "Use Folder",
-      allowMultiple: target === "projectRoot",
+          : "Choose folder",
+      buttonLabel: "Use Folder",
     });
     if (folders.length === 0) {
       return;
@@ -189,9 +170,6 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
       }
       if (target === "noteRoot") {
         return { ...current, noteRoots: [folders[0]], applyStatus: "idle", applyErrorMessage: null };
-      }
-      if (target === "projectRoot") {
-        return { ...current, projectRoots: uniquePaths([...current.projectRoots, ...folders]), applyStatus: "idle", applyErrorMessage: null };
       }
       return current;
     });
@@ -379,8 +357,6 @@ function workspaceSettingsFromDialog(
     terminalTranscriptRetention: settingsDialog.terminalTranscriptRetention,
     terminalTranscriptRetentionDays: clampNumber(Number(settingsDialog.terminalTranscriptRetentionDays), 1, 3650),
     terminalInputCoalesceMs: integerAtLeast(Number(settingsDialog.terminalInputCoalesceMs), DEFAULT_TERMINAL_INPUT_COALESCE_MS, 0),
-    terminalAgentStartupGraceMs: integerAtLeast(Number(settingsDialog.terminalAgentStartupGraceMs), DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS, 0),
-    terminalAgentSubmitDelayMs: integerAtLeast(Number(settingsDialog.terminalAgentSubmitDelayMs), DEFAULT_TERMINAL_AGENT_SUBMIT_DELAY_MS, 0),
     terminalInitialColumns: integerAtLeast(Number(settingsDialog.terminalInitialColumns), DEFAULT_TERMINAL_INITIAL_COLUMNS, 20),
     terminalInitialRows: integerAtLeast(Number(settingsDialog.terminalInitialRows), DEFAULT_TERMINAL_INITIAL_ROWS, 8),
     terminalMinimumColumns: integerAtLeast(Number(settingsDialog.terminalMinimumColumns), DEFAULT_TERMINAL_MINIMUM_COLUMNS, 1),
@@ -392,59 +368,9 @@ function workspaceSettingsFromDialog(
     explorerScale: clampNumber(Number(settingsDialog.explorerScale), 0.82, 1.35),
     exploreIndexSearchOnEnter: settingsDialog.exploreIndexSearchOnEnter,
     indexUpdateStrategy: settingsDialog.indexUpdateStrategy,
-    piHarness: piHarnessSettingsFromDialog(settingsDialog),
   };
 }
 
 function integerAtLeast(value: number, fallback: number, min: number): number {
   return Number.isFinite(value) ? Math.max(min, Math.floor(value)) : fallback;
-}
-
-function piHarnessSettingsFromDialog(
-  settingsDialog: WorkspaceSettingsDialogState,
-): WorkspaceSettings["piHarness"] {
-  const args = settingsDialog.piHarnessArgs
-    .split(",")
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-  const backendReady = settingsDialog.piHarnessBackendReady === "auto"
-    ? undefined
-    : settingsDialog.piHarnessBackendReady === "ready";
-  const next = {
-    enabled: settingsDialog.piHarnessEnabled,
-    label: settingsDialog.piHarnessLabel.trim(),
-    command: settingsDialog.piHarnessCommand.trim(),
-    repoPath: settingsDialog.piHarnessRepoPath.trim(),
-    args,
-    backendUrl: settingsDialog.piHarnessBackendUrl.trim(),
-    backendCommand: settingsDialog.piHarnessBackendCommand.trim(),
-    backendLabel: settingsDialog.piHarnessBackendLabel.trim(),
-    backendKind: settingsDialog.piHarnessBackendKind.trim(),
-    backendReady,
-  };
-  const hasConfig = !next.enabled
-    || Boolean(next.label)
-    || Boolean(next.command)
-    || Boolean(next.repoPath)
-    || next.args.length > 0
-    || Boolean(next.backendUrl)
-    || Boolean(next.backendCommand)
-    || Boolean(next.backendLabel)
-    || Boolean(next.backendKind)
-    || typeof next.backendReady === "boolean";
-  if (!hasConfig) {
-    return undefined;
-  }
-  return {
-    ...(typeof next.enabled === "boolean" ? { enabled: next.enabled } : {}),
-    ...(next.label ? { label: next.label } : {}),
-    ...(next.command ? { command: next.command } : {}),
-    ...(next.repoPath ? { repoPath: next.repoPath } : {}),
-    ...(next.args.length > 0 ? { args: next.args } : {}),
-    ...(next.backendUrl ? { backendUrl: next.backendUrl } : {}),
-    ...(next.backendCommand ? { backendCommand: next.backendCommand } : {}),
-    ...(next.backendLabel ? { backendLabel: next.backendLabel } : {}),
-    ...(next.backendKind ? { backendKind: next.backendKind } : {}),
-    ...(typeof next.backendReady === "boolean" ? { backendReady: next.backendReady } : {}),
-  };
 }

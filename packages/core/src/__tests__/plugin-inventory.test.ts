@@ -4,7 +4,6 @@ import { buildPluginInventory, type PluginInventoryItem } from "../plugin-invent
 import type { DiscoveredPlugin, PluginManifest } from "../plugin";
 import { updatePluginSettingsStore, emptyPluginSettingsStore } from "../plugin-settings";
 import { emptyPluginPermissionStore, grantPluginPermissions } from "../plugin-permissions";
-import type { AgentHarnessDetection } from "../types";
 
 const graphHealthManifest: PluginManifest = {
   id: "graph-health.plugin",
@@ -14,29 +13,14 @@ const graphHealthManifest: PluginManifest = {
   description: "Graph health checks.",
   capabilities: [
     {
-      id: "graph-health.template",
-      kind: "core:routineTemplate",
+      id: "graph-health.search",
+      kind: "core:searchProvider",
       label: "Graph Health",
       description: "Audit graph health.",
       lifecycle: "experimental",
       owner: "graph-health.plugin",
       surfaces: ["desktop", "cli"],
       permissions: ["workspace:read", "notes:read", "artifacts:write"],
-    },
-    {
-      id: "shoshin.profile",
-      kind: "core:profile",
-      label: "Shoshin Profile",
-      description: "Shoshin graph conventions.",
-      lifecycle: "experimental",
-      owner: "graph-health.plugin",
-      surfaces: ["desktop", "cli"],
-      permissions: ["workspace:read", "notes:read"],
-      compatibility: {
-        profile: {
-          recommendedPlugins: [{ id: "graph-health.plugin", required: false }],
-        },
-      },
     },
     {
       id: "graph-health.view",
@@ -76,7 +60,7 @@ const futureKindManifest: PluginManifest = {
     },
     {
       ...graphHealthManifest.capabilities[0]!,
-      id: "future-kind.template",
+      id: "future-kind.search",
       owner: "future-kind.plugin",
     },
   ],
@@ -103,10 +87,10 @@ describe("plugin inventory", () => {
       categoryLabel: "Search providers",
       trust: "trusted",
     });
-    expect(find(inventory.items, "graph-health.template")).toMatchObject({
+    expect(find(inventory.items, "graph-health.search")).toMatchObject({
       source: "localManifest",
       distribution: "developer",
-      categoryLabel: "Routine templates",
+      categoryLabel: "Search providers",
       permissionGrants: {
         requested: ["artifacts:write", "notes:read", "workspace:read"],
         granted: [],
@@ -122,22 +106,18 @@ describe("plugin inventory", () => {
         reason: expect.stringContaining("arbitrary plugin entrypoint execution is disabled"),
       },
     });
-    expect(find(inventory.items, "shoshin.profile")).toMatchObject({
-      source: "localManifest",
-      categoryLabel: "Profiles",
-    });
     expect(find(inventory.items, "graph-health.view")).toMatchObject({
       source: "localManifest",
       categoryLabel: "Graph visualizations",
     });
     expect(inventory.counts).toMatchObject({
-      core: 5,
-      bundled: 6,
-      localManifest: 3,
-      official: 6,
-      developer: 3,
+      core: 4,
+      bundled: 1,
+      localManifest: 2,
+      official: 1,
+      developer: 2,
       local: 0,
-      total: 14,
+      total: 7,
     });
   });
 
@@ -169,51 +149,6 @@ describe("plugin inventory", () => {
     });
   });
 
-  it("enriches official harnesses with live readiness metadata", () => {
-    const inventory = buildPluginInventory({
-      harnesses: [
-        {
-          id: "pi",
-          adapterId: "pi",
-          family: "pi",
-          label: "Pi",
-          productName: "GA Pi",
-          enabled: true,
-          configured: false,
-          detected: false,
-          launchable: false,
-          status: "missing-dependency",
-          statusLabel: "Missing dependency",
-          dependencies: [
-            {
-              id: "llama-cpp",
-              kind: "inference-backend",
-              label: "llama.cpp",
-              required: true,
-              configured: true,
-              detected: false,
-              satisfied: false,
-              statusLabel: "Not running",
-            },
-          ],
-        },
-      ] satisfies AgentHarnessDetection[],
-    });
-
-    expect(find(inventory.items, "pi")).toMatchObject({
-      status: "missing-dependency",
-      statusLabel: "Missing dependency",
-      enabled: true,
-      dependencies: [
-        {
-          id: "llama-cpp",
-          status: "missing",
-          statusLabel: "Not running",
-        },
-      ],
-    });
-  });
-
   it("keeps untrusted and disabled manifests inspectable", () => {
     const inventory = buildPluginInventory({
       plugins: [
@@ -221,17 +156,17 @@ describe("plugin inventory", () => {
         discovered({
           ...graphHealthManifest,
           id: "disabled.plugin",
-          capabilities: [{ ...graphHealthManifest.capabilities[0]!, id: "disabled.template", lifecycle: "disabled" }],
+          capabilities: [{ ...graphHealthManifest.capabilities[0]!, id: "disabled.search", lifecycle: "disabled" }],
         }, "trusted", false),
       ],
     });
 
-    expect(find(inventory.items, "graph-health.template")).toMatchObject({
+    expect(find(inventory.items, "graph-health.search")).toMatchObject({
       enabled: false,
       trust: "untrusted",
       statusLabel: "Review required",
     });
-    expect(find(inventory.items, "disabled.template")).toMatchObject({
+    expect(find(inventory.items, "disabled.search")).toMatchObject({
       enabled: false,
       trust: "trusted",
       statusLabel: "Disabled",
@@ -241,8 +176,8 @@ describe("plugin inventory", () => {
         status: "inactive",
       },
     });
-    expect(inventory.counts.untrusted).toBe(3);
-    expect(inventory.counts.disabled).toBe(4);
+    expect(inventory.counts.untrusted).toBe(2);
+    expect(inventory.counts.disabled).toBe(3);
   });
 
   it("surfaces unsupported capability kinds without activating them", () => {
@@ -265,7 +200,7 @@ describe("plugin inventory", () => {
         statusNotes: ["Capability kind exo.future:widget is not supported by this Exo version."],
       },
     });
-    expect(find(inventory.items, "future-kind.template")).toMatchObject({
+    expect(find(inventory.items, "future-kind.search")).toMatchObject({
       enabled: true,
       status: "available",
       statusLabel: "Available",
@@ -293,12 +228,7 @@ describe("plugin inventory", () => {
       },
     });
 
-    expect(find(inventory.items, "graph-health.template")).toMatchObject({
-      trust: "trusted",
-      enabled: false,
-      statusLabel: "Disabled",
-    });
-    expect(find(inventory.items, "shoshin.profile")).toMatchObject({
+    expect(find(inventory.items, "graph-health.search")).toMatchObject({
       trust: "trusted",
       enabled: false,
       statusLabel: "Disabled",
@@ -333,7 +263,7 @@ describe("plugin inventory", () => {
       pluginSettingsStore,
     });
 
-    expect(find(inventory.items, "graph-health.template").settings).toEqual({
+    expect(find(inventory.items, "graph-health.search").settings).toEqual({
       hasSettings: true,
       fieldCount: 2,
       configuredCount: 1,
@@ -361,13 +291,13 @@ describe("plugin inventory", () => {
       pluginPermissionStore,
     });
 
-    expect(find(trustedInventory.items, "graph-health.template").permissionGrants).toEqual({
+    expect(find(trustedInventory.items, "graph-health.search").permissionGrants).toEqual({
       requested: ["artifacts:write", "notes:read", "workspace:read"],
       granted: ["notes:read", "workspace:read"],
       missing: ["artifacts:write"],
       status: "partial",
     });
-    expect(find(untrustedInventory.items, "graph-health.template").permissionGrants).toEqual({
+    expect(find(untrustedInventory.items, "graph-health.search").permissionGrants).toEqual({
       requested: ["artifacts:write", "notes:read", "workspace:read"],
       granted: [],
       missing: ["artifacts:write", "notes:read", "workspace:read"],

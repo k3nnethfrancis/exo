@@ -7,14 +7,16 @@ import { bracketMatching, foldGutter } from "@codemirror/language";
 import { lintGutter, lintKeymap } from "@codemirror/lint";
 import { EditorSelection } from "@codemirror/state";
 import { keymap, lineNumbers, EditorView, type ViewUpdate } from "@codemirror/view";
-import { Code2, GitBranch, Save, SlidersHorizontal } from "lucide-react";
-import type { BranchFamily, NoteDocument, NoteKnowledge } from "@exo/core";
+import { Code2, GitBranch, Plus, Send, Save, SlidersHorizontal } from "lucide-react";
+import type { AgentCommand, BranchFamily, InvocationRecord, NoteDocument, NoteKnowledge } from "@exo/core";
+import { parseAgentMentions, type ParsedAgentMention } from "@exo/core/agent-mention-parser";
 import { exoEditorTheme, exoSyntaxHighlighting } from "../theme/codemirror";
 import type { ExoThemeVariant } from "../theme/types";
 import { codeLanguageForPath } from "./codeLanguages";
 import { coerceFrontmatterValue, getDocumentDisplayTitle, stringifyFrontmatterValue } from "./documentDisplay";
 import { markdownLivePreview, type MarkdownGraphReferences } from "./markdownLivePreview";
 import {
+  buildNoteGraphContext,
   graphReferencesForMarkdownMode,
   getWikilinkCompletionContext,
   wikilinkSuggestionEdit,
@@ -60,6 +62,9 @@ interface NoteEditorProps {
   onSuggestTargets: (query: string) => Promise<Array<{ label: string; target: string; detail?: string }>>;
   onPreviewTarget: (target: string) => Promise<{ title: string; excerpt: string } | null>;
   onCreateBranch: () => void;
+  agentCommands: AgentCommand[];
+  onInvokeAgentMention: (mention: ParsedAgentMention) => void;
+  invocationReview: NoteInvocationReview | null;
   onFocus: () => void;
   theme: ExoThemeVariant;
   fontSize: number;
@@ -87,6 +92,9 @@ export function NoteEditor(props: NoteEditorProps) {
     onSuggestTargets,
     onPreviewTarget,
     onCreateBranch,
+    agentCommands,
+    onInvokeAgentMention,
+    invocationReview,
     onFocus,
     theme,
     fontSize,
@@ -110,6 +118,8 @@ export function NoteEditor(props: NoteEditorProps) {
   const suppressedWikilinkCompletionRef = useRef<{ pos: number; text: string } | null>(null);
   const [wikilinkSuggestions, setWikilinkSuggestions] = useState<WikilinkSuggestionState | null>(null);
   const [wikilinkPreview, setWikilinkPreview] = useState<WikilinkPreviewState | null>(null);
+  const [newPropertyKey, setNewPropertyKey] = useState("");
+  const [newPropertyValue, setNewPropertyValue] = useState("");
 
   useEffect(() => {
     setRawMarkdownMode(false);
@@ -136,12 +146,37 @@ export function NoteEditor(props: NoteEditorProps) {
     }
     return codeLanguageForPath(document.filePath);
   }, [document, useMarkdownEditing]);
-  const frontmatterEntries = document ? Object.entries(document.frontmatter).filter(([key]) => !key.startsWith("branch_")) : [];
+  const graphContext = useMemo(() => buildNoteGraphContext(document, knowledge), [document, knowledge]);
+  const graphProperties = graphContext?.properties ?? document?.frontmatter ?? {};
+  const graphPropertyEntries = Object.entries(graphProperties).filter(([key]) => !key.startsWith("branch_"));
   const cmTheme = useMemo(() => exoEditorTheme(theme, fontSize), [fontSize, theme]);
   const syntaxTheme = useMemo(() => exoSyntaxHighlighting(theme), [theme]);
   const graphReferences = useMemo((): MarkdownGraphReferences | null => {
-    return graphReferencesForMarkdownMode(showNoteMetadata, rawMarkdownMode, knowledge);
-  }, [knowledge, rawMarkdownMode, showNoteMetadata]);
+    return graphReferencesForMarkdownMode(showNoteMetadata, rawMarkdownMode, graphContext);
+  }, [graphContext, rawMarkdownMode, showNoteMetadata]);
+  const activeAgentMention = useMemo(() => {
+    if (!document || !showNoteMetadata || agentCommands.length === 0) {
+      return null;
+    }
+    const enabledHandles = agentCommands.filter((command) => command.enabled).map((command) => command.handle);
+    return parseAgentMentions(document.body, enabledHandles)[0] ?? null;
+  }, [agentCommands, document, showNoteMetadata]);
+  const normalizedNewPropertyKey = normalizeFrontmatterPropertyKey(newPropertyKey);
+  const canAddProperty =
+    Boolean(normalizedNewPropertyKey) &&
+    !Object.prototype.hasOwnProperty.call(document?.frontmatter ?? {}, normalizedNewPropertyKey);
+  const handleAddProperty = useMemo(
+    () =>
+      () => {
+        if (!normalizedNewPropertyKey || !canAddProperty) {
+          return;
+        }
+        onUpdateFrontmatter(normalizedNewPropertyKey, newPropertyValue);
+        setNewPropertyKey("");
+        setNewPropertyValue("");
+      },
+    [canAddProperty, newPropertyValue, normalizedNewPropertyKey, onUpdateFrontmatter],
+  );
   const selectionTracker = useMemo(
     () =>
       EditorView.updateListener.of((update) => {
@@ -592,13 +627,51 @@ export function NoteEditor(props: NoteEditorProps) {
               <Code2 size={14} />
             </button>
           ) : null}
+          {activeAgentMention ? (
+            <button
+              aria-label={`Run ${activeAgentMention.originalText}`}
+              className={`toolbar-button toolbar-button--icon ${compact ? "toolbar-button--compact" : ""}`}
+              data-testid="invoke-agent-mention"
+              onClick={() => onInvokeAgentMention(activeAgentMention)}
+              title={`Run @${activeAgentMention.handle}`}
+              type="button"
+            >
+              <Send size={14} />
+            </button>
+          ) : null}
         </div>
       </div>
+
+      {invocationReview ? (
+        <div className="invocation-review" data-testid="invocation-review-banner">
+          <div className="invocation-review__summary">
+            <strong>{invocationReview.record.status === "running" ? `Running @${invocationReview.record.command.handle}` : `Changed during @${invocationReview.record.command.handle}`}</strong>
+            <span>{formatInvocationReviewDetail(invocationReview.record, invocationReview.hasDirtyConflict)}</span>
+          </div>
+          <div className="invocation-review__actions">
+            {invocationReview.hasDirtyConflict ? (
+              <>
+                <button className="toolbar-button" data-testid="invocation-keep-dirty-buffer" onClick={invocationReview.onKeepDirtyBuffer} type="button">
+                  Keep buffer
+                </button>
+                <button className="toolbar-button toolbar-button--primary" data-testid="invocation-reload-disk" onClick={invocationReview.onReloadFromDisk} type="button">
+                  Reload disk
+                </button>
+              </>
+            ) : null}
+            {invocationReview.record.status === "running" ? (
+              <button className="toolbar-button" data-testid="invocation-end-observation" onClick={invocationReview.onEndObservation} type="button">
+                End
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
 
       {showNoteMetadata && !propertiesCollapsed ? (
         <div className="properties-card" data-testid="properties-panel">
           <div className="properties-card__content">
-            {frontmatterEntries.map(([key, value]) => (
+            {graphPropertyEntries.map(([key, value]) => (
               <div key={key} className="properties-card__row">
                 <label className="properties-card__key" htmlFor={`property-${key}`}>
                   {key}
@@ -628,6 +701,53 @@ export function NoteEditor(props: NoteEditorProps) {
                 </div>
               </div>
             ))}
+            <div className="properties-card__row properties-card__row--add">
+              <label className="properties-card__key" htmlFor="property-new-key">
+                New
+              </label>
+              <div className="properties-card__add">
+                <input
+                  id="property-new-key"
+                  className="properties-card__input"
+                  type="text"
+                  value={newPropertyKey}
+                  onChange={(event) => setNewPropertyKey(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      handleAddProperty();
+                    }
+                  }}
+                  placeholder="key"
+                />
+                <input
+                  aria-label="New property value"
+                  className="properties-card__input"
+                  type="text"
+                  value={newPropertyValue}
+                  onChange={(event) => setNewPropertyValue(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      handleAddProperty();
+                    }
+                  }}
+                  placeholder="value"
+                />
+                <button
+                  aria-label="Add property"
+                  className={`toolbar-button toolbar-button--icon ${compact ? "toolbar-button--compact" : ""}`}
+                  data-testid="add-frontmatter-property"
+                  disabled={!canAddProperty}
+                  onClick={handleAddProperty}
+                  title={canAddProperty ? "Add property" : "Enter a new property key"}
+                  type="button"
+                >
+                  <Plus size={14} />
+                </button>
+              </div>
+            </div>
+            {graphPropertyEntries.length === 0 ? <div className="properties-card__empty">No properties</div> : null}
           </div>
         </div>
       ) : !useMarkdownEditing ? (
@@ -731,6 +851,28 @@ export function NoteEditor(props: NoteEditorProps) {
   );
 }
 
+interface NoteInvocationReview {
+  record: InvocationRecord;
+  hasDirtyConflict: boolean;
+  onEndObservation: () => void;
+  onKeepDirtyBuffer: () => void;
+  onReloadFromDisk: () => void;
+}
+
+function formatInvocationReviewDetail(record: InvocationRecord, hasDirtyConflict = false): string {
+  if (hasDirtyConflict) {
+    return "Disk changed while this editor has unsaved edits.";
+  }
+  if (record.status === "running") {
+    return "Observation is active for this document.";
+  }
+  if (record.changedFileRefs.length === 0) {
+    return "No tagged document changes were observed.";
+  }
+  const ambiguous = record.changedFileRefs.some((file) => file.attribution === "ambiguous");
+  return `${record.changedFileRefs.length} changed file${record.changedFileRefs.length === 1 ? "" : "s"}${ambiguous ? " with ambiguous attribution" : ""}.`;
+}
+
 function clampPosition(position: number, docLength: number): number {
   return Math.max(0, Math.min(position, docLength));
 }
@@ -738,6 +880,12 @@ function clampPosition(position: number, docLength: number): number {
 export function shouldUseMarkdownRenderer(document: Pick<NoteDocument, "kind"> | null): boolean {
   return document?.kind === "markdown";
 }
+
+export function normalizeFrontmatterPropertyKey(value: string): string {
+  const trimmed = value.trim();
+  return /^[A-Za-z_][A-Za-z0-9_-]*$/.test(trimmed) ? trimmed : "";
+}
+
 function generatedDailyTitleForPath(filePath: string): string | null {
   const displayTitle = getDocumentDisplayTitle(filePath, "markdown");
   return /^\d{4}-\d{2}-\d{2}$/.test(displayTitle) ? displayTitle : null;

@@ -130,7 +130,6 @@ function assertPluginEntrypointsRemainInert() {
     'packages/core/src/__tests__/plugin.test.ts',
     'packages/core/src/__tests__/plugin-inventory.test.ts',
     'packages/core/src/__tests__/profile-copy.test.ts',
-    'apps/desktop/src/renderer/src/pluginManagerModel.ts',
     'scripts/check-repo.mjs',
   ]);
   const executionPatterns = [
@@ -215,18 +214,6 @@ const publicContractSurfaces = [
     label: 'CLI command-server client contract',
     slice: 'command-client-routes',
   },
-  {
-    id: 'packages/mcp/src/index.ts#tool-schemas',
-    path: 'packages/mcp/src/index.ts',
-    label: 'MCP tools and tool parameters',
-    slice: 'mcp-tool-schemas',
-  },
-  {
-    id: 'packages/mcp/src/exo-client.ts#route-client-methods',
-    path: 'packages/mcp/src/exo-client.ts',
-    label: 'MCP command-server client contract',
-    slice: 'command-client-routes',
-  },
 ];
 
 function linesMatching(content, patterns) {
@@ -285,9 +272,6 @@ function publicContractSlice(surface) {
       /EXO_COMMAND_ROUTES\./,
     ]);
   }
-  if (surface.slice === 'mcp-tool-schemas') {
-    return extractMcpToolSchemas(content);
-  }
   throw new Error(`Unknown public contract slice: ${surface.slice}`);
 }
 
@@ -338,7 +322,7 @@ function assertPublicContractSurfacesHaveReviewNotes() {
   const protectedSurfaceList = publicContractSurfaces.map((surface) => `\`${surface.id}\``).join(', ');
   assertContains(
     reviewDocPath,
-    'command-server routes, CLI commands/flags, MCP tool parameters, and shared protocol types require architect review before shipping unless a user-approved exception is explicitly documented',
+    'command-server routes, CLI commands/flags, and shared protocol types require architect review before shipping unless a user-approved exception is explicitly documented',
   );
   for (const surface of publicContractSurfaces) {
     assertFile(surface.path);
@@ -488,7 +472,6 @@ const requiredFiles = [
   'docs/harness.md',
   'docs/qmd-integration-notes.md',
   'docs/usability-readiness.md',
-  'packages/mcp/README.md',
   '.github/workflows/ci.yml',
   '.github/workflows/package-macos.yml',
   'scripts/install-local',

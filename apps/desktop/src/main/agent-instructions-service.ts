@@ -259,10 +259,10 @@ function exoAgentInstructionStarterTemplate(workspaceModel: WorkspaceModel) {
   return [
     "# Exo Agent Instructions",
     "",
-    "- Exo is the local workspace app for navigating the user's notes, projects, terminals, and indexed context.",
+    "- Exo is the local workspace app for navigating the user's Markdown notes, terminals, Agent Commands, and indexed context.",
     `- Active workspace root: ${workspaceModel.workspaceRoot}`,
     `- Active notes roots: ${formatInlineRootList(workspaceModel.noteRoots)}`,
-    "- Use Exo MCP, Exo CLI, filesystem tools, and normal shell tools according to the task. Exact code/string/path work is often best with filesystem search; concept or meaning-oriented note retrieval may be better with Exo search when indexing is enabled.",
+    "- Use Exo CLI, filesystem tools, and normal shell tools according to the task. Exact code/string/path work is often best with filesystem search; concept or meaning-oriented note retrieval may be better with Exo search when indexing is enabled.",
     "- Treat notes as user-authored working context. Preserve organization, links, and private drafts unless asked to change them.",
     "- Prefer explicit attached roots over broad home-directory searches.",
   ].join("\n");
@@ -272,7 +272,7 @@ function exographAgentContextTemplate(workspaceModel: WorkspaceModel) {
   return [
     "## Exograph Context",
     "",
-    "- Exo is the local-first Markdown graph workstation for notes, projects, terminals, agent harnesses, plugins, and indexed context.",
+    "- Exo is the local-first Markdown graph workstation for notes, terminals, Agent Commands, and indexed documents.",
     "- Exo augments normal filesystem access rather than replacing it. Use `rg`, file reads, and shell tools for exact code/path/string work; use Exo search/read surfaces when workspace orientation, notes retrieval, backlinks, or semantic/lexical graph context would be more useful.",
     "- Keep agent guidance provider-agnostic. Avoid Claude-only, Codex-only, or harness-specific assumptions unless a task asks for them.",
     "- Treat Exo friction as product signal: if an Exo tool is missing, confusing, slow, or less useful than raw filesystem access, record an issue in the Exo project issue tracker.",
@@ -286,19 +286,14 @@ function exographAgentContextTemplate(workspaceModel: WorkspaceModel) {
     "",
     ...formatRootList(workspaceModel.noteRoots),
     "",
-    "### Project Roots",
-    "",
-    ...formatRootList(workspaceModel.projectRoots),
-    "",
     "### Search Capabilities",
     "",
     ...formatSearchGuidance(workspaceModel),
     "",
-    "### Exo MCP and CLI Surfaces",
+    "### Exo CLI Surface",
     "",
-    "- Exo MCP is the narrow agent work surface: workspace status/orientation, search/read, and live agent session control.",
-    "- Exo CLI is the broader operator surface: workspace setup, indexing, project roots, diagnostics, terminals, agents, and MCP/integration helpers when installed.",
-    "- If a requested Exo capability is not exposed through MCP, use the CLI or filesystem when available, and record the MCP gap as product feedback.",
+    "- Exo CLI is the local operator surface: workspace status, search/read, indexing, diagnostics, terminals, and configured agent-command spawn.",
+    "- If a requested Exo capability is missing from the CLI, use filesystem/shell tools when available and record the CLI gap as product feedback.",
   ].join("\n");
 }
 

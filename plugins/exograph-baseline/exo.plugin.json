@@ -21,16 +21,6 @@
               "id": "qmd",
               "required": false,
               "reason": "Advanced local Markdown search and indexing."
-            },
-            {
-              "id": "graph-health.plugin",
-              "required": false,
-              "reason": "Routine template for graph-maintenance reports."
-            },
-            {
-              "id": "agent-instruction-sync.plugin",
-              "required": false,
-              "reason": "Routine template for proposing provider-agnostic agent instruction merges."
             }
           ],
           "metadataSchemas": [
@@ -66,18 +56,12 @@
           "instructionTemplates": [],
           "mcpConfigTemplates": [],
           "skills": [],
-          "routineTemplateIds": ["graph-health.template", "agent-instruction-sync.template"],
           "graphViews": [],
           "analyzerSettings": [],
           "reviewPolicy": {
             "fileChanges": "propose",
             "requireHumanReview": true,
             "allowedPaths": ["**/*.md", ".exo/**"]
-          },
-          "outputPolicy": {
-            "fileChanges": "propose",
-            "artifacts": "record",
-            "allowedPaths": [".exo/artifacts/**"]
           }
         }
       }

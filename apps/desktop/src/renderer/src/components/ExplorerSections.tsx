@@ -2,7 +2,6 @@ import { ChevronDown, ChevronLeft, ChevronRight, FileText, Folder, FolderOpen, F
 import type { SearchResult, TreeNode } from "@exo/core";
 import type { CSSProperties } from "react";
 import type { DragManager } from "../hooks/useDragManager";
-import type { ExplorerChangeState } from "../explorerChangeState";
 
 const MAX_LABEL_CHARS = 25;
 
@@ -38,16 +37,15 @@ interface TagSearchSectionProps {
 interface SectionProps {
   label: string;
   sections: RootSection[];
-  rootKind: "notes" | "projects";
+  rootKind: "notes";
   expandedPaths: Set<string>;
-  onTogglePath: (path: string, rootKind?: "notes" | "projects") => void;
+  onTogglePath: (path: string, rootKind?: "notes") => void;
   onOpenFile: (filePath: string, line?: number | null) => void;
   dragManager: DragManager;
   onContextMenu: (event: React.MouseEvent, target: ContextTarget) => void;
   showHeader?: boolean;
   alwaysShowRoots?: boolean;
   mirrored?: boolean;
-  changeState?: ExplorerChangeState | null;
 }
 
 export const ROOT_GROUP_PREFIX = "__root__:";
@@ -124,7 +122,6 @@ export function Section(props: SectionProps) {
     showHeader = true,
     alwaysShowRoots = false,
     mirrored = false,
-    changeState = null,
   } = props;
   const CollapsedChevron = mirrored ? ChevronLeft : ChevronRight;
 
@@ -147,7 +144,6 @@ export function Section(props: SectionProps) {
           dragManager={dragManager}
           onContextMenu={onContextMenu}
           mirrored={mirrored}
-          changeState={changeState}
         />
       </div>
     );
@@ -186,7 +182,6 @@ export function Section(props: SectionProps) {
                 dragManager={dragManager}
                 onContextMenu={onContextMenu}
                 mirrored={mirrored}
-                changeState={changeState}
               />
             ) : null}
           </div>
@@ -206,18 +201,16 @@ function TreeNodes({
   dragManager,
   onContextMenu,
   mirrored,
-  changeState,
 }: {
   nodes: TreeNode[];
   depth: number;
-  rootKind: "notes" | "projects";
+  rootKind: "notes";
   expandedPaths: Set<string>;
-  onTogglePath: (path: string, rootKind?: "notes" | "projects") => void;
+  onTogglePath: (path: string, rootKind?: "notes") => void;
   onOpenFile: (filePath: string, line?: number | null) => void;
   dragManager: DragManager;
   onContextMenu: (event: React.MouseEvent, target: ContextTarget) => void;
   mirrored: boolean;
-  changeState: ExplorerChangeState | null;
 }) {
   return (
     <div className="tree-nodes">
@@ -225,17 +218,15 @@ function TreeNodes({
         const depthStyle = { "--tree-depth": depth } as CSSProperties;
         if (node.kind === "directory") {
           const expanded = expandedPaths.has(node.path);
-          const descendantChangeCount = changeState?.descendantCountByPath.get(node.path) ?? 0;
-          const hasDirtyDescendants = descendantChangeCount > 0;
           const FolderIcon = expanded ? FolderOpen : Folder;
           return (
             <div key={node.path}>
               <button
-                className={`tree-node tree-node--directory ${hasDirtyDescendants ? "tree-node--changed-descendant" : ""}`}
+                className="tree-node tree-node--directory"
                 data-explorer-drop-path={node.path}
                 style={depthStyle}
                 aria-expanded={expanded}
-                aria-label={`${node.name}, ${expanded ? "expanded" : "collapsed"} folder${hasDirtyDescendants ? `, ${formatChangeCount(descendantChangeCount)} changed` : ""}`}
+                aria-label={`${node.name}, ${expanded ? "expanded" : "collapsed"} folder`}
                 onClick={() => onTogglePath(node.path, rootKind)}
                 onMouseDown={(event) =>
                   dragManager.startDrag(event, { kind: "workspace-path", path: node.path, nodeKind: "directory" })
@@ -245,11 +236,6 @@ function TreeNodes({
               >
                 <FolderIcon className="tree-node__kind-icon" size={13} aria-hidden="true" />
                 <span className="tree-node__label" title={node.name}>{truncateLabel(node.name)}</span>
-                {hasDirtyDescendants ? (
-                  <span className="tree-node__dirty-badge" title={`${formatChangeCount(descendantChangeCount)} changed`}>
-                    {descendantChangeCount}
-                  </span>
-                ) : null}
               </button>
               {expanded && node.children?.length ? (
                 <TreeNodes
@@ -262,25 +248,22 @@ function TreeNodes({
                   dragManager={dragManager}
                   onContextMenu={onContextMenu}
                   mirrored={mirrored}
-                  changeState={changeState}
                 />
               ) : null}
             </div>
           );
         }
 
-        const change = changeState?.byPath.get(node.path) ?? null;
         const fileLabel = truncateLabel(node.name.endsWith(".md") ? node.name.slice(0, -3) : node.name);
-        const changeLineLabel = change?.firstChangedLine ? `, first changed line ${change.firstChangedLine}` : "";
         return (
           <button
             key={node.path}
-            className={`tree-node tree-node--file ${change ? "tree-node--changed-file" : ""}`}
+            className="tree-node tree-node--file"
             data-explorer-drop-path={node.path}
             data-explorer-drop-kind="file"
             style={depthStyle}
-            aria-label={`${fileLabel}, file${change ? `, ${change.status} changed${changeLineLabel}` : ""}`}
-            onClick={() => onOpenFile(node.path, change?.firstChangedLine)}
+            aria-label={`${fileLabel}, file`}
+            onClick={() => onOpenFile(node.path)}
             onMouseDown={(event) =>
               dragManager.startDrag(event, { kind: "workspace-path", path: node.path, nodeKind: "file" })
             }
@@ -289,21 +272,9 @@ function TreeNodes({
           >
             <FileText className="tree-node__kind-icon" size={13} aria-hidden="true" />
             <span className="tree-node__label" title={node.name}>{fileLabel}</span>
-            {change ? (
-              <span
-                className="tree-node__dirty-badge tree-node__dirty-badge--status"
-                title={`${change.status} changed${change.firstChangedLine ? ` at line ${change.firstChangedLine}` : ""}`}
-              >
-                {change.status}
-              </span>
-            ) : null}
           </button>
         );
       })}
     </div>
   );
-}
-
-function formatChangeCount(count: number): string {
-  return `${count} file${count === 1 ? "" : "s"}`;
 }

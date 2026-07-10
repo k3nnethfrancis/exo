@@ -85,7 +85,7 @@ export interface TerminalRuntimeRestoreSnapshot {
 }
 
 export interface TerminalRuntime {
-  readonly kind: "tmux";
+  readonly kind: "pty" | "tmux";
   availability(): TerminalRuntimeAvailability;
   createSession(options: TerminalRuntimeCreateSessionOptions): TerminalRuntimeSession;
   attachSession(options: TerminalRuntimeAttachOptions): TerminalRuntimeProcess;

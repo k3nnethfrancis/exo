@@ -28,10 +28,10 @@ const manifest: PluginManifest = {
   exoApiVersion: "0.1",
   capabilities: [
     {
-      id: "permissions.template",
-      kind: "core:routineTemplate",
-      label: "Permissions Template",
-      description: "Requests routine permissions.",
+      id: "permissions.graph",
+      kind: "exo.graph:visualization",
+      label: "Permissions Graph",
+      description: "Requests graph permissions.",
       lifecycle: "experimental",
       owner: "permissions.plugin",
       surfaces: ["cli"],
@@ -39,8 +39,8 @@ const manifest: PluginManifest = {
     },
     {
       id: "permissions.disabled",
-      kind: "core:routineTemplate",
-      label: "Disabled Template",
+      kind: "exo.graph:visualization",
+      label: "Disabled Graph",
       description: "Disabled capability.",
       lifecycle: "disabled",
       owner: "permissions.plugin",
@@ -120,15 +120,15 @@ describe("plugin permissions", () => {
       missingPermissions: ["artifacts:write", "notes:propose:root:shoshin-codex", "projects:read:path:projects/exo"],
       status: "partial",
     });
-    expect(resolveCapabilityPermissionGrants(plugin, "permissions.template", store)).toMatchObject({
-      capabilityId: "permissions.template",
+    expect(resolveCapabilityPermissionGrants(plugin, "permissions.graph", store)).toMatchObject({
+      capabilityId: "permissions.graph",
       requestedPermissions: ["artifacts:write", "notes:propose:root:shoshin-codex", "workspace:read"],
       grantedPermissions: ["workspace:read"],
       missingPermissions: ["artifacts:write", "notes:propose:root:shoshin-codex"],
       status: "partial",
     });
     expect(hasGrantedPluginPermission(plugin, store, "workspace:read")).toBe(true);
-    expect(hasGrantedCapabilityPermission(plugin, "permissions.template", store, "artifacts:write")).toBe(false);
+    expect(hasGrantedCapabilityPermission(plugin, "permissions.graph", store, "artifacts:write")).toBe(false);
   });
 
   it("records revocations and recomputes effective grants", () => {

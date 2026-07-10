@@ -1,4 +1,5 @@
-import type { BranchFamily, NoteDocument, NoteKnowledge } from "@exo/core";
+import type { AgentCommand, BranchFamily, InvocationRecord, NoteDocument, NoteKnowledge } from "@exo/core";
+import type { ParsedAgentMention } from "@exo/core/agent-mention-parser";
 import type { DragManager } from "../hooks/useDragManager";
 import type { ExoThemeVariant } from "../theme/types";
 
@@ -40,6 +41,9 @@ interface EditorPaneProps {
   onSuggestTargets: (query: string) => Promise<Array<{ label: string; target: string; detail?: string }>>;
   onPreviewTarget: (target: string) => Promise<{ title: string; excerpt: string } | null>;
   onCreateBranch: () => void;
+  agentCommands: AgentCommand[];
+  onInvokeAgentMention: (mention: ParsedAgentMention) => void;
+  invocationReview: EditorInvocationReview | null;
   theme: ExoThemeVariant;
   fontSize: number;
   onZoomEditor: (direction: -1 | 0 | 1) => void;
@@ -73,6 +77,9 @@ export function EditorPane(props: EditorPaneProps) {
     onSuggestTargets,
     onPreviewTarget,
     onCreateBranch,
+    agentCommands,
+    onInvokeAgentMention,
+    invocationReview,
     theme,
     fontSize,
     onZoomEditor,
@@ -155,6 +162,9 @@ export function EditorPane(props: EditorPaneProps) {
         onSuggestTargets={onSuggestTargets}
         onPreviewTarget={onPreviewTarget}
         onCreateBranch={onCreateBranch}
+        agentCommands={agentCommands}
+        onInvokeAgentMention={onInvokeAgentMention}
+        invocationReview={invocationReview}
         onFocus={onFocusPane}
         theme={theme}
         fontSize={fontSize}
@@ -166,4 +176,12 @@ export function EditorPane(props: EditorPaneProps) {
       />
     </div>
   );
+}
+
+export interface EditorInvocationReview {
+  record: InvocationRecord;
+  hasDirtyConflict: boolean;
+  onEndObservation: () => void;
+  onKeepDirtyBuffer: () => void;
+  onReloadFromDisk: () => void;
 }

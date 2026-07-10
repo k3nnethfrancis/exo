@@ -17,7 +17,6 @@ export function registerTerminalIpcHandlers(
   handleDesktopInvoke("terminals:send-message", async (_event, id, message, submit) =>
     terminalManager.sendMessage(id, message, submit !== false),
   );
-  handleDesktopInvoke("terminals:reconnect", async (_event, id) => terminalManager.reconnect(id));
   handleDesktopInvoke("terminals:resize", async (_event, id, cols, rows) =>
     terminalManager.resize(id, cols, rows),
   );

@@ -36,29 +36,14 @@ const manifest: PluginManifest = {
       permissions: ["artifacts:write"],
     },
     {
-      id: "example.routine",
-      kind: "core:routineTemplate",
-      label: "Example Routine",
-      description: "Ships an example routine template.",
+      id: "example.search",
+      kind: "core:searchProvider",
+      label: "Example Search",
+      description: "Ships an example search provider.",
       lifecycle: "experimental",
       owner: "example.plugin",
       surfaces: ["desktop", "cli"],
       permissions: ["workspace:read"],
-    },
-    {
-      id: "example.profile",
-      kind: "core:profile",
-      label: "Example Profile",
-      description: "Ships an example profile bundle.",
-      lifecycle: "experimental",
-      owner: "example.plugin",
-      surfaces: ["desktop"],
-      permissions: ["workspace:read", "notes:read"],
-      compatibility: {
-        profile: {
-          recommendedPlugins: [{ id: "example.routine", required: false }],
-        },
-      },
     },
     {
       id: "example.graph-view",
@@ -93,7 +78,7 @@ const futureKindManifest = {
     },
     {
       ...manifest.capabilities[1]!,
-      id: "future-kind.routine",
+      id: "future-kind.search",
     },
   ],
 } satisfies PluginManifest;
@@ -225,7 +210,7 @@ describe("plugin manifest contracts", () => {
 
     expect(parsed.capabilities.map((capability) => capability.id)).toEqual([
       "future-kind.widget",
-      "future-kind.routine",
+      "future-kind.search",
     ]);
     expect(parsed.capabilities[0]).toMatchObject({
       id: "future-kind.widget",
@@ -235,8 +220,8 @@ describe("plugin manifest contracts", () => {
       statusNotes: ["Capability kind exo.future:widget is not supported by this Exo version."],
     });
     expect(parsed.capabilities[1]).toMatchObject({
-      id: "future-kind.routine",
-      kind: "core:routineTemplate",
+      id: "future-kind.search",
+      kind: "core:searchProvider",
       permissions: ["workspace:read"],
     });
   });
@@ -253,8 +238,8 @@ describe("plugin manifest contracts", () => {
       permissions: [],
     });
     expect(parsed.capabilities[1]).toMatchObject({
-      id: "future-kind-fixture.routine",
-      kind: "core:routineTemplate",
+      id: "future-kind-fixture.search",
+      kind: "core:searchProvider",
       permissions: ["workspace:read"],
     });
   });
@@ -272,8 +257,7 @@ describe("plugin manifest contracts", () => {
     expect(registry.require("example.plugin").manifest).toBe(manifest);
     expect(registry.listCapabilities().map((capability) => capability.id)).toEqual([
       "example.trace",
-      "example.routine",
-      "example.profile",
+      "example.search",
       "example.graph-view",
     ]);
     expect(registry.list({ trustedOnly: true }).map((plugin) => plugin.manifest.id)).toEqual(["example.plugin"]);
@@ -287,13 +271,13 @@ describe("plugin manifest contracts", () => {
     expect(registry.list({ includeDisabled: true }).map((plugin) => plugin.manifest.id)).toEqual(["future-kind.plugin"]);
     expect(registry.listCapabilities({ includeInactive: true, includeDisabled: true }).map((capability) => capability.id)).toEqual([
       "future-kind.widget",
-      "future-kind.routine",
+      "future-kind.search",
     ]);
-    expect(registry.listCapabilities().map((capability) => capability.id)).toEqual(["future-kind.routine"]);
+    expect(registry.listCapabilities().map((capability) => capability.id)).toEqual(["future-kind.search"]);
     expect(lifecycle).toMatchObject({
       active: true,
-      capabilityIds: ["future-kind.widget", "future-kind.routine"],
-      exposedCapabilityIds: ["future-kind.routine"],
+      capabilityIds: ["future-kind.widget", "future-kind.search"],
+      exposedCapabilityIds: ["future-kind.search"],
       statusNotes: ["Capability kind exo.future:widget is not supported by this Exo version."],
     });
   });
@@ -311,7 +295,7 @@ describe("plugin manifest contracts", () => {
 
     expect(() => new PluginRegistry([inactiveUnsupported, activeSupported])).not.toThrow();
     expect(new PluginRegistry([inactiveUnsupported, activeSupported]).listCapabilities().map((capability) => capability.id)).toEqual([
-      "future-kind.routine",
+      "future-kind.search",
       "future-kind.widget",
     ]);
   });
@@ -325,8 +309,7 @@ describe("plugin manifest contracts", () => {
       entrypoints: { main: "dist/main.js" },
       exposedCapabilityIds: [
         "example.trace",
-        "example.routine",
-        "example.profile",
+        "example.search",
         "example.graph-view",
       ],
       executableLoading: "disabled",
@@ -362,12 +345,10 @@ describe("plugin manifest contracts", () => {
     expect(registry.listCapabilities().map((capability) => capability.id)).toEqual([]);
     expect(registry.listCapabilities({ includeInactive: true, includeDisabled: true }).map((capability) => capability.id)).toEqual([
       "example.trace",
-      "example.routine",
-      "example.profile",
+      "example.search",
       "example.graph-view",
       "example.trace",
-      "example.routine",
-      "example.profile",
+      "example.search",
       "example.graph-view",
     ]);
   });
@@ -405,8 +386,7 @@ describe("plugin manifest contracts", () => {
     ]);
     expect(registry.listCapabilities().map((capability) => capability.id)).toEqual([
       "example.trace",
-      "example.routine",
-      "example.profile",
+      "example.search",
       "example.graph-view",
     ]);
   });

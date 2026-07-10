@@ -1,57 +1,83 @@
-# Exo
+# Exo Domain Context
 
-Exo is a local-first AI workstation built around a user-owned Markdown exograph. This glossary defines product-domain terms used by the codebase and architecture docs.
+Exo's shared north star with Guardian and Ash is `../../notes/shoshin-codex/ashby.md`.
+
+This file is the canonical Exo glossary. It defines product meaning, not implementation.
 
 ## Language
 
-**Exograph**:
-A user-owned Markdown graph made from files, links, paths, tags, properties, and derived indexes. Exo operates over the exograph but approved durable knowledge remains in the user's Markdown files.
-_Avoid_: vault, second brain
+**Exo**
+The local application for building and using a user-owned Markdown exocortex. Exo helps a person capture, connect, find, invoke, and review work without owning the person's durable knowledge.
+_Avoid_: agent cockpit, harness manager, Exograph as the app name
 
-**Baseline Core**:
-The part of Exo that must work with all optional plugins disabled: workspace opening, file browsing, Markdown editing, basic search, terminal, preview, settings, and the resident command server.
-_Avoid_: vanilla app, minimum app
+**Ashby**
+The shared vision joining Exo's exocortex, Guardian's principled execution, and Ash's evaluated artificial-colleague role while keeping their implementations separate.
+_Avoid_: monorepo, umbrella runtime
 
-**Plugin**:
-A replaceable capability that attaches to Exo through a declared contract, surface, configuration model, and permission boundary. Plugins may be bundled or external, but they should not own core host surfaces.
-_Avoid_: extension, add-on
+**Exograph**
+The user-owned graph formed by Markdown files, frontmatter, links, paths, tags, properties, attachments, and accepted durable knowledge. Exo operates over an exograph; it does not own it.
+_Avoid_: proprietary database, second brain
 
-**Plugin Layer**:
-One of the separable meanings of "plugin": capability metadata, bounded integration contract, or executable distribution. Exo should prove metadata and contracts with bundled/internal plugins before allowing arbitrary executable plugin loading.
-_Avoid_: marketplace package
+**Workspace**
+A named collection of Note Roots and Attached Folders used together in Exo.
+_Avoid_: vault, project
 
-**Profile**:
-An opinionated bundle of plugin recommendations, configuration defaults, graph metadata conventions, context templates, skills, routine templates, and review/output policies for a use case. A profile may depend on plugins, but it should not secretly contain arbitrary executable code.
-_Avoid_: theme, preset, agent config
+**Note Root**
+A user-authorized folder whose Markdown Notes Exo may create and edit.
+_Avoid_: arbitrary filesystem root
 
-**Metadata Schema**:
-A profile- or plugin-declared convention for frontmatter, properties, paths, tags, and relationship fields that Exo can use when reading, validating, visualizing, or maintaining an exograph.
-_Avoid_: database schema, required file format
+**Attached Folder**
+A user-authorized folder available as read-only context, search input, Command working location, and review target.
+_Avoid_: Project Root, editable note root
 
-**Graph Visualization**:
-A plugin-contributed graph exploration surface that renders Exo's core graph data through a specific layout, interaction model, or analysis lens. Core owns the graph substrate and host surface; graph visualization plugins own the view.
-_Avoid_: core graph, graph engine
+**Note**
+A Markdown document under a Note Root. Its body and frontmatter are canonical user data.
+_Avoid_: record, database row
 
-**Bundled Plugin**:
-A first-party plugin shipped with Exo and allowed to feel native in day-to-day use while remaining visible as a plugin in onboarding, plugin management, settings, and diagnostics.
-_Avoid_: built-in feature, default feature
+**Properties**
+Typed document facts projected from a Note's raw frontmatter. Editing Properties edits the Markdown source.
+_Avoid_: app metadata, inspector fields
 
-**Host Surface**:
-A core Exo surface that plugins can target but do not own, such as the terminal, web preview, editor grid, settings shell, status bar, command palette, or tool dock.
-_Avoid_: plugin UI
+**Connection**
+A relationship exposed for the focused Note through Outline, Links, Graph, or earned Activity. Connections are derived from user-owned documents and reviewed invocation evidence.
+_Avoid_: miscellaneous inspector data
 
-**Scheduler**:
-The core Exo service for registering, triggering, observing, and cancelling scheduled local work. Plugins may contribute scheduled routines or jobs, but the scheduling substrate is core.
-_Avoid_: automation plugin, cron plugin
+**Baseline Core**
+The smallest complete Exo experience: workspace setup, Markdown authoring, Explorer/Search, Connections, mixed panes, configured Commands, explicit invocation, and change review. It does not require plugins, MCP, provider-specific harnesses, or durable transcripts.
+_Avoid_: minimal demo, vanilla app
 
-**Plugin Manager**:
-The core configuration surface for plugin lifecycle, plugin permissions, dependency status, install detection, category-specific setup, and plugin-owned custom settings.
-_Avoid_: settings tab
+**Pane**
+One user-arranged view in the Workspace Canvas. A Pane shows a Note, Terminal, Preview, Graph, or Diff.
+_Avoid_: section, dock
 
-**Settings**:
-The core configuration surface for baseline Exo behavior such as workspace paths, editor behavior, theme, preview behavior, terminal settings, and core search behavior.
-_Avoid_: plugin manager
+**Workspace Canvas**
+The single spatial model in which Panes can be focused, split, moved, and closed.
+_Avoid_: terminal workspace, editor grid
 
-**Harness Adapter**:
-A plugin capability that describes how an agent harness is discovered, launched, configured, messaged, interrupted, and diagnosed through Exo's core terminal/session service.
-_Avoid_: terminal plugin, provider runtime
+**Command**
+A provider-neutral, user-configured executable addressed by a handle. A Command declares how it launches and which context pointer it receives; it does not define an agent species.
+_Avoid_: Harness, provider, agent type
+
+**Invocation**
+One explicitly authorized Command run, including its intent, trust decision, lifecycle, observed file changes, attribution confidence, and review references.
+_Avoid_: session, trace
+
+**Trust Decision**
+Human authorization for a specific executable fingerprint in a specific Workspace.
+_Avoid_: global approval, provider trust
+
+**Activity**
+Reviewed Invocation history relevant to a Note. Activity is earned by actual use and absent when there is nothing meaningful to show.
+_Avoid_: feed, trace stream
+
+**Derived State**
+Rebuildable indexes, graph caches, layout projections, and machine observations. Derived State is not accepted durable knowledge.
+_Avoid_: source of truth
+
+**Guardian**
+The separate Pi-compatible harness used to develop principled execution. Exo may invoke Guardian through a normal Command but does not interpret Guardian's Principal or internal agent loop.
+_Avoid_: built-in Exo harness
+
+**Ash**
+The first evaluated artificial-colleague role in the Ashby vision. Ash is a behavior contract, not an Exo Pane, provider, or runtime.
+_Avoid_: generic assistant, Exo agent type

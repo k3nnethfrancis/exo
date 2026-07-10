@@ -9,7 +9,6 @@ APP_DIR="${EXO_MAC_APP_DIR:-$HOME/Applications}"
 RUN_BUILD=1
 DRY_RUN=0
 INSTALL_CLI=0
-INSTALL_MCP=0
 
 usage() {
   cat <<'EOF'
@@ -22,7 +21,6 @@ Options:
   --system-app-dir      Install into /Applications.
   --skip-build          Reuse the existing release/mac-*/Exo.app bundle.
   --with-cli            Also install the repo-backed exo CLI shim.
-  --with-mcp            Configure Exo MCP integrations after CLI install.
   --dry-run             Print actions without changing files.
   -h, --help            Show this help.
 
@@ -30,7 +28,6 @@ Examples:
   ./scripts/install-mac-app
   ./scripts/install-mac-app --app-dir "$HOME/Applications"
   ./scripts/install-mac-app --system-app-dir
-  ./scripts/install-mac-app --with-cli --with-mcp
 EOF
 }
 
@@ -71,11 +68,6 @@ while [ "$#" -gt 0 ]; do
       ;;
     --with-cli)
       INSTALL_CLI=1
-      shift
-      ;;
-    --with-mcp)
-      INSTALL_CLI=1
-      INSTALL_MCP=1
       shift
       ;;
     --dry-run)
@@ -157,11 +149,7 @@ EOF
 fi
 
 if [ "$INSTALL_CLI" -eq 1 ]; then
-  if [ "$INSTALL_MCP" -eq 1 ]; then
-    run "$REPO_ROOT/scripts/install-local" --with-mcp --skip-install --skip-build
-  else
-    run "$REPO_ROOT/scripts/install-local" --skip-install --skip-build
-  fi
+  run "$REPO_ROOT/scripts/install-local" --skip-install --skip-build
 fi
 
 cat <<EOF

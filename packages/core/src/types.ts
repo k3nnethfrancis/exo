@@ -1,3 +1,5 @@
+import type { AgentCommand } from "./agent-invocation";
+
 export type RootKind = "notes" | "projects";
 export type DocumentKind = "markdown" | "text";
 export const MANAGED_AGENT_KINDS = ["shell", "claude", "codex", "pi", "hermes"] as const;
@@ -67,6 +69,7 @@ export interface WorkspaceSettings {
   noteRoots: string[];
   projectRoots: string[];
   piHarness?: PiHarnessSettings;
+  agentCommands?: AgentCommand[];
   indexedRoots: IndexedRoot[];
   indexing: IndexingConfig;
   appearanceMode: "system" | "light" | "dark";
@@ -214,7 +217,7 @@ export interface SemanticSearchResult {
 
 export type IndexedRootKind = "notes" | "docs" | "code" | "mixed";
 export type IndexMode = "off" | "lexical" | "semantic" | "hybrid";
-export type IndexBackend = "qmd";
+export type IndexBackend = "filesystem" | "qmd";
 export type IndexUpdateStrategy = "manual" | "on-save";
 export type TerminalTranscriptRetention = "forever" | "days";
 

@@ -11,8 +11,6 @@ interface UseWorkspaceCommandHandlersOptions {
   openSettings: (section: WorkspaceSettingsSection) => Promise<void>;
   reloadTrees: () => Promise<void>;
   scheduleOpenDocumentRefresh: (filePath: string) => void;
-  recordObservedWorkspaceWrite: (rootPath: string, filePath: string) => void;
-  refreshProjectGitStatus: (model: WorkspaceModel) => Promise<void>;
 }
 
 export function useWorkspaceCommandHandlers(options: UseWorkspaceCommandHandlersOptions) {
@@ -70,10 +68,6 @@ export function useWorkspaceCommandHandlers(options: UseWorkspaceCommandHandlers
       if (event.filePath) {
         const filePath = event.filePath;
         options.scheduleOpenDocumentRefresh(filePath);
-        options.recordObservedWorkspaceWrite(event.rootPath, filePath);
-        if (options.workspaceModel?.projectRoots.some((root) => isPathWithin(root.path, filePath))) {
-          void options.refreshProjectGitStatus(options.workspaceModel);
-        }
       }
     });
 
@@ -84,11 +78,5 @@ export function useWorkspaceCommandHandlers(options: UseWorkspaceCommandHandlers
     options.workspaceModel,
     options.reloadTrees,
     options.scheduleOpenDocumentRefresh,
-    options.recordObservedWorkspaceWrite,
-    options.refreshProjectGitStatus,
   ]);
-}
-
-function isPathWithin(parentPath: string, targetPath: string): boolean {
-  return targetPath === parentPath || targetPath.startsWith(`${parentPath}/`);
 }

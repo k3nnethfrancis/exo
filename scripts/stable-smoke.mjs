@@ -52,10 +52,10 @@ export const smokeScenarios = [
     timeoutMs: 75_000,
   },
   {
-    name: 'hidden-window-cli-mcp',
+    name: 'hidden-window-cli',
     file: 'apps/desktop/tests/e2e/shell.spec.ts',
-    grep: 'supports CLI and MCP agent control while the window is hidden',
-    timeoutMs: 90_000,
+    grep: 'supports CLI agent control while the window is hidden',
+    timeoutMs: 75_000,
   },
   {
     name: 'preview-layout',

@@ -9,7 +9,7 @@ interface BrowserPaneProps {
   url: string;
   compact: boolean;
   onFocus: () => void;
-  onNavigate: (url: string) => void;
+  onNavigate: (target: string) => Promise<string>;
   onClosePane: (() => void) | null;
   dragManager: DragManager;
 }
@@ -17,7 +17,8 @@ interface BrowserPaneProps {
 export function BrowserPane(props: BrowserPaneProps) {
   const { paneId, url, compact, onFocus, onNavigate, onClosePane, dragManager } = props;
   const [draftUrl, setDraftUrl] = useState(url);
-  const safeUrl = useMemo(() => normalizeBrowserUrl(url), [url]);
+  const [error, setError] = useState<string | null>(null);
+  const safeUrl = useMemo(() => trustedPreviewFrameUrl(url), [url]);
 
   useEffect(() => {
     setDraftUrl(url);
@@ -29,9 +30,14 @@ export function BrowserPane(props: BrowserPaneProps) {
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const nextUrl = normalizeBrowserUrl(draftUrl);
-    setDraftUrl(nextUrl);
-    onNavigate(nextUrl);
+    void onNavigate(draftUrl)
+      .then((nextUrl) => {
+        setError(null);
+        setDraftUrl(nextUrl);
+      })
+      .catch((caught) => {
+        setError(caught instanceof Error ? caught.message : "Unable to load preview target.");
+      });
   }
 
   return (
@@ -75,12 +81,14 @@ export function BrowserPane(props: BrowserPaneProps) {
         </form>
       </div>
       {safeUrl === "about:blank" ? (
-        <div className="browser-pane__empty">Enter a local URL to preview.</div>
+        <div className="browser-pane__empty">{error ?? "Enter a local or localhost URL to preview."}</div>
       ) : (
         <iframe
           key={safeUrl}
           className="browser-pane__frame"
           data-testid="browser-preview-frame"
+          referrerPolicy="no-referrer"
+          sandbox="allow-forms allow-scripts"
           src={safeUrl}
           title="Preview"
         />
@@ -89,16 +97,29 @@ export function BrowserPane(props: BrowserPaneProps) {
   );
 }
 
-function normalizeBrowserUrl(value: string): string {
+function trustedPreviewFrameUrl(value: string): string {
   const trimmed = value.trim();
   if (!trimmed) {
     return "about:blank";
   }
-  if (trimmed === "about:blank" || /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)) {
+  if (trimmed === "about:blank") {
     return trimmed;
   }
-  if (trimmed.startsWith("/")) {
-    return `file://${trimmed.split("/").map((segment) => encodeURIComponent(segment)).join("/")}`;
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol === "file:") {
+      return parsed.toString();
+    }
+    if ((parsed.protocol === "http:" || parsed.protocol === "https:") && isLocalhost(parsed.hostname)) {
+      return parsed.toString();
+    }
+  } catch {
+    return "about:blank";
   }
-  return `http://${trimmed}`;
+  return "about:blank";
+}
+
+function isLocalhost(hostname: string): boolean {
+  const normalized = hostname.toLowerCase();
+  return normalized === "localhost" || normalized === "127.0.0.1" || normalized === "::1" || normalized === "[::1]";
 }

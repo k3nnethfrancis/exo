@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 
 import type { IndexMode, PiHarnessSettings, WorkspaceLayoutSettings, WorkspacePaneContent, WorkspacePaneNode, WorkspaceSettings } from "./types";
+import { normalizeAgentCommands } from "./agent-invocation";
 import {
   DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS,
   DEFAULT_TERMINAL_AGENT_SUBMIT_DELAY_MS,
@@ -185,6 +186,7 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
     noteRoots,
     projectRoots,
     piHarness: normalizePiHarnessSettings(input.piHarness),
+    agentCommands: normalizeAgentCommands(input.agentCommands),
     indexedRoots,
     indexing,
     appearanceMode: input.appearanceMode === "light" || input.appearanceMode === "dark" || input.appearanceMode === "system" ? input.appearanceMode : DEFAULT_APPEARANCE_MODE,

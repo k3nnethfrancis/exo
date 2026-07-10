@@ -5,7 +5,7 @@ import type { IndexingService } from "./indexing-service";
 import type { WorkspaceSettingsStore } from "./settings-store";
 import type { TerminalManager } from "./terminal-manager";
 import type { WorkspaceWatcherService } from "./workspace-watchers";
-import { uniqueResolvedPaths, WorkspaceSettingsService } from "./workspace-settings-service";
+import { WorkspaceSettingsService } from "./workspace-settings-service";
 
 const coreMock = vi.hoisted(() => ({
   runtimeRoot: "/runtime",
@@ -27,13 +27,6 @@ vi.mock("@exo/core", async (importOriginal) => {
 });
 
 describe("WorkspaceSettingsService", () => {
-  it("deduplicates paths by their resolved location", () => {
-    expect(uniqueResolvedPaths(["/workspace/project", "/workspace/project/../project", "/workspace/other"])).toEqual([
-      "/workspace/project",
-      "/workspace/other",
-    ]);
-  });
-
   it("applies saved settings across workspace, terminal, watcher, and indexing services", async () => {
     const previous = workspaceSettings({ projectRoots: ["/workspace/old"], terminalHistoryLines: 500 });
     const next = workspaceSettings({
@@ -103,33 +96,6 @@ describe("WorkspaceSettingsService", () => {
     expect(restartCommandServer).not.toHaveBeenCalled();
   });
 
-  it("adds and removes project roots through the shared save path", async () => {
-    const base = workspaceSettings({ projectRoots: ["/workspace/one"] });
-    const savedSettings: WorkspaceSettings[] = [];
-    const service = new WorkspaceSettingsService({
-      store: { fromModel: vi.fn(() => base), save: vi.fn(async (settings: WorkspaceSettings) => settings) } as unknown as WorkspaceSettingsStore,
-      getWorkspaceModel: () => workspaceModelFromSettings(base),
-      setWorkspaceModel: () => {},
-      getWorkspaceSettings: () => savedSettings.at(-1) ?? base,
-      setWorkspaceSettings: (settings) => {
-        savedSettings.push(settings);
-      },
-      setWorkspaceSetupComplete: () => {},
-      terminalManager: terminalManagerStub(),
-      workspaceWatcherService: { start: vi.fn() } as unknown as WorkspaceWatcherService,
-      indexingService: { shouldSyncAfterSettingsApply: vi.fn(() => false), scheduleSync: vi.fn() } as unknown as IndexingService,
-      ensureNoteRoots: async () => {},
-      restartCommandServer: () => {},
-      applyAppearanceMode: () => {},
-    });
-    coreMock.model = workspaceModelFromSettings(base);
-
-    await service.addProjectRoot("/workspace/one/../two");
-    await service.removeProjectRoot("/workspace/one");
-
-    expect(savedSettings[0].projectRoots).toEqual(["/workspace/one", "/workspace/two"]);
-    expect(savedSettings[1].projectRoots).toEqual(["/workspace/two"]);
-  });
 });
 
 function terminalManagerStub(): TerminalManager {

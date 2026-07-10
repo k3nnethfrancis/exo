@@ -1,8 +1,10 @@
 # Control-Plane Catalog Proposal
 
+> Superseded as an active control-plane direction by `docs/exograph-refactor-completion-plan.md` on `refactor/note-native-exo`. CLI is now the active local integration surface; the MCP package and setup surface were deleted and should not shape new work.
+
 Last updated: 2026-07-07
 
-Status: partially implemented. `@exo/core` now owns a typed control-plane catalog and MCP exposure profiles. `packages/mcp` uses that catalog to filter registered MCP tools through `EXO_MCP_EXPOSURE_PROFILE` and `EXO_MCP_TOOLS`. This does not change CLI commands, command-server routes, shared protocol payloads, plugin behavior, or settings UI.
+Historical status at the time of this proposal: `@exo/core` owned a typed control-plane catalog and MCP exposure profiles, and `packages/mcp` used that catalog to filter registered MCP tools. Those MCP surfaces have since been deleted on the Exograph refactor branch.
 
 ## Decision Direction
 

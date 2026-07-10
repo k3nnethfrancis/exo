@@ -43,10 +43,9 @@ export function SearchResultsPanel({
 
   const MAX_PER_GROUP = 25;
   const noteSlice = results.notes.slice(0, MAX_PER_GROUP);
-  const projectSlice = results.projectFiles.slice(0, MAX_PER_GROUP);
   const tagSlice = results.tags.slice(0, MAX_PER_GROUP);
 
-  const totalCount = results.notes.length + results.projectFiles.length + results.tags.length;
+  const totalCount = results.notes.length + results.tags.length;
 
   if (!query) return null;
 
@@ -63,17 +62,6 @@ export function SearchResultsPanel({
               </div>
               {noteSlice.map((result) => (
                 <ResultRow key={`note-${result.filePath}`} icon={<FileText size={13} />} result={result} onOpenFile={onOpenFile} />
-              ))}
-            </div>
-          ) : null}
-
-          {projectSlice.length > 0 ? (
-            <div className="search-panel__group">
-              <div className="search-panel__group-title">
-                Project Files {results.projectFiles.length > MAX_PER_GROUP ? `(${MAX_PER_GROUP} of ${results.projectFiles.length})` : ""}
-              </div>
-              {projectSlice.map((result) => (
-                <ResultRow key={`proj-${result.filePath}`} icon={<FileText size={13} />} result={result} onOpenFile={onOpenFile} />
               ))}
             </div>
           ) : null}

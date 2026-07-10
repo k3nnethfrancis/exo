@@ -16,9 +16,9 @@
       "permissions": ["workspace:read", "artifacts:write"]
     },
     {
-      "id": "future-kind-fixture.routine",
-      "kind": "core:routineTemplate",
-      "label": "Supported Routine",
+      "id": "future-kind-fixture.search",
+      "kind": "core:searchProvider",
+      "label": "Supported Search Provider",
       "description": "A supported sibling capability.",
       "lifecycle": "experimental",
       "owner": "future-kind-fixture.plugin",

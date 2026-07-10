@@ -1,4 +1,4 @@
-import type { ActivityEvidenceRef, ActivityTraceKind, RunTracePacket } from "./run";
+import type { ActivityEvidenceRef, ActivityTraceKind, ActivityTracePacket } from "./run";
 
 export type SemanticTraceSchemaVersion = "exo.semantic-trace.v1";
 
@@ -94,15 +94,15 @@ export function normalizeSemanticTraceEvent(input: SemanticTraceInput): Semantic
   };
 }
 
-export function semanticTraceEventToRunTracePacket(event: SemanticTraceEvent): RunTracePacket {
-  const runId = event.runId ?? event.activityId;
-  if (!runId) {
-    throw new Error("Semantic trace event requires runId or activityId before conversion to RunTracePacket.");
+export function semanticTraceEventToActivityTracePacket(event: SemanticTraceEvent): ActivityTracePacket {
+  const activityId = event.activityId ?? event.runId;
+  if (!activityId) {
+    throw new Error("Semantic trace event requires activityId before conversion to ActivityTracePacket.");
   }
   return {
     id: event.id,
-    runId,
-    kind: runTraceKindForSemanticTrace(event.kind),
+    activityId,
+    kind: activityTraceKindForSemanticTrace(event.kind),
     timestamp: event.timestamp,
     actor: event.actor.id,
     private: event.visibility !== "public",
@@ -131,7 +131,7 @@ export function semanticTraceEventsToAgentAnswerText(events: readonly SemanticTr
     .join("\n");
 }
 
-function runTraceKindForSemanticTrace(kind: SemanticTraceEventKind): ActivityTraceKind {
+function activityTraceKindForSemanticTrace(kind: SemanticTraceEventKind): ActivityTraceKind {
   if (kind === "message") {
     return "message";
   }

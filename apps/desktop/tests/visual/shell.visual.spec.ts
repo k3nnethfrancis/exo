@@ -23,7 +23,10 @@ async function cycleAppearanceTo(page: Page, targetMode: "system" | "light" | "d
       return;
     }
 
-    await page.getByTestId("appearance-cycle").click();
+    if (!(await page.getByTestId("workspace-appearance").isVisible().catch(() => false))) {
+      await page.getByTestId("workspace-menu-button").click();
+    }
+    await page.getByTestId("workspace-appearance").click();
   }
 
   throw new Error(`Unable to reach appearance mode ${targetMode}.`);

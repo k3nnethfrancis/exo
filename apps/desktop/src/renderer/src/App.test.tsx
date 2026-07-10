@@ -5,23 +5,15 @@ import path from "node:path";
 import { EditorState } from "@codemirror/state";
 import { renderToStaticMarkup } from "react-dom/server";
 import type {
-  AgentHarnessDetection,
   IndexStatus,
-  ManagedAgentKind,
+  InvocationRecord,
+  NoteDocument,
   NoteKnowledge,
-  PluginInventory,
-  PluginInventoryItem,
-  PluginSettingsSchema,
-  ProposalBatch,
-  ProfilePlanPreview,
-  ResolvedPluginSettings,
   TreeNode,
   WorkspaceModel,
 } from "@exo/core";
 
 import {
-  DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS,
-  DEFAULT_TERMINAL_AGENT_SUBMIT_DELAY_MS,
   DEFAULT_TERMINAL_HISTORY_LINES,
   DEFAULT_TERMINAL_INITIAL_COLUMNS,
   DEFAULT_TERMINAL_INITIAL_ROWS,
@@ -36,7 +28,7 @@ import {
   resolveTerminalRuntimePolicy,
   WorkspaceSettingsStore,
 } from "../../main/settings-store";
-import { buildProjectReviewChanges, uniqueCwdMatchedSession } from "./changedFileReview";
+import { BrowserPane } from "./components/BrowserPane";
 import { TERMINAL_CUSTOM_GLYPHS, TERMINAL_FONT_FAMILY } from "./components/terminalFonts";
 import {
   initialTerminalHydrationViewState,
@@ -47,8 +39,7 @@ import { isTerminalGeneratedResponse } from "./components/terminalInputFilters";
 import { TerminalOutputChunker, chunkTerminalData } from "./components/terminalOutputChunks";
 import { normalizeTerminalPresentation } from "./components/terminalPresentation";
 import { focusTerminal, registerTerminal, unregisterTerminal, writeTerminalData } from "./components/terminalRegistry";
-import { createTerminalToolDockActions, launchableTerminalAgentHarnesses } from "./components/TerminalRail";
-import { shouldUseMarkdownRenderer } from "./components/NoteEditor";
+import { normalizeFrontmatterPropertyKey, shouldUseMarkdownRenderer } from "./components/NoteEditor";
 import {
   WorkspaceSettingsDialog,
   indexSettingsStatusCopy,
@@ -67,49 +58,9 @@ import {
   shouldBufferTerminalDataForHydration,
   shouldSkipTerminalHydration,
 } from "./hooks/useTerminalSessions";
+import type { DragManager } from "./hooks/useDragManager";
 import { defaultTerminalCwdForNotesFolder } from "./hooks/useWorkspaceBootstrap";
-import { isReconnectableSession, isTerminalInputEnabled, summarizeTerminalStatusLine, terminalSessionsEqual } from "./terminalSessions";
-import {
-  buildPluginBoundarySummary,
-  buildPluginCategoryFilters,
-  buildPluginDetailSections,
-  buildPluginManagementSummary,
-  buildPluginRowIndicators,
-  buildPluginStateFilters,
-  createPluginSettingsDraft,
-  filterPluginInventoryItems,
-  filterPluginInventoryItemsByState,
-  groupPluginInventoryItems,
-  pluginActionAvailability,
-  pluginActionInput,
-  pluginDisplayStatus,
-  pluginLocalManagementAvailability,
-  pluginManagementGuidance,
-  pluginManagementLane,
-  pluginSettingsAvailability,
-  pluginSettingsValuesFromDraft,
-} from "./pluginManagerModel";
-import { buildProfileSettingsModel, PROFILE_SETTINGS_DISABLED_REASON } from "./profileSettingsModel";
-import { PluginInventoryRow, PluginSettingsSection } from "./components/PluginManagerDialog";
-import { PiHarnessSettingsPanel, createPiHarnessDraft, piHarnessSettingsFromDraft } from "./components/AgentConfigEditorDialog";
-import { ChangedNotesDialog } from "./components/ChangedNotesDialog";
-import { ProposalReviewDialog } from "./components/ProposalReviewDialog";
-import { ProfileEditPanel, buildProfileEditPanelSections } from "./components/ProfileEditPanel";
-import { ProfileSettingsContent } from "./components/ProfileSettingsSection";
-import {
-  buildOnboardingProfileConfig,
-  formatProfileConfig,
-  isAgentPromptRoutineHarness,
-  OnboardingCapabilityReviewContent,
-} from "./components/OnboardingCapabilityReview";
-import {
-  buildOnboardingCapabilitySections,
-  isPromptableAgentHarnessInventoryItem,
-  onboardingCapabilitySelectable,
-  onboardingCapabilitySelected,
-  onboardingCapabilityStatus,
-  onboardingCapabilityTone,
-} from "./onboardingCapabilities";
+import { isTerminalInputEnabled, summarizeTerminalStatusLine, terminalSessionsEqual } from "./terminalSessions";
 import { applyTheme } from "./theme/applyTheme";
 import { contrastRatio } from "./theme/contrast";
 import { THEME_FAMILIES, resolveTheme } from "./theme/registry";
@@ -122,7 +73,6 @@ import {
   workspaceSettingsStructuralDraftKey,
   workspaceSettingsStructuralKeyFromSettings,
 } from "./workspaceSettingsModel";
-import { buildExplorerChangeState } from "./explorerChangeState";
 import { collectLeaves, openOrUpdateBrowserPane, type PaneNode } from "./hooks/usePaneTree";
 import {
   addTerminalSessionAsSplit,
@@ -132,8 +82,8 @@ import {
   restoreTerminalTreeSnapshot,
 } from "./paneTreeSelectors";
 import { isNewTerminalShortcut } from "./hooks/useAppKeybindings";
-import type { AgentSkillInventory } from "../../shared/api";
 import {
+  buildNoteGraphContext,
   getWikilinkCompletionContext,
   graphReferencesForMarkdownMode,
   markdownPreviewExcerpt,
@@ -143,7 +93,8 @@ import {
 import { runToolSurfaceAction } from "./toolDockModel";
 import type { ToolSurfaceDescriptor } from "@exo/core/surface-descriptor";
 import type { WorkspaceSettingsDialogState } from "./workspaceSettingsDialogTypes";
-import type { AgentInstructionConfig, TerminalSessionInfo } from "../../shared/api";
+import type { TerminalSessionInfo } from "../../shared/api";
+import { hasInvocationDirtyConflict } from "./invocationReviewState";
 
 describe("desktop shell", () => {
   it("keeps a renderer test surface in place", () => {
@@ -170,6 +121,28 @@ describe("editor document mode", () => {
     expect(shouldUseMarkdownRenderer({ kind: "markdown" })).toBe(true);
     expect(shouldUseMarkdownRenderer({ kind: "text" })).toBe(false);
     expect(shouldUseMarkdownRenderer(null)).toBe(false);
+  });
+
+  it("keeps new graph property keys within simple frontmatter field names", () => {
+    expect(normalizeFrontmatterPropertyKey(" status ")).toBe("status");
+    expect(normalizeFrontmatterPropertyKey("branch_state")).toBe("branch_state");
+    expect(normalizeFrontmatterPropertyKey("needs-review")).toBe("needs-review");
+    expect(normalizeFrontmatterPropertyKey("bad key")).toBe("");
+    expect(normalizeFrontmatterPropertyKey("1bad")).toBe("");
+    expect(normalizeFrontmatterPropertyKey("nested.value")).toBe("");
+  });
+});
+
+describe("agent invocation review", () => {
+  it("flags agent-written disk changes only when the open editor buffer is dirty", () => {
+    const record = invocationRecord({
+      changedFileRefs: [{ path: "/vault/current.md", kind: "modified", attribution: "likely", diffRefId: "diff-1" }],
+    });
+
+    expect(hasInvocationDirtyConflict(record, "/vault/current.md", { dirty: true }, new Set())).toBe(true);
+    expect(hasInvocationDirtyConflict(record, "/vault/current.md", { dirty: false }, new Set())).toBe(false);
+    expect(hasInvocationDirtyConflict(record, "/vault/other.md", { dirty: true }, new Set())).toBe(false);
+    expect(hasInvocationDirtyConflict(record, "/vault/current.md", { dirty: true }, new Set(["inv-1:/vault/current.md"]))).toBe(false);
   });
 });
 
@@ -219,7 +192,6 @@ describe("workspace settings footer copy", () => {
   it("renders index guidance and precise activity labels", () => {
     const html = renderToStaticMarkup(
       <WorkspaceSettingsDialog
-        agentHarnesses={[]}
         indexBusy={null}
         indexStatus={indexStatusFixture({
           pendingEmbeddings: 3,
@@ -240,8 +212,6 @@ describe("workspace settings footer copy", () => {
         })}
         onChooseFolder={() => {}}
         onClose={() => {}}
-        onOpenAgentConfigEditor={() => {}}
-        onOpenPluginManager={() => {}}
         onOpenWorkspaceSwitcher={() => {}}
         onRunIndexUpdate={() => {}}
         onSave={() => {}}
@@ -262,425 +232,20 @@ describe("workspace settings footer copy", () => {
     expect(html).toContain("Sync now refreshes documents and embeddings");
     expect(html).toContain("Core search +");
     expect(html).toContain("QMD provider mode");
-    expect(html).toContain("Open Plugin Manager");
-    expect(html).toContain("core always on");
-    expect(html).toContain("official provider");
+    expect(html).toContain("advanced provider");
     expect(html).toContain("3 pending embeddings");
     expect(html).not.toContain("Press Apply");
   });
 });
 
-describe("changed notes dialog", () => {
-  it("lists changed notes with root and changed line context", () => {
-    const html = renderToStaticMarkup(
-      <ChangedNotesDialog
-        changes={[
-          {
-            rootPath: "/workspace/notes",
-            rootLabel: "notes",
-            path: "daily/2026-06-28.md",
-            absolutePath: "/workspace/notes/daily/2026-06-28.md",
-            status: "M",
-            firstChangedLine: 12,
-          },
-        ]}
-        onClose={() => {}}
-        onOpenChange={() => {}}
-      />,
-    );
-
-    expect(html).toContain("Changed Notes");
-    expect(html).toContain("daily/2026-06-28.md");
-    expect(html).toContain("notes · line 12");
-    expect(html).toContain("Diff and commit actions will live here later.");
-  });
-
-  it("shows an empty state when no notes are changed", () => {
-    const html = renderToStaticMarkup(<ChangedNotesDialog changes={[]} onClose={() => {}} onOpenChange={() => {}} />);
-
-    expect(html).toContain("No changed notes detected.");
-  });
-});
-
-describe("proposal review dialog", () => {
-  it("shows proposal batches, item previews, stale reasons, and atomic guidance", () => {
-    const proposal = proposalBatchFixture({
-      atomic: true,
-      items: [
-        {
-          id: "item-1",
-          kind: "filePatch",
-          path: "AGENTS.md",
-          itemStatus: "pending",
-          baseHash: "sha256:1234567890abcdef",
-          unifiedDiff: "@@ -1 +1 @@\n-old\n+new\n",
-        },
-        {
-          id: "item-2",
-          kind: "fileCreate",
-          path: "notes/new.md",
-          itemStatus: "stale",
-          statusReason: "baseHash mismatch: file changed since proposal (notes/new.md)",
-          contents: "# New note\n",
-        },
-      ],
-    });
-    const html = renderToStaticMarkup(
-      <ProposalReviewDialog
-        review={{
-          proposals: [proposal],
-          selectedProposalId: proposal.id,
-          selectedProposal: proposal,
-          loadState: "idle",
-          decisionState: null,
-          errorMessage: null,
-          lastApplyResult: null,
-          pendingProposalCount: 1,
-          refreshProposals: vi.fn(),
-          selectProposal: vi.fn(),
-          acceptProposal: vi.fn(),
-          rejectProposal: vi.fn(),
-          acceptItem: vi.fn(),
-          rejectItem: vi.fn(),
-          clearLastApplyResult: vi.fn(),
-        }}
-        onClose={() => {}}
-      />,
-    );
-
-    expect(html).toContain("Proposal Review");
-    expect(html).toContain("1 pending proposal");
-    expect(html).toContain("activity-1");
-    expect(html).toContain("term-1");
-    expect(html).toContain("Atomic batch: decide the full batch.");
-    expect(html).toContain("AGENTS.md");
-    expect(html).toContain("@@ -1 +1 @@");
-    expect(html).toContain("notes/new.md");
-    expect(html).toContain("baseHash mismatch");
-  });
-
-  it("renders frontmatter byte preview evidence for review", () => {
-    const before = "---\r\ntitle: Old\r\npublished: 2026-07-04\r\n---\r\nBody\r\n";
-    const after = "---\r\ntitle: New\r\npublished: 2026-07-04\r\n---\r\nBody\r\n";
-    const operations = [{ kind: "set" as const, keyPath: ["title"], value: "New" }];
-    const evidence = {
-      format: "exo.frontmatterPreview.v1",
-      before,
-      after,
-      beforeHash: "sha256:before",
-      afterHash: "sha256:after",
-    };
-    const proposal = proposalBatchFixture({
-      items: [
-        {
-          id: "frontmatter-1",
-          kind: "frontmatterPatch",
-          path: "note.md",
-          itemStatus: "pending",
-          baseHash: evidence.beforeHash,
-          operations,
-          metadata: {
-            "exo.frontmatterPreview.v1": evidence,
-          },
-        },
-      ],
-    });
-
-    const html = renderToStaticMarkup(
-      <ProposalReviewDialog
-        review={{
-          proposals: [proposal],
-          selectedProposalId: proposal.id,
-          selectedProposal: proposal,
-          loadState: "idle",
-          decisionState: null,
-          errorMessage: null,
-          lastApplyResult: null,
-          pendingProposalCount: 1,
-          refreshProposals: vi.fn(),
-          selectProposal: vi.fn(),
-          acceptProposal: vi.fn(),
-          rejectProposal: vi.fn(),
-          acceptItem: vi.fn(),
-          rejectItem: vi.fn(),
-          clearLastApplyResult: vi.fn(),
-        }}
-        onClose={() => {}}
-      />,
-    );
-
-    expect(html).toContain("Frontmatter byte preview");
-    expect(html).toContain(evidence.beforeHash);
-    expect(html).toContain(evidence.afterHash);
-    expect(html).toContain("\\r\\ntitle: New\\r\\npublished: 2026-07-04");
-  });
-});
-
-describe("profile settings model", () => {
-  it("surfaces Exograph Baseline as the baseline candidate before an active profile is selected", () => {
-    const baseline: PluginInventoryItem = {
-      ...pluginInventoryItem("exograph-baseline.profile", "Exograph Baseline", "profile", "Profiles", "bundled"),
-      pluginId: "exograph-baseline.plugin",
-      pluginName: "Exograph Baseline Profile",
-      manifestPath: "/plugins/exograph-baseline/exo.plugin.json",
-      compatibility: {
-        profile: {
-          recommendedPlugins: [{ id: "qmd", required: false }],
-          metadataSchemas: [{ id: "markdown-note", label: "Markdown note", scope: { paths: ["**/*.md"] }, frontmatter: {}, tags: [] }],
-          contextTemplates: [{ id: "agents-md", label: "AGENTS.md", target: "AGENTS.md", templatePath: "templates/AGENTS.md" }],
-          instructionTemplates: [],
-          mcpConfigTemplates: [],
-          skills: [],
-          routineTemplateIds: ["graph-health.template"],
-          graphViews: [],
-          analyzerSettings: [],
-          reviewPolicy: { fileChanges: "propose", requireHumanReview: true, allowedPaths: ["**/*.md"] },
-          outputPolicy: { fileChanges: "propose", artifacts: "record", allowedPaths: [".exo/artifacts/**"] },
-        },
-      },
-    };
-    const inventory = pluginInventory([
-      baseline,
-      pluginInventoryItem("qmd", "QMD advanced search", "searchProvider", "Search providers", "bundled"),
-    ]);
-    const model = buildProfileSettingsModel(inventory, null, {
-      "exograph-baseline.profile": { plan: profilePlanFixture(), error: null },
-    });
-
-    expect(model.activeProfileLabel).toBe("No active profile");
-    expect(model.baselineCandidate?.label).toBe("Exograph Baseline");
-    expect(model.baselineCandidate?.plan?.apply).toMatchObject({ available: false, label: "Review only" });
-    expect(model.baselineCandidate?.componentRows).toContainEqual({ label: "Blockers", value: "1" });
-    expect(model.baselineCandidate?.recommendationRows).toEqual([{ label: "qmd", value: "ready (optional)" }]);
-    expect(model.baselineCandidate?.applyGate).toMatchObject({
-      canStageFileTemplates: true,
-      label: "Stage file proposals",
-    });
-    expect(PROFILE_SETTINGS_DISABLED_REASON).toContain("reviewable proposals");
-    expect(PROFILE_SETTINGS_DISABLED_REASON).toContain("Accepting the proposal is a separate UI/CLI review action");
-    expect(PROFILE_SETTINGS_DISABLED_REASON).toContain("permission grants");
-  });
-
-  it("keeps file-template staging disabled for untrusted or non-propose profiles", () => {
-    const untrustedProfile: PluginInventoryItem = {
-      ...pluginInventoryItem("lab.profile", "Lab profile", "profile", "Profiles", "localManifest"),
-      trust: "untrusted",
-      compatibility: {
-        profile: {
-          contextTemplates: [{ id: "agents-md", label: "AGENTS.md", target: "AGENTS.md", templatePath: "templates/AGENTS.md" }],
-          reviewPolicy: { fileChanges: "propose", requireHumanReview: true, allowedPaths: ["**/*.md"] },
-        },
-      },
-    };
-    const unsafePolicyProfile: PluginInventoryItem = {
-      ...pluginInventoryItem("unsafe.profile", "Unsafe profile", "profile", "Profiles", "bundled"),
-      compatibility: {
-        profile: {
-          contextTemplates: [{ id: "agents-md", label: "AGENTS.md", target: "AGENTS.md", templatePath: "templates/AGENTS.md" }],
-          reviewPolicy: { fileChanges: "apply", requireHumanReview: true, allowedPaths: ["**/*.md"] },
-        },
-      },
-    };
-
-    const model = buildProfileSettingsModel(pluginInventory([untrustedProfile, unsafePolicyProfile]), null);
-
-    expect(model.detectedProfiles.find((candidate) => candidate.id === "lab.profile")?.applyGate).toMatchObject({
-      canStageFileTemplates: false,
-      label: "Trust required",
-    });
-    expect(model.detectedProfiles.find((candidate) => candidate.id === "unsafe.profile")?.applyGate).toMatchObject({
-      canStageFileTemplates: false,
-      label: "Review policy required",
-    });
-  });
-
-  it("renders stage file proposals only when the profile apply gate allows it", () => {
-    const baseline: PluginInventoryItem = {
-      ...pluginInventoryItem("exograph-baseline.profile", "Exograph Baseline", "profile", "Profiles", "bundled"),
-      compatibility: {
-        profile: {
-          contextTemplates: [{ id: "agents-md", label: "AGENTS.md", target: "AGENTS.md", templatePath: "templates/AGENTS.md" }],
-          reviewPolicy: { fileChanges: "propose", requireHumanReview: true, allowedPaths: ["**/*.md"] },
-        },
-      },
-    };
-    const model = buildProfileSettingsModel(pluginInventory([baseline]), null, {
-      "exograph-baseline.profile": { plan: profilePlanFixture(), error: null },
-    });
-    const html = renderToStaticMarkup(
-      <ProfileSettingsContent
-        actionError={null}
-        actionMessage={null}
-        actionStatus="idle"
-        loadError={null}
-        loadState="ready"
-        model={model}
-        activeProfileNameDraft=""
-        onActiveProfileNameChange={() => {}}
-        onClearActive={() => {}}
-        onCopy={() => {}}
-        onCustomize={() => {}}
-        onReview={() => {}}
-        onSaveActiveProfileName={() => {}}
-        onSetActive={() => {}}
-        onStageApply={() => {}}
-        onToggleAutoUpdate={() => {}}
-        onOpenAgentConfigEditor={() => {}}
-        onOpenPluginManager={() => {}}
-      />,
-    );
-
-    expect(html).toContain("Stage file proposals");
-    expect(html).toContain("Workspace setup");
-    expect(html).toContain("Saved onboarding choices");
-    expect(html).toContain("Open Plugin Manager");
-    expect(html).toContain("Open Agent Config");
-    expect(html).toContain("Workspace profile config.");
-    expect(html).toContain("Plugin trust, enablement, setup, and plugin-owned settings live in Plugin Manager.");
-    expect(html).toContain("Editable workspace config");
-    expect(html).toContain("Profile package contents, templates, plugin lifecycle, instruction files, skills, and routines remain review/proposal-only here.");
-    expect(html).not.toContain("Stage apply blocked");
-  });
-
-  it("resolves active profile state against detected profile candidates", () => {
-    const baseline: PluginInventoryItem = {
-      ...pluginInventoryItem("exograph-baseline.profile", "Exograph Baseline", "profile", "Profiles", "bundled"),
-      pluginId: "exograph-baseline.plugin",
-      pluginName: "Exograph Baseline Profile",
-      manifestPath: "/plugins/exograph-baseline/exo.plugin.json",
-      compatibility: {
-        profile: {
-          id: "exograph-baseline.profile",
-          label: "Exograph Baseline",
-          recommendedPlugins: [],
-        },
-      },
-    };
-
-    const model = buildProfileSettingsModel(pluginInventory([baseline]), {
-      version: 1,
-      activeProfile: {
-        profileId: "exograph-baseline.profile",
-        capabilityId: "exograph-baseline.profile",
-        label: "My Lab",
-        setup: {
-          enabledHarnessIds: ["codex"],
-          defaultHarnessId: "codex",
-          routineTemplateIds: ["graph-health.template", "agent-instruction-sync.template"],
-          exographContextApplied: true,
-        },
-        pluginId: "exograph-baseline.plugin",
-        manifestPath: "/plugins/exograph-baseline/exo.plugin.json",
-      },
-      autoUpdate: true,
-      reviewRequired: true,
-      updatedAt: "2026-06-28T12:00:00.000Z",
-    });
-
-    expect(model.activeProfileLabel).toBe("My Lab");
-    expect(model.autoUpdate).toBe(true);
-    expect(model.reviewRequired).toBe(true);
-    expect(model.baselineCandidate?.isActive).toBe(true);
-    expect(model.workspaceSetupRows).toContainEqual({ label: "Default harness", value: "codex" });
-    expect(model.workspaceSetupRows).toContainEqual({ label: "Starter routines", value: "Graph Health, Agent Instruction Sync" });
-    expect(model.workspaceSetupRows).toContainEqual({ label: "Exograph context", value: "Applied to globals" });
-  });
-
-  it("does not show shell as a saved profile agent harness", () => {
-    const model = buildProfileSettingsModel(pluginInventory([
-      pluginInventoryItem("shell", "Shell", "agentHarness", "Agent harnesses", "bundled"),
-      pluginInventoryItem("codex", "Codex", "agentHarness", "Agent harnesses", "bundled"),
-    ]), {
-      version: 1,
-      activeProfile: {
-        profileId: "exograph-baseline.profile",
-        capabilityId: "exograph-baseline.profile",
-        label: "My Lab",
-        setup: {
-          enabledHarnessIds: ["shell", "codex"],
-          defaultHarnessId: "shell",
-          routineTemplateIds: [],
-          exographContextApplied: false,
-        },
-      },
-      autoUpdate: false,
-      reviewRequired: false,
-    });
-
-    expect(model.workspaceSetupRows).toContainEqual({ label: "Default harness", value: "Not selected" });
-    expect(model.workspaceSetupRows).toContainEqual({ label: "Enabled harnesses", value: "Codex" });
-  });
-
-  it("builds a centralized read-only profile edit surface from profile sections", () => {
-    const baseline: PluginInventoryItem = {
-      ...pluginInventoryItem("exograph-baseline.profile", "Exograph Baseline", "profile", "Profiles", "bundled"),
-      pluginId: "exograph-baseline.plugin",
-      compatibility: {
-        profile: {
-          recommendedPlugins: [{ id: "qmd", required: false }],
-          metadataSchemas: [{ id: "markdown-note", label: "Markdown note", scope: { paths: ["**/*.md"] }, frontmatter: { title: { type: "string" } } }],
-          instructionTemplates: [{ id: "agents-md", label: "AGENTS.md" }],
-          skills: [{ id: "terminal-stability", label: "Terminal Stability" }],
-          routineTemplateIds: ["graph-health.template"],
-          reviewPolicy: { fileChanges: "propose" },
-          outputPolicy: { artifacts: "record" },
-        },
-      },
-    };
-    const candidate = buildProfileSettingsModel(pluginInventory([baseline]), null, {
-      "exograph-baseline.profile": { plan: profilePlanFixture(), error: null },
-    }).baselineCandidate;
-
-    expect(candidate).not.toBeNull();
-    expect(buildProfileEditPanelSections(candidate!).map((section) => section.id)).toEqual([
-      "metadata",
-      "planSummary",
-      "applyPrompts",
-      "recommendedPlugins",
-      "templates",
-      "skills",
-      "schemas",
-      "routines",
-      "graph",
-      "policies",
-      "blockers",
-    ]);
-
-    const markup = renderToStaticMarkup(
-      <ProfileEditPanel
-        actionStatus="idle"
-        candidate={candidate!}
-        disabledReason={PROFILE_SETTINGS_DISABLED_REASON}
-        onBack={() => {}}
-        onCopy={() => {}}
-        onOpenAgentConfigEditor={() => {}}
-        onOpenPluginManager={() => {}}
-      />,
-    );
-    expect(markup).toContain("Review profile package");
-    expect(markup).toContain("Workspace profile naming and active selection are editable in Profile settings.");
-    expect(markup).toContain("Templatize");
-    expect(markup).toContain("Create a trusted workspace-local metadata profile copy");
-    expect(markup).toContain("Open Plugin Manager");
-    expect(markup).toContain("Open Agent Config");
-    expect(markup).toContain("Plugin trust, enablement, setup, and plugin-owned settings live in Plugin Manager.");
-    expect(markup).toContain("Agent instructions and skills use the specialized Agent Config Editor.");
-    expect(markup).toContain("Plan review");
-    expect(markup).toContain("Apply blockers and warnings");
-    expect(markup).toContain("disabled=");
-    expect(markup).toContain("agents-md");
-  });
-
-  it("keeps Exograph Baseline visible even when inventory is unavailable", () => {
-    const model = buildProfileSettingsModel(null);
-
-    expect(model.activeProfileLabel).toBe("No active profile");
-    expect(model.baselineCandidate).toBeNull();
-    expect(model.detectedProfiles).toEqual([]);
-  });
-});
-
 describe("browser preview panes", () => {
+  const dragManager: DragManager = {
+    drag: null,
+    dragActive: false,
+    hoverEdge: null,
+    startDrag: vi.fn(),
+  };
+
   it("creates a browser pane when none exists", () => {
     const tree: PaneNode = {
       kind: "leaf",
@@ -729,6 +294,23 @@ describe("browser preview panes", () => {
       content: { kind: "browser", url: "file:///workspace/b.html" },
     });
     expect(result.focusLeafId).toBe("browser-1");
+  });
+
+  it("renders preview iframes with sandbox and no-referrer policy", () => {
+    const html = renderToStaticMarkup(
+      <BrowserPane
+        compact={false}
+        dragManager={dragManager}
+        onClosePane={null}
+        onFocus={() => {}}
+        onNavigate={async (target) => target}
+        paneId="browser-1"
+        url="http://localhost:5173/report.html"
+      />,
+    );
+
+    expect(html).toContain("sandbox=\"allow-forms allow-scripts\"");
+    expect(html).toContain("referrerPolicy=\"no-referrer\"");
   });
 
 });
@@ -852,831 +434,6 @@ describe("terminal monitor layout", () => {
   });
 });
 
-describe("plugin manager model", () => {
-  it("groups inventory rows but hides core from plugin category filters", () => {
-    const items = [
-      pluginInventoryItem("shell", "Shell", "agentHarness", "Agent harnesses", "bundled"),
-      pluginInventoryItem("codex", "Codex", "agentHarness", "Agent harnesses", "bundled"),
-      pluginInventoryItem("core.terminal", "Terminal host", "core", "Core", "core"),
-      pluginInventoryItem("graph-health.template", "Graph Health", "routineTemplate", "Routine templates", "localManifest"),
-      pluginInventoryItem("qmd", "QMD", "searchProvider", "Search providers", "bundled"),
-    ];
-    const groups = groupPluginInventoryItems(items);
-
-    expect(groups.map((group) => group.id)).toEqual(["core", "core:searchProvider", "core:agentHarness", "core:routineTemplate"]);
-    expect(groups.find((group) => group.id === "core:agentHarness")?.items.map((item) => item.id)).toEqual(["codex"]);
-    expect(buildPluginCategoryFilters(items)).toEqual([
-      { id: "core:searchProvider", label: "Search providers", count: 1 },
-      { id: "core:agentHarness", label: "Agent harnesses", count: 1 },
-      { id: "core:routineTemplate", label: "Routine templates", count: 1 },
-      { id: "core:profile", label: "Profiles", count: 0 },
-      { id: "exo.graph:visualization", label: "Graph visualizations", count: 0 },
-      { id: "other", label: "Other", count: 0 },
-    ]);
-    expect(filterPluginInventoryItems(items, "core:searchProvider").map((item) => item.id)).toEqual(["qmd"]);
-    expect(filterPluginInventoryItems(items, "core:agentHarness").map((item) => item.id)).toEqual(["codex"]);
-  });
-
-  it("filters inventory rows by management state within a selected category", () => {
-    const active = pluginInventoryItem("qmd", "QMD", "searchProvider", "Search providers", "bundled");
-    const disabled = {
-      ...pluginInventoryItem("local-disabled", "Local Disabled", "searchProvider", "Search providers", "localManifest"),
-      enabled: false,
-      status: "disabled" as const,
-      statusLabel: "Disabled",
-    };
-    const needsTrust = {
-      ...pluginInventoryItem("local-untrusted", "Local Untrusted", "searchProvider", "Search providers", "localManifest"),
-      trust: "untrusted" as const,
-    };
-    const configurable = {
-      ...pluginInventoryItem("local-config", "Local Config", "searchProvider", "Search providers", "localManifest"),
-      settings: resolvedPluginSettings(),
-    };
-    const setupIssue = {
-      ...pluginInventoryItem("broken-search", "Broken Search", "searchProvider", "Search providers", "localManifest"),
-      status: "missing-dependency" as const,
-      statusLabel: "Missing dependency",
-    };
-    const categoryItems = filterPluginInventoryItems([active, disabled, needsTrust, configurable, setupIssue], "core:searchProvider");
-
-    expect(buildPluginStateFilters(categoryItems).map((filter) => [filter.id, filter.count])).toEqual([
-      ["all", 5],
-      ["active", 2],
-      ["attention", 2],
-      ["disabled", 1],
-      ["untrusted", 1],
-      ["missing", 1],
-      ["local", 4],
-      ["configurable", 1],
-    ]);
-    expect(filterPluginInventoryItemsByState(categoryItems, "attention").map((item) => item.id)).toEqual(["broken-search", "local-untrusted"]);
-    expect(filterPluginInventoryItemsByState(categoryItems, "untrusted").map((item) => item.id)).toEqual(["local-untrusted"]);
-    expect(filterPluginInventoryItemsByState(categoryItems, "missing").map((item) => item.id)).toEqual(["broken-search"]);
-    expect(filterPluginInventoryItemsByState(categoryItems, "configurable").map((item) => item.id)).toEqual(["local-config"]);
-  });
-
-  it("builds management summary buckets and row indicators from lifecycle state", () => {
-    const active = pluginInventoryItem("qmd", "QMD", "searchProvider", "Search providers", "bundled");
-    const disabled = { ...pluginInventoryItem("dev-search", "Dev Search", "searchProvider", "Search providers", "localManifest"), enabled: false, status: "disabled", statusLabel: "Disabled" };
-    const untrusted = { ...pluginInventoryItem("local-harness", "Local Harness", "agentHarness", "Agent harnesses", "localManifest"), trust: "untrusted" as const };
-    const setupIssue = {
-      ...pluginInventoryItem("pi", "Pi", "agentHarness", "Agent harnesses", "bundled"),
-      status: "missing-dependency",
-      statusLabel: "Needs backend",
-      dependencies: [{ id: "backend", label: "Backend", required: true, status: "missing", statusLabel: "Missing" }],
-    };
-    const permissionsNeeded: PluginInventoryItem = {
-      ...pluginInventoryItem("routine", "Routine", "routineTemplate", "Routine templates", "localManifest"),
-      permissions: ["notes:read", "projects:write"] as PluginInventoryItem["permissions"],
-      permissionGrants: {
-        requested: ["notes:read", "projects:write"] as PluginInventoryItem["permissions"],
-        granted: ["notes:read"] as PluginInventoryItem["permissions"],
-        missing: ["projects:write"] as PluginInventoryItem["permissions"],
-        status: "partial" as const,
-      },
-    };
-    const summary = buildPluginManagementSummary([active, disabled, untrusted, setupIssue, permissionsNeeded]);
-
-    expect(summary.map((bucket) => [bucket.id, bucket.value])).toEqual([
-      ["active", 2],
-      ["disabled", 1],
-      ["review", 1],
-      ["setup", 1],
-      ["permissions", "1/1"],
-    ]);
-    expect(buildPluginRowIndicators(untrusted).map((indicator) => indicator.label)).toContain("Needs trust");
-    expect(buildPluginRowIndicators(setupIssue).map((indicator) => indicator.label)).toContain("Setup issue");
-    expect(buildPluginRowIndicators(permissionsNeeded).map((indicator) => indicator.label)).toContain("Permissions needed");
-    expect(pluginDisplayStatus(active)).toEqual({ label: "Active", tone: "ok" });
-    expect(pluginDisplayStatus(disabled)).toEqual({ label: "Disabled", tone: "disabled" });
-    expect(pluginDisplayStatus(untrusted)).toEqual({ label: "Untrusted", tone: "warning" });
-    expect(pluginDisplayStatus(setupIssue)).toEqual({ label: "Missing dependency", tone: "danger" });
-    expect(pluginDisplayStatus({ ...active, status: "unsupported-kind", statusLabel: "Not supported by this Exo version", enabled: false })).toEqual({
-      label: "Not supported",
-      tone: "disabled",
-    });
-  });
-
-  it("renders plugin manager rows as management controls with scan-friendly state labels", () => {
-    const local = {
-      ...pluginInventoryItem("graph-health.template", "Graph Health", "routineTemplate", "Routine templates", "localManifest"),
-      enabled: false,
-      trust: "untrusted" as const,
-      pluginId: "graph-health.plugin",
-      pluginSource: "workspace" as const,
-      manifestPath: "/workspace/.exo/plugins/graph-health/exo.plugin.json",
-      rootDirectory: "/workspace/.exo/plugins/graph-health",
-      permissions: ["notes:propose"] as PluginInventoryItem["permissions"],
-    };
-    const missing = {
-      ...pluginInventoryItem("pi", "Pi", "agentHarness", "Agent harnesses", "bundled"),
-      status: "missing-dependency" as const,
-      statusLabel: "Needs inference backend",
-      dependencies: [{ id: "backend", label: "Inference backend", required: true, status: "missing", statusLabel: "Missing" }],
-    };
-    const localHtml = renderToStaticMarkup(
-      <PluginInventoryRow
-        isSelected={false}
-        item={local}
-        onRunAction={vi.fn()}
-        onSelect={vi.fn()}
-        pendingAction={null}
-      />,
-    );
-    const missingHtml = renderToStaticMarkup(
-      <PluginInventoryRow
-        isSelected={false}
-        item={missing}
-        onRunAction={vi.fn()}
-        onSelect={vi.fn()}
-        pendingAction={null}
-      />,
-    );
-
-    expect(localHtml).toContain("data-state=\"Disabled\"");
-    expect(localHtml).toContain("plugin-manager__row-management");
-    expect(localHtml).toContain("Lifecycle");
-    expect(localHtml).toContain("Trust");
-    expect(localHtml).toContain("Enable");
-    expect(localHtml).toContain("Permissions: 1 requested");
-    expect(missingHtml).toContain("data-state=\"Missing dependency\"");
-    expect(missingHtml).toContain("Dependencies: Inference backend: Missing");
-    expect(missingHtml).toContain("Read-only");
-  });
-
-  it("separates the exograph baseline from official, local, and developer plugin layers", () => {
-    const core = pluginInventoryItem("core.terminal", "Terminal host", "core", "Core", "core");
-    const official = pluginInventoryItem("qmd", "QMD", "searchProvider", "Search providers", "bundled");
-    const workspaceLocal = {
-      ...pluginInventoryItem("graph-health.template", "Graph Health", "routineTemplate", "Routine templates", "localManifest"),
-      distribution: "local" as const,
-      distributionLabel: "Local",
-      pluginId: "graph-health.plugin",
-      pluginSource: "workspace" as const,
-      manifestPath: "/workspace/.exo/plugins/graph-health/exo.plugin.json",
-      rootDirectory: "/workspace/.exo/plugins/graph-health",
-    };
-    const developer = {
-      ...pluginInventoryItem("dev-search", "Dev Search", "searchProvider", "Search providers", "localManifest"),
-      pluginId: "dev-search.plugin",
-      pluginSource: "dev" as const,
-      manifestPath: "/dev/plugins/search/exo.plugin.json",
-      rootDirectory: "/dev/plugins/search",
-      enabled: false,
-      status: "disabled" as const,
-      statusLabel: "Disabled",
-    };
-    const summary = buildPluginBoundarySummary([core, official, workspaceLocal, developer]);
-
-    expect(summary.coreSummary).toContain("Core stays available");
-    expect(summary.layers.map((layer) => [layer.id, layer.value])).toEqual([
-      ["core", 1],
-      ["official", 1],
-      ["local", 1],
-      ["developer", 1],
-    ]);
-    expect(summary.manageableLocalCount).toBe(1);
-    expect(summary.blockedCount).toBe(1);
-    expect(pluginManagementLane(core)).toBe("Exograph baseline");
-    expect(pluginManagementLane(official)).toBe("Official plugin");
-    expect(pluginManagementLane(workspaceLocal)).toBe("Workspace plugin");
-    expect(pluginManagementLane(developer)).toBe("Developer plugin");
-    expect(pluginManagementGuidance(workspaceLocal)).toContain("Review trust");
-  });
-
-  it("summarizes search provider and harness metadata for read-only details", () => {
-    const searchSections = buildPluginDetailSections({
-      ...pluginInventoryItem("local-search", "Local Search", "searchProvider", "Search providers", "localManifest"),
-      kind: "core:searchProvider",
-      permissions: ["workspace:read", "notes:read"],
-      surfaces: ["desktop", "mcp"],
-      readiness: {
-        state: "indexing",
-        label: "Embeddings needed",
-        detail: "12 documents still need embeddings.",
-        metrics: [
-          { label: "Mode", value: "hybrid" },
-          { label: "Documents", value: 42 },
-        ],
-      },
-      compatibility: {
-        provider: "local",
-        backend: "sqlite",
-        modes: ["lexical", "hybrid"],
-      },
-    });
-    const harnessSections = buildPluginDetailSections({
-      ...pluginInventoryItem("pi", "Pi", "agentHarness", "Agent harnesses", "bundled"),
-      kind: "core:agentHarness",
-      status: "missing-dependency",
-      statusLabel: "Needs inference backend",
-      compatibility: {
-        managedAgentKind: "pi",
-        setupSummary: "Configure a compatible inference backend.",
-      },
-      dependencies: [
-        { id: "backend", label: "Inference backend", required: true, status: "missing", statusLabel: "Missing" },
-      ],
-    });
-
-    expect(searchSections.find((section) => section.id === "search-provider")?.rows).toEqual(
-      expect.arrayContaining([
-        { label: "Provider", value: "local" },
-        { label: "Backend", value: "sqlite" },
-        { label: "Readiness", value: "Embeddings needed · 12 documents still need embeddings." },
-        { label: "Mode", value: "hybrid" },
-        { label: "Documents", value: "42" },
-        { label: "Surfaces", value: "desktop, mcp" },
-        { label: "Permissions", value: "workspace:read, notes:read" },
-      ]),
-    );
-    expect(harnessSections.find((section) => section.id === "agent-harness")?.rows).toEqual(
-      expect.arrayContaining([
-        { label: "Harness", value: "pi" },
-        { label: "Readiness", value: "Needs inference backend" },
-        { label: "Launchability", value: "Not launchable until setup/trust/dependencies are satisfied" },
-        { label: "Setup", value: "Configure a compatible inference backend." },
-      ]),
-    );
-  });
-
-  it("shows permissions and same-category alternatives in detail sections", () => {
-    const qmd: PluginInventoryItem = {
-      ...pluginInventoryItem("qmd", "QMD", "searchProvider", "Search providers", "bundled"),
-      permissionGrants: {
-        requested: ["notes:read", "workspace:read"] as PluginInventoryItem["permissions"],
-        granted: ["notes:read"] as PluginInventoryItem["permissions"],
-        missing: ["workspace:read"] as PluginInventoryItem["permissions"],
-        status: "partial" as const,
-      },
-    };
-    const localSearch = pluginInventoryItem("local-search", "Local Search", "searchProvider", "Search providers", "localManifest");
-    const sections = buildPluginDetailSections(qmd, pluginInventory([qmd, localSearch]));
-
-    expect(sections.find((section) => section.id === "permissions")?.rows).toEqual(
-      expect.arrayContaining([
-        { label: "Requested", value: "notes:read, workspace:read" },
-        { label: "Needed", value: "workspace:read" },
-        { label: "Safety", value: "Permission requests are metadata only; this screen does not grant permissions or load executable plugin code" },
-      ]),
-    );
-    expect(sections.find((section) => section.id === "alternatives")?.rows).toEqual(
-      expect.arrayContaining([
-        { label: "Compatible ready", value: "Local Search (Developer, Available)" },
-        { label: "Same category", value: "Local Search (Developer, Available)" },
-      ]),
-    );
-  });
-
-  it("summarizes profile metadata for the read-only detail panel", () => {
-    const profileItem: PluginInventoryItem = {
-      ...pluginInventoryItem("exograph-baseline.profile", "Exograph Baseline", "profile", "Profiles", "localManifest"),
-      kind: "core:profile",
-      compatibility: {
-        profile: {
-          recommendedPlugins: [{ id: "qmd", required: false }],
-          metadataSchemas: [{ id: "note", label: "Note", scope: { paths: ["**/*.md"] } }],
-          skills: [{ id: "graph-evolve", label: "Graph Evolve", harnesses: ["claude"], sourcePath: "skills/graph-evolve" }],
-          routineTemplateIds: ["graph-health.template"],
-          reviewPolicy: { fileChanges: "propose", requireHumanReview: true, allowedPaths: ["**/*.md"] },
-          outputPolicy: { fileChanges: "propose", artifacts: "record", allowedPaths: [".exo/artifacts/**"] },
-        },
-      },
-    };
-    const sections = buildPluginDetailSections(profileItem, pluginInventory([profileItem, pluginInventoryItem("qmd", "QMD", "searchProvider", "Search providers", "bundled")]));
-
-    expect(sections.find((section) => section.id === "profile-preview")?.rows).toEqual(
-      expect.arrayContaining([
-        { label: "Mode", value: "Preview only" },
-        { label: "Ready recommendations", value: "1" },
-        { label: "Would write", value: "none" },
-      ]),
-    );
-    expect(sections.find((section) => section.id === "profile-recommendations")?.rows).toEqual(
-      expect.arrayContaining([
-        { label: "Recommended plugins", value: "qmd" },
-        { label: "Metadata schemas", value: "Note" },
-        { label: "Skills", value: "Graph Evolve (claude)" },
-      ]),
-    );
-    expect(sections.find((section) => section.id === "profile-policies")?.rows).toEqual(
-      expect.arrayContaining([{ label: "Output", value: "propose; artifacts record" }]),
-    );
-  });
-
-  it("summarizes routine template metadata for the read-only detail panel", () => {
-    const sections = buildPluginDetailSections({
-      ...pluginInventoryItem("graph-health.template", "Graph Health", "routineTemplate", "Routine templates", "localManifest"),
-      kind: "core:routineTemplate",
-      compatibility: {
-        routineTemplate: {
-          harnessId: "claude",
-          requiredSkills: [{ id: "graph-health", label: "Graph Health", required: true }],
-          trigger: { kind: "schedule", schedule: "0 9 * * 1", timezone: "US/Pacific" },
-          permissions: { permissions: ["workspace:read", "notes:read", "artifacts:write"] },
-          outputPolicy: { fileChanges: "propose", artifacts: "record", allowedPaths: [".exo/artifacts/**"] },
-        },
-      },
-    });
-
-    expect(sections.find((section) => section.id === "routine-template")?.rows).toEqual(
-      expect.arrayContaining([
-        { label: "Current behavior", value: "Manual template; setup records it but does not schedule or run it" },
-        { label: "Default harness", value: "claude" },
-        { label: "Required skills", value: "Graph Health" },
-        { label: "Trigger", value: "schedule: 0 9 * * 1 (US/Pacific)" },
-        { label: "Permissions", value: "workspace:read, notes:read, artifacts:write" },
-        { label: "Output policy", value: "file changes propose; artifacts record" },
-      ]),
-    );
-  });
-
-  it("summarizes graph visualization metadata for the read-only detail panel", () => {
-    const sections = buildPluginDetailSections({
-      ...pluginInventoryItem("default-graph.view", "Default Graph", "graphVisualization", "Graph visualizations", "localManifest"),
-      kind: "exo.graph:visualization",
-      compatibility: {
-        graphDataVersion: "0.1",
-        acceptedNodeKinds: ["note", "tag"],
-        acceptedEdgeKinds: ["wikilink"],
-        hostSurface: "editorPane",
-      },
-    });
-
-    expect(sections.find((section) => section.id === "graph-compatibility")?.rows).toEqual([
-      { label: "Graph data", value: "0.1" },
-      { label: "Host", value: "editorPane" },
-      { label: "Node kinds", value: "note, tag" },
-      { label: "Edge kinds", value: "wikilink" },
-    ]);
-  });
-
-  it("allows only local and developer manifest-backed rows to mutate plugin state", () => {
-    const core = pluginInventoryItem("core.terminal", "Terminal host", "core", "Core", "core");
-    const official = pluginInventoryItem("qmd", "QMD", "searchProvider", "Search providers", "bundled");
-    const local = {
-      ...pluginInventoryItem("graph-health.template", "Graph Health", "routineTemplate", "Routine templates", "localManifest"),
-      enabled: false,
-      trust: "untrusted" as const,
-      pluginId: "graph-health.plugin",
-      pluginSource: "workspace" as const,
-      manifestPath: "/workspace/.exo/plugins/graph-health/exo.plugin.json",
-      rootDirectory: "/workspace/.exo/plugins/graph-health",
-    };
-    const trustedDeveloper = {
-      ...local,
-      id: "dev-health.template",
-      enabled: true,
-      trust: "trusted" as const,
-      distribution: "developer" as const,
-      distributionLabel: "Developer",
-      pluginId: "dev-health.plugin",
-      pluginSource: "dev" as const,
-      manifestPath: "/dev/plugins/health/exo.plugin.json",
-      rootDirectory: "/dev/plugins/health",
-    };
-
-    expect(pluginActionAvailability(core)).toMatchObject({ mutable: false, actions: [] });
-    expect(pluginActionAvailability(official)).toMatchObject({ mutable: false, actions: [] });
-    expect(pluginActionAvailability(local)).toMatchObject({ mutable: true, actions: ["trust", "enable"] });
-    expect(pluginActionAvailability(trustedDeveloper)).toMatchObject({ mutable: true, actions: ["disable"] });
-    expect(pluginActionAvailability({
-      ...local,
-      status: "unsupported-kind",
-      statusLabel: "Not supported by this Exo version",
-      enabled: false,
-    })).toMatchObject({ mutable: false, actions: [] });
-    expect(pluginActionInput(local)).toEqual({
-      pluginId: "graph-health.plugin",
-      capabilityId: "graph-health.template",
-      source: "workspace",
-      manifestPath: "/workspace/.exo/plugins/graph-health/exo.plugin.json",
-      rootDirectory: "/workspace/.exo/plugins/graph-health",
-    });
-  });
-
-  it("exposes remove and swap only for managed local plugin sources", () => {
-    const workspaceLocal = {
-      ...pluginInventoryItem("graph-health.template", "Graph Health", "routineTemplate", "Routine templates", "localManifest"),
-      pluginId: "graph-health.plugin",
-      pluginSource: "workspace" as const,
-      manifestPath: "/workspace/.exo/plugins/graph-health/exo.plugin.json",
-      rootDirectory: "/workspace/.exo/plugins/graph-health",
-    };
-    const userLocal = {
-      ...workspaceLocal,
-      pluginSource: "user" as const,
-      manifestPath: "/user-data/plugins/graph-health/exo.plugin.json",
-      rootDirectory: "/user-data/plugins/graph-health",
-    };
-    const developerLocal = {
-      ...workspaceLocal,
-      pluginSource: "dev" as const,
-      manifestPath: "/dev/plugins/graph-health/exo.plugin.json",
-      rootDirectory: "/dev/plugins/graph-health",
-    };
-    const official = pluginInventoryItem("qmd", "QMD", "searchProvider", "Search providers", "bundled");
-
-    expect(pluginLocalManagementAvailability(workspaceLocal)).toMatchObject({
-      manageable: true,
-      target: "workspace",
-      actions: ["replace", "remove"],
-    });
-    expect(pluginLocalManagementAvailability(userLocal)).toMatchObject({
-      manageable: true,
-      target: "user",
-      actions: ["replace", "remove"],
-    });
-    expect(pluginLocalManagementAvailability(developerLocal)).toMatchObject({
-      manageable: false,
-      actions: [],
-      target: null,
-    });
-    expect(pluginLocalManagementAvailability(official)).toMatchObject({
-      manageable: false,
-      actions: [],
-      target: null,
-    });
-  });
-
-  it("allows plugin settings editing only for trusted enabled mutable local manifests", () => {
-    const baseSettings = {
-      hasSettings: true,
-      fieldCount: 2,
-      configuredCount: 1,
-      reviewRequired: false,
-      configReviewRequired: false,
-      validationErrors: [],
-    };
-    const trusted = {
-      ...pluginInventoryItem("dev-health.template", "Dev Health", "routineTemplate", "Routine templates", "localManifest"),
-      enabled: true,
-      trust: "trusted" as const,
-      pluginId: "dev-health.plugin",
-      pluginSource: "dev" as const,
-      manifestPath: "/dev/plugins/health/exo.plugin.json",
-      rootDirectory: "/dev/plugins/health",
-      settings: baseSettings,
-    };
-    const untrusted = { ...trusted, trust: "untrusted" as const };
-    const disabled = { ...trusted, enabled: false };
-    const noSchema = { ...trusted, settings: { ...baseSettings, hasSettings: false, fieldCount: 0 } };
-    const official = pluginInventoryItem("qmd", "QMD", "searchProvider", "Search providers", "bundled");
-
-    expect(pluginSettingsAvailability(trusted)).toMatchObject({ visible: true, editable: true, canRead: true });
-    expect(pluginSettingsAvailability(untrusted)).toMatchObject({
-      visible: true,
-      editable: false,
-      canRead: false,
-      reason: "Trust this local or developer plugin before editing plugin-owned settings.",
-    });
-    expect(pluginSettingsAvailability(disabled)).toMatchObject({
-      visible: true,
-      editable: false,
-      canRead: false,
-      reason: "Enable this plugin before editing plugin-owned settings.",
-    });
-    expect(pluginSettingsAvailability(noSchema)).toMatchObject({
-      visible: true,
-      editable: false,
-      canRead: false,
-      reason: "This plugin manifest does not declare plugin-owned settings.",
-    });
-    expect(pluginSettingsAvailability(official)).toMatchObject({ visible: false, editable: false, canRead: false });
-  });
-
-  it("converts plugin settings drafts through simple host-owned controls", () => {
-    const schema: PluginSettingsSchema = {
-      version: 1,
-      fields: [
-        { id: "enabled", label: "Enabled", type: "boolean", default: true },
-        { id: "name", label: "Name", type: "string", default: "daily" },
-        { id: "limit", label: "Limit", type: "number", default: 3 },
-        { id: "mode", label: "Mode", type: "select", default: "safe", options: [{ value: "safe", label: "Safe" }, { value: "fast", label: "Fast" }] },
-      ],
-    };
-    const settings = resolvedPluginSettings({
-      values: { enabled: false, name: "weekly", limit: 8, mode: "fast" },
-    });
-    const draft = createPluginSettingsDraft(schema, settings);
-
-    expect(draft).toEqual({ enabled: false, name: "weekly", limit: "8", mode: "fast" });
-    expect(pluginSettingsValuesFromDraft(schema, { enabled: true, name: "nightly", limit: "10", mode: "safe" })).toEqual({
-      enabled: true,
-      name: "nightly",
-      limit: 10,
-      mode: "safe",
-    });
-    expect(() => pluginSettingsValuesFromDraft(schema, { enabled: true, name: "nightly", limit: "many", mode: "safe" })).toThrow("Limit must be a number.");
-  });
-
-  it("renders plugin settings controls without executing plugin-rendered UI", () => {
-    const schema: PluginSettingsSchema = {
-      version: 1,
-      sections: [{ id: "general", label: "General", fields: ["enabled", "mode", "limit", "label"] }],
-      fields: [
-        { id: "enabled", label: "Enabled", type: "boolean", default: true },
-        { id: "mode", label: "Mode", type: "select", default: "safe", options: [{ value: "safe", label: "Safe" }, { value: "fast", label: "Fast" }] },
-        { id: "limit", label: "Limit", type: "number", default: 5 },
-        { id: "label", label: "Label", type: "string", default: "Daily" },
-      ],
-    };
-    const item = {
-      ...pluginInventoryItem("dev-health.template", "Dev Health", "routineTemplate", "Routine templates", "localManifest"),
-      pluginId: "dev-health.plugin",
-      pluginSource: "dev" as const,
-      manifestPath: "/dev/plugins/health/exo.plugin.json",
-      rootDirectory: "/dev/plugins/health",
-    };
-    const html = renderToStaticMarkup(
-      <PluginSettingsSection
-        availabilityReason="Plugin-owned settings can be edited for trusted and enabled local or developer plugins."
-        draft={{ enabled: true, mode: "fast", limit: "9", label: "Nightly" }}
-        editable={true}
-        item={item}
-        message={null}
-        onApply={vi.fn()}
-        onDraftChange={vi.fn()}
-        onReset={vi.fn()}
-        pendingAction={null}
-        schema={schema}
-        settings={resolvedPluginSettings({ fieldCount: 4, configuredCount: 2 })}
-        state="idle"
-      />,
-    );
-    const disabledHtml = renderToStaticMarkup(
-      <PluginSettingsSection
-        availabilityReason="Trust this local or developer plugin before editing plugin-owned settings."
-        draft={{ enabled: true, mode: "fast", limit: "9", label: "Nightly" }}
-        editable={false}
-        item={item}
-        message={null}
-        onApply={vi.fn()}
-        onDraftChange={vi.fn()}
-        onReset={vi.fn()}
-        pendingAction={null}
-        schema={schema}
-        settings={resolvedPluginSettings({ fieldCount: 4, configuredCount: 2 })}
-        state="idle"
-      />,
-    );
-
-    expect(html).toContain("type=\"checkbox\"");
-    expect(html).toContain("<select");
-    expect(html).toContain("type=\"number\"");
-    expect(html).toContain("type=\"text\"");
-    expect(html).toContain("Plugin-owned settings");
-    expect(html).toContain("they do not load plugin code or grant permissions");
-    expect(html).toContain("plugin-manager-settings-apply");
-    expect(disabledHtml).toContain("disabled=\"\"");
-  });
-});
-
-function proposalBatchFixture(overrides: Partial<ProposalBatch> = {}): ProposalBatch {
-  return {
-    id: "proposal-1",
-    title: "Review workspace changes",
-    description: "Generated by a profile apply preview.",
-    status: "pending",
-    provenance: { activityId: "activity-1", sessionId: "term-1" },
-    items: [
-      {
-        id: "item-1",
-        kind: "fileCreate",
-        path: "notes/proposal.md",
-        itemStatus: "pending",
-        contents: "# Proposal\n",
-      },
-    ],
-    createdAt: "2026-07-03T00:00:00.000Z",
-    updatedAt: "2026-07-03T00:00:00.000Z",
-    ...overrides,
-  };
-}
-
-function profilePlanFixture(): ProfilePlanPreview {
-  return {
-    mode: "preview",
-    writeCapable: false,
-    profile: {
-      id: "exograph-baseline.profile",
-      label: "Exograph Baseline",
-      lifecycle: "built-in",
-    },
-    apply: {
-      available: false,
-      label: "Review only",
-      reason: "Profile application is read-only until explicit apply gates exist.",
-      blockedBy: [
-        {
-          kind: "permissionModel",
-          message: "Permission prompts and trust grants are not implemented for profile application.",
-          actionIds: ["qmd", "agents-md"],
-        },
-      ],
-      promptSteps: [
-        {
-          kind: "fileWriteReview",
-          label: "Review file writes",
-          detail: "Stage and approve context and instruction file changes before writing user files.",
-          actionIds: ["agents-md"],
-          enabled: false,
-          required: false,
-        },
-      ],
-    },
-    summary: {
-      totalActions: 6,
-      readyPluginRecommendations: 1,
-      warningCount: 0,
-      blockerCount: 1,
-      wouldWriteCount: 1,
-      wouldInstallSkillCount: 1,
-      wouldScheduleRoutineCount: 1,
-    },
-    safety: {
-      writesEnabled: false,
-      pluginEnableEnabled: false,
-      skillInstallEnabled: false,
-      routineSchedulingEnabled: false,
-      mcpConfigMutationEnabled: false,
-    },
-    blockers: [
-      {
-        severity: "blocker",
-        actionKind: "pluginRecommendation",
-        actionId: "qmd",
-        message: "Required plugin qmd is missing.",
-      },
-    ],
-    warnings: [],
-    actions: [
-      {
-        kind: "pluginRecommendation",
-        id: "qmd",
-        label: "QMD advanced search",
-        severity: "info",
-        required: false,
-        recommendation: { id: "qmd", required: false },
-        pluginStatus: "ready",
-        effect: { previewOnly: true, mutates: false },
-      },
-      {
-        kind: "instructionTemplate",
-        id: "agents-md",
-        label: "AGENTS.md",
-        severity: "info",
-        template: { id: "agents-md", label: "AGENTS.md", target: "AGENTS.md", templatePath: "templates/AGENTS.md" },
-        effect: { previewOnly: true, mutates: false, wouldWrite: "Would write AGENTS.md." },
-      },
-      {
-        kind: "skill",
-        id: "terminal-stability",
-        label: "Terminal Stability",
-        severity: "info",
-        skill: {
-          id: "terminal-stability",
-          label: "Terminal Stability",
-          harnesses: ["claude", "codex"],
-          sourcePath: "skills/terminal-stability",
-          required: false,
-        },
-        effect: { previewOnly: true, mutates: false, wouldInstallSkills: "Would install terminal-stability." },
-      },
-      {
-        kind: "metadataSchema",
-        id: "markdown-note",
-        label: "Markdown note",
-        severity: "info",
-        schema: {
-          id: "markdown-note",
-          label: "Markdown note",
-          scope: { paths: ["**/*.md"] },
-          frontmatter: { title: { type: "string", required: false } },
-          tags: [],
-        },
-        effect: { previewOnly: true, mutates: false },
-      },
-      {
-        kind: "routineTemplate",
-        id: "graph-health.template",
-        label: "graph-health.template",
-        severity: "info",
-        routineTemplateId: "graph-health.template",
-        effect: { previewOnly: true, mutates: false, wouldScheduleRoutines: "Would schedule graph-health.template." },
-      },
-      {
-        kind: "reviewPolicy",
-        id: "reviewPolicy",
-        label: "Review policy",
-        severity: "info",
-        reviewPolicy: { fileChanges: "propose", requireHumanReview: true, allowedPaths: ["**/*.md"] },
-        effect: { previewOnly: true, mutates: false },
-      },
-    ],
-  };
-}
-
-function pluginInventoryItem(
-  id: string,
-  label: string,
-  categoryId: string,
-  categoryLabel: string,
-  source: PluginInventoryItem["source"],
-): PluginInventoryItem {
-  const normalizedCategoryId = normalizeTestCapabilityCategory(categoryId);
-  return {
-    id,
-    label,
-    description: `${label} description`,
-    kind: normalizedCategoryId === "core" ? "core" : normalizedCategoryId as PluginInventoryItem["kind"],
-    categoryId: normalizedCategoryId,
-    categoryLabel,
-    source,
-    sourceLabel: source,
-    distribution: source === "core" ? "core" : source === "bundled" ? "official" : "developer",
-    distributionLabel: source === "core" ? "Core" : source === "bundled" ? "Official" : "Developer",
-    lifecycle: "built-in",
-    owner: "@exo/test",
-    surfaces: ["desktop"],
-    permissions: [],
-    enabled: true,
-    trust: "trusted",
-    status: "available",
-    statusLabel: "Available",
-  };
-}
-
-function normalizeTestCapabilityCategory(categoryId: string): string {
-  switch (categoryId) {
-    case "searchProvider":
-      return "core:searchProvider";
-    case "agentHarness":
-      return "core:agentHarness";
-    case "profile":
-      return "core:profile";
-    case "routineTemplate":
-      return "core:routineTemplate";
-    case "graphVisualization":
-      return "exo.graph:visualization";
-    default:
-      return categoryId;
-  }
-}
-
-function pluginInventory(items: PluginInventoryItem[]): PluginInventory {
-  return {
-    generatedAt: "2026-06-26T00:00:00.000Z",
-    items,
-    errors: [],
-    counts: {
-      total: items.length,
-      core: items.filter((item) => item.source === "core").length,
-      bundled: items.filter((item) => item.source === "bundled").length,
-      localManifest: items.filter((item) => item.source === "localManifest").length,
-      official: items.filter((item) => item.distribution === "official").length,
-      local: items.filter((item) => item.distribution === "local").length,
-      developer: items.filter((item) => item.distribution === "developer").length,
-      disabled: items.filter((item) => !item.enabled).length,
-      untrusted: items.filter((item) => item.trust === "untrusted").length,
-    },
-  };
-}
-
-function resolvedPluginSettings(overrides: Partial<ResolvedPluginSettings> = {}): ResolvedPluginSettings {
-  return {
-    pluginId: "dev-health.plugin",
-    hasSettings: true,
-    fieldCount: 0,
-    configuredCount: 0,
-    values: {},
-    defaults: {},
-    userValues: {},
-    reviewRequired: false,
-    configReviewRequired: false,
-    validationErrors: [],
-    ...overrides,
-  };
-}
-
-function harness(id: ManagedAgentKind, launchable: boolean, overrides: Partial<AgentHarnessDetection> = {}): AgentHarnessDetection {
-  return {
-    id,
-    adapterId: id === "claude" ? "claude-code" : id,
-    family: id === "claude" ? "claude-code" : id,
-    label: id,
-    productName: id,
-    enabled: true,
-    configured: launchable,
-    detected: launchable,
-    launchable,
-    status: launchable ? "configured" : "not-found",
-    statusLabel: launchable ? "Configured" : "Not found",
-    ...overrides,
-  };
-}
-
 function indexStatusFixture(overrides: Partial<IndexStatus> = {}): IndexStatus {
   return {
     enabled: true,
@@ -1724,8 +481,6 @@ function workspaceSettingsDialogFixture(
     terminalTranscriptRetention: "forever",
     terminalTranscriptRetentionDays: "14",
     terminalInputCoalesceMs: String(DEFAULT_TERMINAL_INPUT_COALESCE_MS),
-    terminalAgentStartupGraceMs: String(DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS),
-    terminalAgentSubmitDelayMs: String(DEFAULT_TERMINAL_AGENT_SUBMIT_DELAY_MS),
     terminalInitialColumns: String(DEFAULT_TERMINAL_INITIAL_COLUMNS),
     terminalInitialRows: String(DEFAULT_TERMINAL_INITIAL_ROWS),
     terminalMinimumColumns: String(DEFAULT_TERMINAL_MINIMUM_COLUMNS),
@@ -1734,16 +489,6 @@ function workspaceSettingsDialogFixture(
     terminalMaxReadTailChars: String(DEFAULT_TERMINAL_MAX_READ_TAIL_CHARS),
     terminalUnresponsiveThresholdMs: String(DEFAULT_TERMINAL_UNRESPONSIVE_THRESHOLD_MS),
     terminalIdleThresholdMs: String(DEFAULT_TERMINAL_IDLE_THRESHOLD_MS),
-    piHarnessEnabled: true,
-    piHarnessLabel: "",
-    piHarnessCommand: "",
-    piHarnessRepoPath: "",
-    piHarnessArgs: "",
-    piHarnessBackendUrl: "",
-    piHarnessBackendCommand: "",
-    piHarnessBackendLabel: "",
-    piHarnessBackendKind: "",
-    piHarnessBackendReady: "auto",
     explorerScale: "1",
     exploreIndexSearchOnEnter: false,
     indexUpdateStrategy: "on-save",
@@ -1769,161 +514,6 @@ function toolSurfaceDescriptor(action: ToolSurfaceDescriptor["action"]): ToolSur
     visible: true,
   };
 }
-
-describe("terminal harness launchers", () => {
-  it("shows launchers only for enabled launchable agent harnesses", () => {
-    const launchable = launchableTerminalAgentHarnesses([
-      harness("shell", true),
-      harness("codex", false),
-      harness("pi", true),
-      harness("hermes", true, { visible: false }),
-    ]);
-
-    expect(launchable.map((candidate) => candidate.id)).toEqual(["pi"]);
-  });
-
-  it("builds terminal tool dock actions without changing launcher behavior", () => {
-    const onToggleCollapsed = vi.fn();
-    const onOpenAgentConfigEditor = vi.fn();
-    const onCreateTerminal = vi.fn();
-    const actions = createTerminalToolDockActions({
-      collapsed: false,
-      harnesses: [
-        harness("shell", true),
-        harness("claude", true),
-        harness("codex", false),
-        harness("pi", true),
-        harness("hermes", true, { visible: false }),
-      ],
-      onToggleCollapsed,
-      onOpenAgentConfigEditor,
-      onCreateTerminal,
-    });
-
-    expect(actions.map((action) => action.testId)).toEqual([
-      "terminal-collapse",
-      "launch-shell",
-      "launch-claude",
-      "launch-pi",
-      "open-agent-config",
-    ]);
-
-    actions.find((action) => action.testId === "terminal-collapse")?.onSelect();
-    actions.find((action) => action.testId === "launch-shell")?.onSelect();
-    actions.find((action) => action.testId === "launch-pi")?.onSelect();
-    actions.find((action) => action.testId === "open-agent-config")?.onSelect();
-
-    expect(onToggleCollapsed).toHaveBeenCalledTimes(1);
-    expect(onCreateTerminal).toHaveBeenNthCalledWith(1, "shell", "shell");
-    expect(onCreateTerminal).toHaveBeenNthCalledWith(2, "agent", "pi");
-    expect(onOpenAgentConfigEditor).toHaveBeenCalledTimes(1);
-  });
-
-  it("renders persisted Pi-compatible setup controls in Agent Config", () => {
-    const draft = createPiHarnessDraft({
-      label: "GA Pi",
-      repoPath: "/workspace/projects/ga-pi",
-      backendUrl: "http://127.0.0.1:8080",
-      backendLabel: "llama.cpp",
-    });
-    const markup = renderToStaticMarkup(
-      <PiHarnessSettingsPanel
-        draft={draft}
-        harness={harness("pi", false, {
-          label: "GA Pi",
-          status: "missing-dependency",
-          statusLabel: "Missing dependency",
-          setupSummary: "Configure EXO_PI_BACKEND_URL or EXO_PI_BACKEND_COMMAND for a compatible local inference backend.",
-        })}
-        onChange={vi.fn()}
-        onSave={vi.fn()}
-        saveMessage={null}
-        saveState="idle"
-      />,
-    );
-
-    expect(markup).toContain("Pi-compatible setup");
-    expect(markup).toContain("Missing dependency");
-    expect(markup).toContain("Custom config saved");
-    expect(markup).toContain("Edit custom config");
-    expect(markup).not.toContain("pi-harness-backend-url");
-    expect(markup).not.toContain("http://127.0.0.1:8080");
-    expect(piHarnessSettingsFromDraft({ ...draft, args: "--model, local", backendReady: "true" })).toMatchObject({
-      label: "GA Pi",
-      repoPath: "/workspace/projects/ga-pi",
-      args: ["--model", "local"],
-      backendUrl: "http://127.0.0.1:8080",
-      backendLabel: "llama.cpp",
-      backendReady: true,
-    });
-  });
-
-  it("renders persisted Pi-compatible setup controls in Workspace Settings", () => {
-    const markup = renderToStaticMarkup(
-      <WorkspaceSettingsDialog
-        agentHarnesses={[
-          harness("pi", false, {
-            label: "GA Pi",
-            status: "missing-dependency",
-            statusLabel: "Missing dependency",
-            setupSummary: "Configure a compatible local inference backend before launch.",
-            dependencies: [
-              {
-                id: "pi-inference-backend",
-                kind: "inference-backend",
-                label: "llama.cpp",
-                required: true,
-                configured: false,
-                detected: false,
-                satisfied: false,
-                statusLabel: "Missing",
-              },
-            ],
-          }),
-        ]}
-        indexBusy={null}
-        indexStatus={null}
-        onChooseFolder={() => {}}
-        onClose={() => {}}
-        onOpenAgentConfigEditor={() => {}}
-        onOpenPluginManager={() => {}}
-        onOpenWorkspaceSwitcher={() => {}}
-        onRunIndexUpdate={() => {}}
-        onSave={() => {}}
-        settings={workspaceSettingsDialogFixture({
-          section: "harnesses",
-          piHarnessLabel: "GA Pi",
-          piHarnessRepoPath: "/workspace/projects/ga-pi",
-          piHarnessBackendLabel: "llama.cpp",
-        })}
-        setSettings={() => {}}
-        structuralDraftKey={() => ""}
-      />,
-    );
-
-    expect(markup).toContain("Pi-compatible harness");
-    expect(markup).toContain("Missing dependency");
-    expect(markup).toContain("Configure a compatible local inference backend before launch.");
-    expect(markup).toContain("workspace-settings-pi-repo-path");
-    expect(markup).toContain("/workspace/projects/ga-pi");
-  });
-});
-
-describe("tool surface action dispatch", () => {
-  it("routes future plugin tool targets through the Plugin Manager until dedicated hosts exist", () => {
-    const onOpenPluginManager = vi.fn();
-
-    runToolSurfaceAction(toolSurfaceDescriptor({ type: "routineTemplate.open", routineTemplateId: "graph-health.template" }), {
-      onToggleTerminalCollapsed: vi.fn(),
-      onToggleSidePanes: vi.fn(),
-      onOpenAgentConfigEditor: vi.fn(),
-      onOpenPluginManager,
-      onCreateTerminal: vi.fn(),
-    });
-
-    expect(onOpenPluginManager).toHaveBeenCalledTimes(1);
-  });
-});
 
 describe("terminal renderer registry", () => {
   it("refreshes the terminal surface before focusing after pane handoff", () => {
@@ -1973,102 +563,6 @@ describe("terminal renderer registry", () => {
   });
 });
 
-describe("explorer changed file state", () => {
-  it("marks changed file rows and collapsed ancestor directories", () => {
-    const rootPath = "/workspace/projects/sample-project";
-    const state = buildExplorerChangeState(
-      [
-        {
-          id: "src",
-          name: "src",
-          path: `${rootPath}/src`,
-          kind: "directory",
-          children: [
-            {
-              id: "demo",
-              name: "demo.ts",
-              path: `${rootPath}/src/demo.ts`,
-              kind: "file",
-            },
-          ],
-        },
-        {
-          id: "readme",
-          name: "README.md",
-          path: `${rootPath}/README.md`,
-          kind: "file",
-        },
-      ],
-      [
-        {
-          rootPath,
-          rootLabel: "sample-project",
-          path: "src/demo.ts",
-          absolutePath: `${rootPath}/src/demo.ts`,
-          status: "M",
-          firstChangedLine: 2,
-        },
-      ],
-    );
-
-    expect(state.byPath.get(`${rootPath}/src/demo.ts`)).toMatchObject({ status: "M", firstChangedLine: 2 });
-    expect(state.byPath.has(`${rootPath}/README.md`)).toBe(false);
-    expect(state.descendantCountByPath.get(`${rootPath}/src`)).toBe(1);
-  });
-
-  it("clears descendant state when project changes are clean", () => {
-    const rootPath = "/workspace/projects/sample-project";
-    const state = buildExplorerChangeState(
-      [
-        {
-          id: "src",
-          name: "src",
-          path: `${rootPath}/src`,
-          kind: "directory",
-          children: [
-            {
-              id: "demo",
-              name: "demo.ts",
-              path: `${rootPath}/src/demo.ts`,
-              kind: "file",
-            },
-          ],
-        },
-      ],
-      [],
-    );
-
-    expect(state.byPath.size).toBe(0);
-    expect(state.descendantCountByPath.has(`${rootPath}/src`)).toBe(false);
-  });
-
-  it("counts dirty descendants even when changed child nodes are not loaded", () => {
-    const rootPath = "/workspace/projects/sample-project";
-    const state = buildExplorerChangeState(
-      [
-        {
-          id: "src",
-          name: "src",
-          path: `${rootPath}/src`,
-          kind: "directory",
-          children: [],
-        },
-      ],
-      [
-        {
-          rootPath,
-          rootLabel: "sample-project",
-          path: "src/deep/demo.ts",
-          absolutePath: `${rootPath}/src/deep/demo.ts`,
-          status: "??",
-        },
-      ],
-    );
-
-    expect(state.descendantCountByPath.get(`${rootPath}/src`)).toBe(1);
-  });
-});
-
 describe("workspace terminal settings", () => {
   it("defaults to the clean terminal policy", () => {
     const store = new WorkspaceSettingsStore({ userDataPath: "/tmp/exo-test", env: {} });
@@ -2115,8 +609,6 @@ describe("workspace terminal settings", () => {
       bufferLineLimit: 24_000,
       transcriptRetentionDays: 30,
       inputCoalesceMs: DEFAULT_TERMINAL_INPUT_COALESCE_MS,
-      agentStartupGraceMs: DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS,
-      agentSubmitDelayMs: DEFAULT_TERMINAL_AGENT_SUBMIT_DELAY_MS,
       initialColumns: DEFAULT_TERMINAL_INITIAL_COLUMNS,
       initialRows: DEFAULT_TERMINAL_INITIAL_ROWS,
       minimumColumns: DEFAULT_TERMINAL_MINIMUM_COLUMNS,
@@ -2166,8 +658,6 @@ describe("workspace settings renderer model", () => {
       terminalTranscriptRetention: "forever",
       terminalTranscriptRetentionDays: "14",
       terminalInputCoalesceMs: String(DEFAULT_TERMINAL_INPUT_COALESCE_MS),
-      terminalAgentStartupGraceMs: String(DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS),
-      terminalAgentSubmitDelayMs: String(DEFAULT_TERMINAL_AGENT_SUBMIT_DELAY_MS),
       terminalInitialColumns: String(DEFAULT_TERMINAL_INITIAL_COLUMNS),
       terminalInitialRows: String(DEFAULT_TERMINAL_INITIAL_ROWS),
       terminalMinimumColumns: String(DEFAULT_TERMINAL_MINIMUM_COLUMNS),
@@ -2176,16 +666,6 @@ describe("workspace settings renderer model", () => {
       terminalMaxReadTailChars: String(DEFAULT_TERMINAL_MAX_READ_TAIL_CHARS),
       terminalUnresponsiveThresholdMs: String(DEFAULT_TERMINAL_UNRESPONSIVE_THRESHOLD_MS),
       terminalIdleThresholdMs: String(DEFAULT_TERMINAL_IDLE_THRESHOLD_MS),
-      piHarnessEnabled: true,
-      piHarnessLabel: "",
-      piHarnessCommand: "",
-      piHarnessRepoPath: "",
-      piHarnessArgs: "",
-      piHarnessBackendUrl: "",
-      piHarnessBackendCommand: "",
-      piHarnessBackendLabel: "",
-      piHarnessBackendKind: "",
-      piHarnessBackendReady: "auto",
       explorerScale: "1",
       exploreIndexSearchOnEnter: true,
       indexUpdateStrategy: "on-save",
@@ -2214,8 +694,6 @@ describe("workspace settings renderer model", () => {
       terminalTranscriptRetention: "forever" as const,
       terminalTranscriptRetentionDays: "14",
       terminalInputCoalesceMs: String(DEFAULT_TERMINAL_INPUT_COALESCE_MS),
-      terminalAgentStartupGraceMs: String(DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS),
-      terminalAgentSubmitDelayMs: String(DEFAULT_TERMINAL_AGENT_SUBMIT_DELAY_MS),
       terminalInitialColumns: String(DEFAULT_TERMINAL_INITIAL_COLUMNS),
       terminalInitialRows: String(DEFAULT_TERMINAL_INITIAL_ROWS),
       terminalMinimumColumns: String(DEFAULT_TERMINAL_MINIMUM_COLUMNS),
@@ -2224,16 +702,6 @@ describe("workspace settings renderer model", () => {
       terminalMaxReadTailChars: String(DEFAULT_TERMINAL_MAX_READ_TAIL_CHARS),
       terminalUnresponsiveThresholdMs: String(DEFAULT_TERMINAL_UNRESPONSIVE_THRESHOLD_MS),
       terminalIdleThresholdMs: String(DEFAULT_TERMINAL_IDLE_THRESHOLD_MS),
-      piHarnessEnabled: true,
-      piHarnessLabel: "",
-      piHarnessCommand: "",
-      piHarnessRepoPath: "",
-      piHarnessArgs: "",
-      piHarnessBackendUrl: "",
-      piHarnessBackendCommand: "",
-      piHarnessBackendLabel: "",
-      piHarnessBackendKind: "",
-      piHarnessBackendReady: "auto" as const,
       explorerScale: "1",
       exploreIndexSearchOnEnter: false,
       indexUpdateStrategy: "on-save" as const,
@@ -2356,324 +824,6 @@ describe("workspace onboarding model", () => {
     expect(defaultTerminalCwdForNotesFolder("/notes")).toBe("/notes");
   });
 
-  it("builds a plugin setup review from plugin inventory without locked core rows", () => {
-    const core = pluginInventoryItem("core.markdown-graph", "Markdown graph", "core", "Core", "core");
-    const qmd = pluginInventoryItem("qmd", "QMD advanced search", "searchProvider", "Search providers", "bundled");
-    const codex = {
-      ...pluginInventoryItem("codex", "Codex", "agentHarness", "Agent harnesses", "bundled"),
-      status: "not-found",
-      statusLabel: "Not found",
-    };
-    const localProfile = {
-      ...pluginInventoryItem("lab.profile", "Lab profile", "profile", "Profiles", "localManifest"),
-      distribution: "local" as const,
-      distributionLabel: "Local",
-      trust: "untrusted" as const,
-    };
-    const sections = buildOnboardingCapabilitySections(pluginInventory([codex, localProfile, qmd, core]));
-
-    expect(sections.map((section) => section.id)).toEqual(["core:searchProvider"]);
-    expect(sections.find((section) => section.id === "core:searchProvider")?.rows.map((row) => row.id)).toEqual(["qmd"]);
-    expect(sections.some((section) => section.rows.some((row) => row.id === "codex"))).toBe(false);
-    expect(onboardingCapabilityStatus(core)).toBe("Core, locked");
-    expect(onboardingCapabilityStatus(qmd)).toBe("Official, available");
-    expect(onboardingCapabilityStatus(localProfile)).toBe("Local, review needed");
-    expect(onboardingCapabilityTone(codex)).toBe("warning");
-    expect(onboardingCapabilitySelected(codex)).toBe(false);
-    expect(onboardingCapabilitySelectable(codex)).toBe(false);
-    expect(onboardingCapabilitySelected(qmd)).toBe(true);
-    expect(onboardingCapabilitySelectable(qmd)).toBe(true);
-  });
-
-  it("renders post-workspace plugin setup without core rows or search-provider defaults", () => {
-    const inventory = pluginInventory([
-      pluginInventoryItem("core.markdown-graph", "Markdown graph", "core", "Core", "core"),
-      pluginInventoryItem("qmd", "QMD advanced search", "searchProvider", "Search providers", "bundled"),
-      pluginInventoryItem("shell", "Shell", "agentHarness", "Agent harnesses", "bundled"),
-      {
-        ...pluginInventoryItem("codex", "Codex", "agentHarness", "Agent harnesses", "bundled"),
-        status: "not-found",
-        statusLabel: "Not found",
-      },
-      {
-        ...pluginInventoryItem("lab.profile", "Lab profile", "profile", "Profiles", "localManifest"),
-        kind: "core:profile",
-        compatibility: {
-          profile: {
-            recommendedPlugins: [{ id: "qmd", required: false }],
-            contextTemplates: [{ id: "agents", label: "Agent instructions", target: "AGENTS.md", templatePath: "templates/AGENTS.md" }],
-          },
-        },
-      },
-    ]);
-    const html = renderToStaticMarkup(
-      <OnboardingCapabilityReviewContent
-        errorMessage={null}
-        inventory={inventory}
-        loadState="idle"
-        notesFolder="/workspace/notes"
-        onBack={vi.fn()}
-        onEnterWorkspace={vi.fn()}
-        onTogglePlugin={vi.fn()}
-        sections={buildOnboardingCapabilitySections(inventory)}
-      />,
-    );
-
-    expect(html).toContain("Set up your Exograph");
-    expect(html).toContain("Choose optional plugins, starter routines, agent context, and a workspace profile.");
-    expect(html).not.toContain("Markdown graph");
-    expect(html).not.toContain("Core, locked");
-    expect(html).toContain("QMD advanced search");
-    expect(html).toContain("onboarding-plugin-toggle-qmd");
-    expect(html).not.toContain("Agent harnesses");
-    expect(html).not.toContain("Official, not found");
-    expect(html).toMatch(/data-testid=\"onboarding-plugin-toggle-qmd\"[^>]*checked=\"\"/);
-    expect(html).not.toMatch(/data-testid=\"onboarding-plugin-toggle-qmd\"[^>]*disabled=\"\"/);
-    expect(html).not.toContain("onboarding-plugin-toggle-codex");
-    expect(html).not.toContain("onboarding-plugin-toggle-shell");
-    expect(html).not.toContain("Advanced search default");
-    expect(html).not.toContain("QMD hybrid");
-    expect(html).not.toContain("Profile plan preview");
-    expect(html).not.toContain("Lab profile");
-    expect(html).toContain("Agent context");
-    expect(html).toContain("Routines");
-    expect(html).toContain("Skills");
-    expect(html).toContain("Profile");
-    expect(html).toContain("Continue");
-  });
-
-  it("lets detected bundled harnesses be deselected as onboarding choices", () => {
-    const inventory = pluginInventory([
-      pluginInventoryItem("qmd", "QMD advanced search", "searchProvider", "Search providers", "bundled"),
-      pluginInventoryItem("codex", "Codex", "agentHarness", "Agent harnesses", "bundled"),
-    ]);
-    const pluginHtml = renderToStaticMarkup(
-      <OnboardingCapabilityReviewContent
-        errorMessage={null}
-        inventory={inventory}
-        loadState="idle"
-        notesFolder="/workspace/notes"
-        onBack={vi.fn()}
-        onEnterWorkspace={vi.fn()}
-        onTogglePlugin={vi.fn()}
-        sections={buildOnboardingCapabilitySections(inventory)}
-        selectedHarnesses={[inventory.items[1]]}
-        defaultHarnessId="codex"
-      />,
-    );
-    const routineHtml = renderToStaticMarkup(
-      <OnboardingCapabilityReviewContent
-        errorMessage={null}
-        inventory={inventory}
-        loadState="idle"
-        notesFolder="/workspace/notes"
-        onBack={vi.fn()}
-        onEnterWorkspace={vi.fn()}
-        onTogglePlugin={vi.fn()}
-        sections={buildOnboardingCapabilitySections(inventory)}
-        selectedHarnesses={[inventory.items[1]]}
-        defaultHarnessId="codex"
-        setupStep="routines"
-      />,
-    );
-
-    expect(pluginHtml).toContain("Agent harnesses");
-    expect(pluginHtml).toMatch(/data-testid=\"onboarding-plugin-toggle-codex\"[^>]*checked=\"\"/);
-    expect(pluginHtml).not.toMatch(/data-testid=\"onboarding-plugin-toggle-codex\"[^>]*disabled=\"\"/);
-    expect(routineHtml).toContain("Starter routine templates");
-    expect(routineHtml).toContain("Default harness");
-  });
-
-  it("excludes shell from prompt-routine onboarding harness choices", () => {
-    const inventory = pluginInventory([
-      pluginInventoryItem("shell", "Shell", "agentHarness", "Agent harnesses", "bundled"),
-      pluginInventoryItem("codex", "Codex", "agentHarness", "Agent harnesses", "bundled"),
-    ]);
-    const routineHtml = renderToStaticMarkup(
-      <OnboardingCapabilityReviewContent
-        errorMessage={null}
-        inventory={inventory}
-        loadState="idle"
-        notesFolder="/workspace/notes"
-        onBack={vi.fn()}
-        onEnterWorkspace={vi.fn()}
-        sections={buildOnboardingCapabilitySections(inventory)}
-        selectedHarnesses={inventory.items}
-        defaultHarnessId="shell"
-        setupStep="routines"
-      />,
-    );
-
-    expect(isAgentPromptRoutineHarness(inventory.items[0])).toBe(false);
-    expect(isPromptableAgentHarnessInventoryItem(inventory.items[0])).toBe(false);
-    expect(isAgentPromptRoutineHarness(inventory.items[1])).toBe(true);
-    expect(buildOnboardingCapabilitySections(inventory).flatMap((section) => section.rows).map((item) => item.id)).toEqual(["codex"]);
-    expect(routineHtml).toContain("Default harness");
-    expect(routineHtml).not.toContain("<option value=\"shell\">Shell</option>");
-    expect(routineHtml).toContain("<option value=\"codex\">Codex</option>");
-  });
-
-  it("renders actual instruction files and an honest deterministic sync action in Agent Context", () => {
-    const inventory = pluginInventory([
-      pluginInventoryItem("codex", "Codex", "agentHarness", "Agent harnesses", "bundled"),
-    ]);
-    const html = renderToStaticMarkup(
-      <OnboardingCapabilityReviewContent
-        agentInstructionConfig={agentInstructionConfig()}
-        agentInstructionSyncMessage="Synced Global from Codex AGENTS.md."
-        agentInstructionSyncStatus="synced"
-        contextBody="Managed Exograph context"
-        defaultHarnessId="codex"
-        errorMessage={null}
-        inventory={inventory}
-        loadState="idle"
-        notesFolder="/workspace/notes"
-        onApplyExographContext={vi.fn()}
-        onBack={vi.fn()}
-        onEnterWorkspace={vi.fn()}
-        onSyncAgentInstructionFilesFromProvider={vi.fn()}
-        sections={buildOnboardingCapabilitySections(inventory)}
-        selectedHarnesses={[inventory.items[0]]}
-        setupStep="instructions"
-      />,
-    );
-
-    expect(html).toContain("agent-instruction-preview-scope-global");
-    expect(html).toContain("agent-instruction-preview-scope-exocortex");
-    expect(html).toContain("agent-instruction-preview-file-agents");
-    expect(html).toContain("agent-instruction-preview-file-claude");
-    expect(html).toContain("/home/test/.codex/AGENTS.md");
-    expect(html).toContain("Global AGENTS body");
-    expect(html).toContain("&lt;!-- exo:exograph-context:start --&gt;");
-    expect(html).toContain("Synced Global from Codex AGENTS.md.");
-    expect(html).toContain("Sync from selected file");
-    expect(html).toContain("overwrite the other provider file");
-    expect(html).toMatch(/data-testid=\"onboarding-agent-instruction-sync\"/);
-    expect(html).not.toMatch(/data-testid=\"onboarding-agent-instruction-sync\"[^>]*disabled=\"\"/);
-  });
-
-  it("disables instruction sync when the selected visible source has no content", () => {
-    const inventory = pluginInventory([]);
-    const config = agentInstructionConfig({
-      agentsBody: "",
-      agentsExists: false,
-    });
-    const html = renderToStaticMarkup(
-      <OnboardingCapabilityReviewContent
-        agentInstructionConfig={config}
-        errorMessage={null}
-        inventory={inventory}
-        loadState="idle"
-        notesFolder="/workspace/notes"
-        onBack={vi.fn()}
-        onEnterWorkspace={vi.fn()}
-        onSyncAgentInstructionFilesFromProvider={vi.fn()}
-        sections={buildOnboardingCapabilitySections(inventory)}
-        setupStep="instructions"
-      />,
-    );
-
-    expect(html).toContain("File is missing. Agent Config can create it from aligned instruction content.");
-    expect(html).toMatch(/data-testid=\"onboarding-agent-instruction-sync\"[^>]*disabled=\"\"/);
-  });
-
-  it("renders standard skills as a bulk onboarding enablement step", () => {
-    const inventory = pluginInventory([
-      pluginInventoryItem("codex", "Codex", "agentHarness", "Agent harnesses", "bundled"),
-    ]);
-    const skillInventory: AgentSkillInventory = {
-      skills: [],
-      locations: [{
-        id: "codex:workspace",
-        harness: "codex",
-        scope: "workspace",
-        label: "Codex workspace",
-        path: "/workspace/.codex/skills",
-        enabled: true,
-      }],
-      sources: [],
-      librarySkills: [{
-        id: "library:exo-standard:terminal-stability",
-        sourceId: "exo-standard",
-        sourceLabel: "Exo standard",
-        name: "terminal-stability",
-        label: "Terminal Stability",
-        rootPath: "/repo/skills/terminal-stability",
-        files: [],
-        entryFilePath: "/repo/skills/terminal-stability/SKILL.md",
-      }],
-    };
-    const html = renderToStaticMarkup(
-      <OnboardingCapabilityReviewContent
-        errorMessage={null}
-        inventory={inventory}
-        loadState="idle"
-        notesFolder="/workspace/notes"
-        onBack={vi.fn()}
-        onEnterWorkspace={vi.fn()}
-        onTogglePlugin={vi.fn()}
-        sections={buildOnboardingCapabilitySections(inventory)}
-        selectedHarnesses={[inventory.items[0]]}
-        defaultHarnessId="codex"
-        setupStep="skills"
-        skillInventory={skillInventory}
-        onApplyStandardSkills={vi.fn()}
-      />,
-    );
-
-    expect(html).toContain("Standard skills");
-    expect(html).toContain("Compatible harnesses");
-    expect(html).toContain("Codex");
-    expect(html).toContain("Apply standard skills");
-    expect(html).toContain("Will enable");
-    expect(html).toContain("Managed through the same skill inventory and enablement path as Agent Config.");
-    expect(html).not.toContain("Pending review");
-    expect(html).not.toContain("This setup will not install");
-  });
-
-  it("renders the final Profile step as an editable config surface", () => {
-    const inventory = pluginInventory([
-      pluginInventoryItem("qmd", "QMD advanced search", "searchProvider", "Search providers", "bundled"),
-      pluginInventoryItem("codex", "Codex", "agentHarness", "Agent harnesses", "bundled"),
-    ]);
-    const html = renderToStaticMarkup(
-      <OnboardingCapabilityReviewContent
-        errorMessage={null}
-        inventory={inventory}
-        loadState="idle"
-        notesFolder="/workspace/notes"
-        onBack={vi.fn()}
-        onEnterWorkspace={vi.fn()}
-        onTogglePlugin={vi.fn()}
-        sections={buildOnboardingCapabilitySections(inventory)}
-        selectedHarnesses={[inventory.items[1]]}
-        defaultHarnessId="codex"
-        profileName="Research Lab"
-        profileConfigDraft={formatProfileConfig(buildOnboardingProfileConfig({
-          profileName: "Research Lab",
-          selectedHarnesses: [inventory.items[1]],
-          defaultHarnessId: "codex",
-          graphHealthEnabled: true,
-          instructionSyncEnabled: true,
-          exographContextApplied: true,
-        }))}
-        exographContextApplied
-        setupStep="review"
-      />,
-    );
-
-    expect(html).toContain("Profile name");
-    expect(html).toContain("Research Lab");
-    expect(html).toContain("Profile config JSON");
-    expect(html).toContain("Save profile config");
-    expect(html).toContain("New profile draft");
-    expect(html).toContain("Not saved this session");
-    expect(html).toContain("&quot;defaultHarnessId&quot;: &quot;codex&quot;");
-    expect(html).not.toContain("&quot;mcp&quot;: &quot;not-configured-pending-future-policy&quot;");
-    expect(html).not.toContain("Enter workspace saves this profile state and onboarding completion only.");
-    expect(html).toContain("Standard set enabled for selected harnesses");
-    expect(html).toContain("Profile save updates Exo workspace state only.");
-  });
 });
 
 describe("terminal input filtering", () => {
@@ -2930,19 +1080,39 @@ describe("markdown editor wikilink behavior", () => {
   });
 
   it("hides generated graph references in raw markdown mode", () => {
-    const knowledge = noteKnowledge();
+    const graphContext = buildNoteGraphContext(noteDocument(), noteKnowledge());
 
-    expect(graphReferencesForMarkdownMode(true, false, knowledge)).toEqual({
+    expect(graphReferencesForMarkdownMode(true, false, graphContext)).toEqual({
       backlinks: [{ label: "Source", target: "/vault/source.md" }],
       references: [{ label: "goals", target: "goals" }],
     });
-    expect(graphReferencesForMarkdownMode(true, true, knowledge)).toBeNull();
+    expect(graphReferencesForMarkdownMode(true, true, graphContext)).toBeNull();
   });
 
   it("keeps backlink entries navigable by their file path target", () => {
-    const references = graphReferencesForMarkdownMode(true, false, noteKnowledge());
+    const references = graphReferencesForMarkdownMode(true, false, buildNoteGraphContext(noteDocument(), noteKnowledge()));
 
     expect(references?.backlinks[0]).toEqual({ label: "Source", target: "/vault/source.md" });
+  });
+
+  it("derives active-note graph context from the bounded renderer snapshot adapter", () => {
+    const graphContext = buildNoteGraphContext(noteDocument({ frontmatter: { status: "draft", tags: ["lab"] } }), {
+      ...noteKnowledge(),
+      tags: [{ tag: "lab" }],
+    });
+
+    expect(graphContext?.snapshot.schema.backlinks).toBe("derived");
+    expect(graphContext?.properties).toEqual({ status: "draft", tags: ["lab"] });
+    expect(graphContext?.outgoingLinks.map((item) => item.target).sort()).toEqual(["goals", "https://example.com"]);
+    expect(graphContext?.externalLinks.map((item) => item.target)).toEqual(["https://example.com"]);
+    expect(graphContext?.backlinks).toEqual([{ label: "Source", target: "/vault/source.md" }]);
+    expect(graphContext?.neighborhood.nodes.map((item) => item.kind).sort()).toEqual([
+      "external",
+      "note",
+      "note",
+      "tag",
+      "unresolved",
+    ]);
   });
 
   it("returns a lightweight hover preview fallback for empty or missing note bodies", () => {
@@ -2965,12 +1135,55 @@ function workspaceModel(noteRoot: string): WorkspaceModel {
   };
 }
 
+function noteDocument(overrides: Partial<NoteDocument> = {}): NoteDocument {
+  return {
+    filePath: "/vault/current.md",
+    title: "Current",
+    frontmatter: {},
+    body: "",
+    kind: "markdown",
+    ...overrides,
+  };
+}
+
 function noteKnowledge(): NoteKnowledge {
   return {
     wikilinks: [{ label: "goals", target: "goals" }],
     markdownLinks: [{ label: "external", target: "https://example.com" }],
     tags: [],
     backlinks: [{ title: "Source", filePath: "/vault/source.md" }],
+  };
+}
+
+function invocationRecord(overrides: Partial<InvocationRecord> = {}): InvocationRecord {
+  return {
+    id: "inv-1",
+    status: "process-exited",
+    context: "note",
+    taggedDocumentPath: "/vault/current.md",
+    originalMentionText: "@claude review this",
+    mentionProvenance: "human-authored",
+    message: "review this",
+    promptDelivery: "terminalInputAfterLaunch",
+    command: {
+      id: "claude",
+      label: "Claude",
+      handle: "claude",
+      command: "claude",
+      cwdPolicy: "workspace_root",
+      promptDelivery: "terminalInputAfterLaunch",
+      version: 1,
+      enabled: true,
+      executableFingerprint: "fingerprint",
+    },
+    cwd: "/vault",
+    createdAt: "2026-07-08T00:00:00.000Z",
+    startedAt: "2026-07-08T00:00:01.000Z",
+    endedAt: "2026-07-08T00:00:02.000Z",
+    changedFileRefs: [],
+    diffRefs: [],
+    attribution: { status: "pending" },
+    ...overrides,
   };
 }
 
@@ -2988,80 +1201,6 @@ function terminalSessionFixture(overrides: Partial<TerminalSessionInfo> = {}): T
     healthDetail: "No recent terminal output; terminal may simply be waiting for input.",
     attachGeneration: 1,
     ...overrides,
-  };
-}
-
-function agentInstructionConfig(overrides: {
-  agentsBody?: string;
-  agentsExists?: boolean;
-  claudeBody?: string;
-  claudeExists?: boolean;
-} = {}): AgentInstructionConfig {
-  const agentsBody = overrides.agentsBody ?? "Global AGENTS body\n\n<!-- exo:exograph-context:start -->\nManaged block\n<!-- exo:exograph-context:end -->\n";
-  const claudeBody = overrides.claudeBody ?? "Global CLAUDE body\n";
-  const agentsExists = overrides.agentsExists ?? true;
-  const claudeExists = overrides.claudeExists ?? true;
-  return {
-    exographContextTemplate: "Managed Exograph context",
-    starterTemplate: "Starter instructions",
-    scopes: [
-      {
-        id: "global",
-        label: "Global",
-        description: "Personal instructions loaded across workspaces.",
-        rootPath: "/home/test",
-        files: {
-          agents: {
-            id: "agents",
-            label: "Codex AGENTS.md",
-            path: "/home/test/.codex/AGENTS.md",
-            exists: agentsExists,
-            body: agentsBody,
-            errorMessage: null,
-          },
-          claude: {
-            id: "claude",
-            label: "Claude CLAUDE.md",
-            path: "/home/test/.claude/CLAUDE.md",
-            exists: claudeExists,
-            body: claudeBody,
-            errorMessage: null,
-          },
-        },
-        status: agentsExists && claudeExists && agentsBody === claudeBody ? "aligned" : "different",
-        body: agentsBody === claudeBody ? agentsBody : "",
-        source: agentsBody === claudeBody ? "agents" : "unresolved",
-        errorMessages: [],
-      },
-      {
-        id: "exocortex",
-        label: "Exocortex",
-        description: "Instructions stored in the active notes folder.",
-        rootPath: "/workspace/notes",
-        files: {
-          agents: {
-            id: "agents",
-            label: "Notes AGENTS.md",
-            path: "/workspace/notes/AGENTS.md",
-            exists: true,
-            body: "Notes AGENTS body\n",
-            errorMessage: null,
-          },
-          claude: {
-            id: "claude",
-            label: "Notes CLAUDE.md",
-            path: "/workspace/notes/CLAUDE.md",
-            exists: true,
-            body: "Notes CLAUDE body\n",
-            errorMessage: null,
-          },
-        },
-        status: "different",
-        body: "",
-        source: "unresolved",
-        errorMessages: [],
-      },
-    ],
   };
 }
 
@@ -3087,7 +1226,7 @@ describe("terminal session sync", () => {
     expect(terminalSessionsEqual([...sessions], [{ ...sessions[0], healthDetail: "stale output" }])).toBe(false);
   });
 
-  it("blocks terminal input while a running session is unhealthy but allows reconnect", () => {
+  it("blocks terminal input while a running session is unhealthy", () => {
     const unhealthySession = {
       id: "term-a",
       title: "Claude",
@@ -3098,12 +1237,11 @@ describe("terminal session sync", () => {
       command: "claude",
       status: "running",
       health: "unhealthy",
-      healthDetail: "Tmux session is alive but Exo's attach bridge is detached; reconnect the terminal.",
+      healthDetail: "Terminal process is unavailable.",
       attachGeneration: 1,
     } as const;
 
     expect(isTerminalInputEnabled(unhealthySession)).toBe(false);
-    expect(isReconnectableSession(unhealthySession)).toBe(true);
     expect(isTerminalInputEnabled({ ...unhealthySession, health: "idle" })).toBe(true);
     expect(isTerminalInputEnabled({ ...unhealthySession, status: "exited", health: "exited" })).toBe(false);
   });
@@ -3131,7 +1269,7 @@ describe("terminal session sync", () => {
     });
   });
 
-  it("prioritizes terminal restore state without requiring a floating overlay", () => {
+  it("prioritizes terminal loading state without requiring a floating overlay", () => {
     const sessions = [
       terminalSessionFixture({ id: "term-shell", title: "Shell" }),
       terminalSessionFixture({
@@ -3147,9 +1285,9 @@ describe("terminal session sync", () => {
     ];
 
     expect(summarizeTerminalStatusLine(sessions, "term-shell", new Set(["term-shell"]))).toEqual({
-      label: "Restoring terminal",
+      label: "Loading terminal",
       tone: "info",
-      title: "Shell: reattaching to the durable tmux pane.",
+      title: "Shell: loading terminal output.",
       busy: true,
       sessionId: "term-shell",
     });
@@ -3204,7 +1342,7 @@ describe("terminal session sync", () => {
     expect(appendPendingTerminalData({ generation: 1, data: `abc${high}` }, 1, "", 1).data).toBe("");
   });
 
-  it("skips mounted hydrated terminal reads unless reconnect forces a snapshot", () => {
+  it("skips mounted hydrated terminal reads unless refresh forces a snapshot", () => {
     const hydrated = new Set(["term-a"]);
     const pending = new Set<string>();
 
@@ -3214,18 +1352,18 @@ describe("terminal session sync", () => {
     expect(shouldSkipTerminalHydration("term-a", hydrated, new Set(["term-a"]), { force: true })).toBe(true);
   });
 
-  it("applies hydration only for first mount or explicit reconnect", () => {
+  it("applies hydration only for first mount or explicit refresh", () => {
     const initial = initialTerminalHydrationViewState();
     const bootstrap = { snapshot: "first prompt\n", version: 1, reason: "bootstrap" as const };
     const liveMetadataRefresh = { snapshot: "stale prompt\n", version: 2, reason: "bootstrap" as const };
-    const reconnect = { snapshot: "reattached prompt\n", version: 3, reason: "reconnect" as const };
+    const refresh = { snapshot: "refreshed prompt\n", version: 3, reason: "refresh" as const };
 
     expect(shouldApplyTerminalHydration(initial, { snapshot: "", version: 0, reason: "bootstrap" })).toBe(false);
     expect(shouldApplyTerminalHydration(initial, bootstrap)).toBe(true);
 
     const live = markTerminalHydrationApplied(initial, bootstrap);
     expect(shouldApplyTerminalHydration(live, liveMetadataRefresh)).toBe(false);
-    expect(shouldApplyTerminalHydration(live, reconnect)).toBe(true);
+    expect(shouldApplyTerminalHydration(live, refresh)).toBe(true);
   });
 
   it("does not keep React-owned live terminal data after hydration is live", () => {
@@ -3233,56 +1371,6 @@ describe("terminal session sync", () => {
     expect(shouldBufferTerminalDataForHydration(true, undefined, true)).toBe(false);
     expect(shouldBufferTerminalDataForHydration(true, "bootstrap", false)).toBe(false);
     expect(shouldBufferTerminalDataForHydration(true, "bootstrap", true)).toBe(false);
-    expect(shouldBufferTerminalDataForHydration(true, "reconnect", true)).toBe(false);
-  });
-});
-
-describe("changed file review attribution", () => {
-  it("does not associate ambiguous same-cwd file changes with every terminal", () => {
-    const sessions = [
-      {
-        id: "term-a",
-        title: "Shell A",
-        cwd: "/workspace/project",
-        terminalKind: "shell",
-        harnessId: null,
-        kind: "shell",
-        command: "zsh",
-        status: "running",
-        attachGeneration: 1,
-      },
-      {
-        id: "term-b",
-        title: "Shell B",
-        cwd: "/workspace/project",
-        terminalKind: "shell",
-        harnessId: null,
-        kind: "shell",
-        command: "zsh",
-        status: "running",
-        attachGeneration: 1,
-      },
-    ] as const;
-    const change = {
-      rootPath: "/workspace/project",
-      rootLabel: "project",
-      path: "src/demo.ts",
-      absolutePath: "/workspace/project/src/demo.ts",
-      status: "M",
-      firstChangedLine: 2,
-    };
-
-    expect(uniqueCwdMatchedSession([...sessions], change.absolutePath)).toBeNull();
-    expect(buildProjectReviewChanges([change], [], [...sessions])[0].agents).toEqual([]);
-    expect(
-      buildProjectReviewChanges(
-        [change],
-        [
-          { rootPath: change.rootPath, filePath: change.absolutePath, sessionId: "term-a", observedAt: 1, association: "unique-cwd-match" },
-          { rootPath: change.rootPath, filePath: change.absolutePath, sessionId: "term-b", observedAt: 2, association: "unique-cwd-match" },
-        ],
-        [...sessions],
-      )[0].agents,
-    ).toEqual([]);
+    expect(shouldBufferTerminalDataForHydration(true, "refresh", true)).toBe(false);
   });
 });

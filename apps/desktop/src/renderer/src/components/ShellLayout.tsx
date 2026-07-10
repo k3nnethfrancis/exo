@@ -1,17 +1,14 @@
-import { useRef, type CSSProperties, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
+import { Globe2, LayoutGrid, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Settings, SlidersHorizontal, SquareTerminal, SunMedium, MoonStar, Monitor } from "lucide-react";
 
-import { ExplorerRail, ExplorerRailTopControls, FileTree } from "./FileTree";
-import { TerminalRail, TerminalRailTopControls } from "./TerminalRail";
+import { FileTree } from "./FileTree";
 import { PaneTree } from "./PaneTree";
 import type { PaneLeaf, PaneNodeId, PaneTreeActions, PaneNode } from "../hooks/usePaneTree";
 import type { DragManager, DragPayload } from "../hooks/useDragManager";
 import type { WorkspaceSearchResultMode } from "../hooks/useWorkspaceSearch";
 import type { AppearanceMode, ResolvedAppearance } from "../appearance";
-import type { AgentHarnessDetection, TreeNode, WorkspaceSearchResults } from "@exo/core";
-import type { TerminalLaunchKind, WorkspaceGitChange } from "../../../shared/api";
-import exoGlyph from "../assets/exo-glyph.svg";
-
-const RESIZER_TRACK_SIZE = "6px";
+import type { TreeNode, WorkspaceSearchResults } from "@exo/core";
+import type { TerminalLaunchKind } from "../../../shared/api";
 
 interface RootSection {
   label: string;
@@ -36,7 +33,6 @@ interface TerminalStatusLine {
 
 interface ShellLayoutProps {
   noteSections: RootSection[];
-  projectSections: RootSection[];
   appearanceMode: AppearanceMode;
   resolvedAppearance: ResolvedAppearance;
   searchQuery: string;
@@ -44,22 +40,9 @@ interface ShellLayoutProps {
   searchResultMode: WorkspaceSearchResultMode;
   searchResultQuery: string;
   searchMessage: string | null;
-  projectChanges: Array<WorkspaceGitChange & {
-    rootPath: string;
-    rootLabel: string;
-    agents: Array<{ id: string; title: string; kind: string; cwd: string; observed?: boolean; observedAt?: number | null }>;
-  }>;
   statusLine: {
     workspaceLabel: string;
-    projectLabel: string | null;
-    gitBranch: string | null;
-    gitDirty: boolean;
-    changedFiles: number;
-    changedNotes: number;
-    pendingProposals: number;
     onboardingIncomplete: boolean;
-    profileReviewRequired: boolean;
-    profileLabel: string | null;
     terminal: TerminalStatusLine | null;
     index: IndexStatusLine;
   };
@@ -83,9 +66,6 @@ interface ShellLayoutProps {
     terminalCollapsed: boolean;
     setTerminalCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
     sidePanesFlipped: boolean;
-    setSidePanesFlipped: React.Dispatch<React.SetStateAction<boolean>>;
-    zoneSplitRatio: number;
-    startZoneResize: (event: React.MouseEvent, containerWidth: number, inverted?: boolean) => void;
     sidebarWidth: number;
     startSidebarResize: (event: React.MouseEvent, inverted?: boolean) => void;
   };
@@ -95,20 +75,13 @@ interface ShellLayoutProps {
   revealExplorerPathRequest?: { path: string; nonce: number } | null;
   onAppearanceModeChange: (mode: AppearanceMode) => void;
   onOpenWorkspaceSettings: () => void;
-  onOpenAgentConfigEditor: () => void;
-  onOpenPluginManager: () => void;
-  onOpenProposalReview: () => void;
   onOpenIndexSettings: () => void;
-  onOpenProjectChanges: () => void;
-  onOpenNoteChanges: () => void;
-  onOpenProfileSettings: () => void;
-  onOpenOnboardingSetup: () => void;
   onSearchQueryChange: (value: string) => void;
   onSearchSubmit: () => void;
   onOpenFile: (filePath: string, line?: number | null) => void;
   onOpenTerminalSession: (sessionId: string) => void;
   onOpenTag: (tag: string) => void;
-  onExpandDirectory: (directoryPath: string, rootKind: "notes" | "projects") => void;
+  onExpandDirectory: (directoryPath: string, rootKind: "notes") => void;
   explorerScale: number;
   onFocusExplorer: () => void;
   onCreateFile: (directoryPath: string) => void;
@@ -116,15 +89,15 @@ interface ShellLayoutProps {
   onCreateTerminalInDirectory: (directoryPath: string) => void;
   onRenamePath: (targetPath: string) => void;
   onDeletePath: (targetPath: string) => void;
-  onCreateTerminal: (terminalKind: TerminalLaunchKind, harnessId?: string) => void;
-  agentHarnesses: AgentHarnessDetection[];
+  onCreateTerminal: (terminalKind: TerminalLaunchKind) => void;
   onCreateBrowserPane: () => void;
+  terminalMonitorMode: boolean;
+  onToggleTerminalMonitorMode: () => void;
 }
 
 export function ShellLayout(props: ShellLayoutProps) {
   const {
     noteSections,
-    projectSections,
     appearanceMode,
     resolvedAppearance,
     searchQuery,
@@ -132,7 +105,6 @@ export function ShellLayout(props: ShellLayoutProps) {
     searchResultMode,
     searchResultQuery,
     searchMessage,
-    projectChanges,
     statusLine,
     shellLayout,
     renderEditorLeaf,
@@ -141,14 +113,7 @@ export function ShellLayout(props: ShellLayoutProps) {
     revealExplorerPathRequest,
     onAppearanceModeChange,
     onOpenWorkspaceSettings,
-    onOpenAgentConfigEditor,
-    onOpenPluginManager,
-    onOpenProposalReview,
     onOpenIndexSettings,
-    onOpenProjectChanges,
-    onOpenNoteChanges,
-    onOpenProfileSettings,
-    onOpenOnboardingSetup,
     onSearchQueryChange,
     onSearchSubmit,
     onOpenFile,
@@ -163,8 +128,9 @@ export function ShellLayout(props: ShellLayoutProps) {
     onRenamePath,
     onDeletePath,
     onCreateTerminal,
-    agentHarnesses,
     onCreateBrowserPane,
+    terminalMonitorMode,
+    onToggleTerminalMonitorMode,
   } = props;
 
   const {
@@ -177,49 +143,24 @@ export function ShellLayout(props: ShellLayoutProps) {
     terminalCollapsed,
     setTerminalCollapsed,
     sidePanesFlipped,
-    setSidePanesFlipped,
-    zoneSplitRatio,
-    startZoneResize,
     sidebarWidth,
     startSidebarResize,
   } = shellLayout;
 
-  const zoneContainerRef = useRef<HTMLDivElement | null>(null);
-
-  const zoneGridTemplate = terminalCollapsed
-    ? "minmax(0, 1fr)"
-    : sidePanesFlipped
-      ? `minmax(0, ${1 - zoneSplitRatio}fr) ${RESIZER_TRACK_SIZE} minmax(0, ${zoneSplitRatio}fr)`
-      : `minmax(0, ${zoneSplitRatio}fr) ${RESIZER_TRACK_SIZE} minmax(0, ${1 - zoneSplitRatio}fr)`;
+  const [sidePanelOpen, setSidePanelOpen] = useState(false);
+  const [sidePanelSection, setSidePanelSection] = useState<"files" | "browser" | "terminal" | "monitor">("terminal");
+  const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
 
   const sidebarTrack = sidebarCollapsed ? "0px" : `${sidebarWidth}px`;
   const sidebarResizerTrack = sidebarCollapsed ? "0px" : "1px";
-  const shellGridTemplate = sidePanesFlipped
-    ? `42px 1fr ${sidebarResizerTrack} ${sidebarTrack} 42px`
-    : `42px ${sidebarTrack} ${sidebarResizerTrack} 1fr 42px`;
-
-  const explorerTopControls = (
-    <ExplorerRailTopControls
-      collapsed={sidebarCollapsed}
-      onToggleCollapsed={() => setSidebarCollapsed((current) => !current)}
-      onCreateBrowserPane={onCreateBrowserPane}
-    />
-  );
-  const terminalTopControls = (
-    <TerminalRailTopControls
-      collapsed={terminalCollapsed}
-      onToggleCollapsed={() => setTerminalCollapsed((current) => !current)}
-      onOpenAgentConfigEditor={onOpenAgentConfigEditor}
-      onCreateTerminal={onCreateTerminal}
-      harnesses={agentHarnesses}
-    />
-  );
+  const shellGridTemplate = `${sidebarTrack} ${sidebarResizerTrack} minmax(0, 1fr)`;
+  const workspaceLabel = statusLine.workspaceLabel || "my exograph";
+  const WorkspaceAppearanceIcon = appearanceMode === "system" ? Monitor : appearanceMode === "light" ? SunMedium : MoonStar;
 
   const explorer = (
     <FileTree
       collapsed={sidebarCollapsed}
       noteRoots={noteSections}
-      projectRoots={projectSections}
       appearanceMode={appearanceMode}
       resolvedAppearance={resolvedAppearance}
       searchQuery={searchQuery}
@@ -227,7 +168,6 @@ export function ShellLayout(props: ShellLayoutProps) {
       searchResultMode={searchResultMode}
       searchResultQuery={searchResultQuery}
       searchMessage={searchMessage}
-      projectChanges={projectChanges}
       onAppearanceModeChange={onAppearanceModeChange}
       onToggleCollapsed={() => setSidebarCollapsed((current) => !current)}
       onOpenWorkspaceSettings={onOpenWorkspaceSettings}
@@ -245,7 +185,6 @@ export function ShellLayout(props: ShellLayoutProps) {
       onCreateTerminal={onCreateTerminalInDirectory}
       onRenamePath={onRenamePath}
       onDeletePath={onDeletePath}
-      rail="none"
       mirrored={sidePanesFlipped}
       revealPathRequest={revealExplorerPathRequest}
     />
@@ -271,103 +210,51 @@ export function ShellLayout(props: ShellLayoutProps) {
     />
   );
 
-  const terminalTree = terminalCollapsed ? null : (
-    <PaneTree
-      node={terminalPaneTree.tree}
-      actions={terminalPaneTree.actions}
-      focusedLeafId={terminalPaneTree.focusedLeafId}
-      renderLeaf={renderTerminalLeaf}
-      dropZone="terminal-dock"
-      hoverEdge={dragManager.hoverEdge}
-    />
-  );
-
   return (
-    <div className="shell-frame">
-      <header className="topbar">
-        <div className="topbar__spacer topbar__spacer--left" aria-hidden />
-        <div className="topbar__title" aria-label="exograph">
-          <span
-            className="topbar__brand-icon"
-            style={{ "--exo-brand-icon": `url("${exoGlyph}")` } as CSSProperties}
-            aria-hidden="true"
-          />
-          <span className="topbar__brand-text">exograph</span>
-        </div>
-        <div className="topbar__spacer topbar__spacer--right" aria-hidden />
-      </header>
+    <div
+      className="shell-frame"
+      style={{
+        gridTemplateColumns: sidePanelOpen ? "minmax(0, 1fr) var(--exo-side-panel-width)" : "minmax(0, 1fr) 0px",
+      }}
+    >
+      <div className="window-chrome window-chrome--left">
+        <button
+          className="window-chrome__button"
+          data-testid={sidebarCollapsed ? "sidebar-expand" : "sidebar-collapse"}
+          onClick={() => setSidebarCollapsed((current) => !current)}
+          title={sidebarCollapsed ? "Show files" : "Hide files"}
+          type="button"
+        >
+          {sidebarCollapsed ? <PanelLeftOpen size={14} /> : <PanelLeftClose size={14} />}
+        </button>
+      </div>
+      <div className="window-chrome window-chrome--right">
+        <button
+          className={`window-chrome__button ${sidePanelOpen ? "window-chrome__button--active" : ""}`}
+          data-testid="side-panel-toggle"
+          onClick={() => setSidePanelOpen((current) => !current)}
+          title={sidePanelOpen ? "Close side panel" : "Open side panel"}
+          type="button"
+        >
+          {sidePanelOpen ? <PanelRightClose size={14} /> : <PanelRightOpen size={14} />}
+        </button>
+      </div>
       <div
         className={`shell ${sidebarCollapsed ? "shell--sidebar-collapsed" : ""} ${sidePanesFlipped ? "shell--side-panes-flipped" : ""}`}
         style={{ gridTemplateColumns: shellGridTemplate }}
       >
-      <ExplorerRail
-        collapsed={sidebarCollapsed}
-        appearanceMode={appearanceMode}
-        resolvedAppearance={resolvedAppearance}
-        onAppearanceModeChange={onAppearanceModeChange}
-        onToggleCollapsed={() => setSidebarCollapsed((current) => !current)}
-        onOpenWorkspaceSettings={onOpenWorkspaceSettings}
-        onCreateBrowserPane={onCreateBrowserPane}
-        topControls={sidePanesFlipped ? terminalTopControls : explorerTopControls}
-      />
-      {sidePanesFlipped ? null : explorer}
-      {sidePanesFlipped ? null : renderSidebarResizer(false)}
+      {explorer}
+      {renderSidebarResizer(false)}
 
       <div ref={workspaceRef} className="workspace">
         <div
-          ref={(el) => { workspaceBodyRef.current = el; zoneContainerRef.current = el; }}
+          ref={(el) => { workspaceBodyRef.current = el; }}
           className="workspace__body"
-          style={{ display: "grid", gridTemplateColumns: zoneGridTemplate, overflow: "hidden" }}
+          style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", overflow: "hidden" }}
         >
-          {terminalCollapsed ? (
-            editorTree
-          ) : sidePanesFlipped ? (
-            <>
-              {terminalTree}
-              <div
-                className="pane-split-resizer pane-split-resizer--vertical"
-                onMouseDown={(event) => {
-                  event.preventDefault();
-                  const container = zoneContainerRef.current;
-                  if (!container) return;
-                  startZoneResize(event, container.getBoundingClientRect().width, true);
-                }}
-              />
-              {editorTree}
-            </>
-          ) : (
-            <>
-              {editorTree}
-              <div
-                className="pane-split-resizer pane-split-resizer--vertical"
-                onMouseDown={(event) => {
-                  event.preventDefault();
-                  const container = zoneContainerRef.current;
-                  if (!container) return;
-                  startZoneResize(event, container.getBoundingClientRect().width);
-                }}
-              />
-              {terminalTree}
-            </>
-          )}
+          {editorTree}
         </div>
       </div>
-
-      {sidePanesFlipped ? renderSidebarResizer(true) : null}
-      {sidePanesFlipped ? explorer : null}
-
-      <TerminalRail
-        placement="right"
-        collapsed={terminalCollapsed}
-        sidePanesFlipped={sidePanesFlipped}
-        topControls={sidePanesFlipped ? explorerTopControls : terminalTopControls}
-        style={{}}
-        onToggleCollapsed={() => setTerminalCollapsed((c) => !c)}
-        onToggleSidePanes={() => setSidePanesFlipped((current) => !current)}
-        onOpenAgentConfigEditor={onOpenAgentConfigEditor}
-        onOpenPluginManager={onOpenPluginManager}
-        onCreateTerminal={onCreateTerminal}
-      />
 
       {dragManager.drag ? (
         <div
@@ -381,99 +268,102 @@ export function ShellLayout(props: ShellLayoutProps) {
         </div>
       ) : null}
       </div>
-      <footer className="statusbar" data-testid="statusbar">
-        <div className="statusbar__group">
-          <span>{statusLine.workspaceLabel}</span>
-          {statusLine.projectLabel ? <span>{statusLine.projectLabel}</span> : null}
-        </div>
-        <div className="statusbar__group statusbar__group--right">
-          {statusLine.terminal ? (
+      <aside
+        aria-hidden={!sidePanelOpen}
+        className={`exo-side-panel-shell ${sidePanelOpen ? "exo-side-panel-shell--open" : "exo-side-panel-shell--closed"}`}
+        data-testid="exo-side-panel"
+      >
+          <nav className="exo-side-panel-rail" aria-label="Side panel sections">
+            <button className={`exo-side-panel-rail__button ${sidePanelSection === "files" ? "exo-side-panel-rail__button--active" : ""}`} data-testid="side-panel-files-rail" onClick={() => { setSidePanelSection("files"); setSidebarCollapsed(false); }} title="Files" type="button">
+              <PanelLeftOpen size={16} />
+            </button>
+            <button className={`exo-side-panel-rail__button ${sidePanelSection === "browser" ? "exo-side-panel-rail__button--active" : ""}`} data-testid="side-panel-browser-rail" onClick={() => { setSidePanelSection("browser"); onCreateBrowserPane(); }} title="Browser" type="button">
+              <Globe2 size={16} />
+            </button>
             <button
-              className={`statusbar__item statusbar__item--${statusLine.terminal.tone}`}
-              data-testid="statusbar-terminal"
-              onClick={() => onOpenTerminalSession(statusLine.terminal!.sessionId)}
-              title={statusLine.terminal.title}
+              className={`exo-side-panel-rail__button ${sidePanelSection === "terminal" ? "exo-side-panel-rail__button--active" : ""}`}
+              data-testid="side-panel-terminal-rail"
+              onClick={() => {
+                setSidePanelSection("terminal");
+                if (terminalCollapsed) {
+                  setTerminalCollapsed(false);
+                } else {
+                  onCreateTerminal("shell");
+                }
+              }}
+              title="Terminal"
               type="button"
             >
-              <span className="statusbar__item-dot" aria-hidden="true" />
-              <span>{statusLine.terminal.label}</span>
-              {statusLine.terminal.busy ? <span className="statusbar__ellipsis" aria-hidden="true" /> : null}
+              <SquareTerminal size={16} />
             </button>
-          ) : null}
-          <button
-            className={`statusbar__item statusbar__item--${statusLine.index.tone}`}
-            data-testid="statusbar-index"
-            onClick={onOpenIndexSettings}
-            title={statusLine.index.title}
-            type="button"
-          >
-            <span className="statusbar__item-dot" aria-hidden="true" />
-            <span>{statusLine.index.label}</span>
-            {statusLine.index.busy ? <span className="statusbar__ellipsis" aria-hidden="true" /> : null}
-          </button>
-          {statusLine.gitBranch ? (
-            <span>
-              {statusLine.gitBranch}
-              {statusLine.gitDirty ? "*" : ""}
-            </span>
-          ) : null}
-          {statusLine.profileReviewRequired ? (
             <button
-              className="statusbar__changes statusbar__changes--profile"
-              data-testid="statusbar-profile-review"
-              onClick={onOpenProfileSettings}
-              title={statusLine.profileLabel ? `${statusLine.profileLabel} has changes to review` : "Profile has changes to review"}
+              className={`exo-side-panel-rail__button ${sidePanelSection === "monitor" || terminalMonitorMode ? "exo-side-panel-rail__button--active" : ""}`}
+              data-testid="side-panel-monitor-mode-rail"
+              aria-pressed={terminalMonitorMode}
+              onClick={() => { setSidePanelSection("monitor"); onToggleTerminalMonitorMode(); }}
+              title={terminalMonitorMode ? "Exit terminal monitor" : "Monitor terminals"}
               type="button"
             >
-              Profile review
+              <LayoutGrid size={16} />
             </button>
-          ) : null}
-          {statusLine.onboardingIncomplete ? (
+          </nav>
+          <div className="exo-side-panel-surface" data-testid="side-panel-surface">
+            <PaneTree
+              node={terminalPaneTree.tree}
+              actions={terminalPaneTree.actions}
+              focusedLeafId={terminalPaneTree.focusedLeafId}
+              renderLeaf={renderTerminalLeaf}
+              dropZone="terminal-dock"
+              hoverEdge={dragManager.hoverEdge}
+            />
+          </div>
+      </aside>
+      <div className="workspace-menu-anchor">
+        <button
+          className="workspace-menu-button"
+          data-testid="workspace-menu-button"
+          onClick={() => setWorkspaceMenuOpen((current) => !current)}
+          title={`${workspaceLabel} menu`}
+          type="button"
+        >
+          <span className="workspace-menu-button__mark">{workspaceLabel.slice(0, 1).toLowerCase()}</span>
+          <span className="workspace-menu-button__label">{workspaceLabel}</span>
+        </button>
+        {workspaceMenuOpen ? (
+          <div className="workspace-menu" data-testid="workspace-menu">
+            <div className="workspace-menu__header">
+              <span className="workspace-menu-button__mark">{workspaceLabel.slice(0, 1).toLowerCase()}</span>
+              <span>{workspaceLabel}</span>
+            </div>
+            <button className="workspace-menu__item" onClick={onOpenIndexSettings} type="button">
+              <SlidersHorizontal size={15} />
+              <span>{statusLine.index.label}</span>
+            </button>
+            {statusLine.terminal ? (
+              <button className="workspace-menu__item" onClick={() => onOpenTerminalSession(statusLine.terminal!.sessionId)} type="button">
+                <SquareTerminal size={15} />
+                <span>{statusLine.terminal.label}</span>
+              </button>
+            ) : null}
             <button
-              className="statusbar__changes statusbar__changes--profile"
-              data-testid="statusbar-finish-setup"
-              onClick={onOpenOnboardingSetup}
-              title="Finish workspace profile setup"
+              className="workspace-menu__item"
+              data-testid="workspace-appearance"
+              onClick={() => {
+                const nextMode = appearanceMode === "system" ? "light" : appearanceMode === "light" ? "dark" : "system";
+                onAppearanceModeChange(nextMode);
+              }}
               type="button"
             >
-              Finish setup
+              <WorkspaceAppearanceIcon size={15} />
+              <span>Appearance: {appearanceMode}</span>
             </button>
-          ) : null}
-          {statusLine.pendingProposals > 0 ? (
-            <button
-              className="statusbar__changes statusbar__changes--proposals"
-              data-testid="statusbar-proposals"
-              onClick={onOpenProposalReview}
-              title="Review proposed workspace changes"
-              type="button"
-            >
-              {statusLine.pendingProposals} proposal{statusLine.pendingProposals === 1 ? "" : "s"}
+            <button className="workspace-menu__item" data-testid="workspace-settings" onClick={onOpenWorkspaceSettings} type="button">
+              <Settings size={15} />
+              <span>Settings</span>
             </button>
-          ) : null}
-          {statusLine.changedNotes > 0 ? (
-            <button
-              className="statusbar__changes statusbar__changes--notes"
-              data-testid="statusbar-note-changes"
-              onClick={onOpenNoteChanges}
-              title="Open changed notes"
-              type="button"
-            >
-              {statusLine.changedNotes} note{statusLine.changedNotes === 1 ? "" : "s"}
-            </button>
-          ) : null}
-          {statusLine.changedFiles > 0 ? (
-            <button
-              className="statusbar__changes"
-              data-testid="statusbar-changes"
-              onClick={onOpenProjectChanges}
-              title="Open changed project files"
-              type="button"
-            >
-              {statusLine.changedFiles} change{statusLine.changedFiles === 1 ? "" : "s"}
-            </button>
-          ) : null}
-        </div>
-      </footer>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

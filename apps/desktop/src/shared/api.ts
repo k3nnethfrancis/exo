@@ -4,37 +4,25 @@ import type {
   IndexSearchResponse,
   IndexSyncResult,
   IndexStatus,
-  AgentHarnessDetection,
   AgentHarnessId,
-  ActiveProfileIdentity,
   CapabilitySurface,
   ManagedAgentKind,
   NoteDocument,
   NoteKnowledge,
-  PluginInventory,
-  PluginSettingsSchema,
-  PluginSettingValue,
-  ProposalApplyResult,
-  ProposalBatch,
-  ProposalDecision,
-  ProfilePlanPreview,
-  PluginSource,
-  ResolvedPluginSettings,
   SearchResult,
   TreeNode,
-  ProfileStateStore,
   OnboardingStateStore,
-  OnboardingProfileStep,
   WorkspaceModel,
   WorkspaceSettings,
   WorkspaceSearchResults,
   TerminalSubstrateKind,
+  InvocationRecord,
 } from "@exo/core";
 
 export type TerminalKind = ManagedAgentKind;
 export type TerminalLaunchKind = TerminalSubstrateKind;
 export type TerminalHealthState = "healthy" | "idle" | "unhealthy" | "exited";
-export type WorkspaceSettingsSection = "workspace" | "profile" | "index" | "appearance" | "terminal" | "harnesses";
+export type WorkspaceSettingsSection = "workspace" | "index" | "appearance" | "terminal";
 
 export interface TerminalGeometryRecord {
   cols: number;
@@ -112,8 +100,8 @@ export interface TerminalDiagnostics {
   exitCode?: number;
   health: TerminalHealthState;
   healthDetail: string;
-  runtime: "tmux";
-  tmuxSessionName: string;
+  runtime: "pty" | "tmux";
+  tmuxSessionName?: string;
   tmuxPaneId: string | null;
   safeAttachCommand: string;
   debugAttach: TerminalDebugAttachInfo;
@@ -125,7 +113,7 @@ export interface TerminalDiagnostics {
   command: string;
   bufferedLines: number;
   bufferedChars: number;
-  transcriptPath: string;
+  transcriptPath?: string;
   lastInputAt: string | null;
   lastOutputAt: string | null;
   lastWriteId: number;
@@ -135,20 +123,6 @@ export interface TerminalDiagnostics {
 export interface FileStatInfo {
   size: number;
   mtimeMs: number;
-}
-
-export interface WorkspaceGitStatus {
-  rootPath: string;
-  branch: string | null;
-  dirty: boolean;
-  changes: WorkspaceGitChange[];
-}
-
-export interface WorkspaceGitChange {
-  path: string;
-  absolutePath: string;
-  status: string;
-  firstChangedLine?: number | null;
 }
 
 export interface WorkspaceSetupState {
@@ -202,115 +176,10 @@ export interface AgentInstructionConfig {
 
 export interface AgentInstructionOverlay {
   id: string;
-  scope: "global" | "notes" | "project";
+  scope: "global" | "notes";
   label: string;
   path: string;
   body: string;
-}
-
-export type AgentSkillHarnessId = "claude" | "codex";
-export type AgentSkillScope = "global" | "workspace" | "exocortex";
-
-export interface AgentSkillLocation {
-  id: string;
-  harness: AgentSkillHarnessId;
-  scope: AgentSkillScope;
-  label: string;
-  path: string;
-  enabled: boolean;
-}
-
-export interface AgentSkillFile {
-  relativePath: string;
-  path: string;
-  kind: "file" | "directory";
-  children?: AgentSkillFile[];
-}
-
-export interface AgentSkillSummary {
-  id: string;
-  name: string;
-  label: string;
-  harness: AgentSkillHarnessId;
-  scope: AgentSkillScope;
-  enabled: boolean;
-  rootPath: string;
-  locationId: string;
-  locationLabel: string;
-  files: AgentSkillFile[];
-  entryFilePath: string | null;
-}
-
-export interface AgentSkillSource {
-  id: string;
-  label: string;
-  url: string;
-  skillsPath: string;
-  localPath: string;
-  status: "idle" | "syncing" | "error";
-  lastSyncedAt: string | null;
-  lastErrorMessage?: string | null;
-}
-
-export interface AgentLibrarySkill {
-  id: string;
-  sourceId: string;
-  sourceLabel: string;
-  name: string;
-  label: string;
-  rootPath: string;
-  files: AgentSkillFile[];
-  entryFilePath: string | null;
-}
-
-export interface AgentSkillInventory {
-  skills: AgentSkillSummary[];
-  locations: AgentSkillLocation[];
-  sources: AgentSkillSource[];
-  librarySkills: AgentLibrarySkill[];
-}
-
-export interface AgentSkillFileContent {
-  skillId: string;
-  relativePath: string;
-  path: string;
-  body: string;
-}
-
-export interface WorkspacePluginActionInput {
-  pluginId: string;
-  capabilityId?: string;
-  source?: PluginSource;
-  manifestPath: string;
-  rootDirectory: string;
-}
-
-export interface WorkspacePluginSettingsInput extends WorkspacePluginActionInput {
-  values?: Record<string, PluginSettingValue>;
-}
-
-export interface WorkspacePluginSettingsResponse {
-  pluginId: string;
-  schema: PluginSettingsSchema;
-  settings: ResolvedPluginSettings;
-  inventory: PluginInventory;
-}
-
-export interface WorkspaceLocalPluginInput {
-  sourceDirectory: string;
-  target: "user" | "workspace";
-}
-
-export interface WorkspaceReplaceLocalPluginInput extends WorkspaceLocalPluginInput {
-  existing: WorkspacePluginActionInput;
-}
-
-export interface WorkspaceProfileCopyResponse {
-  identity: ActiveProfileIdentity;
-  profileState: ProfileStateStore;
-  inventory: PluginInventory;
-  manifestPath: string;
-  rootDirectory: string;
 }
 
 export interface IndexSyncStateEvent {
@@ -320,18 +189,36 @@ export interface IndexSyncStateEvent {
   error?: string;
 }
 
+export interface LaunchAgentInvocationInput {
+  handle: string;
+  documentPath: string;
+  mentionText: string;
+  message: string;
+  allowUntrustedOneShot?: boolean;
+  persistTrust?: boolean;
+}
+
+export interface LaunchAgentInvocationResponse {
+  ok: true;
+  invocation: InvocationRecord;
+  terminal: TerminalSessionInfo;
+}
+
 export interface DesktopApi {
   workspace: {
     getModel: () => Promise<WorkspaceModel>;
     getSettings: () => Promise<WorkspaceSettings>;
     getSetupState: () => Promise<WorkspaceSetupState>;
-    markOnboardingProfileStep: (input: { step: OnboardingProfileStep }) => Promise<OnboardingStateStore>;
     markOnboardingComplete: () => Promise<OnboardingStateStore>;
     listWorkspaces: () => Promise<WorkspaceRegistryEntry[]>;
     activateWorkspace: (workspaceId: string) => Promise<WorkspaceSettings>;
     saveSettings: (settings: WorkspaceSettings) => Promise<WorkspaceSettings>;
     selectFolder: (options?: { title?: string; allowMultiple?: boolean; buttonLabel?: string }) => Promise<string[]>;
     getIndexStatus: () => Promise<IndexStatus>;
+    resolvePreviewTarget: (target: string) => Promise<{ url: string; source: "url" | "file" }>;
+    launchAgentInvocation: (input: LaunchAgentInvocationInput) => Promise<LaunchAgentInvocationResponse>;
+    endAgentInvocation: (invocationId: string) => Promise<InvocationRecord | null>;
+    onInvocationUpdated: (callback: (record: InvocationRecord) => void) => () => void;
     syncIndex: () => Promise<IndexSyncResult>;
     updateIndex: () => Promise<IndexStatus>;
     embedIndex: () => Promise<IndexStatus>;
@@ -343,30 +230,7 @@ export interface DesktopApi {
     searchWorkspace: (query: string) => Promise<WorkspaceSearchResults>;
     searchIndex: (query: string, options?: { limit?: number; forceMode?: "lexical" | "semantic" | "hybrid" }) => Promise<IndexSearchResponse>;
     searchTag: (tag: string) => Promise<SearchResult[]>;
-    getGitStatus: (rootPath: string) => Promise<WorkspaceGitStatus | null>;
     getAgentInstructionConfig: () => Promise<AgentInstructionConfig>;
-    listAgentHarnesses: () => Promise<AgentHarnessDetection[]>;
-    listPluginInventory: () => Promise<PluginInventory>;
-    getProfileState: () => Promise<ProfileStateStore>;
-    setActiveProfile: (input: ActiveProfileIdentity) => Promise<ProfileStateStore>;
-    clearActiveProfile: () => Promise<ProfileStateStore>;
-    setProfileAutoUpdate: (input: { autoUpdate: boolean }) => Promise<ProfileStateStore>;
-    markProfileReviewRequired: (input: { reviewRequired: boolean }) => Promise<ProfileStateStore>;
-    previewProfile: (input: ActiveProfileIdentity) => Promise<ProfilePlanPreview>;
-    copyProfile: (input: ActiveProfileIdentity) => Promise<WorkspaceProfileCopyResponse>;
-    createProfileApplyProposal: (input: ActiveProfileIdentity) => Promise<ProposalBatch | null>;
-    enablePlugin: (input: WorkspacePluginActionInput) => Promise<PluginInventory>;
-    disablePlugin: (input: WorkspacePluginActionInput) => Promise<PluginInventory>;
-    trustPlugin: (input: WorkspacePluginActionInput) => Promise<PluginInventory>;
-    addLocalPlugin: (input: WorkspaceLocalPluginInput) => Promise<PluginInventory>;
-    removeLocalPlugin: (input: WorkspacePluginActionInput) => Promise<PluginInventory>;
-    replaceLocalPlugin: (input: WorkspaceReplaceLocalPluginInput) => Promise<PluginInventory>;
-    readPluginSettings: (input: WorkspacePluginActionInput) => Promise<WorkspacePluginSettingsResponse>;
-    updatePluginSettings: (input: WorkspacePluginSettingsInput) => Promise<WorkspacePluginSettingsResponse>;
-    resetPluginSettings: (input: WorkspacePluginActionInput) => Promise<WorkspacePluginSettingsResponse>;
-    listProposals: () => Promise<ProposalBatch[]>;
-    readProposal: (id: string) => Promise<ProposalBatch | null>;
-    decideProposal: (id: string, input: { decision: ProposalDecision; itemId?: string }) => Promise<ProposalApplyResult>;
     saveAgentInstructionConfig: (input: {
       scopeId: AgentInstructionScopeId;
       body: string;
@@ -379,13 +243,6 @@ export interface DesktopApi {
       body: string;
     }) => Promise<AgentInstructionConfig>;
     listAgentInstructionOverlays: () => Promise<AgentInstructionOverlay[]>;
-    listAgentSkills: () => Promise<AgentSkillInventory>;
-    addAgentSkillSource: (input: { url: string; skillsPath?: string; label?: string }) => Promise<AgentSkillInventory>;
-    syncAgentSkillSource: (sourceId: string) => Promise<AgentSkillInventory>;
-    installAgentLibrarySkill: (input: { librarySkillId: string; locationId: string; targetName?: string }) => Promise<AgentSkillInventory>;
-    readAgentSkillFile: (skillId: string, relativePath: string) => Promise<AgentSkillFileContent>;
-    saveAgentSkillFile: (skillId: string, relativePath: string, body: string) => Promise<AgentSkillFileContent>;
-    setAgentSkillEnabled: (input: { skillId: string; enabled: boolean }) => Promise<AgentSkillInventory>;
     createFile: (targetPath: string, content?: string) => Promise<string>;
     createDirectory: (targetPath: string) => Promise<string>;
     renamePath: (sourcePath: string, nextPath: string) => Promise<string>;
@@ -422,7 +279,6 @@ export interface DesktopApi {
     readTranscript: (id: string, tailChars?: number) => Promise<string>;
     write: (id: string, data: string) => Promise<TerminalWriteResult>;
     sendMessage: (id: string, message: string, submit?: boolean) => Promise<TerminalMessageResult>;
-    reconnect: (id: string) => Promise<TerminalSessionInfo | null>;
     resize: (id: string, cols: number, rows: number) => Promise<void>;
     kill: (id: string) => Promise<void>;
     resolveDroppedFilePaths: (files: File[]) => string[];

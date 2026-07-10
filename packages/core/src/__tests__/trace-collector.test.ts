@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import type { RunTracePacket } from "../run";
+import type { ActivityTracePacket } from "../run";
 import { TraceCollectorRegistry, type TraceCollector } from "../trace-collector";
 
-const tracePacket: RunTracePacket = {
+const tracePacket: ActivityTracePacket = {
   id: "trace-1",
-  runId: "run-1",
+  activityId: "activity-1",
   kind: "decision",
   timestamp: "2026-06-14T00:00:00.000Z",
-  actor: "alignment-routine",
+  actor: "alignment-auditor",
   private: true,
   evidence: [],
   payload: {
@@ -28,8 +28,8 @@ const testCollector: TraceCollector = {
     permissions: ["artifacts:write"],
   },
   async collect(packet, context) {
-    if (packet.runId !== context.runId) {
-      throw new Error(`Trace packet runId mismatch: ${packet.runId} !== ${context.runId}`);
+    if (packet.activityId !== context.activityId) {
+      throw new Error(`Trace packet activityId mismatch: ${packet.activityId} !== ${context.activityId}`);
     }
     return packet;
   },
@@ -49,8 +49,8 @@ describe("trace collector contracts", () => {
     expect(() => registry.register(testCollector)).toThrow("Trace collector already registered: alignment-trace-collector");
   });
 
-  it("lets collectors validate trace packet run context", async () => {
-    await expect(testCollector.collect(tracePacket, { runId: "run-1", routineId: "routine-1" })).resolves.toEqual(tracePacket);
-    await expect(testCollector.collect(tracePacket, { runId: "other-run" })).rejects.toThrow("runId mismatch");
+  it("lets collectors validate trace packet activity context", async () => {
+    await expect(testCollector.collect(tracePacket, { activityId: "activity-1" })).resolves.toEqual(tracePacket);
+    await expect(testCollector.collect(tracePacket, { activityId: "other-activity" })).rejects.toThrow("activityId mismatch");
   });
 });

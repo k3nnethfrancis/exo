@@ -1,4 +1,4 @@
-export type TerminalHydrationReason = "bootstrap" | "reconnect";
+export type TerminalHydrationReason = "bootstrap" | "refresh";
 
 export interface TerminalHydrationFrame {
   snapshot: string;
@@ -31,7 +31,7 @@ export function shouldApplyTerminalHydration(
   if (!state.hasAppliedInitialSnapshot) {
     return true;
   }
-  return frame.reason === "reconnect";
+  return frame.reason === "refresh";
 }
 
 export function markTerminalHydrationApplied(
@@ -43,4 +43,3 @@ export function markTerminalHydrationApplied(
     hasAppliedInitialSnapshot: true,
   };
 }
-

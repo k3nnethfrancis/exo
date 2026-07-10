@@ -1,140 +1,39 @@
 import { describe, expect, it } from "vitest";
 
-import type { AgentHarnessDetection, ManagedAgentKind, PluginInventoryItem } from "../index";
+import type { PluginInventoryItem } from "../index";
 import {
   buildCoreWebViewerDescriptor,
   buildCoreToolSurfaceDescriptors,
   buildSafePluginPanelDescriptor,
   coreWebViewerToolMetadata,
-  launchableToolSurfaceHarnesses,
   toolSurfaceDescriptorsFromInventory,
 } from "../surface-descriptor";
 
-function harness(id: ManagedAgentKind, launchable: boolean, overrides: Partial<AgentHarnessDetection> = {}): AgentHarnessDetection {
-  return {
-    id,
-    adapterId: id === "claude" ? "claude-code" : id,
-    family: id === "claude" ? "claude-code" : id,
-    label: id,
-    productName: id,
-    enabled: true,
-    configured: launchable,
-    detected: launchable,
-    launchable,
-    status: launchable ? "configured" : "not-found",
-    statusLabel: launchable ? "Configured" : "Not found",
-    ...overrides,
-  };
-}
-
 describe("tool surface descriptors", () => {
-  it("describes current right-rail actions without exposing dead harness launchers", () => {
+  it("describes core right-rail actions without harness launchers", () => {
     const descriptors = buildCoreToolSurfaceDescriptors({
       terminalCollapsed: false,
-      harnesses: [
-        harness("shell", true),
-        harness("claude", true),
-        harness("codex", false),
-        harness("pi", true),
-        harness("hermes", true, { visible: false }),
-      ],
     });
 
     expect(descriptors.map((descriptor) => descriptor.testId)).toEqual([
       "terminal-collapse",
       "launch-shell",
-      "launch-claude",
-      "launch-pi",
-      "open-agent-config",
-      "open-plugin-manager",
       "swap-side-panes",
     ]);
-    expect(descriptors.find((descriptor) => descriptor.id === "launch-claude")).toMatchObject({
-      owner: "officialPlugin",
-      capabilityId: "claude",
-      action: { type: "terminal.launch", terminalKind: "agent", harnessId: "claude" },
+    expect(descriptors.find((descriptor) => descriptor.id === "launch-shell")).toMatchObject({
+      owner: "core",
+      capabilityId: "shell",
+      action: { type: "terminal.launch", terminalKind: "shell" },
     });
   });
 
-  it("uses the same launchability filter as the terminal dock", () => {
-    expect(
-      launchableToolSurfaceHarnesses([
-        harness("shell", true),
-        harness("codex", false),
-        harness("pi", true),
-        harness("hermes", true, { visible: false }),
-      ]).map((candidate) => candidate.id),
-    ).toEqual(["pi"]);
-  });
-
-  it("turns trusted desktop routine and graph capabilities into future tool descriptors", () => {
+  it("does not expose plugin capability tool descriptors before host contracts exist", () => {
     const descriptors = toolSurfaceDescriptorsFromInventory([
-      inventoryItem("graph-health.template", "core:routineTemplate", "official"),
-      inventoryItem("default-graph.view", "exo.graph:visualization", "local"),
-      inventoryItem("blocked.template", "core:routineTemplate", "local", { trust: "untrusted" }),
-      inventoryItem("cli-only.view", "exo.graph:visualization", "local", { surfaces: ["cli"] }),
+      inventoryItem("search.plugin", "core:searchProvider", "official"),
+      inventoryItem("blocked.graph", "exo.graph:visualization", "local", { trust: "untrusted" }),
     ]);
 
-    expect(descriptors).toMatchObject([
-      {
-        id: "graph-health.template",
-        owner: "officialPlugin",
-        action: { type: "routineTemplate.open", routineTemplateId: "graph-health.template" },
-      },
-      {
-        id: "default-graph.view",
-        owner: "localPlugin",
-        action: { type: "graphVisualization.open", graphVisualizationId: "default-graph.view" },
-        graphVisualization: {
-          data: {
-            snapshotVersion: "0.1",
-            acceptedNodeKinds: ["note", "tag", "external", "unresolved"],
-            acceptedEdgeKinds: ["wikilink", "markdownLink", "hasTag"],
-          },
-          surface: {
-            hostSurface: "editorPane",
-            renderMode: "3d",
-            preferredPlacement: "editorGrid",
-          },
-        },
-      },
-    ]);
-  });
-
-  it("attaches core web viewer endpoint metadata to web-preview graph descriptors", () => {
-    const descriptors = toolSurfaceDescriptorsFromInventory([
-      inventoryItem("web-graph.view", "exo.graph:visualization", "local", {
-        compatibility: {
-          graphVisualization: {
-            graphDataVersion: "0.1",
-            hostSurface: "webPreview",
-            renderMode: "3d",
-          },
-        },
-      }),
-    ]);
-
-    expect(descriptors[0]).toMatchObject({
-      id: "web-graph.view",
-      graphVisualization: {
-        surface: {
-          hostSurface: "webPreview",
-          preferredPlacement: "webPreview",
-        },
-      },
-      webViewer: {
-        contractVersion: "0.1",
-        targetPolicy: {
-          allowedTargetKinds: ["localFile", "localhostUrl", "artifact", "trustedUrl"],
-          validationOwner: "core",
-        },
-        endpoints: {
-          open: "/preview/open",
-          focus: "/preview/focus",
-          close: "/preview/close",
-        },
-      },
-    });
+    expect(descriptors).toEqual([]);
   });
 
   it("describes plugin-produced local apps through core web viewer requests", () => {
@@ -227,16 +126,6 @@ function inventoryItem(
     owner: "test",
     surfaces: ["desktop"],
     permissions: [],
-    compatibility:
-      kind === "exo.graph:visualization"
-        ? {
-            graphVisualization: {
-              graphDataVersion: "0.1",
-              hostSurface: "editorPane",
-              renderMode: "3d",
-            },
-          }
-        : undefined,
     enabled: true,
     trust: "trusted",
     status: "available",

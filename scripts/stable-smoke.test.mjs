@@ -18,7 +18,7 @@ test('stable smoke scenarios keep one named Playwright target per bounded phase'
     'shell-relaunch-reattach',
     'terminal-monitor-mode',
     'hidden-window-command-server',
-    'hidden-window-cli-mcp',
+    'hidden-window-cli',
     'preview-layout',
     'terminal-geometry-baseline',
     'terminal-geometry-reconnect',
@@ -61,14 +61,14 @@ test('selectScenarios filters by name and rejects unknown scenario names', () =>
 });
 
 test('scenarioSummary includes attribution fields operators need after a timeout', () => {
-  const scenario = smokeScenarios.find((candidate) => candidate.name === 'hidden-window-cli-mcp');
+  const scenario = smokeScenarios.find((candidate) => candidate.name === 'hidden-window-cli');
   assert.ok(scenario);
   const summary = scenarioSummary(scenario);
 
-  assert.match(summary, /hidden-window-cli-mcp/);
+  assert.match(summary, /hidden-window-cli/);
   assert.match(summary, /shell\.spec\.ts/);
-  assert.match(summary, /supports CLI and MCP agent control/);
-  assert.match(summary, /cap 90\.0s/);
+  assert.match(summary, /supports CLI agent control/);
+  assert.match(summary, /cap 75\.0s/);
 });
 
 test('formatDuration favors seconds for smoke phase logs', () => {

@@ -38,12 +38,6 @@ export type WorkspaceDialogState =
       title: string;
       message: string;
       confirmLabel: string;
-    }
-  | {
-      kind: "attach-project";
-      title: string;
-      message: string;
-      confirmLabel: string;
     };
 
 interface UseWorkspaceMutationsOptions {
@@ -52,7 +46,6 @@ interface UseWorkspaceMutationsOptions {
   editorFocusedLeafId: PaneNodeId;
   reloadTrees: () => Promise<void>;
   openFile: (filePath: string, leafId?: PaneNodeId) => Promise<void>;
-  openWorkspaceSettings: () => Promise<void>;
   remapOpenPaths: (sourcePath: string, nextPath: string) => void;
   removeDeletedPaths: (targetPath: string) => void;
   setActiveDocumentPath: (filePath: string | null) => void;
@@ -188,15 +181,6 @@ export function useWorkspaceMutations(options: UseWorkspaceMutationsOptions) {
     await options.reloadTrees();
   }
 
-  function showAttachProjectDialog() {
-    setDialog({
-      kind: "attach-project",
-      title: "Attach project to review changes",
-      message: "Changed files belong to a folder that is not attached to this workspace. Attach or import the project before opening its changed files.",
-      confirmLabel: "Open Settings",
-    });
-  }
-
   async function submitDialog() {
     if (!dialog) {
       return;
@@ -204,12 +188,6 @@ export function useWorkspaceMutations(options: UseWorkspaceMutationsOptions) {
 
     if (dialog.kind === "move-conflict") {
       setDialog(null);
-      return;
-    }
-
-    if (dialog.kind === "attach-project") {
-      setDialog(null);
-      await options.openWorkspaceSettings();
       return;
     }
 
@@ -243,7 +221,6 @@ export function useWorkspaceMutations(options: UseWorkspaceMutationsOptions) {
     renameWorkspacePath,
     deleteWorkspacePath,
     moveWorkspacePathIntoDirectory,
-    showAttachProjectDialog,
     submitDialog,
   };
 }

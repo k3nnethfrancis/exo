@@ -4,9 +4,11 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { EXO_COMMAND_TOKEN_HEADER } from "@exo/core";
 import { AppClient, formatAppClientDiscoveryFailure } from "./app-client";
 
 const tempPaths: string[] = [];
+const TEST_COMMAND_TOKEN = "test-command-token-1234567890abcdef";
 
 afterEach(async () => {
   vi.restoreAllMocks();
@@ -58,7 +60,7 @@ describe("AppClient", () => {
   it("reports stale discovery when the recorded pid is gone", async () => {
     const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-client-"));
     tempPaths.push(runtimeRoot);
-    await writeFile(path.join(runtimeRoot, "server.json"), JSON.stringify({ port: 12345, pid: 9_999_999 }), "utf8");
+    await writeServerInfo(runtimeRoot, { port: 12345, pid: 9_999_999 });
 
     const result = await AppClient.connectDetailed(runtimeRoot);
 
@@ -74,7 +76,7 @@ describe("AppClient", () => {
   it("quarantines stale server.json when the recorded pid is gone", async () => {
     const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-client-"));
     tempPaths.push(runtimeRoot);
-    await writeFile(path.join(runtimeRoot, "server.json"), JSON.stringify({ port: 12345, pid: 9_999_999 }), "utf8");
+    await writeServerInfo(runtimeRoot, { port: 12345, pid: 9_999_999 });
 
     const result = await AppClient.connectDetailed(runtimeRoot);
 
@@ -87,7 +89,7 @@ describe("AppClient", () => {
   it("does not quarantine server.json when process liveness is blocked by permissions", async () => {
     const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-client-"));
     tempPaths.push(runtimeRoot);
-    await writeFile(path.join(runtimeRoot, "server.json"), JSON.stringify({ port: 12345, pid: 14108 }), "utf8");
+    await writeServerInfo(runtimeRoot, { port: 12345, pid: 14108 });
     vi.spyOn(process, "kill").mockImplementation(() => {
       throw Object.assign(new Error("kill EPERM 14108"), { code: "EPERM" });
     });
@@ -111,7 +113,7 @@ describe("AppClient", () => {
   it("connects when process liveness is blocked but the command server is reachable", async () => {
     const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-client-"));
     tempPaths.push(runtimeRoot);
-    await writeFile(path.join(runtimeRoot, "server.json"), JSON.stringify({ port: 12345, pid: 14108 }), "utf8");
+    await writeServerInfo(runtimeRoot, { port: 12345, pid: 14108 });
     vi.spyOn(process, "kill").mockImplementation(() => {
       throw Object.assign(new Error("kill EPERM 14108"), { code: "EPERM" });
     });
@@ -133,7 +135,7 @@ describe("AppClient", () => {
   it("reports unreachable discovery when the recorded pid is alive but the port is not", async () => {
     const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-client-"));
     tempPaths.push(runtimeRoot);
-    await writeFile(path.join(runtimeRoot, "server.json"), JSON.stringify({ port: 9, pid: process.pid }), "utf8");
+    await writeServerInfo(runtimeRoot, { port: 9, pid: process.pid });
 
     const result = await AppClient.connectDetailed(runtimeRoot, {
       EXO_APP_CLIENT_REQUEST_TIMEOUT_MS: "5",
@@ -147,6 +149,19 @@ describe("AppClient", () => {
     }
   });
 
+  it("reports discovery without a token as invalid", async () => {
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-client-"));
+    tempPaths.push(runtimeRoot);
+    await writeFile(path.join(runtimeRoot, "server.json"), JSON.stringify({ port: 12345, pid: process.pid }), "utf8");
+
+    const result = await AppClient.connectDetailed(runtimeRoot);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.failure.code).toBe("server-json-invalid");
+    }
+  });
+
   it("uses the search timeout instead of the general request timeout for search", async () => {
     const runtimeRoot = await runtimeFixture();
     stubCommandServer(async (targetUrl, init) => {
@@ -155,6 +170,7 @@ describe("AppClient", () => {
       }
       if (targetUrl.pathname === "/search") {
         await delayWithAbort(10, init?.signal);
+        expect(authHeader(init)).toEqual(`Bearer ${TEST_COMMAND_TOKEN}`);
         return json({ query: targetUrl.searchParams.get("q"), limit: targetUrl.searchParams.get("limit") });
       }
       return json({ error: "not found" }, 404);
@@ -228,6 +244,8 @@ describe("AppClient", () => {
         return json({ ok: true });
       }
       if (targetUrl.pathname === "/terminals" && init?.method === "POST") {
+        expect(authHeader(init)).toEqual(`Bearer ${TEST_COMMAND_TOKEN}`);
+        expect(commandTokenHeader(init)).toEqual(TEST_COMMAND_TOKEN);
         createBody = init.body ? JSON.parse(String(init.body)) : null;
         return json({ id: "term-1", kind: "codex", status: "running" });
       }
@@ -236,44 +254,34 @@ describe("AppClient", () => {
 
     const client = await AppClient.connect(runtimeRoot);
 
-    await expect(client?.createTerminal("codex", "/tmp")).resolves.toMatchObject({ id: "term-1" });
-    expect(createBody).toEqual({ harnessId: "codex", cwd: "/tmp", callerSurface: "cli" });
+    await expect(client?.createTerminal("shell", "/tmp")).resolves.toMatchObject({ id: "term-1" });
+    expect(createBody).toEqual({ kind: "shell", cwd: "/tmp", callerSurface: "cli" });
   });
 
-  it("calls proposal review endpoints", async () => {
+  it("posts AgentCommand spawn requests with command-server auth", async () => {
     const runtimeRoot = await runtimeFixture();
-    const calls: Array<{ path: string; method: string; body: unknown }> = [];
+    let spawnBody: unknown;
     stubCommandServer(async (targetUrl, init) => {
       if (targetUrl.pathname === "/status") {
         return json({ ok: true });
       }
-      calls.push({
-        path: targetUrl.pathname,
-        method: init?.method ?? "GET",
-        body: init?.body ? JSON.parse(String(init.body)) : null,
-      });
-      const method = init?.method ?? "GET";
-      if (targetUrl.pathname === "/proposals" && method === "GET") {
-        return json({ proposals: [] });
+      if (targetUrl.pathname === "/agent-commands/spawn" && init?.method === "POST") {
+        expect(authHeader(init)).toEqual(`Bearer ${TEST_COMMAND_TOKEN}`);
+        expect(commandTokenHeader(init)).toEqual(TEST_COMMAND_TOKEN);
+        spawnBody = init.body ? JSON.parse(String(init.body)) : null;
+        return json({ ok: true, invocation: { id: "inv-1" }, terminal: { id: "term-1" } });
       }
-      if (targetUrl.pathname === "/proposals/proposal-1" && method === "GET") {
-        return json({ proposal: { id: "proposal-1" } });
-      }
-      return json({ ok: true, proposal: { id: "proposal-1" }, appliedItems: [] });
+      return json({ error: "not found" }, 404);
     });
 
     const client = await AppClient.connect(runtimeRoot);
 
-    await expect(client?.listProposals()).resolves.toEqual({ proposals: [] });
-    await expect(client?.readProposal("proposal-1")).resolves.toEqual({ proposal: { id: "proposal-1" } });
-    await expect(client?.createProposal({ id: "proposal-1" })).resolves.toMatchObject({ ok: true });
-    await expect(client?.decideProposal("proposal-1", "accept", "item-1")).resolves.toMatchObject({ ok: true });
-    expect(calls).toEqual([
-      { path: "/proposals", method: "GET", body: null },
-      { path: "/proposals/proposal-1", method: "GET", body: null },
-      { path: "/proposals", method: "POST", body: { proposal: { id: "proposal-1" } } },
-      { path: "/proposals/proposal-1/decision", method: "POST", body: { decision: "accept", itemId: "item-1" } },
-    ]);
+    await expect(client?.spawnAgentCommand("@fable", "review the plan")).resolves.toMatchObject({
+      ok: true,
+      invocation: { id: "inv-1" },
+      terminal: { id: "term-1" },
+    });
+    expect(spawnBody).toEqual({ handle: "@fable", task: "review the plan" });
   });
 
   it("reports search timeout details", async () => {
@@ -302,8 +310,15 @@ async function runtimeFixture(): Promise<string> {
   const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-client-"));
   tempPaths.push(runtimeRoot);
   await mkdir(runtimeRoot, { recursive: true });
-  await writeFile(path.join(runtimeRoot, "server.json"), JSON.stringify({ port: 12345, pid: process.pid }), "utf8");
+  await writeServerInfo(runtimeRoot, { port: 12345, pid: process.pid });
   return runtimeRoot;
+}
+
+async function writeServerInfo(runtimeRoot: string, info: { port: number; pid: number; token?: string }): Promise<void> {
+  await writeFile(path.join(runtimeRoot, "server.json"), JSON.stringify({
+    token: TEST_COMMAND_TOKEN,
+    ...info,
+  }), "utf8");
 }
 
 function stubCommandServer(handler: (targetUrl: URL, init?: RequestInit) => Promise<Response> | Response) {
@@ -318,6 +333,19 @@ function json(body: unknown, status = 200): Response {
     status,
     headers: { "Content-Type": "application/json" },
   });
+}
+
+function authHeader(init: RequestInit | undefined): string | null {
+  return headerValue(init, "authorization");
+}
+
+function commandTokenHeader(init: RequestInit | undefined): string | null {
+  return headerValue(init, EXO_COMMAND_TOKEN_HEADER);
+}
+
+function headerValue(init: RequestInit | undefined, key: string): string | null {
+  const headers = new Headers(init?.headers);
+  return headers.get(key);
 }
 
 function delayWithAbort(ms: number, signal?: AbortSignal | null): Promise<void> {

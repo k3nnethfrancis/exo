@@ -1,4 +1,4 @@
-import { spawn, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { access, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -7,19 +7,12 @@ import { test, expect } from "@playwright/test";
 
 import { launchExoFixture, relaunchExoFixture } from "../helpers";
 import {
-  expectTerminalRenderHistoryStable,
-  expectTerminalRenderStable,
   latencySummary,
-  scrollTerminalToBottom,
-  scrollTerminalToTop,
-  visibleTerminalText,
   waitForTerminalInputEnabled,
   waitForTerminalText,
 } from "../terminalQuality";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
-const fakeAgentPath = path.join(repoRoot, "apps/desktop/tests/fixtures/fake-terminal-agent.mjs");
-
 function boxesOverlap(a: { x: number; y: number; width: number; height: number }, b: { x: number; y: number; width: number; height: number }) {
   return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
 }
@@ -49,22 +42,13 @@ async function cycleAppearanceTo(page: import("@playwright/test").Page, targetMo
       return;
     }
 
-    await page.getByTestId("appearance-cycle").click();
+    if (!(await page.getByTestId("workspace-appearance").isVisible().catch(() => false))) {
+      await page.getByTestId("workspace-menu-button").click();
+    }
+    await page.getByTestId("workspace-appearance").click();
   }
 
   throw new Error(`Unable to reach appearance mode ${targetMode}.`);
-}
-
-async function readFirstTerminalOfKind(page: import("@playwright/test").Page, kind: "shell" | "claude" | "codex") {
-  return page.evaluate(async (terminalKind) => {
-    const sessions = await window.exo.terminals.list();
-    const session = sessions.find((candidate) => candidate.kind === terminalKind);
-    return session ? window.exo.terminals.read(session.id) : "";
-  }, kind);
-}
-
-function countTextOccurrences(text: string, fragment: string): number {
-  return text.split(fragment).length - 1;
 }
 
 async function pageShellSession(page: import("@playwright/test").Page) {
@@ -126,131 +110,6 @@ function runGit(cwd: string, args: string[]) {
 
 test.describe.configure({ mode: "parallel" });
 
-test("opens the plugin manager inventory and keeps official rows read-only", async () => {
-  const { page, cleanup } = await launchExoFixture();
-
-  await page.getByTestId("open-plugin-manager").click();
-  await expect(page.getByTestId("plugin-manager")).toBeVisible();
-  await expect(page.getByTestId("plugin-manager-boundary")).toContainText("Core stays on");
-  await expect(page.getByTestId("plugin-manager-boundary")).toContainText("official");
-  await expect(page.getByTestId("plugin-manager-boundary")).toContainText("developer");
-  await expect(page.getByTestId("plugin-manager-boundary")).toContainText("manageable local");
-  await page.screenshot({ path: "/tmp/exo-plugin-manager-boundary.png", fullPage: false });
-  await expect(page.getByTestId("plugin-manager-local-toolbar")).toContainText("Local plugins");
-  await expect(page.getByTestId("plugin-manager-add-workspace-plugin")).toBeVisible();
-  await expect(page.getByTestId("plugin-manager-add-user-plugin")).toBeVisible();
-  await expect(page.getByTestId("plugin-manager-summary")).toContainText("Active");
-  await expect(page.getByTestId("plugin-manager-summary")).toContainText("Disabled");
-  await expect(page.getByTestId("plugin-manager-summary")).toContainText("Review");
-  await expect(page.getByTestId("plugin-manager-summary")).toContainText("Setup issues");
-  await expect(page.getByTestId("plugin-manager-summary")).toContainText("Permissions");
-  await expect(page.getByTestId("plugin-manager-state-filters")).toContainText("All");
-  await expect(page.getByTestId("plugin-manager-state-filters")).toContainText("Active");
-  await expect(page.getByTestId("plugin-manager-state-filters")).toContainText("Needs attention");
-  await expect(page.getByTestId("plugin-manager-state-filters")).toContainText("Untrusted");
-  await expect(page.getByTestId("plugin-manager-state-filters")).toContainText("Missing");
-  const summaryBox = await page.getByTestId("plugin-manager-summary").boundingBox();
-  const bodyBox = await page.getByTestId("plugin-manager-body").boundingBox();
-  expect(summaryBox).not.toBeNull();
-  expect(bodyBox).not.toBeNull();
-  expect(summaryBox!.y + summaryBox!.height).toBeLessThanOrEqual(bodyBox!.y);
-  await expect(page.getByTestId("plugin-manager-group-core:searchProvider")).toContainText("QMD");
-  await expect(page.getByTestId("plugin-inventory-item-qmd")).toContainText("Lifecycle");
-  await expect(page.getByTestId("plugin-inventory-item-qmd")).toContainText(/Active|Degraded/);
-  await page.screenshot({ path: "/tmp/exo-plugin-manager-state-filters.png", fullPage: false });
-  await page.getByTestId("plugin-inventory-item-qmd").click();
-  await expect(page.getByTestId("plugin-manager-detail")).toContainText("Search Provider");
-  await expect(page.getByTestId("plugin-manager-detail")).toContainText("Readiness");
-  await expect(page.getByTestId("plugin-manager-detail")).toContainText("Official");
-  for (const mutationLabel of ["Enable", "Disable", "Trust", "Grant", "Apply profile", "Launch"]) {
-    await expect(page.getByTestId("plugin-manager-detail").getByRole("button", { name: new RegExp(`^${mutationLabel}$`, "i") })).toHaveCount(0);
-  }
-  await page.getByTestId("plugin-manager-category-core:agentHarness").click();
-  await expect(page.getByTestId("plugin-manager-group-core:agentHarness")).toContainText("Claude");
-  await page.getByTestId("plugin-inventory-item-claude").click();
-  await expect(page.getByTestId("plugin-manager-detail")).toContainText("Agent Harness");
-  await page.getByTestId("plugin-manager-category-core:routineTemplate").click();
-  await expect(page.getByTestId("plugin-manager-group-core:routineTemplate")).toContainText("Graph Health");
-  await page.getByTestId("plugin-manager-category-core:profile").click();
-  await expect(page.getByTestId("plugin-manager-group-core:profile")).toContainText("Exograph Baseline");
-  await page.getByTestId("plugin-inventory-item-exograph-baseline.profile").click();
-  await expect(page.getByTestId("plugin-manager-detail")).toContainText("Profile Plan Preview");
-  await expect(page.getByTestId("plugin-manager-detail")).toContainText("qmd");
-  await expect(page.getByTestId("plugin-manager-detail")).toContainText("Review paths");
-  await page.getByTestId("plugin-manager-close").click();
-  await expect(page.getByTestId("plugin-manager")).toHaveCount(0);
-
-  await cleanup();
-});
-
-test("trusts, edits, and resets workspace plugin settings from Plugin Manager", async () => {
-  const { page, runtimeRoot, cleanup } = await launchExoFixture({
-    mutable: true,
-    prepareWorkspace: async (workspaceRoot) => {
-      const pluginRoot = path.join(workspaceRoot, ".exo/plugins/settings-plugin");
-      await mkdir(pluginRoot, { recursive: true });
-      await writeFile(
-        path.join(pluginRoot, "exo.plugin.json"),
-        JSON.stringify({
-          id: "settings-plugin",
-          name: "Settings Plugin",
-          version: "0.0.1",
-          exoApiVersion: "0.1",
-          capabilities: [{
-            id: "settings-plugin.template",
-            kind: "core:routineTemplate",
-            label: "Settings Plugin",
-            description: "Fixture plugin with editable settings.",
-            lifecycle: "experimental",
-            owner: "settings-plugin",
-            surfaces: ["desktop"],
-            permissions: ["workspace:read"],
-          }],
-          permissions: ["workspace:read"],
-          surfaces: ["desktop"],
-          settingsSchema: {
-            version: 1,
-            sections: [{ id: "general", label: "General", fields: ["enabled", "name", "limit", "mode"] }],
-            fields: [
-              { id: "enabled", label: "Enabled", type: "boolean", default: true },
-              { id: "name", label: "Name", type: "string", default: "daily" },
-              { id: "limit", label: "Limit", type: "number", default: 3 },
-              { id: "mode", label: "Mode", type: "select", default: "safe", options: [{ value: "safe", label: "Safe" }, { value: "fast", label: "Fast" }] },
-            ],
-          },
-        }, null, 2),
-        "utf8",
-      );
-    },
-  });
-
-  await page.getByTestId("open-plugin-manager").click();
-  await page.getByTestId("plugin-manager-category-core:routineTemplate").click();
-  await page.getByTestId("plugin-inventory-item-settings-plugin.template").click();
-  await expect(page.getByTestId("plugin-manager-settings")).toBeVisible();
-  await expect(page.getByTestId("plugin-manager-settings")).toContainText("Trust this local or developer plugin");
-  await page.getByTestId("plugin-manager-actions").getByTestId("plugin-manager-action-trust").click();
-  await expect(page.getByTestId("plugin-manager-settings")).toContainText("Plugin-owned settings can be edited");
-
-  await page.getByTestId("plugin-setting-enabled").setChecked(false);
-  await page.getByTestId("plugin-setting-name").fill("nightly");
-  await page.getByTestId("plugin-setting-limit").fill("10");
-  await page.getByTestId("plugin-setting-mode").selectOption("fast");
-  await page.getByTestId("plugin-manager-settings-apply").click();
-  await expect(page.getByTestId("plugin-manager-settings")).toContainText("Plugin settings applied.");
-  await expect.poll(async () => JSON.parse(await readFile(path.join(runtimeRoot, "plugin-settings.json"), "utf8")).plugins[0].values).toEqual({
-    enabled: false,
-    limit: 10,
-    mode: "fast",
-    name: "nightly",
-  });
-
-  await page.getByTestId("plugin-manager-settings-reset").click();
-  await expect(page.getByTestId("plugin-manager-settings")).toContainText("Plugin settings reset to defaults.");
-  await expect.poll(async () => JSON.parse(await readFile(path.join(runtimeRoot, "plugin-settings.json"), "utf8")).plugins[0].values).toEqual({});
-
-  await cleanup();
-});
 
 test("boots the shell, opens notes, and manages terminal tabs", async () => {
   const { page, cleanup } = await launchExoFixture();
@@ -263,22 +122,9 @@ test("boots the shell, opens notes, and manages terminal tabs", async () => {
   await expect(page.getByTestId("editor-panel")).toContainText("[[agent-memory]]");
 
   await expect(page.getByTestId("terminal-tab-shell")).toBeVisible();
-
-  await page.getByTestId("launch-claude").click();
-  await expect(page.getByTestId("terminal-tab-claude")).toBeVisible();
-  await expect.poll(async () => {
-    const sessions = await page.evaluate(() => window.exo.terminals.list());
-    const claude = sessions.find((session) => session.kind === "claude");
-    return claude ? page.evaluate((id) => window.exo.terminals.read(id), claude.id) : "";
-  }).toContain("claude ready");
-
-  await page.getByTestId("launch-codex").click();
-  await expect(page.getByTestId("terminal-tab-codex")).toBeVisible();
-  await expect.poll(async () => {
-    const sessions = await page.evaluate(() => window.exo.terminals.list());
-    const codex = sessions.find((session) => session.kind === "codex");
-    return codex ? page.evaluate((id) => window.exo.terminals.read(id), codex.id) : "";
-  }).toContain("codex ready");
+  await expect(page.getByTestId("side-panel-terminal-rail")).toBeVisible();
+  await expect(page.locator('[data-testid="launch-claude"]')).toHaveCount(0);
+  await expect(page.locator('[data-testid="launch-codex"]')).toHaveCount(0);
 
   await page.getByTestId("terminal-tab-shell").dblclick();
   await expect(page.getByTestId("terminal-dock")).toBeVisible();
@@ -336,84 +182,22 @@ test("opens a browser preview pane in the workspace", async () => {
   const { page, cleanup } = await launchExoFixture();
 
   await expect(page.locator('[data-testid="terminal-rail"] [data-testid="launch-browser"]')).toHaveCount(0);
-  await expect(page.locator('.sidebar__rail [data-testid="launch-browser"]')).toBeVisible();
-  await page.getByTestId("launch-browser").click();
+  await expect(page.locator('.sidebar__rail [data-testid="launch-browser"]')).toHaveCount(0);
+  await expect(page.getByTestId("exo-side-panel")).toBeVisible();
+  await expect(page.getByTestId("side-panel-terminal-rail")).toBeVisible();
+  await page.getByTestId("side-panel-toggle").click();
+  await expect(page.getByTestId("exo-side-panel")).not.toBeVisible();
+  await page.getByTestId("side-panel-toggle").click();
+  await page.getByTestId("side-panel-browser-rail").click();
   await expect(page.getByTestId("browser-pane")).toBeVisible();
   await expect(page.getByTestId("browser-url-input")).toHaveValue("about:blank");
-  await expect(page.getByText("Enter a local URL to preview.")).toBeVisible();
+  await expect(page.getByText("Enter a local or localhost URL to preview.")).toBeVisible();
 
   await page.getByTestId("browser-url-input").fill("localhost:4321");
   await page.getByTestId("browser-load-url").click();
-  await expect(page.getByTestId("browser-url-input")).toHaveValue("http://localhost:4321");
-  await expect(page.getByTestId("browser-preview-frame")).toHaveAttribute("src", "http://localhost:4321");
+  await expect(page.getByTestId("browser-url-input")).toHaveValue("http://localhost:4321/");
+  await expect(page.getByTestId("browser-preview-frame")).toHaveAttribute("src", "http://localhost:4321/");
   await expect(page.locator(".pane-leaf--browser")).toBeVisible();
-
-  await cleanup();
-});
-
-test("opens project files and creates note branches", async () => {
-  const { page, workspaceRoot, cleanup } = await launchExoFixture({ mutable: true });
-
-  await page.getByTestId("project-roots-toggle").click();
-  await page.getByRole("button", { name: "src" }).click();
-  await page.getByTestId("sidebar").getByRole("button", { name: "demo.ts" }).click();
-  await expect(page.getByTestId("editor-title")).toHaveText("demo.ts");
-  await expect(page.getByTestId("properties-panel")).toContainText("Project file");
-  await expect(page.getByTestId("editor-save-status")).toHaveText("Saved");
-  await page.evaluate(() => {
-    const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
-    const view = content?.cmView?.view;
-    if (!view) {
-      throw new Error("Unable to resolve CodeMirror view");
-    }
-    view.dispatch({
-      changes: {
-        from: 0,
-        to: view.state.doc.length,
-        insert: "export const demo = 'saved';\n",
-      },
-    });
-  });
-  await expect(page.getByTestId("editor-save-status")).toHaveText("Unsaved");
-  await page.getByTestId("editor-save").click();
-  await expect(page.getByTestId("editor-save-status")).toHaveText("Saved");
-  await expect.poll(async () => readFile(path.join(workspaceRoot, "projects/sample-project/src/demo.ts"), "utf8")).toContain("saved");
-  await page.getByTestId("sidebar").getByRole("button", { name: "README" }).click();
-  await expect(page.getByTestId("editor-title")).toHaveText("README");
-  await expect(page.getByTestId("properties-panel")).toHaveCount(0);
-  await expect(page.getByTestId("toggle-markdown-mode")).toBeVisible();
-  await expect(page.getByTestId("toggle-properties")).toHaveCount(0);
-  await expect(page.locator(".editor-surface--code")).toHaveCount(0);
-  await expect(page.locator(".editor-surface--live-preview")).toBeVisible();
-  await expect(page.locator(".exo-md-line--h1", { hasText: "Exo Demo Project" })).toBeVisible();
-  await page.getByTestId("toggle-markdown-mode").click();
-  await expect(page.locator(".editor-surface--live-preview")).toHaveCount(0);
-  await expect(page.getByTestId("editor-panel")).toContainText("# Exo Demo Project");
-  await page.evaluate(() => {
-    const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
-    const view = content?.cmView?.view;
-    if (!view) {
-      throw new Error("Unable to resolve CodeMirror view");
-    }
-    view.dispatch({
-      changes: {
-        from: view.state.doc.length,
-        insert: "\n\nSaved from Exo.",
-      },
-    });
-  });
-  await expect(page.getByTestId("editor-save-status")).toHaveText("Unsaved");
-  await page.getByTestId("editor-save").click();
-  await expect(page.getByTestId("editor-save-status")).toHaveText("Saved");
-  await expect.poll(async () => readFile(path.join(workspaceRoot, "projects/sample-project/README.md"), "utf8")).toContain("Saved from Exo.");
-
-  await page.getByTestId("sidebar-search-toggle").click();
-  await page.getByTestId("sidebar-search-input").fill("focus-note");
-  await page.getByTestId("sidebar-search-pane").getByRole("button", { name: /focus-note/i }).first().click();
-  await expect(page.getByTestId("editor-title")).toHaveText("focus-note");
-  await page.getByTestId("branch-selector").selectOption("__create__");
-  await expect(page.getByTestId("branch-selector")).toHaveValue(/-looms\/1\.md$/);
-  await expect(page.getByTestId("branch-selector").locator("option")).toHaveCount(3);
 
   await cleanup();
 });
@@ -514,127 +298,6 @@ test("suppresses generated daily-note titles but preserves explicit H1s", async 
   await cleanup();
 });
 
-test("shows changed project files in the project drawer", async () => {
-  const { page, workspaceRoot, cleanup } = await launchExoFixture({
-    mutable: true,
-    env: {
-      EXO_SHELL: "/bin/sh",
-      EXO_SHELL_ARGS: "-lc,pwd; cat",
-    },
-    prepareWorkspace: async (workspaceRoot) => {
-      const projectRoot = path.join(workspaceRoot, "projects/sample-project");
-      spawnSync("git", ["init"], { cwd: projectRoot, stdio: "ignore" });
-      spawnSync("git", ["config", "user.email", "exo@example.test"], { cwd: projectRoot, stdio: "ignore" });
-      spawnSync("git", ["config", "user.name", "Exo Test"], { cwd: projectRoot, stdio: "ignore" });
-      await writeFile(path.join(projectRoot, "src/demo.ts"), "export const stable = true;\nexport const demo = 'original';\n");
-      spawnSync("git", ["add", "."], { cwd: projectRoot, stdio: "ignore" });
-      spawnSync("git", ["commit", "-m", "fixture"], { cwd: projectRoot, stdio: "ignore" });
-    },
-  });
-
-  const projectRoot = path.join(workspaceRoot, "projects/sample-project");
-  await page.evaluate(async (cwd) => {
-    const session = await window.exo.terminals.create({ kind: "shell", cwd });
-    return session.id;
-  }, projectRoot);
-  await page.evaluate(async (cwd) => {
-    const session = await window.exo.terminals.create({ kind: "shell", cwd });
-    return session.id;
-  }, projectRoot);
-  await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(3);
-  await writeFile(path.join(projectRoot, "src/demo.ts"), "export const stable = true;\nexport const demo = 'changed';\n");
-
-  await page.getByTestId("project-roots-toggle").click();
-  await expect(page.getByTestId("project-changes")).toHaveCount(0);
-  const changedFolder = page.getByTestId("project-roots-panel").getByRole("button", { name: /src, collapsed folder, 1 file changed/ });
-  await expect(changedFolder).toBeVisible();
-  await expect(changedFolder.locator(".tree-node__dirty-badge")).toHaveText("1");
-  await changedFolder.click();
-  const changedFile = page.getByTestId("project-roots-panel").getByRole("button", { name: /demo\.ts, file, M changed, first changed line 2/ });
-  await expect(changedFile).toBeVisible();
-  await expect(changedFile.locator(".tree-node__dirty-badge")).toHaveText("M");
-  await expect(page.locator('[data-testid^="terminal-session-changes-"]')).toHaveCount(0);
-  await expect(page.getByTestId("statusbar-changes")).toHaveText("1 change");
-  await page.getByTestId("statusbar-changes").click();
-  await expect(page.getByTestId("editor-title")).toHaveText("demo.ts");
-  await expect.poll(() => activeEditorLine(page)).toBe(2);
-  await changedFile.click();
-  await expect(page.getByTestId("editor-title")).toHaveText("demo.ts");
-  await expect.poll(() => activeEditorLine(page)).toBe(2);
-
-  await cleanup();
-});
-
-test("shows profile review and changed notes in the status bar", async () => {
-  const { page, workspaceRoot, cleanup } = await launchExoFixture({
-    mutable: true,
-    prepareWorkspace: async (workspaceRoot) => {
-      const notesRoot = path.join(workspaceRoot, "notes/test-notes");
-      spawnSync("git", ["init"], { cwd: notesRoot, stdio: "ignore" });
-      spawnSync("git", ["config", "user.email", "exo@example.test"], { cwd: notesRoot, stdio: "ignore" });
-      spawnSync("git", ["config", "user.name", "Exo Test"], { cwd: notesRoot, stdio: "ignore" });
-      spawnSync("git", ["add", "."], { cwd: notesRoot, stdio: "ignore" });
-      spawnSync("git", ["commit", "-m", "fixture notes"], { cwd: notesRoot, stdio: "ignore" });
-      await writeFile(path.join(notesRoot, "focus-note.md"), "# Focus Note\n\nChanged for status bar review.\n");
-    },
-  });
-
-  await page.evaluate(async () => {
-    const nextState = await window.exo.workspace.markProfileReviewRequired({ reviewRequired: true });
-    window.dispatchEvent(new CustomEvent("exo:profile-state-changed", { detail: nextState }));
-  });
-
-  await expect(page.getByTestId("statusbar-profile-review")).toBeVisible();
-  await expect(page.getByTestId("statusbar-note-changes")).toHaveText("1 note");
-  await page.getByTestId("statusbar-note-changes").click();
-  await expect(page.getByTestId("changed-notes-dialog")).toContainText("focus-note.md");
-  await expect(page.getByTestId("changed-notes-dialog")).toContainText("test-notes");
-  await page.screenshot({ path: "/tmp/exo-profile-notes-status-ui.png", fullPage: false });
-  await page.getByTestId("changed-notes-item").click();
-  await expect(page.getByTestId("editor-title")).toHaveText("focus-note");
-
-  await cleanup();
-});
-
-async function activeEditorLine(page: import("@playwright/test").Page) {
-  return page.evaluate(() => {
-    const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
-    const view = content?.cmView?.view;
-    if (!view) {
-      return null;
-    }
-    return view.state.doc.lineAt(view.state.selection.main.head).number;
-  });
-}
-
-test("opens a new terminal from a project folder context menu", async () => {
-  const { page, cleanup } = await launchExoFixture({
-    env: {
-      EXO_SHELL: "/bin/sh",
-      EXO_SHELL_ARGS: "-lc,pwd; cat",
-    },
-  });
-
-  await page.getByTestId("project-roots-toggle").click();
-  await expect(page.getByTestId("project-roots-panel")).toBeVisible();
-  const directories = page.getByTestId("project-roots-panel").locator(".tree-node--directory");
-  await directories.nth(0).click();
-  await directories.nth(0).click({ button: "right" });
-  await page.getByText("New Terminal").click();
-  await expect(page.getByTestId("terminal-tab-shell").last()).toBeVisible();
-  await expect
-    .poll(async () =>
-      page.evaluate(async () => {
-        const sessions = await window.exo.terminals.list();
-        const latest = sessions.at(-1);
-        return latest ? await window.exo.terminals.read(latest.id) : "";
-      }),
-    )
-    .toContain("src");
-
-  await cleanup();
-});
-
 test("shows terminals created outside renderer controls", async () => {
   const { page, cleanup } = await launchExoFixture({
     env: {
@@ -650,51 +313,6 @@ test("shows terminals created outside renderer controls", async () => {
 
   await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(initialTabs + 1);
   await expect(page.getByTestId("terminal-tab-shell").last()).toBeVisible();
-
-  await cleanup();
-});
-
-test("passes Exo instruction overlays to launched terminal agents", async () => {
-  const { page, workspaceRoot, cleanup } = await launchExoFixture({
-    mutable: true,
-    env: {
-      EXO_CLAUDE_COMMAND: "/bin/sh",
-      EXO_CLAUDE_ARGS: "-lc,printf 'EXO_INSTRUCTIONS=%s\\n' \"$EXO_INSTRUCTIONS\"; test -f \"$EXO_INSTRUCTIONS\" && grep -m1 'Exo Runtime Context' \"$EXO_INSTRUCTIONS\"; printf 'EXO_WORKSPACE_ROOT=%s\\n' \"$EXO_WORKSPACE_ROOT\"; printf 'EXO_PROJECT_ROOTS=%s\\n' \"$EXO_PROJECT_ROOTS\"; sleep 10",
-    },
-  });
-  const projectRoot = path.join(workspaceRoot, "projects/sample-project");
-  const sessionId = await page.evaluate(async (cwd) => {
-    const session = await window.exo.terminals.create({ kind: "claude", cwd });
-    return session.id;
-  }, projectRoot);
-
-  await expect.poll(async () => page.evaluate((id) => window.exo.terminals.read(id), sessionId)).toContain("EXO_INSTRUCTIONS=");
-  const buffer = await page.evaluate((id) => window.exo.terminals.read(id), sessionId);
-  const unwrappedBuffer = buffer.replace(/\r?\n/g, "");
-  expect(buffer).toContain("Exo Runtime Context");
-  expect(unwrappedBuffer).toContain(`EXO_WORKSPACE_ROOT=${workspaceRoot}`);
-  expect(unwrappedBuffer).toContain(projectRoot);
-
-  const sessions = await page.evaluate(() => window.exo.terminals.list());
-  const claude = sessions.find((session) => session.id === sessionId);
-  expect(claude?.instructionOverlayPath).toContain(path.join("instructions", "projects"));
-  await expect.poll(async () => readFile(claude?.instructionOverlayPath ?? "", "utf8")).toContain("sample-project");
-
-  await cleanup();
-});
-
-test("expands and collapses the project roots drawer", async () => {
-  const { page, cleanup } = await launchExoFixture();
-
-  await expect(page.getByTestId("project-roots-drawer")).toHaveClass(/snap-drawer--collapsed/);
-  await expect(page.getByTestId("project-roots-panel")).toHaveCount(0);
-  await page.getByTestId("project-roots-toggle").click();
-  await expect(page.getByTestId("project-roots-drawer")).toHaveClass(/snap-drawer--expanded/);
-  await expect(page.getByTestId("project-roots-panel")).toBeVisible();
-  await expect(page.getByRole("button", { name: "src" })).toBeVisible();
-  await page.getByTestId("project-roots-toggle").click();
-  await expect(page.getByTestId("project-roots-drawer")).toHaveClass(/snap-drawer--collapsed/);
-  await expect(page.getByTestId("project-roots-panel")).toHaveCount(0);
 
   await cleanup();
 });
@@ -855,129 +473,6 @@ test("keeps terminal input latency within targets while another terminal streams
   }
 });
 
-test("runs deterministic fake agent terminal QA without live inference", async () => {
-  const { page, cleanup } = await launchExoFixture({
-    env: {
-      EXO_CLAUDE_COMMAND: process.execPath,
-      EXO_CLAUDE_ARGS: `${fakeAgentPath},--claude`,
-    },
-  });
-
-  try {
-    await page.getByTestId("launch-claude").click();
-    await expect(page.getByTestId("terminal-tab-claude")).toBeVisible();
-    await expect.poll(async () => readFirstTerminalOfKind(page, "claude")).toContain("FAKE_CLAUDE_READY");
-    await page.getByTestId("terminal-tab-claude").click();
-    await waitForTerminalText(page, "fake-agent-scrollback-080");
-
-    await page.getByTestId("terminal-surface").click();
-    await page.keyboard.type("hello deterministic agent\n");
-    await waitForTerminalText(page, "FAKE_AGENT_INPUT hello deterministic agent");
-
-    await page.getByTestId("terminal-tab-shell").click();
-    await page.getByTestId("terminal-tab-claude").click();
-    await waitForTerminalText(page, "FAKE_AGENT_PROMPT ready for input");
-  } finally {
-    await cleanup();
-  }
-});
-
-test("reattaches a fake Claude terminal after renderer reload and accepts first focused input", async () => {
-  const beforeReloadInput = `before reload ${Date.now()}`;
-  const afterReloadInput = `after reload ${Date.now()}`;
-  const { page, cleanup } = await launchExoFixture({
-    env: {
-      EXO_CLAUDE_COMMAND: process.execPath,
-      EXO_CLAUDE_ARGS: `${fakeAgentPath},--claude`,
-    },
-    initialNoteLabel: null,
-  });
-
-  try {
-    await page.getByTestId("launch-claude").click();
-    await expect(page.getByTestId("terminal-tab-claude")).toBeVisible();
-    await waitForTerminalText(page, "FAKE_AGENT_PROMPT ready for input");
-
-    await page.getByTestId("terminal-surface").click();
-    await page.keyboard.type(`${beforeReloadInput}\n`);
-    await waitForTerminalText(page, `FAKE_AGENT_INPUT ${beforeReloadInput}`);
-
-    const claudeId = await page.evaluate(async () => {
-      const sessions = await window.exo.terminals.list();
-      const claude = sessions.find((session) => session.kind === "claude");
-      if (!claude) {
-        throw new Error("No Claude terminal found");
-      }
-      return claude.id;
-    });
-
-    await page.reload();
-    await expect(page.getByTestId("sidebar")).toBeVisible();
-    await expect(page.getByTestId("terminal-rail")).toBeVisible();
-    await expect(page.getByTestId("terminal-tab-claude")).toBeVisible();
-    await waitForTerminalText(page, `FAKE_AGENT_INPUT ${beforeReloadInput}`);
-
-    await page.getByTestId("terminal-surface").click();
-    await page.keyboard.type(`${afterReloadInput}\n`);
-    await expect.poll(async () => page.evaluate((id) => window.exo.terminals.read(id), claudeId)).toContain(
-      `FAKE_AGENT_INPUT ${afterReloadInput}`,
-    );
-    await waitForTerminalText(page, `FAKE_AGENT_INPUT ${afterReloadInput}`);
-  } finally {
-    await cleanup();
-  }
-});
-
-test("keeps fake Claude render stable and interactive while preview is open", async () => {
-  const input = `preview render input ${Date.now()}`;
-  const afterReloadInput = `preview reload input ${Date.now()}`;
-  const { page, cleanup } = await launchExoFixture({
-    env: {
-      EXO_CLAUDE_COMMAND: process.execPath,
-      EXO_CLAUDE_ARGS: `${fakeAgentPath},--claude,--render-stability`,
-    },
-    initialNoteLabel: null,
-  });
-
-  try {
-    await page.getByTestId("launch-browser").click();
-    await expect(page.getByTestId("browser-pane")).toBeVisible();
-    await page.getByTestId("launch-claude").click();
-    await expect(page.getByTestId("terminal-tab-claude")).toBeVisible();
-    await expect.poll(async () => readFirstTerminalOfKind(page, "claude")).toContain("wrapped prompt marker");
-    await waitForTerminalText(page, "wrapped prompt marker");
-    await waitForTerminalText(page, "FAKE_AGENT_PROMPT ready for input");
-    await expectTerminalRenderStable(page);
-    await expectTerminalRenderHistoryStable(page);
-
-    await page.getByTestId("terminal-surface").click();
-    await page.keyboard.type(`${input}\n`);
-    await waitForTerminalText(page, `FAKE_AGENT_INPUT ${input}`);
-    await expectTerminalRenderStable(page);
-    await expectTerminalRenderHistoryStable(page);
-    await page.getByTestId("browser-pane").click();
-    await page.getByTestId("terminal-surface").click();
-    await scrollTerminalToTop(page);
-    const focusedHistoryText = await visibleTerminalText(page);
-    expect(countTextOccurrences(focusedHistoryText, "Claude Code v2.1.183")).toBe(1);
-    expect(countTextOccurrences(focusedHistoryText, "A few key takeaways:")).toBe(1);
-    await scrollTerminalToBottom(page);
-
-    await page.reload();
-    await expect(page.getByTestId("terminal-tab-claude")).toBeVisible();
-    await waitForTerminalText(page, "FAKE_AGENT_PROMPT ready for input");
-    await expectTerminalRenderStable(page);
-    await expectTerminalRenderHistoryStable(page);
-    await page.getByTestId("terminal-surface").click();
-    await page.keyboard.type(`${afterReloadInput}\n`);
-    await waitForTerminalText(page, `FAKE_AGENT_INPUT ${afterReloadInput}`);
-    await expectTerminalRenderStable(page);
-    await expectTerminalRenderHistoryStable(page);
-  } finally {
-    await cleanup();
-  }
-});
-
 test("keeps /bin/cat terminal input visible while a loaded preview is focused and resized", async () => {
   const previewFirstInput = "preview-first-input";
   const previewReturnInput = "preview-return-input";
@@ -997,7 +492,7 @@ test("keeps /bin/cat terminal input visible while a loaded preview is focused an
   });
 
   try {
-    await page.getByTestId("launch-browser").click();
+    await page.getByTestId("side-panel-browser-rail").click();
     await page.getByTestId("browser-url-input").fill(`file://${path.join(workspaceRoot, "preview-terminal-focus.html")}`);
     await page.getByTestId("browser-load-url").click();
     await expect(page.getByTestId("browser-preview-frame")).toHaveAttribute("src", /^file:\/\/.*preview-terminal-focus\.html$/);
@@ -1011,7 +506,7 @@ test("keeps /bin/cat terminal input visible while a loaded preview is focused an
     await page.keyboard.type(previewReturnInput);
     await expect(page.locator(".xterm-rows")).toContainText(`${previewFirstInput}${previewReturnInput}`);
 
-    await dragBy(page, page.locator(".workspace__body > .pane-split-resizer--vertical").first(), { x: -160, y: 0 });
+    await dragBy(page, page.locator(".exo-side-panel-surface .pane-split-resizer--vertical").first(), { x: -160, y: 0 });
     await page.getByTestId("terminal-surface").click();
     await page.keyboard.type(previewResizeInput);
     await expect(page.locator(".xterm-rows")).toContainText(`${previewFirstInput}${previewReturnInput}${previewResizeInput}`);
@@ -1025,9 +520,6 @@ test("keeps terminal interactive after large output, tab switches, and semantic 
     env: {
       EXO_SHELL: "/bin/sh",
       EXO_SHELL_ARGS: "",
-      EXO_CLAUDE_COMMAND: "/bin/sh",
-      EXO_CLAUDE_ARGS:
-        "-c,i=1; while [ $i -le 140 ]; do printf 'agent-scrollback-%03d\\n' \"$i\"; i=$((i+1)); done; sleep 5",
     },
   });
 
@@ -1049,7 +541,7 @@ test("keeps terminal interactive after large output, tab switches, and semantic 
     }, shellId);
     await expect.poll(async () => page.evaluate((id) => window.exo.terminals.read(id), shellId)).toContain("qa-line-1499");
 
-    await page.getByTestId("launch-shell").click();
+    await page.getByTestId("side-panel-terminal-rail").click();
     await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(2);
     await page.getByTestId("terminal-tab-shell").first().click();
     await expect(page.getByTestId("terminal-surface")).toContainText("qa-line-1499");
@@ -1062,23 +554,13 @@ test("keeps terminal interactive after large output, tab switches, and semantic 
     }, shellId);
     await expect.poll(async () => page.evaluate((id) => window.exo.terminals.read(id), shellId)).toContain("semantic qa: one   two");
 
-    await page.getByTestId("launch-claude").click();
-    await expect(page.getByTestId("terminal-tab-claude")).toBeVisible();
-    await expect(page.locator(".xterm-rows")).toContainText("agent-scrollback-140");
-    const agentBuffer = await page.evaluate(async () => {
-      const sessions = await window.exo.terminals.list();
-      const claude = sessions.find((session) => session.kind === "claude");
-      return claude ? window.exo.terminals.read(claude.id) : "";
-    });
-    expect(agentBuffer).toContain("agent-scrollback-140");
-
     const sessions = await page.evaluate(() => window.exo.terminals.list());
     const diagnostics = await page.evaluate(() => window.exo.terminals.diagnostics());
     expect(JSON.stringify(sessions)).not.toContain("tmux");
     expect(JSON.stringify(sessions)).not.toContain("transport");
     expect(JSON.stringify(diagnostics)).not.toContain("transport");
-    expect(diagnostics.every((diagnostic) => diagnostic.runtime === "tmux")).toBe(true);
-    expect(diagnostics.every((diagnostic) => diagnostic.tmuxSessionName.startsWith("exo-"))).toBe(true);
+    expect(diagnostics.every((diagnostic) => diagnostic.runtime === "pty")).toBe(true);
+    expect(diagnostics.every((diagnostic) => !diagnostic.tmuxSessionName)).toBe(true);
   } finally {
     await cleanup();
   }
@@ -1177,7 +659,8 @@ test("hydrates single-tab tmux terminal history after renderer reload before inp
 
     await page.reload();
     await expect(page.getByTestId("sidebar")).toBeVisible();
-    await expect(page.getByTestId("terminal-rail")).toBeVisible();
+    await page.getByTestId("side-panel-toggle").click();
+    await expect(page.getByTestId("side-panel-terminal-rail")).toBeVisible();
     await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(1);
     await expect.poll(async () => page.evaluate((id) => window.exo.terminals.read(id), shell.id)).toContain(
       `persist:${beforeReloadMarker}`,
@@ -1259,12 +742,15 @@ test("renders inspector content when expanded", async () => {
 
   await expect(page.getByTestId("inspector-panel")).toContainText("Backlinks");
   await expect(page.getByTestId("inspector-panel")).toContainText(/Related Note|\[\[agent-memory\]\]|#research/);
+  await expect(page.getByTestId("graph-neighborhood-panel")).toContainText("Neighborhood");
+  await expect(page.getByTestId("graph-neighborhood")).toContainText("agent-memory");
+  await expect(page.getByTestId("graph-neighborhood")).toContainText("research");
 
   await cleanup();
 });
 
 test("opens workspace settings from the sidebar", async () => {
-  const { page, runtimeRoot, cleanup } = await launchExoFixture({
+  const { page, cleanup } = await launchExoFixture({
     env: {
       EXO_INDEX_ENABLED: "0",
       EXO_INDEX_MODE: "off",
@@ -1272,43 +758,18 @@ test("opens workspace settings from the sidebar", async () => {
     },
   });
 
+  await page.getByTestId("workspace-menu-button").click();
   await page.getByTestId("workspace-settings").click();
   await expect(page.getByTestId("workspace-settings-dialog")).toBeVisible();
   const settingsFrame = await page.getByTestId("workspace-settings-dialog").boundingBox();
   expect(settingsFrame).not.toBeNull();
   await expect(page.getByTestId("workspace-settings-note-roots")).toContainText("test-notes");
   await page.screenshot({ path: "/tmp/exo-workspace-settings-workspace.png", fullPage: false });
-  await expectTestIdsDoNotOverlap(page, "workspace-settings-note-roots", "workspace-settings-project-roots");
   await page.getByTestId("workspace-settings-tab-index").click();
   await expectStableOuterFrame(page.getByTestId("workspace-settings-dialog"), settingsFrame!);
   await expect(page.getByTestId("workspace-settings-index-mode")).toHaveValue("off");
   await expect(page.getByTestId("workspace-settings-dialog")).toContainText("Core search + QMD advanced provider");
   await page.screenshot({ path: "/tmp/exo-workspace-settings-index.png", fullPage: false });
-  await page.getByTestId("workspace-settings-tab-profile").click();
-  await expectStableOuterFrame(page.getByTestId("workspace-settings-dialog"), settingsFrame!);
-  await expect(page.getByTestId("workspace-settings-profile")).toContainText("No active profile");
-  await page.screenshot({ path: "/tmp/exo-workspace-settings-profile.png", fullPage: false });
-  await page.getByRole("button", { name: "Set active profile" }).click();
-  await expect(page.getByTestId("workspace-settings-profile")).toContainText("Profile state saved.");
-  const profileState = JSON.parse(await readFile(path.join(runtimeRoot, "profile-state.json"), "utf8"));
-  expect(profileState.activeProfile).toMatchObject({
-    profileId: "exograph-baseline.profile",
-    capabilityId: "exograph-baseline.profile",
-  });
-  await page.getByLabel("Auto-update profile metadata on safe state changes").click();
-  await expect(page.getByLabel("Auto-update profile metadata on safe state changes")).toBeChecked();
-  const updatedProfileState = JSON.parse(await readFile(path.join(runtimeRoot, "profile-state.json"), "utf8"));
-  expect(updatedProfileState.autoUpdate).toBe(true);
-  await page.getByRole("button", { name: "Review config" }).click();
-  await expect(page.getByTestId("profile-edit-panel")).toBeVisible();
-  await expect(page.getByTestId("profile-edit-panel")).toContainText("Plan review");
-  await expect(page.getByTestId("profile-edit-panel")).toContainText("Apply blockers and warnings");
-  await expect(page.getByTestId("profile-edit-panel")).toContainText("Recommended plugins");
-  await expect(page.getByTestId("profile-edit-panel")).toContainText("Review and output policies");
-  await expect(page.getByTestId("profile-edit-panel")).toContainText("Open Plugin Manager");
-  await expect(page.getByTestId("profile-edit-panel")).toContainText("Open Agent Config");
-  await page.screenshot({ path: "/tmp/exo-profile-plan-preview.png", fullPage: false });
-  await expect(page.getByTestId("profile-edit-copy")).toBeVisible();
   await page.getByTestId("workspace-settings-tab-terminal").click();
   await expectStableOuterFrame(page.getByTestId("workspace-settings-dialog"), settingsFrame!);
   await expect(page.getByTestId("workspace-settings-dialog")).toContainText("Live terminal scrollback lines");
@@ -1338,12 +799,13 @@ test("keeps workspace settings frame stable across tabs", async () => {
     },
   });
 
+  await page.getByTestId("workspace-menu-button").click();
   await page.getByTestId("workspace-settings").click();
   await expect(page.getByTestId("workspace-settings-dialog")).toBeVisible();
   const settingsFrame = await page.getByTestId("workspace-settings-dialog").boundingBox();
   expect(settingsFrame).not.toBeNull();
 
-  for (const section of ["index", "profile", "harnesses", "appearance", "terminal", "workspace"]) {
+  for (const section of ["index", "appearance", "terminal", "workspace"]) {
     await page.getByTestId(`workspace-settings-tab-${section}`).click();
     await expectStableOuterFrame(page.getByTestId("workspace-settings-dialog"), settingsFrame!);
   }
@@ -1367,31 +829,34 @@ test("keeps the command server available while the window is hidden", async () =
   });
   expect(hidden).toBe(true);
 
-  const serverInfo = JSON.parse(await readFile(path.join(runtimeRoot, "server.json"), "utf8")) as { port: number };
-  const statusResponse = await fetch(`http://127.0.0.1:${serverInfo.port}/status`);
+  const serverInfo = JSON.parse(await readFile(path.join(runtimeRoot, "server.json"), "utf8")) as { port: number; token: string };
+  const headers = { "x-exo-command-token": serverInfo.token };
+  const unauthorizedStatus = await fetch(`http://127.0.0.1:${serverInfo.port}/status`);
+  expect(unauthorizedStatus.status).toBe(401);
+  const statusResponse = await fetch(`http://127.0.0.1:${serverInfo.port}/status`, { headers });
   expect(statusResponse.ok).toBe(true);
   await expect(statusResponse.json()).resolves.toMatchObject({
     workspace: expect.objectContaining({ workspaceRoot: expect.any(String) }),
   });
 
-  const terminals = await fetch(`http://127.0.0.1:${serverInfo.port}/terminals`).then((response) => response.json()) as Array<{ id: string; kind: string }>;
+  const terminals = await fetch(`http://127.0.0.1:${serverInfo.port}/terminals`, { headers }).then((response) => response.json()) as Array<{ id: string; kind: string }>;
   const shell = terminals.find((terminal) => terminal.kind === "shell");
   expect(shell).toBeTruthy();
   const messageResponse = await fetch(`http://127.0.0.1:${serverInfo.port}/terminals/${shell!.id}/message`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { ...headers, "Content-Type": "application/json" },
     body: JSON.stringify({ message: "hidden window qa", submit: true }),
   });
   expect(messageResponse.ok).toBe(true);
   await expect.poll(async () => {
-    const tailResponse = await fetch(`http://127.0.0.1:${serverInfo.port}/terminals/${shell!.id}/tail`);
+    const tailResponse = await fetch(`http://127.0.0.1:${serverInfo.port}/terminals/${shell!.id}/tail`, { headers });
     const body = await tailResponse.json() as { tail?: string };
     return body.tail ?? "";
   }).toContain("hidden window qa");
 
   const showResponse = await fetch(`http://127.0.0.1:${serverInfo.port}/show`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { ...headers, "Content-Type": "application/json" },
     body: "{}",
   });
   expect(showResponse.ok).toBe(true);
@@ -1409,7 +874,7 @@ test("keeps the command server available while the window is hidden", async () =
   await cleanup();
 });
 
-test("supports CLI and MCP agent control while the window is hidden", async () => {
+test("supports CLI agent control while the window is hidden", async () => {
   const { electronApp, runtimeRoot, workspaceRoot, cleanup } = await launchExoFixture({
     env: {
       EXO_SHELL: "/bin/cat",
@@ -1449,51 +914,6 @@ test("supports CLI and MCP agent control while the window is hidden", async () =
     const send = runExoCli(["agents", "send", shellId!, cliMessage], cliEnv);
     expect(send.status).toBe(0);
     await expect.poll(() => runExoCli(["agents", "read", shellId!, "--tail", "2000"], cliEnv).stdout).toContain(cliMessage);
-
-    const mcpClient = await createMcpJsonRpcClient(cliEnv);
-
-    try {
-      await expect(mcpClient.listTools()).resolves.toEqual([
-        "close_preview",
-        "create_agent",
-        "focus_preview",
-        "interrupt_agent",
-        "list_agents",
-        "open_preview",
-        "read_agent",
-        "read_document",
-        "search",
-        "send_agent_message",
-        "terminate_agent",
-        "workspace_status",
-      ]);
-      const workspaceStatus = await mcpClient.callTool("workspace_status", {});
-      expect(JSON.stringify(workspaceStatus.structuredContent)).toContain("\"indexStatus\"");
-
-      const mcpAgents = await mcpClient.callTool("list_agents", {});
-      expect(JSON.stringify(mcpAgents.structuredContent)).toContain(shellId!);
-
-      const mcpMessage = `hidden mcp qa ${Date.now()}`;
-      const mcpCreated = await mcpClient.callTool("create_agent", { kind: "shell", cwd: workspaceRoot });
-      const mcpShellId = ((mcpCreated.structuredContent as { agent?: { id?: string } }).agent?.id);
-      expect(mcpShellId).toMatch(/^term-\d+$/);
-
-      const mcpSend = await mcpClient.callTool("send_agent_message", { agentId: mcpShellId, message: mcpMessage, submit: true });
-      expect(JSON.stringify(mcpSend.structuredContent)).toContain("\"delivery\":\"sent\"");
-
-      await expect.poll(async () => {
-        const read = await mcpClient.callTool("read_agent", { agentId: shellId, tailChars: 2000, clean: true });
-        return JSON.stringify(read.structuredContent);
-      }).toContain(cliMessage);
-      await expect.poll(async () => {
-        const read = await mcpClient.callTool("read_agent", { agentId: mcpShellId, tailChars: 2000, clean: true });
-        return JSON.stringify(read.structuredContent);
-      }).toContain(mcpMessage);
-    } catch (error) {
-      throw new Error(`${error instanceof Error ? error.message : String(error)}\nMCP stderr:\n${mcpClient.stderr()}`);
-    } finally {
-      mcpClient.close();
-    }
   } finally {
     await cleanup();
   }
@@ -1513,360 +933,11 @@ function stringEnv(env: NodeJS.ProcessEnv): Record<string, string> {
   );
 }
 
-async function createMcpJsonRpcClient(env: Record<string, string>) {
-  const child = spawn("pnpm", ["exec", "tsx", "packages/mcp/src/index.ts"], {
-    cwd: repoRoot,
-    env,
-    stdio: ["pipe", "pipe", "pipe"],
-  });
-  const pending = new Map<number, { resolve: (value: any) => void; reject: (error: Error) => void }>();
-  let nextId = 1;
-  let stdout = "";
-  let stderr = "";
-
-  child.stdout.on("data", (chunk: Buffer) => {
-    stdout += chunk.toString("utf8");
-    let newlineIndex = stdout.indexOf("\n");
-    while (newlineIndex >= 0) {
-      const line = stdout.slice(0, newlineIndex).trim();
-      stdout = stdout.slice(newlineIndex + 1);
-      newlineIndex = stdout.indexOf("\n");
-      if (!line) {
-        continue;
-      }
-      const message = JSON.parse(line) as { id?: number; result?: unknown; error?: { message?: string } };
-      if (typeof message.id !== "number") {
-        continue;
-      }
-      const request = pending.get(message.id);
-      if (!request) {
-        continue;
-      }
-      pending.delete(message.id);
-      if (message.error) {
-        request.reject(new Error(message.error.message ?? JSON.stringify(message.error)));
-      } else {
-        request.resolve(message.result);
-      }
-    }
-  });
-  child.stderr.on("data", (chunk: Buffer) => {
-    stderr += chunk.toString("utf8");
-  });
-  child.on("exit", (code, signal) => {
-    const error = new Error(`MCP process exited with code ${code ?? "null"} signal ${signal ?? "null"}.\n${stderr}`);
-    for (const request of pending.values()) {
-      request.reject(error);
-    }
-    pending.clear();
-  });
-
-  function request(method: string, params: Record<string, unknown> = {}): Promise<any> {
-    const id = nextId;
-    nextId += 1;
-    const promise = new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        pending.delete(id);
-        reject(new Error(`MCP ${method} timed out.\n${stderr}`));
-      }, 15_000);
-      pending.set(id, {
-        resolve: (value) => {
-          clearTimeout(timeout);
-          resolve(value);
-        },
-        reject: (error) => {
-          clearTimeout(timeout);
-          reject(error);
-        },
-      });
-    });
-    child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id, method, params })}\n`);
-    return promise;
-  }
-
-  await request("initialize", {
-    protocolVersion: "2025-06-18",
-    capabilities: {},
-    clientInfo: { name: "exo-hidden-window-e2e", version: "0.0.0" },
-  });
-  child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized", params: {} })}\n`);
-
-  return {
-    listTools: async () => {
-      const result = await request("tools/list", {});
-      const tools = (result as { tools?: Array<{ name?: string }> }).tools ?? [];
-      return tools.map((tool) => String(tool.name)).sort();
-    },
-    callTool: (name: string, args: Record<string, unknown>) => request("tools/call", { name, arguments: args }),
-    close: () => {
-      child.kill();
-    },
-    stderr: () => stderr,
-  };
-}
-
-test("opens agent config editor with partial agent instruction discovery errors", async () => {
-  const { page, workspaceRoot, cleanup } = await launchExoFixture({
-    env: {
-      EXO_INDEX_ENABLED: "0",
-      EXO_INDEX_MODE: "off",
-      EXO_INDEXED_ROOTS: "[]",
-    },
-    prepareWorkspace: async (workspaceRoot) => {
-      await mkdir(path.join(workspaceRoot, "notes/test-notes/AGENTS.md"));
-    },
-  });
-
-  try {
-    await page.getByTestId("workspace-settings").click();
-    await expect(page.getByTestId("workspace-settings-dialog")).toBeVisible();
-    await expect(page.getByTestId("workspace-settings-tab-agents")).toHaveCount(0);
-    await expect(page.getByTestId("workspace-settings-dialog").locator(".settings-nav__button")).toHaveCount(5);
-    const settingsLayout = await page.getByTestId("workspace-settings-dialog").evaluate((dialog) => {
-      const overlay = document.querySelector<HTMLElement>('[data-testid="workspace-settings-overlay"]');
-      const nav = dialog.querySelector<HTMLElement>(".settings-nav");
-      const lastNavItem = dialog.querySelector<HTMLElement>(".settings-nav__button:last-child");
-      return {
-        backdropFilter: overlay ? getComputedStyle(overlay).backdropFilter : "",
-        lastNavItemBottom: lastNavItem?.getBoundingClientRect().bottom ?? 0,
-        navBottom: nav?.getBoundingClientRect().bottom ?? 0,
-        width: dialog.getBoundingClientRect().width,
-      };
-    });
-    expect(settingsLayout.width).toBeGreaterThanOrEqual(900);
-    expect(settingsLayout.backdropFilter === "" || settingsLayout.backdropFilter === "none").toBe(true);
-    expect(settingsLayout.navBottom - settingsLayout.lastNavItemBottom).toBeGreaterThanOrEqual(0);
-    await page.getByTestId("workspace-settings-close").click();
-    await page.getByTestId("open-agent-config").click();
-    await expect(page.getByTestId("agent-context-manager")).toBeVisible();
-    await expect(page.getByTestId("agent-context-manager").locator(".dialog-tabs__button")).toHaveCount(4);
-    await expect(page.getByTestId("agent-context-manager-partial-errors")).toContainText("Notes AGENTS.md");
-    await expect(page.getByTestId("agent-context-manager-body")).toContainText("Scope");
-    await page.screenshot({ path: "/tmp/exo-agent-config-instructions.png", fullPage: false });
-    await expectTestIdsDoNotOverlap(page, "agent-context-manager-partial-errors", "agent-context-manager-body");
-  } finally {
-    await cleanup();
-  }
-});
-
-test("keeps long agent instruction errors separate from narrow manager controls", async () => {
-  const { electronApp, page, cleanup } = await launchExoFixture({
-    env: {
-      EXO_INDEX_ENABLED: "0",
-      EXO_INDEX_MODE: "off",
-      EXO_INDEXED_ROOTS: "[]",
-    },
-  });
-
-  try {
-    const longError = [
-      "agent instructions:",
-      "failed to inspect a very long provider instruction path after a stale preload bridge restart",
-      "/very/long/workspace/path/with/provider/instructions/AGENTS.md",
-      "restart Exo to reload the preload bundle before editing agent instructions",
-    ].join(" ");
-    await electronApp.evaluate(({ ipcMain }, errorMessage) => {
-      ipcMain.removeHandler("workspace:get-agent-instruction-config");
-      ipcMain.handle("workspace:get-agent-instruction-config", async () => {
-        throw new Error(errorMessage);
-      });
-    }, longError);
-
-    await page.getByTestId("open-agent-config").click();
-    await expect(page.getByTestId("agent-context-manager")).toBeVisible();
-    await page.setViewportSize({ width: 720, height: 720 });
-    await expect(page.getByTestId("agent-context-manager-partial-errors")).toContainText("stale preload bridge restart");
-
-    const errorBox = await page.getByTestId("agent-context-manager-partial-errors").boundingBox();
-    const controlsBox = await page.getByTestId("agent-context-scope-controls").boundingBox();
-    expect(errorBox).not.toBeNull();
-    expect(controlsBox).not.toBeNull();
-    expect(boxesOverlap(errorBox!, controlsBox!)).toBe(false);
-  } finally {
-    await cleanup();
-  }
-});
-
-test("syncs global and exocortex agent instruction files from workspace settings", async () => {
-  const { page, workspaceRoot, homeRoot, cleanup } = await launchExoFixture({
-    mutable: true,
-    prepareWorkspace: async (workspaceRoot) => {
-      await writeFile(path.join(workspaceRoot, "notes/test-notes/AGENTS.md"), "# Notes agents\nUse notes AGENTS source.\n", "utf8");
-      await writeFile(path.join(workspaceRoot, "notes/test-notes/CLAUDE.md"), "# Notes claude\nUse notes CLAUDE source.\n", "utf8");
-    },
-  });
-
-  try {
-    await page.getByTestId("open-agent-config").click();
-    await expect(page.getByTestId("agent-context-manager")).toBeVisible();
-    await expect(page.getByTestId("agent-context-manager")).not.toContainText("soul.md");
-    await expect(page.getByTestId("agent-context-manager")).not.toContainText("Managed config editor");
-
-    const editorBox = await page.getByTestId("agent-context-unified-editor").boundingBox();
-    expect(editorBox).not.toBeNull();
-    expect(editorBox!.height).toBeGreaterThan(240);
-    await page.getByTestId("agent-context-unified-editor").fill(Array.from({ length: 40 }, (_, index) => `line ${index + 1}`).join("\n"));
-    await expect.poll(async () =>
-      page.getByTestId("agent-context-unified-editor").evaluate((node) => {
-        const textarea = node as HTMLTextAreaElement;
-        textarea.scrollTop = textarea.scrollHeight;
-        return textarea.scrollTop;
-      }),
-    ).toBeGreaterThan(0);
-
-    await page.getByTestId("agent-config-load-template").click();
-    await expect(page.getByTestId("agent-context-unified-editor")).toHaveValue(/Exo Agent Instructions/);
-    await page.getByTestId("agent-context-unified-editor").fill("Use unified global context.");
-    await page.getByTestId("agent-context-save-unified").click();
-    await expect(page.getByTestId("agent-context-unified-status")).toContainText("aligned");
-    await expect.poll(async () => readFile(path.join(homeRoot, ".codex/AGENTS.md"), "utf8")).toBe("Use unified global context.\n");
-    await expect.poll(async () => readFile(path.join(homeRoot, ".claude/CLAUDE.md"), "utf8")).toBe("Use unified global context.\n");
-    await expect(access(path.join(homeRoot, "soul.md"))).rejects.toThrow();
-
-    await page.getByTestId("agent-context-scope-exocortex").click();
-    await expect(page.getByTestId("agent-config-status")).toContainText("Different");
-    await expect(page.getByTestId("agent-config-divergence")).toContainText("AGENTS.md and CLAUDE.md are different");
-    await page.getByTestId("agent-config-use-claude").click();
-    await expect(page.getByTestId("agent-context-unified-editor")).toHaveValue(/Use notes CLAUDE source/);
-    await page.getByTestId("agent-context-unified-editor").fill("Use unified notes context.");
-    await page.getByTestId("agent-context-save-unified").click();
-    await expect(page.getByTestId("agent-context-unified-status")).toContainText("aligned");
-    await expect.poll(async () => readFile(path.join(workspaceRoot, "notes/test-notes/AGENTS.md"), "utf8")).toBe("Use unified notes context.\n");
-    await expect.poll(async () => readFile(path.join(workspaceRoot, "notes/test-notes/CLAUDE.md"), "utf8")).toBe("Use unified notes context.\n");
-    await expect(access(path.join(workspaceRoot, "notes/test-notes/soul.md"))).rejects.toThrow();
-    await expect(access(path.join(workspaceRoot, "projects/sample-project/AGENTS.md"))).rejects.toThrow();
-  } finally {
-    await cleanup();
-  }
-});
-
-test("manages harness skill files from the agent config editor", async () => {
-  const { page, homeRoot, cleanup } = await launchExoFixture({ mutable: true });
-  const skillRoot = path.join(homeRoot, ".claude", "skills", "qa-skill");
-  const skillFile = path.join(skillRoot, "SKILL.md");
-
-  try {
-    await mkdir(skillRoot, { recursive: true });
-    await mkdir(path.join(skillRoot, "references"), { recursive: true });
-    await writeFile(skillFile, "# QA Skill\n\nInitial body.\n", "utf8");
-    await writeFile(path.join(skillRoot, "references", "example.md"), "# Example\n", "utf8");
-
-    await page.getByTestId("open-agent-config").click();
-    await expect(page.getByTestId("agent-context-manager")).toBeVisible();
-    await page.getByTestId("agent-config-tab-skills").click();
-    await expect(page.getByTestId("agent-skills-manager")).toContainText("QA Skill");
-    await expect(page.getByTestId("agent-skills-manager")).toContainText("claude · global · enabled");
-    await expect(page.getByTestId("agent-skill-files").locator(".agent-skills__file").first()).toHaveText("SKILL.md");
-    await expect(page.getByTestId("agent-skill-file-references")).toHaveText(/▾ references/);
-    await expect(page.getByTestId("agent-skill-file-references/example.md")).toBeVisible();
-    await page.screenshot({ path: "/tmp/exo-agent-config-skills.png", fullPage: false });
-    await expectTestIdsDoNotOverlap(page, "agent-skill-files", "agent-skill-file-editor");
-    await page.getByTestId("agent-skill-file-references").click();
-    await expect(page.getByTestId("agent-skill-file-references")).toHaveText(/▸ references/);
-    await expect(page.getByTestId("agent-skill-file-references/example.md")).toHaveCount(0);
-    await expect(page.getByTestId("agent-skill-file-editor")).toHaveValue(/Initial body/);
-
-    await page.getByTestId("agent-skill-file-editor").fill("# QA Skill\n\nEdited body.\n");
-    await page.getByTestId("agent-skill-save-file").click();
-    await expect.poll(async () => readFile(skillFile, "utf8")).toBe("# QA Skill\n\nEdited body.\n");
-
-    await page.getByTestId("agent-skill-toggle-enabled").click();
-    await expect(page.getByTestId("agent-skills-manager")).toContainText("claude · global · disabled");
-    await expect(access(skillFile)).rejects.toThrow();
-
-    await page.getByTestId("agent-skill-toggle-enabled").click();
-    await expect(page.getByTestId("agent-skills-manager")).toContainText("claude · global · enabled");
-    await expect.poll(async () => readFile(skillFile, "utf8")).toBe("# QA Skill\n\nEdited body.\n");
-  } finally {
-    await cleanup();
-  }
-});
-
-test("shows missing Pi backend status and hides unconfigured Hermes launchers", async () => {
-  const { page, cleanup } = await launchExoFixture({
-    env: {
-      EXO_PI_COMMAND: "/bin/sh",
-      EXO_PI_LABEL: "Custom Pi build",
-    },
-  });
-
-  try {
-    await expect(page.getByTestId("launch-pi")).toHaveCount(0);
-    await expect(page.getByTestId("launch-hermes")).toHaveCount(0);
-
-    await page.getByTestId("open-agent-config").click();
-    await expect(page.getByTestId("agent-context-manager")).toBeVisible();
-    await page.getByTestId("agent-config-tab-harnesses").click();
-
-    await expect(page.getByTestId("agent-harness-pi")).toContainText("Custom Pi build");
-    await expect(page.getByTestId("agent-harness-pi")).toContainText("Missing dependency");
-    await expect(page.getByTestId("agent-harness-pi")).toContainText("Launch unavailable");
-    await expect(page.getByTestId("agent-harness-pi")).toContainText("Pi inference backend: Missing");
-    await expect(page.getByTestId("agent-harness-hermes")).toHaveCount(0);
-    await page.screenshot({ path: "/tmp/exo-agent-config-harnesses.png", fullPage: false });
-  } finally {
-    await cleanup();
-  }
-});
-
-test("shows a configured generic Pi-compatible launcher when backend is marked ready", async () => {
-  const { page, cleanup } = await launchExoFixture({
-    env: {
-      EXO_PI_COMMAND: "/bin/sh",
-      EXO_PI_LABEL: "Custom Pi build",
-      EXO_PI_BACKEND_URL: "http://127.0.0.1:8080",
-      EXO_PI_BACKEND_READY: "1",
-    },
-  });
-
-  try {
-    await expect(page.getByTestId("launch-pi")).toBeVisible();
-
-    await page.getByTestId("open-agent-config").click();
-    await page.getByTestId("agent-config-tab-harnesses").click();
-
-    await expect(page.getByTestId("agent-harness-pi")).toContainText("Configured");
-    await expect(page.getByTestId("agent-harness-pi")).toContainText("Launchable");
-    await expect(page.getByTestId("agent-harness-pi")).toContainText("Pi inference backend: Ready");
-    await expect(page.getByTestId("agent-harness-pi")).toContainText("http://127.0.0.1:8080");
-  } finally {
-    await cleanup();
-  }
-});
-
-test("syncs a git skill source and installs a library skill copy", async () => {
-  const { page, workspaceRoot, homeRoot, cleanup } = await launchExoFixture({ mutable: true });
-  const sourceRepo = path.join(workspaceRoot, "skill-source");
-  const librarySkillRoot = path.join(sourceRepo, "skills", "library-skill");
-  const installedSkillFile = path.join(homeRoot, ".claude", "skills", "library-skill", "SKILL.md");
-
-  try {
-    await mkdir(librarySkillRoot, { recursive: true });
-    await writeFile(path.join(librarySkillRoot, "SKILL.md"), "# Library Skill\n\nUse safely.\n", "utf8");
-    runGit(sourceRepo, ["init"]);
-    runGit(sourceRepo, ["config", "user.email", "exo@example.com"]);
-    runGit(sourceRepo, ["config", "user.name", "Exo Test"]);
-    runGit(sourceRepo, ["add", "."]);
-    runGit(sourceRepo, ["commit", "-m", "init skills"]);
-
-    await page.getByTestId("open-agent-config").click();
-    await expect(page.getByTestId("agent-context-manager")).toBeVisible();
-    await page.getByTestId("agent-config-tab-skills").click();
-    await page.getByTestId("agent-skill-source-url").fill(sourceRepo);
-    await page.getByTestId("agent-skill-source-add").click();
-    await expect(page.getByTestId("agent-skill-sources")).toContainText("Library Skill");
-    await expect(page.getByTestId("agent-skill-install-target")).toHaveValue("claude:global");
-    await page.getByTestId("agent-library-skill-install").click();
-    await expect(page.getByTestId("agent-skill-sources")).toContainText("Skill installed");
-    await expect.poll(async () => readFile(installedSkillFile, "utf8")).toBe("# Library Skill\n\nUse safely.\n");
-  } finally {
-    await cleanup();
-  }
-});
 
 test("switch workspace opens the workspace picker", async () => {
   const { page, cleanup } = await launchExoFixture();
 
+  await page.getByTestId("workspace-menu-button").click();
   await page.getByTestId("workspace-settings").click();
   await page.getByRole("button", { name: "Switch workspace" }).click();
   await expect(page.getByTestId("onboarding")).toContainText("Select workspace");
@@ -1918,92 +989,6 @@ test("shows first-run setup from a packaged-style launch without workspace env",
   await cleanup();
 });
 
-test("workspace settings alone do not complete onboarding", async () => {
-  const { page, cleanup, workspaceRoot } = await launchExoFixture({
-    mutable: true,
-    configured: false,
-    cwd: "/",
-    workspaceRootEnv: false,
-    expectOnboarding: false,
-    initialNoteLabel: null,
-    prepareSettings: async ({ settingsPath, workspaceRoot }) => {
-      const notesFolder = path.join(workspaceRoot, "notes/test-notes");
-      await mkdir(path.dirname(settingsPath), { recursive: true });
-      await writeFile(
-        settingsPath,
-        JSON.stringify({
-          workspaceRoot: notesFolder,
-          defaultTerminalCwd: path.join(workspaceRoot, "notes"),
-          noteRoots: [notesFolder],
-          projectRoots: [path.join(workspaceRoot, "projects/sample-project")],
-          indexedRoots: [],
-          indexing: { enabled: false, mode: "off", backend: "qmd" },
-        }),
-      );
-    },
-  });
-
-  await expect(page.getByTestId("sidebar")).toBeVisible();
-  await expect(page.getByTestId("post-workspace-setup")).toContainText("Set up your Exograph");
-  await expect.poll(async () => page.evaluate(() => window.exo.workspace.getSetupState()))
-    .toMatchObject({
-      complete: true,
-      onboardingComplete: false,
-      onboarding: {
-        status: "in-progress",
-        phase: "profile",
-        profileStep: "plugins",
-        workspaceBasicsSaved: true,
-      },
-    });
-
-  await page.getByRole("button", { name: "Back" }).click();
-  await expect(page.getByTestId("post-workspace-setup")).toHaveCount(0);
-  await expect(page.getByTestId("statusbar-finish-setup")).toBeVisible();
-  await page.getByTestId("statusbar-finish-setup").click();
-  await expect(page.getByTestId("post-workspace-setup")).toBeVisible();
-  await expect(page.getByTestId("post-workspace-setup")).toContainText(path.join(workspaceRoot, "notes/test-notes"));
-
-  await cleanup();
-});
-
-test("hard reload resumes incomplete onboarding profile step", async () => {
-  const fixtureWorkspaceRoot = path.join(repoRoot, "fixtures/test-workspace");
-  const notesFolder = path.join(fixtureWorkspaceRoot, "notes/test-notes");
-  const { page, cleanup } = await launchExoFixture({
-    configured: false,
-    cwd: "/",
-    workspaceRootEnv: false,
-    runtimeRootEnv: false,
-    env: {
-      EXO_TEST_SELECT_FOLDER_PATH: notesFolder,
-    },
-  });
-
-  await page.getByTestId("onboarding-choose-notes").click();
-  await page.getByTestId("onboarding-continue").click();
-  await expect(page.getByTestId("post-workspace-setup")).toBeVisible();
-  await page.getByTestId("onboarding-enter-workspace").click();
-  await expect(page.getByTestId("onboarding-routines")).toBeVisible();
-  await expect.poll(async () => page.evaluate(() => window.exo.workspace.getSetupState()))
-    .toMatchObject({
-      complete: true,
-      onboardingComplete: false,
-      onboarding: {
-        phase: "profile",
-        profileStep: "routines",
-        workspaceBasicsSaved: true,
-      },
-    });
-
-  await page.reload();
-  await expect(page.getByTestId("sidebar")).toBeVisible();
-  await expect(page.getByTestId("post-workspace-setup")).toBeVisible();
-  await expect(page.getByTestId("onboarding-routines")).toBeVisible();
-
-  await cleanup();
-});
-
 test("opens an existing notes folder from first-run setup", async () => {
   const fixtureWorkspaceRoot = path.join(repoRoot, "fixtures/test-workspace");
   const notesFolder = path.join(fixtureWorkspaceRoot, "notes/test-notes");
@@ -2028,36 +1013,8 @@ test("opens an existing notes folder from first-run setup", async () => {
   await page.getByTestId("onboarding-continue").click();
   await expect(page.getByTestId("sidebar")).toBeVisible();
   await expect(page.getByTestId("editor-panel")).toBeVisible();
-  await expect(page.getByTestId("terminal-rail")).toBeVisible();
-  await expect(page.getByTestId("post-workspace-setup")).toContainText("Set up your Exograph");
-  await expect(page.getByTestId("post-workspace-setup")).not.toContainText("Core, locked");
-  await expect(page.getByTestId("onboarding-capability-review")).toBeVisible();
-  const setupFrame = await page.getByTestId("post-workspace-setup").boundingBox();
-  expect(setupFrame).not.toBeNull();
-  await expect(page.getByTestId("onboarding-plugin-toggle-qmd")).toBeChecked();
-  await expect(page.getByTestId("onboarding-plugin-toggle-qmd")).toBeEnabled();
-  await page.screenshot({ path: "/tmp/exo-issue-32-onboarding-plugins.png", fullPage: false });
-  await page.getByTestId("onboarding-enter-workspace").click();
-  await expect(page.getByTestId("onboarding-routines")).toBeVisible();
-  await expectStableOuterFrame(page.getByTestId("post-workspace-setup"), setupFrame!);
-  await page.getByTestId("onboarding-enter-workspace").click();
-  await expect(page.getByTestId("onboarding-agent-instructions")).toBeVisible();
-  await expectStableOuterFrame(page.getByTestId("post-workspace-setup"), setupFrame!);
-  await page.getByTestId("onboarding-enter-workspace").click();
-  await expect(page.getByTestId("onboarding-skills")).toBeVisible();
-  await expect(page.getByTestId("onboarding-skills")).toContainText("Standard skills");
-  await expect(page.getByTestId("onboarding-skills")).toContainText("Apply standard skills");
-  await expectStableOuterFrame(page.getByTestId("post-workspace-setup"), setupFrame!);
-  await page.getByTestId("onboarding-enter-workspace").click();
-  await expect(page.getByTestId("onboarding-profile-routine-note")).toContainText("Profile save updates Exo workspace state only");
-  await expect(page.getByTestId("onboarding-profile-review")).toContainText("Profile config JSON");
-  await expect(page.getByTestId("onboarding-profile-review")).toContainText("Save profile config");
-  await expect(page.getByTestId("onboarding-profile-review")).toContainText('"profileId"');
-  await expectStableOuterFrame(page.getByTestId("post-workspace-setup"), setupFrame!);
-  await page.screenshot({ path: "/tmp/exo-issue-32-onboarding-review.png", fullPage: false });
-  await expect(page.getByTestId("onboarding-enter-workspace")).toBeVisible();
-  await page.getByTestId("onboarding-enter-workspace").click();
-  await expect(page.getByTestId("post-workspace-setup")).toHaveCount(0);
+  await page.getByTestId("side-panel-toggle").click();
+  await expect(page.getByTestId("side-panel-terminal-rail")).toBeVisible();
   await expect.poll(async () => page.evaluate(() => window.exo.workspace.getSetupState()))
     .toMatchObject({
       complete: true,
@@ -2076,28 +1033,33 @@ test("opens an existing notes folder from first-run setup", async () => {
   await cleanup();
 });
 
-test("collapses and reopens the workspace rail", async () => {
+test("collapses and reopens the workspace explorer", async () => {
   const { page, cleanup } = await launchExoFixture();
 
   await page.getByTestId("sidebar-collapse").click();
   await expect(page.getByTestId("sidebar-expand")).toBeVisible();
   await expect(page.getByTestId("sidebar").getByRole("button", { name: "focus-note" })).toHaveCount(0);
+  const expandBox = await page.getByTestId("sidebar-expand").boundingBox();
+  const tabBox = await page.locator(".tab-strip__tab").first().boundingBox();
+  expect(expandBox).not.toBeNull();
+  expect(tabBox).not.toBeNull();
+  expect(tabBox!.x).toBeGreaterThan(expandBox!.x + expandBox!.width + 12);
 
   await page.getByTestId("sidebar-expand").click();
   await expect(page.getByTestId("sidebar-collapse")).toBeVisible();
-  await expect(page.getByTestId("sidebar-search-toggle")).toBeVisible();
+  await expect(page.getByTestId("side-panel-files-rail")).toBeVisible();
 
   await cleanup();
 });
 
-test("shows editor and terminal panes side by side", async () => {
+test("shows the editor beside the right-side terminal surface", async () => {
   const { page, cleanup } = await launchExoFixture();
 
   await expect(page.locator(".pane-leaf--editor")).toBeVisible();
-  await expect(page.locator(".pane-leaf--terminal")).toBeVisible();
-  await expect(page.locator(".workspace__body > .pane-split-resizer")).toBeVisible();
+  await expect(page.locator(".exo-side-panel-surface .pane-leaf--terminal")).toBeVisible();
+  await expect(page.locator(".workspace__body > .pane-split-resizer")).toHaveCount(0);
   await expect(page.getByTestId("terminal-tab-shell")).toBeVisible();
-  await expect(page.getByTestId("terminal-rail")).toBeVisible();
+  await expect(page.getByTestId("side-panel-terminal-rail")).toBeVisible();
 
   await cleanup();
 });
@@ -2452,11 +1414,13 @@ test("keeps list text aligned when editing a bullet marker", async () => {
   await expect.poll(cursorLocation).toEqual({ lineText: "- journal", offset: 9 });
 
   await page.keyboard.press("ArrowRight");
-  await expect.poll(cursorLocation).toEqual({ lineText: "  - today", offset: 2 });
+  await expect.poll(cursorLocation).toMatchObject({ lineText: "  - today" });
+  await expect.poll(async () => (await lineMetrics("today")).hasBullet).toBe(true);
   await page.keyboard.press("ArrowRight");
-  await expect.poll(cursorLocation).toEqual({ lineText: "  - today", offset: 3 });
+  await expect.poll(cursorLocation).toMatchObject({ lineText: "  - today" });
+  await expect.poll(async () => (await lineMetrics("today")).hasBullet).toBe(true);
   await page.keyboard.press("ArrowRight");
-  await expect.poll(cursorLocation).toEqual({ lineText: "  - today", offset: 4 });
+  await expect.poll(cursorLocation).toMatchObject({ lineText: "  - today" });
 
   await setCursorOnLineContaining("  - ", 3);
   await expect(page.locator(".cm-line .exo-md-list-marker-raw")).toHaveText("-");

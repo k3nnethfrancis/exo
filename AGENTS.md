@@ -1,51 +1,47 @@
 # Exo Agent Map
 
-Exo is a local-first AI workstation for applied AI engineers and researchers building personal AI systems over a Markdown-first exograph. Treat this file as the concise map; use the linked docs for detail.
+Exo is the local Markdown exocortex in the shared Ashby vision.
 
-The immediate product proving loop is Exo-on-Exo: finish usability/harness readiness, install Exo as the stable resident app, use Exo-managed agents to build and QA Exo, then treat friction in that workflow as product signal.
+Shared north star: `../../notes/shoshin-codex/ashby.md`
+Canonical branch plan: `docs/exograph-simplification-plan.md`
+
+Exo owns the workspace, exograph, retrieval, mixed-pane canvas, configured Commands, invocation observation, and review. Guardian owns the separate Pi-compatible execution harness and Principal. Ash is a behavior/evaluation role, not an Exo runtime concept.
+
+The `refactor/note-native-exo` branch is intentionally cutting the old agent-cockpit, plugin-platform, built-in-harness, tmux/transcript, and MCP-first directions. Do not restore them unless the shared vision and current plan explicitly reopen a concrete use.
 
 ## Start Here
 
-1. `README.md` - onboarding, current product surface, commands
-2. `docs/README.md` - committed docs map
-3. `docs/strategy.md` - product direction and system model
-4. `ledger.md` - fastest current-state handoff
-5. `docs/architecture.md` - runtime and package boundaries
-6. `docs/harness.md` - gates, work chunks, agent workflow
-7. `issues.md` - canonical active bug, QA, and field-issue tracker
-8. `tasks.md` - active execution tracker
-9. `docs/usability-readiness.md` - near-term standard before installed daily use
-10. `docs/terminal-architecture-v4.md` - current terminal architecture and module-boundary target
-11. `docs/terminal-runtime-decision.md` - current terminal runtime decision and open simplification questions
-12. `docs/terminal-quality-standard.md` - terminal useability and QA standard
-13. `docs/terminal-fallback-audit.md` - terminal fallback/recovery policy, steelman objections, and hardening backlog
-14. `docs/terminal-refactor-plan.md` - historical tmux migration plan; use the v4/decision/quality/fallback docs for current rules
-15. `docs/qmd-integration-notes.md` - current QMD adapter contract and upgrade notes
-16. `roadmap.md` - future plans
-17. `docs/plugin-system-architecture.md` - core-versus-plugin target architecture
-18. `docs/plugin-architecture-audit.md` - plugin decision/fallback audit and hardening policy
-19. `docs/plugins.md` - future extension model
-20. `docs/plugin-implementation-plan.md` - implementation sequence for capability registries, providers, harnesses, activity substrate, artifact references, and plugin templates
-21. `docs/public-contract-reviews.md` - review-note ledger checked by `pnpm check:repo` for command-server, CLI, MCP, and shared protocol surfaces
-22. `packages/mcp/README.md` - MCP setup and tool contract
+1. `../../notes/shoshin-codex/ashby.md` - shared Exo + Guardian + Ash vision and role boundaries
+2. `docs/exograph-simplification-plan.md` - canonical audit, target architecture, execution waves, and ship gates
+3. `CONTEXT.md` - canonical Exo product glossary
+4. `tasks.md` - active execution tracker
+5. `issues.md` - canonical bug, QA, and field-issue tracker
+6. `README.md` - current product surface and commands
+7. `roadmap.md` - future work only
+8. `ledger.md` - shipped history and reusable substrate
+9. `skills/terminal-stability/SKILL.md` - current direct-PTY invariants and QA rules
+10. `docs/extension-architecture.md` - concrete-seam extension ladder
+11. `docs/public-contract-reviews.md` - protected command-server, CLI, and shared-protocol review ledger
+
+Other completion, plugin, routine, harness, profile, tmux, transcript, and MCP documents are superseded inventory until the simplification plan deletes or distills them. They are not active instructions.
 
 ## Project Skills
 
 Repo-owned Exo skills live in `skills/`. Treat this as the canonical project skill library. `.claude/skills` exposes the full folder for Claude contributors; `.codex/skills` exposes the active Codex subset so lead-orchestrator-only or intake-only skills do not become default Codex behavior.
 
+Skill rule on `refactor/note-native-exo`: skills must describe the current Exo architecture, not transitional warnings around the old product regime. Do not create or use architecture skills for systems that are being removed or whose replacement architecture has not been designed yet.
+
 Before contributing, scan `skills/`. For broad Exo development, load the relevant architecture/runtime skills first. For tightly scoped subagent work, load at least the matching skill before editing:
 
 - `skills/submit-exo-issue/SKILL.md` - available for contributors and intake agents that file, promote, deduplicate, or assign Exo bug/QA/setup reports. The lead/orchestrator may follow the tracker convention directly without invoking this skill.
-- `skills/terminal-stability/SKILL.md` - use before changing terminal runtime, rendering, settings, tests, or harness launch behavior.
-- `skills/plugin-development/SKILL.md` - use before changing plugin architecture, capability registries, manifests, trust/permissions, providers, harness adapters, Routine templates, or plugin-owned surfaces.
-- `skills/deslopify-frontend/SKILL.md` - use before changing setup, settings, onboarding, Plugin Manager, or other configuration UI.
+- `skills/terminal-stability/SKILL.md` - use before changing terminal runtime, rendering, settings, tests, or Command launch behavior.
+- `skills/deslopify-frontend/SKILL.md` - use before changing setup, settings, onboarding, future extension settings, or other configuration UI.
 
 ## Repository Map
 
 - `apps/desktop` - Electron main/preload/renderer, settings, terminal supervision, command server.
-- `packages/core` - workspace model, notes/projects, runtime launch plans, shared command protocol, QMD adapter, integrations.
+- `packages/core` - workspace files/identity, graph/search, configured Commands, invocation records, and shared command protocol.
 - `packages/cli` - `bin/exo` CLI.
-- `packages/mcp` - MCP server for local agents; stdio by default, Streamable HTTP when explicitly requested.
 - `scripts` - launch/build helpers.
 - `.github/workflows` - CI and macOS packaging workflows.
 - `CLAUDE.md` is a compatibility symlink to `AGENTS.md`; do not add Claude-only repo instructions.
@@ -68,7 +64,6 @@ pnpm --filter @exo/desktop typecheck
 pnpm --filter @exo/desktop test
 pnpm --filter @exo/cli typecheck && pnpm --filter @exo/cli test
 pnpm --filter @exo/core test
-pnpm --filter @exo/mcp typecheck && pnpm --filter @exo/mcp test
 pnpm test:e2e
 ```
 
@@ -97,13 +92,13 @@ CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build 
 ## Runtime Rules
 
 - Renderer code must not touch filesystem or processes directly; use preload APIs backed by main-process services.
-- CLI and MCP are peer clients of the local command server discovered through `${workspace_root}/.exo/server.json`.
+- CLI is the active local integration surface. MCP has been removed and should not shape new architecture.
 - `packages/core/src/command-protocol.ts` owns shared command routes and payload shapes.
-- Shell, Claude, Codex, Pi, and future harness terminals use tmux-backed core sessions. The current embedded path attaches through Exo's tmux control-mode bridge; `node-pty` is not the current live attach bridge. Follow `docs/terminal-runtime-decision.md` and `docs/terminal-quality-standard.md`; do not add hidden direct-pty/tmux fallbacks or user-facing transport switches.
-- Terminal output must stream into xterm imperatively. React state may keep bounded metadata/tail state for restore, tabs, diagnostics, and tests, but must not be the live rendering source for high-volume terminal output.
-- Terminal live scrollback is user-facing configuration. Avoid hidden hard caps or internal truncation that users cannot discover or change; if a guard is necessary, expose the behavior in settings/docs and keep durable transcripts independent.
-- Full transcripts live under `.exo/terminal-transcripts/` with retention.
-- Terminal scroll must stay local to xterm and must not become Claude/Codex history input.
+- Terminal is direct `node-pty` behind one byte-faithful lifecycle. Do not add tmux transport, attach/restore, transcript, built-in harness, or provider-specific terminal branches.
+- xterm owns the live screen and ordinary scrollback. React may keep bounded metadata and an in-memory replay tail for renderer reload, diagnostics, and CLI reads; it must not be the high-volume rendering source or imply durable history.
+- Ordinary shell wheel/trackpad/selection stays in xterm. A full-screen mouse-mode TUI may own wheel input only with a visible indicator and documented modifier escape to local scrollback.
+- App-process exit ends the PTY. Users may choose tmux or provider-native resume inside the shell; Exo does not own or promise process persistence.
+- Command templates are data-only executable/arguments/cwd/environment/pointer policies. Claude, Codex, Pi, Guardian, and future tools all use the same Command and invocation path.
 - Workspace filesystem changes should flow from `WorkspaceWatcherService` events. Do not add renderer polling loops for open-document freshness unless a watcher gap is proven and documented.
 
 ## Code Organization
@@ -111,34 +106,33 @@ CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build 
 - `apps/desktop/src/renderer/src/App.tsx` is the shell orchestrator. Keep bootstrap, top-level workspace composition, and cross-feature coordination there; move feature UI, state machines, and pure algorithms into named modules.
 - Pure pane/tree algorithms belong in focused helper modules such as `paneTreeSelectors.ts` and `workspaceTree.ts`. They should not capture React state or call preload APIs.
 - Renderer feature modules should have one obvious owner: a component for rendering, a hook for state/effects, and small pure helpers for deterministic transforms. Avoid mixing all three in one file.
-- Main-process code should follow the same boundary: command-server routing, terminal management, settings storage, indexing, and filesystem mutation should remain separate services. Do not grow `main/index.ts` with new inline subsystems.
+- Main-process code should concentrate decisions in deep modules with small interfaces: `WorkspaceConfigStore`, `WorkspaceFiles`, `WorkspaceGraph`, `WorkspaceIndex`, terminal lifecycle, `InvocationRunner`, and `CommandServerLifecycle`. Do not grow `main/index.ts` with inline subsystems or preserve forwarding modules whose complexity disappears when deleted.
 - Prefer extracting stable seams over moving churn. If a block changes often because the product is still being shaped, keep the boundary simple and name the ownership clearly before abstracting deeply.
 - Inline comments should explain non-obvious runtime constraints, invariants, or race-prevention logic. Do not add comments that restate the code.
 
 ## Product Rules
 
-- `workspace_root` is primary; `note_roots` and `project_roots` are explicit attachments.
+- A Workspace contains explicit Note Roots and read-only Attached Folders. Note mutation never accepts arbitrary filesystem paths.
 - Markdown-on-disk is canonical; notebook mode is a projection.
-- Project roots are imported folders, not every folder under workspace `projects/`.
-- Live Explore typing stays fast filename/path search; optional indexed search is explicit and should not block the renderer.
-- Exo is the workstation; the exograph is its core object: a user-defined graph over notes, projects, agents, sessions, files, activity records, artifacts, and provenance references with growable relational ontologies.
+- Attached Folders are searchable/readable context, Command working locations, and diff targets—not a second general-purpose editor filesystem.
+- Live Search typing stays fast; indexed search and provider degradation are explicit and must not block the renderer.
+- Exo is the product. An exograph is the user-owned graph over Markdown notes, properties, links, tags, attachments, and accepted knowledge.
 - Durable approved graph facts should live in user-owned Markdown/frontmatter/properties, links, tags, and files. Derived indexes, inferred facts, proposals, activity records, artifact references, and provenance references belong under `.exo/` until accepted.
-- Exo should opportunistically support Open Knowledge Format (OKF) compatibility for portable knowledge bundles: Markdown concept files, YAML frontmatter with `type` when present, normal Markdown links, optional `index.md`/`log.md`, permissive consumption, and preservation of unknown fields. Do not enforce OKF on arbitrary user Markdown. Exo-created commands may offer OKF-compatible templates, and Exo should benefit when imported graphs already follow OKF. Runtime traces, plugin state, proposals, and datasets may be richer `.exo/` artifacts linked back to OKF concepts.
+- Exo may permissively consume Open Knowledge Format conventions—Markdown concepts, YAML frontmatter, normal links, optional `index.md`/`log.md`, and unknown-field preservation—but must not enforce a schema on arbitrary user Markdown.
 - Exo should not impose one vault schema. It may detect, recommend, and maintain structures such as Shoshin or LM Wiki profiles, but users own the schema.
-- Exo should model feed/event streams rather than hardcoded inbox folders. Quick captures, web clips, voice transcripts, file changes, agent outputs, MCP messages, workflow results, git events, plugin responses, eval results, and training artifacts can flow through a reviewable feed before being linked, archived, promoted, or dismissed.
-- Automation is not automatically core. Core may own a small activity/job substrate: permission checks, activity ids/status/timestamps, artifact references, transcript/log references, provenance references, and optional review state. Routines, workflows, graph-health jobs, eval runs, training exports, and maintenance loops should be plugins unless repeated product use proves a primitive is universal.
-- A plugin Routine is a saved/manual/scheduled workflow definition: prompt, selected harness, optional required harness skills, trigger/schedule, scope, permissions, and output policy. Harnesses are integrations/plugins; skills are harness-visible capabilities referenced by prompts and managed later through harness skill inventory.
-- QMD is the default notes-index/search provider behind Exo-managed lexical/semantic/hybrid search, CLI, and MCP tools, not the permanent product boundary.
-- Keep QMD calls behind `packages/core/src/qmd.ts`; do not patch `node_modules` or fork QMD casually.
-- Plugin architecture starts as typed internal capability registries, not arbitrary third-party code loading. Think of vanilla Exo as core plus bundled/recommended plugins. Search providers, harness adapters, routines, graph analyzers, evals, dashboards, and maintenance workflows should go through registry/contracts where practical; local forks such as GA Pi are configured instances of a generic harness plugin, not OSS source defaults.
-- Future provenance work should track human vs agent-authored changes by source, session, and task.
-- Project-root mutation belongs in UI/CLI operator surfaces; MCP may inspect attached roots through workspace status but should stay a narrow agent work plane.
+- Feed/event streams are deferred. Activity appears only when reviewed Invocation history earns it.
+- Automation is not automatically core. Invocation records are the first activity record; Routine product work is a superseded/deletion-audit target.
+- A configured Command is the V1 agent/tool identity: handle, label, executable/arguments, cwd policy, environment allowlist, pointer policy, and invocation metadata. `AgentCommand` is an internal type. Do not rebuild promptable harness identity.
+- QMD and filesystem search are concrete adapters behind `WorkspaceIndex`; QMD is not a product boundary. Do not patch `node_modules` or fork QMD casually.
+- Delete the old Plugin Manager/capability platform after caller proof. Reintroduce a seam only when two concrete implementations earn it.
+- Provenance distinguishes human, invocation, and unknown writers without claiming certainty the evidence cannot support.
+- Attached Folder mutation is outside Baseline Core. Commands may act in an explicitly confirmed cwd; Exo observes and reviews resulting changes.
 - Root `issues.md` is the canonical Exo bug, QA, and field-report tracker. Do not create parallel Exo issue trackers under `docs/` or the notes vault.
-- Workcells/evals/training/search-optimization harnesses should probably be plugin sets unless they become necessary for the default Exo-on-Exo loop.
-- Optional or personal workflows should go through the plugin architecture rather than becoming core by default.
+- Workcells/evals/training/search-optimization harnesses are deferred until the graph/read/invocation/review loop is stable.
+- Optional or personal workflows should not become core by default.
 - CLI-first operator surfaces come before deep UI.
 - Every fragile UI/runtime behavior needs an automated harness or a documented manual evidence path.
-- Harness engineering is not complete until important architecture rules are mechanical. Prefer lint/structural checks with remediation messages over prose-only guidance for constraints agents repeatedly violate.
+- Architecture work is not complete until important rules are mechanical. Prefer structural checks with remediation messages over prose-only guidance for constraints agents repeatedly violate.
 - User-visible changes should update `CHANGELOG.md` under `Unreleased` before push. The repo ships a non-blocking `pre-push` reminder hook in `scripts/git-hooks/`; enable it with `git config core.hooksPath scripts/git-hooks`.
 - Expose user outcomes, not implementation toggles. Prefer one solid default over user-facing switches like transport modes, streaming modes, or provider-specific branches unless there is a clear workflow that needs the choice.
 - Agent-facing configuration is provider-agnostic at the product layer. `AGENTS.md` and `CLAUDE.md` are compatibility outputs, not separate product concepts; do not add Claude-only or Codex-only repo guidance here.
@@ -148,16 +142,15 @@ CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build 
 
 - Keep changes small enough that a failed gate points to one cause.
 - Update docs in the same chunk when public commands, architecture, settings, runtime behavior, or agent workflow changes.
-- Public agent/operator contracts require lead-provided architect approval before shipping. Do not add or change command-server routes, CLI commands/flags, MCP tool parameters, or shared command/protocol types without explicit approval in the task brief. If such a change is necessary, stop after diagnostic/design work and report the question, evidence, options, and recommendation to the lead/orchestrator.
+- Public agent/operator contracts require lead-provided architect approval before shipping. Do not add or change command-server routes, CLI commands/flags, or shared command/protocol types without explicit approval in the task brief. If such a change is necessary, stop after diagnostic/design work and report the question, evidence, options, and recommendation to the lead/orchestrator.
 - Record active bugs and QA findings in root `issues.md`; record future roadmap work in `tasks.md` or `roadmap.md`; record shipped current state in `ledger.md`.
 - Do not include local secrets, private paths as source defaults, transcripts, logs, or `.exo/` runtime files.
 - Preserve unrelated local edits. Before staging, inspect `git status` and include only files that belong to the current task.
 - UI and terminal changes require app QA in the real Electron app, not only browser or unit tests. Use focused automated tests first, then manually exercise the affected workflow.
 - Before changing terminal runtime, terminal rendering, terminal settings, terminal tests, or agent terminal launch behavior, use `skills/terminal-stability/SKILL.md` and follow its ownership rules, fallback discipline, invariants, checks, and manual QA script.
-- Before changing plugin architecture, capability registries, plugin manifests, plugin trust/permissions, search-provider adapters, harness adapters, Routine templates, or plugin-owned surfaces, use `skills/plugin-development/SKILL.md` and follow its core/plugin split, fallback discipline, and trust rules.
-- Before changing setup, settings, onboarding, Plugin Manager, or other configuration UI, use `skills/deslopify-frontend/SKILL.md` and keep screens dense, scannable, and low-prose.
+- Before changing setup, settings, onboarding, future extension settings, or other configuration UI, use `skills/deslopify-frontend/SKILL.md` and keep screens dense, scannable, and low-prose.
 - When filing or promoting Exo bugs, setup reports, UX issues, or GitHub issues, keep root `issues.md` canonical. Contributor/intake agents should use `skills/submit-exo-issue/SKILL.md`; the lead/orchestrator may apply the same convention directly.
 - Exo uses an orchestrator-led coding pattern. Subagents execute scoped work, avoid broad architecture decisions, and report architectural or public-contract questions to the lead/orchestrator with evidence, options, and a recommendation. Subagents must not independently seek external architect/oracle review.
 - Review tests for quality before accepting them: they should assert user-visible behavior or stable contracts, isolate live Exo state, fail for the intended regression, and avoid only snapshotting implementation details.
-- Prefer extracting pure helpers or focused hooks over expanding `App.tsx` or `main/index.ts`. Keep IPC types in `@exo/core` when shared across CLI/MCP/desktop and avoid duplicate type definitions in preload-only files.
+- Prefer extracting pure helpers or focused hooks over expanding `App.tsx` or `main/index.ts`. Keep IPC types in `@exo/core` when shared across CLI/desktop and avoid duplicate type definitions in preload-only files.
 - For simplification work, preserve behavior first. Run targeted tests for the moved surface, then full `pnpm ci:check` before handoff. Report line-count movement separately from architecture improvement because extraction can increase net LOC while reducing cognitive load.

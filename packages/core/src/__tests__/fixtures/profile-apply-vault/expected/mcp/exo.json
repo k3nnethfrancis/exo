@@ -1,7 +1,0 @@
-{
-  "mcpServers": {
-    "exo-fixture": {
-      "command": "exo-mcp-fixture"
-    }
-  }
-}

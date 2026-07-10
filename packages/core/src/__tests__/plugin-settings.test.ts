@@ -20,13 +20,13 @@ const manifest: PluginManifest = {
   exoApiVersion: "0.1",
   capabilities: [
     {
-      id: "settings.profile",
-      kind: "core:profile",
-      label: "Settings Profile",
-      description: "Profile with settings.",
+      id: "settings.search",
+      kind: "core:searchProvider",
+      label: "Settings Search",
+      description: "Search provider with settings.",
       lifecycle: "experimental",
       owner: "settings.plugin",
-      surfaces: ["desktop"],
+      surfaces: ["desktop", "cli"],
       permissions: ["workspace:read"],
     },
   ],

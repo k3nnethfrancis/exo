@@ -4,35 +4,24 @@ import {
   ClipboardCopy,
   FilePlus2,
   FolderPlus,
-  Globe2,
-  Monitor,
-  MoonStar,
-  PanelLeftClose,
-  PanelLeftOpen,
   Pencil,
   Search,
-  Settings,
   SquareTerminal,
-  SunMedium,
   Trash2,
 } from "lucide-react";
 import type { WorkspaceSearchResults } from "@exo/core";
 import type { AppearanceMode, ResolvedAppearance } from "../appearance";
-import { buildExplorerChangeState, type ExplorerChangeView } from "../explorerChangeState";
 import type { DragManager } from "../hooks/useDragManager";
 import type { WorkspaceSearchResultMode } from "../hooks/useWorkspaceSearch";
-import { RailButton } from "./Chrome";
 import {
   ROOT_GROUP_PREFIX,
   type ContextTarget,
   type RootSection,
   Section,
 } from "./ExplorerSections";
-import { SidebarDrawer } from "./SidebarDrawer";
 
 interface FileTreeProps {
   noteRoots: RootSection[];
-  projectRoots: RootSection[];
   collapsed: boolean;
   appearanceMode: AppearanceMode;
   resolvedAppearance: ResolvedAppearance;
@@ -41,7 +30,6 @@ interface FileTreeProps {
   searchResultMode: WorkspaceSearchResultMode;
   searchResultQuery: string;
   searchMessage: string | null;
-  projectChanges: ProjectChangeView[];
   onAppearanceModeChange: (mode: AppearanceMode) => void;
   onToggleCollapsed: () => void;
   onOpenWorkspaceSettings: () => void;
@@ -50,7 +38,7 @@ interface FileTreeProps {
   onOpenFile: (filePath: string, line?: number | null) => void;
   onOpenTerminalSession: (sessionId: string) => void;
   onOpenTag: (tag: string) => void;
-  onExpandDirectory: (directoryPath: string, rootKind: "notes" | "projects") => void;
+  onExpandDirectory: (directoryPath: string, rootKind: "notes") => void;
   explorerScale: number;
   onFocusExplorer: () => void;
   dragManager: DragManager;
@@ -59,101 +47,13 @@ interface FileTreeProps {
   onCreateTerminal: (directoryPath: string) => void;
   onRenamePath: (targetPath: string) => void;
   onDeletePath: (targetPath: string) => void;
-  rail?: "inline" | "none";
   mirrored?: boolean;
   revealPathRequest?: { path: string; nonce: number } | null;
-}
-
-interface ProjectChangeView extends ExplorerChangeView {
-  rootPath: string;
-  rootLabel: string;
-  agents: Array<{ id: string; title: string; kind: string; cwd: string; observed?: boolean; observedAt?: number | null }>;
-}
-
-interface ExplorerRailProps {
-  collapsed: boolean;
-  appearanceMode: AppearanceMode;
-  resolvedAppearance: ResolvedAppearance;
-  onAppearanceModeChange: (mode: AppearanceMode) => void;
-  onToggleCollapsed: () => void;
-  onOpenWorkspaceSettings: () => void;
-  onCreateBrowserPane?: () => void;
-  topControls?: ReactNode;
-}
-
-export function ExplorerRailTopControls(props: Pick<ExplorerRailProps, "collapsed" | "onToggleCollapsed" | "onCreateBrowserPane">) {
-  const { collapsed, onToggleCollapsed, onCreateBrowserPane } = props;
-  return (
-    <>
-      <RailButton
-        testId={collapsed ? "sidebar-expand" : "sidebar-collapse"}
-        onClick={onToggleCollapsed}
-        title={collapsed ? "Expand workspace" : "Collapse workspace"}
-      >
-        {collapsed ? <PanelLeftOpen size={13} /> : <PanelLeftClose size={13} />}
-      </RailButton>
-      {onCreateBrowserPane ? (
-        <RailButton
-          testId="launch-browser"
-          onClick={onCreateBrowserPane}
-          title="New preview pane"
-        >
-          <Globe2 size={13} />
-        </RailButton>
-      ) : null}
-    </>
-  );
-}
-
-export function ExplorerRail(props: ExplorerRailProps) {
-  const {
-    collapsed,
-    appearanceMode,
-    resolvedAppearance,
-    onAppearanceModeChange,
-    onToggleCollapsed,
-    onOpenWorkspaceSettings,
-    onCreateBrowserPane,
-    topControls,
-  } = props;
-
-  const appearanceIcon = appearanceMode === "system" ? Monitor : appearanceMode === "light" ? SunMedium : MoonStar;
-  const AppearanceIcon = appearanceIcon;
-
-  function cycleAppearanceMode() {
-    const nextMode = appearanceMode === "system" ? "light" : appearanceMode === "light" ? "dark" : "system";
-    onAppearanceModeChange(nextMode);
-  }
-
-  return (
-    <div className="sidebar__rail">
-      <div className="sidebar__rail-top">
-        {topControls ?? <ExplorerRailTopControls collapsed={collapsed} onToggleCollapsed={onToggleCollapsed} onCreateBrowserPane={onCreateBrowserPane} />}
-      </div>
-      <div className="sidebar__rail-bottom">
-        <RailButton
-          testId="appearance-cycle"
-          onClick={cycleAppearanceMode}
-          title={`Appearance: ${appearanceMode} (${resolvedAppearance}). Click to cycle.`}
-        >
-          <AppearanceIcon size={13} />
-        </RailButton>
-        <RailButton
-          testId="workspace-settings"
-          onClick={onOpenWorkspaceSettings}
-          title="Workspace settings"
-        >
-          <Settings size={13} />
-        </RailButton>
-      </div>
-    </div>
-  );
 }
 
 export function FileTree(props: FileTreeProps) {
   const {
     noteRoots,
-    projectRoots,
     collapsed,
     appearanceMode,
     resolvedAppearance,
@@ -161,7 +61,6 @@ export function FileTree(props: FileTreeProps) {
     onToggleCollapsed,
     onOpenWorkspaceSettings,
     onOpenFile,
-    projectChanges,
     onExpandDirectory,
     explorerScale,
     onFocusExplorer,
@@ -171,29 +70,23 @@ export function FileTree(props: FileTreeProps) {
     onCreateTerminal,
     onRenamePath,
     onDeletePath,
-    rail = "inline",
     mirrored = false,
     revealPathRequest = null,
   } = props;
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
   const [contextTarget, setContextTarget] = useState<ContextTarget | null>(null);
   const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null);
-  const [projectRootsExpanded, setProjectRootsExpanded] = useState(false);
   const [explorerMode, setExplorerMode] = useState<"files" | "search">("files");
   const panesRef = useRef<HTMLDivElement | null>(null);
   const processedRevealNonceRef = useRef<number | null>(null);
-  const projectExplorerChangeState = useMemo(
-    () => buildExplorerChangeState(projectRoots.flatMap((root) => root.nodes), projectChanges),
-    [projectChanges, projectRoots],
-  );
 
   const defaultExpandedPaths = useMemo(() => {
     const next = new Set<string>();
-    for (const root of [...noteRoots, ...projectRoots]) {
+    for (const root of noteRoots) {
       next.add(`${ROOT_GROUP_PREFIX}${root.path}`);
     }
     return next;
-  }, [noteRoots, projectRoots]);
+  }, [noteRoots]);
 
   useEffect(() => {
     setExpandedPaths((current) => {
@@ -214,7 +107,7 @@ export function FileTree(props: FileTreeProps) {
     }
     processedRevealNonceRef.current = revealPathRequest.nonce;
 
-    const rootKind = rootKindForPath(revealPathRequest.path, noteRoots, projectRoots);
+    const rootKind = rootKindForPath(revealPathRequest.path, noteRoots);
     setExpandedPaths((current) => {
       const next = new Set(current);
       next.add(revealPathRequest.path);
@@ -225,7 +118,7 @@ export function FileTree(props: FileTreeProps) {
     if (rootKind) {
       onExpandDirectory(revealPathRequest.path, rootKind);
     }
-  }, [noteRoots, onExpandDirectory, projectRoots, revealPathRequest]);
+  }, [noteRoots, onExpandDirectory, revealPathRequest]);
 
   useEffect(() => {
     if (!contextTarget) {
@@ -244,7 +137,7 @@ export function FileTree(props: FileTreeProps) {
     };
   }, [contextTarget]);
 
-  function togglePath(path: string, rootKind?: "notes" | "projects") {
+  function togglePath(path: string, rootKind?: "notes") {
     const shouldExpand = !expandedPaths.has(path);
     if (shouldExpand && rootKind) {
       onExpandDirectory(path, rootKind);
@@ -276,65 +169,17 @@ export function FileTree(props: FileTreeProps) {
   }
 
   const sidebarStyle = { "--exo-explorer-scale": explorerScale } as CSSProperties;
-  const primaryNoteRoot = noteRoots[0]?.path ?? null;
-
-  function renderRail() {
-    return (
-      <ExplorerRail
-        collapsed={collapsed}
-        appearanceMode={appearanceMode}
-        resolvedAppearance={resolvedAppearance}
-        onAppearanceModeChange={onAppearanceModeChange}
-        onToggleCollapsed={onToggleCollapsed}
-        onOpenWorkspaceSettings={onOpenWorkspaceSettings}
-      />
-    );
-  }
 
   if (collapsed) {
     return (
       <aside className="sidebar sidebar--collapsed" data-testid="sidebar" onMouseDown={onFocusExplorer} style={sidebarStyle}>
-        {rail === "inline" ? renderRail() : null}
       </aside>
     );
   }
 
   return (
-    <aside className={`sidebar ${rail === "none" ? "sidebar--content-only" : ""} ${mirrored ? "sidebar--mirrored" : ""}`} data-testid="sidebar" onMouseDown={onFocusExplorer} style={sidebarStyle}>
-      {rail === "inline" ? renderRail() : null}
-
+    <aside className={`sidebar sidebar--content-only ${mirrored ? "sidebar--mirrored" : ""}`} data-testid="sidebar" onMouseDown={onFocusExplorer} style={sidebarStyle}>
       <div className="sidebar__main">
-        <div className="sidebar__toolbar" aria-label="Explorer actions">
-          <button
-            className="sidebar__toolbar-button"
-            disabled={!primaryNoteRoot}
-            data-testid="sidebar-new-note"
-            onClick={() => primaryNoteRoot && onCreateFile(primaryNoteRoot)}
-            title="New note"
-            type="button"
-          >
-            <FilePlus2 size={14} />
-          </button>
-          <button
-            className="sidebar__toolbar-button"
-            disabled={!primaryNoteRoot}
-            data-testid="sidebar-new-folder"
-            onClick={() => primaryNoteRoot && onCreateDirectory(primaryNoteRoot)}
-            title="New folder"
-            type="button"
-          >
-            <FolderPlus size={14} />
-          </button>
-          <button
-            className={`sidebar__toolbar-button ${explorerMode === "search" ? "sidebar__toolbar-button--active" : ""}`}
-            data-testid="sidebar-search-toggle"
-            onClick={() => setExplorerMode((current) => (current === "search" ? "files" : "search"))}
-            title={explorerMode === "search" ? "Show files" : "Search notes"}
-            type="button"
-          >
-            <Search size={14} />
-          </button>
-        </div>
         <div ref={panesRef} className="sidebar__panes">
           {explorerMode === "search" ? (
             <SidebarSearchPane
@@ -367,35 +212,6 @@ export function FileTree(props: FileTreeProps) {
             />
           </div>
 
-          <SidebarDrawer
-            className="sidebar__drawer"
-            collapsed={!projectRootsExpanded}
-            label="Projects"
-            summary={`${projectRoots.length} root${projectRoots.length === 1 ? "" : "s"}`}
-            containerRef={panesRef}
-            defaultOpenFraction={0.5}
-            toggleTestId="project-roots-toggle"
-            drawerTestId="project-roots-drawer"
-            panelTestId="project-roots-panel"
-            resizerTestId="project-roots-resizer"
-            onCollapsedChange={(collapsed) => setProjectRootsExpanded(!collapsed)}
-            mirrored={mirrored}
-          >
-            <Section
-              label="Projects"
-              rootKind="projects"
-              sections={projectRoots}
-              expandedPaths={expandedPaths}
-              onTogglePath={togglePath}
-              onOpenFile={onOpenFile}
-              dragManager={dragManager}
-              onContextMenu={openContextMenu}
-              showHeader={false}
-              alwaysShowRoots
-              mirrored={mirrored}
-              changeState={projectExplorerChangeState}
-            />
-          </SidebarDrawer>
           </>
           )}
         </div>
@@ -495,13 +311,9 @@ export function FileTree(props: FileTreeProps) {
 function rootKindForPath(
   targetPath: string,
   noteRoots: RootSection[],
-  projectRoots: RootSection[],
-): "notes" | "projects" | null {
+): "notes" | null {
   if (noteRoots.some((root) => pathContains(root.path, targetPath))) {
     return "notes";
-  }
-  if (projectRoots.some((root) => pathContains(root.path, targetPath))) {
-    return "projects";
   }
   return null;
 }

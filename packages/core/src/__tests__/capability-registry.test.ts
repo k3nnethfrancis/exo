@@ -27,20 +27,17 @@ const unsupportedCapability: CapabilityMetadata = {
 };
 
 describe("capability registry", () => {
-  it("exposes built-in QMD and agent harness metadata", () => {
+  it("exposes built-in QMD metadata without built-in harness capabilities", () => {
     const ids = capabilityRegistry.listActive().map((capability) => capability.id);
 
-    expect(ids).toEqual(expect.arrayContaining(["qmd", "shell", "claude", "codex", "pi", "hermes"]));
+    expect(ids).toEqual(["qmd"]);
     expect(capabilityRegistry.get("qmd")).toMatchObject({
       kind: "core:searchProvider",
       label: "QMD advanced search",
       description: expect.stringContaining("Core filename, path, and text search remains available"),
       lifecycle: "built-in",
     });
-    expect(capabilityRegistry.get("claude")).toMatchObject({
-      kind: "core:agentHarness",
-      lifecycle: "built-in",
-    });
+    expect(capabilityRegistry.get("claude")).toBeUndefined();
   });
 
   it("rejects duplicate ids", () => {
@@ -56,7 +53,6 @@ describe("capability registry", () => {
     const registry = createBuiltInCapabilityRegistry();
 
     expect(registry.listActive({ kind: "core:searchProvider" }).map((capability) => capability.id)).toEqual(["qmd"]);
-    expect(registry.listActive({ kind: "core:agentHarness" }).map((capability) => capability.id)).toEqual(["shell", "claude", "codex", "pi", "hermes"]);
     expect(registry.listActive({ kind: "exo.training:traceCollector" }).map((capability) => capability.id)).toEqual([]);
   });
 
@@ -81,7 +77,7 @@ describe("capability registry", () => {
       ...builtInCapabilities,
       {
         id: "internal-only-test",
-        kind: "core:routineTemplate",
+        kind: "exo.graph:analyzer",
         label: "Internal Only Test",
         description: "Internal-only test capability.",
         lifecycle: "experimental",
@@ -91,17 +87,11 @@ describe("capability registry", () => {
       },
     ]);
 
-    expect(registry.listActive({ surface: "desktop" }).map((capability) => capability.id)).toEqual(["qmd", "shell", "claude", "codex", "pi", "hermes"]);
-    expect(registry.listActive({ surface: "cli" }).map((capability) => capability.id)).toEqual(["qmd", "shell", "claude", "codex", "pi", "hermes"]);
-    expect(registry.listActive({ surface: "mcp" }).map((capability) => capability.id)).toEqual(["qmd", "shell", "claude", "codex", "pi", "hermes"]);
-    expect(registry.listActive({ surface: "commandServer" }).map((capability) => capability.id)).toEqual(["qmd", "shell", "claude", "codex", "pi", "hermes"]);
+    expect(registry.listActive({ surface: "desktop" }).map((capability) => capability.id)).toEqual(["qmd"]);
+    expect(registry.listActive({ surface: "cli" }).map((capability) => capability.id)).toEqual(["qmd"]);
+    expect(registry.listActive({ surface: "commandServer" }).map((capability) => capability.id)).toEqual(["qmd"]);
     expect(registry.listActive({ surface: "internal" }).map((capability) => capability.id)).toEqual([
       "qmd",
-      "shell",
-      "claude",
-      "codex",
-      "pi",
-      "hermes",
       "internal-only-test",
     ]);
   });

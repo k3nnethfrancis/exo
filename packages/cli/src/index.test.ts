@@ -9,9 +9,7 @@ import { fileURLToPath } from "node:url";
 import { runCli } from "./index";
 import {
   SemanticTraceStore,
-  buildFrontmatterPatchPreviewEvidence,
   captureFakeHarnessTraceFixture,
-  contentSha256,
   formatManagedAgentKindUsage,
   mapHarnessRawTraceEvent,
   saveWorkspaceSettings,
@@ -42,12 +40,35 @@ describe("cli package", () => {
     expect(stdout).toContain('"kind": "qmd"');
   });
 
+  it("returns local status when the app is unavailable", async () => {
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-discovery-"));
+    let stdout = "";
+
+    try {
+      const exitCode = await runCli(["node", "exo-cli", "status"], {
+        env: {
+          EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
+          EXO_RUNTIME_ROOT: runtimeRoot,
+        },
+        stdout: { write: (text) => { stdout += text; } },
+        stderr: { write: () => {} },
+      });
+
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('"available": false');
+      expect(stdout).toContain('"workspaceRoot": "/tmp/exo-test-workspace"');
+      expect(stdout).toContain('"backend": "qmd"');
+    } finally {
+      await rm(runtimeRoot, { recursive: true, force: true });
+    }
+  });
+
   it("prints actionable discovery diagnostics for live app commands", async () => {
     const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-discovery-"));
     let stderr = "";
 
     try {
-      const exitCode = await runCli(["node", "exo-cli", "status"], {
+      const exitCode = await runCli(["node", "exo-cli", "show"], {
         env: {
           EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
           EXO_RUNTIME_ROOT: runtimeRoot,
@@ -613,219 +634,6 @@ describe("cli package", () => {
     expect(calls).toEqual(["open:http://localhost:3000", "focus", "close"]);
   });
 
-  it("routes proposal review commands through the app client", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "exo-cli-proposals-"));
-    const proposalPath = path.join(root, "proposal.json");
-    const frontmatterBefore = "---\r\ntitle: Old\r\npublished: 2026-07-04\r\n---\r\nBody\r\n";
-    const frontmatterOperations = [{ kind: "set" as const, keyPath: ["title"], value: "New" }];
-    const frontmatterEvidence = buildFrontmatterPatchPreviewEvidence(frontmatterBefore, frontmatterOperations);
-    await writeFile(proposalPath, JSON.stringify({
-      id: "proposal-1",
-      status: "pending",
-      provenance: { activityId: "activity-1" },
-      items: [{ id: "create-1", kind: "fileCreate", path: "notes/new.md", contents: "# New\n", itemStatus: "pending" }],
-    }), "utf8");
-    const calls: string[] = [];
-    const client = fakeAppClient({
-      listProposals: async () => ({ proposals: [{ id: "proposal-1" }] }),
-      readProposal: async (id) => {
-        calls.push(`show:${id}`);
-        return {
-          proposal: {
-            id,
-            status: "pending",
-            provenance: { activityId: "activity-1" },
-            items: [
-              {
-                id: "frontmatter-1",
-                kind: "frontmatterPatch",
-                path: "note.md",
-                baseHash: frontmatterEvidence.beforeHash,
-                itemStatus: "pending",
-                operations: frontmatterOperations,
-                metadata: {
-                  "exo.frontmatterPreview.v1": frontmatterEvidence,
-                },
-              },
-            ],
-          },
-        };
-      },
-      createProposal: async (proposal) => {
-        calls.push(`create:${proposal.id}`);
-        return { ok: true, proposal };
-      },
-      decideProposal: async (id, decision, itemId) => {
-        calls.push(`${decision}:${id}:${itemId ?? ""}`);
-        return { ok: true, proposal: { id, status: decision === "accept" ? "accepted" : "rejected" }, appliedItems: [] };
-      },
-    });
-
-    try {
-      const listExitCode = await runCli(["node", "exo-cli", "proposals", "list"], {
-        env: testRuntimeEnv(),
-        stdout: { write: () => {} },
-        stderr: { write: () => {} },
-        connectAppClient: async () => client,
-      });
-      let showStdout = "";
-      const showExitCode = await runCli(["node", "exo-cli", "proposals", "show", "proposal-1"], {
-        env: testRuntimeEnv(),
-        stdout: { write: (text) => { showStdout += text; } },
-        stderr: { write: () => {} },
-        connectAppClient: async () => client,
-      });
-      const createExitCode = await runCli(["node", "exo-cli", "proposals", "create", proposalPath], {
-        env: testRuntimeEnv(),
-        stdout: { write: () => {} },
-        stderr: { write: () => {} },
-        connectAppClient: async () => client,
-      });
-      const acceptExitCode = await runCli(["node", "exo-cli", "proposals", "accept", "proposal-1", "create-1"], {
-        env: testRuntimeEnv(),
-        stdout: { write: () => {} },
-        stderr: { write: () => {} },
-        connectAppClient: async () => client,
-      });
-
-      expect(listExitCode).toBe(0);
-      expect(showExitCode).toBe(0);
-      expect(createExitCode).toBe(0);
-      expect(acceptExitCode).toBe(0);
-      expect(showStdout).toContain("Frontmatter byte preview");
-      expect(showStdout).toContain(frontmatterEvidence.beforeHash);
-      expect(showStdout).toContain(frontmatterEvidence.afterHash);
-      expect(showStdout).toContain("\\r\\ntitle: New\\r\\npublished: 2026-07-04");
-      expect(calls).toEqual(["show:proposal-1", "create:proposal-1", "accept:proposal-1:create-1"]);
-    } finally {
-      await rm(root, { recursive: true, force: true });
-    }
-  });
-
-  it("runs local profile recovery list, show, and guarded restore commands", async () => {
-    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-profile-recovery-"));
-    const manifestDir = path.join(workspaceRoot, ".exo/proposal-recovery/profile-apply");
-    const manifestPath = path.join(manifestDir, "profile-apply-one.json");
-    let listStdout = "";
-    let showStdout = "";
-    let restoreStdout = "";
-
-    try {
-      await mkdir(manifestDir, { recursive: true });
-      await writeFile(path.join(workspaceRoot, "AGENTS.md"), "# Agents\n", "utf8");
-      await writeFile(manifestPath, JSON.stringify({
-        format: "exo.profileApplyRecovery.v1",
-        proposalId: "proposal-1",
-        createdAt: "2026-07-05T12:00:00.000Z",
-        source: "profileApply",
-        profileId: "test.profile",
-        profileApplyTarget: "realVault",
-        items: [
-          {
-            id: "context-agents",
-            kind: "fileCreate",
-            path: "AGENTS.md",
-            before: { exists: false },
-            afterHash: "sha256:070a8ff8c31696dd57f1d0f8dfbfb1c9151ebd903c5d7e41d9dbf4133d54f84e",
-          },
-        ],
-      }), "utf8");
-
-      const env = { ...testRuntimeEnv(), EXO_WORKSPACE_ROOT: workspaceRoot };
-      const listExitCode = await runCli(["node", "exo-cli", "profile-recovery", "list"], {
-        env,
-        stdout: { write: (text) => { listStdout += text; } },
-        stderr: { write: () => {} },
-        connectAppClient: async () => {
-          throw new Error("profile recovery commands should not connect to the app");
-        },
-      });
-      const showExitCode = await runCli(["node", "exo-cli", "profile-recovery", "show", "profile-apply-one.json"], {
-        env,
-        stdout: { write: (text) => { showStdout += text; } },
-        stderr: { write: () => {} },
-        connectAppClient: async () => {
-          throw new Error("profile recovery commands should not connect to the app");
-        },
-      });
-      const restoreExitCode = await runCli(["node", "exo-cli", "profile-recovery", "restore", "profile-apply-one.json", "context-agents"], {
-        env,
-        stdout: { write: (text) => { restoreStdout += text; } },
-        stderr: { write: () => {} },
-        connectAppClient: async () => {
-          throw new Error("profile recovery commands should not connect to the app");
-        },
-      });
-
-      expect(listExitCode).toBe(0);
-      expect(showExitCode).toBe(0);
-      expect(restoreExitCode).toBe(0);
-      expect(listStdout).toContain("profile-apply-one.json");
-      expect(showStdout).toContain("context-agents");
-      expect(restoreStdout).toContain("\"action\": \"deleted\"");
-      await expect(readFile(path.join(workspaceRoot, "AGENTS.md"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
-    } finally {
-      await rm(workspaceRoot, { recursive: true, force: true });
-    }
-  });
-
-  it("prints partial profile recovery results when restore fails after a mutation", async () => {
-    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-profile-recovery-partial-"));
-    const manifestDir = path.join(workspaceRoot, ".exo/proposal-recovery/profile-apply");
-    const manifestPath = path.join(manifestDir, "profile-apply-partial.json");
-    const agentsPath = path.join(workspaceRoot, "AGENTS.md");
-    const claudePath = path.join(workspaceRoot, "CLAUDE.md");
-    let restoreStdout = "";
-
-    try {
-      await mkdir(manifestDir, { recursive: true });
-      await writeFile(agentsPath, "# Agents applied\n", "utf8");
-      await writeFile(claudePath, "# Claude applied\n", "utf8");
-      await chmod(claudePath, 0o400);
-      await writeFile(manifestPath, JSON.stringify({
-        format: "exo.profileApplyRecovery.v1",
-        proposalId: "proposal-1",
-        createdAt: "2026-07-05T12:00:00.000Z",
-        source: "profileApply",
-        profileId: "test.profile",
-        profileApplyTarget: "realVault",
-        items: [
-          {
-            id: "instruction-agents",
-            kind: "filePatch",
-            path: "AGENTS.md",
-            before: { exists: true, hash: contentSha256("# Agents old\n"), contents: "# Agents old\n" },
-            afterHash: contentSha256("# Agents applied\n"),
-          },
-          {
-            id: "instruction-claude",
-            kind: "filePatch",
-            path: "CLAUDE.md",
-            before: { exists: true, hash: contentSha256("# Claude old\n"), contents: "# Claude old\n" },
-            afterHash: contentSha256("# Claude applied\n"),
-          },
-        ],
-      }), "utf8");
-
-      const restoreExitCode = await runCli(["node", "exo-cli", "profile-recovery", "restore", "profile-apply-partial.json"], {
-        env: { ...testRuntimeEnv(), EXO_WORKSPACE_ROOT: workspaceRoot },
-        stdout: { write: (text) => { restoreStdout += text; } },
-        stderr: { write: () => {} },
-        connectAppClient: async () => {
-          throw new Error("profile recovery commands should not connect to the app");
-        },
-      });
-
-      expect(restoreExitCode).toBe(1);
-      const parsed = JSON.parse(restoreStdout) as { partialResult: { restoredItems: Array<{ id: string; action: string }> } };
-      expect(parsed.partialResult.restoredItems).toEqual([{ id: "instruction-agents", kind: "filePatch", path: "AGENTS.md", action: "restored" }]);
-      await expect(readFile(agentsPath, "utf8")).resolves.toBe("# Agents old\n");
-      await expect(readFile(claudePath, "utf8")).resolves.toBe("# Claude applied\n");
-    } finally {
-      await chmod(claudePath, 0o600).catch(() => {});
-      await rm(workspaceRoot, { recursive: true, force: true });
-    }
-  });
 
   it("submits agent messages by default", async () => {
     let receivedMessage = "";
@@ -927,7 +735,7 @@ describe("cli package", () => {
     expect(stdout).toContain("Queued message for term-1");
   });
 
-  it("reads a bounded agent transcript tail by default", async () => {
+  it("reads a bounded agent live output tail by default", async () => {
     let receivedTailChars: number | undefined;
     let stdout = "";
     let stderr = "";
@@ -945,7 +753,7 @@ describe("cli package", () => {
 
     expect(exitCode).toBe(0);
     expect(receivedTailChars).toBe(20_000);
-    expect(stderr).toContain("Source: disk transcript tail (20000 chars); format: ANSI-cleaned text; not semantic trace data.");
+    expect(stderr).toContain("Source: live terminal output tail (20000 chars); format: ANSI-cleaned text; not semantic trace data.");
     expect(stdout).toBe("old\nfresh\n");
   });
 
@@ -978,7 +786,7 @@ describe("cli package", () => {
     expect(stdout).not.toContain("\ufffd");
   });
 
-  it("preserves raw agent transcript reads behind --raw", async () => {
+  it("preserves raw agent live output reads behind --raw", async () => {
     let stdout = "";
     const transcript = "\u001b(0lqqk\u001b(B\r⠋ Thinking\n";
 
@@ -995,7 +803,7 @@ describe("cli package", () => {
     expect(stdout).toBe(transcript);
   });
 
-  it("preserves full agent transcript reads behind --full", async () => {
+  it("preserves full agent live output reads behind --full", async () => {
     let receivedTailChars: number | undefined;
     let stderr = "";
     const exitCode = await runCli(["node", "exo-cli", "agents", "read", "term-1", "--full"], {
@@ -1012,7 +820,7 @@ describe("cli package", () => {
 
     expect(exitCode).toBe(0);
     expect(receivedTailChars).toBe(0);
-    expect(stderr).toContain("Source: full disk transcript; format: ANSI-cleaned text; not semantic trace data.");
+    expect(stderr).toContain("Source: full live terminal output buffer; format: ANSI-cleaned text; not semantic trace data.");
   });
 
   it("passes terminal read line limits to the app client", async () => {
@@ -1033,6 +841,20 @@ describe("cli package", () => {
     expect(exitCode).toBe(0);
     expect(receivedOptions).toEqual({ maxLines: 3 });
     expect(stdout).toBe("line-3\nline-4\nline-5\n");
+  });
+
+  it("lists AgentCommand spawn in top-level help", async () => {
+    let stderr = "";
+
+    const exitCode = await runCli(["node", "exo-cli", "--help"], {
+      env: testRuntimeEnv(),
+      stdout: { write: () => {} },
+      stderr: { write: (text) => { stderr += text; } },
+      connectAppClient: async () => fakeAppClient(),
+    });
+
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain("exo spawn @handle <task>");
   });
 
   it("keeps deprecated agent message aliases working with warnings", async () => {
@@ -1080,10 +902,11 @@ describe("cli package", () => {
 
     expect(exitCode).toBe(0);
     expect(connected).toBe(false);
-    expect(stdout).toContain("Usage: exo agents create <shell|claude|codex|pi> [cwd]");
+    expect(stdout).toContain("Usage: exo spawn @handle <task>");
+    expect(stdout).toContain("`exo agents create` was removed.");
   });
 
-  it("prints provider-specific agents create help without creating a terminal", async () => {
+  it("prints removed agents create help without creating a terminal", async () => {
     let stdout = "";
     let created = false;
 
@@ -1101,27 +924,10 @@ describe("cli package", () => {
 
     expect(exitCode).toBe(0);
     expect(created).toBe(false);
-    expect(stdout).toContain("Usage: exo agents create <shell|claude|codex|pi> [cwd]");
+    expect(stdout).toContain("Usage: exo spawn @handle <task>");
   });
 
-  it("includes configured visible harnesses in agents create help", async () => {
-    let stdout = "";
-
-    const exitCode = await runCli(["node", "exo-cli", "agents", "create", "--help"], {
-      env: {
-        ...testRuntimeEnv(),
-        EXO_HERMES_COMMAND: "/bin/sh",
-      },
-      stdout: { write: (text) => { stdout += text; } },
-      stderr: { write: () => {} },
-      connectAppClient: async () => fakeAppClient(),
-    });
-
-    expect(exitCode).toBe(0);
-    expect(stdout).toContain("Usage: exo agents create <shell|claude|codex|pi|hermes> [cwd]");
-  });
-
-  it("rejects option-shaped agent create cwd values without creating a terminal", async () => {
+  it("rejects agents create without creating a terminal", async () => {
     let created = false;
 
     await expect(runCli(["node", "exo-cli", "agents", "create", "codex", "--unexpected"], {
@@ -1134,9 +940,64 @@ describe("cli package", () => {
           return { id: "term-1" };
         },
       }),
-    })).rejects.toThrow("Invalid cwd for exo agents create: --unexpected");
+    })).rejects.toThrow("exo agents create was removed.");
 
     expect(created).toBe(false);
+  });
+
+  it("spawns configured AgentCommands through the app command server", async () => {
+    let receivedHandle = "";
+    let receivedTask = "";
+    let stdout = "";
+
+    const exitCode = await runCli(["node", "exo-cli", "spawn", "@fable", "review", "the", "plan"], {
+      env: testRuntimeEnv(),
+      stdout: { write: (text) => { stdout += text; } },
+      stderr: { write: () => {} },
+      connectAppClient: async () => fakeAppClient({
+        spawnAgentCommand: async (handle, task) => {
+          receivedHandle = handle;
+          receivedTask = task;
+          return {
+            ok: true,
+            invocation: { id: "inv-1", context: "cli", status: "running" },
+            terminal: { id: "term-1", title: "Fable" },
+          };
+        },
+      }),
+    });
+
+    expect(exitCode).toBe(0);
+    expect(receivedHandle).toBe("@fable");
+    expect(receivedTask).toBe("review the plan");
+    expect(JSON.parse(stdout)).toMatchObject({
+      ok: true,
+      invocation: { id: "inv-1" },
+      terminal: { id: "term-1" },
+    });
+  });
+
+  it("requires @handle syntax for AgentCommand spawn", async () => {
+    await expect(runCli(["node", "exo-cli", "spawn", "fable", "review"], {
+      env: testRuntimeEnv(),
+      stdout: { write: () => {} },
+      stderr: { write: () => {} },
+      connectAppClient: async () => fakeAppClient(),
+    })).rejects.toThrow("Usage: exo spawn @handle <task>");
+  });
+
+  it("reports app-unavailable AgentCommand spawn as a failed command", async () => {
+    let stderr = "";
+
+    const exitCode = await runCli(["node", "exo-cli", "spawn", "@fable", "review"], {
+      env: testRuntimeEnv(),
+      stdout: { write: () => {} },
+      stderr: { write: (text) => { stderr += text; } },
+      connectAppClient: async () => null,
+    });
+
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain("Exo app is not reachable");
   });
 
   it("passes search limits through the app route", async () => {
@@ -1191,6 +1052,21 @@ describe("cli package", () => {
     expect(stdout).toContain('"phases": []');
   });
 
+  it("returns local index status when the app is unavailable", async () => {
+    let stdout = "";
+
+    const exitCode = await runCli(["node", "exo-cli", "index", "status"], {
+      env: testRuntimeEnv(),
+      stdout: { write: (text) => { stdout += text; } },
+      stderr: { write: () => {} },
+      connectAppClient: async () => null,
+    });
+
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('"backend": "qmd"');
+    expect(stdout).toContain('"mode":');
+  });
+
   it("adds index roots through the app settings route", async () => {
     let receivedInput: Record<string, unknown> | null = null;
     const exitCode = await runCli(["node", "exo-cli", "index", "add", "notes", "--name", "notes", "--kind", "notes"], {
@@ -1210,53 +1086,6 @@ describe("cli package", () => {
     expect(receivedInput).toMatchObject({ path: "/tmp/exo-test-workspace/notes", name: "notes", kind: "notes" });
   });
 
-  it("manages project roots through the app settings route", async () => {
-    const calls: Array<[string, string?]> = [];
-    let stdout = "";
-    const client = fakeAppClient({
-      listProjectRoots: async () => ["/tmp/exo-test-workspace/projects/sample"],
-      addProjectRoot: async (targetPath) => {
-        calls.push(["add", targetPath]);
-        return { projectRoots: [targetPath] };
-      },
-      removeProjectRoot: async (target) => {
-        calls.push(["remove", target]);
-        return { projectRoots: [] };
-      },
-    });
-
-    const listExitCode = await runCli(["node", "exo-cli", "project-roots", "list"], {
-      env: testRuntimeEnv(),
-      stdout: { write: (text) => { stdout += text; } },
-      stderr: { write: () => {} },
-      connectAppClient: async () => client,
-    });
-    expect(listExitCode).toBe(0);
-    expect(stdout).toContain("/tmp/exo-test-workspace/projects/sample");
-
-    const addExitCode = await runCli(["node", "exo-cli", "project-roots", "add", "projects/new-root"], {
-      env: testRuntimeEnv(),
-      cwd: "/tmp/exo-test-workspace",
-      stdout: { write: () => {} },
-      stderr: { write: () => {} },
-      connectAppClient: async () => client,
-    });
-    expect(addExitCode).toBe(0);
-
-    const removeExitCode = await runCli(["node", "exo-cli", "project-roots", "remove", "projects/new-root"], {
-      env: testRuntimeEnv(),
-      cwd: "/tmp/exo-test-workspace",
-      stdout: { write: () => {} },
-      stderr: { write: () => {} },
-      connectAppClient: async () => client,
-    });
-    expect(removeExitCode).toBe(0);
-    expect(calls).toEqual([
-      ["add", "/tmp/exo-test-workspace/projects/new-root"],
-      ["remove", "/tmp/exo-test-workspace/projects/new-root"],
-    ]);
-  });
-
   it("keeps terminals commands available for operator debugging", async () => {
     const calls: string[] = [];
     let stdout = "";
@@ -1265,14 +1094,6 @@ describe("cli package", () => {
       sendTerminalMessage: async (_id, message, submit) => {
         calls.push(`${message}:${submit}`);
         return { ok: true as const, delivery: "sent" as const };
-      },
-      reconnectTerminal: async (id) => {
-        calls.push(`reconnect:${id}`);
-        return { ok: true, terminal: { id, status: "running" } };
-      },
-      resyncTerminal: async (id) => {
-        calls.push(`resync:${id}`);
-        return { ok: true, terminal: { id, status: "running" } };
       },
     });
 
@@ -1288,556 +1109,12 @@ describe("cli package", () => {
       stderr: { write: () => {} },
       connectAppClient: async () => client,
     });
-    const reconnectExitCode = await runCli(["node", "exo-cli", "terminals", "reconnect", "term-1"], {
-      env: testRuntimeEnv(),
-      stdout: { write: () => {} },
-      stderr: { write: () => {} },
-      connectAppClient: async () => client,
-    });
-    const resyncExitCode = await runCli(["node", "exo-cli", "terminals", "resync", "term-1"], {
-      env: testRuntimeEnv(),
-      stdout: { write: () => {} },
-      stderr: { write: () => {} },
-      connectAppClient: async () => client,
-    });
-
     expect(diagnosticsExitCode).toBe(0);
     expect(sendExitCode).toBe(0);
-    expect(reconnectExitCode).toBe(0);
-    expect(resyncExitCode).toBe(0);
     expect(stdout).toContain('"health": "healthy"');
-    expect(calls).toEqual(["raw command:true", "reconnect:term-1", "resync:term-1"]);
+    expect(calls).toEqual(["raw command:true"]);
   });
 
-  it("lists routine templates from plugin manifests and creates routines", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "exo-cli-routines-"));
-    try {
-      const pluginRoot = await writeRoutinePlugin(root);
-      const env = routineTestEnv(root, pluginRoot);
-      let stdout = "";
-
-      const templatesExitCode = await runCli(["node", "exo-cli", "routines", "templates"], {
-        env,
-        stdout: { write: (text) => { stdout += text; } },
-        stderr: { write: () => {} },
-      });
-      expect(templatesExitCode).toBe(0);
-      expect(stdout).toContain('"id": "graph-health.template"');
-
-      stdout = "";
-      const createExitCode = await runCli([
-        "node",
-        "exo-cli",
-        "routines",
-        "create",
-        "graph-health.template",
-        "graph-health-weekly",
-        "--schedule",
-        "0 8 * * 1",
-        "--timezone",
-        "America/Los_Angeles",
-        "--path",
-        "notes",
-      ], {
-        env,
-        stdout: { write: (text) => { stdout += text; } },
-        stderr: { write: () => {} },
-      });
-
-      expect(createExitCode).toBe(0);
-      expect(stdout).toContain('"id": "graph-health-weekly"');
-      expect(stdout).toContain('"schedule": "0 8 * * 1"');
-      await expect(readFile(path.join(root, ".exo-runtime", "routines", "graph-health-weekly.json"), "utf8")).resolves.toContain(
-        "graph-health-weekly",
-      );
-    } finally {
-      await rm(root, { recursive: true, force: true });
-    }
-  });
-
-  it("records routine dry runs through the CLI", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "exo-cli-routines-"));
-    try {
-      const pluginRoot = await writeRoutinePlugin(root);
-      const env = routineTestEnv(root, pluginRoot);
-      let stdout = "";
-
-      await runCli(["node", "exo-cli", "routines", "create", "graph-health.template", "graph-health-manual"], {
-        env,
-        stdout: { write: () => {} },
-        stderr: { write: () => {} },
-      });
-      const runExitCode = await runCli(["node", "exo-cli", "routines", "run", "graph-health-manual", "--dry-run"], {
-        env,
-        stdout: { write: (text) => { stdout += text; } },
-        stderr: { write: () => {} },
-      });
-
-      expect(runExitCode).toBe(0);
-      expect(stdout).toContain('"status": "succeeded"');
-      expect(stdout).toContain('"dry-run-report"');
-
-      const runId = (JSON.parse(stdout) as { run: { id: string } }).run.id;
-      stdout = "";
-      const runsExitCode = await runCli(["node", "exo-cli", "routines", "runs", "--routine", "graph-health-manual"], {
-        env,
-        stdout: { write: (text) => { stdout += text; } },
-        stderr: { write: () => {} },
-      });
-      expect(runsExitCode).toBe(0);
-      expect(stdout).toContain(runId);
-
-      stdout = "";
-      const readExitCode = await runCli(["node", "exo-cli", "routines", "read", runId], {
-        env,
-        stdout: { write: (text) => { stdout += text; } },
-        stderr: { write: () => {} },
-      });
-      expect(readExitCode).toBe(0);
-      expect(stdout).toContain('"routineId": "graph-health-manual"');
-
-      stdout = "";
-      const artifactsExitCode = await runCli(["node", "exo-cli", "routines", "artifacts", runId], {
-        env,
-        stdout: { write: (text) => { stdout += text; } },
-        stderr: { write: () => {} },
-      });
-      expect(artifactsExitCode).toBe(0);
-      expect(stdout).toContain('"id": "dry-run-report"');
-
-      stdout = "";
-      const artifactExitCode = await runCli(["node", "exo-cli", "routines", "artifact", runId, "dry-run-report"], {
-        env,
-        stdout: { write: (text) => { stdout += text; } },
-        stderr: { write: () => {} },
-      });
-      expect(artifactExitCode).toBe(0);
-      expect(stdout).toContain("# Routine Dry Run");
-    } finally {
-      await rm(root, { recursive: true, force: true });
-    }
-  });
-
-  it("launches a Codex routine agent through the running app", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "exo-cli-routines-"));
-    try {
-      const pluginRoot = await writeRoutinePlugin(root);
-      const env = routineTestEnv(root, pluginRoot);
-      const calls: Array<Record<string, unknown>> = [];
-      let stdout = "";
-      await runCli(["node", "exo-cli", "routines", "create", "graph-health.template", "graph-health-agent"], {
-        env,
-        stdout: { write: () => {} },
-        stderr: { write: () => {} },
-      });
-
-      const exitCode = await runCli(["node", "exo-cli", "routines", "run", "graph-health-agent", "--agent"], {
-        env,
-        stdout: { write: (text) => { stdout += text; } },
-        stderr: { write: () => {} },
-        connectAppClient: async () => fakeAppClient({
-          createTerminal: async (kind, cwd) => {
-            calls.push({ action: "create", kind, cwd });
-            return { id: "term-codex" };
-          },
-          sendTerminalMessage: async (id, message, submit) => {
-            calls.push({ action: "send", id, message, submit });
-            return { ok: true as const, delivery: "sent" as const };
-          },
-        }),
-      });
-
-      expect(exitCode).toBe(0);
-      expect(stdout).toContain('"status": "needsReview"');
-      expect(stdout).toContain('"id": "agent-session"');
-      expect(calls[0]).toMatchObject({ action: "create", kind: "codex" });
-      expect(calls[1]).toMatchObject({ action: "send", id: "term-codex", submit: true });
-      expect(String(calls[1]?.message)).toContain("# Exo Routine: Graph Health");
-    } finally {
-      await rm(root, { recursive: true, force: true });
-    }
-  });
-
-  it("checks routine agent policy before connecting to the app", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "exo-cli-routines-"));
-    try {
-      const pluginRoot = await writeRoutinePlugin(root, {
-        templateOverrides: {
-          requiredSkills: [{ id: "graph-health", label: "Graph Health", required: true }],
-        },
-      });
-      const env = routineTestEnv(root, pluginRoot);
-      let connected = false;
-      await runCli(["node", "exo-cli", "routines", "create", "graph-health.template", "graph-health-agent"], {
-        env,
-        stdout: { write: () => {} },
-        stderr: { write: () => {} },
-      });
-
-      await expect(runCli(["node", "exo-cli", "routines", "run", "graph-health-agent", "--agent"], {
-        env,
-        stdout: { write: () => {} },
-        stderr: { write: () => {} },
-        connectAppClient: async () => {
-          connected = true;
-          return fakeAppClient({});
-        },
-      })).rejects.toThrow("missing required harness skills: graph-health");
-      expect(connected).toBe(false);
-    } finally {
-      await rm(root, { recursive: true, force: true });
-    }
-  });
-
-  it("launches a Claude routine agent with a skill-request prompt", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "exo-cli-routines-"));
-    try {
-      const pluginRoot = await writeRoutinePlugin(root);
-      const env = routineTestEnv(root, pluginRoot);
-      const calls: Array<Record<string, unknown>> = [];
-      await runCli([
-        "node",
-        "exo-cli",
-        "routines",
-        "create",
-        "graph-health.template",
-        "app-qa-smoke",
-        "--prompt",
-        "Use the app-qa skill if it is available. Do not modify files; only report the QA checklist you would run.",
-        "--harness",
-        "claude",
-      ], {
-        env,
-        stdout: { write: () => {} },
-        stderr: { write: () => {} },
-      });
-
-      const exitCode = await runCli(["node", "exo-cli", "routines", "run", "app-qa-smoke", "--agent", "--no-submit"], {
-        env,
-        stdout: { write: () => {} },
-        stderr: { write: () => {} },
-        connectAppClient: async () => fakeAppClient({
-          createTerminal: async (kind) => {
-            calls.push({ action: "create", kind });
-            return { id: "term-claude" };
-          },
-          sendTerminalMessage: async (id, message, submit) => {
-            calls.push({ action: "send", id, message, submit });
-            return { ok: true as const, delivery: "queued" as const, queuedInputCount: 1 };
-          },
-        }),
-      });
-
-      expect(exitCode).toBe(0);
-      expect(calls[0]).toMatchObject({ action: "create", kind: "claude" });
-      expect(calls[1]).toMatchObject({ action: "send", id: "term-claude", submit: false });
-      expect(String(calls[1]?.message)).toContain("Use the app-qa skill if it is available");
-    } finally {
-      await rm(root, { recursive: true, force: true });
-    }
-  });
-
-  it("uses the broad agent kind set in routine run errors", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "exo-cli-routines-"));
-    try {
-      const pluginRoot = await writeRoutinePlugin(root);
-      const env = routineTestEnv(root, pluginRoot);
-
-      await expect(runCli(["node", "exo-cli", "routines", "run", "graph-health-agent"], {
-        env,
-        stdout: { write: () => {} },
-        stderr: { write: () => {} },
-      })).rejects.toThrow(
-        "Usage: exo routines run <routine-id> (--dry-run | --agent) [--harness shell|claude|codex|pi|hermes] [--cwd <path>] [--no-submit]",
-      );
-
-      await runCli(["node", "exo-cli", "routines", "create", "graph-health.template", "graph-health-agent"], {
-        env,
-        stdout: { write: () => {} },
-        stderr: { write: () => {} },
-      });
-
-      await expect(runCli(["node", "exo-cli", "routines", "run", "graph-health-agent", "--agent", "--harness", "aider"], {
-        env,
-        stdout: { write: () => {} },
-        stderr: { write: () => {} },
-      })).rejects.toThrow("Routine harness must be one of shell|claude|codex|pi|hermes: aider");
-    } finally {
-      await rm(root, { recursive: true, force: true });
-    }
-  });
-
-  it("prints Codex integration config", async () => {
-    let stdout = "";
-    const exitCode = await runCli(["node", "exo-cli", "integrations", "config", "codex"], {
-      env: {
-        EXO_PROJECT_ROOT: "/tmp/exo-test-workspace/projects/exo",
-        EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
-      },
-      stdout: {
-        write: (text) => {
-          stdout += text;
-        },
-      },
-      stderr: {
-        write: () => {},
-      },
-    });
-
-    expect(exitCode).toBe(0);
-    expect(stdout).toContain("codex mcp add exo");
-    expect(stdout).toContain("EXO_MCP_AUTOSTART");
-    expect(stdout).toContain("packages/mcp/bin/exo-mcp.mjs");
-  });
-
-  it("prints Claude integration config", async () => {
-    let stdout = "";
-    const exitCode = await runCli(["node", "exo-cli", "integrations", "config", "claude"], {
-      env: {
-        EXO_PROJECT_ROOT: "/tmp/exo-test-workspace/projects/exo",
-        EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
-      },
-      stdout: {
-        write: (text) => {
-          stdout += text;
-        },
-      },
-      stderr: {
-        write: () => {},
-      },
-    });
-
-    expect(exitCode).toBe(0);
-    expect(stdout).toContain("claude mcp add-json --scope user");
-    expect(stdout).toContain("EXO_MCP_START_COMMAND");
-  });
-
-  it("runs integration doctor with mocked command checks", async () => {
-    let stdout = "";
-    const exitCode = await runCli(["node", "exo-cli", "integrations", "doctor"], {
-      env: {
-        EXO_PROJECT_ROOT: "/tmp/exo-test-workspace/projects/exo",
-        EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
-      },
-      stdout: {
-        write: (text) => {
-          stdout += text;
-        },
-      },
-      stderr: {
-        write: () => {},
-      },
-      runCommand: async (command, args) => {
-        if (command === "/bin/sh" && args.join(" ").includes("codex")) {
-          return { code: 0, stdout: "/opt/bin/codex\n", stderr: "" };
-        }
-        if (command === "/bin/sh" && args.join(" ").includes("claude")) {
-          return { code: 0, stdout: "/opt/bin/claude\n", stderr: "" };
-        }
-        if (command === "/bin/sh" && args.join(" ").includes("pnpm")) {
-          return { code: 0, stdout: "/opt/bin/pnpm\n", stderr: "" };
-        }
-        if (command === "codex") {
-          if (args.join(" ") === "mcp list") {
-            return { code: 0, stdout: "exo pnpm --dir /tmp/exo-test-workspace/projects/exo\n", stderr: "" };
-          }
-          if (args.join(" ") === "mcp get exo") {
-            return {
-              code: 0,
-              stdout: [
-                "exo",
-                `  command: ${process.execPath}`,
-                "  args: /tmp/exo-test-workspace/projects/exo/packages/mcp/bin/exo-mcp.mjs",
-              ].join("\n"),
-              stderr: "",
-            };
-          }
-        }
-        if (command === "claude") {
-          return { code: 0, stdout: "qmd: qmd mcp\n", stderr: "" };
-        }
-        return { code: 1, stdout: "", stderr: "unexpected command" };
-      },
-    });
-
-    expect(exitCode).toBe(0);
-    expect(stdout).toContain("- pnpm: found");
-    expect(stdout).toContain("- codex: found (/opt/bin/codex); Exo MCP configured");
-    expect(stdout).toContain("- claude: found (/opt/bin/claude); Exo MCP not configured");
-  });
-
-  it("reports stale MCP launcher config in integration doctor", async () => {
-    let stdout = "";
-    const exitCode = await runCli(["node", "exo-cli", "integrations", "doctor"], {
-      env: {
-        EXO_PROJECT_ROOT: "/tmp/exo-test-workspace/projects/exo-current",
-        EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
-      },
-      stdout: {
-        write: (text) => {
-          stdout += text;
-        },
-      },
-      stderr: {
-        write: () => {},
-      },
-      runCommand: async (command, args) => {
-        if (command === "/bin/sh" && args.join(" ").includes("codex")) {
-          return { code: 0, stdout: "/opt/bin/codex\n", stderr: "" };
-        }
-        if (command === "/bin/sh" && args.join(" ").includes("claude")) {
-          return { code: 1, stdout: "", stderr: "missing" };
-        }
-        if (command === "/bin/sh" && args.join(" ").includes("pnpm")) {
-          return { code: 0, stdout: "/opt/bin/pnpm\n", stderr: "" };
-        }
-        if (command === "codex" && args.join(" ") === "mcp list") {
-          return { code: 0, stdout: "exo node /tmp/exo-old/packages/mcp/bin/exo-mcp.mjs\n", stderr: "" };
-        }
-        if (command === "codex" && args.join(" ") === "mcp get exo") {
-          return {
-            code: 0,
-            stdout: [
-              "exo",
-              "  command: node",
-              "  args: /tmp/exo-old/packages/mcp/bin/exo-mcp.mjs",
-            ].join("\n"),
-            stderr: "",
-          };
-        }
-        return { code: 1, stdout: "", stderr: "unexpected command" };
-      },
-    });
-
-    expect(exitCode).toBe(0);
-    expect(stdout).toContain("- codex: found (/opt/bin/codex); Exo MCP stale config");
-    expect(stdout).toContain("configured node /tmp/exo-old/packages/mcp/bin/exo-mcp.mjs");
-    expect(stdout).toContain(`expected ${process.execPath} /tmp/exo-test-workspace/projects/exo-current/packages/mcp/bin/exo-mcp.mjs`);
-    expect(stdout).toContain("run `exo integrations install codex` and restart existing codex sessions");
-  });
-
-  it("fails integration test when MCP launcher config is stale", async () => {
-    let stdout = "";
-    const exitCode = await runCli(["node", "exo-cli", "integrations", "test", "codex"], {
-      env: {
-        EXO_PROJECT_ROOT: "/tmp/exo-test-workspace/projects/exo-current",
-        EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
-      },
-      stdout: {
-        write: (text) => {
-          stdout += text;
-        },
-      },
-      stderr: {
-        write: () => {},
-      },
-      runCommand: async (command, args) => {
-        if (command === "/bin/sh" && args.join(" ").includes("codex")) {
-          return { code: 0, stdout: "/opt/bin/codex\n", stderr: "" };
-        }
-        if (command === "codex" && args.join(" ") === "mcp list") {
-          return { code: 0, stdout: "exo node /tmp/exo-old/packages/mcp/bin/exo-mcp.mjs\n", stderr: "" };
-        }
-        if (command === "codex" && args.join(" ") === "mcp get exo") {
-          return {
-            code: 0,
-            stdout: [
-              "exo",
-              "  command: node",
-              "  args: /tmp/exo-old/packages/mcp/bin/exo-mcp.mjs",
-            ].join("\n"),
-            stderr: "",
-          };
-        }
-        return { code: 1, stdout: "", stderr: "unexpected command" };
-      },
-    });
-
-    expect(exitCode).toBe(1);
-    expect(stdout).toContain("codex: Exo MCP stale config");
-  });
-
-  it("replaces stale MCP launcher config during integration install", async () => {
-    let stdout = "";
-    const calls: string[] = [];
-    const exitCode = await runCli(["node", "exo-cli", "integrations", "install", "codex"], {
-      env: {
-        EXO_PROJECT_ROOT: "/tmp/exo-test-workspace/projects/exo-current",
-        EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
-      },
-      stdout: {
-        write: (text) => {
-          stdout += text;
-        },
-      },
-      stderr: {
-        write: () => {},
-      },
-      runCommand: async (command, args) => {
-        calls.push([command, ...args].join(" "));
-        if (command === "/bin/sh" && args.join(" ").includes("codex")) {
-          return { code: 0, stdout: "/opt/bin/codex\n", stderr: "" };
-        }
-        if (command === "codex" && args.join(" ") === "mcp list") {
-          return { code: 0, stdout: "exo node /tmp/exo-old/packages/mcp/bin/exo-mcp.mjs\n", stderr: "" };
-        }
-        if (command === "codex" && args.join(" ") === "mcp get exo") {
-          return {
-            code: 0,
-            stdout: [
-              "exo",
-              "  command: node",
-              "  args: /tmp/exo-old/packages/mcp/bin/exo-mcp.mjs",
-            ].join("\n"),
-            stderr: "",
-          };
-        }
-        if (command === "codex" && args.join(" ") === "mcp remove exo") {
-          return { code: 0, stdout: "", stderr: "" };
-        }
-        if (command === "codex" && args[0] === "mcp" && args[1] === "add") {
-          return { code: 0, stdout: "", stderr: "" };
-        }
-        return { code: 1, stdout: "", stderr: "unexpected command" };
-      },
-    });
-
-    expect(exitCode).toBe(0);
-    expect(calls).toContain("/bin/sh -lc command -v codex");
-    expect(calls).toContain("codex mcp list");
-    expect(calls).toContain("codex mcp get exo");
-    expect(calls).toContain("codex mcp remove exo");
-    expect(calls.some((call) => call.includes("codex mcp add exo"))).toBe(true);
-    expect(stdout).toContain("codex: replaced stale Exo MCP config. Restart existing codex sessions or refresh MCP tools where supported.");
-  });
-
-  it("dry-runs integration install without spawning native installers", async () => {
-    let stdout = "";
-    const calls: string[] = [];
-    const exitCode = await runCli(["node", "exo-cli", "integrations", "install", "--dry-run", "all"], {
-      env: {
-        EXO_PROJECT_ROOT: "/tmp/exo-test-workspace/projects/exo",
-        EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
-      },
-      stdout: {
-        write: (text) => {
-          stdout += text;
-        },
-      },
-      stderr: {
-        write: () => {},
-      },
-      runCommand: async (command, args) => {
-        calls.push([command, ...args].join(" "));
-        return { code: 1, stdout: "", stderr: "should not be called" };
-      },
-    });
-
-    expect(exitCode).toBe(0);
-    expect(calls).toEqual([]);
-    expect(stdout).toContain("[dry-run] codex mcp add exo");
-    expect(stdout).toContain("[dry-run] claude mcp add-json --scope user");
-  });
 });
 
 function testRuntimeEnv(): NodeJS.ProcessEnv {
@@ -1851,82 +1128,14 @@ function testRuntimeEnv(): NodeJS.ProcessEnv {
   };
 }
 
-function routineTestEnv(root: string, pluginRoot: string): NodeJS.ProcessEnv {
-  return {
-    EXO_WORKSPACE_ROOT: root,
-    EXO_NOTE_ROOTS: path.join(root, "notes"),
-    EXO_PROJECT_ROOTS: "",
-    EXO_RUNTIME_ROOT: path.join(root, ".exo-runtime"),
-    EXO_PLUGIN_DIRS: pluginRoot,
-    EXO_SETTINGS_PATH: path.join(root, "settings.json"),
-  };
-}
-
-async function writeRoutinePlugin(root: string, options: { templateOverrides?: Record<string, unknown> } = {}): Promise<string> {
-  const pluginsRoot = path.join(root, "plugins");
-  const pluginDir = path.join(pluginsRoot, "graph-health");
-  await mkdir(pluginDir, { recursive: true });
-  await writeFile(
-    path.join(pluginDir, "exo.plugin.json"),
-    JSON.stringify(
-      {
-        id: "graph-health.plugin",
-        name: "Graph Health Plugin",
-        version: "0.1.0",
-        exoApiVersion: "0.1",
-        capabilities: [
-          {
-            id: "graph-health.template",
-            kind: "core:routineTemplate",
-            label: "Graph Health",
-            description: "Audit graph structure and write a report.",
-            lifecycle: "experimental",
-            owner: "graph-health.plugin",
-            surfaces: ["cli"],
-            permissions: ["workspace:read", "notes:read", "artifacts:write"],
-            compatibility: {
-              routineTemplate: {
-                prompt: "Audit the selected exograph and write a graph health report.",
-                harnessId: "codex",
-                requiredSkills: [],
-                trigger: { kind: "manual" },
-                permissions: { permissions: ["workspace:read", "notes:read", "artifacts:write"] },
-                outputPolicy: {
-                  fileChanges: "propose",
-                  artifacts: "record",
-                  allowedPaths: [".exo/artifacts"],
-                },
-                ...options.templateOverrides,
-              },
-            },
-          },
-        ],
-        permissions: ["workspace:read", "notes:read", "artifacts:write"],
-        surfaces: ["cli"],
-      },
-      null,
-      2,
-    ),
-    "utf8",
-  );
-  return pluginsRoot;
-}
-
 function fakeAppClient(overrides: Partial<{
   getStatus: () => Promise<Record<string, unknown>>;
   openFile: (filePath: string) => Promise<void>;
   openPreview: (target: string) => Promise<Record<string, unknown>>;
   focusPreview: () => Promise<Record<string, unknown>>;
   closePreview: () => Promise<Record<string, unknown>>;
-  createProposal: (proposal: Record<string, unknown>) => Promise<Record<string, unknown>>;
-  listProposals: () => Promise<Record<string, unknown>>;
-  readProposal: (id: string) => Promise<Record<string, unknown>>;
-  decideProposal: (id: string, decision: "accept" | "reject", itemId?: string) => Promise<Record<string, unknown>>;
   showWindow: () => Promise<void>;
   getConfig: () => Promise<Record<string, unknown>>;
-  listProjectRoots: () => Promise<string[]>;
-  addProjectRoot: (projectRootPath: string) => Promise<Record<string, unknown>>;
-  removeProjectRoot: (target: string) => Promise<Record<string, unknown>>;
   search: (query: string, options?: { limit?: number }) => Promise<Record<string, unknown>>;
   readDocument: (target: string, options?: { fromLine?: number; maxLines?: number }) => Promise<Record<string, unknown>>;
   getIndexStatus: () => Promise<Record<string, unknown>>;
@@ -1938,12 +1147,11 @@ function fakeAppClient(overrides: Partial<{
   listTerminals: () => Promise<unknown[]>;
   terminalDiagnostics: () => Promise<unknown[]>;
   createTerminal: (kind: string, cwd?: string) => Promise<Record<string, unknown>>;
+  spawnAgentCommand: (handle: string, task: string) => Promise<Record<string, unknown>>;
   readTerminal: (id: string, options?: { maxLines?: number }) => Promise<string>;
   readTerminalTranscript: (id: string, tailChars?: number) => Promise<string>;
   writeTerminal: (id: string, data: string) => Promise<{ ok: boolean; delivery: "sent" | "queued" | "not-found"; queuedInputCount?: number }>;
   sendTerminalMessage: (id: string, message: string, submit?: boolean) => Promise<{ ok: boolean; delivery: "sent" | "queued" | "not-found"; queuedInputCount?: number }>;
-  reconnectTerminal: (id: string) => Promise<Record<string, unknown>>;
-  resyncTerminal: (id: string) => Promise<Record<string, unknown>>;
   killTerminal: (id: string) => Promise<void>;
 }> = {}) {
   const missing = async (..._args: unknown[]) => {
@@ -1955,15 +1163,8 @@ function fakeAppClient(overrides: Partial<{
     openPreview: missing,
     focusPreview: missing,
     closePreview: missing,
-    createProposal: missing,
-    listProposals: missing,
-    readProposal: missing,
-    decideProposal: missing,
     showWindow: missing,
     getConfig: missing,
-    listProjectRoots: missing,
-    addProjectRoot: missing,
-    removeProjectRoot: missing,
     search: missing,
     readDocument: missing,
     getIndexStatus: missing,
@@ -1975,6 +1176,7 @@ function fakeAppClient(overrides: Partial<{
     listTerminals: missing,
     terminalDiagnostics: missing,
     createTerminal: missing,
+    spawnAgentCommand: missing,
     readTerminal: missing,
     readTerminalTranscript: missing,
     writeTerminal: async (...args: [string, string]) => {
@@ -1985,8 +1187,6 @@ function fakeAppClient(overrides: Partial<{
       await missing(...args);
       return { ok: false, delivery: "not-found" as const };
     },
-    reconnectTerminal: missing,
-    resyncTerminal: missing,
     killTerminal: missing,
     ...overrides,
   };

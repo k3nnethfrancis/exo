@@ -1,6 +1,6 @@
 # Exo MCP NDE QA Audit - 2026-06-20
 
-Status: dated QA evidence. Use `packages/mcp/README.md`, `architecture.md`, and `harness.md` for the current MCP contract and validation rules.
+Status: dated QA evidence. Superseded by the Exograph refactor, which removed `packages/mcp` and the MCP setup surface. Use this only as historical evidence for the deleted MCP implementation.
 
 ## Summary
 

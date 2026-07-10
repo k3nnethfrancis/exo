@@ -442,11 +442,9 @@ describe("agent harness registry", () => {
           }),
         ],
       });
-      expect(validateRegisteredAgentHarnessLaunchForSurface("pi", { surface: "commandServer", requireLaunchable: true }, env)).toMatchObject({
-        harnessId: "pi",
-        terminalKind: "pi",
-        launcher: { kind: "pi", command: piCommand },
-      });
+      expect(() =>
+        validateRegisteredAgentHarnessLaunchForSurface("pi", { surface: "commandServer", requireLaunchable: true }, env),
+      ).toThrow("Agent harness is not approved for commandServer launch: pi");
     } finally {
       rmSync(tempRoot, { recursive: true, force: true });
     }
@@ -533,10 +531,10 @@ describe("agent harness registry", () => {
     });
     expect(() =>
       validateRegisteredAgentHarnessLaunchForSurface("hermes", { surface: "commandServer", requireLaunchable: true }, { PATH: "/tmp/does-not-exist" }),
-    ).toThrow("Agent harness is registered but not enabled for commandServer launch: hermes");
+    ).toThrow("Agent harness is not approved for commandServer launch: hermes");
   });
 
-  it("derives CLI/MCP agent creation choices from registered visible harnesses", () => {
+  it("derives CLI agent creation choices from registered visible harnesses", () => {
     const env = { PATH: "/tmp/does-not-exist", SHELL: "/bin/zsh" };
 
     expect(resolveRegisteredAgentHarnessesForSurface({ surface: "cli" }, env).map((harness) => harness.id)).toEqual([
@@ -545,7 +543,6 @@ describe("agent harness registry", () => {
       "codex",
       "pi",
     ]);
-    expect(formatRegisteredAgentHarnessUsage({ surface: "mcp" }, env)).toBe("shell|claude|codex|pi");
     expect(normalizeRegisteredAgentHarnessKindForSurface("codex", { surface: "cli" }, env)).toBe("codex");
     expect(normalizeRegisteredAgentHarnessKindForSurface("hermes", { surface: "cli" }, env)).toBeNull();
   });
@@ -592,7 +589,7 @@ describe("agent harness registry", () => {
         { PATH: "/bin:/usr/bin", EXO_CODEX_COMMAND: "/bin/sh", EXO_CLAUDE_COMMAND: "/bin/sh" },
       ),
     ).toThrow(
-      "Agent harness is not registered: aider. Registered harnesses: shell|claude|codex|pi|hermes. Approved launchable harnesses for commandServer: shell|claude|codex.",
+      "Agent harness is not registered: aider. Registered harnesses: shell|claude|codex|pi|hermes. Approved launchable harnesses for commandServer: (none).",
     );
   });
 });

@@ -118,7 +118,7 @@ export interface PluginLifecycleStatus {
 
 const CAPABILITY_LIFECYCLES = ["built-in", "experimental", "disabled"] satisfies CapabilityLifecycle[];
 
-const CAPABILITY_SURFACES = ["desktop", "cli", "mcp", "commandServer", "internal"] satisfies CapabilitySurface[];
+const CAPABILITY_SURFACES = ["desktop", "cli", "commandServer", "internal"] satisfies CapabilitySurface[];
 
 export class PluginRegistry {
   private readonly plugins = new Map<string, DiscoveredPlugin>();

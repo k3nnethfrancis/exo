@@ -3,13 +3,13 @@ import { describe, expect, it } from "vitest";
 import {
   normalizeSemanticTraceEvent,
   semanticTraceEventsToAgentAnswerText,
-  semanticTraceEventToRunTracePacket,
+  semanticTraceEventToActivityTracePacket,
   type SemanticTraceInput,
 } from "../semantic-trace";
 
 const baseEvent: SemanticTraceInput = {
   id: "event-1",
-  runId: "run-1",
+  activityId: "activity-1",
   sessionId: "session-1",
   harnessId: "codex",
   timestamp: "2026-07-03T16:00:00.000Z",
@@ -35,12 +35,12 @@ describe("semantic trace contract", () => {
     });
   });
 
-  it("converts semantic trace events to the existing RunTracePacket artifact shape", () => {
-    const packet = semanticTraceEventToRunTracePacket(normalizeSemanticTraceEvent(baseEvent));
+  it("converts semantic trace events to the activity trace packet shape", () => {
+    const packet = semanticTraceEventToActivityTracePacket(normalizeSemanticTraceEvent(baseEvent));
 
     expect(packet).toMatchObject({
       id: "event-1",
-      runId: "run-1",
+      activityId: "activity-1",
       kind: "toolCall",
       actor: "codex",
       private: true,
@@ -60,7 +60,7 @@ describe("semantic trace contract", () => {
     });
   });
 
-  it("keeps public semantic trace events non-private in run compatibility packets", () => {
+  it("keeps public semantic trace events non-private in activity packets", () => {
     const event = normalizeSemanticTraceEvent({
       ...baseEvent,
       kind: "message",
@@ -68,7 +68,7 @@ describe("semantic trace contract", () => {
       payload: { text: "Task complete." },
     });
 
-    expect(semanticTraceEventToRunTracePacket(event)).toMatchObject({
+    expect(semanticTraceEventToActivityTracePacket(event)).toMatchObject({
       kind: "message",
       private: false,
     });
@@ -95,14 +95,14 @@ describe("semantic trace contract", () => {
     expect(semanticTraceEventsToAgentAnswerText(events)).toBe("PI_FIXTURE_ANSWER OK");
   });
 
-  it("round-trips lifecycle and raw harness events through compatibility packets", () => {
-    const lifecycle = semanticTraceEventToRunTracePacket(normalizeSemanticTraceEvent({
+  it("round-trips lifecycle and raw harness events through activity packets", () => {
+    const lifecycle = semanticTraceEventToActivityTracePacket(normalizeSemanticTraceEvent({
       ...baseEvent,
       id: "event-lifecycle",
       kind: "lifecycle",
       payload: { lifecycle: "exit", status: "succeeded" },
     }));
-    const raw = semanticTraceEventToRunTracePacket(normalizeSemanticTraceEvent({
+    const raw = semanticTraceEventToActivityTracePacket(normalizeSemanticTraceEvent({
       ...baseEvent,
       id: "event-raw",
       kind: "harness.raw",
@@ -125,14 +125,14 @@ describe("semantic trace contract", () => {
     });
   });
 
-  it("requires identity, harness, and run/activity context before conversion", () => {
+  it("requires identity, harness, and activity context before conversion", () => {
     expect(() => normalizeSemanticTraceEvent({ ...baseEvent, id: "" })).toThrow("event id must be non-empty");
     expect(() => normalizeSemanticTraceEvent({ ...baseEvent, harnessId: "" })).toThrow("harnessId must be non-empty");
     expect(() => normalizeSemanticTraceEvent({ ...baseEvent, actor: { id: "", kind: "agent" } })).toThrow("actor id must be non-empty");
-    expect(() => semanticTraceEventToRunTracePacket(normalizeSemanticTraceEvent({
+    expect(() => semanticTraceEventToActivityTracePacket(normalizeSemanticTraceEvent({
       ...baseEvent,
-      runId: undefined,
       activityId: undefined,
-    }))).toThrow("requires runId or activityId");
+      runId: undefined,
+    }))).toThrow("requires activityId");
   });
 });

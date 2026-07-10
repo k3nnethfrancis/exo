@@ -7,31 +7,19 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
-  EXO_MCP_INTEGRATION_CLIENTS,
-  buildExoMcpIntegrationSpec,
-  formatMcpServerJson,
-  formatShellCommand,
   formatManagedAgentKindUsage,
-  formatRegisteredAgentHarnessUsage,
-  parseMcpListOutput,
-  parseMcpServerDetailsOutput,
   createBranchFile,
   getBranchFamily,
   normalizeManagedAgentKind,
   readWorkspaceDocument,
+  getIndexStatus,
   readIndexDocument,
   renderPrimaryAgentInstructions,
   resolveAgentLaunchPlan,
   resolveRuntimeConfig,
   validateRegisteredAgentHarnessLaunch,
-  RoutineService,
-  routinePluginDirectoriesFromEnv,
   resolveNotePath,
   resolveWorkspaceModel,
-  listProfileApplyRecoveryManifests,
-  inspectProfileApplyRecoveryManifest,
-  restoreProfileApplyRecoveryManifest,
-  ProfileApplyRecoveryRestoreError,
   loadActiveWorkspaceSettings,
   listWorkspaceRegistryEntries,
   getWorkspaceRegistryEntry,
@@ -43,21 +31,10 @@ import {
   syncRuntimeContextFiles,
   workspaceEnvOverrides,
   workspaceSettingsToEnv,
-  agentHarnessRegistry,
   SemanticTraceStore,
   semanticTraceEventsToAgentAnswerText,
   cleanTerminalOutput,
-  assertRoutineAgentPolicy,
-  getFrontmatterPatchPreviewEvidence,
-  renderFrontmatterPatchPreviewEvidence,
   type ManagedAgentKind,
-  type ExoMcpIntegrationClient,
-  type ProposalBatch,
-  type ProposalItem,
-  type RoutineDefinition,
-  type RoutineExecutionHost,
-  type RoutineTrigger,
-  type RunRecord,
   type SemanticTraceEvent,
   type SemanticTraceCleanupResult,
   type SemanticTraceSessionListEntry,
@@ -70,27 +47,14 @@ const startWaitPollIntervalMs = 250;
 
 import { AppClient, formatAppClientDiscoveryFailure, type AppClientDiscoveryFailure, type AppClientWriteResult } from "./app-client";
 
-interface CommandRunResult {
-  code: number;
-  stdout: string;
-  stderr: string;
-}
-
 interface AppClientLike {
   getStatus(): Promise<Record<string, unknown>>;
   openFile(filePath: string): Promise<void>;
   openPreview(target: string): Promise<Record<string, unknown>>;
   focusPreview(): Promise<Record<string, unknown>>;
   closePreview(): Promise<Record<string, unknown>>;
-  createProposal(proposal: Record<string, unknown>): Promise<Record<string, unknown>>;
-  listProposals(): Promise<Record<string, unknown>>;
-  readProposal(id: string): Promise<Record<string, unknown>>;
-  decideProposal(id: string, decision: "accept" | "reject", itemId?: string): Promise<Record<string, unknown>>;
   showWindow(): Promise<void>;
   getConfig(): Promise<Record<string, unknown>>;
-  listProjectRoots(): Promise<string[]>;
-  addProjectRoot(projectRootPath: string): Promise<Record<string, unknown>>;
-  removeProjectRoot(target: string): Promise<Record<string, unknown>>;
   search(query: string, options?: { limit?: number }): Promise<Record<string, unknown>>;
   readDocument(target: string, options?: { fromLine?: number; maxLines?: number }): Promise<Record<string, unknown>>;
   getIndexStatus(): Promise<Record<string, unknown>>;
@@ -102,20 +66,13 @@ interface AppClientLike {
   listTerminals(): Promise<unknown[]>;
   terminalDiagnostics(): Promise<unknown[]>;
   createTerminal(kind: string, cwd?: string): Promise<Record<string, unknown>>;
+  spawnAgentCommand(handle: string, task: string): Promise<Record<string, unknown>>;
   readTerminal(id: string, options?: { maxLines?: number }): Promise<string>;
   readTerminalTranscript(id: string, tailChars?: number): Promise<string>;
   writeTerminal(id: string, data: string): Promise<AppClientWriteResult>;
   sendTerminalMessage(id: string, message: string, submit?: boolean): Promise<AppClientWriteResult>;
-  reconnectTerminal(id: string): Promise<Record<string, unknown>>;
-  resyncTerminal(id: string): Promise<Record<string, unknown>>;
   killTerminal(id: string): Promise<void>;
 }
-
-type CommandRunner = (
-  command: string,
-  args: string[],
-  options?: { cwd?: string; env?: NodeJS.ProcessEnv },
-) => Promise<CommandRunResult>;
 
 type AppClientConnector = (runtimeRoot: string, env: NodeJS.ProcessEnv) => Promise<AppClientLike | null>;
 
@@ -131,7 +88,6 @@ export async function runCli(
     stdout?: { write: (text: string) => void };
     stderr?: { write: (text: string) => void };
     cwd?: string;
-    runCommand?: CommandRunner;
     connectAppClient?: AppClientConnector;
   } = {},
 ): Promise<number> {
@@ -140,7 +96,6 @@ export async function runCli(
   const stdout = options.stdout ?? process.stdout;
   const stderr = options.stderr ?? process.stderr;
   const cwd = options.cwd ?? process.cwd();
-  const runCommand = options.runCommand ?? runProcess;
   const connectAppClient = options.connectAppClient ?? defaultAppClientConnector;
 
   const [, , command, subcommand, ...args] = argv;
@@ -182,13 +137,18 @@ export async function runCli(
   }
 
   if (command === "index") {
-    const client = await connectOrFail(env, stderr, connectAppClient);
-    if (!client) return 1;
-
     if (subcommand === "status" || !subcommand) {
-      stdout.write(`${JSON.stringify(await client.getIndexStatus(), null, 2)}\n`);
+      const config = await resolveCliRuntimeConfig(env);
+      const client = await connectAppClient(config.runtimeRoot, env);
+      const status = client
+        ? await client.getIndexStatus()
+        : await getIndexStatus(config.workspace, config.runtimeRoot);
+      stdout.write(`${JSON.stringify(status, null, 2)}\n`);
       return 0;
     }
+
+    const client = await connectOrFail(env, stderr, connectAppClient);
+    if (!client) return 1;
 
     if (subcommand === "sync") {
       stdout.write(`${JSON.stringify(await client.syncIndex(), null, 2)}\n`);
@@ -231,123 +191,6 @@ export async function runCli(
     }
 
     throw new Error("Usage: exo index <status|sync|add|remove|update|embed>");
-  }
-
-  // ─── Local agent integrations ───────────────────────────────────────
-
-  if (command === "integrations") {
-    const exoRoot = resolveExoRoot(env);
-    const workspaceRoot = (await resolveCliRuntimeConfig(env)).workspace.workspaceRoot;
-    const targets = parseIntegrationTargets(args);
-
-    if (subcommand === "doctor" || !subcommand) {
-      const statuses = await Promise.all(
-        EXO_MCP_INTEGRATION_CLIENTS.map((client) => getIntegrationStatus(client, { exoRoot, workspaceRoot }, runCommand, env)),
-      );
-      const pnpm = await detectExecutable("pnpm", runCommand, env);
-      stdout.write(formatIntegrationDoctor({ exoRoot, workspaceRoot, pnpmFound: pnpm.found, statuses }));
-      return 0;
-    }
-
-    if (subcommand === "config") {
-      const clients = targets.clients;
-      if (clients.length === 0) {
-        throw new Error("Usage: exo integrations config <codex|claude|all>");
-      }
-
-      stdout.write(
-        clients
-          .map((client) => {
-            const spec = buildExoMcpIntegrationSpec(client, { exoRoot, workspaceRoot, nodeCommand: process.execPath });
-            return [
-              `# ${client}`,
-              `Install command:`,
-              spec.installDisplay,
-              "",
-              `MCP JSON:`,
-              formatMcpServerJson(spec.server),
-            ].join("\n");
-          })
-          .join("\n\n"),
-      );
-      stdout.write("\n");
-      return 0;
-    }
-
-    if (subcommand === "test") {
-      const clients = targets.clients;
-      if (clients.length === 0) {
-        throw new Error("Usage: exo integrations test <codex|claude|all>");
-      }
-
-      const statuses = await Promise.all(
-        clients.map((client) => getIntegrationStatus(client, { exoRoot, workspaceRoot }, runCommand, env)),
-      );
-      stdout.write(formatIntegrationTest(statuses));
-      return statuses.every((status) => status.installed && status.configured && status.configMatches !== false) ? 0 : 1;
-    }
-
-    if (subcommand === "install") {
-      const clients = targets.clients;
-      if (clients.length === 0) {
-        throw new Error("Usage: exo integrations install <codex|claude|all> [--dry-run]");
-      }
-
-      const results: string[] = [];
-      let ok = true;
-      for (const client of clients) {
-        const spec = buildExoMcpIntegrationSpec(client, { exoRoot, workspaceRoot, nodeCommand: process.execPath });
-
-        if (targets.dryRun) {
-          results.push(`[dry-run] ${spec.installDisplay}`);
-          continue;
-        }
-
-        const status = await getIntegrationStatus(client, { exoRoot, workspaceRoot }, runCommand, env);
-        if (!status.installed) {
-          ok = false;
-          results.push(`${client}: missing CLI. Install ${client} first, then run:\n${spec.installDisplay}`);
-          continue;
-        }
-
-        if (status.configured) {
-          if (status.configMatches === false) {
-            const remove = await runCommand(client, ["mcp", "remove", spec.server.serverName], { env });
-            if (remove.code !== 0) {
-              ok = false;
-              results.push(`${client}: stale Exo MCP config found, but removal failed.\n${remove.stderr || remove.stdout || `exit code ${remove.code}`}`);
-              continue;
-            }
-            const reinstall = await runCommand(spec.installCommand, spec.installArgs, { env });
-            if (reinstall.code === 0) {
-              results.push(`${client}: replaced stale Exo MCP config. Restart existing ${client} sessions or refresh MCP tools where supported.`);
-            } else {
-              ok = false;
-              results.push(`${client}: reinstall failed after removing stale config.\n${reinstall.stderr || reinstall.stdout || `exit code ${reinstall.code}`}`);
-            }
-            continue;
-          }
-          results.push(`${client}: Exo MCP is already configured.`);
-          continue;
-        }
-
-        const install = await runCommand(spec.installCommand, spec.installArgs, { env });
-        if (install.code === 0) {
-          results.push(`${client}: installed Exo MCP. Restart existing ${client} sessions or refresh MCP tools where supported.`);
-        } else {
-          ok = false;
-          results.push(`${client}: install failed.\n${install.stderr || install.stdout || `exit code ${install.code}`}`);
-        }
-      }
-
-      stdout.write(`${results.join("\n\n")}\n`);
-      return ok ? 0 : 1;
-    }
-
-    stderr.write(
-      "Usage: exo integrations [doctor | config <codex|claude|all> | install <codex|claude|all> [--dry-run] | test <codex|claude|all>]\n",
-    );
-    return 1;
   }
 
   // ─── App commands (require running desktop app) ──────────────────────
@@ -393,11 +236,36 @@ export async function runCli(
   }
 
   if (command === "status") {
-    const client = await connectOrFail(env, stderr, connectAppClient);
-    if (!client) return 1;
-    const status = await client.getStatus();
+    const config = await resolveCliRuntimeConfig(env);
+    const client = await connectAppClient(config.runtimeRoot, env);
+    const status = client
+      ? await client.getStatus()
+      : {
+        ok: true,
+        app: { available: false },
+        workspace: config.workspace,
+        search: await getIndexStatus(config.workspace, config.runtimeRoot),
+      };
     stdout.write(`${JSON.stringify(status, null, 2)}\n`);
     return 0;
+  }
+
+  if (command === "spawn") {
+    const handle = subcommand;
+    const task = args.join(" ");
+    if (!handle || !handle.startsWith("@") || !task) {
+      throw new Error("Usage: exo spawn @handle <task>");
+    }
+    const client = await connectOrFail(env, stderr, connectAppClient);
+    if (!client) return 1;
+    try {
+      const result = await client.spawnAgentCommand(handle, task);
+      stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+      return 0;
+    } catch (error) {
+      stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+      return 1;
+    }
   }
 
   if (command === "show") {
@@ -427,116 +295,6 @@ export async function runCli(
     return 1;
   }
 
-  if (command === "project-roots") {
-    const client = await connectOrFail(env, stderr, connectAppClient);
-    if (!client) return 1;
-
-    if (subcommand === "list" || !subcommand) {
-      stdout.write(`${JSON.stringify(await client.listProjectRoots(), null, 2)}\n`);
-      return 0;
-    }
-
-    if (subcommand === "add") {
-      const targetPath = args[0];
-      if (!targetPath) {
-        throw new Error("Usage: exo project-roots add <path>");
-      }
-      stdout.write(`${JSON.stringify(await client.addProjectRoot(path.resolve(cwd, targetPath)), null, 2)}\n`);
-      return 0;
-    }
-
-    if (subcommand === "remove") {
-      const target = args[0];
-      if (!target) {
-        throw new Error("Usage: exo project-roots remove <path>");
-      }
-      stdout.write(`${JSON.stringify(await client.removeProjectRoot(path.resolve(cwd, target)), null, 2)}\n`);
-      return 0;
-    }
-
-    stderr.write("Usage: exo project-roots [list | add <path> | remove <path>]\n");
-    return 1;
-  }
-
-  if (command === "proposals") {
-    const client = await connectOrFail(env, stderr, connectAppClient);
-    if (!client) return 1;
-
-    if (subcommand === "list" || !subcommand) {
-      stdout.write(`${JSON.stringify(await client.listProposals(), null, 2)}\n`);
-      return 0;
-    }
-
-    if (subcommand === "show") {
-      const id = args[0];
-      if (!id) {
-        throw new Error("Usage: exo proposals show <proposal-id>");
-      }
-      stdout.write(`${formatProposalShow(await client.readProposal(id))}\n`);
-      return 0;
-    }
-
-    if (subcommand === "create") {
-      const filePath = args[0];
-      if (!filePath) {
-        throw new Error("Usage: exo proposals create <proposal-json>");
-      }
-      const proposal = JSON.parse(await readFile(path.resolve(cwd, filePath), "utf8")) as Record<string, unknown>;
-      stdout.write(`${JSON.stringify(await client.createProposal(proposal), null, 2)}\n`);
-      return 0;
-    }
-
-    if (subcommand === "accept" || subcommand === "reject") {
-      const id = args[0];
-      if (!id) {
-        throw new Error(`Usage: exo proposals ${subcommand} <proposal-id> [item-id]`);
-      }
-      stdout.write(`${JSON.stringify(await client.decideProposal(id, subcommand, args[1]), null, 2)}\n`);
-      return 0;
-    }
-
-    stderr.write("Usage: exo proposals [list | show <id> | create <proposal-json> | accept <id> [item-id] | reject <id> [item-id]]\n");
-    return 1;
-  }
-
-  if (command === "profile-recovery") {
-    const config = await resolveCliRuntimeConfig(env);
-
-    if (subcommand === "list" || !subcommand) {
-      stdout.write(`${JSON.stringify({ manifests: await listProfileApplyRecoveryManifests(config.workspace.workspaceRoot) }, null, 2)}\n`);
-      return 0;
-    }
-
-    if (subcommand === "show") {
-      const manifestRef = args[0];
-      if (!manifestRef) {
-        throw new Error("Usage: exo profile-recovery show <manifest-file-or-path>");
-      }
-      stdout.write(`${JSON.stringify(await inspectProfileApplyRecoveryManifest(config.workspace.workspaceRoot, manifestRef), null, 2)}\n`);
-      return 0;
-    }
-
-    if (subcommand === "restore") {
-      const manifestRef = args[0];
-      if (!manifestRef) {
-        throw new Error("Usage: exo profile-recovery restore <manifest-file-or-path> [item-id]");
-      }
-      try {
-        stdout.write(`${JSON.stringify(await restoreProfileApplyRecoveryManifest(config.workspace.workspaceRoot, manifestRef, { itemId: args[1] }), null, 2)}\n`);
-        return 0;
-      } catch (error) {
-        if (error instanceof ProfileApplyRecoveryRestoreError) {
-          stdout.write(`${JSON.stringify({ error: error.message, partialResult: error.result }, null, 2)}\n`);
-          return 1;
-        }
-        throw error;
-      }
-    }
-
-    stderr.write("Usage: exo profile-recovery [list | show <manifest> | restore <manifest> [item-id]]\n");
-    return 1;
-  }
-
   if (command === "terminals") {
     const client = await connectOrFail(env, stderr, connectAppClient);
     if (!client) return 1;
@@ -554,12 +312,16 @@ export async function runCli(
     }
 
     if (subcommand === "create") {
-      const kind = args[0];
-      const normalizedKind = normalizeAgentKind(kind);
-      if (!normalizedKind) {
-        throw new Error(TERMINAL_KIND_EXPECTED);
+      const [firstArg, secondArg] = args;
+      if (firstArg?.startsWith("-") || secondArg?.startsWith("-")) {
+        throw new Error("Usage: exo terminals create [shell] [cwd]");
       }
-      const terminal = await client.createTerminal(normalizedKind, args[1]);
+      const kind = firstArg === "shell" || !firstArg ? "shell" : "shell";
+      const cwdArg = firstArg === "shell" ? secondArg : firstArg;
+      if (firstArg && firstArg !== "shell" && !path.isAbsolute(firstArg) && !firstArg.startsWith(".")) {
+        throw new Error("Terminal creation only supports shell. Usage: exo terminals create [shell] [cwd]");
+      }
+      const terminal = await client.createTerminal(kind, cwdArg);
       stdout.write(`${JSON.stringify(terminal, null, 2)}\n`);
       return 0;
     }
@@ -614,25 +376,7 @@ export async function runCli(
       return 0;
     }
 
-    if (subcommand === "reconnect") {
-      const id = args[0];
-      if (!id) {
-        throw new Error("Usage: exo terminals reconnect <terminal-id>");
-      }
-      stdout.write(`${JSON.stringify(await client.reconnectTerminal(id), null, 2)}\n`);
-      return 0;
-    }
-
-    if (subcommand === "resync") {
-      const id = args[0];
-      if (!id) {
-        throw new Error("Usage: exo terminals resync <terminal-id>");
-      }
-      stdout.write(`${JSON.stringify(await client.resyncTerminal(id), null, 2)}\n`);
-      return 0;
-    }
-
-    stderr.write(`Usage: exo terminals [list | diagnostics | create <${TERMINAL_KIND_USAGE}> [cwd] | read <id> [--lines n] | transcript <id> [--tail chars] [--full] | write <id> <text> | send <id> <text> | reconnect <id> | resync <id> | kill <id>]\n`);
+    stderr.write("Usage: exo terminals [list | diagnostics | create [shell] [cwd] | read <id> [--lines n] | transcript <id> [--tail chars] [--full] | write <id> <text> | send <id> <text> | kill <id>]\n");
     return 1;
   }
 
@@ -679,17 +423,7 @@ export async function runCli(
     }
 
     if (subcommand === "create") {
-      const harnessId = args[0];
-      if (!harnessId) {
-        throw new Error(`Usage: exo agents create <${agentKindUsage(env)}> [cwd]`);
-      }
-      const cwdArg = args[1];
-      if (cwdArg?.startsWith("-")) {
-        throw new Error(`Invalid cwd for exo agents create: ${cwdArg}`);
-      }
-      const agent = await client.createTerminal(harnessId, cwdArg);
-      stdout.write(`${JSON.stringify(agent, null, 2)}\n`);
-      return 0;
+      throw new Error("exo agents create was removed. Use `exo spawn @handle <task>` for configured AgentCommands or `exo terminals create [cwd]` for a shell.");
     }
 
     if (subcommand === "read") {
@@ -752,7 +486,7 @@ export async function runCli(
       return 0;
     }
 
-    stderr.write(`Usage: exo agents [list | create <${agentKindUsage(env)}> [cwd] | read <id> [--tail chars] [--full] [--raw] | send <id> <text> [--raw|--no-submit] | interrupt <id> [escape|ctrl-c] | terminate <id>]\n`);
+    stderr.write("Usage: exo agents [list | read <id> [--tail chars] [--full] [--raw] | send <id> <text> [--raw|--no-submit] | interrupt <id> [escape|ctrl-c] | terminate <id>]\n");
     return 1;
   }
 
@@ -895,114 +629,6 @@ export async function runCli(
     return 0;
   }
 
-  // ─── Routine commands ────────────────────────────────────────────────
-
-  if (command === "routines") {
-    const config = await resolveCliRuntimeConfig(env);
-    const service = createRoutineService(config, env);
-
-    if (subcommand === "templates") {
-      stdout.write(`${JSON.stringify(await service.listTemplates(), null, 2)}\n`);
-      return 0;
-    }
-
-    if (subcommand === "list" || !subcommand) {
-      stdout.write(`${JSON.stringify(await service.listRoutines(), null, 2)}\n`);
-      return 0;
-    }
-
-    if (subcommand === "runs") {
-      const { values } = parseInlineOptions(args);
-      stdout.write(`${JSON.stringify(await service.listRuns({ routineId: values.routine }), null, 2)}\n`);
-      return 0;
-    }
-
-    if (subcommand === "read") {
-      const runId = args[0];
-      if (!runId) {
-        throw new Error("Usage: exo routines read <run-id>");
-      }
-      stdout.write(`${JSON.stringify(await service.requireRun(runId), null, 2)}\n`);
-      return 0;
-    }
-
-    if (subcommand === "artifacts") {
-      const runId = args[0];
-      if (!runId) {
-        throw new Error("Usage: exo routines artifacts <run-id>");
-      }
-      stdout.write(`${JSON.stringify((await service.requireRun(runId)).artifacts, null, 2)}\n`);
-      return 0;
-    }
-
-    if (subcommand === "artifact") {
-      const runId = args[0];
-      const artifactId = args[1];
-      if (!runId || !artifactId) {
-        throw new Error("Usage: exo routines artifact <run-id> <artifact-id>");
-      }
-      stdout.write((await service.readArtifact(runId, artifactId)).contents);
-      return 0;
-    }
-
-    if (subcommand === "create") {
-      const { values, positionals } = parseInlineOptions(args);
-      const templateId = positionals[0];
-      const routineId = positionals[1];
-      if (!templateId || !routineId) {
-        throw new Error("Usage: exo routines create <template-id> <routine-id> [--title <title>] [--prompt <text>] [--harness <id>] [--schedule <cron>] [--timezone <tz>] [--path <path>]");
-      }
-      const routine = await service.createRoutineFromTemplate(templateId, {
-        id: routineId,
-        title: values.title,
-        prompt: values.prompt,
-        harnessId: values.harness,
-        trigger: parseRoutineTrigger(values),
-        scope: {
-          workspaceRoot: config.workspace.workspaceRoot,
-          noteRootIds: config.workspace.noteRoots.map((root) => root.id),
-          projectRootIds: config.workspace.projectRoots.map((root) => root.id),
-          paths: values.path ? [values.path] : [],
-        },
-      });
-      stdout.write(`${JSON.stringify(routine, null, 2)}\n`);
-      return 0;
-    }
-
-    if (subcommand === "run") {
-      const { values, positionals } = parseInlineOptions(args);
-      const routineId = positionals[0];
-      if (!routineId || (values["dry-run"] !== "1" && values.agent !== "1")) {
-        throw new Error(`Usage: exo routines run <routine-id> (--dry-run | --agent) [--harness ${TERMINAL_KIND_USAGE}] [--cwd <path>] [--no-submit]`);
-      }
-      if (values.agent === "1") {
-        const routine = await service.readRoutine(routineId);
-        if (!routine) {
-          throw new Error(`Routine not found: ${routineId}`);
-        }
-        const harness = normalizeAgentKind(values.harness ?? routine.harnessId);
-        if (!harness) {
-          throw new Error(`Routine harness must be one of ${TERMINAL_KIND_USAGE}: ${values.harness ?? routine.harnessId}`);
-        }
-        const agentHarness = agentHarnessRegistry.require(harness);
-        assertRoutineAgentPolicy(routine, { harness: agentHarness });
-        const client = await connectOrFail(env, stderr, connectAppClient);
-        if (!client) return 1;
-        stdout.write(`${JSON.stringify(await service.runManualWithHost(routineId, new AppRoutineExecutionHost(client, {
-          harness,
-          cwd: values.cwd,
-          submit: values["no-submit"] !== "1",
-          clock: () => new Date().toISOString(),
-        }), { harness: agentHarness }), null, 2)}\n`);
-        return 0;
-      }
-      stdout.write(`${JSON.stringify(await service.runManualDryRun(routineId), null, 2)}\n`);
-      return 0;
-    }
-
-    throw new Error("Usage: exo routines [templates | list | runs | read <run-id> | artifacts <run-id> | artifact <run-id> <artifact-id> | create <template-id> <routine-id> | run <routine-id> (--dry-run | --agent)]");
-  }
-
   if (command === "traces") {
     const { values, positionals } = parseInlineOptions(args);
     const config = await resolveCliRuntimeConfig(env);
@@ -1098,15 +724,6 @@ export async function runCli(
       "  exo start                                  Start or focus the resident Exo app",
       "  exo search <query> [--limit n]              Search QMD advanced provider or core workspace fallback",
       "  exo read <path-or-docid> [--from n] [--lines n]",
-      "  exo routines templates                    List plugin-declared routine templates",
-      "  exo routines list                         List concrete workspace routines",
-      "  exo routines runs                         List routine runs",
-      "  exo routines read <run-id>                 Read a routine run record",
-      "  exo routines artifacts <run-id>            List routine run artifacts",
-      "  exo routines artifact <run-id> <artifact>  Print a routine artifact",
-      "  exo routines create <template-id> <id>     Create a routine from a template",
-      "  exo routines run <id> --dry-run            Record a dry-run routine execution",
-      "  exo routines run <id> --agent              Launch an Exo app agent and send the routine prompt",
       "  exo traces list                            List semantic trace sessions",
       "  exo traces read <session-id> [--limit n]   Read persisted semantic trace events",
       "  exo traces cleanup --session <id>          Delete one semantic trace session",
@@ -1122,28 +739,17 @@ export async function runCli(
       "  exo preview focus                          Focus the preview pane (app)",
       "  exo preview close                          Close the preview pane (app)",
       "  exo status                                 Workspace status (app)",
+      "  exo spawn @handle <task>                   Spawn a trusted configured AgentCommand (app)",
       "  exo config get [key]                       Read settings (app)",
-      "  exo project-roots [list]                   List attached project roots (app)",
-      "  exo project-roots add <path>               Attach a project root (app)",
-      "  exo project-roots remove <path>            Detach a project root (app)",
-      "  exo proposals [list]                       List reviewable proposal batches (app)",
-      "  exo proposals show <id>                    Show a proposal batch (app)",
-      "  exo proposals create <json>                Store a proposal batch for review (app)",
-      "  exo proposals accept|reject <id> [item]    Decide proposal changes (app)",
-      "  exo profile-recovery [list]                List profile apply recovery manifests",
-      "  exo profile-recovery show <manifest>       Inspect a profile apply recovery manifest",
-      "  exo profile-recovery restore <manifest> [item] Restore files from guarded recovery evidence",
       "  exo terminals [list]                       List terminals (app)",
-      `  exo terminals create <${TERMINAL_KIND_USAGE}>  Create terminal (app)`,
+      "  exo terminals create [shell] [cwd]         Create shell terminal (app)",
       "  exo terminals read <id> [--lines n]        Read bounded live terminal tail (app)",
-      "  exo terminals transcript <id> [--tail n]   Read disk-backed terminal transcript (app)",
+      "  exo terminals transcript <id> [--tail n]   Read live terminal output tail (app)",
       "  exo terminals write <id> <text>            Write raw input to terminal (app)",
       "  exo terminals send <id> <text>             Send input plus Enter to terminal (app)",
-      "  exo terminals reconnect <id>               Reattach Exo to a live tmux terminal (app)",
-      "  exo terminals resync <id>                  Reattach and resize a divergent terminal (app)",
-      "  exo agents [list]                          List live Exo agents (app)",
-      `  exo agents create <${agentKindUsage(env)}>     Create Exo agent (app)`,
-      "  exo agents read <id> [--tail n] [--full] [--raw] [--semantic] Read transcript tail; --semantic reads trace-backed answer text",
+      "  exo spawn @handle <task>                   Start configured AgentCommand in the app",
+      "  exo agents [list]                          List live terminal-launched agents (app)",
+      "  exo agents read <id> [--tail n] [--full] [--raw] [--semantic] Read live output; --semantic reads trace-backed answer text",
       "  exo agents send <id> <text> [--raw|--no-submit] Send message to agent (app)",
       "  exo agents interrupt <id> [escape|ctrl-c]  Interrupt agent (app)",
       "  exo agents terminate <id>                  Terminate agent (app)",
@@ -1157,10 +763,6 @@ export async function runCli(
       "  exo notes read <path>",
       "  exo notes branch-create <path>",
       "  exo notes branch-view <path>",
-      "  exo integrations doctor",
-      "  exo integrations config <codex|claude|all>",
-      "  exo integrations install <codex|claude|all> [--dry-run]",
-      "  exo integrations test <codex|claude|all>",
       "  exo runtime status",
       `  exo runtime context <${TERMINAL_KIND_USAGE}>`,
       `  exo runtime launch-plan <${TERMINAL_KIND_USAGE}> [cwd]`,
@@ -1288,120 +890,6 @@ async function resolveCliRuntimeConfig(env: NodeJS.ProcessEnv) {
   return resolveRuntimeConfig(await resolveCliWorkspaceEnv(env));
 }
 
-function createRoutineService(config: Awaited<ReturnType<typeof resolveCliRuntimeConfig>>, env: NodeJS.ProcessEnv): RoutineService {
-  const exoRoot = resolveExoRoot(env);
-  return new RoutineService({
-    workspace: config.workspace,
-    runtimeRoot: config.runtimeRoot,
-    pluginDirectories: routinePluginDirectoriesFromEnv(config.workspace.workspaceRoot, {
-      ...env,
-      EXO_PROJECT_ROOT: env.EXO_PROJECT_ROOT ?? exoRoot,
-    }),
-  });
-}
-
-function parseRoutineTrigger(values: Record<string, string>): RoutineTrigger | undefined {
-  if (!values.schedule) {
-    return undefined;
-  }
-  return {
-    kind: "schedule",
-    schedule: values.schedule,
-    timezone: values.timezone,
-  };
-}
-
-class AppRoutineExecutionHost implements RoutineExecutionHost {
-  constructor(
-    private readonly client: AppClientLike,
-    private readonly options: {
-      harness: ManagedAgentKind;
-      cwd?: string;
-      submit: boolean;
-      clock: () => string;
-    },
-  ) {}
-
-  async execute(routine: RoutineDefinition, run: RunRecord) {
-    const terminal = await this.client.createTerminal(this.options.harness, this.options.cwd);
-    const terminalId = String(terminal.id ?? "");
-    if (!terminalId) {
-      throw new Error("Exo app did not return a terminal id for routine execution.");
-    }
-    const message = formatRoutineAgentPrompt(routine);
-    const delivery = await this.client.sendTerminalMessage(terminalId, message, this.options.submit);
-    const now = this.options.clock();
-    return {
-      artifacts: [
-        {
-          artifact: {
-            id: "agent-session",
-            kind: "report" as const,
-            title: "Routine Agent Session",
-            mimeType: "text/markdown",
-            createdAt: now,
-            metadata: {
-              terminalId,
-              harness: this.options.harness,
-              delivery,
-            },
-          },
-          fileName: "agent-session.md",
-          contents: [
-            "# Routine Agent Session",
-            "",
-            `- Routine: ${routine.id}`,
-            `- Run: ${run.id}`,
-            `- Harness: ${this.options.harness}`,
-            `- Terminal: ${terminalId}`,
-            `- Delivery: ${delivery.delivery}`,
-            "",
-            "## Prompt Sent",
-            "",
-            message,
-            "",
-          ].join("\n"),
-        },
-      ],
-      tracePackets: [
-        {
-          id: "agent-session-created",
-          kind: "event" as const,
-          timestamp: now,
-          actor: "exo.routine-cli",
-          private: false,
-          evidence: [],
-          payload: {
-            terminalId,
-            harness: this.options.harness,
-            delivery,
-          },
-        },
-      ],
-      needsReview: true,
-    };
-  }
-}
-
-function formatRoutineAgentPrompt(routine: RoutineDefinition): string {
-  const requiredSkills =
-    routine.requiredSkills.length > 0
-      ? [
-          "",
-          "Required or suggested harness skills:",
-          ...routine.requiredSkills.map((skill) => `- ${skill.id}${skill.required ? " (required)" : " (optional)"}${skill.label ? `: ${skill.label}` : ""}`),
-        ]
-      : [];
-  return [
-    `# Exo Routine: ${routine.title}`,
-    "",
-    routine.prompt,
-    ...requiredSkills,
-    "",
-    "When finished, summarize what you did and call out any files, artifacts, or follow-up review needed.",
-  ].join("\n");
-}
-
 async function launchAgent(
   plan: ReturnType<typeof resolveAgentLaunchPlan>,
   options: {
@@ -1450,40 +938,35 @@ function normalizeAgentKind(value?: string): ManagedAgentKind | null {
   return normalizeManagedAgentKind(value);
 }
 
-function agentKindUsage(env: NodeJS.ProcessEnv): string {
-  return formatRegisteredAgentHarnessUsage({ surface: "cli" }, env) || "(none)";
-}
-
 function isHelpFlag(value: string | undefined): boolean {
   return value === "--help" || value === "-h";
 }
 
-function formatAgentsHelp(env: NodeJS.ProcessEnv): string {
-  const usage = agentKindUsage(env);
+function formatAgentsHelp(_env: NodeJS.ProcessEnv): string {
   return [
-    `Usage: exo agents [list | create <${usage}> [cwd] | read <id> [--tail chars] [--full] [--raw] [--semantic] | send <id> <text> [--raw|--no-submit] | interrupt <id> [escape|ctrl-c] | terminate <id>]`,
+    "Usage: exo agents [list | read <id> [--tail chars] [--full] [--raw] [--semantic] | send <id> <text> [--raw|--no-submit] | interrupt <id> [escape|ctrl-c] | terminate <id>]",
     "",
     "Commands:",
-    "  list                                      List live Exo agents",
-    `  create <${usage}> [cwd]        Create an Exo agent`,
-    "  read <id> [--tail chars] [--full] [--raw] Read a disk transcript tail; --semantic reads trace-backed answer text",
+    "  list                                      List live terminal-launched agents",
+    "  read <id> [--tail chars] [--full] [--raw] Read live terminal output; --semantic reads trace-backed answer text",
     "  send <id> <text> [--raw|--no-submit]     Send a semantic message, or raw terminal input with --raw",
     "  interrupt <id> [escape|ctrl-c]           Interrupt an agent",
     "  terminate <id>                           Terminate an agent",
     "",
+    "Use `exo spawn @handle <task>` to start a configured AgentCommand.",
+    "",
   ].join("\n");
 }
 
-function formatAgentsCreateHelp(env: NodeJS.ProcessEnv): string {
-  const usage = agentKindUsage(env);
+function formatAgentsCreateHelp(_env: NodeJS.ProcessEnv): string {
   return [
-    `Usage: exo agents create <${usage}> [cwd]`,
+    "Usage: exo spawn @handle <task>",
     "",
-    "Create an Exo-managed agent terminal in the running app.",
+    "`exo agents create` was removed. Agent launches are configured as AgentCommands and started with `exo spawn`.",
     "",
     "Arguments:",
-    `  ${usage}                       Agent provider to launch`,
-    "  cwd                                      Optional working directory for the agent",
+    "  @handle                                  Configured AgentCommand handle",
+    "  task                                     Task text to pass to the command",
     "",
   ].join("\n");
 }
@@ -1503,74 +986,6 @@ function formatAgents(agents: unknown[]): string {
       String(entry.title ?? ""),
     ].join("\t");
   }).join("\n");
-}
-
-function formatProposalShow(response: Record<string, unknown>): string {
-  const proposal = response.proposal;
-  if (!isProposalBatchLike(proposal)) {
-    return JSON.stringify(response, null, 2);
-  }
-  const lines = [
-    `Proposal ${proposal.id}`,
-    `Status: ${proposal.status}${proposal.atomic ? " (atomic)" : ""}`,
-  ];
-  if (proposal.title) {
-    lines.push(`Title: ${proposal.title}`);
-  }
-  if (proposal.description) {
-    lines.push(`Description: ${proposal.description}`);
-  }
-  lines.push(`Activity: ${proposal.provenance.activityId}${proposal.provenance.sessionId ? ` (${proposal.provenance.sessionId})` : ""}`);
-  for (const item of proposal.items) {
-    lines.push("", formatProposalItemForReview(item));
-  }
-  return lines.join("\n");
-}
-
-function formatProposalItemForReview(item: ProposalItem): string {
-  const lines = [
-    `Item ${item.id}: ${item.kind} ${item.path}`,
-    `Status: ${item.itemStatus}${item.baseHash ? ` (${item.baseHash})` : ""}`,
-  ];
-  if (item.statusReason) {
-    lines.push(`Reason: ${item.statusReason}`);
-  }
-  if (item.kind === "filePatch") {
-    lines.push("--- unified diff ---", item.unifiedDiff);
-    return lines.join("\n");
-  }
-  if (item.kind === "fileCreate") {
-    lines.push("--- created file bytes ---", JSON.stringify(item.contents));
-    return lines.join("\n");
-  }
-  if (item.kind === "frontmatterPatch") {
-    lines.push("--- frontmatter operations ---");
-    for (const operation of item.operations) {
-      lines.push(`${operation.kind} ${operation.keyPath.join(".")}${operation.kind === "remove" ? "" : ` = ${JSON.stringify(operation.value)}`}`);
-    }
-    const evidence = getFrontmatterPatchPreviewEvidence(item);
-    lines.push(
-      "--- reviewer byte preview ---",
-      evidence
-        ? renderFrontmatterPatchPreviewEvidence(evidence, { baseHash: item.baseHash })
-        : "Frontmatter byte preview unavailable; apply will not write this item unless Exo can compute the preview from the current file.",
-    );
-    return lines.join("\n");
-  }
-  lines.push(`${item.kind} proposals are typed but not applied in proposal v1.`);
-  return lines.join("\n");
-}
-
-function isProposalBatchLike(value: unknown): value is ProposalBatch {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return false;
-  }
-  const proposal = value as Partial<ProposalBatch>;
-  return typeof proposal.id === "string"
-    && typeof proposal.status === "string"
-    && !!proposal.provenance
-    && typeof proposal.provenance.activityId === "string"
-    && Array.isArray(proposal.items);
 }
 
 function parseTailChars(args: string[]): number {
@@ -1599,7 +1014,7 @@ function parseAgentReadTailChars(args: string[]): number {
 }
 
 function agentTranscriptReadNote(input: { tailChars: number; full: boolean; raw: boolean }): string {
-  const scope = input.full ? "full disk transcript" : `disk transcript tail (${input.tailChars} chars)`;
+  const scope = input.full ? "full live terminal output buffer" : `live terminal output tail (${input.tailChars} chars)`;
   const format = input.raw ? "raw ANSI bytes" : "ANSI-cleaned text";
   const truncation = input.full
     ? ""
@@ -1723,219 +1138,6 @@ function formatTraceText(value: unknown): string {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-interface IntegrationStatus {
-  client: ExoMcpIntegrationClient;
-  installed: boolean;
-  executable?: string;
-  configured: boolean;
-  matchedLine?: string;
-  configMatches?: boolean;
-  configuredCommand?: string;
-  configuredArgs?: string[];
-  expectedCommand?: string;
-  expectedArgs?: string[];
-  error?: string;
-}
-
-function parseIntegrationTargets(args: string[]): { clients: ExoMcpIntegrationClient[]; dryRun: boolean } {
-  const dryRun = args.includes("--dry-run");
-  const target = args.find((arg) => arg !== "--dry-run");
-  if (!target) {
-    return { clients: [], dryRun };
-  }
-  if (target === "all") {
-    return { clients: EXO_MCP_INTEGRATION_CLIENTS, dryRun };
-  }
-  if (target === "codex" || target === "claude") {
-    return { clients: [target], dryRun };
-  }
-
-  throw new Error("Expected one of: codex, claude, all.");
-}
-
-async function getIntegrationStatus(
-  client: ExoMcpIntegrationClient,
-  config: { exoRoot: string; workspaceRoot: string },
-  runCommand: CommandRunner,
-  env: NodeJS.ProcessEnv,
-): Promise<IntegrationStatus> {
-  const executable = await detectExecutable(client, runCommand, env);
-  if (!executable.found) {
-    return {
-      client,
-      installed: false,
-      configured: false,
-      error: executable.error,
-    };
-  }
-
-  const list = await runCommand(client, ["mcp", "list"], { env });
-  if (list.code !== 0) {
-    return {
-      client,
-      installed: true,
-      executable: executable.path,
-      configured: false,
-      error: list.stderr || list.stdout || `mcp list exited with ${list.code}`,
-    };
-  }
-
-  const spec = buildExoMcpIntegrationSpec(client, { ...config, nodeCommand: process.execPath });
-  const parsed = parseMcpListOutput(list.stdout, spec.server.serverName);
-  let details: ReturnType<typeof parseMcpServerDetailsOutput> = {};
-  let detailsError: string | undefined;
-  if (parsed.configured) {
-    const get = await runCommand(client, ["mcp", "get", spec.server.serverName], { env });
-    if (get.code === 0) {
-      details = parseMcpServerDetailsOutput(get.stdout);
-    } else {
-      detailsError = get.stderr || get.stdout || `mcp get exited with ${get.code}`;
-    }
-  }
-  const detailsVerified = details.command !== undefined || details.args !== undefined;
-  const configMatches = parsed.configured
-    ? detailsVerified
-      ? integrationDetailsMatch(details, spec.server)
-      : undefined
-    : undefined;
-  return {
-    client,
-    installed: true,
-    executable: executable.path,
-    configured: parsed.configured,
-    matchedLine: parsed.matchedLine,
-    configMatches,
-    configuredCommand: details.command,
-    configuredArgs: details.args,
-    expectedCommand: spec.server.command,
-    expectedArgs: spec.server.args,
-    error: detailsError,
-  };
-}
-
-function integrationDetailsMatch(details: { command?: string; args?: string[] }, expected: { command: string; args: string[] }): boolean {
-  return details.command === expected.command && arraysEqual(details.args ?? [], expected.args);
-}
-
-function arraysEqual(left: string[], right: string[]): boolean {
-  return left.length === right.length && left.every((value, index) => value === right[index]);
-}
-
-async function detectExecutable(
-  command: string,
-  runCommand: CommandRunner,
-  env: NodeJS.ProcessEnv,
-): Promise<{ found: boolean; path?: string; error?: string }> {
-  const result = await runCommand("/bin/sh", ["-lc", `command -v ${formatShellCommand([command])}`], { env });
-  if (result.code !== 0) {
-    return {
-      found: false,
-      error: result.stderr || result.stdout || `${command} not found on PATH`,
-    };
-  }
-
-  return {
-    found: true,
-    path: result.stdout.trim(),
-  };
-}
-
-function formatIntegrationDoctor(input: {
-  exoRoot: string;
-  workspaceRoot: string;
-  pnpmFound: boolean;
-  statuses: IntegrationStatus[];
-}): string {
-  return [
-    "Exo integrations doctor",
-    `- exo root: ${input.exoRoot}`,
-    `- workspace root: ${input.workspaceRoot}`,
-    `- pnpm: ${input.pnpmFound ? "found" : "missing"}`,
-    ...input.statuses.map((status) => {
-      const installState = status.installed ? `found${status.executable ? ` (${status.executable})` : ""}` : "missing";
-      const configState = formatIntegrationConfigState(status);
-      const detail = status.error && !status.configured ? `; ${status.error.trim()}` : "";
-      return `- ${status.client}: ${installState}; Exo MCP ${configState}${detail}`;
-    }),
-    "",
-  ].join("\n");
-}
-
-function formatIntegrationTest(statuses: IntegrationStatus[]): string {
-  return [
-    ...statuses.map((status) => {
-      if (!status.installed) {
-        return `${status.client}: missing CLI`;
-      }
-      if (!status.configured) {
-        return `${status.client}: Exo MCP not configured${status.error ? ` (${status.error.trim()})` : ""}`;
-      }
-      if (status.configMatches === false) {
-        return `${status.client}: Exo MCP stale config (${formatConfiguredExpected(status)})`;
-      }
-      return `${status.client}: Exo MCP configured${status.matchedLine ? ` (${status.matchedLine})` : ""}`;
-    }),
-    "",
-  ].join("\n");
-}
-
-function formatIntegrationConfigState(status: IntegrationStatus): string {
-  if (!status.configured) {
-    return "not configured";
-  }
-  if (status.configMatches === false) {
-    return `stale config; ${formatConfiguredExpected(status)}; run \`exo integrations install ${status.client}\` and restart existing ${status.client} sessions`;
-  }
-  if (status.configMatches === undefined) {
-    return `configured; unable to verify launcher${status.error ? ` (${status.error.trim()})` : ""}`;
-  }
-  return "configured";
-}
-
-function formatConfiguredExpected(status: IntegrationStatus): string {
-  const configured = formatMcpCommand(status.configuredCommand, status.configuredArgs);
-  const expected = formatMcpCommand(status.expectedCommand, status.expectedArgs);
-  return `configured ${configured}, expected ${expected}`;
-}
-
-function formatMcpCommand(command?: string, args?: string[]): string {
-  return [command, ...(args ?? [])].filter(Boolean).join(" ") || "unknown launcher";
-}
-
-function resolveExoRoot(env: NodeJS.ProcessEnv): string {
-  return env.EXO_PROJECT_ROOT ?? path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-}
-
-function runProcess(
-  command: string,
-  args: string[],
-  options: { cwd?: string; env?: NodeJS.ProcessEnv } = {},
-): Promise<CommandRunResult> {
-  const child = spawn(command, args, {
-    cwd: options.cwd,
-    env: { ...process.env, ...options.env },
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-
-  let stdout = "";
-  let stderr = "";
-  child.stdout?.on("data", (chunk) => {
-    stdout += String(chunk);
-  });
-  child.stderr?.on("data", (chunk) => {
-    stderr += String(chunk);
-  });
-
-  return new Promise((resolve) => {
-    child.on("error", (error) => {
-      resolve({ code: 127, stdout, stderr: stderr || error.message });
-    });
-    child.on("exit", (code, signal) => {
-      resolve({ code: signal ? 1 : (code ?? 0), stdout, stderr });
-    });
-  });
 }
 
 async function main() {

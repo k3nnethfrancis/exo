@@ -9,6 +9,8 @@ export interface WorkspaceChangeEvent {
   filePath: string | null;
 }
 
+export type WorkspaceChangeListener = (event: WorkspaceChangeEvent) => void;
+
 const IGNORED_WORKSPACE_PATH_SEGMENTS = new Set([
   ".DS_Store",
   ".cache",
@@ -35,8 +37,20 @@ export class WorkspaceWatcherService {
   private watchers: FSWatcher[] = [];
   private pendingEvents = new Map<string, WorkspaceChangeEvent>();
   private broadcastTimer: NodeJS.Timeout | null = null;
+  private listeners = new Set<WorkspaceChangeListener>();
 
-  constructor(private readonly onChange: (event: WorkspaceChangeEvent) => void) {}
+  constructor(onChange?: WorkspaceChangeListener) {
+    if (onChange) {
+      this.listeners.add(onChange);
+    }
+  }
+
+  subscribe(listener: WorkspaceChangeListener): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
 
   start(model: WorkspaceModel): void {
     this.stop();
@@ -107,7 +121,9 @@ export class WorkspaceWatcherService {
       this.pendingEvents.clear();
 
       for (const nextEvent of events) {
-        this.onChange(nextEvent);
+        for (const listener of this.listeners) {
+          listener(nextEvent);
+        }
       }
     }, 120);
   }

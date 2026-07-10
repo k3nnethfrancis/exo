@@ -10,9 +10,17 @@ export async function resolvePreviewTarget(target: string, settings: WorkspaceSe
     throw new Error("Preview target cannot be empty.");
   }
 
+  const localhostUrl = parseBareLocalhostUrl(trimmed);
+  if (localhostUrl) {
+    return { ok: true, url: localhostUrl.toString(), source: "url" };
+  }
+
   const parsedUrl = parsePreviewUrl(trimmed);
   if (parsedUrl) {
     if (parsedUrl.protocol === "http:" || parsedUrl.protocol === "https:") {
+      if (!isTrustedLocalhost(parsedUrl.hostname)) {
+        throw new Error("Preview URLs are limited to localhost or local files in V1.");
+      }
       return { ok: true, url: parsedUrl.toString(), source: "url" };
     }
     if (parsedUrl.protocol === "file:") {
@@ -25,6 +33,11 @@ export async function resolvePreviewTarget(target: string, settings: WorkspaceSe
     ? trimmed
     : path.resolve(settings.workspaceRoot, trimmed);
   return resolveLocalPreviewPath(candidatePath, settings);
+}
+
+function isTrustedLocalhost(hostname: string): boolean {
+  const normalized = hostname.toLowerCase();
+  return normalized === "localhost" || normalized === "127.0.0.1" || normalized === "::1" || normalized === "[::1]";
 }
 
 async function resolveLocalPreviewPath(filePath: string, settings: WorkspaceSettings): Promise<ExoOpenPreviewResponse> {
@@ -60,6 +73,19 @@ function parsePreviewUrl(target: string): URL | null {
   } catch {
     throw new Error("Preview target is not a valid URL.");
   }
+}
+
+function parseBareLocalhostUrl(target: string): URL | null {
+  const candidate = `http://${target}`;
+  try {
+    const parsed = new URL(candidate);
+    if ((target.startsWith("localhost") || target.startsWith("127.0.0.1") || target.startsWith("[::1]")) && isTrustedLocalhost(parsed.hostname)) {
+      return parsed;
+    }
+  } catch {
+    return null;
+  }
+  return null;
 }
 
 function isPathWithin(parentPath: string, targetPath: string): boolean {

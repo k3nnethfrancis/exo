@@ -151,6 +151,41 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
     }
   }
 
+  async function reloadFromDisk(filePath: string) {
+    const currentDocument = openDocumentsRef.current[filePath];
+    if (!currentDocument) {
+      return;
+    }
+
+    const scrollTop = filePath === activeDocumentPathRef.current ? optionsRef.current.getEditorScrollTopForPath(filePath) : null;
+    const [document, diskVersion] = await Promise.all([
+      window.exo.notes.read(filePath),
+      window.exo.notes.stat(filePath),
+    ]);
+    const [knowledge, branchFamily] = await loadMarkdownContext(document, filePath, optionsRef.current.workspaceModel);
+
+    setOpenDocuments((current) => {
+      if (!current[filePath]) {
+        return current;
+      }
+      return {
+        ...current,
+        [filePath]: {
+          ...document,
+          dirty: false,
+          diskVersion,
+        },
+      };
+    });
+    updateMarkdownContext(filePath, knowledge, branchFamily);
+    setDocumentSaveStatuses((current) => ({ ...current, [filePath]: "idle" }));
+
+    if (scrollTop !== null) {
+      scrollRestoreNonceRef.current += 1;
+      setScrollRestoreRequest({ filePath, scrollTop, nonce: scrollRestoreNonceRef.current });
+    }
+  }
+
   function updateBody(body: string) {
     const filePath = activeDocumentPathRef.current;
     if (!filePath || !openDocumentsRef.current[filePath]) {
@@ -326,6 +361,7 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
     pruneToOpenPaths,
     ensureDocumentLoaded,
     scheduleRefresh,
+    reloadFromDisk,
     updateBody,
     updateFrontmatter,
     saveDocument,

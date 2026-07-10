@@ -146,7 +146,6 @@ const CORE_INVENTORY_ITEMS: PluginInventoryItem[] = [
   coreItem("core.markdown-graph", "Markdown graph", "Local-first Markdown notes, links, files, and editor primitives."),
   coreItem("core.terminal", "Terminal host", "Durable tmux-backed terminal surface and session APIs."),
   coreItem("core.web-preview", "Web preview", "Trusted local/remote URL preview surface hosted inside Exo."),
-  coreItem("core.scheduler", "Scheduler", "Routine scheduling primitive for timed or recurring work."),
   coreItem("core.settings", "Settings", "Baseline workspace, appearance, indexing, and terminal configuration."),
 ];
 
@@ -252,7 +251,7 @@ function coreItem(id: string, label: string, description: string): PluginInvento
     distributionLabel: "Core",
     lifecycle: "built-in",
     owner: "@exo/core",
-    surfaces: ["desktop", "cli", "mcp", "commandServer", "internal"],
+    surfaces: ["desktop", "cli", "commandServer", "internal"],
     permissions: [],
     enabled: true,
     trust: "trusted",
@@ -392,10 +391,6 @@ function capabilityKindLabel(kind: CapabilityMetadata["kind"]): string {
       return "Dataset exporters";
     case "exo.training:evalRunner":
       return "Eval runners";
-    case "core:profile":
-      return "Profiles";
-    case "core:routineTemplate":
-      return "Routine templates";
     case "core:searchProvider":
       return "Search providers";
     case "exo.training:traceCollector":

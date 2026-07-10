@@ -1,5 +1,7 @@
 # Agent Harness Plugin Contract
 
+> Superseded as an active product contract by `docs/exograph-refactor-completion-plan.md` and `docs/extension-architecture.md` on `refactor/note-native-exo`. V1 agent identity is `AgentCommand`, not promptable harness lifecycle management. Reuse existing harness code only where it supports terminal/runtime compatibility until the generic command path lands.
+
 Last updated: 2026-07-05
 
 status: unstable. This contract is pre-public and carries no compatibility promise until the plugin manifest can declare a minimum supported contract version and the contract has two real consumers.

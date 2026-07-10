@@ -1,18 +1,15 @@
 import os from "node:os";
 import path from "node:path";
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 
 import { afterEach, describe, expect, it } from "vitest";
 
 import { builtInAgentHarnesses } from "../agent-harnesses/builtins";
 import {
   resolveAgentLaunchPlan,
-  resolveDebugAgentLaunchPlan,
-  resolveLaunchableAgentLaunchPlan,
   resolveRuntimeConfig,
   syncRuntimeContextFiles,
 } from "../runtime";
-import { workspaceSettingsToEnv } from "../workspace-settings";
 
 const tempPaths: string[] = [];
 
@@ -107,60 +104,22 @@ describe("runtime", () => {
     expect(plan.args).toContain('model_reasoning_effort="high"');
   });
 
-  it("uses a deterministic Node command for Exo MCP overrides in prepared Codex launch args", async () => {
-    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "exo-codex-mcp-"));
-    tempPaths.push(tempRoot);
-    await mkdir(path.join(tempRoot, "packages", "mcp", "bin"), { recursive: true });
-    await writeFile(path.join(tempRoot, "package.json"), JSON.stringify({ name: "exo" }), "utf8");
-    await writeFile(path.join(tempRoot, "packages", "mcp", "bin", "exo-mcp.mjs"), "#!/usr/bin/env node\n", "utf8");
-
+  it("does not inject Exo MCP overrides into prepared Codex launch args", () => {
     const config = resolveRuntimeConfig({
-      EXO_WORKSPACE_ROOT: tempRoot,
-      EXO_NOTE_ROOTS: path.join(tempRoot, "notes"),
-      EXO_PROJECT_ROOTS: tempRoot,
+      EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
+      EXO_NOTE_ROOTS: "/tmp/exo-test-workspace/notes",
+      EXO_PROJECT_ROOTS: "/tmp/exo-test-workspace/projects",
       EXO_CODEX_COMMAND: "codex",
-      NODE: "/opt/homebrew/bin/node",
     });
 
     const args = builtInAgentHarnesses.codex.prepareLaunchArgs?.({
-      args: [],
-      cwd: tempRoot,
-      env: { NODE: "/opt/homebrew/bin/node" },
+      args: ["-c", 'model_reasoning_effort="high"'],
+      cwd: "/tmp/exo-test-workspace",
+      env: {},
       runtimeConfig: config,
     });
 
-    expect(args).toContain('mcp_servers.exo.command="/opt/homebrew/bin/node"');
-    expect(args).toContain(`mcp_servers.exo.args=["${tempRoot}/packages/mcp/bin/exo-mcp.mjs"]`);
-  });
-
-  it("prefers the imported Exo project root over an agent worktree for Codex MCP overrides", async () => {
-    const mainRoot = await mkdtemp(path.join(os.tmpdir(), "exo-codex-mcp-main-"));
-    const worktreeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-codex-mcp-worktree-"));
-    tempPaths.push(mainRoot, worktreeRoot);
-
-    for (const root of [mainRoot, worktreeRoot]) {
-      await mkdir(path.join(root, "packages", "mcp", "bin"), { recursive: true });
-      await writeFile(path.join(root, "package.json"), JSON.stringify({ name: "exo" }), "utf8");
-      await writeFile(path.join(root, "packages", "mcp", "bin", "exo-mcp.mjs"), "#!/usr/bin/env node\n", "utf8");
-    }
-
-    const config = resolveRuntimeConfig({
-      EXO_WORKSPACE_ROOT: path.dirname(mainRoot),
-      EXO_NOTE_ROOTS: path.join(path.dirname(mainRoot), "notes"),
-      EXO_PROJECT_ROOTS: mainRoot,
-      EXO_CODEX_COMMAND: "codex",
-      NODE: "/opt/homebrew/bin/node",
-    });
-
-    const args = builtInAgentHarnesses.codex.prepareLaunchArgs?.({
-      args: [],
-      cwd: worktreeRoot,
-      env: { NODE: "/opt/homebrew/bin/node" },
-      runtimeConfig: config,
-    });
-
-    expect(args).toContain(`mcp_servers.exo.args=["${mainRoot}/packages/mcp/bin/exo-mcp.mjs"]`);
-    expect(args).not.toContain(`mcp_servers.exo.args=["${worktreeRoot}/packages/mcp/bin/exo-mcp.mjs"]`);
+    expect(args).toEqual(["-c", 'model_reasoning_effort="high"']);
   });
 
   it("keeps an explicit Codex reasoning-effort override when provided", () => {
@@ -175,158 +134,6 @@ describe("runtime", () => {
     const plan = resolveAgentLaunchPlan(config, "codex", "/tmp/exo-test-workspace");
 
     expect(plan.args).toEqual(["-c", 'model_reasoning_effort="medium"']);
-  });
-
-  it("keeps raw Pi launch plans available only as an explicit debug surface", async () => {
-    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "exo-pi-runtime-"));
-    tempPaths.push(tempRoot);
-    const cliPath = path.join(tempRoot, "packages", "coding-agent", "dist", "cli.js");
-    await mkdir(path.dirname(cliPath), { recursive: true });
-    await writeFile(cliPath, "#!/usr/bin/env node\n", "utf8");
-    await chmod(cliPath, 0o755);
-
-    const config = resolveRuntimeConfig({
-      EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
-      EXO_NOTE_ROOTS: "/tmp/exo-test-workspace/notes",
-      EXO_PROJECT_ROOTS: tempRoot,
-    });
-
-    const plan = resolveDebugAgentLaunchPlan(config, "pi", "/tmp/exo-test-workspace/projects/ga-pi");
-
-    expect(path.basename(plan.command)).toBe("node");
-    expect(plan.args).toEqual([cliPath]);
-    expect(plan.env.EXO_AGENT_KIND).toBe("pi");
-    expect(plan.env.EXO_RUNTIME_PRIMARY_INSTRUCTIONS).toBe(config.instructions.primary);
-    expect(() =>
-      resolveLaunchableAgentLaunchPlan(config, "pi", "/tmp/exo-test-workspace/projects/ga-pi", {
-        EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
-        EXO_NOTE_ROOTS: "/tmp/exo-test-workspace/notes",
-        EXO_PROJECT_ROOTS: tempRoot,
-      }),
-    ).toThrow("Agent harness is not launchable: pi (Missing dependency).");
-  });
-
-  it("resolves production Pi launch plans only when readiness is launchable", async () => {
-    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "exo-pi-launchable-runtime-"));
-    tempPaths.push(tempRoot);
-    const cliPath = path.join(tempRoot, "packages", "coding-agent", "dist", "cli.js");
-    await mkdir(path.dirname(cliPath), { recursive: true });
-    await writeFile(cliPath, "#!/usr/bin/env node\n", "utf8");
-    await chmod(cliPath, 0o755);
-
-    const env = {
-      EXO_WORKSPACE_ROOT: "/tmp/exo-test-workspace",
-      EXO_NOTE_ROOTS: "/tmp/exo-test-workspace/notes",
-      EXO_PROJECT_ROOTS: tempRoot,
-      EXO_PI_BACKEND_URL: "http://127.0.0.1:8080",
-      EXO_PI_BACKEND_READY: "1",
-    };
-    const config = resolveRuntimeConfig(env);
-    const plan = resolveLaunchableAgentLaunchPlan(config, "pi", "/tmp/exo-test-workspace/projects/ga-pi", env);
-
-    expect(path.basename(plan.command)).toBe("node");
-    expect(plan.args).toEqual([cliPath]);
-    expect(plan.env.EXO_AGENT_KIND).toBe("pi");
-    expect(plan.traceCapture).toEqual({
-      schemaVersion: "exo.semantic-trace.v1",
-      source: "sidecar-jsonl",
-      artifactFileName: "semantic-trace.ndjson",
-      eventFormat: "stream-json",
-      envVar: "EXO_PI_SEMANTIC_TRACE_PATH",
-    });
-  });
-
-  it("projects persisted Pi-compatible settings into workspace-cwd launch plans", async () => {
-    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-pi-workspace-"));
-    const piRepo = await mkdtemp(path.join(os.tmpdir(), "exo-pi-persisted-runtime-"));
-    tempPaths.push(workspaceRoot, piRepo);
-    const cliPath = path.join(piRepo, "packages", "coding-agent", "dist", "cli.js");
-    await mkdir(path.dirname(cliPath), { recursive: true });
-    await writeFile(cliPath, "#!/usr/bin/env node\n", "utf8");
-    await chmod(cliPath, 0o755);
-
-    const env = workspaceSettingsToEnv({
-      workspaceRoot,
-      defaultTerminalCwd: workspaceRoot,
-      noteRoots: [path.join(workspaceRoot, "notes")],
-      projectRoots: [],
-      indexedRoots: [],
-      indexing: { enabled: false, mode: "off", backend: "qmd" },
-      appearanceMode: "system",
-      colorThemeId: "exo-neutral",
-      editorFontSize: 15,
-      terminalFontSize: 13,
-      terminalHistoryLines: 100_000,
-      terminalTranscriptRetention: "forever",
-      terminalTranscriptRetentionDays: 14,
-      explorerScale: 1,
-      exploreIndexSearchOnEnter: false,
-      indexUpdateStrategy: "on-save",
-      piHarness: {
-        label: "Configured Pi",
-        repoPath: piRepo,
-        backendUrl: "http://127.0.0.1:8080",
-        backendReady: true,
-      },
-    });
-    const config = resolveRuntimeConfig(env);
-    const plan = resolveLaunchableAgentLaunchPlan(config, "pi", workspaceRoot, env);
-
-    expect(plan.title).toBe("Configured Pi");
-    expect(plan.cwd).toBe(workspaceRoot);
-    expect(path.basename(plan.command)).toBe("node");
-    expect(plan.args).toEqual([cliPath]);
-  });
-
-  it("keeps operator Pi env overrides ahead of persisted settings in launch planning", async () => {
-    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-pi-override-workspace-"));
-    const persistedRepo = await mkdtemp(path.join(os.tmpdir(), "exo-pi-persisted-repo-"));
-    const overrideRepo = await mkdtemp(path.join(os.tmpdir(), "exo-pi-override-repo-"));
-    tempPaths.push(workspaceRoot, persistedRepo, overrideRepo);
-    const persistedCliPath = path.join(persistedRepo, "packages", "coding-agent", "dist", "cli.js");
-    const overrideCliPath = path.join(overrideRepo, "packages", "coding-agent", "dist", "cli.js");
-    await mkdir(path.dirname(persistedCliPath), { recursive: true });
-    await mkdir(path.dirname(overrideCliPath), { recursive: true });
-    await writeFile(persistedCliPath, "#!/usr/bin/env node\n", "utf8");
-    await writeFile(overrideCliPath, "#!/usr/bin/env node\n", "utf8");
-    await chmod(persistedCliPath, 0o755);
-    await chmod(overrideCliPath, 0o755);
-
-    const persistedEnv = workspaceSettingsToEnv({
-      workspaceRoot,
-      defaultTerminalCwd: workspaceRoot,
-      noteRoots: [path.join(workspaceRoot, "notes")],
-      projectRoots: [],
-      indexedRoots: [],
-      indexing: { enabled: false, mode: "off", backend: "qmd" },
-      appearanceMode: "system",
-      colorThemeId: "exo-neutral",
-      editorFontSize: 15,
-      terminalFontSize: 13,
-      terminalHistoryLines: 100_000,
-      terminalTranscriptRetention: "forever",
-      terminalTranscriptRetentionDays: 14,
-      explorerScale: 1,
-      exploreIndexSearchOnEnter: false,
-      indexUpdateStrategy: "on-save",
-      piHarness: {
-        label: "Persisted Pi",
-        repoPath: persistedRepo,
-        backendUrl: "http://127.0.0.1:8080",
-        backendReady: true,
-      },
-    });
-    const env = {
-      ...persistedEnv,
-      EXO_PI_LABEL: "Operator Pi",
-      EXO_PI_REPO_PATH: overrideRepo,
-    };
-    const config = resolveRuntimeConfig(env);
-    const plan = resolveLaunchableAgentLaunchPlan(config, "pi", workspaceRoot, env);
-
-    expect(plan.title).toBe("Operator Pi");
-    expect(path.basename(plan.command)).toBe("node");
-    expect(plan.args).toEqual([overrideCliPath]);
   });
 
   it("writes generated instruction files", async () => {
@@ -344,7 +151,7 @@ describe("runtime", () => {
     const claudeText = await readFile(paths.claude, "utf8");
 
     expect(primaryText).toContain("Exo Runtime");
-    expect(primaryText).toContain("Prefer Exo MCP tools");
+    expect(primaryText).toContain("Use the `exo` CLI as the local operator and debug surface");
     expect(primaryText).toContain("exo runtime launch-plan");
     expect(primaryText).toContain("Optional Notes Index / Retrieval Backend");
     expect(primaryText).toContain("index_mode: off");

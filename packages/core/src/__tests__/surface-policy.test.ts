@@ -5,14 +5,6 @@ import { builtInCapabilities } from "../capabilities";
 import { getSurfaceContributionPolicy, isCapabilityAvailableOnSurface } from "../surface-policy";
 
 describe("surface contribution policy", () => {
-  it("keeps MCP as a reviewed agent-facing surface", () => {
-    expect(getSurfaceContributionPolicy("mcp")).toEqual({
-      surface: "mcp",
-      audience: "agent",
-      defaultExposure: "review",
-    });
-  });
-
   it("keeps command-server routes hidden by default", () => {
     expect(getSurfaceContributionPolicy("commandServer")).toEqual({
       surface: "commandServer",
@@ -21,12 +13,11 @@ describe("surface contribution policy", () => {
     });
   });
 
-  it("recognizes built-in capabilities on command-server and MCP surfaces", () => {
+  it("recognizes built-in capabilities on command-server surfaces", () => {
     const qmd = builtInCapabilities.find((capability) => capability.id === "qmd");
 
     expect(qmd).toBeDefined();
     expect(isCapabilityAvailableOnSurface(qmd!, "commandServer")).toBe(true);
-    expect(isCapabilityAvailableOnSurface(qmd!, "mcp")).toBe(true);
   });
 
   it("hides disabled capabilities from every surface", () => {
@@ -37,12 +28,11 @@ describe("surface contribution policy", () => {
       description: "Disabled test capability.",
       lifecycle: "disabled",
       owner: "@exo/core/test",
-      surfaces: ["desktop", "cli", "mcp", "commandServer", "internal"],
+      surfaces: ["desktop", "cli", "commandServer", "internal"],
       permissions: [],
     };
 
     expect(isCapabilityAvailableOnSurface(disabled, "desktop")).toBe(false);
-    expect(isCapabilityAvailableOnSurface(disabled, "mcp")).toBe(false);
     expect(isCapabilityAvailableOnSurface(disabled, "commandServer")).toBe(false);
   });
 });

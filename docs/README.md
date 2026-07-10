@@ -12,13 +12,16 @@ This directory contains committed, public-facing project context. It should be u
 - `feature-ideas.md` - parked product ideas that are not yet active implementation plans.
 - `../exo-themes-plan.md` - active planning note for named theme work.
 - `strategy.md` - product direction and system model.
-- `architecture.md` - current package, runtime, terminal, CLI/MCP, pane, search, and plugin boundaries.
-- `plugin-system-architecture.md` - canonical core-versus-plugin target architecture.
-- `plugin-architecture-audit.md` - plugin decision/fallback audit and hardening policy.
-- `public-contract-reviews.md` - SHA-256 review-note ledger for guarded command-server, CLI, MCP, and shared protocol surfaces.
-- `control-plane-catalog.md` - implemented core catalog and MCP exposure-profile policy, plus future CLI/profile navigation notes.
-- `profile-plugin-management-plan.md` - near-term plan for active profiles, Plugin Manager, Settings/Profile, and plugin lifecycle UX.
-- `onboarding-settings-boundaries.md` - product ownership map for onboarding, Settings, Plugin Manager, Agent Config, Routine Manager, and Profile Manager.
+- `architecture.md` - current package, runtime, terminal, CLI, pane, search, and extension boundaries.
+- `exograph-completion-orchestration-plan.md` - high-level completion plan, delegation map, and Fable review protocol for the Exograph branch.
+- `exograph-detailed-implementation-plans.md` - delegated detailed plans for deletion/contracts, graph, CLI/search, AgentCommand, direct-write review, and QA.
+- `exograph-refactor-completion-plan.md` - canonical implementation plan for the Exograph pivot.
+- `extension-architecture.md` - current core-versus-extension architecture for the Exograph pivot.
+- `plugin-system-architecture.md` - historical plugin-platform target architecture, superseded by `extension-architecture.md`.
+- `plugin-architecture-audit.md` - historical plugin decision/fallback audit and hardening policy.
+- `public-contract-reviews.md` - SHA-256 review-note ledger for guarded command-server, CLI, and shared protocol surfaces.
+- `profile-plugin-management-plan.md` - historical plan for the previous profile/plugin management regime.
+- `onboarding-settings-boundaries.md` - current product ownership map for onboarding, Settings, Agent Context, profiles, and deferred extension/plugin concepts.
 - `activity-plugin-contract.md` - minimal activity/artifact/provenance/review substrate boundary for plugin workloads.
 - `agent-harness-plugin-contract.md` - harness adapter contract for Claude, Codex, Pi-compatible, and future local/open-source agents.
 - `plugin-surface-contract.md` - safe plugin surface and core web viewer endpoint contribution contract.
@@ -30,7 +33,6 @@ This directory contains committed, public-facing project context. It should be u
 - `harness.md` - validation gates and agent-friendly development workflow.
 - `github-issue-fix-loop.md` - scheduled Codex loop rules for turning labeled GitHub issues into tested draft PRs.
 - `qmd-integration-notes.md` - live QMD adapter contract and upgrade checklist.
-- `packages/mcp/README.md` - MCP setup and tool contract.
 
 ## Historical And Reference Docs
 
@@ -55,25 +57,28 @@ These remain in place for traceability but should not be treated as the latest a
 10. `architecture.md` - package boundaries and runtime contracts
 11. `../roadmap.md` - future product systems
 12. `feature-ideas.md` - parked product ideas and graduation criteria
-13. `plugin-system-architecture.md` - core-versus-plugin target architecture
-14. `plugin-architecture-audit.md` - plugin decision/fallback audit and hardening policy
-15. `public-contract-reviews.md` - public contract guard ledger for command-server, CLI, MCP, and shared protocol surfaces
-16. `control-plane-catalog.md` - implemented core catalog and MCP exposure-profile policy, plus future CLI/profile navigation notes
-17. `profile-plugin-management-plan.md` - current product and implementation plan for profile/plugin management UX
-18. `onboarding-settings-boundaries.md` - current IA boundary for first-run setup versus ongoing management
-19. `plugins.md` - plugin architecture direction
-20. `plugin-implementation-plan.md` - phased implementation plan for capability registries, search providers, agent harnesses, activity substrate, plugin manifests, and future permissioned loading
-21. `activity-plugin-contract.md` - activity/artifact/provenance/review substrate contract
-22. `agent-harness-plugin-contract.md` - harness adapter contract
-23. `plugin-surface-contract.md` - safe plugin surface and web viewer endpoint contract
-24. `graph-visualization-plugin-contract.md` - graph visualization plugin contract
-25. `open-source.md` - release and platform support notes
-26. `terminal-architecture-v4.md` - current terminal architecture and module-boundary target
-27. `terminal-runtime-decision.md` - terminal runtime decision
-28. `terminal-quality-standard.md` - terminal useability and QA standard
-29. `terminal-fallback-audit.md` - terminal fallback/recovery policy and current decisions
-30. `terminal-refactor-plan.md` - historical tmux migration plan
-31. `qmd-integration-notes.md` - live QMD dependency boundary and upgrade checklist
+13. `exograph-completion-orchestration-plan.md` - high-level completion and delegation plan
+14. `exograph-detailed-implementation-plans.md` - delegated detailed implementation plans
+15. `exograph-refactor-completion-plan.md` - canonical Exograph implementation plan
+16. `extension-architecture.md` - current core-versus-extension architecture
+17. `plugin-system-architecture.md` - historical plugin-platform target architecture
+18. `plugin-architecture-audit.md` - historical plugin decision/fallback audit and hardening policy
+19. `public-contract-reviews.md` - public contract guard ledger for command-server, CLI, and shared protocol surfaces
+20. `profile-plugin-management-plan.md` - historical product and implementation plan for profile/plugin management UX
+22. `onboarding-settings-boundaries.md` - current IA boundary for first-run setup versus ongoing management
+23. `plugins.md` - historical plugin architecture direction
+24. `plugin-implementation-plan.md` - historical phased implementation plan for capability registries, search providers, agent harnesses, activity substrate, plugin manifests, and future permissioned loading
+25. `activity-plugin-contract.md` - historical activity/artifact/provenance/review substrate contract
+26. `agent-harness-plugin-contract.md` - historical harness adapter contract
+27. `plugin-surface-contract.md` - safe plugin surface and web viewer endpoint contract
+28. `graph-visualization-plugin-contract.md` - graph visualization plugin contract
+29. `open-source.md` - release and platform support notes
+30. `terminal-architecture-v4.md` - current terminal architecture and module-boundary target
+31. `terminal-runtime-decision.md` - terminal runtime decision
+32. `terminal-quality-standard.md` - terminal useability and QA standard
+33. `terminal-fallback-audit.md` - terminal fallback/recovery policy and current decisions
+34. `terminal-refactor-plan.md` - historical tmux migration plan
+35. `qmd-integration-notes.md` - live QMD dependency boundary and upgrade checklist
 
 ## File Roles
 
@@ -86,14 +91,17 @@ These remain in place for traceability but should not be treated as the latest a
 - `feature-ideas.md` captures future ideas before they are ready for active sequencing.
 - `harness.md` explains how changes should be validated.
 - `github-issue-fix-loop.md` defines the conservative scheduled GitHub issue-to-draft-PR loop.
-- `plugin-system-architecture.md` defines which platform surfaces stay core versus become bundled/external plugins.
-- `plugin-architecture-audit.md` records plugin fallback decisions, rejected shortcuts, and hardening rules.
+- `exograph-completion-orchestration-plan.md` defines the completion sequence, delegated planning work, and Fable review protocol for this branch.
+- `exograph-detailed-implementation-plans.md` records the delegated slice plans and consolidated Fable decision set.
+- `exograph-refactor-completion-plan.md` defines the canonical implementation sequence for the Exograph pivot.
+- `extension-architecture.md` defines the current Exograph extension ladder and core-versus-extension boundary.
+- `plugin-system-architecture.md` records the superseded plugin-platform target architecture for inventory/history.
+- `plugin-architecture-audit.md` records historical plugin fallback decisions, rejected shortcuts, and hardening rules.
 - `public-contract-reviews.md` records the review-note hashes that `pnpm check:repo` requires before protected public contract files can change.
-- `control-plane-catalog.md` defines the core control-plane catalog, current MCP exposure profiles, and future MCP/CLI profile directions.
-- `profile-plugin-management-plan.md` defines how onboarding, Settings/Profile, Plugin Manager, active profile state, and status-bar review affordances should fit together.
-- `onboarding-settings-boundaries.md` defines which concepts belong to onboarding, Settings, Plugin Manager, Agent Config, Routine Manager, and Profile Manager.
-- `plugins.md` tracks the intended extension model.
-- `plugin-implementation-plan.md` tracks the concrete refactor/implementation order for the first plugin architecture phases.
+- `profile-plugin-management-plan.md` records the superseded profile/plugin management plan for reuse inventory.
+- `onboarding-settings-boundaries.md` defines which concepts belong to onboarding, Settings, Agent Context, profiles, and deferred extension/plugin surfaces.
+- `plugins.md` tracks the historical plugin model superseded by the extension ladder.
+- `plugin-implementation-plan.md` tracks the historical refactor/implementation order for the first plugin architecture phases.
 - `activity-plugin-contract.md` defines the minimal activity substrate and keeps rich workload schemas plugin-owned.
 - `agent-harness-plugin-contract.md` defines how harness adapters plug into Exo's core terminal/session service.
 - `plugin-surface-contract.md` defines safe plugin surface descriptors and core web viewer endpoint usage.
@@ -111,8 +119,8 @@ These remain in place for traceability but should not be treated as the latest a
 
 Checked-in static explainers under `docs/artifacts/`:
 
-- `docs/artifacts/overall-exo-architecture.html` - visualizes desktop, CLI, MCP, resident runtime, Markdown graph, terminal runtime, plugin hosts, user files, and `.exo` runtime state.
+- `docs/artifacts/overall-exo-architecture.html` - historical architecture explainer for desktop, CLI, MCP, resident runtime, Markdown graph, terminal runtime, plugin hosts, user files, and `.exo` runtime state.
 - `docs/artifacts/core-plugin-boundary.html` - visualizes core substrate versus bundled/external plugins, including terminal core, harness adapters, QMD/search providers, routines/activity records, web viewer endpoints, and permission/trust boundaries.
-- `docs/artifacts/terminal-runtime-v3.html` - visualizes tmux, Exo terminal runtime services, transcript store, xterm renderer ownership, hydration rules, CLI/MCP reads, and reconnect/recovery flows.
+- `docs/artifacts/terminal-runtime-v3.html` - historical terminal explainer including old CLI/MCP reads and reconnect/recovery flows.
 
 Do not put private local paths, personal task trackers, or machine-specific setup in committed docs. Keep those in local notes or untracked files.

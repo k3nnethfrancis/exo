@@ -149,7 +149,11 @@ export async function launchExoFixture(options?: {
 
   await expect(page.getByTestId("sidebar")).toBeVisible();
   await expect(page.getByTestId("editor-panel")).toBeVisible();
-  await expect(page.getByTestId("terminal-rail")).toBeVisible();
+  // The product starts with the right surface closed. Test fixtures open it so
+  // terminal-focused tests can exercise the live surface without duplicating setup.
+  await page.getByTestId("side-panel-toggle").click();
+  await expect(page.getByTestId("exo-side-panel")).toBeVisible();
+  await expect(page.getByTestId("terminal-dock").first()).toBeVisible();
   if (options?.initialNoteLabel !== null) {
     const initialNoteLabel = options?.initialNoteLabel ?? "focus-note";
     const noteButton = page.getByRole("button", { name: initialNoteLabel });
@@ -228,7 +232,9 @@ export async function relaunchExoFixture(
   const page = electronApp.windows()[0] ?? await electronApp.firstWindow();
   await expect(page.getByTestId("sidebar")).toBeVisible();
   await expect(page.getByTestId("editor-panel")).toBeVisible();
-  await expect(page.getByTestId("terminal-rail")).toBeVisible();
+  await page.getByTestId("side-panel-toggle").click();
+  await expect(page.getByTestId("exo-side-panel")).toBeVisible();
+  await expect(page.getByTestId("terminal-dock").first()).toBeVisible();
 
   return {
     electronApp,
