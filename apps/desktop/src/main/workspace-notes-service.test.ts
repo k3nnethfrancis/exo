@@ -45,6 +45,30 @@ describe("WorkspaceNotesService", () => {
     await expect(readFile(createdPath, "utf8")).resolves.toBe("");
   });
 
+  it("rejects wiki targets that traverse outside the source note root", async () => {
+    const { service, noteRoot } = await workspaceNotesService();
+    const sourcePath = path.join(noteRoot, "folder", "source.md");
+    const outsidePath = path.join(path.dirname(noteRoot), "outside.md");
+    await writeFile(sourcePath, "# Source\n", "utf8");
+    await writeFile(outsidePath, "# Outside\n", "utf8");
+
+    await expect(service.resolveTarget(sourcePath, "../../outside")).rejects.toThrow(
+      "outside configured note roots",
+    );
+  });
+
+  it("creates a missing absolute wiki target at its requested in-root path", async () => {
+    const { service, noteRoot } = await workspaceNotesService();
+    const sourcePath = path.join(noteRoot, "folder", "source.md");
+    const targetPath = path.join(noteRoot, "elsewhere", "absolute.md");
+    await writeFile(sourcePath, "# Source\n", "utf8");
+
+    const createdPath = await service.ensureTarget(sourcePath, targetPath);
+
+    expect(createdPath).toBe(targetPath);
+    await expect(readFile(targetPath, "utf8")).resolves.toBe("");
+  });
+
   it("suggests exact target matches before partial matches", async () => {
     const { service, noteRoot } = await workspaceNotesService();
     const sourcePath = path.join(noteRoot, "source.md");

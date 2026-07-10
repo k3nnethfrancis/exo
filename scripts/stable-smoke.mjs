@@ -28,10 +28,10 @@ export const smokeScenarios = [
     timeoutMs: 60_000,
   },
   {
-    name: 'shell-fake-claude-render',
+    name: 'shell-preview-terminal-input',
     file: 'apps/desktop/tests/e2e/shell.spec.ts',
-    grep: 'keeps fake Claude render stable and interactive while preview is open',
-    timeoutMs: 85_000,
+    grep: 'keeps /bin/cat terminal input visible while a loaded preview is focused and resized',
+    timeoutMs: 65_000,
   },
   {
     name: 'shell-relaunch-reattach',

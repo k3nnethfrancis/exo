@@ -1,6 +1,6 @@
 import { BrowserWindow, dialog, shell, type OpenDialogOptions } from "electron";
 import path from "node:path";
-import type { WorkspaceModel, WorkspaceSettings } from "@exo/core";
+import { WorkspaceFiles, type WorkspaceModel, type WorkspaceSettings } from "@exo/core";
 
 import type { DesktopApi, FileStatInfo, WorkspaceRegistryEntry } from "../shared/api";
 import { handleDesktopInvoke } from "./typed-ipc";
@@ -52,6 +52,8 @@ export interface WorkspaceIpcHandlers {
 }
 
 export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
+  const workspaceFiles = () => new WorkspaceFiles(handlers.getModel().noteRoots.map((root) => root.path));
+
   handleDesktopInvoke("workspace:get-model", async () => handlers.getModel());
   handleDesktopInvoke("workspace:get-settings", async () => handlers.getSettings());
   handleDesktopInvoke("workspace:get-setup-state", async () => handlers.getSetupState());
@@ -60,7 +62,10 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
   handleDesktopInvoke("workspace:activate-workspace", async (_event, workspaceId) => handlers.activateWorkspace(workspaceId));
   handleDesktopInvoke("workspace:get-index-status", async () => handlers.getIndexStatus());
   handleDesktopInvoke("workspace:resolve-preview-target", async (_event, target) => handlers.resolvePreviewTarget(target));
-  handleDesktopInvoke("workspace:launch-agent-invocation", async (_event, input) => handlers.launchAgentInvocation(input));
+  handleDesktopInvoke("workspace:launch-agent-invocation", async (_event, input) => {
+    const documentPath = await workspaceFiles().existing(input.documentPath);
+    return handlers.launchAgentInvocation({ ...input, documentPath });
+  });
   handleDesktopInvoke("workspace:end-agent-invocation", async (_event, invocationId) => handlers.endAgentInvocation(invocationId));
   handleDesktopInvoke("workspace:index-sync", async () => handlers.syncIndex());
   handleDesktopInvoke("workspace:index-update", async () => handlers.updateIndex());
@@ -116,24 +121,51 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
     handlers.applyGlobalExographContext(input),
   );
   handleDesktopInvoke("workspace:list-agent-instruction-overlays", async () => handlers.listAgentInstructionOverlays());
-  handleDesktopInvoke("workspace:create-file", async (_event, targetPath, content) => handlers.createFile(targetPath, content));
-  handleDesktopInvoke("workspace:create-directory", async (_event, targetPath) => handlers.createDirectory(targetPath));
-  handleDesktopInvoke("workspace:rename-path", async (_event, sourcePath, nextPath) => handlers.renamePath(sourcePath, nextPath));
-  handleDesktopInvoke("workspace:delete-path", async (_event, targetPath) => handlers.deletePath(targetPath));
+  handleDesktopInvoke("workspace:create-file", async (_event, targetPath, content) => {
+    const authorizedPath = await workspaceFiles().writable(targetPath);
+    return handlers.createFile(authorizedPath, content);
+  });
+  handleDesktopInvoke("workspace:create-directory", async (_event, targetPath) => {
+    const authorizedPath = await workspaceFiles().writable(targetPath);
+    return handlers.createDirectory(authorizedPath);
+  });
+  handleDesktopInvoke("workspace:rename-path", async (_event, sourcePath, nextPath) => {
+    const files = workspaceFiles();
+    const [authorizedSourcePath, authorizedNextPath] = await Promise.all([
+      files.writable(sourcePath),
+      files.writable(nextPath),
+    ]);
+    return handlers.renamePath(authorizedSourcePath, authorizedNextPath);
+  });
+  handleDesktopInvoke("workspace:delete-path", async (_event, targetPath) => {
+    const authorizedPath = await workspaceFiles().writable(targetPath);
+    return handlers.deletePath(authorizedPath);
+  });
   handleDesktopInvoke("workspace:search-tag", async (_event, tag) => handlers.searchTag(tag));
-  handleDesktopInvoke("notes:read", async (_event, filePath) => handlers.readNote(filePath));
-  handleDesktopInvoke("notes:save", async (_event, filePath, frontmatter, body) =>
-    handlers.saveNote(filePath, frontmatter, body),
-  );
-  handleDesktopInvoke("notes:stat", async (_event, filePath) => handlers.statNote(filePath));
-  handleDesktopInvoke("notes:get-knowledge", async (_event, filePath) => handlers.getKnowledge(filePath));
+  handleDesktopInvoke("notes:read", async (_event, filePath) => {
+    const authorizedPath = await workspaceFiles().existing(filePath);
+    return handlers.readNote(authorizedPath);
+  });
+  handleDesktopInvoke("notes:save", async (_event, filePath, frontmatter, body) => {
+    const authorizedPath = await workspaceFiles().writable(filePath);
+    return handlers.saveNote(authorizedPath, frontmatter, body);
+  });
+  handleDesktopInvoke("notes:stat", async (_event, filePath) => {
+    const authorizedPath = await workspaceFiles().writable(filePath);
+    return handlers.statNote(authorizedPath);
+  });
+  handleDesktopInvoke("notes:get-knowledge", async (_event, filePath) => {
+    const authorizedPath = await workspaceFiles().existing(filePath);
+    return handlers.getKnowledge(authorizedPath);
+  });
   handleDesktopInvoke("notes:resolve-target", async (_event, sourceFilePath, target) => handlers.resolveTarget(sourceFilePath, target));
   handleDesktopInvoke("notes:ensure-target", async (_event, sourceFilePath, target) => handlers.ensureTarget(sourceFilePath, target));
   handleDesktopInvoke("notes:suggest-targets", async (_event, sourceFilePath, query) => handlers.suggestTargets(sourceFilePath, query));
   handleDesktopInvoke("notes:get-branch-family", async (_event, filePath) => handlers.getBranchFamily(filePath));
-  handleDesktopInvoke("notes:create-branch", async (_event, filePath, frontmatter, body) =>
-    handlers.createBranch(filePath, frontmatter, body),
-  );
+  handleDesktopInvoke("notes:create-branch", async (_event, filePath, frontmatter, body) => {
+    const authorizedPath = await workspaceFiles().existing(filePath);
+    return handlers.createBranch(authorizedPath, frontmatter, body);
+  });
   handleDesktopInvoke("shell:open-external", async (_event, target) => shell.openExternal(target));
   handleDesktopInvoke("shell:focus-window", async () => {
     const window = handlers.getMainWindow();

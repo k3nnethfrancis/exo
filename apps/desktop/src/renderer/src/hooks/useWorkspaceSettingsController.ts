@@ -127,7 +127,7 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
       explorerScale: String(settings.explorerScale),
       exploreIndexSearchOnEnter: settings.exploreIndexSearchOnEnter,
       indexUpdateStrategy: settings.indexUpdateStrategy,
-      saveStatus: "idle",
+      saveStatus: "saved",
       errorMessage: null,
       appliedWorkspaceKey,
       applyStatus: "idle",

@@ -13,6 +13,8 @@ import type {
 } from "./types";
 import { readWorkspaceDocument } from "./notes";
 
+export { WorkspaceFiles } from "./workspace-files";
+
 const SEARCH_RESULT_LIMIT = 30;
 const PROJECT_SEARCH_RESULT_LIMIT = 25;
 const MAX_SEARCH_VISITED_ENTRIES = 20_000;

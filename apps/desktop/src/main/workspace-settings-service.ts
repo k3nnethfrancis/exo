@@ -39,7 +39,11 @@ export class WorkspaceSettingsService {
   async saveSettings(settings: WorkspaceSettings): Promise<WorkspaceSettings> {
     const previousSettings = this.currentSettings();
     const previousRuntimeRoot = resolveRuntimeConfig().runtimeRoot;
-    const savedSettings = await this.options.store.save(settings);
+    const nextSettings = {
+      ...previousSettings,
+      ...settings,
+    };
+    const savedSettings = await this.options.store.save(nextSettings);
 
     this.options.setWorkspaceSettings(savedSettings);
     this.options.setWorkspaceSetupComplete(true);

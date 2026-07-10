@@ -124,6 +124,73 @@ describe("workspace settings registry", () => {
     }
   });
 
+  it("preserves configured and future settings across load, edit, save, and reload", async () => {
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-lossless-settings-"));
+    const env = { EXO_USER_DATA_PATH: userDataPath };
+    const initialSettings = {
+      workspaceRoot: "/tmp/exo-lossless/notes",
+      defaultTerminalCwd: "/tmp/exo-lossless",
+      noteRoots: ["/tmp/exo-lossless/notes"],
+      projectRoots: [],
+      indexedRoots: [],
+      indexing: { enabled: false, mode: "off", backend: "qmd" },
+      appearanceMode: "system",
+      colorThemeId: "exo-neutral",
+      editorFontSize: 15,
+      terminalFontSize: 13,
+      terminalHistoryLines: 100_000,
+      terminalTranscriptRetention: "forever",
+      terminalTranscriptRetentionDays: 14,
+      explorerScale: 1,
+      exploreIndexSearchOnEnter: false,
+      indexUpdateStrategy: "on-save",
+      agentCommands: [createDefaultClaudeAgentCommand()],
+      layout: {
+        editorTree: {
+          kind: "leaf",
+          id: "editor-primary",
+          content: { kind: "editor", openPaths: ["/tmp/exo-lossless/notes/home.md"], activePath: "/tmp/exo-lossless/notes/home.md" },
+        },
+        terminalTree: {
+          kind: "leaf",
+          id: "terminal-primary",
+          content: { kind: "terminal", terminalIds: ["terminal-1"], activeTerminalId: "terminal-1" },
+        },
+        terminalCollapsed: false,
+        terminalMonitorMode: false,
+        sidePanesFlipped: false,
+        zoneSplitRatio: 0.6,
+        sidebarCollapsed: false,
+        sidebarWidth: 220,
+        inspectorCollapsed: true,
+      },
+      futureSettings: {
+        version: 2,
+        preferences: ["local", "lossless"],
+      },
+    } as Parameters<typeof saveWorkspaceSettings>[0] & {
+      futureSettings: { version: number; preferences: string[] };
+    };
+
+    try {
+      await saveWorkspaceSettings(initialSettings, env);
+      const loaded = await loadWorkspaceSettings(env);
+
+      expect(loaded).not.toBeNull();
+      await saveWorkspaceSettings({ ...loaded!, appearanceMode: "dark" }, env);
+
+      const reloaded = await loadWorkspaceSettings(env) as typeof initialSettings | null;
+      expect(reloaded).toMatchObject({
+        appearanceMode: "dark",
+        agentCommands: initialSettings.agentCommands,
+        layout: initialSettings.layout,
+        futureSettings: initialSettings.futureSettings,
+      });
+    } finally {
+      await rm(userDataPath, { recursive: true, force: true });
+    }
+  });
+
   it("defaults missing agent commands to an empty settings list without installing commands", () => {
     const settings = normalizeWorkspaceSettings({
       workspaceRoot: "/tmp/exo-agent/notes",

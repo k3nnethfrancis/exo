@@ -125,6 +125,9 @@ test("boots the shell, opens notes, and manages terminal tabs", async () => {
   await expect(page.getByTestId("side-panel-terminal-rail")).toBeVisible();
   await expect(page.locator('[data-testid="launch-claude"]')).toHaveCount(0);
   await expect(page.locator('[data-testid="launch-codex"]')).toHaveCount(0);
+  await expect.poll(async () =>
+    page.evaluate(async () => (await window.exo.terminals.list()).map((session) => session.kind)),
+  ).toEqual(["shell"]);
 
   await page.getByTestId("terminal-tab-shell").dblclick();
   await expect(page.getByTestId("terminal-dock")).toBeVisible();

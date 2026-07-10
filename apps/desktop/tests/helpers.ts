@@ -100,10 +100,6 @@ export async function launchExoFixture(options?: {
     HOME: homeRoot,
     EXO_SHELL: "/bin/sh",
     EXO_SHELL_ARGS: "-lc,printf 'shell ready\\n'; cat",
-    EXO_CLAUDE_COMMAND: "/bin/sh",
-    EXO_CLAUDE_ARGS: "-lc,printf 'claude ready\\n'; cat",
-    EXO_CODEX_COMMAND: "/bin/sh",
-    EXO_CODEX_ARGS: "-lc,printf 'codex ready\\n'; cat",
     ...workspaceEnv,
     ...options?.env,
   };
@@ -150,10 +146,11 @@ export async function launchExoFixture(options?: {
   await expect(page.getByTestId("sidebar")).toBeVisible();
   await expect(page.getByTestId("editor-panel")).toBeVisible();
   // The product starts with the right surface closed. Test fixtures open it so
-  // terminal-focused tests can exercise the live surface without duplicating setup.
+  // shell-focused tests can exercise the one visible V1 terminal without duplicating setup.
   await page.getByTestId("side-panel-toggle").click();
   await expect(page.getByTestId("exo-side-panel")).toBeVisible();
   await expect(page.getByTestId("terminal-dock").first()).toBeVisible();
+  await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(1);
   if (options?.initialNoteLabel !== null) {
     const initialNoteLabel = options?.initialNoteLabel ?? "focus-note";
     const noteButton = page.getByRole("button", { name: initialNoteLabel });
@@ -217,10 +214,6 @@ export async function relaunchExoFixture(
     EXO_PROJECT_ROOTS: path.join(previous.workspaceRoot, "projects/sample-project"),
     EXO_SHELL: "/bin/sh",
     EXO_SHELL_ARGS: "-lc,printf 'shell ready\\n'; cat",
-    EXO_CLAUDE_COMMAND: "/bin/sh",
-    EXO_CLAUDE_ARGS: "-lc,printf 'claude ready\\n'; cat",
-    EXO_CODEX_COMMAND: "/bin/sh",
-    EXO_CODEX_ARGS: "-lc,printf 'codex ready\\n'; cat",
     ...options?.env,
   };
 
@@ -235,6 +228,7 @@ export async function relaunchExoFixture(
   await page.getByTestId("side-panel-toggle").click();
   await expect(page.getByTestId("exo-side-panel")).toBeVisible();
   await expect(page.getByTestId("terminal-dock").first()).toBeVisible();
+  await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(1);
 
   return {
     electronApp,

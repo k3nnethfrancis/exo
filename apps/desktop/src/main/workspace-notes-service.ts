@@ -9,6 +9,7 @@ import {
   listMarkdownFiles,
   readWorkspaceDocument,
   type SearchResult,
+  WorkspaceFiles,
   type WorkspaceModel,
 } from "@exo/core";
 
@@ -49,6 +50,8 @@ export class WorkspaceNotesService {
   }
 
   async resolveTarget(sourceFilePath: string, target: string): Promise<string | null> {
+    const files = this.workspaceFiles();
+    await files.existing(sourceFilePath);
     if (/^https?:\/\//.test(target)) {
       return null;
     }
@@ -56,6 +59,7 @@ export class WorkspaceNotesService {
     const relativeCandidate = target.endsWith(".md")
       ? path.resolve(path.dirname(sourceFilePath), target)
       : path.resolve(path.dirname(sourceFilePath), `${target}.md`);
+    await files.writable(relativeCandidate);
 
     if (await fileExists(relativeCandidate)) {
       return relativeCandidate;
@@ -73,16 +77,21 @@ export class WorkspaceNotesService {
     }
 
     const noteRoot = this.options.getWorkspaceModel().noteRoots.find((root) => isPathWithin(root.path, sourceFilePath));
-    const normalizedTarget = target.replace(/^\/+/, "").replace(/\.md$/i, "");
-    const nextPath = normalizedTarget.includes("/")
-      ? path.join(noteRoot?.path ?? path.dirname(sourceFilePath), `${normalizedTarget}.md`)
-      : path.join(path.dirname(sourceFilePath), `${normalizedTarget}.md`);
+    const normalizedTarget = target.replace(/\.md$/i, "");
+    const targetWithExtension = `${normalizedTarget}.md`;
+    const nextPath = path.isAbsolute(targetWithExtension)
+      ? path.resolve(targetWithExtension)
+      : normalizedTarget.includes("/")
+        ? path.join(noteRoot?.path ?? path.dirname(sourceFilePath), targetWithExtension)
+        : path.join(path.dirname(sourceFilePath), targetWithExtension);
 
-    await createWorkspaceFile(nextPath, "");
-    return nextPath;
+    const authorizedPath = await this.workspaceFiles().writable(nextPath);
+    await createWorkspaceFile(authorizedPath, "");
+    return authorizedPath;
   }
 
   async suggestTargets(sourceFilePath: string, query: string) {
+    await this.workspaceFiles().existing(sourceFilePath);
     const trimmedQuery = query.trim().toLowerCase();
     if (!trimmedQuery) {
       return [];
@@ -124,16 +133,22 @@ export class WorkspaceNotesService {
     return suggestions;
   }
 
-  getKnowledge(filePath: string) {
-    return getNoteKnowledge(filePath, this.noteRootPaths());
+  async getKnowledge(filePath: string) {
+    const authorizedPath = await this.workspaceFiles().existing(filePath);
+    return getNoteKnowledge(authorizedPath, this.noteRootPaths());
   }
 
-  getBranchFamily(filePath: string) {
-    return getBranchFamily(filePath, this.noteRootPaths());
+  async getBranchFamily(filePath: string) {
+    const authorizedPath = await this.workspaceFiles().existing(filePath);
+    return getBranchFamily(authorizedPath, this.noteRootPaths());
   }
 
   private noteRootPaths(): string[] {
     return this.options.getWorkspaceModel().noteRoots.map((root) => root.path);
+  }
+
+  private workspaceFiles(): WorkspaceFiles {
+    return new WorkspaceFiles(this.noteRootPaths());
   }
 }
 

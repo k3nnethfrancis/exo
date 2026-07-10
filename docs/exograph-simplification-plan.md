@@ -1,6 +1,6 @@
 # Exo Simplification Audit and Execution Plan
 
-Status: **approved for scheduled execution at 2026-07-10 01:00 Pacific; do not begin before the heartbeat**
+Status: **execution active as of 2026-07-10; Gate 0 checkpoint `9787002d`, Wave 1 in progress**
 Branch audited: `refactor/note-native-exo`
 Baseline commit: `679183e`
 Audit date: 2026-07-09

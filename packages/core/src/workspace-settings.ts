@@ -180,7 +180,9 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
     return null;
   }
 
+  // A newer Exo may own settings this build does not recognize yet.
   return {
+    ...input,
     workspaceRoot,
     defaultTerminalCwd,
     noteRoots,

@@ -10,7 +10,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ### EXO-ISSUE-103: Note paths can escape attached roots and mutate arbitrary filesystem locations
 
-- Status: open
+- Status: partially fixed; dogfooding and command-server parity remain
 - Severity: critical
 - Area: workspace files, wikilinks, IPC authorization, symlink/path containment
 - Source:
@@ -29,10 +29,11 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - [ ] Route desktop IPC and command-server note operations through the same containment seam.
   - [ ] Prove ordinary wikilink creation still works inside each attached note root.
   - [ ] Complete guarded real-vault-copy dogfooding before closing.
+  - 2026-07-10 Wave 1: added main-process `WorkspaceFiles` authorization at renderer IPC and note-service boundaries. Focused regressions cover traversal, allowed/rejected absolute paths, existing and missing-descendant symlink escapes, valid missing ancestors, note-root self-mutation, wikilink traversal, and in-root absolute wikilink creation. The remaining acceptance work is root-relative identities, command-server route parity, and guarded real-vault-copy proof.
 
 ### EXO-ISSUE-102: Opening Workspace Settings can erase Agent Commands and pane layout
 
-- Status: open
+- Status: partially fixed; store concurrency and invocation proof remain
 - Severity: critical
 - Area: workspace settings, autosave, AgentCommand, pane layout, data preservation
 - Source:
@@ -50,6 +51,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - [ ] Prove appearance/search/terminal-only edits preserve commands, layout, future unknown keys, and migration metadata.
   - [ ] Prove concurrent patches cannot silently clobber one another.
   - [ ] Prove a seeded command remains invokable after the Settings round trip.
+  - 2026-07-10 Wave 1: a fresh Settings dialog is now clean rather than autosave-idle; focused saves merge over authoritative settings; normalization preserves unknown top-level fields. Regression coverage proves save/load/edit/reload preservation and focused appearance edits retaining commands, layout, and future keys. Revision-aware writes and an actual post-round-trip command invocation remain required before closing.
 
 ### EXO-ISSUE-101: Replace tmux/harness terminal architecture with direct pty and AgentCommand launch
 

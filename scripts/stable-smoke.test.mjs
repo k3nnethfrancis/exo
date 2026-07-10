@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 
 import {
   buildPlaywrightArgs,
   formatDuration,
+  playwrightExecutable,
+  repoRoot,
   scenarioSummary,
   selectScenarios,
   smokeScenarios,
@@ -14,7 +17,7 @@ test('stable smoke scenarios keep one named Playwright target per bounded phase'
     'fixture-hygiene',
     'shell-boot-tabs',
     'shell-pane-tree-input',
-    'shell-fake-claude-render',
+    'shell-preview-terminal-input',
     'shell-relaunch-reattach',
     'terminal-monitor-mode',
     'hidden-window-command-server',
@@ -37,6 +40,20 @@ test('buildPlaywrightArgs preserves the focused grep and config', () => {
   assert.equal(args[4], '--grep');
   assert.match(args[5], /boots the shell/);
   assert.doesNotMatch(args[5], /accepts terminal keyboard input/);
+});
+
+test('shell preview smoke target collects exactly one Playwright test', () => {
+  const scenario = smokeScenarios.find((candidate) => candidate.name === 'shell-preview-terminal-input');
+  assert.ok(scenario, 'Expected a shell-only preview input smoke scenario.');
+
+  const result = spawnSync(playwrightExecutable(), [...buildPlaywrightArgs(scenario), '--list'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+  });
+  const output = `${result.stdout ?? ''}\n${result.stderr ?? ''}\n${result.error?.message ?? ''}`;
+
+  assert.equal(result.status, 0, output);
+  assert.match(output, /Total: 1 test\b/);
 });
 
 test('selectScenarios filters by name and rejects unknown scenario names', () => {

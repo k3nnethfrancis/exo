@@ -1,6 +1,6 @@
 # Exograph Tasks
 
-Last updated: 2026-07-09
+Last updated: 2026-07-10
 
 This is the active task tracker for Exo. It is intentionally not a history file; completed implementation history belongs in `ledger.md`. Tasks here should be concrete, current, and ordered by practical priority.
 
@@ -18,21 +18,22 @@ Shared Ashby north star: `../../notes/shoshin-codex/ashby.md`. Exo owns the exoc
 
 The current ship path is no longer Plugin Architecture Completion, Routine POC, MCP agent lifecycle, or universal harness management. Those are superseded/deletion-audit targets unless the completion plan explicitly reopens a slice.
 
-### Simplification reset — scheduled execution
+### Simplification reset — execution active
 
-Implementation is explicitly authorized to begin at the scheduled 2026-07-10 01:00 Pacific heartbeat; do not start before then. At the heartbeat, create the goal and begin with Gate 0's deliberate checkpoint. The audit supersedes the current completion-plan stack; accepted decisions should be distilled into the small canonical doc set, then the audit plan itself should be deleted.
+Implementation began on 2026-07-10 after the scheduled heartbeat was cancelled. Gate 0 is complete at checkpoint `9787002d`; Wave 1 is active. The audit supersedes the current completion-plan stack; accepted decisions should be distilled into the small canonical doc set, then the audit plan itself should be deleted.
 
 - [x] Finish the deep architecture, product, interface, runtime, test, and repository audit in `docs/exograph-simplification-plan.md`.
 - [x] Incorporate `notes/shoshin-codex/ok-explore-exo.md`: tabbed Connections, typed Markdown Properties, Command-readiness onboarding, explicit terminal scroll ownership, and reviewed future-integration outcomes.
-- [x] Create the one-time 2026-07-10 01:00 Pacific thread heartbeat `begin-exo-simplification-fan-out` to create the goal, execute Gate 0, and begin bounded Wave 1 fan-out.
+- [x] Cancel the one-time heartbeat and begin the approved implementation directly.
 - [x] Constrain the Principal Alignment/Guardian north star to evidence compatibility—stable provenance, invocation/review outcomes, and export lineage—without adding training or model-management UI to Exo V1.
 - [x] Create a deliberate checkpoint of the intended pivot state and record the known-red baseline.
   - 2026-07-10 Gate 0 inventory: 248 tracked files changed, 41 untracked source/docs files, 4,394 insertions, 39,635 deletions; ignored runtime/generated paths were excluded.
-  - Green: `pnpm check` (core 180, desktop 141, CLI 58, scripts 10).
-  - Known red: `pnpm check:repo` requires intentional review of the four changed public-contract surfaces; `pnpm stable:smoke -- --scenario shell-fake-claude-render` targets a deleted Playwright test. Wave 1 owns both repairs.
-- [ ] Fix `EXO-ISSUE-102` (opening Settings can erase commands and layout) as the first release gate.
-- [ ] Fix `EXO-ISSUE-103` (note operations can escape attached roots) before broad real-vault dogfooding.
-- [ ] Repair the validation harness and settle the intended CLI/server/protocol surface before accepting new public-contract hashes.
+  - Checkpoint: `9787002d` (`checkpoint: note-native pivot before simplification`).
+  - Green: `pnpm check` (core 188, desktop 144, CLI 58, scripts 11); focused `pnpm stable:smoke -- --scenario shell-preview-terminal-input` (1/1).
+  - Known red: `pnpm check:repo` intentionally awaits one architect review after the Wave 2 public-surface deletions; four pre-Wave-1 protected surfaces have unaccepted hashes. The prior deleted smoke selector is repaired; the full registry still contains stale tmux-era scenarios to delete in the terminal pass.
+- [x] Repair the immediate `EXO-ISSUE-102` Settings data-loss path: no-op dialog opens stay clean; focused saves merge over authoritative settings and preserve layout, commands, and unknown keys. Atomic/revision-aware store semantics and real-command invocation proof remain follow-up acceptance work.
+- [x] Repair the immediate `EXO-ISSUE-103` renderer-facing note path escape: `WorkspaceFiles` guards traversal, absolute paths, symlinks, missing ancestors, root mutation, and wikilink creation. Root-relative identities, command-server parity, and guarded real-vault-copy dogfooding remain follow-up acceptance work.
+- [x] Repair the broken targeted smoke selector and record the intended CLI/server/protocol keep-delete ledger; delete stale terminal scenarios and accept contract hashes only after the Wave 2 caller audit.
 - [ ] Execute the approved deletion, deep-module, unified-canvas, interface-craft, migration, and packaged-app proof waves.
 
 ### WP0: Plan, Supersede, And Stop The Old Product

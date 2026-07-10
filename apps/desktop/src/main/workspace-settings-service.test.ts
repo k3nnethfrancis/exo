@@ -96,6 +96,89 @@ describe("WorkspaceSettingsService", () => {
     expect(restartCommandServer).not.toHaveBeenCalled();
   });
 
+  it("preserves settings omitted by a focused edit payload", async () => {
+    const layout: NonNullable<WorkspaceSettings["layout"]> = {
+      editorTree: {
+        kind: "leaf",
+        id: "editor-primary",
+        content: { kind: "editor", openPaths: ["/workspace/notes/home.md"], activePath: "/workspace/notes/home.md" },
+      },
+      terminalTree: {
+        kind: "leaf",
+        id: "terminal-primary",
+        content: { kind: "terminal", terminalIds: ["terminal-1"], activeTerminalId: "terminal-1" },
+      },
+      terminalCollapsed: false,
+      terminalMonitorMode: false,
+      sidePanesFlipped: false,
+      zoneSplitRatio: 0.6,
+      sidebarCollapsed: false,
+      sidebarWidth: 220,
+      inspectorCollapsed: true,
+    };
+    const previous = {
+      ...workspaceSettings({
+        agentCommands: [{
+          id: "codex",
+          label: "Codex",
+          handle: "codex",
+          command: "codex",
+          cwdPolicy: "workspace_root",
+          promptDelivery: "terminalInputAfterLaunch",
+          version: 1,
+          enabled: true,
+        }],
+        layout,
+      }),
+      futureSettings: { localOnly: true },
+    } as WorkspaceSettings & { futureSettings: { localOnly: boolean } };
+    const edit = workspaceSettings({ appearanceMode: "dark" });
+    let workspaceModel = workspaceModelFromSettings(previous);
+    coreMock.model = workspaceModelFromSettings(edit);
+    let currentSettings: WorkspaceSettings | null = previous;
+    const store = {
+      fromModel: vi.fn(),
+      save: vi.fn(async (settings: WorkspaceSettings) => settings),
+    } as unknown as WorkspaceSettingsStore;
+    const indexingService = {
+      shouldSyncAfterSettingsApply: vi.fn(() => false),
+      scheduleSync: vi.fn(),
+    } as unknown as IndexingService;
+    const service = new WorkspaceSettingsService({
+      store,
+      getWorkspaceModel: () => workspaceModel,
+      setWorkspaceModel: (model) => {
+        workspaceModel = model;
+      },
+      getWorkspaceSettings: () => currentSettings,
+      setWorkspaceSettings: (settings) => {
+        currentSettings = settings;
+      },
+      setWorkspaceSetupComplete: vi.fn(),
+      terminalManager: terminalManagerStub(),
+      workspaceWatcherService: { start: vi.fn() } as unknown as WorkspaceWatcherService,
+      indexingService,
+      ensureNoteRoots: vi.fn(async () => undefined),
+      restartCommandServer: vi.fn(),
+      applyAppearanceMode: vi.fn(),
+    });
+
+    const saved = await service.saveSettings(edit) as typeof previous;
+
+    expect(store.save).toHaveBeenCalledWith(expect.objectContaining({
+      appearanceMode: "dark",
+      agentCommands: previous.agentCommands,
+      layout,
+      futureSettings: previous.futureSettings,
+    }));
+    expect(saved).toMatchObject({
+      appearanceMode: "dark",
+      agentCommands: previous.agentCommands,
+      layout,
+      futureSettings: previous.futureSettings,
+    });
+  });
+
 });
 
 function terminalManagerStub(): TerminalManager {

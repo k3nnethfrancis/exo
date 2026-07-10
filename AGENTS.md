@@ -22,6 +22,7 @@ The `refactor/note-native-exo` branch is intentionally cutting the old agent-coc
 9. `skills/terminal-stability/SKILL.md` - current direct-PTY invariants and QA rules
 10. `docs/extension-architecture.md` - concrete-seam extension ladder
 11. `docs/public-contract-reviews.md` - protected command-server, CLI, and shared-protocol review ledger
+12. `docs/usability-readiness.md` - installed-app readiness gate and evidence requirements
 
 Other completion, plugin, routine, harness, profile, tmux, transcript, and MCP documents are superseded inventory until the simplification plan deletes or distills them. They are not active instructions.
 
