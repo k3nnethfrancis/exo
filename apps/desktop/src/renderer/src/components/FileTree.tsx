@@ -4,10 +4,8 @@ import {
   ClipboardCopy,
   FilePlus2,
   Eye,
-  FolderTree,
   FolderPlus,
   Pencil,
-  Search,
   SquareTerminal,
   Trash2,
 } from "lucide-react";
@@ -33,6 +31,7 @@ interface FileTreeProps {
   searchResultMode: WorkspaceSearchResultMode;
   searchResultQuery: string;
   searchMessage: string | null;
+  searchActive?: boolean;
   onAppearanceModeChange: (mode: AppearanceMode) => void;
   onToggleCollapsed: () => void;
   onSearchQueryChange: (value: string) => void;
@@ -53,7 +52,9 @@ interface FileTreeProps {
   onDeletePath: (targetPath: string) => void;
   mirrored?: boolean;
   revealPathRequest?: { path: string; nonce: number } | null;
+  /** @deprecated Remove with the ShellLayout integration; search is driven by searchActive. */
   mode?: ExplorerMode;
+  /** @deprecated Remove with the ShellLayout integration; the explorer has no local mode controls. */
   onModeChange?: (mode: ExplorerMode) => void;
 }
 
@@ -87,13 +88,10 @@ export function FileTree(props: FileTreeProps) {
     onDeletePath,
     mirrored = false,
     revealPathRequest = null,
-    mode,
-    onModeChange,
   } = props;
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
   const [contextTarget, setContextTarget] = useState<ContextTarget | null>(null);
   const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null);
-  const [uncontrolledMode, setUncontrolledMode] = useState<ExplorerMode>("files");
   const [rootAction, setRootAction] = useState<"file" | "directory" | null>(null);
   const processedRevealNonceRef = useRef<number | null>(null);
 
@@ -186,15 +184,6 @@ export function FileTree(props: FileTreeProps) {
   }
 
   const sidebarStyle = { "--exo-explorer-scale": explorerScale } as CSSProperties;
-  const explorerMode = mode ?? uncontrolledMode;
-
-  function setExplorerMode(nextMode: ExplorerMode) {
-    if (mode === undefined) {
-      setUncontrolledMode(nextMode);
-    }
-    onModeChange?.(nextMode);
-  }
-
   function requestRootAction(action: "file" | "directory") {
     if (noteRoots.length === 1) {
       const root = noteRoots[0];
@@ -231,12 +220,6 @@ export function FileTree(props: FileTreeProps) {
     <aside className={`sidebar sidebar--content-only ${mirrored ? "sidebar--mirrored" : ""}`} data-testid="sidebar" onMouseDown={onFocusExplorer} style={sidebarStyle}>
       <div className="sidebar__main">
         <div className="sidebar__toolbar" role="toolbar" aria-label="Explorer">
-          <button aria-label="Files" aria-pressed={explorerMode === "files"} className={`sidebar__toolbar-button sidebar__toolbar-button--icon${explorerMode === "files" ? " sidebar__toolbar-button--active" : ""}`} data-testid="explorer-files" onClick={() => setExplorerMode("files")} title="Files" type="button">
-            <FolderTree size={14} aria-hidden="true" />
-          </button>
-          <button aria-label="Search" aria-pressed={explorerMode === "search"} className={`sidebar__toolbar-button sidebar__toolbar-button--icon${explorerMode === "search" ? " sidebar__toolbar-button--active" : ""}`} data-testid="explorer-search" onClick={() => setExplorerMode("search")} title="Search" type="button">
-            <Search size={14} aria-hidden="true" />
-          </button>
           <span className="sidebar__toolbar-spacer" />
           <button aria-label="New note" className="sidebar__toolbar-button sidebar__toolbar-button--icon" data-testid="explorer-new-note" onClick={() => requestRootAction("file")} title="New note" type="button"><FilePlus2 size={14} aria-hidden="true" /></button>
           <button aria-label="New folder" className="sidebar__toolbar-button sidebar__toolbar-button--icon" data-testid="explorer-new-folder" onClick={() => requestRootAction("directory")} title="New folder" type="button"><FolderPlus size={14} aria-hidden="true" /></button>
@@ -248,15 +231,13 @@ export function FileTree(props: FileTreeProps) {
           </div>
         ) : null}
         <div className="sidebar__panes">
-          {explorerMode === "search" ? (
+          {props.searchActive ? (
             <SidebarSearchPane
               query={props.searchQuery}
               results={props.searchResults}
               resultMode={props.searchResultMode}
               resultQuery={props.searchResultQuery}
               message={props.searchMessage}
-              onQueryChange={props.onSearchQueryChange}
-              onSearchSubmit={props.onSearchSubmit}
               onOpenFile={onOpenFile}
               onOpenAttachedFile={onOpenAttachedFile}
             />
@@ -279,7 +260,7 @@ export function FileTree(props: FileTreeProps) {
             />
           </div>
           )}
-          {explorerMode === "files" && attachedFolders.length > 0 ? (
+          {!props.searchActive && attachedFolders.length > 0 ? (
             <div className="sidebar__content sidebar__content--attached" data-testid="attached-folders">
               <Section label="Attached folders" rootKind="attached" sections={attachedFolders} expandedPaths={expandedPaths} onTogglePath={togglePath} onOpenFile={onOpenAttachedFile} dragManager={dragManager} mirrored={mirrored} alwaysShowRoots />
             </div>
@@ -402,8 +383,6 @@ function SidebarSearchPane({
   resultMode,
   resultQuery,
   message,
-  onQueryChange,
-  onSearchSubmit,
   onOpenFile,
   onOpenAttachedFile,
 }: {
@@ -412,8 +391,6 @@ function SidebarSearchPane({
   resultMode: WorkspaceSearchResultMode;
   resultQuery: string;
   message: string | null;
-  onQueryChange: (value: string) => void;
-  onSearchSubmit: () => void;
   onOpenFile: (filePath: string) => void;
   onOpenAttachedFile: (filePath: string) => void;
 }) {
@@ -427,22 +404,6 @@ function SidebarSearchPane({
 
   return (
     <div className="sidebar-search" data-testid="sidebar-search-pane">
-      <label className="sidebar-search__input-wrap">
-        <Search size={14} />
-        <input
-          autoFocus
-          data-testid="sidebar-search-input"
-          value={query}
-          onChange={(event) => onQueryChange(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              onSearchSubmit();
-            }
-          }}
-          placeholder="Search filenames; Enter searches index"
-        />
-      </label>
       <div className="sidebar-search__summary">
         {summary}
       </div>

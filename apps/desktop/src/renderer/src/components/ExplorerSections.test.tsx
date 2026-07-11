@@ -44,7 +44,7 @@ describe("Explorer mutation boundary", () => {
     expect(isExplorerMutationAllowed("attached")).toBe(false);
   });
 
-  it("renders Files, Search, creation actions, and attached folders as separate outcomes", () => {
+  it("renders creation actions and attached folders without dead mode controls", () => {
     const markup = renderToStaticMarkup(
       <FileTree
         attachedFolders={[{ label: "Reference", path: "/attached", nodes: [{ id: "attached-source", kind: "directory", name: "source", path: "/attached/source", children: [] }] }]}
@@ -80,11 +80,50 @@ describe("Explorer mutation boundary", () => {
       />,
     );
 
-    expect(markup).toContain('aria-label="Files"');
-    expect(markup).toContain('aria-label="Search"');
+    expect(markup).not.toContain('data-testid="explorer-files"');
+    expect(markup).not.toContain('data-testid="explorer-search"');
     expect(markup).toContain("New note");
     expect(markup).toContain("New folder");
     expect(markup).toContain("Attached folders");
     expect(markup).not.toContain('data-explorer-drop-path="/attached/source"');
+  });
+
+  it("replaces the file tree with search results when titlebar search is active", () => {
+    const markup = renderToStaticMarkup(
+      <FileTree
+        appearanceMode="system"
+        collapsed={false}
+        dragManager={noDrag}
+        explorerScale={1}
+        noteRoots={[{ label: "Notes", path: "/notes", nodes: [] }]}
+        onAppearanceModeChange={() => undefined}
+        onCreateDirectory={() => undefined}
+        onCreateFile={() => undefined}
+        onCreateTerminal={() => undefined}
+        onOpenPreview={() => undefined}
+        onDeletePath={() => undefined}
+        onExpandDirectory={() => undefined}
+        onFocusExplorer={() => undefined}
+        onOpenFile={() => undefined}
+        onOpenTag={() => undefined}
+        onOpenTerminalSession={() => undefined}
+        onRenamePath={() => undefined}
+        onSearchQueryChange={() => undefined}
+        onSearchSubmit={() => undefined}
+        onToggleCollapsed={() => undefined}
+        resolvedAppearance="dark"
+        searchActive
+        searchMessage={null}
+        searchQuery="idea"
+        searchResultMode="filename"
+        searchResultQuery="idea"
+        searchResults={{ notes: [{ filePath: "/notes/idea.md", title: "Idea", snippet: "Match", kind: "note" }], projectFiles: [], tags: [] }}
+      />,
+    );
+
+    expect(markup).toContain('data-testid="sidebar-search-pane"');
+    expect(markup).toContain("Idea");
+    expect(markup).not.toContain('data-explorer-drop-path="/notes"');
+    expect(markup).not.toContain('data-testid="sidebar-search-input"');
   });
 });
