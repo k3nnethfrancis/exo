@@ -12,7 +12,6 @@ import type {
   TreeNode,
   WorkspaceModel,
 } from "@exo/core";
-
 import {
   DEFAULT_TERMINAL_HISTORY_LINES,
   DEFAULT_TERMINAL_INITIAL_COLUMNS,
@@ -25,10 +24,40 @@ import {
   DEFAULT_TERMINAL_READ_TAIL_CHARS,
   DEFAULT_TERMINAL_TRANSCRIPT_RETENTION,
   DEFAULT_TERMINAL_UNRESPONSIVE_THRESHOLD_MS,
-  resolveTerminalRuntimePolicy,
-  WorkspaceSettingsStore,
-} from "../../main/settings-store";
+  getWorkspaceRegistryEntry,
+  listWorkspaceRegistryEntries,
+  normalizeWorkspaceSettings,
+  saveWorkspaceSettings,
+} from "@exo/core";
 import { BrowserPane } from "./components/BrowserPane";
+
+class WorkspaceSettingsStore {
+  constructor(private readonly options: { userDataPath: string; env?: NodeJS.ProcessEnv }) {}
+  normalize = normalizeWorkspaceSettings;
+  async save(request: { settings: NonNullable<ReturnType<typeof normalizeWorkspaceSettings>>; expectedRevision?: string | null }) {
+    const settings = await saveWorkspaceSettings(request.settings, { ...this.options.env, EXO_USER_DATA_PATH: this.options.userDataPath });
+    return { settings, revision: "test" };
+  }
+  listWorkspaces() { return listWorkspaceRegistryEntries({ ...this.options.env, EXO_USER_DATA_PATH: this.options.userDataPath }); }
+  getWorkspace(id: string) { return getWorkspaceRegistryEntry(id, { ...this.options.env, EXO_USER_DATA_PATH: this.options.userDataPath }); }
+}
+
+function resolveTerminalRuntimePolicy(settings: NonNullable<ReturnType<typeof normalizeWorkspaceSettings>>) {
+  return {
+    scrollbackLines: settings.terminalHistoryLines,
+    bufferLineLimit: settings.terminalHistoryLines,
+    transcriptRetentionDays: settings.terminalTranscriptRetention === "days" ? settings.terminalTranscriptRetentionDays : 0,
+    inputCoalesceMs: settings.terminalInputCoalesceMs,
+    initialColumns: settings.terminalInitialColumns,
+    initialRows: settings.terminalInitialRows,
+    minimumColumns: settings.terminalMinimumColumns,
+    minimumRows: settings.terminalMinimumRows,
+    readTailChars: settings.terminalReadTailChars,
+    maxReadTailChars: settings.terminalMaxReadTailChars,
+    unresponsiveThresholdMs: settings.terminalUnresponsiveThresholdMs,
+    idleThresholdMs: settings.terminalIdleThresholdMs,
+  };
+}
 import { TERMINAL_CUSTOM_GLYPHS, TERMINAL_FONT_FAMILY } from "./components/terminalFonts";
 import {
   initialTerminalHydrationViewState,
