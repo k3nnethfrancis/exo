@@ -16,7 +16,6 @@ import { AgentConfigEditorDialog } from "./components/AgentConfigEditorDialog";
 import { ChangedNotesDialog, type ChangedNote } from "./components/ChangedNotesDialog";
 import { EditorPane, type EditorPaneState } from "./components/EditorPane";
 import { BrowserPane } from "./components/BrowserPane";
-import { InspectorDock } from "./components/InspectorDock";
 import { OnboardingCapabilityReview } from "./components/OnboardingCapabilityReview";
 import { PathList } from "./components/PathList";
 import { PluginManagerDialog } from "./components/PluginManagerDialog";
@@ -186,7 +185,6 @@ export function App() {
     branchFamiliesByPath,
     activeDocumentPath,
     activeDocument,
-    activeKnowledge,
     scrollRestoreRequest: editorScrollRestoreRequest,
     setActiveDocumentPath,
     ensureDocumentLoaded,
@@ -320,7 +318,6 @@ export function App() {
     zoneSplitRatio: shellLayout.zoneSplitRatio,
     sidebarCollapsed: shellLayout.sidebarCollapsed,
     sidebarWidth: shellLayout.sidebarWidth,
-    inspectorCollapsed: shellLayout.inspectorCollapsed,
     layoutPersistenceReady,
     onboardingActive: Boolean(onboardingState),
     workspaceModel,
@@ -1207,17 +1204,6 @@ export function App() {
               revealLineRequest={editorRevealLineRequest}
               scrollRestoreRequest={editorScrollRestoreRequest}
               isNoteDocument={(filePath) => workspaceModel ? workspaceModel.noteRoots.some((root) => isPathWithin(root.path, filePath)) : true}
-            />
-            <InspectorDock
-              document={activeDocument}
-              knowledge={activeKnowledge}
-              open={!shellLayout.inspectorCollapsed}
-              activeTag={activeTag}
-              tagResults={tagResults}
-              onToggle={() => shellLayout.setInspectorCollapsed((c) => !c)}
-              onOpenTarget={(target) => void openKnowledgeTarget(target)}
-              onOpenExternal={(target) => void window.exo.shell.openExternal(target)}
-              onOpenTag={(tag) => void openTag(tag)}
             />
           </>
         );
