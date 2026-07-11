@@ -9,6 +9,7 @@ export * from "./onboarding-state";
 export * from "./graph";
 export * from "./graph-snapshot";
 export * from "./graph-query";
+export * from "./workspace-graph";
 export * from "./agent-mention-parser";
 export * from "./agent-invocation";
 export * from "./agent-command-trust-store";

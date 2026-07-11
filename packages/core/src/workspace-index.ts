@@ -62,7 +62,7 @@ export class WorkspaceIndex {
       ...response,
       provider: response.source,
       degraded,
-      visited: null,
+      visited: response.results.length,
       truncated: limit !== undefined && response.results.length >= limit,
     };
   }
