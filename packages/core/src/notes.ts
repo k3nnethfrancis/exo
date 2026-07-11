@@ -4,14 +4,11 @@ import path from "node:path";
 import matter from "gray-matter";
 
 import type {
-  BacklinkReference,
   MarkdownLinkReference,
   NoteDocument,
-  NoteKnowledge,
   TagReference,
   WikilinkReference,
 } from "./types";
-import { listMarkdownFiles } from "./workspace";
 
 const WIKILINK_PATTERN = /\[\[([^\]]+)\]\]/g;
 const MARKDOWN_LINK_PATTERN = /\[([^\]]+)\]\(([^)]+)\)/g;
@@ -90,60 +87,6 @@ export function extractTags(body: string, frontmatter: Record<string, unknown>):
 
   const tags = Array.from(new Set([...frontmatterTags, ...bodyTags])).sort();
   return tags.map((tag) => ({ tag }));
-}
-
-export async function getNoteKnowledge(filePath: string, noteRootPaths: string[]): Promise<NoteKnowledge> {
-  const document = await readWorkspaceDocument(filePath);
-  const wikilinks = extractWikilinks(document.body);
-  const markdownLinks = extractMarkdownLinks(document.body);
-  const tags = extractTags(document.body, document.frontmatter);
-  const backlinks = await findBacklinks(filePath, noteRootPaths);
-
-  return {
-    wikilinks,
-    markdownLinks,
-    tags,
-    backlinks,
-  };
-}
-
-async function findBacklinks(filePath: string, noteRootPaths: string[]): Promise<BacklinkReference[]> {
-  const noteFiles = await listMarkdownFiles(noteRootPaths);
-  const targetBasename = path.basename(filePath, ".md").toLowerCase();
-  const results = await Promise.all(
-    noteFiles
-      .filter((candidate) => candidate !== filePath)
-      .map(async (candidate) => {
-        const document = await readNoteDocument(candidate);
-        const wikilinks = extractWikilinks(document.body);
-        const markdownLinks = extractMarkdownLinks(document.body);
-        const hasWikilink = wikilinks.some((link) => normalizeNoteTarget(link.target) === targetBasename);
-        const hasMarkdownLink = markdownLinks.some((link) => normalizeMarkdownTarget(link.target) === targetBasename);
-
-        if (!hasWikilink && !hasMarkdownLink) {
-          return null;
-        }
-
-        return {
-          filePath: candidate,
-          title: document.title,
-        } satisfies BacklinkReference;
-      }),
-  );
-
-  return results.filter((result): result is BacklinkReference => result !== null);
-}
-
-function normalizeNoteTarget(target: string): string {
-  return target.replace(/\.md$/i, "").trim().toLowerCase();
-}
-
-function normalizeMarkdownTarget(target: string): string {
-  if (!target.endsWith(".md")) {
-    return "";
-  }
-
-  return path.basename(target, ".md").trim().toLowerCase();
 }
 
 function isMarkdownPath(filePath: string): boolean {

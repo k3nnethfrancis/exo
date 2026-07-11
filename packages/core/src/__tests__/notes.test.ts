@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { extractMarkdownLinks, extractTags, extractWikilinks, getNoteKnowledge, readNoteDocument } from "../notes";
+import { extractMarkdownLinks, extractTags, extractWikilinks, readNoteDocument } from "../notes";
 
 const fixtureRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../fixtures/test-workspace/notes/test-notes");
 
@@ -15,16 +15,6 @@ describe("notes", () => {
     expect(document.title).toBe("Focus Note");
     expect(document.frontmatter.status).toBe("active");
     expect(document.kind).toBe("markdown");
-  });
-
-  it("extracts knowledge references", async () => {
-    const notePath = path.join(fixtureRoot, "focus-note.md");
-    const knowledge = await getNoteKnowledge(notePath, [fixtureRoot]);
-
-    expect(knowledge.wikilinks.map((item) => item.target)).toContain("agent-memory");
-    expect(knowledge.markdownLinks.map((item) => item.target)).toContain("related-note.md");
-    expect(knowledge.tags.map((item) => item.tag)).toContain("research");
-    expect(knowledge.backlinks.map((item) => item.title)).toContain("Related Note");
   });
 
   it("extracts tags from body and frontmatter", () => {

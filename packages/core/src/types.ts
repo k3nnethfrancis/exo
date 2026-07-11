@@ -200,18 +200,6 @@ export interface TagReference {
   tag: string;
 }
 
-export interface BacklinkReference {
-  filePath: string;
-  title: string;
-}
-
-export interface NoteKnowledge {
-  wikilinks: WikilinkReference[];
-  markdownLinks: MarkdownLinkReference[];
-  tags: TagReference[];
-  backlinks: BacklinkReference[];
-}
-
 export interface SearchResult {
   filePath: string;
   title: string;
