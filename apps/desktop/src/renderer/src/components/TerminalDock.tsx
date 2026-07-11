@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Bot, GripVertical, Plus, SquareTerminal, X } from "lucide-react";
+import { Bot, Plus, SquareTerminal, X } from "lucide-react";
 
 import type { TerminalSessionInfo } from "../../../shared/api";
 import type { DragManager } from "../hooks/useDragManager";
@@ -123,8 +123,7 @@ export function TerminalDock(props: TerminalDockProps) {
                     });
                   }}
                   title={`${session.title} · ${session.health ?? session.status}${session.healthDetail ? ` · ${session.healthDetail}` : ""}`}
-                  leading={<GripVertical size={11} />}
-                  trailing={<TerminalTabIcon kind={session.kind} />}
+                  leading={<TerminalTabIcon kind={session.kind} />}
                   closeLabel={`Close ${session.title}`}
                   closeTestId={`close-terminal-${session.kind}`}
                   closeIcon={<X size={12} />}

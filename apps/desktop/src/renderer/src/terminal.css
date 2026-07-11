@@ -42,7 +42,7 @@
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-rows: 44px auto minmax(0, 1fr);
+  grid-template-rows: 36px auto minmax(0, 1fr);
   position: relative;
 }
 
@@ -55,8 +55,8 @@
   border-bottom: 1px solid color-mix(in srgb, var(--divider) 52%, transparent);
   background: color-mix(in srgb, var(--terminal-bg) 96%, var(--chrome-bg));
   justify-content: space-between;
-  min-height: 44px;
-  height: 44px;
+  min-height: 36px;
+  height: 36px;
   grid-column: 1;
   grid-row: 1;
   min-width: 0;
@@ -115,12 +115,12 @@
 .terminal-dock__new {
   display: inline-grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   flex: none;
-  margin-left: 5px;
+  margin-left: 2px;
   border: 0;
-  border-radius: 6px;
+  border-radius: 7px;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
@@ -159,7 +159,7 @@
 }
 
 .terminal-tab.chrome-tab--active {
-  background: var(--terminal-bg);
+  background: transparent;
 }
 
 .terminal-dock--right .terminal-dock__actions {
@@ -220,7 +220,7 @@
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-rows: 40px minmax(0, 1fr);
+  grid-template-rows: 36px minmax(0, 1fr);
   background: var(--editor-bg);
   position: relative;
   overflow: hidden;
