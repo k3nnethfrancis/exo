@@ -33,7 +33,7 @@ import {
 import type { DesktopEventChannel, DesktopEventPayloads } from "../shared/desktop-ipc";
 import type { WorkspaceSettingsSaveOutcome } from "../shared/api";
 import { AgentInstructionsService } from "./agent-instructions-service";
-import { AgentCommandInvocationService } from "./agent-command-invocation-service";
+import { InvocationRunner } from "./invocation-runner";
 import { AppLifecycleController } from "./app-lifecycle";
 import { CommandServer } from "./command-server";
 import {
@@ -41,7 +41,6 @@ import {
   CommandServerDocumentReader,
 } from "./command-server-document-reader";
 import { IndexingService } from "./indexing-service";
-import { InvocationObservationService } from "./invocation-observation-service";
 import { WorkspaceConfigStore, workspaceSettingsFromModel } from "./workspace-config-store";
 import { registerTerminalIpcHandlers } from "./terminal-ipc";
 import { TerminalManager } from "./terminal-manager";
@@ -89,7 +88,7 @@ let workspaceWatcherService: WorkspaceWatcherService;
 let indexingService: IndexingService;
 let workspaceNotesService: WorkspaceNotesService;
 let agentInstructionsService: AgentInstructionsService;
-let invocationObservationService: InvocationObservationService;
+let invocationRunner: InvocationRunner;
 
 function workspaceIndex(): WorkspaceIndex {
   return new WorkspaceIndex({ context: { model: workspaceModel, runtimeRoot: resolveRuntimeRoot() } });
@@ -156,13 +155,9 @@ function startCommandServer() {
       workspace: workspaceModel,
       terminals: terminalManager.list(),
     }),
-    onSpawnAgentCommand: (input) =>
-      new AgentCommandInvocationService({
-        getWorkspaceSettings: () => currentSettings(),
-        trustStateRoot: app.getPath("userData"),
-        terminalManager,
-        observationService: invocationObservationService,
-      }).spawnFromCli(input),
+    onSpawnAgentCommand: async (input) => invocationRunner.authorizeAndStart(await invocationRunner.prepare({
+      context: "cli", handle: input.handle, task: input.task, message: input.task,
+    })),
   });
   commandServer = nextCommandServer;
 
@@ -327,14 +322,12 @@ function registerIpcHandlers() {
     getAgentInstructionConfig: () => agentInstructionsService.getConfig(),
     getBranchFamily: (filePath) => workspaceNotesService.getBranchFamily(filePath),
     getIndexStatus: () => indexingService.getMeasuredStatus(),
-    launchAgentInvocation: (input) =>
-      new AgentCommandInvocationService({
-        getWorkspaceSettings: () => currentSettings(),
-        trustStateRoot: app.getPath("userData"),
-        terminalManager,
-        observationService: invocationObservationService,
-      }).launchNoteInvocation(input),
-    endAgentInvocation: (invocationId) => invocationObservationService.endObservation(invocationId),
+    launchAgentInvocation: async (input) => invocationRunner.authorizeAndStart(await invocationRunner.prepare({
+      context: "note", handle: input.handle, documentPath: input.documentPath,
+      mentionText: input.mentionText, message: input.message,
+      allowUntrustedOneShot: input.allowUntrustedOneShot, persistTrust: input.persistTrust,
+    })),
+    endAgentInvocation: (invocationId) => invocationRunner.endObservation(invocationId),
     getGraphContext: (filePath) => workspaceNotesService.getGraphContext(filePath),
     getMainWindow: () => appLifecycle.getMainWindow(),
     getModel: () => workspaceModel,
@@ -547,15 +540,16 @@ app.whenReady().then(async () => {
     sendState: (event) => sendToRenderer("workspace:index-sync-state", event),
     errorMessage,
   });
-  invocationObservationService = new InvocationObservationService({
+  invocationRunner = new InvocationRunner({
+    trustStateRoot: app.getPath("userData"),
     workspaceWatcherService,
     terminalManager,
     getWorkspaceSettings: () => currentSettings(),
   });
-  invocationObservationService.on("updated", (record) => {
+  invocationRunner.on("updated", (record) => {
     sendToRenderer("workspace:invocation-updated", record);
   });
-  void invocationObservationService.markOrphanedRunningInvocations().catch((error) => {
+  void invocationRunner.markOrphanedRunningInvocations().catch((error) => {
     console.warn("[exo] failed to mark orphaned invocations", error);
   });
   workspaceNotesService = new WorkspaceNotesService({

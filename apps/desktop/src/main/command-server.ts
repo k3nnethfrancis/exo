@@ -29,7 +29,7 @@ import {
 } from "@exo/core";
 
 import type { TerminalCreateOptions } from "../shared/api";
-import { AgentCommandInvocationError, type AgentCommandInvocationResult } from "./agent-command-invocation-service";
+import { InvocationRunnerError, type InvocationResult } from "./invocation-runner";
 
 export interface CommandServerOptions {
   runtimeRoot: string;
@@ -53,7 +53,7 @@ export interface CommandServerOptions {
   onKillTerminal: (id: string) => Promise<void>;
   onGetSettings: () => WorkspaceSettings;
   onGetStatus: () => object;
-  onSpawnAgentCommand: (input: { handle: string; task: string }) => Promise<AgentCommandInvocationResult>;
+  onSpawnAgentCommand: (input: { handle: string; task: string }) => Promise<InvocationResult>;
 }
 
 export class CommandServer {
@@ -272,7 +272,7 @@ export class CommandServer {
           const result = await this.options.onSpawnAgentCommand({ handle, task });
           json(res, { ok: true, invocation: result.invocation, terminal: result.terminal } satisfies ExoSpawnAgentCommandResponse);
         } catch (error) {
-          if (error instanceof AgentCommandInvocationError) {
+          if (error instanceof InvocationRunnerError) {
             json(res, { ok: false, code: error.code, error: error.message, ...error.details }, error.code === "agent-command-untrusted" ? 403 : 400);
             return;
           }
