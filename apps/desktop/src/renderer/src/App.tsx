@@ -15,6 +15,7 @@ import type { AppearanceMode, ResolvedAppearance } from "./appearance";
 import { EditorPane, type EditorPaneState } from "./components/EditorPane";
 import { BrowserPane } from "./components/BrowserPane";
 import { InspectorDock } from "./components/InspectorDock";
+import { getDocumentDisplayTitle } from "./components/documentDisplay";
 import { PathList } from "./components/PathList";
 import { ShellLayout } from "./components/ShellLayout";
 import { TerminalDock } from "./components/TerminalDock";
@@ -912,6 +913,7 @@ export function App() {
   return (
     <>
       <ShellLayout
+      title={activeDocument ? getDocumentDisplayTitle(activeDocument.filePath, activeDocument.kind) : "Exo"}
       noteSections={noteSections}
       appearanceMode={appearanceMode}
       resolvedAppearance={resolvedAppearance}
@@ -1051,6 +1053,8 @@ export function App() {
       connections={<InspectorDock document={activeDocument} graphContext={activeGraphContext} open={!shellLayout.inspectorCollapsed} activeTag={activeTag} tagResults={tagResults} onToggle={() => shellLayout.setInspectorCollapsed((current) => !current)} onOpenTarget={(target) => void openKnowledgeTarget(target)} onOpenExternal={(target) => void window.exo.shell.openExternal(target)} onOpenTag={(tag) => void openTag(tag)} />}
       onAppearanceModeChange={updateAppearanceMode}
       onOpenWorkspaceSettings={() => void workspaceSettingsController.openDialog()}
+      connectionsOpen={!shellLayout.inspectorCollapsed}
+      onToggleConnections={() => shellLayout.setInspectorCollapsed((current) => !current)}
       onSearchQueryChange={(value) => {
         workspaceSearch.setQuery(value);
         workspaceSearch.setSubmittedQuery(value.trim());

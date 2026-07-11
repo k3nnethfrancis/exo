@@ -8,7 +8,6 @@ import {
   FolderPlus,
   Pencil,
   Search,
-  Settings,
   SquareTerminal,
   Trash2,
 } from "lucide-react";
@@ -36,7 +35,6 @@ interface FileTreeProps {
   searchMessage: string | null;
   onAppearanceModeChange: (mode: AppearanceMode) => void;
   onToggleCollapsed: () => void;
-  onOpenWorkspaceSettings: () => void;
   onSearchQueryChange: (value: string) => void;
   onSearchSubmit: () => void;
   onOpenFile: (filePath: string, line?: number | null) => void;
@@ -75,7 +73,6 @@ export function FileTree(props: FileTreeProps) {
     resolvedAppearance,
     onAppearanceModeChange,
     onToggleCollapsed,
-    onOpenWorkspaceSettings,
     onOpenFile,
     onOpenAttachedFile = onOpenFile,
     onExpandDirectory,
@@ -244,7 +241,6 @@ export function FileTree(props: FileTreeProps) {
           <button aria-label="New note" className="sidebar__toolbar-button sidebar__toolbar-button--icon" data-testid="explorer-new-note" onClick={() => requestRootAction("file")} title="New note" type="button"><FilePlus2 size={14} aria-hidden="true" /></button>
           <button aria-label="New folder" className="sidebar__toolbar-button sidebar__toolbar-button--icon" data-testid="explorer-new-folder" onClick={() => requestRootAction("directory")} title="New folder" type="button"><FolderPlus size={14} aria-hidden="true" /></button>
           <button aria-label="Open preview" className="sidebar__toolbar-button sidebar__toolbar-button--icon" data-testid="explorer-open-preview" onClick={onOpenPreview} title="Open preview" type="button"><Eye size={14} aria-hidden="true" /></button>
-          <button aria-label="Workspace settings" className="sidebar__toolbar-button sidebar__toolbar-button--icon" data-testid="explorer-settings" onClick={onOpenWorkspaceSettings} title="Workspace settings" type="button"><Settings size={14} aria-hidden="true" /></button>
         </div>
         {rootAction ? (
           <div className="explorer-root-picker" data-testid="explorer-root-picker" role="menu" aria-label={`Choose Note Root for new ${rootAction === "file" ? "note" : "folder"}`}>

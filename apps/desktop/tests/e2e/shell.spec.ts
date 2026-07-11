@@ -616,7 +616,7 @@ test("renders inspector content when expanded", async () => {
   await cleanup();
 });
 
-test("opens workspace settings from the sidebar", async () => {
+test("opens workspace settings from the titlebar", async () => {
   const { page, cleanup } = await launchExoWorkspaceFixture({
     env: {
       EXO_INDEX_ENABLED: "0",
@@ -626,7 +626,7 @@ test("opens workspace settings from the sidebar", async () => {
   });
 
   await expect(page.locator(".workspace-shell__canvas .pane-leaf--terminal")).toBeVisible();
-  await page.getByTestId("explorer-settings").click();
+  await page.getByTestId("workspace-titlebar-settings").click();
   await expect(page.getByTestId("workspace-settings-dialog")).toBeVisible();
   const settingsFrame = await page.getByTestId("workspace-settings-dialog").boundingBox();
   expect(settingsFrame).not.toBeNull();

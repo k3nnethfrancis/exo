@@ -67,7 +67,6 @@ describe("Explorer mutation boundary", () => {
         onOpenFile={() => undefined}
         onOpenTag={() => undefined}
         onOpenTerminalSession={() => undefined}
-        onOpenWorkspaceSettings={() => undefined}
         onRenamePath={() => undefined}
         onSearchQueryChange={() => undefined}
         onSearchSubmit={() => undefined}

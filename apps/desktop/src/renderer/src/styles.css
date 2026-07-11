@@ -262,13 +262,7 @@ button svg,
 }
 
 .editor-panel__title {
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0;
-  line-height: 1.2;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: none;
 }
 
 .editor-panel__eyebrow {

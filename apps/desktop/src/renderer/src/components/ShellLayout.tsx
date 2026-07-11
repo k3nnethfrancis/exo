@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { WorkspaceSearchResults } from "@exo/core";
+import { Folder, PanelLeft, PanelRight, Settings } from "lucide-react";
 
 import type { AppearanceMode, ResolvedAppearance } from "../appearance";
 import type { DragManager } from "../hooks/useDragManager";
@@ -10,6 +11,7 @@ import type { RootSection } from "./ExplorerSections";
 import { PaneTree } from "./PaneTree";
 
 interface ShellLayoutProps {
+  title: string;
   noteSections: RootSection[];
   attachedSections?: RootSection[];
   appearanceMode: AppearanceMode;
@@ -34,6 +36,8 @@ interface ShellLayoutProps {
   revealExplorerPathRequest?: { path: string; nonce: number } | null;
   onAppearanceModeChange: (mode: AppearanceMode) => void;
   onOpenWorkspaceSettings: () => void;
+  connectionsOpen: boolean;
+  onToggleConnections: () => void;
   onSearchQueryChange: (value: string) => void;
   onSearchSubmit: () => void;
   onOpenFile: (filePath: string, line?: number | null) => void;
@@ -53,7 +57,34 @@ interface ShellLayoutProps {
 
 export function ShellLayout(props: ShellLayoutProps) {
   return (
-    <div className={`workspace-shell${props.sidebarCollapsed ? " workspace-shell--sidebar-collapsed" : ""}`}>
+    <div className="workspace-frame">
+      <header className="workspace-titlebar" data-testid="workspace-titlebar">
+        <div className="workspace-titlebar__identity">
+          <button
+            aria-label={props.sidebarCollapsed ? "Show explorer" : "Hide explorer"}
+            aria-pressed={!props.sidebarCollapsed}
+            className="workspace-titlebar__button"
+            data-testid="workspace-titlebar-sidebar"
+            onClick={props.onToggleSidebar}
+            title={props.sidebarCollapsed ? "Show explorer" : "Hide explorer"}
+            type="button"
+          >
+            <PanelLeft size={16} aria-hidden="true" />
+          </button>
+          <span className="workspace-titlebar__divider" aria-hidden="true" />
+          <Folder className="workspace-titlebar__document-icon" size={17} aria-hidden="true" />
+          <div className="workspace-titlebar__title" data-testid="workspace-title" title={props.title}>{props.title}</div>
+        </div>
+        <div className="workspace-titlebar__actions">
+          <button aria-label="Workspace settings" className="workspace-titlebar__button" data-testid="workspace-titlebar-settings" onClick={props.onOpenWorkspaceSettings} title="Workspace settings" type="button">
+            <Settings size={16} aria-hidden="true" />
+          </button>
+          <button aria-label="Toggle connections" aria-pressed={props.connectionsOpen} className="workspace-titlebar__button" data-testid="workspace-titlebar-connections" onClick={props.onToggleConnections} title="Connections" type="button">
+            <PanelRight size={16} aria-hidden="true" />
+          </button>
+        </div>
+      </header>
+      <div className={`workspace-shell${props.sidebarCollapsed ? " workspace-shell--sidebar-collapsed" : ""}`}>
       <aside className="workspace-shell__explorer" style={{ width: props.sidebarCollapsed ? 0 : props.sidebarWidth }}>
         <FileTree
           attachedFolders={props.attachedSections}
@@ -76,7 +107,6 @@ export function ShellLayout(props: ShellLayoutProps) {
           onOpenFile={props.onOpenFile}
           onOpenTag={props.onOpenTag}
           onOpenTerminalSession={props.onOpenTerminalSession}
-          onOpenWorkspaceSettings={props.onOpenWorkspaceSettings}
           onRenamePath={props.onRenamePath}
           onSearchQueryChange={props.onSearchQueryChange}
           onSearchSubmit={props.onSearchSubmit}
@@ -95,6 +125,7 @@ export function ShellLayout(props: ShellLayoutProps) {
         <PaneTree node={props.canvas} actions={props.canvasActions} focusedLeafId={props.focusedPaneId} renderLeaf={props.renderLeaf} hoverEdge={props.dragManager.hoverEdge} />
       </main>
       <aside className="workspace-shell__connections">{props.connections}</aside>
+      </div>
     </div>
   );
 }
