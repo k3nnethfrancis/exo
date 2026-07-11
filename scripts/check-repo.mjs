@@ -466,6 +466,7 @@ assertNoDirectImplementationImports({
     'packages/core/src/__tests__/search-provider-registry.test.ts',
     'packages/core/src/search-provider-registry.ts',
     'packages/core/src/search-providers/qmd-provider.ts',
+    'packages/core/src/workspace-index.ts',
     'scripts/check-repo.mjs',
   ],
 });

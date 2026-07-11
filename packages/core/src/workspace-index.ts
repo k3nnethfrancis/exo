@@ -38,6 +38,8 @@ const defaultAdapters: WorkspaceIndexAdapters = {
   filesystem: filesystemSearchProvider,
 };
 
+export { qmdSearchProvider } from "./search-providers/qmd-provider";
+
 /**
  * The workspace's single index boundary. It owns provider selection and keeps
  * provider degradation visible to callers; callers never need a registry or a

@@ -16,7 +16,6 @@ export * from "./agent-command-trust-store";
 export * from "./invocation-store";
 export * from "./store-paths";
 export * from "./workspace-index";
-export { qmdSearchProvider } from "./search-providers/qmd-provider";
 export * from "./capabilities";
 export * from "./search-provider";
 export * from "./command-protocol";
