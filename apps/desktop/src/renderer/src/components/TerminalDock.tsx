@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Bot, GripVertical, SquareTerminal, X } from "lucide-react";
+import { Bot, GripVertical, Plus, SquareTerminal, X } from "lucide-react";
 
 import type { TerminalSessionInfo } from "../../../shared/api";
 import type { DragManager } from "../hooks/useDragManager";
@@ -32,6 +32,7 @@ interface TerminalDockProps {
   onWrite: (id: string, data: string) => void;
   onGeometryMeasured: (id: string, cols: number, rows: number) => void;
   onKill: (id: string) => void;
+  onCreateTerminal: () => void;
   dragManager: DragManager;
 }
 
@@ -57,6 +58,7 @@ export function TerminalDock(props: TerminalDockProps) {
     onWrite,
     onGeometryMeasured,
     onKill,
+    onCreateTerminal,
     dragManager,
   } = props;
   const activeSession = sessions.find((session) => session.id === activeTerminalId) ?? null;
@@ -135,6 +137,9 @@ export function TerminalDock(props: TerminalDockProps) {
                   {session.title}
                 </ChromeTab>
               ))}
+              <button aria-label="New terminal" className="terminal-dock__new" data-testid="new-terminal" onClick={onCreateTerminal} title="New terminal" type="button">
+                <Plus size={14} aria-hidden="true" />
+              </button>
             </div>
           </div>
 

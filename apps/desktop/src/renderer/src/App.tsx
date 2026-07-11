@@ -678,6 +678,11 @@ export function App() {
     await terminalState.activateTerminal(sessionId);
   }
 
+  function openUtilityTerminal() {
+    openUtilitySurface();
+    setUtilitySurface("terminal");
+  }
+
   // The right edge is one auxiliary surface, never a second workspace. Opening
   // a shell or preview takes the place of Connections; opening Connections
   // takes the place of the shell/preview. Persistent multi-pane work belongs
@@ -1003,7 +1008,7 @@ export function App() {
       utilityOpen={utilityPaneOpen}
       onToggleUtility={toggleUtilitySurface}
       onOpenUtilityBrowser={() => createBrowserPane()}
-      onCreateUtilityTerminal={() => void createUtilityTerminal("shell")}
+      onOpenUtilityTerminal={openUtilityTerminal}
       revealExplorerPathRequest={revealExplorerPathRequest}
       renderLeaf={(leaf, isFocused) => {
         if (leaf.content.kind === "browser") {
@@ -1059,6 +1064,7 @@ export function App() {
               onWrite={(id, data) => void window.exo.terminals.write(id, data)}
               onGeometryMeasured={(id, cols, rows) => void window.exo.terminals.resize(id, cols, rows)}
               onKill={(id) => void terminalPaneController.closeTerminal(id)}
+              onCreateTerminal={() => void createUtilityTerminal("shell")}
               dragManager={dragManager}
             />
           );
