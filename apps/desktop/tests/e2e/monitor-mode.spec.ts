@@ -53,12 +53,16 @@ test("splits live terminals in monitor mode, reconciles geometry, and persists a
     await page.getByTestId("launch-shell").click();
     await expect.poll(async () => terminalSessions(page), { timeout: 10_000 }).toHaveLength(5);
     await expect(page.getByTestId("terminal-surface")).toHaveCount(5);
+    await page.getByTestId("launch-shell").click();
+    await expect.poll(async () => terminalSessions(page), { timeout: 10_000 }).toHaveLength(6);
+    await expect(page.getByTestId("terminal-surface")).toHaveCount(6);
     const sessionsWithCreated = await terminalSessions(page);
     await waitForRendererGeometry(page, sessionsWithCreated.map((session) => session.id));
+    await page.screenshot({ path: "/tmp/exo-monitor-mode-6-live-sessions.png", fullPage: false });
 
     await page.getByTestId("close-terminal-codex").click();
-    await expect.poll(async () => terminalSessions(page), { timeout: 10_000 }).toHaveLength(4);
-    await expect(page.getByTestId("terminal-surface")).toHaveCount(4);
+    await expect.poll(async () => terminalSessions(page), { timeout: 10_000 }).toHaveLength(5);
+    await expect(page.getByTestId("terminal-surface")).toHaveCount(5);
     await expect.poll(async () => terminalSessions(page)).not.toContainEqual(expect.objectContaining({ kind: "codex" }));
 
     await expect.poll(async () => {
@@ -68,9 +72,9 @@ test("splits live terminals in monitor mode, reconciles geometry, and persists a
 
     await fixture.electronApp.close();
     relaunched = await relaunchExoFixture(fixture, { env: localHarnessEnv });
-    await expect.poll(async () => terminalSessions(relaunched!.page), { timeout: 10_000 }).toHaveLength(4);
+    await expect.poll(async () => terminalSessions(relaunched!.page), { timeout: 10_000 }).toHaveLength(5);
     await expect(relaunched.page.getByTestId("terminal-monitor-mode").first()).toHaveAttribute("aria-pressed", "true");
-    await expect(relaunched.page.getByTestId("terminal-surface")).toHaveCount(4);
+    await expect(relaunched.page.getByTestId("terminal-surface")).toHaveCount(5);
 
     const relaunchedSessions = await terminalSessions(relaunched.page);
     await waitForRendererGeometry(relaunched.page, relaunchedSessions.map((session) => session.id));

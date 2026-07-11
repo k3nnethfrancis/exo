@@ -116,33 +116,55 @@ export function buildTerminalMonitorTree(sessionIds: string[], activeSessionId: 
     return buildTerminalTabsTree(uniqueSessionIds, activeSessionId);
   }
 
-  function buildBalanced(ids: string[], depth: number): PaneNode {
+  function buildMonitorLeaf(id: string): PaneNode {
+    return {
+      kind: "leaf",
+      id: terminalMonitorLeafId(id),
+      content: {
+        kind: "terminal",
+        terminalIds: [id],
+        activeTerminalId: id,
+      },
+    };
+  }
+
+  function buildColumns(ids: string[], depth: number): PaneNode {
     if (ids.length === 1) {
-      return {
-        kind: "leaf",
-        id: terminalMonitorLeafId(ids[0]),
-        content: {
-          kind: "terminal",
-          terminalIds: ids,
-          activeTerminalId: ids[0],
-        },
-      };
+      return buildMonitorLeaf(ids[0]);
     }
 
     const midpoint = Math.ceil(ids.length / 2);
     return {
       kind: "split",
-      id: terminalMonitorSplitId(ids, depth),
-      direction: depth % 2 === 0 ? "horizontal" : "vertical",
-      ratio: 0.5,
+      id: terminalMonitorSplitId(ids, `column:${depth}`),
+      direction: "horizontal",
+      ratio: midpoint / ids.length,
       children: [
-        buildBalanced(ids.slice(0, midpoint), depth + 1),
-        buildBalanced(ids.slice(midpoint), depth + 1),
+        buildColumns(ids.slice(0, midpoint), depth + 1),
+        buildColumns(ids.slice(midpoint), depth + 1),
       ],
     };
   }
 
-  return buildBalanced(uniqueSessionIds, 0);
+  function buildRows(rows: string[][], depth: number): PaneNode {
+    if (rows.length === 1) {
+      return buildColumns(rows[0], depth);
+    }
+
+    const midpoint = Math.ceil(rows.length / 2);
+    return {
+      kind: "split",
+      id: terminalMonitorSplitId(rows.flat(), `row:${depth}`),
+      direction: "vertical",
+      ratio: midpoint / rows.length,
+      children: [
+        buildRows(rows.slice(0, midpoint), depth + 1),
+        buildRows(rows.slice(midpoint), depth + 1),
+      ],
+    };
+  }
+
+  return buildRows(terminalMonitorRows(uniqueSessionIds), 0);
 }
 
 export function restoreTerminalTreeSnapshot(snapshot: PaneNode, sessionIds: string[], activeSessionId: string | null): PaneNode {
@@ -176,6 +198,15 @@ export function addTerminalSessionAsSplit(tree: PaneNode, sessionId: string, tar
     return {
       tree,
       leafId: existingLeaf?.id ?? targetLeafId ?? findTerminalLeaf(tree)?.id ?? tree.id,
+    };
+  }
+
+  if (isTerminalMonitorTree(tree)) {
+    const sessionIds = [...collectMonitorSessionIds(tree), sessionId];
+    const monitorTree = buildTerminalMonitorTree(sessionIds, sessionId);
+    return {
+      tree: monitorTree,
+      leafId: terminalMonitorLeafId(sessionId),
     };
   }
 
@@ -333,8 +364,40 @@ function terminalMonitorLeafId(sessionId: string): PaneNodeId {
   return `terminal-session:${sessionId}`;
 }
 
-function terminalMonitorSplitId(sessionIds: string[], depth: number): PaneNodeId {
-  return `terminal-monitor:${depth}:${sessionIds.join("|")}`;
+function terminalMonitorSplitId(sessionIds: string[], scope: string): PaneNodeId {
+  return `terminal-monitor:${scope}:${sessionIds.join("|")}`;
+}
+
+function terminalMonitorRows(sessionIds: string[]): string[][] {
+  if (sessionIds.length <= 2) {
+    return sessionIds.map((sessionId) => [sessionId]);
+  }
+  const rowCount = Math.max(2, Math.round(Math.sqrt(sessionIds.length)));
+  const rows: string[][] = [];
+  let cursor = 0;
+  for (let rowIndex = 0; rowIndex < rowCount && cursor < sessionIds.length; rowIndex += 1) {
+    const remainingRows = rowCount - rowIndex;
+    const remainingSessions = sessionIds.length - cursor;
+    const rowSize = Math.ceil(remainingSessions / remainingRows);
+    rows.push(sessionIds.slice(cursor, cursor + rowSize));
+    cursor += rowSize;
+  }
+  return rows;
+}
+
+function isTerminalMonitorTree(tree: PaneNode): boolean {
+  const leaves = collectLeaves(tree);
+  return leaves.length > 0 && leaves.every((leaf) =>
+    leaf.content.kind === "terminal" &&
+    leaf.content.terminalIds.length === 1 &&
+    leaf.id === terminalMonitorLeafId(leaf.content.terminalIds[0]),
+  );
+}
+
+function collectMonitorSessionIds(tree: PaneNode): string[] {
+  return collectLeaves(tree).flatMap((leaf) =>
+    leaf.content.kind === "terminal" ? leaf.content.terminalIds : [],
+  );
 }
 
 function setActiveTerminalSessionInTree(tree: PaneNode, sessionIds: string[], activeSessionId: string | null): PaneNode {
