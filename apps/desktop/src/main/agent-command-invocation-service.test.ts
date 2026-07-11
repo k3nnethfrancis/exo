@@ -115,14 +115,11 @@ function fakeTerminalManager(): TerminalManager {
   return {
     createAgentCommand: vi.fn(async (command, cwd) => ({
       id: "terminal-1",
-      terminalKind: "shell",
-      harnessId: null,
       kind: "shell",
       title: command.label,
       cwd,
       command: command.command,
       status: "running",
-      transcriptPath: path.join(cwd, ".exo", "terminal-transcripts", "terminal-1.ansi.log"),
       attachGeneration: 1,
     })),
     sendMessage: vi.fn(async () => ({ ok: true, delivery: "sent" })),

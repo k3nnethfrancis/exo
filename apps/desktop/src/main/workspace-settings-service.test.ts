@@ -21,7 +21,6 @@ vi.mock("@exo/core", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@exo/core")>();
   return {
     ...actual,
-    resolveRuntimeConfig: () => ({ runtimeRoot: coreMock.runtimeRoot }),
     resolveWorkspaceModel: () => {
       if (!coreMock.model) {
         throw new Error("Missing mocked workspace model.");
@@ -49,12 +48,9 @@ describe("WorkspaceSettingsService", () => {
       save: vi.fn(async (request: { settings: WorkspaceSettings }) => ({ settings: request.settings, revision: "revision-after" })),
     } as unknown as WorkspaceSettingsStore;
     const terminalManager = {
-      setRuntimeConfig: vi.fn(),
       setDefaultCwd: vi.fn(),
       setBufferLineLimit: vi.fn(),
-      setTranscriptRetentionDays: vi.fn(),
       setTerminalRuntimeOptions: vi.fn(),
-      syncRuntimeContext: vi.fn(async () => undefined),
     } as unknown as TerminalManager;
     const workspaceWatcherService = { start: vi.fn() } as unknown as WorkspaceWatcherService;
     const indexingService = {
@@ -92,11 +88,8 @@ describe("WorkspaceSettingsService", () => {
     expect(workspaceModel).toEqual(coreMock.model);
     expect(ensureNoteRoots).toHaveBeenCalledWith(coreMock.model);
     expect(workspaceWatcherService.start).toHaveBeenCalledWith(coreMock.model);
-    expect(terminalManager.setRuntimeConfig).toHaveBeenCalledWith({ runtimeRoot: "/runtime" });
     expect(terminalManager.setDefaultCwd).toHaveBeenCalledWith("/workspace");
     expect(terminalManager.setBufferLineLimit).toHaveBeenCalledWith(1_500);
-    expect(terminalManager.setTranscriptRetentionDays).toHaveBeenCalledWith(3);
-    expect(terminalManager.syncRuntimeContext).toHaveBeenCalledOnce();
     expect(indexingService.shouldSyncAfterSettingsApply).toHaveBeenCalledWith(previous, next);
     expect(indexingService.scheduleSync).toHaveBeenCalledWith("settings-apply", 0);
     expect(restartCommandServer).not.toHaveBeenCalled();
@@ -332,12 +325,9 @@ describe("WorkspaceSettingsService", () => {
 
 function terminalManagerStub(): TerminalManager {
   return {
-    setRuntimeConfig: vi.fn(),
     setDefaultCwd: vi.fn(),
     setBufferLineLimit: vi.fn(),
-    setTranscriptRetentionDays: vi.fn(),
     setTerminalRuntimeOptions: vi.fn(),
-    syncRuntimeContext: vi.fn(async () => undefined),
   } as unknown as TerminalManager;
 }
 

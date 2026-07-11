@@ -23,7 +23,6 @@ function invocationRecord(id: string, createdAt: string): InvocationRecord {
     createdAt,
     startedAt: createdAt,
     terminalSessionId: `terminal-${id}`,
-    transcriptRef: { kind: "terminalTranscript", path: `.exo/terminal-transcripts/${id}.ansi.log` },
     changedFileRefs: [],
     diffRefs: [],
     attribution: { status: "pending" },

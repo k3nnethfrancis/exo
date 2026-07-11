@@ -203,7 +203,7 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
     setHydratingTerminalIds((current) => withSetEntry(current, id));
     let snapshotQueued = false;
     try {
-      const snapshot = await window.exo.terminals.restoreSnapshot(id);
+      const snapshot = await window.exo.terminals.read(id);
       setHydrationSnapshot(id, snapshot, reason);
       snapshotQueued = true;
     } finally {
@@ -257,7 +257,7 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
   }
 
   async function createTerminal(terminalKind: TerminalLaunchKind, cwd?: string): Promise<TerminalSessionInfo> {
-    const session = await window.exo.terminals.create({ terminalKind, cwd, callerSurface: "desktop" });
+    const session = await window.exo.terminals.create({ terminalKind, cwd });
     const nextSessions = sessionsRef.current.some((existing) => existing.id === session.id)
       ? sessionsRef.current
       : [...sessionsRef.current, session];

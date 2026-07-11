@@ -25,7 +25,6 @@ export interface WorkspaceIpcHandlers {
   getKnowledge: NotesApi["getKnowledge"];
   getMainWindow: () => BrowserWindow | null;
   getModel: () => WorkspaceModel;
-  getRuntimeStatus: () => Promise<unknown> | unknown;
   getSettings: WorkspaceApi["getSettings"];
   getSetupState: WorkspaceApi["getSetupState"];
   markOnboardingComplete: WorkspaceApi["markOnboardingComplete"];
@@ -47,7 +46,6 @@ export interface WorkspaceIpcHandlers {
   statNote: (filePath: string) => Promise<FileStatInfo | null>;
   suggestTargets: NotesApi["suggestTargets"];
   syncIndex: WorkspaceApi["syncIndex"];
-  syncRuntime: () => Promise<unknown>;
   updateIndex: WorkspaceApi["updateIndex"];
 }
 
@@ -96,8 +94,6 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
       return result.canceled ? [] : result.filePaths;
     },
   );
-  handleDesktopInvoke("runtime:get-status", async () => handlers.getRuntimeStatus());
-  handleDesktopInvoke("runtime:sync", async () => handlers.syncRuntime());
   handleDesktopInvoke(
     "workspace:list-tree",
     async (_event, rootPath, options) =>

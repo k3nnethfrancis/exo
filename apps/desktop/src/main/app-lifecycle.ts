@@ -2,14 +2,14 @@ import { app, BrowserWindow, dialog, Menu, nativeImage, nativeTheme, Tray, type 
 import { existsSync } from "node:fs";
 import path from "node:path";
 
-import type { TerminalDiagnostics } from "../shared/api";
+import type { TerminalSessionInfo } from "../shared/api";
 
 const TRAY_ICON_DATA_URL =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABIAAAASCAYAAABWzo5XAAAAkklEQVR42mNgGMrAAIjPA/F9IE4gRXE/FO+H8v+jYQF8Bp3HogEXVsBn0H0cmu5DXQbjnyfktQQ0AwzQ5GHi+4kJ1Pl4DDpPrItAIADJoAY0OWTvEQQCeMJiPikGoduMnGYakMQdiDEIPRmA+OvRLCggxqD7RKYlAVKSwXk8BisQG+joCguQDJlPaeYVINYlAwsA/kdblK7gwrkAAAAASUVORK5CYII=";
 
 export interface AppLifecycleControllerOptions {
   currentDirectory: string;
-  getTerminalDiagnostics: () => TerminalDiagnostics[];
+  getTerminals: () => TerminalSessionInfo[];
   getCommandServerStatus: () => { listening: boolean; port: number | null };
   openSettings: () => void;
   restartCommandServer: () => void;
@@ -102,7 +102,7 @@ export class AppLifecycleController {
       const diagnostics = {
         ...details,
         gpuDisabled: process.env.EXO_ENABLE_GPU !== "1",
-        terminals: this.options.getTerminalDiagnostics(),
+        terminals: this.options.getTerminals(),
       };
       console.error("[main] renderer process gone", diagnostics);
       this.options.logMain("renderer process gone", diagnostics);
@@ -211,7 +211,7 @@ export class AppLifecycleController {
       return;
     }
 
-    const runningTerminalCount = this.options.getTerminalDiagnostics()
+    const runningTerminalCount = this.options.getTerminals()
       .filter((terminal) => terminal.status === "running").length;
     const commandServerStatus = this.options.getCommandServerStatus();
     const windowVisible = Boolean(this.mainWindow && !this.mainWindow.isDestroyed() && this.mainWindow.isVisible());
@@ -306,7 +306,7 @@ export class AppLifecycleController {
   }
 
   private async confirmQuit(): Promise<boolean> {
-    const runningTerminals = this.options.getTerminalDiagnostics().filter((terminal) => terminal.status === "running");
+    const runningTerminals = this.options.getTerminals().filter((terminal) => terminal.status === "running");
     if (runningTerminals.length === 0) {
       return true;
     }

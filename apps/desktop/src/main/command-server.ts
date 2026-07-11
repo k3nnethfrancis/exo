@@ -7,7 +7,6 @@ import {
   EXO_COMMAND_ROUTES,
   EXO_COMMAND_TOKEN_HEADER,
   type ExoCommandServerInfo,
-  type ExoCommandTerminalDiagnostics,
   type ExoIndexRootRequest,
   type ExoCommandTerminalInfo,
   type ExoCreateTerminalRequest,
@@ -46,14 +45,9 @@ export interface CommandServerOptions {
   onIndexAddRoot: (input: ExoIndexRootRequest) => Promise<WorkspaceSettings>;
   onIndexRemoveRoot: (target: string) => Promise<WorkspaceSettings>;
   onIndexSync: () => Promise<IndexSyncResult>;
-  onIndexUpdate: () => Promise<IndexStatus>;
-  onIndexEmbed: () => Promise<IndexStatus>;
   onListTerminals: () => ExoCommandTerminalInfo[];
-  onTerminalDiagnostics: () => ExoCommandTerminalDiagnostics[];
   onCreateTerminal: (options: TerminalCreateOptions) => Promise<ExoCommandTerminalInfo>;
   onReadTerminalTail: (id: string, options?: { maxLines?: number }) => string | null;
-  onReadTerminalTranscript: (id: string, tailChars: number) => string | null;
-  onReadTerminalSemanticAnswer: (id: string, options?: { limit?: number }) => Promise<string | null>;
   onWriteTerminal: (id: string, data: string) => Promise<ExoWriteTerminalResponse>;
   onSendTerminalMessage: (id: string, message: string, submit: boolean) => Promise<ExoWriteTerminalResponse>;
   onKillTerminal: (id: string) => Promise<void>;
@@ -224,18 +218,8 @@ export class CommandServer {
         return;
       }
 
-      if (method === "POST" && pathname === EXO_COMMAND_ROUTES.indexUpdate) {
-        json(res, await this.options.onIndexUpdate());
-        return;
-      }
-
       if (method === "POST" && pathname === EXO_COMMAND_ROUTES.indexSync) {
         json(res, await this.options.onIndexSync());
-        return;
-      }
-
-      if (method === "POST" && pathname === EXO_COMMAND_ROUTES.indexEmbed) {
-        json(res, await this.options.onIndexEmbed());
         return;
       }
 
@@ -302,21 +286,13 @@ export class CommandServer {
         return;
       }
 
-      if (method === "GET" && pathname === EXO_COMMAND_ROUTES.terminalDiagnostics) {
-        json(res, this.options.onTerminalDiagnostics());
-        return;
-      }
-
       if (method === "POST" && pathname === EXO_COMMAND_ROUTES.terminals) {
         const body = await readBody(req);
-        const { harnessId, kind, cwd, callerSurface } = body as ExoCreateTerminalRequest;
-        const requestedKind = kind ?? harnessId ?? "shell";
-        if (requestedKind !== "shell" || (harnessId && harnessId !== "shell")) {
+        const { kind, cwd } = body as ExoCreateTerminalRequest;
+        if (kind && kind !== "shell") {
           json(res, {
             ok: false,
             code: "unsupported-terminal-launch",
-            harnessId: harnessId ?? kind ?? null,
-            callerSurface: callerSurface ?? "commandServer",
             error: "Terminal creation only supports shell. Configure agents as AgentCommands and invoke them from notes.",
           }, 400);
           return;
@@ -324,16 +300,13 @@ export class CommandServer {
         try {
           const terminal = await this.options.onCreateTerminal({
             terminalKind: "shell",
-            harnessId: undefined,
             cwd,
-            callerSurface: "commandServer",
           });
           json(res, terminal);
         } catch (error) {
           json(res, {
             ok: false,
             code: "unsupported-terminal-launch",
-            harnessId: harnessId ?? kind ?? null,
             error: error instanceof Error ? error.message : String(error),
           }, 400);
         }
@@ -350,35 +323,6 @@ export class CommandServer {
           return;
         }
         json(res, { tail });
-        return;
-      }
-
-      const terminalTranscriptMatch = pathname.match(/^\/terminals\/([^/]+)\/transcript$/);
-      if (method === "GET" && terminalTranscriptMatch) {
-        const tailChars = parseTailChars(url.searchParams.get("tailChars"));
-        const transcript = this.options.onReadTerminalTranscript(
-          decodeURIComponent(terminalTranscriptMatch[1]),
-          tailChars,
-        );
-        if (transcript === null) {
-          json(res, { error: "Terminal not found" }, 404);
-          return;
-        }
-        json(res, { transcript });
-        return;
-      }
-
-      const terminalSemanticAnswerMatch = pathname.match(/^\/terminals\/([^/]+)\/semantic-answer$/);
-      if (method === "GET" && terminalSemanticAnswerMatch) {
-        const answer = await this.options.onReadTerminalSemanticAnswer(
-          decodeURIComponent(terminalSemanticAnswerMatch[1]),
-          { limit: parsePositiveNumber(url.searchParams.get("limit")) },
-        );
-        if (answer === null) {
-          json(res, { error: "Terminal semantic trace not found" }, 404);
-          return;
-        }
-        json(res, { answer });
         return;
       }
 
@@ -433,14 +377,6 @@ export class CommandServer {
 
     return false;
   }
-}
-
-function parseTailChars(value: string | null): number {
-  if (!value) {
-    return 0;
-  }
-  const parsed = Number.parseInt(value, 10);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
 }
 
 function parsePositiveNumber(value: string | null): number | undefined {

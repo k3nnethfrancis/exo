@@ -4,9 +4,6 @@ import type {
   IndexSearchResponse,
   IndexSyncResult,
   IndexStatus,
-  AgentHarnessId,
-  CapabilitySurface,
-  ManagedAgentKind,
   NoteDocument,
   NoteKnowledge,
   SearchResult,
@@ -17,12 +14,11 @@ import type {
   WorkspaceSettingsSaveRequest,
   WorkspaceSettingsSnapshot,
   WorkspaceSearchResults,
-  TerminalSubstrateKind,
   InvocationRecord,
 } from "@exo/core";
 
-export type TerminalKind = ManagedAgentKind;
-export type TerminalLaunchKind = TerminalSubstrateKind;
+export type TerminalKind = "shell";
+export type TerminalLaunchKind = "shell";
 export type TerminalHealthState = "healthy" | "idle" | "unhealthy" | "exited";
 export type WorkspaceSettingsSection = "workspace" | "index" | "appearance" | "terminal";
 
@@ -37,17 +33,10 @@ export interface TerminalSessionInfo {
   id: string;
   title: string;
   cwd: string;
-  terminalKind: TerminalSubstrateKind;
-  harnessId: AgentHarnessId | null;
   kind: TerminalKind;
   command: string;
-  instructionOverlayPath?: string | null;
-  transcriptPath?: string;
   status: "running" | "exited";
   exitCode?: number;
-  readiness?: "ready" | "starting" | "blocked";
-  readinessDetail?: string;
-  queuedInputCount?: number;
   health?: TerminalHealthState;
   healthDetail?: string;
   geometry?: TerminalGeometryRecord;
@@ -56,8 +45,6 @@ export interface TerminalSessionInfo {
 
 export interface TerminalCreateOptions {
   terminalKind?: TerminalLaunchKind;
-  harnessId?: AgentHarnessId;
-  callerSurface?: CapabilitySurface;
   cwd?: string;
 }
 
@@ -71,56 +58,9 @@ export interface TerminalWriteResult {
   ok: boolean;
   delivery: "sent" | "queued" | "not-found";
   writeId?: number;
-  queuedInputCount?: number;
-  readiness?: TerminalSessionInfo["readiness"];
-  readinessDetail?: string;
 }
 
 export interface TerminalMessageResult extends TerminalWriteResult {}
-
-export interface TerminalDebugAttachInfo {
-  tmuxSessionName: string;
-  tmuxPaneId: string | null;
-  safeAttachCommand: string;
-}
-
-export interface TerminalDiagnosticsGeometry {
-  renderer: TerminalGeometryRecord | null;
-  tmuxPane: { width: number; height: number } | null;
-  tmuxClient: { width: number; height: number } | null;
-  divergent: boolean;
-  divergentSinceMs: number | null;
-  attachGeneration: number;
-}
-
-export interface TerminalDiagnostics {
-  id: string;
-  terminalKind: TerminalSubstrateKind;
-  harnessId: AgentHarnessId | null;
-  kind: TerminalKind;
-  status: TerminalSessionInfo["status"];
-  exitCode?: number;
-  health: TerminalHealthState;
-  healthDetail: string;
-  runtime: "pty" | "tmux";
-  tmuxSessionName?: string;
-  tmuxPaneId: string | null;
-  safeAttachCommand: string;
-  debugAttach: TerminalDebugAttachInfo;
-  bridgeStatus: "attached" | "detached";
-  paneStatus: "alive" | "dead" | "missing" | "unknown";
-  geometry: TerminalDiagnosticsGeometry;
-  cwd: string;
-  title: string;
-  command: string;
-  bufferedLines: number;
-  bufferedChars: number;
-  transcriptPath?: string;
-  lastInputAt: string | null;
-  lastOutputAt: string | null;
-  lastWriteId: number;
-  lastWriteLatencyMs: number | null;
-}
 
 export interface FileStatInfo {
   size: number;
@@ -282,11 +222,8 @@ export interface DesktopApi {
   terminals: {
     ensureDefault: () => Promise<TerminalSessionInfo>;
     list: () => Promise<TerminalSessionInfo[]>;
-    diagnostics: () => Promise<TerminalDiagnostics[]>;
     create: (options: TerminalCreateOptions) => Promise<TerminalSessionInfo>;
     read: (id: string, options?: { maxLines?: number }) => Promise<string>;
-    restoreSnapshot: (id: string) => Promise<string>;
-    readTranscript: (id: string, tailChars?: number) => Promise<string>;
     write: (id: string, data: string) => Promise<TerminalWriteResult>;
     sendMessage: (id: string, message: string, submit?: boolean) => Promise<TerminalMessageResult>;
     resize: (id: string, cols: number, rows: number) => Promise<void>;

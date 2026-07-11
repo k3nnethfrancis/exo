@@ -146,12 +146,12 @@ test("live Claude can read the pointed document through AgentCommand invocation"
       command: { handle: "claude" },
     });
     const record = await latestInvocationRecord(fixture.workspaceRoot);
-    const transcriptPath = record.transcriptRef?.path;
-    if (!transcriptPath) {
-      throw new Error("Live Claude invocation did not record a transcript path.");
+    const terminalSessionId = record.terminalSessionId;
+    if (typeof terminalSessionId !== "string") {
+      throw new Error("Live Claude invocation did not retain its terminal session.");
     }
-    await expect.poll(async () => readFile(transcriptPath, "utf8"), { timeout: 30_000 }).toContain("EXO_LIVE_CLAUDE_POINTER_OK");
-    await expect.poll(async () => readFile(transcriptPath, "utf8"), { timeout: 30_000 }).toContain("Live Claude Pointer");
+    await expect.poll(async () => fixture.page.evaluate((id) => window.exo.terminals.read(id), terminalSessionId), { timeout: 30_000 }).toContain("EXO_LIVE_CLAUDE_POINTER_OK");
+    await expect.poll(async () => fixture.page.evaluate((id) => window.exo.terminals.read(id), terminalSessionId), { timeout: 30_000 }).toContain("Live Claude Pointer");
   } finally {
     await fixture.cleanup();
   }

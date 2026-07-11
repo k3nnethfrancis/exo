@@ -236,7 +236,7 @@ describe("AppClient", () => {
     ]);
   });
 
-  it("marks terminal creation requests as CLI caller surface", async () => {
+  it("creates a shell through the minimal command-server payload", async () => {
     const runtimeRoot = await runtimeFixture();
     let createBody: unknown;
     stubCommandServer(async (targetUrl, init) => {
@@ -254,8 +254,8 @@ describe("AppClient", () => {
 
     const client = await AppClient.connect(runtimeRoot);
 
-    await expect(client?.createTerminal("shell", "/tmp")).resolves.toMatchObject({ id: "term-1" });
-    expect(createBody).toEqual({ kind: "shell", cwd: "/tmp", callerSurface: "cli" });
+    await expect(client?.createTerminal("/tmp")).resolves.toMatchObject({ id: "term-1" });
+    expect(createBody).toEqual({ kind: "shell", cwd: "/tmp" });
   });
 
   it("posts AgentCommand spawn requests with command-server auth", async () => {

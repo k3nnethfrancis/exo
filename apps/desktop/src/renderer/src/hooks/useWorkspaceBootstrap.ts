@@ -124,8 +124,8 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
       try {
         const defaultTerminal = await window.exo.terminals.ensureDefault();
         const sessions = await window.exo.terminals.list();
-        const defaultTerminalSnapshot = await window.exo.terminals.restoreSnapshot(defaultTerminal.id).catch((error) => {
-          console.warn("[exo] default terminal snapshot failed", error);
+        const defaultTerminalSnapshot = await window.exo.terminals.read(defaultTerminal.id).catch((error) => {
+          console.warn("[exo] default terminal tail failed", error);
           return undefined;
         });
 

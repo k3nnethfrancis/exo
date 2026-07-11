@@ -36,8 +36,6 @@ export interface DesktopInvokeHandlers {
   "workspace:create-directory": WorkspaceApi["createDirectory"];
   "workspace:rename-path": WorkspaceApi["renamePath"];
   "workspace:delete-path": WorkspaceApi["deletePath"];
-  "runtime:get-status": () => Promise<unknown>;
-  "runtime:sync": () => Promise<unknown>;
   "notes:read": NotesApi["read"];
   "notes:save": NotesApi["save"];
   "notes:stat": NotesApi["stat"];
@@ -49,11 +47,8 @@ export interface DesktopInvokeHandlers {
   "notes:create-branch": NotesApi["createBranch"];
   "terminals:ensure-default": TerminalsApi["ensureDefault"];
   "terminals:list": TerminalsApi["list"];
-  "terminals:diagnostics": TerminalsApi["diagnostics"];
   "terminals:create": TerminalsApi["create"];
   "terminals:read": TerminalsApi["read"];
-  "terminals:restore-snapshot": TerminalsApi["restoreSnapshot"];
-  "terminals:read-transcript": TerminalsApi["readTranscript"];
   "terminals:write": TerminalsApi["write"];
   "terminals:send-message": TerminalsApi["sendMessage"];
   "terminals:resize": TerminalsApi["resize"];

@@ -3,10 +3,8 @@ import path from "node:path";
 
 import {
   agentCommandExecutableFingerprint,
-  resolveRuntimeConfig,
-  syncRuntimeContextFiles,
+  resolveWorkspaceModel,
   type AgentCommand,
-  type RuntimeConfig,
 } from "@exo/core";
 import {
   DEFAULT_TERMINAL_AGENT_SUBMIT_DELAY_MS,
@@ -16,7 +14,6 @@ import {
 } from "@exo/core/terminal-settings";
 
 import type { TerminalCreateOptions, TerminalHealthState, TerminalSessionInfo, TerminalKind, TerminalWriteResult } from "../shared/api";
-import { terminalDiagnosticsFromRecord } from "./terminal-diagnostics";
 import type { TerminalProcess, TerminalProcessFactory } from "./terminal-runtime";
 import { DirectPtyProcessFactory } from "./terminal-runtime-pty";
 import { TerminalGeometryService } from "./terminal-geometry-service";
@@ -59,7 +56,6 @@ export class TerminalManager extends EventEmitter {
   private readonly sessions = new Map<string, TerminalRecord>();
   private bufferLineLimit: number;
   private nextId = 1;
-  private runtimeConfig = resolveRuntimeConfig();
   private nextWriteId = 1;
   private nextAttachGeneration = 1;
   private terminalOptions: Required<TerminalManagerOptions>;
@@ -68,10 +64,10 @@ export class TerminalManager extends EventEmitter {
   constructor(
     private defaultCwd: string,
     bufferLineLimit: number | null = DEFAULT_LIVE_TAIL_CHARS,
-    _transcriptRetentionDays = 0,
+    _legacyTranscriptRetentionDays = 0,
     terminalOptions: TerminalManagerOptions = {},
     private readonly processFactory: TerminalProcessFactory = new DirectPtyProcessFactory(),
-    _harnessDependencyStarter?: unknown,
+    _legacyHarnessDependencyStarter?: unknown,
   ) {
     super();
     this.bufferLineLimit = normalizeTailCharLimit(bufferLineLimit);
@@ -90,34 +86,6 @@ export class TerminalManager extends EventEmitter {
       .sort((left, right) => left.id.localeCompare(right.id));
   }
 
-  diagnostics() {
-    const now = Date.now();
-    return Array.from(this.sessions.values())
-      .map((record) =>
-        terminalDiagnosticsFromRecord({
-          info: record.info,
-          kind: record.info.kind,
-          status: record.info.status,
-          exitCode: record.info.exitCode,
-          health: this.terminalHealth(record, now),
-          healthDetail: this.terminalHealthDetail(record, now),
-          runtime: "pty",
-          bridgeDetached: record.bridgeDetached,
-          cwd: record.info.cwd,
-          title: record.info.title,
-          command: record.info.command,
-          bufferedLines: record.tailCache.lineCount(),
-          bufferedChars: record.tailCache.charCount(),
-          lastInputAt: record.lastInputAt,
-          lastOutputAt: record.lastOutputAt,
-          lastWriteId: record.lastWriteId,
-          lastWriteLatencyMs: record.lastWriteLatencyMs,
-          now,
-        }),
-      )
-      .sort((left, right) => left.id.localeCompare(right.id));
-  }
-
   getInfo(id: string): TerminalSessionInfo | null {
     return this.sessions.get(id)?.info ?? null;
   }
@@ -128,17 +96,6 @@ export class TerminalManager extends EventEmitter {
       return existing;
     }
     return this.create({ kind: "shell" });
-  }
-
-  getRuntimeConfig() {
-    return this.runtimeConfig;
-  }
-
-  setRuntimeConfig(runtimeConfig: RuntimeConfig = resolveRuntimeConfig()) {
-    if (runtimeConfig.runtimeRoot !== this.runtimeConfig.runtimeRoot) {
-      this.killAllForRuntimeSwitch();
-    }
-    this.runtimeConfig = runtimeConfig;
   }
 
   setDefaultCwd(cwd: string) {
@@ -152,31 +109,22 @@ export class TerminalManager extends EventEmitter {
     }
   }
 
-  // Kept until the settings contract deletion pass removes its caller. Direct
-  // PTYs never persist a transcript, so this setting has no terminal effect.
-  setTranscriptRetentionDays(_retentionDays: number) {}
-
   setTerminalRuntimeOptions(options: TerminalManagerOptions) {
     this.terminalOptions = normalizeTerminalManagerOptions(options);
     this.geometryService = this.createGeometryService();
   }
 
-  async syncRuntimeContext() {
-    return syncRuntimeContextFiles(this.runtimeConfig);
-  }
-
   async create(options: TerminalManagerCreateOptions): Promise<TerminalSessionInfo> {
     const cwd = options.cwd ?? this.defaultCwd;
     const requestedKind = options.kind ?? options.terminalKind ?? "shell";
-    if (requestedKind !== "shell" || options.harnessId) {
+    if (requestedKind !== "shell") {
       throw new Error("Terminal launch only supports shell. Configure agents as AgentCommands and invoke them from notes.");
     }
-    const shell = this.runtimeConfig.launchers.shell;
+    const shell = shellLauncher();
     return this.createProcessTerminal({
       title: "Shell",
       cwd,
       kind: "shell",
-      harnessId: null,
       command: shell.command,
       args: shell.args,
       env: {
@@ -187,21 +135,22 @@ export class TerminalManager extends EventEmitter {
 
   async createAgentCommand(command: AgentCommand, cwd: string): Promise<TerminalSessionInfo> {
     const shell = process.env.SHELL || "/bin/zsh";
+    const workspace = resolveWorkspaceModel();
+    const runtimeRoot = process.env.EXO_RUNTIME_ROOT ?? path.join(workspace.workspaceRoot, ".exo");
     return this.createProcessTerminal({
       title: command.label,
       cwd,
       kind: "shell",
-      harnessId: null,
       command: shell,
       args: ["-lc", command.command],
       displayCommand: command.command,
       env: {
         ...process.env,
-        EXO_WORKSPACE_ROOT: this.runtimeConfig.workspace.workspaceRoot,
-        EXO_NOTE_ROOTS: this.runtimeConfig.workspace.noteRoots.map((root) => root.path).join(path.delimiter),
-        EXO_PROJECT_ROOTS: this.runtimeConfig.workspace.projectRoots.map((root) => root.path).join(path.delimiter),
-        EXO_DEFAULT_TERMINAL_CWD: this.runtimeConfig.workspace.defaultTerminalCwd,
-        EXO_RUNTIME_ROOT: this.runtimeConfig.runtimeRoot,
+        EXO_WORKSPACE_ROOT: workspace.workspaceRoot,
+        EXO_NOTE_ROOTS: workspace.noteRoots.map((root) => root.path).join(path.delimiter),
+        EXO_PROJECT_ROOTS: workspace.projectRoots.map((root) => root.path).join(path.delimiter),
+        EXO_DEFAULT_TERMINAL_CWD: workspace.defaultTerminalCwd,
+        EXO_RUNTIME_ROOT: runtimeRoot,
         EXO_AGENT_COMMAND_ID: command.id,
         EXO_AGENT_COMMAND_HANDLE: command.handle,
         EXO_AGENT_COMMAND_FINGERPRINT: agentCommandExecutableFingerprint(command),
@@ -241,19 +190,6 @@ export class TerminalManager extends EventEmitter {
     return tailLines(record.tailCache.text(), normalizeTailLineLimit(options.maxLines));
   }
 
-  readTranscript(id: string, tailChars = 0): string | null {
-    const record = this.sessions.get(id);
-    if (!record) {
-      return null;
-    }
-    const text = record.tailCache.text();
-    return tailChars > 0 ? text.slice(-tailChars) : text;
-  }
-
-  readRestoreSnapshot(id: string): string | null {
-    return this.sessions.get(id)?.tailCache.text() ?? null;
-  }
-
   async resize(id: string, cols: number, rows: number): Promise<void> {
     const record = this.sessions.get(id);
     if (!record || record.info.status === "exited") {
@@ -288,13 +224,11 @@ export class TerminalManager extends EventEmitter {
     title: string;
     cwd: string;
     kind: TerminalKind;
-    harnessId: string | null;
     command: string;
     displayCommand?: string;
     args: string[];
     env: NodeJS.ProcessEnv;
   }): Promise<TerminalSessionInfo> {
-    await this.syncRuntimeContext();
     const id = this.allocateTerminalId();
     const geometry = this.geometryService.initialDefault();
     const attachSize = this.geometryService.attachSize(geometry);
@@ -310,13 +244,9 @@ export class TerminalManager extends EventEmitter {
       id,
       title: input.title,
       cwd: input.cwd,
-      ...terminalSessionIdentity(input.kind, input.harnessId ?? input.kind),
       kind: input.kind,
       command: input.displayCommand ?? input.command,
-      instructionOverlayPath: null,
       status: "running",
-      readiness: "ready",
-      queuedInputCount: 0,
       geometry,
       attachGeneration: this.allocateAttachGeneration(),
     };
@@ -348,9 +278,6 @@ export class TerminalManager extends EventEmitter {
       ok: true,
       delivery: "sent",
       writeId,
-      queuedInputCount: 0,
-      readiness: record.info.readiness,
-      readinessDetail: record.info.readinessDetail,
     };
   }
 
@@ -410,17 +337,6 @@ export class TerminalManager extends EventEmitter {
     return "Terminal pty is running.";
   }
 
-  private killAllForRuntimeSwitch(): void {
-    for (const record of this.sessions.values()) {
-      try {
-        record.process.kill();
-      } catch {
-        // Runtime switch cleanup should not block workspace activation.
-      }
-    }
-    this.sessions.clear();
-  }
-
   private allocateTerminalId(): string {
     const id = `term-${this.nextId}`;
     this.nextId += 1;
@@ -442,13 +358,11 @@ function canDeliverInput(record: TerminalRecord | undefined): record is Terminal
   return Boolean(record && record.info.status === "running" && !record.bridgeDetached);
 }
 
-function terminalSessionIdentity(kind: TerminalKind, harnessId: string = kind): Pick<TerminalSessionInfo, "terminalKind" | "harnessId"> {
-  return {
-    terminalKind: kind === "shell" ? "shell" : "agent",
-    harnessId: kind === "shell" && harnessId === "shell" ? null : harnessId,
-  };
+function shellLauncher(): { command: string; args: string[] } {
+  const command = process.env.EXO_SHELL || process.env.SHELL || "/bin/zsh";
+  const args = process.env.EXO_SHELL_ARGS?.split(",").filter(Boolean) ?? (process.env.EXO_SHELL ? [] : ["-l"]);
+  return { command, args };
 }
-
 function baseTerminalEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return {
     ...process.env,

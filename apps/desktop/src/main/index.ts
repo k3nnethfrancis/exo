@@ -17,14 +17,11 @@ import {
   readOnboardingStateStore,
   readWorkspaceDocument,
   renameWorkspacePath,
-  resolveRuntimeConfig,
   resolveWorkspaceModel,
   saveWorkspaceDocument,
   searchIndex,
   searchNotes,
   searchWorkspace,
-  SemanticTraceStore,
-  semanticTraceEventsToAgentAnswerText,
   writeOnboardingStateStore,
   type OnboardingStateStore,
   type WorkspaceModel,
@@ -106,7 +103,7 @@ if (!singleInstanceLock) {
 }
 
 function startCommandServer() {
-  const runtimeConfig = resolveRuntimeConfig();
+  const runtimeRoot = resolveRuntimeRoot();
   const documentReader = new CommandServerDocumentReader({
     getContext: () => commandServerDocumentReadContext(workspaceModel),
     readDocument: (context, target, options, authorizeResolvedPath) =>
@@ -121,7 +118,7 @@ function startCommandServer() {
 
   commandServer?.stop();
   const nextCommandServer = new CommandServer({
-    runtimeRoot: runtimeConfig.runtimeRoot,
+    runtimeRoot,
     onShowWindow: () => appLifecycle.showMainWindow(),
     onOpenFile: (filePath: string) => {
       sendToRenderer("command:open-file", filePath);
@@ -142,23 +139,15 @@ function startCommandServer() {
       return { ok: true };
     },
     onSearch: (query: string) => searchWorkspace(workspaceModel, query),
-    onIndexSearch: (query, options) => searchIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot, query, options),
+    onIndexSearch: (query, options) => searchIndex(workspaceModel, resolveRuntimeRoot(), query, options),
     onReadDocument: (target, options) => documentReader.read(target, options),
     onIndexStatus: () => indexingService.getMeasuredStatus(),
     onIndexAddRoot: (input) => indexingService.addRoot(input),
     onIndexRemoveRoot: (target) => indexingService.removeRoot(target),
     onIndexSync: () => indexingService.runSync("command"),
-    onIndexUpdate: () => indexingService.update("command"),
-    onIndexEmbed: () => indexingService.embed("command"),
     onListTerminals: () => terminalManager.list(),
-    onTerminalDiagnostics: () => terminalManager.diagnostics(),
     onCreateTerminal: (options) => terminalManager.create(options),
     onReadTerminalTail: (id: string, options?: { maxLines?: number }) => terminalManager.readTail(id, options),
-    onReadTerminalTranscript: (id: string, tailChars: number) => terminalManager.readTranscript(id, tailChars),
-    onReadTerminalSemanticAnswer: async (id: string, options?: { limit?: number }) => {
-      const events = await new SemanticTraceStore(runtimeConfig.runtimeRoot).readEvents(id, { limit: options?.limit ?? 100 });
-      return events.length === 0 ? null : semanticTraceEventsToAgentAnswerText(events);
-    },
     onWriteTerminal: (id: string, data: string) => terminalManager.write(id, data),
     onSendTerminalMessage: (id: string, message: string, submit: boolean) => terminalManager.sendMessage(id, message, submit),
     onKillTerminal: (id: string) => terminalManager.kill(id),
@@ -178,7 +167,7 @@ function startCommandServer() {
   commandServer = nextCommandServer;
 
   nextCommandServer.start().then((port) => {
-    logMain("command server started", { runtimeRoot: runtimeConfig.runtimeRoot, port });
+    logMain("command server started", { runtimeRoot, port });
   }).catch((error) => {
     if (commandServer === nextCommandServer) {
       commandServer = null;
@@ -207,11 +196,10 @@ async function refreshCommandServerDiscovery(reason: string): Promise<void> {
 }
 
 function resolveSingleInstanceData(): Record<string, string | number> {
-  const runtimeConfig = resolveRuntimeConfig();
   return {
     pid: process.pid,
-    runtimeRoot: runtimeConfig.runtimeRoot,
-    workspaceRoot: runtimeConfig.workspace.workspaceRoot,
+    runtimeRoot: resolveRuntimeRoot(),
+    workspaceRoot: resolveWorkspaceModel().workspaceRoot,
   };
 }
 
@@ -353,7 +341,6 @@ function registerIpcHandlers() {
     getKnowledge: (filePath) => workspaceNotesService.getKnowledge(filePath),
     getMainWindow: () => appLifecycle.getMainWindow(),
     getModel: () => workspaceModel,
-    getRuntimeStatus: () => terminalManager.getRuntimeConfig(),
     getSettings: async () => workspaceSettingsService.currentSnapshot(),
     getSetupState: async () => ({
       complete: workspaceSetupComplete,
@@ -380,7 +367,7 @@ function registerIpcHandlers() {
       indexingService.scheduleForFile(filePath, "note-save");
     },
     saveSettings: (request) => workspaceSettingsService.saveSettings(request),
-    searchIndex: (query, options) => searchIndex(workspaceModel, resolveRuntimeConfig().runtimeRoot, query, options),
+    searchIndex: (query, options) => searchIndex(workspaceModel, resolveRuntimeRoot(), query, options),
     searchNotes: (query) => searchNotes(workspaceModel, query),
     searchTag: (tag) => workspaceNotesService.searchTag(tag),
     searchWorkspace: (query) => searchWorkspace(workspaceModel, query),
@@ -394,7 +381,6 @@ function registerIpcHandlers() {
     },
     suggestTargets: (sourceFilePath, query) => workspaceNotesService.suggestTargets(sourceFilePath, query),
     syncIndex: () => indexingService.runSync("settings"),
-    syncRuntime: () => terminalManager.syncRuntimeContext(),
     updateIndex: () => indexingService.update("settings"),
   });
   registerTerminalIpcHandlers(terminalManager);
@@ -507,7 +493,7 @@ app.whenReady().then(async () => {
   indexingService = new IndexingService({
     getWorkspaceModel: () => workspaceModel,
     getCurrentSettings: () => workspaceSettingsService.currentSettings(),
-    getRuntimeRoot: () => resolveRuntimeConfig().runtimeRoot,
+    getRuntimeRoot: () => resolveRuntimeRoot(),
     saveWorkspaceSettings: async (settings) => {
       const saved = await workspaceSettingsService.saveSettings({
         settings,
@@ -565,7 +551,7 @@ app.whenReady().then(async () => {
   });
   appLifecycle = new AppLifecycleController({
     currentDirectory,
-    getTerminalDiagnostics: () => terminalManager?.diagnostics() ?? [],
+    getTerminals: () => terminalManager?.list() ?? [],
     getCommandServerStatus: () => ({
       listening: commandServer?.isListening() ?? false,
       port: commandServer?.getPort() ?? null,
@@ -579,7 +565,6 @@ app.whenReady().then(async () => {
   registerIpcHandlers();
   broadcastTerminalData();
   workspaceWatcherService.start(workspaceModel);
-  await terminalManager.syncRuntimeContext();
   appLifecycle.createWindow();
   appLifecycle.setupTray();
   startCommandServer();
@@ -605,6 +590,10 @@ app.whenReady().then(async () => {
 
 async function ensureNoteRoots(model: WorkspaceModel): Promise<void> {
   await Promise.all(model.noteRoots.map((root) => mkdir(root.path, { recursive: true })));
+}
+
+function resolveRuntimeRoot(): string {
+  return process.env.EXO_RUNTIME_ROOT ?? path.join(resolveWorkspaceModel().workspaceRoot, ".exo");
 }
 
 app.on("before-quit", () => {

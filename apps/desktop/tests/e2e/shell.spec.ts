@@ -531,12 +531,8 @@ test("keeps terminal interactive after large output, tab switches, and semantic 
     await expect.poll(async () => page.evaluate((id) => window.exo.terminals.read(id), shellId)).toContain("semantic qa: one   two");
 
     const sessions = await page.evaluate(() => window.exo.terminals.list());
-    const diagnostics = await page.evaluate(() => window.exo.terminals.diagnostics());
     expect(JSON.stringify(sessions)).not.toContain("tmux");
     expect(JSON.stringify(sessions)).not.toContain("transport");
-    expect(JSON.stringify(diagnostics)).not.toContain("transport");
-    expect(diagnostics.every((diagnostic) => diagnostic.runtime === "pty")).toBe(true);
-    expect(diagnostics.every((diagnostic) => !diagnostic.tmuxSessionName)).toBe(true);
   } finally {
     await cleanup();
   }

@@ -23,13 +23,9 @@ export function terminalSessionsEqual(left: TerminalSessionInfo[], right: Termin
       leftSession.command === rightSession.command &&
       leftSession.status === rightSession.status &&
       leftSession.exitCode === rightSession.exitCode &&
-      leftSession.readiness === rightSession.readiness &&
-      leftSession.readinessDetail === rightSession.readinessDetail &&
-      leftSession.queuedInputCount === rightSession.queuedInputCount &&
       leftSession.health === rightSession.health &&
       leftSession.healthDetail === rightSession.healthDetail &&
       leftSession.attachGeneration === rightSession.attachGeneration &&
-      leftSession.instructionOverlayPath === rightSession.instructionOverlayPath &&
       terminalGeometryEqual(leftSession.geometry, rightSession.geometry);
   });
 }

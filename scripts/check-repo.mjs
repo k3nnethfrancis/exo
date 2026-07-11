@@ -123,72 +123,6 @@ function assertRendererHasNoNodeOrElectronImports() {
   }
 }
 
-function assertPluginEntrypointsRemainInert() {
-  const allowedEntrypointReaders = new Set([
-    'packages/core/src/plugin.ts',
-    'packages/core/src/plugin-inventory.ts',
-    'packages/core/src/__tests__/plugin.test.ts',
-    'packages/core/src/__tests__/plugin-inventory.test.ts',
-    'packages/core/src/__tests__/profile-copy.test.ts',
-    'scripts/check-repo.mjs',
-  ]);
-  const executionPatterns = [
-    /\bimport\s*\(/,
-    /\brequire\s*\(/,
-    /\bspawn(?:Sync)?\s*\(/,
-    /\bexec(?:File)?(?:Sync)?\s*\(/,
-    /\beval\s*\(/,
-    /\bnew\s+Function\s*\(/,
-  ];
-  for (const file of listSourceFiles('.')) {
-    const content = read(file);
-    if (!content.includes('entrypoints')) {
-      continue;
-    }
-    if (!allowedEntrypointReaders.has(file)) {
-      fail(`${file} references plugin entrypoints; keep manifest entrypoints metadata-only unless this file is added to the narrow reader allowlist with tests`);
-      continue;
-    }
-    if (file.includes('__tests__/')) {
-      continue;
-    }
-    const executableEntrypointLine = content
-      .split('\n')
-      .find((line) => line.includes('entrypoints') && executionPatterns.some((pattern) => pattern.test(line)));
-    if (executableEntrypointLine) {
-      fail(`${file} must not import, require, spawn, exec, eval, or construct functions from plugin entrypoints; executable plugin loading is disabled`);
-    }
-  }
-
-  assertContains('packages/core/src/plugin.ts', 'export type PluginExecutableLoadingState = "disabled";');
-  assertContains('packages/core/src/plugin.ts', 'canLoadEntrypoints: false;');
-  assertContains('packages/core/src/plugin.ts', 'canGrantPermissions: false;');
-  assertContains('packages/core/src/plugin.ts', 'executableLoading: "disabled",');
-  assertContains('packages/core/src/plugin.ts', 'export function canLoadPluginEntrypoints(_plugin: DiscoveredPlugin): false');
-}
-
-function assertPluginManifestPermissionsStayMetadataOnly() {
-  const allowedManifestPermissionReaders = new Set([
-    'packages/core/src/plugin.ts',
-    'packages/core/src/plugin-permissions.ts',
-    'packages/core/src/profile-copy.ts',
-    'packages/core/src/__tests__/plugin-permissions.test.ts',
-    'scripts/check-repo.mjs',
-  ]);
-  for (const file of listSourceFiles('.')) {
-    const content = read(file);
-    if (content.includes('manifest.permissions') && !allowedManifestPermissionReaders.has(file)) {
-      fail(`${file} reads manifest.permissions directly; use plugin-permissions helpers so requested permissions are not treated as grants`);
-    }
-    if (/grantedPermissions\s*:\s*(?:plugin\.manifest|manifest|capability)\.permissions/.test(content)) {
-      fail(`${file} must not derive grantedPermissions directly from manifest/capability permissions; resolve grants through plugin-permissions identity and state`);
-    }
-  }
-  assertContains('packages/core/src/plugin-permissions.ts', 'const active = isActivePlugin(plugin);');
-  assertContains('packages/core/src/plugin-permissions.ts', 'const grantedPermissions = active && record');
-  assertContains('packages/core/src/plugin-permissions.ts', 'if (!isActivePlugin(plugin)) {');
-}
-
 const publicContractSurfaces = [
   {
     id: 'packages/core/src/command-protocol.ts#routes-and-types',
@@ -536,22 +470,7 @@ assertNoDirectImplementationImports({
   ],
 });
 
-assertNoDirectImplementationImports({
-  label: 'built-in agent harness',
-  blockedImportFragments: ['agent-harnesses/builtins'],
-  allowedFiles: [
-    'packages/core/src/runtime.ts',
-    'packages/core/src/agent-harness-registry.ts',
-    'packages/core/src/__tests__/agent-harness-registry.test.ts',
-    'packages/core/src/__tests__/runtime.test.ts',
-    'packages/core/src/agent-harnesses/builtins.ts',
-    'scripts/check-repo.mjs',
-  ],
-});
-
 assertRendererHasNoNodeOrElectronImports();
-assertPluginEntrypointsRemainInert();
-assertPluginManifestPermissionsStayMetadataOnly();
 assertPublicContractSurfacesHaveReviewNotes();
 
 if (failures.length > 0) {

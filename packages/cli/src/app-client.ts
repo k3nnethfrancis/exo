@@ -6,9 +6,6 @@ import { EXO_COMMAND_ROUTES, EXO_COMMAND_TOKEN_HEADER, type ExoCommandServerInfo
 export interface AppClientWriteResult {
   ok: boolean;
   delivery: "sent" | "queued" | "not-found";
-  queuedInputCount?: number;
-  readiness?: "ready" | "starting" | "blocked";
-  readinessDetail?: string;
 }
 
 const defaultRequestTimeoutMs = 2_000;
@@ -196,24 +193,12 @@ export class AppClient {
     return this.delete(`${EXO_COMMAND_ROUTES.indexRoots}/${encodeURIComponent(target)}`);
   }
 
-  async updateIndex(): Promise<Record<string, unknown>> {
-    return this.post(EXO_COMMAND_ROUTES.indexUpdate, {}, this.maintenanceRequestTimeoutMs);
-  }
-
-  async embedIndex(): Promise<Record<string, unknown>> {
-    return this.post(EXO_COMMAND_ROUTES.indexEmbed, {}, this.maintenanceRequestTimeoutMs);
-  }
-
   async listTerminals(): Promise<unknown[]> {
     return this.get(EXO_COMMAND_ROUTES.terminals);
   }
 
-  async terminalDiagnostics(): Promise<unknown[]> {
-    return this.get(EXO_COMMAND_ROUTES.terminalDiagnostics);
-  }
-
-  async createTerminal(kind: string, cwd?: string): Promise<Record<string, unknown>> {
-    return this.post(EXO_COMMAND_ROUTES.terminals, { kind, cwd, callerSurface: "cli" }, this.terminalCreateTimeoutMs);
+  async createTerminal(cwd?: string): Promise<Record<string, unknown>> {
+    return this.post(EXO_COMMAND_ROUTES.terminals, { kind: "shell", cwd }, this.terminalCreateTimeoutMs);
   }
 
   async spawnAgentCommand(handle: string, task: string): Promise<Record<string, unknown>> {
@@ -225,15 +210,6 @@ export class AppClient {
     return String(result.tail ?? "");
   }
 
-  async readTerminalTranscript(id: string, tailChars = 0): Promise<string> {
-    const result = await this.get(EXO_COMMAND_ROUTES.terminalTranscript(id, tailChars));
-    return String(result.transcript ?? "");
-  }
-
-  async readTerminalSemanticAnswer(id: string, limit?: number): Promise<string> {
-    const result = await this.get(EXO_COMMAND_ROUTES.terminalSemanticAnswer(id, limit));
-    return String(result.answer ?? "");
-  }
 
   async writeTerminal(id: string, data: string): Promise<AppClientWriteResult> {
     return this.post(EXO_COMMAND_ROUTES.terminalWrite(id), { data });

@@ -28,7 +28,6 @@ test("splits live terminals in monitor mode, reconciles geometry, and persists m
     await expect(page.getByTestId("terminal-surface")).toHaveCount(4);
     await writeBurst(page, sessionsBeforeMonitor, "during-monitor-toggle", 24);
     await waitForRendererGeometry(page, sessionsBeforeMonitor.map((session) => session.id));
-    await expectNoGeometryDivergence(page, sessionsBeforeMonitor.map((session) => session.id));
 
     const geometryAfterMonitor = await terminalGeometryById(page);
     expect(
@@ -63,7 +62,6 @@ test("splits live terminals in monitor mode, reconciles geometry, and persists m
 
     const relaunchedSessions = await terminalSessions(relaunched.page);
     await waitForRendererGeometry(relaunched.page, relaunchedSessions.map((session) => session.id));
-    await expectNoGeometryDivergence(relaunched.page, relaunchedSessions.map((session) => session.id));
     await writeBurst(relaunched.page, relaunchedSessions, "after-relaunch-monitor", 4);
     await expect.poll(async () => readAllTerminals(relaunched!.page, relaunchedSessions), { timeout: 10_000 }).toContain("after-relaunch-monitor-003");
     await relaunched.page.screenshot({ path: "/tmp/exo-monitor-mode-relaunch-persisted.png", fullPage: false });
@@ -119,28 +117,6 @@ async function waitForRendererGeometry(page: Page, terminalIds: string[]) {
       return geometry?.source === "renderer-fit" && geometry.cols > 0 && geometry.rows > 0;
     });
   }, { timeout: 10_000 }).toEqual(terminalIds.map(() => true));
-}
-
-async function expectNoGeometryDivergence(page: Page, terminalIds: string[]) {
-  await expect.poll(async () => {
-    const diagnostics = await page.evaluate(() => window.exo.terminals.diagnostics());
-    return terminalIds.map((id) => {
-      const diagnostic = diagnostics.find((candidate) => candidate.id === id);
-      return {
-        id,
-        divergent: diagnostic?.geometry.divergent ?? true,
-        bridgeStatus: diagnostic?.bridgeStatus ?? "",
-        paneStatus: diagnostic?.paneStatus ?? "",
-      };
-    });
-  }, { timeout: 10_000 }).toEqual(
-    terminalIds.map((id) => ({
-      id,
-      divergent: false,
-      bridgeStatus: "attached",
-      paneStatus: "alive",
-    })),
-  );
 }
 
 function geometryChanged(

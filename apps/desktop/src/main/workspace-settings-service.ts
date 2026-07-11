@@ -1,5 +1,4 @@
 import {
-  resolveRuntimeConfig,
   resolveWorkspaceModel,
   type WorkspaceModel,
   type WorkspaceSettings,
@@ -49,7 +48,6 @@ export class WorkspaceSettingsService {
 
   async saveSettings(request: WorkspaceSettingsSaveRequest): Promise<WorkspaceSettingsSaveOutcome> {
     const previousSettings = this.currentSettings();
-    const previousRuntimeRoot = resolveRuntimeConfig().runtimeRoot;
     const nextSettings = {
       ...previousSettings,
       ...request.settings,
@@ -68,21 +66,13 @@ export class WorkspaceSettingsService {
 
       const nextModel = resolveWorkspaceModel();
       this.options.setWorkspaceModel(nextModel);
-      const nextRuntimeConfig = resolveRuntimeConfig();
       const terminalPolicy = resolveTerminalRuntimePolicy(this.currentSettings());
 
       await this.options.ensureNoteRoots(nextModel);
       this.options.workspaceWatcherService.start(nextModel);
-      this.options.terminalManager.setRuntimeConfig(nextRuntimeConfig);
       this.options.terminalManager.setDefaultCwd(nextModel.defaultTerminalCwd);
       this.options.terminalManager.setBufferLineLimit(terminalPolicy.bufferLineLimit);
-      this.options.terminalManager.setTranscriptRetentionDays(terminalPolicy.transcriptRetentionDays);
       this.options.terminalManager.setTerminalRuntimeOptions(terminalPolicy);
-      await this.options.terminalManager.syncRuntimeContext();
-
-      if (nextRuntimeConfig.runtimeRoot !== previousRuntimeRoot) {
-        this.options.restartCommandServer();
-      }
       if (this.options.indexingService.shouldSyncAfterSettingsApply(previousSettings, savedSettings)) {
         this.options.indexingService.scheduleSync("settings-apply", 0);
       }

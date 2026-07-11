@@ -45,13 +45,6 @@ export interface AgentCommandSnapshot {
   executableFingerprint: string;
 }
 
-export interface InvocationTranscriptRef {
-  kind: "terminalTranscript" | "external";
-  path?: string;
-  uri?: string;
-  sessionId?: string;
-}
-
 export interface InvocationChangedFileRef {
   path: string;
   kind: "created" | "modified" | "deleted" | "unknown";
@@ -89,7 +82,6 @@ export interface InvocationRecord {
   exitCode?: number;
   failureReason?: string;
   terminalSessionId?: string;
-  transcriptRef?: InvocationTranscriptRef;
   changedFileRefs: InvocationChangedFileRef[];
   diffRefs: InvocationDiffRef[];
   attribution: InvocationAttributionSummary;
@@ -268,7 +260,6 @@ export function normalizeInvocationRecord(input: unknown): InvocationRecord | nu
     ...optionalIntegerField("exitCode", candidate.exitCode),
     ...optionalStringField("failureReason", candidate.failureReason),
     ...optionalStringField("terminalSessionId", candidate.terminalSessionId),
-    ...normalizeTranscriptRefField(candidate.transcriptRef),
     changedFileRefs: normalizeChangedFileRefs(candidate.changedFileRefs),
     diffRefs: normalizeDiffRefs(candidate.diffRefs),
     attribution: normalizeAttributionSummary(candidate.attribution),
@@ -339,24 +330,6 @@ function normalizeAttributionSummary(value: unknown): InvocationAttributionSumma
     status: normalizeAttributionStatus(candidate.status),
     ...optionalStringField("reason", candidate.reason),
   };
-}
-
-function normalizeTranscriptRefField(value: unknown): { transcriptRef?: InvocationTranscriptRef } {
-  if (!value || typeof value !== "object") {
-    return {};
-  }
-  const candidate = value as Partial<InvocationTranscriptRef>;
-  const kind = candidate.kind === "external" ? "external" : candidate.kind === "terminalTranscript" ? "terminalTranscript" : null;
-  if (!kind) {
-    return {};
-  }
-  const ref: InvocationTranscriptRef = {
-    kind,
-    ...optionalStringField("path", candidate.path),
-    ...optionalStringField("uri", candidate.uri),
-    ...optionalStringField("sessionId", candidate.sessionId),
-  };
-  return { transcriptRef: ref };
 }
 
 function normalizeChangedFileRefs(value: unknown): InvocationChangedFileRef[] {

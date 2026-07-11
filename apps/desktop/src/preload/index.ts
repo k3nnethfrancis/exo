@@ -112,11 +112,8 @@ const api: DesktopApi = {
   terminals: {
     ensureDefault: () => invokeDesktop("terminals:ensure-default"),
     list: () => invokeDesktop("terminals:list"),
-    diagnostics: () => invokeDesktop("terminals:diagnostics"),
     create: (options) => invokeDesktop("terminals:create", options),
     read: (id, options) => invokeDesktop("terminals:read", id, options),
-    restoreSnapshot: (id) => invokeDesktop("terminals:restore-snapshot", id),
-    readTranscript: (id, tailChars) => invokeDesktop("terminals:read-transcript", id, tailChars),
     write: (id, data) => invokeDesktop("terminals:write", id, data),
     sendMessage: (id, message, submit) => invokeDesktop("terminals:send-message", id, message, submit),
     resize: (id, cols, rows) => invokeDesktop("terminals:resize", id, cols, rows),

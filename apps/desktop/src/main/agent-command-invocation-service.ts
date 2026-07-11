@@ -91,9 +91,6 @@ export class AgentCommandInvocationService {
       createdAt: now,
       startedAt: now,
       terminalSessionId: terminal.id,
-      transcriptRef: terminal.transcriptPath
-        ? { kind: "terminalTranscript", path: terminal.transcriptPath, sessionId: terminal.id }
-        : undefined,
       changedFileRefs: [],
       diffRefs: [],
       attribution: { status: "pending" },
@@ -136,9 +133,6 @@ export class AgentCommandInvocationService {
       createdAt: now,
       startedAt: now,
       terminalSessionId: terminal.id,
-      transcriptRef: terminal.transcriptPath
-        ? { kind: "terminalTranscript", path: terminal.transcriptPath, sessionId: terminal.id }
-        : undefined,
       changedFileRefs: [],
       diffRefs: [],
       attribution: { status: "pending" },

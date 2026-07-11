@@ -286,7 +286,7 @@ function appLifecycleController(
 ) {
   return new AppLifecycleController({
     currentDirectory,
-    getTerminalDiagnostics: () => terminals as any,
+    getTerminals: () => terminals as any,
     getCommandServerStatus: () => electronMock.commandServerStatus,
     openSettings: electronMock.openSettings,
     restartCommandServer: electronMock.restartCommandServer,

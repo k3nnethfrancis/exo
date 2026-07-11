@@ -292,7 +292,7 @@ function exographAgentContextTemplate(workspaceModel: WorkspaceModel) {
     "",
     "### Exo CLI Surface",
     "",
-    "- Exo CLI is the local operator surface: workspace status, search/read, indexing, diagnostics, terminals, and configured agent-command spawn.",
+    "- Exo CLI is the local operator surface: workspace status, search/read, indexing, terminals, and configured agent-command spawn.",
     "- If a requested Exo capability is missing from the CLI, use filesystem/shell tools when available and record the CLI gap as product feedback.",
   ].join("\n");
 }
