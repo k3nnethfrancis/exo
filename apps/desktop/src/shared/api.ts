@@ -2,6 +2,8 @@ import type {
   IndexSearchResponse,
   IndexSyncResult,
   IndexStatus,
+  FolderIndexResult,
+  FolderIndexStatus,
   NoteDocument,
   WorkspaceGraphContext,
   SearchResult,
@@ -191,8 +193,10 @@ export interface DesktopApi {
       body: string;
     }) => Promise<AgentInstructionConfig>;
     listAgentInstructionOverlays: () => Promise<AgentInstructionOverlay[]>;
+    getFolderIndexStatus: () => Promise<FolderIndexStatus>;
+    ensureFolderIndex: (directoryPath: string) => Promise<FolderIndexResult>;
     createFile: (targetPath: string, content?: string) => Promise<string>;
-    createDirectory: (targetPath: string) => Promise<string>;
+    createFolder: (targetPath: string) => Promise<FolderIndexResult>;
     renamePath: (sourcePath: string, nextPath: string) => Promise<string>;
     deletePath: (targetPath: string) => Promise<void>;
     onDidChange: (callback: (event: { rootPath: string; eventType: string; filePath: string | null }) => void) => () => void;

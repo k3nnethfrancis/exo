@@ -5,12 +5,14 @@ import { appendFile, mkdir, stat } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 import {
-  createWorkspaceDirectory,
+  createFolderWithIndex,
   DEFAULT_APPEARANCE_MODE,
   createWorkspaceFile,
   deleteWorkspacePath,
   listRootTree,
   emptyOnboardingStateStore,
+  ensureFolderIndex,
+  inspectFolderIndexes,
   markOnboardingComplete,
   markOnboardingWorkspaceBasicsSaved,
   readOnboardingStateStore,
@@ -290,13 +292,15 @@ function registerIpcHandlers() {
     activateWorkspace: async (input) => {
       return switchWorkspace(input.workspaceId, input.expectedRevision);
     },
-    createDirectory: createWorkspaceDirectory,
+    createFolder: createFolderWithIndex,
     createFile: createWorkspaceFile,
     deletePath: deleteWorkspacePath,
     embedIndex: () => indexingService.embed("settings"),
     ensureTarget: (sourceFilePath, target) => workspaceNotesService.ensureTarget(sourceFilePath, target),
     getAgentInstructionConfig: () => agentInstructionsService.getConfig(),
     getIndexStatus: () => indexingService.getMeasuredStatus(),
+    getFolderIndexStatus: () => inspectFolderIndexes(workspaceModel.noteRoots.map((root) => root.path)),
+    ensureFolderIndex,
     launchAgentInvocation: async (input) => invocationRunner.authorizeAndStart(await invocationRunner.prepare({
       context: "note", handle: input.handle, documentPath: input.documentPath,
       mentionText: input.mentionText, message: input.message,

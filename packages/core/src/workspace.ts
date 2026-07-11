@@ -540,11 +540,6 @@ export async function createWorkspaceFile(targetPath: string, content = ""): Pro
   return targetPath;
 }
 
-export async function createWorkspaceDirectory(targetPath: string): Promise<string> {
-  await mkdir(targetPath, { recursive: true });
-  return targetPath;
-}
-
 export async function renameWorkspacePath(sourcePath: string, nextPath: string): Promise<string> {
   await mkdir(path.dirname(nextPath), { recursive: true });
   if (sourcePath !== nextPath && existsSync(nextPath)) {

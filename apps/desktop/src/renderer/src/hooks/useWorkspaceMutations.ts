@@ -96,8 +96,10 @@ export function useWorkspaceMutations(options: UseWorkspaceMutationsOptions) {
   }
 
   async function commitCreateDirectory(directoryPath: string, name: string) {
-    await window.exo.workspace.createDirectory(joinPath(directoryPath, name));
+    const result = await window.exo.workspace.createFolder(joinPath(directoryPath, name));
     await options.reloadTrees();
+    options.revealExplorerPath(result.directoryPath);
+    await options.openFile(result.indexPath, options.editorFocusedLeafId);
   }
 
   function renameWorkspacePath(sourcePath: string) {

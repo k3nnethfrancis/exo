@@ -1,5 +1,6 @@
 export * from "./types";
 export * from "./workspace";
+export * from "./folder-index";
 export * from "./workspace-settings";
 export * from "./terminal-settings";
 export * from "./notes";

@@ -10,13 +10,15 @@ type NotesApi = DesktopApi["notes"];
 
 export interface WorkspaceIpcHandlers {
   activateWorkspace: WorkspaceApi["activateWorkspace"];
-  createDirectory: WorkspaceApi["createDirectory"];
+  createFolder: WorkspaceApi["createFolder"];
   createFile: WorkspaceApi["createFile"];
   deletePath: WorkspaceApi["deletePath"];
   embedIndex: WorkspaceApi["embedIndex"];
   ensureTarget: NotesApi["ensureTarget"];
   getAgentInstructionConfig: WorkspaceApi["getAgentInstructionConfig"];
   getIndexStatus: WorkspaceApi["getIndexStatus"];
+  getFolderIndexStatus: WorkspaceApi["getFolderIndexStatus"];
+  ensureFolderIndex: WorkspaceApi["ensureFolderIndex"];
   launchAgentInvocation: WorkspaceApi["launchAgentInvocation"];
   endAgentInvocation: WorkspaceApi["endAgentInvocation"];
   resolvePreviewTarget: WorkspaceApi["resolvePreviewTarget"];
@@ -57,6 +59,7 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
   handleDesktopInvoke("workspace:list-workspaces", async () => handlers.listWorkspaces());
   handleDesktopInvoke("workspace:activate-workspace", async (_event, input) => handlers.activateWorkspace(input));
   handleDesktopInvoke("workspace:get-index-status", async () => handlers.getIndexStatus());
+  handleDesktopInvoke("workspace:get-folder-index-status", async () => handlers.getFolderIndexStatus());
   handleDesktopInvoke("workspace:resolve-preview-target", async (_event, target) => handlers.resolvePreviewTarget(target));
   handleDesktopInvoke("workspace:launch-agent-invocation", async (_event, input) => {
     const documentPath = await workspaceFiles().existing(input.documentPath);
@@ -119,9 +122,15 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
     const authorizedPath = await workspaceFiles().writable(targetPath);
     return handlers.createFile(authorizedPath, content);
   });
-  handleDesktopInvoke("workspace:create-directory", async (_event, targetPath) => {
+  handleDesktopInvoke("workspace:create-folder", async (_event, targetPath) => {
     const authorizedPath = await workspaceFiles().writable(targetPath);
-    return handlers.createDirectory(authorizedPath);
+    return handlers.createFolder(authorizedPath);
+  });
+  handleDesktopInvoke("workspace:ensure-folder-index", async (_event, directoryPath) => {
+    const files = workspaceFiles();
+    const authorizedDirectory = await files.existing(directoryPath);
+    await files.writable(path.join(authorizedDirectory, "index.md"));
+    return handlers.ensureFolderIndex(authorizedDirectory);
   });
   handleDesktopInvoke("workspace:rename-path", async (_event, sourcePath, nextPath) => {
     const files = workspaceFiles();

@@ -32,8 +32,10 @@ export interface DesktopInvokeHandlers {
   "workspace:sync-agent-instruction-files-from-provider": WorkspaceApi["syncAgentInstructionFilesFromProvider"];
   "workspace:apply-global-exograph-context": WorkspaceApi["applyGlobalExographContext"];
   "workspace:list-agent-instruction-overlays": WorkspaceApi["listAgentInstructionOverlays"];
+  "workspace:get-folder-index-status": WorkspaceApi["getFolderIndexStatus"];
+  "workspace:ensure-folder-index": WorkspaceApi["ensureFolderIndex"];
   "workspace:create-file": WorkspaceApi["createFile"];
-  "workspace:create-directory": WorkspaceApi["createDirectory"];
+  "workspace:create-folder": WorkspaceApi["createFolder"];
   "workspace:rename-path": WorkspaceApi["renamePath"];
   "workspace:delete-path": WorkspaceApi["deletePath"];
   "notes:read": NotesApi["read"];
