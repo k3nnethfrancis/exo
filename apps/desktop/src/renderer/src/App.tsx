@@ -102,6 +102,9 @@ export function App() {
   const { tree: canvasTree, focusedLeafId: focusedPaneId, actions: canvasActions } = shellLayout.canvasPaneTree;
   const utilityPaneTree = usePaneTree(UTILITY_PANE_DEFAULT);
   const [utilityPaneOpen, setUtilityPaneOpen] = useState(false);
+  const [utilitySurface, setUtilitySurface] = useState<"terminal" | "preview">("terminal");
+  const [previewUrl, setPreviewUrl] = useState("about:blank");
+  const [previewPaneId] = useState(() => paneId());
   const terminalState = useTerminalSessions({
     maxPendingDataChars: terminalRuntimeReadTailChars,
     onExternalSessions: (sessions, options) => {
@@ -648,14 +651,13 @@ export function App() {
 
   function createBrowserPane(url = "about:blank") {
     openUtilitySurface();
-    const existingBrowser = collectLeaves(utilityPaneTree.tree).find((leaf) => leaf.content.kind === "browser");
-    const id = existingBrowser?.id ?? paneId();
-    utilityPaneTree.actions.setTree({ kind: "leaf", id, content: { kind: "browser", url } });
-    utilityPaneTree.actions.focusLeaf(id);
+    setPreviewUrl(url);
+    setUtilitySurface("preview");
   }
 
   async function createUtilityTerminal(kind: "shell", cwd?: string) {
     openUtilitySurface();
+    setUtilitySurface("terminal");
     const session = await terminalState.createTerminal(kind, cwd);
     const terminalIds = [...new Set([...terminalSessions.map((entry) => entry.id), session.id])];
     const existingTerminal = collectLeaves(utilityPaneTree.tree).find((leaf) => leaf.content.kind === "terminal");
@@ -667,6 +669,7 @@ export function App() {
 
   async function showUtilityTerminal(sessionId: string) {
     openUtilitySurface();
+    setUtilitySurface("terminal");
     const terminalIds = terminalSessions.map((entry) => entry.id);
     const existingTerminal = collectLeaves(utilityPaneTree.tree).find((leaf) => leaf.content.kind === "terminal");
     const id = existingTerminal?.id ?? paneId();
@@ -704,25 +707,12 @@ export function App() {
   }
 
   function focusBrowserPane() {
-    const browserLeaf = collectLeaves(utilityPaneTree.tree).find((leaf) => leaf.content.kind === "browser");
-    if (!browserLeaf) {
-      createBrowserPane();
-      return;
-    }
-    utilityPaneTree.actions.focusLeaf(browserLeaf.id);
+    openUtilitySurface();
+    setUtilitySurface("preview");
   }
 
   function closeBrowserPane() {
-    const leaves = collectLeaves(utilityPaneTree.tree);
-    if (leaves.length <= 1) {
-      return;
-    }
-    const focusedBrowserLeaf = leaves.find((leaf) => leaf.id === utilityPaneTree.focusedLeafId && leaf.content.kind === "browser");
-    const browserLeaf = focusedBrowserLeaf ?? leaves.find((leaf) => leaf.content.kind === "browser");
-    if (!browserLeaf) {
-      return;
-    }
-    utilityPaneTree.actions.removeLeaf(browserLeaf.id);
+    setUtilitySurface("terminal");
   }
 
   async function openOrCreateDailyNote() {
@@ -994,6 +984,22 @@ export function App() {
       utilityCanvas={utilityPaneTree.tree}
       utilityFocusedPaneId={utilityPaneTree.focusedLeafId}
       utilityCanvasActions={utilityPaneTree.actions}
+      utilitySurface={utilitySurface}
+      utilityContent={utilitySurface === "preview" ? (
+        <BrowserPane
+          paneId={previewPaneId}
+          url={previewUrl}
+          compact={false}
+          onFocus={() => undefined}
+          onNavigate={async (target) => {
+            const result = await window.exo.workspace.resolvePreviewTarget(target);
+            setPreviewUrl(result.url);
+            return result.url;
+          }}
+          onClosePane={closeBrowserPane}
+          dragManager={dragManager}
+        />
+      ) : undefined}
       utilityOpen={utilityPaneOpen}
       onToggleUtility={toggleUtilitySurface}
       onOpenUtilityBrowser={() => createBrowserPane()}

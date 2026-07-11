@@ -37,6 +37,8 @@ interface ShellLayoutProps {
   utilityCanvas: PaneNode;
   utilityFocusedPaneId: PaneNodeId;
   utilityCanvasActions: PaneTreeActions;
+  utilityContent?: ReactNode;
+  utilitySurface: "terminal" | "preview";
   utilityOpen: boolean;
   onToggleUtility: () => void;
   onOpenUtilityBrowser: () => void;
@@ -139,14 +141,14 @@ export function ShellLayout(props: ShellLayoutProps) {
       </main>
       <aside aria-hidden={!props.utilityOpen} className="workspace-shell__utility" data-testid="utility-pane">
         <nav className="workspace-utility-rail" aria-label="Utility pane">
-          <button aria-label="Open preview" className="workspace-utility-rail__button" data-testid="utility-pane-preview" onClick={props.onOpenUtilityBrowser} title="Preview" type="button"><Globe2 size={16} aria-hidden="true" /></button>
-          <button aria-label="Open terminal" className="workspace-utility-rail__button" data-testid="utility-pane-terminal" onClick={props.onCreateUtilityTerminal} title="Terminal" type="button"><SquareTerminal size={16} aria-hidden="true" /></button>
+          <button aria-label="Open preview" aria-pressed={props.utilitySurface === "preview"} className="workspace-utility-rail__button" data-testid="utility-pane-preview" onClick={props.onOpenUtilityBrowser} title="Preview" type="button"><Globe2 size={16} aria-hidden="true" /></button>
+          <button aria-label="Open terminal" aria-pressed={props.utilitySurface === "terminal" && !props.connectionsOpen} className="workspace-utility-rail__button" data-testid="utility-pane-terminal" onClick={props.onCreateUtilityTerminal} title="Terminal" type="button"><SquareTerminal size={16} aria-hidden="true" /></button>
           <button aria-label="Open connections" aria-pressed={props.connectionsOpen} className="workspace-utility-rail__button" data-testid="utility-pane-connections" onClick={props.onOpenConnections} title="Connections" type="button"><Network size={16} aria-hidden="true" /></button>
         </nav>
         <div className="workspace-utility-surface">
           {props.connectionsOpen
             ? props.connections
-            : <PaneTree node={props.utilityCanvas} actions={props.utilityCanvasActions} focusedLeafId={props.utilityFocusedPaneId} renderLeaf={props.renderLeaf} hoverEdge={props.dragManager.hoverEdge} />}
+            : props.utilityContent ?? <PaneTree node={props.utilityCanvas} actions={props.utilityCanvasActions} focusedLeafId={props.utilityFocusedPaneId} renderLeaf={props.renderLeaf} hoverEdge={props.dragManager.hoverEdge} />}
         </div>
       </aside>
       </div>
