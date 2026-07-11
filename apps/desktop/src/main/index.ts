@@ -36,6 +36,7 @@ import { AgentInstructionsService } from "./agent-instructions-service";
 import { InvocationRunner } from "./invocation-runner";
 import { AppLifecycleController } from "./app-lifecycle";
 import { CommandServer } from "./command-server";
+import { CommandServerLifecycle } from "./command-server-lifecycle";
 import {
   commandServerDocumentReadContext,
   CommandServerDocumentReader,
@@ -74,7 +75,7 @@ process.on("unhandledRejection", (reason) => {
 const singleInstanceLock = app.requestSingleInstanceLock(resolveSingleInstanceData());
 
 let appLifecycle: AppLifecycleController;
-let commandServer: CommandServer | null = null;
+let commandServerLifecycle: CommandServerLifecycle;
 let workspaceModel: WorkspaceModel;
 let workspaceSettings: WorkspaceSettings | null = null;
 let workspaceSettingsRevision: string | null = null;
@@ -101,7 +102,7 @@ if (!singleInstanceLock) {
   app.quit();
 }
 
-function startCommandServer() {
+function createCommandServer() {
   const runtimeRoot = resolveRuntimeRoot();
   const documentReader = new CommandServerDocumentReader({
     getContext: () => commandServerDocumentReadContext(workspaceModel),
@@ -115,8 +116,7 @@ function startCommandServer() {
       ),
   });
 
-  commandServer?.stop();
-  const nextCommandServer = new CommandServer({
+  return new CommandServer({
     runtimeRoot,
     onShowWindow: () => appLifecycle.showMainWindow(),
     onOpenFile: (filePath: string) => {
@@ -159,29 +159,18 @@ function startCommandServer() {
       context: "cli", handle: input.handle, task: input.task, message: input.task,
     })),
   });
-  commandServer = nextCommandServer;
-
-  nextCommandServer.start().then((port) => {
-    logMain("command server started", { runtimeRoot, port });
-  }).catch((error) => {
-    if (commandServer === nextCommandServer) {
-      commandServer = null;
-    }
-    console.error("Failed to start command server:", error);
-    logMain("command server start failed", serializeError(error));
-  });
 }
 
 async function refreshCommandServerDiscovery(reason: string): Promise<void> {
-  if (!commandServer?.isListening()) {
+  if (!commandServerLifecycle.status().listening) {
     console.warn(`[exo] command server was not listening during ${reason}; restarting it.`);
     logMain("command server discovery refresh restarting server", { reason });
-    startCommandServer();
+    await commandServerLifecycle.restart();
     return;
   }
 
   try {
-    const info = await commandServer.ensureDiscoveryFile();
+    const info = await commandServerLifecycle.refreshDiscovery();
     console.info(`[exo] command server discovery refreshed for ${reason}: ${info.path} (port ${info.port})`);
     logMain("command server discovery refreshed", { reason, path: info.path, port: info.port });
   } catch (error) {
@@ -559,17 +548,19 @@ app.whenReady().then(async () => {
     getWorkspaceModel: () => workspaceModel,
     errorMessage,
   });
+  commandServerLifecycle = new CommandServerLifecycle({
+    runtimeRoot: resolveRuntimeRoot(),
+    createServer: createCommandServer,
+    log: logMain,
+  });
   appLifecycle = new AppLifecycleController({
     currentDirectory,
     getTerminals: () => terminalManager?.list() ?? [],
-    getCommandServerStatus: () => ({
-      listening: commandServer?.isListening() ?? false,
-      port: commandServer?.getPort() ?? null,
-    }),
+    getCommandServerStatus: () => commandServerLifecycle.status(),
     openSettings: () => {
       sendToRenderer("command:open-settings", { section: "workspace" });
     },
-    restartCommandServer: startCommandServer,
+    restartCommandServer: () => void commandServerLifecycle.restart(),
     logMain,
   });
   registerIpcHandlers();
@@ -577,7 +568,10 @@ app.whenReady().then(async () => {
   workspaceWatcherService.start(workspaceModel);
   appLifecycle.createWindow();
   appLifecycle.setupTray();
-  startCommandServer();
+  void commandServerLifecycle.start().catch((error) => {
+    console.error("Failed to start command server:", error);
+    logMain("command server start failed", serializeError(error));
+  });
 
   nativeTheme.on("updated", () => {
     appLifecycle.updateBackgroundForTheme();
@@ -608,7 +602,7 @@ function resolveRuntimeRoot(): string {
 
 app.on("before-quit", () => {
   appLifecycle?.prepareToQuit();
-  commandServer?.stop();
+  void commandServerLifecycle?.stop();
   workspaceWatcherService?.stop();
 });
 

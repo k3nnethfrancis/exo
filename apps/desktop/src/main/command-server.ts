@@ -1,7 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { chmod, mkdir, rm, writeFile } from "node:fs/promises";
-import path from "node:path";
+import { mkdir } from "node:fs/promises";
 
 import {
   EXO_COMMAND_ROUTES,
@@ -59,12 +58,9 @@ export interface CommandServerOptions {
 export class CommandServer {
   private server: Server | null = null;
   private port = 0;
-  private serverJsonPath: string;
-  private discoveryRefreshTimer: NodeJS.Timeout | null = null;
   private readonly token = randomBytes(32).toString("base64url");
 
   constructor(private options: CommandServerOptions) {
-    this.serverJsonPath = path.join(options.runtimeRoot, "server.json");
   }
 
   async start(): Promise<number> {
@@ -77,14 +73,7 @@ export class CommandServer {
         const address = this.server!.address();
         if (typeof address === "object" && address) {
           this.port = address.port;
-          this.writeServerJson().then(() => {
-            this.startDiscoveryRefreshTimer();
-            resolve(this.port);
-          }, (error) => {
-            this.server?.close();
-            this.server = null;
-            reject(error);
-          });
+          resolve(this.port);
         } else {
           reject(new Error("Failed to get server address"));
         }
@@ -94,18 +83,16 @@ export class CommandServer {
     });
   }
 
-  stop(): void {
-    if (this.discoveryRefreshTimer) {
-      clearInterval(this.discoveryRefreshTimer);
-      this.discoveryRefreshTimer = null;
+  async stop(): Promise<void> {
+    const server = this.server;
+    this.server = null;
+    this.port = 0;
+    if (!server || !server.listening) {
+      return;
     }
-    if (this.server) {
-      if (this.server.listening) {
-        this.server.close();
-      }
-      this.server = null;
-    }
-    rm(this.serverJsonPath, { force: true }).catch(() => {});
+    await new Promise<void>((resolve) => {
+      server.close(() => resolve());
+    });
   }
 
   isListening(): boolean {
@@ -116,34 +103,11 @@ export class CommandServer {
     return this.isListening() ? this.port : null;
   }
 
-  async ensureDiscoveryFile(): Promise<ExoCommandServerInfo & { path: string }> {
+  getServerInfo(): ExoCommandServerInfo {
     if (!this.isListening()) {
       throw new Error("Command server is not listening.");
     }
-    await this.writeServerJson();
-    return { port: this.port, pid: process.pid, token: this.token, path: this.serverJsonPath };
-  }
-
-  private async writeServerJson(): Promise<void> {
-    const data = JSON.stringify({ port: this.port, pid: process.pid, token: this.token }, null, 2);
-    await mkdir(this.options.runtimeRoot, { recursive: true });
-    await writeFile(this.serverJsonPath, data, { encoding: "utf-8", mode: 0o600 });
-    await chmod(this.serverJsonPath, 0o600).catch(() => {});
-  }
-
-  private startDiscoveryRefreshTimer(): void {
-    if (this.discoveryRefreshTimer) {
-      clearInterval(this.discoveryRefreshTimer);
-    }
-    this.discoveryRefreshTimer = setInterval(() => {
-      if (!this.isListening()) {
-        return;
-      }
-      this.writeServerJson().catch((error) => {
-        console.warn("[exo] failed to refresh command server discovery:", error);
-      });
-    }, 5_000);
-    this.discoveryRefreshTimer.unref?.();
+    return { port: this.port, pid: process.pid, token: this.token };
   }
 
   private async handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {

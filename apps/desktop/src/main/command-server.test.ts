@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -15,7 +15,7 @@ afterEach(async () => {
 
 describe("CommandServer operator contract", () => {
   it("requires its runtime token", async () => {
-    const { runtimeRoot, server, port } = await startServer();
+    const { server, port, token } = await startServer();
     try {
       const response = await fetch(`http://127.0.0.1:${port}/status`);
       expect(response.status).toBe(401);
@@ -26,29 +26,29 @@ describe("CommandServer operator contract", () => {
   });
 
   it("supports the direct-pty list/create/read/write/send/kill contract", async () => {
-    const { runtimeRoot, server, port } = await startServer({
+    const { server, port, token } = await startServer({
       onListTerminals: () => [{ id: "term-1", title: "Shell", cwd: "/workspace", kind: "shell", command: "zsh", status: "running" }],
       onReadTerminalTail: () => "one\ntwo\n",
     });
     try {
-      await expect(fetchJson(runtimeRoot, port, "/terminals")).resolves.toEqual([
+      await expect(fetchJson(token, port, "/terminals")).resolves.toEqual([
         { id: "term-1", title: "Shell", cwd: "/workspace", kind: "shell", command: "zsh", status: "running" },
       ]);
-      await expect(fetchJson(runtimeRoot, port, "/terminals/term-1/tail?lines=1")).resolves.toEqual({ tail: "one\ntwo\n" });
-      await expect(fetchJson(runtimeRoot, port, "/terminals", { method: "POST", body: JSON.stringify({ kind: "shell", cwd: "/workspace" }) })).resolves.toMatchObject({ id: "term-1" });
-      await expect(fetchJson(runtimeRoot, port, "/terminals/term-1/write", { method: "POST", body: JSON.stringify({ data: "echo hi" }) })).resolves.toEqual({ ok: true, delivery: "sent" });
-      await expect(fetchJson(runtimeRoot, port, "/terminals/term-1/message", { method: "POST", body: JSON.stringify({ message: "echo hi", submit: true }) })).resolves.toEqual({ ok: true, delivery: "sent" });
-      await expect(fetchJson(runtimeRoot, port, "/terminals/term-1", { method: "DELETE" })).resolves.toEqual({ ok: true });
+      await expect(fetchJson(token, port, "/terminals/term-1/tail?lines=1")).resolves.toEqual({ tail: "one\ntwo\n" });
+      await expect(fetchJson(token, port, "/terminals", { method: "POST", body: JSON.stringify({ kind: "shell", cwd: "/workspace" }) })).resolves.toMatchObject({ id: "term-1" });
+      await expect(fetchJson(token, port, "/terminals/term-1/write", { method: "POST", body: JSON.stringify({ data: "echo hi" }) })).resolves.toEqual({ ok: true, delivery: "sent" });
+      await expect(fetchJson(token, port, "/terminals/term-1/message", { method: "POST", body: JSON.stringify({ message: "echo hi", submit: true }) })).resolves.toEqual({ ok: true, delivery: "sent" });
+      await expect(fetchJson(token, port, "/terminals/term-1", { method: "DELETE" })).resolves.toEqual({ ok: true });
     } finally {
       server.stop();
     }
   });
 
   it("does not expose legacy diagnostic, transcript, or semantic-answer routes", async () => {
-    const { runtimeRoot, server, port } = await startServer();
+    const { server, port, token } = await startServer();
     try {
       for (const route of ["/terminals/diagnostics", "/terminals/term-1/transcript", "/terminals/term-1/semantic-answer"]) {
-        const response = await commandFetch(runtimeRoot, port, route);
+        const response = await commandFetch(token, port, route);
         expect(response.status).toBe(404);
       }
     } finally {
@@ -61,19 +61,18 @@ async function startServer(overrides: Partial<CommandServerOptions> = {}) {
   const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-command-server-"));
   tempPaths.push(runtimeRoot);
   const server = new CommandServer({ ...options(runtimeRoot), ...overrides });
-  return { runtimeRoot, server, port: await server.start() };
+  return { runtimeRoot, server, port: await server.start(), token: server.getServerInfo().token };
 }
 
-async function commandFetch(runtimeRoot: string, port: number, route: string, init: RequestInit = {}): Promise<Response> {
-  const { token } = JSON.parse(await readFile(path.join(runtimeRoot, "server.json"), "utf8")) as { token: string };
+async function commandFetch(token: string, port: number, route: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
   headers.set(EXO_COMMAND_TOKEN_HEADER, token);
   headers.set("Content-Type", "application/json");
   return fetch(`http://127.0.0.1:${port}${route}`, { ...init, headers });
 }
 
-async function fetchJson(runtimeRoot: string, port: number, route: string, init: RequestInit = {}): Promise<unknown> {
-  const response = await commandFetch(runtimeRoot, port, route, init);
+async function fetchJson(token: string, port: number, route: string, init: RequestInit = {}): Promise<unknown> {
+  const response = await commandFetch(token, port, route, init);
   expect(response.ok).toBe(true);
   return response.json();
 }
