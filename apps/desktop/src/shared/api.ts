@@ -5,7 +5,7 @@ import type {
   IndexSyncResult,
   IndexStatus,
   NoteDocument,
-  NoteKnowledge,
+  WorkspaceGraphContext,
   SearchResult,
   TreeNode,
   OnboardingStateStore,
@@ -209,7 +209,7 @@ export interface DesktopApi {
     read: (filePath: string) => Promise<NoteDocument>;
     save: (filePath: string, frontmatter: Record<string, unknown>, body: string) => Promise<void>;
     stat: (filePath: string) => Promise<FileStatInfo | null>;
-    getKnowledge: (filePath: string) => Promise<NoteKnowledge>;
+    getGraphContext: (filePath: string) => Promise<WorkspaceGraphContext | null>;
     resolveTarget: (sourceFilePath: string, target: string) => Promise<string | null>;
     ensureTarget: (sourceFilePath: string, target: string) => Promise<string>;
     suggestTargets: (

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { BranchCreateResult, BranchFamily, NoteDocument, NoteKnowledge, WorkspaceModel } from "@exo/core";
+import type { BranchCreateResult, BranchFamily, NoteDocument, WorkspaceGraphContext, WorkspaceModel } from "@exo/core";
 
 import type { FileStatInfo } from "../../../shared/api";
 
@@ -19,7 +19,7 @@ export interface UseOpenDocumentsOptions {
 export function useOpenDocuments(options: UseOpenDocumentsOptions) {
   const [openDocuments, setOpenDocuments] = useState<Record<string, OpenEditorDocument>>({});
   const [documentSaveStatuses, setDocumentSaveStatuses] = useState<Record<string, DocumentSaveStatus>>({});
-  const [knowledgeByPath, setKnowledgeByPath] = useState<Record<string, NoteKnowledge>>({});
+  const [graphContextByPath, setGraphContextByPath] = useState<Record<string, WorkspaceGraphContext>>({});
   const [branchFamiliesByPath, setBranchFamiliesByPath] = useState<Record<string, BranchFamily>>({});
   const [activeDocumentPath, setActiveDocumentPath] = useState<string | null>(null);
   const [scrollRestoreRequest, setScrollRestoreRequest] = useState<{ filePath: string; scrollTop: number; nonce: number } | null>(null);
@@ -30,7 +30,7 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
   const scrollRestoreNonceRef = useRef(0);
 
   const activeDocument = activeDocumentPath ? openDocuments[activeDocumentPath] ?? null : null;
-  const activeKnowledge = activeDocumentPath ? knowledgeByPath[activeDocumentPath] ?? null : null;
+  const activeGraphContext = activeDocumentPath ? graphContextByPath[activeDocumentPath] ?? null : null;
 
   useEffect(() => {
     openDocumentsRef.current = openDocuments;
@@ -63,13 +63,13 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
       );
       return Object.keys(next).length === Object.keys(current).length ? current : next;
     });
-    setKnowledgeByPath((current) => pruneRecordToKeys(current, openPaths));
+    setGraphContextByPath((current) => pruneRecordToKeys(current, openPaths));
     setBranchFamiliesByPath((current) => pruneRecordToKeys(current, openPaths));
   }
 
   async function ensureDocumentLoaded(filePath: string) {
     const [document, diskVersion] = await Promise.all([window.exo.notes.read(filePath), window.exo.notes.stat(filePath)]);
-    const [knowledge, branchFamily] = await loadMarkdownContext(document, filePath, optionsRef.current.workspaceModel);
+    const [graphContext, branchFamily] = await loadMarkdownContext(document, filePath, optionsRef.current.workspaceModel);
 
     setOpenDocuments((current) => ({
       ...current,
@@ -81,7 +81,7 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
         body: current[filePath]?.dirty ? current[filePath].body : document.body,
       },
     }));
-    updateMarkdownContext(filePath, knowledge, branchFamily);
+    updateMarkdownContext(filePath, graphContext, branchFamily);
   }
 
   function scheduleRefresh(filePath: string, diskVersion?: FileStatInfo | null) {
@@ -113,7 +113,7 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
       window.exo.notes.read(filePath),
       knownVersion === undefined ? window.exo.notes.stat(filePath) : Promise.resolve(knownVersion),
     ]);
-    const [knowledge, branchFamily] = await loadMarkdownContext(document, filePath, optionsRef.current.workspaceModel);
+    const [graphContext, branchFamily] = await loadMarkdownContext(document, filePath, optionsRef.current.workspaceModel);
 
     setOpenDocuments((current) => {
       const currentDocument = current[filePath];
@@ -143,7 +143,7 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
         },
       };
     });
-    updateMarkdownContext(filePath, knowledge, branchFamily);
+    updateMarkdownContext(filePath, graphContext, branchFamily);
 
     if (scrollTop !== null) {
       scrollRestoreNonceRef.current += 1;
@@ -162,7 +162,7 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
       window.exo.notes.read(filePath),
       window.exo.notes.stat(filePath),
     ]);
-    const [knowledge, branchFamily] = await loadMarkdownContext(document, filePath, optionsRef.current.workspaceModel);
+    const [graphContext, branchFamily] = await loadMarkdownContext(document, filePath, optionsRef.current.workspaceModel);
 
     setOpenDocuments((current) => {
       if (!current[filePath]) {
@@ -177,7 +177,7 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
         },
       };
     });
-    updateMarkdownContext(filePath, knowledge, branchFamily);
+    updateMarkdownContext(filePath, graphContext, branchFamily);
     setDocumentSaveStatuses((current) => ({ ...current, [filePath]: "idle" }));
 
     if (scrollTop !== null) {
@@ -239,11 +239,11 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
       const diskVersion = await window.exo.notes.stat(filePath);
       const remainsOpen = optionsRef.current.getOpenEditorPaths().has(filePath);
       if (document.kind === "markdown" && remainsOpen && isAttachedNote(filePath, optionsRef.current.workspaceModel)) {
-        const [knowledge, branchFamily] = await Promise.all([
-          window.exo.notes.getKnowledge(filePath),
+        const [graphContext, branchFamily] = await Promise.all([
+          window.exo.notes.getGraphContext(filePath),
           window.exo.notes.getBranchFamily(filePath),
         ]);
-        updateMarkdownContext(filePath, knowledge, branchFamily);
+        updateMarkdownContext(filePath, graphContext, branchFamily);
       }
       setOpenDocuments((current) => {
         if (!current[filePath]) {
@@ -299,7 +299,7 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
     setOpenDocuments((current) =>
       Object.fromEntries(Object.entries(current).filter(([filePath]) => !isPathWithin(targetPath, filePath))),
     );
-    setKnowledgeByPath((current) =>
+    setGraphContextByPath((current) =>
       Object.fromEntries(Object.entries(current).filter(([filePath]) => !isPathWithin(targetPath, filePath))),
     );
     setBranchFamiliesByPath((current) =>
@@ -330,17 +330,17 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
         }),
       ),
     );
-    setKnowledgeByPath((current) => remapRecord(current));
+    setGraphContextByPath((current) => remapRecord(current));
     setBranchFamiliesByPath((current) => remapRecord(current));
     if (activeDocumentPath && isPathWithin(sourcePath, activeDocumentPath)) {
       setActiveDocumentPath(activeDocumentPath.replace(sourcePath, nextPath));
     }
   }
 
-  function updateMarkdownContext(filePath: string, knowledge: NoteKnowledge | null, branchFamily: BranchFamily | null) {
-    setKnowledgeByPath((current) => ({
+  function updateMarkdownContext(filePath: string, graphContext: WorkspaceGraphContext | null, branchFamily: BranchFamily | null) {
+    setGraphContextByPath((current) => ({
       ...current,
-      ...(knowledge ? { [filePath]: knowledge } : {}),
+      ...(graphContext ? { [filePath]: graphContext } : {}),
     }));
     setBranchFamiliesByPath((current) => ({
       ...current,
@@ -350,12 +350,12 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
 
   return {
     openDocuments,
-    knowledgeByPath,
+    graphContextByPath,
     documentSaveStatuses,
     branchFamiliesByPath,
     activeDocumentPath,
     activeDocument,
-    activeKnowledge,
+    activeGraphContext,
     scrollRestoreRequest,
     setActiveDocumentPath,
     pruneToOpenPaths,
@@ -375,11 +375,11 @@ async function loadMarkdownContext(
   document: NoteDocument,
   filePath: string,
   model: WorkspaceModel | null,
-): Promise<[NoteKnowledge | null, BranchFamily | null]> {
+): Promise<[WorkspaceGraphContext | null, BranchFamily | null]> {
   if (document.kind !== "markdown" || !isAttachedNote(filePath, model)) {
     return [null, null];
   }
-  return Promise.all([window.exo.notes.getKnowledge(filePath), window.exo.notes.getBranchFamily(filePath)]);
+  return Promise.all([window.exo.notes.getGraphContext(filePath), window.exo.notes.getBranchFamily(filePath)]);
 }
 
 function isAttachedNote(filePath: string, model: WorkspaceModel | null): boolean {

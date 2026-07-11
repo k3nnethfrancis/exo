@@ -22,7 +22,7 @@ export interface WorkspaceIpcHandlers {
   launchAgentInvocation: WorkspaceApi["launchAgentInvocation"];
   endAgentInvocation: WorkspaceApi["endAgentInvocation"];
   resolvePreviewTarget: WorkspaceApi["resolvePreviewTarget"];
-  getKnowledge: NotesApi["getKnowledge"];
+  getGraphContext: NotesApi["getGraphContext"];
   getMainWindow: () => BrowserWindow | null;
   getModel: () => WorkspaceModel;
   getSettings: WorkspaceApi["getSettings"];
@@ -150,9 +150,9 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
     const authorizedPath = await workspaceFiles().writable(filePath);
     return handlers.statNote(authorizedPath);
   });
-  handleDesktopInvoke("notes:get-knowledge", async (_event, filePath) => {
+  handleDesktopInvoke("notes:get-graph-context", async (_event, filePath) => {
     const authorizedPath = await workspaceFiles().existing(filePath);
-    return handlers.getKnowledge(authorizedPath);
+    return handlers.getGraphContext(authorizedPath);
   });
   handleDesktopInvoke("notes:resolve-target", async (_event, sourceFilePath, target) => handlers.resolveTarget(sourceFilePath, target));
   handleDesktopInvoke("notes:ensure-target", async (_event, sourceFilePath, target) => handlers.ensureTarget(sourceFilePath, target));

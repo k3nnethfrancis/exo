@@ -1,4 +1,4 @@
-import type { AgentCommand, BranchFamily, InvocationRecord, NoteDocument, NoteKnowledge } from "@exo/core";
+import type { AgentCommand, BranchFamily, InvocationRecord, NoteDocument, WorkspaceGraphContext } from "@exo/core";
 import type { ParsedAgentMention } from "@exo/core/agent-mention-parser";
 import type { DragManager } from "../hooks/useDragManager";
 import type { ExoThemeVariant } from "../theme/types";
@@ -20,7 +20,7 @@ export interface EditorPaneState {
 interface EditorPaneProps {
   pane: EditorPaneState;
   documents: Record<string, EditorDocument>;
-  knowledgeByPath: Record<string, NoteKnowledge>;
+  graphContextByPath: Record<string, WorkspaceGraphContext>;
   saveStatuses: Record<string, "idle" | "saving" | "saved" | "error">;
   branchFamiliesByPath: Record<string, BranchFamily>;
   propertiesCollapsed: boolean;
@@ -57,7 +57,7 @@ export function EditorPane(props: EditorPaneProps) {
   const {
     pane,
     documents,
-    knowledgeByPath,
+    graphContextByPath,
     saveStatuses,
     branchFamiliesByPath,
     propertiesCollapsed,
@@ -90,7 +90,7 @@ export function EditorPane(props: EditorPaneProps) {
   } = props;
 
   const activeDocument = pane.activePath ? documents[pane.activePath] ?? null : null;
-  const activeKnowledge = pane.activePath ? knowledgeByPath[pane.activePath] ?? null : null;
+  const activeGraphContext = pane.activePath ? graphContextByPath[pane.activePath] ?? null : null;
 
   return (
     <div
@@ -148,7 +148,7 @@ export function EditorPane(props: EditorPaneProps) {
 
       <NoteEditor
         document={activeDocument}
-        knowledge={activeKnowledge}
+        graphContext={activeGraphContext}
         saveStatus={pane.activePath ? saveStatuses[pane.activePath] ?? "idle" : "idle"}
         branchFamily={pane.activePath ? branchFamiliesByPath[pane.activePath] ?? null : null}
         propertiesCollapsed={propertiesCollapsed}

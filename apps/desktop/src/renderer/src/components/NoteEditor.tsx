@@ -8,7 +8,7 @@ import { lintGutter, lintKeymap } from "@codemirror/lint";
 import { EditorSelection } from "@codemirror/state";
 import { keymap, lineNumbers, EditorView, type ViewUpdate } from "@codemirror/view";
 import { Code2, GitBranch, Plus, Send, Save, SlidersHorizontal } from "lucide-react";
-import type { AgentCommand, BranchFamily, InvocationRecord, NoteDocument, NoteKnowledge } from "@exo/core";
+import type { AgentCommand, BranchFamily, InvocationRecord, NoteDocument, WorkspaceGraphContext } from "@exo/core";
 import { parseAgentMentions, type ParsedAgentMention } from "@exo/core/agent-mention-parser";
 import { exoEditorTheme, exoSyntaxHighlighting } from "../theme/codemirror";
 import type { ExoThemeVariant } from "../theme/types";
@@ -48,7 +48,7 @@ interface EditorDocument extends NoteDocument {
 
 interface NoteEditorProps {
   document: EditorDocument | null;
-  knowledge: NoteKnowledge | null;
+  graphContext: WorkspaceGraphContext | null;
   saveStatus: "idle" | "saving" | "saved" | "error";
   branchFamily: BranchFamily | null;
   propertiesCollapsed: boolean;
@@ -78,7 +78,7 @@ interface NoteEditorProps {
 export function NoteEditor(props: NoteEditorProps) {
   const {
     document,
-    knowledge,
+    graphContext: loadedGraphContext,
     saveStatus,
     branchFamily,
     propertiesCollapsed,
@@ -146,7 +146,7 @@ export function NoteEditor(props: NoteEditorProps) {
     }
     return codeLanguageForPath(document.filePath);
   }, [document, useMarkdownEditing]);
-  const graphContext = useMemo(() => buildNoteGraphContext(document, knowledge), [document, knowledge]);
+  const graphContext = useMemo(() => buildNoteGraphContext(loadedGraphContext), [loadedGraphContext]);
   const graphProperties = graphContext?.properties ?? document?.frontmatter ?? {};
   const graphPropertyEntries = Object.entries(graphProperties).filter(([key]) => !key.startsWith("branch_"));
   const cmTheme = useMemo(() => exoEditorTheme(theme, fontSize), [fontSize, theme]);

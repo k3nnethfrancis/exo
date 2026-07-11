@@ -8,7 +8,7 @@ import type {
   IndexStatus,
   InvocationRecord,
   NoteDocument,
-  NoteKnowledge,
+  WorkspaceGraphContext,
   TreeNode,
   WorkspaceModel,
 } from "@exo/core";
@@ -1096,7 +1096,7 @@ describe("markdown editor wikilink behavior", () => {
   });
 
   it("hides generated graph references in raw markdown mode", () => {
-    const graphContext = buildNoteGraphContext(noteDocument(), noteKnowledge());
+    const graphContext = buildNoteGraphContext(graphContextFixture());
 
     expect(graphReferencesForMarkdownMode(true, false, graphContext)).toEqual({
       backlinks: [{ label: "Source", target: "/vault/source.md" }],
@@ -1106,29 +1106,19 @@ describe("markdown editor wikilink behavior", () => {
   });
 
   it("keeps backlink entries navigable by their file path target", () => {
-    const references = graphReferencesForMarkdownMode(true, false, buildNoteGraphContext(noteDocument(), noteKnowledge()));
+    const references = graphReferencesForMarkdownMode(true, false, buildNoteGraphContext(graphContextFixture()));
 
     expect(references?.backlinks[0]).toEqual({ label: "Source", target: "/vault/source.md" });
   });
 
   it("derives active-note graph context from the bounded renderer snapshot adapter", () => {
-    const graphContext = buildNoteGraphContext(noteDocument({ frontmatter: { status: "draft", tags: ["lab"] } }), {
-      ...noteKnowledge(),
-      tags: [{ tag: "lab" }],
-    });
+    const graphContext = buildNoteGraphContext(graphContextFixture({ frontmatter: { status: "draft", tags: ["lab"] }, tags: ["lab"] }));
 
-    expect(graphContext?.snapshot.schema.backlinks).toBe("derived");
     expect(graphContext?.properties).toEqual({ status: "draft", tags: ["lab"] });
     expect(graphContext?.outgoingLinks.map((item) => item.target).sort()).toEqual(["goals", "https://example.com"]);
     expect(graphContext?.externalLinks.map((item) => item.target)).toEqual(["https://example.com"]);
     expect(graphContext?.backlinks).toEqual([{ label: "Source", target: "/vault/source.md" }]);
-    expect(graphContext?.neighborhood.nodes.map((item) => item.kind).sort()).toEqual([
-      "external",
-      "note",
-      "note",
-      "tag",
-      "unresolved",
-    ]);
+    expect(graphContext?.neighborhood.nodes.map((item) => item.kind)).toEqual(["note", "note"]);
   });
 
   it("returns a lightweight hover preview fallback for empty or missing note bodies", () => {
@@ -1162,12 +1152,27 @@ function noteDocument(overrides: Partial<NoteDocument> = {}): NoteDocument {
   };
 }
 
-function noteKnowledge(): NoteKnowledge {
-  return {
-    wikilinks: [{ label: "goals", target: "goals" }],
-    markdownLinks: [{ label: "external", target: "https://example.com" }],
+function graphContextFixture(overrides: Partial<WorkspaceGraphContext["note"]> = {}): WorkspaceGraphContext {
+  const note = {
+    id: "note:notes:current.md" as const,
+    filePath: "/vault/current.md",
+    rootId: "notes",
+    relativePath: "current.md",
+    title: "Current",
     tags: [],
-    backlinks: [{ title: "Source", filePath: "/vault/source.md" }],
+    frontmatter: {},
+    ...overrides,
+  };
+  const source = { ...note, id: "note:notes:source.md" as const, filePath: "/vault/source.md", relativePath: "source.md", title: "Source" };
+  return {
+    note,
+    outgoing: [
+      { source: note.id, target: "goals", label: "goals", resolution: "unresolved" },
+      { source: note.id, target: "https://example.com", label: "external", resolution: "external" },
+    ],
+    backlinks: [{ source: source.id, target: note.filePath, label: "Source", resolution: "resolved", note: source }],
+    unresolved: [{ source: note.id, target: "goals", label: "goals", resolution: "unresolved" }],
+    neighborhood: [note, source],
   };
 }
 

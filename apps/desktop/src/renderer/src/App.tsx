@@ -169,12 +169,12 @@ export function App() {
   });
   const {
     openDocuments,
-    knowledgeByPath,
+    graphContextByPath,
     documentSaveStatuses,
     branchFamiliesByPath,
     activeDocumentPath,
     activeDocument,
-    activeKnowledge,
+    activeGraphContext,
     scrollRestoreRequest: editorScrollRestoreRequest,
     setActiveDocumentPath,
     ensureDocumentLoaded,
@@ -1085,7 +1085,7 @@ export function App() {
               key={leaf.id}
               pane={pane}
               documents={openDocuments}
-              knowledgeByPath={knowledgeByPath}
+              graphContextByPath={graphContextByPath}
               saveStatuses={documentSaveStatuses}
               branchFamiliesByPath={branchFamiliesByPath}
               propertiesCollapsed={propertiesCollapsed}
@@ -1136,7 +1136,7 @@ export function App() {
             />
             <InspectorDock
               document={activeDocument}
-              knowledge={activeKnowledge}
+              graphContext={activeGraphContext}
               open={!shellLayout.inspectorCollapsed}
               activeTag={activeTag}
               tagResults={tagResults}

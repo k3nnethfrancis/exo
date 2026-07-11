@@ -39,7 +39,7 @@ export interface DesktopInvokeHandlers {
   "notes:read": NotesApi["read"];
   "notes:save": NotesApi["save"];
   "notes:stat": NotesApi["stat"];
-  "notes:get-knowledge": NotesApi["getKnowledge"];
+  "notes:get-graph-context": NotesApi["getGraphContext"];
   "notes:resolve-target": NotesApi["resolveTarget"];
   "notes:ensure-target": NotesApi["ensureTarget"];
   "notes:suggest-targets": NotesApi["suggestTargets"];

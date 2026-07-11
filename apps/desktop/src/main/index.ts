@@ -335,7 +335,7 @@ function registerIpcHandlers() {
         observationService: invocationObservationService,
       }).launchNoteInvocation(input),
     endAgentInvocation: (invocationId) => invocationObservationService.endObservation(invocationId),
-    getKnowledge: (filePath) => workspaceNotesService.getKnowledge(filePath),
+    getGraphContext: (filePath) => workspaceNotesService.getGraphContext(filePath),
     getMainWindow: () => appLifecycle.getMainWindow(),
     getModel: () => workspaceModel,
     getSettings: async () => currentSnapshot(),

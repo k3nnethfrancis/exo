@@ -1,12 +1,12 @@
 import { ExternalLink, ScanText } from "lucide-react";
-import type { NoteDocument, NoteKnowledge, SearchResult } from "@exo/core";
+import type { NoteDocument, SearchResult, WorkspaceGraphContext } from "@exo/core";
 import { buildNoteGraphContext } from "../graphAffordances";
 import { FloatingPanel } from "./FloatingPanel";
 import { GraphNeighborhoodView } from "./GraphNeighborhoodView";
 
 interface InspectorDockProps {
   document: NoteDocument | null;
-  knowledge: NoteKnowledge | null;
+  graphContext: WorkspaceGraphContext | null;
   open: boolean;
   activeTag: string | null;
   tagResults: SearchResult[];
@@ -19,7 +19,7 @@ interface InspectorDockProps {
 export function InspectorDock(props: InspectorDockProps) {
   const {
     document,
-    knowledge,
+    graphContext: loadedGraphContext,
     open,
     activeTag,
     tagResults,
@@ -30,7 +30,7 @@ export function InspectorDock(props: InspectorDockProps) {
   } = props;
 
   const isMarkdown = document?.kind === "markdown";
-  const graphContext = buildNoteGraphContext(document, knowledge);
+  const graphContext = buildNoteGraphContext(loadedGraphContext);
   const backlinkCount = isMarkdown ? graphContext?.backlinks.length ?? 0 : 0;
   const referenceLinks = isMarkdown ? graphContext?.outgoingLinks.filter((item) => item.resolution !== "external") ?? [] : [];
   const externalLinks = isMarkdown ? graphContext?.externalLinks ?? [] : [];

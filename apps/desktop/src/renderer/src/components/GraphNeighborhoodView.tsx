@@ -27,10 +27,6 @@ export function GraphNeighborhoodView(props: GraphNeighborhoodViewProps) {
                 onOpenExternal(node.target);
                 return;
               }
-              if (node.kind === "tag") {
-                onOpenTag(node.target.replace(/^#/, ""));
-                return;
-              }
               onOpenTarget(node.target);
             }}
             title={node.label}
