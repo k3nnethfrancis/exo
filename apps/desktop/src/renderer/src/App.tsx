@@ -281,8 +281,7 @@ export function App() {
     saveDocument,
     openOrCreateDailyNote,
     createShellTerminal: async () => {
-      openUtilitySurface();
-      await terminalPaneController.createTerminal("shell");
+      await createUtilityTerminal("shell");
     },
     updateFocusedSurfaceZoom,
   });
@@ -649,7 +648,31 @@ export function App() {
 
   function createBrowserPane(url = "about:blank") {
     openUtilitySurface();
-    utilityPaneTree.actions.openBrowserPane(utilityPaneTree.focusedLeafId, url);
+    const existingBrowser = collectLeaves(utilityPaneTree.tree).find((leaf) => leaf.content.kind === "browser");
+    const id = existingBrowser?.id ?? paneId();
+    utilityPaneTree.actions.setTree({ kind: "leaf", id, content: { kind: "browser", url } });
+    utilityPaneTree.actions.focusLeaf(id);
+  }
+
+  async function createUtilityTerminal(kind: "shell", cwd?: string) {
+    openUtilitySurface();
+    const session = await terminalState.createTerminal(kind, cwd);
+    const terminalIds = [...new Set([...terminalSessions.map((entry) => entry.id), session.id])];
+    const existingTerminal = collectLeaves(utilityPaneTree.tree).find((leaf) => leaf.content.kind === "terminal");
+    const id = existingTerminal?.id ?? paneId();
+    utilityPaneTree.actions.setTree({ kind: "leaf", id, content: { kind: "terminal", terminalIds, activeTerminalId: session.id } });
+    utilityPaneTree.actions.focusLeaf(id);
+    await terminalState.activateTerminal(session.id);
+  }
+
+  async function showUtilityTerminal(sessionId: string) {
+    openUtilitySurface();
+    const terminalIds = terminalSessions.map((entry) => entry.id);
+    const existingTerminal = collectLeaves(utilityPaneTree.tree).find((leaf) => leaf.content.kind === "terminal");
+    const id = existingTerminal?.id ?? paneId();
+    utilityPaneTree.actions.setTree({ kind: "leaf", id, content: { kind: "terminal", terminalIds, activeTerminalId: sessionId } });
+    utilityPaneTree.actions.focusLeaf(id);
+    await terminalState.activateTerminal(sessionId);
   }
 
   // The right edge is one auxiliary surface, never a second workspace. Opening
@@ -974,7 +997,7 @@ export function App() {
       utilityOpen={utilityPaneOpen}
       onToggleUtility={toggleUtilitySurface}
       onOpenUtilityBrowser={() => createBrowserPane()}
-      onCreateUtilityTerminal={() => { openUtilitySurface(); void terminalPaneController.createTerminal("shell"); }}
+      onCreateUtilityTerminal={() => void createUtilityTerminal("shell")}
       revealExplorerPathRequest={revealExplorerPathRequest}
       renderLeaf={(leaf, isFocused) => {
         if (leaf.content.kind === "browser") {
@@ -1104,7 +1127,7 @@ export function App() {
       }}
       onSearchSubmit={() => void workspaceSearch.runIndexedSearch()}
       onOpenFile={(filePath, line) => void openFile(filePath, undefined, { line })}
-      onOpenTerminalSession={(sessionId) => void terminalPaneController.focusTerminalSession(sessionId)}
+      onOpenTerminalSession={(sessionId) => void showUtilityTerminal(sessionId)}
       onOpenTag={(tag) => void openTag(tag)}
       onExpandDirectory={(directoryPath, rootKind) => void workspaceTrees.expandTreeDirectory(directoryPath, rootKind)}
       explorerScale={explorerScale}
@@ -1112,7 +1135,7 @@ export function App() {
       dragManager={dragManager}
       onCreateFile={(directoryPath) => workspaceMutations.createFileInDirectory(directoryPath)}
       onCreateDirectory={(directoryPath) => workspaceMutations.createDirectoryInDirectory(directoryPath)}
-      onCreateTerminalInDirectory={(directoryPath) => void terminalPaneController.createTerminal("shell", directoryPath)}
+      onCreateTerminalInDirectory={(directoryPath) => void createUtilityTerminal("shell", directoryPath)}
       onOpenPreview={() => createBrowserPane()}
       onRenamePath={(targetPath) => workspaceMutations.renameWorkspacePath(targetPath)}
       onDeletePath={(targetPath) => workspaceMutations.deleteWorkspacePath(targetPath)}
