@@ -80,8 +80,8 @@ describe("Explorer mutation boundary", () => {
       />,
     );
 
-    expect(markup).toContain("Files");
-    expect(markup).toContain("Search");
+    expect(markup).toContain('aria-label="Files"');
+    expect(markup).toContain('aria-label="Search"');
     expect(markup).toContain("New note");
     expect(markup).toContain("New folder");
     expect(markup).toContain("Attached folders");

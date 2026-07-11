@@ -99,6 +99,7 @@ export function NoteEditor(props: NoteEditorProps) {
     scrollRestoreRequest,
   } = props;
   const [rawMarkdownMode, setRawMarkdownMode] = useState(false);
+  const [chromeVisible, setChromeVisible] = useState(false);
   const codeMirrorRef = useRef<ReactCodeMirrorRef>(null);
   const scrollTopByPathRef = useRef<Map<string, number>>(new Map());
   const selectionByPathRef = useRef<Map<string, { anchor: number; head: number }>>(new Map());
@@ -117,6 +118,7 @@ export function NoteEditor(props: NoteEditorProps) {
 
   useEffect(() => {
     setRawMarkdownMode(false);
+    setChromeVisible(false);
     setWikilinkSuggestions(null);
     setWikilinkPreview(null);
     suppressedWikilinkCompletionRef.current = null;
@@ -542,7 +544,8 @@ export function NoteEditor(props: NoteEditorProps) {
 
   return (
     <section className={`editor-panel ${compact ? "editor-panel--compact" : ""}`} data-testid="editor-panel" onMouseDown={onFocus}>
-      <div className="editor-panel__header">
+      <div aria-hidden="true" className="editor-panel__chrome-reveal" onMouseEnter={() => setChromeVisible(true)} />
+      <div className={`editor-panel__header ${chromeVisible ? "editor-panel__header--visible" : ""}`} onMouseEnter={() => setChromeVisible(true)} onMouseLeave={() => setChromeVisible(false)}>
         <div className="editor-panel__summary">
           <div className="editor-panel__title-row">
             {showNoteMetadata ? (
@@ -564,10 +567,7 @@ export function NoteEditor(props: NoteEditorProps) {
         </div>
 
         <div className="editor-panel__actions">
-          <span
-            className={`editor-panel__save-state editor-panel__save-state--${saveStatus}`}
-            data-testid="editor-save-status"
-          >
+          <span className="sr-only" data-testid="editor-save-status" aria-live="polite">
             {saveStatus === "saving" ? "Saving" : saveStatus === "saved" ? "Saved" : saveStatus === "error" ? "Save failed" : document.dirty ? "Unsaved" : "Saved"}
           </span>
           <button

@@ -1842,6 +1842,12 @@ select.dialog-card__input {
   gap: 10px;
 }
 
+.dialog-form__grid--compact {
+  grid-template-columns: minmax(0, 220px);
+  align-content: start;
+  align-self: start;
+}
+
 .dialog-field {
   display: grid;
   gap: 9px;

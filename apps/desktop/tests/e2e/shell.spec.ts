@@ -89,16 +89,20 @@ function runGit(cwd: string, args: string[]) {
 test.describe.configure({ mode: "parallel" });
 
 
-test("boots the shell, opens notes, and manages terminal tabs", async () => {
-  const { page, cleanup } = await launchExoTerminalFixture();
+test("boots the shell, opens notes, and creates terminals on demand", async () => {
+  const { page, cleanup } = await launchExoWorkspaceFixture();
 
   await expect(page.getByTestId("editor-title")).toHaveText("focus-note");
   await expect(page.getByTestId("editor-panel")).toContainText("Linked references:");
   await expect(page.getByTestId("editor-panel")).toContainText("agent-memory");
   await expect(page.getByTestId("editor-panel")).toContainText("#research");
+  await page.locator(".editor-panel__chrome-reveal").hover();
   await page.getByTestId("toggle-markdown-mode").click();
   await expect(page.getByTestId("editor-panel")).toContainText("[[agent-memory]]");
 
+  await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(0);
+  const modifier = process.platform === "darwin" ? "Meta" : "Control";
+  await page.keyboard.press(`${modifier}+T`);
   await expect(page.getByTestId("terminal-tab-shell")).toBeVisible();
   await expect(page.getByTestId("terminal-dock")).toBeVisible();
   await expect(page.locator('[data-testid="launch-claude"]')).toHaveCount(0);
@@ -107,7 +111,7 @@ test("boots the shell, opens notes, and manages terminal tabs", async () => {
     page.evaluate(async () => (await window.exo.terminals.list()).map((session) => session.kind)),
   ).toEqual(["shell"]);
 
-  await page.getByTestId("inspector-toggle").click();
+  await page.getByTestId("workspace-titlebar-connections").click();
   await expect(page.locator('[data-testid="tags-panel"] .tag-pill').first()).toBeVisible();
   await page.locator('[data-testid="tags-panel"] .tag-pill').first().click();
   await expect(page.getByText(/Results for #/)).toBeVisible();
@@ -593,7 +597,7 @@ test("replays bounded terminal history after renderer reload before input", asyn
 test("lets you close editor tabs", async () => {
   const { page, cleanup } = await launchExoWorkspaceFixture();
 
-  await page.getByTestId("inspector-toggle").click();
+  await page.getByTestId("workspace-titlebar-connections").click();
   await page.getByTestId("backlinks-panel").getByText("Related Note").click();
   await expect(page.getByTestId("editor-title")).toHaveText("related-note");
   await page.getByLabel("Close related-note").click();
@@ -605,7 +609,7 @@ test("lets you close editor tabs", async () => {
 test("renders inspector content when expanded", async () => {
   const { page, cleanup } = await launchExoWorkspaceFixture();
 
-  await page.getByTestId("inspector-toggle").click();
+  await page.getByTestId("workspace-titlebar-connections").click();
 
   await expect(page.getByTestId("inspector-panel")).toContainText("Backlinks");
   await expect(page.getByTestId("inspector-panel")).toContainText(/Related Note|\[\[agent-memory\]\]|#research/);
@@ -1382,7 +1386,7 @@ test("keeps the inspector pinned while long notes scroll", async () => {
     },
   });
 
-  await longFixture.page.getByTestId("inspector-toggle").click();
+  await longFixture.page.getByTestId("workspace-titlebar-connections").click();
   const before = await longFixture.page.getByTestId("inspector-panel").boundingBox();
   await longFixture.page.locator(".editor-surface .cm-scroller").evaluate((element) => {
     element.scrollTop = element.scrollHeight;

@@ -175,7 +175,7 @@ describe("workspace settings footer copy", () => {
 
   it("keeps the dialog intro from mentioning Apply when no Apply action is visible", () => {
     expect(workspaceSettingsDialogIntroCopy("index", false)).not.toContain("Apply");
-    expect(workspaceSettingsDialogIntroCopy("index", false)).toContain("Core search is always on");
+    expect(workspaceSettingsDialogIntroCopy("index", false)).toContain("Choose how Exo searches");
     expect(workspaceSettingsDialogIntroCopy("appearance", false)).not.toContain("Apply");
     expect(workspaceSettingsDialogIntroCopy("index", true)).toContain("Apply");
   });
@@ -251,9 +251,9 @@ describe("workspace settings footer copy", () => {
     );
 
     expect(html).toContain("Sync now refreshes documents and embeddings");
-    expect(html).toContain("Core search +");
-    expect(html).toContain("QMD provider mode");
-    expect(html).toContain("advanced provider");
+    expect(html).toContain("Core search is always available");
+    expect(html).toContain("Advanced search mode");
+    expect(html).toContain("Advanced search adds lexical and semantic retrieval");
     expect(html).toContain("3 pending embeddings");
     expect(html).not.toContain("Press Apply");
   });

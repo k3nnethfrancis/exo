@@ -98,7 +98,7 @@ test.describe("Drag editor tab over terminal pane", () => {
     const { page, cleanup } = await launchExoTerminalFixture();
 
     // Open a second note so we have a tab to drag
-    await page.getByTestId("inspector-toggle").click();
+    await page.getByTestId("workspace-titlebar-connections").click();
     await page.getByTestId("backlinks-panel").getByText("Related Note").click();
     await expect(page.getByTestId("editor-title")).toHaveText("related-note");
 
@@ -140,7 +140,7 @@ test.describe("Drag editor tab over terminal pane", () => {
     const { page, cleanup } = await launchExoTerminalFixture();
 
     // Open a second note
-    await page.getByTestId("inspector-toggle").click();
+    await page.getByTestId("workspace-titlebar-connections").click();
     await page.getByTestId("backlinks-panel").getByText("Related Note").click();
 
     const editorTabBox = await page.locator(".chrome-tab--active").first().boundingBox();
@@ -170,7 +170,7 @@ test.describe("Drag within editor zone", () => {
     const { page, cleanup } = await launchExoWorkspaceFixture();
 
     // Open a second note so we have a tab to drag
-    await page.getByTestId("inspector-toggle").click();
+    await page.getByTestId("workspace-titlebar-connections").click();
     await page.getByTestId("backlinks-panel").getByText("Related Note").click();
 
     const editorTabBox = await page.locator(".chrome-tab--active").first().boundingBox();
@@ -201,7 +201,7 @@ test.describe("Within-zone splits", () => {
     const { page, cleanup } = await launchExoTerminalFixture();
 
     // Open a second note so we have a tab to drag
-    await page.getByTestId("inspector-toggle").click();
+    await page.getByTestId("workspace-titlebar-connections").click();
     await page.getByTestId("backlinks-panel").getByText("Related Note").click();
     await expect(page.getByTestId("editor-title")).toHaveText("related-note");
 
@@ -534,7 +534,7 @@ test.describe("Post-drag app stability", () => {
     const { page, cleanup } = await launchExoTerminalFixture();
 
     // Open a second note
-    await page.getByTestId("inspector-toggle").click();
+    await page.getByTestId("workspace-titlebar-connections").click();
     await page.getByTestId("backlinks-panel").getByText("Related Note").click();
 
     const editorTabBox = await page.locator(".chrome-tab--active").first().boundingBox();
@@ -566,7 +566,7 @@ test.describe("Post-drag app stability", () => {
     const { page, cleanup } = await launchExoTerminalFixture();
 
     // Open a second note
-    await page.getByTestId("inspector-toggle").click();
+    await page.getByTestId("workspace-titlebar-connections").click();
     await page.getByTestId("backlinks-panel").getByText("Related Note").click();
 
     const editorTabBox = await page.locator(".chrome-tab--active").first().boundingBox();

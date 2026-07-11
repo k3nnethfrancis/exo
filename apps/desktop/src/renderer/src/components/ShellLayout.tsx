@@ -9,9 +9,11 @@ import type { WorkspaceSearchResultMode } from "../hooks/useWorkspaceSearch";
 import { FileTree, type ExplorerMode } from "./FileTree";
 import type { RootSection } from "./ExplorerSections";
 import { PaneTree } from "./PaneTree";
+import { WorkspaceMenu } from "./WorkspaceMenu";
 
 interface ShellLayoutProps {
-  title: string;
+  titleSegments: string[];
+  workspaceLabel: string;
   noteSections: RootSection[];
   attachedSections?: RootSection[];
   appearanceMode: AppearanceMode;
@@ -73,7 +75,14 @@ export function ShellLayout(props: ShellLayoutProps) {
           </button>
           <span className="workspace-titlebar__divider" aria-hidden="true" />
           <Folder className="workspace-titlebar__document-icon" size={17} aria-hidden="true" />
-          <div className="workspace-titlebar__title" data-testid="workspace-title" title={props.title}>{props.title}</div>
+          <div className="workspace-titlebar__title" data-testid="workspace-title" title={props.titleSegments.join(" / ")}>
+            {props.titleSegments.map((segment, index) => (
+              <span className="workspace-titlebar__crumb" key={`${segment}-${index}`}>
+                {index > 0 ? <span className="workspace-titlebar__chevron" aria-hidden="true">›</span> : null}
+                {segment}
+              </span>
+            ))}
+          </div>
         </div>
         <div className="workspace-titlebar__actions">
           <button aria-label="Workspace settings" className="workspace-titlebar__button" data-testid="workspace-titlebar-settings" onClick={props.onOpenWorkspaceSettings} title="Workspace settings" type="button">
@@ -84,7 +93,7 @@ export function ShellLayout(props: ShellLayoutProps) {
           </button>
         </div>
       </header>
-      <div className={`workspace-shell${props.sidebarCollapsed ? " workspace-shell--sidebar-collapsed" : ""}`}>
+      <div className={`workspace-shell${props.sidebarCollapsed ? " workspace-shell--sidebar-collapsed" : ""}${props.connectionsOpen ? " workspace-shell--connections-open" : ""}`}>
       <aside className="workspace-shell__explorer" style={{ width: props.sidebarCollapsed ? 0 : props.sidebarWidth }}>
         <FileTree
           attachedFolders={props.attachedSections}
@@ -124,8 +133,9 @@ export function ShellLayout(props: ShellLayoutProps) {
       <main className="workspace-shell__canvas">
         <PaneTree node={props.canvas} actions={props.canvasActions} focusedLeafId={props.focusedPaneId} renderLeaf={props.renderLeaf} hoverEdge={props.dragManager.hoverEdge} />
       </main>
-      <aside className="workspace-shell__connections">{props.connections}</aside>
+        <aside className="workspace-shell__connections">{props.connections}</aside>
       </div>
+      <WorkspaceMenu collapsed={props.sidebarCollapsed} label={props.workspaceLabel} onOpenSettings={props.onOpenWorkspaceSettings} />
     </div>
   );
 }

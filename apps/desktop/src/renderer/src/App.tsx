@@ -323,15 +323,9 @@ export function App() {
   function restoreTerminals(input: {
     settings: WorkspaceSettings;
     sessions: TerminalSessionInfo[];
-    defaultTerminalId: string;
-    defaultTerminalSnapshot?: string;
   }) {
-    const restoredActiveTerminalId = input.sessions.at(-1)?.id ?? input.defaultTerminalId;
-    terminalState.initialize(
-      input.sessions,
-      restoredActiveTerminalId,
-      restoredActiveTerminalId === input.defaultTerminalId ? input.defaultTerminalSnapshot : undefined,
-    );
+    const restoredActiveTerminalId = input.sessions.at(-1)?.id ?? null;
+    terminalState.initialize(input.sessions, restoredActiveTerminalId);
 
     canvasActions.setTree((current) => {
       let next = current;
@@ -909,11 +903,16 @@ export function App() {
     activeTerminalId,
     terminalState.hydratingTerminalIds,
   );
+  const workspaceLabel = workspaceModel ? pathLabel(workspaceModel.workspaceRoot) : "Exo";
+  const titleSegments = activeDocument
+    ? documentBreadcrumb(activeDocument.filePath, workspaceModel?.noteRoots.map((root) => root.path) ?? [])
+    : [workspaceLabel];
 
   return (
     <>
       <ShellLayout
-      title={activeDocument ? getDocumentDisplayTitle(activeDocument.filePath, activeDocument.kind) : "Exo"}
+      titleSegments={titleSegments}
+      workspaceLabel={workspaceLabel}
       noteSections={noteSections}
       appearanceMode={appearanceMode}
       resolvedAppearance={resolvedAppearance}
@@ -1137,6 +1136,15 @@ export function App() {
       ) : null}
     </>
   );
+}
+
+function documentBreadcrumb(filePath: string, noteRoots: readonly string[]): string[] {
+  const root = noteRoots.find((candidate) => filePath === candidate || filePath.startsWith(`${candidate}/`));
+  const relativePath = root ? filePath.slice(root.length).replace(/^\/+/, "") : filePath;
+  const segments = relativePath.split("/").filter(Boolean);
+  const last = segments.pop();
+  if (last) segments.push(last.replace(/\.[^.]+$/, ""));
+  return segments.length > 0 ? segments : [getDocumentDisplayTitle(filePath, "markdown")];
 }
 
 function resolveTerminalPaneActiveId(

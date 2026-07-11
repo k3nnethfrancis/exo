@@ -231,11 +231,11 @@ export function FileTree(props: FileTreeProps) {
     <aside className={`sidebar sidebar--content-only ${mirrored ? "sidebar--mirrored" : ""}`} data-testid="sidebar" onMouseDown={onFocusExplorer} style={sidebarStyle}>
       <div className="sidebar__main">
         <div className="sidebar__toolbar" role="toolbar" aria-label="Explorer">
-          <button aria-pressed={explorerMode === "files"} className={`sidebar__toolbar-button${explorerMode === "files" ? " sidebar__toolbar-button--active" : ""}`} data-testid="explorer-files" onClick={() => setExplorerMode("files")} title="Files" type="button">
-            <FolderTree size={14} aria-hidden="true" /><span>Files</span>
+          <button aria-label="Files" aria-pressed={explorerMode === "files"} className={`sidebar__toolbar-button sidebar__toolbar-button--icon${explorerMode === "files" ? " sidebar__toolbar-button--active" : ""}`} data-testid="explorer-files" onClick={() => setExplorerMode("files")} title="Files" type="button">
+            <FolderTree size={14} aria-hidden="true" />
           </button>
-          <button aria-pressed={explorerMode === "search"} className={`sidebar__toolbar-button${explorerMode === "search" ? " sidebar__toolbar-button--active" : ""}`} data-testid="explorer-search" onClick={() => setExplorerMode("search")} title="Search" type="button">
-            <Search size={14} aria-hidden="true" /><span>Search</span>
+          <button aria-label="Search" aria-pressed={explorerMode === "search"} className={`sidebar__toolbar-button sidebar__toolbar-button--icon${explorerMode === "search" ? " sidebar__toolbar-button--active" : ""}`} data-testid="explorer-search" onClick={() => setExplorerMode("search")} title="Search" type="button">
+            <Search size={14} aria-hidden="true" />
           </button>
           <span className="sidebar__toolbar-spacer" />
           <button aria-label="New note" className="sidebar__toolbar-button sidebar__toolbar-button--icon" data-testid="explorer-new-note" onClick={() => requestRootAction("file")} title="New note" type="button"><FilePlus2 size={14} aria-hidden="true" /></button>

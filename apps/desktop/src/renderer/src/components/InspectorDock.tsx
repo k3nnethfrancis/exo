@@ -1,9 +1,8 @@
-import { ExternalLink, ScanText } from "lucide-react";
+import { ExternalLink, X } from "lucide-react";
 import { useId, useState, type KeyboardEvent } from "react";
 import type { InvocationRecord, NoteDocument, SearchResult, WorkspaceGraphContext } from "@exo/core";
 
 import { buildNoteGraphContext } from "../graphAffordances";
-import { FloatingPanel } from "./FloatingPanel";
 import { GraphNeighborhoodView } from "./GraphNeighborhoodView";
 
 type ConnectionTab = "outline" | "links" | "graph" | "activity";
@@ -52,18 +51,20 @@ export function InspectorDock(props: InspectorDockProps) {
   const propertyEntries = Object.entries(document?.frontmatter ?? {}).filter(([key]) => !key.startsWith("branch_"));
   const meaningfulActivity = invocationHistory.filter(hasMeaningfulInvocationActivity);
 
+  if (!open) {
+    return null;
+  }
+
   return (
-    <FloatingPanel
-      open={open}
-      icon={<ScanText size={13} />}
-      label="Connections"
-      summary={`${backlinks.length} back  ${referenceLinks.length + externalLinks.length} links`}
-      anchorClassName="floating-panel--editor"
-      panelClassName="floating-panel__surface--inspector"
-      buttonTestId="inspector-toggle"
-      panelTestId="inspector-panel"
-      onToggle={onToggle}
-    >
+    <section className="connections-rail" data-testid="inspector-panel">
+      <header className="connections-rail__header">
+        <div>
+          <div className="connections-rail__title">Connections</div>
+          <div className="connections-rail__summary">{backlinks.length} back · {referenceLinks.length + externalLinks.length} links</div>
+        </div>
+        <button aria-label="Close Connections" className="connections-rail__close" onClick={onToggle} title="Close Connections" type="button"><X size={15} /></button>
+      </header>
+      <div className="connections-rail__content">
       <div className="connections-panel">
         <section className="connections-panel__properties" data-testid="properties-graph-panel">
           <div className="connections-panel__section-title">Properties</div>
@@ -120,7 +121,8 @@ export function InspectorDock(props: InspectorDockProps) {
           )}
         </div>
       </div>
-    </FloatingPanel>
+      </div>
+    </section>
   );
 }
 

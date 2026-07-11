@@ -24,9 +24,9 @@ interface WorkspaceSettingsDialogProps {
 
 const SETTINGS_SECTIONS: Array<{ id: WorkspaceSettingsSection; label: string; description: string; icon: typeof FolderOpen }> = [
   { id: "workspace", label: "Workspace", description: "Folders and roots", icon: FolderOpen },
-  { id: "index", label: "Search", description: "Core + QMD provider", icon: Search },
+  { id: "index", label: "Search", description: "Search behavior", icon: Search },
   { id: "appearance", label: "Appearance", description: "Theme and editor", icon: Palette },
-  { id: "terminal", label: "Terminal", description: "Runtime defaults", icon: TerminalSquare },
+  { id: "terminal", label: "Terminal", description: "Display", icon: TerminalSquare },
 ];
 
 export function WorkspaceSettingsDialog({
@@ -154,7 +154,7 @@ export function workspaceSettingsDialogIntroCopy(section: WorkspaceSettingsSecti
   }
 
   if (section === "index") {
-    return "Core search is always on. QMD provider update preferences save immediately.";
+    return "Choose how Exo searches this workspace.";
   }
 
   if (section === "workspace") {
@@ -240,16 +240,11 @@ function IndexSection({
       <div className="index-summary">
         <div className="index-summary__header">
           <span>
-            Core search +{" "}
-            <button className="link-button link-button--inline" onClick={() => void window.exo.shell.openExternal("https://github.com/tobi/qmd")} type="button">
-              QMD
-            </button>{" "}
-            advanced provider
+            Core search is always available. Advanced search adds lexical and semantic retrieval.
           </span>
         </div>
         <div className="index-summary__stats">
           <span>core always on</span>
-          <span>official provider</span>
           <span>{indexStatus?.mode ?? settings.indexMode}</span>
           <span>
             {indexStatus?.indexedRoots.length ?? settings.indexedRoots.length} root
@@ -266,7 +261,7 @@ function IndexSection({
       ) : null}
       {indexStatus?.recentJobs?.length ? (
         <div className="index-activity" data-testid="workspace-settings-index-activity">
-          <div className="index-activity__title">Recent QMD activity</div>
+          <div className="index-activity__title">Recent search activity</div>
           {indexStatus.recentJobs.slice(0, 5).map((job) => (
             <div className="index-activity__row" key={job.id}>
               <span>{job.kind}</span>
@@ -279,7 +274,7 @@ function IndexSection({
         </div>
       ) : null}
       <label className="dialog-field dialog-field--section">
-        <span className="dialog-field__label">QMD provider mode</span>
+        <span className="dialog-field__label">Advanced search mode</span>
         <select
           className="dialog-card__input"
           data-testid="workspace-settings-index-mode"
@@ -316,10 +311,10 @@ function IndexSection({
           }
           type="checkbox"
         />
-        <span>Use QMD lexical provider search on Enter in Explore.</span>
+        <span>Search indexed notes when I press Enter in Explore.</span>
       </label>
       <label className="dialog-field dialog-field--section">
-        <span className="dialog-field__label">QMD updates</span>
+        <span className="dialog-field__label">Search updates</span>
         <select
           className="dialog-card__input"
           data-testid="workspace-settings-index-update-strategy"
@@ -501,7 +496,7 @@ function TerminalSection({
   setSettings,
 }: Pick<WorkspaceSettingsDialogProps, "settings" | "setSettings">) {
   return (
-    <div className="dialog-form__grid">
+    <div className="dialog-form__grid dialog-form__grid--compact">
       <label className="dialog-field">
         <span className="dialog-field__label">Terminal font</span>
         <input
@@ -512,173 +507,6 @@ function TerminalSection({
           max={22}
           value={settings.terminalFontSize}
           onChange={(event) => setSettings((current) => (current ? { ...current, terminalFontSize: event.target.value, saveStatus: "idle", errorMessage: null } : current))}
-        />
-      </label>
-      <label className="dialog-field">
-        <span className="dialog-field__label">
-          Live terminal scrollback lines
-          <HelpTooltip label="Controls how many terminal output lines Exo keeps in the live terminal, tmux pane, and hydration buffer. Higher values use more memory. Durable transcripts are controlled separately." />
-        </span>
-        <input
-          className="dialog-card__input"
-          data-testid="workspace-settings-terminal-history-lines"
-          type="number"
-          min={500}
-          step={1000}
-          value={settings.terminalHistoryLines}
-          onChange={(event) => setSettings((current) => (current ? { ...current, terminalHistoryLines: event.target.value, saveStatus: "idle", errorMessage: null } : current))}
-        />
-      </label>
-      <label className="dialog-field">
-        <span className="dialog-field__label">Transcript retention</span>
-        <select
-          className="dialog-card__input"
-          data-testid="workspace-settings-terminal-transcript-retention"
-          value={settings.terminalTranscriptRetention}
-          onChange={(event) =>
-            setSettings((current) =>
-              current ? { ...current, terminalTranscriptRetention: event.target.value as WorkspaceSettings["terminalTranscriptRetention"], saveStatus: "idle", errorMessage: null } : current,
-            )
-          }
-        >
-          <option value="forever">Forever</option>
-          <option value="days">Days</option>
-        </select>
-      </label>
-      {settings.terminalTranscriptRetention === "days" ? (
-        <label className="dialog-field">
-          <span className="dialog-field__label">Retention days</span>
-          <input
-            className="dialog-card__input"
-            data-testid="workspace-settings-terminal-transcript-days"
-            type="number"
-            min={1}
-            max={3650}
-            step={1}
-            value={settings.terminalTranscriptRetentionDays}
-            onChange={(event) =>
-              setSettings((current) => (current ? { ...current, terminalTranscriptRetentionDays: event.target.value, saveStatus: "idle", errorMessage: null } : current))
-            }
-          />
-        </label>
-      ) : null}
-      <label className="dialog-field">
-        <span className="dialog-field__label">
-          Agent read default characters
-          <HelpTooltip label="Default terminal transcript characters returned when an agent reads a session without requesting a specific tail size." />
-        </span>
-        <input
-          className="dialog-card__input"
-          data-testid="workspace-settings-terminal-read-tail-chars"
-          type="number"
-          min={0}
-          step={1000}
-          value={settings.terminalReadTailChars}
-          onChange={(event) => setSettings((current) => (current ? { ...current, terminalReadTailChars: event.target.value, saveStatus: "idle", errorMessage: null } : current))}
-        />
-      </label>
-      <label className="dialog-field">
-        <span className="dialog-field__label">
-          Agent read maximum characters
-          <HelpTooltip label="Maximum terminal transcript characters an agent-facing Exo surface can request. Set higher when debugging long sessions." />
-        </span>
-        <input
-          className="dialog-card__input"
-          data-testid="workspace-settings-terminal-max-read-tail-chars"
-          type="number"
-          min={0}
-          step={10000}
-          value={settings.terminalMaxReadTailChars}
-          onChange={(event) => setSettings((current) => (current ? { ...current, terminalMaxReadTailChars: event.target.value, saveStatus: "idle", errorMessage: null } : current))}
-        />
-      </label>
-      <label className="dialog-field">
-        <span className="dialog-field__label">
-          Input coalesce milliseconds
-          <HelpTooltip label="How long Exo may batch rapid raw terminal input before writing it to the terminal process. Lower values favor immediate keystrokes." />
-        </span>
-        <input
-          className="dialog-card__input"
-          data-testid="workspace-settings-terminal-input-coalesce-ms"
-          type="number"
-          min={0}
-          step={5}
-          value={settings.terminalInputCoalesceMs}
-          onChange={(event) => setSettings((current) => (current ? { ...current, terminalInputCoalesceMs: event.target.value, saveStatus: "idle", errorMessage: null } : current))}
-        />
-      </label>
-      <label className="dialog-field">
-        <span className="dialog-field__label">Initial terminal columns</span>
-        <input
-          className="dialog-card__input"
-          data-testid="workspace-settings-terminal-initial-columns"
-          type="number"
-          min={20}
-          value={settings.terminalInitialColumns}
-          onChange={(event) => setSettings((current) => (current ? { ...current, terminalInitialColumns: event.target.value, saveStatus: "idle", errorMessage: null } : current))}
-        />
-      </label>
-      <label className="dialog-field">
-        <span className="dialog-field__label">Initial terminal rows</span>
-        <input
-          className="dialog-card__input"
-          data-testid="workspace-settings-terminal-initial-rows"
-          type="number"
-          min={8}
-          value={settings.terminalInitialRows}
-          onChange={(event) => setSettings((current) => (current ? { ...current, terminalInitialRows: event.target.value, saveStatus: "idle", errorMessage: null } : current))}
-        />
-      </label>
-      <label className="dialog-field">
-        <span className="dialog-field__label">Minimum terminal columns</span>
-        <input
-          className="dialog-card__input"
-          data-testid="workspace-settings-terminal-minimum-columns"
-          type="number"
-          min={1}
-          value={settings.terminalMinimumColumns}
-          onChange={(event) => setSettings((current) => (current ? { ...current, terminalMinimumColumns: event.target.value, saveStatus: "idle", errorMessage: null } : current))}
-        />
-      </label>
-      <label className="dialog-field">
-        <span className="dialog-field__label">Minimum terminal rows</span>
-        <input
-          className="dialog-card__input"
-          data-testid="workspace-settings-terminal-minimum-rows"
-          type="number"
-          min={1}
-          value={settings.terminalMinimumRows}
-          onChange={(event) => setSettings((current) => (current ? { ...current, terminalMinimumRows: event.target.value, saveStatus: "idle", errorMessage: null } : current))}
-        />
-      </label>
-      <label className="dialog-field">
-        <span className="dialog-field__label">
-          Unresponsive threshold milliseconds
-          <HelpTooltip label="How long Exo waits after input without output before marking a terminal unhealthy." />
-        </span>
-        <input
-          className="dialog-card__input"
-          data-testid="workspace-settings-terminal-unresponsive-threshold-ms"
-          type="number"
-          min={1000}
-          step={1000}
-          value={settings.terminalUnresponsiveThresholdMs}
-          onChange={(event) => setSettings((current) => (current ? { ...current, terminalUnresponsiveThresholdMs: event.target.value, saveStatus: "idle", errorMessage: null } : current))}
-        />
-      </label>
-      <label className="dialog-field">
-        <span className="dialog-field__label">
-          Idle threshold milliseconds
-          <HelpTooltip label="How long Exo waits without terminal output before showing an idle health state." />
-        </span>
-        <input
-          className="dialog-card__input"
-          data-testid="workspace-settings-terminal-idle-threshold-ms"
-          type="number"
-          min={1000}
-          step={1000}
-          value={settings.terminalIdleThresholdMs}
-          onChange={(event) => setSettings((current) => (current ? { ...current, terminalIdleThresholdMs: event.target.value, saveStatus: "idle", errorMessage: null } : current))}
         />
       </label>
     </div>

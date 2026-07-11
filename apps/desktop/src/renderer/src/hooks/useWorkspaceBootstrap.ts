@@ -36,8 +36,6 @@ export interface UseWorkspaceBootstrapOptions extends UseWorkspaceTreesOptions {
   restoreTerminals: (input: {
     settings: WorkspaceSettings;
     sessions: TerminalSessionInfo[];
-    defaultTerminalId: string;
-    defaultTerminalSnapshot?: string;
   }) => void;
 }
 
@@ -122,12 +120,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
       setLayoutPersistenceReady(true);
 
       try {
-        const defaultTerminal = await window.exo.terminals.ensureDefault();
         const sessions = await window.exo.terminals.list();
-        const defaultTerminalSnapshot = await window.exo.terminals.read(defaultTerminal.id).catch((error) => {
-          console.warn("[exo] default terminal tail failed", error);
-          return undefined;
-        });
 
         if (cancelled || bootstrapRun !== bootstrapRunRef.current) {
           return;
@@ -140,8 +133,6 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
             noteRoots: model.noteRoots.map((root) => root.path),
             projectRoots: model.projectRoots.map((root) => root.path),
             initialNotePath: firstNote?.path ?? null,
-            defaultTerminalId: defaultTerminal.id,
-            defaultTerminalSessionCwd: defaultTerminal.cwd,
             sessionCount: sessions.length,
           });
         }
@@ -149,8 +140,6 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
         currentOptions.restoreTerminals({
           settings,
           sessions,
-          defaultTerminalId: defaultTerminal.id,
-          defaultTerminalSnapshot,
         });
       } catch (error) {
         console.error("[exo] terminal bootstrap failed", error);
