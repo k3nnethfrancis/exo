@@ -11,7 +11,6 @@ import {
   createBranchFile,
   deleteWorkspacePath,
   listRootTree,
-  readAuthorizedIndexDocument,
   emptyOnboardingStateStore,
   markOnboardingComplete,
   markOnboardingWorkspaceBasicsSaved,
@@ -20,7 +19,8 @@ import {
   renameWorkspacePath,
   resolveWorkspaceModel,
   saveWorkspaceDocument,
-  searchIndex,
+  WorkspaceIndex,
+  qmdSearchProvider,
   searchNotes,
   searchWorkspace,
   writeOnboardingStateStore,
@@ -91,6 +91,10 @@ let workspaceNotesService: WorkspaceNotesService;
 let agentInstructionsService: AgentInstructionsService;
 let invocationObservationService: InvocationObservationService;
 
+function workspaceIndex(): WorkspaceIndex {
+  return new WorkspaceIndex({ context: { model: workspaceModel, runtimeRoot: resolveRuntimeRoot() } });
+}
+
 if (!singleInstanceLock) {
   console.error(
     "[exo] another Exo instance is already running; this dev process will exit after asking the running app to focus and refresh command-server discovery.",
@@ -103,7 +107,7 @@ function startCommandServer() {
   const documentReader = new CommandServerDocumentReader({
     getContext: () => commandServerDocumentReadContext(workspaceModel),
     readDocument: (context, target, options, authorizeResolvedPath) =>
-      readAuthorizedIndexDocument(
+      qmdSearchProvider.readAuthorized(
         context.model,
         context.runtimeRoot,
         target,
@@ -135,7 +139,7 @@ function startCommandServer() {
       return { ok: true };
     },
     onSearch: (query: string) => searchWorkspace(workspaceModel, query),
-    onIndexSearch: (query, options) => searchIndex(workspaceModel, resolveRuntimeRoot(), query, options),
+    onIndexSearch: (query, options) => workspaceIndex().search(query, options),
     onReadDocument: (target, options) => documentReader.read(target, options),
     onIndexStatus: () => indexingService.getMeasuredStatus(),
     onIndexAddRoot: (input) => indexingService.addRoot(input),
@@ -360,7 +364,7 @@ function registerIpcHandlers() {
       indexingService.scheduleForFile(filePath, "note-save");
     },
     saveSettings,
-    searchIndex: (query, options) => searchIndex(workspaceModel, resolveRuntimeRoot(), query, options),
+    searchIndex: (query, options) => workspaceIndex().search(query, options),
     searchNotes: (query) => searchNotes(workspaceModel, query),
     searchTag: (tag) => workspaceNotesService.searchTag(tag),
     searchWorkspace: (query) => searchWorkspace(workspaceModel, query),

@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { readAuthorizedIndexDocument, type WorkspaceModel } from "@exo/core";
+import { qmdSearchProvider, type WorkspaceModel } from "@exo/core";
 import {
   commandServerDocumentReadContext,
   CommandServerDocumentReader,
@@ -170,7 +170,7 @@ describe("CommandServerDocumentReader", () => {
     return new CommandServerDocumentReader({
       getContext: () => ({ model, runtimeRoot: path.join(model.workspaceRoot, ".exo") }),
       readDocument: (context, target, options, authorizeResolvedPath) =>
-        readAuthorizedIndexDocument(
+        qmdSearchProvider.readAuthorized(
           context.model,
           context.runtimeRoot,
           target,

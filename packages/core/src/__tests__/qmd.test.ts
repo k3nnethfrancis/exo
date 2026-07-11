@@ -4,15 +4,6 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import {
-  embedIndex,
-  getIndexStatus,
-  readAuthorizedIndexDocument,
-  readIndexDocument,
-  searchIndex,
-  syncIndex,
-  updateIndex,
-} from "../qmd";
 import { qmdSearchProvider } from "../search-providers/qmd-provider";
 import { createIndexedRoot, resolveWorkspaceModel } from "../workspace";
 
@@ -56,7 +47,7 @@ describe("QMD index adapter", () => {
       EXO_PROJECT_ROOTS: "",
     });
 
-    const result = await searchIndex(model, path.join(root, ".exo"), "focus");
+    const result = await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus");
 
     expect(result.source).toBe("filesystem");
     expect(result.warnings[0]).toBe("QMD advanced search provider is off or has no indexed roots; using core workspace search.");
@@ -76,7 +67,7 @@ describe("QMD index adapter", () => {
       indexing: { enabled: true, mode: "lexical" as const, backend: "qmd" as const },
     };
 
-    const result = await searchIndex(model, path.join(root, ".exo"), "focus");
+    const result = await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus");
 
     expect(result.source).toBe("qmd");
     expect(stores[0].searchLexCalls).toEqual([{ query: "focus", collection: "notes", limit: 10 }]);
@@ -96,7 +87,7 @@ describe("QMD index adapter", () => {
       indexing: { enabled: true, mode: "semantic" as const, backend: "qmd" as const },
     };
 
-    const result = await searchIndex(model, path.join(root, ".exo"), "focus");
+    const result = await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus");
 
     expect(result.warnings.some((warning) => warning.includes("Semantic search is not ready"))).toBe(true);
     expect(stores[0].searchLexCalls.length).toBeGreaterThanOrEqual(1);
@@ -121,8 +112,8 @@ describe("QMD index adapter", () => {
     const model = indexedModel(root, "hybrid");
     createStoreError = new Error("The module was compiled against a different Node.js version using NODE_MODULE_VERSION 127");
 
-    const bodyResult = await searchIndex(model, path.join(root, ".exo"), "Ashby");
-    const titleResult = await searchIndex(model, path.join(root, ".exo"), "Sigmund Lab");
+    const bodyResult = await qmdSearchProvider.search(model, path.join(root, ".exo"), "Ashby");
+    const titleResult = await qmdSearchProvider.search(model, path.join(root, ".exo"), "Sigmund Lab");
 
     expect(bodyResult.source).toBe("filesystem");
     expect(bodyResult.warnings[0]).toContain("QMD native ABI mismatch");
@@ -136,7 +127,7 @@ describe("QMD index adapter", () => {
     const model = indexedModel(root, "hybrid");
     createStoreError = new Error("SQLITE_ERROR: no such module: vec0");
 
-    const result = await searchIndex(model, path.join(root, ".exo"), "focus");
+    const result = await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus");
 
     expect(result.source).toBe("filesystem");
     expect(result.warnings[0]).toContain("QMD vec0 extension is unavailable");
@@ -157,7 +148,7 @@ describe("QMD index adapter", () => {
       indexing: { enabled: true, mode: "hybrid" as const, backend: "qmd" as const },
     };
 
-    await searchIndex(model, path.join(root, ".exo"), "focus");
+    await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus");
 
     expect(stores[0].searchCalls.map((call) => call.collections)).toEqual([["notes"], ["docs"]]);
   });
@@ -166,13 +157,13 @@ describe("QMD index adapter", () => {
     const root = await fixtureRoot();
     const model = indexedModel(root, "hybrid");
 
-    const status = await getIndexStatus(model, path.join(root, ".exo"));
+    const status = await qmdSearchProvider.getStatus(model, path.join(root, ".exo"));
     expect(status.dbPath).toContain(path.join(".exo", "qmd", "index.sqlite"));
     expect(status.documentCount).toBe(1);
     expect(status.pendingEmbeddings).toBe(1);
 
-    await updateIndex(model, path.join(root, ".exo"));
-    await embedIndex(model, path.join(root, ".exo"));
+    await qmdSearchProvider.update(model, path.join(root, ".exo"));
+    await qmdSearchProvider.embed(model, path.join(root, ".exo"));
 
     expect(stores.some((store) => store.updateCalls === 1)).toBe(true);
     expect(stores.some((store) => store.embedCalls === 1)).toBe(true);
@@ -182,7 +173,7 @@ describe("QMD index adapter", () => {
     const root = await fixtureRoot();
     const model = indexedModel(root, "hybrid");
 
-    await updateIndex(model, path.join(root, ".exo"), { rootIds: ["index-notes"] });
+    await qmdSearchProvider.update(model, path.join(root, ".exo"), { rootIds: ["index-notes"] });
 
     expect(stores.some((store) => JSON.stringify(store.updateOptions[0]) === JSON.stringify({ collections: ["notes"] }))).toBe(true);
   });
@@ -191,7 +182,7 @@ describe("QMD index adapter", () => {
     const root = await fixtureRoot();
     const model = indexedModel(root, "lexical");
 
-    const result = await syncIndex(model, path.join(root, ".exo"));
+    const result = await qmdSearchProvider.sync(model, path.join(root, ".exo"));
 
     expect(result.phases).toEqual([
       { name: "update", status: "completed", message: "Indexed documents refreshed." },
@@ -205,7 +196,7 @@ describe("QMD index adapter", () => {
     const root = await fixtureRoot();
     const model = indexedModel(root, "hybrid");
 
-    const result = await syncIndex(model, path.join(root, ".exo"));
+    const result = await qmdSearchProvider.sync(model, path.join(root, ".exo"));
 
     expect(result.phases.map((phase) => `${phase.name}:${phase.status}`)).toEqual(["update:completed", "embed:completed"]);
     expect(stores.some((store) => store.updateCalls === 1)).toBe(true);
@@ -221,7 +212,7 @@ describe("QMD index adapter", () => {
       EXO_PROJECT_ROOTS: "",
     });
 
-    const result = await readIndexDocument(model, path.join(root, ".exo"), filePath, { fromLine: 2, maxLines: 1 });
+    const result = await qmdSearchProvider.read(model, path.join(root, ".exo"), filePath, { fromLine: 2, maxLines: 1 });
 
     expect(result.body).toBe("alpha");
   });
@@ -230,7 +221,7 @@ describe("QMD index adapter", () => {
     const root = await fixtureRoot();
     const model = indexedModel(root, "lexical");
 
-    const result = await readIndexDocument(model, path.join(root, ".exo"), "#abc123", { fromLine: 1, maxLines: 2 });
+    const result = await qmdSearchProvider.read(model, path.join(root, ".exo"), "#abc123", { fromLine: 1, maxLines: 2 });
 
     expect(result.filePath).toBe(path.join(root, "notes", "focus.md"));
     expect(result.source).toBe("qmd");
@@ -241,7 +232,7 @@ describe("QMD index adapter", () => {
     const model = indexedModel(root, "lexical");
 
     await expect(
-      readAuthorizedIndexDocument(
+      qmdSearchProvider.readAuthorized(
         model,
         path.join(root, ".exo"),
         "#abc123",
@@ -261,7 +252,7 @@ describe("QMD index adapter", () => {
       indexedRoots: [createIndexedRoot(path.join(root, "docs"), { id: "index-docs", label: "docs", kind: "docs" })],
     };
 
-    await expect(readIndexDocument(model, path.join(root, ".exo"), "#abc123")).rejects.toThrow(
+    await expect(qmdSearchProvider.read(model, path.join(root, ".exo"), "#abc123")).rejects.toThrow(
       "outside configured indexed roots",
     );
   });

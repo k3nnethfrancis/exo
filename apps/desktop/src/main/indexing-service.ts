@@ -3,10 +3,8 @@ import path from "node:path";
 
 import {
   createIndexedRoot,
-  embedIndex,
-  getIndexStatus,
-  syncIndex,
-  updateIndex,
+  qmdSearchProvider,
+  WorkspaceIndex,
   type IndexedRoot,
   type IndexJobMetric,
   type IndexStatus,
@@ -36,12 +34,21 @@ export class IndexingService {
 
   constructor(private readonly options: IndexingServiceOptions) {}
 
+  private index(): WorkspaceIndex {
+    return new WorkspaceIndex({
+      context: {
+        model: this.options.getWorkspaceModel(),
+        runtimeRoot: this.options.getRuntimeRoot(),
+      },
+    });
+  }
+
   shouldUseIndex(model = this.options.getWorkspaceModel()): boolean {
     return model.indexing.enabled && model.indexing.mode !== "off" && model.indexedRoots.length > 0;
   }
 
   async getMeasuredStatus(): Promise<IndexStatus> {
-    const status = await getIndexStatus(this.options.getWorkspaceModel(), this.options.getRuntimeRoot());
+    const status = await this.index().status();
     return this.attachIndexJobMetrics(status);
   }
 
@@ -104,11 +111,11 @@ export class IndexingService {
   }
 
   update(reason: string): Promise<IndexStatus> {
-    return this.runMeasuredStatusJob("update", reason, () => updateIndex(this.options.getWorkspaceModel(), this.options.getRuntimeRoot()));
+    return this.runMeasuredStatusJob("update", reason, () => qmdSearchProvider.update(this.options.getWorkspaceModel(), this.options.getRuntimeRoot()));
   }
 
   embed(reason: string): Promise<IndexStatus> {
-    return this.runMeasuredStatusJob("embed", reason, () => embedIndex(this.options.getWorkspaceModel(), this.options.getRuntimeRoot()));
+    return this.runMeasuredStatusJob("embed", reason, () => qmdSearchProvider.embed(this.options.getWorkspaceModel(), this.options.getRuntimeRoot()));
   }
 
   scheduleForFile(filePath: string, reason: string) {
@@ -166,7 +173,7 @@ export class IndexingService {
 
     const startedAtMs = Date.now();
     this.options.sendState({ state: "running", reason });
-    this.indexSyncPromise = syncIndex(this.options.getWorkspaceModel(), this.options.getRuntimeRoot())
+    this.indexSyncPromise = this.index().rebuild()
       .then((result) => {
         this.recordIndexJob("sync", reason, startedAtMs, "completed", result.status, result.warnings);
         const measuredResult = { ...result, status: this.attachIndexJobMetrics(result.status) };
@@ -226,7 +233,7 @@ export class IndexingService {
     const model = this.options.getWorkspaceModel();
     const startedAtMs = Date.now();
     this.options.sendState({ state: "running", reason });
-    this.indexRefreshPromise = updateIndex(model, this.options.getRuntimeRoot(), { rootIds })
+    this.indexRefreshPromise = qmdSearchProvider.update(model, this.options.getRuntimeRoot(), { rootIds })
       .then((status) => {
         const result: IndexSyncResult = {
           status,
