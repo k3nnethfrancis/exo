@@ -2,44 +2,28 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { test, expect, type Locator, type Page } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 
-import { launchExoTerminalFixture, launchExoWorkspaceFixture } from "../helpers";
+import { launchExoWorkspaceFixture } from "../helpers";
 
-async function dragBy(page: Page, locator: Locator, delta: { x: number; y: number }) {
-  const box = await locator.boundingBox();
-  expect(box).not.toBeNull();
-  const start = { x: box!.x + box!.width / 2, y: box!.y + box!.height / 2 };
-  await page.mouse.move(start.x, start.y);
-  await page.mouse.down();
-  for (let step = 1; step <= 10; step += 1) {
-    await page.mouse.move(start.x + (delta.x * step) / 10, start.y + (delta.y * step) / 10);
-  }
-  await page.mouse.up();
-  await page.waitForTimeout(100);
-}
-
-test("resizes the browser and terminal surfaces inside the right pane", async () => {
-  const { page, cleanup } = await launchExoTerminalFixture();
+test("uses one full-width preview surface in the utility pane", async () => {
+  const { page, cleanup } = await launchExoWorkspaceFixture();
 
   try {
-    await page.getByTestId("side-panel-browser-rail").click();
+    await page.getByTestId("explorer-open-preview").click();
     await page.getByTestId("browser-url-input").fill("localhost:4321");
     await page.getByTestId("browser-load-url").click();
     await expect(page.getByTestId("browser-preview-frame")).toHaveAttribute("src", "http://localhost:4321/");
 
-    const browserPane = page.locator(".exo-side-panel-surface .pane-leaf--browser").first();
-    const terminalPane = page.locator(".exo-side-panel-surface .pane-leaf--terminal").first();
-    const previewSplitResizer = page.locator(".exo-side-panel-surface .pane-split-resizer--vertical").first();
-
-    const browserBefore = await browserPane.boundingBox();
-    expect(browserBefore).not.toBeNull();
-    await dragBy(page, previewSplitResizer, { x: -150, y: 0 });
-    const browserAfter = await browserPane.boundingBox();
-    expect(browserAfter).not.toBeNull();
-    expect(browserAfter!.width).toBeGreaterThan(browserBefore!.width + 80);
-
-    await expect(terminalPane).toBeVisible();
+    const utilityPane = page.getByTestId("utility-pane");
+    await expect(utilityPane.getByTestId("browser-pane")).toHaveCount(1);
+    await expect(utilityPane.getByTestId("terminal-dock")).toHaveCount(0);
+    const browserPane = utilityPane.getByTestId("browser-pane");
+    await expect(browserPane).toBeVisible();
+    const [utilityBox, browserBox] = await Promise.all([utilityPane.boundingBox(), browserPane.boundingBox()]);
+    expect(utilityBox).not.toBeNull();
+    expect(browserBox).not.toBeNull();
+    expect(browserBox!.width).toBeGreaterThan(utilityBox!.width - 56);
   } finally {
     await cleanup();
   }
@@ -95,11 +79,6 @@ test("opens absolute local HTML paths through the command server in the preview 
   });
 
   try {
-    await page.getByTestId("side-panel-toggle").click();
-    await expect(page.getByTestId("exo-side-panel")).toBeVisible();
-    await page.getByTestId("side-panel-browser-rail").click();
-    await expect(page.getByTestId("browser-pane")).toBeVisible();
-
     const serverInfo = JSON.parse(await readFile(path.join(runtimeRoot, "server.json"), "utf8")) as { port: number; token: string };
     const commandHeaders = {
       "Content-Type": "application/json",
@@ -134,7 +113,7 @@ test("opens absolute local HTML paths through the command server in the preview 
     });
     expect(secondResponse.ok).toBe(true);
     await expect(secondResponse.json()).resolves.toMatchObject({ url: secondUrl, source: "file" });
-    await expect(page.locator(".pane-leaf--browser")).toHaveCount(1);
+    await expect(page.getByTestId("utility-pane").getByTestId("browser-pane")).toHaveCount(1);
     await expect(page.getByTestId("browser-url-input")).toHaveValue(secondUrl);
     await expect(page.getByTestId("browser-preview-frame")).toHaveAttribute("src", secondUrl);
 
@@ -222,20 +201,17 @@ async function getPreviewLayoutMetrics(page: Page): Promise<{
   };
 }
 
-test("keeps the browser preview in the shared right-side pane graph", async () => {
+test("keeps preview isolated in the utility destination", async () => {
   const { page, cleanup } = await launchExoWorkspaceFixture();
 
   try {
-    await page.getByTestId("side-panel-toggle").click();
-    await expect(page.getByTestId("exo-side-panel")).toBeVisible();
-    await page.getByTestId("side-panel-browser-rail").click();
-    await expect(page.getByTestId("browser-tab-preview")).toBeVisible();
-
-    const browserTab = await page.getByTestId("browser-tab-preview").boundingBox();
-    expect(browserTab).not.toBeNull();
-    await expect(page.locator(".exo-side-panel-surface .pane-leaf--browser")).toHaveCount(1);
-    await expect(page.locator(".workspace__body .pane-leaf--editor")).toHaveCount(1);
-    await expect(page.locator(".workspace__body .pane-leaf--browser")).toHaveCount(0);
+    await page.getByTestId("utility-pane-toggle").click();
+    await page.getByTestId("utility-pane-preview").click();
+    await expect(page.getByTestId("utility-pane").getByTestId("browser-pane")).toBeVisible();
+    await expect(page.getByTestId("utility-pane").getByTestId("browser-pane")).toHaveCount(1);
+    await expect(page.getByTestId("utility-pane").getByTestId("terminal-dock")).toHaveCount(0);
+    await expect(page.locator(".workspace-shell__canvas .pane-leaf--editor")).toHaveCount(1);
+    await expect(page.locator(".workspace-shell__canvas .pane-leaf--browser")).toHaveCount(0);
   } finally {
     await cleanup();
   }

@@ -230,12 +230,43 @@
 
 .browser-pane__header {
   display: grid;
-  grid-template-columns: auto minmax(120px, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(120px, 1.35fr);
   align-items: center;
   gap: 0;
   min-width: 0;
   padding: 0 8px 0 0;
   border-bottom: 1px solid color-mix(in srgb, var(--divider) 52%, transparent);
+}
+
+.browser-pane__tabs {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.browser-pane__new {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  margin-left: 3px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.browser-pane__new:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.browser-pane__new:active {
+  transform: scale(var(--exo-press-scale));
 }
 
 .browser-tab {

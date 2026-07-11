@@ -52,13 +52,8 @@ interface FileTreeProps {
   onDeletePath: (targetPath: string) => void;
   mirrored?: boolean;
   revealPathRequest?: { path: string; nonce: number } | null;
-  /** @deprecated Remove with the ShellLayout integration; search is driven by searchActive. */
-  mode?: ExplorerMode;
-  /** @deprecated Remove with the ShellLayout integration; the explorer has no local mode controls. */
-  onModeChange?: (mode: ExplorerMode) => void;
 }
 
-export type ExplorerMode = "files" | "search";
 export type ExplorerRootKind = "notes" | "attached";
 
 export function isExplorerMutationAllowed(rootKind: ExplorerRootKind): boolean {

@@ -33,9 +33,9 @@
 }
 
 .workspace-titlebar {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
   min-width: 0;
   padding: 0 var(--mac-titlebar-safe-right) 0 var(--mac-titlebar-safe-left);
   border-bottom: 1px solid color-mix(in srgb, var(--divider) 70%, transparent);
@@ -51,7 +51,13 @@
   gap: 8px;
 }
 
+.workspace-titlebar__identity {
+  justify-self: start;
+  overflow: hidden;
+}
+
 .workspace-titlebar__actions {
+  justify-self: end;
   gap: 4px;
 }
 
@@ -87,11 +93,6 @@
   background: var(--divider);
 }
 
-.workspace-titlebar__document-icon {
-  flex: 0 0 auto;
-  color: var(--text-soft);
-}
-
 .workspace-titlebar__title {
   min-width: 0;
   overflow: hidden;
@@ -107,13 +108,44 @@
 .workspace-titlebar__crumb {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
 }
 
 .workspace-titlebar__chevron {
+  flex: none;
   color: var(--muted);
-  font-size: 16px;
-  font-weight: 400;
+  opacity: 0.72;
+}
+
+.workspace-titlebar__segment {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  height: 28px;
+  padding: 0 5px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-soft);
+  cursor: pointer;
+  font: inherit;
+  -webkit-app-region: no-drag;
+}
+
+.workspace-titlebar__segment:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.workspace-titlebar__segment--file {
+  color: var(--text);
+  font-weight: 570;
+}
+
+.workspace-titlebar__segment svg {
+  flex: none;
+  color: var(--muted);
 }
 
 .workspace-shell {
@@ -206,6 +238,20 @@
   color: var(--text);
 }
 
+.workspace-utility-rail__button[aria-pressed="true"] {
+  background: var(--surface-active);
+  color: var(--text);
+}
+
+.workspace-utility-rail__button:active {
+  transform: scale(var(--exo-press-scale));
+}
+
+.workspace-utility-rail__button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
 .workspace-utility-surface {
   display: grid;
   min-width: 0;
@@ -259,7 +305,7 @@
 
 .connections-rail {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   height: 100%;
   min-width: 0;
   border-left: 1px solid var(--divider);
@@ -502,7 +548,7 @@
   min-height: 0;
   flex: 1;
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 8px;
   padding: 0 10px 12px;
   overflow: hidden;

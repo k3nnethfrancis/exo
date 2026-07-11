@@ -52,7 +52,6 @@ describe("Explorer mutation boundary", () => {
         collapsed={false}
         dragManager={noDrag}
         explorerScale={1}
-        mode="files"
         noteRoots={[{ label: "Notes", path: "/notes", nodes: [] }]}
         onAppearanceModeChange={() => undefined}
         onCreateDirectory={() => undefined}
@@ -62,7 +61,6 @@ describe("Explorer mutation boundary", () => {
         onDeletePath={() => undefined}
         onExpandDirectory={() => undefined}
         onFocusExplorer={() => undefined}
-        onModeChange={() => undefined}
         onOpenAttachedFile={() => undefined}
         onOpenFile={() => undefined}
         onOpenTag={() => undefined}

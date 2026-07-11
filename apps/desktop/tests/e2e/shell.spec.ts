@@ -661,8 +661,8 @@ test("keeps workspace settings frame stable across tabs", async () => {
     },
   });
 
-  await page.getByTestId("workspace-menu-button").click();
-  await page.getByTestId("workspace-settings").click();
+  await page.getByTestId("workspace-menu-toggle").click();
+  await page.getByTestId("workspace-menu-settings").click();
   await expect(page.getByTestId("workspace-settings-dialog")).toBeVisible();
   const settingsFrame = await page.getByTestId("workspace-settings-dialog").boundingBox();
   expect(settingsFrame).not.toBeNull();

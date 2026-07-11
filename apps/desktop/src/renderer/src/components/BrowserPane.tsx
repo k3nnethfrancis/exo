@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Globe2, RotateCw, X } from "lucide-react";
+import { Globe2, Plus, RotateCw, X } from "lucide-react";
 
 import type { DragManager } from "../hooks/useDragManager";
 import { ChromeTab } from "./Chrome";
@@ -12,10 +12,16 @@ interface BrowserPaneProps {
   onNavigate: (target: string) => Promise<string>;
   onClosePane: (() => void) | null;
   dragManager: DragManager;
+  tabs?: Array<{ id: string; url: string }>;
+  activeTabId?: string | null;
+  onSelectTab?: (id: string) => void;
+  onCreateTab?: () => void;
+  onCloseTab?: (id: string) => void;
 }
 
 export function BrowserPane(props: BrowserPaneProps) {
   const { paneId, url, compact, onFocus, onNavigate, onClosePane, dragManager } = props;
+  const tabs = props.tabs?.length ? props.tabs : [{ id: paneId, url }];
   const [draftUrl, setDraftUrl] = useState(url);
   const [error, setError] = useState<string | null>(null);
   const safeUrl = useMemo(() => trustedPreviewFrameUrl(url), [url]);
@@ -43,30 +49,35 @@ export function BrowserPane(props: BrowserPaneProps) {
   return (
     <section className={`browser-pane ${compact ? "browser-pane--compact" : ""}`} data-testid="browser-pane" onMouseDown={focusPreviewPane}>
       <div className="browser-pane__header">
-        <ChromeTab
-          active
-          className="browser-tab"
-          testId="browser-tab-preview"
-          dropPaneId={paneId}
-          dropKind="browser"
-          onClick={focusPreviewPane}
-          onMouseDown={(event) => {
-            dragManager.startDrag(event, {
-              kind: "browser",
-              url: safeUrl,
-              sourcePaneId: paneId,
-            });
-          }}
-          leading={<Globe2 size={13} />}
-          closeLabel="Close preview pane"
-          closeIcon={<X size={12} />}
-          onClose={onClosePane ? (event) => {
-            event.stopPropagation();
-            onClosePane();
-          } : undefined}
-        >
-          Preview
-        </ChromeTab>
+        <div className="browser-pane__tabs">
+          {tabs.map((tab, index) => (
+            <ChromeTab
+              active={(props.activeTabId ?? paneId) === tab.id}
+              className="browser-tab"
+              key={tab.id}
+              testId="browser-tab-preview"
+              dropPaneId={tab.id}
+              dropKind="browser"
+              onClick={() => { props.onSelectTab?.(tab.id); focusPreviewPane(); }}
+              onMouseDown={(event) => {
+                dragManager.startDrag(event, { kind: "browser", url: tab.url, sourcePaneId: tab.id });
+              }}
+              leading={<Globe2 size={13} />}
+              closeLabel="Close preview pane"
+              closeIcon={<X size={12} />}
+              onClose={props.onCloseTab || onClosePane ? (event) => {
+                event.stopPropagation();
+                if (props.onCloseTab) props.onCloseTab(tab.id);
+                else onClosePane?.();
+              } : undefined}
+            >
+              {index === 0 ? "Preview" : `Preview ${index + 1}`}
+            </ChromeTab>
+          ))}
+          {props.onCreateTab ? (
+            <button aria-label="New preview" className="browser-pane__new" onClick={props.onCreateTab} title="New preview" type="button"><Plus size={14} aria-hidden="true" /></button>
+          ) : null}
+        </div>
         <form className="browser-pane__address" onSubmit={submit}>
           <input
             aria-label="Preview URL"

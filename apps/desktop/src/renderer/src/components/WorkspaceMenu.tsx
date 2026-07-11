@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { Folder, Settings } from "lucide-react";
+import { FilePlus2, Folder, Settings } from "lucide-react";
 
 interface WorkspaceMenuProps {
   collapsed: boolean;
   label: string;
+  missingFolderIndexCount: number;
+  onCreateMissingFolderIndexes: () => void;
   onOpenSettings: () => void;
 }
 
-export function WorkspaceMenu({ collapsed, label, onOpenSettings }: WorkspaceMenuProps) {
+export function WorkspaceMenu({ collapsed, label, missingFolderIndexCount, onCreateMissingFolderIndexes, onOpenSettings }: WorkspaceMenuProps) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -32,6 +34,11 @@ export function WorkspaceMenu({ collapsed, label, onOpenSettings }: WorkspaceMen
       {open ? (
         <div className="workspace-menu" data-testid="workspace-menu-panel">
           <div className="workspace-menu__header"><Folder size={14} aria-hidden="true" />{label}</div>
+          {missingFolderIndexCount > 0 ? (
+            <button className="workspace-menu__item" data-testid="workspace-menu-create-indexes" onClick={() => { setOpen(false); onCreateMissingFolderIndexes(); }} type="button">
+              <FilePlus2 size={14} aria-hidden="true" />Create {missingFolderIndexCount} missing folder {missingFolderIndexCount === 1 ? "index" : "indexes"}
+            </button>
+          ) : null}
           <button className="workspace-menu__item" data-testid="workspace-menu-settings" onClick={() => { setOpen(false); onOpenSettings(); }} type="button">
             <Settings size={14} aria-hidden="true" />Settings
           </button>

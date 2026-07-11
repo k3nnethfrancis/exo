@@ -1,25 +1,26 @@
 import type { ReactNode } from "react";
 import type { WorkspaceSearchResults } from "@exo/core";
-import { Folder, Globe2, Network, PanelLeft, PanelRight, SquareTerminal } from "lucide-react";
+import { ChevronRight, FileText, Folder, Globe2, Network, PanelLeft, PanelRight, SquareTerminal } from "lucide-react";
 
 import type { AppearanceMode, ResolvedAppearance } from "../appearance";
 import type { DragManager } from "../hooks/useDragManager";
 import type { PaneNode, PaneNodeId, PaneTreeActions } from "../hooks/usePaneTree";
 import type { WorkspaceSearchResultMode } from "../hooks/useWorkspaceSearch";
-import { FileTree, type ExplorerMode } from "./FileTree";
+import { FileTree } from "./FileTree";
 import type { RootSection } from "./ExplorerSections";
 import { PaneTree } from "./PaneTree";
 import { WorkspaceMenu } from "./WorkspaceMenu";
+import type { WorkspaceBreadcrumbSegment } from "../workspaceBreadcrumb";
+import { WorkspaceSearchField } from "./WorkspaceSearchField";
 
 interface ShellLayoutProps {
-  titleSegments: string[];
+  titleSegments: WorkspaceBreadcrumbSegment[];
   workspaceLabel: string;
+  missingFolderIndexCount: number;
   noteSections: RootSection[];
   attachedSections?: RootSection[];
   appearanceMode: AppearanceMode;
   resolvedAppearance: ResolvedAppearance;
-  explorerMode: ExplorerMode;
-  onExplorerModeChange: (mode: ExplorerMode) => void;
   searchQuery: string;
   searchResults: WorkspaceSearchResults;
   searchResultMode: WorkspaceSearchResultMode;
@@ -34,11 +35,8 @@ interface ShellLayoutProps {
   canvasActions: PaneTreeActions;
   renderLeaf: (leaf: import("../hooks/usePaneTree").PaneLeaf, focused: boolean) => ReactNode;
   dragManager: DragManager;
-  utilityCanvas: PaneNode;
-  utilityFocusedPaneId: PaneNodeId;
-  utilityCanvasActions: PaneTreeActions;
-  utilityContent?: ReactNode;
-  utilitySurface: "terminal" | "preview";
+  utilityContent: ReactNode;
+  utilitySurface: "terminal" | "preview" | "connections";
   utilityOpen: boolean;
   onToggleUtility: () => void;
   onOpenUtilityBrowser: () => void;
@@ -47,10 +45,12 @@ interface ShellLayoutProps {
   revealExplorerPathRequest?: { path: string; nonce: number } | null;
   onAppearanceModeChange: (mode: AppearanceMode) => void;
   onOpenWorkspaceSettings: () => void;
+  onCreateMissingFolderIndexes: () => void;
   connectionsOpen: boolean;
   onOpenConnections: () => void;
   onSearchQueryChange: (value: string) => void;
   onSearchSubmit: () => void;
+  onSearchClear: () => void;
   onOpenFile: (filePath: string, line?: number | null) => void;
   onOpenAttachedFile?: (filePath: string, line?: number | null) => void;
   onOpenTerminalSession: (sessionId: string) => void;
@@ -64,6 +64,7 @@ interface ShellLayoutProps {
   onOpenPreview: () => void;
   onRenamePath: (targetPath: string) => void;
   onDeletePath: (targetPath: string) => void;
+  onOpenTitleSegment: (segment: WorkspaceBreadcrumbSegment) => void;
 }
 
 export function ShellLayout(props: ShellLayoutProps) {
@@ -83,16 +84,19 @@ export function ShellLayout(props: ShellLayoutProps) {
             <PanelLeft size={16} aria-hidden="true" />
           </button>
           <span className="workspace-titlebar__divider" aria-hidden="true" />
-          <Folder className="workspace-titlebar__document-icon" size={17} aria-hidden="true" />
-          <div className="workspace-titlebar__title" data-testid="workspace-title" title={props.titleSegments.join(" / ")}>
+          <div className="workspace-titlebar__title" data-testid="workspace-title" title={props.titleSegments.map((segment) => segment.label).join(" / ")}>
             {props.titleSegments.map((segment, index) => (
-              <span className="workspace-titlebar__crumb" key={`${segment}-${index}`}>
-                {index > 0 ? <span className="workspace-titlebar__chevron" aria-hidden="true">›</span> : null}
-                {segment}
+              <span className="workspace-titlebar__crumb" key={segment.path}>
+                {index > 0 ? <ChevronRight className="workspace-titlebar__chevron" size={12} strokeWidth={1.75} aria-hidden="true" /> : null}
+                <button className={`workspace-titlebar__segment workspace-titlebar__segment--${segment.kind}`} onClick={() => props.onOpenTitleSegment(segment)} type="button">
+                  {segment.kind === "folder" ? <Folder size={14} aria-hidden="true" /> : <FileText size={13} aria-hidden="true" />}
+                  <span>{segment.label}</span>
+                </button>
               </span>
             ))}
           </div>
         </div>
+        <WorkspaceSearchField query={props.searchQuery} onChange={props.onSearchQueryChange} onClear={props.onSearchClear} onSubmit={props.onSearchSubmit} />
         <div className="workspace-titlebar__actions">
           <button aria-label={props.utilityOpen ? "Hide utility pane" : "Show utility pane"} aria-pressed={props.utilityOpen} className="workspace-titlebar__button" data-testid="utility-pane-toggle" onClick={props.onToggleUtility} title={props.utilityOpen ? "Hide utility pane" : "Show utility pane"} type="button">
             <PanelRight size={16} aria-hidden="true" />
@@ -107,7 +111,7 @@ export function ShellLayout(props: ShellLayoutProps) {
           collapsed={props.sidebarCollapsed}
           dragManager={props.dragManager}
           explorerScale={props.explorerScale}
-          mode={props.explorerMode}
+          searchActive={props.searchQuery.trim().length > 0}
           noteRoots={props.noteSections}
           onAppearanceModeChange={props.onAppearanceModeChange}
           onCreateDirectory={props.onCreateDirectory}
@@ -117,7 +121,6 @@ export function ShellLayout(props: ShellLayoutProps) {
           onDeletePath={props.onDeletePath}
           onExpandDirectory={props.onExpandDirectory}
           onFocusExplorer={props.onFocusExplorer}
-          onModeChange={props.onExplorerModeChange}
           onOpenAttachedFile={props.onOpenAttachedFile}
           onOpenFile={props.onOpenFile}
           onOpenTag={props.onOpenTag}
@@ -141,18 +144,18 @@ export function ShellLayout(props: ShellLayoutProps) {
       </main>
       <aside aria-hidden={!props.utilityOpen} className="workspace-shell__utility" data-testid="utility-pane">
         <nav className="workspace-utility-rail" aria-label="Utility pane">
-          <button aria-label="Open preview" aria-pressed={props.utilitySurface === "preview"} className="workspace-utility-rail__button" data-testid="utility-pane-preview" onClick={props.onOpenUtilityBrowser} title="Preview" type="button"><Globe2 size={16} aria-hidden="true" /></button>
-          <button aria-label="Open terminal" aria-pressed={props.utilitySurface === "terminal" && !props.connectionsOpen} className="workspace-utility-rail__button" data-testid="utility-pane-terminal" onClick={props.onOpenUtilityTerminal} title="Terminal" type="button"><SquareTerminal size={16} aria-hidden="true" /></button>
+          <button aria-label="Open preview" aria-pressed={props.utilityOpen && props.utilitySurface === "preview"} className="workspace-utility-rail__button" data-testid="utility-pane-preview" onClick={props.onOpenUtilityBrowser} title="Preview" type="button"><Globe2 size={16} aria-hidden="true" /></button>
+          <button aria-label="Open terminal" aria-pressed={props.utilityOpen && props.utilitySurface === "terminal"} className="workspace-utility-rail__button" data-testid="utility-pane-terminal" onClick={props.onOpenUtilityTerminal} title="Terminal" type="button"><SquareTerminal size={16} aria-hidden="true" /></button>
           <button aria-label="Open connections" aria-pressed={props.connectionsOpen} className="workspace-utility-rail__button" data-testid="utility-pane-connections" onClick={props.onOpenConnections} title="Connections" type="button"><Network size={16} aria-hidden="true" /></button>
         </nav>
         <div className="workspace-utility-surface">
           {props.connectionsOpen
             ? props.connections
-            : props.utilityContent ?? <PaneTree node={props.utilityCanvas} actions={props.utilityCanvasActions} focusedLeafId={props.utilityFocusedPaneId} renderLeaf={props.renderLeaf} hoverEdge={props.dragManager.hoverEdge} />}
+            : props.utilityContent}
         </div>
       </aside>
       </div>
-      <WorkspaceMenu collapsed={props.sidebarCollapsed} label={props.workspaceLabel} onOpenSettings={props.onOpenWorkspaceSettings} />
+      <WorkspaceMenu collapsed={props.sidebarCollapsed} label={props.workspaceLabel} missingFolderIndexCount={props.missingFolderIndexCount} onCreateMissingFolderIndexes={props.onCreateMissingFolderIndexes} onOpenSettings={props.onOpenWorkspaceSettings} />
     </div>
   );
 }
