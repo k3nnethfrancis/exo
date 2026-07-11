@@ -393,7 +393,7 @@ export function indexSettingsStatusCopy(
     return null;
   }
   if (indexStatus.errors.length > 0) {
-    return { tone: "error", text: `QMD status error: ${indexStatus.errors.join(" ")}` };
+    return { tone: "error", text: "Advanced search is unavailable. Core search still works." };
   }
   if (!indexStatus.enabled || indexStatus.mode === "off" || indexStatus.indexedRoots.length === 0) {
     return null;

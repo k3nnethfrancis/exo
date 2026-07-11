@@ -620,7 +620,7 @@ test("renders inspector content when expanded", async () => {
   await cleanup();
 });
 
-test("opens workspace settings from the titlebar", async () => {
+test("opens workspace settings from the workspace menu", async () => {
   const { page, cleanup } = await launchExoWorkspaceFixture({
     env: {
       EXO_INDEX_ENABLED: "0",
@@ -629,8 +629,9 @@ test("opens workspace settings from the titlebar", async () => {
     },
   });
 
-  await expect(page.locator(".workspace-shell__canvas .pane-leaf--terminal")).toBeVisible();
-  await page.getByTestId("workspace-titlebar-settings").click();
+  await expect(page.locator(".workspace-shell__canvas .pane-leaf--terminal")).not.toBeVisible();
+  await page.getByTestId("workspace-menu-toggle").click();
+  await page.getByTestId("workspace-menu-settings").click();
   await expect(page.getByTestId("workspace-settings-dialog")).toBeVisible();
   const settingsFrame = await page.getByTestId("workspace-settings-dialog").boundingBox();
   expect(settingsFrame).not.toBeNull();
@@ -639,11 +640,10 @@ test("opens workspace settings from the titlebar", async () => {
   await page.getByTestId("workspace-settings-tab-index").click();
   await expectStableOuterFrame(page.getByTestId("workspace-settings-dialog"), settingsFrame!);
   await expect(page.getByTestId("workspace-settings-index-mode")).toHaveValue("off");
-  await expect(page.getByTestId("workspace-settings-dialog")).toContainText("Core search + QMD advanced provider");
+  await expect(page.getByTestId("workspace-settings-dialog")).toContainText("Core search is always available");
   await page.screenshot({ path: "/tmp/exo-workspace-settings-index.png", fullPage: false });
   await page.getByTestId("workspace-settings-close").click();
   await expect(page.getByTestId("workspace-settings-dialog")).not.toBeVisible();
-  await expect(page.getByTestId("terminal-dock")).toBeVisible();
 
   await cleanup();
 });

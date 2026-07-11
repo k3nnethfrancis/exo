@@ -210,6 +210,13 @@ describe("workspace settings footer copy", () => {
     expect(indexSettingsStatusCopy(indexStatusFixture(), "embedding")?.text).toContain("documents already in QMD");
   });
 
+  it("keeps provider failures out of the settings surface", () => {
+    const copy = indexSettingsStatusCopy(indexStatusFixture({ errors: ["ENOENT: mkdir '/.exo'"] }), null);
+
+    expect(copy?.text).toBe("Advanced search is unavailable. Core search still works.");
+    expect(copy?.text).not.toContain("ENOENT");
+  });
+
   it("renders index guidance and precise activity labels", () => {
     const html = renderToStaticMarkup(
       <WorkspaceSettingsDialog

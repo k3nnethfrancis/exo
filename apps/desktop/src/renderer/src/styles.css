@@ -1559,7 +1559,7 @@ button svg,
   display: grid;
   place-items: center;
   padding: 24px;
-  background: color-mix(in srgb, var(--bg) 42%, transparent);
+  background: color-mix(in srgb, var(--bg) 64%, transparent);
   overflow: hidden;
 }
 
@@ -1588,9 +1588,11 @@ button svg,
 }
 
 .dialog-card--settings {
-  width: min(980px, calc(100vw - 48px));
-  height: min(760px, calc(100dvh - 48px));
+  width: min(920px, calc(100vw - 48px));
+  height: min(680px, calc(100dvh - 48px));
   grid-template-rows: auto auto minmax(0, 1fr) auto;
+  background: color-mix(in srgb, var(--panel-strong) 98%, var(--editor-bg));
+  backdrop-filter: blur(28px) saturate(1.15);
   overflow: hidden;
 }
 
@@ -1730,9 +1732,16 @@ select.dialog-card__input {
 }
 
 .dialog-card--settings .dialog-form {
+  align-content: start;
   min-height: 0;
   overflow-y: auto;
   padding-right: 4px;
+}
+
+.dialog-card--settings .dialog-card__input {
+  min-height: 38px;
+  border-radius: 10px;
+  padding: 8px 11px;
 }
 
 .workspace-settings-layout {
@@ -1808,6 +1817,7 @@ select.dialog-card__input {
 }
 
 .workspace-settings-panel {
+  align-content: start;
   min-width: 0;
   min-height: 0;
   overflow: auto;
@@ -1839,6 +1849,8 @@ select.dialog-card__input {
 .dialog-form__grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-content: start;
+  align-self: start;
   gap: 10px;
 }
 

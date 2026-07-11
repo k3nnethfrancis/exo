@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { WorkspaceSearchResults } from "@exo/core";
-import { Folder, Globe2, PanelLeft, PanelRight, Settings, SquareTerminal } from "lucide-react";
+import { Folder, Globe2, PanelLeft, PanelRight, SquareTerminal } from "lucide-react";
 
 import type { AppearanceMode, ResolvedAppearance } from "../appearance";
 import type { DragManager } from "../hooks/useDragManager";
@@ -92,9 +92,6 @@ export function ShellLayout(props: ShellLayoutProps) {
           </div>
         </div>
         <div className="workspace-titlebar__actions">
-          <button aria-label="Workspace settings" className="workspace-titlebar__button" data-testid="workspace-titlebar-settings" onClick={props.onOpenWorkspaceSettings} title="Workspace settings" type="button">
-            <Settings size={16} aria-hidden="true" />
-          </button>
           <button aria-label={props.utilityOpen ? "Hide utility pane" : "Show utility pane"} aria-pressed={props.utilityOpen} className="workspace-titlebar__button" data-testid="utility-pane-toggle" onClick={props.onToggleUtility} title={props.utilityOpen ? "Hide utility pane" : "Show utility pane"} type="button">
             <PanelRight size={16} aria-hidden="true" />
           </button>

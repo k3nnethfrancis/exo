@@ -71,8 +71,6 @@ process.on("unhandledRejection", (reason) => {
   logMain("unhandled rejection", serializeError(reason));
 });
 
-const singleInstanceLock = app.requestSingleInstanceLock(resolveSingleInstanceData());
-
 let appLifecycle: AppLifecycleController;
 let commandServerLifecycle: CommandServerLifecycle;
 let workspaceModel: WorkspaceModel;
@@ -89,6 +87,8 @@ let indexingService: IndexingService;
 let workspaceNotesService: WorkspaceNotesService;
 let agentInstructionsService: AgentInstructionsService;
 let invocationRunner: InvocationRunner;
+
+const singleInstanceLock = app.requestSingleInstanceLock(resolveSingleInstanceData());
 
 function workspaceIndex(): WorkspaceIndex {
   return new WorkspaceIndex({ context: { model: workspaceModel, runtimeRoot: resolveRuntimeRoot() } });
@@ -583,7 +583,15 @@ async function ensureNoteRoots(model: WorkspaceModel): Promise<void> {
 }
 
 function resolveRuntimeRoot(): string {
-  return process.env.EXO_RUNTIME_ROOT ?? path.join(resolveWorkspaceModel().workspaceRoot, ".exo");
+  if (process.env.EXO_RUNTIME_ROOT) {
+    return process.env.EXO_RUNTIME_ROOT;
+  }
+
+  // Settings own the active workspace after startup. Falling back to the launch
+  // directory here made packaged Exo derive `/.exo`, because Electron launches
+  // the app from `/` rather than from the user's workspace.
+  const workspaceRoot = workspaceSettings?.workspaceRoot ?? workspaceModel?.workspaceRoot ?? resolveWorkspaceModel().workspaceRoot;
+  return path.join(workspaceRoot, ".exo");
 }
 
 app.on("before-quit", () => {
