@@ -90,8 +90,6 @@ import {
   suggestWikilinkTargetsFromTrees,
   wikilinkSuggestionEdit,
 } from "./graphAffordances";
-import { runToolSurfaceAction } from "./toolDockModel";
-import type { ToolSurfaceDescriptor } from "@exo/core/surface-descriptor";
 import type { WorkspaceSettingsDialogState } from "./workspaceSettingsDialogTypes";
 import type { TerminalSessionInfo } from "../../shared/api";
 import { hasInvocationDirtyConflict } from "./invocationReviewState";
@@ -499,20 +497,6 @@ function workspaceSettingsDialogFixture(
     applyStatus: "idle",
     applyErrorMessage: null,
     ...overrides,
-  };
-}
-
-function toolSurfaceDescriptor(action: ToolSurfaceDescriptor["action"]): ToolSurfaceDescriptor {
-  return {
-    id: "test-tool",
-    label: "Test tool",
-    title: "Test tool",
-    kind: "toolDockPane",
-    placement: "toolDock",
-    owner: "localPlugin",
-    action,
-    enabled: true,
-    visible: true,
   };
 }
 

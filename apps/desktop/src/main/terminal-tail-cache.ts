@@ -1,27 +1,20 @@
 /**
- * Bounded terminal text cache for main-process API reads.
- *
- * This is deliberately not a live screen model. tmux owns durable history,
- * xterm owns mounted rendering, and transcripts own full append-only history.
- * The cache only supports readiness heuristics and bounded CLI/UI tail
- * reads when tmux capture is temporarily unavailable.
+ * Bounded in-memory terminal output for renderer reload and explicit operator
+ * reads. It is neither a durable transcript nor a second terminal screen:
+ * xterm owns the mounted terminal and its scrollback.
  */
 export class TerminalTailCache {
   private output = "";
 
-  constructor(private lineLimit: number | null) {}
+  constructor(private charLimit: number) {}
 
   append(data: string): void {
-    this.output = appendBoundedLines(this.output, data, this.lineLimit);
+    this.output = appendBoundedChars(this.output, data, this.charLimit);
   }
 
-  replace(data: string): void {
-    this.output = appendBoundedLines("", data, this.lineLimit);
-  }
-
-  resize(lineLimit: number | null): void {
-    this.lineLimit = lineLimit;
-    this.output = appendBoundedLines("", this.output, this.lineLimit);
+  resize(charLimit: number): void {
+    this.charLimit = charLimit;
+    this.output = appendBoundedChars("", this.output, this.charLimit);
   }
 
   text(): string {
@@ -61,13 +54,9 @@ export function normalizeTailLineLimit(value: number | null | undefined): number
   return Math.floor(value);
 }
 
-function appendBoundedLines(current: string, data: string, lineLimit: number | null): string {
+function appendBoundedChars(current: string, data: string, charLimit: number): string {
   const next = `${current}${data}`;
-  if (lineLimit === null) {
-    return next;
-  }
-  const lines = next.split("\n");
-  return lines.length <= lineLimit ? next : lines.slice(-lineLimit).join("\n");
+  return next.length <= charLimit ? next : next.slice(-charLimit);
 }
 
 function terminalOutputLineCount(output: string): number {

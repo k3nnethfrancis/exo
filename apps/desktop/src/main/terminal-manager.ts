@@ -1,5 +1,4 @@
 import { EventEmitter } from "node:events";
-import { randomUUID } from "node:crypto";
 import path from "node:path";
 
 import {
@@ -10,33 +9,23 @@ import {
   type RuntimeConfig,
 } from "@exo/core";
 import {
-  DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS,
   DEFAULT_TERMINAL_AGENT_SUBMIT_DELAY_MS,
   DEFAULT_TERMINAL_INITIAL_COLUMNS,
   DEFAULT_TERMINAL_INITIAL_ROWS,
-  DEFAULT_TERMINAL_INPUT_COALESCE_MS,
   DEFAULT_TERMINAL_IDLE_THRESHOLD_MS,
-  DEFAULT_TERMINAL_MINIMUM_COLUMNS,
-  DEFAULT_TERMINAL_MINIMUM_ROWS,
-  DEFAULT_TERMINAL_UNRESPONSIVE_THRESHOLD_MS,
 } from "@exo/core/terminal-settings";
 
 import type { TerminalCreateOptions, TerminalHealthState, TerminalSessionInfo, TerminalKind, TerminalWriteResult } from "../shared/api";
 import { terminalDiagnosticsFromRecord } from "./terminal-diagnostics";
-import type { TerminalRuntime, TerminalRuntimeProcess } from "./terminal-runtime";
-import { DirectPtyTerminalRuntime } from "./terminal-runtime-pty";
+import type { TerminalProcess, TerminalProcessFactory } from "./terminal-runtime";
+import { DirectPtyProcessFactory } from "./terminal-runtime-pty";
 import { TerminalGeometryService } from "./terminal-geometry-service";
 import { TerminalTailCache, normalizeTailLineLimit } from "./terminal-tail-cache";
 
 interface TerminalRecord {
   info: TerminalSessionInfo;
-  process: TerminalRuntimeProcess;
-  runtimeSessionName: string;
-  runtimePaneId: string;
-  createdAt: string;
+  process: TerminalProcess;
   tailCache: TerminalTailCache;
-  rawInputBuffer: string;
-  rawInputTimer?: NodeJS.Timeout;
   lastInputAt?: number;
   lastOutputAt?: number;
   lastWriteId: number;
@@ -49,55 +38,44 @@ type TerminalManagerCreateOptions = TerminalCreateOptions & {
   kind?: TerminalKind;
 };
 
-const DEFAULT_LIVE_SCROLLBACK_LINES = 100_000;
-const DEFAULT_BUFFER_LINE_LIMIT = DEFAULT_LIVE_SCROLLBACK_LINES;
-const MIN_LIVE_SCROLLBACK_LINES = 500;
+const DEFAULT_LIVE_TAIL_CHARS = 1_000_000;
+const MIN_LIVE_TAIL_CHARS = 1_024;
 
-export interface TerminalRuntimeOptions {
-  inputCoalesceMs?: number;
-  agentStartupGraceMs?: number;
+export interface TerminalManagerOptions {
   agentSubmitDelayMs?: number;
   initialColumns?: number;
   initialRows?: number;
-  minimumColumns?: number;
-  minimumRows?: number;
-  unresponsiveThresholdMs?: number;
   idleThresholdMs?: number;
 }
 
-const DEFAULT_TERMINAL_RUNTIME_OPTIONS: Required<TerminalRuntimeOptions> = {
-  inputCoalesceMs: DEFAULT_TERMINAL_INPUT_COALESCE_MS,
-  agentStartupGraceMs: DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS,
+const DEFAULT_TERMINAL_MANAGER_OPTIONS: Required<TerminalManagerOptions> = {
   agentSubmitDelayMs: DEFAULT_TERMINAL_AGENT_SUBMIT_DELAY_MS,
   initialColumns: DEFAULT_TERMINAL_INITIAL_COLUMNS,
   initialRows: DEFAULT_TERMINAL_INITIAL_ROWS,
-  minimumColumns: DEFAULT_TERMINAL_MINIMUM_COLUMNS,
-  minimumRows: DEFAULT_TERMINAL_MINIMUM_ROWS,
-  unresponsiveThresholdMs: DEFAULT_TERMINAL_UNRESPONSIVE_THRESHOLD_MS,
   idleThresholdMs: DEFAULT_TERMINAL_IDLE_THRESHOLD_MS,
 };
 
 export class TerminalManager extends EventEmitter {
   private readonly sessions = new Map<string, TerminalRecord>();
-  private bufferLineLimit: number | null;
+  private bufferLineLimit: number;
   private nextId = 1;
   private runtimeConfig = resolveRuntimeConfig();
   private nextWriteId = 1;
   private nextAttachGeneration = 1;
-  private terminalRuntimeOptions: Required<TerminalRuntimeOptions>;
+  private terminalOptions: Required<TerminalManagerOptions>;
   private geometryService: TerminalGeometryService;
 
   constructor(
     private defaultCwd: string,
-    bufferLineLimit: number | null = DEFAULT_BUFFER_LINE_LIMIT,
+    bufferLineLimit: number | null = DEFAULT_LIVE_TAIL_CHARS,
     _transcriptRetentionDays = 0,
-    terminalRuntimeOptions: TerminalRuntimeOptions = {},
-    private readonly terminalRuntime: TerminalRuntime = new DirectPtyTerminalRuntime(),
+    terminalOptions: TerminalManagerOptions = {},
+    private readonly processFactory: TerminalProcessFactory = new DirectPtyProcessFactory(),
     _harnessDependencyStarter?: unknown,
   ) {
     super();
-    this.bufferLineLimit = normalizeBufferLineLimit(bufferLineLimit);
-    this.terminalRuntimeOptions = normalizeTerminalRuntimeOptions(terminalRuntimeOptions);
+    this.bufferLineLimit = normalizeTailCharLimit(bufferLineLimit);
+    this.terminalOptions = normalizeTerminalManagerOptions(terminalOptions);
     this.geometryService = this.createGeometryService();
   }
 
@@ -123,16 +101,13 @@ export class TerminalManager extends EventEmitter {
           exitCode: record.info.exitCode,
           health: this.terminalHealth(record, now),
           healthDetail: this.terminalHealthDetail(record, now),
-          runtime: this.terminalRuntime.kind,
-          sessionName: record.runtimeSessionName,
-          paneId: record.runtimePaneId,
+          runtime: "pty",
           bridgeDetached: record.bridgeDetached,
           cwd: record.info.cwd,
           title: record.info.title,
           command: record.info.command,
           bufferedLines: record.tailCache.lineCount(),
           bufferedChars: record.tailCache.charCount(),
-          transcriptPath: record.info.transcriptPath,
           lastInputAt: record.lastInputAt,
           lastOutputAt: record.lastOutputAt,
           lastWriteId: record.lastWriteId,
@@ -171,18 +146,18 @@ export class TerminalManager extends EventEmitter {
   }
 
   setBufferLineLimit(bufferLineLimit: number | null) {
-    this.bufferLineLimit = normalizeBufferLineLimit(bufferLineLimit);
+    this.bufferLineLimit = normalizeTailCharLimit(bufferLineLimit);
     for (const record of this.sessions.values()) {
       record.tailCache.resize(this.bufferLineLimit);
     }
   }
 
-  setTranscriptRetentionDays(_retentionDays: number) {
-    // Direct-pty V1 does not persist terminal transcripts.
-  }
+  // Kept until the settings contract deletion pass removes its caller. Direct
+  // PTYs never persist a transcript, so this setting has no terminal effect.
+  setTranscriptRetentionDays(_retentionDays: number) {}
 
-  setTerminalRuntimeOptions(options: TerminalRuntimeOptions) {
-    this.terminalRuntimeOptions = normalizeTerminalRuntimeOptions(options);
+  setTerminalRuntimeOptions(options: TerminalManagerOptions) {
+    this.terminalOptions = normalizeTerminalManagerOptions(options);
     this.geometryService = this.createGeometryService();
   }
 
@@ -239,10 +214,6 @@ export class TerminalManager extends EventEmitter {
     if (!canDeliverInput(record)) {
       return { ok: false, delivery: "not-found" };
     }
-    if (shouldCoalesceRawInput(data)) {
-      return this.queueRawInput(record, data);
-    }
-    this.flushRawInput(record);
     return this.writeToRecord(record, data);
   }
 
@@ -251,14 +222,13 @@ export class TerminalManager extends EventEmitter {
     if (!canDeliverInput(record)) {
       return { ok: false, delivery: "not-found" };
     }
-    this.flushRawInput(record);
     const result = this.writeToRecord(record, message);
     if (submit && canDeliverInput(record)) {
       setTimeout(() => {
         if (canDeliverInput(record)) {
           record.process.write("\r");
         }
-      }, this.terminalRuntimeOptions.agentSubmitDelayMs);
+      }, this.terminalOptions.agentSubmitDelayMs);
     }
     return result;
   }
@@ -310,12 +280,7 @@ export class TerminalManager extends EventEmitter {
       return;
     }
     record.terminating = true;
-    this.discardRawInput(record, "terminal was killed before buffered input could be delivered");
-    try {
-      this.terminalRuntime.terminate(record.runtimeSessionName);
-    } catch {
-      record.process.kill();
-    }
+    record.process.kill();
     this.sessions.delete(id);
   }
 
@@ -331,20 +296,15 @@ export class TerminalManager extends EventEmitter {
   }): Promise<TerminalSessionInfo> {
     await this.syncRuntimeContext();
     const id = this.allocateTerminalId();
-    const createdAt = new Date().toISOString();
-    const launchToken = `${id}-${createdAt}-${randomUUID().slice(0, 8)}`;
-    const geometry = this.geometryService.initialDefault(createdAt);
+    const geometry = this.geometryService.initialDefault();
     const attachSize = this.geometryService.attachSize(geometry);
-    const runtimeSession = this.terminalRuntime.createSession({
-      sessionToken: launchToken,
-      workspaceRoot: this.runtimeConfig.workspace.workspaceRoot,
+    const process = this.processFactory.create({
       command: input.command,
       args: input.args,
       cwd: input.cwd,
       env: baseTerminalEnv(input.env),
       cols: attachSize.cols,
       rows: attachSize.rows,
-      historyLimit: this.bufferLineLimit ?? DEFAULT_LIVE_SCROLLBACK_LINES,
     });
     const info: TerminalSessionInfo = {
       id,
@@ -362,16 +322,12 @@ export class TerminalManager extends EventEmitter {
     };
     const record: TerminalRecord = {
       info,
-      process: runtimeSession.process,
-      runtimeSessionName: runtimeSession.sessionName,
-      runtimePaneId: runtimeSession.paneId,
-      createdAt,
+      process,
       tailCache: new TerminalTailCache(this.bufferLineLimit),
-      rawInputBuffer: "",
       lastWriteId: 0,
     };
     this.sessions.set(id, record);
-    this.wireProcess(id, runtimeSession.process, info.attachGeneration);
+    this.wireProcess(id, process, info.attachGeneration);
     this.emit("created", info);
     return info;
   }
@@ -398,75 +354,21 @@ export class TerminalManager extends EventEmitter {
     };
   }
 
-  private queueRawInput(record: TerminalRecord, data: string): TerminalWriteResult {
-    const writeId = this.nextWriteId++;
-    record.lastWriteId = writeId;
-    record.lastInputAt = Date.now();
-    record.rawInputBuffer += data;
-    if (record.rawInputTimer) {
-      clearTimeout(record.rawInputTimer);
-    }
-    record.rawInputTimer = setTimeout(() => this.flushRawInput(record), this.terminalRuntimeOptions.inputCoalesceMs);
-    return {
-      ok: true,
-      delivery: "sent",
-      writeId,
-      queuedInputCount: 0,
-      readiness: record.info.readiness,
-      readinessDetail: record.info.readinessDetail,
-    };
-  }
-
-  private flushRawInput(record: TerminalRecord): void {
-    if (record.rawInputTimer) {
-      clearTimeout(record.rawInputTimer);
-      record.rawInputTimer = undefined;
-    }
-    if (record.rawInputBuffer.length === 0) {
-      return;
-    }
-    if (!canDeliverInput(record)) {
-      this.discardRawInput(record, "terminal is not writable");
-      return;
-    }
-    const data = record.rawInputBuffer;
-    record.rawInputBuffer = "";
-    record.process.write(data);
-  }
-
-  private discardRawInput(record: TerminalRecord, reason: string): void {
-    if (record.rawInputTimer) {
-      clearTimeout(record.rawInputTimer);
-      record.rawInputTimer = undefined;
-    }
-    if (record.rawInputBuffer.length === 0) {
-      return;
-    }
-    const discardedChars = record.rawInputBuffer.length;
-    record.rawInputBuffer = "";
-    console.warn("[exo] dropped buffered terminal input", {
-      id: record.info.id,
-      discardedChars,
-      reason,
-    });
-  }
-
-  private wireProcess(id: string, processHandle: TerminalRuntimeProcess, attachGeneration: number) {
+  private wireProcess(id: string, processHandle: TerminalProcess, attachGeneration: number) {
     processHandle.onData((data) => {
       const record = this.sessions.get(id);
       if (!record || record.info.attachGeneration !== attachGeneration) {
         return;
       }
-      const sanitizedData = stripMouseTrackingModes(data);
       record.bridgeDetached = false;
       record.lastOutputAt = Date.now();
       if (record.lastInputAt) {
         record.lastWriteLatencyMs = record.lastOutputAt - record.lastInputAt;
       }
-      record.tailCache.append(sanitizedData);
+      record.tailCache.append(data);
       record.info.health = this.terminalHealth(record, Date.now());
       record.info.healthDetail = this.terminalHealthDetail(record, Date.now());
-      this.emit("data", { id, generation: attachGeneration, data: sanitizedData });
+      this.emit("data", { id, generation: attachGeneration, data });
     });
 
     processHandle.onExit(({ exitCode }) => {
@@ -474,7 +376,6 @@ export class TerminalManager extends EventEmitter {
       if (!record || record.info.attachGeneration !== attachGeneration) {
         return;
       }
-      this.discardRawInput(record, "terminal exited before buffered input could be delivered");
       record.info.status = "exited";
       record.info.health = "exited";
       record.info.healthDetail = exitCode === undefined ? "Process exited." : `Process exited with code ${exitCode}.`;
@@ -490,7 +391,7 @@ export class TerminalManager extends EventEmitter {
     if (record.bridgeDetached) {
       return "unhealthy";
     }
-    if (record.lastOutputAt && now - record.lastOutputAt > this.terminalRuntimeOptions.idleThresholdMs) {
+    if (record.lastOutputAt && now - record.lastOutputAt > this.terminalOptions.idleThresholdMs) {
       return "idle";
     }
     return "healthy";
@@ -503,7 +404,7 @@ export class TerminalManager extends EventEmitter {
     if (record.bridgeDetached) {
       return "Terminal pty is detached or unavailable.";
     }
-    if (record.lastOutputAt && now - record.lastOutputAt > this.terminalRuntimeOptions.idleThresholdMs) {
+    if (record.lastOutputAt && now - record.lastOutputAt > this.terminalOptions.idleThresholdMs) {
       return "No recent terminal output.";
     }
     return "Terminal pty is running.";
@@ -511,7 +412,6 @@ export class TerminalManager extends EventEmitter {
 
   private killAllForRuntimeSwitch(): void {
     for (const record of this.sessions.values()) {
-      this.discardRawInput(record, "terminal runtime root changed");
       try {
         record.process.kill();
       } catch {
@@ -534,20 +434,12 @@ export class TerminalManager extends EventEmitter {
   }
 
   private createGeometryService(): TerminalGeometryService {
-    return new TerminalGeometryService(this.terminalRuntimeOptions.initialColumns, this.terminalRuntimeOptions.initialRows);
+    return new TerminalGeometryService(this.terminalOptions.initialColumns, this.terminalOptions.initialRows);
   }
 }
 
 function canDeliverInput(record: TerminalRecord | undefined): record is TerminalRecord {
   return Boolean(record && record.info.status === "running" && !record.bridgeDetached);
-}
-
-function shouldCoalesceRawInput(_data: string): boolean {
-  return false;
-}
-
-function stripMouseTrackingModes(data: string): string {
-  return data.replace(/\x1b\[\?(?:9|100[0-7]|1015)(?:;(?:9|100[0-7]|1015))*[hl]/g, "");
 }
 
 function terminalSessionIdentity(kind: TerminalKind, harnessId: string = kind): Pick<TerminalSessionInfo, "terminalKind" | "harnessId"> {
@@ -577,27 +469,22 @@ function tailLines(text: string, maxLines: number | undefined): string {
   return lines.length <= maxLines ? text : lines.slice(-maxLines).join("\n");
 }
 
-function normalizeBufferLineLimit(value: number | null | undefined): number | null {
+function normalizeTailCharLimit(value: number | null | undefined): number {
   if (value === null || value === undefined || value <= 0) {
-    return DEFAULT_BUFFER_LINE_LIMIT;
+    return DEFAULT_LIVE_TAIL_CHARS;
   }
   if (!Number.isFinite(value)) {
-    return DEFAULT_BUFFER_LINE_LIMIT;
+    return DEFAULT_LIVE_TAIL_CHARS;
   }
-  return Math.max(MIN_LIVE_SCROLLBACK_LINES, Math.floor(value));
+  return Math.max(MIN_LIVE_TAIL_CHARS, Math.floor(value));
 }
 
-function normalizeTerminalRuntimeOptions(options: TerminalRuntimeOptions): Required<TerminalRuntimeOptions> {
+function normalizeTerminalManagerOptions(options: TerminalManagerOptions): Required<TerminalManagerOptions> {
   return {
-    inputCoalesceMs: integerAtLeast(options.inputCoalesceMs, DEFAULT_TERMINAL_RUNTIME_OPTIONS.inputCoalesceMs, 0),
-    agentStartupGraceMs: integerAtLeast(options.agentStartupGraceMs, DEFAULT_TERMINAL_RUNTIME_OPTIONS.agentStartupGraceMs, 0),
-    agentSubmitDelayMs: integerAtLeast(options.agentSubmitDelayMs, DEFAULT_TERMINAL_RUNTIME_OPTIONS.agentSubmitDelayMs, 0),
-    initialColumns: integerAtLeast(options.initialColumns, DEFAULT_TERMINAL_RUNTIME_OPTIONS.initialColumns, 20),
-    initialRows: integerAtLeast(options.initialRows, DEFAULT_TERMINAL_RUNTIME_OPTIONS.initialRows, 8),
-    minimumColumns: integerAtLeast(options.minimumColumns, DEFAULT_TERMINAL_RUNTIME_OPTIONS.minimumColumns, 1),
-    minimumRows: integerAtLeast(options.minimumRows, DEFAULT_TERMINAL_RUNTIME_OPTIONS.minimumRows, 1),
-    unresponsiveThresholdMs: integerAtLeast(options.unresponsiveThresholdMs, DEFAULT_TERMINAL_RUNTIME_OPTIONS.unresponsiveThresholdMs, 1_000),
-    idleThresholdMs: integerAtLeast(options.idleThresholdMs, DEFAULT_TERMINAL_RUNTIME_OPTIONS.idleThresholdMs, 1_000),
+    agentSubmitDelayMs: integerAtLeast(options.agentSubmitDelayMs, DEFAULT_TERMINAL_MANAGER_OPTIONS.agentSubmitDelayMs, 0),
+    initialColumns: integerAtLeast(options.initialColumns, DEFAULT_TERMINAL_MANAGER_OPTIONS.initialColumns, 20),
+    initialRows: integerAtLeast(options.initialRows, DEFAULT_TERMINAL_MANAGER_OPTIONS.initialRows, 8),
+    idleThresholdMs: integerAtLeast(options.idleThresholdMs, DEFAULT_TERMINAL_MANAGER_OPTIONS.idleThresholdMs, 1_000),
   };
 }
 

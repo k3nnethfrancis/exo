@@ -7,16 +7,13 @@ export interface TerminalDiagnosticRecord {
   exitCode?: number;
   health: TerminalDiagnostics["health"];
   healthDetail: string;
-  runtime: "pty" | "tmux";
-  sessionName?: string;
-  paneId?: string | null;
+  runtime: "pty";
   bridgeDetached?: boolean;
   cwd: string;
   title: string;
   command: string;
   bufferedLines: number;
   bufferedChars: number;
-  transcriptPath?: string;
   lastInputAt?: number;
   lastOutputAt?: number;
   lastWriteId: number;
@@ -35,13 +32,13 @@ export function terminalDiagnosticsFromRecord(record: TerminalDiagnosticRecord):
     health: record.health,
     healthDetail: record.healthDetail,
     runtime: record.runtime,
-    tmuxSessionName: record.runtime === "tmux" ? record.sessionName : undefined,
-    tmuxPaneId: record.runtime === "tmux" ? record.paneId ?? null : null,
-    safeAttachCommand: record.runtime === "tmux" && record.sessionName ? safeTmuxAttachCommand(record.sessionName) : "",
+    tmuxSessionName: undefined,
+    tmuxPaneId: null,
+    safeAttachCommand: "",
     debugAttach: {
-      tmuxSessionName: record.runtime === "tmux" ? record.sessionName ?? "" : "",
-      tmuxPaneId: record.runtime === "tmux" ? record.paneId ?? null : null,
-      safeAttachCommand: record.runtime === "tmux" && record.sessionName ? safeTmuxAttachCommand(record.sessionName) : "",
+      tmuxSessionName: "",
+      tmuxPaneId: null,
+      safeAttachCommand: "",
     },
     bridgeStatus: record.bridgeDetached ? "detached" : "attached",
     paneStatus: record.status === "exited" ? "dead" : "alive",
@@ -58,27 +55,10 @@ export function terminalDiagnosticsFromRecord(record: TerminalDiagnosticRecord):
     command: record.command,
     bufferedLines: record.bufferedLines,
     bufferedChars: record.bufferedChars,
-    transcriptPath: record.transcriptPath,
+    transcriptPath: undefined,
     lastInputAt: record.lastInputAt ? new Date(record.lastInputAt).toISOString() : null,
     lastOutputAt: record.lastOutputAt ? new Date(record.lastOutputAt).toISOString() : null,
     lastWriteId: record.lastWriteId,
     lastWriteLatencyMs: record.lastWriteLatencyMs ?? null,
   };
-}
-
-export function safeTmuxAttachCommand(tmuxSessionName: string, tmuxServerName = process.env.EXO_TMUX_SERVER_NAME): string {
-  const serverArgs = tmuxServerName ? ` -L ${shellQuote(tmuxServerName)}` : "";
-  return `tmux${serverArgs} attach-session -t ${shellQuote(tmuxSessionName)}`;
-}
-
-export function terminalDebugAttachInfo(tmuxSessionName: string, tmuxPaneId?: string | null) {
-  return {
-    tmuxSessionName,
-    tmuxPaneId: tmuxPaneId || null,
-    safeAttachCommand: safeTmuxAttachCommand(tmuxSessionName),
-  };
-}
-
-function shellQuote(value: string): string {
-  return `'${value.replace(/'/g, `'\\''`)}'`;
 }

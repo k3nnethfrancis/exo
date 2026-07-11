@@ -144,7 +144,6 @@ button {
 button svg,
 .branch-selector svg,
 .sidebar__search svg,
-.snap-drawer__bar svg,
 .sidebar__actions button svg {
   flex: 0 0 auto;
 }
@@ -1465,11 +1464,6 @@ button svg,
 
 .editor-pane--compact .properties-card__row {
   grid-template-columns: 92px minmax(0, 1fr);
-}
-
-.snap-drawer__bar {
-  flex-wrap: wrap;
-  row-gap: 6px;
 }
 
 .dock-drop-zones {

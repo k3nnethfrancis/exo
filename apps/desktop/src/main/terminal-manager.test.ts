@@ -6,13 +6,13 @@ import { describe, expect, it, vi } from "vitest";
 
 import { resolveRuntimeConfig } from "@exo/core";
 
-import type { TerminalRuntime, TerminalRuntimeCreateSessionOptions, TerminalRuntimeProcess, TerminalRuntimeSession } from "./terminal-runtime";
+import type { TerminalProcess, TerminalProcessFactory, TerminalProcessOptions } from "./terminal-runtime";
 import { TerminalManager } from "./terminal-manager";
 
 describe("TerminalManager direct pty runtime", () => {
   it("creates shell terminals through the runtime", async () => {
     const root = await tempWorkspace();
-    const runtime = new FakeTerminalRuntime();
+    const runtime = new FakeTerminalProcessFactory();
     const manager = new TerminalManager(root, 500, 0, {}, runtime);
 
     const terminal = await manager.create({ kind: "shell", cwd: root });
@@ -55,7 +55,7 @@ describe("TerminalManager direct pty runtime", () => {
     },
   ])("launches $name with the configured executable and arguments", async ({ command, rawArgs, expectedArgs }) => {
     const root = await tempWorkspace();
-    const runtime = new FakeTerminalRuntime();
+    const runtime = new FakeTerminalProcessFactory();
     const manager = new TerminalManager(root, 500, 0, {}, runtime);
     manager.setRuntimeConfig(resolveRuntimeConfig({
       ...process.env,
@@ -77,7 +77,7 @@ describe("TerminalManager direct pty runtime", () => {
 
   it.each(["/bin/zsh", "/bin/bash"])("keeps the ordinary user shell launcher %s when no Exo test override is configured", async (userShell) => {
     const root = await tempWorkspace();
-    const runtime = new FakeTerminalRuntime();
+    const runtime = new FakeTerminalProcessFactory();
     const manager = new TerminalManager(root, 500, 0, {}, runtime);
     manager.setRuntimeConfig(resolveRuntimeConfig({
       ...process.env,
@@ -100,7 +100,7 @@ describe("TerminalManager direct pty runtime", () => {
 
   it("passes spaces and printable input through byte-for-byte", async () => {
     const root = await tempWorkspace();
-    const runtime = new FakeTerminalRuntime();
+    const runtime = new FakeTerminalProcessFactory();
     const manager = new TerminalManager(root, 500, 0, {}, runtime);
     const terminal = await manager.create({ kind: "shell", cwd: root });
     const process = runtime.processes[0];
@@ -114,7 +114,7 @@ describe("TerminalManager direct pty runtime", () => {
     vi.useFakeTimers();
     try {
       const root = await tempWorkspace();
-      const runtime = new FakeTerminalRuntime();
+      const runtime = new FakeTerminalProcessFactory();
       const manager = new TerminalManager(root, 500, 0, { agentSubmitDelayMs: 25 }, runtime);
       const terminal = await manager.create({ kind: "shell", cwd: root });
       const process = runtime.processes[0];
@@ -128,9 +128,9 @@ describe("TerminalManager direct pty runtime", () => {
     }
   });
 
-  it("streams output to live tails and restore snapshots without transcript persistence", async () => {
+  it("streams output to the bounded live tail used for reload and operator reads", async () => {
     const root = await tempWorkspace();
-    const runtime = new FakeTerminalRuntime();
+    const runtime = new FakeTerminalProcessFactory();
     const manager = new TerminalManager(root, 500, 0, {}, runtime);
     const terminal = await manager.create({ kind: "shell", cwd: root });
 
@@ -142,9 +142,36 @@ describe("TerminalManager direct pty runtime", () => {
     expect(manager.getInfo(terminal.id)?.transcriptPath).toBeUndefined();
   });
 
+  it("keeps a character-bounded replay tail even when pty output has no newlines", async () => {
+    const root = await tempWorkspace();
+    const runtime = new FakeTerminalProcessFactory();
+    const manager = new TerminalManager(root, 1_024, 0, {}, runtime);
+    const terminal = await manager.create({ kind: "shell", cwd: root });
+
+    const output = `${"a".repeat(16)}${"b".repeat(1_024)}`;
+    runtime.processes[0].emitData(output);
+
+    expect(manager.readTail(terminal.id)).toBe("b".repeat(1_024));
+  });
+
+  it("passes terminal control bytes through unchanged, including mouse-mode sequences", async () => {
+    const root = await tempWorkspace();
+    const runtime = new FakeTerminalProcessFactory();
+    const manager = new TerminalManager(root, 500, 0, {}, runtime);
+    const terminal = await manager.create({ kind: "shell", cwd: root });
+    const data = "\u001b[?1000h\u001b[?1006h";
+    const received: string[] = [];
+    manager.on("data", (event) => received.push(event.data));
+
+    runtime.processes[0].emitData(data);
+
+    expect(received).toEqual([data]);
+    expect(manager.readTail(terminal.id)).toBe(data);
+  });
+
   it("resizes the pty from renderer geometry", async () => {
     const root = await tempWorkspace();
-    const runtime = new FakeTerminalRuntime();
+    const runtime = new FakeTerminalProcessFactory();
     const manager = new TerminalManager(root, 500, 0, {}, runtime);
     const terminal = await manager.create({ kind: "shell", cwd: root });
     const process = runtime.processes[0];
@@ -157,7 +184,7 @@ describe("TerminalManager direct pty runtime", () => {
 
   it("marks exited terminals and rejects later writes", async () => {
     const root = await tempWorkspace();
-    const runtime = new FakeTerminalRuntime();
+    const runtime = new FakeTerminalProcessFactory();
     const manager = new TerminalManager(root, 500, 0, {}, runtime);
     const terminal = await manager.create({ kind: "shell", cwd: root });
 
@@ -172,51 +199,19 @@ async function tempWorkspace(): Promise<string> {
   return mkdtemp(path.join(os.tmpdir(), "exo-terminal-manager-"));
 }
 
-class FakeTerminalRuntime implements TerminalRuntime {
-  readonly kind = "pty" as const;
-  readonly created: TerminalRuntimeCreateSessionOptions[] = [];
+class FakeTerminalProcessFactory implements TerminalProcessFactory {
+  readonly created: TerminalProcessOptions[] = [];
   readonly processes: FakeTerminalProcess[] = [];
 
-  availability() {
-    return { available: true as const };
-  }
-
-  createSession(options: TerminalRuntimeCreateSessionOptions): TerminalRuntimeSession {
+  create(options: TerminalProcessOptions): TerminalProcess {
     this.created.push(options);
     const process = new FakeTerminalProcess();
     this.processes.push(process);
-    return {
-      sessionName: `fake-${this.processes.length}`,
-      paneId: `fake-pane-${this.processes.length}`,
-      process,
-    };
-  }
-
-  attachSession(): TerminalRuntimeProcess {
-    throw new Error("not supported");
-  }
-
-  listPanes() {
-    return [];
-  }
-
-  applySessionOptions(): void {}
-
-  captureTailForDisplay(): string {
-    return "";
-  }
-
-  captureRestoreSnapshot() {
-    return { content: "", cols: 0, rows: 0, altScreen: false };
-  }
-
-  terminate(sessionName: string): void {
-    const index = Number(sessionName.replace("fake-", "")) - 1;
-    this.processes[index]?.kill();
+    return process;
   }
 }
 
-class FakeTerminalProcess implements TerminalRuntimeProcess {
+class FakeTerminalProcess implements TerminalProcess {
   readonly writes: string[] = [];
   readonly resizes: Array<{ cols: number; rows: number }> = [];
   private readonly dataHandlers = new Set<(data: string) => void>();

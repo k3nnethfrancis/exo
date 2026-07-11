@@ -1,20 +1,44 @@
 import { describe, expect, it } from "vitest";
 
-import { safeTmuxAttachCommand, terminalDebugAttachInfo } from "./terminal-diagnostics";
+import { terminalDiagnosticsFromRecord } from "./terminal-diagnostics";
 
 describe("terminal diagnostics", () => {
-  it("builds a safe human tmux attach command", () => {
-    expect(safeTmuxAttachCommand("exo-work-term-1")).toBe("tmux attach-session -t 'exo-work-term-1'");
-    expect(safeTmuxAttachCommand("exo'quoted")).toBe("tmux attach-session -t 'exo'\\''quoted'");
-    expect(safeTmuxAttachCommand("exo-work-term-1", "exo-work")).toBe("tmux -L 'exo-work' attach-session -t 'exo-work-term-1'");
-    expect(safeTmuxAttachCommand("exo-work-term-1", "exo'quoted")).toBe("tmux -L 'exo'\\''quoted' attach-session -t 'exo-work-term-1'");
-  });
+  it("reports the direct-pty lifecycle without an attach or transcript surface", () => {
+    const diagnostics = terminalDiagnosticsFromRecord({
+      info: {
+        id: "term-1",
+        title: "Shell",
+        cwd: "/workspace",
+        terminalKind: "shell",
+        harnessId: null,
+        kind: "shell",
+        command: "/bin/sh",
+        instructionOverlayPath: null,
+        status: "running",
+        readiness: "ready",
+        queuedInputCount: 0,
+        attachGeneration: 1,
+      },
+      kind: "shell",
+      status: "running",
+      health: "healthy",
+      healthDetail: "Terminal pty is running.",
+      runtime: "pty",
+      cwd: "/workspace",
+      title: "Shell",
+      command: "/bin/sh",
+      bufferedLines: 0,
+      bufferedChars: 0,
+      lastWriteId: 0,
+      now: Date.now(),
+    });
 
-  it("standardizes debug attach info", () => {
-    expect(terminalDebugAttachInfo("exo-work-term-1", "%3")).toEqual({
-      tmuxSessionName: "exo-work-term-1",
-      tmuxPaneId: "%3",
-      safeAttachCommand: "tmux attach-session -t 'exo-work-term-1'",
+    expect(diagnostics).toMatchObject({
+      runtime: "pty",
+      tmuxSessionName: undefined,
+      tmuxPaneId: null,
+      safeAttachCommand: "",
+      transcriptPath: undefined,
     });
   });
 });

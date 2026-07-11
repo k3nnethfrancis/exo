@@ -1,10 +1,8 @@
 import type { TerminalGeometryRecord } from "../shared/api";
 
-// Renderer-owned xterm measurements are the source of truth: main records them
-// on the session, and tmux follows that recorded geometry. Attach paths must
-// never fall back to initial defaults when a valid record exists, because doing
-// so forces SIGWINCH repaint at the wrong size and corrupts cursor-relative
-// terminal UIs during resize and refresh.
+// Renderer-owned xterm measurements are the source of truth. Main records the
+// latest measurement and resizes the direct PTY with it, so cursor-relative
+// terminal UIs do not receive stale fallback geometry during resize.
 export class TerminalGeometryService {
   constructor(private readonly initialCols: number, private readonly initialRows: number) {}
 
