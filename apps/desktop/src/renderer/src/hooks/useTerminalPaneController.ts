@@ -1,19 +1,15 @@
+import type { TerminalLaunchKind, TerminalSessionInfo } from "../../../shared/api";
+import {
+  addTerminalSessionToCanvas,
+  pruneEmptyTerminalLeaves,
+  removeTerminalSessionFromTree,
+} from "../paneTreeSelectors";
 import {
   collectLeaves,
-  findNode,
-  findTerminalLeaf,
-  pruneEmptyLeaves,
-  type PaneLeaf,
   type PaneNode,
   type PaneNodeId,
   type PaneTreeActions,
 } from "./usePaneTree";
-import type { TerminalLaunchKind, TerminalSessionInfo } from "../../../shared/api";
-import {
-  addTerminalSessionAsSplit,
-  addTerminalSessionToFirstLeaf,
-  removeTerminalSessionFromTree,
-} from "../paneTreeSelectors";
 
 interface TerminalStateApi {
   createTerminal: (terminalKind: TerminalLaunchKind, cwd?: string) => Promise<TerminalSessionInfo>;
@@ -31,55 +27,19 @@ export interface TerminalPaneController {
 }
 
 interface UseTerminalPaneControllerOptions {
-  editorTree: PaneNode;
-  terminalTree: PaneNode;
-  editorFocusedLeafId: PaneNodeId;
-  terminalFocusedLeafId: PaneNodeId;
-  editorActions: PaneTreeActions;
-  terminalActions: PaneTreeActions;
+  canvasTree: PaneNode;
+  focusedPaneId: PaneNodeId;
+  canvasActions: PaneTreeActions;
   terminalState: TerminalStateApi;
-  setTerminalCollapsed: (collapsed: boolean) => void;
-  setZoomSurface: (surface: "editor" | "terminal" | "explorer") => void;
-  monitorMode: boolean;
 }
 
 export function useTerminalPaneController(options: UseTerminalPaneControllerOptions): TerminalPaneController {
   async function createTerminal(terminalKind: TerminalLaunchKind, cwd?: string, activate = true) {
     const session = await options.terminalState.createTerminal(terminalKind, cwd);
-    options.setTerminalCollapsed(false);
-
-    if (options.monitorMode) {
-      options.terminalActions.setTree((currentTree) => {
-        const result = addTerminalSessionAsSplit(currentTree, session.id, options.terminalFocusedLeafId);
-        return result.tree;
-      });
-      if (activate) {
-        options.setZoomSurface("terminal");
-        await options.terminalState.activateTerminal(session.id);
-      }
-      return session;
-    }
-
-    const focusedLeaf = findNode(options.terminalTree, (n) => n.id === options.terminalFocusedLeafId) as PaneLeaf | undefined;
-    const termLeaf = (focusedLeaf?.content.kind === "terminal" ? focusedLeaf : null) ?? findTerminalLeaf(options.terminalTree);
-    if (termLeaf) {
-      if (activate) {
-        options.terminalActions.focusLeaf(termLeaf.id);
-      }
-      options.terminalActions.updateLeafContent(termLeaf.id, (content) => {
-        if (content.kind !== "terminal") return content;
-        if (content.terminalIds.includes(session.id)) {
-          return { ...content, activeTerminalId: activate ? session.id : content.activeTerminalId };
-        }
-        return {
-          ...content,
-          terminalIds: [...content.terminalIds, session.id],
-          activeTerminalId: activate ? session.id : content.activeTerminalId,
-        };
-      });
-    }
+    const placement = addTerminalSessionToCanvas(options.canvasTree, session.id, options.focusedPaneId);
+    options.canvasActions.setTree(placement.tree);
     if (activate) {
-      options.setZoomSurface("terminal");
+      options.canvasActions.focusLeaf(placement.leafId);
       await options.terminalState.activateTerminal(session.id);
     }
     return session;
@@ -92,79 +52,49 @@ export function useTerminalPaneController(options: UseTerminalPaneControllerOpti
     if (sessions.length === 0) {
       return;
     }
-    void attachOptions;
-    options.setTerminalCollapsed(false);
-    if (options.monitorMode) {
-      options.terminalActions.setTree((currentTree) => {
-        const { tree } = sessions.reduce(
-          (next, session) => addTerminalSessionAsSplit(next.tree, session.id, next.leafId),
-          { tree: currentTree, leafId: options.terminalFocusedLeafId },
-        );
-        return tree;
-      });
-      if (attachOptions.activateLatest) {
-        const latestId = sessions.at(-1)?.id;
-        if (latestId) {
-          void options.terminalState.activateTerminal(latestId);
-        }
-      }
+
+    let next = options.canvasTree;
+    let leafId = options.focusedPaneId;
+    for (const session of sessions) {
+      const placement = addTerminalSessionToCanvas(next, session.id, leafId);
+      next = placement.tree;
+      leafId = placement.leafId;
+    }
+    options.canvasActions.setTree(next);
+
+    if (!attachOptions.activateLatest) {
       return;
     }
-    options.terminalActions.setTree((currentTree) =>
-      sessions.reduce((nextTree, session) => addTerminalSessionToFirstLeaf(nextTree, session.id), currentTree),
-    );
+    const latest = sessions.at(-1);
+    if (latest) {
+      options.canvasActions.focusLeaf(leafId);
+      void options.terminalState.activateTerminal(latest.id);
+    }
   }
 
   async function activateTerminal(leafId: PaneNodeId, id: string) {
-    options.terminalActions.updateLeafContent(leafId, (content) => {
-      if (content.kind !== "terminal") return content;
-      return { ...content, activeTerminalId: id };
-    });
+    options.canvasActions.updateLeafContent(leafId, (content) =>
+      content.kind === "terminal" ? { ...content, activeTerminalId: id } : content,
+    );
+    options.canvasActions.focusLeaf(leafId);
     await options.terminalState.activateTerminal(id);
   }
 
   async function focusTerminalSession(id: string) {
-    const editorTerminalLeaf = collectLeaves(options.editorTree).find((leaf) =>
+    const terminalLeaf = collectLeaves(options.canvasTree).find((leaf) =>
       leaf.content.kind === "terminal" && leaf.content.terminalIds.includes(id),
     );
-    if (editorTerminalLeaf) {
-      options.editorActions.focusLeaf(editorTerminalLeaf.id);
-      options.editorActions.updateLeafContent(editorTerminalLeaf.id, (content) =>
-        content.kind === "terminal" ? { ...content, activeTerminalId: id } : content,
-      );
-      options.setZoomSurface("terminal");
-      await options.terminalState.activateTerminal(id);
+    if (!terminalLeaf) {
       return;
     }
-
-    const dockTerminalLeaf = collectLeaves(options.terminalTree).find((leaf) =>
-      leaf.content.kind === "terminal" && leaf.content.terminalIds.includes(id),
-    );
-    if (!dockTerminalLeaf) {
-      return;
-    }
-    options.setTerminalCollapsed(false);
-    options.setZoomSurface("terminal");
-    options.terminalActions.focusLeaf(dockTerminalLeaf.id);
-    await activateTerminal(dockTerminalLeaf.id, id);
+    await activateTerminal(terminalLeaf.id, id);
   }
 
   async function closeTerminal(id: string) {
-    const remainingSessions = await options.terminalState.killTerminal(id);
-
-    options.editorActions.setTree((prev) =>
-      pruneEmptyLeaves(removeTerminalSessionFromTree(prev, id), (leaf) =>
-        leaf.content.kind === "terminal" && leaf.content.terminalIds.length === 0,
-      ),
+    await options.terminalState.killTerminal(id);
+    options.canvasActions.setTree((current) =>
+      pruneEmptyTerminalLeaves(removeTerminalSessionFromTree(current, id)),
     );
-    options.terminalActions.setTree((prev) => {
-      const next = removeTerminalSessionFromTree(prev, id);
-      return pruneEmptyLeaves(next, (leaf) => leaf.content.kind === "terminal" && leaf.content.terminalIds.length === 0);
-    });
-
-    if (remainingSessions.length === 0) {
-      options.setTerminalCollapsed(true);
-    }
   }
 
   return {
