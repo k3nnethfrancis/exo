@@ -36,7 +36,7 @@ import { useWorkspaceSearch } from "./hooks/useWorkspaceSearch";
 import { applyTheme } from "./theme/applyTheme";
 import { DEFAULT_COLOR_THEME_ID, resolveTheme } from "./theme/registry";
 import type { ColorThemeId } from "./theme/types";
-import { collectLeaves, findEditorLeaf, findNode, mapLeaves, pruneEmptyLeaves, type PaneLeaf, type PaneNodeId } from "./hooks/usePaneTree";
+import { collectLeaves, findEditorLeaf, findNode, mapLeaves, paneId, pruneEmptyLeaves, usePaneTree, type PaneLeaf, type PaneNodeId } from "./hooks/usePaneTree";
 import {
   addTerminalSessionToCanvas,
   collectActiveTerminalIds,
@@ -64,6 +64,11 @@ type ZoomSurface = "editor" | "terminal" | "explorer";
 
 const NOTE_TREE_MAX_DEPTH = 3;
 const PROJECT_TREE_MAX_DEPTH = 3;
+const UTILITY_PANE_DEFAULT = {
+  kind: "leaf" as const,
+  id: paneId(),
+  content: { kind: "terminal" as const, terminalIds: [], activeTerminalId: null },
+};
 
 export function App() {
   const workspaceTrees = useWorkspaceTrees({ noteTreeMaxDepth: NOTE_TREE_MAX_DEPTH, projectTreeMaxDepth: PROJECT_TREE_MAX_DEPTH });
@@ -95,6 +100,8 @@ export function App() {
   const terminalPaneControllerRef = useRef<TerminalPaneController | null>(null);
   const shellLayout = useShellLayout();
   const { tree: canvasTree, focusedLeafId: focusedPaneId, actions: canvasActions } = shellLayout.canvasPaneTree;
+  const utilityPaneTree = usePaneTree(UTILITY_PANE_DEFAULT);
+  const [utilityPaneOpen, setUtilityPaneOpen] = useState(false);
   const terminalState = useTerminalSessions({
     maxPendingDataChars: terminalRuntimeReadTailChars,
     onExternalSessions: (sessions, options) => {
@@ -109,9 +116,9 @@ export function App() {
     hydrationReasons: terminalHydrationReasons,
   } = terminalState;
   const terminalPaneController = useTerminalPaneController({
-    canvasTree,
-    focusedPaneId,
-    canvasActions,
+    canvasTree: utilityPaneTree.tree,
+    focusedPaneId: utilityPaneTree.focusedLeafId,
+    canvasActions: utilityPaneTree.actions,
     terminalState,
   });
   terminalPaneControllerRef.current = terminalPaneController;
@@ -216,12 +223,12 @@ export function App() {
   }, [scheduleOpenDocumentRefresh]);
 
   useEffect(() => {
-    const activeTerminalIds = collectActiveTerminalIds(canvasTree);
+    const activeTerminalIds = collectActiveTerminalIds(utilityPaneTree.tree);
     if (activeTerminalId) {
       activeTerminalIds.add(activeTerminalId);
     }
     terminalState.pruneHydration(activeTerminalIds);
-  }, [activeTerminalId, canvasTree]);
+  }, [activeTerminalId, utilityPaneTree.tree]);
   useEffect(() => {
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
 
@@ -274,6 +281,7 @@ export function App() {
     saveDocument,
     openOrCreateDailyNote,
     createShellTerminal: async () => {
+      setUtilityPaneOpen(true);
       await terminalPaneController.createTerminal("shell");
     },
     updateFocusedSurfaceZoom,
@@ -327,10 +335,10 @@ export function App() {
     const restoredActiveTerminalId = input.sessions.at(-1)?.id ?? null;
     terminalState.initialize(input.sessions, restoredActiveTerminalId);
 
-    canvasActions.setTree((current) => {
+    utilityPaneTree.actions.setTree((current) => {
       let next = current;
       for (const session of input.sessions) {
-        next = addTerminalSessionToCanvas(next, session.id, focusedPaneId).tree;
+        next = addTerminalSessionToCanvas(next, session.id, utilityPaneTree.focusedLeafId).tree;
       }
       return next;
     });
@@ -640,29 +648,30 @@ export function App() {
   }
 
   function createBrowserPane(url = "about:blank") {
-    canvasActions.openBrowserPane(focusedPaneId, url);
+    setUtilityPaneOpen(true);
+    utilityPaneTree.actions.openBrowserPane(utilityPaneTree.focusedLeafId, url);
   }
 
   function focusBrowserPane() {
-    const browserLeaf = collectLeaves(canvasTree).find((leaf) => leaf.content.kind === "browser");
+    const browserLeaf = collectLeaves(utilityPaneTree.tree).find((leaf) => leaf.content.kind === "browser");
     if (!browserLeaf) {
       createBrowserPane();
       return;
     }
-    canvasActions.focusLeaf(browserLeaf.id);
+    utilityPaneTree.actions.focusLeaf(browserLeaf.id);
   }
 
   function closeBrowserPane() {
-    const leaves = collectLeaves(canvasTree);
+    const leaves = collectLeaves(utilityPaneTree.tree);
     if (leaves.length <= 1) {
       return;
     }
-    const focusedBrowserLeaf = leaves.find((leaf) => leaf.id === focusedPaneId && leaf.content.kind === "browser");
+    const focusedBrowserLeaf = leaves.find((leaf) => leaf.id === utilityPaneTree.focusedLeafId && leaf.content.kind === "browser");
     const browserLeaf = focusedBrowserLeaf ?? leaves.find((leaf) => leaf.content.kind === "browser");
     if (!browserLeaf) {
       return;
     }
-    canvasActions.removeLeaf(browserLeaf.id);
+    utilityPaneTree.actions.removeLeaf(browserLeaf.id);
   }
 
   async function openOrCreateDailyNote() {
@@ -931,6 +940,13 @@ export function App() {
       canvas={canvasTree}
       focusedPaneId={focusedPaneId}
       canvasActions={canvasActions}
+      utilityCanvas={utilityPaneTree.tree}
+      utilityFocusedPaneId={utilityPaneTree.focusedLeafId}
+      utilityCanvasActions={utilityPaneTree.actions}
+      utilityOpen={utilityPaneOpen}
+      onToggleUtility={() => setUtilityPaneOpen((current) => !current)}
+      onOpenUtilityBrowser={() => createBrowserPane()}
+      onCreateUtilityTerminal={() => { setUtilityPaneOpen(true); void terminalPaneController.createTerminal("shell"); }}
       revealExplorerPathRequest={revealExplorerPathRequest}
       renderLeaf={(leaf, isFocused) => {
         if (leaf.content.kind === "browser") {
