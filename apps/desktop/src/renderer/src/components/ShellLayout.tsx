@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { WorkspaceSearchResults } from "@exo/core";
-import { Folder, Globe2, PanelLeft, PanelRight, SquareTerminal } from "lucide-react";
+import { Folder, Globe2, Network, PanelLeft, PanelRight, SquareTerminal } from "lucide-react";
 
 import type { AppearanceMode, ResolvedAppearance } from "../appearance";
 import type { DragManager } from "../hooks/useDragManager";
@@ -46,7 +46,7 @@ interface ShellLayoutProps {
   onAppearanceModeChange: (mode: AppearanceMode) => void;
   onOpenWorkspaceSettings: () => void;
   connectionsOpen: boolean;
-  onToggleConnections: () => void;
+  onOpenConnections: () => void;
   onSearchQueryChange: (value: string) => void;
   onSearchSubmit: () => void;
   onOpenFile: (filePath: string, line?: number | null) => void;
@@ -95,12 +95,9 @@ export function ShellLayout(props: ShellLayoutProps) {
           <button aria-label={props.utilityOpen ? "Hide utility pane" : "Show utility pane"} aria-pressed={props.utilityOpen} className="workspace-titlebar__button" data-testid="utility-pane-toggle" onClick={props.onToggleUtility} title={props.utilityOpen ? "Hide utility pane" : "Show utility pane"} type="button">
             <PanelRight size={16} aria-hidden="true" />
           </button>
-          <button aria-label="Toggle connections" aria-pressed={props.connectionsOpen} className="workspace-titlebar__button" data-testid="workspace-titlebar-connections" onClick={props.onToggleConnections} title="Connections" type="button">
-            <PanelRight size={16} aria-hidden="true" />
-          </button>
         </div>
       </header>
-      <div className={`workspace-shell${props.sidebarCollapsed ? " workspace-shell--sidebar-collapsed" : ""}${props.utilityOpen ? " workspace-shell--utility-open" : ""}${props.connectionsOpen ? " workspace-shell--connections-open" : ""}`}>
+      <div className={`workspace-shell${props.sidebarCollapsed ? " workspace-shell--sidebar-collapsed" : ""}${props.utilityOpen ? " workspace-shell--utility-open" : ""}`}>
       <aside className="workspace-shell__explorer" style={{ width: props.sidebarCollapsed ? 0 : props.sidebarWidth }}>
         <FileTree
           attachedFolders={props.attachedSections}
@@ -144,12 +141,14 @@ export function ShellLayout(props: ShellLayoutProps) {
         <nav className="workspace-utility-rail" aria-label="Utility pane">
           <button aria-label="Open preview" className="workspace-utility-rail__button" data-testid="utility-pane-preview" onClick={props.onOpenUtilityBrowser} title="Preview" type="button"><Globe2 size={16} aria-hidden="true" /></button>
           <button aria-label="Open terminal" className="workspace-utility-rail__button" data-testid="utility-pane-terminal" onClick={props.onCreateUtilityTerminal} title="Terminal" type="button"><SquareTerminal size={16} aria-hidden="true" /></button>
+          <button aria-label="Open connections" aria-pressed={props.connectionsOpen} className="workspace-utility-rail__button" data-testid="utility-pane-connections" onClick={props.onOpenConnections} title="Connections" type="button"><Network size={16} aria-hidden="true" /></button>
         </nav>
         <div className="workspace-utility-surface">
-          <PaneTree node={props.utilityCanvas} actions={props.utilityCanvasActions} focusedLeafId={props.utilityFocusedPaneId} renderLeaf={props.renderLeaf} hoverEdge={props.dragManager.hoverEdge} />
+          {props.connectionsOpen
+            ? props.connections
+            : <PaneTree node={props.utilityCanvas} actions={props.utilityCanvasActions} focusedLeafId={props.utilityFocusedPaneId} renderLeaf={props.renderLeaf} hoverEdge={props.dragManager.hoverEdge} />}
         </div>
       </aside>
-        <aside className="workspace-shell__connections">{props.connections}</aside>
       </div>
       <WorkspaceMenu collapsed={props.sidebarCollapsed} label={props.workspaceLabel} onOpenSettings={props.onOpenWorkspaceSettings} />
     </div>

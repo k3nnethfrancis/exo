@@ -112,8 +112,8 @@ test("boots the shell, opens notes, and creates terminals on demand", async () =
     page.evaluate(async () => (await window.exo.terminals.list()).map((session) => session.kind)),
   ).toEqual(["shell"]);
 
-  await page.getByTestId("workspace-titlebar-connections").click();
-  await expect(page.getByTestId("utility-pane")).not.toBeVisible();
+  await page.getByTestId("utility-pane-connections").click();
+  await expect(page.getByTestId("utility-pane")).toBeVisible();
   await expect(page.locator('[data-testid="tags-panel"] .tag-pill').first()).toBeVisible();
   await page.locator('[data-testid="tags-panel"] .tag-pill').first().click();
   await expect(page.getByText(/Results for #/)).toBeVisible();
@@ -599,7 +599,8 @@ test("replays bounded terminal history after renderer reload before input", asyn
 test("lets you close editor tabs", async () => {
   const { page, cleanup } = await launchExoWorkspaceFixture();
 
-  await page.getByTestId("workspace-titlebar-connections").click();
+  await page.getByTestId("utility-pane-toggle").click();
+  await page.getByTestId("utility-pane-connections").click();
   await page.getByTestId("backlinks-panel").getByText("Related Note").click();
   await expect(page.getByTestId("editor-title")).toHaveText("related-note");
   await page.getByLabel("Close related-note").click();
@@ -611,9 +612,10 @@ test("lets you close editor tabs", async () => {
 test("renders inspector content when expanded", async () => {
   const { page, cleanup } = await launchExoWorkspaceFixture();
 
-  await page.getByTestId("workspace-titlebar-connections").click();
+  await page.getByTestId("utility-pane-toggle").click();
+  await page.getByTestId("utility-pane-connections").click();
 
-  await expect(page.getByTestId("inspector-panel")).toContainText("Backlinks");
+  await expect(page.getByTestId("inspector-panel")).toContainText("Connections");
   await expect(page.getByTestId("inspector-panel")).toContainText(/Related Note|\[\[agent-memory\]\]|#research/);
   await expect(page.getByTestId("graph-neighborhood-panel")).toContainText("Neighborhood");
   await expect(page.getByTestId("graph-neighborhood")).toContainText("agent-memory");
@@ -1388,7 +1390,8 @@ test("keeps the inspector pinned while long notes scroll", async () => {
     },
   });
 
-  await longFixture.page.getByTestId("workspace-titlebar-connections").click();
+  await longFixture.page.getByTestId("utility-pane-toggle").click();
+  await longFixture.page.getByTestId("utility-pane-connections").click();
   const before = await longFixture.page.getByTestId("inspector-panel").boundingBox();
   await longFixture.page.locator(".editor-surface .cm-scroller").evaluate((element) => {
     element.scrollTop = element.scrollHeight;

@@ -672,7 +672,12 @@ export function App() {
 
   function toggleConnectionsSurface() {
     setUtilityPaneOpen(false);
-    shellLayout.setInspectorCollapsed((collapsed) => !collapsed);
+    shellLayout.setInspectorCollapsed(true);
+  }
+
+  function openConnectionsSurface() {
+    setUtilityPaneOpen(true);
+    shellLayout.setInspectorCollapsed(false);
   }
 
   function focusBrowserPane() {
@@ -1091,8 +1096,8 @@ export function App() {
       connections={<InspectorDock document={activeDocument} graphContext={activeGraphContext} open={!shellLayout.inspectorCollapsed} activeTag={activeTag} tagResults={tagResults} onToggle={toggleConnectionsSurface} onOpenTarget={(target) => void openKnowledgeTarget(target)} onOpenExternal={(target) => void window.exo.shell.openExternal(target)} onOpenTag={(tag) => void openTag(tag)} />}
       onAppearanceModeChange={updateAppearanceMode}
       onOpenWorkspaceSettings={() => void workspaceSettingsController.openDialog()}
-      connectionsOpen={!shellLayout.inspectorCollapsed}
-      onToggleConnections={toggleConnectionsSurface}
+      connectionsOpen={utilityPaneOpen && !shellLayout.inspectorCollapsed}
+      onOpenConnections={openConnectionsSurface}
       onSearchQueryChange={(value) => {
         workspaceSearch.setQuery(value);
         workspaceSearch.setSubmittedQuery(value.trim());
