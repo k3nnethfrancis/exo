@@ -117,7 +117,6 @@ export interface WorkspaceLayoutSettings {
   zoneSplitRatio: number;
   sidebarCollapsed: boolean;
   sidebarWidth: number;
-  inspectorCollapsed: boolean;
 }
 
 export type WorkspacePaneNode = WorkspacePaneLeaf | WorkspacePaneSplit;
