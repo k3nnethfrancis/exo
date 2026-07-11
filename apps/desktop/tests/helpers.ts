@@ -161,8 +161,6 @@ async function launchExoFixtureForJourney(
   await expect(page.getByTestId("sidebar")).toBeVisible();
   await expect(page.getByTestId("editor-panel")).toBeVisible();
   if (openTerminalSurface) {
-    await page.getByTestId("side-panel-toggle").click();
-    await expect(page.getByTestId("exo-side-panel")).toBeVisible();
     await expect(page.getByTestId("terminal-dock").first()).toBeVisible();
     await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(1);
   }

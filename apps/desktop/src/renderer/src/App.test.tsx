@@ -103,13 +103,7 @@ import {
   workspaceSettingsStructuralKeyFromSettings,
 } from "./workspaceSettingsModel";
 import { collectLeaves, openOrUpdateBrowserPane, type PaneNode } from "./hooks/usePaneTree";
-import {
-  addTerminalSessionAsSplit,
-  buildTerminalMonitorTree,
-  buildTerminalTabsTree,
-  collectTerminalSessionIds,
-  restoreTerminalTreeSnapshot,
-} from "./paneTreeSelectors";
+import { collectTerminalSessionIds } from "./paneTreeSelectors";
 import { isNewTerminalShortcut } from "./hooks/useAppKeybindings";
 import {
   buildNoteGraphContext,
@@ -342,6 +336,7 @@ describe("browser preview panes", () => {
 
 });
 
+/* Legacy monitor-layout coverage was deleted with the second terminal topology.
 describe("terminal monitor layout", () => {
   it("builds one readable terminal leaf per session in monitor mode", () => {
     const tree = buildTerminalMonitorTree(["term-a", "term-b", "term-c"], "term-b");
@@ -459,7 +454,7 @@ describe("terminal monitor layout", () => {
       activeTerminalId: "term-a",
     });
   });
-});
+}); */
 
 function indexStatusFixture(overrides: Partial<IndexStatus> = {}): IndexStatus {
   return {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, type CSSProperties, type ReactNode, type Ref } from "react";
+import { useEffect, useRef } from "react";
 import { Bot, GripVertical, SquareTerminal, X } from "lucide-react";
 
 import type { TerminalSessionInfo } from "../../../shared/api";
@@ -12,7 +12,6 @@ import { focusTerminal } from "./terminalRegistry";
 import { TerminalView } from "./TerminalView";
 
 interface TerminalDockProps {
-  placement: "right" | "bottom";
   paneId: string;
   theme: ExoThemeVariant;
   compact: boolean;
@@ -34,18 +33,10 @@ interface TerminalDockProps {
   onGeometryMeasured: (id: string, cols: number, rows: number) => void;
   onKill: (id: string) => void;
   dragManager: DragManager;
-  onTogglePlacement: () => void;
-  monitorMode: boolean;
-  onToggleMonitorMode: () => void;
-  ref?: Ref<HTMLDivElement>;
-  headerActions?: ReactNode;
-  overlay?: ReactNode;
-  style?: CSSProperties;
 }
 
 export function TerminalDock(props: TerminalDockProps) {
   const {
-    placement,
     paneId,
     theme,
     compact,
@@ -67,11 +58,6 @@ export function TerminalDock(props: TerminalDockProps) {
     onGeometryMeasured,
     onKill,
     dragManager,
-    onTogglePlacement,
-    ref,
-    headerActions,
-    overlay,
-    style,
   } = props;
   const activeSession = sessions.find((session) => session.id === activeTerminalId) ?? null;
   const terminalWritable = activeSession ? isTerminalInputEnabled(activeSession) : true;
@@ -104,15 +90,14 @@ export function TerminalDock(props: TerminalDockProps) {
 
   return (
     <section
-      className={`terminal-dock terminal-dock--${placement} ${compact ? "terminal-dock--compact" : ""} ${empty ? "terminal-dock--empty" : ""}`}
+      className={`terminal-dock ${compact ? "terminal-dock--compact" : ""} ${empty ? "terminal-dock--empty" : ""}`}
       data-testid="terminal-dock"
       onMouseDown={() => {
         onFocus();
         focusTerminalAfterPaneActivation(activeTerminalId);
       }}
-      style={style}
     >
-      <div ref={ref} className="terminal-dock__main">
+      <div className="terminal-dock__main">
         <div className="terminal-dock__content">
           <div className="terminal-dock__header">
             <div className="terminal-dock__tabs">
@@ -129,7 +114,6 @@ export function TerminalDock(props: TerminalDockProps) {
                     onSetActiveTerminal(session.id);
                     focusTerminalAfterPaneActivation(session.id);
                   }}
-                  onDoubleClick={() => onTogglePlacement()}
                   onMouseDown={(event) => {
                     dragManager.startDrag(event, {
                       kind: "terminal",
@@ -152,7 +136,6 @@ export function TerminalDock(props: TerminalDockProps) {
                 </ChromeTab>
               ))}
             </div>
-            {headerActions ? <div className="terminal-dock__actions">{headerActions}</div> : null}
           </div>
 
           {activeSession ? (
@@ -179,7 +162,6 @@ export function TerminalDock(props: TerminalDockProps) {
             <div className="terminal-dock__empty">No terminals yet.</div>
           ) : null}
         </div>
-        {overlay}
       </div>
     </section>
   );

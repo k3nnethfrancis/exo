@@ -100,22 +100,19 @@ test("boots the shell, opens notes, and manages terminal tabs", async () => {
   await expect(page.getByTestId("editor-panel")).toContainText("[[agent-memory]]");
 
   await expect(page.getByTestId("terminal-tab-shell")).toBeVisible();
-  await expect(page.getByTestId("side-panel-terminal-rail")).toBeVisible();
+  await expect(page.getByTestId("terminal-dock")).toBeVisible();
   await expect(page.locator('[data-testid="launch-claude"]')).toHaveCount(0);
   await expect(page.locator('[data-testid="launch-codex"]')).toHaveCount(0);
   await expect.poll(async () =>
     page.evaluate(async () => (await window.exo.terminals.list()).map((session) => session.kind)),
   ).toEqual(["shell"]);
 
-  await page.getByTestId("terminal-tab-shell").dblclick();
-  await expect(page.getByTestId("terminal-dock")).toBeVisible();
-
   await page.getByTestId("inspector-toggle").click();
   await expect(page.locator('[data-testid="tags-panel"] .tag-pill').first()).toBeVisible();
   await page.locator('[data-testid="tags-panel"] .tag-pill').first().click();
-  await expect(page.getByTestId("tag-results")).toBeVisible();
+  await expect(page.getByText(/Results for #/)).toBeVisible();
 
-  await page.getByTestId("backlinks-panel").getByText("Related Note").click();
+  await page.getByTestId("connections-panel-outline").getByRole("button", { name: "Related Note" }).first().click();
   await expect(page.getByTestId("editor-title")).toHaveText("related-note");
 
   await cleanup();

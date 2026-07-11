@@ -279,6 +279,10 @@
   border-bottom: 1px solid color-mix(in srgb, var(--divider) 50%, transparent);
 }
 
+.sidebar__toolbar-spacer {
+  flex: 1 1 auto;
+}
+
 .sidebar--mirrored .sidebar__toolbar {
   flex-direction: row-reverse;
   justify-content: space-between;
@@ -307,13 +311,42 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
+  min-width: 24px;
   height: 24px;
+  gap: 4px;
+  padding: 0 5px;
   border: 0;
   border-radius: 6px;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
+}
+
+.sidebar__toolbar-button--icon {
+  width: 28px;
+  padding: 0;
+}
+
+.explorer-root-picker {
+  display: grid;
+  gap: 2px;
+  padding: 6px 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--divider) 50%, transparent);
+}
+
+.explorer-root-picker button {
+  min-height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+
+.explorer-root-picker button:hover,
+.explorer-root-picker button:focus-visible {
+  background: var(--surface-hover);
 }
 
 .sidebar__toolbar-button:hover,
@@ -387,6 +420,18 @@
   overflow-x: visible;
 }
 
+.sidebar-search__group {
+  display: grid;
+  gap: 2px;
+}
+
+.sidebar-search__group-label {
+  padding: 6px 8px 2px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
 .sidebar-search-result {
   position: relative;
   display: grid;
@@ -422,39 +467,6 @@
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-}
-
-.sidebar-search-result__preview {
-  position: fixed;
-  left: 260px;
-  top: 170px;
-  z-index: 60;
-  width: 360px;
-  max-height: 320px;
-  display: none;
-  gap: 10px;
-  padding: 18px;
-  border-radius: 8px;
-  background: var(--panel-strong);
-  border: 1px solid var(--surface-border-strong);
-  box-shadow: var(--shadow);
-  color: var(--text);
-  pointer-events: none;
-}
-
-.sidebar-search-result:hover .sidebar-search-result__preview {
-  display: grid;
-}
-
-.sidebar-search-result__preview strong {
-  font-size: 20px;
-  line-height: 1.15;
-}
-
-.sidebar-search-result__preview span {
-  color: var(--text-muted);
-  font-size: 13px;
-  line-height: 1.45;
 }
 
 .sidebar__content {

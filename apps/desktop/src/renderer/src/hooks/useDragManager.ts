@@ -42,7 +42,7 @@ export interface DragManager {
 
 export type DropEdge = "top" | "bottom" | "left" | "right" | "center";
 export type PaneDropKind = "editor" | "terminal" | "browser";
-export type PaneDropZone = "workspace" | "terminal-dock";
+export type PaneDropZone = "workspace";
 export type DragDropTarget =
   | { kind: "pane"; leafId: string; edge: DropEdge; paneKind: PaneDropKind; paneZone: PaneDropZone }
   | { kind: "explorer"; targetPath: string; targetKind: "directory" | "file" };
@@ -55,13 +55,13 @@ function acceptsPayload(
   payload: DragPayload,
 ): paneKind is PaneDropKind {
   if (payload.kind === "document" || (payload.kind === "workspace-path" && payload.nodeKind === "file")) {
-    return paneKind === "editor" || ((paneKind === "terminal" || paneKind === "browser") && paneZone === "workspace");
+    return paneKind === "editor" || paneKind === "terminal" || paneKind === "browser";
   }
   if (payload.kind === "workspace-path") {
     return false;
   }
   if (payload.kind === "browser") {
-    return paneZone === "workspace" && (paneKind === "editor" || paneKind === "terminal" || paneKind === "browser");
+    return paneKind === "editor" || paneKind === "terminal" || paneKind === "browser";
   }
   return paneKind === "editor" || paneKind === "terminal" || paneKind === "browser";
 }
@@ -174,7 +174,7 @@ export function useDragManager(
           leafId,
           edge,
           paneKind: leaf.dataset.paneKind,
-          paneZone: leaf.dataset.paneZone === "terminal-dock" ? "terminal-dock" : "workspace",
+          paneZone: "workspace",
         };
       }
       return null;

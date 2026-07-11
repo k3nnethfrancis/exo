@@ -1,15 +1,10 @@
 import { useEffect, type MutableRefObject } from "react";
-import type { WorkspaceLayoutSettings, WorkspaceModel, WorkspaceSettings, WorkspaceSettingsRevision } from "@exo/core";
+import type { WorkspaceModel, WorkspaceSettings, WorkspaceSettingsRevision } from "@exo/core";
 
-import type { PaneNode } from "./usePaneTree";
+import { decodeWorkspaceCanvasLayout, type PaneNode, type WorkspaceCanvasLayout } from "./usePaneTree";
 
 interface UseWorkspaceLayoutPersistenceOptions {
-  editorTree: PaneNode;
-  terminalTree: PaneNode;
-  terminalCollapsed: boolean;
-  terminalMonitorMode: boolean;
-  sidePanesFlipped: boolean;
-  zoneSplitRatio: number;
+  canvas: PaneNode;
   sidebarCollapsed: boolean;
   sidebarWidth: number;
   inspectorCollapsed: boolean;
@@ -22,53 +17,24 @@ interface UseWorkspaceLayoutPersistenceOptions {
 
 export function useWorkspaceLayoutPersistence(options: UseWorkspaceLayoutPersistenceOptions) {
   useEffect(() => {
-    if (!options.layoutPersistenceReady || options.onboardingActive || !options.workspaceModel) {
-      return;
-    }
-
+    if (!options.layoutPersistenceReady || options.onboardingActive || !options.workspaceModel) return;
     const timeout = window.setTimeout(() => {
       const currentSettings = options.workspaceSettingsRef.current;
-      if (!currentSettings) {
-        return;
-      }
-
-      const layout = createWorkspaceLayoutSnapshot({
-        editorTree: options.editorTree,
-        terminalTree: options.terminalTree,
-        terminalCollapsed: options.terminalCollapsed,
-        terminalMonitorMode: options.terminalMonitorMode,
-        sidePanesFlipped: options.sidePanesFlipped,
-        zoneSplitRatio: options.zoneSplitRatio,
-        sidebarCollapsed: options.sidebarCollapsed,
-        sidebarWidth: options.sidebarWidth,
-        inspectorCollapsed: options.inspectorCollapsed,
-      });
-      if (stableJson(currentSettings.layout ?? null) === stableJson(layout)) {
-        return;
-      }
-
+      if (!currentSettings) return;
+      const layout = createWorkspaceCanvasSnapshot(options);
+      if (stableJson(currentSettings.layout ?? null) === stableJson(layout)) return;
       void window.exo.workspace.saveSettings({
-        settings: { ...currentSettings, layout },
+        settings: { ...currentSettings, layout: layout as unknown as WorkspaceSettings["layout"] },
         expectedRevision: options.workspaceSettingsRevisionRef.current,
       }).then((saved) => {
         options.workspaceSettingsRef.current = saved.settings;
         options.workspaceSettingsRevisionRef.current = saved.revision;
-        if (saved.runtimeApply.status === "failed") {
-          throw new Error(saved.runtimeApply.errorMessage);
-        }
-      }).catch((error) => {
-        console.warn("[exo] failed to persist workspace layout", error);
-      });
+        if (saved.runtimeApply.status === "failed") throw new Error(saved.runtimeApply.errorMessage);
+      }).catch((error) => console.warn("[exo] failed to persist workspace canvas", error));
     }, 900);
-
     return () => window.clearTimeout(timeout);
   }, [
-    options.editorTree,
-    options.terminalTree,
-    options.terminalCollapsed,
-    options.terminalMonitorMode,
-    options.sidePanesFlipped,
-    options.zoneSplitRatio,
+    options.canvas,
     options.sidebarCollapsed,
     options.sidebarWidth,
     options.inspectorCollapsed,
@@ -80,22 +46,37 @@ export function useWorkspaceLayoutPersistence(options: UseWorkspaceLayoutPersist
   ]);
 }
 
-function createWorkspaceLayoutSnapshot(input: WorkspaceLayoutSettings): WorkspaceLayoutSettings {
+export function createWorkspaceCanvasSnapshot(input: Pick<UseWorkspaceLayoutPersistenceOptions, "canvas" | "sidebarCollapsed" | "sidebarWidth" | "inspectorCollapsed">): WorkspaceCanvasLayout {
   return {
-    editorTree: input.editorTree,
-    terminalTree: input.terminalTree,
-    terminalCollapsed: input.terminalCollapsed,
-    terminalMonitorMode: input.terminalMonitorMode,
-    sidePanesFlipped: input.sidePanesFlipped,
-    zoneSplitRatio: roundLayoutNumber(input.zoneSplitRatio),
+    version: 1,
+    canvas: input.canvas,
     sidebarCollapsed: input.sidebarCollapsed,
     sidebarWidth: Math.round(input.sidebarWidth),
     inspectorCollapsed: input.inspectorCollapsed,
   };
 }
 
-function roundLayoutNumber(value: number): number {
-  return Math.round(value * 1000) / 1000;
+/** Restore canonical canvas when present; decode the legacy two-zone shape only once at this boundary. */
+export function decodePersistedWorkspaceCanvas(layout: unknown): WorkspaceCanvasLayout | null {
+  if (!layout || typeof layout !== "object") return null;
+  const candidate = layout as Partial<WorkspaceCanvasLayout> & { editorTree?: PaneNode; terminalTree?: PaneNode };
+  if (candidate.version === 1 && candidate.canvas) {
+    return {
+      version: 1,
+      canvas: candidate.canvas,
+      sidebarCollapsed: Boolean(candidate.sidebarCollapsed),
+      sidebarWidth: Number.isFinite(candidate.sidebarWidth) ? Math.round(candidate.sidebarWidth as number) : 175,
+      inspectorCollapsed: Boolean(candidate.inspectorCollapsed),
+    };
+  }
+  if (!candidate.editorTree && !candidate.terminalTree) return null;
+  return {
+    version: 1,
+    canvas: decodeWorkspaceCanvasLayout(candidate.editorTree, candidate.terminalTree),
+    sidebarCollapsed: Boolean(candidate.sidebarCollapsed),
+    sidebarWidth: Number.isFinite(candidate.sidebarWidth) ? Math.round(candidate.sidebarWidth as number) : 175,
+    inspectorCollapsed: Boolean(candidate.inspectorCollapsed),
+  };
 }
 
 function stableJson(value: unknown): string {

@@ -2,6 +2,7 @@ import { ChevronDown, ChevronLeft, ChevronRight, FileText, Folder, FolderOpen, F
 import type { SearchResult, TreeNode } from "@exo/core";
 import type { CSSProperties } from "react";
 import type { DragManager } from "../hooks/useDragManager";
+import type { ExplorerRootKind } from "./FileTree";
 
 const MAX_LABEL_CHARS = 25;
 
@@ -37,12 +38,12 @@ interface TagSearchSectionProps {
 interface SectionProps {
   label: string;
   sections: RootSection[];
-  rootKind: "notes";
+  rootKind: ExplorerRootKind;
   expandedPaths: Set<string>;
-  onTogglePath: (path: string, rootKind?: "notes") => void;
+  onTogglePath: (path: string, rootKind?: ExplorerRootKind) => void;
   onOpenFile: (filePath: string, line?: number | null) => void;
   dragManager: DragManager;
-  onContextMenu: (event: React.MouseEvent, target: ContextTarget) => void;
+  onContextMenu?: (event: React.MouseEvent, target: ContextTarget) => void;
   showHeader?: boolean;
   alwaysShowRoots?: boolean;
   mirrored?: boolean;
@@ -164,7 +165,7 @@ export function Section(props: SectionProps) {
           <div key={section.path} className="root-group">
             <button
               className="root-group__toggle"
-              data-explorer-drop-path={section.path}
+              data-explorer-drop-path={rootKind === "notes" ? section.path : undefined}
               onClick={() => onTogglePath(rootKey)}
               type="button"
             >
@@ -204,12 +205,12 @@ function TreeNodes({
 }: {
   nodes: TreeNode[];
   depth: number;
-  rootKind: "notes";
+  rootKind: ExplorerRootKind;
   expandedPaths: Set<string>;
-  onTogglePath: (path: string, rootKind?: "notes") => void;
+  onTogglePath: (path: string, rootKind?: ExplorerRootKind) => void;
   onOpenFile: (filePath: string, line?: number | null) => void;
   dragManager: DragManager;
-  onContextMenu: (event: React.MouseEvent, target: ContextTarget) => void;
+  onContextMenu?: (event: React.MouseEvent, target: ContextTarget) => void;
   mirrored: boolean;
 }) {
   return (
@@ -223,15 +224,16 @@ function TreeNodes({
             <div key={node.path}>
               <button
                 className="tree-node tree-node--directory"
-                data-explorer-drop-path={node.path}
+                data-explorer-drop-path={rootKind === "notes" ? node.path : undefined}
+                data-explorer-root-kind={rootKind}
                 style={depthStyle}
                 aria-expanded={expanded}
                 aria-label={`${node.name}, ${expanded ? "expanded" : "collapsed"} folder`}
                 onClick={() => onTogglePath(node.path, rootKind)}
-                onMouseDown={(event) =>
+                onMouseDown={rootKind === "notes" ? (event) =>
                   dragManager.startDrag(event, { kind: "workspace-path", path: node.path, nodeKind: "directory" })
-                }
-                onContextMenu={(event) => onContextMenu(event, { path: node.path, kind: "directory" })}
+                : undefined}
+                onContextMenu={onContextMenu ? (event) => onContextMenu(event, { path: node.path, kind: "directory" }) : undefined}
                 type="button"
               >
                 <FolderIcon className="tree-node__kind-icon" size={13} aria-hidden="true" />
@@ -259,15 +261,16 @@ function TreeNodes({
           <button
             key={node.path}
             className="tree-node tree-node--file"
-            data-explorer-drop-path={node.path}
-            data-explorer-drop-kind="file"
+            data-explorer-drop-path={rootKind === "notes" ? node.path : undefined}
+            data-explorer-drop-kind={rootKind === "notes" ? "file" : undefined}
+            data-explorer-root-kind={rootKind}
             style={depthStyle}
             aria-label={`${fileLabel}, file`}
             onClick={() => onOpenFile(node.path)}
-            onMouseDown={(event) =>
+            onMouseDown={rootKind === "notes" ? (event) =>
               dragManager.startDrag(event, { kind: "workspace-path", path: node.path, nodeKind: "file" })
-            }
-            onContextMenu={(event) => onContextMenu(event, { path: node.path, kind: "file" })}
+            : undefined}
+            onContextMenu={onContextMenu ? (event) => onContextMenu(event, { path: node.path, kind: "file" }) : undefined}
             type="button"
           >
             <FileText className="tree-node__kind-icon" size={13} aria-hidden="true" />

@@ -41,6 +41,15 @@ export interface BrowserPaneContent {
 
 export type PaneContent = EditorPaneContent | TerminalPaneContent | BrowserPaneContent;
 
+/** The only layout shape written by the current canvas. */
+export interface WorkspaceCanvasLayout {
+  version: 1;
+  canvas: PaneNode;
+  sidebarCollapsed: boolean;
+  sidebarWidth: number;
+  inspectorCollapsed: boolean;
+}
+
 export type DropEdge = "top" | "bottom" | "left" | "right" | "center";
 
 // ---------------------------------------------------------------------------
@@ -201,6 +210,22 @@ export function pruneEmptyLeaves(tree: PaneNode, isEmpty: (leaf: PaneLeaf) => bo
     next = result;
   }
   return next ?? tree;
+}
+
+/**
+ * Converts the former two-zone persisted layout at the renderer boundary. The
+ * result is the only tree the canvas needs at runtime; the old zone/monitor
+ * arrangement intentionally has no behavioral preservation.
+ */
+export function decodeWorkspaceCanvasLayout(editorTree: PaneNode | undefined, terminalTree: PaneNode | undefined): PaneNode {
+  const editor = editorTree ?? { kind: "leaf", id: paneId(), content: { kind: "editor", openPaths: [], activePath: null } } satisfies PaneLeaf;
+  if (!terminalTree || !collectLeaves(terminalTree).some((leaf) => leaf.content.kind === "terminal" || leaf.content.kind === "browser")) {
+    return editor;
+  }
+  if (!collectLeaves(editor).some((leaf) => leaf.content.kind === "editor")) {
+    return terminalTree;
+  }
+  return { kind: "split", id: paneId(), direction: "horizontal", ratio: 0.62, children: [editor, terminalTree] };
 }
 
 // ---------------------------------------------------------------------------
