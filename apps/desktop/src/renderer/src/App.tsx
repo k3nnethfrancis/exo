@@ -281,7 +281,7 @@ export function App() {
     saveDocument,
     openOrCreateDailyNote,
     createShellTerminal: async () => {
-      setUtilityPaneOpen(true);
+      openUtilitySurface();
       await terminalPaneController.createTerminal("shell");
     },
     updateFocusedSurfaceZoom,
@@ -648,8 +648,31 @@ export function App() {
   }
 
   function createBrowserPane(url = "about:blank") {
-    setUtilityPaneOpen(true);
+    openUtilitySurface();
     utilityPaneTree.actions.openBrowserPane(utilityPaneTree.focusedLeafId, url);
+  }
+
+  // The right edge is one auxiliary surface, never a second workspace. Opening
+  // a shell or preview takes the place of Connections; opening Connections
+  // takes the place of the shell/preview. Persistent multi-pane work belongs
+  // on the canvas, where the user can explicitly drag a surface into a split.
+  function openUtilitySurface() {
+    shellLayout.setInspectorCollapsed(true);
+    setUtilityPaneOpen(true);
+  }
+
+  function toggleUtilitySurface() {
+    setUtilityPaneOpen((open) => {
+      if (!open) {
+        shellLayout.setInspectorCollapsed(true);
+      }
+      return !open;
+    });
+  }
+
+  function toggleConnectionsSurface() {
+    setUtilityPaneOpen(false);
+    shellLayout.setInspectorCollapsed((collapsed) => !collapsed);
   }
 
   function focusBrowserPane() {
@@ -944,9 +967,9 @@ export function App() {
       utilityFocusedPaneId={utilityPaneTree.focusedLeafId}
       utilityCanvasActions={utilityPaneTree.actions}
       utilityOpen={utilityPaneOpen}
-      onToggleUtility={() => setUtilityPaneOpen((current) => !current)}
+      onToggleUtility={toggleUtilitySurface}
       onOpenUtilityBrowser={() => createBrowserPane()}
-      onCreateUtilityTerminal={() => { setUtilityPaneOpen(true); void terminalPaneController.createTerminal("shell"); }}
+      onCreateUtilityTerminal={() => { openUtilitySurface(); void terminalPaneController.createTerminal("shell"); }}
       revealExplorerPathRequest={revealExplorerPathRequest}
       renderLeaf={(leaf, isFocused) => {
         if (leaf.content.kind === "browser") {
@@ -1065,11 +1088,11 @@ export function App() {
           </>
         );
       }}
-      connections={<InspectorDock document={activeDocument} graphContext={activeGraphContext} open={!shellLayout.inspectorCollapsed} activeTag={activeTag} tagResults={tagResults} onToggle={() => shellLayout.setInspectorCollapsed((current) => !current)} onOpenTarget={(target) => void openKnowledgeTarget(target)} onOpenExternal={(target) => void window.exo.shell.openExternal(target)} onOpenTag={(tag) => void openTag(tag)} />}
+      connections={<InspectorDock document={activeDocument} graphContext={activeGraphContext} open={!shellLayout.inspectorCollapsed} activeTag={activeTag} tagResults={tagResults} onToggle={toggleConnectionsSurface} onOpenTarget={(target) => void openKnowledgeTarget(target)} onOpenExternal={(target) => void window.exo.shell.openExternal(target)} onOpenTag={(tag) => void openTag(tag)} />}
       onAppearanceModeChange={updateAppearanceMode}
       onOpenWorkspaceSettings={() => void workspaceSettingsController.openDialog()}
       connectionsOpen={!shellLayout.inspectorCollapsed}
-      onToggleConnections={() => shellLayout.setInspectorCollapsed((current) => !current)}
+      onToggleConnections={toggleConnectionsSurface}
       onSearchQueryChange={(value) => {
         workspaceSearch.setQuery(value);
         workspaceSearch.setSubmittedQuery(value.trim());

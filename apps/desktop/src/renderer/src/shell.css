@@ -196,14 +196,6 @@
   grid-template-columns: 0 minmax(0, 1fr) 0 minmax(280px, 22vw);
 }
 
-.workspace-shell--utility-open.workspace-shell--connections-open {
-  grid-template-columns: auto 6px minmax(0, 1fr) minmax(320px, 34vw) minmax(280px, 22vw);
-}
-
-.workspace-shell--sidebar-collapsed.workspace-shell--utility-open.workspace-shell--connections-open {
-  grid-template-columns: 0 minmax(0, 1fr) minmax(320px, 34vw) minmax(280px, 22vw);
-}
-
 .workspace-shell--connections-open .workspace-shell__connections {
   overflow: visible;
 }

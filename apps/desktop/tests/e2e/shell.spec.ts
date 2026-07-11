@@ -105,6 +105,7 @@ test("boots the shell, opens notes, and creates terminals on demand", async () =
   await page.keyboard.press(`${modifier}+T`);
   await expect(page.getByTestId("terminal-tab-shell")).toBeVisible();
   await expect(page.getByTestId("terminal-dock")).toBeVisible();
+  await expect(page.getByTestId("utility-pane")).toBeVisible();
   await expect(page.locator('[data-testid="launch-claude"]')).toHaveCount(0);
   await expect(page.locator('[data-testid="launch-codex"]')).toHaveCount(0);
   await expect.poll(async () =>
@@ -112,6 +113,7 @@ test("boots the shell, opens notes, and creates terminals on demand", async () =
   ).toEqual(["shell"]);
 
   await page.getByTestId("workspace-titlebar-connections").click();
+  await expect(page.getByTestId("utility-pane")).not.toBeVisible();
   await expect(page.locator('[data-testid="tags-panel"] .tag-pill').first()).toBeVisible();
   await page.locator('[data-testid="tags-panel"] .tag-pill').first().click();
   await expect(page.getByText(/Results for #/)).toBeVisible();
