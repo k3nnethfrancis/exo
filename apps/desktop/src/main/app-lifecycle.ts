@@ -57,6 +57,20 @@ export class AppLifecycleController {
 
     this.loadRenderer(window);
 
+    // In a packaged file:// renderer, Electron's default hard-reload can leave
+    // the web contents displaying a bundled module as a document. Reload the
+    // known renderer entry point instead, while leaving dev-server refreshes
+    // alone for normal development.
+    window.webContents.on("before-input-event", (event, input) => {
+      const isRefresh = input.type === "keyDown" && (input.meta || input.control) && input.key.toLowerCase() === "r";
+      const usesDevServer = Boolean(process.env.ELECTRON_RENDERER_URL ?? process.env.VITE_DEV_SERVER_URL);
+      if (!isRefresh || usesDevServer) {
+        return;
+      }
+      event.preventDefault();
+      this.loadRenderer(window);
+    });
+
     window.webContents.on("did-start-loading", () => {
       if (this.mainWindow === window && window.webContents.isLoadingMainFrame()) {
         this.rendererReady = false;
