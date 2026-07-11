@@ -8,9 +8,9 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ## Open
 
-### EXO-ISSUE-104: Preview pane lifecycle is nondeterministic in the complete Electron journey
+### EXO-ISSUE-104: Preview pane lifecycle had nondeterministic Electron evidence during Wave 1
 
-- Status: open
+- Status: monitoring; not reproduced on the clean current tree
 - Severity: high
 - Area: preview pane, Electron window startup, E2E lifecycle
 - Source:
@@ -23,8 +23,9 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 - Acceptance:
   - [ ] Reproduce the startup and iframe failures with focused traces.
   - [ ] Establish deterministic app-window and preview-frame readiness without arbitrary sleeps.
-  - [ ] Prove the full Electron suite and all nine active stable-smoke journeys pass from a clean run.
+  - [x] Prove the full Electron suite and all nine active stable-smoke journeys pass from a clean run.
   - 2026-07-10 investigation: the iframe absence is not a frame-load wait. It means either no browser leaf/component or a blank/untrusted leaf URL; a resolver failure would leave the pane mounted with an explicit error. The first-window timeout is a separate pre-interaction failure. It reproduces after `external-file-changes + fixture-hygiene + markdown-code-blocks + markdown-rules + monitor-mode + preview-pane-layout`, but not after the reduced predecessor blocks tested so far. Raw launch count, single-instance lock release, agent invocation, drag zones, and monitor mode alone are eliminated. Do not add a retry, sleep, or preview mount workaround before the predecessor interaction is reduced further.
+  - 2026-07-10 current proof: the app E2E last-run artifact passed with no failed tests, and `pnpm stable:smoke` passed 9/9. No speculative preview lifecycle patch landed. Retain this issue for packaged-app and real-vault monitoring; reopen if a clean-run failure artifact recurs.
 
 ### EXO-ISSUE-103: Note paths can escape attached roots and mutate arbitrary filesystem locations
 

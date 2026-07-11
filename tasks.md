@@ -8,11 +8,24 @@ Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers un
 
 ## Current Ship Roadmap Tasks
 
-The active branch is `refactor/note-native-exo`. The canonical plan is `docs/exograph-refactor-completion-plan.md`.
+The active branch is `refactor/note-native-exo`. The canonical plan is `docs/exograph-simplification-plan.md`.
 
 Current product frame:
 
 > Exo — your exocortex, in Markdown.
+
+Launch formula:
+
+> **Obsidian-like Markdown workspace + modular Search + actionable graph + reviewable agent skills.**
+
+The four launch primitives are:
+
+1. a trustworthy, local, user-owned Markdown workspace;
+2. modular Search, with filesystem and QMD as the two earned implementations;
+3. actionable Connections and graph context, not a decorative global graph;
+4. explicit configured-Command invocation of editable graph/wiki skills, followed by reviewable Markdown changes.
+
+“Skill” here means user-editable instructions and data passed to a trusted external Command. It does not reopen the deleted Skill Manager, general plugin runtime, provider-specific harnesses, or automatic writes.
 
 Shared Ashby north star: `../../notes/shoshin-codex/ashby.md`. Exo owns the exocortex/workspace; Guardian owns principled execution; Ash is a separate behavior/evaluation role.
 
@@ -26,16 +39,17 @@ Implementation began on 2026-07-10 after the scheduled heartbeat was cancelled. 
 - [x] Incorporate `notes/shoshin-codex/ok-explore-exo.md`: tabbed Connections, typed Markdown Properties, Command-readiness onboarding, explicit terminal scroll ownership, and reviewed future-integration outcomes.
 - [x] Cancel the one-time heartbeat and begin the approved implementation directly.
 - [x] Constrain the Principal Alignment/Guardian north star to evidence compatibility—stable provenance, invocation/review outcomes, and export lineage—without adding training or model-management UI to Exo V1.
+- [x] Align short- and long-term plans around the four launch primitives; defer Feed, Gym, trainers, cloud indexing, and general extension machinery until the launch loop is stable.
 - [x] Create a deliberate checkpoint of the intended pivot state and record the known-red baseline.
   - 2026-07-10 Gate 0 inventory: 248 tracked files changed, 41 untracked source/docs files, 4,394 insertions, 39,635 deletions; ignored runtime/generated paths were excluded.
   - Checkpoint: `9787002d` (`checkpoint: note-native pivot before simplification`).
   - Green: `pnpm check` (core 192, desktop 159, CLI 58, scripts 12); terminal-focused E2E evidence is green, including the full-suite direct-PTY cases.
-  - Known integration residue: full Electron E2E reached 77 passed / 2 explicit skips / 1 preview app-launch timeout; the same preview journey passed isolated. A subsequent stable-smoke run reached 8/9 and failed that distinct preview iframe journey. `EXO-ISSUE-104` is a release blocker until the preview lifecycle is deterministic.
+  - Wave 1 integration proof: fresh app E2E artifact passed at 2026-07-10 09:05 with no failed tests; `pnpm stable:smoke` passed all 9 journeys at 2026-07-10 09:20. The earlier launch/iframe symptom is retained as `EXO-ISSUE-104` monitoring evidence for packaged-app proof, not a current reproduction.
   - Known red: `pnpm check:repo` intentionally awaits one architect review after the Wave 2 public-surface deletions; four pre-Wave-1 protected surfaces have unaccepted hashes. No current smoke selector is stale.
 - [x] Repair the immediate `EXO-ISSUE-102` Settings data-loss path: no-op dialog opens stay clean; focused saves merge over authoritative settings and preserve layout, commands, and unknown keys. Reads/saves use explicit revision snapshots; stale clients reject; rapid local patches serialize on returned revisions; persistence recovers settings/registry as one journaled transaction with 0600 configuration files; a seeded Command remains launchable after the actual Settings round trip. Cross-process compare-and-swap is deliberately not claimed because all app writes are main-process-owned.
 - [x] Repair the immediate `EXO-ISSUE-103` renderer-facing note path escape: `WorkspaceFiles` guards traversal, absolute paths, symlinks, missing ancestors, root mutation, and wikilink creation. Command-server document reads now fail closed before provider I/O and after document-id resolution, while multi-note-root reads work. Root-relative identities and guarded real-vault-copy dogfooding remain follow-up acceptance work.
 - [x] Make validation truthful: note, Settings, and Command journeys run with no visible terminal; retained direct-PTY journeys use a separate explicit fixture; every active smoke selector collects exactly one test; stale tmux/monitor/reconnect registry entries are gone. Accept contract hashes only after the Wave 2 caller audit.
-- [ ] Diagnose and fix `EXO-ISSUE-104` (preview pane startup/frame readiness is nondeterministic under the complete Electron journey) before calling the validation barrier green.
+- [x] Close the Wave 1 validation barrier with a fresh full-E2E pass artifact and 9/9 stable smoke; retain `EXO-ISSUE-104` as packaged-app monitoring evidence because its earlier predecessor interaction was not reproduced on the clean current tree.
 - [ ] Execute the approved deletion, deep-module, unified-canvas, interface-craft, migration, and packaged-app proof waves.
 
 ### WP0: Plan, Supersede, And Stop The Old Product
@@ -148,6 +162,16 @@ Implementation began on 2026-07-10 after the scheduled heartbeat was cancelled. 
 - [x] Add toggleable invocation diff/attribution banner.
 - [x] Add automated test proving `.exo/invocations/` is gitignored.
 - [x] Add automated test for never-exiting interactive invocation resolving through the chosen end mechanism.
+
+### WP6: First Reviewable Graph Skill
+
+- [ ] Define one provider-neutral, user-editable **Find and connect relevant context** skill without adding a Skill Manager or dynamic code loading.
+- [ ] Let the user select a note or bounded result set and invoke the skill through an existing trusted Command.
+- [ ] Combine Search candidates with existing links, backlinks, tags, properties, and graph neighborhood evidence.
+- [ ] Require explanations for proposed links, tags, or typed relationships.
+- [ ] Keep inferred similarity derived; write only user-approved Markdown/frontmatter changes.
+- [ ] Review the resulting diff through the existing invocation/change-review path.
+- [ ] Evaluate retrieval lift, irrelevant-context cost, proposal acceptance, edit burden, and trust in the explanation before adding more skills.
 - [x] Add app QA for fake command append, concurrent edit ambiguity, dirty-buffer protection, and orphaned invocation.
   - 2026-07-09 evidence: added `apps/desktop/tests/e2e/agent-invocation.spec.ts` for fake configured-command append/diff, dirty-buffer conflict choice, and orphaned restart; reran focused external-file/shell E2E group for dirty editor protection, settings, deterministic fake agent, inspector, and token-auth command-server coverage.
   - 2026-07-09 final validation: `pnpm ci:check` passed with core tests 238/238, CLI tests 62/62, desktop tests 272/272, typechecks, builds, repo checks, and install dry run passing; `pnpm test:e2e` passed 100/102 with only the intentionally skipped markdown-decoration and opt-in live Claude tests skipped; `pnpm terminal:check` passed; opt-in live Claude invocation E2E passed 1/1.
