@@ -80,10 +80,14 @@ export class CommandServerLifecycle {
       this.options.log?.("command server started", { port: server.getPort() });
       return this.status();
     } catch (error) {
+      const token = server.isListening() ? server.getServerInfo().token : null;
       if (this.server === server) {
         this.server = null;
       }
       await server.stop().catch(() => {});
+      if (token) {
+        await this.removeOwnedDiscovery(token, generation);
+      }
       throw error;
     }
   }
@@ -134,18 +138,29 @@ async function writeDiscoveryFile(discoveryPath: string, info: ExoCommandServerI
   const directory = path.dirname(discoveryPath);
   const temporaryPath = `${discoveryPath}.${process.pid}.${Date.now()}.tmp`;
   const body = `${JSON.stringify(info, null, 2)}\n`;
-  await writeFile(temporaryPath, body, { encoding: "utf8", mode: 0o600 });
-  const file = await open(temporaryPath, "r+");
   try {
-    await file.sync();
+    await writeFile(temporaryPath, body, { encoding: "utf8", mode: 0o600 });
+    const file = await open(temporaryPath, "r+");
+    try {
+      await file.sync();
+    } finally {
+      await file.close();
+    }
+    await rename(temporaryPath, discoveryPath);
+    try {
+      const directoryHandle = await open(directory, "r");
+      try {
+        await directoryHandle.sync();
+      } finally {
+        await directoryHandle.close();
+      }
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== "EINVAL" && code !== "ENOTSUP" && code !== "EPERM") {
+        throw error;
+      }
+    }
   } finally {
-    await file.close();
-  }
-  await rename(temporaryPath, discoveryPath);
-  const directoryHandle = await open(directory, "r");
-  try {
-    await directoryHandle.sync();
-  } finally {
-    await directoryHandle.close();
+    await rm(temporaryPath, { force: true });
   }
 }
