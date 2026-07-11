@@ -734,6 +734,18 @@ describe("browser preview panes", () => {
 });
 
 describe("terminal monitor layout", () => {
+  it("uses a deterministic balanced split sequence for common monitor counts", () => {
+    const sessionIds = ["term-a", "term-b", "term-c", "term-d", "term-e", "term-f", "term-g", "term-h"];
+
+    expect(describePaneShape(buildTerminalMonitorTree(sessionIds.slice(0, 1), "term-a"))).toBe("term-a");
+    expect(describePaneShape(buildTerminalMonitorTree(sessionIds.slice(0, 2), "term-b"))).toBe("vertical(term-a,term-b)");
+    expect(describePaneShape(buildTerminalMonitorTree(sessionIds.slice(0, 3), "term-c"))).toBe("vertical(horizontal(term-a,term-b),term-c)");
+    expect(describePaneShape(buildTerminalMonitorTree(sessionIds.slice(0, 4), "term-d"))).toBe("vertical(horizontal(term-a,term-b),horizontal(term-c,term-d))");
+    expect(describePaneShape(buildTerminalMonitorTree(sessionIds.slice(0, 5), "term-e"))).toBe("vertical(horizontal(horizontal(term-a,term-b),term-c),horizontal(term-d,term-e))");
+    expect(describePaneShape(buildTerminalMonitorTree(sessionIds.slice(0, 6), "term-f"))).toBe("vertical(horizontal(horizontal(term-a,term-b),term-c),horizontal(horizontal(term-d,term-e),term-f))");
+    expect(describePaneShape(buildTerminalMonitorTree(sessionIds.slice(0, 8), "term-h"))).toBe("vertical(vertical(horizontal(horizontal(term-a,term-b),term-c),horizontal(horizontal(term-d,term-e),term-f)),horizontal(term-g,term-h))");
+  });
+
   it("builds one readable terminal leaf per session in monitor mode", () => {
     const tree = buildTerminalMonitorTree(["term-a", "term-b", "term-c"], "term-b");
     const leaves = collectLeaves(tree);
@@ -836,6 +848,21 @@ describe("terminal monitor layout", () => {
       ["term-a"],
       ["term-b"],
     ]);
+    expect(describePaneShape(result.tree)).toBe("vertical(term-a,term-b)");
+  });
+
+  it("keeps live monitor additions converged with the full balanced monitor tree", () => {
+    const sessionIds = ["term-a", "term-b", "term-c", "term-d", "term-e", "term-f", "term-g", "term-h"];
+    let incrementalTree = buildTerminalMonitorTree([sessionIds[0]], sessionIds[0]);
+
+    for (const sessionId of sessionIds.slice(1)) {
+      incrementalTree = addTerminalSessionAsSplit(incrementalTree, sessionId).tree;
+      const expectedTree = buildTerminalMonitorTree(sessionIds.slice(0, sessionIds.indexOf(sessionId) + 1), sessionId);
+      expect(describePaneShape(incrementalTree)).toBe(describePaneShape(expectedTree));
+      expect(collectLeaves(incrementalTree).map((leaf) => leaf.id)).toEqual(
+        collectLeaves(expectedTree).map((leaf) => leaf.id),
+      );
+    }
   });
 
   it("fills an empty monitor leaf with the first terminal instead of creating an empty split", () => {
@@ -851,6 +878,15 @@ describe("terminal monitor layout", () => {
     });
   });
 });
+
+function describePaneShape(node: PaneNode): string {
+  if (node.kind === "leaf") {
+    return node.content.kind === "terminal"
+      ? node.content.terminalIds.join("+")
+      : node.content.kind;
+  }
+  return `${node.direction}(${describePaneShape(node.children[0])},${describePaneShape(node.children[1])})`;
+}
 
 describe("plugin manager model", () => {
   it("groups inventory rows but hides core from plugin category filters", () => {
