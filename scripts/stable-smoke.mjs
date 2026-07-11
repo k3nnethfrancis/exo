@@ -24,7 +24,7 @@ export const smokeScenarios = [
   {
     name: 'settings-open-no-terminal',
     file: 'apps/desktop/tests/e2e/shell.spec.ts',
-    grep: 'opens workspace settings from the sidebar',
+    grep: 'opens workspace settings from the titlebar',
     timeoutMs: 60_000,
   },
   {
