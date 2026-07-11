@@ -10,14 +10,12 @@ type NotesApi = DesktopApi["notes"];
 
 export interface WorkspaceIpcHandlers {
   activateWorkspace: WorkspaceApi["activateWorkspace"];
-  createBranch: NotesApi["createBranch"];
   createDirectory: WorkspaceApi["createDirectory"];
   createFile: WorkspaceApi["createFile"];
   deletePath: WorkspaceApi["deletePath"];
   embedIndex: WorkspaceApi["embedIndex"];
   ensureTarget: NotesApi["ensureTarget"];
   getAgentInstructionConfig: WorkspaceApi["getAgentInstructionConfig"];
-  getBranchFamily: NotesApi["getBranchFamily"];
   getIndexStatus: WorkspaceApi["getIndexStatus"];
   launchAgentInvocation: WorkspaceApi["launchAgentInvocation"];
   endAgentInvocation: WorkspaceApi["endAgentInvocation"];
@@ -157,11 +155,6 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
   handleDesktopInvoke("notes:resolve-target", async (_event, sourceFilePath, target) => handlers.resolveTarget(sourceFilePath, target));
   handleDesktopInvoke("notes:ensure-target", async (_event, sourceFilePath, target) => handlers.ensureTarget(sourceFilePath, target));
   handleDesktopInvoke("notes:suggest-targets", async (_event, sourceFilePath, query) => handlers.suggestTargets(sourceFilePath, query));
-  handleDesktopInvoke("notes:get-branch-family", async (_event, filePath) => handlers.getBranchFamily(filePath));
-  handleDesktopInvoke("notes:create-branch", async (_event, filePath, frontmatter, body) => {
-    const authorizedPath = await workspaceFiles().existing(filePath);
-    return handlers.createBranch(authorizedPath, frontmatter, body);
-  });
   handleDesktopInvoke("shell:open-external", async (_event, target) => shell.openExternal(target));
   handleDesktopInvoke("shell:focus-window", async () => {
     const window = handlers.getMainWindow();

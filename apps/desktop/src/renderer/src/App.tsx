@@ -171,7 +171,6 @@ export function App() {
     openDocuments,
     graphContextByPath,
     documentSaveStatuses,
-    branchFamiliesByPath,
     activeDocumentPath,
     activeDocument,
     activeGraphContext,
@@ -741,15 +740,6 @@ export function App() {
     terminalActions.removeLeaf(browserLeaf.id);
   }
 
-  async function createBranchFromActiveDocument() {
-    const result = await openDocumentsState.createBranchFromActiveDocument();
-    if (!result) {
-      return;
-    }
-    await reloadTrees();
-    await openFile(result.branchFilePath, editorFocusedLeafId);
-  }
-
   async function openOrCreateDailyNote() {
     if (!workspaceModel || workspaceModel.noteRoots.length === 0) {
       return;
@@ -1087,7 +1077,6 @@ export function App() {
               documents={openDocuments}
               graphContextByPath={graphContextByPath}
               saveStatuses={documentSaveStatuses}
-              branchFamiliesByPath={branchFamiliesByPath}
               propertiesCollapsed={propertiesCollapsed}
               isFocused={isFocused}
               onFocusPane={() => {
@@ -1104,10 +1093,8 @@ export function App() {
               onSave={() => void (leaf.content.kind === "editor" && leaf.content.activePath ? saveDocument(leaf.content.activePath) : Promise.resolve())}
               onOpenTag={(tag) => void openTag(tag)}
               onOpenTarget={(target) => void openKnowledgeTarget(target)}
-              onOpenBranch={(filePath) => void openFile(filePath, leaf.id)}
               onSuggestTargets={(query) => suggestNoteTargets(query)}
               onPreviewTarget={(target) => previewKnowledgeTarget(target)}
-              onCreateBranch={() => void createBranchFromActiveDocument()}
               agentCommands={workspaceSettingsRef.current?.agentCommands ?? []}
               onInvokeAgentMention={(mention) => void invokeAgentMention(mention)}
               invocationReview={

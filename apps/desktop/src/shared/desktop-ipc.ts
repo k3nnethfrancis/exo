@@ -43,8 +43,6 @@ export interface DesktopInvokeHandlers {
   "notes:resolve-target": NotesApi["resolveTarget"];
   "notes:ensure-target": NotesApi["ensureTarget"];
   "notes:suggest-targets": NotesApi["suggestTargets"];
-  "notes:get-branch-family": NotesApi["getBranchFamily"];
-  "notes:create-branch": NotesApi["createBranch"];
   "terminals:ensure-default": TerminalsApi["ensureDefault"];
   "terminals:list": TerminalsApi["list"];
   "terminals:create": TerminalsApi["create"];

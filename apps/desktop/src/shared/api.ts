@@ -1,6 +1,4 @@
 import type {
-  BranchCreateResult,
-  BranchFamily,
   IndexSearchResponse,
   IndexSyncResult,
   IndexStatus,
@@ -216,8 +214,6 @@ export interface DesktopApi {
       sourceFilePath: string,
       query: string,
     ) => Promise<Array<{ filePath: string; title: string; target: string; snippet: string }>>;
-    getBranchFamily: (filePath: string) => Promise<BranchFamily>;
-    createBranch: (filePath: string, frontmatter: Record<string, unknown>, body: string) => Promise<BranchCreateResult>;
   };
   terminals: {
     ensureDefault: () => Promise<TerminalSessionInfo>;

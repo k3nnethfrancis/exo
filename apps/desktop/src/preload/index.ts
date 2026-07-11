@@ -106,8 +106,6 @@ const api: DesktopApi = {
     resolveTarget: (sourceFilePath, target) => invokeDesktop("notes:resolve-target", sourceFilePath, target),
     ensureTarget: (sourceFilePath, target) => invokeDesktop("notes:ensure-target", sourceFilePath, target),
     suggestTargets: (sourceFilePath, query) => invokeDesktop("notes:suggest-targets", sourceFilePath, query),
-    getBranchFamily: (filePath) => invokeDesktop("notes:get-branch-family", filePath),
-    createBranch: (filePath, frontmatter, body) => invokeDesktop("notes:create-branch", filePath, frontmatter, body),
   },
   terminals: {
     ensureDefault: () => invokeDesktop("terminals:ensure-default"),

@@ -4,7 +4,6 @@ import path from "node:path";
 
 import {
   createWorkspaceFile,
-  getBranchFamily,
   listMarkdownFiles,
   readWorkspaceDocument,
   type SearchResult,
@@ -137,11 +136,6 @@ export class WorkspaceNotesService {
   async getGraphContext(filePath: string): Promise<WorkspaceGraphContext | null> {
     const authorizedPath = await this.workspaceFiles().existing(filePath);
     return new WorkspaceGraph(this.options.getWorkspaceModel()).contextForNote(authorizedPath);
-  }
-
-  async getBranchFamily(filePath: string) {
-    const authorizedPath = await this.workspaceFiles().existing(filePath);
-    return getBranchFamily(authorizedPath, this.noteRootPaths());
   }
 
   private noteRootPaths(): string[] {

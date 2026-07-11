@@ -314,28 +314,6 @@ export interface WorkspaceSearchResults {
   semantic?: SemanticSearchResult[];
 }
 
-export interface BranchEntry {
-  filePath: string;
-  relativePath: string;
-  title: string;
-  path: number[];
-  isRoot: boolean;
-}
-
-export interface BranchFamily {
-  baseName: string;
-  rootFilePath: string;
-  currentFilePath: string;
-  currentPath: number[];
-  members: BranchEntry[];
-  tree: string;
-}
-
-export interface BranchCreateResult {
-  branchFilePath: string;
-  family: BranchFamily;
-}
-
 export interface RuntimeInstructionPaths {
   primary: string;
   claude: string;

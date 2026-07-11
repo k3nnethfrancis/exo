@@ -1170,7 +1170,7 @@ function graphContextFixture(overrides: Partial<WorkspaceGraphContext["note"]> =
       { source: note.id, target: "goals", label: "goals", resolution: "unresolved" },
       { source: note.id, target: "https://example.com", label: "external", resolution: "external" },
     ],
-    backlinks: [{ source: source.id, target: note.filePath, label: "Source", resolution: "resolved", note: source }],
+    backlinks: [{ source: source.id, target: source.filePath, label: "Source", resolution: "resolved", note: note }],
     unresolved: [{ source: note.id, target: "goals", label: "goals", resolution: "unresolved" }],
     neighborhood: [note, source],
   };

@@ -8,7 +8,6 @@
     ".": "./src/index.ts",
     "./agent-mention-parser": "./src/agent-mention-parser.ts",
     "./command-protocol": "./src/command-protocol.ts",
-    "./terminal-output-cleanup": "./src/terminal-output-cleanup.ts",
     "./types": "./src/types.ts",
     "./terminal-settings": "./src/terminal-settings.ts",
     "./workspace-settings": "./src/workspace-settings.ts"

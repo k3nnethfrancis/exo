@@ -8,7 +8,6 @@ import {
   createWorkspaceDirectory,
   DEFAULT_APPEARANCE_MODE,
   createWorkspaceFile,
-  createBranchFile,
   deleteWorkspacePath,
   listRootTree,
   emptyOnboardingStateStore,
@@ -291,25 +290,12 @@ function registerIpcHandlers() {
     activateWorkspace: async (input) => {
       return switchWorkspace(input.workspaceId, input.expectedRevision);
     },
-    createBranch: (filePath, frontmatter, body) =>
-      createBranchFile(
-        filePath,
-        {
-          filePath,
-          title: typeof frontmatter.title === "string" ? frontmatter.title : path.basename(filePath, path.extname(filePath)),
-          frontmatter,
-          body,
-          kind: "markdown",
-        },
-        workspaceModel.noteRoots.map((root) => root.path),
-      ),
     createDirectory: createWorkspaceDirectory,
     createFile: createWorkspaceFile,
     deletePath: deleteWorkspacePath,
     embedIndex: () => indexingService.embed("settings"),
     ensureTarget: (sourceFilePath, target) => workspaceNotesService.ensureTarget(sourceFilePath, target),
     getAgentInstructionConfig: () => agentInstructionsService.getConfig(),
-    getBranchFamily: (filePath) => workspaceNotesService.getBranchFamily(filePath),
     getIndexStatus: () => indexingService.getMeasuredStatus(),
     launchAgentInvocation: async (input) => invocationRunner.authorizeAndStart(await invocationRunner.prepare({
       context: "note", handle: input.handle, documentPath: input.documentPath,

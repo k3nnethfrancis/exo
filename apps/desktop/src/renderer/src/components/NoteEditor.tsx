@@ -7,8 +7,8 @@ import { bracketMatching, foldGutter } from "@codemirror/language";
 import { lintGutter, lintKeymap } from "@codemirror/lint";
 import { EditorSelection } from "@codemirror/state";
 import { keymap, lineNumbers, EditorView, type ViewUpdate } from "@codemirror/view";
-import { Code2, GitBranch, Plus, Send, Save, SlidersHorizontal } from "lucide-react";
-import type { AgentCommand, BranchFamily, InvocationRecord, NoteDocument, WorkspaceGraphContext } from "@exo/core";
+import { Code2, Plus, Send, Save, SlidersHorizontal } from "lucide-react";
+import type { AgentCommand, InvocationRecord, NoteDocument, WorkspaceGraphContext } from "@exo/core";
 import { parseAgentMentions, type ParsedAgentMention } from "@exo/core/agent-mention-parser";
 import { exoEditorTheme, exoSyntaxHighlighting } from "../theme/codemirror";
 import type { ExoThemeVariant } from "../theme/types";
@@ -50,7 +50,6 @@ interface NoteEditorProps {
   document: EditorDocument | null;
   graphContext: WorkspaceGraphContext | null;
   saveStatus: "idle" | "saving" | "saved" | "error";
-  branchFamily: BranchFamily | null;
   propertiesCollapsed: boolean;
   onToggleProperties: () => void;
   onUpdateFrontmatter: (key: string, value: unknown) => void;
@@ -58,10 +57,8 @@ interface NoteEditorProps {
   onSave: () => void | Promise<void>;
   onOpenTag: (tag: string) => void;
   onOpenTarget: (target: string) => void;
-  onOpenBranch: (filePath: string) => void;
   onSuggestTargets: (query: string) => Promise<Array<{ label: string; target: string; detail?: string }>>;
   onPreviewTarget: (target: string) => Promise<{ title: string; excerpt: string } | null>;
-  onCreateBranch: () => void;
   agentCommands: AgentCommand[];
   onInvokeAgentMention: (mention: ParsedAgentMention) => void;
   invocationReview: NoteInvocationReview | null;
@@ -80,7 +77,6 @@ export function NoteEditor(props: NoteEditorProps) {
     document,
     graphContext: loadedGraphContext,
     saveStatus,
-    branchFamily,
     propertiesCollapsed,
     onToggleProperties,
     onUpdateFrontmatter,
@@ -88,10 +84,8 @@ export function NoteEditor(props: NoteEditorProps) {
     onSave,
     onOpenTag,
     onOpenTarget,
-    onOpenBranch,
     onSuggestTargets,
     onPreviewTarget,
-    onCreateBranch,
     agentCommands,
     onInvokeAgentMention,
     invocationReview,
@@ -587,34 +581,6 @@ export function NoteEditor(props: NoteEditorProps) {
           >
             <Save size={14} />
           </button>
-          {showNoteMetadata && branchFamily ? (
-            <div className="branch-selector branch-selector--icon-only" data-testid="branch-selector-wrap" title="Branches">
-              <GitBranch size={14} />
-              <select
-                aria-label="Branch selector"
-                className="branch-selector__select"
-                data-testid="branch-selector"
-                value={document.filePath}
-                onChange={(event) => {
-                  if (event.target.value === "__create__") {
-                    onCreateBranch();
-                    return;
-                  }
-                  onOpenBranch(event.target.value);
-                }}
-                title="Branches"
-              >
-                {branchFamily.members.map((member) => (
-                  <option key={member.filePath} value={member.filePath}>
-                    {member.isRoot
-                      ? displayTitle
-                      : `${member.path.join(".") || "Branch"} · ${getDocumentDisplayTitle(member.filePath, "markdown")}`}
-                  </option>
-                ))}
-                <option value="__create__">Create branch…</option>
-              </select>
-            </div>
-          ) : null}
           {useMarkdownEditing ? (
             <button
               aria-label={rawMarkdownMode ? "Switch to live preview" : "Switch to raw markdown"}

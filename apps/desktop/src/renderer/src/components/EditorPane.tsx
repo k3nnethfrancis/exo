@@ -1,4 +1,4 @@
-import type { AgentCommand, BranchFamily, InvocationRecord, NoteDocument, WorkspaceGraphContext } from "@exo/core";
+import type { AgentCommand, InvocationRecord, NoteDocument, WorkspaceGraphContext } from "@exo/core";
 import type { ParsedAgentMention } from "@exo/core/agent-mention-parser";
 import type { DragManager } from "../hooks/useDragManager";
 import type { ExoThemeVariant } from "../theme/types";
@@ -22,7 +22,6 @@ interface EditorPaneProps {
   documents: Record<string, EditorDocument>;
   graphContextByPath: Record<string, WorkspaceGraphContext>;
   saveStatuses: Record<string, "idle" | "saving" | "saved" | "error">;
-  branchFamiliesByPath: Record<string, BranchFamily>;
   propertiesCollapsed: boolean;
   isFocused: boolean;
   onFocusPane: () => void;
@@ -37,10 +36,8 @@ interface EditorPaneProps {
   onSave: () => void;
   onOpenTag: (tag: string) => void;
   onOpenTarget: (target: string) => void;
-  onOpenBranch: (filePath: string) => void;
   onSuggestTargets: (query: string) => Promise<Array<{ label: string; target: string; detail?: string }>>;
   onPreviewTarget: (target: string) => Promise<{ title: string; excerpt: string } | null>;
-  onCreateBranch: () => void;
   agentCommands: AgentCommand[];
   onInvokeAgentMention: (mention: ParsedAgentMention) => void;
   invocationReview: EditorInvocationReview | null;
@@ -59,7 +56,6 @@ export function EditorPane(props: EditorPaneProps) {
     documents,
     graphContextByPath,
     saveStatuses,
-    branchFamiliesByPath,
     propertiesCollapsed,
     isFocused,
     onFocusPane,
@@ -73,10 +69,8 @@ export function EditorPane(props: EditorPaneProps) {
     onSave,
     onOpenTag,
     onOpenTarget,
-    onOpenBranch,
     onSuggestTargets,
     onPreviewTarget,
-    onCreateBranch,
     agentCommands,
     onInvokeAgentMention,
     invocationReview,
@@ -150,7 +144,6 @@ export function EditorPane(props: EditorPaneProps) {
         document={activeDocument}
         graphContext={activeGraphContext}
         saveStatus={pane.activePath ? saveStatuses[pane.activePath] ?? "idle" : "idle"}
-        branchFamily={pane.activePath ? branchFamiliesByPath[pane.activePath] ?? null : null}
         propertiesCollapsed={propertiesCollapsed}
         onToggleProperties={onToggleProperties}
         onUpdateFrontmatter={onUpdateFrontmatter}
@@ -158,10 +151,8 @@ export function EditorPane(props: EditorPaneProps) {
         onSave={onSave}
         onOpenTag={onOpenTag}
         onOpenTarget={onOpenTarget}
-        onOpenBranch={onOpenBranch}
         onSuggestTargets={onSuggestTargets}
         onPreviewTarget={onPreviewTarget}
-        onCreateBranch={onCreateBranch}
         agentCommands={agentCommands}
         onInvokeAgentMention={onInvokeAgentMention}
         invocationReview={invocationReview}
