@@ -3,10 +3,12 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import {
   ClipboardCopy,
   FilePlus2,
+  Eye,
   FolderTree,
   FolderPlus,
   Pencil,
   Search,
+  Settings,
   SquareTerminal,
   Trash2,
 } from "lucide-react";
@@ -48,6 +50,7 @@ interface FileTreeProps {
   onCreateFile: (directoryPath: string) => void;
   onCreateDirectory: (directoryPath: string) => void;
   onCreateTerminal: (directoryPath: string) => void;
+  onOpenPreview: () => void;
   onRenamePath: (targetPath: string) => void;
   onDeletePath: (targetPath: string) => void;
   mirrored?: boolean;
@@ -82,6 +85,7 @@ export function FileTree(props: FileTreeProps) {
     onCreateFile,
     onCreateDirectory,
     onCreateTerminal,
+    onOpenPreview,
     onRenamePath,
     onDeletePath,
     mirrored = false,
@@ -239,6 +243,8 @@ export function FileTree(props: FileTreeProps) {
           <span className="sidebar__toolbar-spacer" />
           <button aria-label="New note" className="sidebar__toolbar-button sidebar__toolbar-button--icon" data-testid="explorer-new-note" onClick={() => requestRootAction("file")} title="New note" type="button"><FilePlus2 size={14} aria-hidden="true" /></button>
           <button aria-label="New folder" className="sidebar__toolbar-button sidebar__toolbar-button--icon" data-testid="explorer-new-folder" onClick={() => requestRootAction("directory")} title="New folder" type="button"><FolderPlus size={14} aria-hidden="true" /></button>
+          <button aria-label="Open preview" className="sidebar__toolbar-button sidebar__toolbar-button--icon" data-testid="explorer-open-preview" onClick={onOpenPreview} title="Open preview" type="button"><Eye size={14} aria-hidden="true" /></button>
+          <button aria-label="Workspace settings" className="sidebar__toolbar-button sidebar__toolbar-button--icon" data-testid="explorer-settings" onClick={onOpenWorkspaceSettings} title="Workspace settings" type="button"><Settings size={14} aria-hidden="true" /></button>
         </div>
         {rootAction ? (
           <div className="explorer-root-picker" data-testid="explorer-root-picker" role="menu" aria-label={`Choose Note Root for new ${rootAction === "file" ? "note" : "folder"}`}>

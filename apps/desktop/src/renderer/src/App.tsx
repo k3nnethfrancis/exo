@@ -1066,6 +1066,7 @@ export function App() {
       onCreateFile={(directoryPath) => workspaceMutations.createFileInDirectory(directoryPath)}
       onCreateDirectory={(directoryPath) => workspaceMutations.createDirectoryInDirectory(directoryPath)}
       onCreateTerminalInDirectory={(directoryPath) => void terminalPaneController.createTerminal("shell", directoryPath)}
+      onOpenPreview={() => createBrowserPane()}
       onRenamePath={(targetPath) => workspaceMutations.renameWorkspacePath(targetPath)}
       onDeletePath={(targetPath) => workspaceMutations.deleteWorkspacePath(targetPath)}
       />

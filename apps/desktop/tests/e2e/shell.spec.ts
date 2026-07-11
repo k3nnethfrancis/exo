@@ -198,8 +198,7 @@ test("handles global save and daily-note keybindings", async () => {
   const now = new Date();
   const dailyName = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
-  await expect(page.getByTestId("exo-side-panel")).not.toBeVisible();
-  await expect(page.getByTestId("terminal-dock")).not.toBeVisible();
+  await expect(page.locator(".workspace-shell__canvas .pane-leaf--terminal")).toBeVisible();
 
   await page.evaluate(() => {
     const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
@@ -456,7 +455,7 @@ test("keeps /bin/cat terminal input visible while a loaded preview is focused an
 
   try {
     const shell = await pageShellSession(page);
-    await page.getByTestId("side-panel-browser-rail").click();
+    await page.getByTestId("explorer-open-preview").click();
     await page.getByTestId("browser-url-input").fill(`file://${path.join(workspaceRoot, "preview-terminal-focus.html")}`);
     await page.getByTestId("browser-load-url").click();
     await expect(page.getByTestId("browser-preview-frame")).toHaveAttribute("src", /^file:\/\/.*preview-terminal-focus\.html$/);
@@ -474,7 +473,7 @@ test("keeps /bin/cat terminal input visible while a loaded preview is focused an
     await expect.poll(async () => page.evaluate((id) => window.exo.terminals.read(id), shell.id))
       .toContain(previewReturnInput);
 
-    await dragBy(page, page.locator(".exo-side-panel-surface .pane-split-resizer--vertical").first(), { x: -160, y: 0 });
+    await dragBy(page, page.locator(".workspace-shell__canvas .pane-split-resizer--vertical").first(), { x: -160, y: 0 });
     await expect.poll(async () => page.evaluate((id) => window.exo.terminals.read(id), shell.id))
       .toContain(previewReturnInput);
     await page.getByTestId("terminal-surface").click();
@@ -626,10 +625,8 @@ test("opens workspace settings from the sidebar", async () => {
     },
   });
 
-  await expect(page.getByTestId("exo-side-panel")).not.toBeVisible();
-  await expect(page.getByTestId("terminal-dock")).not.toBeVisible();
-  await page.getByTestId("workspace-menu-button").click();
-  await page.getByTestId("workspace-settings").click();
+  await expect(page.locator(".workspace-shell__canvas .pane-leaf--terminal")).toBeVisible();
+  await page.getByTestId("explorer-settings").click();
   await expect(page.getByTestId("workspace-settings-dialog")).toBeVisible();
   const settingsFrame = await page.getByTestId("workspace-settings-dialog").boundingBox();
   expect(settingsFrame).not.toBeNull();
@@ -642,7 +639,7 @@ test("opens workspace settings from the sidebar", async () => {
   await page.screenshot({ path: "/tmp/exo-workspace-settings-index.png", fullPage: false });
   await page.getByTestId("workspace-settings-close").click();
   await expect(page.getByTestId("workspace-settings-dialog")).not.toBeVisible();
-  await expect(page.getByTestId("terminal-dock")).not.toBeVisible();
+  await expect(page.getByTestId("terminal-dock")).toBeVisible();
 
   await cleanup();
 });

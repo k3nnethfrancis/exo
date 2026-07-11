@@ -58,6 +58,7 @@ describe("Explorer mutation boundary", () => {
         onCreateDirectory={() => undefined}
         onCreateFile={() => undefined}
         onCreateTerminal={() => undefined}
+        onOpenPreview={() => undefined}
         onDeletePath={() => undefined}
         onExpandDirectory={() => undefined}
         onFocusExplorer={() => undefined}

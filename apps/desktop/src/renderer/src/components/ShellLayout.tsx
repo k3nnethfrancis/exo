@@ -46,6 +46,7 @@ interface ShellLayoutProps {
   onCreateFile: (directoryPath: string) => void;
   onCreateDirectory: (directoryPath: string) => void;
   onCreateTerminalInDirectory: (directoryPath: string) => void;
+  onOpenPreview: () => void;
   onRenamePath: (targetPath: string) => void;
   onDeletePath: (targetPath: string) => void;
 }
@@ -66,6 +67,7 @@ export function ShellLayout(props: ShellLayoutProps) {
           onCreateDirectory={props.onCreateDirectory}
           onCreateFile={props.onCreateFile}
           onCreateTerminal={props.onCreateTerminalInDirectory}
+          onOpenPreview={props.onOpenPreview}
           onDeletePath={props.onDeletePath}
           onExpandDirectory={props.onExpandDirectory}
           onFocusExplorer={props.onFocusExplorer}
