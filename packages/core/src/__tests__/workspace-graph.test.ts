@@ -26,6 +26,19 @@ describe("WorkspaceGraph", () => {
     expect((await graph.backlinks(path.join(notes, "one", "duplicate.md"))).length).toBe(2);
     expect((await graph.status()).noteCount).toBe(3);
   });
+
+  it("labels backlinks with the linking note title while preserving its target", async () => {
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-graph-"));
+    roots.push(workspace);
+    const notes = path.join(workspace, "notes");
+    await mkdir(notes, { recursive: true });
+    await writeFile(path.join(notes, "focus.md"), "# Focus\n");
+    await writeFile(path.join(notes, "related.md"), "---\ntitle: Related Note\n---\n[[focus]]\n");
+    const context = await new WorkspaceGraph(model(workspace, notes)).contextForNote(path.join(notes, "focus.md"));
+    expect(context?.backlinks).toEqual([
+      expect.objectContaining({ label: "Related Note", target: path.join(notes, "related.md") }),
+    ]);
+  });
 });
 
 function model(workspaceRoot: string, notes: string): WorkspaceModel {

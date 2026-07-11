@@ -101,7 +101,7 @@ export function buildNoteGraphContext(
     nodeKind: link.note ? "note" : link.resolution === "external" ? "external" : "unresolved",
   });
   const outgoingLinks = graph.outgoing.map(toLink);
-  const backlinks = graph.backlinks.map((link) => ({ label: link.label, target: link.note?.filePath ?? link.target }));
+  const backlinks = graph.backlinks.map((link) => ({ label: link.label, target: link.target }));
   const neighborhoodNodes = graph.neighborhood.map((item) => ({ id: item.id, label: item.title, kind: "note" as const, target: item.filePath }));
   const edgeForLink = (link: WorkspaceGraphContext["outgoing"][number], index: number, source: string) => ({
     id: `${source}:${index}:${link.target}`,

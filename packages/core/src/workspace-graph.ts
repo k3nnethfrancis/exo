@@ -74,7 +74,9 @@ export class WorkspaceGraph {
     if (!entry) return null;
     const outgoing = this.linksFromGraph(graph, entry);
     const backlinks = Array.from(graph.values()).flatMap((candidate) =>
-      this.linksFromGraph(graph, candidate).filter((link) => link.note?.id === entry.note.id),
+      this.linksFromGraph(graph, candidate)
+        .filter((link) => link.note?.id === entry.note.id)
+        .map((link) => ({ ...link, label: candidate.note.title, target: candidate.note.filePath })),
     );
     const neighborhood = new Map<string, WorkspaceGraphNote>([[entry.note.id, entry.note]]);
     for (const link of [...outgoing, ...backlinks]) if (link.note) neighborhood.set(link.note.id, link.note);
