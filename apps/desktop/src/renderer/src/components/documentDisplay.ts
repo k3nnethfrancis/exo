@@ -10,6 +10,9 @@ export function stringifyFrontmatterValue(value: unknown): string {
   if (Array.isArray(value)) {
     return value.join(", ");
   }
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
   if (value === null || value === undefined) {
     return "";
   }

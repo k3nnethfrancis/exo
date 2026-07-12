@@ -480,6 +480,13 @@ button svg,
   min-width: 0;
 }
 
+.properties-card__feedback {
+  grid-column: 1 / -1;
+  color: var(--danger);
+  font-size: 11px;
+  line-height: 1.25;
+}
+
 .properties-card__input {
   min-width: 0;
   width: 100%;

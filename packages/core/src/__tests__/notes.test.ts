@@ -1,9 +1,11 @@
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { extractMarkdownLinks, extractTags, extractWikilinks, noteTitle, readNoteDocument } from "../notes";
+import { extractMarkdownLinks, extractTags, extractWikilinks, noteTitle, readNoteDocument, saveWorkspaceDocument } from "../notes";
 
 const fixtureRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../fixtures/test-workspace/notes/test-notes");
 
@@ -22,6 +24,22 @@ describe("notes", () => {
     expect(noteTitle("/notes/weekly-plan.md", {}, "Body")).toBe("weekly-plan");
     expect(noteTitle("/notes/weekly-plan.md", {}, "Body\n# Weekly Plan")).toBe("weekly-plan");
     expect(noteTitle("/notes/weekly-plan.md", { title: "Plan" }, "# Weekly Plan")).toBe("Plan");
+  });
+
+  it("preserves a date-only property when saving parsed YAML", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-note-date-"));
+    const notePath = path.join(root, "dated.md");
+    try {
+      await writeFile(notePath, "---\ndate: 2026-07-11\n---\n# Dated\n", "utf8");
+      const document = await readNoteDocument(notePath);
+      await saveWorkspaceDocument(notePath, { ...document.frontmatter, status: "draft" }, document.body);
+
+      await expect(readFile(notePath, "utf8")).resolves.toMatch(
+        /date: ['"]?2026-07-11['"]?\nstatus: draft/,
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 
   it("extracts tags from body and frontmatter", () => {

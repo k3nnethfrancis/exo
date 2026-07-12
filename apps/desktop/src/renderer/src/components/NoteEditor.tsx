@@ -159,10 +159,10 @@ export function NoteEditor(props: NoteEditorProps) {
     return parseAgentMentions(document.body, enabledHandles)[0] ?? null;
   }, [agentCommands, document, showNoteMetadata]);
   const normalizedNewPropertyKey = normalizeFrontmatterPropertyKey(newPropertyKey);
+  const newPropertyKeyFeedback = frontmatterPropertyKeyFeedback(newPropertyKey, document?.frontmatter ?? {});
   const canAddProperty =
     Boolean(normalizedNewPropertyKey) &&
-    !STANDARD_NOTE_PROPERTY_KEYS.includes(normalizedNewPropertyKey as (typeof STANDARD_NOTE_PROPERTY_KEYS)[number]) &&
-    !Object.prototype.hasOwnProperty.call(document?.frontmatter ?? {}, normalizedNewPropertyKey);
+    !newPropertyKeyFeedback;
   const handleAddProperty = useMemo(
     () =>
       () => {
@@ -682,6 +682,7 @@ export function NoteEditor(props: NoteEditorProps) {
               </label>
               <div className="properties-card__add">
                 <input
+                  aria-describedby={newPropertyKeyFeedback ? "property-key-feedback" : undefined}
                   id="property-new-key"
                   className="properties-card__input"
                   type="text"
@@ -715,11 +716,21 @@ export function NoteEditor(props: NoteEditorProps) {
                   data-testid="add-frontmatter-property"
                   disabled={!canAddProperty}
                   onClick={handleAddProperty}
-                  title={canAddProperty ? "Add property" : "Enter a new property key"}
+                  title={canAddProperty ? "Add property" : newPropertyKeyFeedback || "Enter a new property key"}
                   type="button"
                 >
                   <Plus size={14} />
                 </button>
+                {newPropertyKeyFeedback ? (
+                  <span
+                    aria-live="polite"
+                    className="properties-card__feedback"
+                    data-testid="property-key-feedback"
+                    id="property-key-feedback"
+                  >
+                    {newPropertyKeyFeedback}
+                  </span>
+                ) : null}
               </div>
             </div>
             {graphPropertyEntries.length === 0 ? <div className="properties-card__empty">No properties</div> : null}
@@ -859,6 +870,23 @@ export function shouldUseMarkdownRenderer(document: Pick<NoteDocument, "kind"> |
 export function normalizeFrontmatterPropertyKey(value: string): string {
   const trimmed = value.trim();
   return /^[A-Za-z_][A-Za-z0-9_-]*$/.test(trimmed) ? trimmed : "";
+}
+
+export function frontmatterPropertyKeyFeedback(value: string, frontmatter: Record<string, unknown>): string {
+  if (!value.trim()) {
+    return "";
+  }
+  const normalized = normalizeFrontmatterPropertyKey(value);
+  if (!normalized) {
+    return "Use letters, numbers, _ or -; begin with a letter or _.";
+  }
+  if (
+    STANDARD_NOTE_PROPERTY_KEYS.includes(normalized as (typeof STANDARD_NOTE_PROPERTY_KEYS)[number]) ||
+    Object.prototype.hasOwnProperty.call(frontmatter, normalized)
+  ) {
+    return `${normalized} already exists.`;
+  }
+  return "";
 }
 
 function notePropertyEntries(document: EditorDocument | null): Array<[string, unknown]> {

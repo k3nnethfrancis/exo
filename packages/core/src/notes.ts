@@ -59,7 +59,11 @@ export async function saveWorkspaceDocument(
     return;
   }
 
-  const serialized = matter.stringify(body, frontmatter);
+  const serializedFrontmatter =
+    frontmatter.date instanceof Date && !Number.isNaN(frontmatter.date.getTime())
+      ? { ...frontmatter, date: frontmatter.date.toISOString().slice(0, 10) }
+      : frontmatter;
+  const serialized = matter.stringify(body, serializedFrontmatter);
   await writeFile(filePath, serialized, "utf8");
 }
 
