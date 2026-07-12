@@ -1,6 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
-import { FolderOpen, Palette, Search, TerminalSquare, X } from "lucide-react";
-import type { IndexStatus, WorkspaceSettings } from "@exo/core";
+import { Bot, FolderOpen, Palette, Search, TerminalSquare, X } from "lucide-react";
+import type { AgentCommand, IndexStatus, WorkspaceSettings } from "@exo/core";
 
 import type { AppearanceMode } from "../appearance";
 import { THEME_FAMILIES, normalizeColorThemeId } from "../theme/registry";
@@ -27,6 +27,7 @@ const SETTINGS_SECTIONS: Array<{ id: WorkspaceSettingsSection; label: string; de
   { id: "index", label: "Search", description: "Search behavior", icon: Search },
   { id: "appearance", label: "Appearance", description: "Theme and editor", icon: Palette },
   { id: "terminal", label: "Terminal", description: "Display", icon: TerminalSquare },
+  { id: "agents", label: "Agents", description: "@ mentions and commands", icon: Bot },
 ];
 
 export function WorkspaceSettingsDialog({
@@ -100,6 +101,7 @@ export function WorkspaceSettingsDialog({
             ) : null}
             {settings.section === "appearance" ? <AppearanceSection settings={settings} setSettings={setSettings} /> : null}
             {settings.section === "terminal" ? <TerminalSection settings={settings} setSettings={setSettings} /> : null}
+            {settings.section === "agents" ? <AgentsSection settings={settings} setSettings={setSettings} /> : null}
           </div>
         </div>
         <div className="dialog-card__footer">
@@ -163,7 +165,13 @@ export function workspaceSettingsDialogIntroCopy(section: WorkspaceSettingsSecti
     return "Choose where Exo reads notes and opens terminals.";
   }
 
-  return section === "appearance" ? "Adjust how Exo looks and reads." : "Adjust terminal text.";
+  if (section === "appearance") {
+    return "Adjust how Exo looks and reads.";
+  }
+  if (section === "terminal") {
+    return "Adjust terminal text.";
+  }
+  return "Configure the agents available from @ mentions.";
 }
 
 function WorkspaceSection({
@@ -510,6 +518,116 @@ function TerminalSection({
         />
       </label>
     </div>
+  );
+}
+
+function AgentsSection({
+  settings,
+  setSettings,
+}: Pick<WorkspaceSettingsDialogProps, "settings" | "setSettings">) {
+  return (
+    <div className="agent-command-list" data-testid="workspace-settings-agents">
+      {settings.agentCommands.map((command) => (
+        <AgentCommandSection command={command} key={command.id} setSettings={setSettings} />
+      ))}
+    </div>
+  );
+}
+
+function AgentCommandSection({
+  command,
+  setSettings,
+}: { command: AgentCommand; setSettings: WorkspaceSettingsDialogProps["setSettings"] }) {
+  const updateCommand = (patch: Partial<AgentCommand>) => {
+    setSettings((current) =>
+      current
+        ? {
+            ...current,
+            agentCommands: current.agentCommands.map((entry) => entry.id === command.id ? { ...entry, ...patch } : entry),
+            saveStatus: "idle",
+            errorMessage: null,
+          }
+        : current,
+    );
+  };
+  const updateCwdPolicy = (cwdPolicy: AgentCommand["cwdPolicy"]) => {
+    setSettings((current) =>
+      current
+        ? {
+            ...current,
+            agentCommands: current.agentCommands.map((entry) => entry.id === command.id
+              ? { ...entry, cwdPolicy, fixedCwd: cwdPolicy === "fixed" ? entry.fixedCwd || current.workspaceRoot : undefined }
+              : entry),
+            saveStatus: "idle",
+            errorMessage: null,
+          }
+        : current,
+    );
+  };
+
+  return (
+    <section className="agent-command">
+      <div className="agent-command__header">
+        <div>
+          <strong>{command.label}</strong>
+          <span>@{command.handle}</span>
+        </div>
+        <label className="dialog-check dialog-check--inline">
+          <input
+            checked={command.enabled}
+            data-testid={`workspace-settings-agent-enabled-${command.id}`}
+            onChange={(event) => updateCommand({ enabled: event.target.checked })}
+            type="checkbox"
+          />
+          <span>Enabled</span>
+        </label>
+      </div>
+      <div className="dialog-form__grid agent-command__fields">
+        <label className="dialog-field">
+          <span className="dialog-field__label">Name</span>
+          <input
+            className="dialog-card__input"
+            data-testid={`workspace-settings-agent-label-${command.id}`}
+            value={command.label}
+            onChange={(event) => updateCommand({ label: event.target.value })}
+          />
+        </label>
+        <label className="dialog-field">
+          <span className="dialog-field__label">Run from</span>
+          <select
+            className="dialog-card__input"
+            data-testid={`workspace-settings-agent-cwd-${command.id}`}
+            value={command.cwdPolicy}
+            onChange={(event) => updateCwdPolicy(event.target.value as AgentCommand["cwdPolicy"])}
+          >
+            <option value="workspace_root">Workspace</option>
+            <option value="note_dir">Note folder</option>
+            <option value="fixed">Fixed folder</option>
+          </select>
+        </label>
+        <label className="dialog-field agent-command__command">
+          <span className="dialog-field__label">Command</span>
+          <input
+            className="dialog-card__input"
+            data-testid={`workspace-settings-agent-command-${command.id}`}
+            spellCheck={false}
+            value={command.command}
+            onChange={(event) => updateCommand({ command: event.target.value })}
+          />
+        </label>
+        {command.cwdPolicy === "fixed" ? (
+          <label className="dialog-field agent-command__command">
+            <span className="dialog-field__label">Folder</span>
+            <input
+              className="dialog-card__input"
+              data-testid={`workspace-settings-agent-fixed-cwd-${command.id}`}
+              value={command.fixedCwd ?? ""}
+              onChange={(event) => updateCommand({ fixedCwd: event.target.value })}
+            />
+          </label>
+        ) : null}
+      </div>
+    </section>
   );
 }
 

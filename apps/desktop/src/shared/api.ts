@@ -22,7 +22,7 @@ import type {
 export type TerminalKind = "shell";
 export type TerminalLaunchKind = "shell";
 export type TerminalHealthState = "healthy" | "idle" | "unhealthy" | "exited";
-export type WorkspaceSettingsSection = "workspace" | "index" | "appearance" | "terminal";
+export type WorkspaceSettingsSection = "workspace" | "index" | "appearance" | "terminal" | "agents";
 
 export interface TerminalGeometryRecord {
   cols: number;

@@ -2200,6 +2200,53 @@ select.dialog-card__input {
   overflow: auto;
 }
 
+.agent-command-list {
+  display: grid;
+  gap: 10px;
+}
+
+.agent-command {
+  display: grid;
+  gap: 12px;
+  padding: 13px;
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.agent-command__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.agent-command__header > div {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.agent-command__header strong {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.agent-command__header span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.agent-command__fields {
+  gap: 9px;
+}
+
+.agent-command__command {
+  grid-column: 1 / -1;
+}
+
 @media (max-width: 760px) {
   .dialog-overlay,
   .onboarding-shell {

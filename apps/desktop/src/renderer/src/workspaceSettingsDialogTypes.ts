@@ -1,4 +1,4 @@
-import type { WorkspaceSettings, WorkspaceSettingsRevision } from "@exo/core";
+import type { AgentCommand, WorkspaceSettings, WorkspaceSettingsRevision } from "@exo/core";
 
 import type { AppearanceMode } from "./appearance";
 import type { ColorThemeId } from "./theme/types";
@@ -23,6 +23,7 @@ export interface WorkspaceSettingsDialogState {
   explorerScale: string;
   exploreIndexSearchOnEnter: boolean;
   indexUpdateStrategy: WorkspaceSettings["indexUpdateStrategy"];
+  agentCommands: AgentCommand[];
   saveStatus: "idle" | "saving" | "saved" | "error";
   errorMessage: string | null;
   appliedWorkspaceKey: string;

@@ -6,6 +6,7 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 ### Added
 
+- Adds an **Agents** section to Workspace Settings for configuring the commands behind `@` mentions.
 - Adds one shared right-side utility destination with mutually exclusive Preview, Terminal, and Connections views.
 - Adds centered workspace search with an anchored result popover, typed titlebar breadcrumbs, and explicit Folder Index creation/maintenance.
 - Adds a version-three mixed-pane layout format. Existing terminal and preview tabs can move into a canvas split while retaining their live session/tab identity.

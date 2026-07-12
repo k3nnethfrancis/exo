@@ -149,6 +149,40 @@ describe("workspace settings footer copy", () => {
     expect(workspaceSettingsDialogIntroCopy("index", true)).toContain("apply");
   });
 
+  it("keeps invocation configuration in the Settings dialog", () => {
+    const html = renderToStaticMarkup(
+      <WorkspaceSettingsDialog
+        indexBusy={null}
+        indexStatus={null}
+        onChooseFolder={() => {}}
+        onClose={() => {}}
+        onOpenWorkspaceSwitcher={() => {}}
+        onRunIndexUpdate={() => {}}
+        onSave={() => {}}
+        settings={workspaceSettingsDialogFixture({
+          section: "agents",
+          agentCommands: [{
+            id: "claude",
+            label: "Claude",
+            handle: "claude",
+            command: "claude -p",
+            cwdPolicy: "workspace_root",
+            promptDelivery: "stdin",
+            version: 1,
+            enabled: true,
+          }],
+        })}
+        setSettings={() => {}}
+        structuralDraftKey={workspaceSettingsStructuralDraftKey}
+      />,
+    );
+
+    expect(html).toContain("Agents");
+    expect(html).toContain("@claude");
+    expect(workspaceSettingsDialogIntroCopy("agents", false)).toBe("Configure the agents available from @ mentions.");
+    expect(html).toContain("claude -p");
+  });
+
   it("explains pending embeddings after a failed sync instead of only saying pending", () => {
     const copy = indexSettingsStatusCopy(indexStatusFixture({
       pendingEmbeddings: 12,
@@ -284,6 +318,7 @@ function workspaceSettingsDialogFixture(
     explorerScale: "1",
     exploreIndexSearchOnEnter: false,
     indexUpdateStrategy: "on-save",
+    agentCommands: [],
     saveStatus: "idle",
     errorMessage: null,
     appliedWorkspaceKey: "",
@@ -449,6 +484,7 @@ describe("workspace settings renderer model", () => {
       explorerScale: "1",
       exploreIndexSearchOnEnter: true,
       indexUpdateStrategy: "on-save",
+      agentCommands: [],
       saveStatus: "idle",
       errorMessage: null,
       appliedWorkspaceKey: "",
@@ -474,6 +510,7 @@ describe("workspace settings renderer model", () => {
       explorerScale: "1",
       exploreIndexSearchOnEnter: false,
       indexUpdateStrategy: "on-save" as const,
+      agentCommands: [],
       saveStatus: "idle" as const,
       errorMessage: null,
       appliedWorkspaceKey: "",

@@ -125,6 +125,7 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
       explorerScale: String(settings.explorerScale),
       exploreIndexSearchOnEnter: settings.exploreIndexSearchOnEnter,
       indexUpdateStrategy: settings.indexUpdateStrategy,
+      agentCommands: settings.agentCommands?.length ? settings.agentCommands : [defaultClaudeAgentCommand()],
       saveStatus: "saved",
       errorMessage: null,
       appliedWorkspaceKey,
@@ -332,6 +333,19 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
   };
 }
 
+function defaultClaudeAgentCommand(): NonNullable<WorkspaceSettings["agentCommands"]>[number] {
+  return {
+    id: "claude",
+    label: "Claude",
+    handle: "claude",
+    command: "claude -p",
+    cwdPolicy: "workspace_root",
+    promptDelivery: "stdin",
+    version: 1,
+    enabled: true,
+  };
+}
+
 export function workspaceSettingsFromDialog(
   settingsDialog: WorkspaceSettingsDialogState,
   options: { includeStructural: boolean },
@@ -385,5 +399,6 @@ export function workspaceSettingsFromDialog(
     explorerScale: clampNumber(Number(settingsDialog.explorerScale), 0.82, 1.35),
     exploreIndexSearchOnEnter: settingsDialog.exploreIndexSearchOnEnter,
     indexUpdateStrategy: settingsDialog.indexUpdateStrategy,
+    agentCommands: settingsDialog.agentCommands,
   };
 }

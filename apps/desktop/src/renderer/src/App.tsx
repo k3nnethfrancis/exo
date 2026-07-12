@@ -1401,9 +1401,9 @@ function defaultClaudeAgentCommand(): AgentCommand {
     id: "claude",
     label: "Claude",
     handle: "claude",
-    command: "claude",
+    command: "claude -p",
     cwdPolicy: "workspace_root",
-    promptDelivery: "terminalInputAfterLaunch",
+    promptDelivery: "stdin",
     version: 1,
     enabled: true,
   };
