@@ -1,568 +1,84 @@
-# Exograph Tasks
+# Exo Tasks
 
-Last updated: 2026-07-10
+Last updated: 2026-07-11
 
-This is the active task tracker for Exo. It is intentionally not a history file; completed implementation history belongs in `ledger.md`. Tasks here should be concrete, current, and ordered by practical priority.
+This is Exo's active execution ledger. It records only current work. Completed implementation belongs in Git and `ledger.md`; reproducible bugs belong in `issues.md`; architecture rationale belongs in `docs/exograph-simplification-plan.md`.
 
-Canonical issue intake is root `issues.md`. Do not add new Exo issue trackers under `docs/` or the notes vault.
+## Product Frame
 
-## Current Ship Roadmap Tasks
+> **Exo is a local Markdown exocortex with modular search, inline configured-Command invocation, and graph-management skills.**
 
-The active branch is `refactor/note-native-exo`. The canonical plan is `docs/exograph-simplification-plan.md`.
+Launch requires four things:
 
-Current product frame:
+1. A trustworthy, user-owned Markdown workspace.
+2. Filesystem and QMD search as the two concrete implementations.
+3. Actionable Connections and graph context.
+4. Explicit configured-Command invocation of editable skills, followed by reviewable Markdown changes.
 
-> Exo — your exocortex, in Markdown.
+Folder paths are primary structural homes. A writable Note Root may contain a user-owned `index.md` Folder Index; tags, links, and properties preserve multiple membership. Existing imported folders are never mutated merely by viewing them.
 
-Launch formula:
+## Current Baseline
 
-> **Obsidian-like Markdown workspace + modular Search + actionable graph + reviewable agent skills.**
+- The UI convergence wave is installed and passing: compact Settings, centered search, breadcrumbs, title/properties chrome, one resizable utility pane, Preview/Terminal/Connections switching, and direct terminal creation.
+- The direct-PTY terminal and configured Command readiness/Test flow are live.
+- `exo start` launches the resident packaged app; app-off `status`, `search`, and `read` remain useful through filesystem roots.
+- `pnpm check`, `pnpm check:repo`, and `pnpm stable:smoke` are green on the current branch.
 
-The four launch primitives are:
+## Now — Trust Before Features
 
-1. a trustworthy, local, user-owned Markdown workspace;
-2. modular Search, with filesystem and QMD as the two earned implementations;
-3. actionable Connections and graph context, not a decorative global graph;
-4. explicit configured-Command invocation of editable graph/wiki skills, followed by reviewable Markdown changes.
+### 1. Finish Settings preservation proof — `EXO-ISSUE-102`
 
-“Skill” here means user-editable instructions and data passed to a trusted external Command. It does not reopen the deleted Skill Manager, general plugin runtime, provider-specific harnesses, or automatic writes.
+- [ ] Prove opening, waiting, closing, and reopening Settings performs no write when unchanged.
+- [ ] Prove appearance/search/terminal-only edits preserve Commands, layout, unknown keys, and migration metadata.
+- [ ] Prove stale/concurrent settings patches reject rather than silently overwrite one another.
+- [ ] Prove a saved Command remains invokable after every Settings round trip.
 
-Shared Ashby north star: `../../notes/shoshin-codex/ashby.md`. Exo owns the exocortex/workspace; Guardian owns principled execution; Ash is a separate behavior/evaluation role.
+### 2. Finish workspace containment proof — `EXO-ISSUE-103`
 
-The current ship path is no longer Plugin Architecture Completion, Routine POC, MCP agent lifecycle, or universal harness management. Those are superseded/deletion-audit targets unless the completion plan explicitly reopens a slice.
+- [ ] Move remaining note operations to root-relative identities behind `WorkspaceFiles`.
+- [ ] Complete escape coverage: traversal, absolute paths, duplicate roots, symlink files/directories, missing ancestors, rename, and recursive delete.
+- [ ] Prove desktop IPC and command-server reads share the same containment seam.
+- [ ] Dogfood a guarded copy of the real vault before closing the issue.
 
-### Simplification reset — execution active
+### 3. Prove the installed core loop
 
-Implementation began on 2026-07-10 after the scheduled heartbeat was cancelled. Gate 0 is complete at checkpoint `9787002d`; Wave 1 is active. The audit supersedes the current completion-plan stack; accepted decisions should be distilled into the small canonical doc set, then the audit plan itself should be deleted.
+- [ ] Run fresh-user-data packaged-app onboarding: choose notes, create/open/edit a note, configure one Command, Test it, invoke it, review the change, restart, and verify recovery.
+- [ ] Verify `exo start` and app-off retrieval from outside the repository against that clean install.
+- [ ] Complete direct-PTY field QA: ordinary shell typing/paste/Ctrl-C, resize, Preview focus switch, long session, and macOS sleep/wake. Classify every real render defect under `EXO-ISSUE-062`/`069`.
+- [ ] Resolve or reproduce packaged first-launch exit behavior (`EXO-ISSUE-031`) on a clean account/runtime.
 
-- [x] Finish the deep architecture, product, interface, runtime, test, and repository audit in `docs/exograph-simplification-plan.md`.
-- [x] Incorporate `notes/shoshin-codex/ok-explore-exo.md`: tabbed Connections, typed Markdown Properties, Command-readiness onboarding, explicit terminal scroll ownership, and reviewed future-integration outcomes.
-- [x] Cancel the one-time heartbeat and begin the approved implementation directly.
-- [x] Constrain the Principal Alignment/Guardian north star to evidence compatibility—stable provenance, invocation/review outcomes, and export lineage—without adding training or model-management UI to Exo V1.
-- [x] Align short- and long-term plans around the four launch primitives; defer Feed, Gym, trainers, cloud indexing, and general extension machinery until the launch loop is stable.
-- [x] Create a deliberate checkpoint of the intended pivot state and record the known-red baseline.
-  - 2026-07-10 Gate 0 inventory: 248 tracked files changed, 41 untracked source/docs files, 4,394 insertions, 39,635 deletions; ignored runtime/generated paths were excluded.
-  - Checkpoint: `9787002d` (`checkpoint: note-native pivot before simplification`).
-  - Green: `pnpm check` (core 192, desktop 159, CLI 58, scripts 12); terminal-focused E2E evidence is green, including the full-suite direct-PTY cases.
-  - Wave 1 integration proof: fresh app E2E artifact passed at 2026-07-10 09:05 with no failed tests; `pnpm stable:smoke` passed all 9 journeys at 2026-07-10 09:20. The earlier launch/iframe symptom is retained as `EXO-ISSUE-104` monitoring evidence for packaged-app proof, not a current reproduction.
-  - Known red: `pnpm check:repo` intentionally awaits one architect review after the Wave 2 public-surface deletions; four pre-Wave-1 protected surfaces have unaccepted hashes. No current smoke selector is stale.
-- [x] Repair the immediate `EXO-ISSUE-102` Settings data-loss path: no-op dialog opens stay clean; focused saves merge over authoritative settings and preserve layout, commands, and unknown keys. Reads/saves use explicit revision snapshots; stale clients reject; rapid local patches serialize on returned revisions; persistence recovers settings/registry as one journaled transaction with 0600 configuration files; a seeded Command remains launchable after the actual Settings round trip. Cross-process compare-and-swap is deliberately not claimed because all app writes are main-process-owned.
-- [x] Repair the immediate `EXO-ISSUE-103` renderer-facing note path escape: `WorkspaceFiles` guards traversal, absolute paths, symlinks, missing ancestors, root mutation, and wikilink creation. Command-server document reads now fail closed before provider I/O and after document-id resolution, while multi-note-root reads work. Root-relative identities and guarded real-vault-copy dogfooding remain follow-up acceptance work.
-- [x] Make validation truthful: note, Settings, and Command journeys run with no visible terminal; retained direct-PTY journeys use a separate explicit fixture; every active smoke selector collects exactly one test; stale tmux/monitor/reconnect registry entries are gone. Accept contract hashes only after the Wave 2 caller audit.
-- [x] Close the Wave 1 validation barrier with a fresh full-E2E pass artifact and 9/9 stable smoke; retain `EXO-ISSUE-104` as packaged-app monitoring evidence because its earlier predecessor interaction was not reproduced on the clean current tree.
-- [ ] Execute the approved deletion, deep-module, unified-canvas, interface-craft, migration, and packaged-app proof waves.
+### 4. Distill the repository
 
-### WP0: Plan, Supersede, And Stop The Old Product
+- [ ] Reduce stale tmux/transcript/plugin/harness/MCP plans and completion-plan families to the canonical docs or delete them.
+- [ ] Make `README.md`, `docs/architecture.md`, `AGENTS.md`, `CONTEXT.md`, `issues.md`, and `CHANGELOG.md` describe only current behavior.
+- [ ] Review the untracked Command-readiness draft files and the current dirty documentation intentionally before the branch is declared clean.
 
-- [x] Draft Fable-reviewed completion plan: `docs/exograph-refactor-completion-plan.md`
-- [x] Draft high-level completion orchestration plan: `docs/exograph-completion-orchestration-plan.md`
-- [x] Draft Fable-reviewed completion master plan for the current finish pass: `docs/exograph-completion-master-plan.md`.
-- [x] Complete delegated detailed plans for deletion/contracts, graph, CLI/search, AgentCommand/invocation, diff attribution, and QA/docs: `docs/exograph-detailed-implementation-plans.md`.
-- [x] Complete current delegated plan files under `docs/agent-plans/` for deletion/contracts, graph, CLI/search, AgentCommand/invocation, diff attribution, and QA/docs.
-- [x] Route each detailed plan through Fable review before implementation fan-out.
-- [x] Incorporate 2026-07-09 Fable amendments into the master plan and the six delegated plan files: Plugin Manager deletion, app-local command trust, distinct trust/launch gestures, profile recovery manifest audit, graph/search identity split, B/E renderer sequencing, and 10-run dogfooding rules.
-- [x] Apply Fable required plan revisions before implementation starts: invocation-end semantics, dirty tagged-document launch gate, watcher subscription owner, command-server token contract paperwork, env fingerprint rule, and `.exo/invocations/` gitignore test.
-- [x] Draft companion pivot docs for product definition, subsystem disposition, identity, safety, attribution, output conventions, and roadmap rewrite.
-- [x] Rewrite `roadmap.md` around Exograph and note-native invocation.
-- [x] Rewrite `tasks.md`, `README.md`, `AGENTS.md`, and `CLAUDE.md` around Exograph.
-- [x] Add superseded banners to old plugin/routine/harness docs that still look current.
-- [x] Add a deletion-audit issue/task in root `issues.md` after the first deletion audit map is accepted.
+## Next — The First Exograph Vertical Slice
 
-### WP0.5: Prototype Evidence
+Start only after the trust gates above pass.
 
-- [x] Run 10 real pointer-prompt invocations against representative notes.
-  - 2026-07-09 evidence: `apps/desktop/tests/e2e/agent-invocation.spec.ts` dogfooded 10 consecutive note-UI invocations through mention, confirmation, terminal launch, pointer prompt, invocation record, editor refresh, and changed-document review.
-  - 2026-07-09 live gate: `EXO_LIVE_CLAUDE_E2E=1 pnpm exec playwright test -c apps/desktop/playwright.config.ts apps/desktop/tests/e2e/agent-invocation.spec.ts -g "live Claude"` passed. The configured command received Exo's terminal pointer prompt, invoked Claude, and Claude read the pointed Markdown document and returned the required marker plus H1.
-- [x] Count likely false positives for strict mention syntax in the vault.
-- [x] Run one concurrent-edit case: user edit plus agent direct write.
-- [x] Decide `AgentCommand` prompt delivery: `stdin`, `argv`, or terminal input after launch.
-- [x] Record prototype findings in a committed artifact.
+### Folder Overview and Folder Index
 
-### WP1: Heavy-Handed Deletion
+- [ ] Double-click a Folder to open its Overview: durable title/properties from optional `index.md`, direct children, local graph, and relevant context.
+- [ ] Keep raw `index.md` accessible while hiding only its duplicate Explorer row.
+- [ ] Create a Folder Index only through an explicit writable-root action; never mutate attached folders by viewing them.
+- [ ] Test nested folders, moves/renames, missing indexes, explicit property overrides, raw-file access, and no-write viewing.
 
-- [x] Add first WP1 deletion/surface audit artifact under `EXO-ISSUE-100`.
-- [x] Audit MCP callers, public-contract checks, installed-machine integration paths, and surviving CLI/app command-server routes.
-- [x] Add command-server token auth for all routes and update public-contract review/check-repo paperwork.
-- [x] Keep BrowserPane trusted-only local/localhost in V1, with iframe sandbox, main-process URL validation, and `javascript:`/`data:` rejection.
-- [x] Add the shared `WorkspaceWatcherService` subscription/fan-out API before graph cache and invocation observation work fan out.
-- [x] Remove MCP agent lifecycle and setup surfaces after caller/public-contract audit.
-- [x] Remove Plugin Manager/profile/routine setup surfaces from primary flows.
-- [x] Remove active routine product UI/CLI/docs when not needed by the Exograph path; delete tests with deleted product code.
-  - [x] Remove the legacy onboarding routine/standard-skills setup panes and the `exo routines` CLI/test surface.
-  - [x] Remove routine core modules, run-store/template/executor/service tests, bundled routine-template manifests, profile `routineTemplateIds`/output-policy fields, routine tool descriptors, and routine setup compatibility aliases.
-- [x] Keep only deep harness manager internals required by current callers until generic `AgentCommand` launch exists, then remove stale user-facing harness setup.
-  - [x] Remove Agent Config harness/skill tabs, the desktop Agent Skills service/API/IPC bridge, stale E2E coverage, and related CSS; keep terminal harness registry/readiness internals only where current terminal launch and Settings diagnostics still require them.
-- [x] Preserve only plugin registry internals needed for graph/search/provider boot until those dependencies are decoupled.
-  - 2026-07-09 deletion chunk: deleted the remaining Plugin Manager product model, dialog test imports, E2E slices, CSS, active copy, `open-plugin-manager` expectation, and mutable plugin lifecycle modules/tests (`plugin-management`, `plugin-local-management`). Split read-only manifest discovery into `plugin-discovery.ts`.
-  - 2026-07-09 status: the surviving non-UI plugin internals are named current dependencies, not a preserved Plugin Manager. `plugin-inventory`, `plugin-state`, `plugin-settings`, `plugin-permissions`, `plugin.ts`, and capability metadata still have live profile/search/onboarding/test imports. Further deletion is a V2 decoupling pass around search/provider/profile/onboarding state.
-- [x] Delete profile apply/recovery after manifest audit.
-  - 2026-07-09 audit: targeted search across the active Exo repo, lab projects, and shoshin-codex notes found no real `.exo/proposal-recovery/profile-apply/*.json` manifests.
-  - 2026-07-09 deletion chunk: removed CLI `exo profile-recovery`, renderer/main/preload `createProfileApplyProposal`, core `profile-apply-proposal`/`profile-apply-recovery`, profile-apply fixtures/tests, and proposal-apply-host recovery-manifest writing.
-  - Focused validation: core/CLI/desktop typechecks passed; focused core proposal/profile tests passed; focused CLI tests passed; focused desktop App tests passed.
-- [x] Audit BrowserPane iframe and command-server mutation-route trust before treating web viewer content as extension-hosted or untrusted.
+### First graph-management Skill
 
-### WP1b: Direct-Pty Terminal And Harness Deletion Reset
+- [ ] Ship one provider-neutral, editable **Find and connect relevant context** skill through an existing trusted Command.
+- [ ] Combine Search with links, backlinks, tags, properties, and neighborhood evidence.
+- [ ] Require explanations and reviewable proposed Markdown/frontmatter changes; inferred similarity stays derived.
+- [ ] Measure retrieval lift, irrelevant-context cost, edit burden, and proposal acceptance before adding another skill.
 
-- [x] Replace the stale tmux-durable terminal plan with the 2026-07-09 Fable-reviewed direct-pty decision.
-  - [x] Amend `docs/exograph-refactor-completion-plan.md`, `docs/pivot-subsystem-disposition.md`, and `issues.md`.
-  - [x] Rewrite `skills/terminal-stability/SKILL.md` before terminal implementation fan-out.
-  - [ ] Update terminal architecture/runtime docs that still require tmux/transcripts.
-- [x] Replace tmux control-mode terminal runtime with direct pty under xterm.
-  - [x] Remove tmux input translation so spaces, paste, Enter, and Ctrl-C pass through byte-for-byte.
-  - [x] Delete tmux session restore, recovery, transcript persistence, and geometry-convergence modules once callers are migrated.
-  - [x] Keep only bounded live tails/diagnostics that still have a current V1 app or CLI caller.
-- [ ] Delete remaining built-in harness architecture in favor of configured `AgentCommand` launch.
-  - [x] Remove desktop terminal agent launch buttons that depended on harness detection; note invocation and `exo spawn @handle <task>` now use `AgentCommand`.
-  - [x] Remove harness settings UI, Pi-compatible setup form, IPC/preload detection API, onboarding harness choices, and built-in harness capability inventory rows.
-  - [ ] Remove the remaining legacy core `AgentHarness` registry/detection modules after `exo launch` and runtime launch-plan/context are replaced or deleted.
-  - [x] Keep shell as terminal substrate, not an agent harness.
-- [x] Add direct-pty QA gates for space, paste, Enter, Ctrl-C, resize, and configured agent command launch.
-  - 2026-07-09 validation: core/desktop/CLI typechecks passed; focused desktop terminal/command-server/App tests passed; focused core capability/surface/plugin-inventory tests passed; CLI tests passed; `pnpm terminal:check` passed.
+## Dogfood Queue
 
-### WP2: Graph Read Path
+- [ ] Use Exo for non-Exo work and promote only repeatable friction into `issues.md`.
+- [ ] Monitor `EXO-ISSUE-104` preview/window lifecycle evidence; reopen only with a clean repro artifact.
+- [ ] Monitor Folder breadcrumb-created indexes (`EXO-ISSUE-105`) on a real vault; replace with an explicit authoring action if the side effect feels surprising.
 
-- [x] Audit and extend existing `packages/core/src/graph.ts` and `packages/core/src/graph-snapshot.ts`.
-- [x] Add snapshot-derived note graph context and backlink queries.
-- [x] Consolidate weaker `NoteKnowledge` surfaces toward snapshot-derived graph context.
-- [x] Add graph properties read/edit affordance for a note.
-- [x] Add a basic graph/neighborhood viewer.
-- [x] Add deterministic graph tests for aliases, fragments, duplicate basenames, frontmatter properties, and neighborhoods.
+## Explicitly Deferred
 
-### WP3: CLI And Search Provider Hardening
+Do not reopen Plugin Manager, MCP, routines, a harness manager, Feed/Gym/training, cloud indexing, or a general extension runtime. A future Plugin is a distribution bundle only after proven skills, Commands, and providers need repeatable installation, versioning, or sharing.
 
-- [x] Keep CLI as the durable local integration surface.
-- [x] Preserve custom search/indexing provider seams.
-- [x] Keep QMD behind a provider-neutral contract with a working fallback provider.
-- [x] Make CLI status distinguish app/runtime state, provider state, index health, and degraded fallback mode.
-- [x] Ensure CLI search/read/status works without MCP.
-
-### WP4: Agent Commands And Invocation
-
-- [x] Add `AgentCommand` and `InvocationRecord` core models.
-- [x] Add workspace settings storage for configured agent commands.
-- [x] Add invocation store under `.exo/invocations/{id}/record.json`.
-- [x] Add strict editor-owned mention parsing.
-- [x] Add confirmation UI with document path, command label, cwd, and direct-write warning.
-- [x] Define invocation-end semantics for interactive sessions that do not exit.
-- [x] Save or refuse dirty tagged documents before launch so pointer prompt and pre-snapshot match disk.
-- [x] Add workspace trust for command-bearing config, stored outside the workspace and invalidated when executable command fields change.
-- [x] State explicitly whether V1 `AgentCommand` has env/template fields; if present, include them in executable fingerprint and trust invalidation.
-- [x] Require a human gesture for invocation confirmation; do not auto-chain agent-authored mentions.
-- [x] Add generic configured-command terminal launch beside current harness launch.
-- [x] Add CLI `exo spawn @handle` over configured `AgentCommand` with CLI task context.
-- [x] Record mention provenance where possible: human-authored, prior-invocation-authored, or unknown.
-- [x] Persist transcript refs and invocation lifecycle state.
-
-### WP5: Direct-Write Review
-
-- [x] Start with tagged-document-only pre-snapshot and observed change capture.
-- [x] Write patch refs under `.exo/invocations/{id}/diffs/`.
-- [x] Attribute changes as `likely` or `ambiguous`; no line-perfect authorship claims.
-- [x] Preserve dirty editor buffers and show conflict/refresh choice instead of clobbering.
-- [x] Add toggleable invocation diff/attribution banner.
-- [x] Add automated test proving `.exo/invocations/` is gitignored.
-- [x] Add automated test for never-exiting interactive invocation resolving through the chosen end mechanism.
-
-### WP6: First Reviewable Graph Skill
-
-- [ ] Define one provider-neutral, user-editable **Find and connect relevant context** skill without adding a Skill Manager or dynamic code loading.
-- [ ] Let the user select a note or bounded result set and invoke the skill through an existing trusted Command.
-- [ ] Combine Search candidates with existing links, backlinks, tags, properties, and graph neighborhood evidence.
-- [ ] Require explanations for proposed links, tags, or typed relationships.
-- [ ] Keep inferred similarity derived; write only user-approved Markdown/frontmatter changes.
-- [ ] Review the resulting diff through the existing invocation/change-review path.
-- [ ] Evaluate retrieval lift, irrelevant-context cost, proposal acceptance, edit burden, and trust in the explanation before adding more skills.
-- [x] Add app QA for fake command append, concurrent edit ambiguity, dirty-buffer protection, and orphaned invocation.
-  - 2026-07-09 evidence: added `apps/desktop/tests/e2e/agent-invocation.spec.ts` for fake configured-command append/diff, dirty-buffer conflict choice, and orphaned restart; reran focused external-file/shell E2E group for dirty editor protection, settings, deterministic fake agent, inspector, and token-auth command-server coverage.
-  - 2026-07-09 final validation: `pnpm ci:check` passed with core tests 238/238, CLI tests 62/62, desktop tests 272/272, typechecks, builds, repo checks, and install dry run passing; `pnpm test:e2e` passed 100/102 with only the intentionally skipped markdown-decoration and opt-in live Claude tests skipped; `pnpm terminal:check` passed; opt-in live Claude invocation E2E passed 1/1.
-
-## Superseded Historical Ship Roadmap
-
-The tasks below are retained as implementation history and reuse inventory. They are not the active ship path for `refactor/note-native-exo` unless explicitly moved back under the current Exograph work packages above.
-
-- [x] Execute Terminal V4.1 geometry convergence work from Fable's proposal before treating terminal render bugs as isolated symptoms:
-  - [x] Wave 1 fan-out from `fable-exo-preflight-spec.md`: red geometry tests, geometry service base, terminal input escape pass, plain-attach spike, and plugin P1 namespaced capabilities.
-  - [x] Write the reconnect-at-wrong-size red test before implementation.
-  - [x] Write the wake/reconnect simulation red test before implementation.
-  - [x] Implement recorded renderer geometry and attach/reconnect size assertion (`EXO-ISSUE-075`).
-  - [x] Remove asymmetric tmux-only resize clamping or replace it with symmetric renderer-source enforcement.
-  - [x] Add attach generations so renderer resize dedupe cannot suppress lifecycle geometry reassertion.
-  - [x] Add structured geometry divergence diagnostics.
-  - [x] Add a user-visible geometry resync action.
-  - [x] Implement byte-faithful live reconnect snapshots after size assertion.
-  - [x] Run the plain tmux-attach spike in parallel as evidence, not as a product-path switch.
-  - [x] Complete the remaining V4.1 audit: confirm WP-T4/T5 coverage, close any diagnostics gaps, and keep `pnpm terminal:check` green.
-  - [x] Close WP-D docs: record the 2026-07-03 control-mode decision, killed plain-attach path, and pty terminology in `docs/terminal-runtime-decision.md`; sync terminal-stability guidance.
-- [ ] Finish Plugin Architecture Completion:
-  - [ ] Finish `EXO-ISSUE-099` onboarding/config alignment handoff:
-    - [x] Get Fable review on the ownership split before implementation.
-    - [x] Show actual global and active-notes `AGENTS.md` / `CLAUDE.md` files in onboarding Agent Context.
-    - [x] Make Exograph context apply idempotent and refresh the visible file previews.
-    - [x] Replace inert instruction merge with honest deterministic sync-from-selected-file behavior, overwrite confirmation, and refreshed previews.
-    - [x] Superseded by the Exograph pivot: the onboarding Skills install/enable path and shared Agent Config skill service were removed from active V1 code.
-    - [x] Superseded by the Exograph pivot: GitHub skill source/sync controls were removed with the old skill manager.
-    - [x] Simplify Profile onboarding to direct profile name/config editing and immediate save.
-    - [x] Hide shell from user-facing promptable harness/profile/routine selectors while keeping shell as a core terminal tool.
-    - [x] Collapse advanced custom Pi config by default.
-    - [x] Complete final app QA screenshots and Fable post-implementation review before user dogfooding.
-  - [ ] Complete Fable Wave-4 dogfooding gates before declaring plugin architecture ready for real-vault use:
-    - [x] WP-QA-PM: rerun Plugin Manager/onboarding read-only app QA against current source after recent UI/plugin changes.
-      - 2026-07-05 evidence: source Exo app was restarted from `main`; Computer Use could not inspect the remote Electron window, so app QA used focused Electron Playwright coverage instead. Passed `shell.spec.ts --grep "plugin manager"` and `shell.spec.ts --grep "opens an existing notes folder from first-run setup"`.
-    - [ ] PA2: design the real-vault proposal/profile rollback gate, get architect review, then flip from fixture-only to guarded real-vault apply.
-    - [x] Finish or explicitly inventory remaining `ManagedAgentKind` compatibility residue and removal conditions.
-      - [x] Add the first real-vault profile apply recovery gate: accepted profile template proposals persist `.exo/proposal-recovery/profile-apply/` pre-apply evidence before any file mutation and fail closed if recovery evidence cannot be recorded.
-      - [ ] Get architect review for the recovery manifest contract and the real-vault profile apply enablement criteria.
-      - [x] Add the recovery/rollback operator surface: `exo profile-recovery list|show|restore` lists and inspects real-vault profile apply recovery manifests and restores a manifest or single item only when current file hashes match recorded post-apply hashes; absent pre-state deletes are guarded the same way.
-      - [ ] Post-hoc architect review for the user-approved CLI contract exception and recovery/rollback command shape before declaring real-vault profile apply broadly enabled.
-    - [ ] Confirm remaining critical dogfooding gates before plugin dogfooding: `EXO-ISSUE-082` on `main`, `EXO-ISSUE-083` isolation, and trace-store hygiene.
-      - [x] `EXO-ISSUE-046` after live restart: 2026-07-05 source Exo restart plus worktree Codex probe launched without the Exo MCP startup warning and used the imported Exo repo MCP launcher.
-    - [x] Confirm cross-session trace-store hygiene or document the bounded dogfooding retention policy.
-      - 2026-07-05: Added regression coverage for per-session trace reads and sanitizer-collision isolation. Current dogfooding policy is session-isolated, default bounded reads, and manual disk cleanup under `.exo/traces/`; before broad real-vault plugin dogfooding, add a settings-visible trace retention or cleanup policy rather than a hidden cap.
-    - [x] Add settings-visible semantic trace retention/cleanup before broad real-vault plugin dogfooding.
-      - 2026-07-05: Added CLI-first operator cleanup: `exo traces list` shows retained sessions and `exo traces cleanup --session <id>` or `--before <iso-date>` deletes only explicit targets, with `--dry-run` for preview. No hidden age/size/count deletion was added.
-    - [x] WP-XC0: record external contract status rules: two-consumer rule, unstable status by default, trace first, review/proposal second, dataset/eval later with Helm, instrumented runtimes not plugin contracts.
-    - [x] WP-TRC-CL: add Claude as the second semantic trace producer through the declared trace path; no fixture self-writes.
-  - [x] Complete Fable Wave-2 correction packages before continuing profile/onboarding/plugin UI expansion:
-    - [x] WP-C1: proposal apply frontmatter fidelity with byte-identity golden tests.
-    - [x] WP-C2: unknown capability kinds degrade to inert inspectable status plus plugin tripwire.
-    - [x] WP-078: Pi answer-visibility diagnostic with deterministic fake Pi-style TUI fixture.
-    - [x] WP-P4a: first semantic trace consumer with trace store, fake harness capture, and `exo traces read`.
-    - [x] WP-T6: tmux control-mode stdin input path with retry-then-degrade failure discipline.
-    - [x] WP-D: terminal runtime decision docs/skills closure after the plain-attach spike.
-  - [x] Wave 1 plugin package: migrate capability kinds to namespaced ids; bare legacy kinds are rejected, and future namespaced kinds stay inspectable but inert.
-  - [x] Accept Fable's sequencing amendment: namespaced capabilities and scoped permissions land before the proposal/review write contract.
-  - [x] Add scoped plugin permission parsing/grants with `propose` distinct from direct `write`.
-  - [ ] Add staged profile apply review with trust prompts and permission grants before any profile/plugin recommendation can write instructions, MCP config, skills, routines, settings, or grants.
-    - [x] Stage profile-owned context, instruction, and MCP config file templates as reviewable proposal batches.
-    - [x] Add explicit real-vault file-template proposal staging for trusted/enabled profiles with human-reviewed propose policy, embedded allowed-path evidence, UI/CLI-only proposal acceptance, and apply-time path/kind guards.
-    - [x] Keep plugin enables, permission grants, skills, routines, settings, and AI-generated profile changes behind future prompts.
-  - [x] Design and implement the metadata-only proposal/review write contract as the shared substrate for profile apply, project knowledge sync, graph maintenance, skill/config writes, and agent-suggested note edits.
-  - [x] Add the proposal/review apply host and CLI/app command review surface; keep MCP without decision tools.
-  - [x] Add the native UI review surface for proposal batches.
-  - [x] Design semantic trace contract early enough that harness adapters do not need another terminal-service re-plumb.
-  - [x] Tighten Plugin Manager into a management surface: active/disabled/untrusted/missing states, local plugin add/remove/swap, plugin-owned settings, readiness/dependency guidance, and no dense-layout overlap.
-  - [x] Complete Fable Wave-3 correction packages from `fable-exo-wave3-review.md`:
-    - [x] WP-C1b: reviewer-facing byte-accurate frontmatter preview in `ProposalReviewDialog` and `exo proposals show`.
-    - [x] WP-P4b: production semantic trace capture wiring plus Pi-compatible sidecar emission; include EXO-ISSUE-078 raw-read honesty fix.
-    - [x] WP-046: MCP stdio restart/reinstall diagnostic-first fix; this gates Exo-on-Exo readiness but not plugin UI work.
-    - [x] WP-PA1: profile apply slice #1 for context/instruction/MCP template writes through proposals on a fixture vault; real-vault profile apply remains blocked on the explicit profile apply permission/enabling contract.
-    - [x] WP-QA-PM: Plugin Manager/onboarding read-only app-QA pass with fallback evidence if Computer Use inspection fails.
-      - 2026-07-04 evidence: source Electron app inspected through Computer Use and CDP on `localhost:5173`; screenshots saved outside the repo at `/tmp/exo-wp-qa-pm-plugin-manager.png`, `/tmp/exo-wp-qa-pm-profile-settings.png`, `/tmp/exo-wp-qa-pm-profile-review.png`, and `/tmp/exo-wp-qa-pm-onboarding-review.png`.
-      - Plugin Manager QA covered core/official read-only rows, Pi missing-dependency copy, QMD/search readiness, Graph Health/profile permission copy, profile preview safety copy, and category layout overflow.
-      - Onboarding QA used the workspace switcher path to reach the live `Review capabilities` step for the current saved workspace without selecting new folders; it showed core locked rows, official plugin inventory, Pi missing dependency, and profile apply blockers.
-  - [x] Prioritize `EXO-ISSUE-082`: make `exo agents read` clean and operator-readable for Exo-on-Exo monitoring before relying on it for swarm management.
-  - [x] Enforce Fable's public-contract rule in all future briefs: command-server routes, CLI commands/flags, MCP tool parameters, and shared protocol types require architect review before shipping unless the user explicitly approves an exception.
-    - 2026-07-04: `pnpm check:repo` now hashes focused public-contract slices and requires matching review notes in `docs/public-contract-reviews.md`.
-  - [x] Finish removing compatibility harness ids from internal renderer/API launch descriptors while keeping `exo terminals` as the low-level core terminal surface.
-    - [x] Add backward-compatible `terminalKind`/`harnessId` fields to terminal session info, diagnostics, command protocol terminal info, and persisted terminal session records.
-    - [x] Move Codex startup readiness, blocked prompt metadata, semantic queue policy, and MCP launch-arg augmentation behind the built-in harness contract while keeping terminal rendering/session ownership in core.
-    - [x] Move CLI/MCP/app `agents create` launch requests to registered, enabled, policy-approved harness ids instead of fixed `ManagedAgentKind` values.
-    - [x] Continue the internal cleanup so renderer/API descriptors no longer need built-in `ManagedAgentKind` compatibility fields except for persisted-session backfill.
-      - 2026-07-05: Removed legacy `kind` from desktop renderer/preload `TerminalCreateOptions`; retained documented compatibility only in command protocol, main-process low-level creation, session/debug records, persisted-session validation, and core built-in adapter/runtime config seams.
-  - [ ] Define external plugin contracts for workload-specific trace collection, review labels, dataset export, eval packets, and instrumented agent runtimes.
-  - [x] Define a Project Knowledge Sync plugin/profile contract for project-local canonical Markdown files: default names such as `issues.md`, `tasks.md`, `roadmap.md`, plans, specs, `AGENTS.md`, and `CLAUDE.md`; custom user patterns; sync mode; conflict policy; remote GitHub state; and reviewable proposals.
-    - 2026-07-05: Added the first metadata-only profile payload contract under `compatibility.profile.projectKnowledgeSync`, with conservative path/pattern validation, relationship modes (`index`, `proposal`, `copy`, `symlink`, `remote`), conflict/review policy, and optional GitHub metadata. This is inert inspection metadata only; later work should add read-only drift/index views, then staged proposal generation through the existing review substrate before any copy/symlink/remote apply behavior.
-  - [ ] Keep GA/Shoshin-specific behavior out of OSS core; represent local variants as local/private plugin configuration or downstream plugins.
-- [ ] Run Plugin Architecture QA after the next plugin slice:
-  - [ ] Plugin Manager app QA: official rows locked, local/dev rows trust/enable/disable correctly, settings validation works, missing dependency states are legible, and dense layouts do not overlap.
-  - [ ] Onboarding plugin review QA: clean workspace selection shows core rows, official plugins, local profile/plugin inventory, and no destructive apply path without review.
-  - [ ] Search QA: QMD enabled/degraded/disabled states preserve core filename/path/basic text search and do not block Explore.
-  - [ ] Harness QA: unavailable harnesses do not show dead launch buttons; shell/Claude/Codex still launch through the registered harness path.
-- [ ] Clear the daily-use bug-bash cluster from root `issues.md` before treating the build as ship-ready:
-  - [x] Fix `EXO-ISSUE-085`: make `pnpm stable:smoke` bounded, diagnosable, and repeatable enough that unrelated fixes are not held hostage by broad Electron timeouts.
-  - [ ] Terminal field-watch and preview interaction: `EXO-ISSUE-062`, `EXO-ISSUE-069`, plus any new render/focus regressions with deterministic fixtures.
-  - [ ] Editor/graph UX: open issues such as project Markdown/rendering regressions, wikilink hover/search regressions, backlinks/references polish, and task/list QoL only if new field evidence appears.
-  - [ ] Explorer/UI polish: open issues such as duplicate controls, changed-state badges, folder typography, and dense modal overlap only if new field evidence appears.
-  - [ ] Settings/profile/plugin UI: active profile/plugin/onboarding QA, Apply/save semantics, and dense Plugin Manager/Agent Config/Settings layout checks.
-  - [ ] Install/onboarding/dev launch: `EXO-ISSUE-027`, `EXO-ISSUE-028`, `EXO-ISSUE-029`, `EXO-ISSUE-031`.
-  - [x] QA workflow: `EXO-ISSUE-074` visual app QA preflight/fallback documentation.
-- [ ] Harden CLI/MCP for multi-agent coordination:
-  - [x] Add terminal Monitor Mode so Exo-on-Exo fan-out sessions can be shown as split panes for operator monitoring, while normal mode keeps grouped terminal tabs.
-  - [x] Fix `EXO-ISSUE-086`: Monitor Mode must preserve terminal pane identity across toggles instead of remounting every terminal view.
-  - [x] Run Monitor Mode QA with 4+ live sessions: toggle during repaint, create/terminate while enabled, restart with monitor mode persisted, and document that monitor mode changes agent terminal geometry.
-  - [x] Make `workspace_status` a reliable orientation tool with workspace roots, plugin/search readiness, live agents, index summary, command-server health, and degraded-state diagnostics.
-  - [ ] Add or finalize the core preview/artifact-open command path for CLI/MCP through the core web viewer endpoint.
-  - [ ] Add NDE-style MCP tests covering functionality, latency, result quality, stale config diagnostics, and permission/security behavior.
-  - [ ] Harden stale command-server and MCP launcher diagnostics, including deleted launcher paths and sandbox-blocked process probes.
-  - [ ] Keep the scheduled GitHub issue-fix loop conservative and documented: labeled issues only, one issue max, isolated branch/worktree, tests/app QA, draft PR, no main push, no auto-merge.
-- [ ] Prove the first Routine substrate path without expanding core:
-  - [ ] Use the GitHub issue-fix loop as the first routine-like POC.
-  - [ ] Model routine definitions as prompt, harness, trigger/schedule, scope, permissions, and output policy.
-  - [ ] Keep rich workload schemas plugin-owned; core stores minimal activity, artifact-reference, provenance-reference, and review-reference records.
-- [ ] Complete installable stable-runtime readiness:
-  - [ ] Clean reinstall from no app data, package, install to user Applications, first launch, notes folder selection, restart, CLI/MCP integration.
-  - [ ] Update README, changelog, and release notes for user install versus developer setup.
-  - [ ] Run a passive dogfooding period while using Exo for non-Exo work.
-- [ ] Defer larger exograph work until the plugin/CLI/MCP/daily-use ship path is stable:
-  - [ ] Read-only graph extraction and graph visualization plugins.
-  - [ ] Project knowledge sync views for drift/conflict state between project-local Markdown and central exograph Markdown.
-  - [ ] Optional OKF-compatible profile diagnostics/import/export.
-  - [ ] Scoped note write primitives with reviewable, reversible proposals.
-
-## Now: Useability And Exo-On-Exo Readiness
-
-- [x] Complete the terminal launch-readiness checklist tracked in `EXO-ISSUE-068` before treating Exo as launch-ready for daily agent work:
-  1. [x] Complete the current `TerminalManager` boundary split: runtime, session registry, harness readiness/queued-send policy, live-tail policy, diagnostics, transcripts, health, and recovery each have a named owner.
-     - 2026-06-24: Moved live-tail source selection into `terminal-live-tail-policy`; lifecycle/write/reconnect orchestration remains in `TerminalManager` as the compatibility facade until a concrete reliability bug justifies another split.
-  2. [x] Move Codex-specific startup prompt scanning, queued semantic sends, and MCP launch overrides out of `TerminalManager` into `terminal-harness-readiness`.
-  3. [x] Remove legacy `terminalHistoryMode`; terminal behavior is expressed as explicit numeric/settings fields for live scrollback, read tails, transcript retention, timing, and geometry.
-  4. [x] Replace preview-pane/global terminal refresh mitigations with scoped `TerminalView` visibility, focus, fit, and resize handling.
-  5. [x] Keep native tmux recovery/debug available through diagnostics/API attach fields; remove the visible terminal-header copy button to reduce chrome clutter.
-  6. [x] Establish a living render-stability fixture corpus for Claude/Codex corruption shapes, especially `???`, `�`, tofu boxes, stale overlays, prompt wrapping drift, and blank history gaps.
-     - 2026-06-24: Added visible-history assertions to the fake-Claude preview/reload e2e so the test scrolls back to Claude-like history anchors and then returns to the live prompt before continuing input.
-  7. [x] Promote the focused terminal gate into the standard readiness path: terminal vitest subset, render-stability fixture, fake-agent e2e, stable smoke, installed-app restart, and manual Claude/Codex QA.
-  8. [x] Pass real app QA after each terminal slice: fresh shell, fresh Claude, fresh Codex, preview open, tab switch, hard refresh/app restart, and install-app command-server recovery.
-     - 2026-06-24 installed-app QA: temporary shell `term-34` preserved Unicode-heavy output through CLI read and rendered without visible smear in the installed app; temporary Claude `term-35` rendered a clean fresh header and accepted `/status` on first focused click without inference. Remaining field coverage: resumed long Claude session, sleep/wake, and longer daily-use sessions.
-     - 2026-06-24 gate: `pnpm terminal:check` passed with process privileges after the sandboxed Electron launch failed with `kill EPERM`.
-     - 2026-06-24 gate: `pnpm stable:check` passed end to end.
-     - 2026-06-24 installed-app QA: temporary Codex `term-36` rendered cleanly, exposed a malformed global `terminal-stability` skill warning, and after fixing `/Users/kenneth/.codex/skills/terminal-stability/SKILL.md`, temporary Codex `term-37` launched without that warning. Preview-open terminal visibility was also spot-checked in the installed app. Long resumed Claude sessions and macOS sleep/wake remain field-dogfooding coverage rather than implementation blockers.
-- [ ] Continue `EXO-ISSUE-069` terminal field dogfooding: macOS sleep/wake and long resumed Claude/Codex sessions with real user workflows.
-- [x] Resolve `EXO-ISSUE-070` terminal code-review residuals from `docs/terminal-code-review-2026-06-23.md`.
-- [ ] Continue `EXO-ISSUE-062` terminal render cleanup using `docs/terminal-render-cleanup-protocol.md`: every new `�`/`???`/tofu/smear field case needs classification, fixture coverage, and `pnpm terminal:check`.
-- [ ] Complete fresh-clone setup QA for `EXO-ISSUE-027`: frozen install, package build, user Applications install, and first launch logging.
-- [x] Complete first-run onboarding QA for `EXO-ISSUE-028`: existing notes folder selection, post-selection shell state, terminal cwd default, and settings Apply copy.
-- [x] Fix markdown editor cursor/list QoL: preserve cursor across refresh, continue bullets on Enter, exit empty bullets cleanly, and keep arrow navigation out of hidden list markers.
-- [x] Fix markdown task-list continuation so Enter preserves `- [ ]` structure and empty task items exit cleanly.
-- [x] Add wikilink exit behavior: Tab/Enter from inside `[[target]]` moves the cursor after a following space so typing can continue inline.
-- [x] Add wikilink existing-note suggestions while typing `[[query]]`, capped to three matches, with Enter selecting the first existing note match.
-- [ ] Reproduce and fix `EXO-ISSUE-029`: stray default Electron app window during `pnpm dev`.
-- [x] Implement `EXO-ISSUE-030`: tmux-backed core terminal runtime with deterministic terminal-quality tests and no live-inference automated QA.
-  - Follow-up: remaining terminal launch-readiness work is now tracked under `EXO-ISSUE-068`.
-- [x] Complete `EXO-ISSUE-037` terminal parity follow-up after multi-agent review: stale tmux state persistence, terminal-quality CI gate, and diagnostics gaps.
-  - Follow-up: remaining diagnostics hardening and launch-readiness work is now tracked under `EXO-ISSUE-068`.
-- [x] Complete the terminal architecture simplification decision pass.
-  - Decision: Exo remains embedded-first, tmux-durable, and xterm-owned. See `docs/terminal-architecture-v4.md`.
-- [x] Remove artificial terminal capability limits found by multi-agent review: preserve alternate-screen/TUI escapes, replace broad wheel-input suppression with explicit viewport scrolling, send first measured resize immediately, route `exo terminals send` through semantic message delivery, and report missing/exited write targets as not delivered.
-- [ ] Reproduce and fix `EXO-ISSUE-031`: packaged app silently exits on first launch after local install.
-- [x] Mitigate `EXO-ISSUE-026`: installed app renderer runaway CPU/RSS during idle workspace use and missing renderer recovery after forced renderer death.
-- [x] Capture the current phased approach in `docs/usability-readiness.md`: readiness first, commit cleanup/push, installed-app daily use, live bug bash, then larger roadmap phases.
-- [ ] Review and prepare the local commit stack for push: decide whether to keep the stack or squash into coherent feature commits.
-- [x] Run one final clean-state QA pass after cleanup: `pnpm check:repo`, `pnpm typecheck`, `pnpm test`, `pnpm build`, focused Playwright, and full desktop e2e app QA.
-- [x] Verify fresh-clone/setup docs against current pnpm/Corepack/Electron/MCP behavior.
-- [ ] Push the reviewed branch and open the review/PR surface.
-- [x] Install the packaged macOS app as the stable resident Exo runtime and use it as the default environment for the next bounded Exo implementation/review task.
-- [x] Make `exo` / `exo start` launch or focus the resident packaged app, while source QA stays under `pnpm dev:qa`.
-- [x] Use `pnpm dev:qa` for source-build QA while the installed stable Exo app remains available for monitoring and agent coordination.
-- [x] Verify `/Applications/Exo.app` shows the Exo menu bar icon, survives window close, and keeps CLI/MCP commands available while hidden.
-- [ ] Add launch-at-login support for the installed app after the resident runtime passes daily-use QA.
-- [ ] Design a packaged CLI/helper story so installed Exo does not depend on the repo-backed `bin/exo` long term.
-- [x] Scope and implement `EXO-ISSUE-033`: optional Streamable HTTP MCP transport for remote-only MCP hosts such as Glean, keeping stdio as the default local transport.
-- [x] Fix `EXO-ISSUE-035`: stop active terminal rehydration from resetting xterm and replaying stale scrollback over live agent output.
-- [ ] Continue `EXO-ISSUE-017` terminal field validation after the split-pane resize-handoff mitigation: watch for Claude/Codex prompt wrapping drift, large blank history gaps, and missing-looking output chunks.
-- [ ] Resolve `EXO-ISSUE-025` before June 2026 GitHub Actions Node 24 enforcement affects CI.
-- [ ] Spawn one Exo-managed agent for a narrow Exo task, inspect transcript/diff through Exo/CLI, and record every friction point as product work.
-- [ ] Add an explicit issue/log path for Exo-on-Exo bugs found during real use.
-- [ ] Keep terminal responsiveness, agent send/read, changed-file review, settings, and hidden-window runtime bugs above new platform features until the loop is reliable.
-- [x] Refactor toward current-package domain modules before adding the next feature phase; do not introduce `packages/runtime` or plugin registries until runtime features create stable seams.
-- [x] Extract remaining renderer state machines from `App.tsx`: pane/drop orchestration.
-- [x] Extract Electron window/tray/renderer-recovery ownership into `apps/desktop/src/main/app-lifecycle.ts` as the first main-process service boundary.
-- [x] Extract indexing timers, job metrics, sync/refresh scheduling, and indexed-root mutations into `apps/desktop/src/main/indexing-service.ts`.
-- [x] Extract workspace note search, target resolution, target creation, suggestions, branch-family, and knowledge wrappers into `apps/desktop/src/main/workspace-notes-service.ts`.
-- [x] Extract project git status and changed-line parsing into `apps/desktop/src/main/project-review-service.ts`.
-- [x] Extract agent instruction provider-file alignment and runtime overlay listing into `apps/desktop/src/main/agent-instructions-service.ts`.
-- [x] Extract workspace settings/application orchestration into `apps/desktop/src/main/workspace-settings-service.ts`.
-- [x] Add a typed desktop IPC contract so preload, main IPC handlers, and renderer APIs cannot drift.
-- [x] Extract renderer workspace-settings model helpers into `apps/desktop/src/renderer/src/workspaceSettingsModel.ts`.
-- [x] Extract renderer workspace tree loading and lazy expansion into `apps/desktop/src/renderer/src/hooks/useWorkspaceTrees.ts`.
-- [x] Extract renderer project review status and changed-file observation into `apps/desktop/src/renderer/src/hooks/useProjectReviewState.ts`.
-- [x] Extract renderer open-document/editor state into `apps/desktop/src/renderer/src/hooks/useOpenDocuments.ts`.
-- [x] Extract renderer terminal session state, hydration, event listeners, and polling into `apps/desktop/src/renderer/src/hooks/useTerminalSessions.ts`.
-- [x] Extract renderer workspace bootstrap/onboarding state into `apps/desktop/src/renderer/src/hooks/useWorkspaceBootstrap.ts`.
-- [x] Extract renderer workspace settings dialog, autosave, Apply, folder-picking, and index actions into `apps/desktop/src/renderer/src/hooks/useWorkspaceSettingsController.ts`.
-- [x] Extract renderer workspace path mutation dialogs and create/rename/delete/move operations into `apps/desktop/src/renderer/src/hooks/useWorkspaceMutations.ts`.
-- [x] Extract renderer pane drop orchestration into `apps/desktop/src/renderer/src/hooks/usePaneDropOrchestration.ts`.
-- [x] Extract renderer terminal pane placement, focus, create, attach, and close orchestration into `apps/desktop/src/renderer/src/hooks/useTerminalPaneController.ts`.
-- [x] Extract renderer command-server workspace listeners and global keybindings into focused hooks.
-- [x] Extract renderer workspace layout persistence into `apps/desktop/src/renderer/src/hooks/useWorkspaceLayoutPersistence.ts`.
-- [x] Prune MCP to the narrow agent work plane and clarify CLI as the operator/admin/debug surface.
-- [x] Repair the e2e launch harness path for `EXO-ISSUE-021` by parallelizing the large shell file and capping e2e workers.
-- [x] Verify the e2e launch harness repair tracked in `EXO-ISSUE-021` with a full shell e2e rerun.
-- [x] Choose and add an open-source license.
-- [x] Remove or resolve any accidental local edits before commit, including the stray `SECURITY.md` line if it reappears.
-- [x] Confirm README, AGENTS, CLAUDE, architecture, roadmap, tasks, ledger, and MCP docs agree on the current Exo identity.
-- [x] Confirm no source defaults point to private or machine-specific paths.
-- [x] Confirm `.exo/`, terminal transcripts, logs, local settings, release artifacts, and generated runtime state are ignored.
-- [x] Run `pnpm ci:check`.
-- [x] Run focused desktop e2e for shell/search/terminal flows.
-- [x] Harden fresh-clone setup for pnpm 11, blocked dependency builds, patched Vite/picomatch installs, and secured-network Electron downloads.
-- [x] Fix setup and QA issues tracked through `EXO-ISSUE-020`; `EXO-ISSUE-021` remains open for the e2e launch harness.
-
-## Next: Runtime Lifecycle And Menu Bar
-
-- [x] Separate "Exo is running" from "Exo window is visible" in the product and architecture model.
-- [x] Keep the Exo process, command server, MCP bridge, watchers, transcripts, and terminal-agent sessions available when the main window is closed.
-- [x] Add a macOS menu bar resident mode with actions for Show Exo, Settings, agent/session status, restart command server, and Quit Exo.
-- [x] Add a first-class local macOS app install script for the resident runtime.
-- [x] Add an isolated `pnpm dev:qa` source-build profile so stable installed Exo and dev Exo do not share runtime state.
-- [x] Make close-window hide the workspace window instead of quitting.
-- [x] Make explicit Quit warn that live terminals/agents will stop.
-- [x] Ensure CLI/MCP live commands work while the Exo window is hidden and fail clearly when the Exo process is not running.
-- [x] Add app lifecycle tests for close/hide/show/quit behavior.
-- [x] Add app lifecycle coverage for command-server availability while hidden.
-- [x] Do app QA for hidden-window agent workflows: create an agent through MCP/CLI, hide Exo, read/send messages, reopen Exo, and verify transcripts/session state.
-
-## Next: Workspace Surface
-
-- [x] Add first-run onboarding that requires a user-selected notes folder before showing the app shell.
-- [x] Replace free-text notes/project path setup with native folder selection and removable folder lists.
-- [x] Add a setup/switch-workspace surface that shows notes folder, project folders, default terminal, and index settings before entering the app.
-- [x] Add a persisted workspace registry so users can switch among saved workspaces without reselecting folders.
-- [x] Make CLI/MCP workspace resolution use the active workspace registry when explicit env vars are not set.
-- [x] Make terminal panes draggable into the editor canvas.
-- [x] Let files and terminals share one arbitrary split-pane graph.
-- [x] Roadmap mixed file/terminal tab groups after the split-pane model stabilizes.
-- [x] Support multiple terminal panes in the main workspace, not just the terminal dock.
-- [x] Add a core web viewer pane for local web-app previews, docs, dashboards, and plugin-produced artifacts.
-- [x] Persist pane layout across restart.
-- [x] Keep file and terminal tab chrome aligned across all pane positions.
-- [x] Add broader regression coverage for pane closure, reload, and terminal streaming.
-
-## Next: Project Roots And Code Review
-
-- [ ] Keep project imports explicit; do not auto-load every workspace project folder.
-- [x] Add CLI and workspace-status visibility for attached project roots.
-- [x] Add CLI/UI commands to add and remove attached project roots.
-- [x] Add a changed-files view for agent-authored project edits.
-- [x] Link changed files to observable terminal sessions by project cwd.
-- [ ] Link terminal-agent messages to files they changed only when Exo can observe the relationship reliably; keep ambiguous changes in neutral workspace/status surfaces.
-- [x] Add code-review affordances for jumping from a changed file to an associated terminal session.
-- [x] Add code-review affordances for jumping from an agent session to associated changed files.
-- [x] Add code-review affordances for jumping from an agent session to a changed file hunk or line.
-- [x] Track external file changes without resetting editor scroll or causing flicker.
-
-## Next: Agent Context And Config Management
-
-- [x] Add a first-class agent config manager.
-- [x] Move the Agent Config Editor entry point from Workspace Settings to the agent harness rail.
-- [x] Add first-pass skill inventory and editing for Claude/Codex global, workspace, and active notes skill folders.
-- [x] Add reversible harness skill disable/enable by moving folders into an Exo-managed disabled-skills store instead of deleting them.
-- [x] Add first-pass git/GitHub skill sources: sync a repo `skills/` folder into Exo's library store and install copies into selected harness scopes without overwriting existing local skills.
-- [x] Simplify the manager to global and active exocortex/notes-root instruction layers.
-- [x] Keep Codex `AGENTS.md` and Claude `CLAUDE.md` aligned from one editor for each managed layer.
-- [x] Detect when `AGENTS.md` and `CLAUDE.md` diverge and require the user to choose a source or manually edit before saving both.
-- [x] Remove arbitrary project-scope writes, custom instruction outputs, provider-file adapter settings, history UI, generated-overlay preview, and managed provider/MCP config editing from the Agent Config Editor.
-- [x] Add an optional Exo starter template for managed instruction files.
-- [x] Keep Exo-generated runtime overlays under `.exo/instructions/` separate from user-authored context files.
-- [x] Pass the matching `.exo/instructions/` overlay to Exo-launched terminal agents through environment variables.
-
-## Next: Authorship And Provenance
-
-- [x] Track observed file changes near Exo-managed terminal sessions as provenance candidates.
-- [x] Record session id, timestamp, association method, and target file for observable write candidates.
-- [ ] Distinguish human-authored and agent-authored note/code changes in the UI.
-- [ ] Define the core authorship/mutability/role model: human-authored, agent-authored, mixed, unknown; immutable source, append-only log, editable synthesis, generated artifact; source, concept, entity, project, task, trace, profile, eval, dataset.
-- [ ] Explore block-level or line-level provenance only where Exo can track it reliably.
-- [ ] Avoid AI-detector-style inference; provenance should come from observed writes and controlled workflows.
-
-## Next: Feed, Activity Substrate, And Plugin Routines
-
-- [ ] Define the feed/event item model for incoming and generated context; use `docs/feature-ideas.md#personal-ai-feeds` as the starting product note.
-- [ ] Define per-source and per-feed indexing policy: auto-index, never-index, action-gated indexing, summary-only indexing, or source-metadata-only indexing.
-- [ ] Define feed item review/promote/archive semantics without requiring an `/inbox/` folder: like/preference signal, add note/create page, research, link to existing node, archive, dismiss, mute source/topic, and explain/rewrite.
-- [x] Define the first-pass Routine/activity model: prompt, selected harness, optional required harness skills, manual trigger or schedule, scope, permissions, output policy, logs, traces, artifacts, review state, and recovery.
-- [x] Reassess the current Routine/Run core model and shrink future expansion toward a minimal activity substrate: ids, status, timestamps, actor, scope, permission checks, artifact references, transcript/log references, optional provenance links, and optional review state.
-  - 2026-06-27: Added `docs/activity-plugin-contract.md` and narrowed `RunRecord` away from embedded rich trace/eval/file-change schemas. Trace JSONL remains an artifact-backed helper; rich workload schemas stay plugin-owned.
-- [x] Define how harness skill inventory is represented so Exo can warn when a Routine prompt references a skill the selected harness does not expose.
-- [x] Define plugin routine templates as metadata that can be instantiated into concrete user/workspace Routines.
-- [x] Add the first Routine CLI MVP: list plugin templates, create concrete routines, list routines, record dry-run executions, and inspect run records/artifacts.
-- [x] Add an official `graph-health.template` routine plugin manifest for dogfooding plugin-template discovery.
-- [x] Add first app-backed Routine execution handoff: `exo routines run --agent` launches shell/Claude/Codex through the running app, sends the prompt, and records the agent-session artifact for review.
-- [ ] Add first plugin routine candidate use cases: update entities, graph health, organize wiki, plugin-hosted elicitation, training export, eval run, and Exo-on-Exo maintenance.
-- [x] Decide the first user-facing Routine creation surface: CLI MVP on top of one core routine service.
-- [ ] Decide whether core needs scheduler hooks now or whether plugin routine execution can stay manual/CLI until repeated use proves the scheduler substrate.
-- [ ] Add activity lifecycle tracking beyond handoff only at the substrate level: terminal transcript links, completion detection, cancellation, and accepted/rejected review references.
-
-## Next: QMD, Notes Index, And Search
-
-- [x] Keep live Explore typing as fast filename/path search while making indexed search explicit.
-- [x] Add Exo-managed QMD setup for selected note roots only.
-- [x] Configure indexed note roots and the first reindex trigger from Exo settings.
-- [x] Expose QMD-backed status/search/read/sync/update/embed through Exo CLI, plus MCP `search`/`read_document` and index summary in `workspace_status`.
-- [x] Replace the 2s CLI/MCP search timeout with search-appropriate behavior and regression coverage.
-- [ ] Keep embedding/search off the Electron desktop critical path and add regression coverage for cold, broad, and in-progress index queries.
-- [ ] Package the QMD setup Exo needs so first-time users do not have to understand QMD separately.
-- [ ] Detect an existing QMD setup and connect it when it already indexes the selected notes.
-- [ ] Add true file-level incremental indexing when QMD exposes a public API for changed/deleted files.
-- [ ] Add configurable reindex triggers beyond manual/on-save, such as app start, interval, and git events.
-- [ ] Add progress and cancellation for long semantic embedding builds.
-- [ ] Add machine-size/performance profiles:
-  - small: low-compute fallback using filename/path and lightweight lexical search
-  - medium: local semantic index with conservative caps
-  - large: richer semantic retrieval and reranking
-- [ ] Refine shared human/agent search semantics across Explore, CLI, and MCP.
-- [x] Reframe QMD as the default search provider behind an Exo search-provider contract, not a permanent hard dependency at the product boundary.
-- [x] Decide the CLI/MCP philosophy for note and graph tools: CLI is broad operator/admin/debug; MCP is the narrow agent work plane.
-- [ ] Keep project files out of the notes memory index unless explicitly added later.
-- [x] Design the search-provider interface for capability discovery, status, search, read/resolve, sync/update, and future diagnostics.
-- [x] Move QMD behind the internal `SearchProvider` contract while preserving current UI/CLI/MCP behavior.
-- [x] Reframe QMD in settings, Plugin Manager, CLI, and MCP copy as an official advanced search provider plugin while preserving core filename/path/text search when QMD is disabled or degraded.
-- [x] Add provider-neutral search status and capability metadata so Plugin Manager can show QMD readiness without treating QMD as core search.
-- [ ] Add note traversal and graph context primitives: files/folders, document metadata, headings/outline, outgoing links, backlinks, unresolved links, orphans, and related documents.
-- [ ] Add scoped note write primitives after graph/read primitives are stable: create, append, and guarded patch within selected note roots.
-- [ ] Add LM Wiki maintenance reports for stale pages, orphan pages, unresolved links, missing cross-links, contradiction candidates, and missing source questions.
-- [ ] Decide which note/graph primitives belong in MCP as a compact agent-safe set versus CLI-only operator commands.
-
-## Next: Exograph Architecture
-
-- [ ] Write the exograph architecture spec: files/properties as approved facts, profile/config as interpretation rules, `.exo/` as derived state/proposals/runs/provenance.
-- [ ] Add OKF v0.1 compatibility requirements to the exograph spec as optional structure, not a Markdown gate: concept docs with `type` when present/requested, optional `title`/`description`/`resource`/`tags`/`timestamp`, Markdown links, optional `index.md`/`log.md`, permissive consumers, and unknown-field preservation.
-- [ ] Define the exograph profile model as mappings, not mandates: node types, edge types, path/property mappings, folder roles, authorship/mutability rules, feed promotion rules, conventions, templates, maintenance workflows, and review policy.
-- [ ] Add OKF-compatible structure detection and explicit conformance diagnostics for attached note roots without forcing users to restructure existing notes.
-- [ ] Add OKF export/import planning for Exo profiles and curated graph facts, including create-note/create-project templates that can emit OKF-compatible frontmatter when selected.
-- [ ] Define proposal storage for inferred schema, graph, and file changes before any new maintainer write workflows are added.
-- [ ] Define the two user-facing exograph modes: Analyze Exograph and Maintain Exograph.
-- [ ] Add schema-neutral read-only graph extraction for Markdown links, backlinks, headings, tags, frontmatter/properties, paths, and file metadata.
-- [x] Add a core read-only graph snapshot API that produces deterministic note/tag/link facts for graph visualization plugins and MCP/CLI graph traversal.
-- [ ] Keep LM Wiki and Shoshin as optional starter profiles, not built-in mandatory folder structures.
-
-## Next: Multi-Agent Coordination
-
-- [ ] Add an agent roster with names, types, current cwd, status, objective, and active task.
-- [ ] Let users assign or edit agent names, roles, and objectives.
-- [ ] Add direct message sending between Exo-managed terminal agents.
-- [ ] Build first Exo-native communication transport:
-  - append-only file messages
-  - SQLite index for reads, search, and replay
-  - CLI and MCP access
-- [ ] Add communication logs and audit trail UI.
-- [ ] Support routing messages through MCP and filesystem-backed channels.
-- [ ] Keep terminal agents as the first integration point; add richer direct transports later.
-
-## Later: Graph, Memory, Workcells, Training
-
-- [ ] Add graph/memory view combining backlinks, Markdown links, note structure, and QMD-derived relationships.
-- [ ] Add scoped graph views by note root, project root, task, or agent session.
-- [ ] Add durable memory, trace archive, retrieval/index, and working-memory assembly as separate layers.
-- [ ] Support adding non-Claude/non-Codex terminal agents, including local/open-source agents.
-- [ ] Add workcell model for bounded research/development loops.
-- [x] Define first-pass run, artifact, trace, and evaluation result primitives that plugins can build on.
-- [ ] Add supervised activity/plugin-run surfaces with artifacts, metrics, logs, and replay.
-- [ ] Add eval hooks for retrieval quality, memory usefulness, agent recovery, and operator acceptance.
-- [ ] Keep training data explicitly scoped by project, workcell, agent, artifact type, review status, and time window.
-- [ ] Explore local-agent training workflows once Exo has stable workcells, memory, and evals.
-
-## Later: Self-Modifying Exo
-
-- [ ] Define a supervised self-modification workflow: branch, change, run harness, summarize evidence, and prepare PR or local diff.
-- [ ] Add policy gates for git writes, PR creation, dependency/security updates, and auto-merge eligibility.
-- [ ] Connect self-modification to provenance, audit logs, workcells, and harness results.
-- [ ] Let maintenance workflows be implemented as plugins on top of core git, harness, provenance, and policy primitives.
-
-## Developer Harness
-
-- [x] Configure the scheduled Codex GitHub issue-fix loop: poll only issues labeled `codex-loop` and `ready-for-codex`, fix at most one issue per run in an isolated worktree/branch, run focused tests and app QA, and open a draft PR instead of pushing to `main`.
-- [ ] Add deterministic formatting/lint.
-- [ ] Add deterministic formatting/lint to `pnpm ci:check` and CI.
-- [ ] Add structural rules for renderer/main/core boundaries.
-- [ ] Add command-server/CLI/MCP contract drift checks.
-- [ ] Add hidden-cap/settings checks for terminal/search/runtime behavior that would hide user-controllable data.
-- [x] Add docs link/path checks for README, AGENTS, and docs indexes.
-- [ ] Expand docs link/path checks across roadmap, tasks, ledger, harness, architecture, MCP docs, and package README files.
-- [ ] Add renderer crash regression probes for blank-window failures.
-- [x] Apply user-configured live terminal scrollback to renderer/main buffers while preserving transcripts for reattached or actively streaming long-running agents.
-- [ ] Add golden/snapshot coverage for stable Markdown rendering, terminal hydration, and search output.
-- [ ] Add a test-quality review skill/checklist and use it before accepting Exo-hosted agent branches.
-- [ ] Add an app-QA skill/checklist for real Electron validation of UI/runtime changes.
-- [ ] Add entropy scans for bloated shell files, duplicated IPC/command types, direct renderer filesystem/process access, stale docs, and repeated anti-patterns.
-- [ ] Add Exo-on-Exo harness coverage for agent create/read/send, transcript review, changed-file attribution, worktree cleanliness, and hidden-window recovery.
-- [x] Keep CLI app-route tests isolated from live Exo command-server state.
+-- Shoshin | 2026-07-11
