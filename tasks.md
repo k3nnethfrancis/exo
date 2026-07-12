@@ -30,16 +30,16 @@ Exo scopes a workspace to its Note Roots only. It does not import, attach, or ma
 
 ### 1. Finish Settings preservation proof — `EXO-ISSUE-102`
 
-- [ ] Prove opening, waiting, closing, and reopening Settings performs no write when unchanged.
-- [ ] Prove appearance/search/terminal-only edits preserve Commands, layout, unknown keys, and migration metadata.
-- [ ] Prove stale/concurrent settings patches reject rather than silently overwrite one another.
+- [x] Prove opening, waiting, closing, and reopening Settings performs no write when unchanged.
+- [ ] Prove appearance/search/terminal-only edits preserve Commands, layout, unknown keys, and migration metadata. Appearance now has Electron proof for Commands and unknown keys; layout and the remaining sections need the same journey coverage.
+- [x] Prove stale/concurrent settings patches reject rather than silently overwrite one another.
 - [ ] Prove a saved Command remains invokable after every Settings round trip.
 
 ### 2. Finish Note Root containment proof — `EXO-ISSUE-103`
 
 - [ ] Move remaining note operations to root-relative identities behind `WorkspaceFiles`.
-- [ ] Complete escape coverage: traversal, absolute paths, duplicate roots, symlink files/directories, missing ancestors, rename, and recursive delete.
-- [ ] Prove desktop IPC and command-server reads share the same containment seam.
+- [ ] Complete escape coverage: traversal, absolute paths, duplicate roots, symlink files/directories, missing ancestors, rename, and recursive delete. Existing focused proof covers traversal, absolute paths, symlink escapes, and missing ancestors; add explicit rename/delete/duplicate-root cases.
+- [x] Prove desktop IPC and command-server reads share the same containment seam.
 - [ ] Dogfood a guarded copy of the real vault before closing the issue.
 
 ### 3. Installed core loop — complete
