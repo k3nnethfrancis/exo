@@ -2,69 +2,75 @@
 
 **Build your local exocortex from Markdown.**
 
-Exograph is Exo's active product frame: an open-source, local-first Markdown exocortex for building and maintaining personal LM wikis.
+Exograph is Exo's active product frame: an open-source, local-first Markdown exocortex.
 
-It gives you a local Markdown editor, backlinks and graph properties, graph views, customizable search/indexing providers, terminals, split panes, web viewers, CLI tools, and review surfaces for managing your graph. Notes remain the durable source of truth. `.exo/` stores derived indexes, invocation records, transcripts, artifacts, and review/provenance state.
+The launch product is:
+
+> **Local Markdown exocortex + modular, tunable search + inline agent invocation + graph management skills.**
+
+Notes remain the durable source of truth. `.exo/` stores derived indexes, invocation records, artifacts, and review/provenance state.
 
 The current `refactor/note-native-exo` branch is intentionally cutting the old agent-cockpit direction. Agents become configured commands that the graph can call from Markdown. Exo records what changed.
 
 ## Why Exo Exists
 
-Your useful context lives across notes, tasks, drafts, logs, projects, terminals, search indexes, and local artifacts. Exo brings that context into an owned Markdown-first exograph so you can build a personal LM wiki without handing the graph to a hosted service.
+Your thinking, knowledge, projects, and context exceed what you can actively hold. Exo provides a durable external mind for capturing and resuming thought without handing the graph to a hosted service.
 
-Agents still matter, but they are not the product spine. The graph can call configured agents from notes, those commands run in normal terminals, and Exo shows the resulting diffs and attribution.
+Search helps recover context, but it is not the whole problem. Exo makes relationships among notes visible and useful through links, backlinks, tags, properties, relevant-context discovery, and a focused graph.
 
-Another way to say it: Exo is a workbench for building a custom LM wiki at home. Markdown stays yours, search and indexing providers are swappable, graph structure is inspectable, and agent output is reviewable.
+Agents help maintain the exocortex without becoming the product spine. A user explicitly invokes a configured Command inline; Exo shows observed Markdown changes for review. The first editable graph-management Skill is the next vertical slice.
+
+Folders are meaningful graph structure. The next vertical slice adds an optional, user-owned `index.md` Folder Index and Folder Overview; until then, folders and `index.md` files remain ordinary filesystem/Markdown objects. Paths provide a primary home while tags and relationships preserve multiple membership.
+
+Plugins are a later distribution concern, not the launch architecture. Skills author behavior, Commands/providers execute capabilities, and a future Plugin may package proven combinations for installation, versioning, updates, and sharing.
 
 ## What Exo Is
 
-- An open-source, local-first Markdown editor.
-- A Markdown exograph with backlinks, graph properties, and graph-viewer direction.
-- A CLI-first local integration surface.
-- A provider-neutral search/read substrate with customizable search/indexing providers.
-- A programmable workspace with terminals, split panes, and web viewers.
-- Tools for managing a local LM wiki.
-- A note-native invocation model: Markdown mentions can call configured agent commands, and Exo can show what changed.
+- A trustworthy, open-source, local-first Markdown workspace.
+- Modular Search with filesystem and QMD as the first two concrete implementations.
+- An actionable exograph with links, backlinks, tags, properties, relevant context, and focused graph views.
+- Provider-neutral configured Commands with explicit inline invocation and reviewable observed changes.
+- Review surfaces for accepting, editing, or rejecting proposed Markdown changes.
+- A mixed-pane workspace and CLI over the same deep modules.
 
 ## What Exo Is Not
 
 The active refactor is not building:
 
 - a universal agent cockpit;
-- a deep Claude/Codex/Pi harness manager;
+- provider-specific agent management;
 - a Routine platform as the default product spine;
-- an MCP integration layer;
+- a general integration runtime;
 - a plugin marketplace as the near-term setup path;
+- a native Feed, trainer, model manager, or Ashby Gym in the launch product;
+- automatic graph writing or automatic agent chaining;
 - line-perfect authorship.
 
 ## What Works Today
 
-- Markdown notes with live-preview editing, properties/frontmatter, backlinks/tags/links, branch families, foldable lists, and table widgets.
-- Explicit note roots and project roots.
-- Project files with CodeMirror modes for Python, JSON/JSONC, TOML, `.env`, YAML, JS/TS/TSX, HTML/CSS, and shell.
+- Markdown notes with live-preview editing, properties/frontmatter, backlinks/tags/links, foldable lists, and table widgets.
+- Explicit Note Roots for all Exo-owned filesystem access.
 - Fast note filename/path search from the explorer search pane.
 - Optional QMD-backed notes indexing with lexical, semantic, and hybrid modes.
 - Index status, sync, and settings controls for selected note roots.
 - Editor and terminal panes with flat tabs, split behavior, and no-empty-leaves pruning.
-- tmux-backed terminals rooted in the workspace, attached through Exo's tmux control-mode bridge.
-- Disk-backed terminal transcripts for recovery context.
+- Direct `node-pty` terminals rendered by xterm, with bounded in-memory replay for renderer reload and operator reads.
 - CLI control of the local workspace/runtime.
 
 ## Roadmap
 
-Exo is early. The current branch is a heavy-handed Exograph refactor. Near-term priorities:
+Exo is early. The current branch is a heavy-handed Exograph refactor. Near-term priorities follow the four launch primitives:
 
-- Rewrite active docs and instructions around Exograph.
-- Remove old Routine, deep harness-manager, profile-apply, skill-install, and Plugin Manager setup surfaces after caller audit.
-- Build the graph read path: link extraction, backlinks, graph properties, and a basic graph/neighborhood viewer.
-- Harden CLI search/read/status with QMD and fallback providers.
-- Add note-native `AgentCommand` invocation from strict Markdown mentions.
-- Persist invocation records under `.exo/invocations/`.
-- Show direct-write diff/attribution without clobbering dirty editor buffers.
+- Finish the trustworthy Markdown workspace and packaged-app proof.
+- Make filesystem/QMD Search reliable, fast, and explicit about provider health.
+- Turn Connections into actionable context through links, tags, properties, neighborhoods, and explained suggestions.
+- Add Folder Overviews after the current simplification/deletion/UI convergence work: double-click a Folder to see its index, properties, members, and local graph without silently writing to imported folders.
+- Ship one **Find and connect relevant context** graph/wiki skill through configured Command invocation and diff review.
+- Continue removing retired architecture that does not serve this loop.
 
 See `roadmap.md` and `tasks.md` for the active plan.
 
-The canonical refactor plan is `docs/exograph-refactor-completion-plan.md`.
+The canonical refactor plan is `docs/exograph-simplification-plan.md`.
 
 ## Current Status
 
@@ -91,7 +97,6 @@ Prerequisites:
 
 - Node.js 22 or newer.
 - pnpm 11.2.2. With Homebrew pnpm, run `pnpm --version` and upgrade if needed.
-- `tmux` for terminal creation and Exo-managed shell/agent sessions. On macOS, install it with `brew install tmux` if Exo reports a missing terminal dependency.
 
 If Corepack fails before install with a package-manager signature or key error, either update Node/Corepack or use your installed pnpm directly:
 
@@ -119,7 +124,7 @@ Use the launch mode that matches the evidence you need:
 | `pnpm pack:mac` then `open release/mac-arm64/Exo.app` | Packaged-app QA for onboarding, first-run setup, app-support paths, packaged resources, native modules, and terminal cwd defaults. | Signed release artifact validation. |
 | `pnpm dist:mac` | Unsigned DMG/ZIP release artifact validation. | Fast development iteration. |
 
-For onboarding or first-run bugs, validate with a packaged app, not only `pnpm dev`, `pnpm dev:qa`, or `pnpm app`. Missing first-run workspace settings must show onboarding; Exo must not silently choose a notes root, project root, or default terminal cwd for the user.
+For onboarding or first-run bugs, validate with a packaged app, not only `pnpm dev`, `pnpm dev:qa`, or `pnpm app`. Missing first-run workspace settings must show onboarding; Exo must not silently choose a Note Root or default terminal cwd for the user.
 
 Install a repo-backed local `exo` command:
 
@@ -135,7 +140,7 @@ Install the local macOS app bundle:
 ./scripts/install-mac-app
 ```
 
-This builds the unsigned `Exo.app` bundle and copies it into `~/Applications` by default so install does not require admin permissions. Launch that installed app for the stable resident Exo runtime: it owns the menu bar icon, hidden-window command server, transcripts, watchers, and terminal sessions. Use `./scripts/install-mac-app --system-app-dir` to install into `/Applications`, or `./scripts/install-mac-app --with-cli` when you also want the repo-backed CLI installed.
+This builds the unsigned `Exo.app` bundle and copies it into `~/Applications` by default so install does not require admin permissions. Launch that installed app for the stable resident Exo runtime: it owns the menu bar icon, hidden-window command server, watchers, and live terminal sessions. App exit ends terminal processes; Exo does not retain durable terminal transcripts. Use `./scripts/install-mac-app --system-app-dir` to install into `/Applications`, or `./scripts/install-mac-app --with-cli` when you also want the repo-backed CLI installed.
 
 When developing Exo while the installed app remains your daily workspace, use the isolated QA profile:
 
@@ -171,9 +176,9 @@ Avoid `NODE_TLS_REJECT_UNAUTHORIZED=0` except as a temporary local diagnostic; i
 
 ## Agent Commands
 
-The active refactor makes agents note-native and command-based. A Markdown document can tag a configured command such as `@claude`; Exo confirms the invocation, launches the command in a normal terminal with a pointer prompt, and then shows what changed.
+The active refactor makes agents note-native and command-based. Type `@` in a Markdown editor, select a configured Command such as `@claude`, then write the transient multiline request. Shift+Enter sends only after explicit confirmation; Exo launches the Command in a normal terminal and shows observed changes for review. Saving a note never invokes a Command.
 
-MCP has been removed from this branch. CLI is the durable local integration surface.
+CLI is the durable local integration surface.
 
 ## CLI
 
@@ -186,9 +191,6 @@ Standalone workspace/runtime commands:
 ./bin/exo search "query"
 ./bin/exo index status
 ./bin/exo index sync
-./bin/exo runtime status
-./bin/exo runtime sync
-./bin/exo launch claude
 ```
 
 The legacy `exo routines` CLI and Routine core/plugin substrate have been removed on this branch. The remaining activity/artifact primitives are provider-neutral helpers used by traces, proposals, and invocation records.
@@ -199,29 +201,14 @@ Commands that drive a running Exo app:
 ./bin/exo open /path/to/file
 ./bin/exo status
 ./bin/exo config get
-./bin/exo project-roots list
-./bin/exo project-roots add /path/to/project
-./bin/exo project-roots remove /path/to/project
 ./bin/exo terminals list
 ./bin/exo terminals create shell
 ./bin/exo terminals read term-4
-./bin/exo terminals transcript term-4 --tail 200000
 ./bin/exo terminals send term-4 "message plus Enter"
-./bin/exo terminals reconnect term-4
 ./bin/exo terminals kill term-4
 ```
 
-`exo terminals` is the lower-level debug/raw terminal surface. The older `exo agents` commands remain legacy harness wrappers until `AgentCommand` invocation replaces them:
-
-```bash
-./bin/exo agents list
-./bin/exo agents create claude /path/to/workspace
-./bin/exo agents read term-4 --tail 20000
-./bin/exo agents send term-4 "message plus Enter"
-./bin/exo agents send term-4 "raw input without Enter" --raw
-./bin/exo agents interrupt term-4 ctrl-c
-./bin/exo agents terminate term-4
-```
+`exo terminals` is the lower-level debug/raw terminal surface. Configured Commands are the provider-neutral agent/tool identity; legacy built-in agent lifecycle commands are being removed by the simplification plan.
 
 ## Workspace Model
 
@@ -230,21 +217,11 @@ Exo settings are stored in one JSON file:
 - macOS default: `$HOME/Library/Application Support/@exo/desktop/workspace-settings.json`
 - override: `EXO_SETTINGS_PATH`
 
-Portable source defaults:
-
-- `workspace_root = process.cwd()`
-- `note_roots = [workspace_root/notes]`
-- `project_roots = [exo repo root]`
-- `default_terminal_cwd = workspace_root`
-- `terminalHistoryLines = 100000`
-- `terminalTranscriptRetention = forever`
+First-run setup requires the user to choose a Workspace and its Note Roots. Exo does not silently persist a notes root or default Command cwd.
 
 Runtime files live under `.exo/` inside the workspace root:
 
 - `.exo/server.json` - command server discovery
-- `.exo/instructions/AGENTS.md` - Exo-generated generic runtime contract
-- `.exo/instructions/CLAUDE.md` - Exo-generated Claude overlay
-- `.exo/terminal-transcripts/` - disk-backed terminal transcripts
 - `.exo/qmd/index.sqlite` - Exo-managed QMD notes index when indexing is enabled
 - `.exo/invocations/` - note-native agent-command invocation records and diff refs
 - `.exo/artifacts/` - local generated artifacts when needed
@@ -287,7 +264,7 @@ See `docs/harness.md` for work-chunk rules, validation evidence, and agent-frien
 
 - Electron, React, TypeScript, Vite
 - CodeMirror 6
-- xterm.js and tmux-backed terminal persistence through Exo's tmux control-mode bridge
+- xterm.js with direct `node-pty`; app exit ends the PTY, while renderer reload may replay only a bounded in-memory tail
 - pnpm workspaces
 - Vitest and Playwright
 
@@ -299,7 +276,7 @@ See `docs/harness.md` for work-chunk rules, validation evidence, and agent-frien
 - `docs/architecture.md` - package and runtime architecture.
 - `docs/strategy.md` - product direction and system model.
 - `docs/extension-architecture.md` - current extension architecture and core-versus-extension boundary.
-- `docs/terminal-architecture-v4.md` - current terminal architecture and module-boundary target.
+- `docs/terminal-runtime-decision.md` - current direct-PTY terminal decision.
 - `docs/harness.md` - developer harness, gates, and agent workflow.
 - `docs/usability-readiness.md` - near-term standard for installed daily use.
 - `docs/plugins.md` - historical plugin model, superseded by `docs/extension-architecture.md`.
@@ -348,17 +325,16 @@ ls "$HOME/Library/Logs/DiagnosticReports"/Electron-*.ips
 
 ## Docs Order
 
-1. `AGENTS.md` - concise agent map
-2. `README.md` - product overview and onboarding
-3. `docs/README.md` - committed docs map
-4. `docs/strategy.md` - product direction and system model
-5. `ledger.md` - current state and recent completed slices
-6. `docs/architecture.md` - runtime and package architecture
-7. `docs/harness.md` - contribution harness and validation gates
-8. `docs/usability-readiness.md` - installed-app readiness standard
-9. `tasks.md` - active execution tracker
-10. `roadmap.md` - future plans
-11. `docs/exograph-refactor-completion-plan.md` - active refactor plan
-12. `docs/terminal-architecture-v4.md` - current terminal simplification proposal
-13. `docs/extension-architecture.md` - current extension architecture
-14. `docs/plugins.md` - historical plugin model
+1. `AGENTS.md` - contributor invariants and active Codex execution context
+2. `CONTEXT.md` - canonical Exo vocabulary and domain boundaries
+3. `docs/exograph-simplification-plan.md` - active execution plan and ship gates
+4. `tasks.md` - active work and sequencing
+5. `issues.md` - bugs, QA findings, and release blockers
+6. `README.md` - product overview and onboarding
+7. `roadmap.md` - short-term direction and long-term Ashby ladder
+8. `docs/architecture.md` - current architecture and Folder Index ontology model
+9. `docs/extension-architecture.md` - current extension ladder
+10. `docs/README.md` - current/historical documentation map
+11. `docs/harness.md` - contribution harness and validation gates
+12. `docs/usability-readiness.md` - installed-app readiness standard
+13. `ledger.md` - completed implementation history

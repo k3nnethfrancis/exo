@@ -3,18 +3,20 @@
 Exo is the local Markdown exocortex in the shared Ashby vision.
 
 Shared north star: `../../notes/shoshin-codex/ashby.md`
-Canonical branch plan: `docs/exograph-simplification-plan.md`
+Active execution ledger: `tasks.md`; historical refactor record: `docs/exograph-simplification-plan.md`
 
 Exo owns the workspace, exograph, retrieval, mixed-pane canvas, configured Commands, invocation observation, and review. Guardian owns the separate Pi-compatible execution harness and Principal. Ash is a behavior/evaluation role, not an Exo runtime concept.
 
-The `refactor/note-native-exo` branch is intentionally cutting the old agent-cockpit, plugin-platform, built-in-harness, tmux/transcript, and MCP-first directions. Do not restore them unless the shared vision and current plan explicitly reopen a concrete use.
+The `refactor/note-native-exo` branch is intentionally simplifying to Note Roots, Markdown, search, Connections, panes, direct terminals, configured Commands, and review. Do not restore retired architecture without an explicit product decision.
+
+Current execution is already underway through Codex work on simplification, legacy deletion, deep-module cleanup, and UI convergence. Preserve those work packages and ownership boundaries. The Folder Index/ontology direction below clarifies the target product; it does not authorize an agent to interrupt current deletion/UI work, expand scope inside another owner's files, or add a new public contract without assignment and review.
 
 ## Start Here
 
 1. `../../notes/shoshin-codex/ashby.md` - shared Exo + Guardian + Ash vision and role boundaries
-2. `docs/exograph-simplification-plan.md` - canonical audit, target architecture, execution waves, and ship gates
+2. `tasks.md` - active execution tracker
 3. `CONTEXT.md` - canonical Exo product glossary
-4. `tasks.md` - active execution tracker
+4. `docs/architecture.md` - shipped architecture and retained feature/data-model index
 5. `issues.md` - canonical bug, QA, and field-issue tracker
 6. `README.md` - current product surface and commands
 7. `roadmap.md` - future work only
@@ -23,8 +25,9 @@ The `refactor/note-native-exo` branch is intentionally cutting the old agent-coc
 10. `docs/extension-architecture.md` - concrete-seam extension ladder
 11. `docs/public-contract-reviews.md` - protected command-server, CLI, and shared-protocol review ledger
 12. `docs/usability-readiness.md` - installed-app readiness gate and evidence requirements
+13. `docs/exograph-simplification-plan.md` - historical refactor rationale and prior audits
 
-Other completion, plugin, routine, harness, profile, tmux, transcript, and MCP documents are superseded inventory until the simplification plan deletes or distills them. They are not active instructions.
+Other dated plans are historical inventory until a separate deletion pass removes or distills them. They are not active instructions.
 
 ## Project Skills
 
@@ -88,12 +91,12 @@ CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build 
 - Restart Exo after touching Electron main, preload, native terminal handling, runtime config, package dependencies, or settings bootstrap.
 - HMR is usually enough only for pure renderer changes.
 - Inspect the real Electron renderer through CDP on port `9222`; `localhost:5173` lacks `window.exo`.
-- First-run workspace rules: missing or invalid workspace settings must lead to onboarding. Do not silently choose or persist a notes root, project root, or default terminal cwd for the user. Validate those paths in a packaged app before marking startup/onboarding work complete.
+- First-run workspace rules: missing or invalid workspace settings must lead to onboarding. Do not silently choose or persist a Note Root or default terminal cwd for the user. Validate those paths in a packaged app before marking startup/onboarding work complete.
 
 ## Runtime Rules
 
 - Renderer code must not touch filesystem or processes directly; use preload APIs backed by main-process services.
-- CLI is the active local integration surface. MCP has been removed and should not shape new architecture.
+- CLI is the active local integration surface; new architecture must not depend on an unreviewed integration runtime.
 - `packages/core/src/command-protocol.ts` owns shared command routes and payload shapes.
 - Terminal is direct `node-pty` behind one byte-faithful lifecycle. Do not add tmux transport, attach/restore, transcript, built-in harness, or provider-specific terminal branches.
 - xterm owns the live screen and ordinary scrollback. React may keep bounded metadata and an in-memory replay tail for renderer reload, diagnostics, and CLI reads; it must not be the high-volume rendering source or imply durable history.
@@ -113,21 +116,27 @@ CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build 
 
 ## Product Rules
 
-- A Workspace contains explicit Note Roots and read-only Attached Folders. Note mutation never accepts arbitrary filesystem paths.
+- A Workspace contains explicit Note Roots. Note mutation, reading, search, preview, and workspace watching never accept arbitrary filesystem paths.
 - Markdown-on-disk is canonical; notebook mode is a projection.
-- Attached Folders are searchable/readable context, Command working locations, and diff targets—not a second general-purpose editor filesystem.
 - Live Search typing stays fast; indexed search and provider degradation are explicit and must not block the renderer.
 - Exo is the product. An exograph is the user-owned graph over Markdown notes, properties, links, tags, attachments, and accepted knowledge.
 - Durable approved graph facts should live in user-owned Markdown/frontmatter/properties, links, tags, and files. Derived indexes, inferred facts, proposals, activity records, artifact references, and provenance references belong under `.exo/` until accepted.
 - Exo may permissively consume Open Knowledge Format conventions—Markdown concepts, YAML frontmatter, normal links, optional `index.md`/`log.md`, and unknown-field preservation—but must not enforce a schema on arbitrary user Markdown.
-- Exo should not impose one vault schema. It may detect, recommend, and maintain structures such as Shoshin or LM Wiki profiles, but users own the schema.
+- **Next vertical slice — not shipped:** a Folder may have a user-owned `index.md` Folder Index. Folder Overview and index-aware Explorer presentation arrive together; until then, `index.md` remains ordinary Markdown and no folder inspection may write it implicitly.
+- When Folder Overview lands, viewing imported folders remains read-only; only an explicit authoring action may create durable folder metadata.
+- Folder paths provide primary structural homes and inherited guidance, not exclusive types. Explicit note properties override defaults; tags and typed relationships preserve multiple membership.
+- Folder containment and inherited defaults are next-slice design work until explicitly implemented. A future Skill may consume a Folder Index chain only through the normal reviewed invocation path.
+- Exo should not impose one global schema or ontology. Users create ontologies through folders, Folder Indexes, properties, tags, links, and relationships; Exo detects, visualizes, searches, and helps maintain that user-owned structure.
 - Feed/event streams are deferred. Activity appears only when reviewed Invocation history earns it.
 - Automation is not automatically core. Invocation records are the first activity record; Routine product work is a superseded/deletion-audit target.
 - A configured Command is the V1 agent/tool identity: handle, label, executable/arguments, cwd policy, environment allowlist, pointer policy, and invocation metadata. `AgentCommand` is an internal type. Do not rebuild promptable harness identity.
 - QMD and filesystem search are concrete adapters behind `WorkspaceIndex`; QMD is not a product boundary. Do not patch `node_modules` or fork QMD casually.
-- Delete the old Plugin Manager/capability platform after caller proof. Reintroduce a seam only when two concrete implementations earn it.
+- Reintroduce an extension seam only when two concrete implementations earn it.
+- Reserve **Plugin** for a future installable distribution bundle, closer to AI-platform packaging than in-process application extension. Skills author behavior, Commands execute external tools, Providers implement earned varying services, and a Plugin may later package proven combinations for installation/update/sharing.
+- A future Plugin may contain declarative material or references to executable capabilities. Declarative packaging does not grant authority; external executables, hooks, native code, or providers require their own visible trust and lifecycle boundaries.
+- Do not call an internal interface, registry, graph module, Search adapter, or one-off workflow a Plugin. Do not add plugin installation, manifests, marketplaces, dynamic renderer code, or permission UI until real packages need distribution and lower extension rungs have failed.
 - Provenance distinguishes human, invocation, and unknown writers without claiming certainty the evidence cannot support.
-- Attached Folder mutation is outside Baseline Core. Commands may act in an explicitly confirmed cwd; Exo observes and reviews resulting changes.
+- Commands may act in an explicitly confirmed cwd; that explicit command choice never grants Exo a second workspace filesystem surface.
 - Root `issues.md` is the canonical Exo bug, QA, and field-report tracker. Do not create parallel Exo issue trackers under `docs/` or the notes vault.
 - Workcells/evals/training/search-optimization harnesses are deferred until the graph/read/invocation/review loop is stable.
 - Optional or personal workflows should not become core by default.

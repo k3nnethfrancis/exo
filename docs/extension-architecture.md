@@ -1,8 +1,8 @@
 # Exograph Extension Architecture
 
-Last updated: 2026-07-09
+Last updated: 2026-07-10
 
-status: Fable-reviewed branch plan; V1 code now follows the search-provider-only typed seam and deletion-first plugin boundary.
+status: Current extension boundary. It describes shipped seams separately from proposed Folder/Skill work.
 
 This document revisits Exo plugin architecture from the Exograph product frame:
 
@@ -12,9 +12,26 @@ It replaces the old "plugin architecture completion" framing as the working prop
 
 ## Decision In One Paragraph
 
-Vanilla Exo is the product: Markdown notes, terminal panes, freely composable workspace, graph/read/search, AgentCommands, invocation records, monitor view, and diff review. Extension should happen through the cheapest mechanism that works: Markdown conventions, config, local commands, web views, typed providers, and only later a manifest/distribution system if real external demand proves it is needed.
+Vanilla Exo is the product: **local Markdown exocortex + modular, tunable search + inline agent invocation + graph management skills**. Skills begin as user-editable instructions/data executed by configured Commands, not dynamically loaded code. Extension should happen through the cheapest mechanism that works: Markdown conventions, config, local commands, web views, typed providers, and only later a manifest/distribution system if real external demand proves it is needed.
 
 Exograph does not need the old plugin platform as a product spine. It needs an extension ladder.
+
+## Terminology Ruling
+
+In current Exo architecture, **Plugin is a future distribution unit, not a runtime abstraction**:
+
+```text
+Convention / Skill     authors behavior
+Command / Provider     executes or supplies a capability
+Plugin                 packages proven pieces for installation, updates, and sharing
+```
+
+Local configuration can mature independently; a future Plugin may bundle proven Command templates, ontology templates, evals, or external provider configuration only when distribution is valuable. Exo does not adopt the in-process application-extension model; a Plugin does not imply arbitrary renderer code, UI injection, filesystem access, process access, or authority.
+
+Future packages have two materially different trust profiles:
+
+- **Declarative contents:** Markdown Skills, Folder Index/ontology templates, settings defaults, eval cases, and Command templates. These remain data and instructions, though they still require source review.
+- **Executable contents:** Commands, hooks, external providers, native code, or services. These require separate install, trust, scope, lifecycle, update, and removal semantics; a manifest declaration is not a sandbox.
 
 ## Core Vs Extension Framework
 
@@ -47,6 +64,8 @@ Use the lowest rung that works.
 
 Do not build a higher rung to host something a lower rung can express.
 
+Folder Indexes are a planned rung-1 convention, not a profile/plugin subsystem. When the Folder vertical slice ships, a normal `index.md` may describe a Folder and its guidance. Until then, it is ordinary Markdown; no Folder Overview or implicit creation is claimed.
+
 ## Vanilla Exo Boundary
 
 ### V1
@@ -54,36 +73,28 @@ Do not build a higher rung to host something a lower rung can express.
 Vanilla Exo owns:
 
 - Markdown editor, explorer, and notes-on-disk.
-- Pane composition, terminal panes, web viewer panes, and terminal transcripts.
+- Pane composition, terminal panes, web viewer panes, and bounded in-memory terminal replay/read tails.
 - CLI search/read/status.
-- Graph read path: links, backlinks, tags, frontmatter/properties, graph context, and neighborhood view.
+- Graph read path: links, backlinks, tags, frontmatter/properties, graph context, and neighborhoods.
 - QMD provider plus core fallback provider behind a provider-neutral search contract.
 - `AgentCommand` config.
 - Note-native invocation.
 - CLI `exo spawn @handle`.
 - Monitor view for command sessions.
 - Invocation records under `.exo/invocations/`.
-- Direct-write diff attribution and dirty-buffer protection.
+- Observed-change review and dirty-buffer protection.
 - Workspace trust for command-bearing config.
 
 The only active typed extension seam in V1 is search/index providers.
 
-V1 should not ship:
-
-- Plugin Manager as product spine.
-- Plugin marketplace or distribution.
-- General manifest/capability system.
-- Routine plugins.
-- Deep harness plugins.
-- Profile apply plugins.
-- MCP plugins.
+The current product does not ship a catalog, marketplace, general manifest/capability system, plugin-owned settings panels, arbitrary UI injection, or plugin-owned public CLI commands.
 
 ### V2
 
 V2 candidates:
 
 - Note-result hydration: search provider result plus Exo-owned note metadata and graph context.
-- LM wiki maintenance tools as core CLI/graph tools first.
+- Folder Overview and the first graph-management Skill, after the trust and distillation gates in `../tasks.md`.
 - View projections for Markdown/frontmatter conventions such as tasks, dates, tables, calendar, or kanban if dogfooding proves they matter.
 - Out-of-process provider protocol for search/index providers.
 
@@ -95,29 +106,30 @@ Long-term extension work should be demand-gated:
 - Manifest and permission systems should exist only after at least two real external extensions cannot be handled by config, commands, or provider protocols.
 - Sharing should start as git repos and copied config, not a marketplace.
 
-## Plugin Categories
+Potential capability families must stay orthogonal until implementations earn them:
 
-### Should Exist
+- source adapters materialize scoped external data as source-faithful Markdown;
+- index providers retrieve over allowed corpora;
+- evaluation environments define tasks, actions, rewards, and held-out cases;
+- learning recipes define SFT, preference, RL, embedding, or reranker experiments;
+- executors supply local or cloud compute independently of the learning method;
+- artifact adapters make an approved candidate usable by a runtime or index.
 
-- Search/index providers.
-- AgentCommand templates as shareable config.
-- LM wiki tool packs as Markdown/config/commands.
-- Import/export providers if command/config is not enough.
-- View projections, later, if repeated use proves the need.
+Only Search currently has an earned typed provider seam. The other families begin as Markdown, packages, configured Commands, and lineage-bearing artifacts. Do not encode method × executor combinations as separate plugin types.
 
-### Should Not Exist In V1
+## Future Plugin Packaging
 
-- Agent harness plugins. `AgentCommand` replaces provider-specific harness identity.
-- Routine/automation plugins. Invocation records are the first activity primitive.
-- Profile plugins that execute or apply changes.
-- Plugin-owned settings panels or general UI injection.
-- Plugin-owned MCP tools or CLI commands.
+A later Plugin may package proven pieces such as:
 
-### Uncertain
+- graph-management Skills;
+- Folder Index and ontology templates;
+- configured Command templates;
+- eval cases and rubrics;
+- source-shaping/import recipes;
+- external Search/index provider configuration;
+- explicitly trusted external executables.
 
-- Chat module: start as a note plus invocation loop; only build a module if that fails.
-- Sync/publish integrations: start as external commands.
-- Provenance analyzers: wait until invocation records are used in real work.
+Packaging does not merge the components' internal contracts. A Search provider remains a Search provider; a Command remains an external executable; a Skill remains instructions. The Plugin supplies identity, version, installation source, contents, compatibility, update, and removal metadata only when those distribution needs become real.
 
 ## Search Providers And Note Hydration
 
@@ -125,7 +137,7 @@ Hard boundary:
 
 > Providers own relevance. Exo owns note identity and graph.
 
-Provider output should be keyed by Exo-canonical document identity. V1 canonical identity is `rootId + rootRelativePath`, because note/project/index roots may live outside `workspaceRoot`. A workspace-relative path can still be exposed as display metadata when one exists. Provider-native collection-relative paths stay provider diagnostics, not the shared result id.
+Provider output should be keyed by Exo's authorized canonical document path. Root-relative identities are a later interface-quality improvement, not the current shared result id. Provider-native collection-relative paths stay provider diagnostics, not the shared result id.
 
 Provider output should include:
 
@@ -170,11 +182,9 @@ Worth keeping or redesigning:
 Worth removing if caller audit allows:
 
 - General plugin/capability system.
-- Plugin Manager as setup/product surface.
 - Routine product and routine plugins.
 - Profile apply engine.
 - Deep harness adapter model.
-- MCP plugin or agent lifecycle ideas.
 - Manifest parsing and permission machinery unless a new extension architecture explicitly reintroduces them.
 
 ## Trust And Security
@@ -230,11 +240,9 @@ Build now:
 Remove now after caller audit:
 
 - old plugin/capability product surfaces;
-- Plugin Manager as setup/product surface;
 - routine CLI/UI/docs/code not needed by invocation records;
 - profile apply engine and setup copy;
 - deep harness model after generic AgentCommand launch replaces current callers;
-- MCP package/surfaces after CLI parity and installed-machine cleanup.
 
 Defer:
 
@@ -243,6 +251,7 @@ Defer:
 - view projection extension API;
 - manifest/permission/distribution system;
 - plugin marketplace.
+- plugin packaging/installation until at least one proven capability set needs repeatable distribution across users or workspaces.
 
 ## Durable Docs And Skills
 

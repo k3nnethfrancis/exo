@@ -1,6 +1,6 @@
 # Exo Simplification Audit and Execution Plan
 
-Status: **execution active as of 2026-07-10; Gate 0 checkpoint `9787002d`, Wave 1 in progress**
+Status: **historical planning corpus as of 2026-07-12.** `../tasks.md` is the active execution ledger and `../issues.md` is the active QA record. The proposals and audits below explain prior decisions; they do not describe shipped behavior or authorize restoration of removed systems.
 Branch audited: `refactor/note-native-exo`
 Baseline commit: `679183e`
 Audit date: 2026-07-09
@@ -21,26 +21,30 @@ Do **not** incrementally polish the current midpoint. It still expresses two pro
 
 The target is:
 
-> **Exo is a local Markdown exocortex: capture, connect, find, act, and review in one calm workspace.**
+> **Exo is a local, user-owned Markdown exocortex with modular, tunable search, inline agent invocation, and graph management skills.**
 
 The product spine is deliberately small:
 
-1. Root-scoped workspace files.
-2. A canonical Markdown-derived graph.
-3. Search with filesystem and QMD adapters.
+1. A trustworthy root-scoped Markdown workspace on ordinary files.
+2. Modular Search with filesystem and QMD as the two earned implementations.
+3. Actionable Connections: links, backlinks, tags, properties, relevant context, and a focused graph.
 4. One pane canvas for notes, terminals, previews, graphs, and diffs.
-5. Configured, provider-neutral commands invoked from exact note mentions.
-6. Reviewable invocation outcomes.
-7. A thin CLI and token-authenticated local command server over the same modules.
+5. Configured, provider-neutral Commands that can run user-editable graph/wiki skills.
+6. Reviewable invocation outcomes and Markdown/frontmatter changes.
+7. A thin CLI and token-authenticated local command server over the same deep modules.
 
 Everything else must either make this loop materially better or leave Baseline Core.
+
+### Execution continuity
+
+Codex agents are already executing simplification, legacy deletion, deep-module cleanup, and UI cleanup/convergence against this plan. Continue those assigned work packages and preserve exclusive file ownership. The Folder Index direction added on 2026-07-10 clarifies the product target but is sequenced after the current graph/files/canvas/explorer owners stabilize their boundaries; it is not a reason to reset the branch, revive deleted architecture, or broaden an in-flight agent's scope.
 
 ### Immediate no-ship gates
 
 Two defects block broad real-vault use and all large implementation fan-out:
 
 1. **Settings data loss:** opening or closing Workspace Settings can erase configured Agent Commands and saved layout. See [EXO-ISSUE-102](../issues.md#exo-issue-102-opening-workspace-settings-can-erase-agent-commands-and-pane-layout).
-2. **Workspace containment:** note paths can escape attached roots, including through clicked wikilinks, enabling reads and mutations outside the authorized workspace. See [EXO-ISSUE-103](../issues.md#exo-issue-103-note-paths-can-escape-attached-roots-and-mutate-arbitrary-filesystem-locations).
+2. **Workspace containment:** note paths could escape authorized Note Roots, including through clicked wikilinks, enabling reads and mutations outside the authorized workspace. See [EXO-ISSUE-103](../issues.md#exo-issue-103-note-paths-can-escape-note-roots-and-mutate-arbitrary-filesystem-locations).
 
 No checkpoint, no fan-out. No safety fixes, no real-vault dogfooding. No settled surface, no public-contract hash refresh.
 
@@ -114,9 +118,11 @@ Every persisted or visible object needs one sentence of product meaning:
 
 | Object | Meaning | Source of truth |
 |---|---|---|
-| Workspace | A named set of note roots and attached folders | User config |
+| Workspace | A named set of Note Roots | User config |
 | Note | Editable Markdown under a note root | Filesystem |
-| File | Read-only project context under an attached folder | Filesystem |
+| Folder | A filesystem structure that gives Notes a primary home | Filesystem |
+| Folder Index | Optional `index.md` describing a Folder, its properties, relationships, and organization guidance | Filesystem |
+| Folder Overview | A projection of Folder Index content plus derived members, graph, and search context | Derived from filesystem/graph/index |
 | Link | A Markdown relationship resolved within workspace identity rules | Derived |
 | Graph | The current resolved and unresolved relationships among workspace notes | Derived, disposable |
 | Search index | An acceleration structure for retrieval | Derived, disposable |
@@ -133,13 +139,15 @@ Keep:
 
 - Markdown files as canonical user data.
 - Multiple note roots.
-- Attached project folders, because the current real workspace uses them. Show them honestly as **Attached folders**: searchable/readable context, eligible Command working folders, and diff targets—not a second general-purpose editor filesystem.
 - Wikilinks, backlinks, tags, properties, unresolved links, and neighborhood queries.
+- **Next-slice design:** Folder Overview backed by optional user-owned `index.md` Folder Indexes. It must not imply a write on viewing; creation belongs to an explicit authoring action.
 - A focused-note Connections surface: event-driven Outline, lightweight Links, a lazy Graph tab, and Activity only when invocation history earns it.
 - A compact typed Properties header whose edits round-trip through Markdown frontmatter; no proprietary metadata store.
 - Filesystem search and QMD as the one current provider seam with two real adapters.
+- Relevant-context discovery that can combine provider relevance with Exo-owned links, backlinks, tags, properties, and graph neighborhoods while explaining why each candidate appeared.
 - Note, terminal, local preview, graph, and diff pane types.
 - Configured Agent Commands, explicit trust, terminal-backed invocation, change observation, and diff review.
+- **Next-slice design:** user-editable graph/wiki Skills expressed as instructions and data passed to configured Commands; no dynamic skill code, automatic chaining, or separate Skill Manager.
 - Three-step first run: select workspace, configure/check the first Command, then inspect readiness and test it in a terminal.
 - CLI search/read/graph/open/preview/terminal/spawn operations that have a real operator use.
 
@@ -151,21 +159,24 @@ Remove from Baseline Core:
 - Durable transcript ownership and tmux compatibility concepts.
 - Loom/branch-family behavior. Git already preserves history; the vault has only a tiny archived footprint. It can return as an extension after a real recurring use appears.
 - Competing drawer, dock, rail, and pane topologies.
-- Hidden project-root support, unreachable search, and any other “implemented but inaccessible” feature.
+- Hidden secondary-root support, unreachable search, and any other “implemented but inaccessible” feature.
 
 ### 2.5 Explicit non-goals for this release
 
 - A general plugin platform.
 - A universal agent harness manager.
 - Agent lifecycle orchestration as a product section.
-- Persistent terminal transcripts.
+- Persistent terminal history owned by Exo.
 - Perfect line-level authorship attribution.
 - Remote collaboration or cloud sync.
 - A canvas/whiteboard clone.
 - A programmable automation/routine engine.
 - Automatic writes to Claude, Codex, MCP, launcher, or other host configuration.
+- A native Feed, external-source synchronization system, Ashby Gym, trainer, model manager, cloud index, or general skill/plugin platform.
 
 These are not rejected forever. They are rejected as prerequisites for a coherent Exo.
+
+When Plugin packaging returns, it means a future installable/versioned distribution bundle for proven Skills, ontology templates, Command templates, evals, or external integrations. It does not mean restoring a general internal capability registry, arbitrary renderer code, or treating every varying implementation as a Plugin.
 
 ### 2.6 Guardian compatibility is a data contract, not a feature set
 
@@ -357,6 +368,8 @@ This is an authorization module, not a filesystem utility. It is constructed fro
 
 Build it on `WorkspaceFiles` identity. Reuse the strongest snapshot/query semantics, then delete `NoteKnowledge`, basename-first resolution, renderer-fabricated snapshots, and duplicate graph models. Derived graph state is disposable and rebuildable.
 
+Folder identity belongs here as path-derived graph structure. A Folder Index contributes user-owned title, description, properties, links, and typed relationships; Folder membership contributes derived containment edges. The nearest Folder Index chain may supply inherited ontology/search/Skill guidance, but Exo must not rewrite child Notes merely to materialize inheritance.
+
 ### 5.4 `WorkspaceIndex` — Strong
 
 **Interface:** `search(query, options)`, `status`, `rebuild`, and explicit provider selection/fallback state.
@@ -481,6 +494,7 @@ Costs: demands disciplined sequencing and exclusive ownership of high-churn file
 ```
 
 - **Explorer:** Notes, Attached folders, Search, New note, New folder.
+- **Folder Overview:** double-clicking a Folder opens its Folder Index content when present plus derived children, properties, local graph, and relevant context. `index.md` is hidden only as a redundant Explorer row and remains revealable/editable Markdown.
 - **Canvas:** the only pane tree.
 - **Connections:** one contextual surface tied to the focused note; tabs switch among Outline, Links, lazy Graph, and earned Activity without losing the reading position.
 - **Properties:** compact typed document chrome, separate from Connections, with Markdown frontmatter as authority.
@@ -655,7 +669,7 @@ Every retained command needs one current human/operator journey, help text, an a
 
 ### 9.3 Future reviewed integrations
 
-Do not build an integration registry in this reset. When a specific preview launcher or MCP connection earns demand:
+Do not build an integration registry in this reset. When a specific preview launcher earns demand:
 
 1. Show scope—project, user, or both—destination, exact diff, permissions/consequences, and remove/repair behavior.
 2. Mark only Exo-owned entries; preserve unrelated content.
@@ -858,6 +872,8 @@ Can prepare `FileTree`, `ExplorerSections`, search UI, ranking/result components
 
 Acceptance: Search and New note/folder are visible with one or many roots; Cmd/Ctrl+P works; Attached folders are readable/searchable but not mutated through note APIs; deep unloaded notes are findable; full keyboard navigation.
 
+After the current Explorer/canvas cleanup merges, add the Folder Overview vertical slice without reopening U1 ownership: double-click opens a derived overview; existing folders work without writes; editing durable folder metadata creates `index.md`; new Exo-created folders may create it by default; raw `index.md` remains revealable; containment and inheritance are tested across nested folders.
+
 #### U3 — Connections, Properties, and invocation-review owner
 
 Can prepare focused-note tabbed Connections, typed Properties chrome, exact-mention Run affordance, one confirmation sheet, activity bar, diff pane, terminology, and component tests without editing U1-owned files. U1 performs final composition.
@@ -869,6 +885,8 @@ Acceptance: Outline updates from document events and tracks/navigates the active
 Can prepare the three-step onboarding flow and readiness result model without editing U1-owned composition files. U1 performs final composition.
 
 Acceptance: a fresh profile can select a workspace, configure a data-only provider-neutral Command, see executable/cwd/instruction/trust checks, and use Test in terminal. Partial failures are individually explained; no MCP or host-config writer is required.
+
+**Fable review, 2026-07-11:** readiness may inspect a saved Command or an unsaved draft without mutation; Test accepts a saved command id only and delegates to `InvocationRunner`. Test must return explicit untrusted/declined and fingerprint-drift outcomes, never persist trust, and only allow a one-shot launch after existing explicit user confirmation. `note_dir` is unsupported for CLI-context Test; instruction discovery is advisory; executable and cwd are launch gates. Cwd and launchability facts must come from shared pure derivation used by both readiness and `InvocationRunner.prepare`. A Test is an ordinary visible invocation and terminal—no hidden terminal, auto-kill, or special record subtype.
 
 #### Craft convergence — lead plus focused reviewers
 
@@ -901,6 +919,8 @@ onboard/open workspace
 → write and autosave a note
 → find it through reachable search
 → navigate Outline, inspect Links, and lazy-open Graph
+→ double-click a Folder and inspect its derived overview
+→ edit the Folder description, verify `index.md`, then verify nested primary-home/containment context
 → edit a typed Property and verify raw frontmatter identity
 → arrange a note, terminal, and preview in mixed splits
 → invoke @command

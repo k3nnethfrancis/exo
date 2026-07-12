@@ -1,4 +1,13 @@
-# Plugins And Profiles
+---
+status: superseded
+superseded_by: 0003-plugins-are-distribution-bundles.md
+---
+
+# Plugins And Profiles (Superseded)
+
+**Superseded by ADR 0003.** This historical decision records the removed plugin/profile model. It must not guide current implementation.
+
+The prose below is retained only for decision history. It contradicts the current model, where Plugin is a future distribution bundle and profiles are not a product surface.
 
 Exo treats plugins as replaceable capabilities and profiles as curated bundles of capabilities, configuration, and conventions. A profile may recommend or require plugins, metadata schemas, context templates, MCP config, skills, routine templates, graph views, and review/output policies, but executable behavior must live in explicit plugin capabilities rather than being hidden inside a profile. This keeps Exo hackable and modular while preserving a clear trust boundary for future plugin loading.
 

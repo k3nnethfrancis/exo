@@ -1,11 +1,25 @@
 ---
 name: terminal-stability
-description: Use before changing Exo terminal runtime, terminal rendering, terminal settings, terminal tests, or terminal-based AgentCommand launch behavior. Keeps direct-pty, xterm-owned terminal work aligned with the Exograph refactor.
+description: Use before changing Exo terminal runtime, rendering, settings, tests, or terminal-backed Command launch behavior. Keeps the current direct-PTY, xterm-owned, provider-neutral terminal aligned with byte fidelity, bounded replay, honest lifetime, and real Electron QA invariants.
 ---
 
 # Terminal Stability
 
-Use this skill before changing Exo terminal runtime, terminal rendering, terminal settings, terminal tests, or terminal-based AgentCommand launch behavior.
+Use this skill before changing Exo terminal runtime, terminal rendering, terminal settings, terminal tests, or terminal-backed Command launch behavior.
+
+## Required Orientation
+
+Read these current sources first:
+
+- `AGENTS.md`
+- `tasks.md` and `issues.md` for active scope and terminal evidence
+- `docs/terminal-runtime-decision.md`
+- `apps/desktop/src/main/terminal-manager.ts`
+- `apps/desktop/src/renderer/src/components/TerminalView.tsx`
+- `apps/desktop/src/renderer/src/hooks/useTerminalSessions.ts`
+- `packages/core/src/agent-invocation.ts` when Command launch is involved
+
+Treat terminal-era restore, persistent-history, and built-in-agent documents as historical unless a current task explicitly reopens them.
 
 ## Current Decision
 
@@ -15,13 +29,13 @@ As of the 2026-07-09 Exograph refactor review, Exo's V1 terminal path is:
 xterm.js live surface
   -> Exo renderer terminal bridge
   -> Exo main TerminalManager facade
-  -> direct pty runtime
-  -> shell or configured AgentCommand
+  -> direct node-pty runtime
+  -> shell or configured Command
 ```
 
 The previous tmux-control-mode architecture is superseded for this branch. Do not rebuild it, preserve it as a hidden fallback, or treat tmux durability, restore snapshots, or terminal transcripts as V1 product requirements.
 
-Users who want tmux durability can run `tmux` inside a normal Exo terminal. Claude, Codex, and similar agents should resume through their own session mechanisms and through explicit invocation records, hooks, traces, or command output files.
+Users who want tmux durability can run `tmux` inside a normal Exo terminal. Claude, Codex, Pi, Guardian, and similar tools should resume through their own session mechanisms. Exo records explicit invocations and reviewed file outcomes without interpreting provider semantics.
 
 ## Ownership Rules
 
@@ -29,7 +43,7 @@ Users who want tmux durability can run `tmux` inside a normal Exo terminal. Clau
 - The direct pty runtime owns the child process, byte-for-byte input/output transport, resize, and process exit.
 - `TerminalManager` owns app-facing metadata and lifecycle APIs only: create/list/write/send/resize/kill/read-live-tail/diagnostics.
 - React state owns metadata only: sessions, active ids, health, and layout placement.
-- Invocation provenance belongs to `InvocationRecord`, changed-file diffs, agent resume ids, and future hook/trace files, not terminal transcript mirroring.
+- Invocation provenance belongs to `InvocationRecord`, observed file changes, and review references, not terminal transcript mirroring.
 
 ## Hard Invariants
 
@@ -37,36 +51,22 @@ Users who want tmux durability can run `tmux` inside a normal Exo terminal. Clau
 - Spaces, paste, Enter, Ctrl-C, Escape, arrows, and resize must have focused tests before this branch is called done.
 - Mounted live terminals receive append events only.
 - Do not call `terminal.reset()` or replay a full snapshot on normal tab switch, pane focus, pane move, preview focus, or metadata refresh.
-- Direct pty output is streamed to xterm and to a bounded live tail only where current UI/CLI callers need a short readback.
+- Direct pty output is streamed to xterm and to a byte- or character-bounded live tail only where current UI/CLI callers need a short readback, including output without newlines.
 - No terminal transcript persistence, restore snapshot, or session-after-restart feature should be added without a new explicit architecture review.
 - Fake local agent commands should be used for automated tests. Do not depend on live Claude/Codex/Fable inference in CI.
-- Agent terminal launch must route through configured `AgentCommand` handles/templates, not a built-in harness registry or readiness manager.
+- Command launch must route through configured data-only Commands and InvocationRunner, not a built-in harness registry or readiness manager.
+- Ordinary shell wheel, trackpad, and selection stay with xterm. A mouse-mode TUI may own wheel input only with a visible indicator and documented modifier escape to local scrollback.
+- App exit ends the PTY. Renderer reload may replay bounded memory, but Exo must not imply durable process persistence.
 
 ## Before Editing
 
-Read these first:
-
-- `docs/exograph-refactor-completion-plan.md`
-- `docs/pivot-subsystem-disposition.md`
-- `issues.md` entry `EXO-ISSUE-101`
-- `apps/desktop/src/main/terminal-manager.ts`
-- `apps/desktop/src/main/terminal-runtime.ts`
-- `apps/desktop/src/renderer/src/components/TerminalView.tsx`
-- `apps/desktop/src/renderer/src/hooks/useTerminalSessions.ts`
-- `packages/core/src/agent-invocation.ts`
-
-Treat older tmux docs as historical unless they have been updated for direct pty:
-
-- `docs/terminal-quality-standard.md`
-- `docs/terminal-architecture-v4.md`
-- `docs/terminal-runtime-decision.md`
-- `docs/terminal-fallback-audit.md`
+Before changing CLI commands/flags, command-server routes, or shared protocol types, stop unless the task includes the required lead/architect approval.
 
 ## Preferred Change Shape
 
 - Delete tmux/session/transcript/recovery code when callers have moved; do not hide or freeze it.
 - Keep `TerminalManager` as a small facade over a direct pty runtime and bounded live-tail/diagnostics helpers.
-- Keep terminal launch command-oriented. Shell is a terminal substrate; Claude/Codex/Fable-style launches are configured AgentCommands.
+- Keep terminal launch command-oriented. Shell is a terminal substrate; Claude/Codex/Pi/Guardian-style launches are configured Commands.
 - Avoid provider-specific readiness, prompt scanning, queued-send, or semantic-message logic in terminal core.
 - Add regression tests for the exact input behavior that changed.
 
@@ -83,19 +83,21 @@ pnpm check:repo
 pnpm --filter @exo/desktop build
 ```
 
-Run focused Playwright coverage for terminal input and configured AgentCommand launch once the direct-pty path lands.
+Run focused Playwright coverage for terminal input and configured Command launch. Run `pnpm terminal:check` only after confirming it names live direct-PTY tests.
 
 ## Manual QA
 
-After code changes, restart the packaged Exo app and test:
+After code changes, restart Exo and test in the real Electron app. Use the packaged app for installed-path or lifecycle claims:
 
 1. Open a shell terminal.
 2. Type words with spaces quickly.
 3. Paste multi-line text.
 4. Press Enter, Ctrl-C, Escape, arrows, and Backspace.
 5. Resize terminal panes and verify the pty receives the new geometry.
-6. Launch at least one configured AgentCommand terminal and verify prompt delivery.
+6. Launch at least one configured Command and verify prompt delivery through the normal invocation path.
 7. Open a preview/editor beside the terminal and verify first-click focus still types into xterm.
+8. Exercise ordinary scrollback, a mouse-mode TUI, and its modifier escape.
+9. Reload the renderer and verify bounded replay; exit the app and verify the UI does not promise process survival.
 
 ## Red Flags
 

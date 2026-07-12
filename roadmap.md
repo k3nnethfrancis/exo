@@ -1,26 +1,37 @@
 # Exograph Roadmap
 
-Last updated: 2026-07-08
+Last updated: 2026-07-10
 
 Exograph is Exo's active product frame:
 
 > Build your local exocortex from Markdown.
 
-Exograph is a local-first Markdown exocortex with graph semantics, CLI/search/read surfaces, custom search/indexing providers, terminals, split panes, web viewers, and local LM wiki management tools. Notes remain the durable source of truth. `.exo/` stores derived indexes, invocation records, transcripts, artifacts, and review/provenance state.
+Exograph is a local-first Markdown exocortex. Its launch formula is:
 
-The canonical refactor plan for the `refactor/note-native-exo` branch is `docs/exograph-refactor-completion-plan.md`. Future workers should start there before changing roadmap, tasks, instructions, command surfaces, or implementation files.
+> **Local Markdown exocortex + modular, tunable search + inline agent invocation + graph management skills.**
+
+Notes remain the durable source of truth. `.exo/` stores only derived indexes, invocation records, artifacts, and review/provenance state.
+
+The canonical plan for the `refactor/note-native-exo` branch is `docs/exograph-simplification-plan.md`. Future workers should start there before changing roadmap, tasks, instructions, command surfaces, or implementation files.
 
 ## Current Ship Path
 
-The current objective is no longer to complete the old plugin/routine/harness roadmap. The branch is shipping the Exograph pivot:
+The current objective is no longer to complete the old plugin/routine/harness roadmap. The branch is shipping four launch primitives:
 
-1. Graph read path: Markdown link extraction, wikilinks, tags, frontmatter/properties, backlinks, graph context for the active note, and a basic graph/neighborhood viewer.
-2. CLI and search/read hardening: reliable `workspace`, `read`, `search`, and provider-status surfaces that work without MCP, with QMD and fallback providers behind a provider-neutral contract.
-3. Note-native AgentCommand invocation: strict Markdown mentions launch user-configured commands in plain terminals with pointer prompts.
-4. Invocation records: command metadata, mention text, terminal transcript references, timestamps, and changed-file observations persist under `.exo/invocations/`.
-5. Direct-write diff/attribution: Exograph detects file changes during an invocation, refreshes open notes without clobbering dirty editor buffers, and shows likely/ambiguous attribution with a toggleable diff view.
+1. **Markdown workspace:** trustworthy files, authoring, properties, roots, canvas, and packaging.
+2. **Modular Search:** reliable filesystem and QMD retrieval behind the one earned provider seam.
+3. **Actionable graph:** links, backlinks, tags, properties, neighborhoods, and Connections today; Folder Index/Overview and explained relevant-context discovery are next-slice work.
+4. **Inline invocation:** configured Commands run only on explicit invocation; Exo observes and reviews changes. The first user-editable graph-management Skill is next-slice work.
 
-The product test is simple: Kenneth can write a Markdown note, inspect its graph context, search/read related context through CLI/provider-backed search, tag a configured agent command, watch it run in a plain terminal, and review what changed afterward.
+The product test is simple: a person can open an existing Markdown folder, resume thought, find context, understand the connection, explicitly invoke a configured Command, and review observed Markdown changes without surrendering file ownership. A bounded graph-management Skill is the next vertical slice.
+
+## Shipped Core Loop: Inline Command Invocation
+
+Inline invocation is not a future bet. Typing `@` in the Markdown editor offers configured Commands; selecting one opens a transient multiline composer. Only Shift+Enter, after explicit confirmation, launches the configured local Command in the visible terminal, writes an invocation record, and presents observed changes for review. The CLI can start the same configured Command with `exo spawn`.
+
+The remaining work is quality rather than a second system: make the inline affordance easier to notice, keep mention parsing precise, prove dirty-document/save and trust behavior, and ship the first user-editable **Find and connect relevant context** skill through this loop. Do not reintroduce a harness manager or Skill Manager to achieve that.
+
+Folder ontology is intentionally simple: folders provide a primary structural home; tags and typed relationships express additional membership. The optional `index.md` and Folder Overview design is accepted but not yet implemented, so it must not be described as current behavior.
 
 ## Active Work Packages
 
@@ -29,7 +40,7 @@ The product test is simple: Kenneth can write a Markdown note, inspect its graph
 Status: active documentation/instruction rewrite.
 
 - Rewrite top-level roadmap, tasks, README, and agent instructions around Exograph.
-- Mark the old MCP, routine product, deep harness-manager, profile-apply expansion, provider skill install/sync, and Plugin Manager setup-spine paths as superseded or deletion-audit targets.
+- Mark retired setup and runtime architecture as superseded or deletion-audit targets.
 - Keep old planning docs available as history, but prevent them from looking like the current ship path.
 - Add the root deletion-audit task so Phase 1 workers audit callers before removing surfaces.
 
@@ -45,12 +56,9 @@ Status: active documentation/instruction rewrite.
 
 Remove after caller/public-contract audit:
 
-- MCP as an active product surface, especially agent lifecycle tools and setup/install copy.
 - Routine product UI/CLI/docs, keeping only reusable activity concepts where invocation records need them.
-- Deep harness manager features: readiness/send queues, promptable harness selectors, and harness skill inventory setup surfaces.
 - Profile apply expansion and profile-template write paths as onboarding/setup spine.
 - Provider skill install/sync expansion.
-- Plugin Manager setup spine, plugin review onboarding, and plugin/routine/profile setup copy.
 
 Harden before treating web content as untrusted extension content:
 
@@ -59,7 +67,7 @@ Harden before treating web content as untrusted extension content:
 
 Keep or reuse:
 
-- Plain terminal runtime and transcripts.
+- Plain direct-PTY terminal runtime and bounded in-memory replay/read tails.
 - Command server routes still consumed by the app or CLI.
 - Search provider code and provider-neutral seams.
 - Changed-file/diff rendering that can support direct-write review.
@@ -72,6 +80,7 @@ Keep or reuse:
 - Add backlink query support and a note graph context surface.
 - Add graph properties read/edit affordance for a note.
 - Add a basic graph/neighborhood viewer.
+- After the active simplification/deletion/UI cleanup owners stabilize Explorer, Canvas, Files, and Graph, add Folder identity, path-derived containment, and Folder Overview support without resetting their work.
 - Expose useful CLI graph/read/search status where appropriate.
 
 ### WP3: CLI And Search Provider Hardening
@@ -83,16 +92,12 @@ Keep or reuse:
 - Make status output distinguish app/runtime state, provider state, index health, and degraded fallback mode.
 - Later, add note result hydration: search providers return relevance/snippets/chunks, then Exo enriches each result with note metadata and graph context so agents get the note plus enough context for the next search/read decision in one response.
 
-### WP4: Agent Commands
+### WP4: Invocation Quality and First Skill
 
-- Add a user-owned `AgentCommand` model: id, label, handle, command, cwd policy, prompt delivery, enabled state, and invocation metadata.
-- Detect strict Markdown mentions in the editor.
-- Confirm before launch.
-- Launch through the plain terminal runtime with a pointer prompt that names the document path and mention text.
-- Add CLI spawn over the same command model: `exo spawn @handle "<task>"` starts the configured command with CLI task context instead of note pointer context.
-- Require workspace trust for command-bearing config; changing executable command fields invalidates trust.
-- Require a human confirmation gesture before any note mention launches.
-- Persist invocation records under `.exo/invocations/`.
+- Make valid mention invocation visibly inline and keyboard-reachable without turning any Markdown text into an auto-run trigger.
+- Keep the existing user-owned `AgentCommand` model, explicit confirmation, visible terminal launch, local trust, `exo spawn`, and `.exo/invocations/` record as the one execution path.
+- Close the remaining save/trust/dirty-document acceptance evidence.
+- Ship **Find and connect relevant context** as the first provider-neutral, editable skill delivered through a configured Command and reviewed Markdown changes.
 
 ### WP5: Direct-Write Review
 
@@ -106,30 +111,43 @@ Keep or reuse:
 
 These systems have real implementation history, but they are not the current ship path:
 
-- MCP search/read/status: superseded as an active product surface and targeted for audit/removal or later thin adapter status; CLI is the active local integration surface.
-- MCP agent lifecycle: deletion-audit target.
 - Routine product: superseded; invocation records are the first activity record.
-- Deep harness manager: superseded; user-owned `AgentCommand` replaces promptable harness identity for V1.
 - Profile apply expansion: superseded; keep inspection/recovery history only where current callers require it, and stop expanding apply as setup.
 - Provider skill install/sync: superseded; do not expand skill inventory/setup as a product spine.
-- Plugin Manager setup spine: removed from the active product; keep only named internals that graph/search/provider boot still uses until they are decoupled.
 - External plugin/routine/harness contract expansion: deferred unless the Exograph completion plan explicitly reopens a slice.
 
 ## Historical Ledger
 
-The previous roadmap produced important substrate: tmux-backed terminal reliability, hidden-window runtime behavior, QMD-backed search, provider-neutral search contracts, plugin metadata and permissions work, proposal/review substrate, semantic trace capture, routine CLI experiments, profile apply recovery, MCP integration, and changed-file review surfaces.
+The previous roadmap produced important substrate: direct terminal reliability, hidden-window runtime behavior, QMD-backed search, provider-neutral search contracts, proposal/review substrate, routine CLI experiments, profile recovery, and changed-file review surfaces.
 
 That work is not erased. It is ledger history and reuse inventory. The active branch now uses it selectively to ship Exograph rather than continuing the agent-cockpit/plugin-platform buildout.
 
 ## Product North Star
 
-Exograph should be the local workspace where a person builds and maintains a Markdown exocortex with agents as addressable local commands, not opaque remote actors. The core loop is:
+Exograph should be the local workspace where a person builds and maintains a Markdown exocortex with agents as addressable local commands, not opaque remote actors. The launch loop is:
 
-- write Markdown;
-- see graph context;
-- search and read local context through reliable providers;
-- invoke configured commands from notes;
-- let commands edit files directly when appropriate;
-- review exactly what changed and why Exograph thinks it belongs to an invocation.
+- capture or resume thought in Markdown;
+- retrieve through modular Search;
+- understand links, tags, properties, and graph context;
+- explicitly invoke a configured Command and review its observed changes;
+- add a bounded, editable graph-management Skill only after the next-slice gate.
 
-Longer-term graph, ontology, eval, training, workflow, and plugin ideas remain possible only after the graph/read/invocation/review loop is stable.
+## Long-Term Ashby Ladder
+
+The launch primitives are also the substrate for later research, but later systems must not delay or distort V1:
+
+1. **More graph-management Skills:** connection proposals, property extraction, consolidation, inbox organization, and neighborhood audits, each evaluated and reviewable after the first Skill earns the pattern.
+   Skills receive the nearest Folder Index chain as editable user-owned organization context; they do not depend on an Exo-owned ontology registry.
+2. **Ashby Gym:** frozen tasks, contexts, candidates, rubrics, rollouts, and comparison artifacts. The Gym evaluates prompting, Principal, retrieval, skills, SFT, preference learning, RL, and Search candidates without assuming weights must change.
+3. **Learning recipes:** separate SFT, preference, RL, embedding, and reranker workflows that consume approved evidence and emit lineage-bearing candidates.
+4. **Executors:** local and cloud compute targets remain independent from learning methods; Prime RL, Tinker, Hugging Face Jobs, MLX, or later backends start as Commands/packages.
+5. **External Markdown sources:** Discord, RSS, social, or messenger material may eventually be materialized into scoped source-faithful Markdown inside an explicit Note Root. A native Feed is deferred.
+6. **Additional index providers:** local or cloud indexing is allowed only after a second concrete implementation, explicit upload/privacy/deletion semantics, and measurable retrieval value earn the seam.
+7. **Learning Factory:** only after real recipes and executors expose stable shared behavior. It remains outside Exo core and cannot activate a candidate or expand authority.
+8. **Plugin packaging:** only after a proven combination of Skills, ontology templates, Commands, evals, or external integrations needs repeatable installation, versioning, updates, and sharing. Plugin is the distribution bundle, not a new internal architecture.
+
+This is loose modularity through Markdown, config, Commands, packages, and artifacts—not a reason to restore a general plugin platform. Method, executor, evaluator, index provider, and artifact adapter are independent dimensions; do not create a Cartesian collection of “local-SFT,” “cloud-SFT,” “local-RL,” and “cloud-RL” plugins. Package stable combinations only when distribution becomes the problem.
+
+## Deferred Architecture Skill Suite
+
+Rebuild a small Exo architecture-skill suite only after the live Search, Graph, Command/Invocation, Workspace Canvas, and review boundaries settle through dogfooding. Ground each skill in current modules, tests, and failure evidence; keep Guardian training as a separate workflow unless Exo gains a proven integration boundary. Until then, use `AGENTS.md`, the simplification plan, focused runtime/UI skills, and the legacy-extension guardrail rather than inventing speculative Search, Graph, Trainer, or UI plugin contracts.

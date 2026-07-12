@@ -19,20 +19,36 @@ The user-owned graph formed by Markdown files, frontmatter, links, paths, tags, 
 _Avoid_: proprietary database, second brain
 
 **Workspace**
-A named collection of Note Roots and Attached Folders used together in Exo.
+A named collection of Note Roots used together in Exo.
 _Avoid_: vault, project
 
 **Note Root**
 A user-authorized folder whose Markdown Notes Exo may create and edit.
 _Avoid_: arbitrary filesystem root
 
-**Attached Folder**
-A user-authorized folder available as read-only context, search input, Command working location, and review target.
-_Avoid_: Project Root, editable note root
-
 **Note**
 A Markdown document under a Note Root. Its body and frontmatter are canonical user data.
 _Avoid_: record, database row
+
+**Folder**
+A user-owned filesystem directory that gives Notes a primary structural home. Folder containment is meaningful but does not prevent Notes from belonging to other concepts through tags, properties, or relationships.
+_Avoid_: category record, exclusive type
+
+**Folder Index**
+**Next vertical slice.** An optional user-owned `index.md` that will give a Folder a title, description, properties, ontology guidance, and durable relationships. Until Folder Overview ships, it remains ordinary Markdown.
+_Avoid_: hidden database record, mandatory schema file
+
+**Folder Overview**
+**Next vertical slice.** The planned Folder view will combine an existing Folder Index, when present, with derived children, graph context, and search context. Viewing must not create an `index.md`.
+_Avoid_: folder settings, generated canonical note
+
+**Primary Home**
+The Folder-based classification implied by a Note's path. It supplies a default structural context, while tags and relationships express additional memberships.
+_Avoid_: exclusive type, enforced taxonomy
+
+**Ontology**
+The user-defined vocabulary and organization implied by Folder structure, Folder Indexes, properties, tags, links, and typed relationships. Exo may interpret and help maintain it but does not require a separate ontology database or one global schema.
+_Avoid_: mandatory profile, app-owned schema
 
 **Properties**
 Typed document facts projected from a Note's raw frontmatter. Editing Properties edits the Markdown source.
@@ -42,8 +58,12 @@ _Avoid_: app metadata, inspector fields
 A relationship exposed for the focused Note through Outline, Links, Graph, or earned Activity. Connections are derived from user-owned documents and reviewed invocation evidence.
 _Avoid_: miscellaneous inspector data
 
+**Relevant Context**
+Search results and graph neighbors selected for the focused Note with an inspectable reason such as semantic relevance, an explicit link, a shared tag/property, or a reviewed typed relationship. Similarity may remain Derived State; it is not automatically a durable edge.
+_Avoid_: unexplained recommendations, automatic graph facts
+
 **Baseline Core**
-The smallest complete Exo experience: workspace setup, Markdown authoring, Explorer/Search, Connections, mixed panes, configured Commands, explicit invocation, and change review. It does not require plugins, MCP, provider-specific harnesses, or durable transcripts.
+The shipped core is a trustworthy Markdown workspace, modular Search, Connections/graph context, mixed panes, configured Commands, explicit inline invocation, and reviewable observed changes. Folder Overview and the first graph-management Skill are the next vertical slice, not present behavior. It does not require plugins, provider-specific harnesses, Feed, Gym, training, cloud indexing, or durable terminal history.
 _Avoid_: minimal demo, vanilla app
 
 **Pane**
@@ -57,6 +77,14 @@ _Avoid_: terminal workspace, editor grid
 **Command**
 A provider-neutral, user-configured executable addressed by a handle. A Command declares how it launches and which context pointer it receives; it does not define an agent species.
 _Avoid_: Harness, provider, agent type
+
+**Skill**
+User-editable instructions and data for a bounded graph/wiki task executed by a configured Command. A Skill declares purpose, scope, expected proposal, and evaluation criteria; it does not load code, grant authority, or bypass invocation review.
+_Avoid_: Skill Manager, plugin entrypoint, automatic agent action
+
+**Plugin**
+A future installable, versioned distribution bundle that may package Skills, ontology templates, Command templates, integrations, or other proven capabilities. Plugin describes packaging and sharing, not an internal module, runtime seam, permission grant, or arbitrary renderer code.
+_Avoid_: capability interface, core module, dynamic UI injection
 
 **Invocation**
 One explicitly authorized Command run, including its intent, trust decision, lifecycle, observed file changes, attribution confidence, and review references.
