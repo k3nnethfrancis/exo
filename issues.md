@@ -8,6 +8,25 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ## Open
 
+### EXO-ISSUE-106: Inline Command invocation is unreachable in a normal workspace
+
+- Status: open; launch-blocking for the configured-Command product loop
+- Severity: high
+- Area: first-run, Command configuration, note invocation
+- Source: user dogfooding, 2026-07-11.
+- Observed:
+  - A real note contains a valid top-level `@claude` mention, but Exo exposes no Run affordance because the workspace has no configured Command.
+  - Workspace Settings deliberately no longer exposes Command configuration; the Command-readiness card/model exists only as unconnected renderer draft files.
+  - Existing invocation E2E fixtures write a Command directly into settings JSON, so they prove the runtime after configuration but not that a user can reach it through the product.
+- Expected:
+  - A person can configure or repair one provider-neutral Command through the app, see executable/cwd/instruction/trust facts, test it in the visible terminal, and invoke it from a valid Markdown mention without editing settings files.
+  - A valid but unconfigured mention gives a calm, actionable setup affordance rather than silently doing nothing.
+- Acceptance:
+  - [ ] Connect the Command-readiness/setup surface to persisted workspace settings without restoring the deleted harness or Skill Manager architecture.
+  - [ ] Add an end-to-end installed-app journey: fresh workspace → configure `@claude` → test → invoke from a note → review a change.
+  - [ ] Add a deterministic regression for the unconfigured-mention state and its setup action.
+  - [ ] Verify saved Commands survive the Settings preservation suite (`EXO-ISSUE-102`).
+
 ### EXO-ISSUE-105: Folder breadcrumb activation intentionally creates a minimal Folder Index
 
 - Status: accepted product exception; monitor in real-vault use

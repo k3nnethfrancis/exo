@@ -51,6 +51,7 @@ Folder paths are primary structural homes. A writable Note Root may contain a us
 
 - [ ] Polish live Markdown typography, list hierarchy, indentation, and spacing with real-note visual QA.
 - [ ] Make new Markdown notes start with an editable H1; at the initial caret, Markdown syntax must remain visible.
+- [ ] Close `EXO-ISSUE-106`: make first Command setup, testing, valid-mention invocation, and review reachable end to end without hand-editing settings JSON.
 - [ ] Make configured-Command invocation feel truly inline and discoverable while preserving explicit confirmation, visible terminal execution, and review.
 - [ ] Dogfood the full loop on real work: write a note, invoke a Command, inspect changes, and keep or reject them.
 
