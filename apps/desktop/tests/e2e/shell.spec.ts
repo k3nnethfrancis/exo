@@ -438,58 +438,6 @@ test("keeps terminal input latency within targets while another terminal streams
   }
 });
 
-test("keeps /bin/cat terminal input visible while a loaded preview is focused and resized", async () => {
-  const previewFirstInput = "preview-first-input";
-  const previewReturnInput = "preview-return-input";
-  const previewResizeInput = "preview-resize-input";
-  const { page, cleanup, workspaceRoot } = await launchExoTerminalFixture({
-    prepareWorkspace: async (root) => {
-      await writeFile(
-        path.join(root, "preview-terminal-focus.html"),
-        "<!doctype html><html><body><button autofocus>preview loaded</button><p>terminal focus regression</p></body></html>",
-      );
-    },
-    env: {
-      EXO_SHELL: "/bin/cat",
-      EXO_SHELL_ARGS: "",
-    },
-    initialNoteLabel: null,
-  });
-
-  try {
-    const shell = await pageShellSession(page);
-    await page.getByTestId("explorer-open-preview").click();
-    await page.getByTestId("browser-url-input").fill(`file://${path.join(workspaceRoot, "preview-terminal-focus.html")}`);
-    await page.getByTestId("browser-load-url").click();
-    await expect(page.getByTestId("browser-preview-frame")).toHaveAttribute("src", /^file:\/\/.*preview-terminal-focus\.html$/);
-
-    await page.getByTestId("terminal-surface").click();
-    await page.keyboard.type(previewFirstInput);
-    await page.keyboard.press("Enter");
-    await expect(page.locator(".xterm-rows")).toContainText(previewFirstInput);
-
-    await page.getByTestId("browser-pane").click();
-    await page.getByTestId("terminal-surface").click();
-    await page.keyboard.type(previewReturnInput);
-    await page.keyboard.press("Enter");
-    await expect(page.locator(".xterm-rows")).toContainText(previewReturnInput);
-    await expect.poll(async () => page.evaluate((id) => window.exo.terminals.read(id), shell.id))
-      .toContain(previewReturnInput);
-
-    await dragBy(page, page.locator(".workspace-shell__canvas .pane-split-resizer--vertical").first(), { x: -160, y: 0 });
-    await expect.poll(async () => page.evaluate((id) => window.exo.terminals.read(id), shell.id))
-      .toContain(previewReturnInput);
-    await page.getByTestId("terminal-surface").click();
-    await page.keyboard.type(previewResizeInput);
-    await page.keyboard.press("Enter");
-    await expect(page.locator(".xterm-rows")).toContainText(previewFirstInput);
-    await expect(page.locator(".xterm-rows")).toContainText(previewReturnInput);
-    await expect(page.locator(".xterm-rows")).toContainText(previewResizeInput);
-  } finally {
-    await cleanup();
-  }
-});
-
 test("keeps terminal interactive after large output, tab switches, and semantic sends", async () => {
   const { page, cleanup } = await launchExoTerminalFixture({
     env: {

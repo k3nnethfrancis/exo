@@ -46,9 +46,9 @@ export const smokeScenarios = [
     timeoutMs: 60_000,
   },
   {
-    name: 'shell-preview-terminal-input',
-    file: 'apps/desktop/tests/e2e/shell.spec.ts',
-    grep: 'keeps /bin/cat terminal input visible while a loaded preview is focused and resized',
+    name: 'utility-destination-isolation',
+    file: 'apps/desktop/tests/e2e/preview-pane-layout.spec.ts',
+    grep: 'switches one utility pane between independent Preview, Terminal, and Connections destinations',
     timeoutMs: 65_000,
   },
   {

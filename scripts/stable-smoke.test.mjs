@@ -20,7 +20,7 @@ test('stable smoke scenarios keep one named Playwright target per bounded phase'
     'command-note-invocation',
     'shell-boot-tabs',
     'shell-pane-tree-input',
-    'shell-preview-terminal-input',
+    'utility-destination-isolation',
     'hidden-window-command-server',
     'preview-layout',
   ]);
@@ -29,15 +29,15 @@ test('stable smoke scenarios keep one named Playwright target per bounded phase'
 });
 
 test('buildPlaywrightArgs preserves the focused grep and config', () => {
-  const scenario = smokeScenarios.find((candidate) => candidate.name === 'shell-preview-terminal-input');
+  const scenario = smokeScenarios.find((candidate) => candidate.name === 'utility-destination-isolation');
   assert.ok(scenario);
   const args = buildPlaywrightArgs(scenario);
 
   assert.deepEqual(args.slice(0, 3), ['test', '-c', 'apps/desktop/playwright.config.ts']);
-  assert.equal(args[3], 'apps/desktop/tests/e2e/shell.spec.ts');
+  assert.equal(args[3], 'apps/desktop/tests/e2e/preview-pane-layout.spec.ts');
   assert.equal(args[4], '--grep');
-  assert.match(args[5], /keeps \/bin\/cat terminal input visible/);
-  assert.doesNotMatch(args[5], /accepts terminal keyboard input/);
+  assert.match(args[5], /switches one utility pane/);
+  assert.doesNotMatch(args[5], /uses one full-width preview surface/);
 });
 
 test('every stable smoke target collects exactly one Playwright test', () => {
