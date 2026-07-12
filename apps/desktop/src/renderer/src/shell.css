@@ -1455,8 +1455,7 @@ body.pane-resize-active .browser-pane__frame {
   transform: translate(12px, -50%);
 }
 
-.tab-strip,
-.editor-panel__header {
+.tab-strip {
   display: flex;
   align-items: center;
   gap: 0;
@@ -1470,10 +1469,6 @@ body.pane-resize-active .browser-pane__frame {
   min-height: 44px;
   height: 44px;
   padding-right: 8px;
-}
-
-.editor-panel__header {
-  padding: 0 14px;
 }
 
 .tab-strip__close-pane {
@@ -1588,12 +1583,17 @@ body.pane-resize-active .browser-pane__frame {
 .editor-panel__header {
   position: absolute;
   z-index: 9;
-  top: 0;
-  right: 0;
-  left: 0;
+  top: 6px;
+  right: 10px;
+  left: 10px;
   display: flex;
-  min-height: 34px;
-  transform: translateY(-4px);
+  align-items: center;
+  justify-content: space-between;
+  min-height: 30px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  transform: translateY(-2px);
   opacity: 0;
   pointer-events: none;
   transition: opacity 140ms var(--exo-ease-out), transform 140ms var(--exo-ease-out);
@@ -1603,7 +1603,28 @@ body.pane-resize-active .browser-pane__frame {
   transform: translateY(0);
   opacity: 1;
   pointer-events: auto;
-  box-shadow: 0 8px 18px color-mix(in srgb, var(--editor-bg) 58%, transparent);
+  box-shadow: none;
+}
+
+/* Editor actions belong to the page, not a second toolbar. */
+.editor-panel__header .toolbar-button {
+  width: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  height: 30px;
+  border-radius: 5px;
+  color: color-mix(in srgb, var(--muted) 78%, transparent);
+  opacity: 0.58;
+}
+
+.editor-panel__header .toolbar-button:hover,
+.editor-panel__header .toolbar-button:focus-visible {
+  color: var(--text);
+  opacity: 1;
+}
+
+.editor-panel__header .toolbar-button:disabled {
+  opacity: 0.24;
 }
 
 .editor-panel:has(.properties-card) .properties-card {
