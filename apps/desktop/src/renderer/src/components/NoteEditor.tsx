@@ -552,7 +552,9 @@ export function NoteEditor(props: NoteEditorProps) {
       onMouseEnter={() => setChromeVisible(true)}
       onMouseLeave={() => setChromeVisible(false)}
     >
-      <div className={`editor-panel__header ${chromeVisible || !propertiesCollapsed ? "editor-panel__header--visible" : ""}`}>
+      <div
+        className={`editor-panel__header ${chromeVisible || !propertiesCollapsed ? "editor-panel__header--visible" : ""} ${activeAgentMention ? "editor-panel__header--invocable" : ""}`}
+      >
         <div className="editor-panel__summary">
           <div className="editor-panel__title-row">
             {showNoteMetadata ? (
@@ -603,7 +605,7 @@ export function NoteEditor(props: NoteEditorProps) {
           {activeAgentMention ? (
             <button
               aria-label={`Run ${activeAgentMention.originalText}`}
-              className={`toolbar-button toolbar-button--icon ${compact ? "toolbar-button--compact" : ""}`}
+              className={`editor-panel__invoke-action toolbar-button toolbar-button--icon ${compact ? "toolbar-button--compact" : ""}`}
               data-testid="invoke-agent-mention"
               onClick={() => onInvokeAgentMention(activeAgentMention)}
               title={`Run @${activeAgentMention.handle}`}

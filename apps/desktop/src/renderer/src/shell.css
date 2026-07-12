@@ -1592,11 +1592,19 @@ body.pane-resize-active .browser-pane__frame {
   transition: opacity 140ms var(--exo-ease-out), transform 140ms var(--exo-ease-out);
 }
 
-.editor-panel__header--visible {
+.editor-panel__header--visible,
+.editor-panel__header--invocable {
   transform: translateY(0);
   opacity: 1;
   pointer-events: auto;
   box-shadow: none;
+}
+
+/* Keep the invocation affordance reachable without restoring persistent editor chrome. */
+.editor-panel__header--invocable:not(.editor-panel__header--visible) .editor-panel__summary,
+.editor-panel__header--invocable:not(.editor-panel__header--visible) .editor-panel__actions > :not(.editor-panel__invoke-action) {
+  opacity: 0;
+  pointer-events: none;
 }
 
 /* Editor actions belong to the page, not a second toolbar. */
