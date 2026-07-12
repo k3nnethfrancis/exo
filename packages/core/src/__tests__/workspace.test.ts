@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { createWorkspaceFile, listRootTree, renameWorkspacePath, resolveNotePath, resolveWorkspaceModel, searchNotes, searchProjectFiles, searchWorkspace } from "../workspace";
+import { createWorkspaceFile, listRootTree, renameWorkspacePath, resolveNotePath, resolveWorkspaceModel, searchNotes, searchWorkspace } from "../workspace";
 
 const fixtureWorkspaceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../fixtures/test-workspace");
 
@@ -33,31 +33,15 @@ describe("workspace", () => {
     expect(model.noteRoots).toHaveLength(1);
   });
 
-  it("attaches Exo as the default project root when project roots are not configured", () => {
-    const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
-    const model = resolveWorkspaceModel({
-      EXO_WORKSPACE_ROOT: fixtureWorkspaceRoot,
-      EXO_NOTE_ROOTS: path.join(fixtureWorkspaceRoot, "notes/test-notes"),
-    });
-
-    expect(model.projectRoots).toEqual([
-      {
-        id: "project-root-1",
-        label: path.basename(repoRoot),
-        path: repoRoot,
-        kind: "projects",
-      },
-    ]);
-  });
-
-  it("allows project roots to be explicitly empty", () => {
+  it("ignores the retired project-root environment variable", () => {
     const model = resolveWorkspaceModel({
       EXO_WORKSPACE_ROOT: fixtureWorkspaceRoot,
       EXO_NOTE_ROOTS: path.join(fixtureWorkspaceRoot, "notes/test-notes"),
       EXO_PROJECT_ROOTS: "",
     });
 
-    expect(model.projectRoots).toEqual([]);
+    expect(model.noteRoots).toHaveLength(1);
+    expect("projectRoots" in model).toBe(false);
   });
 
   it("uses portable workspace defaults when env is absent", () => {
@@ -70,10 +54,8 @@ describe("workspace", () => {
         id: "note-root-1",
         label: "notes",
         path: path.join(process.cwd(), "notes"),
-        kind: "notes",
       },
     ]);
-    expect(model.projectRoots[0]?.path).toBe(path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../.."));
     expect(model.indexedRoots).toEqual([]);
     expect(model.indexing).toEqual({ enabled: false, mode: "off", backend: "qmd" });
   });
@@ -177,18 +159,6 @@ describe("workspace", () => {
     }
   });
 
-  it("searches project files by path and content", async () => {
-    const model = resolveWorkspaceModel({
-      EXO_WORKSPACE_ROOT: fixtureWorkspaceRoot,
-      EXO_NOTE_ROOTS: path.join(fixtureWorkspaceRoot, "notes/test-notes"),
-      EXO_PROJECT_ROOTS: path.join(fixtureWorkspaceRoot, "projects/sample-project"),
-    });
-
-    const results = await searchProjectFiles(model, "demo");
-    expect(results.some((result) => result.title === "demo.ts")).toBe(true);
-    expect(results.every((result) => result.kind === "project-file")).toBe(true);
-  });
-
   it("returns note-only workspace search results", async () => {
     const model = resolveWorkspaceModel({
       EXO_WORKSPACE_ROOT: fixtureWorkspaceRoot,
@@ -198,7 +168,6 @@ describe("workspace", () => {
 
     const results = await searchWorkspace(model, "focus-note");
     expect(results.notes.length).toBeGreaterThan(0);
-    expect(results.projectFiles).toEqual([]);
     expect(results.tags).toEqual([]);
   });
 

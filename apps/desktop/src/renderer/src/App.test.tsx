@@ -302,7 +302,6 @@ function workspaceSettingsDialogFixture(
     workspaceRoot: "/workspace",
     defaultTerminalCwd: "/workspace",
     noteRoots: ["/workspace/notes"],
-    projectRoots: [],
     indexedRoots: [],
     indexMode: "off",
     appearanceMode: "system",
@@ -463,7 +462,6 @@ describe("workspace settings renderer model", () => {
       workspaceRoot: "/workspace",
       defaultTerminalCwd: "/workspace/project",
       noteRoots: ["/workspace/notes"],
-      projectRoots: ["/workspace/project"],
       indexedRoots: [{
         id: "index-notes",
         label: "notes",
@@ -483,7 +481,6 @@ describe("workspace settings renderer model", () => {
       workspaceRoot: "/workspace",
       defaultTerminalCwd: "/workspace/project",
       noteRoots: ["/workspace/notes"],
-      projectRoots: ["/workspace/project"],
       indexedRoots: ["/workspace/notes"],
       indexMode: "lexical",
       appearanceMode: "system",
@@ -930,8 +927,7 @@ function workspaceModel(noteRoot: string): WorkspaceModel {
   return {
     workspaceRoot: noteRoot,
     defaultTerminalCwd: noteRoot,
-    noteRoots: [{ id: "notes", label: "Notes", path: noteRoot, kind: "notes" }],
-    projectRoots: [],
+    noteRoots: [{ id: "notes", label: "Notes", path: noteRoot }],
     indexedRoots: [],
     indexing: { enabled: false, mode: "off", backend: "qmd" },
     attachedWorkcells: [],

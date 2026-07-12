@@ -1,31 +1,30 @@
 import type { AgentCommand } from "./agent-invocation";
 
-export type RootKind = "notes" | "projects";
 export type DocumentKind = "markdown" | "text";
 export type ColorThemeId = "exo-neutral" | "exo-solar";
 
-export interface AttachedRoot {
+/** A user-authorized mutable Markdown root. */
+export interface NoteRoot {
   id: string;
   label: string;
   path: string;
-  kind: RootKind;
 }
 
 export interface WorkspaceModel {
   workspaceRoot: string;
   defaultTerminalCwd: string;
-  noteRoots: AttachedRoot[];
-  projectRoots: AttachedRoot[];
+  noteRoots: NoteRoot[];
   indexedRoots: IndexedRoot[];
   indexing: IndexingConfig;
   attachedWorkcells: string[];
 }
 
 export interface WorkspaceSettings {
+  /** Forward-compatible persisted settings are retained unless explicitly retired. */
+  [key: string]: unknown;
   workspaceRoot: string;
   defaultTerminalCwd: string;
   noteRoots: string[];
-  projectRoots: string[];
   agentCommands?: AgentCommand[];
   indexedRoots: IndexedRoot[];
   indexing: IndexingConfig;
@@ -263,7 +262,6 @@ export interface IndexReadResponse {
 
 export interface WorkspaceSearchResults {
   notes: SearchResult[];
-  projectFiles: SearchResult[];
   tags: SearchResult[];
   semantic?: SemanticSearchResult[];
 }

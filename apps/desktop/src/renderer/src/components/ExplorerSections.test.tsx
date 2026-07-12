@@ -4,7 +4,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import {
   FileTree,
   SidebarSearchPane,
-  isExplorerMutationAllowed,
   searchResultGroups,
   searchSummary,
 } from "./FileTree";
@@ -18,16 +17,14 @@ const noDrag: DragManager = {
 };
 
 describe("Explorer search presentation", () => {
-  it("keeps note and attached-folder results distinct", () => {
+  it("shows Note Root results only", () => {
     const groups = searchResultGroups({
       notes: [{ filePath: "/notes/idea.md", title: "Idea", snippet: "A note", kind: "note" }],
-      projectFiles: [{ filePath: "/attached/readme.md", title: "Readme", snippet: "Context", kind: "project-file" }],
       tags: [],
     });
 
     expect(groups).toEqual([
       { label: "Notes", results: [{ filePath: "/notes/idea.md", title: "Idea", snippet: "A note", kind: "note" }] },
-      { label: "Attached folders", results: [{ filePath: "/attached/readme.md", title: "Readme", snippet: "Context", kind: "project-file" }] },
     ]);
   });
 
@@ -40,15 +37,9 @@ describe("Explorer search presentation", () => {
 });
 
 describe("Explorer mutation boundary", () => {
-  it("allows filesystem mutations only under Note Roots", () => {
-    expect(isExplorerMutationAllowed("notes")).toBe(true);
-    expect(isExplorerMutationAllowed("attached")).toBe(false);
-  });
-
-  it("renders creation actions and attached folders without dead mode controls", () => {
+  it("renders creation actions without an alternate filesystem surface", () => {
     const markup = renderToStaticMarkup(
       <FileTree
-        attachedFolders={[{ label: "Reference", path: "/attached", nodes: [{ id: "attached-source", kind: "directory", name: "source", path: "/attached/source", children: [] }] }]}
         appearanceMode="system"
         collapsed={false}
         dragManager={noDrag}
@@ -61,7 +52,6 @@ describe("Explorer mutation boundary", () => {
         onDeletePath={() => undefined}
         onExpandDirectory={() => undefined}
         onFocusExplorer={() => undefined}
-        onOpenAttachedFile={() => undefined}
         onOpenFile={() => undefined}
         onOpenTag={() => undefined}
         onOpenTerminalSession={() => undefined}
@@ -75,13 +65,12 @@ describe("Explorer mutation boundary", () => {
     expect(markup).not.toContain('data-testid="explorer-search"');
     expect(markup).toContain("New note");
     expect(markup).toContain("New folder");
-    expect(markup).toContain("Attached folders");
-    expect(markup).not.toContain('data-explorer-drop-path="/attached/source"');
+    expect(markup).not.toContain("Attached folders");
   });
 
   it("renders search results independently from the explorer tree", () => {
     const markup = renderToStaticMarkup(
-      <SidebarSearchPane query="idea" resultMode="filename" resultQuery="idea" message={null} results={{ notes: [{ filePath: "/notes/idea.md", title: "Idea", snippet: "Match", kind: "note" }], projectFiles: [], tags: [] }} onOpenFile={() => undefined} onOpenAttachedFile={() => undefined} />,
+      <SidebarSearchPane query="idea" resultMode="filename" resultQuery="idea" message={null} results={{ notes: [{ filePath: "/notes/idea.md", title: "Idea", snippet: "Match", kind: "note" }], tags: [] }} onOpenFile={() => undefined} />,
     );
 
     expect(markup).toContain('data-testid="sidebar-search-pane"');

@@ -44,10 +44,9 @@ export interface WorkspaceRegistry {
 
 export function workspaceEnvOverrides(env: NodeJS.ProcessEnv = process.env): boolean {
   return Boolean(
-    env.EXO_WORKSPACE_ROOT ||
+      env.EXO_WORKSPACE_ROOT ||
       env.EXO_DEFAULT_TERMINAL_CWD ||
       env.EXO_NOTE_ROOTS ||
-      env.EXO_PROJECT_ROOTS ||
       env.EXO_INDEXED_ROOTS ||
       env.EXO_INDEX_ENABLED ||
       env.EXO_INDEX_MODE,
@@ -68,7 +67,14 @@ export function resolveWorkspaceSettingsTransactionPath(env: NodeJS.ProcessEnv =
 
 export async function loadWorkspaceSettings(env: NodeJS.ProcessEnv = process.env): Promise<WorkspaceSettings | null> {
   await recoverWorkspaceSettingsTransaction(env);
-  return loadWorkspaceSettingsFile(env);
+  const settings = await loadWorkspaceSettingsFile(env);
+  const droppedProjectRoots = await legacyProjectRootsInPersistence(env);
+  if (settings && droppedProjectRoots.length > 0) {
+    // Reuse the existing two-file transaction so primary settings and registry
+    // snapshots lose the retired authorization atomically.
+    await saveWorkspaceSettings(settings, env);
+  }
+  return settings;
 }
 
 async function loadWorkspaceSettingsFile(env: NodeJS.ProcessEnv): Promise<WorkspaceSettings | null> {
@@ -119,7 +125,11 @@ export async function saveWorkspaceSettings(settings: WorkspaceSettings, env: No
 
 export async function loadWorkspaceRegistry(env: NodeJS.ProcessEnv = process.env): Promise<WorkspaceRegistry> {
   await recoverWorkspaceSettingsTransaction(env);
-  return loadWorkspaceRegistryFile(env);
+  const registry = await loadWorkspaceRegistryFile(env);
+  if ((await legacyProjectRootsInPersistence(env)).length > 0) {
+    await writeJsonAtomically(resolveWorkspaceRegistryPath(env), registry);
+  }
+  return registry;
 }
 
 async function loadWorkspaceRegistryFile(env: NodeJS.ProcessEnv): Promise<WorkspaceRegistry> {
@@ -282,18 +292,17 @@ export function workspaceModelFromSettings(settings: WorkspaceSettings): Workspa
       path: targetPath,
       kind: "notes" as const,
     })),
-    projectRoots: settings.projectRoots.map((targetPath, index) => ({
-      id: `project-root-${index + 1}`,
-      label: path.basename(targetPath) || targetPath,
-      path: targetPath,
-      kind: "projects" as const,
-    })),
     indexedRoots: settings.indexedRoots,
     indexing: settings.indexing,
     attachedWorkcells: [],
   };
 }
 
+/**
+ * Normalizes durable user settings while deliberately deleting the retired
+ * `projectRoots` key. Unknown keys remain intact so a newer Exo does not lose
+ * unrelated data when opened by this build.
+ */
 export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | null | undefined): WorkspaceSettings | null {
   if (!input) {
     return null;
@@ -303,12 +312,6 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
   const defaultTerminalCwd = typeof input.defaultTerminalCwd === "string" ? input.defaultTerminalCwd.trim() : "";
   const noteRoots = Array.isArray(input.noteRoots)
     ? input.noteRoots.map((entry) => (typeof entry === "string" ? entry.trim() : "")).filter(Boolean)
-    : [];
-  const projectRoots = Array.isArray(input.projectRoots)
-    ? input.projectRoots
-        .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
-        .filter(Boolean)
-        .filter((entry) => !isBroadDefaultProjectRoot(workspaceRoot, entry))
     : [];
   const indexedRoots = Array.isArray(input.indexedRoots)
     ? input.indexedRoots.reduce<WorkspaceSettings["indexedRoots"]>((roots, entry, index) => {
@@ -336,13 +339,14 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
     return null;
   }
 
-  // A newer Exo may own settings this build does not recognize yet.
+  // A newer Exo may own settings this build does not recognize yet. The one
+  // exception is the retired projectRoots authorization surface.
+  const { projectRoots: _removedProjectRoots, ...preservedInput } = input as Partial<WorkspaceSettings> & { projectRoots?: unknown };
   return {
-    ...input,
+    ...preservedInput,
     workspaceRoot,
     defaultTerminalCwd,
     noteRoots,
-    projectRoots,
     agentCommands: normalizeAgentCommands(input.agentCommands),
     indexedRoots,
     indexing,
@@ -372,6 +376,47 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
     indexUpdateStrategy: input.indexUpdateStrategy === "manual" ? "manual" : "on-save",
     layout: normalizeWorkspaceLayout(input.layout),
   };
+}
+
+/** Paths dropped by the Note-Root-only settings migration. Kept separate from
+ * normalization so the desktop main process can make the migration visible
+ * without retaining the deleted field in its public model. */
+export function legacyProjectRootsFromSettings(input: unknown): string[] {
+  if (!input || typeof input !== "object") {
+    return [];
+  }
+  const value = (input as { projectRoots?: unknown }).projectRoots;
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0).map((entry) => entry.trim());
+}
+
+export async function legacyProjectRootsInPersistence(env: NodeJS.ProcessEnv): Promise<string[]> {
+  const paths = new Set<string>();
+  const collect = (value: unknown) => {
+    for (const targetPath of legacyProjectRootsFromSettings(value)) {
+      paths.add(targetPath);
+    }
+  };
+  try {
+    collect(JSON.parse(await readFile(resolveWorkspaceSettingsPath(env), "utf8")));
+  } catch {
+    // Missing/corrupt settings already follow the normal load path.
+  }
+  try {
+    const registry = JSON.parse(await readFile(resolveWorkspaceRegistryPath(env), "utf8")) as { workspaces?: unknown };
+    if (Array.isArray(registry.workspaces)) {
+      for (const workspace of registry.workspaces) {
+        if (workspace && typeof workspace === "object") {
+          collect((workspace as { settings?: unknown }).settings);
+        }
+      }
+    }
+  } catch {
+    // A registry is optional during first-run onboarding.
+  }
+  return [...paths];
 }
 
 function normalizeColorThemeId(value: unknown): WorkspaceSettings["colorThemeId"] {
@@ -582,8 +627,4 @@ function hasLeafKind(node: WorkspacePaneNode, kind: WorkspacePaneContent["kind"]
     return node.content.kind === kind;
   }
   return hasLeafKind(node.children[0], kind) || hasLeafKind(node.children[1], kind);
-}
-
-function isBroadDefaultProjectRoot(workspaceRoot: string, targetPath: string): boolean {
-  return path.resolve(targetPath) === path.resolve(workspaceRoot, "projects");
 }

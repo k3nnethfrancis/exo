@@ -27,7 +27,6 @@ export interface UseWorkspaceBootstrapOptions extends UseWorkspaceTreesOptions {
   replaceTreesForModel: (
     model: WorkspaceModel,
     nextNoteTrees: Record<string, TreeNode[]>,
-    nextProjectTrees: Record<string, TreeNode[]>,
   ) => void;
   restoreInitialDocuments: (input: {
     settings: WorkspaceSettings;
@@ -98,7 +97,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
       setOnboardingState(null);
       const status = await window.exo.workspace.getIndexStatus();
       currentOptions.setIndexStatus(status);
-      const [nextNoteTrees, nextProjectTrees] = await loadInitialTrees(model, currentOptions);
+      const nextNoteTrees = await loadInitialTrees(model, currentOptions);
 
       if (cancelled) {
         return;
@@ -116,7 +115,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
       }
 
       setWorkspaceModel(model);
-      currentOptions.replaceTreesForModel(model, nextNoteTrees, nextProjectTrees);
+      currentOptions.replaceTreesForModel(model, nextNoteTrees);
       setLayoutPersistenceReady(true);
 
       try {
@@ -131,7 +130,6 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
             workspaceRoot: model.workspaceRoot,
             defaultTerminalCwd: model.defaultTerminalCwd,
             noteRoots: model.noteRoots.map((root) => root.path),
-            projectRoots: model.projectRoots.map((root) => root.path),
             initialNotePath: firstNote?.path ?? null,
             sessionCount: sessions.length,
           });
@@ -291,7 +289,6 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
         workspaceRoot: notesFolder,
         defaultTerminalCwd: current.defaultTerminalCwd.trim() || defaultTerminalCwdForNotesFolder(notesFolder),
         noteRoots: [notesFolder],
-        projectRoots: [],
         indexedRoots: indexedRootPaths.map((rootPath, index) => ({
           id: `index-root-${index + 1}`,
           label: pathLabel(rootPath),

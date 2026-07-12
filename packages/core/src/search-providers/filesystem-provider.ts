@@ -19,7 +19,7 @@ const DEFAULT_CONTENT_LINES = 80;
 export const filesystemSearchProviderMetadata: SearchProviderMetadata = {
   id: "filesystem",
   label: "Core filesystem search",
-  description: "Built-in filename, path, tag, and text search across attached Exo roots.",
+  description: "Built-in filename, path, tag, and text search across Note Roots.",
   lifecycle: "built-in",
   backend: "filesystem",
   capabilities: ["lexical", "read"],
@@ -60,7 +60,7 @@ export class FilesystemSearchProvider implements SearchProvider {
         {
           name: "update",
           status: "skipped",
-          message: "Core filesystem search reads attached roots directly.",
+          message: "Core filesystem search reads Note Roots directly.",
         },
         {
           name: "embed",
@@ -93,7 +93,7 @@ export async function searchFilesystem(
 
   const workspaceResults = await searchWorkspace(model, trimmedQuery);
   const limit = options.limit ?? DEFAULT_SEARCH_LIMIT;
-  let results = [...workspaceResults.notes, ...workspaceResults.projectFiles, ...workspaceResults.tags]
+  let results = [...workspaceResults.notes, ...workspaceResults.tags]
     .slice(0, limit)
     .map<IndexSearchResult>((result) => ({
       filePath: result.filePath,
@@ -129,7 +129,7 @@ export async function readFilesystemDocument(
 ): Promise<IndexReadResponse> {
   const resolvedPath = path.resolve(target);
   if (!isPathAllowed(resolvedPath, model)) {
-    throw new Error("Refusing to read a path outside attached or indexed roots.");
+    throw new Error("Refusing to read a path outside Note Roots.");
   }
   await authorizeResolvedPath?.(resolvedPath);
 
@@ -163,7 +163,7 @@ function filesystemStatus(model: WorkspaceModel, runtimeRoot: string): IndexStat
 }
 
 function isPathAllowed(targetPath: string, model: WorkspaceModel): boolean {
-  const roots = [...model.noteRoots, ...model.projectRoots, ...model.indexedRoots].map((root) => root.path);
+  const roots = model.noteRoots.map((root) => root.path);
   return roots.some((root) => isWithin(root, targetPath));
 }
 

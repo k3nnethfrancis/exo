@@ -131,7 +131,6 @@ export async function buildGraphSnapshot(
   const scope: GraphScope = {
     workspaceRoot: model.workspaceRoot,
     noteRootIds: noteRoots.map((root) => root.id).sort(),
-    projectRootIds: model.projectRoots.map((root) => root.id).sort(),
     paths: files.map((file) => file.filePath),
   };
   const sortedNodes = Array.from(nodesById.values()).sort(compareById);

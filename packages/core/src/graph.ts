@@ -10,7 +10,6 @@ export const GRAPH_EDGE_KINDS = ["wikilink", "markdownLink", "hasTag"] satisfies
 export interface GraphScope {
   workspaceRoot?: string;
   noteRootIds: readonly string[];
-  projectRootIds: readonly string[];
   paths: readonly string[];
 }
 

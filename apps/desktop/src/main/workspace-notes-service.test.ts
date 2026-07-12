@@ -89,8 +89,7 @@ async function workspaceNotesService() {
   const model: WorkspaceModel = {
     workspaceRoot,
     defaultTerminalCwd: workspaceRoot,
-    noteRoots: [{ id: "note-root-1", label: "notes", path: noteRoot, kind: "notes" }],
-    projectRoots: [],
+    noteRoots: [{ id: "note-root-1", label: "notes", path: noteRoot }],
     indexedRoots: [],
     indexing: { enabled: false, mode: "off", backend: "qmd" },
     attachedWorkcells: [],

@@ -46,7 +46,6 @@ describe("graph snapshot", () => {
     expect(snapshot.scope).toEqual({
       workspaceRoot: root,
       noteRootIds: ["notes"],
-      projectRootIds: [],
       paths: [alphaPath, duplicateOnePath, betaPath, duplicateTwoPath],
     });
 
@@ -200,8 +199,7 @@ function workspaceModel(root: string, notesRoot: string): WorkspaceModel {
   return {
     workspaceRoot: root,
     defaultTerminalCwd: root,
-    noteRoots: [{ id: "notes", label: "notes", path: notesRoot, kind: "notes" }],
-    projectRoots: [],
+    noteRoots: [{ id: "notes", label: "notes", path: notesRoot }],
     indexedRoots: [],
     indexing: { enabled: false, mode: "off", backend: "qmd" },
     attachedWorkcells: [],

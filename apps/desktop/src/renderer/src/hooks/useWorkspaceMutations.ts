@@ -62,7 +62,7 @@ export function useWorkspaceMutations(options: UseWorkspaceMutationsOptions) {
     }
 
     const noteRootPaths = options.workspaceModel.noteRoots.map((root) => root.path);
-    const suggested = isInsideAttachedRoot(directoryPath, noteRootPaths) ? "new-note.md" : "new-file.txt";
+    const suggested = isInsideNoteRoot(directoryPath, noteRootPaths) ? "new-note.md" : "new-file.txt";
     setDialog({
       kind: "create-file",
       targetPath: directoryPath,
@@ -231,7 +231,7 @@ function joinPath(parentPath: string, name: string): string {
   return `${parentPath.replace(/\/$/, "")}/${name.replace(/^\//, "")}`;
 }
 
-function isInsideAttachedRoot(targetPath: string, rootPaths: string[]): boolean {
+function isInsideNoteRoot(targetPath: string, rootPaths: string[]): boolean {
   return rootPaths.some((rootPath) => isPathWithin(rootPath, targetPath));
 }
 
@@ -240,7 +240,7 @@ function ensureDefaultExtension(name: string, directoryPath: string, noteRootPat
     return name;
   }
 
-  return isInsideAttachedRoot(directoryPath, noteRootPaths) ? `${name}.md` : name;
+  return isInsideNoteRoot(directoryPath, noteRootPaths) ? `${name}.md` : name;
 }
 
 function isPathWithin(parentPath: string, targetPath: string): boolean {

@@ -14,7 +14,6 @@ export interface WorkspaceSettingsDialogState {
   workspaceRoot: string;
   defaultTerminalCwd: string;
   noteRoots: string[];
-  projectRoots: string[];
   indexedRoots: string[];
   indexMode: WorkspaceSettings["indexing"]["mode"];
   appearanceMode: AppearanceMode;

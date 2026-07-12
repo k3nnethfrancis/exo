@@ -21,14 +21,12 @@ import {
 
 interface FileTreeProps {
   noteRoots: RootSection[];
-  attachedFolders?: RootSection[];
   collapsed: boolean;
   appearanceMode: AppearanceMode;
   resolvedAppearance: ResolvedAppearance;
   onAppearanceModeChange: (mode: AppearanceMode) => void;
   onToggleCollapsed: () => void;
   onOpenFile: (filePath: string, line?: number | null) => void;
-  onOpenAttachedFile?: (filePath: string, line?: number | null) => void;
   onOpenTerminalSession: (sessionId: string) => void;
   onOpenTag: (tag: string) => void;
   onExpandDirectory: (directoryPath: string, rootKind: "notes") => void;
@@ -44,23 +42,17 @@ interface FileTreeProps {
   revealPathRequest?: { path: string; nonce: number } | null;
 }
 
-export type ExplorerRootKind = "notes" | "attached";
-
-export function isExplorerMutationAllowed(rootKind: ExplorerRootKind): boolean {
-  return rootKind === "notes";
-}
+export type ExplorerRootKind = "notes";
 
 export function FileTree(props: FileTreeProps) {
   const {
     noteRoots,
-    attachedFolders = [],
     collapsed,
     appearanceMode,
     resolvedAppearance,
     onAppearanceModeChange,
     onToggleCollapsed,
     onOpenFile,
-    onOpenAttachedFile = onOpenFile,
     onExpandDirectory,
     explorerScale,
     onFocusExplorer,
@@ -106,7 +98,7 @@ export function FileTree(props: FileTreeProps) {
     }
     processedRevealNonceRef.current = revealPathRequest.nonce;
 
-    const rootKind = rootKindForPath(revealPathRequest.path, noteRoots, attachedFolders);
+    const rootKind = rootKindForPath(revealPathRequest.path, noteRoots);
     setExpandedPaths((current) => {
       const next = new Set(current);
       next.add(revealPathRequest.path);
@@ -117,7 +109,7 @@ export function FileTree(props: FileTreeProps) {
     if (rootKind === "notes") {
       onExpandDirectory(revealPathRequest.path, rootKind);
     }
-  }, [attachedFolders, noteRoots, onExpandDirectory, revealPathRequest]);
+  }, [noteRoots, onExpandDirectory, revealPathRequest]);
 
   useEffect(() => {
     if (!contextTarget) {
@@ -230,11 +222,6 @@ export function FileTree(props: FileTreeProps) {
               mirrored={mirrored}
             />
           </div>
-          {attachedFolders.length > 0 ? (
-            <div className="sidebar__content sidebar__content--attached" data-testid="attached-folders">
-              <Section label="Attached folders" rootKind="attached" sections={attachedFolders} expandedPaths={expandedPaths} onTogglePath={togglePath} onOpenFile={onOpenAttachedFile} dragManager={dragManager} mirrored={mirrored} alwaysShowRoots />
-            </div>
-          ) : null}
         </div>
       </div>
 
@@ -329,16 +316,9 @@ export function FileTree(props: FileTreeProps) {
   );
 }
 
-function rootKindForPath(
-  targetPath: string,
-  noteRoots: RootSection[],
-  attachedFolders: RootSection[],
-): ExplorerRootKind | null {
+function rootKindForPath(targetPath: string, noteRoots: RootSection[]): ExplorerRootKind | null {
   if (noteRoots.some((root) => pathContains(root.path, targetPath))) {
     return "notes";
-  }
-  if (attachedFolders.some((root) => pathContains(root.path, targetPath))) {
-    return "attached";
   }
   return null;
 }
@@ -354,7 +334,6 @@ export function SidebarSearchPane({
   resultQuery,
   message,
   onOpenFile,
-  onOpenAttachedFile,
 }: {
   query: string;
   results: WorkspaceSearchResults;
@@ -362,14 +341,13 @@ export function SidebarSearchPane({
   resultQuery: string;
   message: string | null;
   onOpenFile: (filePath: string) => void;
-  onOpenAttachedFile: (filePath: string) => void;
 }) {
   const summary = searchSummary({
     query: query.trim(),
     resultMode,
     resultQuery,
     message,
-    resultCount: results.notes.length + results.projectFiles.length,
+    resultCount: results.notes.length,
   });
 
   return (
@@ -385,7 +363,7 @@ export function SidebarSearchPane({
               <button
                 key={result.filePath}
                 className="sidebar-search-result"
-                onClick={() => (result.kind === "project-file" ? onOpenAttachedFile(result.filePath) : onOpenFile(result.filePath))}
+                onClick={() => onOpenFile(result.filePath)}
                 title={result.filePath}
                 type="button"
               >
@@ -404,9 +382,6 @@ export function searchResultGroups(results: WorkspaceSearchResults): Array<{ lab
   const groups: Array<{ label: string; results: WorkspaceSearchResults["notes"] }> = [];
   if (results.notes.length > 0) {
     groups.push({ label: "Notes", results: results.notes });
-  }
-  if (results.projectFiles.length > 0) {
-    groups.push({ label: "Attached folders", results: results.projectFiles });
   }
   return groups;
 }

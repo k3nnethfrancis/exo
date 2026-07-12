@@ -58,9 +58,8 @@ import { addPreviewTab, closePreviewTab, EMPTY_PREVIEW_TABS, selectPreviewTab, u
 type ZoomSurface = "editor" | "terminal" | "explorer";
 
 const NOTE_TREE_MAX_DEPTH = 3;
-const PROJECT_TREE_MAX_DEPTH = 3;
 export function App() {
-  const workspaceTrees = useWorkspaceTrees({ noteTreeMaxDepth: NOTE_TREE_MAX_DEPTH, projectTreeMaxDepth: PROJECT_TREE_MAX_DEPTH });
+  const workspaceTrees = useWorkspaceTrees({ noteTreeMaxDepth: NOTE_TREE_MAX_DEPTH });
   const { noteTrees } = workspaceTrees;
   const [exploreIndexSearchOnEnter, setExploreIndexSearchOnEnter] = useState(false);
   const workspaceSearch = useWorkspaceSearch({ indexedOnEnter: exploreIndexSearchOnEnter });
@@ -106,7 +105,6 @@ export function App() {
   } = terminalState;
   const workspaceBootstrap = useWorkspaceBootstrap({
     noteTreeMaxDepth: NOTE_TREE_MAX_DEPTH,
-    projectTreeMaxDepth: PROJECT_TREE_MAX_DEPTH,
     applyWorkspaceSettings,
     applyPersistedLayout,
     setIndexStatus,
@@ -1006,7 +1004,6 @@ export function App() {
       searchResultMode={workspaceSearch.resultMode}
       searchResultQuery={workspaceSearch.resultQuery}
       searchMessage={workspaceSearch.message}
-      attachedSections={[]}
       sidebarCollapsed={shellLayout.sidebarCollapsed}
       sidebarWidth={shellLayout.sidebarWidth}
       utilityWidth={shellLayout.utilityWidth}
@@ -1101,7 +1098,7 @@ export function App() {
       onOpenFile={(filePath, line) => void openFile(filePath, undefined, { line })}
       onOpenTerminalSession={(sessionId) => void showUtilityTerminal(sessionId)}
       onOpenTag={(tag) => void openTag(tag)}
-      onExpandDirectory={(directoryPath, rootKind) => void workspaceTrees.expandTreeDirectory(directoryPath, rootKind)}
+      onExpandDirectory={(directoryPath) => void workspaceTrees.expandTreeDirectory(directoryPath)}
       explorerScale={explorerScale}
       onFocusExplorer={() => setZoomSurface("explorer")}
       dragManager={dragManager}

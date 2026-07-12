@@ -1,9 +1,8 @@
 import { access, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { constants, existsSync, readFileSync } from "node:fs";
+import { constants, existsSync } from "node:fs";
 import path from "node:path";
 
 import type {
-  AttachedRoot,
   IndexedRoot,
   IndexingConfig,
   SearchResult,
@@ -16,7 +15,6 @@ import { readWorkspaceDocument } from "./notes";
 export { WorkspaceFiles } from "./workspace-files";
 
 const SEARCH_RESULT_LIMIT = 30;
-const PROJECT_SEARCH_RESULT_LIMIT = 25;
 const MAX_SEARCH_VISITED_ENTRIES = 20_000;
 export const DEFAULT_INDEX_PATTERN = "**/*.md";
 export const DEFAULT_INDEXING: IndexingConfig = {
@@ -47,18 +45,14 @@ function pathExists(targetPath: string): Promise<boolean> {
   );
 }
 
-function attachedRoot(id: string, label: string, targetPath: string, kind: AttachedRoot["kind"]): AttachedRoot {
-  return { id, label, path: targetPath, kind };
+function noteRoot(id: string, label: string, targetPath: string) {
+  return { id, label, path: targetPath };
 }
 
 export function resolveWorkspaceModel(env: NodeJS.ProcessEnv = process.env): WorkspaceModel {
   const workspaceRoot = env.EXO_WORKSPACE_ROOT ?? process.cwd();
   const defaultTerminalCwd = env.EXO_DEFAULT_TERMINAL_CWD ?? workspaceRoot;
   const noteRootCandidates = (env.EXO_NOTE_ROOTS ?? path.join(workspaceRoot, "notes")).split(path.delimiter).filter(Boolean);
-  const projectRootCandidates =
-    env.EXO_PROJECT_ROOTS !== undefined
-      ? env.EXO_PROJECT_ROOTS.split(path.delimiter).filter(Boolean)
-      : defaultProjectRoots(workspaceRoot);
   const indexedRoots = parseIndexedRoots(env.EXO_INDEXED_ROOTS);
   const indexing = parseIndexingConfig(env);
 
@@ -66,10 +60,7 @@ export function resolveWorkspaceModel(env: NodeJS.ProcessEnv = process.env): Wor
     workspaceRoot,
     defaultTerminalCwd,
     noteRoots: noteRootCandidates.map((targetPath, index) =>
-      attachedRoot(`note-root-${index + 1}`, path.basename(targetPath), targetPath, "notes"),
-    ),
-    projectRoots: projectRootCandidates.map((targetPath, index) =>
-      attachedRoot(`project-root-${index + 1}`, path.basename(targetPath), targetPath, "projects"),
+      noteRoot(`note-root-${index + 1}`, path.basename(targetPath), targetPath),
     ),
     indexedRoots,
     indexing,
@@ -155,34 +146,6 @@ function handelize(value: string): string {
     || "root";
 }
 
-function defaultProjectRoots(workspaceRoot: string): string[] {
-  const exoRoot = findExoRepoRoot(process.cwd()) ?? path.join(workspaceRoot, "projects", "exo");
-  return [exoRoot];
-}
-
-function findExoRepoRoot(startPath: string): string | null {
-  let currentPath = path.resolve(startPath);
-
-  while (true) {
-    const packagePath = path.join(currentPath, "package.json");
-    if (existsSync(packagePath)) {
-      try {
-        const packageJson = JSON.parse(readFileSync(packagePath, "utf8")) as { name?: unknown };
-        if (packageJson.name === "exo") {
-          return currentPath;
-        }
-      } catch {
-        // Keep walking upward; malformed package metadata should not block startup.
-      }
-    }
-
-    const parentPath = path.dirname(currentPath);
-    if (parentPath === currentPath) {
-      return null;
-    }
-    currentPath = parentPath;
-  }
-}
 
 export interface ListRootTreeOptions {
   markdownOnly?: boolean;
@@ -315,31 +278,6 @@ export async function searchNotes(model: WorkspaceModel, query: string): Promise
   return results.slice(0, SEARCH_RESULT_LIMIT);
 }
 
-export async function searchProjectFiles(model: WorkspaceModel, query: string): Promise<SearchResult[]> {
-  const trimmedQuery = query.trim().toLowerCase();
-  if (!trimmedQuery) {
-    return [];
-  }
-
-  const files = await findMatchingFiles(
-    model.projectRoots.map((root) => root.path),
-    (filePath) => {
-      if (!isTextLikeFile(filePath)) {
-        return false;
-      }
-      return path.relative(model.workspaceRoot, filePath).toLowerCase().includes(trimmedQuery);
-    },
-    PROJECT_SEARCH_RESULT_LIMIT,
-  );
-
-  return files.map((filePath) => ({
-    filePath,
-    title: path.basename(filePath),
-    snippet: path.relative(model.workspaceRoot, filePath),
-    kind: "project-file" as const,
-  }));
-}
-
 export async function searchTags(model: WorkspaceModel, query: string): Promise<SearchResult[]> {
   const trimmedQuery = query.trim().replace(/^#/, "").toLowerCase();
   if (!trimmedQuery) {
@@ -398,7 +336,6 @@ export async function searchWorkspace(model: WorkspaceModel, query: string): Pro
 
   return {
     notes,
-    projectFiles: [],
     tags,
   };
 }
@@ -565,10 +502,6 @@ export async function deleteWorkspacePath(targetPath: string): Promise<void> {
 export async function loadFilePreview(filePath: string): Promise<string> {
   const content = await readFile(filePath, "utf8");
   return content.slice(0, 400);
-}
-
-function isTextLikeFile(filePath: string): boolean {
-  return /\.(?:md|markdown|txt|ts|tsx|js|jsx|json|py|swift|toml|ya?ml|css|html|sh|mjs|cjs)$/i.test(filePath);
 }
 
 function isWithin(root: string, targetPath: string): boolean {

@@ -42,14 +42,10 @@ function isTrustedLocalhost(hostname: string): boolean {
 
 async function resolveLocalPreviewPath(filePath: string, settings: WorkspaceSettings): Promise<ExoOpenPreviewResponse> {
   const resolvedPath = path.resolve(filePath);
-  const allowedRoots = [
-    settings.workspaceRoot,
-    ...settings.noteRoots,
-    ...settings.projectRoots,
-  ].map((rootPath) => path.resolve(rootPath));
+  const allowedRoots = settings.noteRoots.map((rootPath) => path.resolve(rootPath));
 
   if (!allowedRoots.some((rootPath) => isPathWithin(rootPath, resolvedPath))) {
-    throw new Error("Local preview files must be inside the workspace, note roots, or project roots.");
+    throw new Error("Local preview files must be inside a configured Note Root.");
   }
 
   if (![".html", ".htm"].includes(path.extname(resolvedPath).toLowerCase())) {

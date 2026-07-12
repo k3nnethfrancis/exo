@@ -195,13 +195,6 @@ function workspaceModel(workspaceRoot: string, noteRoots: string[], attachedRoot
       id: `note-root-${index + 1}`,
       label: path.basename(rootPath),
       path: rootPath,
-      kind: "notes",
-    })),
-    projectRoots: attachedRoots.map((rootPath, index) => ({
-      id: `attached-root-${index + 1}`,
-      label: path.basename(rootPath),
-      path: rootPath,
-      kind: "projects",
     })),
     indexedRoots: [],
     indexing: { enabled: false, mode: "off", backend: "qmd" },

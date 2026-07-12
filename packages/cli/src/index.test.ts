@@ -80,6 +80,7 @@ describe("minimal Exo operator CLI", () => {
       expect(await runCli(["node", "exo", "read", notePath], options)).toBe(0);
 
       expect(output).toContain('"available": false');
+      expect(output).not.toContain("projectRoots");
       expect(output).toContain("orientation.md");
       expect(output).toContain("The local-first workspace.");
       expect(discoveredRuntimeRoot).toBe(path.join(workspaceRoot, ".exo"));

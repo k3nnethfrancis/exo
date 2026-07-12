@@ -66,8 +66,7 @@ function indexingService(
   const model: WorkspaceModel = {
     workspaceRoot: settings.workspaceRoot,
     defaultTerminalCwd: settings.defaultTerminalCwd,
-    noteRoots: settings.noteRoots.map((root, index) => ({ id: `note-${index + 1}`, label: `note-${index + 1}`, path: root, kind: "notes" })),
-    projectRoots: settings.projectRoots.map((root, index) => ({ id: `project-${index + 1}`, label: `project-${index + 1}`, path: root, kind: "projects" })),
+    noteRoots: settings.noteRoots.map((root, index) => ({ id: `note-${index + 1}`, label: `note-${index + 1}`, path: root })),
     indexedRoots: settings.indexedRoots,
     indexing: settings.indexing,
     attachedWorkcells: [],

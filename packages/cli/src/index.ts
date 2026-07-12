@@ -204,7 +204,6 @@ async function appOffStatus(env: NodeJS.ProcessEnv): Promise<Record<string, unkn
     workspace: {
       root: model.workspaceRoot,
       noteRoots: model.noteRoots.map((root) => root.path),
-      projectRoots: model.projectRoots.map((root) => root.path),
     },
     search: await filesystemSearchProvider.getStatus(model, runtimeRoot),
   };

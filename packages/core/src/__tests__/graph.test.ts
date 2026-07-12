@@ -16,7 +16,7 @@ describe("graph contracts", () => {
         canonicalEdgeDirection: "outgoing",
         backlinks: "derived",
       },
-      scope: { noteRootIds: ["notes"], projectRootIds: [], paths: ["notes/**/*.md"] },
+      scope: { noteRootIds: ["notes"], paths: ["notes/**/*.md"] },
       nodes: [
         {
           id: "note:/vault/A.md",

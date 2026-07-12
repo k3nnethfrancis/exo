@@ -9,57 +9,46 @@ import {
 
 export interface UseWorkspaceTreesOptions {
   noteTreeMaxDepth: number;
-  projectTreeMaxDepth: number;
 }
 
 export function useWorkspaceTrees(options: UseWorkspaceTreesOptions) {
   const [noteTrees, setNoteTrees] = useState<Record<string, TreeNode[]>>({});
-  const [projectTrees, setProjectTrees] = useState<Record<string, TreeNode[]>>({});
   const loadedTreeDirectoriesRef = useRef<Set<string>>(new Set());
 
   function replaceTreesForModel(
     model: WorkspaceModel,
     nextNoteTrees: Record<string, TreeNode[]>,
-    nextProjectTrees: Record<string, TreeNode[]>,
   ): void {
     setNoteTrees(nextNoteTrees);
-    setProjectTrees(nextProjectTrees);
     loadedTreeDirectoriesRef.current = loadedRootKeys(model);
   }
 
   async function reloadTreesForModel(model: WorkspaceModel): Promise<void> {
-    const [nextNoteTrees, nextProjectTrees] = await loadInitialTrees(model, options);
-    replaceTreesForModel(model, nextNoteTrees, nextProjectTrees);
+    const nextNoteTrees = await loadInitialTrees(model, options);
+    replaceTreesForModel(model, nextNoteTrees);
   }
 
-  async function expandTreeDirectory(directoryPath: string, rootKind: "notes" | "projects"): Promise<void> {
-    const loadKey = treeLoadKey(rootKind, directoryPath);
+  async function expandTreeDirectory(directoryPath: string): Promise<void> {
+    const loadKey = treeLoadKey("notes", directoryPath);
     if (loadedTreeDirectoriesRef.current.has(loadKey)) {
       return;
     }
-    const currentTrees = rootKind === "notes" ? noteTrees : projectTrees;
-    if (treeDirectoryHasChildrenInRoots(currentTrees, directoryPath)) {
+    if (treeDirectoryHasChildrenInRoots(noteTrees, directoryPath)) {
       loadedTreeDirectoriesRef.current.add(loadKey);
       return;
     }
     loadedTreeDirectoriesRef.current.add(loadKey);
 
     const children = await window.exo.workspace.listTree(directoryPath, {
-      markdownOnly: rootKind === "notes",
+      markdownOnly: true,
       maxDepth: 1,
-      includeEmptyDirectories: rootKind === "notes",
+      includeEmptyDirectories: true,
     });
-
-    if (rootKind === "notes") {
-      setNoteTrees((current) => replaceTreeChildrenInRoots(current, directoryPath, children));
-    } else {
-      setProjectTrees((current) => replaceTreeChildrenInRoots(current, directoryPath, children));
-    }
+    setNoteTrees((current) => replaceTreeChildrenInRoots(current, directoryPath, children));
   }
 
   return {
     noteTrees,
-    projectTrees,
     replaceTreesForModel,
     reloadTreesForModel,
     expandTreeDirectory,
@@ -69,27 +58,19 @@ export function useWorkspaceTrees(options: UseWorkspaceTreesOptions) {
 export async function loadInitialTrees(
   model: WorkspaceModel,
   options: UseWorkspaceTreesOptions,
-): Promise<[Record<string, TreeNode[]>, Record<string, TreeNode[]>]> {
-  const [nextNoteTrees, nextProjectTrees] = await Promise.all([
-    Promise.all(
-      model.noteRoots.map(
-        async (root) =>
-          [root.path, await window.exo.workspace.listTree(root.path, { markdownOnly: true, maxDepth: options.noteTreeMaxDepth, includeEmptyDirectories: true })] as const,
-      ),
+): Promise<Record<string, TreeNode[]>> {
+  const nextNoteTrees = await Promise.all(
+    model.noteRoots.map(
+      async (root) =>
+        [root.path, await window.exo.workspace.listTree(root.path, { markdownOnly: true, maxDepth: options.noteTreeMaxDepth, includeEmptyDirectories: true })] as const,
     ),
-    Promise.all(
-      model.projectRoots.map(
-        async (root) => [root.path, await window.exo.workspace.listTree(root.path, { maxDepth: options.projectTreeMaxDepth })] as const,
-      ),
-    ),
-  ]);
+  );
 
-  return [Object.fromEntries(nextNoteTrees), Object.fromEntries(nextProjectTrees)];
+  return Object.fromEntries(nextNoteTrees);
 }
 
 function loadedRootKeys(model: WorkspaceModel): Set<string> {
   return new Set([
     ...model.noteRoots.map((root) => treeLoadKey("notes", root.path)),
-    ...model.projectRoots.map((root) => treeLoadKey("projects", root.path)),
   ]);
 }

@@ -7,6 +7,7 @@ import {
   getWorkspaceRegistryEntry,
   listWorkspaceRegistryEntries,
   loadActiveWorkspaceSettings,
+  legacyProjectRootsInPersistence,
   normalizeWorkspaceSettings,
   resolveWorkspaceSettingsPath,
   saveWorkspaceSettings,
@@ -39,6 +40,7 @@ const writes = new Map<string, Promise<void>>();
 export class WorkspaceConfigStore {
   private readonly env: NodeJS.ProcessEnv;
   private current: WorkspaceSettingsSnapshot | null = null;
+  private loggedProjectRootNormalization = false;
 
   constructor(private readonly options: WorkspaceConfigStoreOptions) {
     this.env = options.env ?? process.env;
@@ -46,7 +48,13 @@ export class WorkspaceConfigStore {
 
   async load(): Promise<WorkspaceSettingsSnapshot | null> {
     await (writes.get(this.path()) ?? Promise.resolve());
-    const settings = await loadActiveWorkspaceSettings(this.persistenceEnv());
+    const env = this.persistenceEnv();
+    const droppedProjectRoots = await legacyProjectRootsInPersistence(env);
+    const settings = await loadActiveWorkspaceSettings(env);
+    if (!this.loggedProjectRootNormalization && droppedProjectRoots.length > 0) {
+      this.loggedProjectRootNormalization = true;
+      console.info("[exo] normalized retired project roots", { droppedProjectRoots });
+    }
     this.current = settings ? { settings, revision: workspaceSettingsRevision(settings) } : null;
     return this.current;
   }
@@ -100,7 +108,6 @@ export function workspaceSettingsFromModel(model: WorkspaceModel): WorkspaceSett
       workspaceRoot: model.workspaceRoot,
       defaultTerminalCwd: model.defaultTerminalCwd,
       noteRoots: model.noteRoots.map((root) => root.path),
-      projectRoots: model.projectRoots.map((root) => root.path),
       indexedRoots: model.indexedRoots,
       indexing: model.indexing,
       appearanceMode: DEFAULT_APPEARANCE_MODE,

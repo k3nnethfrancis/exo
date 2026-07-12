@@ -204,7 +204,6 @@ function logWorkspaceStartup(model: WorkspaceModel) {
     workspaceRoot: model.workspaceRoot,
     defaultTerminalCwd: model.defaultTerminalCwd,
     noteRoots: model.noteRoots.map((root) => root.path),
-    projectRoots: model.projectRoots.map((root) => root.path),
     userDataPath: app.getPath("userData"),
     settingsPath: path.join(app.getPath("userData"), "workspace-settings.json"),
     gpuDisabled: process.env.EXO_ENABLE_GPU !== "1",
@@ -221,7 +220,6 @@ function createFirstRunWorkspaceModel(): WorkspaceModel {
     workspaceRoot: userDataRoot,
     defaultTerminalCwd: homeRoot,
     noteRoots: [],
-    projectRoots: [],
     indexedRoots: [],
     indexing: {
       enabled: false,

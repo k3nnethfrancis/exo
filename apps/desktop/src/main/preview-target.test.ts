@@ -15,9 +15,9 @@ afterEach(async () => {
 });
 
 describe("resolvePreviewTarget", () => {
-  it("turns absolute local HTML paths inside project roots into file URLs", async () => {
+  it("turns absolute local HTML paths inside Note Roots into file URLs", async () => {
     const fixture = await previewFixture();
-    const target = path.join(fixture.projectRoot, "docs", "artifacts", "core-plugin-boundary.html");
+    const target = path.join(fixture.noteRoot, "artifacts", "preview.html");
 
     await expect(resolvePreviewTarget(target, fixture.settings)).resolves.toEqual({
       ok: true,
@@ -28,7 +28,7 @@ describe("resolvePreviewTarget", () => {
 
   it("turns workspace-relative local HTML paths into file URLs", async () => {
     const fixture = await previewFixture();
-    const relativeTarget = "projects/exo/docs/artifacts/core-plugin-boundary.html";
+    const relativeTarget = "notes/artifacts/preview.html";
     const absoluteTarget = path.join(fixture.workspaceRoot, relativeTarget);
 
     await expect(resolvePreviewTarget(relativeTarget, fixture.settings)).resolves.toEqual({
@@ -40,7 +40,7 @@ describe("resolvePreviewTarget", () => {
 
   it("validates file URLs through the same local preview path rules", async () => {
     const fixture = await previewFixture();
-    const target = path.join(fixture.projectRoot, "docs", "artifacts", "core-plugin-boundary.html");
+    const target = path.join(fixture.noteRoot, "artifacts", "preview.html");
 
     await expect(resolvePreviewTarget(pathToFileURL(target).toString(), fixture.settings)).resolves.toEqual({
       ok: true,
@@ -106,13 +106,23 @@ describe("resolvePreviewTarget", () => {
     await writeFile(target, "<!doctype html><title>Outside</title>", "utf8");
 
     await expect(resolvePreviewTarget(target, fixture.settings)).rejects.toThrow(
-      "Local preview files must be inside the workspace, note roots, or project roots.",
+      "Local preview files must be inside a configured Note Root.",
+    );
+  });
+
+  it("fails closed for a path that was formerly a Project Root", async () => {
+    const fixture = await previewFixture();
+    const target = path.join(fixture.projectRoot, "docs", "artifacts", "core-plugin-boundary.html");
+
+    await expect(resolvePreviewTarget(target, fixture.settings)).rejects.toThrow(
+      "Local preview files must be inside a configured Note Root.",
     );
   });
 });
 
 async function previewFixture(): Promise<{
   workspaceRoot: string;
+  noteRoot: string;
   projectRoot: string;
   settings: WorkspaceSettings;
 }> {
@@ -123,21 +133,23 @@ async function previewFixture(): Promise<{
   const projectRoot = path.join(workspaceRoot, "projects", "exo");
   const artifactRoot = path.join(projectRoot, "docs", "artifacts");
   await mkdir(noteRoot, { recursive: true });
+  await mkdir(path.join(noteRoot, "artifacts"), { recursive: true });
   await mkdir(artifactRoot, { recursive: true });
   await writeFile(
     path.join(artifactRoot, "core-plugin-boundary.html"),
     "<!doctype html><title>Core Plugin Boundary</title>",
     "utf8",
   );
+  await writeFile(path.join(noteRoot, "artifacts", "preview.html"), "<!doctype html><title>Preview</title>", "utf8");
 
   return {
     workspaceRoot,
+    noteRoot,
     projectRoot,
     settings: {
       workspaceRoot,
       defaultTerminalCwd: workspaceRoot,
       noteRoots: [noteRoot],
-      projectRoots: [projectRoot],
       indexedRoots: [],
       indexing: { enabled: false, mode: "lexical", backend: "qmd" },
       appearanceMode: "system",

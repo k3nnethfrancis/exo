@@ -148,7 +148,6 @@ export class TerminalManager extends EventEmitter {
         ...process.env,
         EXO_WORKSPACE_ROOT: workspace.workspaceRoot,
         EXO_NOTE_ROOTS: workspace.noteRoots.map((root) => root.path).join(path.delimiter),
-        EXO_PROJECT_ROOTS: workspace.projectRoots.map((root) => root.path).join(path.delimiter),
         EXO_DEFAULT_TERMINAL_CWD: workspace.defaultTerminalCwd,
         EXO_RUNTIME_ROOT: runtimeRoot,
         EXO_AGENT_COMMAND_ID: command.id,

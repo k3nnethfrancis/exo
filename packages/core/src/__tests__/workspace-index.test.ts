@@ -8,7 +8,6 @@ const model: WorkspaceModel = {
   workspaceRoot: "/workspace",
   defaultTerminalCwd: "/workspace",
   noteRoots: [],
-  projectRoots: [],
   indexedRoots: [],
   indexing: { enabled: false, mode: "off", backend: "qmd" },
   attachedWorkcells: [],

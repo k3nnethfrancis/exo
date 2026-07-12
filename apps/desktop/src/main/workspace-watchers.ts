@@ -55,7 +55,7 @@ export class WorkspaceWatcherService {
   start(model: WorkspaceModel): void {
     this.stop();
 
-    const rootPaths = [...model.noteRoots.map((root) => root.path), ...model.projectRoots.map((root) => root.path)];
+    const rootPaths = model.noteRoots.map((root) => root.path);
     const uniqueRootPaths = [...new Set(rootPaths)];
 
     for (const rootPath of uniqueRootPaths) {

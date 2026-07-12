@@ -18,7 +18,6 @@ interface ShellLayoutProps {
   workspaceLabel: string;
   missingFolderIndexCount: number;
   noteSections: RootSection[];
-  attachedSections?: RootSection[];
   appearanceMode: AppearanceMode;
   resolvedAppearance: ResolvedAppearance;
   searchQuery: string;
@@ -54,7 +53,6 @@ interface ShellLayoutProps {
   onSearchSubmit: () => void;
   onSearchClear: () => void;
   onOpenFile: (filePath: string, line?: number | null) => void;
-  onOpenAttachedFile?: (filePath: string, line?: number | null) => void;
   onOpenTerminalSession: (sessionId: string) => void;
   onOpenTag: (tag: string) => void;
   onExpandDirectory: (directoryPath: string, rootKind: "notes") => void;
@@ -104,7 +102,7 @@ export function ShellLayout(props: ShellLayoutProps) {
           <WorkspaceSearchField query={props.searchQuery} onChange={props.onSearchQueryChange} onClear={props.onSearchClear} onSubmit={props.onSearchSubmit} />
           {props.searchQuery.trim() ? (
             <div className="workspace-search-popover" data-testid="workspace-search-popover">
-              <SidebarSearchPane query={props.searchQuery} results={props.searchResults} resultMode={props.searchResultMode} resultQuery={props.searchResultQuery} message={props.searchMessage} onOpenFile={(path) => { props.onSearchClear(); props.onOpenFile(path); }} onOpenAttachedFile={(path) => { props.onSearchClear(); props.onOpenAttachedFile?.(path); }} />
+              <SidebarSearchPane query={props.searchQuery} results={props.searchResults} resultMode={props.searchResultMode} resultQuery={props.searchResultQuery} message={props.searchMessage} onOpenFile={(path) => { props.onSearchClear(); props.onOpenFile(path); }} />
             </div>
           ) : null}
         </div>
@@ -120,7 +118,6 @@ export function ShellLayout(props: ShellLayoutProps) {
       >
       <aside className="workspace-shell__explorer" style={{ width: props.sidebarCollapsed ? 0 : props.sidebarWidth }}>
         <FileTree
-          attachedFolders={props.attachedSections}
           appearanceMode={props.appearanceMode}
           collapsed={props.sidebarCollapsed}
           dragManager={props.dragManager}
@@ -133,7 +130,6 @@ export function ShellLayout(props: ShellLayoutProps) {
           onDeletePath={props.onDeletePath}
           onExpandDirectory={props.onExpandDirectory}
           onFocusExplorer={props.onFocusExplorer}
-          onOpenAttachedFile={props.onOpenAttachedFile}
           onOpenFile={props.onOpenFile}
           onOpenTag={props.onOpenTag}
           onOpenTerminalSession={props.onOpenTerminalSession}

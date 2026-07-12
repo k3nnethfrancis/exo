@@ -116,7 +116,6 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
       workspaceRoot: settings.workspaceRoot,
       defaultTerminalCwd: settings.defaultTerminalCwd,
       noteRoots: settings.noteRoots,
-      projectRoots: settings.projectRoots,
       indexedRoots: settings.indexedRoots.map((root) => root.path),
       indexMode: settings.indexing.mode,
       appearanceMode: settings.appearanceMode as AppearanceMode,
@@ -348,9 +347,6 @@ export function workspaceSettingsFromDialog(
     noteRoots: settingsDialog.noteRoots
       .map((entry) => entry.trim())
       .filter(Boolean),
-    projectRoots: settingsDialog.projectRoots
-      .map((entry) => entry.trim())
-      .filter(Boolean),
     indexedRoots: settingsDialog.indexedRoots
       .map((entry, index) => ({ entry, index }))
       .filter(({ entry }) => entry.trim())
@@ -376,9 +372,6 @@ export function workspaceSettingsFromDialog(
     noteRoots: options.includeStructural
       ? fallbackStructural.noteRoots
       : currentSettings?.noteRoots ?? fallbackStructural.noteRoots,
-    projectRoots: options.includeStructural
-      ? fallbackStructural.projectRoots
-      : currentSettings?.projectRoots ?? fallbackStructural.projectRoots,
     indexedRoots: options.includeStructural
       ? fallbackStructural.indexedRoots
       : currentSettings?.indexedRoots ?? fallbackStructural.indexedRoots,

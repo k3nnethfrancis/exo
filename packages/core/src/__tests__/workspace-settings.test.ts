@@ -17,6 +17,53 @@ import {
 } from "../workspace-settings";
 
 describe("workspace settings registry", () => {
+  it("atomically strips retired project roots while preserving commands, layout, indexing, migration metadata, and unknown fields", async () => {
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-note-root-migration-"));
+    const env = { EXO_USER_DATA_PATH: userDataPath };
+    const legacySettings = {
+      workspaceRoot: "/tmp/exo-migration",
+      defaultTerminalCwd: "/tmp/exo-migration",
+      noteRoots: ["/tmp/exo-migration/notes", "/tmp/exo-migration/notes-two"],
+      projectRoots: ["/tmp/exo-migration/project-a", "/tmp/exo-migration/project-b"],
+      indexedRoots: [{ id: "index-1", label: "notes", path: "/tmp/exo-migration/notes", kind: "notes", pattern: "**/*.md", ignore: [], backend: "qmd" }],
+      indexing: { enabled: true, mode: "lexical", backend: "qmd" },
+      appearanceMode: "dark",
+      colorThemeId: "exo-neutral",
+      editorFontSize: 15,
+      terminalFontSize: 13,
+      terminalHistoryLines: 100_000,
+      terminalTranscriptRetention: "forever",
+      terminalTranscriptRetentionDays: 14,
+      explorerScale: 1,
+      exploreIndexSearchOnEnter: true,
+      indexUpdateStrategy: "on-save",
+      agentCommands: [{ id: "claude", label: "Claude", handle: "claude", command: "claude -p", cwdPolicy: "workspace_root", promptDelivery: "terminalInputAfterLaunch", version: 1, enabled: true }],
+      layout: { version: 2, sidebarCollapsed: false, sidebarWidth: 240, utilityWidth: 360, canvas: { kind: "leaf", id: "editor", content: { kind: "editor", openPaths: [], activePath: null } } },
+      migrationMetadata: { source: "legacy-build" },
+      futureSetting: { retained: true },
+    };
+    const registry = {
+      activeWorkspaceId: "legacy",
+      workspaces: [{ id: "legacy", label: "Legacy", notesFolder: "/tmp/exo-migration/notes", settings: legacySettings, updatedAt: "2026-07-12T00:00:00.000Z" }],
+    };
+    try {
+      await writeFile(resolveWorkspaceSettingsPath(env), JSON.stringify(legacySettings), { mode: 0o600 });
+      await writeFile(resolveWorkspaceRegistryPath(env), JSON.stringify(registry), { mode: 0o600 });
+
+      const loaded = await loadWorkspaceSettings(env);
+      expect(loaded).toMatchObject({ noteRoots: legacySettings.noteRoots, agentCommands: legacySettings.agentCommands, migrationMetadata: legacySettings.migrationMetadata, futureSetting: legacySettings.futureSetting, layout: legacySettings.layout });
+      expect(loaded).not.toHaveProperty("projectRoots");
+
+      const persisted = JSON.parse(await readFile(resolveWorkspaceSettingsPath(env), "utf8"));
+      const persistedRegistry = JSON.parse(await readFile(resolveWorkspaceRegistryPath(env), "utf8"));
+      expect(persisted).not.toHaveProperty("projectRoots");
+      expect(persistedRegistry.workspaces[0].settings).not.toHaveProperty("projectRoots");
+      expect(persistedRegistry.workspaces[0].settings.futureSetting).toEqual({ retained: true });
+    } finally {
+      await rm(userDataPath, { recursive: true, force: true });
+    }
+  });
+
   it("recovers a committed settings transaction after an interrupted registry write", async () => {
     const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-settings-recovery-"));
     const env = { EXO_USER_DATA_PATH: userDataPath };

@@ -6,7 +6,6 @@ export type WorkspaceSearchResultMode = "idle" | "filename" | "index-loading" | 
 
 const emptySearchResults: WorkspaceSearchResults = {
   notes: [],
-  projectFiles: [],
   tags: [],
 };
 
@@ -102,7 +101,6 @@ export function useWorkspaceSearch(options: { indexedOnEnter: boolean }) {
           snippet: result.snippet,
           kind: "note" as const,
         })),
-        projectFiles: [],
         tags: [],
       };
       startTransition(() => {

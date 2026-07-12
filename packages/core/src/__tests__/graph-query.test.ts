@@ -134,8 +134,7 @@ function workspaceModel(root: string, notesRoot: string): WorkspaceModel {
   return {
     workspaceRoot: root,
     defaultTerminalCwd: root,
-    noteRoots: [{ id: "notes", label: "notes", path: notesRoot, kind: "notes" }],
-    projectRoots: [],
+    noteRoots: [{ id: "notes", label: "notes", path: notesRoot }],
     indexedRoots: [],
     indexing: { enabled: false, mode: "off", backend: "qmd" },
     attachedWorkcells: [],
