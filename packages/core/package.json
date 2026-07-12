@@ -9,6 +9,7 @@
     "./agent-mention-parser": "./src/agent-mention-parser.ts",
     "./command-protocol": "./src/command-protocol.ts",
     "./types": "./src/types.ts",
+    "./note-title": "./src/note-title.ts",
     "./terminal-settings": "./src/terminal-settings.ts",
     "./workspace-settings": "./src/workspace-settings.ts"
   },

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { noteTitle, type NoteDocument, type WorkspaceGraphContext, type WorkspaceModel } from "@exo/core";
+import { noteTitle } from "@exo/core/note-title";
+import type { NoteDocument, WorkspaceGraphContext, WorkspaceModel } from "@exo/core";
 
 import type { FileStatInfo } from "../../../shared/api";
 
