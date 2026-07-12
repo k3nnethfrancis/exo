@@ -1085,7 +1085,6 @@ export function App() {
       connectionsOpen={isUtilityDestinationActive(utilityState, "connections")}
       onOpenConnections={openConnectionsSurface}
       onSearchQueryChange={(value) => {
-        if (value.trim()) shellLayout.setSidebarCollapsed(false);
         workspaceSearch.setQuery(value);
         workspaceSearch.setSubmittedQuery(value.trim());
       }}
