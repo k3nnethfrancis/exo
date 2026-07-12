@@ -21,6 +21,7 @@ interface UsePaneDropOrchestrationOptions {
   setActiveDocumentPath: (filePath: string) => void;
   ensureDocumentLoaded: (filePath: string) => Promise<void>;
   moveWorkspacePathIntoDirectory: (sourcePath: string, targetDirectoryPath: string) => Promise<void>;
+  returnSurfaceToUtility: (surface: "terminal" | "preview", id: string, sourcePaneId?: string) => void;
 }
 
 export function usePaneDropOrchestration(options: UsePaneDropOrchestrationOptions): DragManager {
@@ -31,6 +32,15 @@ export function usePaneDropOrchestration(options: UsePaneDropOrchestrationOption
         void options.moveWorkspacePathIntoDirectory(payload.path, targetDirectoryPath).catch((error) => {
           console.error("[workspace] move failed", error);
         });
+      }
+      return;
+    }
+
+    if (target.kind === "utility") {
+      if (payload.kind === "terminal") {
+        options.returnSurfaceToUtility("terminal", payload.terminalId, payload.sourcePaneId);
+      } else if (payload.kind === "preview") {
+        options.returnSurfaceToUtility("preview", payload.previewId, payload.sourcePaneId);
       }
       return;
     }

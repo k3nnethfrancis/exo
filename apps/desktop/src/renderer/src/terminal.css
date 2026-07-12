@@ -42,7 +42,10 @@
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-rows: 36px auto minmax(0, 1fr);
+  /* The terminal frame is the only content row below the chrome. Giving it
+     the flexible track prevents a live xterm from collapsing to its intrinsic
+     row count when it is moved into a canvas leaf. */
+  grid-template-rows: 36px minmax(0, 1fr);
   position: relative;
 }
 
@@ -208,7 +211,7 @@
 }
 
 .terminal-dock__empty {
-  grid-row: 3;
+  grid-row: 2;
   display: grid;
   place-content: center;
   min-height: 160px;

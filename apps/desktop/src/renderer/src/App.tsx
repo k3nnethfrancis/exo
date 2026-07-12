@@ -35,7 +35,7 @@ import { useWorkspaceSearch } from "./hooks/useWorkspaceSearch";
 import { applyTheme } from "./theme/applyTheme";
 import { DEFAULT_COLOR_THEME_ID, resolveTheme } from "./theme/registry";
 import type { ColorThemeId } from "./theme/types";
-import { collectLeaves, findEditorLeaf, findNode, mapLeaves, paneId, pruneEmptyLeaves, type PaneLeaf, type PaneNodeId } from "./hooks/usePaneTree";
+import { collectLeaves, findEditorLeaf, findNode, mapLeaves, paneId, pruneEmptyLeaves, removeNode, type PaneLeaf, type PaneNodeId } from "./hooks/usePaneTree";
 import { collectOpenEditorPaths, findActiveEditorPath } from "./paneTreeSelectors";
 import {
   clampNumber,
@@ -185,6 +185,7 @@ export function App() {
     setActiveDocumentPath,
     ensureDocumentLoaded,
     moveWorkspacePathIntoDirectory: workspaceMutations.moveWorkspacePathIntoDirectory,
+    returnSurfaceToUtility,
   });
   const compactEditorChrome = collectLeaves(canvasTree).length > 1;
   const resolvedAppearance: ResolvedAppearance = appearanceMode === "system" ? (systemPrefersDark ? "dark" : "light") : appearanceMode;
@@ -717,6 +718,43 @@ export function App() {
   function closeBrowserTab(id: string) {
     const next = closePreviewTab(previewTabs, id);
     setPreviewTabs(next);
+  }
+
+  /**
+   * Surface ids have one visual owner: either a canvas leaf or their matching
+   * utility surface. Moving back removes only the matching canvas leaf; the
+   * direct PTY itself remains owned by TerminalManager and is never restarted.
+   */
+  function returnSurfaceToUtility(surface: "terminal" | "preview", id: string, sourcePaneId?: string) {
+    if (!sourcePaneId) {
+      return;
+    }
+    const source = findNode(canvasTree, (node) => node.kind === "leaf" && node.id === sourcePaneId) as PaneLeaf | undefined;
+    const matchesSource = source?.content.kind === "terminal"
+      ? surface === "terminal" && source.content.terminalId === id
+      : source?.content.kind === "browser"
+        ? surface === "preview" && source.content.previewId === id
+        : false;
+    if (!matchesSource) {
+      return;
+    }
+
+    canvasActions.setTree((previous) => {
+      const current = findNode(previous, (node) => node.kind === "leaf" && node.id === sourcePaneId) as PaneLeaf | undefined;
+      const matchesCurrent = current?.content.kind === "terminal"
+        ? surface === "terminal" && current.content.terminalId === id
+        : current?.content.kind === "browser"
+          ? surface === "preview" && current.content.previewId === id
+          : false;
+      return matchesCurrent ? (removeNode(previous, sourcePaneId) ?? previous) : previous;
+    });
+    if (surface === "terminal") {
+      dispatchUtility({ type: "select", destination: "terminal" });
+      void terminalState.activateTerminal(id);
+    } else {
+      setPreviewTabs((current) => selectPreviewTab(current, id));
+      dispatchUtility({ type: "select", destination: "preview" });
+    }
   }
 
   async function openOrCreateDailyNote() {

@@ -44,9 +44,22 @@ export type PaneDropKind = "editor";
 export type PaneDropZone = "workspace";
 export type DragDropTarget =
   | { kind: "pane"; leafId: string; edge: DropEdge; paneKind: PaneDropKind; paneZone: PaneDropZone }
+  /**
+   * A utility surface is a typed return destination. A terminal may return only
+   * to the terminal surface and a preview only to Preview; neither is a drop
+   * target for the other kind of live surface.
+   */
+  | { kind: "utility"; destination: "terminal" | "preview" }
   | { kind: "explorer"; targetPath: string; targetKind: "directory" | "file" };
 
 const DRAG_THRESHOLD = 5;
+
+export function acceptsUtilitySurface(
+  payload: DragPayload,
+  destination: string | undefined,
+): destination is "terminal" | "preview" {
+  return (payload.kind === "terminal" || payload.kind === "preview") && destination === payload.kind;
+}
 
 function acceptsPayload(
   paneKind: string | undefined,
@@ -133,10 +146,32 @@ export function useDragManager(
       return null;
     }
 
+    function findUtilityTarget(x: number, y: number, payload: DragPayload): DragDropTarget | null {
+      if (payload.kind !== "terminal" && payload.kind !== "preview") {
+        return null;
+      }
+
+      const elements = document.elementsFromPoint(x, y);
+      for (const element of elements) {
+        const target = element instanceof HTMLElement ? element.closest<HTMLElement>("[data-utility-drop-kind]") : null;
+        const destination = target?.dataset.utilityDropKind;
+        if (!acceptsUtilitySurface(payload, destination)) {
+          continue;
+        }
+        return { kind: "utility", destination };
+      }
+      return null;
+    }
+
     function findDropTarget(x: number, y: number, payload: DragPayload): DragDropTarget | null {
       const explorerTarget = findExplorerTarget(x, y, payload);
       if (explorerTarget) {
         return explorerTarget;
+      }
+
+      const utilityTarget = findUtilityTarget(x, y, payload);
+      if (utilityTarget) {
+        return utilityTarget;
       }
 
       const tabTarget = findTabTarget(x, y, payload);
