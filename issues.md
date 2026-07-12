@@ -54,7 +54,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - 2026-07-10 investigation: the iframe absence is not a frame-load wait. It means either no browser leaf/component or a blank/untrusted leaf URL; a resolver failure would leave the pane mounted with an explicit error. The first-window timeout is a separate pre-interaction failure. It reproduces after `external-file-changes + fixture-hygiene + markdown-code-blocks + markdown-rules + monitor-mode + preview-pane-layout`, but not after the reduced predecessor blocks tested so far. Raw launch count, single-instance lock release, agent invocation, drag zones, and monitor mode alone are eliminated. Do not add a retry, sleep, or preview mount workaround before the predecessor interaction is reduced further.
   - 2026-07-10 current proof: the app E2E last-run artifact passed with no failed tests, and `pnpm stable:smoke` passed 9/9. No speculative preview lifecycle patch landed. Retain this issue for packaged-app and real-vault monitoring; reopen if a clean-run failure artifact recurs.
 
-### EXO-ISSUE-103: Note paths can escape attached roots and mutate arbitrary filesystem locations
+### EXO-ISSUE-103: Note paths can escape Note Roots and mutate arbitrary filesystem locations
 
 - Status: partially fixed; dogfooding and command-server parity remain
 - Severity: critical
@@ -62,7 +62,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 - Source:
   - 2026-07-09 simplification audit of the current `refactor/note-native-exo` working tree.
 - Observed:
-  - Renderer-provided note paths are resolved but not proven to remain inside an attached note root.
+  - Renderer-provided note paths are resolved but not proven to remain inside a Note Root.
   - `..` segments and symlink escapes can reach outside the authorized workspace.
   - The clicked-wikilink path can ensure a missing target automatically, so crafted note content can create an outside Markdown file without a separate explicit create action.
   - Main-process create, read, write, rename, and recursive delete paths ultimately accept arbitrary filesystem paths.
@@ -73,9 +73,9 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 - Acceptance:
   - [ ] Add failing coverage for `..`, absolute paths, duplicate roots, symlinked files, symlinked directories, create-through-missing-ancestor, rename escape, and recursive-delete escape.
   - [ ] Route desktop IPC and command-server note operations through the same containment seam.
-  - [ ] Prove ordinary wikilink creation still works inside each attached note root.
+  - [ ] Prove ordinary wikilink creation still works inside each Note Root.
   - [ ] Complete guarded real-vault-copy dogfooding before closing.
-  - 2026-07-10 Wave 1: added main-process `WorkspaceFiles` authorization at renderer IPC and note-service boundaries. Focused regressions cover traversal, allowed/rejected absolute paths, existing and missing-descendant symlink escapes, valid missing ancestors, note-root self-mutation, wikilink traversal, and in-root absolute wikilink creation. The existing command-server read route now authorizes absolute targets before provider I/O and provider-resolved document ids afterward; attached-folder/indexed-root-only reads fail closed and multi-note-root reads succeed. The remaining acceptance work is root-relative identities and guarded real-vault-copy proof.
+  - 2026-07-10 Wave 1: added main-process `WorkspaceFiles` authorization at renderer IPC and note-service boundaries. Focused regressions cover traversal, allowed/rejected absolute paths, existing and missing-descendant symlink escapes, valid missing ancestors, note-root self-mutation, wikilink traversal, and in-root absolute wikilink creation. The existing command-server read route now authorizes absolute targets before provider I/O and provider-resolved document ids afterward. The remaining acceptance work is root-relative identities and guarded real-vault-copy proof. The product decision on 2026-07-12 is to delete Attached Folder / Project Root capability, not preserve it as another authorization class.
 
 ### EXO-ISSUE-102: Opening Workspace Settings can erase Agent Commands and pane layout
 

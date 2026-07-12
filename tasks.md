@@ -17,6 +17,8 @@ Launch requires four things:
 
 Folder paths are primary structural homes. A writable Note Root may contain a user-owned `index.md` Folder Index; tags, links, and properties preserve multiple membership. Existing imported folders are never mutated merely by viewing them.
 
+Exo scopes a workspace to its Note Roots only. It does not import, attach, or manage projects as a second class of filesystem context.
+
 ## Current Baseline
 
 - The UI convergence wave is installed and passing: compact Settings, centered search, breadcrumbs, title/properties chrome, one resizable utility pane, Preview/Terminal/Connections switching, and direct terminal creation.
@@ -33,7 +35,7 @@ Folder paths are primary structural homes. A writable Note Root may contain a us
 - [ ] Prove stale/concurrent settings patches reject rather than silently overwrite one another.
 - [ ] Prove a saved Command remains invokable after every Settings round trip.
 
-### 2. Finish workspace containment proof — `EXO-ISSUE-103`
+### 2. Finish Note Root containment proof — `EXO-ISSUE-103`
 
 - [ ] Move remaining note operations to root-relative identities behind `WorkspaceFiles`.
 - [ ] Complete escape coverage: traversal, absolute paths, duplicate roots, symlink files/directories, missing ancestors, rename, and recursive delete.
@@ -58,6 +60,7 @@ Folder paths are primary structural homes. A writable Note Root may contain a us
 ### 5. Distill the repository
 
 - [ ] Reduce stale tmux/transcript/plugin/harness/MCP plans and completion-plan families to the canonical docs or delete them.
+- [ ] Delete Attached Folder / Project Root configuration, UI, IPC, and documentation rather than renaming the old project-context model.
 - [ ] Make `README.md`, `docs/architecture.md`, `AGENTS.md`, `CONTEXT.md`, `issues.md`, and `CHANGELOG.md` describe only current behavior.
 - [ ] Review the untracked Command-readiness draft files and the current dirty documentation intentionally before the branch is declared clean.
 
@@ -69,7 +72,7 @@ Start only after the trust gates above pass.
 
 - [ ] Double-click a Folder to open its Overview: durable title/properties from optional `index.md`, direct children, local graph, and relevant context.
 - [ ] Keep raw `index.md` accessible while hiding only its duplicate Explorer row.
-- [ ] Create a Folder Index only through an explicit writable-root action; never mutate attached folders by viewing them.
+- [ ] Create a Folder Index only through an explicit Note Root action.
 - [ ] Test nested folders, moves/renames, missing indexes, explicit property overrides, raw-file access, and no-write viewing.
 
 ### First graph-management Skill
