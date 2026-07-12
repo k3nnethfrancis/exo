@@ -34,6 +34,17 @@ describe("workspace settings registry", () => {
       terminalHistoryLines: 100_000,
       terminalTranscriptRetention: "forever",
       terminalTranscriptRetentionDays: 14,
+      terminalInputCoalesceMs: 40,
+      terminalAgentStartupGraceMs: 1_500,
+      terminalAgentSubmitDelayMs: 120,
+      terminalInitialColumns: 120,
+      terminalInitialRows: 32,
+      terminalMinimumColumns: 20,
+      terminalMinimumRows: 8,
+      terminalReadTailChars: 20_000,
+      terminalMaxReadTailChars: 200_000,
+      terminalUnresponsiveThresholdMs: 10_000,
+      terminalIdleThresholdMs: 120_000,
       explorerScale: 1,
       exploreIndexSearchOnEnter: true,
       indexUpdateStrategy: "on-save",
@@ -59,6 +70,52 @@ describe("workspace settings registry", () => {
       expect(persisted).not.toHaveProperty("projectRoots");
       expect(persistedRegistry.workspaces[0].settings).not.toHaveProperty("projectRoots");
       expect(persistedRegistry.workspaces[0].settings.futureSetting).toEqual({ retained: true });
+      for (const key of [
+        "terminalHistoryLines", "terminalTranscriptRetention", "terminalTranscriptRetentionDays",
+        "terminalInputCoalesceMs", "terminalAgentStartupGraceMs", "terminalAgentSubmitDelayMs",
+        "terminalInitialColumns", "terminalInitialRows", "terminalMinimumColumns", "terminalMinimumRows",
+        "terminalReadTailChars", "terminalMaxReadTailChars", "terminalUnresponsiveThresholdMs", "terminalIdleThresholdMs",
+      ]) {
+        expect(persisted).not.toHaveProperty(key);
+        expect(persistedRegistry.workspaces[0].settings).not.toHaveProperty(key);
+      }
+    } finally {
+      await rm(userDataPath, { recursive: true, force: true });
+    }
+  });
+
+  it("normalizes retired terminal settings when recovering an interrupted transaction", async () => {
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-terminal-migration-recovery-"));
+    const env = { EXO_USER_DATA_PATH: userDataPath };
+    const legacy = {
+      workspaceRoot: "/tmp/exo-terminal-recovery",
+      defaultTerminalCwd: "/tmp/exo-terminal-recovery",
+      noteRoots: ["/tmp/exo-terminal-recovery/notes"],
+      indexedRoots: [],
+      indexing: { enabled: false, mode: "off", backend: "qmd" },
+      terminalHistoryLines: 5,
+      terminalReadTailChars: 7,
+      terminalTranscriptRetention: "days",
+      terminalTranscriptRetentionDays: 1,
+      futureSetting: { retained: true },
+    };
+    const transaction = {
+      version: 1,
+      settings: legacy,
+      registry: { activeWorkspaceId: "legacy", workspaces: [{ id: "legacy", label: "legacy", notesFolder: legacy.noteRoots[0], settings: legacy, updatedAt: "2026-07-12T00:00:00.000Z" }] },
+    };
+
+    try {
+      await writeFile(resolveWorkspaceSettingsTransactionPath(env), JSON.stringify(transaction), { mode: 0o600 });
+      const loaded = await loadWorkspaceSettings(env);
+      expect(loaded?.futureSetting).toEqual({ retained: true });
+      for (const key of ["terminalHistoryLines", "terminalReadTailChars", "terminalTranscriptRetention", "terminalTranscriptRetentionDays"]) {
+        expect(loaded).not.toHaveProperty(key);
+      }
+      await expect(access(resolveWorkspaceSettingsTransactionPath(env))).rejects.toMatchObject({ code: "ENOENT" });
+      const persisted = JSON.parse(await readFile(resolveWorkspaceSettingsPath(env), "utf8"));
+      expect(persisted.futureSetting).toEqual({ retained: true });
+      expect(persisted).not.toHaveProperty("terminalHistoryLines");
     } finally {
       await rm(userDataPath, { recursive: true, force: true });
     }
@@ -204,9 +261,6 @@ describe("workspace settings registry", () => {
         colorThemeId: "exo-solar",
         editorFontSize: 15,
         terminalFontSize: 13,
-        terminalHistoryLines: 100_000,
-        terminalTranscriptRetention: "forever",
-        terminalTranscriptRetentionDays: 14,
         explorerScale: 1,
         exploreIndexSearchOnEnter: false,
         indexUpdateStrategy: "on-save",
@@ -237,9 +291,6 @@ describe("workspace settings registry", () => {
         colorThemeId: "exo-neutral",
         editorFontSize: 15,
         terminalFontSize: 13,
-        terminalHistoryLines: 100_000,
-        terminalTranscriptRetention: "forever",
-        terminalTranscriptRetentionDays: 14,
         explorerScale: 1,
         exploreIndexSearchOnEnter: false,
         indexUpdateStrategy: "on-save",
@@ -288,9 +339,6 @@ describe("workspace settings registry", () => {
       colorThemeId: "exo-neutral",
       editorFontSize: 15,
       terminalFontSize: 13,
-      terminalHistoryLines: 100_000,
-      terminalTranscriptRetention: "forever",
-      terminalTranscriptRetentionDays: 14,
       explorerScale: 1,
       exploreIndexSearchOnEnter: false,
       indexUpdateStrategy: "on-save",
@@ -375,9 +423,6 @@ describe("workspace settings registry", () => {
       colorThemeId: "exo-neutral",
       editorFontSize: 15,
       terminalFontSize: 13,
-      terminalHistoryLines: 100_000,
-      terminalTranscriptRetention: "forever",
-      terminalTranscriptRetentionDays: 14,
       explorerScale: 1,
       exploreIndexSearchOnEnter: false,
       indexUpdateStrategy: "on-save",
@@ -430,9 +475,6 @@ describe("workspace settings registry", () => {
         colorThemeId: "exo-neutral",
         editorFontSize: 15,
         terminalFontSize: 13,
-        terminalHistoryLines: 1_000_000,
-        terminalTranscriptRetention: "forever",
-        terminalTranscriptRetentionDays: 14,
         explorerScale: 1,
         exploreIndexSearchOnEnter: false,
         indexUpdateStrategy: "on-save",
@@ -501,9 +543,6 @@ describe("workspace settings registry", () => {
         colorThemeId: "exo-neutral",
         editorFontSize: 15,
         terminalFontSize: 13,
-        terminalHistoryLines: 1_000_000,
-        terminalTranscriptRetention: "forever",
-        terminalTranscriptRetentionDays: 14,
         explorerScale: 1,
         exploreIndexSearchOnEnter: false,
         indexUpdateStrategy: "on-save",
@@ -542,9 +581,6 @@ describe("workspace settings registry", () => {
         colorThemeId: "exo-neutral",
         editorFontSize: 15,
         terminalFontSize: 13,
-        terminalHistoryLines: 1_000_000,
-        terminalTranscriptRetention: "forever",
-        terminalTranscriptRetentionDays: 14,
         explorerScale: 1,
         exploreIndexSearchOnEnter: false,
         indexUpdateStrategy: "on-save",

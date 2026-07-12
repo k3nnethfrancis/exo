@@ -11,6 +11,7 @@ import {
   DEFAULT_TERMINAL_INITIAL_COLUMNS,
   DEFAULT_TERMINAL_INITIAL_ROWS,
   DEFAULT_TERMINAL_IDLE_THRESHOLD_MS,
+  DEFAULT_TERMINAL_TAIL_CACHE_CHARS,
 } from "@exo/core/terminal-settings";
 
 import type { TerminalCreateOptions, TerminalHealthState, TerminalSessionInfo, TerminalKind, TerminalWriteResult } from "../shared/api";
@@ -35,7 +36,6 @@ type TerminalManagerCreateOptions = TerminalCreateOptions & {
   kind?: TerminalKind;
 };
 
-const DEFAULT_LIVE_TAIL_CHARS = 1_000_000;
 const MIN_LIVE_TAIL_CHARS = 1_024;
 
 export interface TerminalManagerOptions {
@@ -54,7 +54,7 @@ const DEFAULT_TERMINAL_MANAGER_OPTIONS: Required<TerminalManagerOptions> = {
 
 export class TerminalManager extends EventEmitter {
   private readonly sessions = new Map<string, TerminalRecord>();
-  private bufferLineLimit: number;
+  private readonly tailCacheCharLimit: number;
   private nextId = 1;
   private nextWriteId = 1;
   private nextAttachGeneration = 1;
@@ -63,14 +63,12 @@ export class TerminalManager extends EventEmitter {
 
   constructor(
     private defaultCwd: string,
-    bufferLineLimit: number | null = DEFAULT_LIVE_TAIL_CHARS,
-    _legacyTranscriptRetentionDays = 0,
+    tailCacheCharLimit: number | null = DEFAULT_TERMINAL_TAIL_CACHE_CHARS,
     terminalOptions: TerminalManagerOptions = {},
     private readonly processFactory: TerminalProcessFactory = new DirectPtyProcessFactory(),
-    _legacyHarnessDependencyStarter?: unknown,
   ) {
     super();
-    this.bufferLineLimit = normalizeTailCharLimit(bufferLineLimit);
+    this.tailCacheCharLimit = normalizeTailCharLimit(tailCacheCharLimit);
     this.terminalOptions = normalizeTerminalManagerOptions(terminalOptions);
     this.geometryService = this.createGeometryService();
   }
@@ -100,13 +98,6 @@ export class TerminalManager extends EventEmitter {
 
   setDefaultCwd(cwd: string) {
     this.defaultCwd = cwd;
-  }
-
-  setBufferLineLimit(bufferLineLimit: number | null) {
-    this.bufferLineLimit = normalizeTailCharLimit(bufferLineLimit);
-    for (const record of this.sessions.values()) {
-      record.tailCache.resize(this.bufferLineLimit);
-    }
   }
 
   setTerminalRuntimeOptions(options: TerminalManagerOptions) {
@@ -252,7 +243,7 @@ export class TerminalManager extends EventEmitter {
     const record: TerminalRecord = {
       info,
       process,
-      tailCache: new TerminalTailCache(this.bufferLineLimit),
+      tailCache: new TerminalTailCache(this.tailCacheCharLimit),
       lastWriteId: 0,
     };
     this.sessions.set(id, record);
@@ -384,10 +375,10 @@ function tailLines(text: string, maxLines: number | undefined): string {
 
 function normalizeTailCharLimit(value: number | null | undefined): number {
   if (value === null || value === undefined || value <= 0) {
-    return DEFAULT_LIVE_TAIL_CHARS;
+    return DEFAULT_TERMINAL_TAIL_CACHE_CHARS;
   }
   if (!Number.isFinite(value)) {
-    return DEFAULT_LIVE_TAIL_CHARS;
+    return DEFAULT_TERMINAL_TAIL_CACHE_CHARS;
   }
   return Math.max(MIN_LIVE_TAIL_CHARS, Math.floor(value));
 }

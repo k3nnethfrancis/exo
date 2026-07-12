@@ -414,7 +414,6 @@ async function saveSettings(request: WorkspaceSettingsSaveRequest): Promise<Work
     await ensureNoteRoots(workspaceModel);
     workspaceWatcherService.start(workspaceModel);
     terminalManager.setDefaultCwd(workspaceModel.defaultTerminalCwd);
-    terminalManager.setBufferLineLimit(saved.settings.terminalHistoryLines);
     if (indexingService.shouldSyncAfterSettingsApply(previous, saved.settings)) {
       indexingService.scheduleSync("settings-apply", 0);
     }
@@ -481,7 +480,6 @@ app.whenReady().then(async () => {
   logWorkspaceStartup(workspaceModel);
   terminalManager = new TerminalManager(
     workspaceModel.defaultTerminalCwd,
-    (workspaceSettings ?? workspaceSettingsFromModel(workspaceModel)).terminalHistoryLines,
   );
   indexingService = new IndexingService({
     getWorkspaceModel: () => workspaceModel,

@@ -40,9 +40,9 @@ import {
   clampNumber,
   DEFAULT_EDITOR_FONT_SIZE,
   DEFAULT_EXPLORER_SCALE,
-  DEFAULT_TERMINAL_HISTORY_LINES,
+  DEFAULT_TERMINAL_RUNTIME_SCROLLBACK_LINES,
   DEFAULT_TERMINAL_FONT_SIZE,
-  DEFAULT_TERMINAL_READ_TAIL_CHARS,
+  DEFAULT_TERMINAL_PENDING_HYDRATION_CHARS,
   resolveSettingsTerminalRuntime,
   workspaceSettingsStructuralDraftKey,
 } from "./workspaceSettingsModel";
@@ -79,13 +79,13 @@ export function App() {
   const [zoomSurface, setZoomSurface] = useState<ZoomSurface>("editor");
   const [editorFontSize, setEditorFontSize] = useState(DEFAULT_EDITOR_FONT_SIZE);
   const [terminalFontSize, setTerminalFontSize] = useState(DEFAULT_TERMINAL_FONT_SIZE);
-  const [terminalRuntimeScrollbackLines, setTerminalRuntimeScrollbackLines] = useState(DEFAULT_TERMINAL_HISTORY_LINES);
-  const [terminalRuntimeReadTailChars, setTerminalRuntimeReadTailChars] = useState(DEFAULT_TERMINAL_READ_TAIL_CHARS);
+  const [terminalRuntimeScrollbackLines, setTerminalRuntimeScrollbackLines] = useState(DEFAULT_TERMINAL_RUNTIME_SCROLLBACK_LINES);
+  const [terminalRuntimeReadTailChars, setTerminalRuntimeReadTailChars] = useState(DEFAULT_TERMINAL_PENDING_HYDRATION_CHARS);
   const [explorerScale, setExplorerScale] = useState(DEFAULT_EXPLORER_SCALE);
   const [systemPrefersDark, setSystemPrefersDark] = useState(() =>
     window.matchMedia("(prefers-color-scheme: dark)").matches,
   );
-  const terminalRuntimeScrollbackLinesRef = useRef(DEFAULT_TERMINAL_HISTORY_LINES);
+  const terminalRuntimeScrollbackLinesRef = useRef(DEFAULT_TERMINAL_RUNTIME_SCROLLBACK_LINES);
   const shellLayout = useShellLayout();
   const { tree: canvasTree, focusedLeafId: focusedPaneId, actions: canvasActions } = shellLayout.canvasPaneTree;
   const [utilityState, dispatchUtility] = useReducer(reduceUtilitySurface, DEFAULT_UTILITY_SURFACE_STATE);

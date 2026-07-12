@@ -1,10 +1,13 @@
 import type { WorkspaceSettings } from "@exo/core";
+import {
+  DEFAULT_TERMINAL_PENDING_HYDRATION_CHARS as CORE_DEFAULT_TERMINAL_PENDING_HYDRATION_CHARS,
+  DEFAULT_TERMINAL_SCROLLBACK_LINES,
+} from "@exo/core/terminal-settings";
 
 import type { WorkspaceSettingsDialogState } from "./workspaceSettingsDialogTypes";
 
-export const DEFAULT_TERMINAL_HISTORY_LINES = 100_000;
-export const DEFAULT_TERMINAL_READ_TAIL_CHARS = 20_000;
-export const MIN_TERMINAL_HISTORY_LINES = 500;
+export const DEFAULT_TERMINAL_RUNTIME_SCROLLBACK_LINES = DEFAULT_TERMINAL_SCROLLBACK_LINES;
+export const DEFAULT_TERMINAL_PENDING_HYDRATION_CHARS = CORE_DEFAULT_TERMINAL_PENDING_HYDRATION_CHARS;
 export const DEFAULT_EDITOR_FONT_SIZE = 15;
 export const DEFAULT_TERMINAL_FONT_SIZE = 13;
 export const DEFAULT_EXPLORER_SCALE = 1;
@@ -41,10 +44,10 @@ export function workspaceSettingsStructuralKeyFromSettings(settings: WorkspaceSe
   });
 }
 
-export function resolveSettingsTerminalRuntime(settings: WorkspaceSettings): { readTailChars: number; scrollbackLines: number } {
+export function resolveSettingsTerminalRuntime(_settings: WorkspaceSettings): { readTailChars: number; scrollbackLines: number } {
   return {
-    readTailChars: settings.terminalReadTailChars ?? DEFAULT_TERMINAL_READ_TAIL_CHARS,
-    scrollbackLines: settings.terminalHistoryLines,
+    readTailChars: DEFAULT_TERMINAL_PENDING_HYDRATION_CHARS,
+    scrollbackLines: DEFAULT_TERMINAL_RUNTIME_SCROLLBACK_LINES,
   };
 }
 

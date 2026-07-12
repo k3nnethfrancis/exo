@@ -9,7 +9,7 @@ describe("TerminalManager direct PTY", () => {
   it("keeps byte-faithful input and a bounded in-memory tail", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "exo-terminal-manager-"));
     const factory = new FakeTerminalProcessFactory();
-    const manager = new TerminalManager(root, 1_024, 0, {}, factory);
+    const manager = new TerminalManager(root, 1_024, {}, factory);
     const terminal = await manager.create({ terminalKind: "shell", cwd: root });
 
     await manager.write(terminal.id, "hello world\u001b[?1000h");

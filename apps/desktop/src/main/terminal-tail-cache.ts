@@ -12,11 +12,6 @@ export class TerminalTailCache {
     this.output = appendBoundedChars(this.output, data, this.charLimit);
   }
 
-  resize(charLimit: number): void {
-    this.charLimit = charLimit;
-    this.output = appendBoundedChars("", this.output, this.charLimit);
-  }
-
   text(): string {
     return this.output;
   }

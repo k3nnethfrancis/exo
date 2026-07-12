@@ -5,30 +5,29 @@ import path from "node:path";
 
 import type { IndexMode, LegacyWorkspaceLayoutSettings, WorkspaceCanvasLayoutSettings, WorkspaceLayoutSettings, WorkspaceModel, WorkspacePaneContent, WorkspacePaneNode, WorkspaceSettings, WorkspaceSettingsRevision } from "./types";
 import { normalizeAgentCommands } from "./agent-invocation";
-import {
-  DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS,
-  DEFAULT_TERMINAL_AGENT_SUBMIT_DELAY_MS,
-  DEFAULT_TERMINAL_IDLE_THRESHOLD_MS,
-  DEFAULT_TERMINAL_INITIAL_COLUMNS,
-  DEFAULT_TERMINAL_INITIAL_ROWS,
-  DEFAULT_TERMINAL_INPUT_COALESCE_MS,
-  DEFAULT_TERMINAL_MAX_READ_TAIL_CHARS,
-  DEFAULT_TERMINAL_MINIMUM_COLUMNS,
-  DEFAULT_TERMINAL_MINIMUM_ROWS,
-  DEFAULT_TERMINAL_READ_TAIL_CHARS,
-  DEFAULT_TERMINAL_UNRESPONSIVE_THRESHOLD_MS,
-} from "./terminal-settings";
 import { createIndexedRoot, DEFAULT_INDEXING } from "./workspace";
 
 export const DEFAULT_APPEARANCE_MODE: WorkspaceSettings["appearanceMode"] = "system";
 export const DEFAULT_COLOR_THEME_ID: WorkspaceSettings["colorThemeId"] = "exo-neutral";
 export const DEFAULT_EDITOR_FONT_SIZE = 15;
 export const DEFAULT_TERMINAL_FONT_SIZE = 13;
-export const DEFAULT_TERMINAL_HISTORY_LINES = 100_000;
-export const MIN_TERMINAL_HISTORY_LINES = 500;
-export const DEFAULT_TERMINAL_TRANSCRIPT_RETENTION: WorkspaceSettings["terminalTranscriptRetention"] = "forever";
-export const DEFAULT_TERMINAL_TRANSCRIPT_RETENTION_DAYS = 14;
 export const DEFAULT_EXPLORER_SCALE = 1;
+export const RETIRED_TERMINAL_SETTINGS_KEYS = [
+  "terminalHistoryLines",
+  "terminalTranscriptRetention",
+  "terminalTranscriptRetentionDays",
+  "terminalInputCoalesceMs",
+  "terminalAgentStartupGraceMs",
+  "terminalAgentSubmitDelayMs",
+  "terminalInitialColumns",
+  "terminalInitialRows",
+  "terminalMinimumColumns",
+  "terminalMinimumRows",
+  "terminalReadTailChars",
+  "terminalMaxReadTailChars",
+  "terminalUnresponsiveThresholdMs",
+  "terminalIdleThresholdMs",
+] as const;
 export interface WorkspaceRegistryEntry {
   id: string;
   label: string;
@@ -69,7 +68,8 @@ export async function loadWorkspaceSettings(env: NodeJS.ProcessEnv = process.env
   await recoverWorkspaceSettingsTransaction(env);
   const settings = await loadWorkspaceSettingsFile(env);
   const droppedProjectRoots = await legacyProjectRootsInPersistence(env);
-  if (settings && droppedProjectRoots.length > 0) {
+  const droppedTerminalSettings = await retiredTerminalSettingsInPersistence(env);
+  if (settings && (droppedProjectRoots.length > 0 || droppedTerminalSettings.length > 0)) {
     // Reuse the existing two-file transaction so primary settings and registry
     // snapshots lose the retired authorization atomically.
     await saveWorkspaceSettings(settings, env);
@@ -126,7 +126,7 @@ export async function saveWorkspaceSettings(settings: WorkspaceSettings, env: No
 export async function loadWorkspaceRegistry(env: NodeJS.ProcessEnv = process.env): Promise<WorkspaceRegistry> {
   await recoverWorkspaceSettingsTransaction(env);
   const registry = await loadWorkspaceRegistryFile(env);
-  if ((await legacyProjectRootsInPersistence(env)).length > 0) {
+  if ((await legacyProjectRootsInPersistence(env)).length > 0 || (await retiredTerminalSettingsInPersistence(env)).length > 0) {
     await writeJsonAtomically(resolveWorkspaceRegistryPath(env), registry);
   }
   return registry;
@@ -299,8 +299,8 @@ export function workspaceModelFromSettings(settings: WorkspaceSettings): Workspa
 
 /**
  * Normalizes durable user settings while deliberately deleting the retired
- * `projectRoots` key. Unknown keys remain intact so a newer Exo does not lose
- * unrelated data when opened by this build.
+ * `projectRoots` and retired terminal tuning keys. Unknown keys remain intact
+ * so a newer Exo does not lose unrelated data when opened by this build.
  */
 export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | null | undefined): WorkspaceSettings | null {
   if (!input) {
@@ -338,9 +338,26 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
     return null;
   }
 
-  // A newer Exo may own settings this build does not recognize yet. The one
-  // exception is the retired projectRoots authorization surface.
-  const { projectRoots: _removedProjectRoots, ...preservedInput } = input as Partial<WorkspaceSettings> & { projectRoots?: unknown };
+  // A newer Exo may own settings this build does not recognize yet. These
+  // named keys are retired product surfaces and must not survive a rewrite.
+  const {
+    projectRoots: _removedProjectRoots,
+    terminalHistoryLines: _removedTerminalHistoryLines,
+    terminalTranscriptRetention: _removedTerminalTranscriptRetention,
+    terminalTranscriptRetentionDays: _removedTerminalTranscriptRetentionDays,
+    terminalInputCoalesceMs: _removedTerminalInputCoalesceMs,
+    terminalAgentStartupGraceMs: _removedTerminalAgentStartupGraceMs,
+    terminalAgentSubmitDelayMs: _removedTerminalAgentSubmitDelayMs,
+    terminalInitialColumns: _removedTerminalInitialColumns,
+    terminalInitialRows: _removedTerminalInitialRows,
+    terminalMinimumColumns: _removedTerminalMinimumColumns,
+    terminalMinimumRows: _removedTerminalMinimumRows,
+    terminalReadTailChars: _removedTerminalReadTailChars,
+    terminalMaxReadTailChars: _removedTerminalMaxReadTailChars,
+    terminalUnresponsiveThresholdMs: _removedTerminalUnresponsiveThresholdMs,
+    terminalIdleThresholdMs: _removedTerminalIdleThresholdMs,
+    ...preservedInput
+  } = input as Partial<WorkspaceSettings> & Record<string, unknown>;
   return {
     ...preservedInput,
     workspaceRoot,
@@ -353,23 +370,6 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
     colorThemeId: normalizeColorThemeId(input.colorThemeId),
     editorFontSize: clampSettingsNumber(input.editorFontSize, DEFAULT_EDITOR_FONT_SIZE, 11, 24),
     terminalFontSize: clampSettingsNumber(input.terminalFontSize, DEFAULT_TERMINAL_FONT_SIZE, 10, 22),
-    terminalHistoryLines: normalizeTerminalHistoryLines(input.terminalHistoryLines),
-    terminalTranscriptRetention: input.terminalTranscriptRetention === "days" ? "days" : DEFAULT_TERMINAL_TRANSCRIPT_RETENTION,
-    terminalTranscriptRetentionDays: clampSettingsNumber(input.terminalTranscriptRetentionDays, DEFAULT_TERMINAL_TRANSCRIPT_RETENTION_DAYS, 1, 3650),
-    terminalInputCoalesceMs: terminalIntegerAtLeast(input.terminalInputCoalesceMs, DEFAULT_TERMINAL_INPUT_COALESCE_MS, 0),
-    terminalAgentStartupGraceMs: terminalIntegerAtLeast(input.terminalAgentStartupGraceMs, DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS, 0),
-    terminalAgentSubmitDelayMs: terminalIntegerAtLeast(input.terminalAgentSubmitDelayMs, DEFAULT_TERMINAL_AGENT_SUBMIT_DELAY_MS, 0),
-    terminalInitialColumns: terminalIntegerAtLeast(input.terminalInitialColumns, DEFAULT_TERMINAL_INITIAL_COLUMNS, 20),
-    terminalInitialRows: terminalIntegerAtLeast(input.terminalInitialRows, DEFAULT_TERMINAL_INITIAL_ROWS, 8),
-    terminalMinimumColumns: terminalIntegerAtLeast(input.terminalMinimumColumns, DEFAULT_TERMINAL_MINIMUM_COLUMNS, 1),
-    terminalMinimumRows: terminalIntegerAtLeast(input.terminalMinimumRows, DEFAULT_TERMINAL_MINIMUM_ROWS, 1),
-    terminalReadTailChars: terminalIntegerAtLeast(input.terminalReadTailChars, DEFAULT_TERMINAL_READ_TAIL_CHARS, 0),
-    terminalMaxReadTailChars: Math.max(
-      terminalIntegerAtLeast(input.terminalReadTailChars, DEFAULT_TERMINAL_READ_TAIL_CHARS, 0),
-      terminalIntegerAtLeast(input.terminalMaxReadTailChars, DEFAULT_TERMINAL_MAX_READ_TAIL_CHARS, 0),
-    ),
-    terminalUnresponsiveThresholdMs: terminalIntegerAtLeast(input.terminalUnresponsiveThresholdMs, DEFAULT_TERMINAL_UNRESPONSIVE_THRESHOLD_MS, 1_000),
-    terminalIdleThresholdMs: terminalIntegerAtLeast(input.terminalIdleThresholdMs, DEFAULT_TERMINAL_IDLE_THRESHOLD_MS, 1_000),
     explorerScale: clampSettingsNumber(input.explorerScale, DEFAULT_EXPLORER_SCALE, 0.82, 1.35),
     exploreIndexSearchOnEnter: typeof input.exploreIndexSearchOnEnter === "boolean" ? input.exploreIndexSearchOnEnter : indexing.enabled && indexing.mode !== "off" && indexedRoots.length > 0,
     indexUpdateStrategy: input.indexUpdateStrategy === "manual" ? "manual" : "on-save",
@@ -416,6 +416,50 @@ export async function legacyProjectRootsInPersistence(env: NodeJS.ProcessEnv): P
     // A registry is optional during first-run onboarding.
   }
   return [...paths];
+}
+
+/** Named compatibility migration: these former implementation knobs are not
+ * settings and must be removed while unknown future fields remain intact. */
+export function retiredTerminalSettingsFromSettings(input: unknown): string[] {
+  if (!input || typeof input !== "object") {
+    return [];
+  }
+  const candidate = input as Record<string, unknown>;
+  return RETIRED_TERMINAL_SETTINGS_KEYS.filter((key) => Object.hasOwn(candidate, key));
+}
+
+export async function retiredTerminalSettingsInPersistence(env: NodeJS.ProcessEnv): Promise<string[]> {
+  const keys = new Set<string>();
+  const collect = (value: unknown) => {
+    for (const key of retiredTerminalSettingsFromSettings(value)) {
+      keys.add(key);
+    }
+  };
+  const collectRegistry = (value: unknown) => {
+    if (!value || typeof value !== "object") {
+      return;
+    }
+    const workspaces = (value as { workspaces?: unknown }).workspaces;
+    if (!Array.isArray(workspaces)) {
+      return;
+    }
+    for (const workspace of workspaces) {
+      if (workspace && typeof workspace === "object") {
+        collect((workspace as { settings?: unknown }).settings);
+      }
+    }
+  };
+  try {
+    collect(JSON.parse(await readFile(resolveWorkspaceSettingsPath(env), "utf8")));
+  } catch {
+    // Missing/corrupt settings already follow the normal load path.
+  }
+  try {
+    collectRegistry(JSON.parse(await readFile(resolveWorkspaceRegistryPath(env), "utf8")));
+  } catch {
+    // Missing/corrupt registry already follows the normal load path.
+  }
+  return [...keys];
 }
 
 function normalizeColorThemeId(value: unknown): WorkspaceSettings["colorThemeId"] {
@@ -479,22 +523,6 @@ function workspaceIdForNotesFolder(notesFolder: string): string {
 function clampSettingsNumber(value: unknown, fallback: number, min: number, max: number): number {
   const parsed = typeof value === "number" ? value : Number(value);
   return Number.isFinite(parsed) ? Math.max(min, Math.min(max, parsed)) : fallback;
-}
-
-function normalizeTerminalHistoryLines(value: unknown): number {
-  const parsed = typeof value === "number" ? value : Number(value);
-  if (!Number.isFinite(parsed)) {
-    return DEFAULT_TERMINAL_HISTORY_LINES;
-  }
-  return Math.max(MIN_TERMINAL_HISTORY_LINES, Math.floor(parsed));
-}
-
-function terminalIntegerAtLeast(value: unknown, fallback: number, min: number): number {
-  const parsed = typeof value === "number" ? value : Number(value);
-  if (!Number.isFinite(parsed)) {
-    return fallback;
-  }
-  return Math.max(min, Math.floor(parsed));
 }
 
 const DEFAULT_SIDEBAR_WIDTH = 175;

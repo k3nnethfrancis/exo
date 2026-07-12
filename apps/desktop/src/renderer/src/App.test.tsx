@@ -13,17 +13,6 @@ import type {
   WorkspaceModel,
 } from "@exo/core";
 import {
-  DEFAULT_TERMINAL_HISTORY_LINES,
-  DEFAULT_TERMINAL_INITIAL_COLUMNS,
-  DEFAULT_TERMINAL_INITIAL_ROWS,
-  DEFAULT_TERMINAL_INPUT_COALESCE_MS,
-  DEFAULT_TERMINAL_IDLE_THRESHOLD_MS,
-  DEFAULT_TERMINAL_MAX_READ_TAIL_CHARS,
-  DEFAULT_TERMINAL_MINIMUM_COLUMNS,
-  DEFAULT_TERMINAL_MINIMUM_ROWS,
-  DEFAULT_TERMINAL_READ_TAIL_CHARS,
-  DEFAULT_TERMINAL_TRANSCRIPT_RETENTION,
-  DEFAULT_TERMINAL_UNRESPONSIVE_THRESHOLD_MS,
   getWorkspaceRegistryEntry,
   listWorkspaceRegistryEntries,
   normalizeWorkspaceSettings,
@@ -41,22 +30,6 @@ class WorkspaceSettingsStore {
   getWorkspace(id: string) { return getWorkspaceRegistryEntry(id, { ...this.options.env, EXO_USER_DATA_PATH: this.options.userDataPath }); }
 }
 
-function resolveTerminalRuntimePolicy(settings: NonNullable<ReturnType<typeof normalizeWorkspaceSettings>>) {
-  return {
-    scrollbackLines: settings.terminalHistoryLines,
-    bufferLineLimit: settings.terminalHistoryLines,
-    transcriptRetentionDays: settings.terminalTranscriptRetention === "days" ? settings.terminalTranscriptRetentionDays : 0,
-    inputCoalesceMs: settings.terminalInputCoalesceMs,
-    initialColumns: settings.terminalInitialColumns,
-    initialRows: settings.terminalInitialRows,
-    minimumColumns: settings.terminalMinimumColumns,
-    minimumRows: settings.terminalMinimumRows,
-    readTailChars: settings.terminalReadTailChars,
-    maxReadTailChars: settings.terminalMaxReadTailChars,
-    unresponsiveThresholdMs: settings.terminalUnresponsiveThresholdMs,
-    idleThresholdMs: settings.terminalIdleThresholdMs,
-  };
-}
 import { TERMINAL_CUSTOM_GLYPHS, TERMINAL_FONT_FAMILY } from "./components/terminalFonts";
 import {
   initialTerminalHydrationViewState,
@@ -369,7 +342,7 @@ describe("terminal renderer registry", () => {
 });
 
 describe("workspace terminal settings", () => {
-  it("defaults to the clean terminal policy", () => {
+  it("keeps terminal runtime bounds out of persisted settings", () => {
     const store = new WorkspaceSettingsStore({ userDataPath: "/tmp/exo-test", env: {} });
     const settings = store.normalize({
       workspaceRoot: "/tmp/exo-test/workspace",
@@ -380,19 +353,17 @@ describe("workspace terminal settings", () => {
       indexing: { enabled: false, mode: "off", backend: "qmd" },
     });
 
-    expect(settings?.terminalHistoryLines).toBe(DEFAULT_TERMINAL_HISTORY_LINES);
-    expect(settings?.terminalTranscriptRetention).toBe(DEFAULT_TERMINAL_TRANSCRIPT_RETENTION);
-    expect(Object.prototype.hasOwnProperty.call(settings, "terminalStreamingMode")).toBe(false);
-    expect(Object.prototype.hasOwnProperty.call(settings, "terminalAgentTransport")).toBe(false);
-    expect(Object.prototype.hasOwnProperty.call(settings, "terminalScrollbackLines")).toBe(false);
-    expect(Object.prototype.hasOwnProperty.call(settings, "terminalBufferChars")).toBe(false);
-    expect(settings ? resolveTerminalRuntimePolicy(settings) : null).toMatchObject({
-      bufferLineLimit: DEFAULT_TERMINAL_HISTORY_LINES,
-      transcriptRetentionDays: 0,
+    expect(settings).not.toBeNull();
+    expect(resolveSettingsTerminalRuntime(settings!)).toMatchObject({
+      scrollbackLines: 100_000,
+      readTailChars: 20_000,
     });
+    for (const key of ["terminalHistoryLines", "terminalTranscriptRetention", "terminalTranscriptRetentionDays", "terminalStreamingMode", "terminalAgentTransport", "terminalScrollbackLines", "terminalBufferChars"]) {
+      expect(settings).not.toHaveProperty(key);
+    }
   });
 
-  it("derives terminal internals from custom history settings", () => {
+  it("drops retired terminal tuning without changing internal runtime defaults", () => {
     const store = new WorkspaceSettingsStore({ userDataPath: "/tmp/exo-test", env: {} });
     const settings = store.normalize({
       workspaceRoot: "/tmp/exo-test/workspace",
@@ -406,28 +377,19 @@ describe("workspace terminal settings", () => {
       terminalTranscriptRetentionDays: 30,
     });
 
-    expect(settings?.terminalHistoryLines).toBe(24_000);
-    expect(settings?.terminalTranscriptRetention).toBe("days");
-    expect(settings?.terminalTranscriptRetentionDays).toBe(30);
-    expect(settings ? resolveTerminalRuntimePolicy(settings) : null).toMatchObject({
-      scrollbackLines: 24_000,
-      bufferLineLimit: 24_000,
-      transcriptRetentionDays: 30,
-      inputCoalesceMs: DEFAULT_TERMINAL_INPUT_COALESCE_MS,
-      initialColumns: DEFAULT_TERMINAL_INITIAL_COLUMNS,
-      initialRows: DEFAULT_TERMINAL_INITIAL_ROWS,
-      minimumColumns: DEFAULT_TERMINAL_MINIMUM_COLUMNS,
-      minimumRows: DEFAULT_TERMINAL_MINIMUM_ROWS,
-      readTailChars: DEFAULT_TERMINAL_READ_TAIL_CHARS,
-      maxReadTailChars: DEFAULT_TERMINAL_MAX_READ_TAIL_CHARS,
-      unresponsiveThresholdMs: DEFAULT_TERMINAL_UNRESPONSIVE_THRESHOLD_MS,
-      idleThresholdMs: DEFAULT_TERMINAL_IDLE_THRESHOLD_MS,
+    expect(settings).not.toBeNull();
+    expect(resolveSettingsTerminalRuntime(settings!)).toMatchObject({
+      scrollbackLines: 100_000,
+      readTailChars: 20_000,
     });
+    for (const key of ["terminalHistoryLines", "terminalTranscriptRetention", "terminalTranscriptRetentionDays"]) {
+      expect(settings).not.toHaveProperty(key);
+    }
   });
 });
 
 describe("workspace settings renderer model", () => {
-  it("preserves settings that are intentionally absent from the dialog", () => {
+  it("does not revive retired terminal settings through dialog saves", () => {
     const current = normalizeWorkspaceSettings({
       workspaceRoot: "/workspace",
       defaultTerminalCwd: "/workspace",
@@ -447,13 +409,10 @@ describe("workspace settings renderer model", () => {
       current,
     );
 
-    expect(next).toMatchObject({
-      appearanceMode: "dark",
-      terminalFontSize: 16,
-      terminalHistoryLines: 24_000,
-      terminalTranscriptRetention: "days",
-      terminalTranscriptRetentionDays: 30,
-    });
+    expect(next).toMatchObject({ appearanceMode: "dark", terminalFontSize: 16 });
+    expect(next).not.toHaveProperty("terminalHistoryLines");
+    expect(next).not.toHaveProperty("terminalTranscriptRetention");
+    expect(next).not.toHaveProperty("terminalTranscriptRetentionDays");
   });
 
   it("keeps structural draft keys aligned with saved settings keys", () => {
@@ -527,7 +486,7 @@ describe("workspace settings renderer model", () => {
     );
   });
 
-  it("resolves numeric scrollback and ignores legacy history mode", () => {
+  it("uses fixed internal scrollback and ignores legacy history fields", () => {
     const store = new WorkspaceSettingsStore({ userDataPath: "/tmp/exo-test", env: {} });
     const settings = store.normalize({
       workspaceRoot: "/workspace",
@@ -536,13 +495,13 @@ describe("workspace settings renderer model", () => {
       projectRoots: [],
       indexedRoots: [],
       indexing: { enabled: false, mode: "off", backend: "qmd" },
-      // Old persisted settings may include this field. New code ignores it
-      // and preserves the explicit numeric scrollback value.
+      // Old persisted settings may include both fields. Runtime bounds stay
+      // internal and neither is retained as a user preference.
       terminalHistoryMode: "full",
       terminalHistoryLines: 1_000_000,
     } as Parameters<WorkspaceSettingsStore["normalize"]>[0] & { terminalHistoryMode: "full" });
 
-    expect(settings ? resolveSettingsTerminalRuntime(settings).scrollbackLines : null).toBe(1_000_000);
+    expect(settings ? resolveSettingsTerminalRuntime(settings).scrollbackLines : null).toBe(100_000);
     expect(clampNumber(Number.NaN, 10, 20)).toBe(10);
     expect(clampNumber(25, 10, 20)).toBe(20);
     expect(clampNumber(15, 10, 20)).toBe(15);

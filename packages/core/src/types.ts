@@ -31,20 +31,6 @@ export interface WorkspaceSettings {
   colorThemeId: ColorThemeId;
   editorFontSize: number;
   terminalFontSize: number;
-  terminalHistoryLines: number;
-  terminalTranscriptRetention: TerminalTranscriptRetention;
-  terminalTranscriptRetentionDays: number;
-  terminalInputCoalesceMs?: number;
-  terminalAgentStartupGraceMs?: number;
-  terminalAgentSubmitDelayMs?: number;
-  terminalInitialColumns?: number;
-  terminalInitialRows?: number;
-  terminalMinimumColumns?: number;
-  terminalMinimumRows?: number;
-  terminalReadTailChars?: number;
-  terminalMaxReadTailChars?: number;
-  terminalUnresponsiveThresholdMs?: number;
-  terminalIdleThresholdMs?: number;
   explorerScale: number;
   exploreIndexSearchOnEnter: boolean;
   indexUpdateStrategy: IndexUpdateStrategy;
@@ -171,7 +157,6 @@ export type IndexedRootKind = "notes" | "docs" | "code" | "mixed";
 export type IndexMode = "off" | "lexical" | "semantic" | "hybrid";
 export type IndexBackend = "filesystem" | "qmd";
 export type IndexUpdateStrategy = "manual" | "on-save";
-export type TerminalTranscriptRetention = "forever" | "days";
 
 export interface IndexedRoot {
   id: string;
