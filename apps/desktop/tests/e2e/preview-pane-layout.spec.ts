@@ -1,10 +1,44 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { createServer } from "node:http";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { test, expect } from "@playwright/test";
 
 import { launchExoWorkspaceFixture } from "../helpers";
+
+test("renders visible content from a localhost preview", async () => {
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+    response.end("<!doctype html><html><body><h1>Preview content loaded</h1></body></html>");
+  });
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const address = server.address();
+  if (!address || typeof address === "string") {
+    server.close();
+    throw new Error("Preview fixture server did not expose a TCP port");
+  }
+  const url = `http://127.0.0.1:${address.port}/preview`;
+  const { page, cleanup } = await launchExoWorkspaceFixture();
+
+  try {
+    await page.getByTestId("utility-pane-toggle").click();
+    await page.getByTestId("utility-pane-preview").click();
+    await page.getByRole("button", { name: "New preview" }).click();
+    await page.getByTestId("browser-url-input").fill(url);
+    const frameNavigation = page.waitForEvent("framenavigated", (frame) => frame.url() === url);
+    await page.getByTestId("browser-url-input").press("Enter");
+
+    const previewFrame = await frameNavigation;
+    await expect(previewFrame.getByRole("heading", { name: "Preview content loaded" })).toBeVisible();
+  } finally {
+    await cleanup();
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});
 
 test("uses one full-width preview surface in the utility pane", async () => {
   const { page, cleanup } = await launchExoWorkspaceFixture();
