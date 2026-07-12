@@ -213,9 +213,10 @@ function TreeNodes({
   onContextMenu?: (event: React.MouseEvent, target: ContextTarget) => void;
   mirrored: boolean;
 }) {
+  const visibleNodes = nodes.filter((node) => node.kind === "directory" || node.name !== "index.md");
   return (
     <div className="tree-nodes">
-      {nodes.map((node) => {
+      {visibleNodes.map((node) => {
         const depthStyle = { "--tree-depth": depth } as CSSProperties;
         if (node.kind === "directory") {
           const expanded = expandedPaths.has(node.path);
