@@ -10,12 +10,12 @@ import { createWorkspaceFile, listRootTree, renameWorkspacePath, resolveNotePath
 const fixtureWorkspaceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../fixtures/test-workspace");
 
 describe("workspace", () => {
-  it("initializes new Markdown files with date and tags metadata", async () => {
+  it("initializes new Markdown files with core metadata and an editable H1", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-"));
     const target = path.join(root, "new-note.md");
     try {
       await createWorkspaceFile(target);
-      await expect(readFile(target, "utf8")).resolves.toMatch(/^---\ndate: \d{4}-\d{2}-\d{2}\ntags: \[\]\n---\n$/);
+      await expect(readFile(target, "utf8")).resolves.toMatch(/^---\ndate: \d{4}-\d{2}-\d{2}\ntags: \[\]\n---\n\n# new-note\n$/);
     } finally {
       await rm(root, { recursive: true, force: true });
     }

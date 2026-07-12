@@ -42,7 +42,7 @@ describe("WorkspaceNotesService", () => {
     const createdPath = await service.ensureTarget(sourcePath, "new target");
 
     expect(createdPath).toBe(path.join(noteRoot, "folder", "new target.md"));
-    await expect(readFile(createdPath, "utf8")).resolves.toMatch(/^---\ndate: \d{4}-\d{2}-\d{2}\ntags: \[\]\n---\n$/);
+    await expect(readFile(createdPath, "utf8")).resolves.toMatch(/^---\ndate: \d{4}-\d{2}-\d{2}\ntags: \[\]\n---\n\n# new target\n$/);
   });
 
   it("rejects wiki targets that traverse outside the source note root", async () => {
@@ -66,7 +66,7 @@ describe("WorkspaceNotesService", () => {
     const createdPath = await service.ensureTarget(sourcePath, targetPath);
 
     expect(createdPath).toBe(targetPath);
-    await expect(readFile(targetPath, "utf8")).resolves.toMatch(/^---\ndate: \d{4}-\d{2}-\d{2}\ntags: \[\]\n---\n$/);
+    await expect(readFile(targetPath, "utf8")).resolves.toMatch(/^---\ndate: \d{4}-\d{2}-\d{2}\ntags: \[\]\n---\n\n# absolute\n$/);
   });
 
   it("suggests exact target matches before partial matches", async () => {

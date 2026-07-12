@@ -545,7 +545,8 @@ function initialWorkspaceFileContent(targetPath: string): string {
     return "";
   }
 
-  return ["---", `date: ${new Date().toISOString().slice(0, 10)}`, "tags: []", "---", ""].join("\n");
+  const title = path.basename(targetPath).replace(/\.md(?:own)?$/i, "");
+  return ["---", `date: ${new Date().toISOString().slice(0, 10)}`, "tags: []", "---", "", `# ${title}`, ""].join("\n");
 }
 
 export async function renameWorkspacePath(sourcePath: string, nextPath: string): Promise<string> {

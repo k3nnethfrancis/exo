@@ -848,7 +848,6 @@ function decorateLine(
 
   const listContext = listContexts.get(lineNumber);
   if (listContext) {
-    const guideXs = listGuideXs(listContext.depth);
     out.push({
       from: lineFrom,
       to: lineFrom,
@@ -857,7 +856,6 @@ function decorateLine(
           class: `exo-md-line ${listContext.isListStart ? "exo-md-line--list-start" : "exo-md-line--list-continuation"}`,
           style: listLineStyle(listContext.depth),
           "data-exo-list-depth": String(listContext.depth),
-          "data-exo-guide-xs": guideXs.join(","),
         },
       }),
     });
@@ -1216,31 +1214,8 @@ function collectListMetadata(doc: EditorView["state"]["doc"]) {
 }
 
 function listLineStyle(depth: number) {
-  const guideLayers = listGuideXs(depth).map(
-    (x) => `linear-gradient(to bottom, var(--exo-list-guide), var(--exo-list-guide)) ${x}px 0 / 1px 100% no-repeat`,
-  );
   const padLeft = LIST_GEOMETRY.baseIndent + depth * LIST_GEOMETRY.indentStep;
-  let style = `${listGeometryStyleVariables()};--exo-list-depth:${depth};padding-left:${padLeft}px;`;
-  if (guideLayers.length > 0) {
-    style += `background:${guideLayers.join(",")};`;
-  }
-  return style;
-}
-
-function listGuideXs(depth: number) {
-  const guideXs: number[] = [];
-  const guideCount = Math.max(0, depth);
-
-  for (let index = 0; index < guideCount; index += 1) {
-    guideXs.push(
-      LIST_GEOMETRY.baseIndent +
-        index * LIST_GEOMETRY.indentStep -
-        LIST_GEOMETRY.markerLaneWidth * 1 +
-        LIST_GEOMETRY.guideOffset,
-    );
-  }
-
-  return guideXs;
+  return `${listGeometryStyleVariables()};--exo-list-depth:${depth};padding-left:${padLeft}px;`;
 }
 
 // ---------------------------------------------------------------------------

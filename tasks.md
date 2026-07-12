@@ -47,7 +47,14 @@ Folder paths are primary structural homes. A writable Note Root may contain a us
 - [ ] Complete direct-PTY field QA: ordinary shell typing/paste/Ctrl-C, resize, Preview focus switch, long session, and macOS sleep/wake. Classify every real render defect under `EXO-ISSUE-062`/`069`.
 - [ ] Resolve or reproduce packaged first-launch exit behavior (`EXO-ISSUE-031`) on a clean account/runtime.
 
-### 4. Distill the repository
+### 4. Finish the editor and invocation loop
+
+- [ ] Polish live Markdown typography, list hierarchy, indentation, and spacing with real-note visual QA.
+- [ ] Make new Markdown notes start with an editable H1; at the initial caret, Markdown syntax must remain visible.
+- [ ] Make configured-Command invocation feel truly inline and discoverable while preserving explicit confirmation, visible terminal execution, and review.
+- [ ] Dogfood the full loop on real work: write a note, invoke a Command, inspect changes, and keep or reject them.
+
+### 5. Distill the repository
 
 - [ ] Reduce stale tmux/transcript/plugin/harness/MCP plans and completion-plan families to the canonical docs or delete them.
 - [ ] Make `README.md`, `docs/architecture.md`, `AGENTS.md`, `CONTEXT.md`, `issues.md`, and `CHANGELOG.md` describe only current behavior.

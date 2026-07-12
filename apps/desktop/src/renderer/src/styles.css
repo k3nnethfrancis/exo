@@ -1,10 +1,9 @@
 :root {
   color-scheme: dark;
   --window-top-pad: 44px;
-  --exo-list-indent-step: 24px;
-  --exo-list-base-indent: 36px;
-  --exo-list-marker-lane-width: 26px;
-  --exo-list-guide-offset: 8.5px;
+  --exo-list-indent-step: 28px;
+  --exo-list-base-indent: 30px;
+  --exo-list-marker-lane-width: 18px;
   --bg-top: #1f1f1f;
   --bg-bottom: #1f1f1f;
   --bg-glow-a: rgba(0, 0, 0, 0);
@@ -53,7 +52,6 @@
   --shadow: 0 24px 64px rgba(0, 0, 0, 0.28);
   --sans: "IBM Plex Sans", "Helvetica Neue", sans-serif;
   --mono: "IBM Plex Mono", "SF Mono", monospace;
-  --exo-list-guide: rgba(136, 146, 164, 0.14);
   --exo-list-bullet: #98a1b2;
 }
 
@@ -108,7 +106,6 @@
   --warning-strong: #9b6b1f;
   --warning-border: rgba(166, 113, 31, 0.20);
   --shadow: 0 24px 64px rgba(154, 119, 52, 0.12);
-  --exo-list-guide: rgba(120, 130, 148, 0.28);
   --exo-list-bullet: #626a78;
 }
 
@@ -679,7 +676,7 @@ button svg,
   margin: 0 auto;
   display: block;
   min-height: 100%;
-  line-height: 1.68;
+  line-height: 1.7;
 }
 
 .editor-surface--live-preview .cm-line {
@@ -687,10 +684,10 @@ button svg,
 }
 
 .editor-surface--live-preview .exo-md-line--heading {
-  line-height: 1.16;
-  letter-spacing: 0;
+  line-height: 1.12;
+  letter-spacing: -0.012em;
   color: var(--text);
-  font-weight: 610;
+  font-weight: 640;
   text-decoration: none;
 }
 
@@ -700,8 +697,9 @@ button svg,
 }
 
 .editor-surface--live-preview .exo-md-line--h1 {
-  font-size: 1.78rem;
-  margin: 0.28em 0 0.54em;
+  font-size: 1.9rem;
+  letter-spacing: -0.024em;
+  margin: 0.32em 0 0.6em;
 }
 
 .editor-surface--live-preview .exo-md-line--suppressed-title {
@@ -709,13 +707,13 @@ button svg,
 }
 
 .editor-surface--live-preview .exo-md-line--h2 {
-  font-size: 1.38rem;
-  margin: 0.9em 0 0.44em;
+  font-size: 1.42rem;
+  margin: 1.02em 0 0.46em;
 }
 
 .editor-surface--live-preview .exo-md-line--h3 {
-  font-size: 1.14rem;
-  margin: 1em 0 0.34em;
+  font-size: 1.16rem;
+  margin: 1.1em 0 0.38em;
 }
 
 .editor-surface--live-preview .exo-md-line--h4,
@@ -730,7 +728,7 @@ button svg,
 
 .editor-surface--live-preview .exo-md-line--list {
   position: relative;
-  line-height: 1.62;
+  line-height: 1.66;
 }
 
 .editor-surface--live-preview .exo-md-line--task {
@@ -745,7 +743,7 @@ button svg,
 
 .editor-surface--live-preview .exo-md-line--list-start,
 .editor-surface--live-preview .exo-md-line--list-continuation {
-  min-height: 1.54em;
+  min-height: 1.66em;
 }
 
 .editor-surface--live-preview .exo-md-line--quote {
@@ -944,19 +942,16 @@ button svg,
   transform: rotate(45deg) translate(-0.5px, -1px);
 }
 
-/* Bullet rendered as ::before; no widget DOM, cursor never obscured. */
+/* A small geometric marker leaves hierarchy to indentation and type, not decoration. */
 .editor-surface--live-preview .exo-md-line--list::before {
-  content: "•";
+  content: "";
   position: absolute;
-  left: calc(var(--exo-list-base-indent, 36px) + var(--exo-list-depth, 0) * var(--exo-list-indent-step, 24px) - var(--exo-list-marker-lane-width, 26px));
-  top: 0;
-  width: var(--exo-list-marker-lane-width, 26px);
-  height: 1lh;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--exo-list-bullet);
-  font-weight: 600;
+  left: calc(var(--exo-list-base-indent, 30px) + var(--exo-list-depth, 0) * var(--exo-list-indent-step, 28px) - var(--exo-list-marker-lane-width, 18px) + 6px);
+  top: calc(0.83lh - 2.5px);
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--exo-list-bullet);
   pointer-events: none;
   user-select: none;
 }
@@ -965,12 +960,21 @@ button svg,
 /* Ordered lists show the number from the marker attribute. */
 .editor-surface--live-preview .exo-md-line--list-ordered::before {
   content: attr(data-exo-list-marker);
-  font-weight: 400;
-  font-family: var(--mono);
-  font-size: 0.82em;
+  top: 0;
+  left: calc(var(--exo-list-base-indent, 30px) + var(--exo-list-depth, 0) * var(--exo-list-indent-step, 28px) - var(--exo-list-marker-lane-width, 18px));
+  width: var(--exo-list-marker-lane-width, 18px);
+  height: 1lh;
+  display: inline-flex;
+  align-items: center;
+  background: transparent;
+  color: var(--exo-list-bullet);
+  font-family: var(--sans);
+  font-size: 0.78em;
+  font-variant-numeric: tabular-nums;
+  font-weight: 550;
   justify-content: flex-end;
-  padding-right: 4px;
-  opacity: 0.95;
+  padding-right: 3px;
+  opacity: 0.9;
 }
 
 /* Continuation lines have no bullet. */
