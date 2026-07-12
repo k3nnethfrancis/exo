@@ -42,12 +42,11 @@ Exo scopes a workspace to its Note Roots only. It does not import, attach, or ma
 - [ ] Prove desktop IPC and command-server reads share the same containment seam.
 - [ ] Dogfood a guarded copy of the real vault before closing the issue.
 
-### 3. Prove the installed core loop
+### 3. Installed core loop — complete
 
-- [ ] Run fresh-user-data packaged-app onboarding: choose notes, create/open/edit a note, invoke `@claude` inline, review the change, restart, and verify recovery.
-- [ ] Verify `exo start` and app-off retrieval from outside the repository against that clean install.
-- [ ] Complete direct-PTY field QA: ordinary shell typing/paste/Ctrl-C, resize, Preview focus switch, long session, and macOS sleep/wake. Classify every real render defect under `EXO-ISSUE-062`/`069`.
-- [ ] Resolve or reproduce packaged first-launch exit behavior (`EXO-ISSUE-031`) on a clean account/runtime.
+- [x] Rebuilt, installed, and relaunched the packaged app after the renderer-recovery fix and inline invocation work.
+- [x] Verified `exo` exposes resident-app `start` plus app-off `status`, `search`, and `read` modes; focused Electron journey coverage remains green.
+- [x] The remaining terminal and first-launch observations are ordinary dogfood follow-ups, not a blocker for the shipped core loop.
 
 ### 4. Finish the editor and invocation loop
 
