@@ -46,6 +46,7 @@ interface ShellLayoutProps {
   connections: ReactNode;
   revealExplorerPathRequest?: { path: string; nonce: number } | null;
   onAppearanceModeChange: (mode: AppearanceMode) => void;
+  onOpenAgents: () => void;
   onOpenWorkspaceSettings: () => void;
   onCreateMissingFolderIndexes: () => void;
   connectionsOpen: boolean;
@@ -169,7 +170,7 @@ export function ShellLayout(props: ShellLayoutProps) {
         </div>
       </aside>
       </div>
-      <WorkspaceMenu collapsed={props.sidebarCollapsed} label={props.workspaceLabel} missingFolderIndexCount={props.missingFolderIndexCount} onCreateMissingFolderIndexes={props.onCreateMissingFolderIndexes} onOpenSettings={props.onOpenWorkspaceSettings} />
+      <WorkspaceMenu collapsed={props.sidebarCollapsed} label={props.workspaceLabel} missingFolderIndexCount={props.missingFolderIndexCount} onCreateMissingFolderIndexes={props.onCreateMissingFolderIndexes} onOpenAgents={props.onOpenAgents} onOpenSettings={props.onOpenWorkspaceSettings} />
     </div>
   );
 }
