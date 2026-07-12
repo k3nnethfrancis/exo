@@ -20,7 +20,6 @@ import { PathList } from "./components/PathList";
 import { ShellLayout } from "./components/ShellLayout";
 import { TerminalDock } from "./components/TerminalDock";
 import { WorkspaceSettingsDialog } from "./components/WorkspaceSettingsDialog";
-import { AgentCommandsDialog } from "./components/AgentCommandsDialog";
 import { useAppKeybindings } from "./hooks/useAppKeybindings";
 import { useOpenDocuments } from "./hooks/useOpenDocuments";
 import { usePaneDropOrchestration } from "./hooks/usePaneDropOrchestration";
@@ -77,7 +76,6 @@ export function App() {
   const [keptInvocationConflicts, setKeptInvocationConflicts] = useState<Set<string>>(() => new Set());
   const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null);
   const [folderIndexStatus, setFolderIndexStatus] = useState<FolderIndexStatus | null>(null);
-  const [agentCommandsDialog, setAgentCommandsDialog] = useState<AgentCommand[] | null>(null);
   const [appearanceMode, setAppearanceMode] = useState<AppearanceMode>("system");
   const [colorThemeId, setColorThemeId] = useState<ColorThemeId>(DEFAULT_COLOR_THEME_ID);
   const [zoomSurface, setZoomSurface] = useState<ZoomSurface>("editor");
@@ -458,13 +456,6 @@ export function App() {
     } catch (error) {
       window.alert(error instanceof Error ? error.message : String(error));
     }
-  }
-
-  async function openAgents() {
-    const snapshot = await window.exo.workspace.getSettings();
-    workspaceSettingsRef.current = snapshot.settings;
-    workspaceSettingsRevisionRef.current = snapshot.revision;
-    setAgentCommandsDialog(snapshot.settings.agentCommands ?? []);
   }
 
   async function endActiveInvocationObservation() {
@@ -1092,7 +1083,6 @@ export function App() {
       }}
       connections={<InspectorDock document={activeDocument} graphContext={activeGraphContext} open={isUtilityDestinationActive(utilityState, "connections")} activeTag={activeTag} tagResults={tagResults} onToggle={toggleConnectionsSurface} onOpenTarget={(target) => void openKnowledgeTarget(target)} onOpenExternal={(target) => void window.exo.shell.openExternal(target)} onOpenTag={(tag) => void openTag(tag)} />}
       onAppearanceModeChange={updateAppearanceMode}
-      onOpenAgents={() => void openAgents()}
       onOpenWorkspaceSettings={() => void workspaceSettingsController.openDialog()}
       onCreateMissingFolderIndexes={() => void createMissingFolderIndexes()}
       connectionsOpen={isUtilityDestinationActive(utilityState, "connections")}
@@ -1119,7 +1109,6 @@ export function App() {
       onRenamePath={(targetPath) => workspaceMutations.renameWorkspacePath(targetPath)}
       onDeletePath={(targetPath) => workspaceMutations.deleteWorkspacePath(targetPath)}
     />
-      {agentCommandsDialog ? <AgentCommandsDialog commands={agentCommandsDialog} onClose={() => setAgentCommandsDialog(null)} onSave={async (agentCommands) => workspaceSettingsController.saveSettingsPatch({ agentCommands })} /> : null}
 
       {workspaceDialog ? (
         <div className="dialog-overlay" data-testid="workspace-dialog-overlay">

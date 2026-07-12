@@ -1,16 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { Bot, FilePlus2, Folder, Settings } from "lucide-react";
+import { FilePlus2, Folder, Settings } from "lucide-react";
 
 interface WorkspaceMenuProps {
   collapsed: boolean;
   label: string;
   missingFolderIndexCount: number;
   onCreateMissingFolderIndexes: () => void;
-  onOpenAgents: () => void;
   onOpenSettings: () => void;
 }
 
-export function WorkspaceMenu({ collapsed, label, missingFolderIndexCount, onCreateMissingFolderIndexes, onOpenAgents, onOpenSettings }: WorkspaceMenuProps) {
+export function WorkspaceMenu({ collapsed, label, missingFolderIndexCount, onCreateMissingFolderIndexes, onOpenSettings }: WorkspaceMenuProps) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -40,9 +39,6 @@ export function WorkspaceMenu({ collapsed, label, missingFolderIndexCount, onCre
               <FilePlus2 size={14} aria-hidden="true" />Create {missingFolderIndexCount} missing folder {missingFolderIndexCount === 1 ? "index" : "indexes"}
             </button>
           ) : null}
-          <button className="workspace-menu__item" data-testid="workspace-menu-agents" onClick={() => { setOpen(false); onOpenAgents(); }} type="button">
-            <Bot size={14} aria-hidden="true" />Agents
-          </button>
           <button className="workspace-menu__item" data-testid="workspace-menu-settings" onClick={() => { setOpen(false); onOpenSettings(); }} type="button">
             <Settings size={14} aria-hidden="true" />Settings
           </button>
