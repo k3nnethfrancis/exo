@@ -113,7 +113,8 @@ export interface LaunchAgentInvocationInput {
 export interface LaunchAgentInvocationResponse {
   ok: true;
   invocation: InvocationRecord;
-  terminal: TerminalSessionInfo;
+  /** Present only for the explicit, visible command test flow. */
+  terminal?: TerminalSessionInfo;
 }
 
 export interface AgentCommandLaunchFacts {

@@ -35,7 +35,7 @@ describe("agent invocation model", () => {
     expect(normalizeAgentHandle("@import url")).toBeNull();
   });
 
-  it("normalizes command records with terminal input delivery as the default", () => {
+  it("normalizes command records with headless stdin delivery as the default", () => {
     expect(normalizeAgentCommand({
       id: " Claude Code ",
       label: " Claude Code ",
@@ -50,10 +50,21 @@ describe("agent invocation model", () => {
       handle: "claude",
       command: "claude",
       cwdPolicy: "workspace_root",
-      promptDelivery: "terminalInputAfterLaunch",
+      promptDelivery: "stdin",
       version: 1,
       enabled: true,
     });
+  });
+
+  it("upgrades only the old built-in Claude default to its headless command", () => {
+    expect(normalizeAgentCommand({
+      id: "claude", label: "Claude", handle: "claude", command: "claude",
+      cwdPolicy: "workspace_root", promptDelivery: "terminalInputAfterLaunch",
+    })).toMatchObject({ command: "claude -p", promptDelivery: "stdin" });
+    expect(normalizeAgentCommand({
+      id: "custom", label: "My Claude", handle: "claude", command: "claude",
+      cwdPolicy: "workspace_root", promptDelivery: "terminalInputAfterLaunch",
+    })).toMatchObject({ command: "claude", promptDelivery: "stdin" });
   });
 
   it("rejects V1 command records with env or template execution fields", () => {
@@ -73,14 +84,14 @@ describe("agent invocation model", () => {
     })).toBeNull();
   });
 
-  it("rejects V1 command records with unsupported prompt delivery modes", () => {
+  it("normalizes legacy terminal delivery and rejects unsupported prompt delivery modes", () => {
     expect(normalizeAgentCommand({
       id: "claude",
       label: "Claude",
       handle: "claude",
       command: "claude",
       promptDelivery: "stdin",
-    })).toBeNull();
+    })).toMatchObject({ promptDelivery: "stdin" });
     expect(normalizeAgentCommand({
       id: "claude",
       label: "Claude",
@@ -150,7 +161,7 @@ describe("agent invocation model", () => {
       originalMentionText: "@claude summarize this",
       mentionProvenance: "human-authored",
       message: "summarize this",
-      promptDelivery: "terminalInputAfterLaunch",
+      promptDelivery: "stdin",
       command: createDefaultClaudeAgentCommand(),
       cwd: "/tmp",
       createdAt: "2026-07-08T00:00:00.000Z",
@@ -163,7 +174,7 @@ describe("agent invocation model", () => {
       id: "inv-1",
       status: "pending",
       context: "note",
-      promptDelivery: "terminalInputAfterLaunch",
+      promptDelivery: "stdin",
       command: { id: "claude", handle: "claude", version: 1, executableFingerprint: expect.any(String) },
       changedFileRefs: [{ path: "/tmp/note.md", kind: "modified", attribution: "ambiguous", diffRefId: "diff-1" }],
       attribution: { status: "ambiguous" },

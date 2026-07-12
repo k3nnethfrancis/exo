@@ -17,7 +17,7 @@ function invocationRecord(id: string, createdAt: string): InvocationRecord {
     originalMentionText: "@claude please summarize this",
     mentionProvenance: "human-authored",
     message: "please summarize this",
-    promptDelivery: "terminalInputAfterLaunch",
+    promptDelivery: "stdin",
     command: agentCommandSnapshot(createDefaultClaudeAgentCommand()),
     cwd: "/tmp/workspace",
     createdAt,
@@ -40,7 +40,7 @@ describe("invocation store", () => {
 
       expect(target).toBe(invocationRecordPath(resolveInvocationStoreLayout(workspaceRoot), "invocation/one"));
       expect(target).toContain(`${path.sep}.exo${path.sep}invocations${path.sep}`);
-      await expect(readFile(target, "utf8")).resolves.toContain("\"promptDelivery\": \"terminalInputAfterLaunch\"");
+      await expect(readFile(target, "utf8")).resolves.toContain("\"promptDelivery\": \"stdin\"");
       await expect(store.readRecord("invocation/one")).resolves.toMatchObject({
         id: "invocation/one",
         status: "running",

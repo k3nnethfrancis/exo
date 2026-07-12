@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -8,6 +8,7 @@ import { createDefaultClaudeAgentCommand, type WorkspaceSettings } from "@exo/co
 
 import type { TerminalManager } from "./terminal-manager";
 import { InvocationRunner, InvocationRunnerError } from "./invocation-runner";
+import { DirectInvocationProcessFactory, type InvocationProcess, type InvocationProcessFactory } from "./invocation-process";
 import type { WorkspaceWatcherService } from "./workspace-watchers";
 
 const temporaryRoots: string[] = [];
@@ -78,12 +79,13 @@ describe("InvocationRunner readiness parity", () => {
     });
   });
 
-  it("delivers the current note body and frontmatter to an inline invocation", async () => {
+  it("runs inline invocations headlessly and delivers the current note body and frontmatter once", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-runner-"));
     temporaryRoots.push(root);
     const command = { ...createDefaultClaudeAgentCommand(), id: "echo", handle: "echo", label: "Echo", command: "/bin/echo" };
     const terminalManager = new FakeTerminalManager();
-    const runner = createRunner(settings(root, command), terminalManager);
+    const processFactory = new FakeInvocationProcessFactory();
+    const runner = createRunner(settings(root, command), terminalManager, processFactory);
     const prepared = await runner.prepare({
       context: "note",
       handle: command.handle,
@@ -95,19 +97,52 @@ describe("InvocationRunner readiness parity", () => {
       allowUntrustedOneShot: true,
     });
 
-    await runner.authorizeAndStart(prepared);
+    const result = await runner.authorizeAndStart(prepared);
 
-    expect(terminalManager.messages.at(-1)).toContain("This is the current editor content.");
-    expect(terminalManager.messages.at(-1)).toContain('"project"');
+    expect(result.terminal).toBeUndefined();
+    expect(terminalManager.created).toBe(0);
+    expect(processFactory.process.prompts).toHaveLength(1);
+    expect(processFactory.process.prompts[0]).toContain("This is the current editor content.");
+    expect(processFactory.process.prompts[0]).toContain('"project"');
+  });
+
+  it("executes a configured note command through stdin without creating a terminal", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-runner-"));
+    temporaryRoots.push(root);
+    const notePath = path.join(root, "note.md");
+    const promptPath = path.join(root, "received-prompt.txt");
+    await writeFile(notePath, "# Before\n", "utf8");
+    const command = {
+      ...createDefaultClaudeAgentCommand(), id: "fake-headless", handle: "fake-headless", label: "Fake headless",
+      command: `/bin/sh -c 'cat > "${promptPath}"; printf "# After\\n" > "${notePath}"'`,
+    };
+    const terminalManager = new FakeTerminalManager();
+    const runner = createRunner(settings(root, command), terminalManager, new DirectInvocationProcessFactory());
+    const updated = new Promise<unknown>((resolve) => runner.once("updated", resolve));
+
+    const result = await runner.authorizeAndStart(await runner.prepare({
+      context: "note", handle: command.handle, documentPath: notePath, mentionText: "@fake-headless",
+      message: "Replace the title.", documentBody: "# Before\n", allowUntrustedOneShot: true,
+    }));
+
+    expect(result.terminal).toBeUndefined();
+    expect(terminalManager.created).toBe(0);
+    await expect(updated).resolves.toMatchObject({ status: "process-exited", changedFileRefs: [{ path: notePath, kind: "modified" }] });
+    await expect(readFile(promptPath, "utf8")).resolves.toContain("Replace the title.");
   });
 });
 
-function createRunner(workspaceSettings: WorkspaceSettings, terminalManager: EventEmitter = new EventEmitter()): InvocationRunner {
+function createRunner(
+  workspaceSettings: WorkspaceSettings,
+  terminalManager: EventEmitter = new EventEmitter(),
+  invocationProcessFactory: InvocationProcessFactory = new FakeInvocationProcessFactory(),
+): InvocationRunner {
   const watcher = { subscribe: () => () => undefined };
   return new InvocationRunner({
     getWorkspaceSettings: () => workspaceSettings,
     trustStateRoot: workspaceSettings.workspaceRoot,
     terminalManager: terminalManager as TerminalManager,
+    invocationProcessFactory,
     workspaceWatcherService: watcher as unknown as WorkspaceWatcherService,
   });
 }
@@ -135,6 +170,26 @@ class FakeTerminalManager extends EventEmitter {
   }
 
   async kill() {}
+}
+
+class FakeInvocationProcessFactory implements InvocationProcessFactory {
+  readonly process = new FakeInvocationProcess();
+
+  launch(): InvocationProcess {
+    return this.process;
+  }
+}
+
+class FakeInvocationProcess implements InvocationProcess {
+  prompts: string[] = [];
+
+  async send(prompt: string): Promise<void> {
+    this.prompts.push(prompt);
+  }
+
+  onExit(_handler: (event: { exitCode: number | null }) => void): void {}
+
+  kill(): void {}
 }
 
 function settings(workspaceRoot: string, command: ReturnType<typeof createDefaultClaudeAgentCommand>): WorkspaceSettings {

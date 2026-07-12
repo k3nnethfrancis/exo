@@ -1,8 +1,10 @@
 import { createHash } from "node:crypto";
 import path from "node:path";
 
+// Legacy values remain in the type only so persisted workspaces can normalize
+// safely. New commands and normalized records use stdin exclusively.
 export const AGENT_COMMAND_PROMPT_DELIVERIES = ["terminalInputAfterLaunch", "stdin", "argv"] as const;
-export const DEFAULT_AGENT_COMMAND_PROMPT_DELIVERY: AgentCommandPromptDelivery = "terminalInputAfterLaunch";
+export const DEFAULT_AGENT_COMMAND_PROMPT_DELIVERY: AgentCommandPromptDelivery = "stdin";
 export const AGENT_COMMAND_CWD_POLICIES = ["workspace_root", "note_dir", "fixed"] as const;
 export const AGENT_COMMAND_UNSUPPORTED_V1_FIELDS = ["env", "template", "promptTemplate"] as const;
 
@@ -126,7 +128,8 @@ export function normalizeAgentCommand(input: unknown, fallbackId?: string): Agen
     return null;
   }
   const handle = normalizeAgentHandle(candidate.handle);
-  const command = normalizeAgentCommandString(candidate.command);
+  const configuredCommand = normalizeAgentCommandString(candidate.command);
+  const command = migrateLegacyDefaultClaudeCommand(candidate, configuredCommand);
   if (!handle || !command) {
     return null;
   }
@@ -200,7 +203,7 @@ export function deriveAgentCommandLaunch(
   if (!command.enabled) {
     return { launchable: false, cwd: null, block: "disabled", detail: `Command @${command.handle} is disabled.` };
   }
-  if (command.promptDelivery !== "terminalInputAfterLaunch") {
+  if (command.promptDelivery !== "stdin") {
     return {
       launchable: false,
       cwd: null,
@@ -238,7 +241,7 @@ export function createDefaultClaudeAgentCommand(): AgentCommand {
     id: "claude",
     label: "Claude",
     handle: "claude",
-    command: "claude",
+    command: "claude -p",
     cwdPolicy: "workspace_root",
     promptDelivery: DEFAULT_AGENT_COMMAND_PROMPT_DELIVERY,
     version: 1,
@@ -345,19 +348,28 @@ function normalizeAgentCommandId(value: unknown, fallback: string): string {
   return normalized || fallback;
 }
 
+/** Upgrade only the prior built-in Claude default, never an arbitrary command. */
+function migrateLegacyDefaultClaudeCommand(candidate: Partial<AgentCommand>, command: string | null): string | null {
+  return candidate.id === "claude" && candidate.handle === "claude" && candidate.label === "Claude" &&
+      command === "claude" && candidate.promptDelivery === "terminalInputAfterLaunch"
+    ? "claude -p"
+    : command;
+}
+
 function normalizeAgentCommandCwdPolicy(value: unknown): AgentCommandCwdPolicy {
   return value === "note_dir" || value === "fixed" ? value : "workspace_root";
 }
 
 function normalizeAgentCommandPromptDelivery(value: unknown): AgentCommandPromptDelivery {
-  return value === "stdin" || value === "argv" ? value : DEFAULT_AGENT_COMMAND_PROMPT_DELIVERY;
+  return value === "stdin" ? value : DEFAULT_AGENT_COMMAND_PROMPT_DELIVERY;
 }
 
 function normalizeConfiguredAgentCommandPromptDelivery(value: unknown): AgentCommandPromptDelivery | null {
-  if (value === "stdin" || value === "argv") {
-    return null;
-  }
-  return DEFAULT_AGENT_COMMAND_PROMPT_DELIVERY;
+  // Earlier builds wrote terminalInputAfterLaunch. Preserve those workspace
+  // settings while making stdin the one canonical, headless delivery mode.
+  return value === "stdin" || value === "terminalInputAfterLaunch" || value === "auto" || value === undefined
+    ? DEFAULT_AGENT_COMMAND_PROMPT_DELIVERY
+    : null;
 }
 
 function normalizeAgentCommandVersion(value: unknown): number {

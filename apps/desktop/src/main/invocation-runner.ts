@@ -22,6 +22,7 @@ import {
 import type { TerminalSessionInfo } from "../shared/api";
 import type { AgentCommandLaunchFacts } from "../shared/api";
 import { inspectAgentCommandLaunchFacts } from "./agent-command-launch-facts";
+import { DirectInvocationProcessFactory, type InvocationProcess, type InvocationProcessFactory } from "./invocation-process";
 import type { TerminalManager } from "./terminal-manager";
 import type { WorkspaceChangeEvent, WorkspaceWatcherService } from "./workspace-watchers";
 
@@ -52,6 +53,14 @@ export interface InvocationResult {
   invocation: InvocationRecord;
   terminal: TerminalSessionInfo;
 }
+
+export interface HeadlessInvocationResult {
+  ok: true;
+  invocation: InvocationRecord;
+  terminal?: never;
+}
+
+export type InvocationStartResult = InvocationResult | HeadlessInvocationResult;
 
 export class InvocationRunnerError extends Error {
   constructor(readonly code: string, message: string, readonly details: Record<string, unknown> = {}) {
@@ -86,6 +95,7 @@ export class InvocationRunner extends EventEmitter {
     trustStateRoot: string;
     terminalManager: TerminalManager;
     workspaceWatcherService: WorkspaceWatcherService;
+    invocationProcessFactory?: InvocationProcessFactory;
   }) {
     super();
     options.workspaceWatcherService.subscribe((event) => this.onWorkspaceChange(event));
@@ -124,7 +134,7 @@ export class InvocationRunner extends EventEmitter {
     return { id, request, command, cwd, before, pending };
   }
 
-  async authorizeAndStart(prepared: PreparedInvocation): Promise<InvocationResult> {
+  async authorizeAndStart(prepared: PreparedInvocation): Promise<InvocationStartResult> {
     const settings = this.options.getWorkspaceSettings();
     const store = new InvocationStore(settings.workspaceRoot);
     if (prepared.request.persistTrust) {
@@ -135,8 +145,14 @@ export class InvocationRunner extends EventEmitter {
     }
     await store.writeRecord(prepared.pending);
     let terminal: TerminalSessionInfo | undefined;
+    let invocationProcess: InvocationProcess | undefined;
+    let processExited = false;
+    let processExitCode: number | null = null;
+    let observationReady = false;
+    const settleHeadlessProcess = () => {
+      setTimeout(() => void this.settle(prepared.id, "process-exited", processExitCode ?? undefined), OBSERVATION_EXIT_GRACE_MS).unref?.();
+    };
     try {
-      terminal = await this.options.terminalManager.createAgentCommand(prepared.command, prepared.cwd);
       const prompt = prepared.request.context === "note"
         ? formatNoteInvocationPrompt({
             documentPath: prepared.request.documentPath!,
@@ -146,15 +162,40 @@ export class InvocationRunner extends EventEmitter {
             body: prepared.request.documentBody,
           })
         : formatCliInvocationPrompt({ task: prepared.request.task ?? prepared.request.message, workspaceRoot: settings.workspaceRoot });
-      const delivered = await this.options.terminalManager.sendMessage(terminal.id, prompt, true);
-      if (!delivered.ok) throw new InvocationRunnerError("prompt-delivery-failed", "Agent prompt could not be delivered.");
+      if (prepared.request.context === "note") {
+        invocationProcess = (this.options.invocationProcessFactory ?? new DirectInvocationProcessFactory()).launch({
+          command: prepared.command.command,
+          cwd: prepared.cwd,
+          env: globalThis.process.env,
+        });
+        invocationProcess.onExit(({ exitCode }) => {
+          processExited = true;
+          processExitCode = exitCode;
+          if (observationReady) settleHeadlessProcess();
+        });
+        await invocationProcess.send(prompt);
+      } else {
+        terminal = await this.options.terminalManager.createAgentCommand(prepared.command, prepared.cwd);
+        const delivered = await this.options.terminalManager.sendMessage(terminal.id, prompt, true);
+        if (!delivered.ok) throw new InvocationRunnerError("prompt-delivery-failed", "Agent prompt could not be delivered.");
+      }
       const startedAt = new Date().toISOString();
-      const running = { ...prepared.pending, status: "running" as const, startedAt, terminalSessionId: terminal.id };
+      const running = {
+        ...prepared.pending,
+        status: "running" as const,
+        startedAt,
+        ...(terminal ? { terminalSessionId: terminal.id } : {}),
+      };
       await store.writeRecord(running);
       if (prepared.before) this.observe(running, prepared.before);
-      return { ok: true, invocation: running, terminal };
+      if (invocationProcess && prepared.before) {
+        observationReady = true;
+        if (processExited) settleHeadlessProcess();
+      }
+      return { ok: true, invocation: running, ...(terminal ? { terminal } : {}) };
     } catch (error) {
       if (terminal) await this.options.terminalManager.kill(terminal.id).catch(() => undefined);
+      invocationProcess?.kill();
       const failed: InvocationRecord = { ...prepared.pending, status: "failed", endedAt: new Date().toISOString(), failureReason: error instanceof Error ? error.message : String(error) };
       await store.writeRecord(failed).catch(() => undefined);
       throw error;
@@ -185,7 +226,11 @@ export class InvocationRunner extends EventEmitter {
     if (prepared.pending.command.executableFingerprint !== expectedFingerprint) {
       throw new InvocationRunnerError("fingerprint-drift", `Command @${facts.handle} changed after confirmation. Review it and try again.`);
     }
-    return this.authorizeAndStart(prepared);
+    const result = await this.authorizeAndStart(prepared);
+    if (!result.terminal) {
+      throw new InvocationRunnerError("not-launchable", `Command @${facts.handle} did not open its visible test terminal.`);
+    }
+    return result;
   }
 
   async getCommandTrust(handleInput: string) {
