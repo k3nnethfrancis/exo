@@ -23,6 +23,7 @@
 /* Workspace titlebar ------------------------------------------------------ */
 
 .workspace-frame {
+  --workspace-pane-chrome-height: 36px;
   --mac-titlebar-safe-left: 88px;
   --mac-titlebar-safe-right: 12px;
   display: grid;
@@ -477,7 +478,8 @@
   align-items: center;
   justify-content: flex-start;
   gap: 2px;
-  min-height: 44px;
+  min-height: var(--workspace-pane-chrome-height);
+  height: var(--workspace-pane-chrome-height);
   padding: 0 10px;
   border-bottom: 1px solid color-mix(in srgb, var(--divider) 50%, transparent);
 }
@@ -1527,8 +1529,8 @@ body.pane-resize-active .browser-pane__frame {
 
 .tab-strip,
 .chrome-tab {
-  min-height: 36px;
-  height: 36px;
+  min-height: var(--workspace-pane-chrome-height);
+  height: var(--workspace-pane-chrome-height);
 }
 
 .chrome-tab {
