@@ -47,20 +47,18 @@ test("keeps an inline agent draft available when focus moves through the editor"
     await expect(fixture.page.getByTestId("agent-suggestion-draft")).toBeVisible();
     await fixture.page.keyboard.press("Enter");
     const composer = fixture.page.getByTestId("inline-agent-composer");
-    const input = composer.locator("textarea");
-    await expect(composer).toBeVisible();
-    await input.fill("Keep this draft available.");
-    await input.press("Enter");
-    await expect(input).toHaveValue("Keep this draft available.\n");
+    await expect(composer).toHaveCount(1);
+    await fixture.page.keyboard.type("Keep this draft available.");
+    await fixture.page.keyboard.press("Enter");
+    await expect(fixture.page.locator(".cm-content")).toContainText("Keep this draft available.");
     await expect(fixture.page.getByTestId("invocation-review-banner")).toHaveCount(0);
 
     await fixture.page.locator(".cm-content").click();
-    await expect(composer).toBeVisible();
-    await input.click();
-    await expect(input).toHaveValue("Keep this draft available.\n");
+    await expect(composer).toHaveCount(1);
+    await expect(fixture.page.locator(".cm-content")).toContainText("Keep this draft available.");
 
-    await input.press("Escape");
-    await expect(composer).not.toBeVisible();
+    await fixture.page.keyboard.press("Escape");
+    await expect(composer).toHaveCount(0);
   } finally {
     await fixture.cleanup();
   }
@@ -382,9 +380,9 @@ async function invokeConfiguredAgent(page: Awaited<ReturnType<typeof launchExoWo
     await expect(page.getByTestId(`agent-suggestion-${handle}`)).toBeVisible();
     await page.keyboard.press("Enter");
     const composer = page.getByTestId("inline-agent-composer");
-    await expect(composer).toBeVisible();
-    await composer.locator("textarea").fill("Review this document.");
-    await composer.locator("textarea").press("Shift+Enter");
+    await expect(composer).toHaveCount(1);
+    await page.keyboard.type("Review this document.");
+    await page.keyboard.press("Shift+Enter");
     await expect(page.getByTestId("invocation-review-banner")).toContainText(`Running @${handle}`);
   } finally {
     page.off("dialog", handleDialog);

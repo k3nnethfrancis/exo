@@ -133,9 +133,9 @@ async function invokeConfiguredCommand(page: Page, handle: string): Promise<void
     await expect(page.getByTestId(`agent-suggestion-${handle}`)).toBeVisible();
     await page.keyboard.press("Enter");
     const composer = page.getByTestId("inline-agent-composer");
-    await expect(composer).toBeVisible();
-    await composer.locator("textarea").fill("Confirm this command still launches.");
-    await composer.locator("textarea").press("Shift+Enter");
+    await expect(composer).toHaveCount(1);
+    await page.keyboard.type("Confirm this command still launches.");
+    await page.keyboard.press("Shift+Enter");
     await expect(page.getByTestId("invocation-review-banner")).toContainText(`Running @${handle}`);
   } finally {
     page.off("dialog", onDialog);

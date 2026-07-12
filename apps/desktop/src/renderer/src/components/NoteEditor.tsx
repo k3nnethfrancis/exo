@@ -12,6 +12,7 @@ import type { AgentCommand, InvocationRecord, NoteDocument, WorkspaceGraphContex
 import { exoEditorTheme, exoSyntaxHighlighting } from "../theme/codemirror";
 import type { ExoThemeVariant } from "../theme/types";
 import { codeLanguageForPath } from "./codeLanguages";
+import { AgentIcon } from "./AgentIcon";
 import { coerceFrontmatterValue, getDocumentDisplayTitle, stringifyFrontmatterValue } from "./documentDisplay";
 import { markdownLivePreview, type MarkdownGraphReferences } from "./markdownLivePreview";
 import { inlineAgentComposerExtension, openInlineAgentComposer, type InlineAgentDraft } from "./inlineAgentComposer";
@@ -897,7 +898,8 @@ export function NoteEditor(props: NoteEditorProps) {
                   acceptAgentSuggestion(command);
                 }}
               >
-                <span className="agent-suggestions__handle">@{command.handle}</span>
+                {command.handle === "claude" || command.handle === "codex" ? <AgentIcon kind={command.handle} size={13} /> : null}
+                <span className={`agent-suggestions__handle agent-suggestions__handle--${command.handle === "claude" || command.handle === "codex" ? command.handle : "default"}`}>@{command.handle}</span>
                 <span className="agent-suggestions__label">{command.label}</span>
               </button>
             ))}
