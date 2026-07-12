@@ -77,6 +77,29 @@ describe("InvocationRunner readiness parity", () => {
       command: { id: command.id },
     });
   });
+
+  it("delivers the current note body and frontmatter to an inline invocation", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-runner-"));
+    temporaryRoots.push(root);
+    const command = { ...createDefaultClaudeAgentCommand(), id: "echo", handle: "echo", label: "Echo", command: "/bin/echo" };
+    const terminalManager = new FakeTerminalManager();
+    const runner = createRunner(settings(root, command), terminalManager);
+    const prepared = await runner.prepare({
+      context: "note",
+      handle: command.handle,
+      documentPath: path.join(root, "note.md"),
+      mentionText: "@echo",
+      message: "Summarize this note.",
+      documentFrontmatter: { tags: ["project"] },
+      documentBody: "# Current note\n\nThis is the current editor content.",
+      allowUntrustedOneShot: true,
+    });
+
+    await runner.authorizeAndStart(prepared);
+
+    expect(terminalManager.messages.at(-1)).toContain("This is the current editor content.");
+    expect(terminalManager.messages.at(-1)).toContain('"project"');
+  });
 });
 
 function createRunner(workspaceSettings: WorkspaceSettings, terminalManager: EventEmitter = new EventEmitter()): InvocationRunner {
@@ -91,6 +114,7 @@ function createRunner(workspaceSettings: WorkspaceSettings, terminalManager: Eve
 
 class FakeTerminalManager extends EventEmitter {
   created = 0;
+  messages: string[] = [];
 
   async createAgentCommand(_command: unknown, cwd: string) {
     this.created += 1;
@@ -105,7 +129,8 @@ class FakeTerminalManager extends EventEmitter {
     };
   }
 
-  async sendMessage() {
+  async sendMessage(_id: string, message: string) {
+    this.messages.push(message);
     return { ok: true, delivery: "sent" as const };
   }
 
