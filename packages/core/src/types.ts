@@ -2,48 +2,6 @@ import type { AgentCommand } from "./agent-invocation";
 
 export type RootKind = "notes" | "projects";
 export type DocumentKind = "markdown" | "text";
-export const MANAGED_AGENT_KINDS = ["shell", "claude", "codex", "pi", "hermes"] as const;
-export type ManagedAgentKind = (typeof MANAGED_AGENT_KINDS)[number];
-export type TerminalSubstrateKind = "shell" | "agent";
-export type AgentHarnessId = string;
-export function isManagedAgentKind(value: string | undefined): value is ManagedAgentKind {
-  return MANAGED_AGENT_KINDS.includes(value as ManagedAgentKind);
-}
-
-export function normalizeManagedAgentKind(value: string | undefined): ManagedAgentKind | null {
-  return isManagedAgentKind(value) ? value : null;
-}
-
-export function formatManagedAgentKindUsage(): string {
-  return MANAGED_AGENT_KINDS.join("|");
-}
-
-export function terminalSubstrateKindForManagedAgentKind(kind: ManagedAgentKind): TerminalSubstrateKind {
-  return kind === "shell" ? "shell" : "agent";
-}
-
-export type AgentHarnessAdapterId =
-  | "shell"
-  | "claude-code"
-  | "codex"
-  | "pi"
-  | "hermes"
-  | "aider"
-  | "goose"
-  | "opencode"
-  | "local"
-  | "open-source"
-  | `local:${string}`
-  | `open-source:${string}`;
-export type AgentHarnessStatus = "available" | "configured" | "not-found" | "disabled" | "broken" | "missing-dependency";
-export type AgentHarnessDependencyKind =
-  | "binary"
-  | "runtime"
-  | "package-manager"
-  | "auth"
-  | "config"
-  | "model"
-  | "inference-backend";
 export type ColorThemeId = "exo-neutral" | "exo-solar";
 
 export interface AttachedRoot {
@@ -68,7 +26,6 @@ export interface WorkspaceSettings {
   defaultTerminalCwd: string;
   noteRoots: string[];
   projectRoots: string[];
-  piHarness?: PiHarnessSettings;
   agentCommands?: AgentCommand[];
   indexedRoots: IndexedRoot[];
   indexing: IndexingConfig;
@@ -106,21 +63,6 @@ export interface WorkspaceSettingsSnapshot {
 export interface WorkspaceSettingsSaveRequest {
   settings: WorkspaceSettings;
   expectedRevision: WorkspaceSettingsRevision;
-}
-
-export interface PiHarnessSettings {
-  enabled?: boolean;
-  label?: string;
-  command?: string;
-  repoPath?: string;
-  args?: string[];
-  channel?: string;
-  build?: string;
-  backendUrl?: string;
-  backendCommand?: string;
-  backendLabel?: string;
-  backendKind?: string;
-  backendReady?: boolean;
 }
 
 export interface WorkspaceLayoutSettings {
@@ -312,112 +254,4 @@ export interface WorkspaceSearchResults {
   projectFiles: SearchResult[];
   tags: SearchResult[];
   semantic?: SemanticSearchResult[];
-}
-
-export interface RuntimeInstructionPaths {
-  primary: string;
-  claude: string;
-}
-
-export interface RetrievalBackendConfig {
-  kind: "qmd";
-  enabled: boolean;
-  command: string;
-}
-
-export interface AgentCommunicationConfig {
-  kind: "file-sqlite";
-  messagesDirectory: string;
-  sqlitePath: string;
-}
-
-export interface AgentLauncherConfig {
-  kind: ManagedAgentKind;
-  title: string;
-  command: string;
-  args: string[];
-  traceCapture?: AgentLauncherTraceCaptureConfig;
-}
-
-export interface AgentLauncherTraceCaptureConfig {
-  schemaVersion: "exo.semantic-trace.v1";
-  source: "stdout-jsonl" | "stderr-jsonl" | "sidecar-jsonl";
-  artifactFileName: string;
-  eventFormat: "stream-json";
-  sidecarPath?: string;
-  envVar?: string;
-}
-
-export interface AgentHarnessInstallMetadata {
-  url?: string;
-  label?: string;
-}
-
-export interface AgentHarnessDependencyStatus {
-  id: string;
-  kind: AgentHarnessDependencyKind;
-  label: string;
-  required: boolean;
-  configured: boolean;
-  detected: boolean;
-  satisfied: boolean;
-  statusLabel: string;
-  detail?: string;
-  autoStart?: AgentHarnessDependencyAutoStart;
-}
-
-export interface AgentHarnessDependencyAutoStart {
-  command: string;
-  cwd?: string;
-  probeUrl?: string;
-  timeoutMs?: number;
-  intervalMs?: number;
-  readyEnv?: Record<string, string>;
-}
-
-export interface AgentHarnessDetection {
-  id: AgentHarnessId;
-  adapterId: AgentHarnessAdapterId;
-  family: AgentHarnessAdapterId;
-  label: string;
-  productName: string;
-  enabled: boolean;
-  configured: boolean;
-  detected: boolean;
-  launchable: boolean;
-  status: AgentHarnessStatus;
-  statusLabel: string;
-  executablePath?: string;
-  repoPath?: string;
-  channel?: string;
-  build?: string;
-  install?: AgentHarnessInstallMetadata;
-  detail?: string;
-  dependencies?: AgentHarnessDependencyStatus[];
-  setupSummary?: string;
-  launcher?: AgentLauncherConfig;
-  visible?: boolean;
-}
-
-export interface RuntimeConfig {
-  workspace: WorkspaceModel;
-  runtimeRoot: string;
-  instructions: RuntimeInstructionPaths;
-  retrieval: RetrievalBackendConfig;
-  communication: AgentCommunicationConfig;
-  launchers: Record<ManagedAgentKind, AgentLauncherConfig>;
-  harnesses: AgentHarnessDetection[];
-}
-
-export interface AgentLaunchPlan {
-  kind: ManagedAgentKind;
-  harnessId: AgentHarnessId;
-  title: string;
-  cwd: string;
-  command: string;
-  args: string[];
-  traceCapture?: AgentLauncherTraceCaptureConfig;
-  env: Record<string, string>;
-  primaryInstructionsPath: string;
-  secondaryInstructionsPath?: string;
 }

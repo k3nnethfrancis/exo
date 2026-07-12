@@ -1,7 +1,5 @@
-import type { ManagedAgentKind } from "@exo/core";
-
 interface AgentIconProps {
-  kind: Extract<ManagedAgentKind, "claude" | "codex">;
+  kind: "claude" | "codex";
   size?: number;
 }
 

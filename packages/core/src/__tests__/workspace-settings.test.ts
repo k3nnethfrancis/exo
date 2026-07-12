@@ -14,7 +14,6 @@ import {
   resolveWorkspaceSettingsTransactionPath,
   saveWorkspaceSettings,
   workspaceEnvOverrides,
-  workspaceSettingsToEnv,
 } from "../workspace-settings";
 
 describe("workspace settings registry", () => {
@@ -272,8 +271,12 @@ describe("workspace settings registry", () => {
         version: 2,
         preferences: ["local", "lossless"],
       },
+      piHarness: {
+        command: "/opt/retired-pi",
+      },
     } as Parameters<typeof saveWorkspaceSettings>[0] & {
       futureSettings: { version: number; preferences: string[] };
+      piHarness: { command: string };
     };
 
     try {
@@ -289,6 +292,7 @@ describe("workspace settings registry", () => {
         agentCommands: initialSettings.agentCommands,
         layout: initialSettings.layout,
         futureSettings: initialSettings.futureSettings,
+        piHarness: initialSettings.piHarness,
       });
     } finally {
       await rm(userDataPath, { recursive: true, force: true });
@@ -310,72 +314,6 @@ describe("workspace settings registry", () => {
       handle: "claude",
       promptDelivery: "terminalInputAfterLaunch",
     });
-  });
-
-  it("normalizes and projects persisted Pi-compatible harness settings", () => {
-    const settings = normalizeWorkspaceSettings({
-      workspaceRoot: "/tmp/exo-pi/notes",
-      defaultTerminalCwd: "/tmp/exo-pi",
-      noteRoots: ["/tmp/exo-pi/notes"],
-      projectRoots: ["/tmp/exo-pi/projects"],
-      indexedRoots: [],
-      indexing: { enabled: false, mode: "off", backend: "qmd" },
-      piHarness: {
-        enabled: true,
-        label: "Custom Pi",
-        command: "  /opt/pi/bin/pi  ",
-        repoPath: " /opt/pi ",
-        args: [" --model ", "", "local"],
-        backendUrl: " http://127.0.0.1:8080 ",
-        backendReady: false,
-      },
-    });
-
-    expect(settings?.piHarness).toEqual({
-      enabled: true,
-      label: "Custom Pi",
-      command: "/opt/pi/bin/pi",
-      repoPath: "/opt/pi",
-      args: ["--model", "local"],
-      backendUrl: "http://127.0.0.1:8080",
-      backendReady: false,
-    });
-    expect(workspaceSettingsToEnv(settings!)).toMatchObject({
-      EXO_PI_ENABLED: "1",
-      EXO_PI_LABEL: "Custom Pi",
-      EXO_PI_COMMAND: "/opt/pi/bin/pi",
-      EXO_PI_REPO_PATH: "/opt/pi",
-      EXO_PI_ARGS: "--model,local",
-      EXO_PI_BACKEND_URL: "http://127.0.0.1:8080",
-      EXO_PI_BACKEND_READY: "0",
-    });
-    expect(workspaceSettingsToEnv(settings!, { includeWorkspace: false })).not.toHaveProperty("EXO_WORKSPACE_ROOT");
-  });
-
-  it("lets process env override persisted Pi-compatible harness settings", () => {
-    const settings = normalizeWorkspaceSettings({
-      workspaceRoot: "/tmp/exo-pi/notes",
-      defaultTerminalCwd: "/tmp/exo-pi",
-      noteRoots: ["/tmp/exo-pi/notes"],
-      projectRoots: [],
-      indexedRoots: [],
-      indexing: { enabled: false, mode: "off", backend: "qmd" },
-      piHarness: {
-        label: "Persisted Pi",
-        repoPath: "/tmp/persisted-pi",
-        backendUrl: "http://127.0.0.1:8080",
-      },
-    });
-
-    const env: Record<string, string> = {
-      ...workspaceSettingsToEnv(settings!),
-      EXO_PI_LABEL: "Operator Pi",
-      EXO_PI_BACKEND_URL: "http://127.0.0.1:9090",
-    };
-
-    expect(env.EXO_PI_LABEL).toBe("Operator Pi");
-    expect(env.EXO_PI_BACKEND_URL).toBe("http://127.0.0.1:9090");
-    expect(env.EXO_PI_REPO_PATH).toBe("/tmp/persisted-pi");
   });
 
   it("normalizes persisted pane layout settings", async () => {
@@ -491,7 +429,7 @@ describe("workspace settings registry", () => {
     const env = { EXO_USER_DATA_PATH: userDataPath };
 
     try {
-      const saved = await saveWorkspaceSettings({
+      await saveWorkspaceSettings({
         workspaceRoot: "/tmp/exo/notes-alpha",
         defaultTerminalCwd: "/tmp/exo/project-alpha",
         noteRoots: ["/tmp/exo/notes-alpha"],
@@ -515,10 +453,6 @@ describe("workspace settings registry", () => {
         defaultTerminalCwd: "/tmp/exo/project-alpha",
       });
       await expect(listWorkspaceRegistryEntries(env)).resolves.toHaveLength(1);
-      expect(workspaceSettingsToEnv(saved)).toMatchObject({
-        EXO_WORKSPACE_ROOT: "/tmp/exo/notes-alpha",
-        EXO_DEFAULT_TERMINAL_CWD: "/tmp/exo/project-alpha",
-      });
     } finally {
       await rm(userDataPath, { recursive: true, force: true });
     }
