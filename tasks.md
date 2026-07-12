@@ -79,6 +79,13 @@ Fable approved the execution order: decide P0, then run Settings preservation an
 
 Start only after the trust gates above pass.
 
+### Product-model discovery: one Exo workspace, multiple wikis, and importable Markdown folders
+
+- [ ] Research current LLM-wiki practice and decide whether Exo's future unit is a single multi-root workspace, independently selectable wikis, or a layered global/workspace model. Keep the shipped Note Root-only trust boundary intact until a decision is documented.
+- [ ] Define the operator model for cross-folder/global versus wiki-scoped search, graph resolution, configured Commands, index ownership, and trust before adding any import/project UI.
+- [ ] Decide how skills and automations that maintain Markdown/graph state are declared, scoped, reviewed, and scheduled without reintroducing a harness or general plugin runtime.
+- [x] Start a durable product-insight log at `notes/shoshin-codex/projects/exo/insights.md`; capture evidence, confidence, decision influence, and next validation rather than turning every observation into scope.
+
 ### Folder Overview and Folder Index
 
 - [ ] Double-click a Folder to open its Overview: durable title/properties from optional `index.md`, direct children, local graph, and relevant context.
