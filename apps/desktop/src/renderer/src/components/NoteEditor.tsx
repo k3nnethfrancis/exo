@@ -32,6 +32,7 @@ interface WikilinkSuggestionState {
   left: number;
   top: number;
   items: WikilinkSuggestion[];
+  selectedIndex: number;
 }
 
 interface WikilinkPreviewState {
@@ -116,8 +117,6 @@ export function NoteEditor(props: NoteEditorProps) {
   const scrollTopByPathRef = useRef<Map<string, number>>(new Map());
   const selectionByPathRef = useRef<Map<string, { anchor: number; head: number }>>(new Map());
   const seededAuthoringPathsRef = useRef<Set<string>>(new Set());
-  const previousBodyRef = useRef(document?.body ?? "");
-  const previousPathRef = useRef(document?.filePath ?? "");
   const restoringScrollRef = useRef(false);
   const processedRevealLineNonceRef = useRef<number | null>(null);
   const processedScrollRestoreNonceRef = useRef<number | null>(null);
@@ -140,7 +139,6 @@ export function NoteEditor(props: NoteEditorProps) {
   }, [document?.filePath]);
 
   const documentPath = document?.filePath ?? "";
-  const documentBody = document?.body ?? "";
   const useMarkdownEditing = shouldUseMarkdownRenderer(document);
   const showNoteMetadata = useMarkdownEditing && isNoteDocument;
   const displayTitle = document ? getDocumentDisplayTitle(document.filePath, document.kind) : "";
@@ -169,9 +167,17 @@ export function NoteEditor(props: NoteEditorProps) {
     return enabled.some((command) => command.handle === "claude") ? enabled : [defaultClaudeAgentCommand(), ...enabled];
   }, [agentCommands]);
   const invokeAgentRef = useRef(onInvokeAgent);
+  const openTargetRef = useRef(onOpenTarget);
+  const openTagRef = useRef(onOpenTag);
+  const saveRef = useRef(onSave);
+  const zoomEditorRef = useRef(onZoomEditor);
   useEffect(() => {
     invokeAgentRef.current = onInvokeAgent;
   }, [onInvokeAgent]);
+  useEffect(() => { openTargetRef.current = onOpenTarget; }, [onOpenTarget]);
+  useEffect(() => { openTagRef.current = onOpenTag; }, [onOpenTag]);
+  useEffect(() => { saveRef.current = onSave; }, [onSave]);
+  useEffect(() => { zoomEditorRef.current = onZoomEditor; }, [onZoomEditor]);
   const agentComposer = useMemo(
     () => inlineAgentComposerExtension({ onSend: (draft) => invokeAgentRef.current(draft) }),
     [],
@@ -247,7 +253,7 @@ export function NoteEditor(props: NoteEditorProps) {
             return;
           }
           const items = suggestions.slice(0, WIKILINK_COMPLETION_LIMIT);
-          setWikilinkSuggestions(items.length > 0 ? { ...currentContext, left, top, items } : null);
+          setWikilinkSuggestions(items.length > 0 ? { ...currentContext, left, top, items, selectedIndex: 0 } : null);
         }).catch(() => {
           if (requestId === wikilinkSuggestionRequestRef.current) {
             setWikilinkSuggestions(null);
@@ -350,6 +356,15 @@ export function NoteEditor(props: NoteEditorProps) {
             : current);
           return;
         }
+        if ((event.key === "ArrowDown" || event.key === "ArrowUp") && wikilinkSuggestions?.items.length) {
+          event.preventDefault();
+          event.stopPropagation();
+          const delta = event.key === "ArrowDown" ? 1 : -1;
+          setWikilinkSuggestions((current) => current
+            ? { ...current, selectedIndex: nextSuggestionIndex(current.selectedIndex, current.items.length, delta) }
+            : current);
+          return;
+        }
         if (event.key === "Enter" && agentSuggestions?.items.length) {
           event.preventDefault();
           event.stopPropagation();
@@ -367,7 +382,7 @@ export function NoteEditor(props: NoteEditorProps) {
         }
         event.preventDefault();
         event.stopPropagation();
-        acceptWikilinkSuggestion(wikilinkSuggestions.items[0]);
+        acceptWikilinkSuggestion(wikilinkSuggestions.items[wikilinkSuggestions.selectedIndex]);
       },
     [acceptAgentSuggestion, acceptWikilinkSuggestion, agentSuggestions, wikilinkSuggestions],
   );
@@ -428,47 +443,79 @@ export function NoteEditor(props: NoteEditorProps) {
         {
           key: "Mod-s",
           run: () => {
-            onSave();
+            saveRef.current();
             return true;
           },
         },
         {
           key: "Mod-=",
           run: () => {
-            onZoomEditor(1);
+            zoomEditorRef.current(1);
             return true;
           },
         },
         {
           key: "Mod-Shift-=",
           run: () => {
-            onZoomEditor(1);
+            zoomEditorRef.current(1);
             return true;
           },
         },
         {
           key: "Mod--",
           run: () => {
-            onZoomEditor(-1);
+            zoomEditorRef.current(-1);
             return true;
           },
         },
         {
           key: "Mod-0",
           run: () => {
-            onZoomEditor(0);
+            zoomEditorRef.current(0);
             return true;
           },
         },
         indentWithTab,
         ...lintKeymap,
       ]),
-    [onSave, onZoomEditor],
+    [],
   );
-  const bodyChanged = document !== null && previousPathRef.current === document.filePath && previousBodyRef.current !== document.body;
-  if (bodyChanged) {
-    restoringScrollRef.current = true;
-  }
+
+  const markdownPreviewExtensions = useMemo(
+    () => markdownLivePreview({
+      onOpenTarget: (target) => openTargetRef.current(target),
+      onOpenTag: (tag) => openTagRef.current(tag),
+      suppressedGeneratedTitle,
+      graphReferences,
+    }),
+    [graphReferences, suppressedGeneratedTitle],
+  );
+  const editorExtensions = useMemo(
+    () => useMarkdownEditing
+      ? [
+          markdown(),
+          EditorView.lineWrapping,
+          saveKeymap,
+          selectionTracker,
+          agentComposer,
+          ...(!rawMarkdownMode ? markdownPreviewExtensions : []),
+          cmTheme,
+          syntaxTheme,
+        ]
+      : [
+          lineNumbers(),
+          foldGutter(),
+          bracketMatching(),
+          lintGutter(),
+          saveKeymap,
+          selectionTracker,
+          agentComposer,
+          ...(codeLanguage?.extensions ?? []),
+          cmTheme,
+          syntaxTheme,
+        ],
+    [agentComposer, cmTheme, codeLanguage?.extensions, markdownPreviewExtensions, rawMarkdownMode, saveKeymap, selectionTracker, syntaxTheme, useMarkdownEditing],
+  );
 
   useEffect(() => {
     if (!document) {
@@ -495,7 +542,7 @@ export function NoteEditor(props: NoteEditorProps) {
       window.clearInterval(interval);
       scroller.removeEventListener("scroll", handleScroll);
     };
-  }, [document, documentPath, rawMarkdownMode, theme, fontSize]);
+  }, [documentPath, rawMarkdownMode, theme.id, fontSize]);
 
   useLayoutEffect(() => {
     if (!document) {
@@ -505,14 +552,9 @@ export function NoteEditor(props: NoteEditorProps) {
     const scroller = codeMirrorRef.current?.view?.scrollDOM;
     const scrollTop = scrollTopByPathRef.current.get(document.filePath);
     if (!scroller || scrollTop === undefined) {
-      previousPathRef.current = document.filePath;
-      previousBodyRef.current = document.body;
       restoringScrollRef.current = false;
       return;
     }
-
-    previousPathRef.current = document.filePath;
-    previousBodyRef.current = document.body;
 
     const restore = () => {
       scroller.scrollTop = scrollTop;
@@ -540,7 +582,7 @@ export function NoteEditor(props: NoteEditorProps) {
       window.clearInterval(interval);
       window.clearTimeout(timeout);
     };
-  }, [document, documentPath, documentBody, rawMarkdownMode, theme, fontSize]);
+  }, [documentPath, rawMarkdownMode, theme.id, fontSize]);
 
   const handleEditorCreated = useMemo(
     () =>
@@ -824,40 +866,7 @@ export function NoteEditor(props: NoteEditorProps) {
           ref={codeMirrorRef}
           key={`${document.filePath}:${useMarkdownEditing && !rawMarkdownMode ? "live" : "code"}:${theme.id}:${fontSize}`}
           value={document.body}
-          extensions={
-            useMarkdownEditing
-              ? [
-                  markdown(),
-                  EditorView.lineWrapping,
-                  saveKeymap,
-                  selectionTracker,
-                  agentComposer,
-                  ...(!rawMarkdownMode
-                    ? [
-                        markdownLivePreview({
-                          onOpenTarget,
-                          onOpenTag,
-                          suppressedGeneratedTitle,
-                          graphReferences,
-                        }),
-                      ]
-                    : []),
-                  cmTheme,
-                  syntaxTheme,
-                ]
-              : [
-                  lineNumbers(),
-                  foldGutter(),
-                  bracketMatching(),
-                  lintGutter(),
-                  saveKeymap,
-                  selectionTracker,
-                  agentComposer,
-                  ...(codeLanguage?.extensions ?? []),
-                  cmTheme,
-                  syntaxTheme,
-                ]
-          }
+          extensions={editorExtensions}
           basicSetup={{
             autocompletion: false,
             lineNumbers: false,
@@ -914,10 +923,12 @@ export function NoteEditor(props: NoteEditorProps) {
             data-testid="wikilink-suggestions"
             style={{ left: wikilinkSuggestions.left, top: wikilinkSuggestions.top }}
           >
-            {wikilinkSuggestions.items.map((suggestion) => (
+            <div className="wikilink-suggestions__title">Links</div>
+            {wikilinkSuggestions.items.map((suggestion, index) => (
               <button
                 key={suggestion.target}
-                className="wikilink-suggestions__item"
+                aria-selected={index === wikilinkSuggestions.selectedIndex}
+                className={`wikilink-suggestions__item ${index === wikilinkSuggestions.selectedIndex ? "wikilink-suggestions__item--active" : ""}`}
                 type="button"
                 onMouseDown={(event) => {
                   event.preventDefault();

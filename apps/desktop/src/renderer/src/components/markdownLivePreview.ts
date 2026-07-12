@@ -81,14 +81,19 @@ export function markdownLivePreview(options: MarkdownLivePreviewOptions): Extens
   const plugin = ViewPlugin.fromClass(
     class {
       decorations: DecorationSet;
+      metadata: MarkdownPreviewMetadata;
 
       constructor(view: EditorView) {
-        this.decorations = buildDecorations(view, options);
+        this.metadata = markdownPreviewMetadata(view.state.doc);
+        this.decorations = buildDecorations(view, options, this.metadata);
       }
 
       update(update: ViewUpdate) {
+        if (update.docChanged && markdownStructureChanged(update, this.metadata)) {
+          this.metadata = markdownPreviewMetadata(update.state.doc);
+        }
         if (update.docChanged || update.viewportChanged || update.selectionSet || update.transactions.some(tr => tr.effects.some(e => e.is(toggleFoldEffect)))) {
-          this.decorations = buildDecorations(update.view, options);
+          this.decorations = buildDecorations(update.view, options, this.metadata);
         }
       }
     },
@@ -207,7 +212,7 @@ function nextTaskCheckboxMarker(currentChar: string) {
 const listPrefixAtomicRanges = EditorView.atomicRanges.of((view) => {
   const builder = new RangeSetBuilder<Decoration>();
 
-  for (let lineNumber = 1; lineNumber <= view.state.doc.lines; lineNumber += 1) {
+  for (const lineNumber of visibleLineNumbers(view.state.doc, view.visibleRanges)) {
     const line = view.state.doc.line(lineNumber);
     const match = line.text.match(listPrefixPattern);
     if (!match) {
@@ -583,12 +588,64 @@ interface DecorationEntry {
   decoration: Decoration;
 }
 
-function buildDecorations(view: EditorView, options: MarkdownLivePreviewOptions): DecorationSet {
+interface MarkdownPreviewMetadata {
+  listContexts: Map<number, ListContext>;
+  tableContexts: Map<number, TableContext>;
+  codeFenceContexts: Map<number, CodeFenceContext>;
+}
+
+function markdownPreviewMetadata(doc: EditorState["doc"]): MarkdownPreviewMetadata {
+  return {
+    listContexts: collectListMetadata(doc),
+    tableContexts: collectTableMetadata(doc),
+    codeFenceContexts: collectCodeFenceMetadata(doc),
+  };
+}
+
+/** Most keystrokes only affect inline decoration. Rebuilding list, table, and
+ * fence metadata for a whole note on every character made normal editing and
+ * selection visibly stall. Refresh the structural cache only when an edit can
+ * alter a block boundary or touches an existing structured block. */
+function markdownStructureChanged(update: ViewUpdate, metadata: MarkdownPreviewMetadata): boolean {
+  let changed = false;
+  update.changes.iterChanges((fromA, toA, fromB, toB, inserted) => {
+    if (changed) {
+      return;
+    }
+    const before = update.startState.doc.sliceString(fromA, toA);
+    const after = inserted.toString();
+    const changedText = `${before}${after}`;
+    if (/\n|`|\|/.test(changedText) || /(?:^|\n)\s*(?:[-*+]|\d+[.)])\s/.test(changedText)) {
+      changed = true;
+      return;
+    }
+    const previousLine = update.startState.doc.lineAt(fromA).number;
+    const nextLine = update.state.doc.lineAt(fromB).number;
+    changed = metadata.listContexts.has(previousLine) || metadata.tableContexts.has(previousLine) || metadata.codeFenceContexts.has(previousLine)
+      || metadata.listContexts.has(nextLine) || metadata.tableContexts.has(nextLine) || metadata.codeFenceContexts.has(nextLine);
+  });
+  return changed;
+}
+
+export function visibleLineNumbers(
+  doc: { lineAt(position: number): { number: number }; lines: number },
+  ranges: readonly { from: number; to: number }[],
+): number[] {
+  const visible = new Set<number>();
+  for (const range of ranges) {
+    const first = doc.lineAt(range.from).number;
+    const last = doc.lineAt(range.to).number;
+    for (let line = first; line <= last; line += 1) {
+      visible.add(line);
+    }
+  }
+  return [...visible].sort((left, right) => left - right);
+}
+
+function buildDecorations(view: EditorView, options: MarkdownLivePreviewOptions, metadata: MarkdownPreviewMetadata): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
   const currentLine = view.state.doc.lineAt(view.state.selection.main.head).number;
-  const listContexts = collectListMetadata(view.state.doc);
-  const tableContexts = collectTableMetadata(view.state.doc);
-  const codeFenceContexts = collectCodeFenceMetadata(view.state.doc);
+  const { listContexts, tableContexts, codeFenceContexts } = metadata;
   const foldedLines = view.state.field(foldedLinesField);
 
   // Determine which list lines have children (next line has greater depth)
@@ -621,7 +678,12 @@ function buildDecorations(view: EditorView, options: MarkdownLivePreviewOptions)
 
   const handledTableStarts = new Set<number>();
 
-  for (let lineNumber = 1; lineNumber <= view.state.doc.lines; lineNumber += 1) {
+  const renderedLineNumbers = visibleLineNumbers(view.state.doc, view.visibleRanges);
+  if (!renderedLineNumbers.includes(currentLine)) {
+    renderedLineNumbers.push(currentLine);
+    renderedLineNumbers.sort((left, right) => left - right);
+  }
+  for (const lineNumber of renderedLineNumbers) {
     const line = view.state.doc.line(lineNumber);
     const text = line.text;
     const codeFenceCtx = codeFenceContexts.get(lineNumber);
@@ -807,6 +869,7 @@ class GraphReferencesWidget extends WidgetType {
       button.className = "markdown-graph-references__item";
       button.type = "button";
       button.dataset.exoLinkTarget = item.target;
+      button.dataset.exoLinkKind = "wikilink";
       button.textContent = item.label;
       list.appendChild(button);
     }

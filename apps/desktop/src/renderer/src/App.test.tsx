@@ -51,6 +51,7 @@ import {
   clampSelectionToRenderedListText,
   listEnterEdit,
   shouldSuppressGeneratedTitleLine,
+  visibleLineNumbers,
   wikilinkExitEdit,
 } from "./components/markdownLivePreview";
 import {
@@ -667,6 +668,15 @@ describe("markdown live preview title suppression", () => {
   });
 });
 
+describe("markdown live preview viewport work", () => {
+  it("limits decoration work to the visible editor lines", () => {
+    const state = EditorState.create({ doc: Array.from({ length: 5_000 }, (_, index) => `line ${index + 1}`).join("\n") });
+
+    expect(visibleLineNumbers(state.doc, [{ from: 0, to: 20 }])).toEqual([1, 2, 3]);
+    expect(visibleLineNumbers(state.doc, [{ from: state.doc.length - 20, to: state.doc.length }])).toEqual([4_998, 4_999, 5_000]);
+  });
+});
+
 describe("terminal output chunking", () => {
   it("preserves the terminal render-stability corpus across renderer write chunks", () => {
     const renderStabilityOutput = terminalRenderStabilityBody();
@@ -860,6 +870,10 @@ describe("markdown editor wikilink behavior", () => {
     expect(wikilinkSuggestionEdit(context!, { label: "goals", target: "goals" })).toEqual({
       insert: "[[goals]]",
       selection: "See [[goals]]".length,
+    });
+    expect(wikilinkSuggestionEdit(context!, { label: "Self-Improving Business Systems", target: "garden/blog/self-improving-business-systems" })).toEqual({
+      insert: "[[garden/blog/self-improving-business-systems|Self-Improving Business Systems]]",
+      selection: context!.from + "[[garden/blog/self-improving-business-systems|Self-Improving Business Systems]]".length,
     });
   });
 

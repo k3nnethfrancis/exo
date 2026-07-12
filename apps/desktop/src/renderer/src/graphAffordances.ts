@@ -79,7 +79,12 @@ export function wikilinkSuggestionEdit(
   active: WikilinkCompletionContext,
   suggestion: WikilinkSuggestion,
 ): { insert: string; selection: number } {
-  const insert = `[[${suggestion.target}]]`;
+  // Keep the filesystem-relative target canonical while rendering the note's
+  // human title in the document. A completion must never turn a readable
+  // sentence into its on-disk path.
+  const insert = suggestion.label === suggestion.target
+    ? `[[${suggestion.target}]]`
+    : `[[${suggestion.target}|${suggestion.label}]]`;
   return {
     insert,
     selection: active.from + insert.length,

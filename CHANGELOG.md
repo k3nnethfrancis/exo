@@ -21,6 +21,7 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 ### Fixed
 
+- Makes Markdown completion insert readable link aliases and removes whole-note live-preview work from ordinary editor selection and typing.
 - Keeps inline agent typing off the synchronous workspace render path, clarifies headless command failures, and moves invocation status into a compact bottom-left toast.
 - Restores bounded CodeMirror editor scrolling after the editor action chrome became an out-of-flow overlay.
 
