@@ -25,7 +25,7 @@ describe("CommandServerDocumentReader", () => {
     await mkdir(noteRoot);
     await mkdir(attachedRoot);
     await writeFile(attachedPath, "# Private\n", "utf8");
-    const model = workspaceModel(workspaceRoot, [noteRoot], [attachedRoot]);
+    const model = workspaceModel(workspaceRoot, [noteRoot]);
     const reader = commandServerDocumentReader(model);
 
     await expect(reader.read(attachedPath)).rejects.toThrow("outside configured note roots");
@@ -41,7 +41,7 @@ describe("CommandServerDocumentReader", () => {
     await mkdir(secondNoteRoot);
     await writeFile(firstNotePath, "# First\n\nAlpha\n", "utf8");
     await writeFile(secondNotePath, "# Second\n\nBeta\n", "utf8");
-    const reader = commandServerDocumentReader(workspaceModel(workspaceRoot, [firstNoteRoot, secondNoteRoot], []));
+    const reader = commandServerDocumentReader(workspaceModel(workspaceRoot, [firstNoteRoot, secondNoteRoot]));
 
     await expect(reader.read(firstNotePath)).resolves.toMatchObject({ filePath: firstNotePath, body: "# First\n\nAlpha\n" });
     await expect(reader.read(secondNotePath)).resolves.toMatchObject({ filePath: secondNotePath, body: "# Second\n\nBeta\n" });
@@ -51,7 +51,7 @@ describe("CommandServerDocumentReader", () => {
     const workspaceRoot = await temporaryRoot();
     const noteRoot = path.join(workspaceRoot, "notes");
     await mkdir(noteRoot);
-    const model = workspaceModel(workspaceRoot, [noteRoot], []);
+    const model = workspaceModel(workspaceRoot, [noteRoot]);
     const reader = new CommandServerDocumentReader({
       getContext: () => ({ model, runtimeRoot: path.join(workspaceRoot, ".exo") }),
       readDocument: async () => {
@@ -71,7 +71,7 @@ describe("CommandServerDocumentReader", () => {
     await mkdir(noteRoot);
     await mkdir(path.dirname(attachedPath));
     await writeFile(attachedPath, "# Indexed\n", "utf8");
-    const model = workspaceModel(workspaceRoot, [noteRoot], [path.dirname(attachedPath)]);
+    const model = workspaceModel(workspaceRoot, [noteRoot]);
     const reader = new CommandServerDocumentReader({
       getContext: () => ({ model, runtimeRoot: path.join(workspaceRoot, ".exo") }),
       readDocument: async (_context, target) => ({
@@ -92,7 +92,7 @@ describe("CommandServerDocumentReader", () => {
     const attachedPath = path.join(workspaceRoot, "attached", "indexed.md");
     await mkdir(noteRoot);
     await mkdir(path.dirname(attachedPath));
-    const model = workspaceModel(workspaceRoot, [noteRoot], [path.dirname(attachedPath)]);
+    const model = workspaceModel(workspaceRoot, [noteRoot]);
     let bodyRead = false;
     const reader = new CommandServerDocumentReader({
       getContext: () => ({ model, runtimeRoot: path.join(workspaceRoot, ".exo") }),
@@ -119,7 +119,7 @@ describe("CommandServerDocumentReader", () => {
     const notePath = path.join(noteRoot, "context.md");
     await mkdir(noteRoot);
     await writeFile(notePath, "# Context\n", "utf8");
-    const model = workspaceModel(workspaceRoot, [noteRoot], []);
+    const model = workspaceModel(workspaceRoot, [noteRoot]);
     const runtimeRoot = path.join(workspaceRoot, ".exo-current");
     let contextReads = 0;
     let observedRuntimeRoot: string | null = null;
@@ -152,7 +152,7 @@ describe("CommandServerDocumentReader", () => {
     const implicitNotePath = path.join(implicitWorkspaceRoot, "notes", "not-authorized.md");
     await mkdir(path.dirname(implicitNotePath), { recursive: true });
     await writeFile(implicitNotePath, "# Not authorized\n", "utf8");
-    const model = workspaceModel(workspaceRoot, [], []);
+    const model = workspaceModel(workspaceRoot, []);
     const reader = new CommandServerDocumentReader({
       getContext: () => commandServerDocumentReadContext(model, {
         EXO_RUNTIME_ROOT: path.join(workspaceRoot, "onboarding-runtime"),
@@ -187,7 +187,7 @@ describe("CommandServerDocumentReader", () => {
   }
 });
 
-function workspaceModel(workspaceRoot: string, noteRoots: string[], attachedRoots: string[]): WorkspaceModel {
+function workspaceModel(workspaceRoot: string, noteRoots: string[]): WorkspaceModel {
   return {
     workspaceRoot,
     defaultTerminalCwd: workspaceRoot,
@@ -198,6 +198,5 @@ function workspaceModel(workspaceRoot: string, noteRoots: string[], attachedRoot
     })),
     indexedRoots: [],
     indexing: { enabled: false, mode: "off", backend: "qmd" },
-    attachedWorkcells: [],
   };
 }

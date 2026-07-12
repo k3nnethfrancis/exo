@@ -69,7 +69,6 @@ function indexingService(
     noteRoots: settings.noteRoots.map((root, index) => ({ id: `note-${index + 1}`, label: `note-${index + 1}`, path: root })),
     indexedRoots: settings.indexedRoots,
     indexing: settings.indexing,
-    attachedWorkcells: [],
   };
   return new IndexingService({
     getWorkspaceModel: () => model,

@@ -42,5 +42,5 @@ describe("WorkspaceGraph", () => {
 });
 
 function model(workspaceRoot: string, notes: string): WorkspaceModel {
-  return { workspaceRoot, defaultTerminalCwd: workspaceRoot, noteRoots: [{ id: "notes", label: "Notes", path: notes }], indexedRoots: [], indexing: { enabled: false, mode: "off", backend: "qmd" }, attachedWorkcells: [] };
+  return { workspaceRoot, defaultTerminalCwd: workspaceRoot, noteRoots: [{ id: "notes", label: "Notes", path: notes }], indexedRoots: [], indexing: { enabled: false, mode: "off", backend: "qmd" } };
 }

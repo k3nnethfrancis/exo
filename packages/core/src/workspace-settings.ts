@@ -294,7 +294,6 @@ export function workspaceModelFromSettings(settings: WorkspaceSettings): Workspa
     })),
     indexedRoots: settings.indexedRoots,
     indexing: settings.indexing,
-    attachedWorkcells: [],
   };
 }
 

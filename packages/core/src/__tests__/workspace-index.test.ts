@@ -10,7 +10,6 @@ const model: WorkspaceModel = {
   noteRoots: [],
   indexedRoots: [],
   indexing: { enabled: false, mode: "off", backend: "qmd" },
-  attachedWorkcells: [],
 };
 
 function status(provider: "qmd" | "filesystem"): IndexStatus {

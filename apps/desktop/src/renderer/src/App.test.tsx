@@ -930,7 +930,6 @@ function workspaceModel(noteRoot: string): WorkspaceModel {
     noteRoots: [{ id: "notes", label: "Notes", path: noteRoot }],
     indexedRoots: [],
     indexing: { enabled: false, mode: "off", backend: "qmd" },
-    attachedWorkcells: [],
   };
 }
 

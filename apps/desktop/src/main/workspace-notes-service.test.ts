@@ -92,7 +92,6 @@ async function workspaceNotesService() {
     noteRoots: [{ id: "note-root-1", label: "notes", path: noteRoot }],
     indexedRoots: [],
     indexing: { enabled: false, mode: "off", backend: "qmd" },
-    attachedWorkcells: [],
   };
   return {
     noteRoot,

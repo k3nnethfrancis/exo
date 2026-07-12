@@ -64,7 +64,6 @@ export function resolveWorkspaceModel(env: NodeJS.ProcessEnv = process.env): Wor
     ),
     indexedRoots,
     indexing,
-    attachedWorkcells: [],
   };
 }
 

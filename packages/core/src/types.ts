@@ -16,7 +16,6 @@ export interface WorkspaceModel {
   noteRoots: NoteRoot[];
   indexedRoots: IndexedRoot[];
   indexing: IndexingConfig;
-  attachedWorkcells: string[];
 }
 
 export interface WorkspaceSettings {
@@ -157,7 +156,7 @@ export interface SearchResult {
   filePath: string;
   title: string;
   snippet: string;
-  kind: "note" | "project-file" | "tag";
+  kind: "note" | "tag";
 }
 
 export interface SemanticSearchResult {

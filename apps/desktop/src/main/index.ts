@@ -226,7 +226,6 @@ function createFirstRunWorkspaceModel(): WorkspaceModel {
       mode: "off",
       backend: "qmd",
     },
-    attachedWorkcells: [],
   };
 }
 
