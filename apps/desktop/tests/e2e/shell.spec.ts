@@ -98,7 +98,8 @@ test("boots the shell, opens notes, and creates terminals on demand", async () =
   await expect(page.getByTestId("editor-panel")).toContainText("Linked references:");
   await expect(page.getByTestId("editor-panel")).toContainText("agent-memory");
   await expect(page.getByTestId("editor-panel")).toContainText("#research");
-  await page.locator(".editor-panel__chrome-reveal").hover();
+  await page.getByTestId("editor-panel").hover();
+  await expect(page.getByTestId("toggle-markdown-mode")).toBeVisible();
   await page.getByTestId("toggle-markdown-mode").click();
   await expect(page.getByTestId("editor-panel")).toContainText("[[agent-memory]]");
 
