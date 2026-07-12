@@ -1,4 +1,4 @@
-import { expect, test, type Dialog } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -10,8 +10,12 @@ import {
 test("runs a configured note invocation, refreshes the note, and highlights the changed note", async () => {
   const fixture = await launchInvocationFixture("append", {
     scriptBody: `
-import { appendFile } from "node:fs/promises";
+import { appendFile, writeFile } from "node:fs/promises";
 const notePath = process.argv[2];
+let prompt = "";
+process.stdin.setEncoding("utf8");
+for await (const chunk of process.stdin) prompt += chunk;
+await writeFile(notePath + ".prompt", prompt, "utf8");
 await new Promise((resolve) => setTimeout(resolve, 500));
 await appendFile(notePath, "\\nagent appended line\\n", "utf8");
 `,
@@ -23,6 +27,7 @@ await appendFile(notePath, "\\nagent appended line\\n", "utf8");
     await expect(fixture.page.getByTestId("invocation-review-banner")).toContainText("Changed during @append", { timeout: 10_000 });
     await expect(fixture.page.getByTestId("editor-panel")).toContainText("agent appended line", { timeout: 10_000 });
     await expect(fixture.page.getByTestId("invocation-review-banner")).not.toContainText("Show diff");
+    await expect(fixture.page.locator('[data-testid^="terminal-tab-"]')).toHaveCount(0);
 
     const record = await latestInvocationRecord(fixture.workspaceRoot);
     expect(record).toMatchObject({
@@ -30,6 +35,10 @@ await appendFile(notePath, "\\nagent appended line\\n", "utf8");
       command: { handle: "append" },
       changedFileRefs: [expect.objectContaining({ attribution: "likely" })],
     });
+    expect(record).not.toHaveProperty("terminalSessionId");
+    await expect.poll(() => readFile(`${fixture.notePath}.prompt`, "utf8")).toContain("Document snapshot at invocation:");
+    await expect.poll(() => readFile(`${fixture.notePath}.prompt`, "utf8")).toContain("# Agent Invocation");
+    await expect.poll(() => readFile(`${fixture.notePath}.prompt`, "utf8")).toContain("Review this document.");
   } finally {
     await fixture.cleanup();
   }
@@ -164,7 +173,7 @@ await appendFile(notePath, "\\ndogfood pointer prompt run " + next + "\\n", "utf
   }
 });
 
-test("live Claude can read the pointed document through AgentCommand invocation", async () => {
+test("live Claude receives the current document context through a headless invocation", async () => {
   test.skip(process.env.EXO_LIVE_CLAUDE_E2E !== "1", "Set EXO_LIVE_CLAUDE_E2E=1 to run the live Claude pointer-prompt gate.");
   const fixture = await launchLiveClaudeInvocationFixture();
 
@@ -175,12 +184,8 @@ test("live Claude can read the pointed document through AgentCommand invocation"
       command: { handle: "claude" },
     });
     const record = await latestInvocationRecord(fixture.workspaceRoot);
-    const terminalSessionId = record.terminalSessionId;
-    if (typeof terminalSessionId !== "string") {
-      throw new Error("Live Claude invocation did not retain its terminal session.");
-    }
-    await expect.poll(async () => fixture.page.evaluate((id) => window.exo.terminals.read(id), terminalSessionId), { timeout: 30_000 }).toContain("EXO_LIVE_CLAUDE_POINTER_OK");
-    await expect.poll(async () => fixture.page.evaluate((id) => window.exo.terminals.read(id), terminalSessionId), { timeout: 30_000 }).toContain("Live Claude Pointer");
+    expect(record).not.toHaveProperty("terminalSessionId");
+    await expect(fixture.page.locator('[data-testid^="terminal-tab-"]')).toHaveCount(0);
   } finally {
     await fixture.cleanup();
   }
@@ -215,7 +220,7 @@ async function launchInvocationFixture(
           handle,
           command: `${shellQuote(process.execPath)} ${shellQuote(scriptPath)} ${shellQuote(notePath)}`,
           cwdPolicy: "workspace_root",
-          promptDelivery: "terminalInputAfterLaunch",
+          promptDelivery: "stdin",
           version: 1,
           enabled: true,
         }],
@@ -261,7 +266,7 @@ async function launchCommandInvocationFixture(
           handle,
           command: options.command,
           cwdPolicy: "workspace_root",
-          promptDelivery: "terminalInputAfterLaunch",
+          promptDelivery: "stdin",
           version: 1,
           enabled: true,
         }],
@@ -300,24 +305,18 @@ async function launchLiveClaudeInvocationFixture(): Promise<Awaited<ReturnType<t
 import { spawn } from "node:child_process";
 
 let input = "";
-let ran = false;
-let quietTimer;
 
 process.stdin.setEncoding("utf8");
 process.stdin.on("data", (chunk) => {
   input += chunk;
-  clearTimeout(quietTimer);
-  quietTimer = setTimeout(run, 500);
 });
-
-setTimeout(run, 5000);
+process.stdin.once("end", run);
 
 function run() {
-  if (ran || !input.includes("Open the document to see its full contents.")) {
-    return;
+  if (!input.includes("Document snapshot at invocation:") || !input.includes("# Live Claude Pointer")) {
+    process.exit(1);
   }
-  ran = true;
-  const prompt = input + "\\n\\nUse your file-reading tools to inspect the document path above. Reply with exactly one line containing EXO_LIVE_CLAUDE_POINTER_OK and the document H1.";
+  const prompt = input + "\\n\\nReply with exactly one line containing EXO_LIVE_CLAUDE_POINTER_OK and the document H1.";
   const child = spawn("claude", ["--print", "--permission-mode", "bypassPermissions", prompt], {
     cwd: process.cwd(),
     env: process.env,
@@ -343,7 +342,7 @@ function run() {
           handle: "claude",
           command: `${shellQuote(process.execPath)} ${shellQuote(scriptPath)}`,
           cwdPolicy: "workspace_root",
-          promptDelivery: "terminalInputAfterLaunch",
+          promptDelivery: "stdin",
           version: 1,
           enabled: true,
         }],
@@ -365,28 +364,17 @@ function run() {
 }
 
 async function invokeConfiguredAgent(page: Awaited<ReturnType<typeof launchExoWorkspaceFixture>>["page"], handle: string): Promise<void> {
-  let dialogIndex = 0;
-  const handleDialog = (dialog: Dialog) => {
-    dialogIndex += 1;
-    if (dialogIndex === 1) {
-      void dialog.accept();
-      return;
-    }
-    void dialog.dismiss();
-  };
-  page.on("dialog", handleDialog);
-  try {
-    await appendEditorText(page, `\n@${handle}`);
-    await expect(page.getByTestId(`agent-suggestion-${handle}`)).toBeVisible();
-    await page.keyboard.press("Enter");
-    const composer = page.getByTestId("inline-agent-composer");
-    await expect(composer).toHaveCount(1);
-    await page.keyboard.type("Review this document.");
-    await page.keyboard.press("Shift+Enter");
-    await expect(page.getByTestId("invocation-review-banner")).toContainText(`Running @${handle}`);
-  } finally {
-    page.off("dialog", handleDialog);
-  }
+  await appendEditorText(page, `\n@${handle}`);
+  await expect(page.getByTestId(`agent-suggestion-${handle}`)).toBeVisible();
+  await page.keyboard.press("Enter");
+  const composer = page.getByTestId("inline-agent-composer");
+  await expect(composer).toHaveCount(1);
+  await page.keyboard.type("Review this document.");
+  await page.keyboard.press("Shift+Enter");
+  const authorization = page.getByRole("dialog", { name: `Run @${handle}?` });
+  await expect(authorization).toBeVisible();
+  await authorization.getByRole("button", { name: `Run @${handle}` }).click();
+  await expect(page.getByTestId("invocation-review-banner")).toContainText(`Running @${handle}`);
 }
 
 async function appendEditorText(page: Awaited<ReturnType<typeof launchExoWorkspaceFixture>>["page"], text: string): Promise<void> {
