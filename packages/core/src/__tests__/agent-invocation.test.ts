@@ -4,12 +4,12 @@ import {
   agentCommandExecutableFingerprint,
   createDefaultClaudeAgentCommand,
   deriveAgentCommandLaunch,
+  formatNoteInvocationPrompt,
   normalizeAgentCommand,
   normalizeAgentCommands,
   normalizeAgentHandle,
   normalizeInvocationRecord,
 } from "../agent-invocation";
-import { parseAgentMentions } from "../agent-mention-parser";
 
 describe("agent invocation model", () => {
   it("derives one command launch decision for CLI and note contexts", () => {
@@ -126,44 +126,19 @@ describe("agent invocation model", () => {
     ])).toEqual([createDefaultClaudeAgentCommand()]);
   });
 
-  it("parses only strict editor-owned line-start mentions", () => {
-    const markdown = [
-      "---",
-      "owner: @claude",
-      "---",
-      "",
-      "@claude summarize this note",
-      "  @codex check the links",
-      "hello @claude not a mention",
-      "> @claude quoted text",
-      "- @claude list item",
-      "```",
-      "@claude code fence",
-      "```",
-      "<script>",
-      "@claude script body",
-      "</script>",
-      "@unknown ignored",
-    ].join("\n");
-
-    expect(parseAgentMentions(markdown, ["claude", "codex"])).toEqual([
-      {
-        handle: "claude",
-        message: "summarize this note",
-        originalText: "@claude summarize this note",
-        line: 5,
-        column: 1,
-        offset: expect.any(Number),
-      },
-      {
-        handle: "codex",
-        message: "check the links",
-        originalText: "@codex check the links",
-        line: 6,
-        column: 3,
-        offset: expect.any(Number),
-      },
-    ]);
+  it("formats an explicit invocation with its message and document snapshot", () => {
+    const prompt = formatNoteInvocationPrompt({
+      documentPath: "/workspace/notes/task.md",
+      mentionText: "@claude",
+      message: "Find relevant context and link it.",
+      frontmatter: { tags: ["exo"] },
+      body: "# Task\n\nCurrent draft",
+    });
+    expect(prompt).toContain("Working document:\n/workspace/notes/task.md");
+    expect(prompt).toContain("Message:\nFind relevant context and link it.");
+    expect(prompt).toContain('"tags": [');
+    expect(prompt).toContain("# Task");
+    expect(prompt).toContain("This is an explicitly authorized run.");
   });
 
   it("normalizes invocation records with lifecycle and attribution placeholders", () => {

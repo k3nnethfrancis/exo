@@ -102,6 +102,8 @@ export interface LaunchAgentInvocationInput {
   documentPath: string;
   mentionText: string;
   message: string;
+  documentFrontmatter?: Record<string, unknown>;
+  documentBody?: string;
   allowUntrustedOneShot?: boolean;
   persistTrust?: boolean;
 }

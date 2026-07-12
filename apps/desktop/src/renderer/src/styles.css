@@ -576,6 +576,89 @@ button svg,
   white-space: nowrap;
 }
 
+.agent-suggestions {
+  position: absolute;
+  z-index: 22;
+  min-width: 184px;
+  overflow: hidden;
+  border: 1px solid var(--surface-border-strong);
+  border-radius: 9px;
+  background: var(--panel-strong);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.22);
+  padding: 4px;
+}
+
+.agent-suggestions__item {
+  width: 100%;
+  min-height: 32px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  padding: 6px 8px;
+  text-align: left;
+}
+
+.agent-suggestions__item:first-child,
+.agent-suggestions__item:hover {
+  background: var(--surface-hover);
+}
+
+.agent-suggestions__handle {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.agent-suggestions__label {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.inline-agent-composer {
+  box-sizing: border-box;
+  width: min(100%, 720px);
+  margin: 0.36rem 0 0.64rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--surface-border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface-1));
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--accent) 72%, transparent);
+  padding: 8px 10px 9px 12px;
+}
+
+.inline-agent-composer__label {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 720;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+  margin-bottom: 5px;
+}
+
+.inline-agent-composer__input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 34px;
+  resize: none;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.96rem;
+  line-height: 1.55;
+  padding: 0;
+}
+
+.inline-agent-composer__input::placeholder {
+  color: var(--muted);
+}
+
 .wikilink-preview {
   position: absolute;
   z-index: 21;

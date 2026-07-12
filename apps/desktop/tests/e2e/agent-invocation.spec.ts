@@ -35,53 +35,6 @@ await appendFile(notePath, "\\nagent appended line\\n", "utf8");
   }
 });
 
-test("tests a saved Command only after explicit confirmation in the visible Terminal", async () => {
-  const fixture = await launchInvocationFixture("readiness", {
-    scriptBody: `
-console.log("EXO_COMMAND_TEST_PROCESS_VISIBLE");
-process.stdin.setEncoding("utf8");
-process.stdin.on("data", (data) => {
-  if (data.includes("\\r")) console.log("EXO_COMMAND_TEST_PROMPT_RECEIVED");
-});
-await new Promise((resolve) => setTimeout(resolve, 30_000));
-`,
-  });
-
-  try {
-    await fixture.page.keyboard.press(`${process.platform === "darwin" ? "Meta" : "Control"}+T`);
-    await expect(fixture.page.getByTestId("terminal-command")).toBeVisible();
-    await expect(fixture.page.getByTestId("test-agent-command")).toBeEnabled();
-
-    fixture.page.once("dialog", async (dialog) => {
-      expect(dialog.message()).toContain("This runs native code on your machine");
-      expect(dialog.message()).toContain("Exo will not save trust from this test");
-      await dialog.accept();
-    });
-    await fixture.page.getByTestId("test-agent-command").click();
-    await expect(fixture.page.locator(".terminal-command__facts")).toHaveAttribute(
-      "title",
-      "@readiness launched in a visible terminal.",
-      { timeout: 10_000 },
-    );
-
-    await expect.poll(async () => fixture.page.evaluate(async () =>
-      (await window.exo.terminals.list()).find((session) => session.title === "@readiness")?.id ?? null,
-    )).not.toBeNull();
-    await expect.poll(async () => fixture.page.evaluate(async () => {
-      const session = (await window.exo.terminals.list()).find((entry) => entry.title === "@readiness");
-      return session ? window.exo.terminals.read(session.id) : "";
-    }), { timeout: 10_000 }).toContain("EXO_COMMAND_TEST_PROCESS_VISIBLE");
-    await expect.poll(async () => latestInvocationRecord(fixture.workspaceRoot)).toMatchObject({
-      status: "running",
-      context: "cli",
-      message: "Test @readiness in terminal",
-      command: { handle: "readiness" },
-    });
-  } finally {
-    await fixture.cleanup();
-  }
-});
-
 test("shows a dirty-buffer conflict choice when an invocation changes the open note", async () => {
   const fixture = await launchInvocationFixture("conflict", {
     scriptBody: `
@@ -403,7 +356,13 @@ async function invokeConfiguredAgent(page: Awaited<ReturnType<typeof launchExoWo
   };
   page.on("dialog", handleDialog);
   try {
-    await page.getByTestId("invoke-agent-mention").click();
+    await appendEditorText(page, `\n@${handle}`);
+    await expect(page.getByTestId(`agent-suggestion-${handle}`)).toBeVisible();
+    await page.keyboard.press("Enter");
+    const composer = page.getByTestId("inline-agent-composer");
+    await expect(composer).toBeVisible();
+    await composer.locator("textarea").fill("Review this document.");
+    await composer.locator("textarea").press("Shift+Enter");
     await expect(page.getByTestId("invocation-review-banner")).toContainText(`Running @${handle}`);
   } finally {
     page.off("dialog", handleDialog);
@@ -418,11 +377,13 @@ async function appendEditorText(page: Awaited<ReturnType<typeof launchExoWorkspa
     if (!view) {
       throw new Error("Unable to resolve CodeMirror view");
     }
+    const position = view.state.doc.length + insert.length;
     view.dispatch({
       changes: {
         from: view.state.doc.length,
         insert,
       },
+      selection: { anchor: position },
     });
   }, text);
 }

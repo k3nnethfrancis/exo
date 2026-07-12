@@ -1,11 +1,11 @@
 import type { AgentCommand, InvocationRecord, NoteDocument, WorkspaceGraphContext } from "@exo/core";
-import type { ParsedAgentMention } from "@exo/core/agent-mention-parser";
 import type { DragManager } from "../hooks/useDragManager";
 import type { ExoThemeVariant } from "../theme/types";
 
 import { ChromeTab } from "./Chrome";
 import { getDocumentDisplayTitle } from "./documentDisplay";
 import { NoteEditor } from "./NoteEditor";
+import type { InlineAgentDraft } from "./inlineAgentComposer";
 
 interface EditorDocument extends NoteDocument {
   dirty: boolean;
@@ -39,7 +39,7 @@ interface EditorPaneProps {
   onSuggestTargets: (query: string) => Promise<Array<{ label: string; target: string; detail?: string }>>;
   onPreviewTarget: (target: string) => Promise<{ title: string; excerpt: string } | null>;
   agentCommands: AgentCommand[];
-  onInvokeAgentMention: (mention: ParsedAgentMention) => void;
+  onInvokeAgent: (draft: InlineAgentDraft) => void;
   invocationReview: EditorInvocationReview | null;
   theme: ExoThemeVariant;
   fontSize: number;
@@ -72,7 +72,7 @@ export function EditorPane(props: EditorPaneProps) {
     onSuggestTargets,
     onPreviewTarget,
     agentCommands,
-    onInvokeAgentMention,
+    onInvokeAgent,
     invocationReview,
     theme,
     fontSize,
@@ -154,7 +154,7 @@ export function EditorPane(props: EditorPaneProps) {
         onSuggestTargets={onSuggestTargets}
         onPreviewTarget={onPreviewTarget}
         agentCommands={agentCommands}
-        onInvokeAgentMention={onInvokeAgentMention}
+        onInvokeAgent={onInvokeAgent}
         invocationReview={invocationReview}
         onFocus={onFocusPane}
         theme={theme}

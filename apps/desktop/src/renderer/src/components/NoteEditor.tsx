@@ -7,14 +7,14 @@ import { bracketMatching, foldGutter } from "@codemirror/language";
 import { lintGutter, lintKeymap } from "@codemirror/lint";
 import { EditorSelection } from "@codemirror/state";
 import { keymap, lineNumbers, EditorView, type ViewUpdate } from "@codemirror/view";
-import { Code2, Plus, Send, Save, SlidersHorizontal } from "lucide-react";
+import { Code2, Plus, Save, SlidersHorizontal } from "lucide-react";
 import type { AgentCommand, InvocationRecord, NoteDocument, WorkspaceGraphContext } from "@exo/core";
-import { parseAgentMentions, type ParsedAgentMention } from "@exo/core/agent-mention-parser";
 import { exoEditorTheme, exoSyntaxHighlighting } from "../theme/codemirror";
 import type { ExoThemeVariant } from "../theme/types";
 import { codeLanguageForPath } from "./codeLanguages";
 import { coerceFrontmatterValue, getDocumentDisplayTitle, stringifyFrontmatterValue } from "./documentDisplay";
 import { markdownLivePreview, type MarkdownGraphReferences } from "./markdownLivePreview";
+import { inlineAgentComposerExtension, openInlineAgentComposer, type InlineAgentDraft } from "./inlineAgentComposer";
 import {
   buildNoteGraphContext,
   graphReferencesForMarkdownMode,
@@ -42,6 +42,14 @@ interface WikilinkPreviewState {
   loading: boolean;
 }
 
+interface AgentSuggestionState {
+  from: number;
+  to: number;
+  left: number;
+  top: number;
+  items: AgentCommand[];
+}
+
 interface EditorDocument extends NoteDocument {
   dirty: boolean;
 }
@@ -60,7 +68,7 @@ interface NoteEditorProps {
   onSuggestTargets: (query: string) => Promise<Array<{ label: string; target: string; detail?: string }>>;
   onPreviewTarget: (target: string) => Promise<{ title: string; excerpt: string } | null>;
   agentCommands: AgentCommand[];
-  onInvokeAgentMention: (mention: ParsedAgentMention) => void;
+  onInvokeAgent: (draft: InlineAgentDraft) => void;
   invocationReview: NoteInvocationReview | null;
   onFocus: () => void;
   theme: ExoThemeVariant;
@@ -89,7 +97,7 @@ export function NoteEditor(props: NoteEditorProps) {
     onSuggestTargets,
     onPreviewTarget,
     agentCommands,
-    onInvokeAgentMention,
+    onInvokeAgent,
     invocationReview,
     onFocus,
     theme,
@@ -114,6 +122,7 @@ export function NoteEditor(props: NoteEditorProps) {
   const wikilinkPreviewRequestRef = useRef(0);
   const suppressedWikilinkCompletionRef = useRef<{ pos: number; text: string } | null>(null);
   const [wikilinkSuggestions, setWikilinkSuggestions] = useState<WikilinkSuggestionState | null>(null);
+  const [agentSuggestions, setAgentSuggestions] = useState<AgentSuggestionState | null>(null);
   const [wikilinkPreview, setWikilinkPreview] = useState<WikilinkPreviewState | null>(null);
   const [newPropertyKey, setNewPropertyKey] = useState("");
   const [newPropertyValue, setNewPropertyValue] = useState("");
@@ -122,6 +131,7 @@ export function NoteEditor(props: NoteEditorProps) {
     setRawMarkdownMode(false);
     setChromeVisible(false);
     setWikilinkSuggestions(null);
+    setAgentSuggestions(null);
     setWikilinkPreview(null);
     suppressedWikilinkCompletionRef.current = null;
   }, [document?.filePath]);
@@ -151,13 +161,18 @@ export function NoteEditor(props: NoteEditorProps) {
   const graphReferences = useMemo((): MarkdownGraphReferences | null => {
     return graphReferencesForMarkdownMode(showNoteMetadata, rawMarkdownMode, graphContext);
   }, [graphContext, rawMarkdownMode, showNoteMetadata]);
-  const activeAgentMention = useMemo(() => {
-    if (!document || !showNoteMetadata || agentCommands.length === 0) {
-      return null;
-    }
-    const enabledHandles = agentCommands.filter((command) => command.enabled).map((command) => command.handle);
-    return parseAgentMentions(document.body, enabledHandles)[0] ?? null;
-  }, [agentCommands, document, showNoteMetadata]);
+  const invocationCommands = useMemo(() => {
+    const enabled = agentCommands.filter((command) => command.enabled);
+    return enabled.some((command) => command.handle === "claude") ? enabled : [defaultClaudeAgentCommand(), ...enabled];
+  }, [agentCommands]);
+  const invokeAgentRef = useRef(onInvokeAgent);
+  useEffect(() => {
+    invokeAgentRef.current = onInvokeAgent;
+  }, [onInvokeAgent]);
+  const agentComposer = useMemo(
+    () => inlineAgentComposerExtension({ onSend: (draft) => invokeAgentRef.current(draft) }),
+    [],
+  );
   const normalizedNewPropertyKey = normalizeFrontmatterPropertyKey(newPropertyKey);
   const newPropertyKeyFeedback = frontmatterPropertyKeyFeedback(newPropertyKey, document?.frontmatter ?? {});
   const canAddProperty =
@@ -238,13 +253,58 @@ export function NoteEditor(props: NoteEditorProps) {
       },
     [onSuggestTargets, rawMarkdownMode, useMarkdownEditing],
   );
+  const maybeUpdateAgentSuggestions = useMemo(
+    () =>
+      (update: ViewUpdate) => {
+        if (!useMarkdownEditing || rawMarkdownMode || (!update.selectionSet && !update.docChanged)) {
+          setAgentSuggestions(null);
+          return;
+        }
+        const range = update.state.selection.main;
+        if (!range.empty) {
+          setAgentSuggestions(null);
+          return;
+        }
+        const context = getAgentCompletionContext(update.state.doc, range.head);
+        if (!context) {
+          setAgentSuggestions(null);
+          return;
+        }
+        const items = invocationCommands.filter((command) => command.handle.startsWith(context.query));
+        if (items.length === 0) {
+          setAgentSuggestions(null);
+          return;
+        }
+        const coords = update.view.coordsAtPos(range.head);
+        const surfaceRect = update.view.dom.closest<HTMLElement>(".editor-surface")?.getBoundingClientRect();
+        setAgentSuggestions({
+          ...context,
+          left: coords && surfaceRect ? coords.left - surfaceRect.left : 24,
+          top: coords && surfaceRect ? coords.bottom - surfaceRect.top + 4 : 48,
+          items,
+        });
+      },
+    [invocationCommands, rawMarkdownMode, useMarkdownEditing],
+  );
   const handleEditorChange = useMemo(
     () =>
       (value: string, update: ViewUpdate) => {
         onBodyChange(value);
         maybeUpdateWikilinkSuggestions(update);
+        maybeUpdateAgentSuggestions(update);
       },
-    [maybeUpdateWikilinkSuggestions, onBodyChange],
+    [maybeUpdateAgentSuggestions, maybeUpdateWikilinkSuggestions, onBodyChange],
+  );
+  const acceptAgentSuggestion = useMemo(
+    () =>
+      (command: AgentCommand) => {
+        const view = codeMirrorRef.current?.view;
+        const active = agentSuggestions;
+        if (!view || !active) return;
+        openInlineAgentComposer(view, { from: active.from, to: active.to, handle: command.handle });
+        setAgentSuggestions(null);
+      },
+    [agentSuggestions],
   );
   const acceptWikilinkSuggestion = useMemo(
     () =>
@@ -269,6 +329,18 @@ export function NoteEditor(props: NoteEditorProps) {
   const handleEditorSurfaceKeyDown = useMemo(
     () =>
       (event: KeyboardEvent<HTMLDivElement>) => {
+        if (event.key === "Escape" && agentSuggestions) {
+          event.preventDefault();
+          event.stopPropagation();
+          setAgentSuggestions(null);
+          return;
+        }
+        if (event.key === "Enter" && agentSuggestions?.items.length) {
+          event.preventDefault();
+          event.stopPropagation();
+          acceptAgentSuggestion(agentSuggestions.items[0]);
+          return;
+        }
         if (event.key === "Escape" && wikilinkSuggestions) {
           event.preventDefault();
           event.stopPropagation();
@@ -282,7 +354,7 @@ export function NoteEditor(props: NoteEditorProps) {
         event.stopPropagation();
         acceptWikilinkSuggestion(wikilinkSuggestions.items[0]);
       },
-    [acceptWikilinkSuggestion, wikilinkSuggestions],
+    [acceptAgentSuggestion, acceptWikilinkSuggestion, agentSuggestions, wikilinkSuggestions],
   );
   const handleEditorSurfaceMouseMove = useMemo(
     () =>
@@ -553,7 +625,7 @@ export function NoteEditor(props: NoteEditorProps) {
       onMouseLeave={() => setChromeVisible(false)}
     >
       <div
-        className={`editor-panel__header ${chromeVisible || !propertiesCollapsed ? "editor-panel__header--visible" : ""} ${activeAgentMention ? "editor-panel__header--invocable" : ""}`}
+        className={`editor-panel__header ${chromeVisible || !propertiesCollapsed ? "editor-panel__header--visible" : ""}`}
       >
         <div className="editor-panel__summary">
           <div className="editor-panel__title-row">
@@ -600,18 +672,6 @@ export function NoteEditor(props: NoteEditorProps) {
               type="button"
             >
               <Code2 size={14} />
-            </button>
-          ) : null}
-          {activeAgentMention ? (
-            <button
-              aria-label={`Run ${activeAgentMention.originalText}`}
-              className={`editor-panel__invoke-action toolbar-button toolbar-button--icon ${compact ? "toolbar-button--compact" : ""}`}
-              data-testid="invoke-agent-mention"
-              onClick={() => onInvokeAgentMention(activeAgentMention)}
-              title={`Run @${activeAgentMention.handle}`}
-              type="button"
-            >
-              <Send size={14} />
             </button>
           ) : null}
         </div>
@@ -763,6 +823,7 @@ export function NoteEditor(props: NoteEditorProps) {
                   EditorView.lineWrapping,
                   saveKeymap,
                   selectionTracker,
+                  agentComposer,
                   ...(!rawMarkdownMode
                     ? [
                         markdownLivePreview({
@@ -783,6 +844,7 @@ export function NoteEditor(props: NoteEditorProps) {
                   lintGutter(),
                   saveKeymap,
                   selectionTracker,
+                  agentComposer,
                   ...(codeLanguage?.extensions ?? []),
                   cmTheme,
                   syntaxTheme,
@@ -797,6 +859,29 @@ export function NoteEditor(props: NoteEditorProps) {
           onChange={handleEditorChange}
           height="100%"
         />
+        {agentSuggestions ? (
+          <div
+            className="agent-suggestions"
+            data-testid="agent-suggestions"
+            style={{ left: agentSuggestions.left, top: agentSuggestions.top }}
+          >
+            {agentSuggestions.items.map((command) => (
+              <button
+                key={command.id}
+                className="agent-suggestions__item"
+                data-testid={`agent-suggestion-${command.handle}`}
+                type="button"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  acceptAgentSuggestion(command);
+                }}
+              >
+                <span className="agent-suggestions__handle">@{command.handle}</span>
+                <span className="agent-suggestions__label">{command.label}</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
         {wikilinkPreview ? (
           <div
             className="wikilink-preview"
@@ -861,6 +946,35 @@ function formatInvocationReviewDetail(record: InvocationRecord, hasDirtyConflict
 
 function clampPosition(position: number, docLength: number): number {
   return Math.max(0, Math.min(position, docLength));
+}
+
+function getAgentCompletionContext(doc: { lineAt: (position: number) => { from: number; text: string }; sliceString: (from: number, to: number) => string }, position: number): {
+  from: number;
+  to: number;
+  query: string;
+} | null {
+  const line = doc.lineAt(position);
+  const beforeCursor = doc.sliceString(line.from, position);
+  const match = beforeCursor.match(/(?:^|\s)@([a-z0-9_-]*)$/i);
+  if (!match) return null;
+  return {
+    from: position - match[0].length + (match[0].startsWith(" ") ? 1 : 0),
+    to: position,
+    query: match[1].toLowerCase(),
+  };
+}
+
+function defaultClaudeAgentCommand(): AgentCommand {
+  return {
+    id: "claude",
+    label: "Claude",
+    handle: "claude",
+    command: "claude",
+    cwdPolicy: "workspace_root",
+    promptDelivery: "terminalInputAfterLaunch",
+    version: 1,
+    enabled: true,
+  };
 }
 
 export function shouldUseMarkdownRenderer(document: Pick<NoteDocument, "kind"> | null): boolean {

@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type {
   AgentCommand,
-  FolderIndexStatus,
-  IndexStatus,
-  InvocationRecord,
-  SearchResult,
-  WorkspaceModel,
-  WorkspaceSettings,
+  type FolderIndexStatus,
+  type IndexStatus,
+  type InvocationRecord,
+  type SearchResult,
+  type WorkspaceModel,
+  type WorkspaceSettings,
 } from "@exo/core";
-import type { ParsedAgentMention } from "@exo/core/agent-mention-parser";
 
 import type { TerminalSessionInfo } from "../../shared/api";
 
@@ -399,12 +398,13 @@ export function App() {
     return status;
   }
 
-  async function invokeAgentMention(mention: ParsedAgentMention) {
+  async function invokeInlineAgent(draft: { handle: string; message: string }) {
     const document = activeDocument;
     if (!document) {
       return;
     }
-    const command = workspaceSettingsRef.current?.agentCommands?.find((entry) => entry.handle === mention.handle);
+    const command = workspaceSettingsRef.current?.agentCommands?.find((entry) => entry.handle === draft.handle)
+      ?? (draft.handle === "claude" ? defaultClaudeAgentCommand() : undefined);
     const cwd = command?.cwdPolicy === "note_dir"
       ? dirname(document.filePath)
       : command?.cwdPolicy === "fixed"
@@ -412,17 +412,17 @@ export function App() {
         : workspaceSettingsRef.current?.workspaceRoot ?? "";
     const fingerprint = command ? await agentCommandExecutableFingerprintForRenderer(command) : null;
     const confirmed = window.confirm([
-      `Run ${command?.label ?? `@${mention.handle}`} on this document?`,
+      `Run ${command?.label ?? `@${draft.handle}`} on this document?`,
       "",
       `Document: ${document.filePath}`,
-      `Shell: /bin/zsh -lc "${command?.command ?? `@${mention.handle}`}"`,
+      `Shell: /bin/zsh -lc "${command?.command ?? `@${draft.handle}`}"`,
       `Cwd: ${cwd || "(workspace root)"}`,
       fingerprint ? `Fingerprint: ${fingerprint}` : "Fingerprint: unavailable until the command is configured",
       "",
       "This command runs as native code on your machine. Exo does not sandbox it.",
       "The agent can edit files directly. Exo will observe this document and highlight changes seen during the invocation.",
       "",
-      mention.message,
+      draft.message,
     ].join("\n"));
     if (!confirmed) {
       return;
@@ -443,10 +443,12 @@ export function App() {
           ].join("\n"))
         : false;
       const result = await window.exo.workspace.launchAgentInvocation({
-        handle: mention.handle,
+        handle: draft.handle,
         documentPath: document.filePath,
-        mentionText: mention.originalText,
-        message: mention.message,
+        mentionText: `@${draft.handle}`,
+        message: draft.message,
+        documentFrontmatter: document.frontmatter,
+        documentBody: document.body,
         allowUntrustedOneShot: !persistTrust,
         persistTrust,
       });
@@ -1053,7 +1055,7 @@ export function App() {
               onSuggestTargets={(query) => suggestNoteTargets(query)}
               onPreviewTarget={(target) => previewKnowledgeTarget(target)}
               agentCommands={workspaceSettingsRef.current?.agentCommands ?? []}
-              onInvokeAgentMention={(mention) => void invokeAgentMention(mention)}
+              onInvokeAgent={(draft) => void invokeInlineAgent(draft)}
               invocationReview={
                 invocationReview?.record.taggedDocumentPath === pane.activePath
                   ? {
@@ -1231,6 +1233,19 @@ function dirname(filePath: string): string {
   const normalized = filePath.replace(/\\/g, "/");
   const index = normalized.lastIndexOf("/");
   return index > 0 ? normalized.slice(0, index) : ".";
+}
+
+function defaultClaudeAgentCommand(): AgentCommand {
+  return {
+    id: "claude",
+    label: "Claude",
+    handle: "claude",
+    command: "claude",
+    cwdPolicy: "workspace_root",
+    promptDelivery: "terminalInputAfterLaunch",
+    version: 1,
+    enabled: true,
+  };
 }
 
 async function agentCommandExecutableFingerprintForRenderer(command: AgentCommand): Promise<string> {

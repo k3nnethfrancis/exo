@@ -249,17 +249,30 @@ export function createDefaultClaudeAgentCommand(): AgentCommand {
 export function formatNoteInvocationPrompt(input: {
   documentPath: string;
   mentionText: string;
+  message: string;
+  frontmatter?: Record<string, unknown>;
+  body?: string;
 }): string {
   return [
-    "You have been tagged in an Exo document.",
+    "You were explicitly invoked from an Exo document.",
     "",
-    "Document:",
+    "Working document:",
     input.documentPath,
     "",
-    "Mention:",
+    "Invocation:",
     input.mentionText,
     "",
-    "Open the document to see its full contents. If the request asks for a change, edit the relevant file directly. Exo will refresh the document and show the user a diff of files changed during this invocation.",
+    "Message:",
+    input.message,
+    "",
+    "Document snapshot at invocation:",
+    "--- frontmatter ---",
+    JSON.stringify(input.frontmatter ?? {}, null, 2),
+    "--- body ---",
+    input.body ?? "(The current body was not supplied; read the file from disk.)",
+    "--- end snapshot ---",
+    "",
+    "This is an explicitly authorized run. If the request asks for a change, edit the relevant file directly. Exo will observe document changes and show the user a diff after the invocation.",
   ].join("\n");
 }
 

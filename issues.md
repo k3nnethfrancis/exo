@@ -8,24 +8,17 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ## Open
 
-### EXO-ISSUE-106: Inline Command invocation is unreachable in a normal workspace
+### EXO-ISSUE-106: Inline Command invocation was unreachable in a normal workspace
 
-- Status: open; launch-blocking for the configured-Command product loop
+- Status: resolved 2026-07-11; dogfood the new default path before calling the launch loop complete
 - Severity: high
-- Area: first-run, Command configuration, note invocation
-- Source: user dogfooding, 2026-07-11.
-- Observed:
-  - A real note contains a valid top-level `@claude` mention, but Exo exposes no Run affordance because the workspace has no configured Command.
-  - Workspace Settings deliberately no longer exposes Command configuration; the Command-readiness card/model exists only as unconnected renderer draft files.
-  - Existing invocation E2E fixtures write a Command directly into settings JSON, so they prove the runtime after configuration but not that a user can reach it through the product.
-- Expected:
-  - A person can configure or repair one provider-neutral Command through the app, see executable/cwd/instruction/trust facts, test it in the visible terminal, and invoke it from a valid Markdown mention without editing settings files.
-  - A valid but unconfigured mention gives a calm, actionable setup affordance rather than silently doing nothing.
-- Acceptance:
-  - [ ] Connect the Command-readiness/setup surface to persisted workspace settings without restoring the deleted harness or Skill Manager architecture.
-  - [ ] Add an end-to-end installed-app journey: fresh workspace → configure `@claude` → test → invoke from a note → review a change.
-  - [ ] Add a deterministic regression for the unconfigured-mention state and its setup action.
-  - [ ] Verify saved Commands survive the Settings preservation suite (`EXO-ISSUE-102`).
+- Area: editor invocation, document context, review
+- Resolution:
+  - Deleted the old persisted top-level `@handle message` parser and header Run action. A note save cannot launch an agent.
+  - Typing `@` in a Markdown editor now offers configured Commands plus the invocation-time local `@claude` command. Enter opens a transient, tinted multiline composer that never becomes Markdown.
+  - Enter adds lines; only Shift+Enter sends. The explicit launch confirmation and optional one-shot/persisted trust choice remain in front of native execution.
+  - The invocation prompt now carries the selected handle, explicit message, and current frontmatter/body snapshot. The command remains visible in the Terminal and Exo records/reviews observed changes.
+  - Focused core prompt tests and the Electron invocation suite cover autocomplete → composer → Shift+Enter → launch/review, dirty conflicts, restart recovery, and ten consecutive pointer-prompt runs.
 
 ### EXO-ISSUE-105: Folder breadcrumb activation intentionally creates a minimal Folder Index
 

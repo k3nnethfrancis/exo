@@ -6,6 +6,7 @@ import { EventEmitter } from "node:events";
 import {
   AgentCommandTrustStore,
   agentCommandSnapshot,
+  createDefaultClaudeAgentCommand,
   deriveAgentCommandLaunch,
   formatCliInvocationPrompt,
   formatNoteInvocationPrompt,
@@ -30,6 +31,8 @@ export interface InvocationRequest {
   task?: string;
   documentPath?: string;
   mentionText?: string;
+  documentFrontmatter?: Record<string, unknown>;
+  documentBody?: string;
   message: string;
   allowUntrustedOneShot?: boolean;
   persistTrust?: boolean;
@@ -135,7 +138,13 @@ export class InvocationRunner extends EventEmitter {
     try {
       terminal = await this.options.terminalManager.createAgentCommand(prepared.command, prepared.cwd);
       const prompt = prepared.request.context === "note"
-        ? formatNoteInvocationPrompt({ documentPath: prepared.request.documentPath!, mentionText: prepared.request.mentionText ?? "" })
+        ? formatNoteInvocationPrompt({
+            documentPath: prepared.request.documentPath!,
+            mentionText: prepared.request.mentionText ?? "",
+            message: prepared.request.message,
+            frontmatter: prepared.request.documentFrontmatter,
+            body: prepared.request.documentBody,
+          })
         : formatCliInvocationPrompt({ task: prepared.request.task ?? prepared.request.message, workspaceRoot: settings.workspaceRoot });
       const delivered = await this.options.terminalManager.sendMessage(terminal.id, prompt, true);
       if (!delivered.ok) throw new InvocationRunnerError("prompt-delivery-failed", "Agent prompt could not be delivered.");
@@ -223,7 +232,9 @@ export class InvocationRunner extends EventEmitter {
   }
 
   private resolveCommand(settings: WorkspaceSettings, handleInput: string): AgentCommand {
-    const handle = normalizeAgentHandle(handleInput); const command = settings.agentCommands?.find((entry) => entry.handle === handle);
+    const handle = normalizeAgentHandle(handleInput);
+    const command = settings.agentCommands?.find((entry) => entry.handle === handle)
+      ?? (handle === "claude" ? createDefaultClaudeAgentCommand() : undefined);
     if (!handle || !command) throw new InvocationRunnerError("not-found", `No AgentCommand is configured for @${handleInput.replace(/^@/, "")}.`);
     return command;
   }
