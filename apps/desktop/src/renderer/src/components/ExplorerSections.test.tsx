@@ -76,4 +76,39 @@ describe("Explorer mutation boundary", () => {
     expect(markup).toContain('data-testid="sidebar-search-pane"');
     expect(markup).toContain("Idea");
   });
+
+  it("hides an index file only as a duplicate Explorer row", () => {
+    const markup = renderToStaticMarkup(
+      <FileTree
+        appearanceMode="system"
+        collapsed={false}
+        dragManager={noDrag}
+        explorerScale={1}
+        noteRoots={[{
+          label: "Notes",
+          path: "/notes",
+          nodes: [
+            { id: "/notes/index.md", kind: "file", name: "index.md", path: "/notes/index.md" },
+            { id: "/notes/plan.md", kind: "file", name: "plan.md", path: "/notes/plan.md" },
+          ],
+        }]}
+        onAppearanceModeChange={() => undefined}
+        onCreateDirectory={() => undefined}
+        onCreateFile={() => undefined}
+        onCreateTerminal={() => undefined}
+        onDeletePath={() => undefined}
+        onExpandDirectory={() => undefined}
+        onFocusExplorer={() => undefined}
+        onOpenFile={() => undefined}
+        onOpenTag={() => undefined}
+        onOpenTerminalSession={() => undefined}
+        onRenamePath={() => undefined}
+        onToggleCollapsed={() => undefined}
+        resolvedAppearance="dark"
+      />,
+    );
+
+    expect(markup).toContain("plan.md");
+    expect(markup).not.toContain("index.md");
+  });
 });

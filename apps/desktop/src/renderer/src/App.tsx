@@ -507,6 +507,7 @@ export function App() {
       return {
         ...content,
         activePath: filePath,
+        activeFolderPath: null,
         openPaths: content.openPaths.includes(filePath) ? content.openPaths : [...content.openPaths, filePath],
       };
     });
@@ -514,6 +515,28 @@ export function App() {
     setActiveDocumentPath(filePath);
     setActiveTag(null);
     setTagResults([]);
+  }
+
+  function openFolderOverview(directoryPath: string, leafId = focusedPaneId) {
+    canvasActions.updateLeafContent(leafId, (content) => content.kind !== "editor" ? content : {
+      ...content,
+      activePath: null,
+      activeFolderPath: directoryPath,
+      openFolderPaths: (content.openFolderPaths ?? []).includes(directoryPath) ? content.openFolderPaths : [...(content.openFolderPaths ?? []), directoryPath],
+    });
+    canvasActions.focusLeaf(leafId);
+    setActiveDocumentPath(null);
+    setActiveTag(null);
+    setTagResults([]);
+  }
+
+  function closeFolderOverview(leafId: PaneNodeId, directoryPath: string) {
+    canvasActions.updateLeafContent(leafId, (content) => content.kind !== "editor" ? content : {
+      ...content,
+      openFolderPaths: (content.openFolderPaths ?? []).filter((path) => path !== directoryPath),
+      activeFolderPath: content.activeFolderPath === directoryPath ? null : content.activeFolderPath,
+      activePath: content.activeFolderPath === directoryPath ? content.openPaths.at(-1) ?? null : content.activePath,
+    });
   }
 
   function closeDocumentInPane(leafId: PaneNodeId, filePath: string) {
@@ -563,7 +586,7 @@ export function App() {
     if (editorLeafId) {
       canvasActions.updateLeafContent(editorLeafId, (content) => {
         if (content.kind !== "editor") {
-          return { kind: "editor", activePath: filePath, openPaths: [filePath] };
+          return { kind: "editor", activePath: filePath, openPaths: [filePath], openFolderPaths: [], activeFolderPath: null };
         }
         return {
           ...content,
@@ -586,9 +609,7 @@ export function App() {
       await openFile(segment.path);
       return;
     }
-    const index = await window.exo.workspace.ensureFolderIndex(segment.path);
-    await reloadTrees();
-    await openFile(index.indexPath);
+    openFolderOverview(segment.path);
   }
 
   async function openKnowledgeTarget(target: string) {
@@ -726,9 +747,15 @@ export function App() {
           openPaths: leaf.content.openPaths.map((fp) =>
             isPathWithin(sourcePath, fp) ? fp.replace(sourcePath, nextPath) : fp,
           ),
+          openFolderPaths: (leaf.content.openFolderPaths ?? []).map((folderPath) =>
+            isPathWithin(sourcePath, folderPath) ? folderPath.replace(sourcePath, nextPath) : folderPath,
+          ),
           activePath: leaf.content.activePath && isPathWithin(sourcePath, leaf.content.activePath)
             ? leaf.content.activePath.replace(sourcePath, nextPath)
             : leaf.content.activePath,
+          activeFolderPath: leaf.content.activeFolderPath && isPathWithin(sourcePath, leaf.content.activeFolderPath)
+            ? leaf.content.activeFolderPath.replace(sourcePath, nextPath)
+            : leaf.content.activeFolderPath,
         },
       };
     }));
@@ -742,14 +769,19 @@ export function App() {
     canvasActions.setTree(mapLeaves(canvasTree, (leaf) => {
       if (leaf.content.kind !== "editor") return leaf;
       const nextOpenPaths = leaf.content.openPaths.filter((fp) => !isPathWithin(targetPath, fp));
+      const nextOpenFolderPaths = (leaf.content.openFolderPaths ?? []).filter((folderPath) => !isPathWithin(targetPath, folderPath));
       return {
         ...leaf,
         content: {
           ...leaf.content,
           openPaths: nextOpenPaths,
+          openFolderPaths: nextOpenFolderPaths,
           activePath: leaf.content.activePath && !isPathWithin(targetPath, leaf.content.activePath)
             ? leaf.content.activePath
             : nextOpenPaths.at(-1) ?? null,
+          activeFolderPath: leaf.content.activeFolderPath && !isPathWithin(targetPath, leaf.content.activeFolderPath)
+            ? leaf.content.activeFolderPath
+            : null,
         },
       };
     }));
@@ -994,6 +1026,7 @@ export function App() {
       <ShellLayout
       titleSegments={titleSegments}
       onOpenTitleSegment={(segment) => void openTitleSegment(segment)}
+      onOpenFolder={(directoryPath) => openFolderOverview(directoryPath)}
       workspaceLabel={workspaceLabel}
       missingFolderIndexCount={folderIndexStatus?.missingIndexPaths.length ?? 0}
       noteSections={noteSections}
@@ -1025,6 +1058,8 @@ export function App() {
           id: leaf.id,
           openPaths: leaf.content.openPaths,
           activePath: leaf.content.activePath,
+          openFolderPaths: leaf.content.openFolderPaths,
+          activeFolderPath: leaf.content.activeFolderPath,
         };
         return (
           <>
@@ -1041,6 +1076,9 @@ export function App() {
               }}
               onActivateTab={(filePath) => setPaneActivePath(leaf.id, filePath)}
               onCloseTab={(filePath) => closeDocumentInPane(leaf.id, filePath)}
+              onActivateFolder={(directoryPath) => openFolderOverview(directoryPath, leaf.id)}
+              onCloseFolder={(directoryPath) => closeFolderOverview(leaf.id, directoryPath)}
+              onOpenFolder={(directoryPath) => openFolderOverview(directoryPath, leaf.id)}
               onClosePane={collectLeaves(canvasTree).length > 1 ? () => canvasActions.removeLeaf(leaf.id) : null}
               dragManager={dragManager}
               onToggleProperties={() => setPropertiesCollapsed((current) => !current)}

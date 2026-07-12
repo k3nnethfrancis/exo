@@ -64,7 +64,7 @@ Use the lowest rung that works.
 
 Do not build a higher rung to host something a lower rung can express.
 
-Folder Indexes are a planned rung-1 convention, not a profile/plugin subsystem. When the Folder vertical slice ships, a normal `index.md` may describe a Folder and its guidance. Until then, it is ordinary Markdown; no Folder Overview or implicit creation is claimed.
+Folder Indexes are a rung-1 convention, not a profile/plugin subsystem. A normal `index.md` may describe a Folder and its guidance; Folder Overview creates one only through an explicit user action. It remains ordinary Markdown, not an app-owned record.
 
 ## Vanilla Exo Boundary
 
@@ -94,7 +94,7 @@ The current product does not ship a catalog, marketplace, general manifest/capab
 V2 candidates:
 
 - Note-result hydration: search provider result plus Exo-owned note metadata and graph context.
-- Folder Overview and the first graph-management Skill, after the trust and distillation gates in `../tasks.md`.
+- The first graph-management Skill, after the trust and distillation gates in `../tasks.md`.
 - View projections for Markdown/frontmatter conventions such as tasks, dates, tables, calendar, or kanban if dogfooding proves they matter.
 - Out-of-process provider protocol for search/index providers.
 

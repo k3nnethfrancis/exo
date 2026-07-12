@@ -55,6 +55,7 @@ const api: DesktopApi = {
     searchIndex: (query, options) => invokeDesktop("workspace:search-index", query, options),
     searchTag: (tag) => invokeDesktop("workspace:search-tag", tag),
     getFolderIndexStatus: () => invokeDesktop("workspace:get-folder-index-status"),
+    getFolderOverview: (directoryPath) => invokeDesktop("workspace:get-folder-overview", directoryPath),
     ensureFolderIndex: (directoryPath) => invokeDesktop("workspace:ensure-folder-index", directoryPath),
     createFile: (targetPath, content) => invokeDesktop("workspace:create-file", targetPath, content),
     createFolder: (targetPath) => invokeDesktop("workspace:create-folder", targetPath),

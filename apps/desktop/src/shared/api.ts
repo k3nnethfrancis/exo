@@ -4,6 +4,7 @@ import type {
   IndexStatus,
   FolderIndexResult,
   FolderIndexStatus,
+  FolderOverview,
   NoteDocument,
   WorkspaceGraphContext,
   SearchResult,
@@ -163,6 +164,7 @@ export interface DesktopApi {
     searchIndex: (query: string, options?: { limit?: number; forceMode?: "lexical" | "semantic" | "hybrid" }) => Promise<IndexSearchResponse>;
     searchTag: (tag: string) => Promise<SearchResult[]>;
     getFolderIndexStatus: () => Promise<FolderIndexStatus>;
+    getFolderOverview: (directoryPath: string) => Promise<FolderOverview>;
     ensureFolderIndex: (directoryPath: string) => Promise<FolderIndexResult>;
     createFile: (targetPath: string, content?: string) => Promise<string>;
     createFolder: (targetPath: string) => Promise<FolderIndexResult>;

@@ -5,6 +5,7 @@ import type { ExoThemeVariant } from "../theme/types";
 import { ChromeTab } from "./Chrome";
 import { getDocumentDisplayTitle } from "./documentDisplay";
 import { NoteEditor } from "./NoteEditor";
+import { FolderOverviewPane } from "./FolderOverviewPane";
 import type { InlineAgentDraft } from "./inlineAgentComposer";
 
 interface EditorDocument extends NoteDocument {
@@ -15,6 +16,8 @@ export interface EditorPaneState {
   id: string;
   openPaths: string[];
   activePath: string | null;
+  openFolderPaths?: string[];
+  activeFolderPath?: string | null;
 }
 
 interface EditorPaneProps {
@@ -27,6 +30,9 @@ interface EditorPaneProps {
   onFocusPane: () => void;
   onActivateTab: (filePath: string) => void;
   onCloseTab: (filePath: string) => void;
+  onActivateFolder: (directoryPath: string) => void;
+  onCloseFolder: (directoryPath: string) => void;
+  onOpenFolder: (directoryPath: string) => void;
   /** Close this entire pane (merge back into parent split). Null when this is the only pane. */
   onClosePane: (() => void) | null;
   dragManager: DragManager;
@@ -61,6 +67,9 @@ export function EditorPane(props: EditorPaneProps) {
     onFocusPane,
     onActivateTab,
     onCloseTab,
+    onActivateFolder,
+    onCloseFolder,
+    onOpenFolder,
     onClosePane,
     dragManager,
     onToggleProperties,
@@ -93,6 +102,10 @@ export function EditorPane(props: EditorPaneProps) {
       onMouseDown={onFocusPane}
     >
       <div className="tab-strip" data-testid={`editor-tabs-${pane.id}`}>
+        {(pane.openFolderPaths ?? []).map((directoryPath) => {
+          const title = directoryPath.split(/[\\/]/).filter(Boolean).at(-1) ?? "Folder";
+          return <ChromeTab key={`folder:${directoryPath}`} active={directoryPath === pane.activeFolderPath} className="tab-strip__tab" dropPaneId={pane.id} dropKind="editor" onClick={() => onActivateFolder(directoryPath)} leading={<span className="status-dot" />} closeLabel={`Close ${title}`} onClose={(event) => { event.stopPropagation(); onCloseFolder(directoryPath); }} closeIcon="×">{title}</ChromeTab>;
+        })}
         {pane.openPaths.map((filePath) => {
           const document = documents[filePath];
           if (!document) {
@@ -140,7 +153,7 @@ export function EditorPane(props: EditorPaneProps) {
         ) : null}
       </div>
 
-      <NoteEditor
+      {pane.activeFolderPath ? <FolderOverviewPane directoryPath={pane.activeFolderPath} onOpenFolder={onOpenFolder} onOpenFile={onActivateTab} onClose={() => onCloseFolder(pane.activeFolderPath!)} /> : <NoteEditor
         document={activeDocument}
         graphContext={activeGraphContext}
         saveStatus={pane.activePath ? saveStatuses[pane.activePath] ?? "idle" : "idle"}
@@ -164,7 +177,7 @@ export function EditorPane(props: EditorPaneProps) {
         isNoteDocument={activeDocument ? isNoteDocument(activeDocument.filePath) : false}
         revealLineRequest={revealLineRequest}
         scrollRestoreRequest={scrollRestoreRequest}
-      />
+      />}
     </div>
   );
 }

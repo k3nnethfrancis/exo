@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { access, mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -80,12 +80,41 @@ describe("WorkspaceNotesService", () => {
 
     expect(suggestions.map((suggestion) => suggestion.target)).toEqual(["agent", "agent-notes"]);
   });
+
+  it("reads folder overviews without creating an index and hides index.md from children", async () => {
+    const { service, noteRoot } = await workspaceNotesService();
+    const folderPath = path.join(noteRoot, "projects");
+    await mkdir(path.join(folderPath, "nested"), { recursive: true });
+    await writeFile(path.join(folderPath, "index.md"), "---\ntags: [active]\n---\n# Projects\n", "utf8");
+    await writeFile(path.join(folderPath, "alpha.md"), "# Alpha\n", "utf8");
+
+    const indexed = await service.getFolderOverview(folderPath);
+
+    expect(indexed).toMatchObject({
+      directoryPath: folderPath,
+      indexPath: path.join(folderPath, "index.md"),
+      title: "Projects",
+      frontmatter: { tags: ["active"] },
+      indexExists: true,
+      children: [
+        { name: "nested", kind: "directory" },
+        { name: "alpha.md", kind: "file" },
+      ],
+    });
+    expect(indexed.children.map((entry) => entry.name)).not.toContain("index.md");
+
+    const emptyFolder = path.join(noteRoot, "empty");
+    await mkdir(emptyFolder);
+    const unindexed = await service.getFolderOverview(emptyFolder);
+    expect(unindexed).toMatchObject({ indexExists: false, title: "empty", children: [] });
+    await expect(access(path.join(emptyFolder, "index.md"))).rejects.toThrow();
+  });
 });
 
 async function workspaceNotesService() {
   const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-notes-service-"));
   const noteRoot = path.join(workspaceRoot, "notes");
-  await import("node:fs/promises").then(({ mkdir }) => mkdir(path.join(noteRoot, "folder"), { recursive: true }));
+  await mkdir(path.join(noteRoot, "folder"), { recursive: true });
   const model: WorkspaceModel = {
     workspaceRoot,
     defaultTerminalCwd: workspaceRoot,

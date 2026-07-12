@@ -97,19 +97,12 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
     failure artifact that distinguishes app-window startup from preview-frame
     readiness.
 
-### EXO-ISSUE-105: Breadcrumb-created Folder Index is a monitored product exception
+### EXO-ISSUE-105: Breadcrumb-created Folder Index — resolved
 
-- Status: accepted exception; monitor on a real vault
-- Severity: low
+- Status: resolved in Folder Overview vertical slice
 - Area: Folder Indexes, titlebar breadcrumbs, filesystem mutation
-- Current behavior: clicking a writable Note Root folder breadcrumb creates a
-  minimal `index.md` only when absent, then opens it. Startup/viewing is
-  read-only; existing files are never overwritten; paths outside a Note Root
-  are not eligible.
-- Follow-up:
-  - [ ] Dogfood this navigation on a real vault. If it feels surprising,
-    replace it with the planned non-creating Folder Overview plus an explicit
-    “Create index” action. The future Folder Overview does not inherit this
-    create-on-navigation side effect.
+- Resolution: folder breadcrumbs and Explorer double-click now open a read-only
+  Folder Overview. It surfaces an explicit `Create index` action only when the
+  writable Folder has no `index.md`; raw indexes remain ordinary Markdown.
 
 -- Shoshin | 2026-07-12

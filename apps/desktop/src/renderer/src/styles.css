@@ -728,6 +728,57 @@ button svg,
   animation: inline-agent-hint 2.1s cubic-bezier(0.23, 1, 0.32, 1) forwards;
 }
 
+.folder-overview {
+  box-sizing: border-box;
+  height: 100%;
+  overflow: auto;
+  padding: clamp(2rem, 6vw, 5rem);
+  color: var(--text);
+}
+
+.folder-overview__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+  max-width: 940px;
+  margin: 0 auto 2.5rem;
+}
+
+.folder-overview__eyebrow,
+.folder-overview h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--text-muted);
+  font-size: 0.73rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.folder-overview h1 { margin: 0.42rem 0; font-size: clamp(1.75rem, 4vw, 2.5rem); letter-spacing: -0.035em; line-height: 1.08; }
+.folder-overview__header p { max-width: 560px; margin: 0; color: var(--text-muted); line-height: 1.5; }
+.folder-overview__actions { display: flex; align-items: center; gap: 0.5rem; }
+.folder-overview__actions button,
+.folder-overview__list button,
+.folder-overview__context button { border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.folder-overview__actions > button:not(.folder-overview__close) { display: inline-flex; align-items: center; gap: 0.38rem; border: 1px solid var(--surface-border-strong); border-radius: 7px; background: var(--panel-strong); padding: 0.45rem 0.6rem; font-size: 0.8rem; transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1), background-color 140ms ease; }
+.folder-overview__actions > button:active { transform: scale(0.97); }
+.folder-overview__close { color: var(--text-muted); font-size: 1.35rem !important; line-height: 1; padding: 0.25rem; }
+.folder-overview__properties { display: flex; flex-wrap: wrap; gap: 0.8rem 2rem; max-width: 940px; margin: 0 auto 2rem; padding: 1rem 0; border-top: 1px solid var(--surface-border); border-bottom: 1px solid var(--surface-border); }
+.folder-overview__properties div { display: grid; gap: 0.16rem; }
+.folder-overview__properties dt { color: var(--text-muted); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+.folder-overview__properties dd { margin: 0; font-size: 0.86rem; }
+.folder-overview__grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(220px, 0.8fr); gap: clamp(2rem, 7vw, 5rem); max-width: 940px; margin: 0 auto; }
+.folder-overview__list, .folder-overview__context { display: grid; gap: 0.18rem; }
+.folder-overview__list button, .folder-overview__context button { display: flex; align-items: center; gap: 0.55rem; min-height: 2.1rem; border-radius: 6px; padding: 0.32rem 0.42rem; transition: background-color 120ms ease, transform 120ms ease; }
+.folder-overview__list button:hover, .folder-overview__context button:hover { background: var(--surface-hover); }
+.folder-overview__list button:active, .folder-overview__context button:active { transform: scale(0.99); }
+.folder-overview__context p { display: flex; align-items: center; gap: 0.42rem; margin: 0 0 0.5rem; color: var(--text-muted); font-size: 0.82rem; }
+.folder-overview__empty, .folder-overview__loading { color: var(--text-muted); font-size: 0.9rem; line-height: 1.5; }
+@media (max-width: 660px) { .folder-overview { padding: 1.5rem; } .folder-overview__header { flex-direction: column; } .folder-overview__grid { grid-template-columns: 1fr; } }
+
 @keyframes inline-agent-hint {
   0%, 72% { opacity: 1; transform: translateY(0) scale(1); }
   100% { opacity: 0; transform: translateY(2px) scale(0.98); visibility: hidden; }

@@ -1,4 +1,4 @@
-import { access } from "node:fs/promises";
+import { access, readdir } from "node:fs/promises";
 import { constants } from "node:fs";
 import path from "node:path";
 
@@ -7,6 +7,7 @@ import {
   listMarkdownFiles,
   readWorkspaceDocument,
   type SearchResult,
+  type FolderOverview,
   WorkspaceFiles,
   WorkspaceGraph,
   type WorkspaceGraphContext,
@@ -136,6 +137,32 @@ export class WorkspaceNotesService {
   async getGraphContext(filePath: string): Promise<WorkspaceGraphContext | null> {
     const authorizedPath = await this.workspaceFiles().existing(filePath);
     return new WorkspaceGraph(this.options.getWorkspaceModel()).contextForNote(authorizedPath);
+  }
+
+  async getFolderOverview(directoryPath: string): Promise<FolderOverview> {
+    const files = this.workspaceFiles();
+    const authorizedDirectory = await files.existing(directoryPath);
+    const indexPath = path.join(authorizedDirectory, "index.md");
+    const indexExists = await fileExists(indexPath);
+    const indexDocument = indexExists ? await readWorkspaceDocument(indexPath) : null;
+    const entries = await readdir(authorizedDirectory, { withFileTypes: true });
+    const children = entries
+      .filter((entry) => entry.isDirectory() || (entry.isFile() && entry.name.endsWith(".md") && entry.name !== "index.md"))
+      .sort((left, right) => {
+        if (left.isDirectory() !== right.isDirectory()) return left.isDirectory() ? -1 : 1;
+        return left.name.localeCompare(right.name);
+      })
+      .map((entry) => ({ path: path.join(authorizedDirectory, entry.name), name: entry.name, kind: entry.isDirectory() ? "directory" as const : "file" as const }));
+
+    return {
+      directoryPath: authorizedDirectory,
+      indexPath,
+      title: indexDocument?.title || path.basename(authorizedDirectory),
+      frontmatter: indexDocument?.frontmatter ?? {},
+      indexExists,
+      children,
+      graphContext: indexDocument ? await new WorkspaceGraph(this.options.getWorkspaceModel()).contextForNote(indexPath) : null,
+    };
   }
 
   private noteRootPaths(): string[] {

@@ -30,6 +30,7 @@ export interface DesktopInvokeHandlers {
   "workspace:search-index": WorkspaceApi["searchIndex"];
   "workspace:search-tag": WorkspaceApi["searchTag"];
   "workspace:get-folder-index-status": WorkspaceApi["getFolderIndexStatus"];
+  "workspace:get-folder-overview": WorkspaceApi["getFolderOverview"];
   "workspace:ensure-folder-index": WorkspaceApi["ensureFolderIndex"];
   "workspace:create-file": WorkspaceApi["createFile"];
   "workspace:create-folder": WorkspaceApi["createFolder"];

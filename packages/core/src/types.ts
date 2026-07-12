@@ -1,4 +1,5 @@
 import type { AgentCommand } from "./agent-invocation";
+import type { WorkspaceGraphContext } from "./workspace-graph";
 
 export type DocumentKind = "markdown" | "text";
 export type ColorThemeId = "exo-neutral" | "exo-solar";
@@ -114,6 +115,23 @@ export interface TreeNode {
   path: string;
   kind: "file" | "directory";
   children?: TreeNode[];
+}
+
+/** Read-only derived view of one authorized folder. Viewing it never creates index.md. */
+export interface FolderOverview {
+  directoryPath: string;
+  indexPath: string;
+  title: string;
+  frontmatter: Record<string, unknown>;
+  indexExists: boolean;
+  children: FolderOverviewEntry[];
+  graphContext: WorkspaceGraphContext | null;
+}
+
+export interface FolderOverviewEntry {
+  path: string;
+  name: string;
+  kind: "file" | "directory";
 }
 
 export interface NoteDocument {

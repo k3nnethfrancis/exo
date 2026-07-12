@@ -53,6 +53,7 @@ interface ShellLayoutProps {
   onSearchSubmit: () => void;
   onSearchClear: () => void;
   onOpenFile: (filePath: string, line?: number | null) => void;
+  onOpenFolder: (directoryPath: string) => void;
   onOpenTerminalSession: (sessionId: string) => void;
   onOpenTag: (tag: string) => void;
   onExpandDirectory: (directoryPath: string, rootKind: "notes") => void;
@@ -131,6 +132,7 @@ export function ShellLayout(props: ShellLayoutProps) {
           onExpandDirectory={props.onExpandDirectory}
           onFocusExplorer={props.onFocusExplorer}
           onOpenFile={props.onOpenFile}
+          onOpenFolder={props.onOpenFolder}
           onOpenTag={props.onOpenTag}
           onOpenTerminalSession={props.onOpenTerminalSession}
           onRenamePath={props.onRenamePath}

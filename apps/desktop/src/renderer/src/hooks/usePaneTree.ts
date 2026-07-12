@@ -26,6 +26,8 @@ export interface EditorPaneContent {
   kind: "editor";
   openPaths: string[];
   activePath: string | null;
+  openFolderPaths?: string[];
+  activeFolderPath?: string | null;
 }
 
 /** The editor canvas deliberately owns only note editors. */
@@ -177,6 +179,10 @@ export function editorOnlyCanvas(candidate: unknown): PaneNode | null {
         kind: "editor",
         openPaths: Array.isArray(content.openPaths) ? content.openPaths.filter((path): path is string => typeof path === "string") : [],
         activePath: typeof content.activePath === "string" ? content.activePath : null,
+        ...(Array.isArray(content.openFolderPaths)
+          ? { openFolderPaths: content.openFolderPaths.filter((path): path is string => typeof path === "string") }
+          : {}),
+        ...(typeof content.activeFolderPath === "string" ? { activeFolderPath: content.activeFolderPath } : {}),
       },
     };
   }
@@ -195,7 +201,7 @@ export function editorOnlyCanvas(candidate: unknown): PaneNode | null {
 }
 
 function emptyEditorCanvas(): PaneLeaf {
-  return { kind: "leaf", id: paneId(), content: { kind: "editor", openPaths: [], activePath: null } };
+  return { kind: "leaf", id: paneId(), content: { kind: "editor", openPaths: [], activePath: null, openFolderPaths: [], activeFolderPath: null } };
 }
 
 // ---------------------------------------------------------------------------

@@ -89,10 +89,10 @@ Start only after the trust gates above pass.
 
 ### Folder Overview and Folder Index
 
-- [ ] Double-click a Folder to open its Overview: durable title/properties from optional `index.md`, direct children, local graph, and relevant context.
-- [ ] Keep raw `index.md` accessible while hiding only its duplicate Explorer row.
-- [ ] Create a Folder Index only through an explicit Note Root action.
-- [ ] Test nested folders, moves/renames, missing indexes, explicit property overrides, raw-file access, and no-write viewing.
+- [x] Double-click a Folder to open its Overview: durable title/properties from optional `index.md`, direct children, local graph, and relevant context.
+- [x] Keep raw `index.md` accessible while hiding only its duplicate Explorer row.
+- [x] Create a Folder Index only through an explicit Note Root action.
+- [x] Test nested folders, moves/renames, missing indexes, explicit property overrides, raw-file access, and no-write viewing.
 
 ### First graph-management Skill
 
@@ -105,7 +105,7 @@ Start only after the trust gates above pass.
 
 - [ ] Use Exo for non-Exo work and promote only repeatable friction into `issues.md`.
 - [ ] Monitor `EXO-ISSUE-104` preview/window lifecycle evidence; reopen only with a clean repro artifact.
-- [ ] Monitor Folder breadcrumb-created indexes (`EXO-ISSUE-105`) on a real vault; replace with an explicit authoring action if the side effect feels surprising.
+- [ ] Dogfood Folder Overview on a real vault: nested folders, explicit index creation, raw-index editing, and rename/delete continuity.
 
 ## Explicitly Deferred
 

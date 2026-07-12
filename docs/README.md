@@ -21,9 +21,9 @@ This directory contains public project context for humans and coding agents.
 
 > **Local Markdown exocortex + modular, tunable search + inline agent invocation + graph management skills.**
 
-Folders provide the intended first custom-ontology substrate. A Folder path gives Notes a primary home; optional user-owned `index.md` and Folder Overview are the **next vertical slice**, not shipped behavior. Tags and typed relationships preserve multiple membership today.
+Folders provide the first custom-ontology substrate. A Folder path gives Notes a primary home; optional user-owned `index.md` and Folder Overview are shipped behavior. Tags and typed relationships preserve multiple membership.
 
-Codex agents are actively completing trust, containment, editor/invocation, and repository-distillation work. Do not implement Folder Overview, automatic index creation, or graph-management Skills before `tasks.md` promotes that vertical slice.
+Codex agents are actively completing trust, containment, editor/invocation, and repository-distillation work. Do not add automatic Folder Index creation or graph-management Skills without `tasks.md` evidence.
 
 ## Durable decisions
 

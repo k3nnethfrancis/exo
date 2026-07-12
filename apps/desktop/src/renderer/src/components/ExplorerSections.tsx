@@ -25,6 +25,7 @@ interface SearchSectionProps {
   label: string;
   results: SearchResult[];
   onOpenFile: (filePath: string, line?: number | null) => void;
+  onOpenFolder?: (directoryPath: string) => void;
   dragManager: DragManager;
 }
 
@@ -42,6 +43,7 @@ interface SectionProps {
   expandedPaths: Set<string>;
   onTogglePath: (path: string, rootKind?: ExplorerRootKind) => void;
   onOpenFile: (filePath: string, line?: number | null) => void;
+  onOpenFolder?: (directoryPath: string) => void;
   dragManager: DragManager;
   onContextMenu?: (event: React.MouseEvent, target: ContextTarget) => void;
   showHeader?: boolean;
@@ -118,6 +120,7 @@ export function Section(props: SectionProps) {
     expandedPaths,
     onTogglePath,
     onOpenFile,
+    onOpenFolder,
     dragManager,
     onContextMenu,
     showHeader = true,
@@ -142,6 +145,7 @@ export function Section(props: SectionProps) {
           expandedPaths={expandedPaths}
           onTogglePath={onTogglePath}
           onOpenFile={onOpenFile}
+          onOpenFolder={onOpenFolder}
           dragManager={dragManager}
           onContextMenu={onContextMenu}
           mirrored={mirrored}
@@ -180,6 +184,7 @@ export function Section(props: SectionProps) {
                 expandedPaths={expandedPaths}
                 onTogglePath={onTogglePath}
                 onOpenFile={onOpenFile}
+                onOpenFolder={onOpenFolder}
                 dragManager={dragManager}
                 onContextMenu={onContextMenu}
                 mirrored={mirrored}
@@ -199,6 +204,7 @@ function TreeNodes({
   expandedPaths,
   onTogglePath,
   onOpenFile,
+  onOpenFolder,
   dragManager,
   onContextMenu,
   mirrored,
@@ -209,6 +215,7 @@ function TreeNodes({
   expandedPaths: Set<string>;
   onTogglePath: (path: string, rootKind?: ExplorerRootKind) => void;
   onOpenFile: (filePath: string, line?: number | null) => void;
+  onOpenFolder?: (directoryPath: string) => void;
   dragManager: DragManager;
   onContextMenu?: (event: React.MouseEvent, target: ContextTarget) => void;
   mirrored: boolean;
@@ -231,6 +238,7 @@ function TreeNodes({
                 aria-expanded={expanded}
                 aria-label={`${node.name}, ${expanded ? "expanded" : "collapsed"} folder`}
                 onClick={() => onTogglePath(node.path, rootKind)}
+                onDoubleClick={() => onOpenFolder?.(node.path)}
                 onMouseDown={rootKind === "notes" ? (event) =>
                   dragManager.startDrag(event, { kind: "workspace-path", path: node.path, nodeKind: "directory" })
                 : undefined}
@@ -248,6 +256,7 @@ function TreeNodes({
                   expandedPaths={expandedPaths}
                   onTogglePath={onTogglePath}
                   onOpenFile={onOpenFile}
+                  onOpenFolder={onOpenFolder}
                   dragManager={dragManager}
                   onContextMenu={onContextMenu}
                   mirrored={mirrored}

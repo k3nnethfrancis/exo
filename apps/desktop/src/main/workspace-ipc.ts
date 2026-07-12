@@ -17,6 +17,7 @@ export interface WorkspaceIpcHandlers {
   ensureTarget: NotesApi["ensureTarget"];
   getIndexStatus: WorkspaceApi["getIndexStatus"];
   getFolderIndexStatus: WorkspaceApi["getFolderIndexStatus"];
+  getFolderOverview: WorkspaceApi["getFolderOverview"];
   ensureFolderIndex: WorkspaceApi["ensureFolderIndex"];
   launchAgentInvocation: WorkspaceApi["launchAgentInvocation"];
   getAgentCommandLaunchFacts: WorkspaceApi["getAgentCommandLaunchFacts"];
@@ -57,6 +58,10 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
   handleDesktopInvoke("workspace:activate-workspace", async (_event, input) => handlers.activateWorkspace(input));
   handleDesktopInvoke("workspace:get-index-status", async () => handlers.getIndexStatus());
   handleDesktopInvoke("workspace:get-folder-index-status", async () => handlers.getFolderIndexStatus());
+  handleDesktopInvoke("workspace:get-folder-overview", async (_event, directoryPath) => {
+    const authorizedDirectory = await workspaceFiles().existing(directoryPath);
+    return handlers.getFolderOverview(authorizedDirectory);
+  });
   handleDesktopInvoke("workspace:resolve-preview-target", async (_event, target) => handlers.resolvePreviewTarget(target));
   handleDesktopInvoke("workspace:launch-agent-invocation", async (_event, input) => {
     const documentPath = await workspaceFiles().existing(input.documentPath);

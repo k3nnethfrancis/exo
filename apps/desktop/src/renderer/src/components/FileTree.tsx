@@ -27,6 +27,7 @@ interface FileTreeProps {
   onAppearanceModeChange: (mode: AppearanceMode) => void;
   onToggleCollapsed: () => void;
   onOpenFile: (filePath: string, line?: number | null) => void;
+  onOpenFolder?: (directoryPath: string) => void;
   onOpenTerminalSession: (sessionId: string) => void;
   onOpenTag: (tag: string) => void;
   onExpandDirectory: (directoryPath: string, rootKind: "notes") => void;
@@ -53,6 +54,7 @@ export function FileTree(props: FileTreeProps) {
     onAppearanceModeChange,
     onToggleCollapsed,
     onOpenFile,
+    onOpenFolder,
     onExpandDirectory,
     explorerScale,
     onFocusExplorer,
@@ -217,6 +219,7 @@ export function FileTree(props: FileTreeProps) {
               expandedPaths={expandedPaths}
               onTogglePath={togglePath}
               onOpenFile={onOpenFile}
+              onOpenFolder={onOpenFolder}
               dragManager={dragManager}
               onContextMenu={openContextMenu}
               mirrored={mirrored}

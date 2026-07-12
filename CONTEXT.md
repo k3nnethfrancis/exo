@@ -38,11 +38,11 @@ A user-owned filesystem directory that gives Notes a primary structural home. Fo
 _Avoid_: category record, exclusive type
 
 **Folder Index**
-**Next vertical slice.** An optional user-owned `index.md` that will give a Folder a title, description, properties, ontology guidance, and durable relationships. Until Folder Overview ships, it remains ordinary Markdown.
+An optional user-owned `index.md` that gives a Folder a title, description, properties, ontology guidance, and durable relationships. It remains ordinary Markdown and is created only through an explicit Folder Overview action.
 _Avoid_: hidden database record, mandatory schema file
 
 **Folder Overview**
-**Next vertical slice.** The planned Folder view will combine an existing Folder Index, when present, with derived children, graph context, and search context. Viewing must not create an `index.md`.
+The Folder view combines an existing Folder Index, when present, with direct children and local graph context. Viewing never creates an `index.md`; creation is an explicit action.
 _Avoid_: folder settings, generated canonical note
 
 **Primary Home**
@@ -66,7 +66,7 @@ Search results and graph neighbors selected for the focused Note with an inspect
 _Avoid_: unexplained recommendations, automatic graph facts
 
 **Baseline Core**
-The shipped core is a trustworthy Markdown workspace, modular Search, Connections/graph context, mixed panes, configured Commands, explicit inline invocation, and reviewable observed changes. Folder Overview and the first graph-management Skill are the next vertical slice, not present behavior. It does not require plugins, provider-specific harnesses, Feed, Gym, training, cloud indexing, or durable terminal history.
+The shipped core is a trustworthy Markdown workspace, modular Search, Folder Overview, Connections/graph context, mixed panes, configured Commands, explicit inline invocation, and reviewable observed changes. The first graph-management Skill is the next vertical slice. It does not require plugins, provider-specific harnesses, Feed, Gym, training, cloud indexing, or durable terminal history.
 _Avoid_: minimal demo, vanilla app
 
 **Pane**

@@ -14,15 +14,15 @@ Exo is a local, user-owned Markdown exocortex with modular, tunable search, inli
 - One Workspace Canvas hosts Note, Terminal, Preview, Graph, and Diff panes.
 - One focused Connections surface exposes Outline, Links, Graph, and earned Activity.
 
-## Next vertical slice: Folder Index ontology
+## Folder Index ontology
 
-The accepted design for the next vertical slice is:
+The current Folder model is:
 
 - A Folder path gives each Note a primary structural home.
 - An optional user-owned `index.md` is the Folder Index. It may contain the Folder's title, description, frontmatter/properties, links, typed relationships, and organization guidance.
-- Opening a Folder will show a Folder Overview composed from the Folder Index when present plus derived children, containment edges, local graph, and relevant search context.
+- Double-clicking a Folder opens a Folder Overview composed from the Folder Index when present plus derived children and local graph context.
 - The Explorer will hide `index.md` only as a duplicate child row. The underlying file will remain ordinary, revealable, editable Markdown.
-- Viewing a Folder must never write to it. A future explicit authoring action may create `index.md`; no create-on-navigation behavior is implied here.
+- Viewing a Folder never writes to it. The Overview provides the explicit authoring action that may create `index.md`; no create-on-navigation behavior is implied here.
 - Folder defaults and the nearest Folder Index chain are inherited guidance, not automatic child-note mutations. Explicit Note properties override defaults.
 - Tags and typed relationships express additional membership beyond the primary path.
 
@@ -40,7 +40,7 @@ Owns Note Root identity, path authorization, containment, symlink policy, absolu
 
 ### `WorkspaceGraph`
 
-Owns Note identity, link resolution, backlinks, unresolved links, neighborhoods, graph context, and invalidation. Markdown is canonical; graph caches are derived. Folder containment guidance belongs to the next Folder Overview slice.
+Owns Note identity, link resolution, backlinks, unresolved links, neighborhoods, graph context, and invalidation. Markdown is canonical; graph caches are derived. Folder Overview reads this context without creating another graph model.
 
 ### `WorkspaceIndex`
 
@@ -122,7 +122,7 @@ After the launch loop is stable:
 
 - Renderer code never accesses files or processes directly.
 - Note operations pass canonical-path authorization inside explicit Note Roots; root-relative IDs remain future quality work.
-- The future Folder Overview must be read-only until an explicit metadata authoring action.
+- Folder Overview remains read-only until its explicit metadata authoring action.
 - Command trust is app-local, workspace-scoped, fingerprinted, and invalidated when executable fields change. A moved/copied Workspace fails closed and requires explicit re-authorization.
 - A Command can have an explicit cwd outside Note Roots, but observed-change review is authoritative only inside the Workspace's Note Roots; Exo never claims it reviewed external writes.
 - Human confirmation is required before invocation; agent-authored content cannot auto-chain execution.

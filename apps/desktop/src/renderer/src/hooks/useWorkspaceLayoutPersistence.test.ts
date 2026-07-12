@@ -55,4 +55,22 @@ describe("WorkspaceCanvas persistence", () => {
 
     expect(restored?.canvas).toEqual(editor);
   });
+
+  it("preserves an open Folder Overview alongside ordinary note tabs", () => {
+    const folderEditor: PaneNode = {
+      kind: "leaf",
+      id: "editor",
+      content: {
+        kind: "editor",
+        openPaths: ["/notes/projects/plan.md"],
+        activePath: null,
+        openFolderPaths: ["/notes/projects"],
+        activeFolderPath: "/notes/projects",
+      },
+    };
+
+    const snapshot = createWorkspaceCanvasSnapshot({ canvas: folderEditor, sidebarCollapsed: false, sidebarWidth: 175, utilityWidth: 430 });
+
+    expect(decodePersistedWorkspaceCanvas(snapshot)).toEqual(snapshot);
+  });
 });
