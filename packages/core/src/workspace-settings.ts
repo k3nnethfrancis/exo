@@ -3,7 +3,7 @@ import { chmod, mkdir, open, readFile, rename, rm, writeFile } from "node:fs/pro
 import os from "node:os";
 import path from "node:path";
 
-import type { IndexMode, WorkspaceLayoutSettings, WorkspaceModel, WorkspacePaneContent, WorkspacePaneNode, WorkspaceSettings, WorkspaceSettingsRevision } from "./types";
+import type { IndexMode, LegacyWorkspaceLayoutSettings, WorkspaceCanvasLayoutSettings, WorkspaceLayoutSettings, WorkspaceModel, WorkspacePaneContent, WorkspacePaneNode, WorkspaceSettings, WorkspaceSettingsRevision } from "./types";
 import { normalizeAgentCommands } from "./agent-invocation";
 import {
   DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS,
@@ -458,6 +458,9 @@ const PREVIOUS_DEFAULT_SIDEBAR_WIDTH = 140;
 const OLD_DEFAULT_SIDEBAR_WIDTH = 260;
 const MIN_SIDEBAR_WIDTH = 140;
 const MAX_SIDEBAR_WIDTH = 800;
+const DEFAULT_UTILITY_WIDTH = 430;
+const MIN_UTILITY_WIDTH = 320;
+const MAX_UTILITY_WIDTH = 900;
 
 function normalizeSidebarWidth(value: unknown): number {
   if (value === OLD_DEFAULT_SIDEBAR_WIDTH || value === PREVIOUS_DEFAULT_SIDEBAR_WIDTH) {
@@ -470,7 +473,11 @@ function normalizeWorkspaceLayout(input: unknown): WorkspaceLayoutSettings | und
   if (!input || typeof input !== "object") {
     return undefined;
   }
-  const candidate = input as Partial<WorkspaceLayoutSettings>;
+  const canvasLayout = normalizeWorkspaceCanvasLayout(input);
+  if (canvasLayout) {
+    return canvasLayout;
+  }
+  const candidate = input as Partial<LegacyWorkspaceLayoutSettings>;
   const editorTree = normalizePaneNode(candidate.editorTree, 0);
   const terminalTree = normalizePaneNode(candidate.terminalTree, 0);
   if (!editorTree || !terminalTree || !hasLeafKind(editorTree, "editor") || !hasLeafKind(terminalTree, "terminal")) {
@@ -486,6 +493,27 @@ function normalizeWorkspaceLayout(input: unknown): WorkspaceLayoutSettings | und
     sidebarCollapsed: Boolean(candidate.sidebarCollapsed),
     sidebarWidth: normalizeSidebarWidth(candidate.sidebarWidth),
     inspectorCollapsed: typeof candidate.inspectorCollapsed === "boolean" ? candidate.inspectorCollapsed : true,
+  };
+}
+
+function normalizeWorkspaceCanvasLayout(input: unknown): WorkspaceCanvasLayoutSettings | null {
+  if (!input || typeof input !== "object") {
+    return null;
+  }
+  const candidate = input as Partial<WorkspaceCanvasLayoutSettings>;
+  if (candidate.version !== 2) {
+    return null;
+  }
+  const canvas = normalizePaneNode(candidate.canvas, 0);
+  if (!canvas || !hasLeafKind(canvas, "editor")) {
+    return null;
+  }
+  return {
+    version: 2,
+    canvas,
+    sidebarCollapsed: Boolean(candidate.sidebarCollapsed),
+    sidebarWidth: normalizeSidebarWidth(candidate.sidebarWidth),
+    utilityWidth: clampSettingsNumber(candidate.utilityWidth, DEFAULT_UTILITY_WIDTH, MIN_UTILITY_WIDTH, MAX_UTILITY_WIDTH),
   };
 }
 

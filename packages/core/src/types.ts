@@ -65,7 +65,10 @@ export interface WorkspaceSettingsSaveRequest {
   expectedRevision: WorkspaceSettingsRevision;
 }
 
-export interface WorkspaceLayoutSettings {
+export type WorkspaceLayoutSettings = LegacyWorkspaceLayoutSettings | WorkspaceCanvasLayoutSettings;
+
+/** Legacy two-zone layout retained only so existing user settings still load. */
+export interface LegacyWorkspaceLayoutSettings {
   editorTree: WorkspacePaneNode;
   terminalTree: WorkspacePaneNode;
   terminalCollapsed: boolean;
@@ -75,6 +78,15 @@ export interface WorkspaceLayoutSettings {
   sidebarCollapsed: boolean;
   sidebarWidth: number;
   inspectorCollapsed: boolean;
+}
+
+/** The single-canvas layout written by the current renderer. */
+export interface WorkspaceCanvasLayoutSettings {
+  version: 2;
+  canvas: WorkspacePaneNode;
+  sidebarCollapsed: boolean;
+  sidebarWidth: number;
+  utilityWidth: number;
 }
 
 export type WorkspacePaneNode = WorkspacePaneLeaf | WorkspacePaneSplit;

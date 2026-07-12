@@ -299,6 +299,58 @@ describe("workspace settings registry", () => {
     }
   });
 
+  it("preserves the current renderer canvas layout across a settings edit", async () => {
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-canvas-layout-"));
+    const env = { EXO_USER_DATA_PATH: userDataPath };
+    const layout = {
+      version: 2 as const,
+      canvas: {
+        kind: "leaf" as const,
+        id: "editor-primary",
+        content: {
+          kind: "editor" as const,
+          openPaths: ["/tmp/exo-canvas-layout/notes/home.md"],
+          activePath: "/tmp/exo-canvas-layout/notes/home.md",
+        },
+      },
+      sidebarCollapsed: false,
+      sidebarWidth: 275,
+      utilityWidth: 430,
+    };
+    const settings = normalizeWorkspaceSettings({
+      workspaceRoot: "/tmp/exo-canvas-layout",
+      defaultTerminalCwd: "/tmp/exo-canvas-layout",
+      noteRoots: ["/tmp/exo-canvas-layout/notes"],
+      projectRoots: [],
+      indexedRoots: [],
+      indexing: { enabled: false, mode: "off", backend: "qmd" },
+      appearanceMode: "system",
+      colorThemeId: "exo-neutral",
+      editorFontSize: 15,
+      terminalFontSize: 13,
+      terminalHistoryLines: 100_000,
+      terminalTranscriptRetention: "forever",
+      terminalTranscriptRetentionDays: 14,
+      explorerScale: 1,
+      exploreIndexSearchOnEnter: false,
+      indexUpdateStrategy: "on-save",
+      layout,
+    });
+
+    try {
+      expect(settings).not.toBeNull();
+      const saved = await saveWorkspaceSettings(settings!, env);
+      expect(saved.layout).toEqual(layout);
+
+      const reloaded = await loadWorkspaceSettings(env);
+      expect(reloaded).not.toBeNull();
+      const edited = await saveWorkspaceSettings({ ...reloaded!, appearanceMode: "dark" }, env);
+      expect(edited.layout).toEqual(layout);
+    } finally {
+      await rm(userDataPath, { recursive: true, force: true });
+    }
+  });
+
   it("defaults missing agent commands to an empty settings list without installing commands", () => {
     const settings = normalizeWorkspaceSettings({
       workspaceRoot: "/tmp/exo-agent/notes",
@@ -371,12 +423,15 @@ describe("workspace settings registry", () => {
         sidebarWidth: 800,
         inspectorCollapsed: false,
       });
-      expect(saved.layout?.editorTree.kind).toBe("split");
-      if (saved.layout?.editorTree.kind === "split" && saved.layout.editorTree.children[1].kind === "leaf") {
+      if (!saved.layout || !("editorTree" in saved.layout)) {
+        throw new Error("Expected the legacy layout to remain readable.");
+      }
+      expect(saved.layout.editorTree.kind).toBe("split");
+      if (saved.layout.editorTree.kind === "split" && saved.layout.editorTree.children[1].kind === "leaf") {
         expect(saved.layout.editorTree.children[1].content).toEqual({ kind: "browser", url: "localhost:3000" });
       }
-      expect(saved.layout?.terminalTree.kind).toBe("leaf");
-      if (saved.layout?.terminalTree.kind === "leaf" && saved.layout.terminalTree.content.kind === "terminal") {
+      expect(saved.layout.terminalTree.kind).toBe("leaf");
+      if (saved.layout.terminalTree.kind === "leaf" && saved.layout.terminalTree.content.kind === "terminal") {
         expect(saved.layout.terminalTree.content.activeTerminalId).toBe("term-2");
       }
     } finally {
