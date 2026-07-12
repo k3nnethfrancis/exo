@@ -49,6 +49,7 @@ interface AgentSuggestionState {
   left: number;
   top: number;
   items: AgentCommand[];
+  selectedIndex: number;
 }
 
 interface EditorDocument extends NoteDocument {
@@ -284,6 +285,7 @@ export function NoteEditor(props: NoteEditorProps) {
           left: coords && surfaceRect ? coords.left - surfaceRect.left : 24,
           top: coords && surfaceRect ? coords.bottom - surfaceRect.top + 4 : 48,
           items,
+          selectedIndex: 0,
         });
       },
     [invocationCommands, rawMarkdownMode, useMarkdownEditing],
@@ -339,10 +341,19 @@ export function NoteEditor(props: NoteEditorProps) {
           setAgentSuggestions(null);
           return;
         }
+        if ((event.key === "ArrowDown" || event.key === "ArrowUp") && agentSuggestions?.items.length) {
+          event.preventDefault();
+          event.stopPropagation();
+          const delta = event.key === "ArrowDown" ? 1 : -1;
+          setAgentSuggestions((current) => current
+            ? { ...current, selectedIndex: nextSuggestionIndex(current.selectedIndex, current.items.length, delta) }
+            : current);
+          return;
+        }
         if (event.key === "Enter" && agentSuggestions?.items.length) {
           event.preventDefault();
           event.stopPropagation();
-          acceptAgentSuggestion(agentSuggestions.items[0]);
+          acceptAgentSuggestion(agentSuggestions.items[agentSuggestions.selectedIndex]);
           return;
         }
         if (event.key === "Escape" && wikilinkSuggestions) {
@@ -864,10 +875,11 @@ export function NoteEditor(props: NoteEditorProps) {
             style={{ left: agentSuggestions.left, top: agentSuggestions.top }}
           >
             <div className="agent-suggestions__title">Agents</div>
-            {agentSuggestions.items.map((command) => (
+            {agentSuggestions.items.map((command, index) => (
               <button
                 key={command.id}
-                className="agent-suggestions__item"
+                aria-selected={index === agentSuggestions.selectedIndex}
+                className={`agent-suggestions__item ${index === agentSuggestions.selectedIndex ? "agent-suggestions__item--active" : ""}`}
                 data-testid={`agent-suggestion-${command.handle}`}
                 type="button"
                 onMouseDown={(event) => {
@@ -1011,6 +1023,13 @@ function getAgentCompletionContext(doc: { lineAt: (position: number) => { from: 
     to: position,
     query: match[1].toLowerCase(),
   };
+}
+
+export function nextSuggestionIndex(current: number, count: number, delta: -1 | 1): number {
+  if (count <= 0) {
+    return 0;
+  }
+  return (current + delta + count) % count;
 }
 
 function defaultClaudeAgentCommand(): AgentCommand {

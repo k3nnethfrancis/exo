@@ -622,6 +622,7 @@ button svg,
 }
 
 .agent-suggestions__item:first-child,
+.agent-suggestions__item--active,
 .agent-suggestions__item:hover {
   background: var(--surface-hover);
 }

@@ -40,7 +40,7 @@ import { isTerminalGeneratedResponse } from "./components/terminalInputFilters";
 import { TerminalOutputChunker, chunkTerminalData } from "./components/terminalOutputChunks";
 import { normalizeTerminalPresentation } from "./components/terminalPresentation";
 import { focusTerminal, registerTerminal, unregisterTerminal, writeTerminalData } from "./components/terminalRegistry";
-import { normalizeFrontmatterPropertyKey, shouldUseMarkdownRenderer } from "./components/NoteEditor";
+import { nextSuggestionIndex, normalizeFrontmatterPropertyKey, shouldUseMarkdownRenderer } from "./components/NoteEditor";
 import {
   WorkspaceSettingsDialog,
   indexSettingsStatusCopy,
@@ -120,6 +120,12 @@ describe("editor document mode", () => {
     expect(normalizeFrontmatterPropertyKey("bad key")).toBe("");
     expect(normalizeFrontmatterPropertyKey("1bad")).toBe("");
     expect(normalizeFrontmatterPropertyKey("nested.value")).toBe("");
+  });
+
+  it("wraps agent completion selection with arrow-key navigation", () => {
+    expect(nextSuggestionIndex(0, 3, 1)).toBe(1);
+    expect(nextSuggestionIndex(2, 3, 1)).toBe(0);
+    expect(nextSuggestionIndex(0, 3, -1)).toBe(2);
   });
 });
 
