@@ -86,7 +86,7 @@ export class WorkspaceNotesService {
         : path.join(path.dirname(sourceFilePath), targetWithExtension);
 
     const authorizedPath = await this.workspaceFiles().writable(nextPath);
-    await createWorkspaceFile(authorizedPath, "");
+    await createWorkspaceFile(authorizedPath);
     return authorizedPath;
   }
 

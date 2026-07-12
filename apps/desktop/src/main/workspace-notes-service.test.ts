@@ -13,10 +13,10 @@ describe("WorkspaceNotesService", () => {
     await writeFile(path.join(noteRoot, "other.md"), "# Other\n\nNo match.\n", "utf8");
 
     await expect(service.searchTag("#research")).resolves.toEqual([
-      expect.objectContaining({ title: "focus", snippet: "#research", kind: "tag" }),
+      expect.objectContaining({ title: "Focus", snippet: "#research", kind: "tag" }),
     ]);
     await expect(service.searchTag("daily")).resolves.toEqual([
-      expect.objectContaining({ title: "focus", snippet: "#daily", kind: "tag" }),
+      expect.objectContaining({ title: "Focus", snippet: "#daily", kind: "tag" }),
     ]);
   });
 
@@ -42,7 +42,7 @@ describe("WorkspaceNotesService", () => {
     const createdPath = await service.ensureTarget(sourcePath, "new target");
 
     expect(createdPath).toBe(path.join(noteRoot, "folder", "new target.md"));
-    await expect(readFile(createdPath, "utf8")).resolves.toBe("");
+    await expect(readFile(createdPath, "utf8")).resolves.toMatch(/^---\ndate: \d{4}-\d{2}-\d{2}\ntags: \[\]\n---\n$/);
   });
 
   it("rejects wiki targets that traverse outside the source note root", async () => {
@@ -66,7 +66,7 @@ describe("WorkspaceNotesService", () => {
     const createdPath = await service.ensureTarget(sourcePath, targetPath);
 
     expect(createdPath).toBe(targetPath);
-    await expect(readFile(targetPath, "utf8")).resolves.toBe("");
+    await expect(readFile(targetPath, "utf8")).resolves.toMatch(/^---\ndate: \d{4}-\d{2}-\d{2}\ntags: \[\]\n---\n$/);
   });
 
   it("suggests exact target matches before partial matches", async () => {

@@ -72,6 +72,8 @@ interface NoteEditorProps {
   scrollRestoreRequest?: { filePath: string; scrollTop: number; nonce: number } | null;
 }
 
+const STANDARD_NOTE_PROPERTY_KEYS = ["title", "date", "tags"] as const;
+
 export function NoteEditor(props: NoteEditorProps) {
   const {
     document,
@@ -143,8 +145,7 @@ export function NoteEditor(props: NoteEditorProps) {
     return codeLanguageForPath(document.filePath);
   }, [document, useMarkdownEditing]);
   const graphContext = useMemo(() => buildNoteGraphContext(loadedGraphContext), [loadedGraphContext]);
-  const graphProperties = graphContext?.properties ?? document?.frontmatter ?? {};
-  const graphPropertyEntries = Object.entries(graphProperties).filter(([key]) => !key.startsWith("branch_"));
+  const graphPropertyEntries = notePropertyEntries(document);
   const cmTheme = useMemo(() => exoEditorTheme(theme, fontSize), [fontSize, theme]);
   const syntaxTheme = useMemo(() => exoSyntaxHighlighting(theme), [theme]);
   const graphReferences = useMemo((): MarkdownGraphReferences | null => {
@@ -160,6 +161,7 @@ export function NoteEditor(props: NoteEditorProps) {
   const normalizedNewPropertyKey = normalizeFrontmatterPropertyKey(newPropertyKey);
   const canAddProperty =
     Boolean(normalizedNewPropertyKey) &&
+    !STANDARD_NOTE_PROPERTY_KEYS.includes(normalizedNewPropertyKey as (typeof STANDARD_NOTE_PROPERTY_KEYS)[number]) &&
     !Object.prototype.hasOwnProperty.call(document?.frontmatter ?? {}, normalizedNewPropertyKey);
   const handleAddProperty = useMemo(
     () =>
@@ -543,9 +545,14 @@ export function NoteEditor(props: NoteEditorProps) {
   }
 
   return (
-    <section className={`editor-panel ${compact ? "editor-panel--compact" : ""}`} data-testid="editor-panel" onMouseDown={onFocus}>
-      <div aria-hidden="true" className="editor-panel__chrome-reveal" onMouseEnter={() => setChromeVisible(true)} />
-      <div className={`editor-panel__header ${chromeVisible ? "editor-panel__header--visible" : ""}`} onMouseEnter={() => setChromeVisible(true)} onMouseLeave={() => setChromeVisible(false)}>
+    <section
+      className={`editor-panel ${compact ? "editor-panel--compact" : ""}`}
+      data-testid="editor-panel"
+      onMouseDown={onFocus}
+      onMouseEnter={() => setChromeVisible(true)}
+      onMouseLeave={() => setChromeVisible(false)}
+    >
+      <div className={`editor-panel__header ${chromeVisible || !propertiesCollapsed ? "editor-panel__header--visible" : ""}`}>
         <div className="editor-panel__summary">
           <div className="editor-panel__title-row">
             {showNoteMetadata ? (
@@ -850,6 +857,20 @@ export function shouldUseMarkdownRenderer(document: Pick<NoteDocument, "kind"> |
 export function normalizeFrontmatterPropertyKey(value: string): string {
   const trimmed = value.trim();
   return /^[A-Za-z_][A-Za-z0-9_-]*$/.test(trimmed) ? trimmed : "";
+}
+
+function notePropertyEntries(document: EditorDocument | null): Array<[string, unknown]> {
+  if (!document) {
+    return [];
+  }
+
+  const frontmatter = document.frontmatter;
+  return [
+    ["title", frontmatter.title ?? document.title],
+    ["date", frontmatter.date ?? ""],
+    ["tags", frontmatter.tags ?? []],
+    ...Object.entries(frontmatter).filter(([key]) => !STANDARD_NOTE_PROPERTY_KEYS.includes(key as (typeof STANDARD_NOTE_PROPERTY_KEYS)[number]) && !key.startsWith("branch_")),
+  ];
 }
 
 function generatedDailyTitleForPath(filePath: string): string | null {

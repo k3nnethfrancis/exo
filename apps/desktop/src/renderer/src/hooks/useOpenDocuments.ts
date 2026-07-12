@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { NoteDocument, WorkspaceGraphContext, WorkspaceModel } from "@exo/core";
+import { noteTitle, type NoteDocument, type WorkspaceGraphContext, type WorkspaceModel } from "@exo/core";
 
 import type { FileStatInfo } from "../../../shared/api";
 
@@ -190,11 +190,13 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
       return;
     }
 
+    const currentDocument = openDocumentsRef.current[filePath];
     const nextDocuments = {
       ...openDocumentsRef.current,
       [filePath]: {
-        ...openDocumentsRef.current[filePath],
+        ...currentDocument,
         body,
+        title: currentDocument.kind === "markdown" ? noteTitle(filePath, currentDocument.frontmatter, body) : currentDocument.title,
         dirty: true,
       },
     };
@@ -209,14 +211,17 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
       return;
     }
 
+    const currentDocument = openDocumentsRef.current[filePath];
+    const frontmatter = {
+      ...currentDocument.frontmatter,
+      [key]: value,
+    };
     const nextDocuments = {
       ...openDocumentsRef.current,
       [filePath]: {
-        ...openDocumentsRef.current[filePath],
-        frontmatter: {
-          ...openDocumentsRef.current[filePath].frontmatter,
-          [key]: value,
-        },
+        ...currentDocument,
+        frontmatter,
+        title: currentDocument.kind === "markdown" ? noteTitle(filePath, frontmatter, currentDocument.body) : currentDocument.title,
         dirty: true,
       },
     };

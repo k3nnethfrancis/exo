@@ -31,7 +31,7 @@ export async function readWorkspaceDocument(filePath: string): Promise<NoteDocum
   }
 
   const parsed = matter(raw);
-  const title = typeof parsed.data.title === "string" ? parsed.data.title : path.basename(filePath, path.extname(filePath));
+  const title = noteTitle(filePath, parsed.data, parsed.content);
 
   return {
     filePath,
@@ -40,6 +40,21 @@ export async function readWorkspaceDocument(filePath: string): Promise<NoteDocum
     body: parsed.content,
     kind: "markdown",
   };
+}
+
+/**
+ * An explicit title is a note's alternate name. Otherwise its opening H1 is
+ * the human name, with the filename as the stable fallback.
+ */
+export function noteTitle(filePath: string, frontmatter: Record<string, unknown>, body: string): string {
+  const explicitTitle = typeof frontmatter.title === "string" ? frontmatter.title.trim() : "";
+  if (explicitTitle) {
+    return explicitTitle;
+  }
+
+  const openingLine = body.trimStart().split(/\r?\n/, 1)[0] ?? "";
+  const openingHeading = openingLine.match(/^#\s+(.+?)(?:\s+#+)?\s*$/)?.[1]?.trim();
+  return openingHeading || path.basename(filePath, path.extname(filePath));
 }
 
 export async function saveNoteDocument(filePath: string, frontmatter: Record<string, unknown>, body: string): Promise<void> {

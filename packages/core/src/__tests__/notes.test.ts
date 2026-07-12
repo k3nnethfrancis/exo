@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { extractMarkdownLinks, extractTags, extractWikilinks, readNoteDocument } from "../notes";
+import { extractMarkdownLinks, extractTags, extractWikilinks, noteTitle, readNoteDocument } from "../notes";
 
 const fixtureRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../fixtures/test-workspace/notes/test-notes");
 
@@ -15,6 +15,13 @@ describe("notes", () => {
     expect(document.title).toBe("Focus Note");
     expect(document.frontmatter.status).toBe("active");
     expect(document.kind).toBe("markdown");
+  });
+
+  it("uses an opening heading before the filename when no explicit title exists", () => {
+    expect(noteTitle("/notes/weekly-plan.md", {}, "# Weekly Plan\n\nBody")).toBe("Weekly Plan");
+    expect(noteTitle("/notes/weekly-plan.md", {}, "Body")).toBe("weekly-plan");
+    expect(noteTitle("/notes/weekly-plan.md", {}, "Body\n# Weekly Plan")).toBe("weekly-plan");
+    expect(noteTitle("/notes/weekly-plan.md", { title: "Plan" }, "# Weekly Plan")).toBe("Plan");
   });
 
   it("extracts tags from body and frontmatter", () => {

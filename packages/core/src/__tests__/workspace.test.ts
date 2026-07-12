@@ -1,15 +1,26 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { listRootTree, renameWorkspacePath, resolveNotePath, resolveWorkspaceModel, searchNotes, searchProjectFiles, searchWorkspace } from "../workspace";
+import { createWorkspaceFile, listRootTree, renameWorkspacePath, resolveNotePath, resolveWorkspaceModel, searchNotes, searchProjectFiles, searchWorkspace } from "../workspace";
 
 const fixtureWorkspaceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../fixtures/test-workspace");
 
 describe("workspace", () => {
+  it("initializes new Markdown files with date and tags metadata", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-"));
+    const target = path.join(root, "new-note.md");
+    try {
+      await createWorkspaceFile(target);
+      await expect(readFile(target, "utf8")).resolves.toMatch(/^---\ndate: \d{4}-\d{2}-\d{2}\ntags: \[\]\n---\n$/);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("resolves the default workspace model from env", () => {
     const model = resolveWorkspaceModel({
       EXO_WORKSPACE_ROOT: fixtureWorkspaceRoot,

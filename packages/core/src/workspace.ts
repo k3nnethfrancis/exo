@@ -534,10 +534,18 @@ async function findMatchingFiles(
   return results;
 }
 
-export async function createWorkspaceFile(targetPath: string, content = ""): Promise<string> {
+export async function createWorkspaceFile(targetPath: string, content?: string): Promise<string> {
   await mkdir(path.dirname(targetPath), { recursive: true });
-  await writeFile(targetPath, content, "utf8");
+  await writeFile(targetPath, content ?? initialWorkspaceFileContent(targetPath), "utf8");
   return targetPath;
+}
+
+function initialWorkspaceFileContent(targetPath: string): string {
+  if (!/\.md(?:own)?$/i.test(targetPath)) {
+    return "";
+  }
+
+  return ["---", `date: ${new Date().toISOString().slice(0, 10)}`, "tags: []", "---", ""].join("\n");
 }
 
 export async function renameWorkspacePath(sourcePath: string, nextPath: string): Promise<string> {

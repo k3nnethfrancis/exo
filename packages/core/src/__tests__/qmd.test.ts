@@ -51,7 +51,7 @@ describe("QMD index adapter", () => {
 
     expect(result.source).toBe("filesystem");
     expect(result.warnings[0]).toBe("QMD advanced search provider is off or has no indexed roots; using core workspace search.");
-    expect(result.results.some((entry) => entry.title === "focus")).toBe(true);
+    expect(result.results.some((entry) => entry.title === "Focus")).toBe(true);
   });
 
   it("routes lexical search through QMD collections", async () => {

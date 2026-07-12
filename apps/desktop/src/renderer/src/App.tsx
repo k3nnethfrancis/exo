@@ -707,7 +707,7 @@ export function App() {
     try {
       await window.exo.notes.read(dailyPath);
     } catch {
-      await window.exo.workspace.createFile(dailyPath, "");
+      await window.exo.workspace.createFile(dailyPath);
       await reloadTrees();
     }
 
