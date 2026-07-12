@@ -7,9 +7,9 @@ export function AgentCommandsDialog({ commands, onClose, onSave }: {
   onClose: () => void;
   onSave: (commands: AgentCommand[]) => Promise<void>;
 }) {
-  const [draft, setDraft] = useState(commands);
+  const [draft, setDraft] = useState(() => initialDraft(commands));
   const [saving, setSaving] = useState(false);
-  useEffect(() => setDraft(commands), [commands]);
+  useEffect(() => setDraft(initialDraft(commands)), [commands]);
   const valid = useMemo(() => draft.every((command) => /^[a-z][a-z0-9_-]{1,31}$/.test(command.handle) && command.command.trim()), [draft]);
 
   function update(index: number, patch: Partial<AgentCommand>) {
@@ -60,4 +60,18 @@ function newAgentCommand(index: number): AgentCommand {
     version: 1,
     enabled: true,
   };
+}
+
+function initialDraft(commands: AgentCommand[]): AgentCommand[] {
+  if (commands.length > 0) return commands;
+  return [{
+    id: "claude",
+    label: "Claude",
+    handle: "claude",
+    command: "claude",
+    cwdPolicy: "workspace_root",
+    promptDelivery: "terminalInputAfterLaunch",
+    version: 1,
+    enabled: true,
+  }];
 }
