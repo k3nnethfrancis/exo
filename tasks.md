@@ -61,7 +61,7 @@ Fable approved the execution order: decide P0, then run Settings preservation an
 
 - [x] Polish live Markdown typography, list hierarchy, indentation, and spacing with Electron coverage; human visual inspection remains in the dogfood gate.
 - [x] Make new Markdown notes start with an editable H1; at the initial caret, Markdown syntax remains visible.
-- [x] Replace the one-line mention launcher with the editor-owned `@agent` composer: autocomplete, transient multiline draft, Enter for lines, Shift+Enter to invoke, explicit confirmation, visible terminal execution, and review.
+- [x] Replace the one-line mention launcher with a page-native `@agent` composer: autocomplete, in-document multiline request text, agent-colored highlight, anchored send affordance, Enter for lines, Shift+Enter/click to invoke, explicit confirmation, visible terminal execution, and review. `e4ffb89`.
 - [ ] Dogfood the default `@claude` path on real work, including a multiline request and a full document-context handoff.
 - [ ] Dogfood the full loop on real work: write a note, invoke a Command, inspect changes, and keep or reject them.
 
