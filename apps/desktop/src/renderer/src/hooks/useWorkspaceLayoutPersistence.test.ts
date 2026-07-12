@@ -74,7 +74,7 @@ describe("WorkspaceCanvas persistence", () => {
     expect(decodePersistedWorkspaceCanvas(snapshot)).toEqual(snapshot);
   });
 
-  it("preserves moved terminal and preview references without reviving old utility leaves", () => {
+  it("persists preview placement but drops live terminal placement at app restart", () => {
     const canvas: PaneNode = {
       kind: "split",
       id: "mixed",
@@ -90,6 +90,8 @@ describe("WorkspaceCanvas persistence", () => {
     };
     const snapshot = createWorkspaceCanvasSnapshot({ canvas, sidebarCollapsed: false, sidebarWidth: 175, utilityWidth: 430 });
 
+    expect(snapshot.canvas).not.toMatchObject({ content: { kind: "terminal" } });
+    expect(JSON.stringify(snapshot.canvas)).toContain("preview-1");
     expect(decodePersistedWorkspaceCanvas(snapshot)).toEqual(snapshot);
   });
 });

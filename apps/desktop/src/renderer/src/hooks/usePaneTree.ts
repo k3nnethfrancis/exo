@@ -173,9 +173,9 @@ export function decodeCanvas(candidate: unknown): PaneNode | null {
   const node = candidate as { kind?: unknown; id?: unknown; content?: unknown; direction?: unknown; ratio?: unknown; children?: unknown };
   if (node.kind === "leaf") {
     const content = node.content as Partial<PaneContent> | undefined;
-    if (content?.kind === "terminal" && typeof content.terminalId === "string") {
-      return { kind: "leaf", id: typeof node.id === "string" ? node.id : paneId(), content: { kind: "terminal", terminalId: content.terminalId } };
-    }
+    // PTYs end with the app, so a terminal canvas leaf is valid in-memory only.
+    // Never revive it from persisted layout as a misleading dead screen.
+    if (content?.kind === "terminal") return null;
     if (content?.kind === "browser" && typeof content.previewId === "string") {
       return { kind: "leaf", id: typeof node.id === "string" ? node.id : paneId(), content: { kind: "browser", previewId: content.previewId } };
     }

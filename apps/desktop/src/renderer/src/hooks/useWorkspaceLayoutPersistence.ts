@@ -48,7 +48,7 @@ export function useWorkspaceLayoutPersistence(options: UseWorkspaceLayoutPersist
 export function createWorkspaceCanvasSnapshot(input: Pick<UseWorkspaceLayoutPersistenceOptions, "canvas" | "sidebarCollapsed" | "sidebarWidth" | "utilityWidth">): WorkspaceCanvasLayout {
   return {
     version: 3,
-    canvas: input.canvas,
+    canvas: persistableCanvas(input.canvas),
     sidebarCollapsed: input.sidebarCollapsed,
     sidebarWidth: Math.round(input.sidebarWidth),
     utilityWidth: Math.round(input.utilityWidth),
@@ -71,4 +71,16 @@ export function decodePersistedWorkspaceCanvas(layout: unknown): WorkspaceCanvas
 
 function stableJson(value: unknown): string {
   return JSON.stringify(value);
+}
+
+function persistableCanvas(node: PaneNode): PaneNode {
+  const stripTerminal = (current: PaneNode): PaneNode | null => {
+    if (current.kind === "leaf") return current.content.kind === "terminal" ? null : current;
+    const left = stripTerminal(current.children[0]);
+    const right = stripTerminal(current.children[1]);
+    if (!left) return right;
+    if (!right) return left;
+    return { ...current, children: [left, right] };
+  };
+  return stripTerminal(node) ?? { kind: "leaf", id: "editor", content: { kind: "editor", openPaths: [], activePath: null } };
 }
