@@ -21,18 +21,6 @@ export interface WorkspaceSettingsDialogState {
   colorThemeId: ColorThemeId;
   editorFontSize: string;
   terminalFontSize: string;
-  terminalHistoryLines: string;
-  terminalTranscriptRetention: WorkspaceSettings["terminalTranscriptRetention"];
-  terminalTranscriptRetentionDays: string;
-  terminalInputCoalesceMs: string;
-  terminalInitialColumns: string;
-  terminalInitialRows: string;
-  terminalMinimumColumns: string;
-  terminalMinimumRows: string;
-  terminalReadTailChars: string;
-  terminalMaxReadTailChars: string;
-  terminalUnresponsiveThresholdMs: string;
-  terminalIdleThresholdMs: string;
   explorerScale: string;
   exploreIndexSearchOnEnter: boolean;
   indexUpdateStrategy: WorkspaceSettings["indexUpdateStrategy"];

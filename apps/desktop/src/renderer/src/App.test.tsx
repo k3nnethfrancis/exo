@@ -87,13 +87,13 @@ import {
   shouldSkipTerminalHydration,
 } from "./hooks/useTerminalSessions";
 import { defaultTerminalCwdForNotesFolder } from "./hooks/useWorkspaceBootstrap";
+import { workspaceSettingsFromDialog } from "./hooks/useWorkspaceSettingsController";
 import { isTerminalInputEnabled, summarizeTerminalStatusLine, terminalSessionsEqual } from "./terminalSessions";
 import { applyTheme } from "./theme/applyTheme";
 import { contrastRatio } from "./theme/contrast";
 import { THEME_FAMILIES, resolveTheme } from "./theme/registry";
 import { terminalRenderStabilityBody, terminalRenderStabilityIssues } from "../../../tests/terminalRenderStability";
 import {
-  DEFAULT_TERMINAL_HISTORY_LINES as RENDERER_DEFAULT_TERMINAL_HISTORY_LINES,
   clampNumber,
   resolveSettingsTerminalRuntime,
   workspaceSettingsImmediateDraftKey,
@@ -173,7 +173,7 @@ describe("workspace settings footer copy", () => {
     expect(workspaceSettingsDialogIntroCopy("index", false)).not.toContain("Apply");
     expect(workspaceSettingsDialogIntroCopy("index", false)).toContain("Choose how Exo searches");
     expect(workspaceSettingsDialogIntroCopy("appearance", false)).not.toContain("Apply");
-    expect(workspaceSettingsDialogIntroCopy("index", true)).toContain("Apply");
+    expect(workspaceSettingsDialogIntroCopy("index", true)).toContain("apply");
   });
 
   it("explains pending embeddings after a failed sync instead of only saying pending", () => {
@@ -196,14 +196,15 @@ describe("workspace settings footer copy", () => {
     }), null);
 
     expect(copy?.text).toContain("Documents were refreshed");
-    expect(copy?.text).toContain("Build embeddings only");
+    expect(copy?.text).toContain("Build embeddings");
     expect(copy?.text).toContain("lexical search remains available");
   });
 
   it("shows in-progress index action status before a fresh status arrives", () => {
     expect(indexSettingsStatusCopy(null, "syncing")?.text).toContain("Status will refresh when it finishes");
-    expect(indexSettingsStatusCopy(indexStatusFixture(), "updating")?.text).toContain("Embedding status will refresh");
-    expect(indexSettingsStatusCopy(indexStatusFixture(), "embedding")?.text).toContain("documents already in QMD");
+    expect(indexSettingsStatusCopy(indexStatusFixture(), "updating")?.text).toContain("Embedding status will update");
+    expect(indexSettingsStatusCopy(indexStatusFixture(), "embedding")?.text).toContain("indexed notes");
+    expect(indexSettingsStatusCopy(indexStatusFixture(), "embedding")?.text).not.toContain("QMD");
   });
 
   it("keeps provider failures out of the settings surface", () => {
@@ -258,6 +259,8 @@ describe("workspace settings footer copy", () => {
     expect(html).toContain("Advanced search mode");
     expect(html).toContain("Advanced search adds lexical and semantic retrieval");
     expect(html).toContain("3 pending embeddings");
+    expect(html).toContain("Search maintenance");
+    expect(html).not.toContain("QMD");
     expect(html).not.toContain("Press Apply");
   });
 });
@@ -306,18 +309,6 @@ function workspaceSettingsDialogFixture(
     colorThemeId: "exo-neutral",
     editorFontSize: "15",
     terminalFontSize: "13",
-    terminalHistoryLines: String(RENDERER_DEFAULT_TERMINAL_HISTORY_LINES),
-    terminalTranscriptRetention: "forever",
-    terminalTranscriptRetentionDays: "14",
-    terminalInputCoalesceMs: String(DEFAULT_TERMINAL_INPUT_COALESCE_MS),
-    terminalInitialColumns: String(DEFAULT_TERMINAL_INITIAL_COLUMNS),
-    terminalInitialRows: String(DEFAULT_TERMINAL_INITIAL_ROWS),
-    terminalMinimumColumns: String(DEFAULT_TERMINAL_MINIMUM_COLUMNS),
-    terminalMinimumRows: String(DEFAULT_TERMINAL_MINIMUM_ROWS),
-    terminalReadTailChars: String(DEFAULT_TERMINAL_READ_TAIL_CHARS),
-    terminalMaxReadTailChars: String(DEFAULT_TERMINAL_MAX_READ_TAIL_CHARS),
-    terminalUnresponsiveThresholdMs: String(DEFAULT_TERMINAL_UNRESPONSIVE_THRESHOLD_MS),
-    terminalIdleThresholdMs: String(DEFAULT_TERMINAL_IDLE_THRESHOLD_MS),
     explorerScale: "1",
     exploreIndexSearchOnEnter: false,
     indexUpdateStrategy: "on-save",
@@ -437,6 +428,35 @@ describe("workspace terminal settings", () => {
 });
 
 describe("workspace settings renderer model", () => {
+  it("preserves settings that are intentionally absent from the dialog", () => {
+    const current = normalizeWorkspaceSettings({
+      workspaceRoot: "/workspace",
+      defaultTerminalCwd: "/workspace",
+      noteRoots: ["/workspace/notes"],
+      projectRoots: [],
+      indexedRoots: [],
+      indexing: { enabled: false, mode: "off", backend: "qmd" },
+      terminalHistoryLines: 24_000,
+      terminalTranscriptRetention: "days",
+      terminalTranscriptRetentionDays: 30,
+    });
+
+    expect(current).not.toBeNull();
+    const next = workspaceSettingsFromDialog(
+      workspaceSettingsDialogFixture({ appearanceMode: "dark", terminalFontSize: "16" }),
+      { includeStructural: false },
+      current,
+    );
+
+    expect(next).toMatchObject({
+      appearanceMode: "dark",
+      terminalFontSize: 16,
+      terminalHistoryLines: 24_000,
+      terminalTranscriptRetention: "days",
+      terminalTranscriptRetentionDays: 30,
+    });
+  });
+
   it("keeps structural draft keys aligned with saved settings keys", () => {
     const store = new WorkspaceSettingsStore({ userDataPath: "/tmp/exo-test", env: {} });
     const settings = store.normalize({
@@ -470,18 +490,6 @@ describe("workspace settings renderer model", () => {
       colorThemeId: "exo-neutral",
       editorFontSize: "15",
       terminalFontSize: "13",
-      terminalHistoryLines: String(RENDERER_DEFAULT_TERMINAL_HISTORY_LINES),
-      terminalTranscriptRetention: "forever",
-      terminalTranscriptRetentionDays: "14",
-      terminalInputCoalesceMs: String(DEFAULT_TERMINAL_INPUT_COALESCE_MS),
-      terminalInitialColumns: String(DEFAULT_TERMINAL_INITIAL_COLUMNS),
-      terminalInitialRows: String(DEFAULT_TERMINAL_INITIAL_ROWS),
-      terminalMinimumColumns: String(DEFAULT_TERMINAL_MINIMUM_COLUMNS),
-      terminalMinimumRows: String(DEFAULT_TERMINAL_MINIMUM_ROWS),
-      terminalReadTailChars: String(DEFAULT_TERMINAL_READ_TAIL_CHARS),
-      terminalMaxReadTailChars: String(DEFAULT_TERMINAL_MAX_READ_TAIL_CHARS),
-      terminalUnresponsiveThresholdMs: String(DEFAULT_TERMINAL_UNRESPONSIVE_THRESHOLD_MS),
-      terminalIdleThresholdMs: String(DEFAULT_TERMINAL_IDLE_THRESHOLD_MS),
       explorerScale: "1",
       exploreIndexSearchOnEnter: true,
       indexUpdateStrategy: "on-save",
@@ -507,18 +515,6 @@ describe("workspace settings renderer model", () => {
       colorThemeId: "exo-neutral" as const,
       editorFontSize: "15",
       terminalFontSize: "13",
-      terminalHistoryLines: String(RENDERER_DEFAULT_TERMINAL_HISTORY_LINES),
-      terminalTranscriptRetention: "forever" as const,
-      terminalTranscriptRetentionDays: "14",
-      terminalInputCoalesceMs: String(DEFAULT_TERMINAL_INPUT_COALESCE_MS),
-      terminalInitialColumns: String(DEFAULT_TERMINAL_INITIAL_COLUMNS),
-      terminalInitialRows: String(DEFAULT_TERMINAL_INITIAL_ROWS),
-      terminalMinimumColumns: String(DEFAULT_TERMINAL_MINIMUM_COLUMNS),
-      terminalMinimumRows: String(DEFAULT_TERMINAL_MINIMUM_ROWS),
-      terminalReadTailChars: String(DEFAULT_TERMINAL_READ_TAIL_CHARS),
-      terminalMaxReadTailChars: String(DEFAULT_TERMINAL_MAX_READ_TAIL_CHARS),
-      terminalUnresponsiveThresholdMs: String(DEFAULT_TERMINAL_UNRESPONSIVE_THRESHOLD_MS),
-      terminalIdleThresholdMs: String(DEFAULT_TERMINAL_IDLE_THRESHOLD_MS),
       explorerScale: "1",
       exploreIndexSearchOnEnter: false,
       indexUpdateStrategy: "on-save" as const,

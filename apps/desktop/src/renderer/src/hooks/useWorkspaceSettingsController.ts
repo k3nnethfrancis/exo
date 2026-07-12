@@ -4,23 +4,10 @@ import {
   type WorkspaceSettings,
   type WorkspaceSettingsRevision,
 } from "@exo/core";
-import {
-  DEFAULT_TERMINAL_IDLE_THRESHOLD_MS,
-  DEFAULT_TERMINAL_INITIAL_COLUMNS,
-  DEFAULT_TERMINAL_INITIAL_ROWS,
-  DEFAULT_TERMINAL_INPUT_COALESCE_MS,
-  DEFAULT_TERMINAL_MAX_READ_TAIL_CHARS,
-  DEFAULT_TERMINAL_MINIMUM_COLUMNS,
-  DEFAULT_TERMINAL_MINIMUM_ROWS,
-  DEFAULT_TERMINAL_READ_TAIL_CHARS,
-  DEFAULT_TERMINAL_UNRESPONSIVE_THRESHOLD_MS,
-} from "@exo/core/terminal-settings";
-
 import type { AppearanceMode } from "../appearance";
 import { normalizeColorThemeId } from "../theme/registry";
 import {
   clampNumber,
-  MIN_TERMINAL_HISTORY_LINES,
   workspaceSettingsImmediateDraftKey,
   workspaceSettingsStructuralDraftKey,
   workspaceSettingsStructuralKeyFromSettings,
@@ -136,18 +123,6 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
       colorThemeId: normalizeColorThemeId(settings.colorThemeId),
       editorFontSize: String(settings.editorFontSize),
       terminalFontSize: String(settings.terminalFontSize),
-      terminalHistoryLines: String(settings.terminalHistoryLines),
-      terminalTranscriptRetention: settings.terminalTranscriptRetention,
-      terminalTranscriptRetentionDays: String(settings.terminalTranscriptRetentionDays),
-      terminalInputCoalesceMs: String(settings.terminalInputCoalesceMs ?? DEFAULT_TERMINAL_INPUT_COALESCE_MS),
-      terminalInitialColumns: String(settings.terminalInitialColumns ?? DEFAULT_TERMINAL_INITIAL_COLUMNS),
-      terminalInitialRows: String(settings.terminalInitialRows ?? DEFAULT_TERMINAL_INITIAL_ROWS),
-      terminalMinimumColumns: String(settings.terminalMinimumColumns ?? DEFAULT_TERMINAL_MINIMUM_COLUMNS),
-      terminalMinimumRows: String(settings.terminalMinimumRows ?? DEFAULT_TERMINAL_MINIMUM_ROWS),
-      terminalReadTailChars: String(settings.terminalReadTailChars ?? DEFAULT_TERMINAL_READ_TAIL_CHARS),
-      terminalMaxReadTailChars: String(settings.terminalMaxReadTailChars ?? DEFAULT_TERMINAL_MAX_READ_TAIL_CHARS),
-      terminalUnresponsiveThresholdMs: String(settings.terminalUnresponsiveThresholdMs ?? DEFAULT_TERMINAL_UNRESPONSIVE_THRESHOLD_MS),
-      terminalIdleThresholdMs: String(settings.terminalIdleThresholdMs ?? DEFAULT_TERMINAL_IDLE_THRESHOLD_MS),
       explorerScale: String(settings.explorerScale),
       exploreIndexSearchOnEnter: settings.exploreIndexSearchOnEnter,
       indexUpdateStrategy: settings.indexUpdateStrategy,
@@ -358,11 +333,15 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
   };
 }
 
-function workspaceSettingsFromDialog(
+export function workspaceSettingsFromDialog(
   settingsDialog: WorkspaceSettingsDialogState,
   options: { includeStructural: boolean },
   currentSettings: WorkspaceSettings | null,
 ): WorkspaceSettings {
+  if (!currentSettings) {
+    throw new Error("Workspace settings are unavailable. Close Settings and try again.");
+  }
+
   const fallbackStructural = {
     workspaceRoot: settingsDialog.workspaceRoot.trim(),
     defaultTerminalCwd: settingsDialog.defaultTerminalCwd.trim(),
@@ -390,17 +369,8 @@ function workspaceSettingsFromDialog(
       backend: "qmd" as const,
     },
   };
-  const parsedTerminalHistoryLines = Math.floor(Number(settingsDialog.terminalHistoryLines));
-  const terminalHistoryLines = Number.isFinite(parsedTerminalHistoryLines)
-    ? Math.max(MIN_TERMINAL_HISTORY_LINES, parsedTerminalHistoryLines)
-    : MIN_TERMINAL_HISTORY_LINES;
-  const terminalReadTailChars = integerAtLeast(Number(settingsDialog.terminalReadTailChars), DEFAULT_TERMINAL_READ_TAIL_CHARS, 0);
-  const terminalMaxReadTailChars = Math.max(
-    terminalReadTailChars,
-    integerAtLeast(Number(settingsDialog.terminalMaxReadTailChars), DEFAULT_TERMINAL_MAX_READ_TAIL_CHARS, 0),
-  );
-
   return {
+    ...currentSettings,
     workspaceRoot: options.includeStructural ? fallbackStructural.workspaceRoot : currentSettings?.workspaceRoot ?? fallbackStructural.workspaceRoot,
     defaultTerminalCwd: options.includeStructural ? fallbackStructural.defaultTerminalCwd : currentSettings?.defaultTerminalCwd ?? fallbackStructural.defaultTerminalCwd,
     noteRoots: options.includeStructural
@@ -419,24 +389,8 @@ function workspaceSettingsFromDialog(
     colorThemeId: normalizeColorThemeId(settingsDialog.colorThemeId),
     editorFontSize: clampNumber(Number(settingsDialog.editorFontSize), 11, 24),
     terminalFontSize: clampNumber(Number(settingsDialog.terminalFontSize), 10, 22),
-    terminalHistoryLines,
-    terminalTranscriptRetention: settingsDialog.terminalTranscriptRetention,
-    terminalTranscriptRetentionDays: clampNumber(Number(settingsDialog.terminalTranscriptRetentionDays), 1, 3650),
-    terminalInputCoalesceMs: integerAtLeast(Number(settingsDialog.terminalInputCoalesceMs), DEFAULT_TERMINAL_INPUT_COALESCE_MS, 0),
-    terminalInitialColumns: integerAtLeast(Number(settingsDialog.terminalInitialColumns), DEFAULT_TERMINAL_INITIAL_COLUMNS, 20),
-    terminalInitialRows: integerAtLeast(Number(settingsDialog.terminalInitialRows), DEFAULT_TERMINAL_INITIAL_ROWS, 8),
-    terminalMinimumColumns: integerAtLeast(Number(settingsDialog.terminalMinimumColumns), DEFAULT_TERMINAL_MINIMUM_COLUMNS, 1),
-    terminalMinimumRows: integerAtLeast(Number(settingsDialog.terminalMinimumRows), DEFAULT_TERMINAL_MINIMUM_ROWS, 1),
-    terminalReadTailChars,
-    terminalMaxReadTailChars,
-    terminalUnresponsiveThresholdMs: integerAtLeast(Number(settingsDialog.terminalUnresponsiveThresholdMs), DEFAULT_TERMINAL_UNRESPONSIVE_THRESHOLD_MS, 1_000),
-    terminalIdleThresholdMs: integerAtLeast(Number(settingsDialog.terminalIdleThresholdMs), DEFAULT_TERMINAL_IDLE_THRESHOLD_MS, 1_000),
     explorerScale: clampNumber(Number(settingsDialog.explorerScale), 0.82, 1.35),
     exploreIndexSearchOnEnter: settingsDialog.exploreIndexSearchOnEnter,
     indexUpdateStrategy: settingsDialog.indexUpdateStrategy,
   };
-}
-
-function integerAtLeast(value: number, fallback: number, min: number): number {
-  return Number.isFinite(value) ? Math.max(min, Math.floor(value)) : fallback;
 }

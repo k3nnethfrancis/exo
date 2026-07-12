@@ -59,7 +59,9 @@ export function WorkspaceSettingsDialog({
             <X size={16} />
           </button>
         </div>
-        <div className="dialog-card__message">{workspaceSettingsDialogIntroCopy(settings.section, hasStructuralChanges)}</div>
+        <div className="dialog-card__message" aria-live="polite">
+          {workspaceSettingsDialogIntroCopy(settings.section, hasStructuralChanges)}
+        </div>
         <div className="workspace-settings-layout" data-testid="workspace-settings-body">
           <nav className="settings-nav" role="tablist" aria-label="Workspace settings sections">
             {SETTINGS_SECTIONS.map((section) => {
@@ -117,7 +119,7 @@ export function WorkspaceSettingsDialog({
           ) : null}
           {settings.applyStatus === "applied" ? (
             <div className="dialog-card__status" data-testid="workspace-settings-apply-status">
-              Applied. Workspace paths are active.
+              Changes applied.
             </div>
           ) : null}
           {settings.applyStatus === "error" && settings.applyErrorMessage ? (
@@ -143,14 +145,14 @@ export function WorkspaceSettingsDialog({
 }
 
 export function workspaceSettingsSavedFooterCopy(hasStructuralChanges: boolean): string {
-  return hasStructuralChanges ? "Draft saved. Press Apply for workspace path or search provider changes." : "Settings saved.";
+  return hasStructuralChanges ? "Draft saved. Apply to use workspace or search changes." : "Settings saved.";
 }
 
 export function workspaceSettingsDialogIntroCopy(section: WorkspaceSettingsSection, hasStructuralChanges: boolean): string {
   if (hasStructuralChanges) {
     return section === "index"
-      ? "Advanced search provider changes are saved as a draft. Press Apply to make them active."
-      : "Workspace path or search provider changes are saved as a draft. Press Apply to make them active.";
+      ? "Advanced search changes are ready to apply."
+      : "Workspace changes are ready to apply.";
   }
 
   if (section === "index") {
@@ -158,10 +160,10 @@ export function workspaceSettingsDialogIntroCopy(section: WorkspaceSettingsSecti
   }
 
   if (section === "workspace") {
-    return "Workspace folder edits are saved as a draft before they become active.";
+    return "Choose where Exo reads notes and opens terminals.";
   }
 
-  return "Settings in this section save immediately.";
+  return section === "appearance" ? "Adjust how Exo looks and reads." : "Adjust terminal text.";
 }
 
 function WorkspaceSection({
@@ -174,17 +176,17 @@ function WorkspaceSection({
     <>
       <label className="dialog-field dialog-field--section">
         <span className="dialog-field__label">Workspace</span>
-        <input
-          className="dialog-card__input"
-          data-testid="workspace-settings-workspace-root"
-          value={settings.workspaceRoot}
-          onChange={(event) =>
-            setSettings((current) =>
-              current ? { ...current, workspaceRoot: event.target.value, applyStatus: "idle", applyErrorMessage: null } : current,
-            )
-          }
-        />
-        <div className="dialog-field__actions">
+        <div className="settings-control-row">
+          <input
+            className="dialog-card__input"
+            data-testid="workspace-settings-workspace-root"
+            value={settings.workspaceRoot}
+            onChange={(event) =>
+              setSettings((current) =>
+                current ? { ...current, workspaceRoot: event.target.value, applyStatus: "idle", applyErrorMessage: null } : current,
+              )
+            }
+          />
           <button className="toolbar-button" onClick={() => void onChooseFolder("workspaceRoot")} type="button">
             Select
           </button>
@@ -192,17 +194,17 @@ function WorkspaceSection({
       </label>
       <label className="dialog-field dialog-field--section">
         <span className="dialog-field__label">Default terminal</span>
-        <input
-          className="dialog-card__input"
-          data-testid="workspace-settings-terminal-cwd"
-          value={settings.defaultTerminalCwd}
-          onChange={(event) =>
-            setSettings((current) =>
-              current ? { ...current, defaultTerminalCwd: event.target.value, applyStatus: "idle", applyErrorMessage: null } : current,
-            )
-          }
-        />
-        <div className="dialog-field__actions">
+        <div className="settings-control-row">
+          <input
+            className="dialog-card__input"
+            data-testid="workspace-settings-terminal-cwd"
+            value={settings.defaultTerminalCwd}
+            onChange={(event) =>
+              setSettings((current) =>
+                current ? { ...current, defaultTerminalCwd: event.target.value, applyStatus: "idle", applyErrorMessage: null } : current,
+              )
+            }
+          />
           <button className="toolbar-button" onClick={() => void onChooseFolder("defaultTerminalCwd")} type="button">
             Select
           </button>
@@ -257,20 +259,6 @@ function IndexSection({
       {statusCopy ? (
         <div className={`onboarding-section__hint ${statusCopy.tone === "error" ? "dialog-card__status--error" : ""}`} data-testid="workspace-settings-index-status-note">
           {statusCopy.text}
-        </div>
-      ) : null}
-      {indexStatus?.recentJobs?.length ? (
-        <div className="index-activity" data-testid="workspace-settings-index-activity">
-          <div className="index-activity__title">Recent search activity</div>
-          {indexStatus.recentJobs.slice(0, 5).map((job) => (
-            <div className="index-activity__row" key={job.id}>
-              <span>{job.kind}</span>
-              <span>{job.reason}</span>
-              <span>{formatDuration(job.durationMs)}</span>
-              <span>{formatRelativeTime(job.completedAt)}</span>
-              <span>{job.status === "failed" ? "failed" : `${job.pendingEmbeddings ?? 0} pending embeddings`}</span>
-            </div>
-          ))}
         </div>
       ) : null}
       <label className="dialog-field dialog-field--section">
@@ -346,11 +334,24 @@ function IndexSection({
           </button>
         </div>
       </div>
-      <details className="dialog-details dialog-details--section">
+      <details className="dialog-details dialog-details--section settings-maintenance">
         <summary>
-          Advanced maintenance
-          <HelpTooltip label="Refresh documents only re-reads Markdown into the QMD lexical store without building embeddings. Build embeddings only creates missing semantic embeddings for documents already in QMD. Use these when advanced search looks stale, status says embeddings are needed, or you want to debug one QMD phase without running a full sync." />
+          Search maintenance
+          <HelpTooltip label="Use these controls when advanced search is stale or embeddings are incomplete." />
         </summary>
+        {indexStatus?.recentJobs?.length ? (
+          <div className="index-activity" data-testid="workspace-settings-index-activity">
+            <div className="index-activity__title">Recent activity</div>
+            {indexStatus.recentJobs.slice(0, 3).map((job) => (
+              <div className="index-activity__row" key={job.id}>
+                <span>{job.kind}</span>
+                <span>{formatDuration(job.durationMs)}</span>
+                <span>{formatRelativeTime(job.completedAt)}</span>
+                <span>{job.status === "failed" ? "failed" : `${job.pendingEmbeddings ?? 0} pending`}</span>
+              </div>
+            ))}
+          </div>
+        ) : null}
         <div className="dialog-card__actions dialog-card__actions--split">
           <button
             className="toolbar-button"
@@ -359,7 +360,7 @@ function IndexSection({
             onClick={() => void onRunIndexUpdate("updating")}
             type="button"
           >
-            {indexBusy === "updating" ? "Refreshing..." : "Refresh documents only"}
+            {indexBusy === "updating" ? "Refreshing..." : "Refresh documents"}
           </button>
           <button
             className="toolbar-button"
@@ -368,7 +369,7 @@ function IndexSection({
             onClick={() => void onRunIndexUpdate("embedding")}
             type="button"
           >
-            {indexBusy === "embedding" ? "Embedding..." : "Build embeddings only"}
+            {indexBusy === "embedding" ? "Embedding..." : "Build embeddings"}
           </button>
         </div>
       </details>
@@ -384,10 +385,10 @@ export function indexSettingsStatusCopy(
     return { tone: "info", text: "Sync is refreshing documents and rebuilding embeddings. Status will refresh when it finishes." };
   }
   if (indexBusy === "updating") {
-    return { tone: "info", text: "Refresh documents only is re-reading Markdown into QMD. Embedding status will refresh when it finishes." };
+    return { tone: "info", text: "Refreshing notes in the advanced search index. Embedding status will update when it finishes." };
   }
   if (indexBusy === "embedding") {
-    return { tone: "info", text: "Build embeddings only is creating semantic embeddings for documents already in QMD. Status will refresh when it finishes." };
+    return { tone: "info", text: "Building semantic embeddings for indexed notes. Status will update when it finishes." };
   }
   if (!indexStatus) {
     return null;
@@ -406,15 +407,14 @@ export function indexSettingsStatusCopy(
       lastJob.warnings?.some((warning) => warning.toLowerCase().includes("embedding failed"))
     );
     if (failedEmbeddingJob) {
-      const detail = lastJob.error ?? lastJob.warnings?.find((warning) => warning.toLowerCase().includes("embedding failed"));
       return {
         tone: "warn",
-        text: `Documents were refreshed, but embeddings did not complete${detail ? `: ${detail}` : ""}. Build embeddings only can retry semantic embeddings; lexical search remains available.`,
+        text: "Documents were refreshed, but embeddings did not complete. Build embeddings can retry; lexical search remains available.",
       };
     }
     return {
       tone: "warn",
-      text: "Embeddings are pending. Sync now refreshes documents and embeddings; Build embeddings only retries embeddings for documents already in QMD.",
+      text: "Embeddings are pending. Sync now refreshes documents and embeddings; Build embeddings retries incomplete semantic indexing.",
     };
   }
   return null;

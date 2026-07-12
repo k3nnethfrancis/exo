@@ -670,6 +670,39 @@ test("keeps workspace settings frame stable across tabs", async () => {
   await cleanup();
 });
 
+test("stacks workspace settings cleanly in a narrow window", async () => {
+  const { page, cleanup } = await launchExoWorkspaceFixture({
+    env: {
+      EXO_INDEX_ENABLED: "0",
+      EXO_INDEX_MODE: "off",
+      EXO_INDEXED_ROOTS: "[]",
+    },
+  });
+
+  await page.setViewportSize({ width: 700, height: 560 });
+  await page.getByTestId("workspace-menu-toggle").click();
+  await page.getByTestId("workspace-menu-settings").click();
+
+  const dialog = page.getByTestId("workspace-settings-dialog");
+  const navigation = dialog.getByRole("tablist");
+  const panel = dialog.locator(".workspace-settings-panel");
+  await expect(dialog).toBeVisible();
+  const [dialogBox, navigationBox, panelBox] = await Promise.all([
+    dialog.boundingBox(),
+    navigation.boundingBox(),
+    panel.boundingBox(),
+  ]);
+  expect(dialogBox).not.toBeNull();
+  expect(navigationBox).not.toBeNull();
+  expect(panelBox).not.toBeNull();
+  expect(dialogBox!.width).toBeLessThanOrEqual(676);
+  expect(panelBox!.y).toBeGreaterThanOrEqual(navigationBox!.y + navigationBox!.height);
+  await expect(dialog.getByTestId("workspace-settings-tab-terminal")).toBeVisible();
+  await page.screenshot({ path: "/tmp/exo-workspace-settings-narrow.png", fullPage: false });
+
+  await cleanup();
+});
+
 test("keeps the command server available while the window is hidden", async () => {
   const { electronApp, page, runtimeRoot, cleanup } = await launchExoTerminalFixture({
     env: {

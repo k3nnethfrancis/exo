@@ -1588,8 +1588,8 @@ button svg,
 }
 
 .dialog-card--settings {
-  width: min(920px, calc(100vw - 48px));
-  height: min(680px, calc(100dvh - 48px));
+  width: min(820px, calc(100vw - 48px));
+  height: min(580px, calc(100dvh - 48px));
   grid-template-rows: auto auto minmax(0, 1fr) auto;
   background: color-mix(in srgb, var(--panel-strong) 98%, var(--editor-bg));
   backdrop-filter: blur(28px) saturate(1.15);
@@ -1733,6 +1733,7 @@ select.dialog-card__input {
 
 .dialog-card--settings .dialog-form {
   align-content: start;
+  gap: 14px;
   min-height: 0;
   overflow-y: auto;
   padding-right: 4px;
@@ -1746,8 +1747,8 @@ select.dialog-card__input {
 
 .workspace-settings-layout {
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
-  gap: 16px;
+  grid-template-columns: 184px minmax(0, 1fr);
+  gap: 18px;
   min-height: 0;
   overflow: hidden;
 }
@@ -1757,7 +1758,7 @@ select.dialog-card__input {
   align-content: start;
   gap: 6px;
   min-height: 0;
-  padding: 6px;
+  padding: 5px;
   border: 1px solid var(--surface-border);
   border-radius: 12px;
   background: var(--surface-2);
@@ -1770,7 +1771,8 @@ select.dialog-card__input {
   align-items: center;
   gap: 10px;
   min-width: 0;
-  padding: 10px;
+  min-height: 48px;
+  padding: 8px;
   border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;
@@ -1841,14 +1843,27 @@ select.dialog-card__input {
   }
 
   .settings-nav {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    max-height: 148px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    max-height: none;
+    overflow: visible;
+  }
+
+  .settings-nav__button {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    min-height: 46px;
+    gap: 3px;
+    text-align: center;
+  }
+
+  .settings-nav__button small {
+    display: none;
   }
 }
 
 .dialog-form__grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   align-content: start;
   align-self: start;
   gap: 10px;
@@ -1880,6 +1895,14 @@ select.dialog-card__input {
 .dialog-field__actions {
   display: flex;
   justify-content: flex-start;
+}
+
+.settings-control-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 
 .dialog-field__label {
@@ -2307,10 +2330,31 @@ select.dialog-card__input {
 
 .index-activity__row {
   display: grid;
-  grid-template-columns: 64px minmax(0, 1fr) 56px 64px minmax(118px, max-content);
+  grid-template-columns: 64px 56px 64px minmax(72px, 1fr);
   gap: 8px;
   align-items: center;
   min-width: 0;
+}
+
+@media (max-width: 560px) {
+  .dialog-form__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings-nav__button strong {
+    font-size: 11px;
+  }
+}
+
+@media (max-height: 560px) {
+  .dialog-card--settings {
+    gap: 10px;
+    padding: 14px;
+  }
+
+  .dialog-card--settings .dialog-card__message {
+    display: none;
+  }
 }
 
 .index-activity__row span {

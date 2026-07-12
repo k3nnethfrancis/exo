@@ -9,12 +9,14 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 - Adds one shared right-side utility destination with mutually exclusive Preview, Terminal, and Connections views.
 - Adds centered workspace search with an anchored result popover, typed titlebar breadcrumbs, and explicit Folder Index creation/maintenance.
 - Adds a version-two editor-only layout format. Legacy layouts are safely reduced to editor leaves on restore.
+- Adds compact saved-Command readiness and explicitly confirmed one-shot Test controls inside Terminal.
 
 ### Changed
 
 - Makes Preview and Terminal independent utility surfaces with their own tabs; neither may become an editor split pane.
 - Makes folder creation create a minimal `index.md`, while imported folders remain read-only until the user explicitly creates an index.
 - Moves workspace Settings to the lower workspace menu and tightens Explorer/titlebar chrome.
+- Refines Workspace Settings around user-facing outcomes, compact responsive rows, and provider-neutral search maintenance.
 
 ### Fixed
 
