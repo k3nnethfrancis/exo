@@ -112,6 +112,8 @@ export function TerminalDock(props: TerminalDockProps) {
                   className="terminal-tab"
                   testId={`terminal-tab-${session.kind}`}
                   itemId={session.id}
+                  dropPaneId={paneId}
+                  dropKind="terminal"
                   onClick={() => {
                     onSetActiveTerminal(session.id);
                     focusTerminalAfterPaneActivation(session.id);

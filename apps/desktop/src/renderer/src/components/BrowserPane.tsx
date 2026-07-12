@@ -56,6 +56,8 @@ export function BrowserPane(props: BrowserPaneProps) {
               className="browser-tab"
               key={tab.id}
               testId="browser-tab-preview"
+              dropPaneId={props.paneId}
+              dropKind="browser"
               onClick={() => { props.onSelectTab?.(tab.id); focusPreviewPane(); }}
               onMouseDown={(event) => props.dragManager?.startDrag(event, { kind: "preview", previewId: tab.id, sourcePaneId: props.paneId })}
               leading={<Globe2 size={13} />}

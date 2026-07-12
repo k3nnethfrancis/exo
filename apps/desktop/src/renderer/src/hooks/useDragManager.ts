@@ -40,7 +40,7 @@ export interface DragManager {
 }
 
 export type DropEdge = "top" | "bottom" | "left" | "right" | "center";
-export type PaneDropKind = "editor";
+export type PaneDropKind = "editor" | "terminal" | "browser";
 export type PaneDropZone = "workspace";
 export type DragDropTarget =
   | { kind: "pane"; leafId: string; edge: DropEdge; paneKind: PaneDropKind; paneZone: PaneDropZone }
@@ -61,26 +61,24 @@ export function acceptsUtilitySurface(
   return (payload.kind === "terminal" || payload.kind === "preview") && destination === payload.kind;
 }
 
-function acceptsPayload(
+/** Canvas panes are a free composition surface: every pane kind may split with every payload kind. */
+export function acceptsCanvasPane(
   paneKind: string | undefined,
   paneZone: string | undefined,
   payload: DragPayload,
 ): paneKind is PaneDropKind {
-  if (payload.kind === "document" || payload.kind === "terminal" || payload.kind === "preview" || (payload.kind === "workspace-path" && payload.nodeKind === "file")) {
-    return paneKind === "editor";
-  }
-  if (payload.kind === "workspace-path") {
-    return false;
-  }
-  return false;
+  if (paneZone !== "workspace") return false;
+  return payload.kind === "document" || payload.kind === "terminal" || payload.kind === "preview" || (payload.kind === "workspace-path" && payload.nodeKind === "file")
+    ? paneKind === "editor" || paneKind === "terminal" || paneKind === "browser"
+    : false;
 }
 
 function acceptsTabTarget(tabKind: string | undefined, payload: DragPayload): tabKind is PaneDropKind {
   if (payload.kind === "document" || payload.kind === "terminal" || payload.kind === "preview") {
-    return tabKind === "editor";
+    return tabKind === "editor" || tabKind === "terminal" || tabKind === "browser";
   }
   if (payload.kind === "workspace-path") {
-    return payload.nodeKind === "file" && tabKind === "editor";
+    return payload.nodeKind === "file" && (tabKind === "editor" || tabKind === "terminal" || tabKind === "browser");
   }
   return false;
 }
@@ -181,7 +179,7 @@ export function useDragManager(
 
       const leaves = document.querySelectorAll<HTMLElement>("[data-pane-id]");
       for (const leaf of leaves) {
-        if (!acceptsPayload(leaf.dataset.paneKind, leaf.dataset.paneZone, payload)) continue;
+        if (!acceptsCanvasPane(leaf.dataset.paneKind, leaf.dataset.paneZone, payload)) continue;
 
         const rect = leaf.getBoundingClientRect();
         if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) continue;
