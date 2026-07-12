@@ -53,6 +53,7 @@
 
 .workspace-titlebar__identity {
   justify-self: start;
+  width: 100%;
   overflow: hidden;
 }
 
@@ -94,10 +95,13 @@
 }
 
 .workspace-titlebar__title {
+  display: flex;
+  align-items: center;
   min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   color: var(--text);
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 520;
   letter-spacing: -0.01em;
   line-height: 1;
@@ -131,6 +135,21 @@
   cursor: pointer;
   font: inherit;
   -webkit-app-region: no-drag;
+}
+
+.workspace-titlebar__segment span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-titlebar__ellipsis {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  color: var(--muted);
+  font-weight: 600;
 }
 
 .workspace-titlebar__segment:hover {
@@ -456,15 +475,11 @@
 .sidebar__toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  justify-content: flex-start;
+  gap: 2px;
   min-height: 44px;
-  padding: 0 8px 0 44px;
+  padding: 0 10px;
   border-bottom: 1px solid color-mix(in srgb, var(--divider) 50%, transparent);
-}
-
-.sidebar__toolbar-spacer {
-  flex: 1 1 auto;
 }
 
 .sidebar--mirrored .sidebar__toolbar {

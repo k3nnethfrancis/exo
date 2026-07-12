@@ -3,7 +3,6 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import {
   ClipboardCopy,
   FilePlus2,
-  Eye,
   FolderPlus,
   Pencil,
   SquareTerminal,
@@ -26,16 +25,8 @@ interface FileTreeProps {
   collapsed: boolean;
   appearanceMode: AppearanceMode;
   resolvedAppearance: ResolvedAppearance;
-  searchQuery: string;
-  searchResults: WorkspaceSearchResults;
-  searchResultMode: WorkspaceSearchResultMode;
-  searchResultQuery: string;
-  searchMessage: string | null;
-  searchActive?: boolean;
   onAppearanceModeChange: (mode: AppearanceMode) => void;
   onToggleCollapsed: () => void;
-  onSearchQueryChange: (value: string) => void;
-  onSearchSubmit: () => void;
   onOpenFile: (filePath: string, line?: number | null) => void;
   onOpenAttachedFile?: (filePath: string, line?: number | null) => void;
   onOpenTerminalSession: (sessionId: string) => void;
@@ -47,7 +38,6 @@ interface FileTreeProps {
   onCreateFile: (directoryPath: string) => void;
   onCreateDirectory: (directoryPath: string) => void;
   onCreateTerminal: (directoryPath: string) => void;
-  onOpenPreview: () => void;
   onRenamePath: (targetPath: string) => void;
   onDeletePath: (targetPath: string) => void;
   mirrored?: boolean;
@@ -78,7 +68,6 @@ export function FileTree(props: FileTreeProps) {
     onCreateFile,
     onCreateDirectory,
     onCreateTerminal,
-    onOpenPreview,
     onRenamePath,
     onDeletePath,
     mirrored = false,
@@ -215,10 +204,8 @@ export function FileTree(props: FileTreeProps) {
     <aside className={`sidebar sidebar--content-only ${mirrored ? "sidebar--mirrored" : ""}`} data-testid="sidebar" onMouseDown={onFocusExplorer} style={sidebarStyle}>
       <div className="sidebar__main">
         <div className="sidebar__toolbar" role="toolbar" aria-label="Explorer">
-          <span className="sidebar__toolbar-spacer" />
           <button aria-label="New note" className="sidebar__toolbar-button sidebar__toolbar-button--icon" data-testid="explorer-new-note" onClick={() => requestRootAction("file")} title="New note" type="button"><FilePlus2 size={14} aria-hidden="true" /></button>
           <button aria-label="New folder" className="sidebar__toolbar-button sidebar__toolbar-button--icon" data-testid="explorer-new-folder" onClick={() => requestRootAction("directory")} title="New folder" type="button"><FolderPlus size={14} aria-hidden="true" /></button>
-          <button aria-label="Open preview" className="sidebar__toolbar-button sidebar__toolbar-button--icon" data-testid="explorer-open-preview" onClick={onOpenPreview} title="Open preview" type="button"><Eye size={14} aria-hidden="true" /></button>
         </div>
         {rootAction ? (
           <div className="explorer-root-picker" data-testid="explorer-root-picker" role="menu" aria-label={`Choose Note Root for new ${rootAction === "file" ? "note" : "folder"}`}>
@@ -226,17 +213,6 @@ export function FileTree(props: FileTreeProps) {
           </div>
         ) : null}
         <div className="sidebar__panes">
-          {props.searchActive ? (
-            <SidebarSearchPane
-              query={props.searchQuery}
-              results={props.searchResults}
-              resultMode={props.searchResultMode}
-              resultQuery={props.searchResultQuery}
-              message={props.searchMessage}
-              onOpenFile={onOpenFile}
-              onOpenAttachedFile={onOpenAttachedFile}
-            />
-          ) : (
           <div
             className="sidebar__content sidebar__content--notes"
             data-explorer-drop-path={noteRoots.length === 1 ? noteRoots[0].path : undefined}
@@ -254,8 +230,7 @@ export function FileTree(props: FileTreeProps) {
               mirrored={mirrored}
             />
           </div>
-          )}
-          {!props.searchActive && attachedFolders.length > 0 ? (
+          {attachedFolders.length > 0 ? (
             <div className="sidebar__content sidebar__content--attached" data-testid="attached-folders">
               <Section label="Attached folders" rootKind="attached" sections={attachedFolders} expandedPaths={expandedPaths} onTogglePath={togglePath} onOpenFile={onOpenAttachedFile} dragManager={dragManager} mirrored={mirrored} alwaysShowRoots />
             </div>
@@ -372,7 +347,7 @@ function pathContains(parentPath: string, targetPath: string): boolean {
   return targetPath === parentPath || targetPath.startsWith(`${parentPath}/`);
 }
 
-function SidebarSearchPane({
+export function SidebarSearchPane({
   query,
   results,
   resultMode,

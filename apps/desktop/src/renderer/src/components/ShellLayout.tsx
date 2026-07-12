@@ -6,7 +6,7 @@ import type { AppearanceMode, ResolvedAppearance } from "../appearance";
 import type { DragManager } from "../hooks/useDragManager";
 import type { PaneNode, PaneNodeId, PaneTreeActions } from "../hooks/usePaneTree";
 import type { WorkspaceSearchResultMode } from "../hooks/useWorkspaceSearch";
-import { FileTree } from "./FileTree";
+import { FileTree, SidebarSearchPane } from "./FileTree";
 import type { RootSection } from "./ExplorerSections";
 import { PaneTree } from "./PaneTree";
 import { WorkspaceMenu } from "./WorkspaceMenu";
@@ -61,13 +61,13 @@ interface ShellLayoutProps {
   onCreateFile: (directoryPath: string) => void;
   onCreateDirectory: (directoryPath: string) => void;
   onCreateTerminalInDirectory: (directoryPath: string) => void;
-  onOpenPreview: () => void;
   onRenamePath: (targetPath: string) => void;
   onDeletePath: (targetPath: string) => void;
   onOpenTitleSegment: (segment: WorkspaceBreadcrumbSegment) => void;
 }
 
 export function ShellLayout(props: ShellLayoutProps) {
+  const visibleTitleSegments = compactBreadcrumbSegments(props.titleSegments);
   return (
     <div className="workspace-frame">
       <header className="workspace-titlebar" data-testid="workspace-titlebar">
@@ -85,18 +85,27 @@ export function ShellLayout(props: ShellLayoutProps) {
           </button>
           <span className="workspace-titlebar__divider" aria-hidden="true" />
           <div className="workspace-titlebar__title" data-testid="workspace-title" title={props.titleSegments.map((segment) => segment.label).join(" / ")}>
-            {props.titleSegments.map((segment, index) => (
-              <span className="workspace-titlebar__crumb" key={segment.path}>
+            {visibleTitleSegments.map((segment, index) => (
+              <span className="workspace-titlebar__crumb" key={segment.path ?? "ellipsis"}>
                 {index > 0 ? <ChevronRight className="workspace-titlebar__chevron" size={12} strokeWidth={1.75} aria-hidden="true" /> : null}
-                <button className={`workspace-titlebar__segment workspace-titlebar__segment--${segment.kind}`} onClick={() => props.onOpenTitleSegment(segment)} type="button">
-                  {segment.kind === "folder" ? <Folder size={14} aria-hidden="true" /> : <FileText size={13} aria-hidden="true" />}
-                  <span>{segment.label}</span>
-                </button>
+                {segment.kind === "ellipsis" ? <span className="workspace-titlebar__ellipsis" title="Middle folders hidden">…</span> : (
+                  <button className={`workspace-titlebar__segment workspace-titlebar__segment--${segment.kind}`} onClick={() => props.onOpenTitleSegment(segment)} type="button">
+                    {segment.kind === "folder" ? <Folder size={13} aria-hidden="true" /> : <FileText size={12} aria-hidden="true" />}
+                    <span>{segment.label}</span>
+                  </button>
+                )}
               </span>
             ))}
           </div>
         </div>
-        <WorkspaceSearchField query={props.searchQuery} onChange={props.onSearchQueryChange} onClear={props.onSearchClear} onSubmit={props.onSearchSubmit} />
+        <div className="workspace-search-anchor">
+          <WorkspaceSearchField query={props.searchQuery} onChange={props.onSearchQueryChange} onClear={props.onSearchClear} onSubmit={props.onSearchSubmit} />
+          {props.searchQuery.trim() ? (
+            <div className="workspace-search-popover" data-testid="workspace-search-popover">
+              <SidebarSearchPane query={props.searchQuery} results={props.searchResults} resultMode={props.searchResultMode} resultQuery={props.searchResultQuery} message={props.searchMessage} onOpenFile={(path) => { props.onSearchClear(); props.onOpenFile(path); }} onOpenAttachedFile={(path) => { props.onSearchClear(); props.onOpenAttachedFile?.(path); }} />
+            </div>
+          ) : null}
+        </div>
         <div className="workspace-titlebar__actions">
           <button aria-label={props.utilityOpen ? "Hide utility pane" : "Show utility pane"} aria-pressed={props.utilityOpen} className="workspace-titlebar__button" data-testid="utility-pane-toggle" onClick={props.onToggleUtility} title={props.utilityOpen ? "Hide utility pane" : "Show utility pane"} type="button">
             <PanelRight size={16} aria-hidden="true" />
@@ -111,13 +120,11 @@ export function ShellLayout(props: ShellLayoutProps) {
           collapsed={props.sidebarCollapsed}
           dragManager={props.dragManager}
           explorerScale={props.explorerScale}
-          searchActive={props.searchQuery.trim().length > 0}
           noteRoots={props.noteSections}
           onAppearanceModeChange={props.onAppearanceModeChange}
           onCreateDirectory={props.onCreateDirectory}
           onCreateFile={props.onCreateFile}
           onCreateTerminal={props.onCreateTerminalInDirectory}
-          onOpenPreview={props.onOpenPreview}
           onDeletePath={props.onDeletePath}
           onExpandDirectory={props.onExpandDirectory}
           onFocusExplorer={props.onFocusExplorer}
@@ -126,16 +133,9 @@ export function ShellLayout(props: ShellLayoutProps) {
           onOpenTag={props.onOpenTag}
           onOpenTerminalSession={props.onOpenTerminalSession}
           onRenamePath={props.onRenamePath}
-          onSearchQueryChange={props.onSearchQueryChange}
-          onSearchSubmit={props.onSearchSubmit}
           onToggleCollapsed={props.onToggleSidebar}
           resolvedAppearance={props.resolvedAppearance}
           revealPathRequest={props.revealExplorerPathRequest}
-          searchMessage={props.searchMessage}
-          searchQuery={props.searchQuery}
-          searchResultMode={props.searchResultMode}
-          searchResultQuery={props.searchResultQuery}
-          searchResults={props.searchResults}
         />
       </aside>
       {!props.sidebarCollapsed ? <div className="pane-split-resizer pane-split-resizer--vertical" onMouseDown={props.onResizeSidebar} /> : null}
@@ -158,4 +158,12 @@ export function ShellLayout(props: ShellLayoutProps) {
       <WorkspaceMenu collapsed={props.sidebarCollapsed} label={props.workspaceLabel} missingFolderIndexCount={props.missingFolderIndexCount} onCreateMissingFolderIndexes={props.onCreateMissingFolderIndexes} onOpenSettings={props.onOpenWorkspaceSettings} />
     </div>
   );
+}
+
+type CompactBreadcrumbSegment = WorkspaceBreadcrumbSegment | { kind: "ellipsis"; label: "…"; path: null };
+
+export function compactBreadcrumbSegments(segments: WorkspaceBreadcrumbSegment[], maxLabelCharacters = 32): CompactBreadcrumbSegment[] {
+  const labelCharacters = segments.reduce((total, segment) => total + segment.label.length, 0);
+  if (segments.length <= 2 || (segments.length <= 3 && labelCharacters <= maxLabelCharacters)) return segments;
+  return [segments[0], { kind: "ellipsis", label: "…", path: null }, segments.at(-1)!];
 }

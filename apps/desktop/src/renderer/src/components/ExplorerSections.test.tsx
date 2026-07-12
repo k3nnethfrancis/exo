@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 import {
   FileTree,
+  SidebarSearchPane,
   isExplorerMutationAllowed,
   searchResultGroups,
   searchSummary,
@@ -57,7 +58,6 @@ describe("Explorer mutation boundary", () => {
         onCreateDirectory={() => undefined}
         onCreateFile={() => undefined}
         onCreateTerminal={() => undefined}
-        onOpenPreview={() => undefined}
         onDeletePath={() => undefined}
         onExpandDirectory={() => undefined}
         onFocusExplorer={() => undefined}
@@ -66,15 +66,8 @@ describe("Explorer mutation boundary", () => {
         onOpenTag={() => undefined}
         onOpenTerminalSession={() => undefined}
         onRenamePath={() => undefined}
-        onSearchQueryChange={() => undefined}
-        onSearchSubmit={() => undefined}
         onToggleCollapsed={() => undefined}
         resolvedAppearance="dark"
-        searchMessage={null}
-        searchQuery=""
-        searchResultMode="idle"
-        searchResultQuery=""
-        searchResults={{ notes: [], projectFiles: [], tags: [] }}
       />,
     );
 
@@ -86,42 +79,12 @@ describe("Explorer mutation boundary", () => {
     expect(markup).not.toContain('data-explorer-drop-path="/attached/source"');
   });
 
-  it("replaces the file tree with search results when titlebar search is active", () => {
+  it("renders search results independently from the explorer tree", () => {
     const markup = renderToStaticMarkup(
-      <FileTree
-        appearanceMode="system"
-        collapsed={false}
-        dragManager={noDrag}
-        explorerScale={1}
-        noteRoots={[{ label: "Notes", path: "/notes", nodes: [] }]}
-        onAppearanceModeChange={() => undefined}
-        onCreateDirectory={() => undefined}
-        onCreateFile={() => undefined}
-        onCreateTerminal={() => undefined}
-        onOpenPreview={() => undefined}
-        onDeletePath={() => undefined}
-        onExpandDirectory={() => undefined}
-        onFocusExplorer={() => undefined}
-        onOpenFile={() => undefined}
-        onOpenTag={() => undefined}
-        onOpenTerminalSession={() => undefined}
-        onRenamePath={() => undefined}
-        onSearchQueryChange={() => undefined}
-        onSearchSubmit={() => undefined}
-        onToggleCollapsed={() => undefined}
-        resolvedAppearance="dark"
-        searchActive
-        searchMessage={null}
-        searchQuery="idea"
-        searchResultMode="filename"
-        searchResultQuery="idea"
-        searchResults={{ notes: [{ filePath: "/notes/idea.md", title: "Idea", snippet: "Match", kind: "note" }], projectFiles: [], tags: [] }}
-      />,
+      <SidebarSearchPane query="idea" resultMode="filename" resultQuery="idea" message={null} results={{ notes: [{ filePath: "/notes/idea.md", title: "Idea", snippet: "Match", kind: "note" }], projectFiles: [], tags: [] }} onOpenFile={() => undefined} onOpenAttachedFile={() => undefined} />,
     );
 
     expect(markup).toContain('data-testid="sidebar-search-pane"');
     expect(markup).toContain("Idea");
-    expect(markup).not.toContain('data-explorer-drop-path="/notes"');
-    expect(markup).not.toContain('data-testid="sidebar-search-input"');
   });
 });

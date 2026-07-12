@@ -10,7 +10,8 @@ test("uses one full-width preview surface in the utility pane", async () => {
   const { page, cleanup } = await launchExoWorkspaceFixture();
 
   try {
-    await page.getByTestId("explorer-open-preview").click();
+    await page.getByTestId("utility-pane-toggle").click();
+    await page.getByTestId("utility-pane-preview").click();
     await page.getByTestId("browser-url-input").fill("localhost:4321");
     await page.getByTestId("browser-load-url").click();
     await expect(page.getByTestId("browser-preview-frame")).toHaveAttribute("src", "http://localhost:4321/");

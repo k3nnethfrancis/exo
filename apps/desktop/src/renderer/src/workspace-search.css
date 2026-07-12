@@ -5,7 +5,7 @@
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 7px;
-  width: min(34rem, 42vw);
+  width: min(27rem, 36vw);
   height: 28px;
   padding: 0 8px;
   border: 1px solid color-mix(in srgb, var(--divider) 84%, transparent);
@@ -13,6 +13,37 @@
   background: color-mix(in srgb, var(--surface-2) 70%, transparent);
   color: var(--muted);
   transition: background-color 140ms cubic-bezier(0.23, 1, 0.32, 1), border-color 140ms cubic-bezier(0.23, 1, 0.32, 1), box-shadow 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.workspace-search-anchor {
+  position: relative;
+  justify-self: center;
+  -webkit-app-region: no-drag;
+}
+
+.workspace-search-popover {
+  position: absolute;
+  top: 34px;
+  left: 50%;
+  z-index: 80;
+  width: min(34rem, 56vw);
+  max-height: min(34rem, calc(100vh - 72px));
+  overflow: hidden;
+  transform: translateX(-50%);
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--panel-strong) 96%, transparent);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(18px) saturate(1.15);
+}
+
+.workspace-search-popover .sidebar-search {
+  max-height: min(34rem, calc(100vh - 72px));
+  padding: 10px;
+}
+
+.workspace-search-popover .sidebar-search__results {
+  max-height: min(29rem, calc(100vh - 126px));
 }
 
 .sidebar-search {
@@ -83,7 +114,7 @@
 
 @media (max-width: 760px) {
   .workspace-search-field {
-    width: min(18rem, 34vw);
+    width: min(17rem, 32vw);
   }
 }
 
