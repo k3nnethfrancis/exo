@@ -28,26 +28,15 @@ export interface EditorPaneContent {
   activePath: string | null;
 }
 
-export interface TerminalPaneContent {
-  kind: "terminal";
-  terminalIds: string[];
-  activeTerminalId: string | null;
-}
-
-export interface BrowserPaneContent {
-  kind: "browser";
-  url: string;
-}
-
-export type PaneContent = EditorPaneContent | TerminalPaneContent | BrowserPaneContent;
+/** The editor canvas deliberately owns only note editors. */
+export type PaneContent = EditorPaneContent;
 
 /** The only layout shape written by the current canvas. */
 export interface WorkspaceCanvasLayout {
-  version: 1;
+  version: 2;
   canvas: PaneNode;
   sidebarCollapsed: boolean;
   sidebarWidth: number;
-  inspectorCollapsed: boolean;
 }
 
 export type DropEdge = "top" | "bottom" | "left" | "right" | "center";
@@ -128,63 +117,11 @@ export function findEditorLeaf(tree: PaneNode): PaneLeaf | undefined {
   return findNode(tree, (n) => n.kind === "leaf" && n.content.kind === "editor") as PaneLeaf | undefined;
 }
 
-export function openOrUpdateBrowserPane(tree: PaneNode, targetLeafId: PaneNodeId | null, url: string): { tree: PaneNode; focusLeafId: PaneNodeId } {
-  const browserLeaf = collectLeaves(tree).find((leaf) => leaf.content.kind === "browser");
-  if (browserLeaf) {
-    return {
-      tree: updateNode(tree, browserLeaf.id, (node) => {
-        if (node.kind !== "leaf" || node.content.kind !== "browser") {
-          return node;
-        }
-        return { ...node, content: { ...node.content, url } };
-      }),
-      focusLeafId: browserLeaf.id,
-    };
-  }
-
-  const focusedLeaf = targetLeafId
-    ? findNode(tree, (node) => node.id === targetLeafId && node.kind === "leaf") as PaneLeaf | undefined
-    : undefined;
-  const targetLeaf = focusedLeaf ?? collectLeaves(tree)[0];
-  const newLeafId = paneId();
-  const browserContent: BrowserPaneContent = { kind: "browser", url };
-  return {
-    tree: updateNode(tree, targetLeaf.id, (node) => ({
-      kind: "split",
-      id: paneId(),
-      direction: "horizontal",
-      ratio: 0.58,
-      children: [
-        node as PaneLeaf,
-        { kind: "leaf", id: newLeafId, content: browserContent },
-      ],
-    })),
-    focusLeafId: newLeafId,
-  };
-}
-
-/** Find the first terminal leaf. */
-export function findTerminalLeaf(tree: PaneNode): PaneLeaf | undefined {
-  return findNode(tree, (n) => n.kind === "leaf" && n.content.kind === "terminal") as PaneLeaf | undefined;
-}
-
-/** Find the leaf containing a specific terminal session ID. */
-export function findTerminalLeafBySessionId(tree: PaneNode, sessionId: string): PaneLeaf | undefined {
-  return findNode(tree, (n) =>
-    n.kind === "leaf" && n.content.kind === "terminal" && n.content.terminalIds.includes(sessionId),
-  ) as PaneLeaf | undefined;
-}
-
 /** Find the leaf containing a specific file path. */
 export function findEditorLeafByPath(tree: PaneNode, filePath: string): PaneLeaf | undefined {
   return findNode(tree, (n) =>
     n.kind === "leaf" && n.content.kind === "editor" && n.content.openPaths.includes(filePath),
   ) as PaneLeaf | undefined;
-}
-
-/** Count leaves of a specific content kind. */
-export function countLeaves(tree: PaneNode, kind: PaneContent["kind"]): number {
-  return collectLeaves(tree).filter((l) => l.content.kind === kind).length;
 }
 
 /** Map over all leaves, returning a new tree. */
@@ -217,15 +154,47 @@ export function pruneEmptyLeaves(tree: PaneNode, isEmpty: (leaf: PaneLeaf) => bo
  * result is the only tree the canvas needs at runtime; the old zone/monitor
  * arrangement intentionally has no behavioral preservation.
  */
-export function decodeWorkspaceCanvasLayout(editorTree: PaneNode | undefined, terminalTree: PaneNode | undefined): PaneNode {
-  const editor = editorTree ?? { kind: "leaf", id: paneId(), content: { kind: "editor", openPaths: [], activePath: null } } satisfies PaneLeaf;
-  if (!terminalTree || !collectLeaves(terminalTree).some((leaf) => leaf.content.kind === "terminal" || leaf.content.kind === "browser")) {
-    return editor;
+export function decodeWorkspaceCanvasLayout(candidate: unknown): PaneNode {
+  return editorOnlyCanvas(candidate) ?? emptyEditorCanvas();
+}
+
+/**
+ * Legacy layouts may contain terminal/browser leaves. The canvas no longer
+ * owns those surfaces, so restore only valid editor leaves and collapse the
+ * resulting split tree rather than preserving a second rendering home.
+ */
+export function editorOnlyCanvas(candidate: unknown): PaneNode | null {
+  if (!candidate || typeof candidate !== "object") return null;
+  const node = candidate as { kind?: unknown; id?: unknown; content?: unknown; direction?: unknown; ratio?: unknown; children?: unknown };
+  if (node.kind === "leaf") {
+    const content = node.content as Partial<EditorPaneContent> | undefined;
+    if (content?.kind !== "editor") return null;
+    return {
+      kind: "leaf",
+      id: typeof node.id === "string" ? node.id : paneId(),
+      content: {
+        kind: "editor",
+        openPaths: Array.isArray(content.openPaths) ? content.openPaths.filter((path): path is string => typeof path === "string") : [],
+        activePath: typeof content.activePath === "string" ? content.activePath : null,
+      },
+    };
   }
-  if (!collectLeaves(editor).some((leaf) => leaf.content.kind === "editor")) {
-    return terminalTree;
-  }
-  return { kind: "split", id: paneId(), direction: "horizontal", ratio: 0.62, children: [editor, terminalTree] };
+  if (node.kind !== "split" || !Array.isArray(node.children) || node.children.length !== 2) return null;
+  const left = editorOnlyCanvas(node.children[0]);
+  const right = editorOnlyCanvas(node.children[1]);
+  if (!left) return right;
+  if (!right) return left;
+  return {
+    kind: "split",
+    id: typeof node.id === "string" ? node.id : paneId(),
+    direction: node.direction === "vertical" ? "vertical" : "horizontal",
+    ratio: typeof node.ratio === "number" && node.ratio > 0 && node.ratio < 1 ? node.ratio : 0.5,
+    children: [left, right],
+  };
+}
+
+function emptyEditorCanvas(): PaneLeaf {
+  return { kind: "leaf", id: paneId(), content: { kind: "editor", openPaths: [], activePath: null } };
 }
 
 // ---------------------------------------------------------------------------
@@ -257,10 +226,9 @@ function setResizeShield(active: boolean) {
 }
 
 export interface PaneTreeActions {
-  splitLeaf: (leafId: PaneNodeId, direction: "horizontal" | "vertical", newContent: PaneContent, position: "before" | "after") => PaneLeaf;
+  splitLeaf: (leafId: PaneNodeId, direction: "horizontal" | "vertical", newContent: EditorPaneContent, position: "before" | "after") => PaneLeaf;
   removeLeaf: (leafId: PaneNodeId) => void;
-  updateLeafContent: (leafId: PaneNodeId, updater: (content: PaneContent) => PaneContent) => void;
-  openBrowserPane: (targetLeafId: PaneNodeId | null, url: string) => void;
+  updateLeafContent: (leafId: PaneNodeId, updater: (content: EditorPaneContent) => EditorPaneContent) => void;
   startResize: (splitId: PaneNodeId, axis: "horizontal" | "vertical", clientPos: number, containerSize: number) => void;
   focusLeaf: (leafId: PaneNodeId) => void;
   setTree: (treeOrUpdater: PaneNode | ((prev: PaneNode) => PaneNode)) => void;
@@ -351,14 +319,6 @@ export function usePaneTree(initialTree: PaneNode) {
           return { ...node, content: updater(node.content) };
         }),
       );
-    },
-
-    openBrowserPane(targetLeafId, url) {
-      setTree((prev) => {
-        const result = openOrUpdateBrowserPane(prev, targetLeafId, url);
-        setFocusedLeafId(result.focusLeafId);
-        return result.tree;
-      });
     },
 
     startResize(splitId, axis, clientPos, containerSize) {

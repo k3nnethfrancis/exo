@@ -11,6 +11,9 @@ export interface WorkspaceBreadcrumbSegment {
 export function workspaceBreadcrumb(filePath: string, noteRoots: readonly string[]): WorkspaceBreadcrumbSegment[] {
   const normalizedFilePath = normalizePath(filePath);
   const root = noteRoots.map(normalizePath).find((candidate) => normalizedFilePath === candidate || normalizedFilePath.startsWith(`${candidate}/`));
+  if (!root) {
+    return [{ kind: "file", label: displayFileName(normalizedFilePath), path: filePath }];
+  }
   const relativePath = root ? normalizedFilePath.slice(root.length).replace(/^\/+/, "") : normalizedFilePath;
   const parts = relativePath.split("/").filter(Boolean);
 
@@ -20,9 +23,7 @@ export function workspaceBreadcrumb(filePath: string, noteRoots: readonly string
 
   return parts.map((part, index) => {
     const isFile = index === parts.length - 1;
-    const segmentPath = root
-      ? [root, ...parts.slice(0, index + 1)].join("/")
-      : parts.slice(0, index + 1).join("/");
+    const segmentPath = [root, ...parts.slice(0, index + 1)].join("/");
     return {
       kind: isFile ? "file" : "folder",
       label: isFile ? displayFileName(part) : part,

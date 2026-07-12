@@ -29,7 +29,6 @@ import {
   normalizeWorkspaceSettings,
   saveWorkspaceSettings,
 } from "@exo/core";
-import { BrowserPane } from "./components/BrowserPane";
 
 class WorkspaceSettingsStore {
   constructor(private readonly options: { userDataPath: string; env?: NodeJS.ProcessEnv }) {}
@@ -87,7 +86,6 @@ import {
   shouldBufferTerminalDataForHydration,
   shouldSkipTerminalHydration,
 } from "./hooks/useTerminalSessions";
-import type { DragManager } from "./hooks/useDragManager";
 import { defaultTerminalCwdForNotesFolder } from "./hooks/useWorkspaceBootstrap";
 import { isTerminalInputEnabled, summarizeTerminalStatusLine, terminalSessionsEqual } from "./terminalSessions";
 import { applyTheme } from "./theme/applyTheme";
@@ -102,8 +100,6 @@ import {
   workspaceSettingsStructuralDraftKey,
   workspaceSettingsStructuralKeyFromSettings,
 } from "./workspaceSettingsModel";
-import { collectLeaves, openOrUpdateBrowserPane, type PaneNode } from "./hooks/usePaneTree";
-import { collectTerminalSessionIds } from "./paneTreeSelectors";
 import { isNewTerminalShortcut } from "./hooks/useAppKeybindings";
 import {
   buildNoteGraphContext,
@@ -265,203 +261,6 @@ describe("workspace settings footer copy", () => {
     expect(html).not.toContain("Press Apply");
   });
 });
-
-describe("browser preview panes", () => {
-  const dragManager: DragManager = {
-    drag: null,
-    dragActive: false,
-    hoverEdge: null,
-    startDrag: vi.fn(),
-  };
-
-  it("creates a browser pane when none exists", () => {
-    const tree: PaneNode = {
-      kind: "leaf",
-      id: "editor-1",
-      content: { kind: "editor", openPaths: ["/workspace/readme.md"], activePath: "/workspace/readme.md" },
-    };
-
-    const result = openOrUpdateBrowserPane(tree, "editor-1", "file:///workspace/a.html");
-    const leaves = collectLeaves(result.tree);
-
-    expect(leaves).toHaveLength(2);
-    expect(leaves.find((leaf) => leaf.content.kind === "browser")?.content).toMatchObject({
-      kind: "browser",
-      url: "file:///workspace/a.html",
-    });
-    expect(result.focusLeafId).toBe(leaves.find((leaf) => leaf.content.kind === "browser")?.id);
-  });
-
-  it("updates and focuses the existing browser pane instead of creating another one", () => {
-    const tree: PaneNode = {
-      kind: "split",
-      id: "split-1",
-      direction: "horizontal",
-      ratio: 0.58,
-      children: [
-        {
-          kind: "leaf",
-          id: "editor-1",
-          content: { kind: "editor", openPaths: ["/workspace/readme.md"], activePath: "/workspace/readme.md" },
-        },
-        {
-          kind: "leaf",
-          id: "browser-1",
-          content: { kind: "browser", url: "file:///workspace/a.html" },
-        },
-      ],
-    };
-
-    const result = openOrUpdateBrowserPane(tree, "editor-1", "file:///workspace/b.html");
-    const leaves = collectLeaves(result.tree);
-    const browserLeaves = leaves.filter((leaf) => leaf.content.kind === "browser");
-
-    expect(browserLeaves).toHaveLength(1);
-    expect(browserLeaves[0]).toMatchObject({
-      id: "browser-1",
-      content: { kind: "browser", url: "file:///workspace/b.html" },
-    });
-    expect(result.focusLeafId).toBe("browser-1");
-  });
-
-  it("renders preview iframes with sandbox and no-referrer policy", () => {
-    const html = renderToStaticMarkup(
-      <BrowserPane
-        compact={false}
-        dragManager={dragManager}
-        onClosePane={null}
-        onFocus={() => {}}
-        onNavigate={async (target) => target}
-        paneId="browser-1"
-        url="http://localhost:5173/report.html"
-      />,
-    );
-
-    expect(html).toContain("sandbox=\"allow-forms allow-scripts\"");
-    expect(html).toContain("referrerPolicy=\"no-referrer\"");
-  });
-
-});
-
-/* Legacy monitor-layout coverage was deleted with the second terminal topology.
-describe("terminal monitor layout", () => {
-  it("builds one readable terminal leaf per session in monitor mode", () => {
-    const tree = buildTerminalMonitorTree(["term-a", "term-b", "term-c"], "term-b");
-    const leaves = collectLeaves(tree);
-
-    expect(leaves).toHaveLength(3);
-    expect(leaves.every((leaf) => leaf.content.kind === "terminal")).toBe(true);
-    expect(leaves.map((leaf) => leaf.content.kind === "terminal" ? leaf.content.terminalIds : [])).toEqual([
-      ["term-a"],
-      ["term-b"],
-      ["term-c"],
-    ]);
-    expect(collectTerminalSessionIds(tree)).toEqual(new Set(["term-a", "term-b", "term-c"]));
-  });
-
-  it("derives stable monitor leaf identity from terminal session ids", () => {
-    const firstTree = buildTerminalMonitorTree(["term-a", "term-b", "term-c"], "term-b");
-    const secondTree = buildTerminalMonitorTree(["term-a", "term-b", "term-c"], "term-b");
-
-    expect(collectLeaves(firstTree).map((leaf) => leaf.id)).toEqual([
-      "terminal-session:term-a",
-      "terminal-session:term-b",
-      "terminal-session:term-c",
-    ]);
-    expect(collectLeaves(secondTree).map((leaf) => leaf.id)).toEqual(
-      collectLeaves(firstTree).map((leaf) => leaf.id),
-    );
-  });
-
-  it("collapses monitor sessions back to a normal tab group", () => {
-    const tree = buildTerminalTabsTree(["term-a", "term-b", "term-c"], "term-b");
-    const leaves = collectLeaves(tree);
-
-    expect(leaves).toHaveLength(1);
-    expect(leaves[0].content).toEqual({
-      kind: "terminal",
-      terminalIds: ["term-a", "term-b", "term-c"],
-      activeTerminalId: "term-b",
-    });
-  });
-
-  it("restores the pre-monitor terminal layout while preserving existing session placement", () => {
-    const preMonitorTree: PaneNode = {
-      kind: "split",
-      id: "manual-split",
-      direction: "horizontal",
-      ratio: 0.35,
-      children: [
-        {
-          kind: "leaf",
-          id: "manual-left",
-          content: {
-            kind: "terminal",
-            terminalIds: ["term-a", "term-b"],
-            activeTerminalId: "term-b",
-          },
-        },
-        {
-          kind: "leaf",
-          id: "manual-right",
-          content: {
-            kind: "terminal",
-            terminalIds: ["term-c"],
-            activeTerminalId: "term-c",
-          },
-        },
-      ],
-    };
-
-    const monitorTree = buildTerminalMonitorTree(["term-a", "term-b", "term-c"], "term-c");
-    expect(collectLeaves(monitorTree).map((leaf) => leaf.id)).toEqual([
-      "terminal-session:term-a",
-      "terminal-session:term-b",
-      "terminal-session:term-c",
-    ]);
-
-    const restored = restoreTerminalTreeSnapshot(preMonitorTree, ["term-a", "term-c", "term-d"], "term-c");
-    const restoredLeaves = collectLeaves(restored);
-
-    expect(restored.id).toBe("manual-split");
-    expect(restoredLeaves.map((leaf) => leaf.id)).toEqual(["manual-left", "manual-right"]);
-    expect(restoredLeaves.map((leaf) => leaf.content.kind === "terminal" ? leaf.content.terminalIds : [])).toEqual([
-      ["term-a", "term-d"],
-      ["term-c"],
-    ]);
-    expect(restoredLeaves.map((leaf) => leaf.content.kind === "terminal" ? leaf.content.activeTerminalId : null)).toEqual([
-      "term-d",
-      "term-c",
-    ]);
-  });
-
-  it("adds new monitor terminals as split leaves instead of hidden tabs", () => {
-    const start = buildTerminalMonitorTree(["term-a"], "term-a");
-    const result = addTerminalSessionAsSplit(start, "term-b");
-    const leaves = collectLeaves(result.tree);
-
-    expect(result.leafId).toBe(leaves.find((leaf) =>
-      leaf.content.kind === "terminal" && leaf.content.terminalIds.includes("term-b"),
-    )?.id);
-    expect(leaves.map((leaf) => leaf.content.kind === "terminal" ? leaf.content.terminalIds : [])).toEqual([
-      ["term-a"],
-      ["term-b"],
-    ]);
-  });
-
-  it("fills an empty monitor leaf with the first terminal instead of creating an empty split", () => {
-    const start = buildTerminalTabsTree([], null);
-    const result = addTerminalSessionAsSplit(start, "term-a");
-    const leaves = collectLeaves(result.tree);
-
-    expect(leaves).toHaveLength(1);
-    expect(leaves[0].content).toEqual({
-      kind: "terminal",
-      terminalIds: ["term-a"],
-      activeTerminalId: "term-a",
-    });
-  });
-}); */
 
 function indexStatusFixture(overrides: Partial<IndexStatus> = {}): IndexStatus {
   return {

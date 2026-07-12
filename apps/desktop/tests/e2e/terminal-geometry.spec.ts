@@ -47,7 +47,8 @@ async function launchWideTerminal() {
   });
   await fixture.page.reload();
   await expect(fixture.page.getByTestId("sidebar")).toBeVisible();
-  await fixture.page.getByTestId("side-panel-toggle").click();
+  await fixture.page.getByTestId("utility-pane-toggle").click();
+  await fixture.page.getByTestId("utility-pane-terminal").click();
   await expect(fixture.page.getByTestId("terminal-surface")).toBeVisible();
   if (await fixture.page.getByTestId("sidebar-collapse").isVisible()) {
     await fixture.page.getByTestId("sidebar-collapse").click();

@@ -25,4 +25,10 @@ describe("workspaceBreadcrumb", () => {
       "/vault/research/research/note.md",
     ]);
   });
+
+  it("does not invent clickable folder paths outside Note Roots", () => {
+    expect(workspaceBreadcrumb("/attached/reference/readme.md", ["/vault"])).toEqual([
+      { kind: "file", label: "readme", path: "/attached/reference/readme.md" },
+    ]);
+  });
 });

@@ -2,9 +2,30 @@
 
 ## Unreleased
 
-Plugin architecture, tmux terminal persistence/readiness, packaged onboarding hardening, agent configuration/skills, profile/proposal workflows, and MCP transport compatibility.
+Note-native workspace simplification: a filesystem-first Markdown editor with titlebar search, Folder Indexes, one utility destination, and configured Commands.
 
 ### Added
+
+- Adds one shared right-side utility destination with mutually exclusive Preview, Terminal, and Connections views.
+- Adds centered workspace search with an anchored result popover, typed titlebar breadcrumbs, and explicit Folder Index creation/maintenance.
+- Adds a version-two editor-only layout format. Legacy layouts are safely reduced to editor leaves on restore.
+
+### Changed
+
+- Makes Preview and Terminal independent utility surfaces with their own tabs; neither may become an editor split pane.
+- Makes folder creation create a minimal `index.md`, while imported folders remain read-only until the user explicitly creates an index.
+- Moves workspace Settings to the lower workspace menu and tightens Explorer/titlebar chrome.
+
+### Removed
+
+- Removes terminal and browser leaves, terminal pane placement, browser pane placement, and monitor-mode layout restoration from the editor canvas.
+- Removes the duplicate Explorer search surface and dead Preview control.
+
+### Superseded pre-refactor draft material
+
+The following historical draft was written before the note-native simplification. It is retained temporarily for audit context only; it does not describe the current product or release scope.
+
+### Historical additions
 
 - Adds metadata-only plugin manifests in `@exo/core`: `exo.plugin.json` discovery, strict validation, plugin source/trust metadata, duplicate-safe plugin/capability registration, and tests.
 - Adds internal plugin seams for built-in QMD search providers and shell/Claude/Codex agent harnesses, while preserving existing desktop, CLI, MCP, and command-server behavior.

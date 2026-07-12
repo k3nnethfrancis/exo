@@ -138,24 +138,20 @@ test("shows a visible BrowserWindow on startup", async () => {
   await cleanup();
 });
 
-test("opens a browser preview pane in the workspace", async () => {
+test("opens a browser preview in the utility destination", async () => {
   const { page, cleanup } = await launchExoWorkspaceFixture();
 
-  await expect(page.locator('[data-testid="terminal-rail"] [data-testid="launch-browser"]')).toHaveCount(0);
-  await expect(page.locator('.sidebar__rail [data-testid="launch-browser"]')).toHaveCount(0);
-  await expect(page.getByTestId("exo-side-panel")).not.toBeVisible();
-  await page.getByTestId("side-panel-toggle").click();
-  await expect(page.getByTestId("exo-side-panel")).toBeVisible();
-  await page.getByTestId("side-panel-browser-rail").click();
+  await page.getByTestId("utility-pane-toggle").click();
+  await page.getByTestId("utility-pane-preview").click();
+  await expect(page.getByTestId("preview-empty-state")).toBeVisible();
+  await page.getByRole("button", { name: "New preview" }).click();
   await expect(page.getByTestId("browser-pane")).toBeVisible();
-  await expect(page.getByTestId("browser-url-input")).toHaveValue("about:blank");
-  await expect(page.getByText("Enter a local or localhost URL to preview.")).toBeVisible();
 
   await page.getByTestId("browser-url-input").fill("localhost:4321");
   await page.getByTestId("browser-load-url").click();
   await expect(page.getByTestId("browser-url-input")).toHaveValue("http://localhost:4321/");
   await expect(page.getByTestId("browser-preview-frame")).toHaveAttribute("src", "http://localhost:4321/");
-  await expect(page.locator(".pane-leaf--browser")).toBeVisible();
+  await expect(page.locator(".workspace-shell__canvas .pane-leaf--browser")).toHaveCount(0);
 
   await cleanup();
 });
@@ -203,8 +199,6 @@ test("handles global save and daily-note keybindings", async () => {
   const focusNotePath = path.join(workspaceRoot, "notes/test-notes/focus-note.md");
   const now = new Date();
   const dailyName = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-
-  await expect(page.locator(".workspace-shell__canvas .pane-leaf--terminal")).toBeVisible();
 
   await page.evaluate(() => {
     const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
@@ -519,8 +513,8 @@ test("keeps terminal interactive after large output, tab switches, and semantic 
     }, shellId);
     await expect.poll(async () => page.evaluate((id) => window.exo.terminals.read(id), shellId)).toContain("qa-line-1499");
 
-    await page.getByTestId("side-panel-terminal-rail").click();
-    await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(2);
+    await page.getByTestId("utility-pane-terminal").click();
+    await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(1);
     await page.getByTestId("terminal-tab-shell").first().click();
     await expect(page.getByTestId("terminal-surface")).toContainText("qa-line-1499");
     await page.getByTestId("terminal-tab-shell").last().click();
@@ -547,7 +541,7 @@ test("removes the last terminal session without hiding the workspace", async () 
   await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(0);
   await expect(page.getByTestId("terminal-surface")).toHaveCount(0);
   await expect(page.locator(".pane-leaf--editor")).toBeVisible();
-  await expect(page.getByTestId("side-panel-toggle")).toBeVisible();
+  await expect(page.getByTestId("utility-pane-toggle")).toBeVisible();
 
   await cleanup();
 });
@@ -576,8 +570,8 @@ test("replays bounded terminal history after renderer reload before input", asyn
 
     await page.reload();
     await expect(page.getByTestId("sidebar")).toBeVisible();
-    await page.getByTestId("side-panel-toggle").click();
-    await expect(page.getByTestId("side-panel-terminal-rail")).toBeVisible();
+    await page.getByTestId("utility-pane-toggle").click();
+    await page.getByTestId("utility-pane-terminal").click();
     await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(1);
     await expect.poll(async () => page.evaluate((id) => window.exo.terminals.read(id), shell.id)).toContain(
       `persist:${beforeReloadMarker}`,
@@ -875,8 +869,8 @@ test("opens an existing notes folder from first-run setup", async () => {
   await page.getByTestId("onboarding-continue").click();
   await expect(page.getByTestId("sidebar")).toBeVisible();
   await expect(page.getByTestId("editor-panel")).toBeVisible();
-  await page.getByTestId("side-panel-toggle").click();
-  await expect(page.getByTestId("side-panel-terminal-rail")).toBeVisible();
+  await page.getByTestId("utility-pane-toggle").click();
+  await expect(page.getByTestId("utility-pane-terminal")).toBeVisible();
   await expect.poll(async () => page.evaluate(() => window.exo.workspace.getSetupState()))
     .toMatchObject({
       complete: true,
@@ -916,14 +910,14 @@ test("collapses and reopens the workspace explorer", async () => {
   await cleanup();
 });
 
-test("shows the editor beside the right-side terminal surface", async () => {
+test("shows the editor beside the right-side terminal destination", async () => {
   const { page, cleanup } = await launchExoTerminalFixture();
 
   await expect(page.locator(".pane-leaf--editor")).toBeVisible();
-  await expect(page.locator(".exo-side-panel-surface .pane-leaf--terminal")).toBeVisible();
-  await expect(page.locator(".workspace__body > .pane-split-resizer")).toHaveCount(0);
+  await expect(page.getByTestId("utility-pane").getByTestId("terminal-dock")).toBeVisible();
+  await expect(page.locator(".workspace-shell__canvas .pane-leaf--terminal")).toHaveCount(0);
   await expect(page.getByTestId("terminal-tab-shell")).toBeVisible();
-  await expect(page.getByTestId("side-panel-terminal-rail")).toBeVisible();
+  await expect(page.getByTestId("utility-pane-terminal")).toBeVisible();
 
   await cleanup();
 });

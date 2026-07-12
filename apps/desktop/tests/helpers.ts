@@ -161,7 +161,10 @@ async function launchExoFixtureForJourney(
   await expect(page.getByTestId("sidebar")).toBeVisible();
   await expect(page.getByTestId("editor-panel")).toBeVisible();
   if (openTerminalSurface) {
+    await page.getByTestId("utility-pane-toggle").click();
+    await page.getByTestId("utility-pane-terminal").click();
     await expect(page.getByTestId("terminal-dock").first()).toBeVisible();
+    await page.getByTestId("new-terminal").click();
     await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(1);
   }
   if (options?.initialNoteLabel !== null) {
@@ -260,9 +263,10 @@ async function relaunchExoFixtureForJourney(
   await expect(page.getByTestId("sidebar")).toBeVisible();
   await expect(page.getByTestId("editor-panel")).toBeVisible();
   if (openTerminalSurface) {
-    await page.getByTestId("side-panel-toggle").click();
-    await expect(page.getByTestId("exo-side-panel")).toBeVisible();
+    await page.getByTestId("utility-pane-toggle").click();
+    await page.getByTestId("utility-pane-terminal").click();
     await expect(page.getByTestId("terminal-dock").first()).toBeVisible();
+    await page.getByTestId("new-terminal").click();
     await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(1);
   }
 

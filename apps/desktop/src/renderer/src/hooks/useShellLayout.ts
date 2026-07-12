@@ -22,7 +22,6 @@ export function useShellLayout() {
   const workspaceRef = useRef<HTMLDivElement | null>(null);
   const workspaceBodyRef = useRef<HTMLDivElement | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [inspectorCollapsed, setInspectorCollapsed] = useState(true);
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
   const sidebarResizeRef = useRef<{ startX: number; startWidth: number; inverted: boolean } | null>(null);
   const canvasPaneTree = usePaneTree(CANVAS_DEFAULT);
@@ -55,7 +54,6 @@ export function useShellLayout() {
     canvasPaneTree.actions.setTree(restored.canvas);
     setSidebarCollapsed(restored.sidebarCollapsed);
     setSidebarWidth(restored.sidebarWidth);
-    setInspectorCollapsed(restored.inspectorCollapsed);
   }, [canvasPaneTree.actions]);
 
   return {
@@ -63,8 +61,6 @@ export function useShellLayout() {
     workspaceBodyRef,
     sidebarCollapsed,
     setSidebarCollapsed,
-    inspectorCollapsed,
-    setInspectorCollapsed,
     sidebarWidth,
     setSidebarWidth,
     startSidebarResize,

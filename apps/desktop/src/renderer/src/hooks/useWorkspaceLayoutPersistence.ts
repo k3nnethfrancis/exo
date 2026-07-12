@@ -7,7 +7,6 @@ interface UseWorkspaceLayoutPersistenceOptions {
   canvas: PaneNode;
   sidebarCollapsed: boolean;
   sidebarWidth: number;
-  inspectorCollapsed: boolean;
   layoutPersistenceReady: boolean;
   onboardingActive: boolean;
   workspaceModel: WorkspaceModel | null;
@@ -37,7 +36,6 @@ export function useWorkspaceLayoutPersistence(options: UseWorkspaceLayoutPersist
     options.canvas,
     options.sidebarCollapsed,
     options.sidebarWidth,
-    options.inspectorCollapsed,
     options.layoutPersistenceReady,
     options.onboardingActive,
     options.workspaceModel,
@@ -46,36 +44,25 @@ export function useWorkspaceLayoutPersistence(options: UseWorkspaceLayoutPersist
   ]);
 }
 
-export function createWorkspaceCanvasSnapshot(input: Pick<UseWorkspaceLayoutPersistenceOptions, "canvas" | "sidebarCollapsed" | "sidebarWidth" | "inspectorCollapsed">): WorkspaceCanvasLayout {
+export function createWorkspaceCanvasSnapshot(input: Pick<UseWorkspaceLayoutPersistenceOptions, "canvas" | "sidebarCollapsed" | "sidebarWidth">): WorkspaceCanvasLayout {
   return {
-    version: 1,
+    version: 2,
     canvas: input.canvas,
     sidebarCollapsed: input.sidebarCollapsed,
     sidebarWidth: Math.round(input.sidebarWidth),
-    inspectorCollapsed: input.inspectorCollapsed,
   };
 }
 
-/** Restore canonical canvas when present; decode the legacy two-zone shape only once at this boundary. */
+/** Restore a safe editor-only canvas from current or legacy persisted layout. */
 export function decodePersistedWorkspaceCanvas(layout: unknown): WorkspaceCanvasLayout | null {
   if (!layout || typeof layout !== "object") return null;
-  const candidate = layout as Partial<WorkspaceCanvasLayout> & { editorTree?: PaneNode; terminalTree?: PaneNode };
-  if (candidate.version === 1 && candidate.canvas) {
-    return {
-      version: 1,
-      canvas: candidate.canvas,
-      sidebarCollapsed: Boolean(candidate.sidebarCollapsed),
-      sidebarWidth: Number.isFinite(candidate.sidebarWidth) ? Math.round(candidate.sidebarWidth as number) : 175,
-      inspectorCollapsed: Boolean(candidate.inspectorCollapsed),
-    };
-  }
-  if (!candidate.editorTree && !candidate.terminalTree) return null;
+  const candidate = layout as { canvas?: unknown; editorTree?: unknown; terminalTree?: unknown; sidebarCollapsed?: unknown; sidebarWidth?: unknown };
+  const canvas = decodeWorkspaceCanvasLayout(candidate.canvas ?? candidate.editorTree ?? candidate.terminalTree);
   return {
-    version: 1,
-    canvas: decodeWorkspaceCanvasLayout(candidate.editorTree, candidate.terminalTree),
+    version: 2,
+    canvas,
     sidebarCollapsed: Boolean(candidate.sidebarCollapsed),
     sidebarWidth: Number.isFinite(candidate.sidebarWidth) ? Math.round(candidate.sidebarWidth as number) : 175,
-    inspectorCollapsed: Boolean(candidate.inspectorCollapsed),
   };
 }
 

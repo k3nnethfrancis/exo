@@ -1,7 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Globe2, Plus, RotateCw, X } from "lucide-react";
 
-import type { DragManager } from "../hooks/useDragManager";
 import { ChromeTab } from "./Chrome";
 
 interface BrowserPaneProps {
@@ -11,7 +10,6 @@ interface BrowserPaneProps {
   onFocus: () => void;
   onNavigate: (target: string) => Promise<string>;
   onClosePane: (() => void) | null;
-  dragManager: DragManager;
   tabs?: Array<{ id: string; url: string }>;
   activeTabId?: string | null;
   onSelectTab?: (id: string) => void;
@@ -20,7 +18,7 @@ interface BrowserPaneProps {
 }
 
 export function BrowserPane(props: BrowserPaneProps) {
-  const { paneId, url, compact, onFocus, onNavigate, onClosePane, dragManager } = props;
+  const { paneId, url, compact, onFocus, onNavigate, onClosePane } = props;
   const tabs = props.tabs?.length ? props.tabs : [{ id: paneId, url }];
   const [draftUrl, setDraftUrl] = useState(url);
   const [error, setError] = useState<string | null>(null);
@@ -56,12 +54,7 @@ export function BrowserPane(props: BrowserPaneProps) {
               className="browser-tab"
               key={tab.id}
               testId="browser-tab-preview"
-              dropPaneId={tab.id}
-              dropKind="browser"
               onClick={() => { props.onSelectTab?.(tab.id); focusPreviewPane(); }}
-              onMouseDown={(event) => {
-                dragManager.startDrag(event, { kind: "browser", url: tab.url, sourcePaneId: tab.id });
-              }}
               leading={<Globe2 size={13} />}
               closeLabel="Close preview pane"
               closeIcon={<X size={12} />}

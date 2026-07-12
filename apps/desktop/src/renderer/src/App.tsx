@@ -24,7 +24,6 @@ import { useAppKeybindings } from "./hooks/useAppKeybindings";
 import { useOpenDocuments } from "./hooks/useOpenDocuments";
 import { usePaneDropOrchestration } from "./hooks/usePaneDropOrchestration";
 import { useShellLayout } from "./hooks/useShellLayout";
-import { useTerminalPaneController } from "./hooks/useTerminalPaneController";
 import { useTerminalSessions } from "./hooks/useTerminalSessions";
 import { useWorkspaceBootstrap } from "./hooks/useWorkspaceBootstrap";
 import { useWorkspaceCommandHandlers } from "./hooks/useWorkspaceCommandHandlers";
@@ -37,12 +36,7 @@ import { applyTheme } from "./theme/applyTheme";
 import { DEFAULT_COLOR_THEME_ID, resolveTheme } from "./theme/registry";
 import type { ColorThemeId } from "./theme/types";
 import { collectLeaves, findEditorLeaf, findNode, mapLeaves, paneId, pruneEmptyLeaves, type PaneLeaf, type PaneNodeId } from "./hooks/usePaneTree";
-import {
-  collectActiveTerminalIds,
-  collectOpenEditorPaths,
-  findActiveEditorPath,
-  pruneEmptyTerminalLeaves,
-} from "./paneTreeSelectors";
+import { collectOpenEditorPaths, findActiveEditorPath } from "./paneTreeSelectors";
 import {
   clampNumber,
   DEFAULT_EDITOR_FONT_SIZE,
@@ -111,12 +105,6 @@ export function App() {
     hydrationVersions: terminalHydrationVersions,
     hydrationReasons: terminalHydrationReasons,
   } = terminalState;
-  const terminalPaneController = useTerminalPaneController({
-    canvasTree,
-    focusedPaneId,
-    canvasActions,
-    terminalState,
-  });
   const workspaceBootstrap = useWorkspaceBootstrap({
     noteTreeMaxDepth: NOTE_TREE_MAX_DEPTH,
     projectTreeMaxDepth: PROJECT_TREE_MAX_DEPTH,
@@ -187,7 +175,6 @@ export function App() {
   const dragManager = usePaneDropOrchestration({
     canvasTree,
     canvasActions,
-    setActiveTerminalId: terminalState.setActiveTerminalId,
     setActiveDocumentPath,
     ensureDocumentLoaded,
     moveWorkspacePathIntoDirectory: workspaceMutations.moveWorkspacePathIntoDirectory,
@@ -226,12 +213,8 @@ export function App() {
   }, [scheduleOpenDocumentRefresh]);
 
   useEffect(() => {
-    const activeTerminalIds = collectActiveTerminalIds(canvasTree);
-    if (activeTerminalId) {
-      activeTerminalIds.add(activeTerminalId);
-    }
-    terminalState.pruneHydration(activeTerminalIds);
-  }, [activeTerminalId, canvasTree]);
+    terminalState.pruneHydration(activeTerminalId ? new Set([activeTerminalId]) : new Set());
+  }, [activeTerminalId]);
   useEffect(() => {
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
 
@@ -259,7 +242,6 @@ export function App() {
     canvas: canvasTree,
     sidebarCollapsed: shellLayout.sidebarCollapsed,
     sidebarWidth: shellLayout.sidebarWidth,
-    inspectorCollapsed: shellLayout.inspectorCollapsed,
     layoutPersistenceReady,
     onboardingActive: Boolean(onboardingState),
     workspaceModel,
@@ -698,11 +680,7 @@ export function App() {
   }
 
   function focusBrowserPane() {
-    if (previewTabs.activeId) {
-      dispatchUtility({ type: "select", destination: "preview" });
-      return;
-    }
-    createBrowserPane();
+    dispatchUtility({ type: "select", destination: "preview" });
   }
 
   function closeBrowserPane() {
@@ -713,7 +691,6 @@ export function App() {
   function closeBrowserTab(id: string) {
     const next = closePreviewTab(previewTabs, id);
     setPreviewTabs(next);
-    if (next.tabs.length === 0) dispatchUtility({ type: "select", destination: "terminal" });
   }
 
   async function openOrCreateDailyNote() {
@@ -976,8 +953,15 @@ export function App() {
       onSelectTab={(id) => setPreviewTabs((current) => selectPreviewTab(current, id))}
       onCreateTab={() => createBrowserPane()}
       onCloseTab={closeBrowserTab}
-      dragManager={dragManager}
     />
+  ) : utilityState.destination === "preview" ? (
+    <section className="utility-preview-empty" data-testid="preview-empty-state">
+      <div>
+        <strong>Preview</strong>
+        <p>Open a local file or localhost URL when you want to inspect it.</p>
+      </div>
+      <button className="utility-preview-empty__action" onClick={() => createBrowserPane()} type="button">New preview</button>
+    </section>
   ) : utilityState.destination === "terminal" ? (
     <TerminalDock
       paneId="utility-terminal"
@@ -1001,7 +985,6 @@ export function App() {
       onGeometryMeasured={(id, cols, rows) => void window.exo.terminals.resize(id, cols, rows)}
       onKill={(id) => void terminalState.killTerminal(id)}
       onCreateTerminal={() => void createUtilityTerminal("shell")}
-      dragManager={dragManager}
     />
   ) : null;
 
@@ -1036,64 +1019,6 @@ export function App() {
       onOpenUtilityTerminal={openUtilityTerminal}
       revealExplorerPathRequest={revealExplorerPathRequest}
       renderLeaf={(leaf, isFocused) => {
-        if (leaf.content.kind === "browser") {
-          return (
-            <BrowserPane
-              paneId={leaf.id}
-              url={leaf.content.url}
-              compact={compactEditorChrome}
-              onFocus={() => {
-                canvasActions.focusLeaf(leaf.id);
-              }}
-              onNavigate={async (target) => {
-                const result = await window.exo.workspace.resolvePreviewTarget(target);
-                canvasActions.updateLeafContent(leaf.id, (content) =>
-                  content.kind === "browser" ? { ...content, url: result.url } : content,
-                );
-                return result.url;
-              }}
-              onClosePane={collectLeaves(canvasTree).length > 1 ? () => canvasActions.removeLeaf(leaf.id) : null}
-              dragManager={dragManager}
-            />
-          );
-        }
-        if (leaf.content.kind === "terminal") {
-          const terminalLeafSessions = terminalSessions.filter((s) => leaf.content.kind === "terminal" && leaf.content.terminalIds.includes(s.id));
-          const leafActiveTerminalId = resolveTerminalPaneActiveId(terminalLeafSessions, leaf.content.activeTerminalId, activeTerminalId);
-          return (
-            <TerminalDock
-              paneId={leaf.id}
-              compact={compactEditorChrome}
-              empty={terminalLeafSessions.length === 0}
-              focused={isFocused}
-              sessions={terminalLeafSessions}
-              activeTerminalId={leafActiveTerminalId}
-              hydrationSnapshots={terminalHydrationSnapshots}
-              hydrationVersions={terminalHydrationVersions}
-              hydrationReasons={terminalHydrationReasons}
-              hydratingTerminalIds={terminalState.hydratingTerminalIds}
-              theme={resolvedTheme}
-              fontSize={terminalFontSize}
-              scrollbackLines={terminalRuntimeScrollbackLines}
-              onFocus={() => {
-                canvasActions.focusLeaf(leaf.id);
-              }}
-              onHydrate={(id, options) => void terminalState.hydrateTerminal(id, options)}
-              onHydrated={(id) => terminalState.markTerminalHydrated(id)}
-              onSetActiveTerminal={(id) => {
-                canvasActions.updateLeafContent(leaf.id, (content) =>
-                  content.kind === "terminal" ? { ...content, activeTerminalId: id } : content,
-                );
-                void terminalState.activateTerminal(id);
-              }}
-              onWrite={(id, data) => void window.exo.terminals.write(id, data)}
-              onGeometryMeasured={(id, cols, rows) => void window.exo.terminals.resize(id, cols, rows)}
-              onKill={(id) => void terminalPaneController.closeTerminal(id)}
-              onCreateTerminal={() => void createUtilityTerminal("shell")}
-              dragManager={dragManager}
-            />
-          );
-        }
         const pane: EditorPaneState = {
           id: leaf.id,
           openPaths: leaf.content.openPaths,
@@ -1245,20 +1170,6 @@ export function App() {
       ) : null}
     </>
   );
-}
-
-function resolveTerminalPaneActiveId(
-  sessions: TerminalSessionInfo[],
-  paneActiveTerminalId: string | null,
-  globalActiveTerminalId: string | null,
-): string | null {
-  if (globalActiveTerminalId && sessions.some((session) => session.id === globalActiveTerminalId)) {
-    return globalActiveTerminalId;
-  }
-  if (paneActiveTerminalId && sessions.some((session) => session.id === paneActiveTerminalId)) {
-    return paneActiveTerminalId;
-  }
-  return sessions.at(-1)?.id ?? null;
 }
 
 function uniqueMessages(messages: string[]): string[] {

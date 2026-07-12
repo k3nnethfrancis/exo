@@ -12,6 +12,7 @@ test("uses one full-width preview surface in the utility pane", async () => {
   try {
     await page.getByTestId("utility-pane-toggle").click();
     await page.getByTestId("utility-pane-preview").click();
+    await page.getByRole("button", { name: "New preview" }).click();
     await page.getByTestId("browser-url-input").fill("localhost:4321");
     await page.getByTestId("browser-load-url").click();
     await expect(page.getByTestId("browser-preview-frame")).toHaveAttribute("src", "http://localhost:4321/");
@@ -202,17 +203,33 @@ async function getPreviewLayoutMetrics(page: Page): Promise<{
   };
 }
 
-test("keeps preview isolated in the utility destination", async () => {
+test("keeps an empty preview destination isolated from the editor and terminal", async () => {
   const { page, cleanup } = await launchExoWorkspaceFixture();
 
   try {
     await page.getByTestId("utility-pane-toggle").click();
     await page.getByTestId("utility-pane-preview").click();
-    await expect(page.getByTestId("utility-pane").getByTestId("browser-pane")).toBeVisible();
-    await expect(page.getByTestId("utility-pane").getByTestId("browser-pane")).toHaveCount(1);
+    await expect(page.getByTestId("preview-empty-state")).toBeVisible();
+    await expect(page.getByTestId("utility-pane").getByTestId("browser-pane")).toHaveCount(0);
     await expect(page.getByTestId("utility-pane").getByTestId("terminal-dock")).toHaveCount(0);
     await expect(page.locator(".workspace-shell__canvas .pane-leaf--editor")).toHaveCount(1);
     await expect(page.locator(".workspace-shell__canvas .pane-leaf--browser")).toHaveCount(0);
+  } finally {
+    await cleanup();
+  }
+});
+
+test("returns to the Preview empty state after its final tab closes", async () => {
+  const { page, cleanup } = await launchExoWorkspaceFixture();
+
+  try {
+    await page.getByTestId("utility-pane-toggle").click();
+    await page.getByTestId("utility-pane-preview").click();
+    await page.getByRole("button", { name: "New preview" }).click();
+    await page.getByTestId("browser-tab-preview").getByRole("button", { name: "Close preview pane" }).click();
+
+    await expect(page.getByTestId("preview-empty-state")).toBeVisible();
+    await expect(page.getByTestId("utility-pane-terminal")).toHaveAttribute("aria-pressed", "false");
   } finally {
     await cleanup();
   }

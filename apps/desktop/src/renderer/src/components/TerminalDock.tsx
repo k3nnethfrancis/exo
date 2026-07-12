@@ -2,7 +2,6 @@ import { useEffect, useRef } from "react";
 import { Bot, Plus, SquareTerminal, X } from "lucide-react";
 
 import type { TerminalSessionInfo } from "../../../shared/api";
-import type { DragManager } from "../hooks/useDragManager";
 import { isTerminalInputEnabled } from "../terminalSessions";
 import type { ExoThemeVariant } from "../theme/types";
 import { AgentIcon } from "./AgentIcon";
@@ -33,7 +32,6 @@ interface TerminalDockProps {
   onGeometryMeasured: (id: string, cols: number, rows: number) => void;
   onKill: (id: string) => void;
   onCreateTerminal: () => void;
-  dragManager: DragManager;
 }
 
 export function TerminalDock(props: TerminalDockProps) {
@@ -59,7 +57,6 @@ export function TerminalDock(props: TerminalDockProps) {
     onGeometryMeasured,
     onKill,
     onCreateTerminal,
-    dragManager,
   } = props;
   const activeSession = sessions.find((session) => session.id === activeTerminalId) ?? null;
   const terminalWritable = activeSession ? isTerminalInputEnabled(activeSession) : true;
@@ -110,17 +107,9 @@ export function TerminalDock(props: TerminalDockProps) {
                   className="terminal-tab"
                   testId={`terminal-tab-${session.kind}`}
                   itemId={session.id}
-                  dropPaneId={paneId}
-                  dropKind="terminal"
                   onClick={() => {
                     onSetActiveTerminal(session.id);
                     focusTerminalAfterPaneActivation(session.id);
-                  }}
-                  onMouseDown={(event) => {
-                    dragManager.startDrag(event, {
-                      kind: "terminal",
-                      sessionId: session.id,
-                    });
                   }}
                   title={`${session.title} · ${session.health ?? session.status}${session.healthDetail ? ` · ${session.healthDetail}` : ""}`}
                   leading={<TerminalTabIcon kind={session.kind} />}
