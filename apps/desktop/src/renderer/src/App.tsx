@@ -454,7 +454,6 @@ export function App() {
         allowUntrustedOneShot: !persistTrust,
         persistTrust,
       });
-      terminalState.adoptExternalSessions([result.terminal], { activateLatest: true });
       setKeptInvocationConflicts(new Set());
       setInvocationReview({ record: result.invocation });
       setPendingInvocationAuthorization(null);

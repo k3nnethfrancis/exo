@@ -155,9 +155,13 @@ function createCommandServer() {
       workspace: workspaceModel,
       terminals: terminalManager.list(),
     }),
-    onSpawnAgentCommand: async (input) => invocationRunner.authorizeAndStart(await invocationRunner.prepare({
-      context: "cli", handle: input.handle, task: input.task, message: input.task,
-    })),
+    onSpawnAgentCommand: async (input) => {
+      const result = await invocationRunner.authorizeAndStart(await invocationRunner.prepare({
+        context: "cli", handle: input.handle, task: input.task, message: input.task,
+      }));
+      if (!result.terminal) throw new Error("CLI command launches must create a visible terminal.");
+      return result;
+    },
   });
 }
 

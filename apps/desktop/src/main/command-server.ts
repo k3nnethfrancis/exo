@@ -234,6 +234,9 @@ export class CommandServer {
         }
         try {
           const result = await this.options.onSpawnAgentCommand({ handle, task });
+          if (!result.terminal) {
+            throw new Error("CLI agent invocation did not create a terminal session.");
+          }
           json(res, { ok: true, invocation: result.invocation, terminal: result.terminal } satisfies ExoSpawnAgentCommandResponse);
         } catch (error) {
           if (error instanceof InvocationRunnerError) {
