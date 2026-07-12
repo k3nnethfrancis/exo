@@ -196,6 +196,8 @@
 
 .workspace-shell__canvas {
   grid-column: 3;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .workspace-shell__utility {
@@ -1568,7 +1570,7 @@ body.pane-resize-active .browser-pane__frame {
 
 .editor-panel {
   position: relative;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
 }
 
 .editor-panel__chrome-reveal {
@@ -1629,6 +1631,11 @@ body.pane-resize-active .browser-pane__frame {
 
 .editor-panel:has(.properties-card) .properties-card {
   margin-top: 34px;
+}
+
+/* The action chrome is out of flow; reserve the final track for CodeMirror. */
+.editor-panel > .editor-surface {
+  grid-row: 3;
 }
 
 .sr-only {

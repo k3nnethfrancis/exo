@@ -16,6 +16,10 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 - Makes folder creation create a minimal `index.md`, while imported folders remain read-only until the user explicitly creates an index.
 - Moves workspace Settings to the lower workspace menu and tightens Explorer/titlebar chrome.
 
+### Fixed
+
+- Restores bounded CodeMirror editor scrolling after the editor action chrome became an out-of-flow overlay.
+
 ### Removed
 
 - Removes terminal and browser leaves, terminal pane placement, browser pane placement, and monitor-mode layout restoration from the editor canvas.
