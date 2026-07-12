@@ -9,7 +9,6 @@ import { ChromeTab } from "./Chrome";
 import type { TerminalHydrationReason } from "./terminalHydration";
 import { focusTerminal } from "./terminalRegistry";
 import { TerminalView } from "./TerminalView";
-import { TerminalCommandBar } from "./TerminalCommandBar";
 
 interface TerminalDockProps {
   paneId: string;
@@ -131,8 +130,6 @@ export function TerminalDock(props: TerminalDockProps) {
               </button>
             </div>
           </div>
-
-          <TerminalCommandBar />
 
           {activeSession ? (
             <div className="terminal-dock__terminal-frame">
