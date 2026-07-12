@@ -16,6 +16,8 @@ import {
 } from "../terminalQuality";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+const initialMarkdownNotePattern = /^---\ndate: \d{4}-\d{2}-\d{2}\ntags: \[\]\n---\n$/;
+
 function boxesOverlap(a: { x: number; y: number; width: number; height: number }, b: { x: number; y: number; width: number; height: number }) {
   return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
 }
@@ -175,14 +177,14 @@ test("creates, renames, and deletes notes from the explorer", async () => {
   await page.getByTestId("workspace-dialog-input").fill("mutation-qa.md");
   await page.getByTestId("workspace-dialog-confirm").click();
   await expect(page.getByTestId("editor-title")).toHaveText("mutation-qa");
-  await expect.poll(async () => readFile(createdPath, "utf8")).toBe("");
+  await expect.poll(async () => readFile(createdPath, "utf8")).toMatch(initialMarkdownNotePattern);
 
   await page.getByTestId("sidebar").getByRole("button", { name: "mutation-qa" }).click({ button: "right" });
   await page.getByText("Rename").click();
   await page.getByTestId("workspace-dialog-input").fill("mutation-renamed.md");
   await page.getByTestId("workspace-dialog-confirm").click();
   await expect(page.getByTestId("editor-title")).toHaveText("mutation-renamed");
-  await expect.poll(async () => readFile(renamedPath, "utf8")).toBe("");
+  await expect.poll(async () => readFile(renamedPath, "utf8")).toMatch(initialMarkdownNotePattern);
   await expect(access(createdPath)).rejects.toThrow();
 
   await page.getByTestId("sidebar").getByRole("button", { name: "mutation-renamed" }).click({ button: "right" });
@@ -220,7 +222,7 @@ test("handles global save and daily-note keybindings", async () => {
 
   await page.keyboard.press(`${modifier}+N`);
   await expect(page.getByTestId("editor-title")).toHaveText(dailyName);
-  await expect.poll(async () => readFile(path.join(workspaceRoot, "notes/test-notes", `${dailyName}.md`), "utf8")).toBe("");
+  await expect.poll(async () => readFile(path.join(workspaceRoot, "notes/test-notes", `${dailyName}.md`), "utf8")).toMatch(initialMarkdownNotePattern);
 
   await cleanup();
 });
