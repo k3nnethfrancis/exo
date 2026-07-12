@@ -29,11 +29,6 @@ export interface DesktopInvokeHandlers {
   "workspace:search-workspace": WorkspaceApi["searchWorkspace"];
   "workspace:search-index": WorkspaceApi["searchIndex"];
   "workspace:search-tag": WorkspaceApi["searchTag"];
-  "workspace:get-agent-instruction-config": WorkspaceApi["getAgentInstructionConfig"];
-  "workspace:save-agent-instruction-config": WorkspaceApi["saveAgentInstructionConfig"];
-  "workspace:sync-agent-instruction-files-from-provider": WorkspaceApi["syncAgentInstructionFilesFromProvider"];
-  "workspace:apply-global-exograph-context": WorkspaceApi["applyGlobalExographContext"];
-  "workspace:list-agent-instruction-overlays": WorkspaceApi["listAgentInstructionOverlays"];
   "workspace:get-folder-index-status": WorkspaceApi["getFolderIndexStatus"];
   "workspace:ensure-folder-index": WorkspaceApi["ensureFolderIndex"];
   "workspace:create-file": WorkspaceApi["createFile"];

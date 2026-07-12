@@ -33,7 +33,6 @@ import {
 
 import type { DesktopEventChannel, DesktopEventPayloads } from "../shared/desktop-ipc";
 import type { WorkspaceSettingsSaveOutcome } from "../shared/api";
-import { AgentInstructionsService } from "./agent-instructions-service";
 import { InvocationRunner } from "./invocation-runner";
 import { AppLifecycleController } from "./app-lifecycle";
 import { CommandServer } from "./command-server";
@@ -87,7 +86,6 @@ let terminalManager: TerminalManager;
 let workspaceWatcherService: WorkspaceWatcherService;
 let indexingService: IndexingService;
 let workspaceNotesService: WorkspaceNotesService;
-let agentInstructionsService: AgentInstructionsService;
 let invocationRunner: InvocationRunner;
 
 const singleInstanceLock = app.requestSingleInstanceLock(resolveSingleInstanceData());
@@ -297,7 +295,6 @@ function registerIpcHandlers() {
     deletePath: deleteWorkspacePath,
     embedIndex: () => indexingService.embed("settings"),
     ensureTarget: (sourceFilePath, target) => workspaceNotesService.ensureTarget(sourceFilePath, target),
-    getAgentInstructionConfig: () => agentInstructionsService.getConfig(),
     getIndexStatus: () => indexingService.getMeasuredStatus(),
     getFolderIndexStatus: () => inspectFolderIndexes(workspaceModel.noteRoots.map((root) => root.path)),
     ensureFolderIndex,
@@ -320,7 +317,6 @@ function registerIpcHandlers() {
       settingsPath: path.join(app.getPath("userData"), "workspace-settings.json"),
     }),
     markOnboardingComplete: () => completeWorkspaceOnboarding(),
-    listAgentInstructionOverlays: () => agentInstructionsService.listOverlays(),
     listTree: listRootTree,
     listWorkspaces: () => workspaceConfig.listWorkspaces(),
     readNote: readWorkspaceDocument,
@@ -330,9 +326,6 @@ function registerIpcHandlers() {
       return { url: result.url, source: result.source };
     },
     resolveTarget: (sourceFilePath, target) => workspaceNotesService.resolveTarget(sourceFilePath, target),
-    saveAgentInstructionConfig: (input) => agentInstructionsService.saveConfig(input),
-    syncAgentInstructionFilesFromProvider: (input) => agentInstructionsService.syncFromProviderFile(input),
-    applyGlobalExographContext: (input) => agentInstructionsService.applyGlobalExographContext(input),
     saveNote: async (filePath, frontmatter, body) => {
       await saveWorkspaceDocument(filePath, frontmatter, body);
       indexingService.scheduleForFile(filePath, "note-save");
@@ -535,10 +528,6 @@ app.whenReady().then(async () => {
   });
   workspaceNotesService = new WorkspaceNotesService({
     getWorkspaceModel: () => workspaceModel,
-  });
-  agentInstructionsService = new AgentInstructionsService({
-    getWorkspaceModel: () => workspaceModel,
-    errorMessage,
   });
   commandServerLifecycle = new CommandServerLifecycle({
     runtimeRoot: resolveRuntimeRoot(),

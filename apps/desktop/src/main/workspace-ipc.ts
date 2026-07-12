@@ -15,7 +15,6 @@ export interface WorkspaceIpcHandlers {
   deletePath: WorkspaceApi["deletePath"];
   embedIndex: WorkspaceApi["embedIndex"];
   ensureTarget: NotesApi["ensureTarget"];
-  getAgentInstructionConfig: WorkspaceApi["getAgentInstructionConfig"];
   getIndexStatus: WorkspaceApi["getIndexStatus"];
   getFolderIndexStatus: WorkspaceApi["getFolderIndexStatus"];
   ensureFolderIndex: WorkspaceApi["ensureFolderIndex"];
@@ -30,15 +29,11 @@ export interface WorkspaceIpcHandlers {
   getSettings: WorkspaceApi["getSettings"];
   getSetupState: WorkspaceApi["getSetupState"];
   markOnboardingComplete: WorkspaceApi["markOnboardingComplete"];
-  listAgentInstructionOverlays: WorkspaceApi["listAgentInstructionOverlays"];
   listTree: WorkspaceApi["listTree"];
   listWorkspaces: () => Promise<WorkspaceRegistryEntry[]>;
   readNote: NotesApi["read"];
   renamePath: WorkspaceApi["renamePath"];
   resolveTarget: NotesApi["resolveTarget"];
-  applyGlobalExographContext: WorkspaceApi["applyGlobalExographContext"];
-  syncAgentInstructionFilesFromProvider: WorkspaceApi["syncAgentInstructionFilesFromProvider"];
-  saveAgentInstructionConfig: WorkspaceApi["saveAgentInstructionConfig"];
   saveNote: NotesApi["save"];
   saveSettings: WorkspaceApi["saveSettings"];
   searchIndex: WorkspaceApi["searchIndex"];
@@ -113,17 +108,6 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
     async (_event, query, options) =>
       handlers.searchIndex(query, options),
   );
-  handleDesktopInvoke("workspace:get-agent-instruction-config", async () => handlers.getAgentInstructionConfig());
-  handleDesktopInvoke("workspace:save-agent-instruction-config", async (_event, input) =>
-    handlers.saveAgentInstructionConfig(input),
-  );
-  handleDesktopInvoke("workspace:sync-agent-instruction-files-from-provider", async (_event, input) =>
-    handlers.syncAgentInstructionFilesFromProvider(input),
-  );
-  handleDesktopInvoke("workspace:apply-global-exograph-context", async (_event, input) =>
-    handlers.applyGlobalExographContext(input),
-  );
-  handleDesktopInvoke("workspace:list-agent-instruction-overlays", async () => handlers.listAgentInstructionOverlays());
   handleDesktopInvoke("workspace:create-file", async (_event, targetPath, content) => {
     const authorizedPath = await workspaceFiles().writable(targetPath);
     return handlers.createFile(authorizedPath, content);

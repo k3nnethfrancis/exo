@@ -90,48 +90,6 @@ export interface WorkspaceSettingsSaveOutcome extends WorkspaceSettingsSnapshot 
   runtimeApply: WorkspaceSettingsRuntimeApplyOutcome;
 }
 
-export type AgentInstructionScopeId = "global" | "exocortex";
-export type AgentInstructionProviderId = "agents" | "claude";
-export type AgentInstructionStatus = "aligned" | "different" | "missing-agents" | "missing-claude" | "missing-both" | "error";
-
-export interface AgentInstructionProviderFile {
-  id: AgentInstructionProviderId;
-  label: string;
-  path: string;
-  exists: boolean;
-  body: string;
-  errorMessage?: string | null;
-}
-
-export interface AgentInstructionScope {
-  id: AgentInstructionScopeId;
-  label: string;
-  description: string;
-  rootPath: string;
-  files: {
-    agents: AgentInstructionProviderFile;
-    claude: AgentInstructionProviderFile;
-  };
-  status: AgentInstructionStatus;
-  body: string;
-  source: AgentInstructionProviderId | "empty" | "unresolved";
-  errorMessages: string[];
-}
-
-export interface AgentInstructionConfig {
-  scopes: AgentInstructionScope[];
-  starterTemplate: string;
-  exographContextTemplate: string;
-}
-
-export interface AgentInstructionOverlay {
-  id: string;
-  scope: "global" | "notes";
-  label: string;
-  path: string;
-  body: string;
-}
-
 export interface IndexSyncStateEvent {
   state: "running" | "idle" | "error";
   reason: string;
@@ -202,19 +160,6 @@ export interface DesktopApi {
     searchWorkspace: (query: string) => Promise<WorkspaceSearchResults>;
     searchIndex: (query: string, options?: { limit?: number; forceMode?: "lexical" | "semantic" | "hybrid" }) => Promise<IndexSearchResponse>;
     searchTag: (tag: string) => Promise<SearchResult[]>;
-    getAgentInstructionConfig: () => Promise<AgentInstructionConfig>;
-    saveAgentInstructionConfig: (input: {
-      scopeId: AgentInstructionScopeId;
-      body: string;
-    }) => Promise<AgentInstructionConfig>;
-    syncAgentInstructionFilesFromProvider: (input: {
-      scopeId: AgentInstructionScopeId;
-      sourceProviderId: AgentInstructionProviderId;
-    }) => Promise<AgentInstructionConfig>;
-    applyGlobalExographContext: (input: {
-      body: string;
-    }) => Promise<AgentInstructionConfig>;
-    listAgentInstructionOverlays: () => Promise<AgentInstructionOverlay[]>;
     getFolderIndexStatus: () => Promise<FolderIndexStatus>;
     ensureFolderIndex: (directoryPath: string) => Promise<FolderIndexResult>;
     createFile: (targetPath: string, content?: string) => Promise<string>;
