@@ -10,7 +10,7 @@ Exo is a local, user-owned Markdown exocortex with modular, tunable search, inli
 
 - Markdown and frontmatter under explicit Note Roots are canonical user data.
 - Note Roots are the sole Exo-authorized filesystem surface; explicit Command cwd choices do not create another root class.
-- `.exo/` contains derived indexes, invocation/review records, artifacts, caches, and provenance references—not canonical knowledge.
+- `.exo/` contains derived indexes, invocation/review records, artifacts, caches, and provenance references—not canonical knowledge. When the Workspace root is in Git, it must be ignored; Exo warns rather than rewriting `.gitignore`.
 - One Workspace Canvas hosts Note, Terminal, Preview, Graph, and Diff panes.
 - One focused Connections surface exposes Outline, Links, Graph, and earned Activity.
 
@@ -123,7 +123,8 @@ After the launch loop is stable:
 - Renderer code never accesses files or processes directly.
 - Note operations pass canonical-path authorization inside explicit Note Roots; root-relative IDs remain future quality work.
 - The future Folder Overview must be read-only until an explicit metadata authoring action.
-- Command trust is app-local, workspace-scoped, fingerprinted, and invalidated when executable fields change.
+- Command trust is app-local, workspace-scoped, fingerprinted, and invalidated when executable fields change. A moved/copied Workspace fails closed and requires explicit re-authorization.
+- A Command can have an explicit cwd outside Note Roots, but observed-change review is authoritative only inside the Workspace's Note Roots; Exo never claims it reviewed external writes.
 - Human confirmation is required before invocation; agent-authored content cannot auto-chain execution.
 - Unknown writers and overlapping changes remain ambiguous rather than falsely attributed.
 - Public CLI commands, command-server routes, and shared protocol types require the repository's architecture-review gate.

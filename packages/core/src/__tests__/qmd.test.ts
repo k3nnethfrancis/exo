@@ -169,6 +169,19 @@ describe("QMD index adapter", () => {
     expect(stores.some((store) => store.embedCalls === 1)).toBe(true);
   });
 
+  it("warns when derived Exo state in a Git workspace is not ignored", async () => {
+    const root = await fixtureRoot();
+    await mkdir(path.join(root, ".git"));
+    const status = await qmdSearchProvider.getStatus(indexedModel(root, "lexical"), path.join(root, ".exo"));
+
+    expect(status.warnings).toContain("This Workspace is a Git repository and .exo/ is not ignored. Add .exo/ to .gitignore; Exo will not modify repository files automatically.");
+
+    await writeFile(path.join(root, ".gitignore"), "/.exo/\n", "utf8");
+    const ignoredStatus = await qmdSearchProvider.getStatus(indexedModel(root, "lexical"), path.join(root, ".exo"));
+
+    expect(ignoredStatus.warnings).not.toContain("This Workspace is a Git repository and .exo/ is not ignored. Add .exo/ to .gitignore; Exo will not modify repository files automatically.");
+  });
+
   it("can scope updates to selected indexed roots", async () => {
     const root = await fixtureRoot();
     const model = indexedModel(root, "hybrid");

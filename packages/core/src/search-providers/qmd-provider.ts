@@ -1,4 +1,4 @@
-import { mkdir, readFile } from "node:fs/promises";
+import { access, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
 import type { IndexReadOptions, IndexSearchOptions, IndexUpdateOptions, SearchProvider, SearchProviderMetadata } from "../search-provider";
@@ -79,10 +79,14 @@ export function getQmdDbPath(runtimeRoot: string): string {
 
 async function getIndexStatus(model: WorkspaceModel, runtimeRoot: string): Promise<IndexStatus> {
   const base = baseStatus(model, runtimeRoot);
+  const runtimeWarnings = await runtimeStateWarnings(runtimeRoot);
   if (!model.indexing.enabled || model.indexing.mode === "off" || model.indexedRoots.length === 0) {
     return {
       ...base,
-      warnings: model.indexing.enabled && model.indexedRoots.length === 0 ? ["No indexed roots are configured."] : [],
+      warnings: [
+        ...(model.indexing.enabled && model.indexedRoots.length === 0 ? ["No indexed roots are configured."] : []),
+        ...runtimeWarnings,
+      ],
     };
   }
 
@@ -97,7 +101,7 @@ async function getIndexStatus(model: WorkspaceModel, runtimeRoot: string): Promi
       pendingEmbeddings: Number(qmdStatus.needsEmbedding ?? 0),
       hasVectorIndex: Boolean(qmdStatus.hasVectorIndex),
       lastUpdated,
-      warnings: modeWarnings(model, Boolean(qmdStatus.hasVectorIndex), Number(qmdStatus.needsEmbedding ?? 0)),
+      warnings: [...modeWarnings(model, Boolean(qmdStatus.hasVectorIndex), Number(qmdStatus.needsEmbedding ?? 0)), ...runtimeWarnings],
     };
   } catch (error) {
     return {
@@ -107,6 +111,40 @@ async function getIndexStatus(model: WorkspaceModel, runtimeRoot: string): Promi
   } finally {
     await store?.close();
   }
+}
+
+async function runtimeStateWarnings(runtimeRoot: string): Promise<string[]> {
+  // The packaged app intentionally puts derived state at <workspace>/.exo. Do
+  // not silently write a user's repository configuration, but make a tracked
+  // runtime directory visible before indexes/invocation records surprise them.
+  if (path.basename(runtimeRoot) !== ".exo") {
+    return [];
+  }
+  const workspaceRoot = path.dirname(runtimeRoot);
+  if (!(await pathExists(path.join(workspaceRoot, ".git")))) {
+    return [];
+  }
+  try {
+    const gitignore = await readFile(path.join(workspaceRoot, ".gitignore"), "utf8");
+    if (gitignore.split(/\r?\n/).some(ignoresExoRuntimePath)) {
+      return [];
+    }
+  } catch {
+    // A missing or unreadable .gitignore leaves the warning intentionally visible.
+  }
+  return ["This Workspace is a Git repository and .exo/ is not ignored. Add .exo/ to .gitignore; Exo will not modify repository files automatically."];
+}
+
+function ignoresExoRuntimePath(line: string): boolean {
+  const rule = line.trim();
+  return rule === ".exo" || rule === ".exo/" || rule === "/.exo" || rule === "/.exo/" || rule === "**/.exo" || rule === "**/.exo/";
+}
+
+async function pathExists(target: string): Promise<boolean> {
+  return access(target).then(
+    () => true,
+    () => false,
+  );
 }
 
 async function updateIndex(model: WorkspaceModel, runtimeRoot: string, options: IndexUpdateOptions = {}): Promise<IndexStatus> {

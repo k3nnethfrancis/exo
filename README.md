@@ -226,6 +226,8 @@ Runtime files live under `.exo/` inside the workspace root:
 - `.exo/invocations/` - note-native agent-command invocation records and diff refs
 - `.exo/artifacts/` - local generated artifacts when needed
 
+`.exo/` is derived local state, never canonical notes. Add `.exo/` to `.gitignore` when the Workspace root is in a Git repository; Exo warns about an unignored runtime directory rather than modifying your repository. Moving or copying a Workspace intentionally requires re-authorizing configured Commands.
+
 QMD is the default indexing provider for optional Exo-managed notes search. Live Explore typing remains fast filename/path search; indexed search is explicit through Enter in Explore when enabled and through CLI index/search tools. See `docs/qmd-integration-notes.md` for the adapter contract and upgrade notes.
 
 ## Development Harness

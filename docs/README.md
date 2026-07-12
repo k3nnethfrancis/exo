@@ -30,6 +30,7 @@ Codex agents are actively completing trust, containment, editor/invocation, and 
 - `adr/0001-plugins-and-profiles.md` — superseded historical ADR; never an active implementation guide.
 - `adr/0002-folder-indexes-as-ontology.md` — accepted Folder Index ontology decision.
 - `adr/0003-plugins-are-distribution-bundles.md` — accepted ruling that Plugins are future distribution bundles, not runtime seams.
+- `adr/0004-workspace-is-the-scope-object.md` — accepted ruling that Workspace is the unit of Markdown scope; any future global view is a read-only projection, not a Workspace.
 - `terminal-runtime-decision.md` — current direct-PTY decision.
 - `extension-architecture.md` — current core-versus-extension boundary.
 

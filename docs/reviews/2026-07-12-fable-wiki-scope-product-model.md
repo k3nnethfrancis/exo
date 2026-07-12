@@ -95,3 +95,13 @@ Agent-maintained wiki behavior should start with explicit, user-initiated Skills
 - Say whether any change is launch-critical before the current Folder Overview / first graph-maintenance Skill slice.
 
 -- Exo architecture review | 2026-07-12
+
+## Fable ruling — 2026-07-12
+
+Adopt candidate A with one correction: do not rename the product object. **Workspace** already is Exo's managed Markdown scope. It owns Note Root write authority, Indexed Root retrieval, index state/configuration, and Command trust. A project wiki is another Workspace; a Workspace never composes other Workspaces.
+
+Reject candidate B for now and C outright. If cross-workspace retrieval earns demand, it is a read-only projection over independent workspace indexes with scope-qualified results; it is not a Workspace, write target, invocation target, global index, or implicit cross-workspace graph.
+
+Launch-critical follow-ups are: record the scope model in an ADR; make derived `.exo/` state safe in Git-backed Workspaces through an ignore convention and visible warning rather than auto-editing `.gitignore`; and state that Commands may write outside Note Roots while Exo's observed-change review covers only Note Root changes. Skills are Workspace-owned Markdown and explicit/reviewed invocation remains the only approved maintenance mechanism. Do not build federation, a global index, cross-workspace link resolution, global Skill precedence, or scheduling.
+
+Decision recorded in `../adr/0004-workspace-is-the-scope-object.md`.

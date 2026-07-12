@@ -81,9 +81,10 @@ Start only after the trust gates above pass.
 
 ### Product-model discovery: one Exo workspace, multiple wikis, and importable Markdown folders
 
-- [ ] Research current LLM-wiki practice and decide whether Exo's future unit is a single multi-root workspace, independently selectable wikis, or a layered global/workspace model. Keep the shipped Note Root-only trust boundary intact until a decision is documented.
-- [ ] Define the operator model for cross-folder/global versus wiki-scoped search, graph resolution, configured Commands, index ownership, and trust before adding any import/project UI.
-- [ ] Decide how skills and automations that maintain Markdown/graph state are declared, scoped, reviewed, and scheduled without reintroducing a harness or general plugin runtime.
+- [x] Research current LLM-wiki practice and decide the future unit: `Workspace` is the existing named Markdown scope; do not add a Wiki type or restore Project Roots. `docs/adr/0004-workspace-is-the-scope-object.md`.
+- [x] Define the operator model: per-Workspace indexes and trust; any future global view is a read-only, scope-qualified fan-out projection, never a writable/invokable Workspace.
+- [x] Decide Skills/automations: Skills are Workspace-owned Markdown in a writable Note Root; human-triggered configured-Command invocation and diff review come first. No scheduler, hidden graph updates, global precedence, or plugin runtime.
+- [ ] Dogfood personal and project-adjacent Workspaces for 2–4 weeks. Log real switching friction and concrete cross-scope requests; only recurring need may earn CLI-only `exo search --all` research.
 - [x] Start a durable product-insight log at `notes/shoshin-codex/projects/exo/insights.md`; capture evidence, confidence, decision influence, and next validation rather than turning every observation into scope.
 
 ### Folder Overview and Folder Index

@@ -19,7 +19,7 @@ The user-owned graph formed by Markdown files, frontmatter, links, paths, tags, 
 _Avoid_: proprietary database, second brain
 
 **Workspace**
-A named collection of Note Roots used together in Exo.
+A named Markdown scope: it owns its writable Note Roots, read-only Indexed Roots, index configuration and derived state, configured Commands, and Command trust decisions. A project wiki is a Workspace whose Note Root is that project's wiki/docs folder; a Workspace never contains other Workspaces.
 _Avoid_: vault, project
 
 **Note Root**
@@ -28,6 +28,9 @@ _Avoid_: arbitrary filesystem root
 
 **Note**
 A Markdown document under a Note Root. Its body and frontmatter are canonical user data.
+
+**Indexed Root**
+A selected retrieval location. It can be searched but does not grant Exo edit authority, Command trust, or a second Explorer filesystem domain.
 _Avoid_: record, database row
 
 **Folder**
@@ -79,7 +82,7 @@ A provider-neutral, user-configured executable addressed by a handle. A Command 
 _Avoid_: Harness, provider, agent type
 
 **Skill**
-User-editable instructions and data for a bounded graph/wiki task executed by a configured Command. A Skill declares purpose, scope, expected proposal, and evaluation criteria; it does not load code, grant authority, or bypass invocation review.
+User-editable instructions and data in a writable Note Root for a bounded graph/wiki task executed by a configured Command. A Skill declares purpose, scope, expected proposal, and evaluation criteria; it does not load code, grant authority, run in the background, or bypass invocation review.
 _Avoid_: Skill Manager, plugin entrypoint, automatic agent action
 
 **Plugin**
