@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   agentCommandExecutableFingerprint,
   createDefaultClaudeAgentCommand,
+  deriveAgentCommandLaunch,
   normalizeAgentCommand,
   normalizeAgentCommands,
   normalizeAgentHandle,
@@ -11,6 +12,22 @@ import {
 import { parseAgentMentions } from "../agent-mention-parser";
 
 describe("agent invocation model", () => {
+  it("derives one command launch decision for CLI and note contexts", () => {
+    const command = createDefaultClaudeAgentCommand();
+    expect(deriveAgentCommandLaunch(command, { kind: "cli", workspaceRoot: "/workspace" })).toEqual({
+      launchable: true,
+      cwd: "/workspace",
+    });
+    expect(deriveAgentCommandLaunch(
+      { ...command, cwdPolicy: "note_dir" },
+      { kind: "note", workspaceRoot: "/workspace", documentPath: "/workspace/notes/task.md" },
+    )).toEqual({ launchable: true, cwd: "/workspace/notes" });
+    expect(deriveAgentCommandLaunch(
+      { ...command, cwdPolicy: "note_dir" },
+      { kind: "cli", workspaceRoot: "/workspace" },
+    )).toMatchObject({ launchable: false, block: "invalid-cwd-policy" });
+  });
+
   it("normalizes configured agent handles", () => {
     expect(normalizeAgentHandle(" @Claude ")).toBe("claude");
     expect(normalizeAgentHandle("@codex-1")).toBe("codex-1");

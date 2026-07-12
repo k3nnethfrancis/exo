@@ -306,6 +306,8 @@ function registerIpcHandlers() {
       mentionText: input.mentionText, message: input.message,
       allowUntrustedOneShot: input.allowUntrustedOneShot, persistTrust: input.persistTrust,
     })),
+    getAgentCommandLaunchFacts: (commandId) => invocationRunner.getCommandLaunchFacts(commandId),
+    testAgentCommand: (input) => invocationRunner.testCommand(input.commandId, input.expectedFingerprint),
     endAgentInvocation: (invocationId) => invocationRunner.endObservation(invocationId),
     getGraphContext: (filePath) => workspaceNotesService.getGraphContext(filePath),
     getMainWindow: () => appLifecycle.getMainWindow(),

@@ -154,6 +154,26 @@ export interface LaunchAgentInvocationResponse {
   terminal: TerminalSessionInfo;
 }
 
+export interface AgentCommandLaunchFacts {
+  commandId: string;
+  handle: string;
+  label: string;
+  fingerprint: string;
+  cwd: string | null;
+  cwdReady: boolean;
+  executable: string;
+  executablePath: string | null;
+  executableReady: boolean;
+  launchable: boolean;
+  block?: "disabled" | "unsupported-prompt-delivery" | "invalid-cwd-policy" | "document-required" | "cwd-missing" | "executable-missing";
+  detail: string;
+}
+
+export interface TestAgentCommandInput {
+  commandId: string;
+  expectedFingerprint: string;
+}
+
 export interface DesktopApi {
   workspace: {
     getModel: () => Promise<WorkspaceModel>;
@@ -167,6 +187,8 @@ export interface DesktopApi {
     getIndexStatus: () => Promise<IndexStatus>;
     resolvePreviewTarget: (target: string) => Promise<{ url: string; source: "url" | "file" }>;
     launchAgentInvocation: (input: LaunchAgentInvocationInput) => Promise<LaunchAgentInvocationResponse>;
+    getAgentCommandLaunchFacts: (commandId: string) => Promise<AgentCommandLaunchFacts>;
+    testAgentCommand: (input: TestAgentCommandInput) => Promise<LaunchAgentInvocationResponse>;
     endAgentInvocation: (invocationId: string) => Promise<InvocationRecord | null>;
     onInvocationUpdated: (callback: (record: InvocationRecord) => void) => () => void;
     syncIndex: () => Promise<IndexSyncResult>;

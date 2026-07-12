@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import path from "node:path";
 
 export const AGENT_COMMAND_PROMPT_DELIVERIES = ["terminalInputAfterLaunch", "stdin", "argv"] as const;
 export const DEFAULT_AGENT_COMMAND_PROMPT_DELIVERY: AgentCommandPromptDelivery = "terminalInputAfterLaunch";
@@ -19,6 +20,20 @@ export interface AgentCommand {
   version: number;
   enabled: boolean;
 }
+
+export type AgentCommandLaunchContext =
+  | { kind: "cli"; workspaceRoot: string }
+  | { kind: "note"; workspaceRoot: string; documentPath?: string };
+
+export type AgentCommandLaunchBlock =
+  | "disabled"
+  | "unsupported-prompt-delivery"
+  | "invalid-cwd-policy"
+  | "document-required";
+
+export type AgentCommandLaunchDerivation =
+  | { launchable: true; cwd: string }
+  | { launchable: false; cwd: string | null; block: AgentCommandLaunchBlock; detail: string };
 
 export type InvocationContextKind = "note" | "cli";
 export type InvocationStatus =
@@ -175,6 +190,47 @@ export function agentCommandExecutableFingerprint(command: AgentCommand): string
     version: command.version,
   };
   return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
+}
+
+/** Configuration-only launch decision shared by readiness and InvocationRunner. */
+export function deriveAgentCommandLaunch(
+  command: AgentCommand,
+  context: AgentCommandLaunchContext,
+): AgentCommandLaunchDerivation {
+  if (!command.enabled) {
+    return { launchable: false, cwd: null, block: "disabled", detail: `Command @${command.handle} is disabled.` };
+  }
+  if (command.promptDelivery !== "terminalInputAfterLaunch") {
+    return {
+      launchable: false,
+      cwd: null,
+      block: "unsupported-prompt-delivery",
+      detail: `Command @${command.handle} uses unsupported prompt delivery.`,
+    };
+  }
+  if (context.kind === "cli" && command.cwdPolicy === "note_dir") {
+    return {
+      launchable: false,
+      cwd: null,
+      block: "invalid-cwd-policy",
+      detail: "note_dir commands require a tagged note.",
+    };
+  }
+  if (context.kind === "note" && !context.documentPath) {
+    return {
+      launchable: false,
+      cwd: null,
+      block: "document-required",
+      detail: "Note invocations require a document path.",
+    };
+  }
+
+  const cwd = context.kind === "note" && command.cwdPolicy === "note_dir"
+    ? path.dirname(context.documentPath!)
+    : command.cwdPolicy === "fixed"
+      ? command.fixedCwd ?? context.workspaceRoot
+      : context.workspaceRoot;
+  return { launchable: true, cwd };
 }
 
 export function createDefaultClaudeAgentCommand(): AgentCommand {

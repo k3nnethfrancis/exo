@@ -20,6 +20,8 @@ export interface WorkspaceIpcHandlers {
   getFolderIndexStatus: WorkspaceApi["getFolderIndexStatus"];
   ensureFolderIndex: WorkspaceApi["ensureFolderIndex"];
   launchAgentInvocation: WorkspaceApi["launchAgentInvocation"];
+  getAgentCommandLaunchFacts: WorkspaceApi["getAgentCommandLaunchFacts"];
+  testAgentCommand: WorkspaceApi["testAgentCommand"];
   endAgentInvocation: WorkspaceApi["endAgentInvocation"];
   resolvePreviewTarget: WorkspaceApi["resolvePreviewTarget"];
   getGraphContext: NotesApi["getGraphContext"];
@@ -65,6 +67,10 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
     const documentPath = await workspaceFiles().existing(input.documentPath);
     return handlers.launchAgentInvocation({ ...input, documentPath });
   });
+  handleDesktopInvoke("workspace:get-agent-command-launch-facts", async (_event, commandId) =>
+    handlers.getAgentCommandLaunchFacts(commandId),
+  );
+  handleDesktopInvoke("workspace:test-agent-command", async (_event, input) => handlers.testAgentCommand(input));
   handleDesktopInvoke("workspace:end-agent-invocation", async (_event, invocationId) => handlers.endAgentInvocation(invocationId));
   handleDesktopInvoke("workspace:index-sync", async () => handlers.syncIndex());
   handleDesktopInvoke("workspace:index-update", async () => handlers.updateIndex());

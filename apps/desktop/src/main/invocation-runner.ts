@@ -6,6 +6,7 @@ import { EventEmitter } from "node:events";
 import {
   AgentCommandTrustStore,
   agentCommandSnapshot,
+  deriveAgentCommandLaunch,
   formatCliInvocationPrompt,
   formatNoteInvocationPrompt,
   InvocationStore,
@@ -18,6 +19,8 @@ import {
 } from "@exo/core";
 
 import type { TerminalSessionInfo } from "../shared/api";
+import type { AgentCommandLaunchFacts } from "../shared/api";
+import { inspectAgentCommandLaunchFacts } from "./agent-command-launch-facts";
 import type { TerminalManager } from "./terminal-manager";
 import type { WorkspaceChangeEvent, WorkspaceWatcherService } from "./workspace-watchers";
 
@@ -92,16 +95,18 @@ export class InvocationRunner extends EventEmitter {
   async prepare(request: InvocationRequest): Promise<PreparedInvocation> {
     const settings = this.options.getWorkspaceSettings();
     const command = this.resolveCommand(settings, request.handle);
-    this.assertLaunchable(command);
-    if (request.context === "cli" && command.cwdPolicy === "note_dir") {
-      throw new InvocationRunnerError("invalid-cwd-policy", "note_dir commands require a tagged note.");
+    const context = request.context === "note"
+      ? { kind: "note" as const, workspaceRoot: settings.workspaceRoot, documentPath: request.documentPath }
+      : { kind: "cli" as const, workspaceRoot: settings.workspaceRoot };
+    const derived = deriveAgentCommandLaunch(command, context);
+    if (!derived.launchable) {
+      throw new InvocationRunnerError(derived.block, derived.detail, { handle: command.handle });
     }
-    if (request.context === "note" && !request.documentPath) {
-      throw new InvocationRunnerError("document-required", "Note invocations require a document path.");
+    const facts = await inspectAgentCommandLaunchFacts(command, context);
+    if (!facts.launchable) {
+      throw new InvocationRunnerError(facts.block ?? "not-launchable", facts.detail, { handle: command.handle });
     }
-    const cwd = request.context === "note" && command.cwdPolicy === "note_dir"
-      ? path.dirname(request.documentPath!)
-      : command.cwdPolicy === "fixed" ? command.fixedCwd ?? settings.workspaceRoot : settings.workspaceRoot;
+    const cwd = derived.cwd;
     const now = new Date().toISOString();
     const id = randomUUID();
     const pending: InvocationRecord = {
@@ -145,6 +150,33 @@ export class InvocationRunner extends EventEmitter {
       await store.writeRecord(failed).catch(() => undefined);
       throw error;
     }
+  }
+
+  async getCommandLaunchFacts(commandId: string): Promise<AgentCommandLaunchFacts> {
+    const settings = this.options.getWorkspaceSettings();
+    const command = settings.agentCommands?.find((entry) => entry.id === commandId);
+    if (!command) {
+      throw new InvocationRunnerError("not-found", `No saved Command has id ${commandId}.`, { commandId });
+    }
+    return inspectAgentCommandLaunchFacts(command, { kind: "cli", workspaceRoot: settings.workspaceRoot });
+  }
+
+  async testCommand(commandId: string, expectedFingerprint: string): Promise<InvocationResult> {
+    const facts = await this.getCommandLaunchFacts(commandId);
+    if (facts.fingerprint !== expectedFingerprint) {
+      throw new InvocationRunnerError("fingerprint-drift", `Command @${facts.handle} changed after confirmation. Review it and try again.`);
+    }
+    const prepared = await this.prepare({
+      context: "cli",
+      handle: facts.handle,
+      task: `Verify that @${facts.handle} can launch from Exo. Respond briefly, then remain available in this terminal.`,
+      message: `Test @${facts.handle} in terminal`,
+      allowUntrustedOneShot: true,
+    });
+    if (prepared.pending.command.executableFingerprint !== expectedFingerprint) {
+      throw new InvocationRunnerError("fingerprint-drift", `Command @${facts.handle} changed after confirmation. Review it and try again.`);
+    }
+    return this.authorizeAndStart(prepared);
   }
 
   async endObservation(id: string): Promise<InvocationRecord | null> { return this.settle(id, "user-ended"); }
@@ -195,7 +227,6 @@ export class InvocationRunner extends EventEmitter {
     if (!handle || !command) throw new InvocationRunnerError("not-found", `No AgentCommand is configured for @${handleInput.replace(/^@/, "")}.`);
     return command;
   }
-  private assertLaunchable(command: AgentCommand): void { if (!command.enabled) throw new InvocationRunnerError("disabled", `AgentCommand @${command.handle} is disabled.`); if (command.promptDelivery !== "terminalInputAfterLaunch") throw new InvocationRunnerError("unsupported-prompt-delivery", `AgentCommand @${command.handle} uses unsupported prompt delivery.`); }
 }
 
 async function snapshotTextFile(filePath: string): Promise<FileSnapshot> { try { await stat(filePath); const content = await readFile(filePath, "utf8"); return { path: filePath, exists: true, content, sha256: createHash("sha256").update(content).digest("hex") }; } catch { return { path: filePath, exists: false, content: "", sha256: null }; } }
