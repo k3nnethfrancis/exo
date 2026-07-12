@@ -20,6 +20,7 @@ export interface WorkspaceIpcHandlers {
   getFolderOverview: WorkspaceApi["getFolderOverview"];
   ensureFolderIndex: WorkspaceApi["ensureFolderIndex"];
   launchAgentInvocation: WorkspaceApi["launchAgentInvocation"];
+  getAgentCommandTrust: WorkspaceApi["getAgentCommandTrust"];
   getAgentCommandLaunchFacts: WorkspaceApi["getAgentCommandLaunchFacts"];
   testAgentCommand: WorkspaceApi["testAgentCommand"];
   endAgentInvocation: WorkspaceApi["endAgentInvocation"];
@@ -67,6 +68,7 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
     const documentPath = await workspaceFiles().existing(input.documentPath);
     return handlers.launchAgentInvocation({ ...input, documentPath });
   });
+  handleDesktopInvoke("workspace:get-agent-command-trust", async (_event, handle) => handlers.getAgentCommandTrust(handle));
   handleDesktopInvoke("workspace:get-agent-command-launch-facts", async (_event, commandId) =>
     handlers.getAgentCommandLaunchFacts(commandId),
   );

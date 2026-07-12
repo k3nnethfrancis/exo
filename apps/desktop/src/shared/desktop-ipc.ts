@@ -18,6 +18,7 @@ export interface DesktopInvokeHandlers {
   "workspace:get-index-status": WorkspaceApi["getIndexStatus"];
   "workspace:resolve-preview-target": WorkspaceApi["resolvePreviewTarget"];
   "workspace:launch-agent-invocation": WorkspaceApi["launchAgentInvocation"];
+  "workspace:get-agent-command-trust": WorkspaceApi["getAgentCommandTrust"];
   "workspace:get-agent-command-launch-facts": WorkspaceApi["getAgentCommandLaunchFacts"];
   "workspace:test-agent-command": WorkspaceApi["testAgentCommand"];
   "workspace:end-agent-invocation": WorkspaceApi["endAgentInvocation"];

@@ -188,6 +188,12 @@ export class InvocationRunner extends EventEmitter {
     return this.authorizeAndStart(prepared);
   }
 
+  async getCommandTrust(handleInput: string) {
+    const settings = this.options.getWorkspaceSettings();
+    const command = this.resolveCommand(settings, handleInput);
+    return new AgentCommandTrustStore(this.options.trustStateRoot, settings.workspaceRoot).status(command);
+  }
+
   async endObservation(id: string): Promise<InvocationRecord | null> { return this.settle(id, "user-ended"); }
   async get(id: string): Promise<InvocationRecord | null> { return new InvocationStore(this.options.getWorkspaceSettings().workspaceRoot).readRecord(id); }
   async review(id: string): Promise<InvocationRecord | null> { return this.get(id); }

@@ -10,6 +10,7 @@ import {
 } from "@exo/core";
 
 import type { AgentCommandLaunchFacts } from "../shared/api";
+import { commandEnvironment } from "./command-environment";
 
 export async function inspectAgentCommandLaunchFacts(
   command: AgentCommand,
@@ -37,7 +38,7 @@ export async function inspectAgentCommandLaunchFacts(
 
   const [cwdReady, executablePath] = await Promise.all([
     directoryExists(derived.cwd),
-    resolveExecutable(executableToken(command.command), derived.cwd, environment.PATH),
+    resolveExecutable(executableToken(command.command), derived.cwd, commandEnvironment(environment).PATH),
   ]);
   const executable = executableToken(command.command);
   const executableReady = executablePath !== null;

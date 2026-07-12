@@ -48,6 +48,24 @@ describe("agent command launch facts", () => {
     expect(facts).toMatchObject({ cwdReady: false, executableReady: false, launchable: false, block: "cwd-missing" });
   });
 
+  it("finds a user-installed command from a minimal packaged-app PATH", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-command-facts-"));
+    temporaryRoots.push(root);
+    const localBin = path.join(root, ".local", "bin");
+    const executable = path.join(localBin, "claude");
+    await mkdir(localBin, { recursive: true });
+    await writeFile(executable, "#!/bin/sh\nexit 0\n");
+    await chmod(executable, 0o755);
+
+    const facts = await inspectAgentCommandLaunchFacts(
+      createDefaultClaudeAgentCommand(),
+      { kind: "cli", workspaceRoot: root },
+      { HOME: root, PATH: "/usr/bin:/bin" },
+    );
+
+    expect(facts).toMatchObject({ executablePath: executable, executableReady: true, launchable: true });
+  });
+
   it("extracts quoted executable tokens without interpreting the shell command", () => {
     expect(executableToken("'/Applications/Fake Agent/bin/fake' --test")).toBe("/Applications/Fake Agent/bin/fake");
     expect(executableToken("fake\\ agent --test")).toBe("fake agent");

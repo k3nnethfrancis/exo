@@ -15,12 +15,13 @@ import type { AppearanceMode, ResolvedAppearance } from "./appearance";
 import { EditorPane, type EditorPaneState } from "./components/EditorPane";
 import { BrowserPane } from "./components/BrowserPane";
 import { InspectorDock } from "./components/InspectorDock";
+import { InvocationAuthorizationDialog } from "./components/InvocationAuthorizationDialog";
 import { PathList } from "./components/PathList";
 import { ShellLayout } from "./components/ShellLayout";
 import { TerminalDock } from "./components/TerminalDock";
 import { WorkspaceSettingsDialog } from "./components/WorkspaceSettingsDialog";
 import { useAppKeybindings } from "./hooks/useAppKeybindings";
-import { useOpenDocuments } from "./hooks/useOpenDocuments";
+import { useOpenDocuments, type OpenEditorDocument } from "./hooks/useOpenDocuments";
 import { usePaneDropOrchestration } from "./hooks/usePaneDropOrchestration";
 import { useShellLayout } from "./hooks/useShellLayout";
 import { useTerminalSessions } from "./hooks/useTerminalSessions";
@@ -57,6 +58,14 @@ import { addPreviewTab, closePreviewTab, EMPTY_PREVIEW_TABS, selectPreviewTab, u
 
 type ZoomSurface = "editor" | "terminal" | "explorer";
 
+interface PendingInvocationAuthorization {
+  command: AgentCommand;
+  cwd: string;
+  document: OpenEditorDocument;
+  draft: { handle: string; message: string };
+  fingerprint: string | null;
+}
+
 const NOTE_TREE_MAX_DEPTH = 3;
 export function App() {
   const workspaceTrees = useWorkspaceTrees({ noteTreeMaxDepth: NOTE_TREE_MAX_DEPTH });
@@ -71,6 +80,7 @@ export function App() {
   const [invocationReview, setInvocationReview] = useState<{
     record: InvocationRecord;
   } | null>(null);
+  const [pendingInvocationAuthorization, setPendingInvocationAuthorization] = useState<PendingInvocationAuthorization | null>(null);
   const [keptInvocationConflicts, setKeptInvocationConflicts] = useState<Set<string>>(() => new Set());
   const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null);
   const [folderIndexStatus, setFolderIndexStatus] = useState<FolderIndexStatus | null>(null);
@@ -403,56 +413,50 @@ export function App() {
     }
     const command = workspaceSettingsRef.current?.agentCommands?.find((entry) => entry.handle === draft.handle)
       ?? (draft.handle === "claude" ? defaultClaudeAgentCommand() : undefined);
+    if (!command) {
+      window.alert(`No AgentCommand is configured for @${draft.handle}.`);
+      return;
+    }
     const cwd = command?.cwdPolicy === "note_dir"
       ? dirname(document.filePath)
       : command?.cwdPolicy === "fixed"
         ? command.fixedCwd ?? workspaceSettingsRef.current?.workspaceRoot ?? ""
         : workspaceSettingsRef.current?.workspaceRoot ?? "";
-    const fingerprint = command ? await agentCommandExecutableFingerprintForRenderer(command) : null;
-    const confirmed = window.confirm([
-      `Run ${command?.label ?? `@${draft.handle}`} on this document?`,
-      "",
-      `Document: ${document.filePath}`,
-      `Shell: /bin/zsh -lc "${command?.command ?? `@${draft.handle}`}"`,
-      `Cwd: ${cwd || "(workspace root)"}`,
-      fingerprint ? `Fingerprint: ${fingerprint}` : "Fingerprint: unavailable until the command is configured",
-      "",
-      "This command runs as native code on your machine. Exo does not sandbox it.",
-      "The agent can edit files directly. Exo will observe this document and highlight changes seen during the invocation.",
-      "",
-      draft.message,
-    ].join("\n"));
-    if (!confirmed) {
+    const fingerprint = await agentCommandExecutableFingerprintForRenderer(command);
+    let trusted: boolean;
+    try {
+      trusted = (await window.exo.workspace.getAgentCommandTrust(draft.handle)).trusted;
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : String(error));
       return;
     }
+    const pending = { command, cwd, document, draft, fingerprint };
+    if (!trusted) {
+      setPendingInvocationAuthorization(pending);
+      return;
+    }
+    await startInlineAgentInvocation(pending, false);
+  }
+
+  async function startInlineAgentInvocation(pending: PendingInvocationAuthorization, persistTrust: boolean) {
     try {
-      if (document.dirty) {
-        await saveDocument(document.filePath);
+      if (pending.document.dirty) {
+        await saveDocument(pending.document.filePath);
       }
-      const persistTrust = command
-        ? window.confirm([
-            `Trust ${command.label} for future Exo launches?`,
-            "",
-            `Shell: /bin/zsh -lc "${command.command}"`,
-            `Cwd: ${cwd || "(workspace root)"}`,
-            `Fingerprint: ${fingerprint}`,
-            "",
-            "Choose OK only if you want Exo to remember this command trust for this workspace. Choose Cancel to run it once without saving trust.",
-          ].join("\n"))
-        : false;
       const result = await window.exo.workspace.launchAgentInvocation({
-        handle: draft.handle,
-        documentPath: document.filePath,
-        mentionText: `@${draft.handle}`,
-        message: draft.message,
-        documentFrontmatter: document.frontmatter,
-        documentBody: document.body,
+        handle: pending.draft.handle,
+        documentPath: pending.document.filePath,
+        mentionText: `@${pending.draft.handle}`,
+        message: pending.draft.message,
+        documentFrontmatter: pending.document.frontmatter,
+        documentBody: pending.document.body,
         allowUntrustedOneShot: !persistTrust,
         persistTrust,
       });
       terminalState.adoptExternalSessions([result.terminal], { activateLatest: true });
       setKeptInvocationConflicts(new Set());
       setInvocationReview({ record: result.invocation });
+      setPendingInvocationAuthorization(null);
     } catch (error) {
       window.alert(error instanceof Error ? error.message : String(error));
     }
@@ -1188,6 +1192,19 @@ export function App() {
             </div>
           </div>
         </div>
+      ) : null}
+
+      {pendingInvocationAuthorization ? (
+        <InvocationAuthorizationDialog
+          command={pendingInvocationAuthorization.command.command}
+          commandLabel={pendingInvocationAuthorization.command.label}
+          cwd={pendingInvocationAuthorization.cwd || "Workspace root"}
+          documentPath={pendingInvocationAuthorization.document.filePath}
+          fingerprint={pendingInvocationAuthorization.fingerprint}
+          message={pendingInvocationAuthorization.draft.message}
+          onCancel={() => setPendingInvocationAuthorization(null)}
+          onRun={(persistTrust) => void startInlineAgentInvocation(pendingInvocationAuthorization, persistTrust)}
+        />
       ) : null}
 
       {workspaceSettingsDialog ? (

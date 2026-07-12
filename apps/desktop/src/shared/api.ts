@@ -16,6 +16,7 @@ import type {
   WorkspaceSettingsSnapshot,
   WorkspaceSearchResults,
   InvocationRecord,
+  AgentCommandTrustStatus,
 } from "@exo/core";
 
 export type TerminalKind = "shell";
@@ -148,6 +149,7 @@ export interface DesktopApi {
     getIndexStatus: () => Promise<IndexStatus>;
     resolvePreviewTarget: (target: string) => Promise<{ url: string; source: "url" | "file" }>;
     launchAgentInvocation: (input: LaunchAgentInvocationInput) => Promise<LaunchAgentInvocationResponse>;
+    getAgentCommandTrust: (handle: string) => Promise<AgentCommandTrustStatus>;
     getAgentCommandLaunchFacts: (commandId: string) => Promise<AgentCommandLaunchFacts>;
     testAgentCommand: (input: TestAgentCommandInput) => Promise<LaunchAgentInvocationResponse>;
     endAgentInvocation: (invocationId: string) => Promise<InvocationRecord | null>;

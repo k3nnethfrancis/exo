@@ -302,6 +302,7 @@ function registerIpcHandlers() {
       mentionText: input.mentionText, message: input.message,
       allowUntrustedOneShot: input.allowUntrustedOneShot, persistTrust: input.persistTrust,
     })),
+    getAgentCommandTrust: (handle) => invocationRunner.getCommandTrust(handle),
     getAgentCommandLaunchFacts: (commandId) => invocationRunner.getCommandLaunchFacts(commandId),
     testAgentCommand: (input) => invocationRunner.testCommand(input.commandId, input.expectedFingerprint),
     endAgentInvocation: (invocationId) => invocationRunner.endObservation(invocationId),

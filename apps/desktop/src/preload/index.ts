@@ -38,6 +38,7 @@ const api: DesktopApi = {
     getIndexStatus: () => invokeDesktop("workspace:get-index-status"),
     resolvePreviewTarget: (target) => invokeDesktop("workspace:resolve-preview-target", target),
     launchAgentInvocation: (input) => invokeDesktop("workspace:launch-agent-invocation", input),
+    getAgentCommandTrust: (handle) => invokeDesktop("workspace:get-agent-command-trust", handle),
     getAgentCommandLaunchFacts: (commandId) => invokeDesktop("workspace:get-agent-command-launch-facts", commandId),
     testAgentCommand: (input) => invokeDesktop("workspace:test-agent-command", input),
     endAgentInvocation: (invocationId) => invokeDesktop("workspace:end-agent-invocation", invocationId),

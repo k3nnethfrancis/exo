@@ -19,6 +19,7 @@ import type { TerminalProcess, TerminalProcessFactory } from "./terminal-runtime
 import { DirectPtyProcessFactory } from "./terminal-runtime-pty";
 import { TerminalGeometryService } from "./terminal-geometry-service";
 import { TerminalTailCache, normalizeTailLineLimit } from "./terminal-tail-cache";
+import { commandEnvironment } from "./command-environment";
 
 interface TerminalRecord {
   info: TerminalSessionInfo;
@@ -119,7 +120,7 @@ export class TerminalManager extends EventEmitter {
       command: shell.command,
       args: shell.args,
       env: {
-        ...process.env,
+        ...commandEnvironment(),
       },
     });
   }
@@ -136,7 +137,7 @@ export class TerminalManager extends EventEmitter {
       args: ["-lc", command.command],
       displayCommand: command.command,
       env: {
-        ...process.env,
+        ...commandEnvironment(),
         EXO_WORKSPACE_ROOT: workspace.workspaceRoot,
         EXO_NOTE_ROOTS: workspace.noteRoots.map((root) => root.path).join(path.delimiter),
         EXO_DEFAULT_TERMINAL_CWD: workspace.defaultTerminalCwd,
