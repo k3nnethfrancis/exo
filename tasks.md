@@ -60,7 +60,9 @@ Exo scopes a workspace to its Note Roots only. It does not import, attach, or ma
 
 - [ ] Reduce stale tmux/transcript/plugin/harness/MCP plans and completion-plan families to the canonical docs or delete them.
 - [ ] Delete Attached Folder / Project Root configuration, UI, IPC, and documentation rather than renaming the old project-context model.
-- [ ] Make `README.md`, `docs/architecture.md`, `AGENTS.md`, `CONTEXT.md`, `issues.md`, and `CHANGELOG.md` describe only current behavior.
+- [ ] Run a type and data-model review: every durable type, persisted setting, IPC payload, and filesystem object has one current product meaning, an owning module, validation/normalization where needed, and no legacy aliases or dead fields.
+- [ ] Refresh the documentation system as one coherent set: vision (`ashby.md`), `CONTEXT.md`, README, architecture, feature/interaction docs, ADRs, roadmap, tasks, issues, and changelog must agree with the shipped note-native product and link to their canonical source rather than duplicate stale plans.
+- [ ] Add a compact feature/data-model coverage index so a future worker can locate the implementation, tests, user-facing behavior, and source-of-truth documentation for every retained feature.
 - [ ] Review the untracked Command-readiness draft files and the current dirty documentation intentionally before the branch is declared clean.
 
 ## Next — The First Exograph Vertical Slice
